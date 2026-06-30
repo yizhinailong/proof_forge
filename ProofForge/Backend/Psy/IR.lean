@@ -30,7 +30,9 @@ def capitalizedRefName (module : Module) : String :=
   s!"{module.name}Ref"
 
 def testFunctionName (module : Module) : String :=
-  if module.name == "NestedAggregateProbe" then
+  if module.name == "StorageNestedAggregateProbe" then
+    "test_storage_nested_aggregate_probe_fixture"
+  else if module.name == "NestedAggregateProbe" then
     "test_nested_aggregate_probe_fixture"
   else if module.name == "AbiAggregateProbe" then
     "test_abi_aggregate_probe_fixture"
@@ -90,12 +92,14 @@ def contextFunction : ContextField → String
 def fieldVisibility (isPublic : Bool) : String :=
   if isPublic then "pub " else ""
 
-def structFieldDecl (field : StructField) : Except LowerError String := do
-  .ok s!"{fieldVisibility field.isPublic}{field.id}: {← valueTypeName field.type},"
+def structFieldDecl (field : StructField) : Except LowerError (Array String) := do
+  let attrs := if field.isRef then #["#[ref]"] else #[]
+  .ok <| attrs ++ #[s!"{fieldVisibility field.isPublic}{field.id}: {← valueTypeName field.type},"]
 
 def structDecl (decl : StructDecl) : Except LowerError String := do
   let deriveLines := if decl.deriveStorage then #["#[derive(Storage)]"] else #[]
-  let fields ← decl.fields.mapM structFieldDecl
+  let fieldBlocks ← decl.fields.mapM structFieldDecl
+  let fields := fieldBlocks.foldl (fun acc block => acc ++ block) #[]
   .ok <| lines <|
     deriveLines ++ #[
       s!"{fieldVisibility decl.isPublic}struct {decl.name} " ++ "{"
@@ -124,6 +128,9 @@ def findState? (module : Module) (stateId : String) : Option StateDecl :=
 
 def findStruct? (module : Module) (name : String) : Option StructDecl :=
   module.structs.find? fun decl => decl.name == name
+
+def findStructField? (decl : StructDecl) (fieldName : String) : Option StructField :=
+  decl.fields.find? fun field => field.id == fieldName
 
 def requireScalarState (module : Module) (stateId : String) : Except LowerError Unit :=
   match findState? module stateId with
@@ -192,6 +199,53 @@ def requireStructArrayState (module : Module) (stateId fieldName : String) : Exc
           .error { message := s!"state `{stateId}` is map storage, not struct array storage" }
   | none => .error { message := s!"unknown struct array state `{stateId}`" }
 
+def storagePathStartType (module : Module) (stateId : String) : Except LowerError ValueType :=
+  match findState? module stateId with
+  | some state =>
+      match state.kind with
+      | .scalar => .ok state.type
+      | .array length =>
+          if length == 0 then
+            .error { message := s!"array state `{stateId}` must have non-zero length" }
+          else
+            .ok (.fixedArray state.type length)
+      | .map _ _ =>
+          .error { message := s!"storage path state `{stateId}` is map storage; map storage paths are not supported by Psy IR v0" }
+  | none => .error { message := s!"unknown storage path state `{stateId}`" }
+
+partial def resolveStoragePathSegments (module : Module) : ValueType → List StoragePathSegment → Except LowerError ValueType
+  | current, [] => .ok current
+  | .structType typeName, .field fieldName :: rest => do
+      let some decl := findStruct? module typeName
+        | .error { message := s!"storage path references unknown struct `{typeName}`" }
+      if !decl.deriveStorage then
+        .error { message := s!"storage path traverses struct `{typeName}`, but the struct is not marked deriveStorage" }
+      let some field := findStructField? decl fieldName
+        | .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
+      match field.type with
+      | .structType _ =>
+          if !field.isRef then
+            .error { message := s!"storage path field `{fieldName}` in struct `{typeName}` must be marked ref to access nested storage" }
+          else
+            resolveStoragePathSegments module field.type rest
+      | _ =>
+          resolveStoragePathSegments module field.type rest
+  | other, .field fieldName :: _ =>
+      .error { message := s!"storage path field `{fieldName}` cannot be selected from `{other.name}`" }
+  | .fixedArray element length, .index _ :: rest => do
+      if length == 0 then
+        .error { message := "storage path fixed array segment must have non-zero length" }
+      else
+        resolveStoragePathSegments module element rest
+  | other, .index _ :: _ =>
+      .error { message := s!"storage path index cannot be selected from `{other.name}`" }
+
+def resolveStoragePathType (module : Module) (stateId : String) (path : Array StoragePathSegment) : Except LowerError ValueType := do
+  if path.isEmpty then
+    .error { message := s!"storage path for state `{stateId}` must contain at least one segment" }
+  let start ← storagePathStartType module stateId
+  resolveStoragePathSegments module start path.toList
+
 mutual
   partial def lowerExpr (module : Module) : Expr → Except LowerError String
     | .literal value => .ok (literal value)
@@ -251,8 +305,23 @@ mutual
         .ok s!"c.{stateId}.{fieldName}.get()"
     | .storageStructFieldWrite _ _ _ =>
         .error { message := "storage.struct.field.write is a statement effect, not an expression" }
+    | .storagePathRead stateId path => do
+        discard <| resolveStoragePathType module stateId path
+        .ok s!"{← lowerStoragePath module stateId path}.get()"
+    | .storagePathWrite _ _ _ =>
+        .error { message := "storage.path.write is a statement effect, not an expression" }
     | .contextRead field =>
         .ok (contextFunction field)
+
+  partial def lowerStoragePathSegment (module : Module) : StoragePathSegment → Except LowerError String
+    | .field fieldName => .ok s!".{fieldName}"
+    | .index index => do
+        .ok s!"[{← lowerExpr module index}]"
+
+  partial def lowerStoragePath (module : Module) (stateId : String) (path : Array StoragePathSegment) : Except LowerError String := do
+    discard <| resolveStoragePathType module stateId path
+    let segments ← path.mapM (lowerStoragePathSegment module)
+    .ok s!"c.{stateId}{String.intercalate "" segments.toList}"
 end
 
 def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array String)
@@ -286,6 +355,11 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
   | .storageStructFieldWrite stateId fieldName value => do
       requireStructScalarState module stateId fieldName
       .ok #[s!"c.{stateId}.{fieldName} = {← lowerExpr module value};"]
+  | .storagePathRead _ _ =>
+      .error { message := "storage.path.read must be used as an expression" }
+  | .storagePathWrite stateId path value => do
+      discard <| resolveStoragePathType module stateId path
+      .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExpr module value};"]
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
 
@@ -380,6 +454,19 @@ def validateStructs (module : Module) : Except LowerError Unit := do
     if decl.fields.isEmpty then
       .error { message := s!"struct `{decl.name}` must declare at least one field" }
     for field in decl.fields do
+      if field.isRef then
+        if !decl.deriveStorage then
+          .error { message := s!"field `{field.id}` in struct `{decl.name}` is marked ref, but the struct is not marked deriveStorage" }
+        match field.type with
+        | .structType typeName =>
+            match findStruct? module typeName with
+            | some targetDecl =>
+                if !targetDecl.deriveStorage then
+                  .error { message := s!"field `{field.id}` in struct `{decl.name}` references struct `{typeName}`, but the referenced struct is not marked deriveStorage" }
+            | none =>
+                .error { message := s!"field `{field.id}` in struct `{decl.name}` references unknown struct `{typeName}`" }
+        | other =>
+            .error { message := s!"field `{field.id}` in struct `{decl.name}` is marked ref, but has non-struct type `{other.name}`" }
       validateValueType module field.type
 
 def validateEntrypoints (module : Module) : Except LowerError Unit := do
@@ -533,6 +620,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "nested_update_sum" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::nested_update_sum(), 51, \"nested aggregate assignment updates selected field\");"
+    ]
+  else if module.name == "StorageNestedAggregateProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "storage_nested_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::storage_nested_lifecycle(), 220, \"storage nested aggregate path updates selected fields\");"
     ]
   else
     .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }

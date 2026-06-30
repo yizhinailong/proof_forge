@@ -17,6 +17,69 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy StorageNestedAggregateProbe Storage Paths
+
+Commit: feature commit for storage nested aggregate Psy IR coverage
+
+Summary:
+
+- Added generic storage path read/write effects to the portable IR.
+- Added `StructField.isRef` so the IR can explicitly model Psy `#[ref]`
+  fields for nested storage references.
+- Added Psy lowering for storage paths such as `c.person.profile.age` and
+  `c.people[1].profile.age`, plus validation for empty paths and missing
+  nested `#[ref]` markers.
+- Kept EVM IR v0 behavior explicit by rejecting storage path effects.
+- Added `ProofForge.IR.Examples.StorageNestedAggregateProbe`, covering scalar
+  struct storage and fixed storage arrays of structs.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
+```
+
+- Added `Examples/Psy/StorageNestedAggregateProbe.golden.psy`.
+- Added `scripts/psy/storage-nested-aggregate-smoke.sh`, which generates a
+  temporary Dargo package, runs `dargo test --file`, `dargo compile`,
+  `dargo execute`, `dargo generate-abi`, and validates
+  `proof-forge-artifact.json`.
+- Extended `Tests/PsyDiagnostics.lean` with invalid storage path cases.
+- Added CI coverage for the StorageNestedAggregateProbe Psy golden source
+  snapshot.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
+diff -u Examples/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/storage-nested-aggregate-smoke.sh
+scripts/psy/diagnostic-smoke.sh
+```
+
+Result:
+
+- Generated StorageNestedAggregateProbe source matches the checked-in golden
+  fixture.
+- `scripts/psy/storage-nested-aggregate-smoke.sh` generated DPN JSON, ABI JSON,
+  execute log, and `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [220]` for
+  `storage_nested_lifecycle`.
+- `scripts/psy/diagnostic-smoke.sh` passed all 12 diagnostic cases.
+
+Known limitations:
+
+- Storage path lowering intentionally rejects map storage paths until a stable
+  Psy idiom is identified and covered by an upstream-style fixture.
+- This does not yet produce deploy JSON or exercise a live Psy node/prover.
+
+Next step:
+
+- Research deploy JSON/live node execution for Psy artifacts, or continue
+  expanding expression/path coverage behind diagnostic gates.
+
 ### Psy NestedAggregateProbe Mixed Aggregate Updates
 
 Commit: feature commit for nested aggregate Psy IR coverage

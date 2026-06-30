@@ -33,6 +33,7 @@ structure StructField where
   id : String
   type : ValueType
   isPublic : Bool := true
+  isRef : Bool := false
   deriving Repr
 
 structure StructDecl where
@@ -103,7 +104,14 @@ mutual
     | storageArrayStructFieldWrite (stateId : String) (index : Expr) (fieldName : String) (value : Expr)
     | storageStructFieldRead (stateId fieldName : String)
     | storageStructFieldWrite (stateId fieldName : String) (value : Expr)
+    | storagePathRead (stateId : String) (path : Array StoragePathSegment)
+    | storagePathWrite (stateId : String) (path : Array StoragePathSegment) (value : Expr)
     | contextRead (field : ContextField)
+    deriving Repr
+
+  inductive StoragePathSegment where
+    | field (fieldName : String)
+    | index (index : Expr)
     deriving Repr
 end
 
@@ -146,6 +154,8 @@ def Effect.capability : Effect → ProofForge.Target.Capability
   | .storageArrayStructFieldWrite _ _ _ _ => .storageArray
   | .storageStructFieldRead _ _ => .storageScalar
   | .storageStructFieldWrite _ _ _ => .storageScalar
+  | .storagePathRead _ _ => .storageScalar
+  | .storagePathWrite _ _ _ => .storageScalar
   | .contextRead field => field.capability
 
 mutual
@@ -178,7 +188,13 @@ mutual
     | .storageArrayStructFieldWrite _ index _ value => #[.dataStruct] ++ index.capabilities ++ value.capabilities
     | .storageStructFieldRead _ _ => #[.dataStruct]
     | .storageStructFieldWrite _ _ value => #[.dataStruct] ++ value.capabilities
+    | .storagePathRead _ path => path.foldl (fun acc segment => acc ++ segment.capabilities) #[]
+    | .storagePathWrite _ path value => path.foldl (fun acc segment => acc ++ segment.capabilities) value.capabilities
     | .contextRead _ => #[]
+
+  partial def StoragePathSegment.capabilities : StoragePathSegment → Array ProofForge.Target.Capability
+    | .field _ => #[.dataStruct]
+    | .index index => #[.dataFixedArray] ++ index.capabilities
 end
 
 def StructField.capabilities (field : StructField) : Array ProofForge.Target.Capability :=

@@ -131,6 +131,62 @@ def invalidAssignTargetModule : Module := {
   ]]
 }
 
+def profileStorageStruct : StructDecl := {
+  name := "Profile"
+  deriveStorage := true
+  fields := #[
+    { id := "age", type := .u64 }
+  ]
+}
+
+def personStorageStructNoRef : StructDecl := {
+  name := "Person"
+  deriveStorage := true
+  fields := #[
+    { id := "profile", type := .structType "Profile" }
+  ]
+}
+
+def personStorageStructWithRef : StructDecl := {
+  name := "Person"
+  deriveStorage := true
+  fields := #[
+    { id := "profile", type := .structType "Profile", isRef := true }
+  ]
+}
+
+def personStorageState : StateDecl := {
+  id := "person"
+  kind := .scalar
+  type := .structType "Person"
+}
+
+def emptyStoragePathModule : Module := {
+  name := "BadEmptyStoragePath"
+  structs := #[profileStorageStruct, personStorageStructWithRef]
+  state := #[personStorageState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .u64
+    body := #[
+      .return (.effect (.storagePathRead "person" #[]))
+    ]
+  }]
+}
+
+def missingRefStoragePathModule : Module := {
+  name := "BadMissingRefStoragePath"
+  structs := #[profileStorageStruct, personStorageStructNoRef]
+  state := #[personStorageState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .u64
+    body := #[
+      .return (.effect (.storagePathRead "person" #[.field "profile", .field "age"]))
+    ]
+  }]
+}
+
 def renderError? (module : Module) : Option String :=
   match ProofForge.Backend.Psy.IR.renderModule module with
   | .ok _ => none
@@ -186,6 +242,16 @@ def cases : Array (String × Module × String) := #[
     "invalid assignment target",
     invalidAssignTargetModule,
     "assignment target must be a local, array index, or field path"
+  ),
+  (
+    "empty storage path",
+    emptyStoragePathModule,
+    "storage path for state `person` must contain at least one segment"
+  ),
+  (
+    "missing nested storage ref",
+    missingRefStoragePathModule,
+    "storage path field `profile` in struct `Person` must be marked ref to access nested storage"
   )
 ]
 

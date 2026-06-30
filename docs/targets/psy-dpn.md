@@ -12,9 +12,11 @@ Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
 ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe,
 StructProbe, StructArrayProbe, AbiAggregateProbe, and NestedAggregateProbe
-fixtures. The target is not production-ready and does not yet cover
-storage-backed nested aggregate updates, deploy JSON, live Psy node/prover
-deployment, or broad Lean-to-IR extraction.
+fixtures. It also has an experimental StorageNestedAggregateProbe fixture for
+storage-backed nested aggregate updates across `#[ref]` struct fields and
+storage arrays. The target is not production-ready and does not yet cover map
+storage paths, deploy JSON, live Psy node/prover deployment, or broad
+Lean-to-IR extraction.
 
 ## Summary
 
@@ -559,6 +561,26 @@ field/index targets such as `families[1].children[0].age = 31`. The fixture
 uses an array of `Family` structs, each with a fixed array of `Member` structs,
 and verifies the updated nested field through Dargo execution.
 
+Current StorageNestedAggregateProbe output layout:
+
+```text
+build/psy/
+  StorageNestedAggregateProbe.psy
+  dargo-storage-nested-aggregate/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_storage_nested_aggregate.json
+    target/StorageNestedAggregateProbe.json
+    target/storage-nested-aggregate-execute.log
+    target/proof-forge-artifact.json
+```
+
+`StorageNestedAggregateProbe` extends the portable IR with generic storage path
+segments. It lowers nested storage references such as `c.person.profile.age`
+and `c.people[1].profile.age`, and requires struct-to-struct storage traversal
+to use Psy's `#[ref]` field marker. This keeps the IR explicit about the
+difference between value fields and nested storage references.
+
 ## Smoke Test Strategy
 
 Experimental smoke does not require a live Psy network.
@@ -718,6 +740,20 @@ It verifies local nested aggregate mutation under Dargo local execution:
 The script emits and validates
 `build/psy/dargo-nested-aggregate/target/proof-forge-artifact.json`.
 
+The same validation shape is also implemented for
+`StorageNestedAggregateProbe`:
+
+```sh
+scripts/psy/storage-nested-aggregate-smoke.sh
+```
+
+It verifies storage-backed nested aggregate updates under Dargo local execution:
+
+- `storage_nested_lifecycle`: `result_vm: [220]`
+
+The script emits and validates
+`build/psy/dargo-storage-nested-aggregate/target/proof-forge-artifact.json`.
+
 All Psy smoke scripts run
 `scripts/psy/validate-artifact-metadata.py` after metadata generation. The
 validator checks schema version, target id, target family, artifact kind,
@@ -731,8 +767,8 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts ten explicit diagnostics for malformed or unsupported Psy
-IR shapes.
+It currently asserts twelve explicit diagnostics for malformed or unsupported
+Psy IR shapes, including invalid storage paths.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -815,8 +851,13 @@ Deployment smoke:
   validation shape.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
-- Remaining: add storage-backed nested aggregate updates from the upstream
-  syntax corpus.
+- Done: add generic storage path read/write effects, storage `#[ref]` field
+  metadata, and `StorageNestedAggregateProbe` for scalar struct and storage
+  array nested updates.
+- Done: add `scripts/psy/storage-nested-aggregate-smoke.sh` with the same
+  Dargo validation shape.
+- Remaining: add map storage path support only after a stable Psy idiom is
+  identified, then move to deploy JSON/live node research.
 
 ### Phase C: Metadata and Scenario Parity
 

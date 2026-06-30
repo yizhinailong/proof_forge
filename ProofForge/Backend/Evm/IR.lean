@@ -91,6 +91,10 @@ mutual
         .error { message := "storage.struct.field.read is not supported by IR EVM v0" }
     | .storageStructFieldWrite _ _ _ =>
         .error { message := "storage.struct.field.write is not supported by IR EVM v0" }
+    | .storagePathRead _ _ =>
+        .error { message := "storage.path.read is not supported by IR EVM v0" }
+    | .storagePathWrite _ _ _ =>
+        .error { message := "storage.path.write is not supported by IR EVM v0" }
     | .contextRead field =>
         .error { message := s!"context field `{field.name}` is not supported by IR EVM v0" }
 end
@@ -122,6 +126,10 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       .error { message := "storage.struct.field.read must be used as an expression, but IR EVM v0 does not support struct storage" }
   | .storageStructFieldWrite _ _ _ =>
       .error { message := "storage.struct.field.write is not supported by IR EVM v0" }
+  | .storagePathRead _ _ =>
+      .error { message := "storage.path.read must be used as an expression, but IR EVM v0 does not support storage paths" }
+  | .storagePathWrite _ _ _ =>
+      .error { message := "storage.path.write is not supported by IR EVM v0" }
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
 

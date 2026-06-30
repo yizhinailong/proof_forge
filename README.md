@@ -172,6 +172,14 @@ lake env proof-forge --emit-nested-aggregate-ir-psy -o build/psy/NestedAggregate
 scripts/psy/nested-aggregate-smoke.sh
 ```
 
+Validate the Psy/DPN storage nested aggregate fixture, which exercises nested
+storage paths across `#[ref]` struct fields and storage arrays:
+
+```sh
+lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
+scripts/psy/storage-nested-aggregate-smoke.sh
+```
+
 Validate the Psy/DPN unsupported-shape diagnostics:
 
 ```sh
