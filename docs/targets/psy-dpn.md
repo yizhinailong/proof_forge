@@ -10,10 +10,10 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
-ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe, and
-StructProbe fixtures. The target is not production-ready and does not yet cover
-nested struct arrays, deploy JSON, live Psy node/prover deployment, or broad
-Lean-to-IR extraction.
+ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe,
+StructProbe, and StructArrayProbe fixtures. The target is not production-ready
+and does not yet cover deeply nested mixed aggregate updates, deploy JSON, live
+Psy node/prover deployment, or broad Lean-to-IR extraction.
 
 ## Summary
 
@@ -481,6 +481,27 @@ and scalar storage struct field read/write effects. Storage struct field reads
 lower through `.get()` when used as arithmetic values, while writes use Psy's
 field assignment sugar: `c.current.y = 19`.
 
+Current StructArrayProbe output layout:
+
+```text
+build/psy/
+  StructArrayProbe.psy
+  dargo-struct-array/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_struct_array.json
+    target/StructArrayProbe.json
+    target/struct-array-execute.log
+    target/proof-forge-artifact.json
+```
+
+`StructArrayProbe` combines the struct and fixed-array slices using upstream
+idioms from `tests/array_test.psy`, `tests/array_ref_struct_index_test.psy`,
+and `tests/array_ref_struct_bulk_assign_test.psy`. It covers local
+`[Person; 2]` struct arrays, field access through `people[0].age`, storage
+arrays of structs, whole-element writes such as `c.people[0] = new Person {
+... }`, and field writes such as `c.people[1].score = 92`.
+
 ## Smoke Test Strategy
 
 Experimental smoke does not require a live Psy network.
@@ -597,6 +618,20 @@ execution:
 The script emits and validates
 `build/psy/dargo-struct/target/proof-forge-artifact.json`.
 
+The same validation shape is also implemented for `StructArrayProbe`:
+
+```sh
+scripts/psy/struct-array-smoke.sh
+```
+
+It verifies struct-array value and storage lowering under Dargo local execution:
+
+- `local_struct_array_sum`: `result_vm: [100]`
+- `storage_struct_array_lifecycle`: `result_vm: [102]`
+
+The script emits and validates
+`build/psy/dargo-struct-array/target/proof-forge-artifact.json`.
+
 All Psy smoke scripts run
 `scripts/psy/validate-artifact-metadata.py` after metadata generation. The
 validator checks schema version, target id, target family, artifact kind,
@@ -663,9 +698,14 @@ Deployment smoke:
   access, and scalar storage struct field read/write lowering aligned with
   upstream Psy struct and storage reference idioms.
 - Done: add `scripts/psy/struct-smoke.sh` with the same Dargo validation shape.
+- Done: add `StructArrayProbe` with fixed arrays of struct values and storage
+  arrays of structs aligned with upstream Psy array/struct reference idioms.
+- Done: add `scripts/psy/struct-array-smoke.sh` with the same Dargo validation
+  shape.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
-- Remaining: add nested struct-array coverage from the upstream syntax corpus.
+- Remaining: add deeper nested mixed aggregate updates from the upstream syntax
+  corpus.
 
 ### Phase C: Metadata and Scenario Parity
 
@@ -711,10 +751,13 @@ Deployment smoke:
   machine with the Psy toolchain.
 - Generated StructProbe `.psy` package compiles with `dargo compile` on a
   machine with the Psy toolchain.
+- Generated StructArrayProbe `.psy` package compiles with `dargo compile` on a
+  machine with the Psy toolchain.
 - Dargo execution proves the expected Counter lifecycle, context-read result,
   deterministic hash outputs, map lifecycle output, and assertion-protected
   checked sum output, plus the bounded loop count result and fixed-array
-  literal/storage results plus struct literal/storage results.
+  literal/storage results, struct literal/storage results, and struct-array
+  literal/storage results.
 - Artifact metadata records:
   - target id `psy-dpn`
   - target family and artifact kind

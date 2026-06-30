@@ -17,6 +17,67 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy StructArrayProbe Struct Arrays
+
+Commit: feature commit for struct-array Psy IR coverage
+
+Summary:
+
+- Extended portable IR storage effects with indexed storage array struct field
+  read/write nodes.
+- Extended Psy sourcegen to lower storage arrays of structs, whole struct array
+  element writes, and indexed struct field reads through `.get()`.
+- Extended Psy state validation so fixed storage arrays can use `deriveStorage`
+  struct element types.
+- Kept EVM IR v0 behavior explicit by rejecting storage array struct field
+  effects.
+- Added `ProofForge.IR.Examples.StructArrayProbe`, covering local `[Person; 2]`
+  struct arrays plus fixed storage arrays of structs.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-struct-array-ir-psy -o build/psy/StructArrayProbe.psy
+```
+
+- Added `Examples/Psy/StructArrayProbe.golden.psy`.
+- Added `scripts/psy/struct-array-smoke.sh`, which generates a temporary Dargo
+  package, runs `dargo test --file`, `dargo compile`, two `dargo execute`
+  calls, `dargo generate-abi`, and validates `proof-forge-artifact.json`.
+- Added CI coverage for the StructArrayProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-struct-array-ir-psy -o build/psy/StructArrayProbe.psy
+diff -u Examples/Psy/StructArrayProbe.golden.psy build/psy/StructArrayProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/struct-array-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Generated StructArrayProbe source matches the checked-in golden fixture.
+- `scripts/psy/struct-array-smoke.sh` generated DPN JSON, ABI JSON, execute
+  log, and `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [100]` for
+  `local_struct_array_sum`.
+- `dargo execute` returned `result_vm: [102]` for
+  `storage_struct_array_lifecycle`.
+
+Known limitations:
+
+- This feature covers one-dimensional arrays of flat structs.
+- Deeply nested mixed aggregate updates still need dedicated coverage.
+- EVM IR v0 explicitly rejects struct-array storage field effects.
+
+Next step:
+
+- Add ABI-facing entrypoint aggregate parameters or return-shape validation,
+  then continue toward deployment/deploy JSON metadata.
+
 ### Psy StructProbe Struct Values And Storage
 
 Commit: feature commit for struct Psy IR coverage

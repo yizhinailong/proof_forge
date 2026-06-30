@@ -83,6 +83,10 @@ mutual
         .error { message := "storage.array.read is not supported by IR EVM v0" }
     | .storageArrayWrite _ _ _ =>
         .error { message := "storage.array.write is not supported by IR EVM v0" }
+    | .storageArrayStructFieldRead _ _ _ =>
+        .error { message := "storage.array.struct.field.read is not supported by IR EVM v0" }
+    | .storageArrayStructFieldWrite _ _ _ _ =>
+        .error { message := "storage.array.struct.field.write is not supported by IR EVM v0" }
     | .storageStructFieldRead _ _ =>
         .error { message := "storage.struct.field.read is not supported by IR EVM v0" }
     | .storageStructFieldWrite _ _ _ =>
@@ -110,6 +114,10 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       .error { message := "storage.array.read must be used as an expression, but IR EVM v0 does not support storage arrays" }
   | .storageArrayWrite _ _ _ =>
       .error { message := "storage.array.write is not supported by IR EVM v0" }
+  | .storageArrayStructFieldRead _ _ _ =>
+      .error { message := "storage.array.struct.field.read must be used as an expression, but IR EVM v0 does not support struct array storage" }
+  | .storageArrayStructFieldWrite _ _ _ _ =>
+      .error { message := "storage.array.struct.field.write is not supported by IR EVM v0" }
   | .storageStructFieldRead _ _ =>
       .error { message := "storage.struct.field.read must be used as an expression, but IR EVM v0 does not support struct storage" }
   | .storageStructFieldWrite _ _ _ =>

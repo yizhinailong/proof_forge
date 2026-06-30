@@ -99,6 +99,8 @@ mutual
     | storageMapSet (stateId : String) (key value : Expr)
     | storageArrayRead (stateId : String) (index : Expr)
     | storageArrayWrite (stateId : String) (index value : Expr)
+    | storageArrayStructFieldRead (stateId : String) (index : Expr) (fieldName : String)
+    | storageArrayStructFieldWrite (stateId : String) (index : Expr) (fieldName : String) (value : Expr)
     | storageStructFieldRead (stateId fieldName : String)
     | storageStructFieldWrite (stateId fieldName : String) (value : Expr)
     | contextRead (field : ContextField)
@@ -138,6 +140,8 @@ def Effect.capability : Effect → ProofForge.Target.Capability
   | .storageMapSet _ _ _ => .storageMap
   | .storageArrayRead _ _ => .storageArray
   | .storageArrayWrite _ _ _ => .storageArray
+  | .storageArrayStructFieldRead _ _ _ => .storageArray
+  | .storageArrayStructFieldWrite _ _ _ _ => .storageArray
   | .storageStructFieldRead _ _ => .storageScalar
   | .storageStructFieldWrite _ _ _ => .storageScalar
   | .contextRead field => field.capability
@@ -168,6 +172,8 @@ mutual
     | .storageMapSet _ key value => key.capabilities ++ value.capabilities
     | .storageArrayRead _ index => index.capabilities
     | .storageArrayWrite _ index value => index.capabilities ++ value.capabilities
+    | .storageArrayStructFieldRead _ index _ => #[.dataStruct] ++ index.capabilities
+    | .storageArrayStructFieldWrite _ index _ value => #[.dataStruct] ++ index.capabilities ++ value.capabilities
     | .storageStructFieldRead _ _ => #[.dataStruct]
     | .storageStructFieldWrite _ _ value => #[.dataStruct] ++ value.capabilities
     | .contextRead _ => #[]

@@ -30,7 +30,9 @@ def capitalizedRefName (module : Module) : String :=
   s!"{module.name}Ref"
 
 def testFunctionName (module : Module) : String :=
-  if module.name == "StructProbe" then
+  if module.name == "StructArrayProbe" then
+    "test_struct_array_probe_fixture"
+  else if module.name == "StructProbe" then
     "test_struct_probe_fixture"
   else if module.name == "ArrayProbe" then
     "test_array_probe_fixture"
@@ -165,6 +167,27 @@ def requireStructScalarState (module : Module) (stateId fieldName : String) : Ex
           .error { message := s!"state `{stateId}` is array storage, not struct scalar storage" }
   | none => .error { message := s!"unknown struct state `{stateId}`" }
 
+def requireStructArrayState (module : Module) (stateId fieldName : String) : Except LowerError Unit :=
+  match findState? module stateId with
+  | some state =>
+      match state.kind, state.type with
+      | .array _, .structType typeName => do
+          let some decl := findStruct? module typeName
+            | .error { message := s!"array state `{stateId}` references unknown struct `{typeName}`" }
+          if !decl.deriveStorage then
+            .error { message := s!"array state `{stateId}` uses struct `{typeName}`, but the struct is not marked deriveStorage" }
+          else if decl.fields.any (fun field => field.id == fieldName) then
+            .ok ()
+          else
+            .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
+      | .array _, other =>
+          .error { message := s!"array state `{stateId}` has element type `{other.name}`, not struct storage" }
+      | .scalar, _ =>
+          .error { message := s!"state `{stateId}` is scalar storage, not struct array storage" }
+      | .map _ _, _ =>
+          .error { message := s!"state `{stateId}` is map storage, not struct array storage" }
+  | none => .error { message := s!"unknown struct array state `{stateId}`" }
+
 mutual
   partial def lowerExpr (module : Module) : Expr → Except LowerError String
     | .literal value => .ok (literal value)
@@ -214,6 +237,11 @@ mutual
         .ok s!"c.{stateId}[{← lowerExpr module index}].get()"
     | .storageArrayWrite _ _ _ =>
         .error { message := "storage.array.write is a statement effect, not an expression" }
+    | .storageArrayStructFieldRead stateId index fieldName => do
+        requireStructArrayState module stateId fieldName
+        .ok s!"c.{stateId}[{← lowerExpr module index}].{fieldName}.get()"
+    | .storageArrayStructFieldWrite _ _ _ _ =>
+        .error { message := "storage.array.struct.field.write is a statement effect, not an expression" }
     | .storageStructFieldRead stateId fieldName => do
         requireStructScalarState module stateId fieldName
         .ok s!"c.{stateId}.{fieldName}.get()"
@@ -244,6 +272,11 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
   | .storageArrayWrite stateId index value => do
       requireArrayState module stateId
       .ok #[s!"c.{stateId}[{← lowerExpr module index}] = {← lowerExpr module value};"]
+  | .storageArrayStructFieldRead _ _ _ =>
+      .error { message := "storage.array.struct.field.read must be used as an expression" }
+  | .storageArrayStructFieldWrite stateId index fieldName value => do
+      requireStructArrayState module stateId fieldName
+      .ok #[s!"c.{stateId}[{← lowerExpr module index}].{fieldName} = {← lowerExpr module value};"]
   | .storageStructFieldRead _ _ =>
       .error { message := "storage.struct.field.read must be used as an expression" }
   | .storageStructFieldWrite stateId fieldName value => do
@@ -347,8 +380,19 @@ def validateState (module : Module) : Except LowerError Unit := do
           .error { message := s!"array state `{state.id}` must have non-zero length" }
         else
           pure ()
+    | .array length, .structType typeName =>
+        if length == 0 then
+          .error { message := s!"array state `{state.id}` must have non-zero length" }
+        match findStruct? module typeName with
+        | some decl =>
+            if decl.deriveStorage then
+              pure ()
+            else
+              .error { message := s!"array state `{state.id}` uses struct `{typeName}`, but the struct is not marked deriveStorage" }
+        | none =>
+            .error { message := s!"array state `{state.id}` references unknown struct `{typeName}`" }
     | .array _, valueType =>
-        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt and Hash arrays are supported" }
+        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt, Hash, and deriveStorage structs are supported" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.psyDpn module.capabilities with
@@ -427,6 +471,13 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     .ok #[
       s!"assert_eq({refName}::local_sum(), 30, \"struct literal fields add up\");",
       s!"assert_eq({refName}::storage_lifecycle(), 26, \"storage struct fields read after writes\");"
+    ]
+  else if module.name == "StructArrayProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "local_struct_array_sum" && entry.params.isEmpty && entry.returns == .u64) &&
+    module.entrypoints.any (fun entry => entry.name == "storage_struct_array_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::local_struct_array_sum(), 100, \"struct array literal fields add up\");",
+      s!"assert_eq({refName}::storage_struct_array_lifecycle(), 102, \"storage struct array fields read after writes\");"
     ]
   else
     .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }
