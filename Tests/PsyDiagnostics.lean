@@ -123,12 +123,12 @@ def unsupportedMapModule : Module := {
   entrypoints := #[unitEntrypoint "bad"]
 }
 
-def unsupportedBoolArrayStateModule : Module := {
-  name := "BadBoolArrayState"
+def unsupportedUnitArrayStateModule : Module := {
+  name := "BadUnitArrayState"
   state := #[{
-    id := "flags"
+    id := "units"
     kind := .array 8
-    type := .bool
+    type := .unit
   }]
   entrypoints := #[unitEntrypoint "bad"]
 }
@@ -616,9 +616,9 @@ def cases : Array (String × Module × String) := #[
     "map state `bad_map` has unsupported Psy IR v0 type Map<U64, U64>; only Map<Hash, Hash, N> is supported"
   ),
   (
-    "unsupported bool array state",
-    unsupportedBoolArrayStateModule,
-    "array state `flags` has unsupported Psy IR v0 element type `Bool`; only Felt, U32, Hash, and deriveStorage structs are supported"
+    "unsupported unit array state",
+    unsupportedUnitArrayStateModule,
+    "array state `units` has unsupported Psy IR v0 element type `Unit`; only Felt, Bool, U32, Hash, and deriveStorage structs are supported"
   ),
   (
     "non-storage struct state",

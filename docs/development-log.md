@@ -17,6 +17,58 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Bool Storage Array Coverage
+
+Commit: feature commit for Psy Bool storage array coverage
+
+Summary:
+
+- Added `BoolStorageArrayProbe` as a portable IR fixture for native Psy
+  `[bool; N]` fixed arrays and `bool` storage arrays.
+- Extended Psy state validation so `StateDecl.kind = .array N` with
+  `type = .bool` lowers to `pub flags: [bool; N]`.
+- Added CLI emission through `--emit-bool-storage-array-ir-psy` plus a checked
+  golden source fixture.
+- Replaced the previous unsupported bool storage-array diagnostic with an
+  unsupported Unit storage-array diagnostic.
+- Added `scripts/psy/bool-storage-array-smoke.sh` to validate `dargo test`,
+  `dargo compile`, two `dargo execute` entrypoints, `dargo generate-abi`,
+  deploy manifest generation, and artifact metadata validation.
+
+Validation run:
+
+```sh
+lake build
+bash -n scripts/psy/*.sh
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+lake env proof-forge --emit-bool-storage-array-ir-psy -o build/psy/BoolStorageArrayProbe.psy
+diff -u Examples/Psy/BoolStorageArrayProbe.golden.psy build/psy/BoolStorageArrayProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/bool-storage-array-smoke.sh
+git diff --check
+```
+
+Result:
+
+- Generated BoolStorageArrayProbe source lowers local `[bool; 3]` arrays,
+  `pub flags: [bool; 3]` storage arrays, indexed storage read/write, generic
+  storage-path read/write, and `bool as Felt` return casts.
+- Dargo execution validates `result_vm: [2]` for both `local_flags_sum` and
+  `storage_lifecycle`.
+
+Known limitations:
+
+- This does not change the existing U32 storage-array representation; U32
+  arrays remain Felt-backed because Dargo v0.1.0 rejects direct `[u32; N]`
+  contract storage arrays.
+
+Next step:
+
+- Continue shrinking explicit unsupported diagnostics into Dargo-validated Psy
+  support where the upstream toolchain accepts the target shape.
+
 ### Psy Bool Scalar Storage Coverage
 
 Commit: feature commit for Psy Bool scalar storage coverage
@@ -55,8 +107,9 @@ Result:
 
 Known limitations:
 
-- This covers native scalar `bool` storage only. Bool storage arrays remain
-  rejected until a dedicated Psy storage-array idiom is validated.
+- This entry covered native scalar `bool` storage only. The later
+  BoolStorageArrayProbe entry supersedes the previous bool storage-array
+  limitation.
 
 Next step:
 

@@ -4,6 +4,7 @@ import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.ArithmeticProbe
 import ProofForge.IR.Examples.AssertProbe
 import ProofForge.IR.Examples.BitwiseProbe
+import ProofForge.IR.Examples.BoolStorageArrayProbe
 import ProofForge.IR.Examples.BoolStorageScalarProbe
 import ProofForge.IR.Examples.ContextProbe
 import ProofForge.IR.Examples.ConditionalProbe

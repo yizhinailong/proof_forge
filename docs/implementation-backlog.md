@@ -264,6 +264,9 @@ Tasks:
 - Done: add native Bool scalar storage coverage using Psy `pub flag: bool`
   storage plus `bool as Felt` return casts, with Dargo compile/execute
   validation.
+- Done: add native Bool fixed-array and storage-array coverage using Psy
+  `[bool; N]` literals/indexing plus `pub flags: [bool; N]` storage, with
+  Dargo compile/execute validation.
 - Done: add U32 storage array coverage using Felt-backed storage plus explicit
   U32 read/write casts, with Dargo compile/execute validation.
 - Done: add a Psy IR coverage manifest gate so every portable IR constructor

@@ -40,6 +40,8 @@ def testFunctionName (module : Module) : String :=
     "test_u32_arithmetic_probe_fixture"
   else if module.name == "BitwiseProbe" then
     "test_bitwise_probe_fixture"
+  else if module.name == "BoolStorageArrayProbe" then
+    "test_bool_storage_array_probe_fixture"
   else if module.name == "BoolStorageScalarProbe" then
     "test_bool_storage_scalar_probe_fixture"
   else if module.name == "U32HashPackingProbe" then
@@ -1335,6 +1337,11 @@ def validateState (module : Module) : Except LowerError Unit := do
           pure ()
     | .map keyType _, valueType =>
         .error { message := s!"map state `{state.id}` has unsupported Psy IR v0 type Map<{keyType.name}, {valueType.name}>; only Map<Hash, Hash, N> is supported" }
+    | .array length, .bool =>
+        if length == 0 then
+          .error { message := s!"array state `{state.id}` must have non-zero length" }
+        else
+          pure ()
     | .array length, .u32 =>
         if length == 0 then
           .error { message := s!"array state `{state.id}` must have non-zero length" }
@@ -1362,7 +1369,7 @@ def validateState (module : Module) : Except LowerError Unit := do
         | none =>
             .error { message := s!"array state `{state.id}` references unknown struct `{typeName}`" }
     | .array _, valueType =>
-        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt, U32, Hash, and deriveStorage structs are supported" }
+        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt, Bool, U32, Hash, and deriveStorage structs are supported" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.psyDpn module.capabilities with
@@ -1420,6 +1427,13 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::storage_lifecycle(), 12, \"u32 scalar storage reads preserve u32 values\");"
+    ]
+  else if module.name == "BoolStorageArrayProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "local_flags_sum" && entry.params.isEmpty && entry.returns == .u64) &&
+    module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::local_flags_sum(), 2, \"bool fixed arrays index true values\");",
+      s!"assert_eq({refName}::storage_lifecycle(), 2, \"bool storage arrays preserve bool values\");"
     ]
   else if module.name == "BoolStorageScalarProbe" &&
     module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
