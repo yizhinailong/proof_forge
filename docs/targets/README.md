@@ -44,6 +44,7 @@ target registry and portable IR integration.
 | Sui Move | Research | Source-generation; follows Aptos POC. |
 | Aptos Move | Research | First Move POC target. |
 | Psy DPN | Research | ZK circuit sourcegen target through generated `.psy` and Dargo. |
+| [Kaspa Toccata](kaspa-toccata.md) | Research | Docs-first UTXO covenant/based-app target candidate; not yet in the code registry. |
 
 ## Documents
 
@@ -52,3 +53,4 @@ target registry and portable IR integration.
 - [Solana sBPF](solana-sbf.md) — notes for target id `solana-sbpf-linker`
 - [Move family](move-family.md)
 - [Psy DPN ZK target](psy-dpn.md)
+- [Kaspa Toccata target](kaspa-toccata.md)

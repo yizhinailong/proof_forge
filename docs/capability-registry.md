@@ -42,6 +42,29 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 - Artifact metadata lists the ids used by a build (see RFC 0002 artifact schema).
 - Diagnostics must cite capability id and target id on rejection.
 
+## Candidate Capabilities Not Yet Registered
+
+These candidates are documented for target research only. Do not add them to
+`ProofForge.Target.Capability` until a target profile and lowering rules are
+accepted.
+
+### Kaspa Toccata
+
+See [Kaspa Toccata target](targets/kaspa-toccata.md).
+
+| Candidate id | Portable meaning | Why it is separate |
+|---|---|---|
+| `storage.utxo` | State lives in covenant-controlled UTXOs or state commitments | Not account/object storage and not EVM-style slots |
+| `covenant.lineage` | Successor outputs remain in an authorized covenant family | Needed for transaction/output validation, not ordinary storage |
+| `tx.v1` | Target uses Kaspa transaction v1 semantics | Transaction projection and payload rules affect correctness |
+| `tx.compute_budget` | Per-input script compute budget is explicit | Budgeting is part of transaction design, not just gas metering |
+| `lane.user` | App operations can use user lanes | Needed for based-app ordering and proof anchoring |
+| `zk.verify` | Script verifies an L1-supported proof | Different from compiling the target itself into a circuit |
+
+`zk.circuit` remains reserved for targets whose primary artifact is a circuit or
+circuit-oriented source package. Toccata may use proofs, but its base target is
+a Kaspa covenant package.
+
 ## EVM Mapping (baseline)
 
 | Capability id | EVM lowering |

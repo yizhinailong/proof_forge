@@ -21,6 +21,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-009 | 2026-06-30 | **`wasm-polkadot` / ink!** stays research-only | Not in the target registry until a spike is scheduled |
 | D-010 | 2026-06-30 | Cloud platform waits until **two or more targets** reach Experimental stage | Avoid building a UI shell before local backends are real |
 | D-011 | 2026-06-30 | Add **`psy-dpn`** as a Research target under ZK circuit source generation | Psy has no public Yul-like IR; first integration should generate `.psy` and call Dargo |
+| D-012 | 2026-07-01 | Classify **`kaspa-toccata`** as a docs-first Research candidate, not a ZK circuit sourcegen target | Toccata is Kaspa L1 programmability through transaction v1, covenants, inline proof verification, and based-app settlement; code registry changes wait until UTXO/covenant capabilities are reviewed |
 
 ## Target Family Classification
 
@@ -31,6 +32,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | Binary toolchain | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | Source codegen | `move-aptos`, `move-sui` | Portable IR → Move package source |
 | ZK circuit sourcegen | `psy-dpn` | Portable IR → `.psy` package → Dargo → DPN circuit JSON |
+| UTXO covenant research | `kaspa-toccata` (candidate, docs only) | Portable IR → covenant/Silverscript package + transaction v1 manifest + optional proof settlement metadata |
 
 ## Roadmap Summary
 
@@ -40,6 +42,7 @@ Phase 1: Target registry + portable IR + artifact metadata + capability errors
 Phase 2: Parallel spikes — CosmWasm (wasm-cosmwasm) + Solana (solana-sbpf-linker)
 Phase 3: Move sourcegen — Aptos POC first, then Sui
 Phase 3.5: Psy DPN sourcegen research spike
+Research lane: Kaspa Toccata covenant/based-app target note before registry changes
 Phase 4: Cross-target shared scenario hardening
 Phase 5: Cloud platform
 ```
@@ -57,6 +60,7 @@ Detailed tasks: [Implementation backlog](implementation-backlog.md).
 | CosmWasm SDK spike sketch | [targets/wasm-family.md](targets/wasm-family.md) |
 | Solana instruction manifest | [targets/solana-sbf.md](targets/solana-sbf.md) |
 | Psy/DPN ZK target | [targets/psy-dpn.md](targets/psy-dpn.md) |
+| Kaspa/Toccata target candidate | [targets/kaspa-toccata.md](targets/kaspa-toccata.md) |
 
 ## Superseded Positions
 

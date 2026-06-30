@@ -66,6 +66,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
   - [Solana sBPF](targets/solana-sbf.md) (`solana-sbpf-linker`)
   - [Move family](targets/move-family.md)
   - [Psy DPN ZK target](targets/psy-dpn.md)
+  - [Kaspa Toccata target](targets/kaspa-toccata.md)
 
 ## Chinese Notes
 
