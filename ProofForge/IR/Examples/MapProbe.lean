@@ -37,6 +37,30 @@ def pathKey : Expr :=
 def pathValue : Expr :=
   .literal (.hash4 77 88 99 111)
 
+def zeroHash : Expr :=
+  .literal (.hash4 0 0 0 0)
+
+def setReturnKey : Expr :=
+  .literal (.hash4 3003 0 0 0)
+
+def setReturnInitialValue : Expr :=
+  .literal (.hash4 31 32 33 34)
+
+def setReturnUpdatedValue : Expr :=
+  .literal (.hash4 41 42 43 44)
+
+def insertReturnKey : Expr :=
+  .literal (.hash4 4004 0 0 0)
+
+def insertReturnFirstValue : Expr :=
+  .literal (.hash4 1 2 3 4)
+
+def insertReturnSecondValue : Expr :=
+  .literal (.hash4 5 6 7 8)
+
+def insertReturnThirdValue : Expr :=
+  .literal (.hash4 9 10 11 12)
+
 def mapLifecycle : Entrypoint := {
   name := "map_lifecycle"
   returns := .hash
@@ -62,6 +86,42 @@ def pathLifecycle : Entrypoint := {
     .letBind "value" .hash pathValue,
     .effect (.storagePathWrite "balances" #[.mapKey (.local "key")] (.local "value")),
     .return (.effect (.storagePathRead "balances" #[.mapKey (.local "key")]))
+  ]
+}
+
+def setReturnLifecycle : Entrypoint := {
+  name := "set_return_lifecycle"
+  returns := .hash
+  body := #[
+    .letBind "key" .hash setReturnKey,
+    .letBind "value0" .hash setReturnInitialValue,
+    .letBind "value1" .hash setReturnUpdatedValue,
+    .letBind "old0" .hash (.effect (.storageMapSet "balances" (.local "key") (.local "value0"))),
+    .assertEq (.local "old0") zeroHash "set on absent map key returns zero hash",
+    .assertEq (.effect (.storageMapGet "balances" (.local "key"))) (.local "value0") "set on absent map key writes value",
+    .letBind "old1" .hash (.effect (.storageMapSet "balances" (.local "key") (.local "value1"))),
+    .assertEq (.local "old1") (.local "value0") "set on existing map key returns previous value",
+    .assertEq (.effect (.storageMapGet "balances" (.local "key"))) (.local "value1") "set on existing map key writes new value",
+    .return (.local "old1")
+  ]
+}
+
+def insertReturnLifecycle : Entrypoint := {
+  name := "insert_return_lifecycle"
+  returns := .hash
+  body := #[
+    .letBind "key" .hash insertReturnKey,
+    .letBind "value0" .hash insertReturnFirstValue,
+    .letBind "value1" .hash insertReturnSecondValue,
+    .letBind "value2" .hash insertReturnThirdValue,
+    .letBind "old0" .hash (.effect (.storageMapInsert "balances" (.local "key") (.local "value0"))),
+    .assertEq (.local "old0") zeroHash "first insert returns zero hash",
+    .letBind "old1" .hash (.effect (.storageMapInsert "balances" (.local "key") (.local "value1"))),
+    .assertEq (.local "old1") (.local "value0") "second insert returns first value",
+    .letBind "old2" .hash (.effect (.storageMapInsert "balances" (.local "key") (.local "value2"))),
+    .assertEq (.local "old2") (.local "value1") "third insert returns second value",
+    .assertEq (.effect (.storageMapGet "balances" (.local "key"))) (.local "value2") "latest insert wins",
+    .return (.local "old2")
   ]
 }
 
@@ -116,7 +176,9 @@ def module : Module := {
     hasSeedBalance,
     upsertBalance,
     setBalance,
-    pathLifecycle
+    pathLifecycle,
+    setReturnLifecycle,
+    insertReturnLifecycle
   ]
 }
 

@@ -63,7 +63,7 @@ Effect	storageScalarAssignOp	lowered	lowerEffectStmt emits scalar compound assig
 Effect	storageMapContains	lowered	lowerEffectExpr emits Map.contains; MapProbe covers it.
 Effect	storageMapGet	lowered	lowerEffectExpr emits Map.get; MapProbe covers it.
 Effect	storageMapInsert	lowered	lowerEffectExpr and lowerEffectStmt emit Map.insert; MapProbe covers expression insert.
-Effect	storageMapSet	lowered	lowerEffectStmt emits Map.set; MapProbe covers it.
+Effect	storageMapSet	lowered	lowerEffectExpr and lowerEffectStmt emit Map.set; MapProbe covers expression set return values and statement set.
 Effect	storageArrayRead	lowered	lowerEffectExpr emits array .get(), with U32 casts when needed; ArrayProbe and U32StorageArrayProbe cover it.
 Effect	storageArrayWrite	lowered	lowerEffectStmt emits array assignment, with U32 casts when needed; ArrayProbe and U32StorageArrayProbe cover it.
 Effect	storageArrayStructFieldRead	lowered	lowerEffectExpr emits storage struct-array field .get(); StructArrayProbe covers it.

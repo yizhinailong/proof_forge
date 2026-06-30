@@ -220,6 +220,7 @@
 - 已完成：添加 HashProbe，用于 `Hash`、typed hash let-bindings、`hash` 和 `hash_two_to_one`。
 - 已完成：校验 Psy 制品元数据，包括 hash、byte size、能力、validation flag 和预期执行结果。
 - 已完成：加入来自上游 `psy-compiler/tests` 和 `psy-precompiles` 语料的 map/storage-map、断言、有界循环、数组、结构体、ABI 聚合、嵌套聚合、U32 arithmetic、bitwise、U32 storage，以及 storage path 覆盖。
+- 已完成：支持 `storageMapSet` 在表达式位置返回旧 `Hash` 值，并用 MapProbe 覆盖 `set` 和重复 `insert` 的 previous-value 语义。
 - 已完成：为没有 fixture 专用断言的合法 Psy IR 模块添加通用 generated test fallback，并用 `GenericEntrypointProbe` 跑通 golden、Dargo compile/execute、ABI、deploy manifest 和 artifact metadata 校验。
 - 待办：等 Psy 工具链暴露稳定边界后，把 ProofForge deploy manifest 转成上游 compressed genesis deploy JSON，并进一步做本地 node/prover 部署冒烟测试。
 

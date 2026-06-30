@@ -704,8 +704,13 @@ mutual
         let actualValue ← inferExprType module env value
         ensureType s!"map `{stateId}` value" valueType actualValue
         .ok valueType
-    | .storageMapSet _ _ _ =>
-        .error { message := "storage.map.set is a statement effect, not an expression" }
+    | .storageMapSet stateId key value => do
+        let (keyType, valueType) ← mapStateTypes module stateId
+        let actualKey ← inferExprType module env key
+        ensureType s!"map `{stateId}` key" keyType actualKey
+        let actualValue ← inferExprType module env value
+        ensureType s!"map `{stateId}` value" valueType actualValue
+        .ok valueType
     | .storageArrayRead stateId index => do
         let elementType ← arrayStateElementType module stateId
         let actualIndex ← inferExprType module env index
@@ -994,8 +999,9 @@ mutual
     | .storageMapInsert stateId key value => do
         requireMapState module stateId
         .ok s!"c.{stateId}.insert({← lowerExpr module key}, {← lowerExpr module value})"
-    | .storageMapSet _ _ _ =>
-        .error { message := "storage.map.set is a statement effect, not an expression" }
+    | .storageMapSet stateId key value => do
+        requireMapState module stateId
+        .ok s!"c.{stateId}.set({← lowerExpr module key}, {← lowerExpr module value})"
     | .storageArrayRead stateId index => do
         requireArrayState module stateId
         match findState? module stateId with
@@ -1441,18 +1447,26 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "map_lifecycle" && entry.params.isEmpty && entry.returns == .hash) &&
     module.entrypoints.any (fun entry => entry.name == "has_seed_balance" && entry.params.isEmpty && entry.returns == .bool) &&
     module.entrypoints.any (fun entry => entry.name == "get_seed_balance" && entry.params.isEmpty && entry.returns == .hash) &&
-    module.entrypoints.any (fun entry => entry.name == "path_lifecycle" && entry.params.isEmpty && entry.returns == .hash) then
+    module.entrypoints.any (fun entry => entry.name == "path_lifecycle" && entry.params.isEmpty && entry.returns == .hash) &&
+    module.entrypoints.any (fun entry => entry.name == "set_return_lifecycle" && entry.params.isEmpty && entry.returns == .hash) &&
+    module.entrypoints.any (fun entry => entry.name == "insert_return_lifecycle" && entry.params.isEmpty && entry.returns == .hash) then
     .ok #[
       s!"let c = {refName}::new(ContractMetadata::current());",
       "let key: Hash = [1001, 0, 0, 0];",
       "let value1: Hash = [55, 66, 77, 88];",
       "let path_key: Hash = [2002, 0, 0, 0];",
       "let path_value: Hash = [77, 88, 99, 111];",
+      "let set_old_value: Hash = [31, 32, 33, 34];",
+      "let insert_old_value: Hash = [5, 6, 7, 8];",
+      s!"let set_result: Hash = {refName}::set_return_lifecycle();",
+      s!"let insert_result: Hash = {refName}::insert_return_lifecycle();",
       s!"assert_eq({refName}::has_seed_balance(), false, \"seed balance starts absent\");",
       s!"assert_eq({refName}::map_lifecycle(), value1, \"map lifecycle returns the updated value\");",
       s!"assert_eq({refName}::has_seed_balance(), true, \"seed balance exists after lifecycle\");",
       s!"assert_eq({refName}::get_seed_balance(), value1, \"seed getter reads the lifecycle value\");",
       s!"assert_eq({refName}::path_lifecycle(), path_value, \"map storage path reads updated value\");",
+      "assert_eq(set_result, set_old_value, \"map set returns the previous value\");",
+      "assert_eq(insert_result, insert_old_value, \"map insert returns the previous value\");",
       "assert_eq(c.before, 111, \"map lifecycle preserves before field\");",
       "assert_eq(c.after, 222, \"map lifecycle preserves after field\");",
       "assert_eq(c.balances.contains(key), true, \"raw map contains follows generated entrypoint\");",

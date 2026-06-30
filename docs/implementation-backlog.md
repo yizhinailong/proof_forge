@@ -254,6 +254,9 @@ Tasks:
   smoke compile outputs.
 - Done: add map storage path coverage for `Map<Hash, Hash, N>` with Dargo
   compile/execute validation.
+- Done: add expression-position `storageMapSet` lowering and MapProbe coverage
+  for upstream map edge semantics where `set` and repeated `insert` return the
+  previous `Hash` value.
 - Done: add storage-reference compound assignment coverage for scalar storage
   and generic storage paths with Dargo compile/execute validation.
 - Done: add native U32 scalar storage coverage using Psy `pub value: u32`

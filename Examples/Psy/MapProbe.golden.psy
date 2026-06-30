@@ -54,6 +54,36 @@ impl MapProbeRef {
         c.balances.set(key, value);
         return c.balances.get(key);
     }
+    #[contract_method]
+    pub fn set_return_lifecycle() -> Hash {
+        let c = MapProbeRef::new(ContractMetadata::current());
+        let key: Hash = [3003, 0, 0, 0];
+        let value0: Hash = [31, 32, 33, 34];
+        let value1: Hash = [41, 42, 43, 44];
+        let old0: Hash = c.balances.set(key, value0);
+        assert_eq(old0, [0, 0, 0, 0], "set on absent map key returns zero hash");
+        assert_eq(c.balances.get(key), value0, "set on absent map key writes value");
+        let old1: Hash = c.balances.set(key, value1);
+        assert_eq(old1, value0, "set on existing map key returns previous value");
+        assert_eq(c.balances.get(key), value1, "set on existing map key writes new value");
+        return old1;
+    }
+    #[contract_method]
+    pub fn insert_return_lifecycle() -> Hash {
+        let c = MapProbeRef::new(ContractMetadata::current());
+        let key: Hash = [4004, 0, 0, 0];
+        let value0: Hash = [1, 2, 3, 4];
+        let value1: Hash = [5, 6, 7, 8];
+        let value2: Hash = [9, 10, 11, 12];
+        let old0: Hash = c.balances.insert(key, value0);
+        assert_eq(old0, [0, 0, 0, 0], "first insert returns zero hash");
+        let old1: Hash = c.balances.insert(key, value1);
+        assert_eq(old1, value0, "second insert returns first value");
+        let old2: Hash = c.balances.insert(key, value2);
+        assert_eq(old2, value1, "third insert returns second value");
+        assert_eq(c.balances.get(key), value2, "latest insert wins");
+        return old2;
+    }
 }
 
 #[test]
@@ -63,11 +93,17 @@ fn test_map_probe_fixture() {
     let value1: Hash = [55, 66, 77, 88];
     let path_key: Hash = [2002, 0, 0, 0];
     let path_value: Hash = [77, 88, 99, 111];
+    let set_old_value: Hash = [31, 32, 33, 34];
+    let insert_old_value: Hash = [5, 6, 7, 8];
+    let set_result: Hash = MapProbeRef::set_return_lifecycle();
+    let insert_result: Hash = MapProbeRef::insert_return_lifecycle();
     assert_eq(MapProbeRef::has_seed_balance(), false, "seed balance starts absent");
     assert_eq(MapProbeRef::map_lifecycle(), value1, "map lifecycle returns the updated value");
     assert_eq(MapProbeRef::has_seed_balance(), true, "seed balance exists after lifecycle");
     assert_eq(MapProbeRef::get_seed_balance(), value1, "seed getter reads the lifecycle value");
     assert_eq(MapProbeRef::path_lifecycle(), path_value, "map storage path reads updated value");
+    assert_eq(set_result, set_old_value, "map set returns the previous value");
+    assert_eq(insert_result, insert_old_value, "map insert returns the previous value");
     assert_eq(c.before, 111, "map lifecycle preserves before field");
     assert_eq(c.after, 222, "map lifecycle preserves after field");
     assert_eq(c.balances.contains(key), true, "raw map contains follows generated entrypoint");

@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Map Set Expression Return Coverage
+
+Commit: feature commit for Psy map set expression returns
+
+Summary:
+
+- Added Psy lowering and type validation for `storageMapSet` when used as an
+  expression, matching upstream `MapRef::set` returning the previous `Hash`.
+- Extended `MapProbe` with `set_return_lifecycle` and
+  `insert_return_lifecycle` to cover absent-key zero returns, previous-value
+  returns, and latest-value reads.
+- Updated the MapProbe generated test to bind side-effectful method results
+  before assertion, avoiding Dargo repeated-evaluation behavior for direct
+  calls inside `assert_eq`.
+- Extended the MapProbe smoke to execute the new methods and validate artifact
+  metadata against all returned results.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
+diff -u Examples/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/map-smoke.sh
+```
+
+Result:
+
+- `set_return_lifecycle` returns `result_vm: [31, 32, 33, 34]`.
+- `insert_return_lifecycle` returns `result_vm: [5, 6, 7, 8]`.
+
+Known limitations:
+
+- Psy map support remains deliberately limited to `Map<Hash, Hash, N>` until
+  non-Hash map value semantics are modeled explicitly in the portable IR.
+
+Next step:
+
+- Continue converting upstream Psy map/storage semantics into fixture-backed
+  ProofForge IR coverage.
+
 ### Psy Generic Test Fallback
 
 Commit: feature commit for generic Psy fallback tests

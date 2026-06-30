@@ -434,12 +434,14 @@ build/psy/
 ```
 
 `MapProbe` follows upstream `tests/map_test.psy`,
+`tests/map_edge_semantics_test.psy`,
 `tests/map_chain_insert_set_get_test.psy`, and
 `tests/map_adjacent_fields_preserve_test.psy`. The portable IR now has
 fixed-capacity map state and map effects for `contains`, `get`, `insert`, and
-`set`, plus generic storage paths whose first segment is a map key. Psy
-sourcegen lowers the supported storage shape to `Map<Hash, Hash, Nu32>` and
-emits `c.map.contains(key)`, `c.map.get(key)`, `c.map.insert(key, value)`,
+`set`, including expression-position `insert`/`set` returns, plus generic
+storage paths whose first segment is a map key. Psy sourcegen lowers the
+supported storage shape to `Map<Hash, Hash, Nu32>` and emits
+`c.map.contains(key)`, `c.map.get(key)`, `c.map.insert(key, value)`,
 `c.map.set(key, value)`, and direct map-path `get`/`set` lowering. The current
 Psy v0 lowerer deliberately accepts only `Map<Hash, Hash, N>` and rejects other
 map key/value shapes or malformed map paths with explicit diagnostics.
@@ -871,6 +873,8 @@ It verifies fixed-capacity Psy map storage under Dargo local execution:
 
 - `map_lifecycle`: `result_vm: [55, 66, 77, 88]`
 - `path_lifecycle`: `result_vm: [77, 88, 99, 111]`
+- `set_return_lifecycle`: `result_vm: [31, 32, 33, 34]`
+- `insert_return_lifecycle`: `result_vm: [5, 6, 7, 8]`
 
 The script emits and validates
 `build/psy/dargo-map/target/proof-forge-artifact.json`.
@@ -1123,7 +1127,7 @@ Deployment smoke:
   smoke scripts.
 - Done: add `MapProbe` with fixed-capacity `Map<Hash, Hash, N>` storage and
   `contains`, `get`, `insert`, and `set` lowering aligned with upstream Psy
-  map tests.
+  map tests, including expression-position `set` return values.
 - Done: add `scripts/psy/map-smoke.sh` with the same Dargo validation shape.
 - Done: add generic map storage path read/write lowering for
   `Map<Hash, Hash, N>` through first-class `mapKey` path segments.
