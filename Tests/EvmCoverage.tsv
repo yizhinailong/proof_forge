@@ -7,7 +7,7 @@ ValueType	hash	unsupported	Hash literals, Hash ABI parameters, Hash returns, and
 ValueType	fixedArray	unsupported	EVM target profile rejects data.fixed_array until fixed-array ABI, memory, and storage lowering are implemented.
 ValueType	structType	unsupported	EVM target profile rejects data.struct until struct ABI, memory, and storage layout lowering are implemented.
 StateKind	scalar	lowered	EVM IR lowers scalar U32/U64 state to direct slot-based sload/sstore and rejects other scalar types.
-StateKind	map	unsupported	validateState rejects storage.map because EVM IR v0 does not yet lower mapping slot hashing.
+StateKind	map	validated	EvmMapProbe validates Map<U64, U64, N> storage via Solidity-style keccak256(key, slot) mapping slots; diagnostics reject unsupported map key/value shapes.
 StateKind	array	unsupported	EVM target profile rejects storage.array until fixed array storage layout lowering is implemented.
 Literal	u32	lowered	lowerExpr emits U32 literals as Yul numeric expressions.
 Literal	u64	lowered	lowerExpr emits U64 literals as Yul numeric expressions.
@@ -62,24 +62,24 @@ Expr	effect	structural	lowerExpr delegates effects to lowerEffectExpr; scalar re
 Effect	storageScalarRead	lowered	lowerEffectExpr emits sload(slot) and diagnostics cover unknown state and expression/statement misuse.
 Effect	storageScalarWrite	lowered	lowerEffectStmt emits sstore(slot, value) and rejects expression-position writes.
 Effect	storageScalarAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt reject scalar storage assign_op in EVM IR v0.
-Effect	storageMapContains	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.map.contains in EVM IR v0.
-Effect	storageMapGet	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.map.get in EVM IR v0.
-Effect	storageMapInsert	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.map.insert in EVM IR v0.
-Effect	storageMapSet	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.map.set in EVM IR v0.
+Effect	storageMapContains	unsupported	EVM mappings do not track key presence; diagnostics reject storage.map.contains instead of treating nonzero values as presence.
+Effect	storageMapGet	validated	lowerEffectExpr emits sload(__proof_forge_map_slot(slot, key)); EvmMapProbe validates ABI reads and raw Foundry vm.load slots.
+Effect	storageMapInsert	validated	lowerEffectExpr emits __proof_forge_map_set_return and statement position emits __proof_forge_map_write; EvmMapProbe validates previous-value returns and writes.
+Effect	storageMapSet	validated	lowerEffectExpr emits __proof_forge_map_set_return and statement position emits __proof_forge_map_write; EvmMapProbe validates previous-value returns, Unit set dispatch, and writes.
 Effect	storageArrayRead	unsupported	EVM target profile rejects storage.array and lowerEffectExpr has an explicit storage.array.read diagnostic.
 Effect	storageArrayWrite	unsupported	EVM target profile rejects storage.array and lowerEffectStmt has an explicit storage.array.write diagnostic.
 Effect	storageArrayStructFieldRead	unsupported	EVM target profile rejects storage.array/data.struct and lowerEffectExpr has an explicit struct-array read diagnostic.
 Effect	storageArrayStructFieldWrite	unsupported	EVM target profile rejects storage.array/data.struct and lowerEffectStmt has an explicit struct-array write diagnostic.
 Effect	storageStructFieldRead	unsupported	EVM target profile rejects data.struct and lowerEffectExpr has an explicit struct storage read diagnostic.
 Effect	storageStructFieldWrite	unsupported	EVM target profile rejects data.struct and lowerEffectStmt has an explicit struct storage write diagnostic.
-Effect	storagePathRead	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.read in EVM IR v0.
-Effect	storagePathWrite	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.write in EVM IR v0.
+Effect	storagePathRead	validated	EvmMapProbe validates single-segment mapKey storage path reads over Map<U64, U64, N>; diagnostics reject missing and nested map keys.
+Effect	storagePathWrite	validated	EvmMapProbe validates single-segment mapKey storage path writes over Map<U64, U64, N>; diagnostics reject missing and nested map keys.
 Effect	storagePathAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.assign_op in EVM IR v0.
 Effect	contextRead	validated	lowerEffectExpr emits EVM context opcodes for expression-position context reads; diagnostics still reject statement-position context reads.
 Effect	eventEmit	unsupported	lowerEffectStmt rejects event emission with an explicit EVM IR v0 diagnostic.
 StoragePathSegment	field	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
 StoragePathSegment	index	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
-StoragePathSegment	mapKey	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
+StoragePathSegment	mapKey	validated	EvmMapProbe validates mapKey as the first and only storage-path segment for EVM Map<U64, U64, N> reads and writes.
 Statement	letBind	lowered	lowerStatement emits immutable Yul varDecl for U32/U64/Bool let bindings and rejects unsupported types.
 Statement	letMutBind	lowered	lowerStatement emits mutable scalar Yul let bindings; AssignmentProbe covers mutable U64 and Bool locals.
 Statement	assign	lowered	lowerStatement emits Yul assignment for local targets; AssignmentProbe covers local reassignment and diagnostics reject non-local targets.

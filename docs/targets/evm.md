@@ -69,6 +69,8 @@ proof-forge --emit-conditional-ir-yul [-o output.yul]
 proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-context-ir-yul [-o output.yul]
 proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-map-ir-yul [-o output.yul]
+proof-forge --emit-evm-map-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
 
 `--bytecode` is an alias for `--evm-bytecode`.
@@ -122,7 +124,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | Capability id | SDK / IR surface |
 |---|---|
 | `storage.scalar` | `Storage.load`, `Storage.store` |
-| `storage.map` | `Storage.mapLoad`, `Storage.mapStore` |
+| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<U64, U64, N>` get/set/insert and single-segment map storage paths |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -161,11 +163,13 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - String manipulation APIs incomplete in Yul runtime.
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
   IR EVM backend currently supports scalar storage/ABI, assertions, local
-  assignment, conditionals, and context reads, and rejects wider portable IR
-  nodes with explicit diagnostics.
-- Portable IR EVM currently lacks aggregate ABI values, mappings, storage
-  arrays, structs, hashing, events, cross-contract calls, and target-specific
-  deploy manifests.
+  assignment, conditionals, context reads, and `Map<U64, U64, N>` storage, and
+  rejects wider portable IR nodes with explicit diagnostics.
+- Portable IR EVM currently lacks aggregate ABI values, Hash/aggregate map
+  shapes, storage arrays, structs, hashing, events, cross-contract calls, and
+  target-specific deploy manifests.
+- `storage.map.contains` remains explicitly unsupported because EVM mappings do
+  not track key presence without an auxiliary bitmap.
 
 ## Portable IR Gates
 
@@ -180,6 +184,7 @@ scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
+scripts/evm/map-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
@@ -221,6 +226,14 @@ reproducibility, `solc --strict-assembly` bytecode generation, metadata
 capabilities (`caller.sender`, `account.explicit`, `env.block`), Foundry
 runtime context values through `vm.prank`/`vm.roll`, and unknown-selector
 revert behavior.
+
+`EvmMapProbe` validates portable IR `Map<U64, U64, N>` storage through the same
+Solidity-style slot layout used by the SDK: `keccak256(key || slot)` after
+writing `key` and `slot` as two 32-byte memory words. The smoke checks golden
+Yul reproducibility, `solc --strict-assembly` bytecode generation, metadata
+capabilities (`storage.scalar`, `storage.map`, `assertions.check`), ABI
+get/set/insert behavior, single-segment `mapKey` storage paths, raw Foundry
+`vm.load` storage slots, and unknown-selector revert behavior.
 
 ## Metadata
 

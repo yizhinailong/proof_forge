@@ -112,6 +112,11 @@ Tasks:
   `checkpointId` as Yul `caller()`, `address()`, and `number()`, with
   `ContextProbe` golden Yul, solc bytecode, Foundry runtime validation, and
   metadata capability validation.
+- Done: add EVM IR `Map<U64, U64, N>` storage lowering through
+  Solidity-style `keccak256(key, slot)` mapping slots, with `EvmMapProbe`
+  golden Yul, solc bytecode, Foundry runtime/raw-slot validation, metadata
+  capability validation, and explicit diagnostics for unsupported map shapes
+  and `contains`.
 - Add golden Yul outputs for simple examples.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.

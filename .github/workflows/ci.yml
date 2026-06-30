@@ -124,6 +124,9 @@ jobs:
       - name: Run EVM ContextProbe IR smoke
         run: scripts/evm/context-ir-smoke.sh
 
+      - name: Run EVM MapProbe IR smoke
+        run: scripts/evm/map-ir-smoke.sh
+
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh
 

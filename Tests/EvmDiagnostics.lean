@@ -95,10 +95,22 @@ def mapStateModule : Module := {
   name := "BadMapState"
   state := #[{
     id := "balances"
-    kind := .map .u64 16
-    type := .u64
+    kind := .map .hash 16
+    type := .hash
   }]
   entrypoints := #[selectedEntrypoint "bad"]
+}
+
+def u64MapState : StateDecl := {
+  id := "balances"
+  kind := .map .u64 16
+  type := .u64
+}
+
+def selectedMapModule (name : String) (entrypoint : Entrypoint) : Module := {
+  name := name
+  state := #[u64MapState]
+  entrypoints := #[entrypoint]
 }
 
 def storageArrayModule : Module := {
@@ -161,9 +173,19 @@ def storageScalarAssignModule : Module := {
   ]]
 }
 
-def storageMapGetModule : Module :=
-  selectedModule "BadStorageMapGet" <| selectedReturnEntrypoint "bad" .u64 #[
-    .return (.effect (.storageMapGet "balances" (.literal (.u64 1))))
+def storageMapContainsModule : Module :=
+  selectedMapModule "BadStorageMapContains" <| selectedReturnEntrypoint "bad" .bool #[
+    .return (.effect (.storageMapContains "balances" (.literal (.u64 1))))
+  ]
+
+def storagePathEmptyModule : Module :=
+  selectedMapModule "BadStoragePathEmpty" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.effect (.storagePathRead "balances" #[]))
+  ]
+
+def storagePathNestedMapModule : Module :=
+  selectedMapModule "BadStoragePathNestedMap" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.effect (.storagePathRead "balances" #[.mapKey (.literal (.u64 1)), .mapKey (.literal (.u64 2))]))
   ]
 
 def contextReadStmtModule : Module :=
@@ -244,9 +266,9 @@ def cases : Array (String × Module × String) := #[
     "state `flag` has unsupported EVM IR v0 type `Bool`"
   ),
   (
-    "map state unsupported",
+    "map state shape unsupported",
     mapStateModule,
-    "state `balances` is storage.map; IR EVM v0 does not lower portable map storage yet"
+    "map state `balances` has unsupported EVM IR v0 type `Map<Hash, Hash, 16>`; only Map<U64, U64, N> is supported"
   ),
   (
     "storage array capability unsupported",
@@ -289,9 +311,19 @@ def cases : Array (String × Module × String) := #[
     "storage.scalar.assign_op is not supported by IR EVM v0"
   ),
   (
-    "storage map get unsupported",
-    storageMapGetModule,
-    "storage.map.get is not supported by IR EVM v0"
+    "storage map contains unsupported",
+    storageMapContainsModule,
+    "storage.map.contains is not supported by IR EVM v0 because EVM mappings do not track key presence"
+  ),
+  (
+    "storage path missing map key",
+    storagePathEmptyModule,
+    "storage path state `balances` is map storage; first segment must be a map key"
+  ),
+  (
+    "storage path nested map unsupported",
+    storagePathNestedMapModule,
+    "EVM IR v0 supports only single-segment mapKey storage paths"
   ),
   (
     "context read used as statement",

@@ -17,6 +17,63 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Storage Maps
+
+Commit: feature commit for EVM IR storage maps
+
+Summary:
+
+- Added EVM portable IR lowering for `Map<U64, U64, N>` storage state.
+- Added Solidity-style mapping slot helpers:
+  `mstore(0, key)`, `mstore(32, slot)`, `keccak256(0, 64)`.
+- Added EVM lowering for `storageMapGet`, `storageMapInsert`, and
+  `storageMapSet`; expression-position set/insert return the previous value.
+- Added single-segment `storagePathRead`/`storagePathWrite` support for
+  `.mapKey` paths over `Map<U64, U64, N>`.
+- Kept `storageMapContains` explicitly unsupported because EVM mappings do not
+  track key presence without an auxiliary bitmap.
+- Added `ProofForge.IR.Examples.EvmMapProbe`, `--emit-evm-map-ir-yul`,
+  `--emit-evm-map-ir-bytecode`, `Examples/Evm/EvmMapProbe.golden.yul`, and
+  `scripts/evm/map-ir-smoke.sh`.
+- Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
+  gates, backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-evm-map-ir-yul -o build/ir/EvmMapProbe.yul
+diff -u Examples/Evm/EvmMapProbe.golden.yul build/ir/EvmMapProbe.yul
+scripts/evm/map-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Result:
+
+- Generated EvmMapProbe Yul includes selector dispatch, scalar ABI calldata
+  guards, map helper functions, map get/set/insert calls, assertion guards, and
+  `keccak256(0, 64)` slot hashing.
+- Foundry verifies lifecycle behavior, parameterized read/write behavior,
+  single-segment `mapKey` storage paths, unknown-selector reverts, and raw
+  mapping slots with `vm.load`.
+- EVM artifact metadata records and validates `storage.scalar`, `storage.map`,
+  and `assertions.check`.
+- Diagnostics reject unsupported Hash map shapes, `storage.map.contains`, and
+  malformed map storage paths.
+
+Known limitations:
+
+- EVM portable IR map support is currently limited to `Map<U64, U64, N>`.
+- `storage.map.contains` remains unsupported until the IR models an EVM
+  presence bitmap or a different target-specific presence policy.
+- Nested map/struct/array storage paths are still rejected.
+
+Next step:
+
+- Extend maps to more scalar key/value shapes, or add EVM `crypto.hash`
+  lowering with a clear Keccak-vs-portable-Hash semantic boundary.
+
 ### EVM IR Context Reads
 
 Commit: feature commit for EVM IR context reads
