@@ -302,6 +302,30 @@ def storageWriteTypeMismatchModule : Module := {
   ]]
 }
 
+def equalityTypeMismatchModule : Module := {
+  name := "BadEqualityTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .assert (.eq (.literal (.u64 1)) (.literal (.bool true))) "bad equality"
+  ]]
+}
+
+def comparisonTypeMismatchModule : Module := {
+  name := "BadComparisonTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .assert (.lt (.literal (.bool true)) (.literal (.bool false))) "bad comparison"
+  ]]
+}
+
+def booleanOperatorTypeMismatchModule : Module := {
+  name := "BadBooleanOperatorTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .assert (.boolAnd (.literal (.u64 1)) (.literal (.bool true))) "bad boolean op"
+  ]]
+}
+
 def renderError? (module : Module) : Option String :=
   match ProofForge.Backend.Psy.IR.renderModule module with
   | .ok _ => none
@@ -417,6 +441,21 @@ def cases : Array (String × Module × String) := #[
     "storage write type mismatch",
     storageWriteTypeMismatchModule,
     "scalar state `count` write expected `U64`, got `Bool`"
+  ),
+  (
+    "equality type mismatch",
+    equalityTypeMismatchModule,
+    "equality right operand expected `U64`, got `Bool`"
+  ),
+  (
+    "comparison type mismatch",
+    comparisonTypeMismatchModule,
+    "less-than left operand expected `U64`, got `Bool`"
+  ),
+  (
+    "boolean operator type mismatch",
+    booleanOperatorTypeMismatchModule,
+    "boolean and left operand expected `Bool`, got `U64`"
   )
 ]
 

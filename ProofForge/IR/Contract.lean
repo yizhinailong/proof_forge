@@ -86,6 +86,15 @@ mutual
     | structLit (typeName : String) (fields : Array (String × Expr))
     | field (base : Expr) (fieldName : String)
     | add (lhs rhs : Expr)
+    | eq (lhs rhs : Expr)
+    | ne (lhs rhs : Expr)
+    | lt (lhs rhs : Expr)
+    | le (lhs rhs : Expr)
+    | gt (lhs rhs : Expr)
+    | ge (lhs rhs : Expr)
+    | boolAnd (lhs rhs : Expr)
+    | boolOr (lhs rhs : Expr)
+    | boolNot (value : Expr)
     | hash (preimage : Expr)
     | hashTwoToOne (lhs rhs : Expr)
     | effect (effect : Effect)
@@ -171,6 +180,15 @@ mutual
     | .field base _ =>
         #[.dataStruct] ++ base.capabilities
     | .add lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .eq lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .ne lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .lt lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .le lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .gt lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .ge lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .boolAnd lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .boolOr lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .boolNot value => value.capabilities
     | .hash preimage => #[.cryptoHash] ++ preimage.capabilities
     | .hashTwoToOne lhs rhs => #[.cryptoHash] ++ lhs.capabilities ++ rhs.capabilities
     | .effect effect => #[effect.capability] ++ effect.capabilities

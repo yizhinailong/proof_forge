@@ -32,6 +32,8 @@ def capitalizedRefName (module : Module) : String :=
 def testFunctionName (module : Module) : String :=
   if module.name == "StorageNestedAggregateProbe" then
     "test_storage_nested_aggregate_probe_fixture"
+  else if module.name == "ExpressionPredicateProbe" then
+    "test_expression_predicate_probe_fixture"
   else if module.name == "NestedAggregateProbe" then
     "test_nested_aggregate_probe_fixture"
   else if module.name == "AbiAggregateProbe" then
@@ -301,6 +303,15 @@ def ensureType (context : String) (expected actual : ValueType) : Except LowerEr
 def ensureIndexType (context : String) (type : ValueType) : Except LowerError Unit :=
   ensureType context .u64 type
 
+def ensureEqType (context : String) (type : ValueType) : Except LowerError Unit :=
+  match type with
+  | .unit =>
+      .error { message := s!"{context} does not support Unit equality" }
+  | .fixedArray _ _ =>
+      .error { message := s!"{context} does not support `{type.name}` equality; compare fixed-array elements explicitly" }
+  | .bool | .u64 | .hash | .structType _ =>
+      .ok ()
+
 def structFieldType (module : Module) (typeName fieldName : String) : Except LowerError ValueType := do
   let some decl := findStruct? module typeName
     | .error { message := s!"unknown struct type `{typeName}`" }
@@ -389,6 +400,58 @@ mutual
         ensureType "addition left operand" .u64 lhsType
         ensureType "addition right operand" .u64 rhsType
         .ok .u64
+    | .eq lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "equality right operand" lhsType rhsType
+        ensureEqType "equality expression" lhsType
+        .ok .bool
+    | .ne lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "inequality right operand" lhsType rhsType
+        ensureEqType "inequality expression" lhsType
+        .ok .bool
+    | .lt lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "less-than left operand" .u64 lhsType
+        ensureType "less-than right operand" .u64 rhsType
+        .ok .bool
+    | .le lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "less-or-equal left operand" .u64 lhsType
+        ensureType "less-or-equal right operand" .u64 rhsType
+        .ok .bool
+    | .gt lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "greater-than left operand" .u64 lhsType
+        ensureType "greater-than right operand" .u64 rhsType
+        .ok .bool
+    | .ge lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "greater-or-equal left operand" .u64 lhsType
+        ensureType "greater-or-equal right operand" .u64 rhsType
+        .ok .bool
+    | .boolAnd lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "boolean and left operand" .bool lhsType
+        ensureType "boolean and right operand" .bool rhsType
+        .ok .bool
+    | .boolOr lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "boolean or left operand" .bool lhsType
+        ensureType "boolean or right operand" .bool rhsType
+        .ok .bool
+    | .boolNot value => do
+        let valueType ← inferExprType module env value
+        ensureType "boolean not operand" .bool valueType
+        .ok .bool
     | .hash preimage => do
         let preimageType ← inferExprType module env preimage
         ensureType "hash preimage" .hash preimageType
@@ -612,6 +675,24 @@ mutual
         .ok s!"{← lowerExpr module base}.{fieldName}"
     | .add lhs rhs => do
         .ok s!"{← lowerExpr module lhs} + {← lowerExpr module rhs}"
+    | .eq lhs rhs => do
+        .ok s!"({← lowerExpr module lhs} == {← lowerExpr module rhs})"
+    | .ne lhs rhs => do
+        .ok s!"({← lowerExpr module lhs} != {← lowerExpr module rhs})"
+    | .lt lhs rhs => do
+        .ok s!"({← lowerExpr module lhs} < {← lowerExpr module rhs})"
+    | .le lhs rhs => do
+        .ok s!"({← lowerExpr module lhs} <= {← lowerExpr module rhs})"
+    | .gt lhs rhs => do
+        .ok s!"({← lowerExpr module lhs} > {← lowerExpr module rhs})"
+    | .ge lhs rhs => do
+        .ok s!"({← lowerExpr module lhs} >= {← lowerExpr module rhs})"
+    | .boolAnd lhs rhs => do
+        .ok s!"({← lowerExpr module lhs} && {← lowerExpr module rhs})"
+    | .boolOr lhs rhs => do
+        .ok s!"({← lowerExpr module lhs} || {← lowerExpr module rhs})"
+    | .boolNot value => do
+        .ok s!"!({← lowerExpr module value})"
     | .hash preimage => do
         .ok s!"hash({← lowerExpr module preimage})"
     | .hashTwoToOne lhs rhs => do
@@ -874,6 +955,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
       s!"assert_eq({refName}::get(), 1, \"counter increments once\");",
       s!"{refName}::increment();",
       s!"assert_eq({refName}::get(), 2, \"counter increments twice\");"
+    ]
+  else if module.name == "ExpressionPredicateProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "predicate_sum" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::predicate_sum(), 16, \"predicate expressions compose to true\");"
     ]
   else if module.name == "ContextProbe" &&
     module.entrypoints.any (fun entry => entry.name == "sum_context" && entry.params.size == 2 && entry.returns == .u64) then

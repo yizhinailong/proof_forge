@@ -91,6 +91,14 @@ lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
 scripts/psy/counter-smoke.sh
 ```
 
+Validate the Psy/DPN expression predicate fixture, which exercises equality,
+inequality, ordering comparisons, and boolean composition:
+
+```sh
+lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionPredicateProbe.psy
+scripts/psy/expression-predicate-smoke.sh
+```
+
 Validate the Psy/DPN context fixture, which exercises parameter lowering and
 Psy context reads:
 

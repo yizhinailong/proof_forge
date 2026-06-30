@@ -10,13 +10,13 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
-ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe,
-StructProbe, StructArrayProbe, AbiAggregateProbe, and NestedAggregateProbe
-fixtures. It also has an experimental StorageNestedAggregateProbe fixture for
-storage-backed nested aggregate updates across `#[ref]` struct fields and
-storage arrays. The target is not production-ready and does not yet cover map
-storage paths, deploy JSON, live Psy node/prover deployment, or broad
-Lean-to-IR extraction.
+ExpressionPredicateProbe, ContextProbe, HashProbe, MapProbe, AssertProbe,
+LoopProbe, ArrayProbe, StructProbe, StructArrayProbe, AbiAggregateProbe, and
+NestedAggregateProbe fixtures. It also has an experimental
+StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
+across `#[ref]` struct fields and storage arrays. The target is not
+production-ready and does not yet cover if/else lowering, map storage paths,
+deploy JSON, live Psy node/prover deployment, or broad Lean-to-IR extraction.
 
 ## Summary
 
@@ -583,6 +583,11 @@ and `c.people[1].profile.age`, and requires struct-to-struct storage traversal
 to use Psy's `#[ref]` field marker. This keeps the IR explicit about the
 difference between value fields and nested storage references.
 
+`ExpressionPredicateProbe` follows upstream predicate idioms from
+`tests/opcode_test.psy`, `tests/assert_test.psy`, and the token/deposit-tree
+precompiles. It covers `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, `||`, and `!`
+inside assertion predicates and boolean local bindings.
+
 ## Smoke Test Strategy
 
 Experimental smoke does not require a live Psy network.
@@ -616,6 +621,19 @@ scripts/psy/context-smoke.sh
 
 It verifies `result_vm: [15]` for `sum_context(2,3)` under Dargo's local
 execution session and emits `build/psy/dargo-context/target/proof-forge-artifact.json`.
+
+The same validation shape is also implemented for `ExpressionPredicateProbe`:
+
+```sh
+scripts/psy/expression-predicate-smoke.sh
+```
+
+It verifies predicate expression lowering under Dargo local execution:
+
+- `predicate_sum`: `result_vm: [16]`
+
+The script emits and validates
+`build/psy/dargo-expression-predicate/target/proof-forge-artifact.json`.
 
 The same validation shape is also implemented for `HashProbe`:
 
@@ -769,9 +787,10 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts twenty-two explicit diagnostics for malformed or
-unsupported Psy IR shapes, including invalid storage paths and expression/body
-type mismatches.
+It currently asserts twenty-five explicit diagnostics for malformed or
+unsupported Psy IR shapes, including invalid storage paths, expression/body
+type mismatches, malformed equality, malformed comparison, and malformed
+boolean operators.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -806,6 +825,11 @@ Deployment smoke:
   `dargo test --file`, call `dargo compile`, verify the JSON artifact, call
   `dargo execute`, assert the local execution result, and call
   `dargo generate-abi`.
+- Done: add `ExpressionPredicateProbe` with equality, inequality, ordering,
+  boolean not/and/or, and assertion predicate lowering aligned with upstream
+  Psy operator idioms.
+- Done: add `scripts/psy/expression-predicate-smoke.sh` with the same Dargo
+  validation shape.
 - Done: add `ContextProbe` as the first non-Counter Psy fixture with parameter
   lowering and context reads.
 - Done: add `scripts/psy/context-smoke.sh` with the same Dargo validation shape.

@@ -58,6 +58,24 @@ mutual
         .error { message := "struct field access is not supported by IR EVM v0" }
     | .add lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "add" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .eq lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .ne lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs]])
+    | .lt lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "lt" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .le lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "gt" #[← lowerExpr module lhs, ← lowerExpr module rhs]])
+    | .gt lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "gt" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .ge lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "lt" #[← lowerExpr module lhs, ← lowerExpr module rhs]])
+    | .boolAnd lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "and" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .boolOr lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "or" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .boolNot value => do
+        .ok (Lean.Compiler.Yul.builtin "iszero" #[← lowerExpr module value])
     | .hash _ =>
         .error { message := "crypto.hash is not supported by IR EVM v0" }
     | .hashTwoToOne _ _ =>

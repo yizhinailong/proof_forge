@@ -17,6 +17,68 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy ExpressionPredicateProbe Boolean Predicates
+
+Commit: feature commit for Psy predicate expression coverage
+
+Summary:
+
+- Added portable IR expression nodes for equality, inequality, ordering
+  comparisons, boolean conjunction, boolean disjunction, and boolean negation.
+- Added Psy lowering using upstream `.psy` idioms: `==`, `!=`, `<`, `<=`, `>`,
+  `>=`, `&&`, `||`, and `!`.
+- Added sourcegen type diagnostics for malformed equality, comparison, and
+  boolean operator operands.
+- Added EVM IR lowering for the same pure predicate nodes through Yul builtins.
+- Added `ProofForge.IR.Examples.ExpressionPredicateProbe`, covering predicate
+  locals and assertion predicates.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionPredicateProbe.psy
+```
+
+- Added `Examples/Psy/ExpressionPredicateProbe.golden.psy`.
+- Added `scripts/psy/expression-predicate-smoke.sh`, which generates a
+  temporary Dargo package, runs `dargo test --file`, `dargo compile`,
+  `dargo execute`, `dargo generate-abi`, and validates
+  `proof-forge-artifact.json`.
+- Added CI coverage for the ExpressionPredicateProbe Psy golden source
+  snapshot.
+
+Validation run:
+
+```sh
+lake build
+scripts/psy/diagnostic-smoke.sh
+lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionPredicateProbe.psy
+diff -u Examples/Psy/ExpressionPredicateProbe.golden.psy build/psy/ExpressionPredicateProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/expression-predicate-smoke.sh
+```
+
+Result:
+
+- Generated ExpressionPredicateProbe source matches the checked-in golden
+  fixture.
+- `scripts/psy/expression-predicate-smoke.sh` generated DPN JSON, ABI JSON,
+  execute log, and `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [16]` for `predicate_sum`.
+- `scripts/psy/diagnostic-smoke.sh` passed all 25 diagnostic cases.
+
+Known limitations:
+
+- This adds expression predicates, not statement-level `if/else` lowering.
+- Fixed-array equality through `==` is intentionally rejected for now; compare
+  fixed-array elements explicitly until direct array equality is covered by a
+  Dargo-backed fixture.
+
+Next step:
+
+- Add statement-level conditional lowering or broaden arithmetic expression
+  coverage with upstream/Dargo fixtures.
+
 ### Psy Sourcegen Type Diagnostics
 
 Commit: feature commit for Psy expression and statement type diagnostics

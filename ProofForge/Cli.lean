@@ -10,6 +10,7 @@ import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.AssertProbe
 import ProofForge.IR.Examples.ContextProbe
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.ExpressionPredicateProbe
 import ProofForge.IR.Examples.HashProbe
 import ProofForge.IR.Examples.LoopProbe
 import ProofForge.IR.Examples.MapProbe
@@ -31,6 +32,7 @@ inductive EmitMode where
   | counterIrYul
   | counterIrBytecode
   | counterIrPsy
+  | expressionPredicateIrPsy
   | contextIrPsy
   | hashIrPsy
   | mapIrPsy
@@ -65,6 +67,7 @@ def usage : String :=
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
     "  proof-forge --emit-counter-ir-psy [-o output.psy]",
+    "  proof-forge --emit-expression-predicate-ir-psy [-o output.psy]",
     "  proof-forge --emit-context-ir-psy [-o output.psy]",
     "  proof-forge --emit-hash-ir-psy [-o output.psy]",
     "  proof-forge --emit-map-ir-psy [-o output.psy]",
@@ -241,7 +244,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy then
         .ok opts
       else
         .error usage
@@ -274,6 +277,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .counterIrBytecode }
   | "--emit-counter-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrPsy }
+  | "--emit-expression-predicate-ir-psy" :: rest, opts =>
+      parseArgs rest { opts with mode := .expressionPredicateIrPsy }
   | "--emit-context-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .contextIrPsy }
   | "--emit-hash-ir-psy" :: rest, opts =>
@@ -391,6 +396,16 @@ def compileCounterIrBytecode (opts : CliOptions) : IO UInt32 := do
 def compileCounterIrPsy (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/psy/Counter.psy")
   match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.Counter.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileExpressionPredicateIrPsy (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/psy/ExpressionPredicateProbe.psy")
+  match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.ExpressionPredicateProbe.module with
   | .ok source =>
       writeTextFile output source
       IO.println s!"wrote {output}"
@@ -530,6 +545,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .counterIrYul => compileCounterIrYul opts
   | .counterIrBytecode => compileCounterIrBytecode opts
   | .counterIrPsy => compileCounterIrPsy opts
+  | .expressionPredicateIrPsy => compileExpressionPredicateIrPsy opts
   | .contextIrPsy => compileContextIrPsy opts
   | .hashIrPsy => compileHashIrPsy opts
   | .mapIrPsy => compileMapIrPsy opts
