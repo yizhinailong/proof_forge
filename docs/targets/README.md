@@ -46,6 +46,9 @@ target registry and portable IR integration.
 | Solana Zig fork | Research | Fallback reference from `solana-sdk-mono`. |
 | Sui Move | Research | Source-generation; follows Aptos POC. |
 | Aptos Move | Research | First Move POC target. |
+| [Cardano Plutus/Aiken](cardano-plutus-aiken.md) | Research | Docs-first eUTXO validator sourcegen candidate through Aiken, UPLC, Plutus blueprints, datum/redeemer/script-context schemas, and transaction-building validation. |
+| [Tezos Michelson/LIGO](tezos-michelson-ligo.md) | Research | Docs-first Michelson sourcegen candidate through LIGO with typed storage, entrypoints, views/events, operation lists, and sandbox/test validation. |
+| [Starknet Cairo](starknet-cairo.md) | Research | Docs-first Cairo/Sierra/CASM sourcegen candidate with Scarb, ABI/class hash metadata, Starknet storage/events, and Starknet Foundry/devnet validation. |
 | [TON TVM](ton-tvm.md) | Research | Docs-first TVM/Tolk sourcegen candidate with cells, messages, get methods, actions, and TVM gas. |
 | [Bitcoin Cash CashScript](bitcoin-cash-cashscript.md) | Research | Docs-first UTXO script/covenant sourcegen candidate through CashScript and BCH transaction-builder validation. |
 | Psy DPN | Experimental | Narrow ZK circuit sourcegen target through generated `.psy`, Dargo smokes, and artifact metadata validation. |
@@ -60,6 +63,9 @@ target registry and portable IR integration.
 - [Algorand AVM target](algorand-avm.md)
 - [Solana sBPF](solana-sbf.md) — notes for target id `solana-sbpf-linker`
 - [Move family](move-family.md)
+- [Cardano Plutus/Aiken target](cardano-plutus-aiken.md)
+- [Tezos Michelson/LIGO target](tezos-michelson-ligo.md)
+- [Starknet Cairo target](starknet-cairo.md)
 - [TON TVM target](ton-tvm.md)
 - [Bitcoin Cash CashScript target](bitcoin-cash-cashscript.md)
 - [Psy DPN ZK target](psy-dpn.md)

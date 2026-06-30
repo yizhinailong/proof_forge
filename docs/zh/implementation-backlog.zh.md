@@ -360,6 +360,67 @@
 - 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
 - 文档明确区分 Algorand AVM 与 Wasm-host、EVM、Move、Solana、TVM、UTXO 和 ZK 目标。
 
+## 工作流 17: Cardano Plutus/Aiken Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Cardano smart contracts，同时避免把 eUTXO validators 误建模为 stateful method-call contracts。
+
+任务：
+
+- 已完成：为候选 id `cardano-plutus-aiken` 添加文档优先的目标说明。
+- 将 Cardano 归类为 eUTXO validator sourcegen candidate。
+- 决定第一版 spike 是否先生成 Aiken source，再考虑 direct Plutus/UPLC 路径。
+- 审查 eUTXO state、validator roles、datum、redeemer、script context、validity ranges、transaction balancing、native tokens、execution units 和 Plutus blueprints 的候选能力。
+- 定义一个带 successor-output validation 的极小 Counter-like eUTXO state-machine 场景。
+- 定义 Aiken source、UPLC/Plutus validators、blueprint、datum/redeemer schemas、transaction scenario、execution units、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：Aiken compile/test，加上 emulator、SDK-backed transaction 或 cardano-node-backed validation。
+
+验收标准：
+
+- `docs/targets/cardano-plutus-aiken.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 Cardano 与 EVM、Wasm-host、Move、Solana、TVM、AVM、generic Bitcoin、BCH/CashScript 和 Kaspa/Toccata 目标。
+
+## 工作流 18: Tezos Michelson/LIGO Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Tezos smart contracts，同时避免用 generic contract calls 隐藏 Michelson operation-list semantics。
+
+任务：
+
+- 已完成：为候选 id `tezos-michelson-ligo` 添加文档优先的目标说明。
+- 将 Tezos 归类为 Michelson source/artifact target，并以 LIGO 作为第一版 sourcegen 路径。
+- 审查 Michelson code、entrypoints、typed Micheline storage、`big_map`、operation lists、views、events、tickets、Sapling、delegation、gas/storage burn 和 LIGO artifacts 的候选能力。
+- 定义一个极小 Counter-like contract，包含一个 entrypoint、一个 view、typed storage，以及 local test 或 sandbox validation flow。
+- 定义 LIGO source、Michelson output、parameter/storage schema、operation list、view/event manifest、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：LIGO compile/test 加上 Octez sandbox 或等价 Tezos local validation。
+
+验收标准：
+
+- `docs/targets/tezos-michelson-ligo.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 Tezos 与 EVM、Wasm-host、Move、Solana、TVM、AVM、UTXO 和 ZK 目标。
+
+## 工作流 19: Starknet Cairo Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Starknet smart contracts，同时避免把 Cairo chain contracts 当成 generic ZK circuits。
+
+任务：
+
+- 已完成：为候选 id `starknet-cairo` 添加文档优先的目标说明。
+- 将 Starknet 归类为 Cairo/Sierra/CASM sourcegen candidate。
+- 审查 Cairo source、Sierra、CASM、class declaration、class hash、Starknet ABI、storage、account abstraction、syscalls、L1/L2 messaging、Starknet fee/resource constraints 和 Starknet Foundry validation 的候选能力。
+- 定义一个极小 Counter-like contract，包含 storage、increment external function、read function 和一个 event。
+- 定义 Cairo source、Sierra/CASM artifacts、ABI、selector/class-hash metadata、deployment manifest、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：Scarb build 加上 `snforge` 或 devnet-backed tests。
+
+验收标准：
+
+- `docs/targets/starknet-cairo.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 Starknet 与 EVM、Wasm-host、Move、Solana、TVM、AVM、UTXO 和 `psy-dpn` 风格 ZK circuit targets。
+
 ## 建议顺序
 
 1. 目标注册表（工作流 1）。
@@ -374,7 +435,10 @@
 10. 在任何 registry 变更前进行 Stellar Soroban research target review（工作流 12）。
 11. 在任何 registry 变更前进行 Internet Computer research target review（工作流 13）。
 12. 在任何 registry 变更前进行 Algorand AVM research target review（工作流 16）。
-13. 在任何 registry 变更前进行 TON TVM research target review（工作流 14）。
-14. 在任何 registry 变更前进行 Bitcoin Cash CashScript research target review（工作流 15）。
-15. CI 目标矩阵（工作流 9）。
-16. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。
+13. 在任何 registry 变更前进行 Cardano Plutus/Aiken research target review（工作流 17）。
+14. 在任何 registry 变更前进行 Tezos Michelson/LIGO research target review（工作流 18）。
+15. 在任何 registry 变更前进行 Starknet Cairo research target review（工作流 19）。
+16. 在任何 registry 变更前进行 TON TVM research target review（工作流 14）。
+17. 在任何 registry 变更前进行 Bitcoin Cash CashScript research target review（工作流 15）。
+18. CI 目标矩阵（工作流 9）。
+19. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。

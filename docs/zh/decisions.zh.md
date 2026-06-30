@@ -25,6 +25,9 @@
 | D-015 | 2026-07-01 | 将 **`ton-tvm`** 归类为文档优先的 TVM/Tolk sourcegen Research 候选 | TON 合约目标是 TVM，具有 cells、TL-B serialization、message handlers、get methods、action lists、account lifecycle 和 TVM gas 语义；registry 修改需等待 sourcegen spike 路径确定 |
 | D-016 | 2026-07-01 | 将 **`bch-cashscript`** 归类为文档优先的 UTXO script/covenant sourcegen Research 候选 | Bitcoin Cash 通过 CashScript 锁定并花费 UTXO，使用 BCH Script、transaction introspection、CashTokens 和 SDK transaction-builder 语义；registry 修改需等待 CashScript spike 路径确定 |
 | D-017 | 2026-07-01 | 将 **`algorand-avm`** 归类为文档优先的 AVM/TEAL sourcegen Research 候选 | Algorand 合约目标是 AVM approval/clear-state 或 LogicSig program，具有 ARC-4 ABI、global/local/box storage、resource references、atomic transaction groups、inner transactions 和 AVM budget 语义；registry 修改需等待 Algorand package spike 路径确定 |
+| D-018 | 2026-07-01 | 将 **`cardano-plutus-aiken`** 归类为文档优先的 eUTXO validator sourcegen Research 候选 | Cardano 合约通过 datum、redeemer、script context、Plutus/UPLC artifacts、execution units、Plutus blueprints 和 off-chain transaction-building 语义验证 eUTXO spends；registry 修改需等待 Aiken sourcegen spike 路径确定 |
+| D-019 | 2026-07-01 | 将 **`tezos-michelson-ligo`** 归类为文档优先的 Michelson/LIGO sourcegen Research 候选 | Tezos 合约目标是 Michelson，具有 typed storage、parameters、entrypoints、views/events、operation lists、`big_map`、tickets、Sapling、gas 和 storage-burn 语义；registry 修改需等待 LIGO sourcegen spike 路径确定 |
+| D-020 | 2026-07-01 | 将 **`starknet-cairo`** 归类为文档优先的 Cairo/Sierra/CASM sourcegen Research 候选 | Starknet 合约通过 Cairo 编译为 Sierra/CASM，具有 ABI、class hashes、declaration/deployment metadata、Starknet storage/events、account abstraction、syscalls 和 L1/L2 messaging 语义；registry 修改需等待 Cairo package spike 路径确定 |
 
 ## 目标家族分类
 
@@ -35,6 +38,9 @@
 | 二进制工具链 | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | 源代码生成 | `move-aptos`, `move-sui` | 可移植 IR → Move 包源码 |
 | AVM sourcegen research | `algorand-avm`（候选，仅文档） | 可移植 IR → Algorand Python、Algorand TypeScript 或 TEAL package → AVM approval/clear-state 或 LogicSig bytecode + ARC-4/app metadata |
+| eUTXO validator sourcegen research | `cardano-plutus-aiken`（候选，仅文档） | 可移植 IR → Aiken package → UPLC/Plutus validator artifacts + Plutus blueprint + transaction scenario metadata |
+| Michelson sourcegen research | `tezos-michelson-ligo`（候选，仅文档） | 可移植 IR → LIGO package → Michelson contract + parameter/storage schema + operation/view/event manifests |
+| Cairo sourcegen research | `starknet-cairo`（候选，仅文档） | 可移植 IR → Cairo/Scarb package → Sierra/CASM artifacts + ABI/class-hash/deployment metadata |
 | TVM sourcegen research | `ton-tvm`（候选，仅文档） | 可移植 IR → Tolk 或更底层 TON source → TVM/BOC artifact + TL-B/message manifests |
 | UTXO script sourcegen research | `bch-cashscript`（候选，仅文档） | 可移植 IR → CashScript `.cash` source → cashc artifact JSON + BCH transaction-builder validation |
 | ZK 电路源代码生成 | `psy-dpn` | 可移植 IR → `.psy` 包 → Dargo → DPN 电路 JSON |
@@ -52,6 +58,9 @@ Research lane: Kaspa Toccata covenant/based-app target note before registry chan
 Research lane: Stellar Soroban Wasm-host target note before registry changes
 Research lane: Internet Computer canister target note before registry changes
 Research lane: Algorand AVM/TEAL target note before registry changes
+Research lane: Cardano Plutus/Aiken eUTXO target note before registry changes
+Research lane: Tezos Michelson/LIGO target note before registry changes
+Research lane: Starknet Cairo target note before registry changes
 Research lane: TON TVM/Tolk target note before registry changes
 Research lane: Bitcoin Cash CashScript target note before registry changes
 Phase 4: Cross-target shared scenario hardening
@@ -73,6 +82,9 @@ Phase 5: Cloud platform
 | Internet Computer 目标候选 | [targets/internet-computer.md](targets/internet-computer.md) |
 | Algorand AVM 目标候选 | [targets/algorand-avm.md](targets/algorand-avm.md) |
 | Solana 指令清单 | [targets/solana-sbf.md](targets/solana-sbf.md) |
+| Cardano Plutus/Aiken 目标候选 | [targets/cardano-plutus-aiken.md](targets/cardano-plutus-aiken.md) |
+| Tezos Michelson/LIGO 目标候选 | [targets/tezos-michelson-ligo.md](targets/tezos-michelson-ligo.md) |
+| Starknet Cairo 目标候选 | [targets/starknet-cairo.md](targets/starknet-cairo.md) |
 | TON TVM 目标候选 | [targets/ton-tvm.md](targets/ton-tvm.md) |
 | Bitcoin Cash CashScript 目标候选 | [targets/bitcoin-cash-cashscript.md](targets/bitcoin-cash-cashscript.md) |
 | Psy/DPN ZK 目标 | [targets/psy-dpn.md](targets/psy-dpn.md) |

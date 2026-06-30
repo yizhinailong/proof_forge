@@ -113,6 +113,69 @@ Algorand 与通用合约能力有部分重叠，但 AVM programs、storage class
 | `gas.avm_budget` | lowering 跟踪 AVM opcode budget、costs 和 program limits | AVM budget constraints 不是 EVM gas 或 Wasm host fuel |
 | `artifact.algokit` | 构建输出 AlgoKit / Puya app artifacts 和 validation metadata | 目标工具链需要 app spec 和 bytecode package metadata |
 
+### Cardano Plutus/Aiken
+
+参见 [Cardano Plutus/Aiken 目标](targets/cardano-plutus-aiken.zh.md)。
+
+Cardano 与 UTXO covenant 目标有重叠，但 eUTXO validator roles、datum、redeemer、script context、execution units 和 Plutus blueprint metadata 在添加 target profile 前需要显式表达。
+
+| 候选 id | 可移植含义 | 为什么需要单独表达 |
+|---|---|---|
+| `storage.eutxo` | state 和 value 位于 eUTXO outputs | 不是账户/对象存储或 global contract state |
+| `validator.spend` | target 发射 spending validator | spending validator 有 datum/redeemer/script-context 语义 |
+| `validator.mint` | target 发射 minting policy | minting policy 语义不同于 spending validation |
+| `validator.withdraw` | target 发射 withdrawal validator | withdrawal validation 是 Cardano 独立角色 |
+| `datum.inline` | contract 依赖 inline datum encoding | datum placement 会影响 transaction construction 和 validation |
+| `redeemer.input` | entrypoint arguments 是 redeemers | arguments 来自 transaction redeemers，不是 method calldata |
+| `tx.script_context` | validator 读取 Cardano script context | context 是 validation correctness 的核心 |
+| `tx.validity_range` | validator 约束 slot/time validity | validity ranges 不同于通用 block reads |
+| `tx.balancing` | validation 包含 transaction balancing 和 fee handling | off-chain transaction construction 是实际正确性的一部分 |
+| `asset.native_token` | contract 处理 Cardano native multi-assets | native asset model 不同于通用 `value.native` |
+| `budget.exunits` | artifact 记录 Plutus execution units | execution-unit budgeting 是目标特有能力 |
+| `artifact.plutus_blueprint` | 构建输出 CIP-57 blueprint metadata | blueprint metadata 是 Cardano tooling surface 的一部分 |
+
+### Tezos Michelson/LIGO
+
+参见 [Tezos Michelson/LIGO 目标](targets/tezos-michelson-ligo.zh.md)。
+
+Tezos 与通用 contract storage 和 entrypoints 有部分重叠，但 Michelson typed data、operation-list effects、views、events、tickets 和 gas/storage-burn 语义需要在添加 target profile 前显式表达。
+
+| 候选 id | 可移植含义 | 为什么需要单独表达 |
+|---|---|---|
+| `vm.michelson` | target 发射或验证 Michelson code | Michelson 是 typed stack VM，有目标特有约束 |
+| `abi.entrypoint` | 构建输出 entrypoint/parameter schema metadata | public entrypoint shape 是 target-visible metadata |
+| `storage.micheline` | storage 编码为 typed Micheline data | 不是 EVM slots 或 generic JSON |
+| `storage.big_map` | contract 使用 Tezos `big_map` storage | `big_map` persistence/indexing 不同于普通 maps |
+| `operation.list` | entrypoint 返回 Tezos operations list | effects 是返回数据，不是 direct synchronous calls |
+| `view.contract` | contract 暴露 Tezos views | views 是独立 public read surface |
+| `events.tezos` | contract 发射 Tezos events | event payload 和 indexing semantics 是目标原生语义 |
+| `ticket.handle` | contract 创建、转移或消费 tickets | tickets 是 native linear assets，不是 generic tokens |
+| `privacy.sapling` | contract 使用 Sapling state 或 transactions | privacy state 是目标原生且非通用 |
+| `delegate.set` | contract 可以 change 或 clear delegation | delegation 是 Tezos-specific operation |
+| `gas.tezos` | artifact 记录 Tezos gas/storage-burn constraints | fee model 不同于 EVM gas 和 Wasm fuel |
+| `artifact.ligo` | 构建输出 LIGO 和 compiled Michelson metadata | 目标工具链要求 |
+
+### Starknet Cairo
+
+参见 [Starknet Cairo 目标](targets/starknet-cairo.zh.md)。
+
+Starknet 与 contract storage、events 和 calls 有部分重叠，但 Cairo/Sierra/CASM artifacts、class hashes、account abstraction、syscalls 和 L1/L2 messaging 在添加 target profile 前需要显式表达。
+
+| 候选 id | 可移植含义 | 为什么需要单独表达 |
+|---|---|---|
+| `vm.cairo` | target 发射 Starknet Cairo source | Cairo 是 source language 和 execution model boundary |
+| `artifact.sierra` | 构建输出 Sierra contract class artifacts | Sierra 是必需的 intermediate contract class metadata |
+| `artifact.casm` | 构建输出 CASM artifacts | CASM 是不同于 source 和 ABI 的目标制品 |
+| `class.declare` | deployment flow 包含 class declaration | Starknet 将 declaring a class 与 deploying an instance 分离 |
+| `class.hash` | artifact 记录 class hash 和 class identity | class hash 是 deployment 和 upgrade semantics 的一部分 |
+| `abi.starknet` | 构建输出 Starknet ABI 和 selector metadata | ABI shape 不是 EVM ABI |
+| `storage.starknet` | contract 使用 Starknet storage paths/maps/components | storage paths 和 components 是目标原生语义 |
+| `account.abstraction` | target 依赖 Starknet account-contract semantics | accounts 是 contract-level protocol participants |
+| `syscall.starknet` | contract 使用 Starknet syscalls | calls、deploys、events、storage 和 messaging 使用 syscall surfaces |
+| `message.l1_l2` | contract 发送或消费 L1/L2 messages | messaging 不同于普通 contract calls |
+| `fee.starknet` | artifact 记录 Starknet fee/resource constraints | fee/resource model 是目标特有语义 |
+| `test.snforge` | validation 使用 Starknet Foundry 或 devnet | local smoke tooling 是 target validation 的一部分 |
+
 ### TON TVM
 
 参见 [TON TVM 目标](targets/ton-tvm.zh.md)。

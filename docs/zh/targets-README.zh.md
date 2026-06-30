@@ -39,6 +39,9 @@
 | Solana Zig fork | Research | 来自 `solana-sdk-mono` 的备选参考。 |
 | Sui Move | Research | 源代码生成；遵循 Aptos POC。 |
 | Aptos Move | Research | 首个 Move POC 目标。 |
+| [Cardano Plutus/Aiken](targets/cardano-plutus-aiken.zh.md) | Research | 文档优先的 eUTXO validator sourcegen 候选，通过 Aiken、UPLC、Plutus blueprints、datum/redeemer/script-context schemas 和 transaction-building validation。 |
+| [Tezos Michelson/LIGO](targets/tezos-michelson-ligo.zh.md) | Research | 文档优先的 Michelson sourcegen 候选，通过 LIGO、typed storage、entrypoints、views/events、operation lists 和 sandbox/test validation。 |
+| [Starknet Cairo](targets/starknet-cairo.zh.md) | Research | 文档优先的 Cairo/Sierra/CASM sourcegen 候选，包含 Scarb、ABI/class hash metadata、Starknet storage/events 和 Starknet Foundry/devnet validation。 |
 | [TON TVM](targets/ton-tvm.zh.md) | Research | 文档优先的 TVM/Tolk sourcegen 候选，包含 cells、messages、get methods、actions 和 TVM gas。 |
 | [Bitcoin Cash CashScript](targets/bitcoin-cash-cashscript.zh.md) | Research | 文档优先的 UTXO script/covenant sourcegen 候选，通过 CashScript 与 BCH transaction-builder 验证。 |
 | Psy DPN | Experimental | 通过生成的 `.psy`、Dargo 冒烟测试和制品元数据校验实现的窄范围 ZK 电路源代码生成目标。 |
@@ -53,6 +56,9 @@
 - [Algorand AVM 目标](targets/algorand-avm.zh.md)
 - [Solana sBPF](solana-sbf.md) —— 目标 id `solana-sbpf-linker` 的说明
 - [Move 家族](move-family.md)
+- [Cardano Plutus/Aiken 目标](targets/cardano-plutus-aiken.zh.md)
+- [Tezos Michelson/LIGO 目标](targets/tezos-michelson-ligo.zh.md)
+- [Starknet Cairo 目标](targets/starknet-cairo.zh.md)
 - [TON TVM 目标](targets/ton-tvm.zh.md)
 - [Bitcoin Cash CashScript 目标](targets/bitcoin-cash-cashscript.zh.md)
 - [Psy DPN ZK 目标](psy-dpn.md)

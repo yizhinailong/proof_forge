@@ -68,5 +68,8 @@ python3 scripts/translate-docs.py --model glm-4.7
 - [Stellar Soroban 目标说明](targets/stellar-soroban.zh.md)
 - [Internet Computer 目标说明](targets/internet-computer.zh.md)
 - [Algorand AVM 目标说明](targets/algorand-avm.zh.md)
+- [Cardano Plutus/Aiken 目标说明](targets/cardano-plutus-aiken.zh.md)
+- [Tezos Michelson/LIGO 目标说明](targets/tezos-michelson-ligo.zh.md)
+- [Starknet Cairo 目标说明](targets/starknet-cairo.zh.md)
 - [TON TVM 目标说明](targets/ton-tvm.zh.md)
 - [Bitcoin Cash CashScript 目标说明](targets/bitcoin-cash-cashscript.zh.md)

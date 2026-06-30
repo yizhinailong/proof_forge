@@ -128,6 +128,75 @@ separate representation before a target profile is added.
 | `gas.avm_budget` | Lowering tracks AVM opcode budget, costs, and program limits | AVM budget constraints are not EVM gas or Wasm host fuel |
 | `artifact.algokit` | Build emits AlgoKit/Puya app artifacts and validation metadata | Target tooling requires app spec and bytecode package metadata |
 
+### Cardano Plutus/Aiken
+
+See [Cardano Plutus/Aiken target](targets/cardano-plutus-aiken.md).
+
+Cardano overlaps with UTXO covenant targets, but eUTXO validator roles, datum,
+redeemer, script context, execution units, and Plutus blueprint metadata need
+separate representation before a target profile is added.
+
+| Candidate id | Portable meaning | Why it is separate |
+|---|---|---|
+| `storage.eutxo` | State and value live in eUTXO outputs | Not account/object storage or global contract state |
+| `validator.spend` | Target emits a spending validator | Spending validators have datum/redeemer/script-context semantics |
+| `validator.mint` | Target emits a minting policy | Minting policy semantics differ from spending validation |
+| `validator.withdraw` | Target emits a withdrawal validator | Withdrawal validation has a distinct Cardano role |
+| `datum.inline` | Contract depends on inline datum encoding | Datum placement affects transaction construction and validation |
+| `redeemer.input` | Entrypoint arguments are redeemers | Arguments arrive as transaction redeemers, not method calldata |
+| `tx.script_context` | Validator reads Cardano script context | Context is central to validation correctness |
+| `tx.validity_range` | Validator constrains slot/time validity | Validity ranges differ from generic block reads |
+| `tx.balancing` | Validation includes transaction balancing and fee handling | Off-chain transaction construction is part of practical correctness |
+| `asset.native_token` | Contract handles Cardano native multi-assets | Native asset model differs from generic `value.native` |
+| `budget.exunits` | Artifact records Plutus execution units | Execution-unit budgeting is target-specific |
+| `artifact.plutus_blueprint` | Build emits CIP-57 blueprint metadata | Blueprint metadata is part of the Cardano tooling surface |
+
+### Tezos Michelson/LIGO
+
+See [Tezos Michelson/LIGO target](targets/tezos-michelson-ligo.md).
+
+Tezos overlaps with generic contract storage and entrypoints, but Michelson's
+typed data, operation-list effects, views, events, tickets, and gas/storage-burn
+semantics need explicit representation before a target profile is added.
+
+| Candidate id | Portable meaning | Why it is separate |
+|---|---|---|
+| `vm.michelson` | Target emits or validates Michelson code | Michelson is a typed stack VM with target-specific constraints |
+| `abi.entrypoint` | Build emits entrypoint/parameter schema metadata | Public entrypoint shape is target-visible metadata |
+| `storage.micheline` | Storage is encoded as typed Micheline data | Not EVM slots or generic JSON |
+| `storage.big_map` | Contract uses Tezos `big_map` storage | `big_map` persistence/indexing differs from ordinary maps |
+| `operation.list` | Entrypoint returns a list of Tezos operations | Effects are returned data, not direct synchronous calls |
+| `view.contract` | Contract exposes Tezos views | Views are a separate public read surface |
+| `events.tezos` | Contract emits Tezos events | Event payload and indexing semantics are target-native |
+| `ticket.handle` | Contract creates, transfers, or consumes tickets | Tickets are native linear assets, not generic tokens |
+| `privacy.sapling` | Contract uses Sapling state or transactions | Privacy state is target-native and non-generic |
+| `delegate.set` | Contract can change or clear delegation | Delegation is a Tezos-specific operation |
+| `gas.tezos` | Artifact records Tezos gas/storage-burn constraints | Fee model differs from EVM gas and Wasm fuel |
+| `artifact.ligo` | Build emits LIGO and compiled Michelson metadata | Target tooling requirement |
+
+### Starknet Cairo
+
+See [Starknet Cairo target](targets/starknet-cairo.md).
+
+Starknet overlaps with contract storage, events, and calls, but Cairo/Sierra/CASM
+artifacts, class hashes, account abstraction, syscalls, and L1/L2 messaging need
+explicit representation before a target profile is added.
+
+| Candidate id | Portable meaning | Why it is separate |
+|---|---|---|
+| `vm.cairo` | Target emits Cairo source for Starknet | Cairo is the source language and execution model boundary |
+| `artifact.sierra` | Build emits Sierra contract class artifacts | Sierra is required intermediate contract class metadata |
+| `artifact.casm` | Build emits CASM artifacts | CASM is a target artifact distinct from source and ABI |
+| `class.declare` | Deployment flow includes class declaration | Starknet separates declaring a class from deploying an instance |
+| `class.hash` | Artifact records class hash and class identity | Class hash is part of deployment and upgrade semantics |
+| `abi.starknet` | Build emits Starknet ABI and selector metadata | ABI shape is not EVM ABI |
+| `storage.starknet` | Contract uses Starknet storage paths/maps/components | Storage paths and components are target-native |
+| `account.abstraction` | Target depends on Starknet account-contract semantics | Accounts are contract-level protocol participants |
+| `syscall.starknet` | Contract uses Starknet syscalls | Calls, deploys, events, storage, and messaging use syscall surfaces |
+| `message.l1_l2` | Contract sends or consumes L1/L2 messages | Messaging differs from ordinary contract calls |
+| `fee.starknet` | Artifact records Starknet fee/resource constraints | Fee/resource model is target-specific |
+| `test.snforge` | Validation uses Starknet Foundry or devnet | Local smoke tooling is part of target validation |
+
 ### TON TVM
 
 See [TON TVM target](targets/ton-tvm.md).

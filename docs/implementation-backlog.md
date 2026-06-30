@@ -464,6 +464,103 @@ Acceptance criteria:
 - The docs distinguish Algorand AVM from Wasm-host, EVM, Move, Solana, TVM,
   UTXO, and ZK targets.
 
+## Workstream 17: Cardano Plutus/Aiken Research Target
+
+Goal: decide whether and how ProofForge should support Cardano smart contracts
+without pretending eUTXO validators are stateful method-call contracts.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `cardano-plutus-aiken`.
+- Classify Cardano as an eUTXO validator sourcegen candidate.
+- Decide whether the first spike should generate Aiken source before any direct
+  Plutus/UPLC path.
+- Review candidate capabilities for eUTXO state, validator roles, datum,
+  redeemer, script context, validity ranges, transaction balancing, native
+  tokens, execution units, and Plutus blueprints.
+- Define a tiny Counter-like eUTXO state-machine scenario with successor-output
+  validation.
+- Define artifact metadata for Aiken source, UPLC/Plutus validators, blueprint,
+  datum/redeemer schemas, transaction scenario, execution units, toolchain
+  versions, and validation result.
+- Identify the local smoke command set: Aiken compile/test plus emulator,
+  SDK-backed transaction, or cardano-node-backed validation.
+
+Acceptance criteria:
+
+- `docs/targets/cardano-plutus-aiken.md` records the target classification and
+  non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish Cardano from EVM, Wasm-host, Move, Solana, TVM, AVM,
+  generic Bitcoin, BCH/CashScript, and Kaspa/Toccata targets.
+
+## Workstream 18: Tezos Michelson/LIGO Research Target
+
+Goal: decide whether and how ProofForge should support Tezos smart contracts
+without hiding Michelson operation-list semantics behind generic contract calls.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `tezos-michelson-ligo`.
+- Classify Tezos as a Michelson source/artifact target with LIGO as the first
+  sourcegen path.
+- Review candidate capabilities for Michelson code, entrypoints, typed
+  Micheline storage, `big_map`, operation lists, views, events, tickets,
+  Sapling, delegation, gas/storage burn, and LIGO artifacts.
+- Define a tiny Counter-like contract with one entrypoint, one view, typed
+  storage, and a local test or sandbox validation flow.
+- Define artifact metadata for LIGO source, Michelson output, parameter/storage
+  schema, operation list, view/event manifest, toolchain versions, and
+  validation result.
+- Identify the local smoke command set: LIGO compile/test plus Octez sandbox or
+  equivalent Tezos local validation.
+
+Acceptance criteria:
+
+- `docs/targets/tezos-michelson-ligo.md` records the target classification and
+  non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish Tezos from EVM, Wasm-host, Move, Solana, TVM, AVM, UTXO,
+  and ZK targets.
+
+## Workstream 19: Starknet Cairo Research Target
+
+Goal: decide whether and how ProofForge should support Starknet smart contracts
+without treating Cairo chain contracts as generic ZK circuits.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `starknet-cairo`.
+- Classify Starknet as a Cairo/Sierra/CASM sourcegen candidate.
+- Review candidate capabilities for Cairo source, Sierra, CASM, class
+  declaration, class hash, Starknet ABI, storage, account abstraction, syscalls,
+  L1/L2 messaging, Starknet fee/resource constraints, and Starknet Foundry
+  validation.
+- Define a tiny Counter-like contract with storage, an increment external
+  function, a read function, and one event.
+- Define artifact metadata for Cairo source, Sierra/CASM artifacts, ABI,
+  selector/class-hash metadata, deployment manifest, toolchain versions, and
+  validation result.
+- Identify the local smoke command set: Scarb build plus `snforge` or
+  devnet-backed tests.
+
+Acceptance criteria:
+
+- `docs/targets/starknet-cairo.md` records the target classification and
+  non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish Starknet from EVM, Wasm-host, Move, Solana, TVM, AVM,
+  UTXO, and `psy-dpn`-style ZK circuit targets.
+
 ## Suggested Order
 
 1. Target registry (Workstream 1).
@@ -483,9 +580,15 @@ Acceptance criteria:
     changes.
 12. Algorand AVM research target review (Workstream 16) before any registry
     changes.
-13. TON TVM research target review (Workstream 14) before any registry changes.
-14. Bitcoin Cash CashScript research target review (Workstream 15) before any
+13. Cardano Plutus/Aiken research target review (Workstream 17) before any
     registry changes.
-15. CI target matrix (Workstream 9).
-16. Cloud platform design refresh (prerequisite: two+ targets at Experimental
+14. Tezos Michelson/LIGO research target review (Workstream 18) before any
+    registry changes.
+15. Starknet Cairo research target review (Workstream 19) before any registry
+    changes.
+16. TON TVM research target review (Workstream 14) before any registry changes.
+17. Bitcoin Cash CashScript research target review (Workstream 15) before any
+    registry changes.
+18. CI target matrix (Workstream 9).
+19. Cloud platform design refresh (prerequisite: two+ targets at Experimental
    stage; see [decisions.md](decisions.md)).

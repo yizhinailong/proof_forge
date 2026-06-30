@@ -27,6 +27,9 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-015 | 2026-07-01 | Classify **`ton-tvm`** as a docs-first TVM/Tolk sourcegen Research candidate | TON contracts target TVM with cells, TL-B serialization, message handlers, get methods, action lists, account lifecycle, and TVM gas semantics; registry changes wait until a sourcegen spike path is chosen |
 | D-016 | 2026-07-01 | Classify **`bch-cashscript`** as a docs-first UTXO script/covenant sourcegen Research candidate | Bitcoin Cash contracts through CashScript lock and spend UTXOs with BCH Script, transaction introspection, CashTokens, and SDK transaction-builder semantics; registry changes wait until a CashScript spike path is chosen |
 | D-017 | 2026-07-01 | Classify **`algorand-avm`** as a docs-first AVM/TEAL sourcegen Research candidate | Algorand contracts target AVM approval/clear-state or LogicSig programs with ARC-4 ABI, global/local/box storage, resource references, atomic transaction groups, inner transactions, and AVM budget semantics; registry changes wait until an Algorand package spike path is chosen |
+| D-018 | 2026-07-01 | Classify **`cardano-plutus-aiken`** as a docs-first eUTXO validator sourcegen Research candidate | Cardano contracts validate eUTXO spends through datum, redeemer, script context, Plutus/UPLC artifacts, execution units, Plutus blueprints, and off-chain transaction-building semantics; registry changes wait until an Aiken sourcegen spike path is chosen |
+| D-019 | 2026-07-01 | Classify **`tezos-michelson-ligo`** as a docs-first Michelson/LIGO sourcegen Research candidate | Tezos contracts target Michelson with typed storage, parameters, entrypoints, views/events, operation lists, `big_map`, tickets, Sapling, gas, and storage-burn semantics; registry changes wait until a LIGO sourcegen spike path is chosen |
+| D-020 | 2026-07-01 | Classify **`starknet-cairo`** as a docs-first Cairo/Sierra/CASM sourcegen Research candidate | Starknet contracts compile through Cairo into Sierra/CASM with ABI, class hashes, declaration/deployment metadata, Starknet storage/events, account abstraction, syscalls, and L1/L2 messaging semantics; registry changes wait until a Cairo package spike path is chosen |
 
 ## Target Family Classification
 
@@ -37,6 +40,9 @@ See also: [Review checklist (English)](review-checklist.md),
 | Binary toolchain | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | Source codegen | `move-aptos`, `move-sui` | Portable IR → Move package source |
 | AVM sourcegen research | `algorand-avm` (candidate, docs only) | Portable IR → Algorand Python, Algorand TypeScript, or TEAL package → AVM approval/clear-state or LogicSig bytecode + ARC-4/app metadata |
+| eUTXO validator sourcegen research | `cardano-plutus-aiken` (candidate, docs only) | Portable IR → Aiken package → UPLC/Plutus validator artifacts + Plutus blueprint + transaction scenario metadata |
+| Michelson sourcegen research | `tezos-michelson-ligo` (candidate, docs only) | Portable IR → LIGO package → Michelson contract + parameter/storage schema + operation/view/event manifests |
+| Cairo sourcegen research | `starknet-cairo` (candidate, docs only) | Portable IR → Cairo/Scarb package → Sierra/CASM artifacts + ABI/class-hash/deployment metadata |
 | TVM sourcegen research | `ton-tvm` (candidate, docs only) | Portable IR → Tolk or lower-level TON source → TVM/BOC artifact + TL-B/message manifests |
 | UTXO script sourcegen research | `bch-cashscript` (candidate, docs only) | Portable IR → CashScript `.cash` source → cashc artifact JSON + BCH transaction-builder validation |
 | ZK circuit sourcegen | `psy-dpn` | Portable IR → `.psy` package → Dargo → DPN circuit JSON |
@@ -54,6 +60,9 @@ Research lane: Kaspa Toccata covenant/based-app target note before registry chan
 Research lane: Stellar Soroban Wasm-host target note before registry changes
 Research lane: Internet Computer canister target note before registry changes
 Research lane: Algorand AVM/TEAL target note before registry changes
+Research lane: Cardano Plutus/Aiken eUTXO target note before registry changes
+Research lane: Tezos Michelson/LIGO target note before registry changes
+Research lane: Starknet Cairo target note before registry changes
 Research lane: TON TVM/Tolk target note before registry changes
 Research lane: Bitcoin Cash CashScript target note before registry changes
 Phase 4: Cross-target shared scenario hardening
@@ -75,6 +84,9 @@ Detailed tasks: [Implementation backlog](implementation-backlog.md).
 | Internet Computer target candidate | [targets/internet-computer.md](targets/internet-computer.md) |
 | Algorand AVM target candidate | [targets/algorand-avm.md](targets/algorand-avm.md) |
 | Solana instruction manifest | [targets/solana-sbf.md](targets/solana-sbf.md) |
+| Cardano Plutus/Aiken target candidate | [targets/cardano-plutus-aiken.md](targets/cardano-plutus-aiken.md) |
+| Tezos Michelson/LIGO target candidate | [targets/tezos-michelson-ligo.md](targets/tezos-michelson-ligo.md) |
+| Starknet Cairo target candidate | [targets/starknet-cairo.md](targets/starknet-cairo.md) |
 | TON TVM target candidate | [targets/ton-tvm.md](targets/ton-tvm.md) |
 | Bitcoin Cash CashScript target candidate | [targets/bitcoin-cash-cashscript.md](targets/bitcoin-cash-cashscript.md) |
 | Psy/DPN ZK target | [targets/psy-dpn.md](targets/psy-dpn.md) |
