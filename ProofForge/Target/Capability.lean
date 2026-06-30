@@ -1,0 +1,49 @@
+import Init.Data.Array.Basic
+import Init.Data.String.Basic
+
+namespace ProofForge.Target
+
+inductive Capability where
+  | storageScalar
+  | storageMap
+  | callerSender
+  | valueNative
+  | eventsEmit
+  | crosscallInvoke
+  | envBlock
+  | cryptoHash
+  | accountExplicit
+  | storagePda
+  | crosscallCpi
+  | zkCircuit
+  | zkProof
+  deriving BEq, DecidableEq, Repr
+
+def Capability.id : Capability → String
+  | .storageScalar => "storage.scalar"
+  | .storageMap => "storage.map"
+  | .callerSender => "caller.sender"
+  | .valueNative => "value.native"
+  | .eventsEmit => "events.emit"
+  | .crosscallInvoke => "crosscall.invoke"
+  | .envBlock => "env.block"
+  | .cryptoHash => "crypto.hash"
+  | .accountExplicit => "account.explicit"
+  | .storagePda => "storage.pda"
+  | .crosscallCpi => "crosscall.cpi"
+  | .zkCircuit => "zk.circuit"
+  | .zkProof => "zk.proof"
+
+instance : ToString Capability where
+  toString c := c.id
+
+abbrev CapabilitySet := Array Capability
+
+def CapabilitySet.contains (set : CapabilitySet) (capability : Capability) : Bool :=
+  set.any (fun c => c == capability)
+
+def CapabilitySet.ids (set : CapabilitySet) : Array String :=
+  set.map Capability.id
+
+end ProofForge.Target
+

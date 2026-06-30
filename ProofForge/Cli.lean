@@ -2,7 +2,9 @@ import Init.Notation
 import Lean
 import Lean.Elab.Frontend
 import Lean.Util.Path
+import ProofForge.Backend.Evm.IR
 import ProofForge.Compiler.LCNF.EmitYul
+import ProofForge.IR.Examples.Counter
 
 open Lean
 open System
@@ -14,6 +16,7 @@ abbrev MethodSpec := Lean.Compiler.LCNF.EmitYul.MethodSpec
 inductive EmitMode where
   | yul
   | evmBytecode
+  | counterIrYul
   deriving BEq, Inhabited
 
 structure CliOptions where
@@ -34,8 +37,10 @@ def usage : String :=
     "Usage:",
     "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
     "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [-o output.bin] input.lean",
+    "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "",
-    "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`."
+    "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
+    "Counter IR mode renders the hand-written portable IR fixture to Yul."
   ]
 
 def parseModuleName (s : String) : Name :=
@@ -198,7 +203,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome then
+      if opts.input?.isSome || opts.mode == .counterIrYul then
         .ok opts
       else
         .error usage
@@ -225,6 +230,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .evmBytecode }
   | "--bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .evmBytecode }
+  | "--emit-counter-ir-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrYul }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -245,6 +252,11 @@ def resolveMethods (opts : CliOptions) (input : FilePath) : IO (Array MethodSpec
     readMethodsFile opts.cast methodsFile
   else
     return #[]
+
+def writeTextFile (path : FilePath) (contents : String) : IO Unit := do
+  if let some parent := path.parent then
+    IO.FS.createDirAll parent
+  IO.FS.writeFile path contents
 
 unsafe def emitYulFile (opts : CliOptions) (input output : FilePath) (methods : Array MethodSpec) : IO Unit := do
   enableInitializersExecution
@@ -275,9 +287,7 @@ unsafe def emitYulFile (opts : CliOptions) (input output : FilePath) (methods : 
     Lean.Compiler.LCNF.EmitYul.emitYulContract modName methods
   let yul ← emit
     |>.toIO' { fileName := input.toString, fileMap := default } { env := env }
-  if let some parent := output.parent then
-    IO.FS.createDirAll parent
-  IO.FS.writeFile output yul
+  writeTextFile output yul
 
 unsafe def compileYul (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
@@ -288,6 +298,16 @@ unsafe def compileYul (opts : CliOptions) : IO UInt32 := do
   emitYulFile opts input output methods
   IO.println s!"wrote {output}"
   return 0
+
+def compileCounterIrYul (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/ir/Counter.yul")
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.Counter.module with
+  | .ok yul =>
+      writeTextFile output yul
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
 
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
@@ -300,9 +320,7 @@ unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   emitYulFile opts input yulOutput methods
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (input.withExtension "bin")
-  if let some parent := output.parent then
-    IO.FS.createDirAll parent
-  IO.FS.writeFile output (bytecode ++ "\n")
+  writeTextFile output (bytecode ++ "\n")
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -310,6 +328,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   match opts.mode with
   | .yul => compileYul opts
   | .evmBytecode => compileEvmBytecode opts
+  | .counterIrYul => compileCounterIrYul opts
 
 end ProofForge.Cli
 

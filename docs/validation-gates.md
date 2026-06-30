@@ -9,6 +9,7 @@ actual scripts and `.github/workflows/ci.yml`; it does not add or edit CI jobs.
 | Gate | Command | Prerequisites | What it proves | What it does not prove |
 |---|---|---|---|---|
 | Lean package build | `lake build` | Lean toolchain from `lean-toolchain` | Library roots typecheck and `proof-forge` links | Generated Yul/bytecode validity, external tools, runtime behavior |
+| Counter IR-to-Yul smoke | `lake env proof-forge --emit-counter-ir-yul -o build/ir/Counter.yul` | Built `proof-forge` | Hand-written portable Counter IR lowers to Yul | Runtime dispatch, bytecode behavior, non-EVM targets |
 | Yul generation smoke | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | Built `proof-forge` | Lean frontend/LCNF lowers a simple contract to Yul | `solc` acceptance, ABI dispatch, EVM runtime behavior |
 | Yul-to-bytecode smoke | `solc --strict-assembly build/counter.yul --bin` | `solc` on `PATH` | Generated Yul is accepted by `solc` | Runtime semantics or method dispatch |
 | Single EVM bytecode compile | `lake env proof-forge --evm-bytecode --root . --module contract -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean` | `solc`, `cast`, and `Examples/Evm/Contracts/Counter.evm-methods` | Lean → Yul → `solc` → bytecode with selector generation | Runtime behavior, gas, exhaustive ABI correctness |
