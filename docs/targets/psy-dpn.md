@@ -11,7 +11,7 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
 ExpressionPredicateProbe, ArithmeticProbe, U32ArithmeticProbe, BitwiseProbe,
-U32HashPackingProbe, U32StorageArrayProbe, ConditionalProbe, ContextProbe,
+U32HashPackingProbe, U32StorageScalarProbe, U32StorageArrayProbe, ConditionalProbe, ContextProbe,
 HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe, StructProbe,
 StructArrayProbe, AbiAggregateProbe, and NestedAggregateProbe fixtures. It also
 has an experimental StorageNestedAggregateProbe fixture for storage-backed
@@ -631,8 +631,9 @@ such as `z as bool` and `bb as Felt`. It also exercises first-class portable
 compound assignment statements for `+=`, `-=`, `*=`, `/=`, and `%=` on mutable
 `U32` locals. Dargo execution validates the same `a=2`, `b=3` scenario and
 returns `result_vm: [1]`. Richer cast matrices and U32 storage compound
-assignment remain separate features; `U32StorageArrayProbe` covers the current
-storage-array slice.
+assignment coverage is split across dedicated storage probes:
+`U32StorageScalarProbe` covers native scalar `u32` storage and
+`U32StorageArrayProbe` covers the current storage-array slice.
 
 `BitwiseProbe` follows upstream bitwise idioms from `tests/opcode_test.psy`,
 `tests/storage_u32_assign_ops_test.psy`, and the Merkle path logic in
@@ -655,6 +656,12 @@ packing. Current `psyup` 0.1.0 Dargo rejects direct `[u32; N]` contract storage
 arrays with an `ArrayRef<u32, N>` type mismatch, so ProofForge lowers portable
 U32 storage arrays as `[Felt; N]` storage plus explicit casts at reads and
 writes.
+
+`U32StorageScalarProbe` validates native Psy scalar `u32` storage. Portable
+`StateDecl.kind = .scalar` with `type = .u32` lowers to `pub value: u32`.
+Writes lower as native U32 assignments, reads lower through `.get()` into U32
+locals, and scalar storage compound assignment lowers to Psy `+=` for U32
+values. Dargo execution validates `result_vm: [12]` for the fixture.
 
 `U32StorageArrayProbe` validates that Felt-backed storage idiom. Portable
 `StateDecl.kind = .array N` with `type = .u32` lowers to `pub limbs: [Felt; N]`.
@@ -799,6 +806,19 @@ execution:
 
 The script emits and validates
 `build/psy/dargo-u32-hash-packing/target/proof-forge-artifact.json`.
+
+The same validation shape is also implemented for `U32StorageScalarProbe`:
+
+```sh
+scripts/psy/u32-storage-scalar-smoke.sh
+```
+
+It verifies native U32 scalar storage lowering under Dargo local execution:
+
+- `storage_lifecycle`: `result_vm: [12]`
+
+The script emits and validates
+`build/psy/dargo-u32-storage-scalar/target/proof-forge-artifact.json`.
 
 The same validation shape is also implemented for `U32StorageArrayProbe`:
 
@@ -981,7 +1001,7 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts forty-three explicit diagnostics for malformed or
+It currently asserts forty-four explicit diagnostics for malformed or
 unsupported Psy IR shapes, including invalid storage paths, expression/body
 type mismatches, malformed equality, malformed comparison, and malformed
 Hash value construction, unsupported bool storage arrays, unsupported U32
@@ -1061,6 +1081,9 @@ Deployment smoke:
 - Done: add dynamic Hash value construction plus `U32HashPackingProbe` and
   `scripts/psy/u32-hash-packing-smoke.sh` for `[u32; 8]` literal and ABI limb
   packing into Psy `Hash` values.
+- Done: add `U32StorageScalarProbe` and
+  `scripts/psy/u32-storage-scalar-smoke.sh` for native scalar `u32` storage
+  read/write plus scalar storage `+=` validation.
 - Done: add `U32StorageArrayProbe` and
   `scripts/psy/u32-storage-array-smoke.sh` using Felt-backed storage arrays
   plus U32 read/write casts after Dargo validation showed current `psyup` 0.1.0
@@ -1188,6 +1211,8 @@ Deployment smoke:
   on a machine with the Psy toolchain.
 - Generated StorageNestedAggregateProbe `.psy` package compiles with
   `dargo compile` on a machine with the Psy toolchain.
+- Generated U32StorageScalarProbe `.psy` package compiles with `dargo compile`
+  on a machine with the Psy toolchain.
 - Generated U32StorageArrayProbe `.psy` package compiles with `dargo compile`
   on a machine with the Psy toolchain.
 - Generated ConditionalProbe `.psy` package compiles with `dargo compile` on a
@@ -1199,7 +1224,8 @@ Deployment smoke:
   literal/storage results, struct-array literal/storage results, ABI aggregate
   parameter/return flattening results, conditional branch result, local nested
   aggregate mutation results, storage-backed nested aggregate path update
-  results, and Felt-backed U32 storage-array result.
+  results, native U32 scalar storage result, and Felt-backed U32 storage-array
+  result.
 - `scripts/psy/diagnostic-smoke.sh` proves unsupported or malformed Psy IR
   shapes produce explicit diagnostics before source generation.
 - Artifact metadata records:

@@ -24,6 +24,7 @@ import ProofForge.IR.Examples.StructProbe
 import ProofForge.IR.Examples.U32ArithmeticProbe
 import ProofForge.IR.Examples.U32HashPackingProbe
 import ProofForge.IR.Examples.U32StorageArrayProbe
+import ProofForge.IR.Examples.U32StorageScalarProbe
 
 open Lean
 open System
@@ -55,6 +56,7 @@ inductive EmitMode where
   | storageNestedAggregateIrPsy
   | u32ArithmeticIrPsy
   | u32HashPackingIrPsy
+  | u32StorageScalarIrPsy
   | u32StorageArrayIrPsy
   deriving BEq, Inhabited
 
@@ -96,6 +98,7 @@ def usage : String :=
     "  proof-forge --emit-storage-nested-aggregate-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-arithmetic-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-hash-packing-ir-psy [-o output.psy]",
+    "  proof-forge --emit-u32-storage-scalar-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-storage-array-ir-psy [-o output.psy]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -262,7 +265,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageArrayIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
         .ok opts
       else
         .error usage
@@ -329,6 +332,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .u32ArithmeticIrPsy }
   | "--emit-u32-hash-packing-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .u32HashPackingIrPsy }
+  | "--emit-u32-storage-scalar-ir-psy" :: rest, opts =>
+      parseArgs rest { opts with mode := .u32StorageScalarIrPsy }
   | "--emit-u32-storage-array-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .u32StorageArrayIrPsy }
   | "-h" :: _, _ =>
@@ -603,6 +608,16 @@ def compileU32HashPackingIrPsy (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileU32StorageScalarIrPsy (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/psy/U32StorageScalarProbe.psy")
+  match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.U32StorageScalarProbe.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 def compileU32StorageArrayIrPsy (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/psy/U32StorageArrayProbe.psy")
   match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.U32StorageArrayProbe.module with
@@ -652,6 +667,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .storageNestedAggregateIrPsy => compileStorageNestedAggregateIrPsy opts
   | .u32ArithmeticIrPsy => compileU32ArithmeticIrPsy opts
   | .u32HashPackingIrPsy => compileU32HashPackingIrPsy opts
+  | .u32StorageScalarIrPsy => compileU32StorageScalarIrPsy opts
   | .u32StorageArrayIrPsy => compileU32StorageArrayIrPsy opts
 
 end ProofForge.Cli

@@ -17,6 +17,55 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy U32 Scalar Storage Coverage
+
+Commit: feature commit for Psy U32 scalar storage coverage
+
+Summary:
+
+- Added `U32StorageScalarProbe` as a portable IR fixture for native Psy
+  `u32` scalar storage.
+- Added CLI emission through `--emit-u32-storage-scalar-ir-psy` plus a checked
+  golden source fixture.
+- Added `scripts/psy/u32-storage-scalar-smoke.sh` to validate `dargo test`,
+  `dargo compile`, `dargo execute`, `dargo generate-abi`, deploy manifest
+  generation, and artifact metadata validation.
+- Extended Psy coverage evidence, validation docs, and CI golden checks.
+
+Validation run:
+
+```sh
+DARGO_STD_PATH=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/lib/psy-std/std.psy \
+  /tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  test --file /tmp/proof_forge_probe/u32_scalar_storage.psy
+lake build
+bash -n scripts/psy/*.sh
+lake env proof-forge --emit-u32-storage-scalar-ir-psy -o build/psy/U32StorageScalarProbe.psy
+diff -u Examples/Psy/U32StorageScalarProbe.golden.psy build/psy/U32StorageScalarProbe.psy
+scripts/psy/check-ir-coverage-manifest.py
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/u32-storage-scalar-smoke.sh
+git diff --check
+```
+
+Result:
+
+- Generated U32StorageScalarProbe source lowers scalar storage to
+  `pub value: u32`, native U32 reads/writes, and scalar `+=`.
+- Dargo execution validates `result_vm: [12]`.
+
+Known limitations:
+
+- This covers native scalar `u32` storage only. U32 storage arrays still use the
+  existing Felt-backed representation because current `psyup` 0.1.0 rejects
+  direct `[u32; N]` contract storage arrays.
+
+Next step:
+
+- Continue broadening Psy storage and ABI validation while keeping unsupported
+  storage forms explicit.
+
 ### Psy Entrypoint Selector Diagnostic
 
 Commit: feature commit for Psy selector rejection

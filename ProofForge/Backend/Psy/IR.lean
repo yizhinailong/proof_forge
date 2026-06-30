@@ -42,6 +42,8 @@ def testFunctionName (module : Module) : String :=
     "test_bitwise_probe_fixture"
   else if module.name == "U32HashPackingProbe" then
     "test_u32_hash_packing_probe_fixture"
+  else if module.name == "U32StorageScalarProbe" then
+    "test_u32_storage_scalar_probe_fixture"
   else if module.name == "U32StorageArrayProbe" then
     "test_u32_storage_array_probe_fixture"
   else if module.name == "ExpressionPredicateProbe" then
@@ -1308,6 +1310,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
       "let param_hash: Hash = [42949672969, 51539607563, 60129542157, 68719476751];",
       s!"assert_eq({refName}::pack_literal(), literal_hash, \"u32 literal limbs pack into Hash\");",
       s!"assert_eq({refName}::pack_params(9u32, 10u32, 11u32, 12u32, 13u32, 14u32, 15u32, 16u32), param_hash, \"u32 ABI limbs pack into Hash\");"
+    ]
+  else if module.name == "U32StorageScalarProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::storage_lifecycle(), 12, \"u32 scalar storage reads preserve u32 values\");"
     ]
   else if module.name == "U32StorageArrayProbe" &&
     module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
