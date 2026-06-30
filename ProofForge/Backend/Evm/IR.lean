@@ -106,6 +106,8 @@ def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerE
       .error { message := "assert statements are not supported by IR EVM v0" }
   | .assertEq _ _ _ =>
       .error { message := "assert_eq statements are not supported by IR EVM v0" }
+  | .boundedFor _ _ _ _ =>
+      .error { message := "bounded for loops are not supported by IR EVM v0" }
   | .return value => do
       .ok (.assignment #["result"] (← lowerExpr module value))
 

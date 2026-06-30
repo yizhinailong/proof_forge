@@ -30,7 +30,9 @@ def capitalizedRefName (module : Module) : String :=
   s!"{module.name}Ref"
 
 def testFunctionName (module : Module) : String :=
-  if module.name == "AssertProbe" then
+  if module.name == "LoopProbe" then
+    "test_loop_probe_fixture"
+  else if module.name == "AssertProbe" then
     "test_assert_probe_fixture"
   else if module.name == "MapProbe" then
     "test_map_probe_fixture"
@@ -148,21 +150,31 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
 
-def lowerStatement (module : Module) : Statement → Except LowerError (Array String)
-  | .letBind name type value => do
-      .ok #[s!"let {name}: {← valueTypeName type} = {← lowerExpr module value};"]
-  | .effect effect =>
-      lowerEffectStmt module effect
-  | .assert condition message => do
-      .ok #[s!"assert({← lowerExpr module condition}, {stringLiteral message});"]
-  | .assertEq lhs rhs message => do
-      .ok #[s!"assert_eq({← lowerExpr module lhs}, {← lowerExpr module rhs}, {stringLiteral message});"]
-  | .return value => do
-      .ok #[s!"return {← lowerExpr module value};"]
+mutual
+  partial def lowerStatement (module : Module) : Statement → Except LowerError (Array String)
+    | .letBind name type value => do
+        .ok #[s!"let {name}: {← valueTypeName type} = {← lowerExpr module value};"]
+    | .effect effect =>
+        lowerEffectStmt module effect
+    | .assert condition message => do
+        .ok #[s!"assert({← lowerExpr module condition}, {stringLiteral message});"]
+    | .assertEq lhs rhs message => do
+        .ok #[s!"assert_eq({← lowerExpr module lhs}, {← lowerExpr module rhs}, {stringLiteral message});"]
+    | .boundedFor indexName start stopExclusive body => do
+        if stopExclusive <= start then
+          .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
+        let bodyLines ← lowerBody module body
+        .ok <|
+          #[s!"for {indexName} in {start}u32..{stopExclusive}u32 " ++ "{"] ++
+          bodyLines.map (indent 1) ++
+          #["}"]
+    | .return value => do
+        .ok #[s!"return {← lowerExpr module value};"]
 
-def lowerBody (module : Module) (body : Array Statement) : Except LowerError (Array String) := do
-  body.foldlM (init := #[]) fun acc stmt => do
-    .ok (acc ++ (← lowerStatement module stmt))
+  partial def lowerBody (module : Module) (body : Array Statement) : Except LowerError (Array String) := do
+    body.foldlM (init := #[]) fun acc stmt => do
+      .ok (acc ++ (← lowerStatement module stmt))
+end
 
 def paramDecl (param : String × ValueType) : Except LowerError String := do
   .ok s!"{param.fst}: {← valueTypeName param.snd}"
@@ -253,6 +265,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "checked_sum" && entry.params.size == 2 && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::checked_sum(5, 7), 12, \"checked_sum returns the asserted value\");"
+    ]
+  else if module.name == "LoopProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "count_to_three" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::count_to_three(), 3, \"bounded loop runs exactly three iterations\");"
     ]
   else
     .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }

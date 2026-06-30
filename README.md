@@ -124,6 +124,14 @@ lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
 scripts/psy/assert-smoke.sh
 ```
 
+Validate the Psy/DPN bounded-loop fixture, which exercises static `for`
+lowering:
+
+```sh
+lake env proof-forge --emit-loop-ir-psy -o build/psy/LoopProbe.psy
+scripts/psy/loop-smoke.sh
+```
+
 Each Psy smoke writes and validates `proof-forge-artifact.json` next to the
 Dargo outputs.
 

@@ -17,6 +17,63 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy LoopProbe Bounded Loops
+
+Commit: feature commit for bounded-loop Psy IR coverage
+
+Summary:
+
+- Extended portable IR statements with a static `boundedFor` node.
+- Registered `control.bounded_loop` as a target capability and enabled it for
+  `psy-dpn`.
+- Extended Psy sourcegen to lower `boundedFor` to Psy fixed-range `for` loops
+  such as `for _i in 0u32..3u32`.
+- Kept EVM IR v0 behavior explicit by rejecting bounded loops with a diagnostic.
+- Added `ProofForge.IR.Examples.LoopProbe`, which resets scalar storage, runs a
+  three-iteration loop, and returns the final count.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-loop-ir-psy -o build/psy/LoopProbe.psy
+```
+
+- Added `Examples/Psy/LoopProbe.golden.psy`.
+- Added `scripts/psy/loop-smoke.sh`, which generates a temporary Dargo package,
+  runs `dargo test --file`, `dargo compile`, `dargo execute`,
+  `dargo generate-abi`, and validates `proof-forge-artifact.json`.
+- Added CI coverage for the LoopProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-loop-ir-psy -o build/psy/LoopProbe.psy
+diff -u Examples/Psy/LoopProbe.golden.psy build/psy/LoopProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/loop-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Generated LoopProbe source matches the checked-in golden fixture.
+- `scripts/psy/loop-smoke.sh` generated DPN JSON, ABI JSON, execute log, and
+  `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [3]` for `count_to_three`.
+
+Known limitations:
+
+- Loop lowering is deliberately static and bounded; dynamic or unbounded loops
+  are still unsupported.
+- The portable IR still lacks array and struct coverage.
+- EVM IR v0 explicitly rejects bounded loops.
+
+Next step:
+
+- Add array coverage next, because upstream Psy tests and precompiles use
+  fixed arrays heavily alongside bounded loops.
+
 ### Psy AssertProbe IR Assertions
 
 Commit: pending

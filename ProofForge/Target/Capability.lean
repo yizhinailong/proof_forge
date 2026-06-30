@@ -11,6 +11,7 @@ inductive Capability where
   | eventsEmit
   | crosscallInvoke
   | envBlock
+  | controlBoundedLoop
   | cryptoHash
   | assertions
   | accountExplicit
@@ -28,6 +29,7 @@ def Capability.id : Capability → String
   | .eventsEmit => "events.emit"
   | .crosscallInvoke => "crosscall.invoke"
   | .envBlock => "env.block"
+  | .controlBoundedLoop => "control.bounded_loop"
   | .cryptoHash => "crypto.hash"
   | .assertions => "assertions.check"
   | .accountExplicit => "account.explicit"

@@ -54,6 +54,8 @@ jobs:
           diff -u Examples/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
           lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
           diff -u Examples/Psy/AssertProbe.golden.psy build/psy/AssertProbe.psy
+          lake env proof-forge --emit-loop-ir-psy -o build/psy/LoopProbe.psy
+          diff -u Examples/Psy/LoopProbe.golden.psy build/psy/LoopProbe.psy
 
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh

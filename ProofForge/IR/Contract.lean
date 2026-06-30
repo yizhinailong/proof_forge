@@ -76,6 +76,7 @@ inductive Statement where
   | effect (effect : Effect)
   | assert (condition : Expr) (message : String)
   | assertEq (lhs rhs : Expr) (message : String)
+  | boundedFor (indexName : String) (start stopExclusive : Nat) (body : Array Statement)
   | return (value : Expr)
   deriving Repr
 
@@ -126,6 +127,8 @@ def Statement.capabilities : Statement → Array ProofForge.Target.Capability
   | Statement.effect eff => #[eff.capability] ++ eff.capabilities
   | .assert condition _ => #[.assertions] ++ condition.capabilities
   | .assertEq lhs rhs _ => #[.assertions] ++ lhs.capabilities ++ rhs.capabilities
+  | .boundedFor _ _ _ body =>
+      #[.controlBoundedLoop] ++ body.foldl (fun acc stmt => acc ++ stmt.capabilities) #[]
   | .return value => value.capabilities
 
 def Entrypoint.capabilities (entrypoint : Entrypoint) : Array ProofForge.Target.Capability :=

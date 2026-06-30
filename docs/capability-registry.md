@@ -28,6 +28,7 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 | `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | P |
 | `crosscall.invoke` | Call another contract/program | Y | Y | Y | Y | Y | Y | P |
 | `env.block` | Block height/time/chain id reads | Y | P | P | P | P | P | P |
+| `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | N | N | N | P |
 | `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y | Y |
 | `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | N | N | N | N | N | N | P |
 | `account.explicit` | Named account/object/resource binding | N | N | N | Y | Y | Y | P |
@@ -39,7 +40,7 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 ## Id Naming Rules
 
 - Format: `<domain>.<operation>` or `<domain>.<variant>` (lowercase, dot-separated).
-- Domains: `storage`, `caller`, `value`, `events`, `crosscall`, `env`, `crypto`, `assertions`, `account`, `zk`.
+- Domains: `storage`, `caller`, `value`, `events`, `crosscall`, `env`, `control`, `crypto`, `assertions`, `account`, `zk`.
 - Artifact metadata lists the ids used by a build (see RFC 0002 artifact schema).
 - Diagnostics must cite capability id and target id on rejection.
 
