@@ -12,6 +12,7 @@ def stateMarker : StateDecl := {
 
 def sumContext : Entrypoint := {
   name := "sum_context"
+  selector? := some "14a70e97"
   returns := .u64
   params := #[
     ("a", .u64),

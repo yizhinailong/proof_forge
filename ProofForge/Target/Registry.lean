@@ -58,7 +58,8 @@ def evm : TargetProfile := {
     .envBlock,
     .controlConditional,
     .cryptoHash,
-    .assertions
+    .assertions,
+    .accountExplicit
   ]
   requiredTools := #["solc", "foundry"]
 }

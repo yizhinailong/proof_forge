@@ -17,6 +17,58 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Context Reads
+
+Commit: feature commit for EVM IR context reads
+
+Summary:
+
+- Added EVM portable IR lowering for `contextRead` expressions:
+  `userId -> caller()`, `contractId -> address()`, and
+  `checkpointId -> number()`.
+- Added an EVM selector to `ContextProbe` while preserving the existing Psy
+  context fixture.
+- Added `--emit-context-ir-yul` and `--emit-context-ir-bytecode` CLI modes.
+- Added `Examples/Evm/ContextProbe.golden.yul` plus
+  `scripts/evm/context-ir-smoke.sh`.
+- Updated EVM capability metadata so `ContextProbe` validates
+  `caller.sender`, `account.explicit`, and `env.block`.
+- Updated EVM diagnostics, coverage manifest, CI, target docs, validation
+  gates, backlog, and capability registry docs.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-context-ir-yul -o build/ir/ContextProbe.yul
+diff -u Examples/Evm/ContextProbe.golden.yul build/ir/ContextProbe.yul
+scripts/evm/context-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Result:
+
+- Generated ContextProbe Yul contains selector dispatch for
+  `sum_context(uint256,uint256)`, ABI calldata size guarding, and direct EVM
+  context opcodes.
+- Foundry verifies `caller()` via `vm.prank`, `number()` via `vm.roll`, and
+  `address()` via an etched runtime address.
+- EVM artifact metadata records and validates the three context capabilities.
+- Statement-position context reads remain rejected with an explicit diagnostic.
+
+Known limitations:
+
+- The current portable `ContextField` set covers only user id, contract id, and
+  checkpoint id.
+- EVM context values are emitted as 256-bit words; address-width and narrower
+  integer normalization are still future type-validation work.
+
+Next step:
+
+- Add EVM `crypto.hash` lowering with a clear Keccak-vs-portable-Hash semantic
+  boundary, or start EVM storage map slot hashing.
+
 ### EVM Artifact Metadata
 
 Commit: feature commit for EVM artifact metadata

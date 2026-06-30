@@ -31,7 +31,7 @@
 | `data.struct` | 结构体值类型、字面量和字段访问 | N | N | N | N | N | N | P |
 | `crypto.hash` | 宿主或库哈希 | Y | Y | Y | Y | Y | Y | Y |
 | `assertions.check` | 从 portable IR 语句发射运行时或电路断言 | Y | N | N | N | N | N | P |
-| `account.explicit` | 具名账户/对象/资源绑定 | N | N | N | Y | Y | Y | P |
+| `account.explicit` | 具名账户/对象/资源绑定 | P | N | N | Y | Y | Y | P |
 | `storage.pda` | 程序派生地址状态 | N | N | N | Y | N | N | N |
 | `crosscall.cpi` | 带有账户元数据的 Solana CPI | N | N | N | Y | N | N | N |
 | `zk.circuit` | 将入口编译为目标电路定义 | N | N | N | N | N | N | Y |

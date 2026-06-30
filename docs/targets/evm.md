@@ -67,6 +67,8 @@ proof-forge --emit-assignment-ir-yul [-o output.yul]
 proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-conditional-ir-yul [-o output.yul]
 proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-context-ir-yul [-o output.yul]
+proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
 
 `--bytecode` is an alias for `--evm-bytecode`.
@@ -117,7 +119,7 @@ Parser rules (from `ProofForge/Cli.lean`):
 
 Mapped to [capability-registry](../capability-registry.md) ids:
 
-| Capability id | SDK surface |
+| Capability id | SDK / IR surface |
 |---|---|
 | `storage.scalar` | `Storage.load`, `Storage.store` |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore` |
@@ -128,10 +130,11 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `events.emit` | `log0`, `log1`, `log2` |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
+| `account.explicit` | Partial: portable IR `contractId` context reads lower to Yul `address()` |
 
 Not supported on EVM (by design for other targets):
 
-- `account.explicit`, `storage.pda`, `crosscall.cpi`
+- `storage.pda`, `crosscall.cpi`
 
 ## Module Layout
 
@@ -158,11 +161,11 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - String manipulation APIs incomplete in Yul runtime.
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
   IR EVM backend currently supports scalar storage/ABI, assertions, local
-  assignment, and conditional fixtures, and rejects wider portable IR nodes with explicit
-  diagnostics.
+  assignment, conditionals, and context reads, and rejects wider portable IR
+  nodes with explicit diagnostics.
 - Portable IR EVM currently lacks aggregate ABI values, mappings, storage
-  arrays, structs, context opcodes, hashing, events, cross-contract calls, and
-  target-specific deploy manifests.
+  arrays, structs, hashing, events, cross-contract calls, and target-specific
+  deploy manifests.
 
 ## Portable IR Gates
 
@@ -176,6 +179,7 @@ scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
+scripts/evm/context-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
@@ -209,6 +213,14 @@ golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
 Foundry execution of then/else storage updates, and unknown-selector revert
 behavior. Branch-local `return` statements remain rejected until the EVM IR
 backend grows early-return lowering through Yul `leave`.
+
+`ContextProbe` validates portable IR context reads through EVM opcodes:
+`userId` lowers to `caller()`, `contractId` lowers to `address()`, and
+`checkpointId` lowers to `number()`. The smoke checks golden Yul
+reproducibility, `solc --strict-assembly` bytecode generation, metadata
+capabilities (`caller.sender`, `account.explicit`, `env.block`), Foundry
+runtime context values through `vm.prank`/`vm.roll`, and unknown-selector
+revert behavior.
 
 ## Metadata
 

@@ -110,6 +110,11 @@ def lowerAssertStmt (condition : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Sta
     (Lean.Compiler.Yul.builtin "iszero" #[condition])
     { statements := #[revertStmt] }
 
+def contextExpr : ContextField → Lean.Compiler.Yul.Expr
+  | .userId => Lean.Compiler.Yul.builtin "caller" #[]
+  | .contractId => Lean.Compiler.Yul.builtin "address" #[]
+  | .checkpointId => Lean.Compiler.Yul.builtin "number" #[]
+
 mutual
   partial def lowerExpr (module : Module) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
     | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
@@ -216,7 +221,7 @@ mutual
     | .storagePathAssignOp _ _ _ _ =>
         .error { message := "storage.path.assign_op is not supported by IR EVM v0" }
     | .contextRead field =>
-        .error { message := s!"context field `{field.name}` is not supported by IR EVM v0" }
+        .ok (contextExpr field)
     | .eventEmit _ _ =>
         .error { message := "event emission is not supported by IR EVM v0" }
 end

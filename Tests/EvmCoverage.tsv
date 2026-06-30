@@ -13,9 +13,9 @@ Literal	u32	lowered	lowerExpr emits U32 literals as Yul numeric expressions.
 Literal	u64	lowered	lowerExpr emits U64 literals as Yul numeric expressions.
 Literal	bool	lowered	lowerExpr emits Bool literals as Yul 1 or 0.
 Literal	hash4	unsupported	lowerExpr rejects Hash literals with an explicit EVM IR v0 diagnostic.
-ContextField	userId	unsupported	contextRead userId reaches lowerEffectExpr and is rejected until caller() lowering is implemented.
-ContextField	contractId	unsupported	EVM target profile rejects account.explicit for contractId context reads.
-ContextField	checkpointId	unsupported	contextRead checkpointId reaches lowerEffectExpr and is rejected until block context lowering is implemented.
+ContextField	userId	validated	ContextProbe lowers userId context reads to Yul caller() and Foundry verifies a vm.prank sender.
+ContextField	contractId	validated	ContextProbe lowers contractId context reads to Yul address() and Foundry verifies the etched runtime address.
+ContextField	checkpointId	validated	ContextProbe lowers checkpointId context reads to Yul number() and Foundry verifies a vm.roll block number.
 AssignOp	add	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
 AssignOp	sub	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
 AssignOp	mul	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
@@ -75,7 +75,7 @@ Effect	storageStructFieldWrite	unsupported	EVM target profile rejects data.struc
 Effect	storagePathRead	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.read in EVM IR v0.
 Effect	storagePathWrite	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.write in EVM IR v0.
 Effect	storagePathAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.assign_op in EVM IR v0.
-Effect	contextRead	unsupported	lowerEffectExpr rejects supported-profile context reads and the target profile rejects account.explicit contractId.
+Effect	contextRead	validated	lowerEffectExpr emits EVM context opcodes for expression-position context reads; diagnostics still reject statement-position context reads.
 Effect	eventEmit	unsupported	lowerEffectStmt rejects event emission with an explicit EVM IR v0 diagnostic.
 StoragePathSegment	field	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
 StoragePathSegment	index	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.

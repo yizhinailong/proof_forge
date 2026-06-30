@@ -166,14 +166,9 @@ def storageMapGetModule : Module :=
     .return (.effect (.storageMapGet "balances" (.literal (.u64 1))))
   ]
 
-def contextUserModule : Module :=
-  selectedModule "BadContextUser" <| selectedReturnEntrypoint "bad" .u64 #[
-    .return (.effect (.contextRead .userId))
-  ]
-
-def contextContractModule : Module :=
-  selectedModule "BadContextContract" <| selectedReturnEntrypoint "bad" .u64 #[
-    .return (.effect (.contextRead .contractId))
+def contextReadStmtModule : Module :=
+  selectedModule "BadContextReadStmt" <| selectedEntrypoint "bad" #[
+    .effect (.contextRead .userId)
   ]
 
 def eventModule : Module :=
@@ -299,14 +294,9 @@ def cases : Array (String × Module × String) := #[
     "storage.map.get is not supported by IR EVM v0"
   ),
   (
-    "context user unsupported",
-    contextUserModule,
-    "context field `userId` is not supported by IR EVM v0"
-  ),
-  (
-    "context contract capability unsupported",
-    contextContractModule,
-    "target `evm` does not support capability `account.explicit`: capability is not present in the target profile"
+    "context read used as statement",
+    contextReadStmtModule,
+    "context reads must be used as expressions"
   ),
   (
     "event unsupported",
