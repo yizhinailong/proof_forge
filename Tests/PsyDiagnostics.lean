@@ -80,14 +80,20 @@ def unsupportedMapModule : Module := {
   entrypoints := #[unitEntrypoint "bad"]
 }
 
-def unsupportedU32ArrayStateModule : Module := {
-  name := "BadU32ArrayState"
+def unsupportedBoolArrayStateModule : Module := {
+  name := "BadBoolArrayState"
   state := #[{
-    id := "limbs"
+    id := "flags"
     kind := .array 8
-    type := .u32
+    type := .bool
   }]
   entrypoints := #[unitEntrypoint "bad"]
+}
+
+def u32StorageArrayState : StateDecl := {
+  id := "limbs"
+  kind := .array 4
+  type := .u32
 }
 
 def balancesMapState : StateDecl := {
@@ -208,6 +214,14 @@ def storagePathAssignExprModule : Module := {
       .return (.effect (.storagePathAssignOp "person" #[.field "profile", .field "age"] .add (.literal (.u64 1))))
     ]
   }]
+}
+
+def u32StoragePathAssignOpModule : Module := {
+  name := "BadU32StoragePathAssignOp"
+  state := #[u32StorageArrayState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .effect (.storagePathAssignOp "limbs" #[.index (.literal (.u64 0))] .add (.literal (.u32 1)))
+  ]]
 }
 
 def emptyStoragePathModule : Module := {
@@ -529,9 +543,9 @@ def cases : Array (String × Module × String) := #[
     "map state `bad_map` has unsupported Psy IR v0 type Map<U64, U64>; only Map<Hash, Hash, N> is supported"
   ),
   (
-    "unsupported u32 array state",
-    unsupportedU32ArrayStateModule,
-    "array state `limbs` has unsupported Psy IR v0 element type `U32`; current Dargo toolchains reject direct `[u32; N]` storage arrays, so use Felt/Hash storage or local U32 arrays"
+    "unsupported bool array state",
+    unsupportedBoolArrayStateModule,
+    "array state `flags` has unsupported Psy IR v0 element type `Bool`; only Felt, U32, Hash, and deriveStorage structs are supported"
   ),
   (
     "non-storage struct state",
@@ -562,6 +576,11 @@ def cases : Array (String × Module × String) := #[
     "storage path assign_op used as expression",
     storagePathAssignExprModule,
     "storage.path.assign_op is a statement effect, not an expression"
+  ),
+  (
+    "u32 storage path assign_op",
+    u32StoragePathAssignOpModule,
+    "u32 storage path compound assignment is not supported by Psy IR v0; use explicit read/update/write"
   ),
   (
     "storage read used as statement",

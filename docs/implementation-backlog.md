@@ -256,7 +256,8 @@ Tasks:
   compile/execute validation.
 - Done: add storage-reference compound assignment coverage for scalar storage
   and generic storage paths with Dargo compile/execute validation.
-- Add U32 storage array coverage once a stable Psy storage idiom is identified.
+- Done: add U32 storage array coverage using Felt-backed storage plus explicit
+  U32 read/write casts, with Dargo compile/execute validation.
 - Convert the deploy manifest path to upstream compressed genesis deploy JSON
   once the Psy tooling exposes a stable boundary, then exercise a local
   node/prover deployment smoke.

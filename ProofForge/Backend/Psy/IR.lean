@@ -42,6 +42,8 @@ def testFunctionName (module : Module) : String :=
     "test_bitwise_probe_fixture"
   else if module.name == "U32HashPackingProbe" then
     "test_u32_hash_packing_probe_fixture"
+  else if module.name == "U32StorageArrayProbe" then
+    "test_u32_storage_array_probe_fixture"
   else if module.name == "ExpressionPredicateProbe" then
     "test_expression_predicate_probe_fixture"
   else if module.name == "NestedAggregateProbe" then
@@ -135,7 +137,11 @@ def stateDecl (state : StateDecl) : Except LowerError (Array String) := do
   | .map keyType capacity =>
       .ok #[s!"pub {state.id}: Map<{← valueTypeName keyType}, {← valueTypeName state.type}, {capacity}u32>,"]
   | .array length =>
-      .ok #[s!"pub {state.id}: [{← valueTypeName state.type}; {length}],"]
+      match state.type with
+      | .u32 =>
+          .ok #[s!"pub {state.id}: [Felt; {length}],"]
+      | _ =>
+          .ok #[s!"pub {state.id}: [{← valueTypeName state.type}; {length}],"]
 
 def findState? (module : Module) (stateId : String) : Option StateDecl :=
   module.state.find? fun state => state.id == stateId
@@ -776,6 +782,8 @@ def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except Low
   | .storagePathAssignOp stateId path op value => do
       validateStoragePathExprs module env stateId path
       let expected ← resolveStoragePathType module stateId path
+      if expected == .u32 then
+        .error { message := "u32 storage path compound assignment is not supported by Psy IR v0; use explicit read/update/write" }
       let actualValue ← inferExprType module env value
       ensureAssignOpTypes op expected actualValue
   | .contextRead _ =>
@@ -938,7 +946,13 @@ mutual
         .error { message := "storage.map.set is a statement effect, not an expression" }
     | .storageArrayRead stateId index => do
         requireArrayState module stateId
-        .ok s!"c.{stateId}[{← lowerExpr module index}].get()"
+        match findState? module stateId with
+        | some { type := .u32, .. } =>
+            .ok s!"c.{stateId}[{← lowerExpr module index}].get() as u32"
+        | some _ =>
+            .ok s!"c.{stateId}[{← lowerExpr module index}].get()"
+        | none =>
+            .error { message := s!"unknown array state `{stateId}`" }
     | .storageArrayWrite _ _ _ =>
         .error { message := "storage.array.write is a statement effect, not an expression" }
     | .storageArrayStructFieldRead stateId index fieldName => do
@@ -974,7 +988,7 @@ mutual
     .ok s!"c.{stateId}{String.intercalate "" segments.toList}"
 
   partial def lowerStoragePathRead (module : Module) (stateId : String) (path : Array StoragePathSegment) : Except LowerError String := do
-    discard <| resolveStoragePathType module stateId path
+    let pathType ← resolveStoragePathType module stateId path
     match findState? module stateId with
     | some { kind := .map _ _, .. } =>
         match path.toList with
@@ -985,12 +999,16 @@ mutual
         | _ =>
             .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
     | some _ =>
-        .ok s!"{← lowerStoragePath module stateId path}.get()"
+        match pathType with
+        | .u32 =>
+            .ok s!"{← lowerStoragePath module stateId path}.get() as u32"
+        | _ =>
+            .ok s!"{← lowerStoragePath module stateId path}.get()"
     | none =>
         .error { message := s!"unknown storage path state `{stateId}`" }
 
   partial def lowerStoragePathWrite (module : Module) (stateId : String) (path : Array StoragePathSegment) (value : Expr) : Except LowerError (Array String) := do
-    discard <| resolveStoragePathType module stateId path
+    let pathType ← resolveStoragePathType module stateId path
     match findState? module stateId with
     | some { kind := .map _ _, .. } =>
         match path.toList with
@@ -1001,12 +1019,18 @@ mutual
         | _ =>
             .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
     | some _ =>
-        .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExpr module value};"]
+        match pathType with
+        | .u32 =>
+            .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExprOperand module value} as Felt;"]
+        | _ =>
+            .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExpr module value};"]
     | none =>
         .error { message := s!"unknown storage path state `{stateId}`" }
 
   partial def lowerStoragePathAssignOp (module : Module) (stateId : String) (path : Array StoragePathSegment) (op : AssignOp) (value : Expr) : Except LowerError (Array String) := do
-    discard <| resolveStoragePathType module stateId path
+    let pathType ← resolveStoragePathType module stateId path
+    if pathType == .u32 then
+      .error { message := "u32 storage path compound assignment is not supported by Psy IR v0; use explicit read/update/write" }
     match findState? module stateId with
     | some { kind := .map _ _, .. } =>
         .error { message := s!"storage path state `{stateId}` map values do not support compound assignment" }
@@ -1039,7 +1063,13 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
       .error { message := "storage.array.read must be used as an expression" }
   | .storageArrayWrite stateId index value => do
       requireArrayState module stateId
-      .ok #[s!"c.{stateId}[{← lowerExpr module index}] = {← lowerExpr module value};"]
+      match findState? module stateId with
+      | some { type := .u32, .. } =>
+          .ok #[s!"c.{stateId}[{← lowerExpr module index}] = {← lowerExprOperand module value} as Felt;"]
+      | some _ =>
+          .ok #[s!"c.{stateId}[{← lowerExpr module index}] = {← lowerExpr module value};"]
+      | none =>
+          .error { message := s!"unknown array state `{stateId}`" }
   | .storageArrayStructFieldRead _ _ _ =>
       .error { message := "storage.array.struct.field.read must be used as an expression" }
   | .storageArrayStructFieldWrite stateId index fieldName value => do
@@ -1193,8 +1223,11 @@ def validateState (module : Module) : Except LowerError Unit := do
           pure ()
     | .map keyType _, valueType =>
         .error { message := s!"map state `{state.id}` has unsupported Psy IR v0 type Map<{keyType.name}, {valueType.name}>; only Map<Hash, Hash, N> is supported" }
-    | .array _, .u32 =>
-        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `U32`; current Dargo toolchains reject direct `[u32; N]` storage arrays, so use Felt/Hash storage or local U32 arrays" }
+    | .array length, .u32 =>
+        if length == 0 then
+          .error { message := s!"array state `{state.id}` must have non-zero length" }
+        else
+          pure ()
     | .array length, .u64 =>
         if length == 0 then
           .error { message := s!"array state `{state.id}` must have non-zero length" }
@@ -1217,7 +1250,7 @@ def validateState (module : Module) : Except LowerError Unit := do
         | none =>
             .error { message := s!"array state `{state.id}` references unknown struct `{typeName}`" }
     | .array _, valueType =>
-        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt, Hash, and deriveStorage structs are supported" }
+        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt, U32, Hash, and deriveStorage structs are supported" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.psyDpn module.capabilities with
@@ -1270,6 +1303,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
       "let param_hash: Hash = [42949672969, 51539607563, 60129542157, 68719476751];",
       s!"assert_eq({refName}::pack_literal(), literal_hash, \"u32 literal limbs pack into Hash\");",
       s!"assert_eq({refName}::pack_params(9u32, 10u32, 11u32, 12u32, 13u32, 14u32, 15u32, 16u32), param_hash, \"u32 ABI limbs pack into Hash\");"
+    ]
+  else if module.name == "U32StorageArrayProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::storage_lifecycle(), 48, \"u32 storage array reads cast from Felt storage\");"
     ]
   else if module.name == "ExpressionPredicateProbe" &&
     module.entrypoints.any (fun entry => entry.name == "predicate_sum" && entry.params.isEmpty && entry.returns == .u64) then

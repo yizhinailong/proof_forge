@@ -17,6 +17,57 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy U32 Storage Array Lowering
+
+Commit: feature commit for Psy U32 storage array coverage
+
+Summary:
+
+- Added `U32StorageArrayProbe` as a dedicated portable IR fixture for U32
+  storage-array reads and writes.
+- Extended Psy sourcegen so portable U32 storage arrays lower to Felt-backed
+  Psy storage arrays. Writes use `u32 as Felt`; reads use `.get() as u32`.
+- Reused the same representation for generic storage-path read/write effects
+  over U32 array elements.
+- Kept U32 storage-path compound assignment explicitly rejected, because direct
+  Felt storage `+=` would not preserve a clear U32 storage arithmetic boundary.
+- Added CLI, golden source, CI golden coverage, diagnostic coverage, Dargo
+  smoke coverage, and validation docs for the new fixture.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-u32-storage-array-ir-psy -o build/psy/U32StorageArrayProbe.psy
+diff -u Examples/Psy/U32StorageArrayProbe.golden.psy build/psy/U32StorageArrayProbe.psy
+scripts/psy/diagnostic-smoke.sh
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/u32-storage-array-smoke.sh
+```
+
+Result:
+
+- Generated U32StorageArrayProbe source matches the checked-in golden fixture.
+- `scripts/psy/diagnostic-smoke.sh` passes all 43 diagnostic cases.
+- `scripts/psy/u32-storage-array-smoke.sh` passes `dargo test`,
+  `dargo compile`, `dargo execute`, `dargo generate-abi`, deploy manifest
+  validation, and artifact metadata validation.
+- Dargo execution returns `result_vm: [48]` for `storage_lifecycle`.
+
+Known limitations:
+
+- Direct Psy `[u32; N]` contract storage arrays remain avoided because current
+  `psyup` 0.1.0 rejects them with an `ArrayRef<u32, N>` mismatch.
+- U32 storage-path compound assignment is still unsupported; use explicit
+  read/update/write.
+
+Next step:
+
+- Move the Psy deployment track toward upstream compressed genesis deploy JSON
+  and local node/prover smoke work, or continue broadening Lean-to-IR extraction
+  into the now-supported Psy surface.
+
 ### Psy Storage Compound Assignment Effects
 
 Commit: feature commit for Psy storage-reference compound assignment effects
