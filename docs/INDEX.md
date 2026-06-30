@@ -56,6 +56,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 ## Engineering
 
 - [Development standards](development-standards.md): contributor rules and source-of-truth map.
+- [Development log](development-log.md): milestone log with validation notes and next steps.
 - [Validation gates](validation-gates.md): runnable gates and tool prerequisites.
 - [Implementation backlog](implementation-backlog.md): staged tasks and acceptance criteria.
 - [Review checklist (English)](review-checklist.md)

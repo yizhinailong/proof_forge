@@ -16,6 +16,7 @@ source-of-truth docs and states when they must be updated.
 | EVM baseline details | `docs/targets/evm.md`, `Examples/Evm/README.md` |
 | Shared cross-target Counter scenario | `docs/shared-scenario.md` |
 | Execution backlog and acceptance criteria | `docs/implementation-backlog.md` |
+| Milestone and validation log | `docs/development-log.md` |
 | Validation commands and tool prerequisites | `docs/validation-gates.md` |
 | Chinese narrative / strategy docs | `docs/zh/*.md`; they must align to English engineering docs and must not introduce independent engineering policy |
 

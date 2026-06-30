@@ -87,6 +87,7 @@ the generated runtime bytecode.
 ## Development Docs
 
 - [Development standards](docs/development-standards.md)
+- [Development log](docs/development-log.md)
 - [Validation gates](docs/validation-gates.md)
 - [EVM target notes](docs/targets/evm.md)
 - [Capability registry](docs/capability-registry.md)
