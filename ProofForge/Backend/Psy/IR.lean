@@ -11,7 +11,7 @@ open ProofForge.Target
 
 structure LowerError where
   message : String
-  deriving Repr
+  deriving Repr, Inhabited
 
 def LowerError.render (err : LowerError) : String :=
   err.message
@@ -246,6 +246,351 @@ def resolveStoragePathType (module : Module) (stateId : String) (path : Array St
   let start ← storagePathStartType module stateId
   resolveStoragePathSegments module start path.toList
 
+partial def validateValueType (module : Module) (type : ValueType) : Except LowerError Unit := do
+  match type with
+  | .unit => .error { message := "Psy IR v0 does not support Unit as a stored or structured value type" }
+  | .bool | .u64 | .hash => pure ()
+  | .fixedArray element length =>
+      if length == 0 then
+        .error { message := "Psy IR v0 fixed arrays must have non-zero length" }
+      validateValueType module element
+  | .structType name =>
+      match findStruct? module name with
+      | some _ => pure ()
+      | none => .error { message := s!"unknown struct type `{name}`" }
+
+partial def validateAbiValueType (module : Module) (type : ValueType) (context : String) (allowUnit : Bool) : Except LowerError Unit := do
+  match type with
+  | .unit =>
+      if allowUnit then
+        pure ()
+      else
+        .error { message := s!"{context} uses Unit; Psy IR v0 entrypoint parameters must use Felt, Bool, Hash, fixed arrays, or declared structs" }
+  | .bool | .u64 | .hash => pure ()
+  | .fixedArray element length =>
+      if length == 0 then
+        .error { message := s!"{context} uses a zero-length fixed array; Psy IR v0 fixed arrays must have non-zero length" }
+      validateAbiValueType module element context false
+  | .structType name =>
+      match findStruct? module name with
+      | some _ => pure ()
+      | none => .error { message := s!"{context} references unknown struct type `{name}`" }
+
+structure LocalBinding where
+  name : String
+  type : ValueType
+  isMutable : Bool := false
+  deriving Repr
+
+abbrev TypeEnv := Array LocalBinding
+
+def findLocal? (env : TypeEnv) (name : String) : Option LocalBinding :=
+  env.find? fun binding => binding.name == name
+
+def addLocal (env : TypeEnv) (name : String) (type : ValueType) (isMutable : Bool) : Except LowerError TypeEnv :=
+  match findLocal? env name with
+  | some _ => .error { message := s!"local `{name}` is already defined" }
+  | none => .ok <| env.push { name, type, isMutable }
+
+def ensureType (context : String) (expected actual : ValueType) : Except LowerError Unit :=
+  if expected == actual then
+    .ok ()
+  else
+    .error { message := s!"{context} expected `{expected.name}`, got `{actual.name}`" }
+
+def ensureIndexType (context : String) (type : ValueType) : Except LowerError Unit :=
+  ensureType context .u64 type
+
+def structFieldType (module : Module) (typeName fieldName : String) : Except LowerError ValueType := do
+  let some decl := findStruct? module typeName
+    | .error { message := s!"unknown struct type `{typeName}`" }
+  let some field := findStructField? decl fieldName
+    | .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
+  .ok field.type
+
+def stateDeclOf (module : Module) (stateId : String) (kind : String) : Except LowerError StateDecl :=
+  match findState? module stateId with
+  | some state => .ok state
+  | none => .error { message := s!"unknown {kind} state `{stateId}`" }
+
+def scalarStateType (module : Module) (stateId : String) : Except LowerError ValueType := do
+  let state ← stateDeclOf module stateId "scalar"
+  match state.kind with
+  | .scalar => .ok state.type
+  | .map _ _ => .error { message := s!"state `{stateId}` is a map, not scalar storage" }
+  | .array _ => .error { message := s!"state `{stateId}` is an array, not scalar storage" }
+
+def mapStateTypes (module : Module) (stateId : String) : Except LowerError (ValueType × ValueType) := do
+  let state ← stateDeclOf module stateId "map"
+  match state.kind with
+  | .map keyType _ => .ok (keyType, state.type)
+  | .scalar => .error { message := s!"state `{stateId}` is scalar storage, not a map" }
+  | .array _ => .error { message := s!"state `{stateId}` is array storage, not a map" }
+
+def arrayStateElementType (module : Module) (stateId : String) : Except LowerError ValueType := do
+  let state ← stateDeclOf module stateId "array"
+  match state.kind with
+  | .array _ => .ok state.type
+  | .scalar => .error { message := s!"state `{stateId}` is scalar storage, not an array" }
+  | .map _ _ => .error { message := s!"state `{stateId}` is map storage, not an array" }
+
+mutual
+  partial def inferExprType (module : Module) (env : TypeEnv) : Expr → Except LowerError ValueType
+    | .literal (.u64 _) => .ok .u64
+    | .literal (.bool _) => .ok .bool
+    | .literal (.hash4 ..) => .ok .hash
+    | .local name =>
+        match findLocal? env name with
+        | some binding => .ok binding.type
+        | none => .error { message := s!"unknown local `{name}`" }
+    | .arrayLit elementType values => do
+        if values.isEmpty then
+          .error { message := s!"empty fixed array literals are not supported by Psy IR v0 for `{← valueTypeName elementType}`" }
+        validateValueType module elementType
+        for value in values do
+          let actual ← inferExprType module env value
+          ensureType "array literal element" elementType actual
+        .ok (.fixedArray elementType values.size)
+    | .arrayGet array index => do
+        let indexType ← inferExprType module env index
+        ensureIndexType "array index" indexType
+        match ← inferExprType module env array with
+        | .fixedArray element length =>
+            if length == 0 then
+              .error { message := "array index requires a non-empty fixed array" }
+            else
+              .ok element
+        | other =>
+            .error { message := s!"array index requires fixed array, got `{other.name}`" }
+    | .structLit typeName fields => do
+        if fields.isEmpty then
+          .error { message := s!"struct literal `{typeName}` must have at least one field" }
+        let some decl := findStruct? module typeName
+          | .error { message := s!"struct literal references unknown struct `{typeName}`" }
+        if decl.fields.size != fields.size then
+          .error { message := s!"struct literal `{typeName}` expected {decl.fields.size} field(s), got {fields.size}" }
+        for field in fields do
+          let expected ← structFieldType module typeName field.fst
+          let actual ← inferExprType module env field.snd
+          ensureType s!"struct literal `{typeName}` field `{field.fst}`" expected actual
+        for expectedField in decl.fields do
+          if !(fields.any fun field => field.fst == expectedField.id) then
+            .error { message := s!"struct literal `{typeName}` is missing field `{expectedField.id}`" }
+        .ok (.structType typeName)
+    | .field base fieldName => do
+        match ← inferExprType module env base with
+        | .structType typeName =>
+            structFieldType module typeName fieldName
+        | other =>
+            .error { message := s!"field `{fieldName}` requires struct value, got `{other.name}`" }
+    | .add lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "addition left operand" .u64 lhsType
+        ensureType "addition right operand" .u64 rhsType
+        .ok .u64
+    | .hash preimage => do
+        let preimageType ← inferExprType module env preimage
+        ensureType "hash preimage" .hash preimageType
+        .ok .hash
+    | .hashTwoToOne lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "hash_two_to_one left operand" .hash lhsType
+        ensureType "hash_two_to_one right operand" .hash rhsType
+        .ok .hash
+    | .effect effect =>
+        inferEffectExprType module env effect
+
+  partial def inferEffectExprType (module : Module) (env : TypeEnv) : Effect → Except LowerError ValueType
+    | .storageScalarRead stateId =>
+        scalarStateType module stateId
+    | .storageScalarWrite _ _ =>
+        .error { message := "storage.scalar.write is a statement effect, not an expression" }
+    | .storageMapContains stateId key => do
+        let (keyType, _) ← mapStateTypes module stateId
+        let actualKey ← inferExprType module env key
+        ensureType s!"map `{stateId}` key" keyType actualKey
+        .ok .bool
+    | .storageMapGet stateId key => do
+        let (keyType, valueType) ← mapStateTypes module stateId
+        let actualKey ← inferExprType module env key
+        ensureType s!"map `{stateId}` key" keyType actualKey
+        .ok valueType
+    | .storageMapInsert stateId key value => do
+        let (keyType, valueType) ← mapStateTypes module stateId
+        let actualKey ← inferExprType module env key
+        ensureType s!"map `{stateId}` key" keyType actualKey
+        let actualValue ← inferExprType module env value
+        ensureType s!"map `{stateId}` value" valueType actualValue
+        .ok valueType
+    | .storageMapSet _ _ _ =>
+        .error { message := "storage.map.set is a statement effect, not an expression" }
+    | .storageArrayRead stateId index => do
+        let elementType ← arrayStateElementType module stateId
+        let actualIndex ← inferExprType module env index
+        ensureIndexType s!"array state `{stateId}` index" actualIndex
+        .ok elementType
+    | .storageArrayWrite _ _ _ =>
+        .error { message := "storage.array.write is a statement effect, not an expression" }
+    | .storageArrayStructFieldRead stateId index fieldName => do
+        let elementType ← arrayStateElementType module stateId
+        let actualIndex ← inferExprType module env index
+        ensureIndexType s!"array state `{stateId}` index" actualIndex
+        match elementType with
+        | .structType typeName => structFieldType module typeName fieldName
+        | other => .error { message := s!"array state `{stateId}` has element type `{other.name}`, not struct storage" }
+    | .storageArrayStructFieldWrite _ _ _ _ =>
+        .error { message := "storage.array.struct.field.write is a statement effect, not an expression" }
+    | .storageStructFieldRead stateId fieldName => do
+        match ← scalarStateType module stateId with
+        | .structType typeName => structFieldType module typeName fieldName
+        | other => .error { message := s!"state `{stateId}` has scalar type `{other.name}`, not struct storage" }
+    | .storageStructFieldWrite _ _ _ =>
+        .error { message := "storage.struct.field.write is a statement effect, not an expression" }
+    | .storagePathRead stateId path =>
+        resolveStoragePathType module stateId path
+    | .storagePathWrite _ _ _ =>
+        .error { message := "storage.path.write is a statement effect, not an expression" }
+    | .contextRead _ =>
+        .ok .u64
+end
+
+partial def inferAssignTargetType (module : Module) (env : TypeEnv) : Expr → Except LowerError ValueType
+  | .local name =>
+      match findLocal? env name with
+      | some binding =>
+          if binding.isMutable then
+            .ok binding.type
+          else
+            .error { message := s!"assignment target local `{name}` is not mutable" }
+      | none => .error { message := s!"unknown local `{name}`" }
+  | .arrayGet array index => do
+      let indexType ← inferExprType module env index
+      ensureIndexType "assignment array index" indexType
+      match ← inferAssignTargetType module env array with
+      | .fixedArray element length =>
+          if length == 0 then
+            .error { message := "assignment array target requires a non-empty fixed array" }
+          else
+            .ok element
+      | other =>
+          .error { message := s!"assignment array target requires fixed array, got `{other.name}`" }
+  | .field base fieldName => do
+      match ← inferAssignTargetType module env base with
+      | .structType typeName =>
+          structFieldType module typeName fieldName
+      | other =>
+          .error { message := s!"assignment field `{fieldName}` requires struct value, got `{other.name}`" }
+  | _ =>
+      .error { message := "assignment target must be a local, array index, or field path" }
+
+def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerError Unit
+  | .storageScalarRead _ =>
+      .error { message := "storage.scalar.read must be used as an expression" }
+  | .storageScalarWrite stateId value => do
+      let expected ← scalarStateType module stateId
+      let actual ← inferExprType module env value
+      ensureType s!"scalar state `{stateId}` write" expected actual
+  | .storageMapContains _ _ =>
+      .error { message := "storage.map.contains must be used as an expression" }
+  | .storageMapGet _ _ =>
+      .error { message := "storage.map.get must be used as an expression" }
+  | .storageMapInsert stateId key value => do
+      let (keyType, valueType) ← mapStateTypes module stateId
+      let actualKey ← inferExprType module env key
+      ensureType s!"map `{stateId}` key" keyType actualKey
+      let actualValue ← inferExprType module env value
+      ensureType s!"map `{stateId}` value" valueType actualValue
+  | .storageMapSet stateId key value => do
+      let (keyType, valueType) ← mapStateTypes module stateId
+      let actualKey ← inferExprType module env key
+      ensureType s!"map `{stateId}` key" keyType actualKey
+      let actualValue ← inferExprType module env value
+      ensureType s!"map `{stateId}` value" valueType actualValue
+  | .storageArrayRead _ _ =>
+      .error { message := "storage.array.read must be used as an expression" }
+  | .storageArrayWrite stateId index value => do
+      let elementType ← arrayStateElementType module stateId
+      let actualIndex ← inferExprType module env index
+      ensureIndexType s!"array state `{stateId}` index" actualIndex
+      let actualValue ← inferExprType module env value
+      ensureType s!"array state `{stateId}` write" elementType actualValue
+  | .storageArrayStructFieldRead _ _ _ =>
+      .error { message := "storage.array.struct.field.read must be used as an expression" }
+  | .storageArrayStructFieldWrite stateId index fieldName value => do
+      let elementType ← arrayStateElementType module stateId
+      let actualIndex ← inferExprType module env index
+      ensureIndexType s!"array state `{stateId}` index" actualIndex
+      let expected ←
+        match elementType with
+        | .structType typeName => structFieldType module typeName fieldName
+        | other => .error { message := s!"array state `{stateId}` has element type `{other.name}`, not struct storage" }
+      let actualValue ← inferExprType module env value
+      ensureType s!"array state `{stateId}` field `{fieldName}` write" expected actualValue
+  | .storageStructFieldRead _ _ =>
+      .error { message := "storage.struct.field.read must be used as an expression" }
+  | .storageStructFieldWrite stateId fieldName value => do
+      let expected ←
+        match ← scalarStateType module stateId with
+        | .structType typeName => structFieldType module typeName fieldName
+        | other => .error { message := s!"state `{stateId}` has scalar type `{other.name}`, not struct storage" }
+      let actualValue ← inferExprType module env value
+      ensureType s!"state `{stateId}` field `{fieldName}` write" expected actualValue
+  | .storagePathRead _ _ =>
+      .error { message := "storage.path.read must be used as an expression" }
+  | .storagePathWrite stateId path value => do
+      let expected ← resolveStoragePathType module stateId path
+      let actualValue ← inferExprType module env value
+      ensureType s!"storage path `{stateId}` write" expected actualValue
+  | .contextRead _ =>
+      .error { message := "context.read must be used as an expression" }
+
+mutual
+  partial def validateStatement (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) : Statement → Except LowerError TypeEnv
+    | .letBind name type value => do
+        validateValueType module type
+        let actual ← inferExprType module env value
+        ensureType s!"let binding `{name}`" type actual
+        addLocal env name type false
+    | .letMutBind name type value => do
+        validateValueType module type
+        let actual ← inferExprType module env value
+        ensureType s!"mutable let binding `{name}`" type actual
+        addLocal env name type true
+    | .assign target value => do
+        let expected ← inferAssignTargetType module env target
+        let actual ← inferExprType module env value
+        ensureType "assignment value" expected actual
+        .ok env
+    | .effect effect => do
+        validateEffectStmt module env effect
+        .ok env
+    | .assert condition _ => do
+        let conditionType ← inferExprType module env condition
+        ensureType "assert condition" .bool conditionType
+        .ok env
+    | .assertEq lhs rhs _ => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "assert_eq right operand" lhsType rhsType
+        .ok env
+    | .boundedFor indexName start stopExclusive body => do
+        if stopExclusive <= start then
+          .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
+        let loopEnv ← addLocal env indexName .u64 false
+        discard <| validateBody module entrypoint loopEnv body
+        .ok env
+    | .return value => do
+        let actual ← inferExprType module env value
+        ensureType s!"entrypoint `{entrypoint.name}` return" entrypoint.returns actual
+        .ok env
+
+  partial def validateBody (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) (body : Array Statement) : Except LowerError TypeEnv :=
+    body.foldlM (init := env) fun acc stmt =>
+      validateStatement module entrypoint acc stmt
+end
+
 mutual
   partial def lowerExpr (module : Module) : Expr → Except LowerError String
     | .literal value => .ok (literal value)
@@ -419,36 +764,6 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
   let bodyLines := body.map (indent 2)
   lines (#[header, signature, newRef] ++ bodyLines ++ #[indent 1 "}"]) |> .ok
 
-partial def validateValueType (module : Module) (type : ValueType) : Except LowerError Unit := do
-  match type with
-  | .unit => .error { message := "Psy IR v0 does not support Unit as a stored or structured value type" }
-  | .bool | .u64 | .hash => pure ()
-  | .fixedArray element length =>
-      if length == 0 then
-        .error { message := "Psy IR v0 fixed arrays must have non-zero length" }
-      validateValueType module element
-  | .structType name =>
-      match findStruct? module name with
-      | some _ => pure ()
-      | none => .error { message := s!"unknown struct type `{name}`" }
-
-partial def validateAbiValueType (module : Module) (type : ValueType) (context : String) (allowUnit : Bool) : Except LowerError Unit := do
-  match type with
-  | .unit =>
-      if allowUnit then
-        pure ()
-      else
-        .error { message := s!"{context} uses Unit; Psy IR v0 entrypoint parameters must use Felt, Bool, Hash, fixed arrays, or declared structs" }
-  | .bool | .u64 | .hash => pure ()
-  | .fixedArray element length =>
-      if length == 0 then
-        .error { message := s!"{context} uses a zero-length fixed array; Psy IR v0 fixed arrays must have non-zero length" }
-      validateAbiValueType module element context false
-  | .structType name =>
-      match findStruct? module name with
-      | some _ => pure ()
-      | none => .error { message := s!"{context} references unknown struct type `{name}`" }
-
 def validateStructs (module : Module) : Except LowerError Unit := do
   for decl in module.structs do
     if decl.fields.isEmpty then
@@ -474,6 +789,22 @@ def validateEntrypoints (module : Module) : Except LowerError Unit := do
     for param in entrypoint.params do
       validateAbiValueType module param.snd s!"entrypoint `{entrypoint.name}` parameter `{param.fst}`" false
     validateAbiValueType module entrypoint.returns s!"entrypoint `{entrypoint.name}` return type" true
+
+def initialTypeEnv (entrypoint : Entrypoint) : Except LowerError TypeEnv :=
+  entrypoint.params.foldlM (init := #[]) fun env param =>
+    addLocal env param.fst param.snd false
+
+def bodyEndsWithReturn (body : Array Statement) : Bool :=
+  match body.toList.reverse with
+  | Statement.return _ :: _ => true
+  | _ => false
+
+def validateEntrypointBodies (module : Module) : Except LowerError Unit := do
+  for entrypoint in module.entrypoints do
+    let env ← initialTypeEnv entrypoint
+    discard <| validateBody module entrypoint env entrypoint.body
+    if entrypoint.returns != .unit && !bodyEndsWithReturn entrypoint.body then
+      .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not end with a return statement" }
 
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
@@ -634,6 +965,7 @@ def renderModule (module : Module) : Except LowerError String := do
   validateStructs module
   validateEntrypoints module
   validateState module
+  validateEntrypointBodies module
   let structBlocks ← module.structs.mapM structDecl
   let stateDecls ← module.state.mapM stateDecl
   let stateLines := stateDecls.foldl (fun acc lines => acc ++ lines) #[]

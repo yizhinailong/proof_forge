@@ -262,7 +262,9 @@ return stable, explicit errors before source generation. Current cases cover
 Unit entrypoint parameters, zero-length ABI arrays, unknown ABI structs,
 unsupported map key/value shapes, structs missing `deriveStorage` for storage,
 empty structs, invalid bounded loop ranges, storage writes used as expressions,
-storage reads used as statements, and invalid assignment targets.
+storage reads used as statements, invalid assignment targets, invalid storage
+paths, unknown locals, local/array/struct/hash/return type mismatches, immutable
+assignment, and missing return statements.
 
 The design philosophy docs reinforce the same boundary: Psy is ZK-native and
 uses symbolic execution. Variables become circuit wires, operations become
@@ -767,8 +769,9 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts twelve explicit diagnostics for malformed or unsupported
-Psy IR shapes, including invalid storage paths.
+It currently asserts twenty-two explicit diagnostics for malformed or
+unsupported Psy IR shapes, including invalid storage paths and expression/body
+type mismatches.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -909,12 +912,15 @@ Deployment smoke:
   a machine with the Psy toolchain.
 - Generated NestedAggregateProbe `.psy` package compiles with `dargo compile`
   on a machine with the Psy toolchain.
+- Generated StorageNestedAggregateProbe `.psy` package compiles with
+  `dargo compile` on a machine with the Psy toolchain.
 - Dargo execution proves the expected Counter lifecycle, context-read result,
   deterministic hash outputs, map lifecycle output, and assertion-protected
   checked sum output, plus the bounded loop count result and fixed-array
   literal/storage results, struct literal/storage results, struct-array
   literal/storage results, ABI aggregate parameter/return flattening results,
-  and local nested aggregate mutation results.
+  local nested aggregate mutation results, and storage-backed nested aggregate
+  path update results.
 - `scripts/psy/diagnostic-smoke.sh` proves unsupported or malformed Psy IR
   shapes produce explicit diagnostics before source generation.
 - Artifact metadata records:

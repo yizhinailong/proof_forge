@@ -17,6 +17,57 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Sourcegen Type Diagnostics
+
+Commit: feature commit for Psy expression and statement type diagnostics
+
+Summary:
+
+- Added a lightweight Psy backend type environment for entrypoint parameters,
+  local bindings, mutable locals, and bounded-loop indices.
+- Added sourcegen-time type inference and validation for literals, locals,
+  fixed arrays, struct literals, field access, addition, hash operations,
+  storage effects, context reads, assignment targets, assertions, and returns.
+- Added diagnostics for unknown locals, local/array/struct/hash type
+  mismatches, immutable assignment, missing non-unit returns, and storage write
+  type mismatches.
+- Kept existing lowering behavior unchanged for valid fixtures; this feature
+  blocks malformed IR before `.psy` source is emitted.
+- Extended `Tests/PsyDiagnostics.lean` from 12 to 22 explicit rejection cases.
+
+Validation run:
+
+```sh
+lake build
+scripts/psy/diagnostic-smoke.sh
+lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
+diff -u Examples/Psy/Counter.golden.psy build/psy/Counter.psy
+lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
+diff -u Examples/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/{counter,context,hash,map,assert,loop,array,struct,struct-array,abi-aggregate,nested-aggregate,storage-nested-aggregate}-smoke.sh
+```
+
+Result:
+
+- `scripts/psy/diagnostic-smoke.sh` passed all 22 diagnostic cases.
+- All checked Psy golden source snapshots remain unchanged.
+- All Psy Dargo smokes passed and revalidated source snapshots, DPN JSON, ABI
+  JSON, execute logs, and `proof-forge-artifact.json`.
+
+Known limitations:
+
+- This is a sourcegen validation layer, not a formal type system for every
+  future portable IR extension.
+- Assignment mutability is enforced for local/index/field paths rooted in local
+  bindings; storage mutation continues to use explicit storage effects.
+
+Next step:
+
+- Continue closing Psy valid-surface gaps with either Dargo-backed fixtures or
+  explicit diagnostics before adding new IR nodes.
+
 ### Psy StorageNestedAggregateProbe Storage Paths
 
 Commit: feature commit for storage nested aggregate Psy IR coverage

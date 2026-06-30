@@ -24,6 +24,14 @@ def pointStructNoStorage : StructDecl := {
   ]
 }
 
+def pairStruct : StructDecl := {
+  name := "Pair"
+  fields := #[
+    { id := "left", type := .u64 },
+    { id := "right", type := .u64 }
+  ]
+}
+
 def unitEntrypoint (name : String) (body : Array Statement := #[]) : Entrypoint := {
   name := name
   returns := .unit
@@ -187,6 +195,113 @@ def missingRefStoragePathModule : Module := {
   }]
 }
 
+def unknownLocalModule : Module := {
+  name := "BadUnknownLocal"
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .u64
+    body := #[
+      .return (.local "missing")
+    ]
+  }]
+}
+
+def letTypeMismatchModule : Module := {
+  name := "BadLetTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "x" .u64 (.literal (.bool true))
+  ]]
+}
+
+def arrayElementMismatchModule : Module := {
+  name := "BadArrayElementMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[
+      .literal (.u64 1),
+      .literal (.bool true)
+    ])
+  ]]
+}
+
+def arrayLengthMismatchModule : Module := {
+  name := "BadArrayLengthMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[
+      .literal (.u64 1)
+    ])
+  ]]
+}
+
+def structLiteralFieldMismatchModule : Module := {
+  name := "BadStructLiteralFieldMismatch"
+  structs := #[pairStruct]
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .structType "Pair"
+    body := #[
+      .return (.structLit "Pair" #[("left", .literal (.u64 1))])
+    ]
+  }]
+}
+
+def hashPreimageMismatchModule : Module := {
+  name := "BadHashPreimageMismatch"
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .hash
+    body := #[
+      .return (.hash (.literal (.u64 1)))
+    ]
+  }]
+}
+
+def immutableAssignModule : Module := {
+  name := "BadImmutableAssign"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "x" .u64 (.literal (.u64 1)),
+    .assign (.local "x") (.literal (.u64 2))
+  ]]
+}
+
+def returnTypeMismatchModule : Module := {
+  name := "BadReturnTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .u64
+    body := #[
+      .return (.literal (.bool true))
+    ]
+  }]
+}
+
+def missingReturnModule : Module := {
+  name := "BadMissingReturn"
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .u64
+    body := #[
+      .letBind "x" .u64 (.literal (.u64 1))
+    ]
+  }]
+}
+
+def storageWriteTypeMismatchModule : Module := {
+  name := "BadStorageWriteTypeMismatch"
+  state := #[countState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .effect (.storageScalarWrite "count" (.literal (.bool true)))
+  ]]
+}
+
 def renderError? (module : Module) : Option String :=
   match ProofForge.Backend.Psy.IR.renderModule module with
   | .ok _ => none
@@ -252,6 +367,56 @@ def cases : Array (String × Module × String) := #[
     "missing nested storage ref",
     missingRefStoragePathModule,
     "storage path field `profile` in struct `Person` must be marked ref to access nested storage"
+  ),
+  (
+    "unknown local",
+    unknownLocalModule,
+    "unknown local `missing`"
+  ),
+  (
+    "let type mismatch",
+    letTypeMismatchModule,
+    "let binding `x` expected `U64`, got `Bool`"
+  ),
+  (
+    "array element mismatch",
+    arrayElementMismatchModule,
+    "array literal element expected `U64`, got `Bool`"
+  ),
+  (
+    "array length mismatch",
+    arrayLengthMismatchModule,
+    "let binding `xs` expected `Array<U64,2>`, got `Array<U64,1>`"
+  ),
+  (
+    "struct literal field mismatch",
+    structLiteralFieldMismatchModule,
+    "struct literal `Pair` expected 2 field(s), got 1"
+  ),
+  (
+    "hash preimage mismatch",
+    hashPreimageMismatchModule,
+    "hash preimage expected `Hash`, got `U64`"
+  ),
+  (
+    "immutable assignment",
+    immutableAssignModule,
+    "assignment target local `x` is not mutable"
+  ),
+  (
+    "return type mismatch",
+    returnTypeMismatchModule,
+    "entrypoint `bad` return expected `U64`, got `Bool`"
+  ),
+  (
+    "missing return",
+    missingReturnModule,
+    "entrypoint `bad` returns `U64` but does not end with a return statement"
+  ),
+  (
+    "storage write type mismatch",
+    storageWriteTypeMismatchModule,
+    "scalar state `count` write expected `U64`, got `Bool`"
   )
 ]
 
