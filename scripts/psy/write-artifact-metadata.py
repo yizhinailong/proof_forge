@@ -41,6 +41,7 @@ def main() -> int:
     parser.add_argument("--root", required=True)
     parser.add_argument("--fixture", required=True)
     parser.add_argument("--source", required=True)
+    parser.add_argument("--package-source", required=True)
     parser.add_argument("--circuit-json", required=True)
     parser.add_argument("--abi-json", required=True)
     parser.add_argument("--execute-log", required=True)
@@ -55,6 +56,7 @@ def main() -> int:
     root = Path(args.root)
     artifacts = {
         "source": file_entry(root, Path(args.source)),
+        "packageSource": file_entry(root, Path(args.package_source)),
         "circuitJson": file_entry(root, Path(args.circuit_json)),
         "abiJson": file_entry(root, Path(args.abi_json)),
         "executeLog": file_entry(root, Path(args.execute_log)),

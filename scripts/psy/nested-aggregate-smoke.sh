@@ -99,6 +99,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture NestedAggregateProbe \
   --source "$PSY_FILE" \
+  --package-source "$PROJECT_DIR/src/main.psy" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \

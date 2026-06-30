@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Dargo Package Source Metadata
+
+Commit: feature commit for Psy Dargo package source metadata
+
+Summary:
+
+- Extended Psy artifact metadata to record the Dargo package source copy
+  (`src/main.psy`) used by every Dargo-backed smoke fixture.
+- Updated metadata validation to check the package source path, byte size,
+  SHA-256 hash, and hash parity with the generated `.psy` source.
+- Updated all Dargo-backed Psy smoke scripts to pass
+  `"$PROJECT_DIR/src/main.psy"` into `write-artifact-metadata.py`.
+
+Validation run:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile \
+  scripts/psy/write-artifact-metadata.py \
+  scripts/psy/validate-artifact-metadata.py \
+  scripts/psy/check-ir-coverage-manifest.py
+bash -n scripts/psy/*.sh
+lake build
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/counter-smoke.sh
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/u32-storage-array-smoke.sh
+```
+
+Result:
+
+- Counter and U32StorageArrayProbe smoke metadata now include
+  `artifacts.packageSource`.
+- The metadata validator accepts the updated schema and proves the package
+  source copy has the same SHA-256 hash as the generated source file.
+
+Known limitations:
+
+- This validates the generated Dargo package source copy, not upstream
+  compressed genesis deploy JSON or live node/prover state.
+
+Next step:
+
+- Continue toward upstream genesis deploy JSON/local node research, or factor
+  the repeated Dargo package generation into a reusable package writer.
+
 ### Psy Dargo Package Manifest Metadata
 
 Commit: feature commit for Psy Dargo package manifest metadata

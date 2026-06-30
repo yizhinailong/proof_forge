@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 
-REQUIRED_ARTIFACTS = ("source", "circuitJson", "abiJson", "executeLog", "dargoManifest")
+REQUIRED_ARTIFACTS = ("source", "packageSource", "circuitJson", "abiJson", "executeLog", "dargoManifest")
 REQUIRED_VALIDATIONS = ("dargoTest", "dargoCompile", "dargoExecute", "dargoGenerateAbi", "dargoPackage")
 
 
@@ -66,6 +66,10 @@ def main() -> int:
     artifacts = expect_object(metadata.get("artifacts"), "artifacts")
     for artifact_name in REQUIRED_ARTIFACTS:
         file_entry(root, expect_object(artifacts.get(artifact_name), f"artifacts.{artifact_name}"), artifact_name)
+    expect(
+        artifacts["packageSource"]["sha256"] == artifacts["source"]["sha256"],
+        "artifacts.packageSource.sha256 must match artifacts.source.sha256",
+    )
     dargo_manifest = (root / artifacts["dargoManifest"]["path"]).read_text()
     expect("[package]" in dargo_manifest, "artifacts.dargoManifest must contain a [package] section")
     expect("type = \"bin\"" in dargo_manifest, "artifacts.dargoManifest must describe a bin package")

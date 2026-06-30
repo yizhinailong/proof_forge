@@ -72,7 +72,9 @@ toolchain gates but not `lake build`. Missing Psy tools block only the Psy
 smoke Dargo portions; source generation and golden diff still run before each
 script exits.
 
-All Dargo-backed Psy smoke scripts also record the generated `Dargo.toml`
-package manifest in `proof-forge-artifact.json`. The metadata validator checks
-the manifest path, byte size, SHA-256 hash, `[package]` section,
-`type = "bin"`, and `[dependencies]` section.
+All Dargo-backed Psy smoke scripts also record the generated Dargo package
+source copy at `src/main.psy` and the generated `Dargo.toml` package manifest
+in `proof-forge-artifact.json`. The metadata validator checks the package
+source path, byte size, SHA-256 hash, and hash parity with the generated source
+file. It also checks the manifest path, byte size, SHA-256 hash, `[package]`
+section, `type = "bin"`, and `[dependencies]` section.
