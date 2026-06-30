@@ -221,6 +221,27 @@
 - 制品元数据记录了 Dargo/Psy 编译器版本或 commit。
 - 不支持的非电路友好 IR 节点在源代码生成之前失败。
 
+## 工作流 11: Kaspa Toccata Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Kaspa 的 Toccata 可编程栈，同时避免把它误建模为 EVM、账户状态链或通用 ZK 电路目标。
+
+任务：
+
+- 已完成：为候选 id `kaspa-toccata` 添加文档优先的目标说明。
+- 将目标归类为 UTXO covenant / based-app research，而不是 `zk-circuit-sourcegen`。
+- 审查 UTXO state、covenant lineage、transaction v1、user lane、compute budget 和 inline proof verification 的候选能力。
+- 决定第一版 spike 是生成 Silverscript，还是只围绕手写 covenant source 生成 target manifest。
+- 定义一个带 successor-output validation 的极小 L1 covenant Counter-like 场景。
+- 定义 covenant source、transaction v1 manifest、covenant lineage manifest 和可选 proof verifier manifest 的最小制品元数据形态。
+- 在 L1 covenant 制品形态清楚前，暂缓 based-app 支持。
+
+验收标准：
+
+- `docs/targets/kaspa-toccata.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档区分 inline ZK verification 与 `psy-dpn` 风格的电路源代码生成。
+
 ## 建议顺序
 
 1. 目标注册表（工作流 1）。
@@ -231,5 +252,6 @@
 6. Solana 运行时决策（工作流 7 —— 在 spike 数据之后）。
 7. Move Aptos POC（工作流 8）。
 8. 一旦 IR fixture 存在，进行 Psy DPN 源代码生成 spike（工作流 10）。
-9. CI 目标矩阵（工作流 9）。
-10. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。
+9. 在任何 registry 变更前进行 Kaspa Toccata research target review（工作流 11）。
+10. CI 目标矩阵（工作流 9）。
+11. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。
