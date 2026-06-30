@@ -270,6 +270,8 @@ Tasks:
 - Done: add native Hash scalar and storage-array coverage using Psy
   `pub root: Hash` and `pub roots: [Hash; N]`, with Dargo compile/execute
   validation.
+- Done: add fixed-array equality coverage using Psy `assert_eq`, `==`, and
+  `!=` over `[Felt; N]` locals, with Dargo compile/execute validation.
 - Done: add U32 storage array coverage using Felt-backed storage plus explicit
   U32 read/write casts, with Dargo compile/execute validation.
 - Done: add Felt-backed U32 storage-array path compound assignment lowering as

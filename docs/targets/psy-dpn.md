@@ -502,9 +502,10 @@ build/psy/
 `ArrayProbe` follows upstream Psy array idioms from `tests/array_test.psy`,
 `tests/parameter_passing_test.psy`, and storage reference tests: fixed array
 types such as `[Felt; 3]`, literals such as `[10, 20, 30]`, index reads such
-as `xs[0]`, and fixed storage arrays such as `pub values: [Felt; 3]`. Storage
-array reads lower through `.get()` when used as arithmetic values, while writes
-use Psy's index assignment sugar: `c.values[0] = 7`.
+as `xs[0]`, fixed-array `assert_eq`/`==`/`!=` predicates, and fixed storage
+arrays such as `pub values: [Felt; 3]`. Storage array reads lower through
+`.get()` when used as arithmetic values, while writes use Psy's index
+assignment sugar: `c.values[0] = 7`.
 
 Current StructProbe output layout:
 
@@ -986,10 +987,12 @@ The same validation shape is also implemented for `ArrayProbe`:
 scripts/psy/array-smoke.sh
 ```
 
-It verifies fixed-array value and storage lowering under Dargo local execution:
+It verifies fixed-array value, fixed-array equality, and storage lowering under
+Dargo local execution:
 
 - `sum_literal`: `result_vm: [60]`
 - `storage_lifecycle`: `result_vm: [31]`
+- `array_predicates`: `result_vm: [1]`
 
 The script emits and validates
 `build/psy/dargo-array/target/proof-forge-artifact.json`.
@@ -1225,6 +1228,8 @@ Deployment smoke:
 - Done: add `ArrayProbe` with `[Felt; N]` local array literals, index reads,
   and fixed storage array index read/write lowering aligned with upstream Psy
   array and storage reference idioms.
+- Done: extend `ArrayProbe` with fixed-array `assert_eq`, equality, and
+  inequality predicates validated through Dargo execution.
 - Done: add `scripts/psy/array-smoke.sh` with the same Dargo validation shape.
 - Done: add `StructProbe` with struct declarations, struct literals, field
   access, and scalar storage struct field read/write lowering aligned with

@@ -17,6 +17,54 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Fixed Array Equality
+
+Commit: feature commit for Psy fixed-array equality
+
+Summary:
+
+- Allowed Psy IR equality validation for fixed-array value types after a Dargo
+  probe confirmed Psy supports `assert_eq(xs, ys)`, `xs == ys`, and `xs != zs`
+  for fixed arrays.
+- Extended `ArrayProbe` with `array_predicates`, covering fixed-array
+  `assert_eq`, equality, and inequality over `[Felt; 3]` locals.
+- Updated `scripts/psy/array-smoke.sh` to compile and execute
+  `array_predicates`, record `result_vm: [1]`, and include it in artifact
+  metadata validation.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
+diff -u Examples/Psy/ArrayProbe.golden.psy build/psy/ArrayProbe.psy
+bash -n scripts/psy/*.sh
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/array-smoke.sh
+git diff --check
+```
+
+Result:
+
+- Generated ArrayProbe source includes `array_predicates`, using
+  `assert_eq(xs, ys, ...)`, `xs == ys`, and `xs != zs`.
+- `scripts/psy/array-smoke.sh` validates `sum_literal`,
+  `storage_lifecycle`, and `array_predicates` through Dargo test, compile,
+  execute, ABI generation, deploy manifest, and artifact metadata checks.
+- Dargo execution returns `result_vm: [1]` for `array_predicates`.
+
+Known limitations:
+
+- This feature covers same-typed fixed-array equality only; mismatched element
+  types and lengths still fail through the existing type checker.
+
+Next step:
+
+- Commit and push this single feature before starting the next Psy surface area.
+
 ### Psy Native U32 Storage Struct Paths
 
 Commit: feature commit for Psy native U32 storage struct paths
@@ -1359,9 +1407,8 @@ Result:
 Known limitations:
 
 - This adds expression predicates, not statement-level `if/else` lowering.
-- Fixed-array equality through `==` is intentionally rejected for now; compare
-  fixed-array elements explicitly until direct array equality is covered by a
-  Dargo-backed fixture.
+- Fixed-array equality was outside this original expression fixture; it is now
+  covered separately by the Dargo-backed `ArrayProbe`.
 
 Next step:
 
@@ -1792,7 +1839,7 @@ lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
 
 - Added `Examples/Psy/ArrayProbe.golden.psy`.
 - Added `scripts/psy/array-smoke.sh`, which generates a temporary Dargo
-  package, runs `dargo test --file`, `dargo compile`, two `dargo execute`
+  package, runs `dargo test --file`, `dargo compile`, three `dargo execute`
   calls, `dargo generate-abi`, and validates `proof-forge-artifact.json`.
 - Added CI coverage for the ArrayProbe Psy golden source snapshot.
 
@@ -1815,6 +1862,7 @@ Result:
   `proof-forge-artifact.json`.
 - `dargo execute` returned `result_vm: [60]` for `sum_literal`.
 - `dargo execute` returned `result_vm: [31]` for `storage_lifecycle`.
+- `dargo execute` returned `result_vm: [1]` for `array_predicates`.
 
 Known limitations:
 

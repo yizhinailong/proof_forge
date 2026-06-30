@@ -455,9 +455,7 @@ def ensureEqType (context : String) (type : ValueType) : Except LowerError Unit 
   match type with
   | .unit =>
       .error { message := s!"{context} does not support Unit equality" }
-  | .fixedArray _ _ =>
-      .error { message := s!"{context} does not support `{type.name}` equality; compare fixed-array elements explicitly" }
-  | .bool | .u32 | .u64 | .hash | .structType _ =>
+  | .bool | .u32 | .u64 | .hash | .fixedArray _ _ | .structType _ =>
       .ok ()
 
 def ensureCastType (source target : ValueType) : Except LowerError Unit :=
@@ -1540,10 +1538,12 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     ]
   else if module.name == "ArrayProbe" &&
     module.entrypoints.any (fun entry => entry.name == "sum_literal" && entry.params.isEmpty && entry.returns == .u64) &&
-    module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
+    module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) &&
+    module.entrypoints.any (fun entry => entry.name == "array_predicates" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::sum_literal(), 60, \"fixed array literal indexes add up\");",
-      s!"assert_eq({refName}::storage_lifecycle(), 31, \"storage array indexes read after writes\");"
+      s!"assert_eq({refName}::storage_lifecycle(), 31, \"storage array indexes read after writes\");",
+      s!"assert_eq({refName}::array_predicates(), 1, \"fixed array equality predicates hold\");"
     ]
   else if module.name == "StructProbe" &&
     module.entrypoints.any (fun entry => entry.name == "local_sum" && entry.params.isEmpty && entry.returns == .u64) &&

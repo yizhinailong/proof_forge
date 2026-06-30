@@ -44,10 +44,24 @@ def storageLifecycle : Entrypoint := {
   ]
 }
 
+def arrayPredicates : Entrypoint := {
+  name := "array_predicates"
+  returns := .u64
+  body := #[
+    .letBind "xs" (.fixedArray .u64 3) (.arrayLit .u64 #[felt 1, felt 2, felt 3]),
+    .letBind "ys" (.fixedArray .u64 3) (.arrayLit .u64 #[felt 1, felt 2, felt 3]),
+    .letBind "zs" (.fixedArray .u64 3) (.arrayLit .u64 #[felt 1, felt 2, felt 4]),
+    .assertEq (.local "xs") (.local "ys") "fixed array assert_eq compares elements",
+    .assert (.eq (.local "xs") (.local "ys")) "fixed array equality compares elements",
+    .assert (.ne (.local "xs") (.local "zs")) "fixed array inequality compares elements",
+    .return (felt 1)
+  ]
+}
+
 def module : Module := {
   name := "ArrayProbe"
   state := #[stateValues]
-  entrypoints := #[sumLiteral, storageLifecycle]
+  entrypoints := #[sumLiteral, storageLifecycle, arrayPredicates]
 }
 
 end ProofForge.IR.Examples.ArrayProbe

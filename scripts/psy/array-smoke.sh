@@ -17,6 +17,7 @@ DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 ARRAY_LITERAL_RESULT="result_vm: [60]"
 ARRAY_STORAGE_RESULT="result_vm: [31]"
+ARRAY_PREDICATES_RESULT="result_vm: [1]"
 
 if [[ -z "${DARGO_STD_PATH:-}" && -f "$PSY_HOME/env" ]]; then
   # psyup writes DARGO_STD_PATH here; sourcing avoids a slow stdlib fallback.
@@ -56,12 +57,13 @@ python3 "$ROOT/scripts/psy/write-dargo-package.py" \
 
 (
   cd "$PROJECT_DIR"
-  "$DARGO_BIN" compile --contract-name ArrayProbe --method-names sum_literal storage_lifecycle
+  "$DARGO_BIN" compile --contract-name ArrayProbe --method-names sum_literal storage_lifecycle array_predicates
   : > "$EXEC_LOG"
   "$DARGO_BIN" execute --contract-name ArrayProbe --method-names sum_literal | tee -a "$EXEC_LOG"
   "$DARGO_BIN" execute --contract-name ArrayProbe --method-names storage_lifecycle | tee -a "$EXEC_LOG"
+  "$DARGO_BIN" execute --contract-name ArrayProbe --method-names array_predicates | tee -a "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name ArrayProbe --output-dir target --pretty
-  "$DARGO_BIN" compile --contract-name ArrayProbe --method-names sum_literal storage_lifecycle
+  "$DARGO_BIN" compile --contract-name ArrayProbe --method-names sum_literal storage_lifecycle array_predicates
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_array.json"
@@ -78,6 +80,12 @@ fi
 
 if ! grep -Fq "$ARRAY_STORAGE_RESULT" "$EXEC_LOG"; then
   echo "psy-array-smoke: expected storage_lifecycle execute to return $ARRAY_STORAGE_RESULT" >&2
+  echo "psy-array-smoke: execution log: $EXEC_LOG" >&2
+  exit 1
+fi
+
+if ! grep -Fq "$ARRAY_PREDICATES_RESULT" "$EXEC_LOG"; then
+  echo "psy-array-smoke: expected array_predicates execute to return $ARRAY_PREDICATES_RESULT" >&2
   echo "psy-array-smoke: execution log: $EXEC_LOG" >&2
   exit 1
 fi
@@ -108,7 +116,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --dargo-manifest "$PROJECT_DIR/Dargo.toml" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
-  --execute-result "$ARRAY_LITERAL_RESULT; $ARRAY_STORAGE_RESULT" \
+  --execute-result "$ARRAY_LITERAL_RESULT; $ARRAY_STORAGE_RESULT; $ARRAY_PREDICATES_RESULT" \
   --capability data.fixed_array \
   --capability storage.array \
   --capability zk.circuit
