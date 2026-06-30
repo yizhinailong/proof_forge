@@ -17,6 +17,70 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Local Assignment
+
+Commit: feature commit for EVM IR local assignment
+
+Summary:
+
+- Treated the capability-complete EVM backend prompt as an incremental
+  validation contract: every portable IR node must either gain a positive EVM
+  fixture or retain a documented diagnostic.
+- Extended `ProofForge.Backend.Evm.IR` so mutable scalar local bindings lower
+  to Yul `let` declarations.
+- Extended EVM IR assignment lowering for local targets as Yul `:=`
+  assignments, while keeping non-local assignment targets and compound
+  assignment statements explicitly rejected.
+- Added `ProofForge.IR.Examples.AssignmentProbe` with
+  `reassignment(uint256)`, covering mutable `U64` and `Bool` locals plus a
+  bool guard that depends on assignment.
+- Added `--emit-assignment-ir-yul` and
+  `--emit-assignment-ir-bytecode` CLI modes.
+- Added `Examples/Evm/AssignmentProbe.golden.yul` and
+  `scripts/evm/assignment-ir-smoke.sh`, then wired the smoke into CI.
+- Updated EVM diagnostics, coverage manifest, validation docs, and the EVM
+  target docs.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-assignment-ir-yul -o build/ir/AssignmentProbe.yul
+diff -u Examples/Evm/AssignmentProbe.golden.yul build/ir/AssignmentProbe.yul
+bash -n scripts/evm/*.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/assignment-ir-smoke.sh
+scripts/evm/assert-ir-smoke.sh
+scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/build-examples.sh
+scripts/evm/foundry-smoke.sh
+git diff --check
+```
+
+Result:
+
+- Generated AssignmentProbe Yul matches the checked-in golden fixture and
+  contains `let total := seed`, `total := add(total, 7)`, and
+  `matched := eq(total, 12)`.
+- `scripts/evm/assignment-ir-smoke.sh` compiles AssignmentProbe to bytecode and
+  passes Foundry tests for the successful assignment path and the bool-guard
+  revert path.
+- EVM diagnostics now cover the remaining assignment boundaries: non-local
+  assignment targets and compound assignment statements.
+
+Known limitations:
+
+- Local assignment support is scalar-only (`U32`, `U64`, `Bool`).
+- Compound assignment, aggregate assignment paths, storage assignment paths,
+  and artifact metadata remain separate EVM work items.
+
+Next step:
+
+- Add EVM IR statement-level conditional lowering or EVM artifact metadata as
+  the next isolated feature slice.
+
 ### EVM IR Assertions
 
 Commit: feature commit for EVM IR assertions

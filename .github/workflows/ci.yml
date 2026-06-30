@@ -115,6 +115,9 @@ jobs:
       - name: Run EVM AssertProbe IR smoke
         run: scripts/evm/assert-ir-smoke.sh
 
+      - name: Run EVM AssignmentProbe IR smoke
+        run: scripts/evm/assignment-ir-smoke.sh
+
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh
 

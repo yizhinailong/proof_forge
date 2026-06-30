@@ -35,6 +35,7 @@ scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
+scripts/evm/assignment-ir-smoke.sh
 ```
 
 ## CLI modes
@@ -60,6 +61,8 @@ proof-forge --emit-abi-scalar-ir-yul [-o output.yul]
 proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
 proof-forge --emit-assert-ir-yul [-o output.yul]
 proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-assignment-ir-yul [-o output.yul]
+proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
 ```
 
 `--bytecode` is an alias for `--evm-bytecode`.
@@ -147,8 +150,9 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - String manipulation APIs incomplete in Yul runtime.
 - No unified `proof-forge-artifact.json` yet (planned Workstream 2).
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
-  IR EVM backend currently supports only a Counter-class subset and rejects
-  wider portable IR nodes with explicit diagnostics.
+  IR EVM backend currently supports scalar storage/ABI, assertions, and local
+  assignment fixtures, and rejects wider portable IR nodes with explicit
+  diagnostics.
 - Portable IR EVM currently lacks aggregate ABI values, mappings, storage
   arrays, structs, context opcodes, hashing, events, cross-contract calls, and
   artifact metadata.
@@ -163,6 +167,7 @@ scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
+scripts/evm/assignment-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
@@ -183,6 +188,12 @@ reverts.
 `AssertProbe` validates portable IR `assert` and `assert_eq` lowering to Yul
 `if iszero(...) { revert(0, 0) }` guards, including Foundry coverage for the
 passing path and the assertion-failure revert path.
+
+`AssignmentProbe` validates portable IR mutable scalar local bindings and local
+assignment lowering to Yul `let` declarations and `:=` assignments. The smoke
+checks golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
+successful Foundry execution, and the revert path when the assigned bool guard
+is false.
 
 ## Metadata
 

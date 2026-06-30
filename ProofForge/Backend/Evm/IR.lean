@@ -261,19 +261,25 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
   | .eventEmit _ _ =>
       .error { message := "event emission is not supported by IR EVM v0" }
 
+def ensureLocalScalarType (context name : String) (type : ValueType) : Except LowerError Unit :=
+  match type with
+  | .u32 | .u64 | .bool => .ok ()
+  | .unit => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `Unit`" }
+  | .hash => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `Hash`" }
+  | .fixedArray _ _ => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `{type.name}`" }
+  | .structType _ => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `{type.name}`" }
+
 def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError Lean.Compiler.Yul.Statement
   | .letBind name type value => do
-      match type with
-      | .u32 | .u64 | .bool => pure ()
-      | .unit => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `Unit`" }
-      | .hash => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `Hash`" }
-      | .fixedArray _ _ => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `{type.name}`" }
-      | .structType _ => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `{type.name}`" }
+      ensureLocalScalarType "let binding" name type
       .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
-  | .letMutBind name _ _ =>
-      .error { message := s!"mutable let binding `{name}` is not supported by IR EVM v0" }
+  | .letMutBind name type value => do
+      ensureLocalScalarType "mutable let binding" name type
+      .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
+  | .assign (.local name) value => do
+      .ok (.assignment #[name] (← lowerExpr module value))
   | .assign _ _ =>
-      .error { message := "assignment statements are not supported by IR EVM v0" }
+      .error { message := "assignment target must be a local in IR EVM v0" }
   | .assignOp _ _ _ =>
       .error { message := "compound assignment statements are not supported by IR EVM v0" }
   | .effect effect =>

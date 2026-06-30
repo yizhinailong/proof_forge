@@ -81,8 +81,8 @@ StoragePathSegment	field	unsupported	Storage path effects reject before segment 
 StoragePathSegment	index	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
 StoragePathSegment	mapKey	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
 Statement	letBind	lowered	lowerStatement emits immutable Yul varDecl for U32/U64/Bool let bindings and rejects unsupported types.
-Statement	letMutBind	unsupported	lowerStatement rejects mutable let bindings in EVM IR v0.
-Statement	assign	unsupported	lowerStatement rejects assignment statements in EVM IR v0.
+Statement	letMutBind	lowered	lowerStatement emits mutable scalar Yul let bindings; AssignmentProbe covers mutable U64 and Bool locals.
+Statement	assign	lowered	lowerStatement emits Yul assignment for local targets; AssignmentProbe covers local reassignment and diagnostics reject non-local targets.
 Statement	assignOp	unsupported	lowerStatement rejects compound assignment statements in EVM IR v0.
 Statement	effect	structural	lowerStatement delegates effects to lowerEffectStmt; scalar writes lower and unsupported effects reject.
 Statement	assert	lowered	lowerStatement emits a Yul if iszero(condition) revert guard; AssertProbe covers the passing path and Foundry revert behavior.

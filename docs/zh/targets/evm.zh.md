@@ -2,7 +2,7 @@
 
 目标 id：**`evm`**
 
-阶段：**Experimental** —— CI 冒烟测试已通过，但目标注册表、可移植 IR 和制品元数据尚未接入。
+阶段：**Experimental** —— CI 冒烟测试、目标注册表以及 portable IR 诊断/覆盖门禁已接入，但制品元数据尚未发射。
 
 相关内容：[能力注册表](../capability-registry.md)，[共享场景](../shared-scenario.md)，[RFC 0002](../rfcs/0002-target-implementation-design.md)。
 
@@ -28,6 +28,11 @@ lake env proof-forge --evm-bytecode --root . --module contract \
 
 scripts/evm/build-examples.sh
 scripts/evm/foundry-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/assert-ir-smoke.sh
+scripts/evm/assignment-ir-smoke.sh
 ```
 
 ## CLI 模式
@@ -42,6 +47,19 @@ EVM 字节码模式：
 
 ```sh
 proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [-o output.bin] input.lean
+```
+
+Portable IR EVM fixture 模式：
+
+```sh
+proof-forge --emit-counter-ir-yul [-o output.yul]
+proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-abi-scalar-ir-yul [-o output.yul]
+proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-assert-ir-yul [-o output.yul]
+proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-assignment-ir-yul [-o output.yul]
+proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
 ```
 
 `--bytecode` 是 `--evm-bytecode` 的别名。
@@ -121,7 +139,26 @@ EVM 不支持（设计上针对其他目标）：
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
 - 尚未有统一的 `proof-forge-artifact.json`（计划于工作流 2）。
-- 目前降级绕过了可移植 IR；在阶段 1 中，Counter 必须通过 IR 路由。
+- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言和局部赋值 fixture，其他更宽的 portable IR 节点仍以显式诊断拒绝。
+
+## Portable IR 门禁
+
+Portable IR EVM 后端与较早的 `ProofForge.Evm` SDK 路径分开跟踪：
+
+```sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/assert-ir-smoke.sh
+scripts/evm/assignment-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+```
+
+`Tests/EvmCoverage.tsv` 记录每个 portable IR constructor 在 EVM 上是 `lowered`、`validated`、`unsupported` 还是 `structural`。新增 portable IR 节点必须更新该清单，否则 CI 不应通过。
+
+`Tests/EvmDiagnostics.lean` 固定当前 unsupported surface 的行为，确保不支持的 EVM IR 形态在 Yul 生成前失败，而不是静默遗漏行为。
+
+`AssignmentProbe` 验证 portable IR 可变标量局部绑定和 local assignment 会降为 Yul `let` 声明与 `:=` 赋值。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、Foundry 成功执行，以及赋值后的 bool guard 为 false 时的 revert 路径。
 
 ## 元数据
 

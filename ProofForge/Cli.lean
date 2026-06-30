@@ -10,6 +10,7 @@ import ProofForge.IR.Examples.AbiScalarProbe
 import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.ArithmeticProbe
 import ProofForge.IR.Examples.AssertProbe
+import ProofForge.IR.Examples.AssignmentProbe
 import ProofForge.IR.Examples.BitwiseProbe
 import ProofForge.IR.Examples.BoolStorageArrayProbe
 import ProofForge.IR.Examples.BoolStorageScalarProbe
@@ -49,6 +50,8 @@ inductive EmitMode where
   | abiScalarIrBytecode
   | assertIrYul
   | assertIrBytecode
+  | assignmentIrYul
+  | assignmentIrBytecode
   | counterIrPsy
   | eventIrPsy
   | crosscallIrPsy
@@ -101,6 +104,8 @@ def usage : String :=
     "  proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
     "  proof-forge --emit-assert-ir-yul [-o output.yul]",
     "  proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
+    "  proof-forge --emit-assignment-ir-yul [-o output.yul]",
+    "  proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
     "  proof-forge --emit-counter-ir-psy [-o output.psy]",
     "  proof-forge --emit-event-ir-psy [-o output.psy]",
     "  proof-forge --emit-crosscall-ir-psy [-o output.psy]",
@@ -292,7 +297,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
         .ok opts
       else
         .error usage
@@ -331,6 +336,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .assertIrYul }
   | "--emit-assert-ir-bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .assertIrBytecode }
+  | "--emit-assignment-ir-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .assignmentIrYul }
+  | "--emit-assignment-ir-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .assignmentIrBytecode }
   | "--emit-counter-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrPsy }
   | "--emit-event-ir-psy" :: rest, opts =>
@@ -521,6 +530,31 @@ def compileAssertIrBytecode (opts : CliOptions) : IO UInt32 := do
   writeTextFile yulOutput yul
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (FilePath.mk "build/ir/AssertProbe.bin")
+  writeTextFile output (bytecode ++ "\n")
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
+def compileAssignmentIrYul (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/ir/AssignmentProbe.yul")
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.AssignmentProbe.module with
+  | .ok yul =>
+      writeTextFile output yul
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def renderAssignmentIrYul : IO String := do
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.AssignmentProbe.module with
+  | .ok yul => return yul
+  | .error err => throw <| IO.userError err.render
+
+def compileAssignmentIrBytecode (opts : CliOptions) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/AssignmentProbe.yul")
+  let yul ← renderAssignmentIrYul
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (FilePath.mk "build/ir/AssignmentProbe.bin")
   writeTextFile output (bytecode ++ "\n")
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
@@ -810,6 +844,8 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .abiScalarIrBytecode => compileAbiScalarIrBytecode opts
   | .assertIrYul => compileAssertIrYul opts
   | .assertIrBytecode => compileAssertIrBytecode opts
+  | .assignmentIrYul => compileAssignmentIrYul opts
+  | .assignmentIrBytecode => compileAssignmentIrBytecode opts
   | .counterIrPsy => compileCounterIrPsy opts
   | .eventIrPsy => compileEventIrPsy opts
   | .crosscallIrPsy => compileCrosscallIrPsy opts

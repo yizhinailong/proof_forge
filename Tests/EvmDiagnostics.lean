@@ -196,15 +196,15 @@ def hashExprModule : Module :=
     .return (.hash (.literal (.hash4 1 2 3 4)))
   ]
 
-def mutableLetModule : Module :=
-  selectedModule "BadMutableLet" <| selectedEntrypoint "bad" #[
-    .letMutBind "x" .u64 (.literal (.u64 1))
+def invalidAssignmentTargetModule : Module :=
+  selectedModule "BadAssignmentTarget" <| selectedEntrypoint "bad" #[
+    .assign (.add (.literal (.u64 1)) (.literal (.u64 2))) (.literal (.u64 3))
   ]
 
-def assignmentModule : Module :=
-  selectedModule "BadAssignment" <| selectedEntrypoint "bad" #[
-    .letBind "x" .u64 (.literal (.u64 1)),
-    .assign (.local "x") (.literal (.u64 2))
+def compoundAssignmentModule : Module :=
+  selectedModule "BadCompoundAssignment" <| selectedEntrypoint "bad" #[
+    .letMutBind "x" .u64 (.literal (.u64 1)),
+    .assignOp (.local "x") .add (.literal (.u64 2))
   ]
 
 def renderError? (module : Module) : Option String :=
@@ -329,14 +329,14 @@ def cases : Array (String × Module × String) := #[
     "crypto.hash is not supported by IR EVM v0"
   ),
   (
-    "mutable let unsupported",
-    mutableLetModule,
-    "mutable let binding `x` is not supported by IR EVM v0"
+    "invalid assignment target unsupported",
+    invalidAssignmentTargetModule,
+    "assignment target must be a local in IR EVM v0"
   ),
   (
-    "assignment unsupported",
-    assignmentModule,
-    "assignment statements are not supported by IR EVM v0"
+    "compound assignment unsupported",
+    compoundAssignmentModule,
+    "compound assignment statements are not supported by IR EVM v0"
   )
 ]
 
