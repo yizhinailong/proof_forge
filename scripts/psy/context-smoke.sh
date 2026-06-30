@@ -102,6 +102,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
   --deploy-json "$DEPLOY_JSON_FILE" \
+  --dargo-manifest "$PROJECT_DIR/Dargo.toml" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "result_vm: [15]" \

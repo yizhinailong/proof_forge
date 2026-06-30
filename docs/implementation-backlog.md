@@ -280,7 +280,7 @@ Acceptance criteria:
   `poseidon_hash` and `poseidon_pair_hash` entrypoints.
 - `dargo generate-abi` produces a non-empty ABI JSON artifact.
 - Artifact metadata records target id, fixture id, used capabilities, artifact
-  paths, hashes, byte sizes, and validation status.
+  paths, hashes, byte sizes, Dargo package manifest, and validation status.
 - Artifact metadata is machine-validated by the Psy smoke scripts.
 - Artifact metadata records Dargo/Psy compiler version or commit once available.
 - Unsupported non-circuit-friendly IR nodes fail before source generation.

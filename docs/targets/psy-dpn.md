@@ -186,7 +186,7 @@ primaryInput: ProofForge portable IR subset
 primaryOutput: target/contract.json containing DPNFunctionCircuitDefinition[]
 sideOutputs:
   - generated .psy source package
-  - generated Dargo.toml
+  - generated Dargo.toml package manifest
   - ABI JSON
   - proof-forge-artifact.json
   - ProofForge deploy manifest JSON
@@ -961,7 +961,8 @@ All Psy smoke scripts run
 `scripts/psy/validate-artifact-metadata.py` after metadata generation. The
 validator checks schema version, target id, target family, artifact kind,
 fixture id, non-empty capabilities, artifact paths, byte sizes, SHA-256 hashes,
-validation flags, and expected execution results inside the execute log.
+validation flags, Dargo package manifest shape, and expected execution results
+inside the execute log.
 
 The diagnostic smoke is separate from Dargo smokes because it validates source
 generation rejection paths instead of supported Psy programs:
@@ -1195,6 +1196,7 @@ Deployment smoke:
   - target id `psy-dpn`
   - target family and artifact kind
   - generated `.psy` source
+  - generated Dargo package manifest
   - DPN circuit JSON artifact
   - ABI artifact if generated
   - ProofForge deploy manifest if generated

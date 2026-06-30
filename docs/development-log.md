@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Dargo Package Manifest Metadata
+
+Commit: feature commit for Psy Dargo package manifest metadata
+
+Summary:
+
+- Extended Psy artifact metadata to record the generated Dargo package manifest
+  (`Dargo.toml`) for every Dargo-backed smoke fixture.
+- Updated metadata validation to check the manifest path, byte size, SHA-256
+  hash, `[package]` section, `type = "bin"`, and `[dependencies]` section.
+- Updated all Dargo-backed Psy smoke scripts to pass the generated
+  `"$PROJECT_DIR/Dargo.toml"` into `write-artifact-metadata.py`.
+
+Validation run:
+
+```sh
+python3 -m py_compile \
+  scripts/psy/write-artifact-metadata.py \
+  scripts/psy/validate-artifact-metadata.py
+bash -n scripts/psy/*.sh
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/counter-smoke.sh
+```
+
+Result:
+
+- Counter smoke metadata now includes `artifacts.dargoManifest` with a checked
+  hash and package manifest shape.
+- The metadata validator accepts the updated schema after Dargo `test`,
+  `compile`, `execute`, `generate-abi`, deploy manifest validation, and package
+  manifest validation.
+
+Known limitations:
+
+- This records the generated Dargo package manifest, not Psy upstream compressed
+  genesis deploy JSON or live node/prover state.
+
+Next step:
+
+- Continue toward upstream genesis deploy JSON/local node research, or factor
+  the repeated Dargo package generation into a reusable package writer.
+
 ### Psy IR Coverage Manifest Gate
 
 Commit: feature commit for Psy IR coverage manifest validation

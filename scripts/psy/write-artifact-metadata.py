@@ -44,6 +44,7 @@ def main() -> int:
     parser.add_argument("--circuit-json", required=True)
     parser.add_argument("--abi-json", required=True)
     parser.add_argument("--execute-log", required=True)
+    parser.add_argument("--dargo-manifest", required=True)
     parser.add_argument("--deploy-json")
     parser.add_argument("--out", required=True)
     parser.add_argument("--dargo", required=True)
@@ -57,12 +58,14 @@ def main() -> int:
         "circuitJson": file_entry(root, Path(args.circuit_json)),
         "abiJson": file_entry(root, Path(args.abi_json)),
         "executeLog": file_entry(root, Path(args.execute_log)),
+        "dargoManifest": file_entry(root, Path(args.dargo_manifest)),
     }
     validation = {
         "dargoTest": "passed",
         "dargoCompile": "passed",
         "dargoExecute": "passed",
         "dargoGenerateAbi": "passed",
+        "dargoPackage": "passed",
         "executeResult": args.execute_result,
     }
     if args.deploy_json:
