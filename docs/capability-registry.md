@@ -29,6 +29,7 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 | `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | P |
 | `crosscall.invoke` | Call another contract/program | Y | Y | Y | Y | Y | Y | P |
 | `env.block` | Block height/time/chain id reads | Y | P | P | P | P | P | P |
+| `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | N | N | N | N | N | N | P |
 | `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | N | N | N | P |
 | `data.fixed_array` | Fixed-size array value type, literals, and index expressions | N | N | N | N | N | N | P |
 | `data.struct` | Struct value type, literals, and field access | N | N | N | N | N | N | P |

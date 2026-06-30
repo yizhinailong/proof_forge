@@ -32,6 +32,8 @@ def capitalizedRefName (module : Module) : String :=
 def testFunctionName (module : Module) : String :=
   if module.name == "StorageNestedAggregateProbe" then
     "test_storage_nested_aggregate_probe_fixture"
+  else if module.name == "ConditionalProbe" then
+    "test_conditional_probe_fixture"
   else if module.name == "ExpressionPredicateProbe" then
     "test_expression_predicate_probe_fixture"
   else if module.name == "NestedAggregateProbe" then
@@ -638,6 +640,12 @@ mutual
         let rhsType ← inferExprType module env rhs
         ensureType "assert_eq right operand" lhsType rhsType
         .ok env
+    | .ifElse condition thenBody elseBody => do
+        let conditionType ← inferExprType module env condition
+        ensureType "if condition" .bool conditionType
+        discard <| validateBody module entrypoint env thenBody
+        discard <| validateBody module entrypoint env elseBody
+        .ok env
     | .boundedFor indexName start stopExclusive body => do
         if stopExclusive <= start then
           .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
@@ -812,6 +820,15 @@ mutual
         .ok #[s!"assert({← lowerExpr module condition}, {stringLiteral message});"]
     | .assertEq lhs rhs message => do
         .ok #[s!"assert_eq({← lowerExpr module lhs}, {← lowerExpr module rhs}, {stringLiteral message});"]
+    | .ifElse condition thenBody elseBody => do
+        let thenLines ← lowerBody module thenBody
+        let elseLines ← lowerBody module elseBody
+        .ok <|
+          #[s!"if {← lowerExpr module condition} " ++ "{"] ++
+          thenLines.map (indent 1) ++
+          #["} else {"] ++
+          elseLines.map (indent 1) ++
+          #["};"]
     | .boundedFor indexName start stopExclusive body => do
         if stopExclusive <= start then
           .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
@@ -955,6 +972,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
       s!"assert_eq({refName}::get(), 1, \"counter increments once\");",
       s!"{refName}::increment();",
       s!"assert_eq({refName}::get(), 2, \"counter increments twice\");"
+    ]
+  else if module.name == "ConditionalProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "conditional_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::conditional_lifecycle(), 10, \"conditional branches update storage\");"
     ]
   else if module.name == "ExpressionPredicateProbe" &&
     module.entrypoints.any (fun entry => entry.name == "predicate_sum" && entry.params.isEmpty && entry.returns == .u64) then

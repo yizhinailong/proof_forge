@@ -172,6 +172,7 @@ def psyDpn : TargetProfile := {
     .eventsEmit,
     .crosscallInvoke,
     .envBlock,
+    .controlConditional,
     .controlBoundedLoop,
     .dataFixedArray,
     .dataStruct,

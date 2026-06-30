@@ -12,6 +12,7 @@ inductive Capability where
   | eventsEmit
   | crosscallInvoke
   | envBlock
+  | controlConditional
   | controlBoundedLoop
   | dataFixedArray
   | dataStruct
@@ -33,6 +34,7 @@ def Capability.id : Capability → String
   | .eventsEmit => "events.emit"
   | .crosscallInvoke => "crosscall.invoke"
   | .envBlock => "env.block"
+  | .controlConditional => "control.conditional"
   | .controlBoundedLoop => "control.bounded_loop"
   | .dataFixedArray => "data.fixed_array"
   | .dataStruct => "data.struct"

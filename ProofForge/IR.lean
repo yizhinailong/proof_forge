@@ -3,6 +3,7 @@ import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.AssertProbe
 import ProofForge.IR.Examples.ContextProbe
+import ProofForge.IR.Examples.ConditionalProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.ExpressionPredicateProbe
 import ProofForge.IR.Examples.HashProbe

@@ -17,6 +17,64 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy ConditionalProbe Statement If/Else
+
+Commit: feature commit for Psy conditional statement coverage
+
+Summary:
+
+- Added portable IR `Statement.ifElse` with a new `control.conditional`
+  capability.
+- Added Psy source generation for `if condition { ... } else { ... };`, aligned
+  with upstream `.psy` conditional syntax.
+- Added sourcegen diagnostics for non-Bool if conditions and branch-local
+  bindings escaping their branch.
+- Kept EVM IR v0 explicit by rejecting statement-level if/else.
+- Added `ProofForge.IR.Examples.ConditionalProbe`, covering then and else branch
+  execution over scalar storage.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
+```
+
+- Added `Examples/Psy/ConditionalProbe.golden.psy`.
+- Added `scripts/psy/conditional-smoke.sh`, which generates a temporary Dargo
+  package, runs `dargo test --file`, `dargo compile`, `dargo execute`,
+  `dargo generate-abi`, and validates `proof-forge-artifact.json`.
+- Added CI coverage for the ConditionalProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+scripts/psy/diagnostic-smoke.sh
+lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
+diff -u Examples/Psy/ConditionalProbe.golden.psy build/psy/ConditionalProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/conditional-smoke.sh
+```
+
+Result:
+
+- Generated ConditionalProbe source matches the checked-in golden fixture.
+- `scripts/psy/conditional-smoke.sh` generated DPN JSON, ABI JSON, execute log,
+  and `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [10]` for `conditional_lifecycle`.
+- `scripts/psy/diagnostic-smoke.sh` passed all 27 diagnostic cases.
+
+Known limitations:
+
+- This adds statement-level if/else, not else-if syntax sugar.
+- Non-unit entrypoints still need an explicit final top-level return statement;
+  return coverage through both conditional branches is not analyzed yet.
+
+Next step:
+
+- Continue broadening Psy expression/arithmetic coverage or add map storage path
+  support once a stable upstream Psy idiom is identified.
+
 ### Psy ExpressionPredicateProbe Boolean Predicates
 
 Commit: feature commit for Psy predicate expression coverage

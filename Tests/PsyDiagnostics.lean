@@ -326,6 +326,31 @@ def booleanOperatorTypeMismatchModule : Module := {
   ]]
 }
 
+def ifConditionTypeMismatchModule : Module := {
+  name := "BadIfConditionTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .ifElse (.literal (.u64 1)) #[
+      .assert (.literal (.bool true)) "then branch"
+    ] #[]
+  ]]
+}
+
+def branchLocalEscapeModule : Module := {
+  name := "BadBranchLocalEscape"
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .u64
+    body := #[
+      .ifElse (.literal (.bool true)) #[
+        .letBind "x" .u64 (.literal (.u64 1))
+      ] #[],
+      .return (.local "x")
+    ]
+  }]
+}
+
 def renderError? (module : Module) : Option String :=
   match ProofForge.Backend.Psy.IR.renderModule module with
   | .ok _ => none
@@ -456,6 +481,16 @@ def cases : Array (String × Module × String) := #[
     "boolean operator type mismatch",
     booleanOperatorTypeMismatchModule,
     "boolean and left operand expected `Bool`, got `U64`"
+  ),
+  (
+    "if condition type mismatch",
+    ifConditionTypeMismatchModule,
+    "if condition expected `Bool`, got `U64`"
+  ),
+  (
+    "branch local escape",
+    branchLocalEscapeModule,
+    "unknown local `x`"
   )
 ]
 

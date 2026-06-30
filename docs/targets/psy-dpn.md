@@ -10,12 +10,12 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
-ExpressionPredicateProbe, ContextProbe, HashProbe, MapProbe, AssertProbe,
-LoopProbe, ArrayProbe, StructProbe, StructArrayProbe, AbiAggregateProbe, and
-NestedAggregateProbe fixtures. It also has an experimental
-StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
-across `#[ref]` struct fields and storage arrays. The target is not
-production-ready and does not yet cover if/else lowering, map storage paths,
+ExpressionPredicateProbe, ConditionalProbe, ContextProbe, HashProbe, MapProbe,
+AssertProbe, LoopProbe, ArrayProbe, StructProbe, StructArrayProbe,
+AbiAggregateProbe, and NestedAggregateProbe fixtures. It also has an
+experimental StorageNestedAggregateProbe fixture for storage-backed nested
+aggregate updates across `#[ref]` struct fields and storage arrays. The target
+is not production-ready and does not yet cover else-if sugar, map storage paths,
 deploy JSON, live Psy node/prover deployment, or broad Lean-to-IR extraction.
 
 ## Summary
@@ -230,7 +230,8 @@ Allowed first:
 - concrete structs
 - first-order functions
 - entrypoint parameters over supported scalar/fixed-size types
-- bounded `if` / `while` patterns that the Psy compiler accepts
+- statement-level `if/else` branches with Bool conditions
+- static bounded `for` loops that the Psy compiler accepts
 - assertions
 - hash operations represented through `crypto.hash`
 - context reads such as user id, contract id, and checkpoint id
@@ -264,7 +265,8 @@ unsupported map key/value shapes, structs missing `deriveStorage` for storage,
 empty structs, invalid bounded loop ranges, storage writes used as expressions,
 storage reads used as statements, invalid assignment targets, invalid storage
 paths, unknown locals, local/array/struct/hash/return type mismatches, immutable
-assignment, and missing return statements.
+assignment, missing return statements, malformed if conditions, and branch-local
+escape.
 
 The design philosophy docs reinforce the same boundary: Psy is ZK-native and
 uses symbolic execution. Variables become circuit wires, operations become
@@ -286,6 +288,7 @@ Initial mapping:
 | `events.emit` | target-specific event/log story to research |
 | `crosscall.invoke` | `invoke_sync` / `invoke_deferred` where valid |
 | `env.block` | checkpoint/block-like context reads where valid |
+| `control.conditional` | Psy `if condition { ... } else { ... };` statements |
 | `control.bounded_loop` | static Psy `for i in 0u32..Nu32` loops |
 | `data.fixed_array` | Psy `[T; N]` value types, literals, and index expressions |
 | `data.struct` | Psy `struct` definitions, `new Struct { ... }` literals, and field access |
@@ -588,6 +591,15 @@ difference between value fields and nested storage references.
 precompiles. It covers `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, `||`, and `!`
 inside assertion predicates and boolean local bindings.
 
+`ConditionalProbe` follows upstream conditional idioms from
+`tests/conditional_assert_test.psy`, `tests/for_if_test.psy`, and
+`psy-precompiles/faucet/src/main.psy`. It lowers portable IR
+`Statement.ifElse` to Psy `if condition { ... } else { ... };`, validates that
+the condition is Bool, keeps branch-local bindings scoped to their branch, and
+uses Dargo execution to prove that both then and else paths are represented in
+the generated circuit. It does not yet add else-if syntax sugar; nested
+conditionals can model that shape when needed.
+
 ## Smoke Test Strategy
 
 Experimental smoke does not require a live Psy network.
@@ -634,6 +646,19 @@ It verifies predicate expression lowering under Dargo local execution:
 
 The script emits and validates
 `build/psy/dargo-expression-predicate/target/proof-forge-artifact.json`.
+
+The same validation shape is also implemented for `ConditionalProbe`:
+
+```sh
+scripts/psy/conditional-smoke.sh
+```
+
+It verifies statement-level conditional lowering under Dargo local execution:
+
+- `conditional_lifecycle`: `result_vm: [10]`
+
+The script emits and validates
+`build/psy/dargo-conditional/target/proof-forge-artifact.json`.
 
 The same validation shape is also implemented for `HashProbe`:
 
@@ -787,10 +812,10 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts twenty-five explicit diagnostics for malformed or
+It currently asserts twenty-seven explicit diagnostics for malformed or
 unsupported Psy IR shapes, including invalid storage paths, expression/body
 type mismatches, malformed equality, malformed comparison, and malformed
-boolean operators.
+boolean operators, malformed if conditions, and branch-local escape.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -800,7 +825,7 @@ to an Ethereum-style local execution smoke than a pure compiler check.
 Second smoke:
 
 1. Compare high-level Counter behavior with the EVM shared scenario.
-2. Add bounded-loop, array, and struct coverage from `psy-compiler/tests` and
+2. Add broader arithmetic and map-path coverage from `psy-compiler/tests` and
    `psy-precompiles`.
 
 Deployment smoke:
@@ -830,6 +855,10 @@ Deployment smoke:
   Psy operator idioms.
 - Done: add `scripts/psy/expression-predicate-smoke.sh` with the same Dargo
   validation shape.
+- Done: add `ConditionalProbe` with statement-level `if/else` lowering aligned
+  with upstream conditional idioms.
+- Done: add `scripts/psy/conditional-smoke.sh` with the same Dargo validation
+  shape.
 - Done: add `ContextProbe` as the first non-Counter Psy fixture with parameter
   lowering and context reads.
 - Done: add `scripts/psy/context-smoke.sh` with the same Dargo validation shape.
@@ -938,13 +967,15 @@ Deployment smoke:
   on a machine with the Psy toolchain.
 - Generated StorageNestedAggregateProbe `.psy` package compiles with
   `dargo compile` on a machine with the Psy toolchain.
+- Generated ConditionalProbe `.psy` package compiles with `dargo compile` on a
+  machine with the Psy toolchain.
 - Dargo execution proves the expected Counter lifecycle, context-read result,
   deterministic hash outputs, map lifecycle output, and assertion-protected
   checked sum output, plus the bounded loop count result and fixed-array
   literal/storage results, struct literal/storage results, struct-array
   literal/storage results, ABI aggregate parameter/return flattening results,
-  local nested aggregate mutation results, and storage-backed nested aggregate
-  path update results.
+  conditional branch result, local nested aggregate mutation results, and
+  storage-backed nested aggregate path update results.
 - `scripts/psy/diagnostic-smoke.sh` proves unsupported or malformed Psy IR
   shapes produce explicit diagnostics before source generation.
 - Artifact metadata records:

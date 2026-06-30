@@ -99,6 +99,14 @@ lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionP
 scripts/psy/expression-predicate-smoke.sh
 ```
 
+Validate the Psy/DPN conditional fixture, which exercises statement-level
+`if/else` lowering:
+
+```sh
+lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
+scripts/psy/conditional-smoke.sh
+```
+
 Validate the Psy/DPN context fixture, which exercises parameter lowering and
 Psy context reads:
 
