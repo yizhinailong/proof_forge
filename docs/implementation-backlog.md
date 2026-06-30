@@ -261,6 +261,9 @@ Tasks:
 - Done: add a Psy IR coverage manifest gate so every portable IR constructor
   must be classified as lowered, validated, unsupported, or structural for the
   Psy backend.
+- Done: factor Dargo smoke package generation into a shared writer so every
+  Psy smoke creates the same `src/main.psy` and `Dargo.toml` layout before
+  metadata validation.
 - Convert the deploy manifest path to upstream compressed genesis deploy JSON
   once the Psy tooling exposes a stable boundary, then exercise a local
   node/prover deployment smoke.

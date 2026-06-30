@@ -17,6 +17,55 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Shared Dargo Package Writer
+
+Commit: feature commit for shared Psy Dargo package generation
+
+Summary:
+
+- Added `scripts/psy/write-dargo-package.py` as the shared package writer for
+  Dargo-backed Psy smoke fixtures.
+- Replaced repeated shell `rm`/`mkdir`/`cp`/`Dargo.toml` heredocs across all
+  Dargo-backed smoke scripts with a single writer invocation.
+- Kept a smoke-directory guard in the writer so it only rewrites `dargo-*`
+  package directories.
+
+Validation run:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile \
+  scripts/psy/write-dargo-package.py \
+  scripts/psy/write-artifact-metadata.py \
+  scripts/psy/validate-artifact-metadata.py \
+  scripts/psy/check-ir-coverage-manifest.py
+bash -n scripts/psy/*.sh
+scripts/psy/check-ir-coverage-manifest.py
+lake build
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/counter-smoke.sh
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/u32-storage-array-smoke.sh
+```
+
+Result:
+
+- Both representative Dargo smokes generate packages through the shared writer,
+  then pass `dargo test`, `dargo compile`, `dargo execute`, `dargo generate-abi`,
+  deploy-manifest validation, and artifact metadata validation.
+- Existing metadata source/package-source parity and `Dargo.toml` manifest
+  validation continue to pass.
+
+Known limitations:
+
+- This factors local Dargo package creation only; upstream compressed genesis
+  deploy JSON and live node/prover smoke remain separate deployment work.
+
+Next step:
+
+- Continue toward upstream genesis deploy JSON/local node research.
+
 ### Psy Dargo Package Source Metadata
 
 Commit: feature commit for Psy Dargo package source metadata

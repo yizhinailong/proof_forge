@@ -46,19 +46,11 @@ fi
 
 "$DARGO_BIN" test --file "$PSY_FILE"
 
-rm -rf "$PROJECT_DIR"
-mkdir -p "$PROJECT_DIR/src"
-cp "$PSY_FILE" "$PROJECT_DIR/src/main.psy"
-
-cat > "$PROJECT_DIR/Dargo.toml" <<'TOML'
-[package]
-name = "proof_forge_context"
-version = "0.1.0"
-type = "bin"
-description = "ProofForge generated ContextProbe IR Psy smoke"
-
-[dependencies]
-TOML
+python3 "$ROOT/scripts/psy/write-dargo-package.py" \
+  --project-dir "$PROJECT_DIR" \
+  --source "$PSY_FILE" \
+  --package-name "proof_forge_context" \
+  --description "ProofForge generated ContextProbe IR Psy smoke"
 
 (
   cd "$PROJECT_DIR"

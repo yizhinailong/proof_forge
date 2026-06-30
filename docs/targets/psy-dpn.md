@@ -135,9 +135,12 @@ dargo --program-dir tests execute --debug --entry-path ctx_test.psy --parameters
 ```
 
 The current ProofForge smoke uses the package style because it mirrors the
-eventual generated artifact layout. A future syntax-regression gate should copy
-or vendor a curated subset of upstream tests and run them with the second style
-against the exact `dargo` version used in CI.
+eventual generated artifact layout. The temporary Dargo package directories are
+now created by `scripts/psy/write-dargo-package.py`, which writes the package
+source copy at `src/main.psy` and a stable `Dargo.toml` manifest before the
+smoke calls `dargo compile`, `dargo execute`, and `dargo generate-abi`. A future
+syntax-regression gate should copy or vendor a curated subset of upstream tests
+and run them with the second style against the exact `dargo` version used in CI.
 
 ## SDK Surface
 

@@ -47,19 +47,11 @@ fi
 
 "$DARGO_BIN" test --file "$PSY_FILE"
 
-rm -rf "$PROJECT_DIR"
-mkdir -p "$PROJECT_DIR/src"
-cp "$PSY_FILE" "$PROJECT_DIR/src/main.psy"
-
-cat > "$PROJECT_DIR/Dargo.toml" <<'TOML'
-[package]
-name = "proof_forge_assert"
-version = "0.1.0"
-type = "bin"
-description = "ProofForge generated AssertProbe IR Psy smoke"
-
-[dependencies]
-TOML
+python3 "$ROOT/scripts/psy/write-dargo-package.py" \
+  --project-dir "$PROJECT_DIR" \
+  --source "$PSY_FILE" \
+  --package-name "proof_forge_assert" \
+  --description "ProofForge generated AssertProbe IR Psy smoke"
 
 (
   cd "$PROJECT_DIR"
