@@ -48,6 +48,8 @@ jobs:
           diff -u Examples/Psy/Counter.golden.psy build/psy/Counter.psy
           lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionPredicateProbe.psy
           diff -u Examples/Psy/ExpressionPredicateProbe.golden.psy build/psy/ExpressionPredicateProbe.psy
+          lake env proof-forge --emit-arithmetic-ir-psy -o build/psy/ArithmeticProbe.psy
+          diff -u Examples/Psy/ArithmeticProbe.golden.psy build/psy/ArithmeticProbe.psy
           lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
           diff -u Examples/Psy/ConditionalProbe.golden.psy build/psy/ConditionalProbe.psy
           lake env proof-forge --emit-context-ir-psy -o build/psy/ContextProbe.psy

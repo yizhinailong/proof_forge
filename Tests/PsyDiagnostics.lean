@@ -318,6 +318,22 @@ def comparisonTypeMismatchModule : Module := {
   ]]
 }
 
+def subtractionTypeMismatchModule : Module := {
+  name := "BadSubtractionTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "x" .u64 (.sub (.literal (.bool true)) (.literal (.u64 1)))
+  ]]
+}
+
+def multiplicationTypeMismatchModule : Module := {
+  name := "BadMultiplicationTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "x" .u64 (.mul (.literal (.u64 2)) (.literal (.bool true)))
+  ]]
+}
+
 def booleanOperatorTypeMismatchModule : Module := {
   name := "BadBooleanOperatorTypeMismatch"
   state := #[markerState]
@@ -476,6 +492,16 @@ def cases : Array (String × Module × String) := #[
     "comparison type mismatch",
     comparisonTypeMismatchModule,
     "less-than left operand expected `U64`, got `Bool`"
+  ),
+  (
+    "subtraction type mismatch",
+    subtractionTypeMismatchModule,
+    "subtraction left operand expected `U64`, got `Bool`"
+  ),
+  (
+    "multiplication type mismatch",
+    multiplicationTypeMismatchModule,
+    "multiplication right operand expected `U64`, got `Bool`"
   ),
   (
     "boolean operator type mismatch",

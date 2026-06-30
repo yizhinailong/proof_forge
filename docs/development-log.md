@@ -17,6 +17,65 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy ArithmeticProbe Sub/Mul Expressions
+
+Commit: feature commit for Psy arithmetic expression coverage
+
+Summary:
+
+- Added portable IR expression nodes for subtraction and multiplication.
+- Added Psy source generation for `-` and `*`, including parentheses around
+  nested arithmetic operands where precedence would otherwise change meaning.
+- Added sourcegen diagnostics for malformed subtraction and multiplication
+  operand types.
+- Added EVM IR lowering for the same pure arithmetic nodes through Yul builtins.
+- Added `ProofForge.IR.Examples.ArithmeticProbe`, covering subtraction,
+  multiplication, and nested arithmetic precedence.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-arithmetic-ir-psy -o build/psy/ArithmeticProbe.psy
+```
+
+- Added `Examples/Psy/ArithmeticProbe.golden.psy`.
+- Added `scripts/psy/arithmetic-smoke.sh`, which generates a temporary Dargo
+  package, runs `dargo test --file`, `dargo compile`, `dargo execute`,
+  `dargo generate-abi`, and validates `proof-forge-artifact.json`.
+- Added CI coverage for the ArithmeticProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+scripts/psy/diagnostic-smoke.sh
+lake env proof-forge --emit-arithmetic-ir-psy -o build/psy/ArithmeticProbe.psy
+diff -u Examples/Psy/ArithmeticProbe.golden.psy build/psy/ArithmeticProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/arithmetic-smoke.sh
+```
+
+Result:
+
+- Generated ArithmeticProbe source matches the checked-in golden fixture.
+- `scripts/psy/arithmetic-smoke.sh` generated DPN JSON, ABI JSON, execute log,
+  and `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [60]` for `arithmetic_mix`.
+- `scripts/psy/diagnostic-smoke.sh` passed all 29 diagnostic cases.
+
+Known limitations:
+
+- This adds subtraction and multiplication, not division, modulo,
+  exponentiation, cast-heavy `u32` arithmetic, or compound assignment operators.
+- The IR still represents these values as `U64` mapped to Psy `Felt`; a
+  dedicated `U32` surface should be added before copying upstream `u32_test`
+  semantics directly.
+
+Next step:
+
+- Add division/modulo only after deciding whether they belong to Felt-backed
+  `U64`, a new `U32` value type, or target-specific checked arithmetic helpers.
+
 ### Psy ConditionalProbe Statement If/Else
 
 Commit: feature commit for Psy conditional statement coverage

@@ -86,6 +86,8 @@ mutual
     | structLit (typeName : String) (fields : Array (String × Expr))
     | field (base : Expr) (fieldName : String)
     | add (lhs rhs : Expr)
+    | sub (lhs rhs : Expr)
+    | mul (lhs rhs : Expr)
     | eq (lhs rhs : Expr)
     | ne (lhs rhs : Expr)
     | lt (lhs rhs : Expr)
@@ -181,6 +183,8 @@ mutual
     | .field base _ =>
         #[.dataStruct] ++ base.capabilities
     | .add lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .sub lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .mul lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .eq lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .ne lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .lt lhs rhs => lhs.capabilities ++ rhs.capabilities

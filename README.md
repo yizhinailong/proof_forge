@@ -99,6 +99,14 @@ lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionP
 scripts/psy/expression-predicate-smoke.sh
 ```
 
+Validate the Psy/DPN arithmetic fixture, which exercises subtraction,
+multiplication, and nested arithmetic precedence:
+
+```sh
+lake env proof-forge --emit-arithmetic-ir-psy -o build/psy/ArithmeticProbe.psy
+scripts/psy/arithmetic-smoke.sh
+```
+
 Validate the Psy/DPN conditional fixture, which exercises statement-level
 `if/else` lowering:
 

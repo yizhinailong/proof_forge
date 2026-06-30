@@ -34,6 +34,8 @@ def testFunctionName (module : Module) : String :=
     "test_storage_nested_aggregate_probe_fixture"
   else if module.name == "ConditionalProbe" then
     "test_conditional_probe_fixture"
+  else if module.name == "ArithmeticProbe" then
+    "test_arithmetic_probe_fixture"
   else if module.name == "ExpressionPredicateProbe" then
     "test_expression_predicate_probe_fixture"
   else if module.name == "NestedAggregateProbe" then
@@ -402,6 +404,18 @@ mutual
         ensureType "addition left operand" .u64 lhsType
         ensureType "addition right operand" .u64 rhsType
         .ok .u64
+    | .sub lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "subtraction left operand" .u64 lhsType
+        ensureType "subtraction right operand" .u64 rhsType
+        .ok .u64
+    | .mul lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "multiplication left operand" .u64 lhsType
+        ensureType "multiplication right operand" .u64 rhsType
+        .ok .u64
     | .eq lhs rhs => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
@@ -683,6 +697,10 @@ mutual
         .ok s!"{← lowerExpr module base}.{fieldName}"
     | .add lhs rhs => do
         .ok s!"{← lowerExpr module lhs} + {← lowerExpr module rhs}"
+    | .sub lhs rhs => do
+        .ok s!"{← lowerExprOperand module lhs} - {← lowerExprOperand module rhs}"
+    | .mul lhs rhs => do
+        .ok s!"{← lowerExprOperand module lhs} * {← lowerExprOperand module rhs}"
     | .eq lhs rhs => do
         .ok s!"({← lowerExpr module lhs} == {← lowerExpr module rhs})"
     | .ne lhs rhs => do
@@ -706,6 +724,17 @@ mutual
     | .hashTwoToOne lhs rhs => do
         .ok s!"hash_two_to_one({← lowerExpr module lhs}, {← lowerExpr module rhs})"
     | .effect effect => lowerEffectExpr module effect
+
+  partial def lowerExprOperand (module : Module) : Expr → Except LowerError String
+    | .literal value => .ok (literal value)
+    | .local name => .ok name
+    | .arrayGet array index => do
+        .ok s!"{← lowerExpr module array}[{← lowerExpr module index}]"
+    | .field base fieldName => do
+        .ok s!"{← lowerExpr module base}.{fieldName}"
+    | .effect effect => lowerEffectExpr module effect
+    | expr => do
+        .ok s!"({← lowerExpr module expr})"
 
   partial def lowerEffectExpr (module : Module) : Effect → Except LowerError String
     | .storageScalarRead stateId => do
@@ -977,6 +1006,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "conditional_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::conditional_lifecycle(), 10, \"conditional branches update storage\");"
+    ]
+  else if module.name == "ArithmeticProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "arithmetic_mix" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::arithmetic_mix(), 60, \"arithmetic expressions preserve precedence\");"
     ]
   else if module.name == "ExpressionPredicateProbe" &&
     module.entrypoints.any (fun entry => entry.name == "predicate_sum" && entry.params.isEmpty && entry.returns == .u64) then

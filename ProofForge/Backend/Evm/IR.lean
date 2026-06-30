@@ -58,6 +58,10 @@ mutual
         .error { message := "struct field access is not supported by IR EVM v0" }
     | .add lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "add" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .sub lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "sub" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .mul lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "mul" #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .eq lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .ne lhs rhs => do
