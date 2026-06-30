@@ -17,9 +17,52 @@ Each entry should include:
 
 ## 2026-06-30
 
+### Psy/DPN SDK Skeleton
+
+Commit: `feat: add Psy DPN SDK skeleton`
+
+Summary:
+
+- Added `ProofForge.Psy` as the first Lean SDK surface for the `psy-dpn` ZK
+  target.
+- Added primitive types and helpers:
+  - `Felt`
+  - `U32`
+  - `Hash`
+  - `ContractMetadata`
+- Added context, storage, IMT map, hash, and deferred invocation externs under
+  the `lean_psy_*` naming convention.
+- Added a small `Examples/Psy/Counter.lean` SDK example.
+
+Validation run:
+
+```sh
+lake build
+lake env lean Examples/Psy/Counter.lean
+```
+
+Result:
+
+- Passed.
+
+Notes:
+
+- The example uses `initCounter` instead of `initialize` because `initialize`
+  is a Lean command keyword.
+
+Known limitations:
+
+- The SDK is a source-generation boundary only; no Psy backend lowers these
+  externs yet.
+- There is no Dargo package generation or `.psy` output yet.
+
+Next step:
+
+- Add a `psy-dpn` source generator for the hand-written Counter IR fixture.
+
 ### Portable IR Counter Runtime Dispatch
 
-Commit: pending
+Commit: `824f5f8 feat: add IR counter EVM runtime smoke`
 
 Summary:
 

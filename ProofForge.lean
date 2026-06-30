@@ -2,6 +2,7 @@ module
 
 prelude
 public import ProofForge.Evm
+public import ProofForge.Psy
 public import ProofForge.Target
 public import ProofForge.IR
 public import ProofForge.Backend

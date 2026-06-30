@@ -27,6 +27,8 @@ It adds:
 
 - `ProofForge.Evm`: a small EVM contract SDK using `@[extern "lean_evm_*"]`
   primitives.
+- `ProofForge.Psy`: an initial Psy/DPN ZK target SDK surface using
+  `@[extern "lean_psy_*"]` primitives for future source generation.
 - `ProofForge.Compiler.Yul`: a Yul AST and printer.
 - `ProofForge.Compiler.LCNF.EmitYul`: an LCNF-to-Yul emitter.
 - `proof-forge`: a CLI that compiles a Lean file to Yul or EVM runtime

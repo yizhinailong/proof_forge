@@ -8,6 +8,7 @@ lean_lib ProofForge where
   roots := #[
     `ProofForge,
     `ProofForge.Evm,
+    `ProofForge.Psy,
     `ProofForge.Target,
     `ProofForge.IR,
     `ProofForge.Backend,

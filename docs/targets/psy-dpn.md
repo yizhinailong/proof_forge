@@ -77,6 +77,25 @@ Psy Rust crates. Embedding is possible later, but the compiler workspace depends
 on `psy-node` crates through SSH git dependencies, so a CLI boundary is more
 practical for early spikes and CI.
 
+## SDK Surface
+
+The first Lean SDK module is `ProofForge.Psy` with namespace `Lean.Psy`.
+
+It provides:
+
+- primitive aliases for `Felt`, `U32`, and `Hash`
+- context helpers such as user id, contract id, checkpoint id, and checkpoint
+  roots
+- raw state hash accessors
+- fixed slot and fixed-capacity map wrappers
+- hash intrinsics
+- deferred invocation intrinsics
+
+The SDK is intentionally a source-generation boundary. Its `lean_psy_*` externs
+do not have a native runtime implementation; the future `psy-dpn` backend should
+recognize these names and lower them to `.psy` source constructs or reject them
+with capability diagnostics.
+
 ## Yul-Like IR Assessment
 
 Psy currently has several intermediate layers, but none are equivalent to Yul
@@ -287,4 +306,3 @@ Deployment smoke:
   - ABI artifact if generated
   - Psy compiler/Dargo version or commit
   - used capabilities
-
