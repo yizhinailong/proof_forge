@@ -25,7 +25,8 @@ Goal: make target selection explicit before adding more backends.
 Tasks:
 
 - Add target ids: `evm`, `wasm-near`, `wasm-cosmwasm`,
-  `solana-sbpf-linker`, `solana-zig-fork`, `move-sui`, `move-aptos`.
+  `solana-sbpf-linker`, `solana-zig-fork`, `move-sui`, `move-aptos`,
+  `psy-dpn`.
 - Define target family, artifact kind, required tools, and capability set
   (see [capability-registry.md](capability-registry.md)).
 - Add a target lookup function for CLI and scripts.
@@ -220,6 +221,30 @@ Acceptance criteria:
   target build fails.
 - Metadata schema validation runs without chain tools.
 
+## Workstream 10: Psy DPN ZK Target Spike
+
+Goal: validate a ZK circuit sourcegen target without coupling ProofForge to Psy
+compiler internals.
+
+Tasks:
+
+- Generate one Counter `.psy` package from a portable IR fixture.
+- Generate `Dargo.toml`.
+- Call `dargo compile` and capture DPN circuit JSON.
+- Call `dargo generate-abi` when available.
+- Emit `proof-forge-artifact.json` with target id `psy-dpn`.
+- Document whether `dargo execute`, `dargo test`, or `psy-wasm` is the best
+  local smoke runner.
+
+Acceptance criteria:
+
+- Generated `.psy` source is readable and checked into a golden fixture or
+  snapshot.
+- `dargo compile` produces a non-empty JSON artifact on a machine with the Psy
+  toolchain.
+- Artifact metadata records Dargo/Psy compiler version or commit.
+- Unsupported non-circuit-friendly IR nodes fail before source generation.
+
 ## Suggested Order
 
 1. Target registry (Workstream 1).
@@ -230,6 +255,7 @@ Acceptance criteria:
    (Workstream 6).
 6. Solana runtime decision (Workstream 7 — after spike data).
 7. Move Aptos POC (Workstream 8).
-8. CI target matrix (Workstream 9).
-9. Cloud platform design refresh (prerequisite: two+ targets at Experimental
+8. Psy DPN sourcegen spike (Workstream 10) once the IR fixture exists.
+9. CI target matrix (Workstream 9).
+10. Cloud platform design refresh (prerequisite: two+ targets at Experimental
    stage; see [decisions.md](decisions.md)).

@@ -27,6 +27,7 @@ The following gates are `Planned` and do not exist in CI or as scripts:
 - CosmWasm smoke — `cosmwasm-check` or `cw-multi-test` validation.
 - Solana smoke — Mollusk or `solana-test-validator` validation.
 - Move smoke — `aptos move compile/test` or Sui Move validation.
+- Psy DPN smoke — generated `.psy` package plus `dargo compile` validation.
 - Capability rejection tests — compile-time diagnostics for unsupported
   capability/target combinations.
 
@@ -45,5 +46,6 @@ If no runnable local command exists, the target remains `Research`.
 ## Optional external tools
 
 Current CI installs Foundry stable and `solc` 0.8.30. Local machines may not
-have `solc`, `cast`, or `forge`. Missing EVM tools block EVM toolchain gates
-but not `lake build`.
+have `solc`, `cast`, `forge`, or `dargo`. Missing EVM tools block EVM toolchain
+gates but not `lake build`. Missing `dargo` will block future `psy-dpn`
+toolchain gates only.

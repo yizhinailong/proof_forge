@@ -64,6 +64,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
   - [Wasm family](targets/wasm-family.md)
   - [Solana sBPF](targets/solana-sbf.md) (`solana-sbpf-linker`)
   - [Move family](targets/move-family.md)
+  - [Psy DPN ZK target](targets/psy-dpn.md)
 
 ## Chinese Notes
 
@@ -71,6 +72,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [多链愿景可行性分析](zh/feasibility-analysis.md)
 - [多链技术实现方案](zh/technical-implementation-plan.md) — summary; engineering detail in RFC 0002
 - [多链方案 Review 清单](zh/review-checklist.md)
+- [Psy/DPN ZK Target 初步分析](zh/zk-psy-target-analysis.md)
 
 ## Current Implementation Baseline
 

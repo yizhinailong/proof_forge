@@ -19,24 +19,26 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 
 ## Core Capabilities
 
-| Capability id | Portable meaning | EVM | NEAR | CosmWasm | Solana | Aptos | Sui |
-|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `storage.scalar` | Single persistent scalar | Y | Y | Y | Y | Y | Y |
-| `storage.map` | Key-value or mapping storage | Y | Y | Y | P | P | P |
-| `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | Y |
-| `value.native` | Native token attached to call | Y | Y | Y | Y | Y | Y |
-| `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y |
-| `crosscall.invoke` | Call another contract/program | Y | Y | Y | Y | Y | Y |
-| `env.block` | Block height/time/chain id reads | Y | P | P | P | P | P |
-| `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y |
-| `account.explicit` | Named account/object/resource binding | N | N | N | Y | Y | Y |
-| `storage.pda` | Program-derived address state | N | N | N | Y | N | N |
-| `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N |
+| Capability id | Portable meaning | EVM | NEAR | CosmWasm | Solana | Aptos | Sui | Psy DPN |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `storage.scalar` | Single persistent scalar | Y | Y | Y | Y | Y | Y | Y |
+| `storage.map` | Key-value or mapping storage | Y | Y | Y | P | P | P | P |
+| `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | Y | P |
+| `value.native` | Native token attached to call | Y | Y | Y | Y | Y | Y | P |
+| `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | P |
+| `crosscall.invoke` | Call another contract/program | Y | Y | Y | Y | Y | Y | P |
+| `env.block` | Block height/time/chain id reads | Y | P | P | P | P | P | P |
+| `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y | Y |
+| `account.explicit` | Named account/object/resource binding | N | N | N | Y | Y | Y | P |
+| `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N |
+| `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N | N |
+| `zk.circuit` | Compile entrypoints into target circuit definitions | N | N | N | N | N | N | Y |
+| `zk.proof` | Target proof generation or verification flow | N | N | N | N | N | N | P |
 
 ## Id Naming Rules
 
 - Format: `<domain>.<operation>` or `<domain>.<variant>` (lowercase, dot-separated).
-- Domains: `storage`, `caller`, `value`, `events`, `crosscall`, `env`, `crypto`, `account`.
+- Domains: `storage`, `caller`, `value`, `events`, `crosscall`, `env`, `crypto`, `account`, `zk`.
 - Artifact metadata lists the ids used by a build (see RFC 0002 artifact schema).
 - Diagnostics must cite capability id and target id on rejection.
 
@@ -69,3 +71,4 @@ Implemented today via `ProofForge.Evm` / `Lean.Evm` — see
 | Date | Change |
 |---|---|
 | 2026-06-30 | Initial registry; supersedes ad hoc ids in Chinese technical plan |
+| 2026-06-30 | Added Psy DPN research column and ZK capability ids |

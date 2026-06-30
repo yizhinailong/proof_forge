@@ -23,10 +23,10 @@ model:
 - Target adapters: ABI, artifact, test runner, deployment, and host-runtime
   glue for a specific chain family.
 
-This model avoids pretending that EVM, Solana, Wasm chains, Move chains, and
-Bitcoin-like systems have identical semantics. The goal is not a weakest-common
-denominator language. The goal is one verified business core with clear,
-auditable target boundaries.
+This model avoids pretending that EVM, Solana, Wasm chains, Move chains,
+ZK/circuit targets, and Bitcoin-like systems have identical semantics. The goal
+is not a weakest-common denominator language. The goal is one verified business
+core with clear, auditable target boundaries.
 
 ## Current Baseline
 
@@ -53,7 +53,7 @@ Implemented today:
 Not implemented today:
 
 - A target-independent contract IR.
-- Solana/sBPF, Wasm-family, or Move-family backends.
+- Solana/sBPF, Wasm-family, Move-family, or ZK/circuit backends.
 - Cloud build, deployment, artifact registry, or hosted testnet flows.
 
 ## External Landscape
@@ -72,6 +72,7 @@ Lean-first verified multi-chain deployment platform.
 | Wasm chains | ink!, https://use.ink/docs/v5/why-webassembly-for-smart-contracts/ | Polkadot/Substrate smart contracts via Wasm. |
 | Move chains | Sui Move, https://docs.sui.io/concepts/sui-move-concepts | Object/resource semantics, strong type discipline, and a Move VM target family. |
 | Move chains | Aptos smart contracts, https://aptos.dev/en/build/smart-contracts | Move module/resource model with a separate account and deployment model. |
+| ZK/circuit targets | Psy compiler, https://github.com/PsyProtocol/psy-compiler | ZK-oriented contract compiler that emits DPN circuit function definitions rather than EVM-style bytecode. |
 | Bitcoin ecosystem | Stacks Clarity, https://docs.stacks.co/learn/clarity | Bitcoin-adjacent smart contract language with decidability goals. |
 | Bitcoin ecosystem | BitVM, https://bitvm.org/ | Research direction for Bitcoin computation verification, not a direct first backend target. |
 
@@ -90,16 +91,16 @@ Lean-first verified multi-chain deployment platform.
                                v
                  +---------------------------+
                  | Portable Contract IR      |
-                 +------+------+------+------+
-                        |      |      |      |
-                        v      v      v      v
-                     +-----+ +-------------+ +-------------+ +-------------+
-                     | EVM | | Solana/sBPF | | Wasm family | | Move family |
-                     +-----+ +-------------+ +-------------+ +-------------+
-                        |          |              |               |
-                        v          v              v               v
-                    Yul/solc  Solana program  NEAR/CosmWasm  Sui/Aptos
-                                              Polkadot/ink!
+              +------+------+------+------+------+
+                     |      |      |      |      |
+                     v      v      v      v      v
+                  +-----+ +-------------+ +-------------+ +-------------+ +--------+
+                  | EVM | | Solana/sBPF | | Wasm family | | Move family | | ZK/DPN |
+                  +-----+ +-------------+ +-------------+ +-------------+ +--------+
+                     |          |              |               |             |
+                     v          v              v               v             v
+                 Yul/solc  Solana program  NEAR/CosmWasm  Sui/Aptos     Psy/DPN
+                                           Polkadot/ink!
 ```
 
 The portable IR must sit above target ABI details and below Lean source syntax.
@@ -120,12 +121,14 @@ Target backends lower this IR to each chain family:
   adapters for NEAR, CosmWasm, and Polkadot/ink-style contracts.
 - Move backend family: Move module/package adapters for Sui and Aptos, with a
   research phase for direct Move bytecode or generated Move source.
+- ZK circuit backend family: target source generation plus target-native circuit
+  artifact generation, starting with Psy/DPN.
 
 ## Capability Model
 
-Portable code must not call raw EVM, Solana, Wasm, or Move host APIs directly.
-It calls ProofForge capabilities. Each target declares which capabilities it
-supports and how they lower.
+Portable code must not call raw EVM, Solana, Wasm, Move, or ZK VM host APIs
+directly. It calls ProofForge capabilities. Each target declares which
+capabilities it supports and how they lower.
 
 Initial capability groups:
 
@@ -139,6 +142,7 @@ Initial capability groups:
 | Time/env | Block height, timestamp, chain id | Availability and finality semantics vary by target. |
 | Crypto | Hashing, signature recovery, precompiles | Some targets expose host functions, others require library lowering. |
 | Account/object/resource | Chain-native state containers | Especially important for Solana accounts and Move objects/resources. |
+| ZK/circuit | Circuit artifact generation and proof flow | Especially important for Psy/DPN and future ZK VM targets. |
 
 The compiler should reject a target build when a contract uses unsupported
 capabilities. Rejection is preferable to silently changing semantics.
@@ -155,10 +159,14 @@ proof-forge build --target wasm-near --out build/near
 proof-forge build --target wasm-cosmwasm --out build/cosmwasm
 proof-forge build --target move-sui --out build/sui
 proof-forge build --target move-aptos --out build/aptos
+proof-forge build --target psy-dpn --out build/psy-dpn
 ```
 
 Polkadot/ink-style contracts (`wasm-polkadot`) remain research-only until a
 target profile and spike are scheduled. See [decisions.md](../decisions.md).
+Psy/DPN (`psy-dpn`) is Research-stage in the registry because its first
+integration route is generated `.psy` source plus Dargo, not a public Yul-like
+IR.
 
 The current `proof-forge --evm-bytecode` mode remains the EVM baseline until
 the target-oriented `build` command exists.
@@ -218,6 +226,13 @@ Both spikes use the same portable IR Counter module. See
 - Model Sui objects and Aptos resources as target capabilities.
 - Validate Counter (or successor scenario) on EVM and Aptos.
 
+### Phase 3.5: ZK circuit target research
+
+- Generate Psy-compatible `.psy` source from restricted portable IR.
+- Compile through Dargo to DPN circuit JSON.
+- Decide whether in-memory Psy execution is sufficient before local node/prover
+  deployment smoke.
+
 ### Phase 4: Cross-target scenario hardening
 
 - Shared scenario tests across EVM and at least two non-EVM targets.
@@ -249,7 +264,8 @@ Every target family should have four test layers:
 - Lean checks: proofs, pure logic, and state-machine invariants.
 - Golden artifacts: stable IR and backend output snapshots for small examples.
 - Target-native smoke tests: Foundry for EVM, Solana local validator for sBPF,
-  chain-specific Wasm runners, and Move local/testnet tooling.
+  chain-specific Wasm runners, Move local/testnet tooling, and Dargo/Psy
+  tooling for `psy-dpn`.
 - Cross-target scenario tests: the same portable contract scenario should
   produce equivalent high-level outcomes across supported targets.
 

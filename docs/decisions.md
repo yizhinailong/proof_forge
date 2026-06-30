@@ -20,6 +20,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-008 | 2026-06-30 | Move targets use **source generation**, not Lean runtime on MoveVM | Proofs stay in Lean; Move carries executable logic only |
 | D-009 | 2026-06-30 | **`wasm-polkadot` / ink!** stays research-only | Not in the target registry until a spike is scheduled |
 | D-010 | 2026-06-30 | Cloud platform waits until **two or more targets** reach Experimental stage | Avoid building a UI shell before local backends are real |
+| D-011 | 2026-06-30 | Add **`psy-dpn`** as a Research target under ZK circuit source generation | Psy has no public Yul-like IR; first integration should generate `.psy` and call Dargo |
 
 ## Target Family Classification
 
@@ -29,6 +30,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | Wasm host | `wasm-near`, `wasm-cosmwasm` | Lean → EmitZig → Wasm + chain host bridge |
 | Binary toolchain | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | Source codegen | `move-aptos`, `move-sui` | Portable IR → Move package source |
+| ZK circuit sourcegen | `psy-dpn` | Portable IR → `.psy` package → Dargo → DPN circuit JSON |
 
 ## Roadmap Summary
 
@@ -37,6 +39,7 @@ Phase 0: EVM baseline (done)
 Phase 1: Target registry + portable IR + artifact metadata + capability errors
 Phase 2: Parallel spikes — CosmWasm (wasm-cosmwasm) + Solana (solana-sbpf-linker)
 Phase 3: Move sourcegen — Aptos POC first, then Sui
+Phase 3.5: Psy DPN sourcegen research spike
 Phase 4: Cross-target shared scenario hardening
 Phase 5: Cloud platform
 ```
@@ -53,6 +56,7 @@ Detailed tasks: [Implementation backlog](implementation-backlog.md).
 | Target engineering shape | [RFC 0002](rfcs/0002-target-implementation-design.md) |
 | CosmWasm SDK spike sketch | [targets/wasm-family.md](targets/wasm-family.md) |
 | Solana instruction manifest | [targets/solana-sbf.md](targets/solana-sbf.md) |
+| Psy/DPN ZK target | [targets/psy-dpn.md](targets/psy-dpn.md) |
 
 ## Superseded Positions
 

@@ -5,8 +5,8 @@ Lean-first multi-chain smart contract platform.
 ProofForge's long-term goal is one verified Lean contract codebase that can be
 compiled, tested, and deployed across multiple blockchain target families. The
 current repository contains the EVM backend baseline and the first design docs
-for expanding toward Solana/sBPF, Wasm-family chains, Move-family chains, and a
-future cloud deployment platform.
+for expanding toward Solana/sBPF, Wasm-family chains, Move-family chains,
+ZK/circuit targets, and a future cloud deployment platform.
 
 See [RFC 0001](docs/rfcs/0001-multichain-platform.md) for the multi-chain
 architecture and roadmap.
@@ -32,8 +32,8 @@ It adds:
 - `proof-forge`: a CLI that compiles a Lean file to Yul or EVM runtime
   bytecode without patching `lean`.
 
-The implemented target today is EVM. Solana/sBPF, Wasm-family, and Move-family
-targets are design goals, not current compiler outputs.
+The implemented target today is EVM. Solana/sBPF, Wasm-family, Move-family, and
+ZK/circuit targets are design goals, not current compiler outputs.
 
 Build:
 
@@ -117,6 +117,8 @@ Planned target families:
 - Wasm family: planned adapters for NEAR, CosmWasm, and Polkadot/ink-style
   contracts.
 - Move family: research track for Sui and Aptos.
+- ZK circuit family: research track for Psy/DPN through generated `.psy` and
+  Dargo.
 - Bitcoin ecosystem: research-only for now; not an early direct L1 backend.
 
 Future CLI direction:
@@ -128,6 +130,7 @@ proof-forge build --target wasm-cosmwasm    # planned first new Wasm spike
 proof-forge build --target solana-sbpf-linker
 proof-forge build --target move-aptos       # planned first Move POC
 proof-forge build --target move-sui         # planned follow-up Move target
+proof-forge build --target psy-dpn          # planned ZK circuit sourcegen target
 ```
 
 `proof-forge build --target ...` is planned; the implemented command remains

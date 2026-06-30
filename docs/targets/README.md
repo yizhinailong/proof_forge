@@ -43,6 +43,7 @@ target registry and portable IR integration.
 | Solana Zig fork | Research | Fallback reference from `solana-sdk-mono`. |
 | Sui Move | Research | Source-generation; follows Aptos POC. |
 | Aptos Move | Research | First Move POC target. |
+| Psy DPN | Research | ZK circuit sourcegen target through generated `.psy` and Dargo. |
 
 ## Documents
 
@@ -50,3 +51,4 @@ target registry and portable IR integration.
 - [Wasm family](wasm-family.md)
 - [Solana sBPF](solana-sbf.md) — notes for target id `solana-sbpf-linker`
 - [Move family](move-family.md)
+- [Psy DPN ZK target](psy-dpn.md)

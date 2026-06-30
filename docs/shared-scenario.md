@@ -40,6 +40,7 @@ Each target adapter maps the same logical scenario to native mechanics:
 | `wasm-cosmwasm` | string-key `"count"` in host KV | `cosmwasm-check` + instantiate/execute/query |
 | `solana-sbpf-linker` | account data field | Mollusk or `solana-test-validator` |
 | `move-aptos` | `Counter` resource under signer account | `aptos move test` |
+| `psy-dpn` | Psy storage field, likely `Felt`/`U32` in v0 | `dargo compile` + in-memory smoke |
 
 Target-specific account schemas and manifests are adapter concerns — not hidden
 inside portable Lean logic. See [solana-sbf.md](targets/solana-sbf.md) for
@@ -68,6 +69,17 @@ Phase 2 is complete when **both** parallel spikes pass independently:
 - [ ] Same portable IR module lowers to EVM + at least one non-EVM target.
 - [ ] Document lists capabilities supported per target for this scenario.
 
+## ZK Target Research Criteria
+
+`psy-dpn` is not part of Phase 2 exit criteria, but it should reuse the Counter
+scenario once the sourcegen spike starts.
+
+- [ ] Counter IR can be represented in a Psy-compatible scalar type.
+- [ ] Generated `.psy` package compiles with `dargo compile`.
+- [ ] DPN circuit JSON is emitted and recorded in artifact metadata.
+- [ ] Smoke path is documented as `dargo execute`, `dargo test`, `psy-wasm`, or
+      local Psy node/prover tooling.
+
 ## Example Locations
 
 | Target | Path | Status |
@@ -76,6 +88,7 @@ Phase 2 is complete when **both** parallel spikes pass independently:
 | CosmWasm | `Examples/CosmWasm/Counter.lean` | Planned, not in repo |
 | Solana | `Examples/Solana/Counter.lean` | Planned, not in repo |
 | Aptos | `Examples/Move/Aptos/Counter/` | Planned, not in repo |
+| Psy DPN | `Examples/Psy/Counter/` | Planned, not in repo |
 
 ## Out of Scope for v0
 

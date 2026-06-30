@@ -21,3 +21,4 @@
 - [多链愿景可行性分析](feasibility-analysis.md)
 - [多链技术实现方案](technical-implementation-plan.md) — 摘要版，工程细节见 RFC 0002
 - [多链方案 Review 清单](review-checklist.md)
+- [Psy/DPN ZK Target 初步分析](zk-psy-target-analysis.md)

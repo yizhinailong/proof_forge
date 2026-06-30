@@ -20,6 +20,9 @@ targets into implementation families:
   calls a chain-specific packager/linker, as with Solana sBPF.
 - Source codegen targets: ProofForge emits target source packages, as with Sui
   Move and Aptos Move.
+- ZK circuit sourcegen targets: ProofForge emits target source packages and
+  delegates circuit artifact generation to target-native tooling, as with
+  Psy/DPN.
 
 This keeps the portable contract model stable while allowing each chain family
 to keep its native ABI, storage model, tooling, and tests.
@@ -65,6 +68,8 @@ ProofForge/
     Move/
       Sui.lean                   # planned
       Aptos.lean                 # planned
+    Zk/
+      PsyDpn.lean                # planned
 runtime/
   zig/
     lean_rt/                     # planned
@@ -82,12 +87,14 @@ scripts/
   cosmwasm/                      # planned
   solana/                        # planned
   move/                          # planned
+  psy/                           # planned
 Examples/
   Evm/
   Near/                          # planned
   CosmWasm/                      # planned
   Solana/                        # planned
   Move/                          # planned
+  Psy/                           # planned
 ```
 
 This is not a required one-shot refactor. It is a direction for staged work.
@@ -106,12 +113,14 @@ inductive TargetFamily where
   | wasm
   | solana
   | move
+  | zkCircuit
 
 inductive ArtifactKind where
   | evmBytecode
   | wasm
   | solanaElf
   | movePackage
+  | psyCircuitJson
 
 structure TargetProfile where
   id : String
@@ -133,6 +142,7 @@ Initial target ids:
 | `solana-zig-fork` | Solana | Solana sBPF ELF `.so` | Fallback/reference track |
 | `move-sui` | Move | Sui Move package | Research/codegen track |
 | `move-aptos` | Move | Aptos Move package | Research/codegen track |
+| `psy-dpn` | ZK circuit sourcegen | DPN circuit JSON + ABI | Research/codegen track |
 
 Future research (not in registry until scheduled): `wasm-polkadot` (ink!).
 See [decisions.md](../decisions.md).
@@ -143,16 +153,16 @@ The compiler should use a target capability matrix before lowering. If a
 contract uses a capability that the target cannot represent, the build should
 fail with a precise diagnostic.
 
-| Capability | EVM | NEAR | CosmWasm | Solana | Sui | Aptos |
-|---|---|---|---|---|---|---|
-| Persistent scalar state | Slot storage | Host KV | Host KV | Account data | Object fields | Account resources |
-| Caller/sender | `msg.sender` | predecessor/signer | `MessageInfo.sender` | signer account | `TxContext.sender` | `signer` |
-| Native value received | `msg.value` | attached deposit | funds in message info | lamport accounts | coin objects | coin resources |
-| Events/logs | EVM logs | logs/events | events/attributes | logs/events | events | events |
-| Cross-contract call | call/staticcall | promises | submessages | CPI | module calls/transactions | module calls |
-| State account/object selection | implicit contract | implicit contract | implicit contract | explicit accounts | explicit objects | account resources |
-| Dynamic map storage | mapping/keccak slot | KV prefixes | KV prefixes | account-owned data or PDAs | dynamic fields/tables | table resources |
-| Contract deployment package | bytecode | Wasm | Wasm | ELF `.so` | Move package | Move package |
+| Capability | EVM | NEAR | CosmWasm | Solana | Sui | Aptos | Psy DPN |
+|---|---|---|---|---|---|---|---|
+| Persistent scalar state | Slot storage | Host KV | Host KV | Account data | Object fields | Account resources | Psy storage/state |
+| Caller/sender | `msg.sender` | predecessor/signer | `MessageInfo.sender` | signer account | `TxContext.sender` | `signer` | Psy user/context |
+| Native value received | `msg.value` | attached deposit | funds in message info | lamport accounts | coin objects | coin resources | Psy-specific asset flow |
+| Events/logs | EVM logs | logs/events | events/attributes | logs/events | events | events | Research |
+| Cross-contract call | call/staticcall | promises | submessages | CPI | module calls/transactions | module calls | `invoke_sync` / `invoke_deferred` |
+| State account/object selection | implicit contract | implicit contract | implicit contract | explicit accounts | explicit objects | account resources | Psy contract/user state |
+| Dynamic map storage | mapping/keccak slot | KV prefixes | KV prefixes | account-owned data or PDAs | dynamic fields/tables | table resources | fixed-capacity Psy storage |
+| Contract deployment package | bytecode | Wasm | Wasm | ELF `.so` | Move package | Move package | DPN circuit JSON + deploy JSON |
 
 Capability ids are canonical in [capability-registry.md](../capability-registry.md).
 The semantic matrix below maps portable meaning to target mechanics.

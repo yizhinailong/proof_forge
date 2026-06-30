@@ -16,6 +16,7 @@ Confirm:
 - NEAR/CosmWasm are Wasm host targets.
 - Solana is a binary toolchain target.
 - Sui/Aptos are Move source-generation targets.
+- Psy/DPN is a ZK circuit source-generation target.
 
 If a design treats all of these as one backend kind, send it back.
 
@@ -79,7 +80,19 @@ Confirm:
 - IR expresses resource/object/ability explicitly.
 - Sui and Aptos are handled separately.
 
-### 6. Artifact metadata from day one
+### 6. ZK targets do not pretend to be Yul targets
+
+Psy/DPN review focus:
+
+- Generate `.psy` source first.
+- Treat DPN circuit JSON as an artifact, not ProofForge's own IR.
+- Keep ZK/circuit capabilities explicit.
+- Do not directly emit Psy internal structures until the public compiler API is
+  stable enough.
+
+Authoritative Psy sketch: [targets/psy-dpn.md](targets/psy-dpn.md).
+
+### 7. Artifact metadata from day one
 
 Every target build should emit:
 
@@ -104,6 +117,7 @@ This feeds CI, cloud platform, and audit trails.
    - [Wasm family](targets/wasm-family.md)
    - [Solana sBPF](targets/solana-sbf.md)
    - [Move family](targets/move-family.md)
+   - [Psy DPN ZK target](targets/psy-dpn.md)
 6. [Shared scenario: Counter](shared-scenario.md).
 
 ## Recorded Decisions
@@ -114,6 +128,7 @@ See [decisions.md](decisions.md) for:
 - Parallel CosmWasm + Solana spikes
 - `solana-sbpf-linker` as primary Solana path
 - Aptos-first Move POC
+- `psy-dpn` as Research-stage ZK circuit sourcegen target
 
 ## Do Not Do Yet
 
@@ -121,6 +136,7 @@ See [decisions.md](decisions.md) for:
 - Automatic Solana account inference.
 - Direct Move bytecode generation as the first Move path.
 - One Wasm target id for all Wasm chains.
+- Direct Psy DPN internal emission before generated `.psy` source works.
 - Promise "any Lean code runs on every chain."
 
 ## Good vs Bad Signals
@@ -139,4 +155,5 @@ Bad:
 - Capability ids are inconsistent across docs.
 - Solana account logic hides in runtime.
 - Move codegen is string templates without IR constraints.
+- ZK targets hide proof/circuit restrictions from the capability checker.
 - Docs and CLI drift apart.
