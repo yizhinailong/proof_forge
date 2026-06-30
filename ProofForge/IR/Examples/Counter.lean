@@ -12,6 +12,7 @@ def stateCount : StateDecl := {
 
 def initializeEntrypoint : Entrypoint := {
   name := "initialize"
+  selector? := some "8129fc1c"
   returns := .unit
   body := #[
     .effect (.storageScalarWrite "count" (.literal (.u64 0)))
@@ -20,6 +21,7 @@ def initializeEntrypoint : Entrypoint := {
 
 def increment : Entrypoint := {
   name := "increment"
+  selector? := some "d09de08a"
   returns := .unit
   body := #[
     .letBind "n" (.effect (.storageScalarRead "count")),
@@ -29,6 +31,7 @@ def increment : Entrypoint := {
 
 def get : Entrypoint := {
   name := "get"
+  selector? := some "6d4ce63c"
   returns := .u64
   body := #[
     .return (.effect (.storageScalarRead "count"))

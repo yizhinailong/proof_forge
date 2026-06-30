@@ -86,6 +86,50 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
     | .u64 | .bool => #[{ name := "result" }]
   .ok (.funcDef (yulFunctionName module.name entrypoint.name) #[] returns { statements := body })
 
+def entrypointCallExpr (module : Module) (entrypoint : Entrypoint) : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.call (yulFunctionName module.name entrypoint.name) #[]
+
+def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Case := do
+  let some selector := entrypoint.selector?
+    | .error { message := s!"entrypoint `{entrypoint.name}` has no EVM selector metadata" }
+  if !entrypoint.params.isEmpty then
+    .error { message := s!"entrypoint `{entrypoint.name}` has parameters; IR EVM dispatcher v0 supports no parameters" }
+  let callExpr := entrypointCallExpr module entrypoint
+  let bodyStmts :=
+    match entrypoint.returns with
+    | .unit =>
+        #[
+          Lean.Compiler.Yul.Statement.exprStmt callExpr,
+          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+        ]
+    | .u64 | .bool =>
+        #[
+          Lean.Compiler.Yul.Statement.varDecl #[({ name := "_r" } : Lean.Compiler.Yul.TypedName)] (some callExpr),
+          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "_r"]),
+          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32])
+        ]
+  .ok {
+    value := some (Lean.Compiler.Yul.Literal.hex ("0x" ++ selector))
+    body := { statements := bodyStmts }
+  }
+
+def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let selectorExpr := Lean.Compiler.Yul.builtin "shr" #[
+    Lean.Compiler.Yul.Expr.num 224,
+    Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num 0]
+  ]
+  let cases ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
+    .ok (acc.push (← dispatchCase module entrypoint))
+  let defaultCase : Lean.Compiler.Yul.Case := {
+    value := none
+    body := {
+      statements := #[
+        Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+      ]
+    }
+  }
+  .ok (.switchStmt selectorExpr (cases.push defaultCase))
+
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
     match state.kind, state.type with
@@ -103,9 +147,10 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
   validateState module
   let functions ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
     .ok (acc.push (← lowerEntrypoint module entrypoint))
+  let dispatch ← dispatchBlock module
   .ok {
     name := module.name
-    code := { statements := functions }
+    code := { statements := #[dispatch] ++ functions }
   }
 
 def renderModule (module : Module) : Except LowerError String := do

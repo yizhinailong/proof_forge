@@ -17,6 +17,54 @@ Each entry should include:
 
 ## 2026-06-30
 
+### Portable IR Counter Runtime Dispatch
+
+Commit: pending
+
+Summary:
+
+- Added EVM selector metadata to the hand-written Counter IR fixture.
+- Extended IR-to-Yul lowering to emit runtime selector dispatch for:
+  - `initialize()`
+  - `increment()`
+  - `get()`
+- Added `proof-forge --emit-counter-ir-bytecode`, which compiles Counter IR
+  through runtime Yul and `solc --strict-assembly`.
+- Added a dedicated Foundry smoke script for the IR Counter path:
+
+```sh
+scripts/evm/ir-counter-smoke.sh
+```
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-counter-ir-yul -o build/ir/Counter.yul
+lake env proof-forge --emit-counter-ir-bytecode -o build/ir/Counter.bin --yul-output build/ir/Counter.bytecode.yul
+solc --strict-assembly build/ir/Counter.yul --bin
+scripts/evm/ir-counter-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Counter IR emits selector-dispatch Yul.
+- Counter IR emits non-empty EVM bytecode.
+- `solc --strict-assembly` accepts the generated runtime Yul.
+- Foundry smoke passes for `initialize`/`increment`/`get` and unknown-selector
+  revert behavior.
+
+Known limitations:
+
+- The IR fixture is still hand-written; there is no Lean-source-to-IR extractor.
+- Only no-argument entrypoints are supported in the IR EVM dispatcher.
+
+Next step:
+
+- Promote the IR Counter path into CI once external tool gating is in place, and
+  generalize the dispatcher beyond no-argument entrypoints.
+
 ### Portable IR Counter Lowering
 
 Commit: `787d437 feat: add portable IR counter lowering`
@@ -183,4 +231,3 @@ Current role:
 - EVM remains the first working target.
 - New IR work should use EVM as the first executable backend to validate
   semantics before adding more chains.
-

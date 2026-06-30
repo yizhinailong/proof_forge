@@ -52,6 +52,7 @@ inductive Statement where
 
 structure Entrypoint where
   name : String
+  selector? : Option String := none
   params : Array (String × ValueType) := #[]
   returns : ValueType := .unit
   body : Array Statement

@@ -17,6 +17,7 @@ inductive EmitMode where
   | yul
   | evmBytecode
   | counterIrYul
+  | counterIrBytecode
   deriving BEq, Inhabited
 
 structure CliOptions where
@@ -38,6 +39,7 @@ def usage : String :=
     "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
     "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
+    "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "Counter IR mode renders the hand-written portable IR fixture to Yul."
@@ -203,7 +205,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode then
         .ok opts
       else
         .error usage
@@ -232,6 +234,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .evmBytecode }
   | "--emit-counter-ir-yul" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrYul }
+  | "--emit-counter-ir-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrBytecode }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -309,6 +313,21 @@ def compileCounterIrYul (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def renderCounterIrYul : IO String := do
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.Counter.module with
+  | .ok yul => return yul
+  | .error err => throw <| IO.userError err.render
+
+def compileCounterIrBytecode (opts : CliOptions) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/Counter.yul")
+  let yul ← renderCounterIrYul
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (FilePath.mk "build/ir/Counter.bin")
+  writeTextFile output (bytecode ++ "\n")
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
@@ -329,6 +348,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .yul => compileYul opts
   | .evmBytecode => compileEvmBytecode opts
   | .counterIrYul => compileCounterIrYul opts
+  | .counterIrBytecode => compileCounterIrBytecode opts
 
 end ProofForge.Cli
 
