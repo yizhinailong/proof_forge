@@ -38,6 +38,32 @@ def unitEntrypoint (name : String) (body : Array Statement := #[]) : Entrypoint 
   body := body
 }
 
+def invalidModuleIdentifierModule : Module := {
+  name := "Bad-Module"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad"]
+}
+
+def duplicateStateModule : Module := {
+  name := "BadDuplicateState"
+  state := #[countState, countState]
+  entrypoints := #[unitEntrypoint "bad"]
+}
+
+def duplicateEntrypointModule : Module := {
+  name := "BadDuplicateEntrypoint"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad", unitEntrypoint "bad"]
+}
+
+def reservedLocalIdentifierModule : Module := {
+  name := "BadReservedLocal"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "let" .u64 (.literal (.u64 1))
+  ]]
+}
+
 def unitParamModule : Module := {
   name := "BadUnitParam"
   state := #[markerState]
@@ -533,6 +559,26 @@ def renderError? (module : Module) : Option String :=
   | .error err => some err.render
 
 def cases : Array (String × Module × String) := #[
+  (
+    "invalid module identifier",
+    invalidModuleIdentifierModule,
+    "module name `Bad-Module` is not a valid Psy identifier; identifiers must start with an ASCII letter or `_` and contain only ASCII letters, digits, or `_`"
+  ),
+  (
+    "duplicate state id",
+    duplicateStateModule,
+    "duplicate state id `count`"
+  ),
+  (
+    "duplicate entrypoint name",
+    duplicateEntrypointModule,
+    "duplicate entrypoint name `bad`"
+  ),
+  (
+    "reserved local identifier",
+    reservedLocalIdentifierModule,
+    "local name in entrypoint `bad` `let` is reserved in Psy"
+  ),
   (
     "unit entrypoint parameter",
     unitParamModule,

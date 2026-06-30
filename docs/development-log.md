@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Identifier Diagnostics
+
+Commit: feature commit for Psy identifier validation
+
+Summary:
+
+- Added Psy backend validation for module, struct, field, state, entrypoint,
+  parameter, local, and loop-index identifiers before source generation.
+- Added duplicate declaration checks for struct names, state ids, entrypoint
+  names, struct field ids, and entrypoint parameter names.
+- Added diagnostic fixtures for invalid module identifiers, duplicate state
+  ids, duplicate entrypoint names, and reserved local names.
+
+Validation run:
+
+```sh
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+lake build
+git diff --check
+```
+
+Result:
+
+- Psy diagnostic smoke now covers 48 malformed or unsupported IR cases.
+- Invalid or ambiguous names fail in ProofForge before Dargo parsing or
+  typechecking.
+
+Known limitations:
+
+- The reserved-word list covers Psy keywords and builtin names used by current
+  generated source. If Psy adds new reserved identifiers upstream, this list
+  should be updated with the toolchain bump.
+
+Next step:
+
+- Continue reducing Dargo-discovered failures into ProofForge diagnostics.
+
 ### Psy U32 Scalar Storage Coverage
 
 Commit: feature commit for Psy U32 scalar storage coverage

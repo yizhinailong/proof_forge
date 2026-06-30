@@ -1001,13 +1001,14 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts forty-four explicit diagnostics for malformed or
-unsupported Psy IR shapes, including invalid storage paths, expression/body
-type mismatches, malformed equality, malformed comparison, and malformed
-Hash value construction, unsupported bool storage arrays, unsupported U32
-storage path compound assignment, malformed arithmetic, unsupported casts,
-malformed bitwise/shift expressions, malformed boolean operators, malformed
-compound assignment statements, malformed storage compound assignment effects,
+It currently asserts forty-eight explicit diagnostics for malformed or
+unsupported Psy IR shapes, including invalid Psy identifiers, duplicate
+declarations, reserved names, invalid storage paths, expression/body type
+mismatches, malformed equality, malformed comparison, and malformed Hash value
+construction, unsupported bool storage arrays, unsupported U32 storage path
+compound assignment, malformed arithmetic, unsupported casts, malformed
+bitwise/shift expressions, malformed boolean operators, malformed compound
+assignment statements, malformed storage compound assignment effects,
 malformed if conditions, and branch-local escape.
 
 The coverage manifest gate keeps the constructor-level backend contract in

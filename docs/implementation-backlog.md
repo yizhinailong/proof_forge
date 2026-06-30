@@ -268,6 +268,9 @@ Tasks:
   metadata validation.
 - Done: reject EVM-style entrypoint selectors in the Psy backend instead of
   silently dropping selector metadata that Dargo/Psy ABI does not use.
+- Done: validate Psy identifiers and duplicate declarations before source
+  generation so invalid names do not fall through to Dargo parser/typechecker
+  failures.
 - Convert the deploy manifest path to upstream compressed genesis deploy JSON
   once the Psy tooling exposes a stable boundary, then exercise a local
   node/prover deployment smoke.

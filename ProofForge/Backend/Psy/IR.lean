@@ -102,6 +102,56 @@ def stringLiteral (value : String) : String :=
     | ch => ch.toString
   "\"" ++ String.intercalate "" (value.toList.map escapeChar) ++ "\""
 
+def asciiLetters : String :=
+  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+def isPsyIdentifierStart (ch : Char) : Bool :=
+  ch == '_' || asciiLetters.contains ch
+
+def isPsyIdentifierContinue (ch : Char) : Bool :=
+  isPsyIdentifierStart ch || ch.isDigit
+
+def psyReservedIdentifiers : Array String := #[
+  "as",
+  "bool",
+  "else",
+  "false",
+  "fn",
+  "for",
+  "if",
+  "impl",
+  "in",
+  "let",
+  "mut",
+  "new",
+  "pub",
+  "return",
+  "struct",
+  "true",
+  "Felt",
+  "Hash",
+  "Map",
+  "ContractMetadata"
+]
+
+def validatePsyIdentifier (context name : String) : Except LowerError Unit :=
+  match name.toList with
+  | [] =>
+      .error { message := s!"{context} must be a non-empty Psy identifier" }
+  | first :: rest => do
+      if !isPsyIdentifierStart first || !rest.all isPsyIdentifierContinue then
+        .error { message := s!"{context} `{name}` is not a valid Psy identifier; identifiers must start with an ASCII letter or `_` and contain only ASCII letters, digits, or `_`" }
+      if psyReservedIdentifiers.any (fun reserved => reserved == name) then
+        .error { message := s!"{context} `{name}` is reserved in Psy" }
+
+def validateDistinctNames (context : String) (names : Array String) : Except LowerError Unit := do
+  let _ ← names.foldlM (init := #[]) fun seen name =>
+    if seen.any (fun existing => existing == name) then
+      .error { message := s!"duplicate {context} `{name}`" }
+    else
+      .ok (seen.push name)
+  pure ()
+
 def contextFunction : ContextField → String
   | .userId => "get_user_id()"
   | .contractId => "get_contract_id()"
@@ -1160,6 +1210,50 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
   let bodyLines := body.map (indent 2)
   lines (#[header, signature, newRef] ++ bodyLines ++ #[indent 1 "}"]) |> .ok
 
+mutual
+  partial def validateStatementIdentifiers (entrypointName : String) : Statement → Except LowerError Unit
+    | .letBind name _ _ =>
+        validatePsyIdentifier s!"local name in entrypoint `{entrypointName}`" name
+    | .letMutBind name _ _ =>
+        validatePsyIdentifier s!"local name in entrypoint `{entrypointName}`" name
+    | .ifElse _ thenBody elseBody => do
+        validateBodyIdentifiers entrypointName thenBody
+        validateBodyIdentifiers entrypointName elseBody
+    | .boundedFor indexName _ _ body => do
+        validatePsyIdentifier s!"loop index in entrypoint `{entrypointName}`" indexName
+        validateBodyIdentifiers entrypointName body
+    | .assign _ _
+    | .assignOp _ _ _
+    | .effect _
+    | .assert _ _
+    | .assertEq _ _ _
+    | .return _ =>
+        pure ()
+
+  partial def validateBodyIdentifiers (entrypointName : String) (body : Array Statement) : Except LowerError Unit := do
+    for stmt in body do
+      validateStatementIdentifiers entrypointName stmt
+end
+
+def validateIdentifiers (module : Module) : Except LowerError Unit := do
+  validatePsyIdentifier "module name" module.name
+  validateDistinctNames "struct name" (module.structs.map fun decl => decl.name)
+  validateDistinctNames "state id" (module.state.map fun state => state.id)
+  validateDistinctNames "entrypoint name" (module.entrypoints.map fun entrypoint => entrypoint.name)
+  for decl in module.structs do
+    validatePsyIdentifier "struct name" decl.name
+    validateDistinctNames s!"struct `{decl.name}` field id" (decl.fields.map fun field => field.id)
+    for field in decl.fields do
+      validatePsyIdentifier s!"field id in struct `{decl.name}`" field.id
+  for state in module.state do
+    validatePsyIdentifier "state id" state.id
+  for entrypoint in module.entrypoints do
+    validatePsyIdentifier "entrypoint name" entrypoint.name
+    validateDistinctNames s!"entrypoint `{entrypoint.name}` parameter name" (entrypoint.params.map fun param => param.fst)
+    for param in entrypoint.params do
+      validatePsyIdentifier s!"parameter name in entrypoint `{entrypoint.name}`" param.fst
+    validateBodyIdentifiers entrypoint.name entrypoint.body
+
 def validateStructs (module : Module) : Except LowerError Unit := do
   for decl in module.structs do
     if decl.fields.isEmpty then
@@ -1418,6 +1512,7 @@ def testBody (module : Module) : Except LowerError (Array String) := do
 
 def renderModule (module : Module) : Except LowerError String := do
   validateCapabilities module
+  validateIdentifiers module
   validateStructs module
   validateEntrypoints module
   validateState module
