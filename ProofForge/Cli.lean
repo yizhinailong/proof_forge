@@ -5,6 +5,7 @@ import Lean.Util.Path
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Psy.IR
 import ProofForge.Compiler.LCNF.EmitYul
+import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.AssertProbe
 import ProofForge.IR.Examples.ContextProbe
 import ProofForge.IR.Examples.Counter
@@ -30,6 +31,7 @@ inductive EmitMode where
   | mapIrPsy
   | assertIrPsy
   | loopIrPsy
+  | arrayIrPsy
   deriving BEq, Inhabited
 
 structure CliOptions where
@@ -58,6 +60,7 @@ def usage : String :=
     "  proof-forge --emit-map-ir-psy [-o output.psy]",
     "  proof-forge --emit-assert-ir-psy [-o output.psy]",
     "  proof-forge --emit-loop-ir-psy [-o output.psy]",
+    "  proof-forge --emit-array-ir-psy [-o output.psy]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "IR fixture modes render hand-written portable IR fixtures to target source or bytecode."
@@ -223,7 +226,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy then
         .ok opts
       else
         .error usage
@@ -266,6 +269,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .assertIrPsy }
   | "--emit-loop-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .loopIrPsy }
+  | "--emit-array-ir-psy" :: rest, opts =>
+      parseArgs rest { opts with mode := .arrayIrPsy }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -418,6 +423,16 @@ def compileLoopIrPsy (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileArrayIrPsy (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/psy/ArrayProbe.psy")
+  match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.ArrayProbe.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
@@ -445,6 +460,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .mapIrPsy => compileMapIrPsy opts
   | .assertIrPsy => compileAssertIrPsy opts
   | .loopIrPsy => compileLoopIrPsy opts
+  | .arrayIrPsy => compileArrayIrPsy opts
 
 end ProofForge.Cli
 

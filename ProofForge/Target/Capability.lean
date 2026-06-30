@@ -6,12 +6,14 @@ namespace ProofForge.Target
 inductive Capability where
   | storageScalar
   | storageMap
+  | storageArray
   | callerSender
   | valueNative
   | eventsEmit
   | crosscallInvoke
   | envBlock
   | controlBoundedLoop
+  | dataFixedArray
   | cryptoHash
   | assertions
   | accountExplicit
@@ -24,12 +26,14 @@ inductive Capability where
 def Capability.id : Capability → String
   | .storageScalar => "storage.scalar"
   | .storageMap => "storage.map"
+  | .storageArray => "storage.array"
   | .callerSender => "caller.sender"
   | .valueNative => "value.native"
   | .eventsEmit => "events.emit"
   | .crosscallInvoke => "crosscall.invoke"
   | .envBlock => "env.block"
   | .controlBoundedLoop => "control.bounded_loop"
+  | .dataFixedArray => "data.fixed_array"
   | .cryptoHash => "crypto.hash"
   | .assertions => "assertions.check"
   | .accountExplicit => "account.explicit"

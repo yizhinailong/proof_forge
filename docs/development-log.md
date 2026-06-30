@@ -17,6 +17,68 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy ArrayProbe Fixed Arrays
+
+Commit: feature commit for fixed-array Psy IR coverage
+
+Summary:
+
+- Extended portable IR types with fixed arrays, represented as `[T; N]` in Psy.
+- Added `data.fixed_array` for fixed-size array values and `storage.array` for
+  fixed array storage fields.
+- Extended portable IR expressions with fixed array literals and index reads.
+- Extended portable IR storage effects with fixed array index read/write nodes.
+- Extended Psy sourcegen to lower local array literals, index reads, storage
+  array writes, and storage array reads through `.get()` when used as values.
+- Kept EVM IR v0 behavior explicit by rejecting fixed-array literals, index
+  access, storage array effects, and fixed-array returns.
+- Added `ProofForge.IR.Examples.ArrayProbe`, covering local `[Felt; 3]`
+  literals plus fixed storage array read/write behavior.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
+```
+
+- Added `Examples/Psy/ArrayProbe.golden.psy`.
+- Added `scripts/psy/array-smoke.sh`, which generates a temporary Dargo
+  package, runs `dargo test --file`, `dargo compile`, two `dargo execute`
+  calls, `dargo generate-abi`, and validates `proof-forge-artifact.json`.
+- Added CI coverage for the ArrayProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
+diff -u Examples/Psy/ArrayProbe.golden.psy build/psy/ArrayProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/array-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Generated ArrayProbe source matches the checked-in golden fixture.
+- `scripts/psy/array-smoke.sh` generated DPN JSON, ABI JSON, execute log, and
+  `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [60]` for `sum_literal`.
+- `dargo execute` returned `result_vm: [31]` for `storage_lifecycle`.
+
+Known limitations:
+
+- This feature covers one-dimensional fixed arrays over `Felt` and `Hash`
+  storage elements. Struct arrays and nested arrays still need dedicated
+  coverage.
+- Dynamic arrays and unbounded indexing are still unsupported.
+- EVM IR v0 explicitly rejects fixed-array IR nodes.
+
+Next step:
+
+- Add struct coverage next, then combine structs with arrays in a follow-up
+  fixture aligned with upstream `array_test.psy`.
+
 ### Psy LoopProbe Bounded Loops
 
 Commit: feature commit for bounded-loop Psy IR coverage

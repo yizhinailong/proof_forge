@@ -30,7 +30,9 @@ def capitalizedRefName (module : Module) : String :=
   s!"{module.name}Ref"
 
 def testFunctionName (module : Module) : String :=
-  if module.name == "LoopProbe" then
+  if module.name == "ArrayProbe" then
+    "test_array_probe_fixture"
+  else if module.name == "LoopProbe" then
     "test_loop_probe_fixture"
   else if module.name == "AssertProbe" then
     "test_assert_probe_fixture"
@@ -50,6 +52,10 @@ def valueTypeName : ValueType → Except LowerError String
   | .bool => .ok "bool"
   | .u64 => .ok "Felt"
   | .hash => .ok "Hash"
+  | .fixedArray element length => do
+      if length == 0 then
+        .error { message := "Psy IR v0 fixed arrays must have non-zero length" }
+      .ok s!"[{← valueTypeName element}; {length}]"
 
 def literal : Literal → String
   | .u64 value => toString value
@@ -78,6 +84,8 @@ def stateDecl (state : StateDecl) : Except LowerError String := do
       .ok s!"pub {state.id}: {← valueTypeName state.type},"
   | .map keyType capacity =>
       .ok s!"pub {state.id}: Map<{← valueTypeName keyType}, {← valueTypeName state.type}, {capacity}u32>,"
+  | .array length =>
+      .ok s!"pub {state.id}: [{← valueTypeName state.type}; {length}],"
 
 def findState? (module : Module) (stateId : String) : Option StateDecl :=
   module.state.find? fun state => state.id == stateId
@@ -88,6 +96,7 @@ def requireScalarState (module : Module) (stateId : String) : Except LowerError 
       match state.kind with
       | .scalar => .ok ()
       | .map _ _ => .error { message := s!"state `{stateId}` is a map, not scalar storage" }
+      | .array _ => .error { message := s!"state `{stateId}` is an array, not scalar storage" }
   | none => .error { message := s!"unknown scalar state `{stateId}`" }
 
 def requireMapState (module : Module) (stateId : String) : Except LowerError Unit :=
@@ -96,12 +105,29 @@ def requireMapState (module : Module) (stateId : String) : Except LowerError Uni
       match state.kind with
       | .map _ _ => .ok ()
       | .scalar => .error { message := s!"state `{stateId}` is scalar storage, not a map" }
+      | .array _ => .error { message := s!"state `{stateId}` is array storage, not a map" }
   | none => .error { message := s!"unknown map state `{stateId}`" }
+
+def requireArrayState (module : Module) (stateId : String) : Except LowerError Unit :=
+  match findState? module stateId with
+  | some state =>
+      match state.kind with
+      | .array _ => .ok ()
+      | .scalar => .error { message := s!"state `{stateId}` is scalar storage, not an array" }
+      | .map _ _ => .error { message := s!"state `{stateId}` is map storage, not an array" }
+  | none => .error { message := s!"unknown array state `{stateId}`" }
 
 mutual
   partial def lowerExpr (module : Module) : Expr → Except LowerError String
     | .literal value => .ok (literal value)
     | .local name => .ok name
+    | .arrayLit elementType values => do
+        if values.isEmpty then
+          .error { message := s!"empty fixed array literals are not supported by Psy IR v0 for `{← valueTypeName elementType}`" }
+        let items ← values.mapM (lowerExpr module)
+        .ok s!"[{String.intercalate ", " items.toList}]"
+    | .arrayGet array index => do
+        .ok s!"{← lowerExpr module array}[{← lowerExpr module index}]"
     | .add lhs rhs => do
         .ok s!"{← lowerExpr module lhs} + {← lowerExpr module rhs}"
     | .hash preimage => do
@@ -127,6 +153,11 @@ mutual
         .ok s!"c.{stateId}.insert({← lowerExpr module key}, {← lowerExpr module value})"
     | .storageMapSet _ _ _ =>
         .error { message := "storage.map.set is a statement effect, not an expression" }
+    | .storageArrayRead stateId index => do
+        requireArrayState module stateId
+        .ok s!"c.{stateId}[{← lowerExpr module index}].get()"
+    | .storageArrayWrite _ _ _ =>
+        .error { message := "storage.array.write is a statement effect, not an expression" }
     | .contextRead field =>
         .ok (contextFunction field)
 end
@@ -147,6 +178,11 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
   | .storageMapSet stateId key value => do
       requireMapState module stateId
       .ok #[s!"c.{stateId}.set({← lowerExpr module key}, {← lowerExpr module value});"]
+  | .storageArrayRead _ _ =>
+      .error { message := "storage.array.read must be used as an expression" }
+  | .storageArrayWrite stateId index value => do
+      requireArrayState module stateId
+      .ok #[s!"c.{stateId}[{← lowerExpr module index}] = {← lowerExpr module value};"]
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
 
@@ -206,6 +242,18 @@ def validateState (module : Module) : Except LowerError Unit := do
           pure ()
     | .map keyType _, valueType =>
         .error { message := s!"map state `{state.id}` has unsupported Psy IR v0 type Map<{keyType.name}, {valueType.name}>; only Map<Hash, Hash, N> is supported" }
+    | .array length, .u64 =>
+        if length == 0 then
+          .error { message := s!"array state `{state.id}` must have non-zero length" }
+        else
+          pure ()
+    | .array length, .hash =>
+        if length == 0 then
+          .error { message := s!"array state `{state.id}` must have non-zero length" }
+        else
+          pure ()
+    | .array _, valueType =>
+        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt and Hash arrays are supported" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.psyDpn module.capabilities with
@@ -270,6 +318,13 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "count_to_three" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::count_to_three(), 3, \"bounded loop runs exactly three iterations\");"
+    ]
+  else if module.name == "ArrayProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "sum_literal" && entry.params.isEmpty && entry.returns == .u64) &&
+    module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::sum_literal(), 60, \"fixed array literal indexes add up\");",
+      s!"assert_eq({refName}::storage_lifecycle(), 31, \"storage array indexes read after writes\");"
     ]
   else
     .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }

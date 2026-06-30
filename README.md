@@ -132,6 +132,14 @@ lake env proof-forge --emit-loop-ir-psy -o build/psy/LoopProbe.psy
 scripts/psy/loop-smoke.sh
 ```
 
+Validate the Psy/DPN fixed-array fixture, which exercises array literals,
+indexing, and fixed array storage:
+
+```sh
+lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
+scripts/psy/array-smoke.sh
+```
+
 Each Psy smoke writes and validates `proof-forge-artifact.json` next to the
 Dargo outputs.
 

@@ -48,6 +48,10 @@ mutual
     | .literal (.hash4 _ _ _ _) =>
         .error { message := "Hash literals are not supported by IR EVM v0" }
     | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
+    | .arrayLit _ _ =>
+        .error { message := "fixed array literals are not supported by IR EVM v0" }
+    | .arrayGet _ _ =>
+        .error { message := "fixed array indexing is not supported by IR EVM v0" }
     | .add lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "add" #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .hash _ =>
@@ -71,6 +75,10 @@ mutual
         .error { message := "storage.map.insert is not supported by IR EVM v0" }
     | .storageMapSet _ _ _ =>
         .error { message := "storage.map.set is not supported by IR EVM v0" }
+    | .storageArrayRead _ _ =>
+        .error { message := "storage.array.read is not supported by IR EVM v0" }
+    | .storageArrayWrite _ _ _ =>
+        .error { message := "storage.array.write is not supported by IR EVM v0" }
     | .contextRead field =>
         .error { message := s!"context field `{field.name}` is not supported by IR EVM v0" }
 end
@@ -90,6 +98,10 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       .error { message := "storage.map.insert is not supported by IR EVM v0" }
   | .storageMapSet _ _ _ =>
       .error { message := "storage.map.set is not supported by IR EVM v0" }
+  | .storageArrayRead _ _ =>
+      .error { message := "storage.array.read must be used as an expression, but IR EVM v0 does not support storage arrays" }
+  | .storageArrayWrite _ _ _ =>
+      .error { message := "storage.array.write is not supported by IR EVM v0" }
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
 
@@ -99,6 +111,7 @@ def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerE
       | .u64 | .bool => pure ()
       | .unit => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `Unit`" }
       | .hash => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `Hash`" }
+      | .fixedArray _ _ => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `{type.name}`" }
       .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
   | .effect effect =>
       lowerEffectStmt module effect
@@ -121,8 +134,11 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
     | .unit => #[]
     | .u64 | .bool => #[{ name := "result" }]
     | .hash => #[]
+    | .fixedArray _ _ => #[]
   if entrypoint.returns == .hash then
     .error { message := s!"entrypoint `{entrypoint.name}` returns Hash; IR EVM v0 supports only Unit, U64, and Bool" }
+  if entrypoint.returns.capabilities.contains .dataFixedArray then
+    .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U64, and Bool" }
   .ok (.funcDef (yulFunctionName module.name entrypoint.name) #[] returns { statements := body })
 
 def entrypointCallExpr (module : Module) (entrypoint : Entrypoint) : Lean.Compiler.Yul.Expr :=
@@ -148,6 +164,10 @@ def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32])
         ]
     | .hash =>
+        #[
+          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+        ]
+    | .fixedArray _ _ =>
         #[
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
         ]
@@ -181,6 +201,8 @@ def validateState (module : Module) : Except LowerError Unit := do
         .error { message := s!"state `{state.id}` has unsupported EVM IR v0 type `{other.name}`" }
     | .map _ _, _ =>
         .error { message := s!"state `{state.id}` is storage.map; IR EVM v0 does not lower portable map storage yet" }
+    | .array _, _ =>
+        .error { message := s!"state `{state.id}` is storage.array; IR EVM v0 does not lower portable array storage yet" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.evm module.capabilities with

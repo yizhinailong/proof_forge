@@ -9,6 +9,7 @@ inductive ValueType where
   | bool
   | u64
   | hash
+  | fixedArray (element : ValueType) (length : Nat)
   deriving BEq, DecidableEq, Repr
 
 def ValueType.name : ValueType → String
@@ -16,10 +17,19 @@ def ValueType.name : ValueType → String
   | .bool => "Bool"
   | .u64 => "U64"
   | .hash => "Hash"
+  | .fixedArray element length => s!"Array<{element.name},{length}>"
+
+def ValueType.capabilities : ValueType → Array ProofForge.Target.Capability
+  | .unit => #[]
+  | .bool => #[]
+  | .u64 => #[]
+  | .hash => #[]
+  | .fixedArray element _ => #[.dataFixedArray] ++ element.capabilities
 
 inductive StateKind where
   | scalar
   | map (keyType : ValueType) (capacity : Nat)
+  | array (length : Nat)
   deriving BEq, DecidableEq, Repr
 
 structure StateDecl where
@@ -54,6 +64,8 @@ mutual
   inductive Expr where
     | literal (value : Literal)
     | local (name : String)
+    | arrayLit (elementType : ValueType) (values : Array Expr)
+    | arrayGet (array index : Expr)
     | add (lhs rhs : Expr)
     | hash (preimage : Expr)
     | hashTwoToOne (lhs rhs : Expr)
@@ -67,6 +79,8 @@ mutual
     | storageMapGet (stateId : String) (key : Expr)
     | storageMapInsert (stateId : String) (key value : Expr)
     | storageMapSet (stateId : String) (key value : Expr)
+    | storageArrayRead (stateId : String) (index : Expr)
+    | storageArrayWrite (stateId : String) (index value : Expr)
     | contextRead (field : ContextField)
     deriving Repr
 end
@@ -101,12 +115,18 @@ def Effect.capability : Effect → ProofForge.Target.Capability
   | .storageMapGet _ _ => .storageMap
   | .storageMapInsert _ _ _ => .storageMap
   | .storageMapSet _ _ _ => .storageMap
+  | .storageArrayRead _ _ => .storageArray
+  | .storageArrayWrite _ _ _ => .storageArray
   | .contextRead field => field.capability
 
 mutual
   partial def Expr.capabilities : Expr → Array ProofForge.Target.Capability
     | .literal _ => #[]
     | .local _ => #[]
+    | .arrayLit elementType values =>
+        elementType.capabilities ++ values.foldl (fun acc value => acc ++ value.capabilities) #[.dataFixedArray]
+    | .arrayGet array index =>
+        #[.dataFixedArray] ++ array.capabilities ++ index.capabilities
     | .add lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .hash preimage => #[.cryptoHash] ++ preimage.capabilities
     | .hashTwoToOne lhs rhs => #[.cryptoHash] ++ lhs.capabilities ++ rhs.capabilities
@@ -119,11 +139,19 @@ mutual
     | .storageMapGet _ key => key.capabilities
     | .storageMapInsert _ key value => key.capabilities ++ value.capabilities
     | .storageMapSet _ key value => key.capabilities ++ value.capabilities
+    | .storageArrayRead _ index => index.capabilities
+    | .storageArrayWrite _ index value => index.capabilities ++ value.capabilities
     | .contextRead _ => #[]
 end
 
+def StateDecl.capabilities (state : StateDecl) : Array ProofForge.Target.Capability :=
+  match state.kind with
+  | .scalar => state.type.capabilities
+  | .map keyType _ => #[.storageMap] ++ keyType.capabilities ++ state.type.capabilities
+  | .array _ => #[.storageArray, .dataFixedArray] ++ state.type.capabilities
+
 def Statement.capabilities : Statement → Array ProofForge.Target.Capability
-  | .letBind _ _ value => value.capabilities
+  | .letBind _ type value => type.capabilities ++ value.capabilities
   | Statement.effect eff => #[eff.capability] ++ eff.capabilities
   | .assert condition _ => #[.assertions] ++ condition.capabilities
   | .assertEq lhs rhs _ => #[.assertions] ++ lhs.capabilities ++ rhs.capabilities
@@ -132,9 +160,12 @@ def Statement.capabilities : Statement → Array ProofForge.Target.Capability
   | .return value => value.capabilities
 
 def Entrypoint.capabilities (entrypoint : Entrypoint) : Array ProofForge.Target.Capability :=
-  entrypoint.body.foldl (fun acc stmt => acc ++ stmt.capabilities) #[]
+  let paramCaps := entrypoint.params.foldl (fun acc param => acc ++ param.snd.capabilities) #[]
+  paramCaps ++ entrypoint.returns.capabilities ++
+    entrypoint.body.foldl (fun acc stmt => acc ++ stmt.capabilities) #[]
 
 def Module.capabilities (module : Module) : Array ProofForge.Target.Capability :=
-  module.entrypoints.foldl (fun acc entrypoint => acc ++ entrypoint.capabilities) #[]
+  module.state.foldl (fun acc state => acc ++ state.capabilities) #[] ++
+    module.entrypoints.foldl (fun acc entrypoint => acc ++ entrypoint.capabilities) #[]
 
 end ProofForge.IR

@@ -10,9 +10,9 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
-ContextProbe, HashProbe, MapProbe, AssertProbe, and LoopProbe fixtures. The
-target is not production-ready and does not yet cover arrays, structs, deploy
-JSON, live Psy node/prover deployment, or broad Lean-to-IR extraction.
+ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe, and ArrayProbe
+fixtures. The target is not production-ready and does not yet cover structs,
+deploy JSON, live Psy node/prover deployment, or broad Lean-to-IR extraction.
 
 ## Summary
 
@@ -262,11 +262,13 @@ Initial mapping:
 |---|---|
 | `storage.scalar` | generated `#[derive(Storage)]` field or explicit state access |
 | `storage.map` | fixed-capacity map/storage pattern where supported by Psy |
+| `storage.array` | fixed-size Psy storage arrays with indexed read/write access |
 | `caller.sender` | Psy user/context functions such as user id |
 | `events.emit` | target-specific event/log story to research |
 | `crosscall.invoke` | `invoke_sync` / `invoke_deferred` where valid |
 | `env.block` | checkpoint/block-like context reads where valid |
 | `control.bounded_loop` | static Psy `for i in 0u32..Nu32` loops |
+| `data.fixed_array` | Psy `[T; N]` value types, literals, and index expressions |
 | `crypto.hash` | Psy hash intrinsics/prelude |
 | `assertions.check` | Psy `assert(...)` and `assert_eq(...)` statements in generated methods |
 | `zk.circuit` | every contract method lowers to a circuit definition |
@@ -434,6 +436,27 @@ build/psy/
 statement node, and Psy sourcegen lowers it to a bounded `for` block while EVM
 IR v0 rejects it explicitly.
 
+Current ArrayProbe output layout:
+
+```text
+build/psy/
+  ArrayProbe.psy
+  dargo-array/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_array.json
+    target/ArrayProbe.json
+    target/array-execute.log
+    target/proof-forge-artifact.json
+```
+
+`ArrayProbe` follows upstream Psy array idioms from `tests/array_test.psy`,
+`tests/parameter_passing_test.psy`, and storage reference tests: fixed array
+types such as `[Felt; 3]`, literals such as `[10, 20, 30]`, index reads such
+as `xs[0]`, and fixed storage arrays such as `pub values: [Felt; 3]`. Storage
+array reads lower through `.get()` when used as arithmetic values, while writes
+use Psy's index assignment sugar: `c.values[0] = 7`.
+
 ## Smoke Test Strategy
 
 Experimental smoke does not require a live Psy network.
@@ -521,6 +544,20 @@ It verifies static bounded-loop lowering under Dargo local execution:
 The script emits and validates
 `build/psy/dargo-loop/target/proof-forge-artifact.json`.
 
+The same validation shape is also implemented for `ArrayProbe`:
+
+```sh
+scripts/psy/array-smoke.sh
+```
+
+It verifies fixed-array value and storage lowering under Dargo local execution:
+
+- `sum_literal`: `result_vm: [60]`
+- `storage_lifecycle`: `result_vm: [31]`
+
+The script emits and validates
+`build/psy/dargo-array/target/proof-forge-artifact.json`.
+
 All Psy smoke scripts run
 `scripts/psy/validate-artifact-metadata.py` after metadata generation. The
 validator checks schema version, target id, target family, artifact kind,
@@ -579,9 +616,13 @@ Deployment smoke:
 - Done: add `LoopProbe` with static `boundedFor` lowering aligned with upstream
   Psy fixed `for` loop idioms.
 - Done: add `scripts/psy/loop-smoke.sh` with the same Dargo validation shape.
+- Done: add `ArrayProbe` with `[Felt; N]` local array literals, index reads,
+  and fixed storage array index read/write lowering aligned with upstream Psy
+  array and storage reference idioms.
+- Done: add `scripts/psy/array-smoke.sh` with the same Dargo validation shape.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
-- Remaining: add array and struct coverage from the upstream syntax corpus.
+- Remaining: add struct coverage from the upstream syntax corpus.
 
 ### Phase C: Metadata and Scenario Parity
 
@@ -623,9 +664,12 @@ Deployment smoke:
   machine with the Psy toolchain.
 - Generated LoopProbe `.psy` package compiles with `dargo compile` on a machine
   with the Psy toolchain.
+- Generated ArrayProbe `.psy` package compiles with `dargo compile` on a
+  machine with the Psy toolchain.
 - Dargo execution proves the expected Counter lifecycle, context-read result,
   deterministic hash outputs, map lifecycle output, and assertion-protected
-  checked sum output, plus the bounded loop count result.
+  checked sum output, plus the bounded loop count result and fixed-array
+  literal/storage results.
 - Artifact metadata records:
   - target id `psy-dpn`
   - target family and artifact kind
