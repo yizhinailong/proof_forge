@@ -7,5 +7,6 @@ import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.HashProbe
 import ProofForge.IR.Examples.LoopProbe
 import ProofForge.IR.Examples.MapProbe
+import ProofForge.IR.Examples.NestedAggregateProbe
 import ProofForge.IR.Examples.StructArrayProbe
 import ProofForge.IR.Examples.StructProbe

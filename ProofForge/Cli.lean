@@ -13,6 +13,7 @@ import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.HashProbe
 import ProofForge.IR.Examples.LoopProbe
 import ProofForge.IR.Examples.MapProbe
+import ProofForge.IR.Examples.NestedAggregateProbe
 import ProofForge.IR.Examples.StructArrayProbe
 import ProofForge.IR.Examples.StructProbe
 
@@ -38,6 +39,7 @@ inductive EmitMode where
   | structIrPsy
   | structArrayIrPsy
   | abiAggregateIrPsy
+  | nestedAggregateIrPsy
   deriving BEq, Inhabited
 
 structure CliOptions where
@@ -70,6 +72,7 @@ def usage : String :=
     "  proof-forge --emit-struct-ir-psy [-o output.psy]",
     "  proof-forge --emit-struct-array-ir-psy [-o output.psy]",
     "  proof-forge --emit-abi-aggregate-ir-psy [-o output.psy]",
+    "  proof-forge --emit-nested-aggregate-ir-psy [-o output.psy]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "IR fixture modes render hand-written portable IR fixtures to target source or bytecode."
@@ -235,7 +238,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy then
         .ok opts
       else
         .error usage
@@ -286,6 +289,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .structArrayIrPsy }
   | "--emit-abi-aggregate-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .abiAggregateIrPsy }
+  | "--emit-nested-aggregate-ir-psy" :: rest, opts =>
+      parseArgs rest { opts with mode := .nestedAggregateIrPsy }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -478,6 +483,16 @@ def compileAbiAggregateIrPsy (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileNestedAggregateIrPsy (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/psy/NestedAggregateProbe.psy")
+  match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.NestedAggregateProbe.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
@@ -509,6 +524,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .structIrPsy => compileStructIrPsy opts
   | .structArrayIrPsy => compileStructArrayIrPsy opts
   | .abiAggregateIrPsy => compileAbiAggregateIrPsy opts
+  | .nestedAggregateIrPsy => compileNestedAggregateIrPsy opts
 
 end ProofForge.Cli
 

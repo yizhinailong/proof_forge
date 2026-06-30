@@ -17,6 +17,63 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy NestedAggregateProbe Mixed Aggregate Updates
+
+Commit: feature commit for nested aggregate Psy IR coverage
+
+Summary:
+
+- Added portable IR statements for mutable local bindings and assignment.
+- Added Psy lowering for `let mut` and nested assignment targets made from
+  local names, array indexes, and field paths.
+- Kept EVM IR v0 behavior explicit by rejecting mutable local bindings and
+  assignment statements.
+- Added `ProofForge.IR.Examples.NestedAggregateProbe`, covering a mutable
+  `[Family; 2]` value whose `Family.children` field is `[Member; 2]`.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-nested-aggregate-ir-psy -o build/psy/NestedAggregateProbe.psy
+```
+
+- Added `Examples/Psy/NestedAggregateProbe.golden.psy`.
+- Added `scripts/psy/nested-aggregate-smoke.sh`, which generates a temporary
+  Dargo package, runs `dargo test --file`, `dargo compile`, `dargo execute`,
+  `dargo generate-abi`, and validates `proof-forge-artifact.json`.
+- Extended `Tests/PsyDiagnostics.lean` with an invalid assignment target case.
+- Added CI coverage for the NestedAggregateProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-nested-aggregate-ir-psy -o build/psy/NestedAggregateProbe.psy
+diff -u Examples/Psy/NestedAggregateProbe.golden.psy build/psy/NestedAggregateProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/nested-aggregate-smoke.sh
+scripts/psy/diagnostic-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Generated NestedAggregateProbe source matches the checked-in golden fixture.
+- `scripts/psy/nested-aggregate-smoke.sh` generated DPN JSON, ABI JSON,
+  execute log, and `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [51]` for `nested_update_sum`.
+- `scripts/psy/diagnostic-smoke.sh` passed all 10 diagnostic cases.
+
+Known limitations:
+
+- This feature covers local nested aggregate mutation, not storage-backed
+  nested aggregate mutation.
+- Assignment targets are intentionally limited to local/index/field paths.
+
+Next step:
+
+- Add storage-backed nested aggregate updates or deploy JSON metadata.
+
 ### Psy Unsupported Diagnostic Gate
 
 Commit: feature commit for Psy diagnostic regression coverage
@@ -36,6 +93,7 @@ Summary:
   - invalid bounded loop ranges
   - storage writes used as expressions
   - storage reads used as statements
+  - invalid assignment targets
 - Added the diagnostic smoke to CI.
 - Documented the gate in README, validation gates, and `psy-dpn` target notes.
 
@@ -48,7 +106,7 @@ lake build
 
 Result:
 
-- `scripts/psy/diagnostic-smoke.sh` passed all 9 diagnostic cases.
+- `scripts/psy/diagnostic-smoke.sh` passed all 10 diagnostic cases.
 - `lake build` passed.
 
 Known limitations:

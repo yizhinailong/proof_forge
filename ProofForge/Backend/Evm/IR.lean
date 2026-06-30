@@ -134,6 +134,10 @@ def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerE
       | .fixedArray _ _ => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `{type.name}`" }
       | .structType _ => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `{type.name}`" }
       .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
+  | .letMutBind name _ _ =>
+      .error { message := s!"mutable let binding `{name}` is not supported by IR EVM v0" }
+  | .assign _ _ =>
+      .error { message := "assignment statements are not supported by IR EVM v0" }
   | .effect effect =>
       lowerEffectStmt module effect
   | .assert _ _ =>

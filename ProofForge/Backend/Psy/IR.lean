@@ -30,7 +30,9 @@ def capitalizedRefName (module : Module) : String :=
   s!"{module.name}Ref"
 
 def testFunctionName (module : Module) : String :=
-  if module.name == "AbiAggregateProbe" then
+  if module.name == "NestedAggregateProbe" then
+    "test_nested_aggregate_probe_fixture"
+  else if module.name == "AbiAggregateProbe" then
     "test_abi_aggregate_probe_fixture"
   else if module.name == "StructArrayProbe" then
     "test_struct_array_probe_fixture"
@@ -287,10 +289,23 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
 
+partial def lowerAssignTarget (module : Module) : Expr → Except LowerError String
+  | .local name => .ok name
+  | .arrayGet array index => do
+      .ok s!"{← lowerAssignTarget module array}[{← lowerExpr module index}]"
+  | .field base fieldName => do
+      .ok s!"{← lowerAssignTarget module base}.{fieldName}"
+  | _ =>
+      .error { message := "assignment target must be a local, array index, or field path" }
+
 mutual
   partial def lowerStatement (module : Module) : Statement → Except LowerError (Array String)
     | .letBind name type value => do
         .ok #[s!"let {name}: {← valueTypeName type} = {← lowerExpr module value};"]
+    | .letMutBind name type value => do
+        .ok #[s!"let mut {name}: {← valueTypeName type} = {← lowerExpr module value};"]
+    | .assign target value => do
+        .ok #[s!"{← lowerAssignTarget module target} = {← lowerExpr module value};"]
     | .effect effect =>
         lowerEffectStmt module effect
     | .assert condition message => do
@@ -513,6 +528,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
       s!"assert_eq({refName}::sum_array([1, 2, 3]), 6, \"fixed-array ABI parameter flattens\");",
       s!"let pair: Pair = {refName}::make_pair(9, 4);",
       "assert_eq(pair.left + pair.right, 13, \"struct ABI return flattens\");"
+    ]
+  else if module.name == "NestedAggregateProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "nested_update_sum" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::nested_update_sum(), 51, \"nested aggregate assignment updates selected field\");"
     ]
   else
     .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }

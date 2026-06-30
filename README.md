@@ -164,6 +164,14 @@ lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.
 scripts/psy/abi-aggregate-smoke.sh
 ```
 
+Validate the Psy/DPN nested aggregate fixture, which exercises mutable local
+arrays of structs, nested fixed arrays, and field-path assignment:
+
+```sh
+lake env proof-forge --emit-nested-aggregate-ir-psy -o build/psy/NestedAggregateProbe.psy
+scripts/psy/nested-aggregate-smoke.sh
+```
+
 Validate the Psy/DPN unsupported-shape diagnostics:
 
 ```sh

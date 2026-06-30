@@ -11,10 +11,10 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
 ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe,
-StructProbe, StructArrayProbe, and AbiAggregateProbe fixtures. The target is
-not production-ready and does not yet cover deeply nested mixed aggregate
-updates, deploy JSON, live Psy node/prover deployment, or broad Lean-to-IR
-extraction.
+StructProbe, StructArrayProbe, AbiAggregateProbe, and NestedAggregateProbe
+fixtures. The target is not production-ready and does not yet cover
+storage-backed nested aggregate updates, deploy JSON, live Psy node/prover
+deployment, or broad Lean-to-IR extraction.
 
 ## Summary
 
@@ -260,7 +260,7 @@ return stable, explicit errors before source generation. Current cases cover
 Unit entrypoint parameters, zero-length ABI arrays, unknown ABI structs,
 unsupported map key/value shapes, structs missing `deriveStorage` for storage,
 empty structs, invalid bounded loop ranges, storage writes used as expressions,
-and storage reads used as statements.
+storage reads used as statements, and invalid assignment targets.
 
 The design philosophy docs reinforce the same boundary: Psy is ZK-native and
 uses symbolic execution. Variables become circuit wires, operations become
@@ -538,6 +538,27 @@ these aggregate values as flattened Felt input/output vectors, so the smoke
 checks `sum_pair(7,8) -> [15]`, `sum_array(1,2,3) -> [6]`, and
 `make_pair(9,4) -> [9,4]`.
 
+Current NestedAggregateProbe output layout:
+
+```text
+build/psy/
+  NestedAggregateProbe.psy
+  dargo-nested-aggregate/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_nested_aggregate.json
+    target/NestedAggregateProbe.json
+    target/nested-aggregate-execute.log
+    target/proof-forge-artifact.json
+```
+
+`NestedAggregateProbe` follows upstream mutation idioms from
+`tests/array_test.psy` and `tests/struct_test.psy`. It adds mutable local
+bindings and assignment statements to the portable IR, then lowers nested
+field/index targets such as `families[1].children[0].age = 31`. The fixture
+uses an array of `Family` structs, each with a fixed array of `Member` structs,
+and verifies the updated nested field through Dargo execution.
+
 ## Smoke Test Strategy
 
 Experimental smoke does not require a live Psy network.
@@ -684,6 +705,19 @@ local execution:
 The script emits and validates
 `build/psy/dargo-abi-aggregate/target/proof-forge-artifact.json`.
 
+The same validation shape is also implemented for `NestedAggregateProbe`:
+
+```sh
+scripts/psy/nested-aggregate-smoke.sh
+```
+
+It verifies local nested aggregate mutation under Dargo local execution:
+
+- `nested_update_sum`: `result_vm: [51]`
+
+The script emits and validates
+`build/psy/dargo-nested-aggregate/target/proof-forge-artifact.json`.
+
 All Psy smoke scripts run
 `scripts/psy/validate-artifact-metadata.py` after metadata generation. The
 validator checks schema version, target id, target family, artifact kind,
@@ -697,8 +731,8 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts nine explicit diagnostics for malformed or unsupported
-Psy IR shapes.
+It currently asserts ten explicit diagnostics for malformed or unsupported Psy
+IR shapes.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -773,10 +807,16 @@ Deployment smoke:
 - Done: add `scripts/psy/diagnostic-smoke.sh` and
   `Tests/PsyDiagnostics.lean` to lock down explicit unsupported-shape
   diagnostics before source generation.
+- Done: add mutable local bindings and assignment statements to the portable
+  IR, with Psy lowering and explicit EVM v0 rejection diagnostics.
+- Done: add `NestedAggregateProbe` with nested local struct/fixed-array
+  mutation aligned with upstream Psy array/struct mutation idioms.
+- Done: add `scripts/psy/nested-aggregate-smoke.sh` with the same Dargo
+  validation shape.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
-- Remaining: add deeper nested mixed aggregate updates from the upstream syntax
-  corpus.
+- Remaining: add storage-backed nested aggregate updates from the upstream
+  syntax corpus.
 
 ### Phase C: Metadata and Scenario Parity
 
@@ -826,12 +866,14 @@ Deployment smoke:
   machine with the Psy toolchain.
 - Generated AbiAggregateProbe `.psy` package compiles with `dargo compile` on
   a machine with the Psy toolchain.
+- Generated NestedAggregateProbe `.psy` package compiles with `dargo compile`
+  on a machine with the Psy toolchain.
 - Dargo execution proves the expected Counter lifecycle, context-read result,
   deterministic hash outputs, map lifecycle output, and assertion-protected
   checked sum output, plus the bounded loop count result and fixed-array
   literal/storage results, struct literal/storage results, struct-array
-  literal/storage results, and ABI aggregate parameter/return flattening
-  results.
+  literal/storage results, ABI aggregate parameter/return flattening results,
+  and local nested aggregate mutation results.
 - `scripts/psy/diagnostic-smoke.sh` proves unsupported or malformed Psy IR
   shapes produce explicit diagnostics before source generation.
 - Artifact metadata records:

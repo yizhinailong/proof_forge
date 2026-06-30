@@ -121,6 +121,16 @@ def storageReadStmtModule : Module := {
   ]]
 }
 
+def invalidAssignTargetModule : Module := {
+  name := "BadAssignTarget"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .assign
+      (.add (.literal (.u64 1)) (.literal (.u64 2)))
+      (.literal (.u64 3))
+  ]]
+}
+
 def renderError? (module : Module) : Option String :=
   match ProofForge.Backend.Psy.IR.renderModule module with
   | .ok _ => none
@@ -171,6 +181,11 @@ def cases : Array (String × Module × String) := #[
     "storage read used as statement",
     storageReadStmtModule,
     "storage.scalar.read must be used as an expression"
+  ),
+  (
+    "invalid assignment target",
+    invalidAssignTargetModule,
+    "assignment target must be a local, array index, or field path"
   )
 ]
 
