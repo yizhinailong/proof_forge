@@ -164,6 +164,12 @@ lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.
 scripts/psy/abi-aggregate-smoke.sh
 ```
 
+Validate the Psy/DPN unsupported-shape diagnostics:
+
+```sh
+scripts/psy/diagnostic-smoke.sh
+```
+
 Each Psy smoke writes and validates `proof-forge-artifact.json` next to the
 Dargo outputs.
 

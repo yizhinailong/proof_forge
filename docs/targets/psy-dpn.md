@@ -249,6 +249,19 @@ Rejected first:
 The target should fail before source generation when an unsupported IR node or
 capability appears.
 
+The current executable rejection gate is:
+
+```sh
+scripts/psy/diagnostic-smoke.sh
+```
+
+It runs `Tests/PsyDiagnostics.lean` and checks that malformed Psy IR modules
+return stable, explicit errors before source generation. Current cases cover
+Unit entrypoint parameters, zero-length ABI arrays, unknown ABI structs,
+unsupported map key/value shapes, structs missing `deriveStorage` for storage,
+empty structs, invalid bounded loop ranges, storage writes used as expressions,
+and storage reads used as statements.
+
 The design philosophy docs reinforce the same boundary: Psy is ZK-native and
 uses symbolic execution. Variables become circuit wires, operations become
 gates, control flow is flattened, bounded loops are unrolled, and function calls
@@ -677,6 +690,16 @@ validator checks schema version, target id, target family, artifact kind,
 fixture id, non-empty capabilities, artifact paths, byte sizes, SHA-256 hashes,
 validation flags, and expected execution results inside the execute log.
 
+The diagnostic smoke is separate from Dargo smokes because it validates source
+generation rejection paths instead of supported Psy programs:
+
+```sh
+scripts/psy/diagnostic-smoke.sh
+```
+
+It currently asserts nine explicit diagnostics for malformed or unsupported
+Psy IR shapes.
+
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
 sequence against the same session. This is not a live network, but it is closer
@@ -747,6 +770,9 @@ Deployment smoke:
   and struct return values aligned with upstream Psy ABI/precompile idioms.
 - Done: add `scripts/psy/abi-aggregate-smoke.sh` with the same Dargo
   validation shape.
+- Done: add `scripts/psy/diagnostic-smoke.sh` and
+  `Tests/PsyDiagnostics.lean` to lock down explicit unsupported-shape
+  diagnostics before source generation.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
 - Remaining: add deeper nested mixed aggregate updates from the upstream syntax
@@ -806,6 +832,8 @@ Deployment smoke:
   literal/storage results, struct literal/storage results, struct-array
   literal/storage results, and ABI aggregate parameter/return flattening
   results.
+- `scripts/psy/diagnostic-smoke.sh` proves unsupported or malformed Psy IR
+  shapes produce explicit diagnostics before source generation.
 - Artifact metadata records:
   - target id `psy-dpn`
   - target family and artifact kind

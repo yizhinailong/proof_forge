@@ -65,6 +65,9 @@ jobs:
           lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.psy
           diff -u Examples/Psy/AbiAggregateProbe.golden.psy build/psy/AbiAggregateProbe.psy
 
+      - name: Check Psy diagnostics
+        run: scripts/psy/diagnostic-smoke.sh
+
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh
 

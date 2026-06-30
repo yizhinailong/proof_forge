@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Unsupported Diagnostic Gate
+
+Commit: feature commit for Psy diagnostic regression coverage
+
+Summary:
+
+- Added `Tests/PsyDiagnostics.lean`, a runnable Lean diagnostic regression
+  suite for Psy IR rejection paths.
+- Added `scripts/psy/diagnostic-smoke.sh`.
+- Covered explicit diagnostics for:
+  - Unit entrypoint parameters
+  - zero-length ABI fixed arrays
+  - unknown ABI struct types
+  - unsupported map key/value shapes
+  - structs used in storage without `deriveStorage`
+  - empty struct declarations
+  - invalid bounded loop ranges
+  - storage writes used as expressions
+  - storage reads used as statements
+- Added the diagnostic smoke to CI.
+- Documented the gate in README, validation gates, and `psy-dpn` target notes.
+
+Validation run:
+
+```sh
+scripts/psy/diagnostic-smoke.sh
+lake build
+```
+
+Result:
+
+- `scripts/psy/diagnostic-smoke.sh` passed all 9 diagnostic cases.
+- `lake build` passed.
+
+Known limitations:
+
+- This is a regression gate for representative unsupported shapes, not an
+  exhaustive formal proof over every impossible IR construction.
+- Cross-target capability rejection matrices still need broader coverage.
+
+Next step:
+
+- Expand diagnostics as new Psy IR nodes are added, then continue with deeper
+  mixed aggregate update coverage or deploy JSON metadata.
+
 ### Psy AbiAggregateProbe ABI Aggregates
 
 Commit: feature commit for ABI aggregate Psy IR coverage
