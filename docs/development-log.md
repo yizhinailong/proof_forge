@@ -17,6 +17,59 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Storage Compound Assignment Effects
+
+Commit: feature commit for Psy storage-reference compound assignment effects
+
+Summary:
+
+- Added portable IR storage effects for scalar storage compound assignment and
+  generic storage-path compound assignment.
+- Extended Psy sourcegen to lower storage refs such as `c.total += 3`,
+  `c.person.profile.age += 2`, and `c.people[1].score -= 9` to native Psy
+  assignment operators.
+- Kept EVM IR v0 behavior explicit by rejecting the new storage compound
+  effects with target-specific diagnostics.
+- Extended `StorageNestedAggregateProbe` to validate scalar storage compound
+  assignment, nested scalar storage paths, and storage-array scalar paths under
+  Dargo execution.
+- Added Psy diagnostics for storage compound effects used as expressions and
+  malformed storage compound assignment value types.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
+diff -u Examples/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
+scripts/psy/diagnostic-smoke.sh
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/storage-nested-aggregate-smoke.sh
+```
+
+Result:
+
+- Generated StorageNestedAggregateProbe source matches the checked-in golden
+  fixture.
+- `scripts/psy/diagnostic-smoke.sh` passes all 42 diagnostic cases.
+- `scripts/psy/storage-nested-aggregate-smoke.sh` passes `dargo test`,
+  `dargo compile`, `dargo execute`, `dargo generate-abi`, deploy manifest
+  validation, and artifact metadata validation.
+- Dargo execution returns `result_vm: [229]` for `storage_nested_lifecycle`.
+
+Known limitations:
+
+- Map storage values remain excluded from compound assignment because the
+  current supported map shape uses `get`/`set` over `Map<Hash, Hash, N>`.
+- U32 storage arrays remain explicitly rejected until a stable Dargo-compatible
+  storage idiom is identified.
+
+Next step:
+
+- Continue with U32 storage-array research or move toward upstream genesis
+  deploy JSON/local node smoke work.
+
 ### Psy Compound Assignment Lowering
 
 Commit: feature commit for Psy compound assignment lowering

@@ -76,7 +76,9 @@ expression set for target-source backends:
 The statement set includes immutable and mutable local bindings, plain
 assignment, first-class compound assignment (`+=`, `-=`, `*=`, `/=`, `%=`,
 `|=`, `&=`, `^=`, `<<=`, `>>=`), statement effects, assertions, `if/else`,
-bounded `for`, and explicit `return`.
+bounded `for`, and explicit `return`. Statement effects include storage writes
+and storage-reference compound assignment effects for scalar storage and
+generic storage paths.
 
 Each target backend is responsible for either lowering each node it accepts or
 rejecting it before source generation with an explicit diagnostic.

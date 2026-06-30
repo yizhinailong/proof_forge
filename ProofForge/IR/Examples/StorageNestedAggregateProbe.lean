@@ -34,6 +34,12 @@ def statePeople : StateDecl := {
   type := .structType "Person"
 }
 
+def stateTotal : StateDecl := {
+  id := "total"
+  kind := .scalar
+  type := .u64
+}
+
 def felt (value : Nat) : Expr :=
   .literal (.u64 value)
 
@@ -77,28 +83,44 @@ def storageNestedLifecycle : Entrypoint := {
   name := "storage_nested_lifecycle"
   returns := .u64
   body := #[
+    .effect (.storageScalarWrite "total" (felt 20)),
+    .effect (.storageScalarAssignOp "total" .add (felt 3)),
+    .effect (.storageScalarAssignOp "total" .sub (felt 1)),
+    .effect (.storageScalarAssignOp "total" .mul (felt 2)),
+    .effect (.storageScalarAssignOp "total" .div (felt 11)),
+    .effect (.storageScalarAssignOp "total" .mod (felt 4)),
+    .effect (.storageScalarAssignOp "total" .bitOr (felt 8)),
+    .effect (.storageScalarAssignOp "total" .bitAnd (felt 10)),
+    .effect (.storageScalarAssignOp "total" .bitXor (felt 3)),
+    .effect (.storageScalarAssignOp "total" .shiftLeft (felt 1)),
+    .effect (.storageScalarAssignOp "total" .shiftRight (felt 1)),
     .effect (.storageScalarWrite "person" (person 18 2 50)),
     .effect (.storagePathWrite "person" personProfilePath (profile 21 4)),
     .effect (.storagePathWrite "person" personScorePath (felt 55)),
     .effect (.storageArrayWrite "people" (ix 1) (person 30 7 100)),
+    .effect (.storagePathAssignOp "person" personProfileAgePath .add (felt 2)),
+    .effect (.storagePathAssignOp "person" personScorePath .add (felt 5)),
     .effect (.storagePathWrite "people" people1ProfileAgePath (felt 31)),
     .effect (.storagePathWrite "people" people1ScorePath (felt 109)),
+    .effect (.storagePathAssignOp "people" people1ScorePath .sub (felt 9)),
     .return (.add
       (.add
         (.add
-          (readPath "person" personProfileAgePath)
-          (readPath "person" personProfileLevelPath))
-        (readPath "person" personScorePath))
+          (.add
+            (readPath "person" personProfileAgePath)
+            (readPath "person" personProfileLevelPath))
+          (readPath "person" personScorePath))
+        (readPath "people" people1ProfileAgePath))
       (.add
-        (readPath "people" people1ProfileAgePath)
-        (readPath "people" people1ScorePath)))
+        (readPath "people" people1ScorePath)
+        (.effect (.storageScalarRead "total"))))
   ]
 }
 
 def module : Module := {
   name := "StorageNestedAggregateProbe"
   structs := #[profileStruct, personStruct]
-  state := #[statePerson, statePeople]
+  state := #[statePerson, statePeople, stateTotal]
   entrypoints := #[storageNestedLifecycle]
 }
 

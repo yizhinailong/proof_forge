@@ -254,6 +254,8 @@ Tasks:
   smoke compile outputs.
 - Done: add map storage path coverage for `Map<Hash, Hash, N>` with Dargo
   compile/execute validation.
+- Done: add storage-reference compound assignment coverage for scalar storage
+  and generic storage paths with Dargo compile/execute validation.
 - Add U32 storage array coverage once a stable Psy storage idiom is identified.
 - Convert the deploy manifest path to upstream compressed genesis deploy JSON
   once the Psy tooling exposes a stable boundary, then exercise a local

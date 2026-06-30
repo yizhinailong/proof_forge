@@ -627,6 +627,8 @@ mutual
         scalarStateType module stateId
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
+    | .storageScalarAssignOp _ _ _ =>
+        .error { message := "storage.scalar.assign_op is a statement effect, not an expression" }
     | .storageMapContains stateId key => do
         let (keyType, _) ← mapStateTypes module stateId
         let actualKey ← inferExprType module env key
@@ -673,6 +675,8 @@ mutual
         resolveStoragePathType module stateId path
     | .storagePathWrite _ _ _ =>
         .error { message := "storage.path.write is a statement effect, not an expression" }
+    | .storagePathAssignOp _ _ _ _ =>
+        .error { message := "storage.path.assign_op is a statement effect, not an expression" }
     | .contextRead _ =>
         .ok .u64
 end
@@ -713,6 +717,10 @@ def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except Low
       let expected ← scalarStateType module stateId
       let actual ← inferExprType module env value
       ensureType s!"scalar state `{stateId}` write" expected actual
+  | .storageScalarAssignOp stateId op value => do
+      let expected ← scalarStateType module stateId
+      let actual ← inferExprType module env value
+      ensureAssignOpTypes op expected actual
   | .storageMapContains _ _ =>
       .error { message := "storage.map.contains must be used as an expression" }
   | .storageMapGet _ _ =>
@@ -765,6 +773,11 @@ def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except Low
       let expected ← resolveStoragePathType module stateId path
       let actualValue ← inferExprType module env value
       ensureType s!"storage path `{stateId}` write" expected actualValue
+  | .storagePathAssignOp stateId path op value => do
+      validateStoragePathExprs module env stateId path
+      let expected ← resolveStoragePathType module stateId path
+      let actualValue ← inferExprType module env value
+      ensureAssignOpTypes op expected actualValue
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
 
@@ -910,6 +923,8 @@ mutual
         .ok s!"c.{stateId}.get()"
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
+    | .storageScalarAssignOp _ _ _ =>
+        .error { message := "storage.scalar.assign_op is a statement effect, not an expression" }
     | .storageMapContains stateId key => do
         requireMapState module stateId
         .ok s!"c.{stateId}.contains({← lowerExpr module key})"
@@ -941,6 +956,8 @@ mutual
         lowerStoragePathRead module stateId path
     | .storagePathWrite _ _ _ =>
         .error { message := "storage.path.write is a statement effect, not an expression" }
+    | .storagePathAssignOp _ _ _ _ =>
+        .error { message := "storage.path.assign_op is a statement effect, not an expression" }
     | .contextRead field =>
         .ok (contextFunction field)
 
@@ -987,6 +1004,16 @@ mutual
         .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExpr module value};"]
     | none =>
         .error { message := s!"unknown storage path state `{stateId}`" }
+
+  partial def lowerStoragePathAssignOp (module : Module) (stateId : String) (path : Array StoragePathSegment) (op : AssignOp) (value : Expr) : Except LowerError (Array String) := do
+    discard <| resolveStoragePathType module stateId path
+    match findState? module stateId with
+    | some { kind := .map _ _, .. } =>
+        .error { message := s!"storage path state `{stateId}` map values do not support compound assignment" }
+    | some _ =>
+        .ok #[s!"{← lowerStoragePath module stateId path} {assignOpSymbol op} {← lowerExpr module value};"]
+    | none =>
+        .error { message := s!"unknown storage path state `{stateId}`" }
 end
 
 def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array String)
@@ -995,6 +1022,9 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
   | .storageScalarWrite stateId value => do
       requireScalarState module stateId
       .ok #[s!"c.{stateId} = {← lowerExpr module value};"]
+  | .storageScalarAssignOp stateId op value => do
+      requireScalarState module stateId
+      .ok #[s!"c.{stateId} {assignOpSymbol op} {← lowerExpr module value};"]
   | .storageMapContains _ _ =>
       .error { message := "storage.map.contains must be used as an expression" }
   | .storageMapGet _ _ =>
@@ -1025,6 +1055,9 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
   | .storagePathWrite stateId path value => do
       discard <| resolveStoragePathType module stateId path
       lowerStoragePathWrite module stateId path value
+  | .storagePathAssignOp stateId path op value => do
+      discard <| resolveStoragePathType module stateId path
+      lowerStoragePathAssignOp module stateId path op value
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
 
@@ -1328,7 +1361,7 @@ def testBody (module : Module) : Except LowerError (Array String) := do
   else if module.name == "StorageNestedAggregateProbe" &&
     module.entrypoints.any (fun entry => entry.name == "storage_nested_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
-      s!"assert_eq({refName}::storage_nested_lifecycle(), 220, \"storage nested aggregate path updates selected fields\");"
+      s!"assert_eq({refName}::storage_nested_lifecycle(), 229, \"storage nested aggregate path updates selected fields\");"
     ]
   else
     .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }

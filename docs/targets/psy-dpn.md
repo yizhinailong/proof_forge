@@ -16,9 +16,9 @@ AssertProbe, LoopProbe, ArrayProbe, StructProbe, StructArrayProbe,
 AbiAggregateProbe, and NestedAggregateProbe fixtures. It also has an experimental
 StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
 across `#[ref]` struct fields and storage arrays. The target is not
-production-ready and does not yet cover U32 storage arrays, storage-reference
-compound assignment forms, else-if sugar, upstream compressed genesis deploy
-JSON, live Psy node/prover deployment, or broad Lean-to-IR extraction. It does
+production-ready and does not yet cover U32 storage arrays, else-if sugar,
+upstream compressed genesis deploy JSON, live Psy node/prover deployment, or
+broad Lean-to-IR extraction. It does
 produce a ProofForge deploy manifest for every Dargo-backed Psy smoke fixture.
 
 ## Summary
@@ -595,7 +595,10 @@ build/psy/
 segments. It lowers nested storage references such as `c.person.profile.age`
 and `c.people[1].profile.age`, and requires struct-to-struct storage traversal
 to use Psy's `#[ref]` field marker. This keeps the IR explicit about the
-difference between value fields and nested storage references.
+difference between value fields and nested storage references. It also covers
+storage-reference compound assignment effects by lowering scalar storage refs
+such as `c.total += 3` and nested storage paths such as
+`c.person.profile.age += 2` to native Psy assignment operators.
 
 `ExpressionPredicateProbe` follows upstream predicate idioms from
 `tests/opcode_test.psy`, `tests/assert_test.psy`, and the token/deposit-tree
@@ -627,9 +630,8 @@ lowers both Felt-backed `U64` and `U32` operations to native Psy operators.
 Dargo execution validates `result_vm: [16]` for the combined Felt/U32 probe.
 The same probe now exercises first-class portable compound assignment
 statements for `|=`, `&=`, `^=`, `<<=`, and `>>=` on mutable Felt-backed `U64`
-and `U32` locals. Storage-reference compound assignment remains a separate
-feature because portable storage writes are currently modeled as explicit
-effects.
+and `U32` locals. Storage-reference compound assignment is covered by
+`StorageNestedAggregateProbe`.
 
 `U32HashPackingProbe` follows the hash limb representation used by
 `psy-precompiles/deposit_tree/src/main.psy` and related Merkle-tree code. It
@@ -921,9 +923,10 @@ The same validation shape is also implemented for
 scripts/psy/storage-nested-aggregate-smoke.sh
 ```
 
-It verifies storage-backed nested aggregate updates under Dargo local execution:
+It verifies storage-backed nested aggregate updates and storage-reference
+compound assignments under Dargo local execution:
 
-- `storage_nested_lifecycle`: `result_vm: [220]`
+- `storage_nested_lifecycle`: `result_vm: [229]`
 
 The script emits and validates
 `build/psy/dargo-storage-nested-aggregate/target/proof-forge-artifact.json`.
@@ -941,13 +944,13 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts thirty-nine explicit diagnostics for malformed or
+It currently asserts forty-two explicit diagnostics for malformed or
 unsupported Psy IR shapes, including invalid storage paths, expression/body
 type mismatches, malformed equality, malformed comparison, and malformed
 Hash value construction, unsupported U32 storage arrays, malformed arithmetic,
 unsupported casts, malformed bitwise/shift expressions, malformed boolean
-operators, malformed compound assignment statements, malformed if conditions,
-and branch-local escape.
+operators, malformed compound assignment statements, malformed storage
+compound assignment effects, malformed if conditions, and branch-local escape.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -957,9 +960,7 @@ to an Ethereum-style local execution smoke than a pure compiler check.
 Second smoke:
 
 1. Compare high-level Counter behavior with the EVM shared scenario.
-2. Add U32 storage-array research and, separately, decide whether
-   storage-reference compound assignment should become first-class portable IR
-   effects or remain target-source normalization.
+2. Add U32 storage-array research.
 3. Extend the Counter deploy manifest into upstream genesis JSON and local
    node/prover deployment once the tooling boundary is stable.
 
@@ -1069,15 +1070,15 @@ Deployment smoke:
 - Done: add generic storage path read/write effects, storage `#[ref]` field
   metadata, and `StorageNestedAggregateProbe` for scalar struct and storage
   array nested updates.
+- Done: add storage-reference compound assignment effects for scalar storage
+  and generic storage paths, with Psy lowering to native assignment operators.
 - Done: add `scripts/psy/storage-nested-aggregate-smoke.sh` with the same
   Dargo validation shape.
 - Done: add `proof-forge-deploy.json` generation and validation for every
   Dargo-backed Psy smoke, and record the deploy manifest in
   `proof-forge-artifact.json`.
 - Remaining: add U32 storage arrays only after stable Psy idioms are
-  identified, decide whether storage-reference compound assignment belongs in
-  IR effects or source normalization, then move to upstream genesis deploy
-  JSON/live node research.
+  identified, then move to upstream genesis deploy JSON/live node research.
 
 ### Phase C: Metadata and Scenario Parity
 

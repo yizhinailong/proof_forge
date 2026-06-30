@@ -15,7 +15,7 @@ EXEC_LOG="$PROJECT_DIR/target/storage-nested-aggregate-execute.log"
 ABI_FILE="$PROJECT_DIR/target/StorageNestedAggregateProbe.json"
 DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
-STORAGE_NESTED_AGGREGATE_RESULT="result_vm: [220]"
+STORAGE_NESTED_AGGREGATE_RESULT="result_vm: [229]"
 
 if [[ -z "${DARGO_STD_PATH:-}" && -f "$PSY_HOME/env" ]]; then
   # psyup writes DARGO_STD_PATH here; sourcing avoids a slow stdlib fallback.

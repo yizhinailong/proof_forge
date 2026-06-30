@@ -81,6 +81,19 @@ def ContextField.capability : ContextField → ProofForge.Target.Capability
   | .contractId => .accountExplicit
   | .checkpointId => .envBlock
 
+inductive AssignOp where
+  | add
+  | sub
+  | mul
+  | div
+  | mod
+  | bitAnd
+  | bitOr
+  | bitXor
+  | shiftLeft
+  | shiftRight
+  deriving BEq, DecidableEq, Repr
+
 mutual
   inductive Expr where
     | literal (value : Literal)
@@ -119,6 +132,7 @@ mutual
   inductive Effect where
     | storageScalarRead (stateId : String)
     | storageScalarWrite (stateId : String) (value : Expr)
+    | storageScalarAssignOp (stateId : String) (op : AssignOp) (value : Expr)
     | storageMapContains (stateId : String) (key : Expr)
     | storageMapGet (stateId : String) (key : Expr)
     | storageMapInsert (stateId : String) (key value : Expr)
@@ -131,6 +145,7 @@ mutual
     | storageStructFieldWrite (stateId fieldName : String) (value : Expr)
     | storagePathRead (stateId : String) (path : Array StoragePathSegment)
     | storagePathWrite (stateId : String) (path : Array StoragePathSegment) (value : Expr)
+    | storagePathAssignOp (stateId : String) (path : Array StoragePathSegment) (op : AssignOp) (value : Expr)
     | contextRead (field : ContextField)
     deriving Repr
 
@@ -140,19 +155,6 @@ mutual
     | mapKey (key : Expr)
     deriving Repr
 end
-
-inductive AssignOp where
-  | add
-  | sub
-  | mul
-  | div
-  | mod
-  | bitAnd
-  | bitOr
-  | bitXor
-  | shiftLeft
-  | shiftRight
-  deriving BEq, DecidableEq, Repr
 
 inductive Statement where
   | letBind (name : String) (type : ValueType) (value : Expr)
@@ -185,6 +187,7 @@ structure Module where
 def Effect.capability : Effect → ProofForge.Target.Capability
   | .storageScalarRead _ => .storageScalar
   | .storageScalarWrite _ _ => .storageScalar
+  | .storageScalarAssignOp _ _ _ => .storageScalar
   | .storageMapContains _ _ => .storageMap
   | .storageMapGet _ _ => .storageMap
   | .storageMapInsert _ _ _ => .storageMap
@@ -201,6 +204,11 @@ def Effect.capability : Effect → ProofForge.Target.Capability
       else
         .storageScalar
   | .storagePathWrite _ path _ =>
+      if path.any (fun segment => match segment with | .mapKey _ => true | _ => false) then
+        .storageMap
+      else
+        .storageScalar
+  | .storagePathAssignOp _ path _ _ =>
       if path.any (fun segment => match segment with | .mapKey _ => true | _ => false) then
         .storageMap
       else
@@ -248,6 +256,7 @@ mutual
   partial def Effect.capabilities : Effect → Array ProofForge.Target.Capability
     | .storageScalarRead _ => #[]
     | .storageScalarWrite _ value => value.capabilities
+    | .storageScalarAssignOp _ _ value => value.capabilities
     | .storageMapContains _ key => key.capabilities
     | .storageMapGet _ key => key.capabilities
     | .storageMapInsert _ key value => key.capabilities ++ value.capabilities
@@ -260,6 +269,7 @@ mutual
     | .storageStructFieldWrite _ _ value => #[.dataStruct] ++ value.capabilities
     | .storagePathRead _ path => path.foldl (fun acc segment => acc ++ segment.capabilities) #[]
     | .storagePathWrite _ path value => path.foldl (fun acc segment => acc ++ segment.capabilities) value.capabilities
+    | .storagePathAssignOp _ path _ value => path.foldl (fun acc segment => acc ++ segment.capabilities) value.capabilities
     | .contextRead _ => #[]
 
   partial def StoragePathSegment.capabilities : StoragePathSegment → Array ProofForge.Target.Capability

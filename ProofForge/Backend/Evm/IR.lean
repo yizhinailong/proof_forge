@@ -114,6 +114,8 @@ mutual
         .ok (Lean.Compiler.Yul.builtin "sload" #[slotExpr slot])
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
+    | .storageScalarAssignOp _ _ _ =>
+        .error { message := "storage.scalar.assign_op is not supported by IR EVM v0" }
     | .storageMapContains _ _ =>
         .error { message := "storage.map.contains is not supported by IR EVM v0" }
     | .storageMapGet _ _ =>
@@ -138,6 +140,8 @@ mutual
         .error { message := "storage.path.read is not supported by IR EVM v0" }
     | .storagePathWrite _ _ _ =>
         .error { message := "storage.path.write is not supported by IR EVM v0" }
+    | .storagePathAssignOp _ _ _ _ =>
+        .error { message := "storage.path.assign_op is not supported by IR EVM v0" }
     | .contextRead field =>
         .error { message := s!"context field `{field.name}` is not supported by IR EVM v0" }
 end
@@ -149,6 +153,8 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       let some slot := stateSlot? module stateId
         | .error { message := s!"unknown scalar state `{stateId}`" }
       .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module value]))
+  | .storageScalarAssignOp _ _ _ =>
+      .error { message := "storage.scalar.assign_op is not supported by IR EVM v0" }
   | .storageMapContains _ _ =>
       .error { message := "storage.map.contains must be used as an expression, but IR EVM v0 does not support storage maps" }
   | .storageMapGet _ _ =>
@@ -173,6 +179,8 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       .error { message := "storage.path.read must be used as an expression, but IR EVM v0 does not support storage paths" }
   | .storagePathWrite _ _ _ =>
       .error { message := "storage.path.write is not supported by IR EVM v0" }
+  | .storagePathAssignOp _ _ _ _ =>
+      .error { message := "storage.path.assign_op is not supported by IR EVM v0" }
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
 

@@ -137,6 +137,18 @@ def storageWriteExprModule : Module := {
   }]
 }
 
+def storageScalarAssignExprModule : Module := {
+  name := "BadStorageScalarAssignExpr"
+  state := #[countState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .u64
+    body := #[
+      .return (.effect (.storageScalarAssignOp "count" .add (.literal (.u64 1))))
+    ]
+  }]
+}
+
 def storageReadStmtModule : Module := {
   name := "BadStorageReadStmt"
   state := #[countState]
@@ -183,6 +195,19 @@ def personStorageState : StateDecl := {
   id := "person"
   kind := .scalar
   type := .structType "Person"
+}
+
+def storagePathAssignExprModule : Module := {
+  name := "BadStoragePathAssignExpr"
+  structs := #[profileStorageStruct, personStorageStructWithRef]
+  state := #[personStorageState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .u64
+    body := #[
+      .return (.effect (.storagePathAssignOp "person" #[.field "profile", .field "age"] .add (.literal (.u64 1))))
+    ]
+  }]
 }
 
 def emptyStoragePathModule : Module := {
@@ -372,6 +397,14 @@ def storageWriteTypeMismatchModule : Module := {
   ]]
 }
 
+def storageScalarAssignTypeMismatchModule : Module := {
+  name := "BadStorageScalarAssignTypeMismatch"
+  state := #[countState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .effect (.storageScalarAssignOp "count" .add (.literal (.bool true)))
+  ]]
+}
+
 def equalityTypeMismatchModule : Module := {
   name := "BadEqualityTypeMismatch"
   state := #[markerState]
@@ -521,6 +554,16 @@ def cases : Array (String × Module × String) := #[
     "storage.scalar.write is a statement effect, not an expression"
   ),
   (
+    "storage scalar assign_op used as expression",
+    storageScalarAssignExprModule,
+    "storage.scalar.assign_op is a statement effect, not an expression"
+  ),
+  (
+    "storage path assign_op used as expression",
+    storagePathAssignExprModule,
+    "storage.path.assign_op is a statement effect, not an expression"
+  ),
+  (
     "storage read used as statement",
     storageReadStmtModule,
     "storage.scalar.read must be used as an expression"
@@ -614,6 +657,11 @@ def cases : Array (String × Module × String) := #[
     "storage write type mismatch",
     storageWriteTypeMismatchModule,
     "scalar state `count` write expected `U64`, got `Bool`"
+  ),
+  (
+    "storage scalar assign_op type mismatch",
+    storageScalarAssignTypeMismatchModule,
+    "compound assignment addition right operand expected `U64`, got `Bool`"
   ),
   (
     "equality type mismatch",
