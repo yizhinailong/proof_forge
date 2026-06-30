@@ -64,14 +64,15 @@ v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events
 - [ ] 同一个可移植 IR 模块降级到 EVM + 至少一个非 EVM 目标。
 - [ ] 文档列出了此场景下每个目标支持的能力。
 
-## ZK 目标 Research 标准
+## ZK 目标 Experimental 标准
 
-`psy-dpn` 不属于 Phase 2 退出标准，但一旦源代码生成 spike 开始，它应该复用 Counter 场景。
+`psy-dpn` 不属于 Phase 2 退出标准，但它现在已经通过生成 `.psy` 源码和 Dargo 验证复用了 Counter 场景。
 
-- [ ] Counter IR 可以用 Psy 兼容的标量类型表示。
-- [ ] 生成的 `.psy` 包可以使用 `dargo compile` 编译。
-- [ ] 发射 DPN 电路 JSON 并记录在制品元数据中。
-- [ ] 冒烟路径被记录为 `dargo execute`、`dargo test`、`psy-wasm` 或本地 Psy 节点/证明器工具。
+- [x] Counter IR 可以用 Psy 兼容的标量类型表示。
+- [x] 生成的 `.psy` 包可以使用 `dargo compile` 编译。
+- [x] 发射 DPN 电路 JSON 并记录在制品元数据中。
+- [x] 冒烟路径已经可运行，覆盖 `dargo test`、`dargo compile`、
+      `dargo execute`、`dargo generate-abi` 和制品元数据校验。
 
 ## 示例位置
 
@@ -81,7 +82,7 @@ v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events
 | CosmWasm | `Examples/CosmWasm/Counter.lean` | 已规划，不在代码库中 |
 | Solana | `Examples/Solana/Counter.lean` | 已规划，不在代码库中 |
 | Aptos | `Examples/Move/Aptos/Counter/` | 已规划，不在代码库中 |
-| Psy DPN | `Examples/Psy/Counter/` | 已规划，不在代码库中 |
+| Psy DPN | `Examples/Psy/*.golden.psy`, `scripts/psy/*-smoke.sh` | **代码库中** |
 
 ## v0 范围之外
 

@@ -164,9 +164,9 @@ proof-forge build --target psy-dpn --out build/psy-dpn
 
 Polkadot/ink-style contracts (`wasm-polkadot`) remain research-only until a
 target profile and spike are scheduled. See [decisions.md](../decisions.md).
-Psy/DPN (`psy-dpn`) is Research-stage in the registry because its first
-integration route is generated `.psy` source plus Dargo, not a public Yul-like
-IR.
+Psy/DPN (`psy-dpn`) is now Experimental for a restricted portable IR subset:
+generated `.psy` source plus Dargo, not a public Yul-like IR, remains the
+integration route.
 
 The current `proof-forge --evm-bytecode` mode remains the EVM baseline until
 the target-oriented `build` command exists.

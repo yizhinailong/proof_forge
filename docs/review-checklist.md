@@ -128,7 +128,7 @@ See [decisions.md](decisions.md) for:
 - Parallel CosmWasm + Solana spikes
 - `solana-sbpf-linker` as primary Solana path
 - Aptos-first Move POC
-- `psy-dpn` as Research-stage ZK circuit sourcegen target
+- `psy-dpn` as Experimental-stage ZK circuit sourcegen target
 
 ## Do Not Do Yet
 

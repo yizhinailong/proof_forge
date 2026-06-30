@@ -207,17 +207,30 @@
 
 目标：验证 ZK 电路源代码生成目标，而不将 ProofForge 与 Psy 编译器内部机制耦合。
 
-任务：- 已完成：从一个可移植 IR fixture 生成一个 Counter `.psy` 源文件。
+任务：
+
+- 已完成：从一个可移植 IR fixture 生成一个 Counter `.psy` 源文件。
 - 已完成：在 `scripts/psy/counter-smoke.sh` 中添加一个临时 Dargo 包生成器。
 - 已完成：将 `dargo test --file` 记录为第一个本地冒烟测试运行器。
-- 待办：在安装了 Psy 的 Dargo CLI 的机器上运行 `dargo compile` 并捕获 DPN 电路 JSON。
-- 当 `dargo generate-abi` 可用时进行调用。
-- 使用目标 id `psy-dpn` 发射 `proof-forge-artifact.json`。
+- 已完成：使用 `psyup` v0.1.0 macOS arm64 工具链运行 `dargo compile` 并捕获 DPN 电路 JSON。
+- 已完成：运行 `dargo execute` 并断言 Counter、ContextProbe 和 HashProbe 的结果。
+- 已完成：调用 `dargo generate-abi` 并捕获非空 ABI JSON。
+- 已完成：使用目标 id `psy-dpn` 发射 `proof-forge-artifact.json`。
+- 已完成：添加 ContextProbe，用于参数 lowering 和 context reads。
+- 已完成：添加 HashProbe，用于 `Hash`、typed hash let-bindings、`hash` 和 `hash_two_to_one`。
+- 已完成：校验 Psy 制品元数据，包括 hash、byte size、能力、validation flag 和预期执行结果。
+- 待办：从上游 `psy-compiler/tests` 语料继续加入 map/storage-map 和 bounded-loop 覆盖。
 
 验收标准：
 
 - 生成的 `.psy` 源代码是可读的，并已检入黄金 fixture 或快照中。
 - `dargo compile` 在安装了 Psy 工具链的机器上生成一个非空的 JSON 制品。
+- `dargo execute` 针对 Counter lifecycle 返回 `result_vm: [2]`。
+- `dargo execute` 针对 ContextProbe 的 `sum_context(2,3)` 返回 `result_vm: [15]`。
+- `dargo execute` 针对 HashProbe 的两个入口返回确定性的四 Felt 输出。
+- `dargo generate-abi` 生成非空 ABI JSON 制品。
+- 制品元数据记录目标 id、fixture id、使用的能力、制品路径、hash、byte size 和 validation status。
+- Psy 冒烟脚本会机器校验制品元数据。
 - 制品元数据记录了 Dargo/Psy 编译器版本或 commit。
 - 不支持的非电路友好 IR 节点在源代码生成之前失败。
 

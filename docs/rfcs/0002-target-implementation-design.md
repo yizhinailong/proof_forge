@@ -142,7 +142,7 @@ Initial target ids:
 | `solana-zig-fork` | Solana | Solana sBPF ELF `.so` | Fallback/reference track |
 | `move-sui` | Move | Sui Move package | Research/codegen track |
 | `move-aptos` | Move | Aptos Move package | Research/codegen track |
-| `psy-dpn` | ZK circuit sourcegen | DPN circuit JSON + ABI | Research/codegen track |
+| `psy-dpn` | ZK circuit sourcegen | DPN circuit JSON + ABI | Experimental/codegen track |
 
 Future research (not in registry until scheduled): `wasm-polkadot` (ink!).
 See [decisions.md](../decisions.md).

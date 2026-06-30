@@ -128,7 +128,7 @@ structure TargetProfile where
 | `solana-zig-fork` | Solana | Solana sBPF ELF `.so` | 备选/参考路径 |
 | `move-sui` | Move | Sui Move 包 | Research/源代码生成路径 |
 | `move-aptos` | Move | Aptos Move 包 | Research/源代码生成路径 |
-| `psy-dpn` | ZK 电路源代码生成 | DPN 电路 JSON + ABI | Research/源代码生成路径 |
+| `psy-dpn` | ZK 电路源代码生成 | DPN 电路 JSON + ABI | Experimental/源代码生成路径 |
 
 未来 Research（在排期前不在注册表中）：`wasm-polkadot` (ink!)。
 参见 [decisions.md](../decisions.md)。

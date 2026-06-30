@@ -107,6 +107,9 @@ lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
 scripts/psy/hash-smoke.sh
 ```
 
+Each Psy smoke writes and validates `proof-forge-artifact.json` next to the
+Dargo outputs.
+
 The Psy smoke expects `dargo` on `PATH`. The preferred installer is `psyup`:
 
 ```sh

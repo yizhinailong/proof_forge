@@ -102,7 +102,13 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --execute-log "$EXEC_LOG" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
-  --execute-result "$HASH_RESULT; $PAIR_HASH_RESULT"
+  --execute-result "$HASH_RESULT; $PAIR_HASH_RESULT" \
+  --capability crypto.hash \
+  --capability zk.circuit
+
+python3 "$ROOT/scripts/psy/validate-artifact-metadata.py" \
+  --root "$ROOT" \
+  "$METADATA_FILE"
 
 echo "psy-hash-smoke: wrote $PSY_FILE"
 echo "psy-hash-smoke: Dargo artifact $ARTIFACT"

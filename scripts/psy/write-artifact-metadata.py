@@ -47,6 +47,7 @@ def main() -> int:
     parser.add_argument("--out", required=True)
     parser.add_argument("--dargo", required=True)
     parser.add_argument("--execute-result", required=True)
+    parser.add_argument("--capability", action="append", default=[])
     args = parser.parse_args()
 
     root = Path(args.root)
@@ -56,6 +57,7 @@ def main() -> int:
         "targetFamily": "zk-circuit-sourcegen",
         "artifactKind": "psy-circuit-json",
         "fixture": args.fixture,
+        "capabilities": args.capability,
         "toolchain": {
             "dargo": {
                 "path": args.dargo,

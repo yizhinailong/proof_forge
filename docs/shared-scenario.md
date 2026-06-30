@@ -69,16 +69,17 @@ Phase 2 is complete when **both** parallel spikes pass independently:
 - [ ] Same portable IR module lowers to EVM + at least one non-EVM target.
 - [ ] Document lists capabilities supported per target for this scenario.
 
-## ZK Target Research Criteria
+## ZK Target Experimental Criteria
 
-`psy-dpn` is not part of Phase 2 exit criteria, but it should reuse the Counter
-scenario once the sourcegen spike starts.
+`psy-dpn` is not part of Phase 2 exit criteria, but it now reuses the Counter
+scenario through generated `.psy` source and Dargo validation.
 
-- [ ] Counter IR can be represented in a Psy-compatible scalar type.
-- [ ] Generated `.psy` package compiles with `dargo compile`.
-- [ ] DPN circuit JSON is emitted and recorded in artifact metadata.
-- [ ] Smoke path is documented as `dargo execute`, `dargo test`, `psy-wasm`, or
-      local Psy node/prover tooling.
+- [x] Counter IR can be represented in a Psy-compatible scalar type.
+- [x] Generated `.psy` package compiles with `dargo compile`.
+- [x] DPN circuit JSON is emitted and recorded in artifact metadata.
+- [x] Smoke path is documented and runnable through `dargo test`,
+      `dargo compile`, `dargo execute`, `dargo generate-abi`, and artifact
+      metadata validation.
 
 ## Example Locations
 
@@ -88,7 +89,7 @@ scenario once the sourcegen spike starts.
 | CosmWasm | `Examples/CosmWasm/Counter.lean` | Planned, not in repo |
 | Solana | `Examples/Solana/Counter.lean` | Planned, not in repo |
 | Aptos | `Examples/Move/Aptos/Counter/` | Planned, not in repo |
-| Psy DPN | `Examples/Psy/Counter/` | Planned, not in repo |
+| Psy DPN | `Examples/Psy/*.golden.psy`, `scripts/psy/*-smoke.sh` | **In repo** |
 
 ## Out of Scope for v0
 

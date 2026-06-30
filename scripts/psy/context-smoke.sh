@@ -92,7 +92,15 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --execute-log "$EXEC_LOG" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
-  --execute-result "result_vm: [15]"
+  --execute-result "result_vm: [15]" \
+  --capability caller.sender \
+  --capability account.explicit \
+  --capability env.block \
+  --capability zk.circuit
+
+python3 "$ROOT/scripts/psy/validate-artifact-metadata.py" \
+  --root "$ROOT" \
+  "$METADATA_FILE"
 
 echo "psy-context-smoke: wrote $PSY_FILE"
 echo "psy-context-smoke: Dargo artifact $ARTIFACT"

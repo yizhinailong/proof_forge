@@ -36,7 +36,7 @@
 | Solana Zig fork | Research | 来自 `solana-sdk-mono` 的备选参考。 |
 | Sui Move | Research | 源代码生成；遵循 Aptos POC。 |
 | Aptos Move | Research | 首个 Move POC 目标。 |
-| Psy DPN | Research | 通过生成的 `.psy` 和 Dargo 实现的 ZK 电路源代码生成目标。 |
+| Psy DPN | Experimental | 通过生成的 `.psy`、Dargo 冒烟测试和制品元数据校验实现的窄范围 ZK 电路源代码生成目标。 |
 | [Kaspa Toccata](targets/kaspa-toccata.zh.md) | Research | 文档优先的 UTXO covenant / based-app 目标候选；尚未进入代码 registry。 |
 
 ## 文档

@@ -43,7 +43,7 @@ target registry and portable IR integration.
 | Solana Zig fork | Research | Fallback reference from `solana-sdk-mono`. |
 | Sui Move | Research | Source-generation; follows Aptos POC. |
 | Aptos Move | Research | First Move POC target. |
-| Psy DPN | Research | ZK circuit sourcegen target through generated `.psy` and Dargo. |
+| Psy DPN | Experimental | Narrow ZK circuit sourcegen target through generated `.psy`, Dargo smokes, and artifact metadata validation. |
 | [Kaspa Toccata](kaspa-toccata.md) | Research | Docs-first UTXO covenant/based-app target candidate; not yet in the code registry. |
 
 ## Documents

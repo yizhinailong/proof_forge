@@ -117,7 +117,7 @@ Psy/DPN review 重点：
 - CosmWasm 与 Solana 并行 spike
 - Solana 主路线 `solana-sbpf-linker`
 - Move Aptos 优先 POC
-- `psy-dpn` 作为 Research 阶段 ZK circuit sourcegen target
+- `psy-dpn` 作为 Experimental 阶段 ZK circuit sourcegen target
 
 Review 时对照 decisions 与 backlog，无需在此重复争论已关闭项。
 

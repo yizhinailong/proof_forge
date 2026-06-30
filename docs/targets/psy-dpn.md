@@ -415,7 +415,14 @@ It verifies both upstream hash idioms under Dargo local execution:
 - `poseidon_hash`: `result_vm: [16490263548047147048, 1812405431586978162, 16859324901997577793, 7123796541406703579]`
 - `poseidon_pair_hash`: `result_vm: [15064728126975588673, 10314245681893968020, 11300930272442645327, 2830815762300183090]`
 
-The script emits `build/psy/dargo-hash/target/proof-forge-artifact.json`.
+The script emits and validates
+`build/psy/dargo-hash/target/proof-forge-artifact.json`.
+
+All three Psy smoke scripts run
+`scripts/psy/validate-artifact-metadata.py` after metadata generation. The
+validator checks schema version, target id, target family, artifact kind,
+fixture id, non-empty capabilities, artifact paths, byte sizes, SHA-256 hashes,
+validation flags, and expected execution results inside the execute log.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -457,6 +464,8 @@ Deployment smoke:
   `hash_two_to_one` lowering aligned with upstream Psy tests.
 - Done: add `scripts/psy/hash-smoke.sh` with the same Dargo validation shape.
 - Done: emit `proof-forge-artifact.json` metadata from all Psy smoke scripts.
+- Done: validate Psy artifact metadata and record used capabilities from the
+  smoke scripts.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
 - Remaining: add map/storage-map and bounded loop coverage from the upstream
@@ -500,8 +509,11 @@ Deployment smoke:
   and deterministic hash outputs.
 - Artifact metadata records:
   - target id `psy-dpn`
+  - target family and artifact kind
   - generated `.psy` source
   - DPN circuit JSON artifact
   - ABI artifact if generated
   - Psy compiler/Dargo version or commit
   - used capabilities
+- Artifact metadata is machine-validated against the generated artifact files
+  and expected Dargo execution result.

@@ -39,6 +39,9 @@ lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
 - Added `scripts/psy/hash-smoke.sh`, which generates a temporary Dargo package,
   runs `dargo test --file`, `dargo compile`, two `dargo execute` calls,
   `dargo generate-abi`, and writes `proof-forge-artifact.json`.
+- Added `scripts/psy/validate-artifact-metadata.py`; the Counter, ContextProbe,
+  and HashProbe smokes now validate artifact hashes, byte sizes, capability
+  records, validation flags, and expected execution results.
 - Added CI coverage for Psy golden source generation without requiring Dargo on
   GitHub Actions.
 
@@ -50,6 +53,12 @@ lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
 diff -u Examples/Psy/HashProbe.golden.psy build/psy/HashProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/counter-smoke.sh
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/context-smoke.sh
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/hash-smoke.sh
 ```
 
@@ -59,6 +68,8 @@ Result:
 - Generated HashProbe source matches the checked-in golden fixture.
 - `scripts/psy/hash-smoke.sh` generated DPN JSON, ABI JSON, execute log, and
   `proof-forge-artifact.json`.
+- All three Psy smoke scripts validated `proof-forge-artifact.json` against the
+  generated files and expected execution output.
 - `dargo execute` returned the expected four-Felt output for `poseidon_hash`.
 - `dargo execute` returned the expected four-Felt output for
   `poseidon_pair_hash`.

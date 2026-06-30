@@ -240,7 +240,12 @@ Tasks:
   artifacts.
 - Done: add ContextProbe as a non-Counter fixture for parameter lowering and
   context reads.
-- Add a curated upstream syntax regression subset from `psy-compiler/tests`.
+- Done: add HashProbe for `Hash`, typed hash let-bindings, `hash`, and
+  `hash_two_to_one`, aligned with upstream Psy hash tests.
+- Done: validate Psy artifact metadata, including hashes, byte sizes,
+  capabilities, validation flags, and expected execution results.
+- Add map/storage-map and bounded-loop coverage from the upstream
+  `psy-compiler/tests` corpus.
 - Record Dargo/Psy compiler version or commit once the toolchain exposes a
   stable value.
 
@@ -253,9 +258,12 @@ Acceptance criteria:
 - `dargo execute` returns `result_vm: [2]` for the Counter lifecycle.
 - `dargo execute` returns `result_vm: [15]` for ContextProbe's
   `sum_context(2,3)` lifecycle.
+- `dargo execute` returns deterministic four-Felt outputs for HashProbe's
+  `poseidon_hash` and `poseidon_pair_hash` entrypoints.
 - `dargo generate-abi` produces a non-empty ABI JSON artifact.
-- Artifact metadata records target id, fixture id, artifact paths, hashes, and
-  validation status.
+- Artifact metadata records target id, fixture id, used capabilities, artifact
+  paths, hashes, byte sizes, and validation status.
+- Artifact metadata is machine-validated by the Psy smoke scripts.
 - Artifact metadata records Dargo/Psy compiler version or commit once available.
 - Unsupported non-circuit-friendly IR nodes fail before source generation.
 - CI either pins a known-good `psyup` release or skips this gate clearly when a

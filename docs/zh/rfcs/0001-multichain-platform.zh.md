@@ -142,7 +142,7 @@ proof-forge build --target psy-dpn --out build/psy-dpn
 ```
 
 Polkadot/ink 风格的合约 (`wasm-polkadot`) 在目标 profile 和 spike 计划确定前仍仅限 Research 阶段。参见 [decisions.md](../decisions.md)。
-Psy/DPN (`psy-dpn`) 在注册表中处于 Research 阶段，因为其首个集成路径是生成的 `.psy` 源代码加 Dargo，而非公开的类 Yul IR。
+Psy/DPN (`psy-dpn`) 现在针对受限的可移植 IR 子集处于 Experimental 阶段；集成路径仍然是生成 `.psy` 源代码加 Dargo，而不是公开的类 Yul IR。
 
 当前的 `proof-forge --evm-bytecode` 模式在面向目标的 `build` 命令存在之前，仍将作为 EVM 基准。
 
