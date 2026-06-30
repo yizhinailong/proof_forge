@@ -340,6 +340,11 @@ def resolveStoragePathType (module : Module) (stateId : String) (path : Array St
   let (start, segments) ← storagePathStartType module stateId path
   resolveStoragePathSegments module start segments
 
+def isFeltBackedU32StorageArrayPath (module : Module) (stateId : String) (pathType : ValueType) : Bool :=
+  match findState? module stateId with
+  | some { kind := .array _, type := .u32, .. } => pathType == .u32
+  | _ => false
+
 partial def validateValueType (module : Module) (type : ValueType) : Except LowerError Unit := do
   match type with
   | .unit => .error { message := "Psy IR v0 does not support Unit as a stored or structured value type" }
@@ -430,6 +435,18 @@ def assignOpSymbol : AssignOp → String
   | .bitXor => "^="
   | .shiftLeft => "<<="
   | .shiftRight => ">>="
+
+def assignOpBinarySymbol : AssignOp → String
+  | .add => "+"
+  | .sub => "-"
+  | .mul => "*"
+  | .div => "/"
+  | .mod => "%"
+  | .bitAnd => "&"
+  | .bitOr => "|"
+  | .bitXor => "^"
+  | .shiftLeft => "<<"
+  | .shiftRight => ">>"
 
 def ensureAssignOpTypes (op : AssignOp) (targetType valueType : ValueType) : Except LowerError Unit := do
   discard <| ensureSameNumericType s!"compound assignment {assignOpDiagnosticName op}" targetType valueType
@@ -845,7 +862,7 @@ def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except Low
   | .storagePathAssignOp stateId path op value => do
       validateStoragePathExprs module env stateId path
       let expected ← resolveStoragePathType module stateId path
-      if expected == .u32 then
+      if expected == .u32 && !isFeltBackedU32StorageArrayPath module stateId expected then
         .error { message := "u32 storage path compound assignment is not supported by Psy IR v0; use explicit read/update/write" }
       let actualValue ← inferExprType module env value
       ensureAssignOpTypes op expected actualValue
@@ -1093,12 +1110,18 @@ mutual
 
   partial def lowerStoragePathAssignOp (module : Module) (stateId : String) (path : Array StoragePathSegment) (op : AssignOp) (value : Expr) : Except LowerError (Array String) := do
     let pathType ← resolveStoragePathType module stateId path
-    if pathType == .u32 then
-      .error { message := "u32 storage path compound assignment is not supported by Psy IR v0; use explicit read/update/write" }
     match findState? module stateId with
     | some { kind := .map _ _, .. } =>
         .error { message := s!"storage path state `{stateId}` map values do not support compound assignment" }
+    | some { kind := .array _, type := .u32, .. } =>
+        if pathType == .u32 then
+          let target ← lowerStoragePath module stateId path
+          .ok #[s!"{target} = ({target}.get() as u32 {assignOpBinarySymbol op} {← lowerExprOperand module value}) as Felt;"]
+        else
+          .ok #[s!"{← lowerStoragePath module stateId path} {assignOpSymbol op} {← lowerExpr module value};"]
     | some _ =>
+        if pathType == .u32 then
+          .error { message := "u32 storage path compound assignment is not supported by Psy IR v0; use explicit read/update/write" }
         .ok #[s!"{← lowerStoragePath module stateId path} {assignOpSymbol op} {← lowerExpr module value};"]
     | none =>
         .error { message := s!"unknown storage path state `{stateId}`" }
@@ -1446,7 +1469,7 @@ def testBody (module : Module) : Except LowerError (Array String) := do
   else if module.name == "U32StorageArrayProbe" &&
     module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
-      s!"assert_eq({refName}::storage_lifecycle(), 48, \"u32 storage array reads cast from Felt storage\");"
+      s!"assert_eq({refName}::storage_lifecycle(), 28, \"u32 storage array path assignments preserve u32 arithmetic\");"
     ]
   else if module.name == "ExpressionPredicateProbe" &&
     module.entrypoints.any (fun entry => entry.name == "predicate_sum" && entry.params.isEmpty && entry.returns == .u64) then

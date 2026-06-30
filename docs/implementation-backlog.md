@@ -272,6 +272,8 @@ Tasks:
   validation.
 - Done: add U32 storage array coverage using Felt-backed storage plus explicit
   U32 read/write casts, with Dargo compile/execute validation.
+- Done: add Felt-backed U32 storage-array path compound assignment lowering as
+  explicit read/update/write casts, with Dargo compile/execute validation.
 - Done: add a Psy IR coverage manifest gate so every portable IR constructor
   must be classified as lowered, validated, unsupported, or structural for the
   Psy backend.

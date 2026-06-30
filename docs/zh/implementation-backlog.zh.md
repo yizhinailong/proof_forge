@@ -224,6 +224,7 @@
 - 已完成：加入原生 Bool 标量存储覆盖，使用 Psy `pub flag: bool`、原生 bool 读写和 `bool as Felt` 返回转换，并通过 Dargo compile/execute 验证。
 - 已完成：加入原生 Bool 固定数组和存储数组覆盖，使用 Psy `[bool; N]` literal/index 与 `pub flags: [bool; N]` 存储，并通过 Dargo compile/execute 验证。
 - 已完成：加入原生 Hash 标量存储和存储数组覆盖，使用 Psy `pub root: Hash` 与 `pub roots: [Hash; N]`，并通过 Dargo compile/execute 验证。
+- 已完成：加入 Felt-backed U32 存储数组的 storage path 复合赋值 lowering，将其降为显式 read/update/write cast，并通过 Dargo compile/execute 验证。
 - 已完成：为没有 fixture 专用断言的合法 Psy IR 模块添加通用 generated test fallback，并用 `GenericEntrypointProbe` 跑通 golden、Dargo compile/execute、ABI、deploy manifest 和 artifact metadata 校验。
 - 待办：等 Psy 工具链暴露稳定边界后，把 ProofForge deploy manifest 转成上游 compressed genesis deploy JSON，并进一步做本地 node/prover 部署冒烟测试。
 

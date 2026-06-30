@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Generate Psy source from the hand-written U32StorageArrayProbe IR and validate
-# Felt-backed U32 storage-array lowering through Psy's official Dargo toolchain.
+# Felt-backed U32 storage-array lowering and path compound assignment through
+# Psy's official Dargo toolchain.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${PSY_OUT_DIR:-$ROOT/build/psy}"
@@ -15,7 +16,7 @@ EXEC_LOG="$PROJECT_DIR/target/u32-storage-array-execute.log"
 ABI_FILE="$PROJECT_DIR/target/U32StorageArrayProbe.json"
 DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
-STORAGE_RESULT="result_vm: [48]"
+STORAGE_RESULT="result_vm: [28]"
 
 if [[ -z "${DARGO_STD_PATH:-}" && -f "$PSY_HOME/env" ]]; then
   # psyup writes DARGO_STD_PATH here; sourcing avoids a slow stdlib fallback.

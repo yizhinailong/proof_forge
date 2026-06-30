@@ -16,16 +16,16 @@ Literal	hash4	lowered	literal emits Hash four-limb arrays and is covered by Hash
 ContextField	userId	lowered	contextFunction lowers to get_user_id and ContextProbe covers it.
 ContextField	contractId	lowered	contextFunction lowers to get_contract_id and ContextProbe covers it.
 ContextField	checkpointId	lowered	contextFunction lowers to get_checkpoint_id and ContextProbe covers it.
-AssignOp	add	lowered	assignOpSymbol lowers to +=; U32ArithmeticProbe and StorageNestedAggregateProbe cover it.
-AssignOp	sub	lowered	assignOpSymbol lowers to -=; U32ArithmeticProbe and StorageNestedAggregateProbe cover it.
-AssignOp	mul	lowered	assignOpSymbol lowers to *=; U32ArithmeticProbe covers it.
-AssignOp	div	lowered	assignOpSymbol lowers to /=; U32ArithmeticProbe covers it.
-AssignOp	mod	lowered	assignOpSymbol lowers to %=; U32ArithmeticProbe covers it.
-AssignOp	bitAnd	lowered	assignOpSymbol lowers to &=; BitwiseProbe covers it.
-AssignOp	bitOr	lowered	assignOpSymbol lowers to |=; BitwiseProbe covers it.
-AssignOp	bitXor	lowered	assignOpSymbol lowers to ^=; BitwiseProbe covers it.
-AssignOp	shiftLeft	lowered	assignOpSymbol lowers to <<=; BitwiseProbe covers it.
-AssignOp	shiftRight	lowered	assignOpSymbol lowers to >>=; BitwiseProbe covers it.
+AssignOp	add	lowered	assignOpSymbol lowers to += and assignOpBinarySymbol lowers to + for Felt-backed U32 storage paths; U32ArithmeticProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
+AssignOp	sub	lowered	assignOpSymbol lowers to -= and assignOpBinarySymbol lowers to - for Felt-backed U32 storage paths; U32ArithmeticProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
+AssignOp	mul	lowered	assignOpSymbol lowers to *= and assignOpBinarySymbol lowers to * for Felt-backed U32 storage paths; U32ArithmeticProbe and U32StorageArrayProbe cover it.
+AssignOp	div	lowered	assignOpSymbol lowers to /= and assignOpBinarySymbol lowers to / for Felt-backed U32 storage paths; U32ArithmeticProbe and U32StorageArrayProbe cover it.
+AssignOp	mod	lowered	assignOpSymbol lowers to %= and assignOpBinarySymbol lowers to % for Felt-backed U32 storage paths; U32ArithmeticProbe and U32StorageArrayProbe cover it.
+AssignOp	bitAnd	lowered	assignOpSymbol lowers to &= and assignOpBinarySymbol lowers to & for Felt-backed U32 storage paths; BitwiseProbe and U32StorageArrayProbe cover it.
+AssignOp	bitOr	lowered	assignOpSymbol lowers to |= and assignOpBinarySymbol lowers to | for Felt-backed U32 storage paths; BitwiseProbe and U32StorageArrayProbe cover it.
+AssignOp	bitXor	lowered	assignOpSymbol lowers to ^= and assignOpBinarySymbol lowers to ^ for Felt-backed U32 storage paths; BitwiseProbe and U32StorageArrayProbe cover it.
+AssignOp	shiftLeft	lowered	assignOpSymbol lowers to <<= and assignOpBinarySymbol lowers to << for Felt-backed U32 storage paths; BitwiseProbe and U32StorageArrayProbe cover it.
+AssignOp	shiftRight	lowered	assignOpSymbol lowers to >>= and assignOpBinarySymbol lowers to >> for Felt-backed U32 storage paths; BitwiseProbe and U32StorageArrayProbe cover it.
 Expr	literal	lowered	lowerExpr delegates to literal; all fixtures use literal expressions.
 Expr	local	lowered	lowerExpr emits local names; most fixtures use local bindings.
 Expr	arrayLit	lowered	lowerExpr emits fixed array literals; ArrayProbe, BoolStorageArrayProbe, StructArrayProbe, NestedAggregateProbe, and U32HashPackingProbe cover them.
@@ -72,7 +72,7 @@ Effect	storageStructFieldRead	lowered	lowerEffectExpr emits scalar storage struc
 Effect	storageStructFieldWrite	lowered	lowerEffectStmt emits scalar storage struct field assignment; StructProbe covers it.
 Effect	storagePathRead	lowered	lowerStoragePathRead emits generic scalar, array, and map storage paths; MapProbe, BoolStorageArrayProbe, HashStorageProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
 Effect	storagePathWrite	lowered	lowerStoragePathWrite emits generic scalar, array, and map storage path writes; MapProbe, BoolStorageArrayProbe, HashStorageProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
-Effect	storagePathAssignOp	validated	lowerStoragePathAssignOp emits supported scalar/array storage compound assignment and rejects map/U32 paths; StorageNestedAggregateProbe and diagnostics cover the boundary.
+Effect	storagePathAssignOp	validated	lowerStoragePathAssignOp emits supported scalar/array storage compound assignment, rewrites Felt-backed U32 storage-array paths as read/update/write casts, and rejects map/non-array U32 paths; StorageNestedAggregateProbe, U32StorageArrayProbe, and diagnostics cover the boundary.
 Effect	contextRead	lowered	lowerEffectExpr emits context functions; ContextProbe covers it.
 StoragePathSegment	field	lowered	lowerStoragePathSegment emits field access; StorageNestedAggregateProbe covers it.
 StoragePathSegment	index	lowered	lowerStoragePathSegment emits index access; BoolStorageArrayProbe, HashStorageProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.

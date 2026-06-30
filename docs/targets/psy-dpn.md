@@ -276,7 +276,7 @@ It runs `Tests/PsyDiagnostics.lean` and checks that malformed Psy IR modules
 return stable, explicit errors before source generation. Current cases cover
 Unit entrypoint parameters, EVM-style entrypoint selectors, zero-length ABI arrays, unknown ABI structs,
 unsupported map key/value shapes, unsupported Unit storage arrays, structs
-missing `deriveStorage` for storage, U32 storage path compound assignment,
+missing `deriveStorage` for storage, non-array U32 storage path compound assignment,
 empty structs, invalid bounded loop ranges,
 storage writes used as expressions, storage reads used as statements, invalid
 assignment targets, invalid storage paths, unknown locals,
@@ -696,11 +696,11 @@ validates `result_vm: [5, 6, 7, 8]` for scalar Hash storage and
 `StateDecl.kind = .array N` with `type = .u32` lowers to `pub limbs: [Felt; N]`.
 Writes lower as `u32 as Felt`, reads lower as `.get() as u32`, and generic
 storage-path read/write effects use the same representation. Storage-path
-compound assignment over U32 elements remains rejected because applying `+=`
-directly to Felt storage would blur U32 arithmetic semantics; callers should
-use explicit read/update/write until the IR has typed storage compound
-semantics for this case. Dargo execution validates `result_vm: [48]` for the
-fixture.
+compound assignment over those U32 array elements lowers as an explicit
+read/update/write sequence: read the Felt slot with `.get() as u32`, apply the
+typed U32 operator, then cast the result back to Felt for storage. Non-array U32
+storage paths remain rejected until their storage representation is validated.
+Dargo execution validates `result_vm: [28]` for the fixture.
 
 `ConditionalProbe` follows upstream conditional idioms from
 `tests/conditional_assert_test.psy`, `tests/for_if_test.psy`, and
@@ -883,9 +883,10 @@ The same validation shape is also implemented for `U32StorageArrayProbe`:
 scripts/psy/u32-storage-array-smoke.sh
 ```
 
-It verifies Felt-backed U32 storage-array lowering under Dargo local execution:
+It verifies Felt-backed U32 storage-array lowering and path compound assignment
+under Dargo local execution:
 
-- `storage_lifecycle`: `result_vm: [48]`
+- `storage_lifecycle`: `result_vm: [28]`
 
 The script emits and validates
 `build/psy/dargo-u32-storage-array/target/proof-forge-artifact.json`.
@@ -1188,9 +1189,9 @@ Deployment smoke:
   read/write, and Dargo compile/execute validation.
 - Done: add `U32StorageArrayProbe` and
   `scripts/psy/u32-storage-array-smoke.sh` using Felt-backed storage arrays
-  plus U32 read/write casts after Dargo validation showed current `psyup` 0.1.0
-  rejects direct `[u32; N]` contract storage arrays with an `ArrayRef<u32, N>`
-  type mismatch.
+  plus U32 read/write casts and storage-path compound assignment rewrites after
+  Dargo validation showed current `psyup` 0.1.0 rejects direct `[u32; N]`
+  contract storage arrays with an `ArrayRef<u32, N>` type mismatch.
 - Done: add `ConditionalProbe` with statement-level `if/else` lowering aligned
   with upstream conditional idioms.
 - Done: add `scripts/psy/conditional-smoke.sh` with the same Dargo validation
@@ -1339,7 +1340,8 @@ Deployment smoke:
   aggregate mutation results, storage-backed nested aggregate path update
   results, native U32 scalar storage result, native Bool scalar storage result,
   native Bool storage-array result, native Hash scalar/storage-array results,
-  Felt-backed U32 storage-array result, and generic-entrypoint result.
+  Felt-backed U32 storage-array/path-assignment result, and
+  generic-entrypoint result.
 - `scripts/psy/diagnostic-smoke.sh` proves unsupported or malformed Psy IR
   shapes produce explicit diagnostics before source generation.
 - Artifact metadata records:

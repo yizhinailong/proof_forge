@@ -33,6 +33,17 @@ def storageLifecycle : Entrypoint := {
     .effect (.storageArrayWrite "limbs" (ix 1) (u32 11)),
     .effect (.storageArrayWrite "limbs" (ix 2) (.add (u32 6) (u32 7))),
     .effect (.storagePathWrite "limbs" (limbPath 3) (u32 17)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 0) .add (u32 5)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 0) .mul (u32 2)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 0) .div (u32 3)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 0) .mod (u32 5)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 1) .sub (u32 3)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 1) .bitOr (u32 16)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 1) .bitAnd (u32 28)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 1) .bitXor (u32 10)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 2) .shiftLeft (u32 1)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 2) .shiftRight (u32 2)),
+    .effect (.storagePathAssignOp "limbs" (limbPath 3) .div (u32 17)),
     .letBind "sum" .u32 (.add
       (.add
         (readLimb 0)
@@ -40,7 +51,7 @@ def storageLifecycle : Entrypoint := {
       (.add
         (readLimb 2)
         (readLimbPath 3))),
-    .assertEq (.local "sum") (u32 48) "u32 storage array read/write preserves u32 values",
+    .assertEq (.local "sum") (u32 28) "u32 storage array read/write preserves u32 values",
     .return (.cast (.local "sum") .u64)
   ]
 }

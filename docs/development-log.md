@@ -17,6 +17,56 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy U32 Storage Path Assignment
+
+Commit: feature commit for Psy U32 storage path assignment
+
+Summary:
+
+- Extended Psy lowering for Felt-backed U32 storage arrays so
+  `storagePathAssignOp` emits typed read/update/write code instead of raw Felt
+  compound assignment.
+- Covered all `AssignOp` variants in `U32StorageArrayProbe`: arithmetic,
+  modulo, bitwise, and shifts.
+- Kept non-array U32 storage-path compound assignment rejected with an explicit
+  ProofForge diagnostic until that storage representation is validated.
+- Updated the golden Psy source, Dargo smoke expected result, coverage matrix,
+  and validation docs.
+
+Validation run:
+
+```sh
+lake build
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/u32-storage-array-smoke.sh
+```
+
+Result:
+
+- Generated U32StorageArrayProbe source rewrites U32 storage-path compound
+  assignment as `.get() as u32`, typed operation, then `as Felt` writeback.
+- `scripts/psy/diagnostic-smoke.sh` passes all 49 diagnostic cases, including
+  the remaining unsupported non-array U32 storage-path assignment boundary.
+- `scripts/psy/u32-storage-array-smoke.sh` passes `dargo test`,
+  `dargo compile`, `dargo execute`, `dargo generate-abi`, deploy manifest
+  validation, and artifact metadata validation.
+- Dargo execution returns `result_vm: [28]` for `storage_lifecycle`.
+
+Known limitations:
+
+- Direct Psy `[u32; N]` contract storage arrays remain avoided because current
+  `psyup` 0.1.0 rejects them with an `ArrayRef<u32, N>` mismatch.
+- U32 storage-path compound assignment is supported only for the validated
+  Felt-backed storage-array representation, not arbitrary U32 struct paths.
+
+Next step:
+
+- Continue closing one Psy storage or expression gap per feature branch, with
+  Dargo-backed smoke coverage before each commit.
+
 ### Psy Hash Storage Coverage
 
 Commit: feature commit for Psy Hash storage coverage

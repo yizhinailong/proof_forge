@@ -139,6 +139,20 @@ def u32StorageArrayState : StateDecl := {
   type := .u32
 }
 
+def u32StorageStruct : StructDecl := {
+  name := "Score32"
+  deriveStorage := true
+  fields := #[
+    { id := "value", type := .u32 }
+  ]
+}
+
+def u32StorageStructState : StateDecl := {
+  id := "score"
+  kind := .scalar
+  type := .structType "Score32"
+}
+
 def balancesMapState : StateDecl := {
   id := "balances"
   kind := .map .hash 16
@@ -261,9 +275,10 @@ def storagePathAssignExprModule : Module := {
 
 def u32StoragePathAssignOpModule : Module := {
   name := "BadU32StoragePathAssignOp"
-  state := #[u32StorageArrayState]
+  structs := #[u32StorageStruct]
+  state := #[u32StorageStructState]
   entrypoints := #[unitEntrypoint "bad" #[
-    .effect (.storagePathAssignOp "limbs" #[.index (.literal (.u64 0))] .add (.literal (.u32 1)))
+    .effect (.storagePathAssignOp "score" #[.field "value"] .add (.literal (.u32 1)))
   ]]
 }
 
@@ -651,7 +666,7 @@ def cases : Array (String × Module × String) := #[
     "storage.path.assign_op is a statement effect, not an expression"
   ),
   (
-    "u32 storage path assign_op",
+    "unsupported u32 storage path assign_op",
     u32StoragePathAssignOpModule,
     "u32 storage path compound assignment is not supported by Psy IR v0; use explicit read/update/write"
   ),
