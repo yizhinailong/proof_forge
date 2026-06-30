@@ -56,7 +56,8 @@ def evm : TargetProfile := {
     .eventsEmit,
     .crosscallInvoke,
     .envBlock,
-    .cryptoHash
+    .cryptoHash,
+    .assertions
   ]
   requiredTools := #["solc", "foundry"]
 }

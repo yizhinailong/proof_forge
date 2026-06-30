@@ -96,6 +96,9 @@ Tasks:
 - Done: add `AbiScalarProbe` for portable IR EVM scalar ABI parameter decoding
   over `U64`, `U32`, and `Bool`, with golden Yul, solc bytecode, and Foundry
   malformed-calldata validation.
+- Done: add EVM IR `assert` and `assert_eq` lowering as Yul revert guards,
+  with `AssertProbe` golden Yul, solc bytecode, and Foundry success/revert
+  validation.
 - Add golden Yul outputs for simple examples.
 - Add metadata emission around current `solc --strict-assembly` flow.
 - Keep Foundry smoke as the mature EVM smoke test.

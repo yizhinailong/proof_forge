@@ -17,6 +17,66 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Assertions
+
+Commit: feature commit for EVM IR assertions
+
+Summary:
+
+- Added `assertions.check` to the EVM target profile and capability registry.
+- Extended `ProofForge.Backend.Evm.IR` to lower portable IR `assert` into
+  `if iszero(condition) { revert(0, 0) }`.
+- Extended EVM IR `assertEq` lowering into
+  `if iszero(eq(lhs, rhs)) { revert(0, 0) }`.
+- Added an EVM selector to `AssertProbe` while preserving Psy's selector-ignore
+  behavior.
+- Added `--emit-assert-ir-yul` and `--emit-assert-ir-bytecode` CLI modes.
+- Added `Examples/Evm/AssertProbe.golden.yul` and
+  `scripts/evm/assert-ir-smoke.sh`, then wired the smoke into CI.
+- Updated EVM diagnostics and coverage manifest to treat assertions as lowered
+  instead of unsupported.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-assert-ir-yul -o build/ir/AssertProbe.yul
+diff -u Examples/Evm/AssertProbe.golden.yul build/ir/AssertProbe.yul
+lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
+diff -u Examples/Psy/AssertProbe.golden.psy build/psy/AssertProbe.psy
+bash -n scripts/evm/*.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/assert-ir-smoke.sh
+scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/build-examples.sh
+scripts/evm/foundry-smoke.sh
+git diff --check
+```
+
+Result:
+
+- Generated EVM AssertProbe Yul matches the checked-in golden fixture.
+- Psy AssertProbe output remains unchanged after adding target-specific selector
+  metadata.
+- `scripts/evm/assert-ir-smoke.sh` compiles AssertProbe to bytecode and passes
+  Foundry tests for both successful assertion execution and assertion-failure
+  revert behavior.
+- Existing EVM ABI scalar, IR Counter, SDK example build, and Foundry smoke
+  gates still pass.
+
+Known limitations:
+
+- EVM assertions currently revert with empty revert data.
+- Expression type validation is still minimal in the EVM IR backend.
+
+Next step:
+
+- Add EVM IR statement-level assignment or conditional lowering so larger
+  portable IR fixtures can move from unsupported diagnostics to Foundry-backed
+  positive coverage.
+
 ### EVM IR Scalar ABI Parameters
 
 Commit: feature commit for EVM IR scalar ABI parameters

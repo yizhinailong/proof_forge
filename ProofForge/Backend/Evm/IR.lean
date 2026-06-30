@@ -105,6 +105,11 @@ where
     else
       acc
 
+def lowerAssertStmt (condition : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Statement :=
+  Lean.Compiler.Yul.Statement.ifStmt
+    (Lean.Compiler.Yul.builtin "iszero" #[condition])
+    { statements := #[revertStmt] }
+
 mutual
   partial def lowerExpr (module : Module) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
     | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
@@ -273,10 +278,11 @@ def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerE
       .error { message := "compound assignment statements are not supported by IR EVM v0" }
   | .effect effect =>
       lowerEffectStmt module effect
-  | .assert _ _ =>
-      .error { message := "assert statements are not supported by IR EVM v0" }
-  | .assertEq _ _ _ =>
-      .error { message := "assert_eq statements are not supported by IR EVM v0" }
+  | .assert condition _ => do
+      .ok (lowerAssertStmt (← lowerExpr module condition))
+  | .assertEq lhs rhs _ => do
+      let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs]
+      .ok (lowerAssertStmt condition)
   | .ifElse _ _ _ =>
       .error { message := "if/else statements are not supported by IR EVM v0" }
   | .boundedFor _ _ _ _ =>

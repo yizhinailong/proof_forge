@@ -12,6 +12,7 @@ def stateMarker : StateDecl := {
 
 def checkedSum : Entrypoint := {
   name := "checked_sum"
+  selector? := some "fe24a759"
   params := #[
     ("a", .u64),
     ("b", .u64)

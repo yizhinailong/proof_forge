@@ -34,6 +34,7 @@ scripts/evm/foundry-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/assert-ir-smoke.sh
 ```
 
 ## CLI modes
@@ -57,6 +58,8 @@ proof-forge --emit-counter-ir-yul [-o output.yul]
 proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
 proof-forge --emit-abi-scalar-ir-yul [-o output.yul]
 proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-assert-ir-yul [-o output.yul]
+proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
 ```
 
 `--bytecode` is an alias for `--evm-bytecode`.
@@ -113,6 +116,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `env.block` | `Env.blockNumber`, `Env.balance` |
 | `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
 | `events.emit` | `log0`, `log1`, `log2` |
+| `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 
 Not supported on EVM (by design for other targets):
 
@@ -146,8 +150,8 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   IR EVM backend currently supports only a Counter-class subset and rejects
   wider portable IR nodes with explicit diagnostics.
 - Portable IR EVM currently lacks aggregate ABI values, mappings, storage
-  arrays, structs, assertions/reverts, context opcodes, hashing, events,
-  cross-contract calls, and artifact metadata.
+  arrays, structs, context opcodes, hashing, events, cross-contract calls, and
+  artifact metadata.
 
 ## Portable IR Gates
 
@@ -158,6 +162,7 @@ The portable IR EVM backend is tracked separately from the older
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/assert-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
@@ -174,6 +179,10 @@ validates dispatcher calldata decoding for `U64`, `U32`, and `Bool` parameters,
 one-word return data for `U64` and `Bool`, golden Yul reproducibility, solc
 bytecode generation, and Foundry runtime behavior including malformed calldata
 reverts.
+
+`AssertProbe` validates portable IR `assert` and `assert_eq` lowering to Yul
+`if iszero(...) { revert(0, 0) }` guards, including Foundry coverage for the
+passing path and the assertion-failure revert path.
 
 ## Metadata
 

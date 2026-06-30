@@ -128,11 +128,6 @@ def structModule : Module := {
   entrypoints := #[selectedEntrypoint "bad"]
 }
 
-def assertionModule : Module :=
-  selectedModule "BadAssertion" <| selectedEntrypoint "bad" #[
-    .assert (.literal (.bool true)) "not yet"
-  ]
-
 def conditionalModule : Module :=
   selectedModule "BadConditional" <| selectedEntrypoint "bad" #[
     .ifElse (.literal (.bool true)) #[] #[]
@@ -267,11 +262,6 @@ def cases : Array (String × Module × String) := #[
     "struct capability unsupported",
     structModule,
     "target `evm` does not support capability `data.struct`: capability is not present in the target profile"
-  ),
-  (
-    "assertion capability unsupported",
-    assertionModule,
-    "target `evm` does not support capability `assertions.check`: capability is not present in the target profile"
   ),
   (
     "conditional capability unsupported",

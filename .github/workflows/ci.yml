@@ -112,6 +112,9 @@ jobs:
       - name: Run EVM ABI scalar IR smoke
         run: scripts/evm/abi-scalar-ir-smoke.sh
 
+      - name: Run EVM AssertProbe IR smoke
+        run: scripts/evm/assert-ir-smoke.sh
+
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh
 
