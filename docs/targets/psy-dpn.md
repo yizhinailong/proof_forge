@@ -276,7 +276,7 @@ It runs `Tests/PsyDiagnostics.lean` and checks that malformed Psy IR modules
 return stable, explicit errors before source generation. Current cases cover
 Unit entrypoint parameters, EVM-style entrypoint selectors, zero-length ABI arrays, unknown ABI structs,
 unsupported map key/value shapes, unsupported Unit storage arrays, structs
-missing `deriveStorage` for storage, non-array U32 storage path compound assignment,
+missing `deriveStorage` for storage,
 empty structs, invalid bounded loop ranges,
 storage writes used as expressions, storage reads used as statements, invalid
 assignment targets, invalid storage paths, unknown locals,
@@ -613,7 +613,10 @@ to use Psy's `#[ref]` field marker. This keeps the IR explicit about the
 difference between value fields and nested storage references. It also covers
 storage-reference compound assignment effects by lowering scalar storage refs
 such as `c.total += 3` and nested storage paths such as
-`c.person.profile.age += 2` to native Psy assignment operators.
+`c.person.profile.age += 2` to native Psy assignment operators. Native U32
+fields inside storage structs are also covered: `Profile.rank` lowers to
+`pub rank: u32`, path writes lower to `c.person.profile.rank = 9u32`, and path
+compound assignment lowers to Psy's native `+=` / `-=` storage-reference idiom.
 
 `ExpressionPredicateProbe` follows upstream predicate idioms from
 `tests/opcode_test.psy`, `tests/assert_test.psy`, and the token/deposit-tree
@@ -698,9 +701,11 @@ Writes lower as `u32 as Felt`, reads lower as `.get() as u32`, and generic
 storage-path read/write effects use the same representation. Storage-path
 compound assignment over those U32 array elements lowers as an explicit
 read/update/write sequence: read the Felt slot with `.get() as u32`, apply the
-typed U32 operator, then cast the result back to Felt for storage. Non-array U32
-storage paths remain rejected until their storage representation is validated.
-Dargo execution validates `result_vm: [28]` for the fixture.
+typed U32 operator, then cast the result back to Felt for storage. Native U32
+scalar storage and storage struct paths use Psy's native `u32` storage
+representation instead; direct `[u32; N]` contract storage arrays remain
+avoided until Dargo accepts that shape. Dargo execution validates
+`result_vm: [28]` for the fixture.
 
 `ConditionalProbe` follows upstream conditional idioms from
 `tests/conditional_assert_test.psy`, `tests/for_if_test.psy`, and
@@ -1055,9 +1060,10 @@ scripts/psy/storage-nested-aggregate-smoke.sh
 ```
 
 It verifies storage-backed nested aggregate updates and storage-reference
-compound assignments under Dargo local execution:
+compound assignments, including native U32 struct storage paths, under Dargo
+local execution:
 
-- `storage_nested_lifecycle`: `result_vm: [229]`
+- `storage_nested_lifecycle`: `result_vm: [252]`
 
 The script emits and validates
 `build/psy/dargo-storage-nested-aggregate/target/proof-forge-artifact.json`.
@@ -1092,16 +1098,15 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts forty-nine explicit diagnostics for malformed or
+It currently asserts forty-eight explicit diagnostics for malformed or
 unsupported Psy IR shapes, including invalid Psy identifiers, duplicate
 declarations, reserved names, empty contract state rejected before Dargo's
 `#[derive(Storage)]` boundary, invalid storage paths, expression/body type
 mismatches, malformed equality, malformed comparison, and malformed Hash value
-construction, unsupported Unit storage arrays, unsupported U32 storage path
-compound assignment, malformed arithmetic, unsupported casts, malformed
-bitwise/shift expressions, malformed boolean operators, malformed compound
-assignment statements, malformed storage compound assignment effects,
-malformed if conditions, and branch-local escape.
+construction, unsupported Unit storage arrays, malformed arithmetic,
+unsupported casts, malformed bitwise/shift expressions, malformed boolean
+operators, malformed compound assignment statements, malformed storage compound
+assignment effects, malformed if conditions, and branch-local escape.
 
 The coverage manifest gate keeps the constructor-level backend contract in
 sync with the portable IR:
@@ -1251,6 +1256,8 @@ Deployment smoke:
   array nested updates.
 - Done: add storage-reference compound assignment effects for scalar storage
   and generic storage paths, with Psy lowering to native assignment operators.
+- Done: add native U32 storage struct field path writes, reads, and compound
+  assignment coverage through `StorageNestedAggregateProbe`.
 - Done: add `scripts/psy/storage-nested-aggregate-smoke.sh` with the same
   Dargo validation shape.
 - Done: add `proof-forge-deploy.json` generation and validation for every

@@ -862,8 +862,6 @@ def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except Low
   | .storagePathAssignOp stateId path op value => do
       validateStoragePathExprs module env stateId path
       let expected ← resolveStoragePathType module stateId path
-      if expected == .u32 && !isFeltBackedU32StorageArrayPath module stateId expected then
-        .error { message := "u32 storage path compound assignment is not supported by Psy IR v0; use explicit read/update/write" }
       let actualValue ← inferExprType module env value
       ensureAssignOpTypes op expected actualValue
   | .contextRead _ =>
@@ -1102,7 +1100,10 @@ mutual
     | some _ =>
         match pathType with
         | .u32 =>
-            .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExprOperand module value} as Felt;"]
+            if isFeltBackedU32StorageArrayPath module stateId pathType then
+              .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExprOperand module value} as Felt;"]
+            else
+              .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExpr module value};"]
         | _ =>
             .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExpr module value};"]
     | none =>
@@ -1120,8 +1121,6 @@ mutual
         else
           .ok #[s!"{← lowerStoragePath module stateId path} {assignOpSymbol op} {← lowerExpr module value};"]
     | some _ =>
-        if pathType == .u32 then
-          .error { message := "u32 storage path compound assignment is not supported by Psy IR v0; use explicit read/update/write" }
         .ok #[s!"{← lowerStoragePath module stateId path} {assignOpSymbol op} {← lowerExpr module value};"]
     | none =>
         .error { message := s!"unknown storage path state `{stateId}`" }
@@ -1578,7 +1577,7 @@ def testBody (module : Module) : Except LowerError (Array String) := do
   else if module.name == "StorageNestedAggregateProbe" &&
     module.entrypoints.any (fun entry => entry.name == "storage_nested_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
-      s!"assert_eq({refName}::storage_nested_lifecycle(), 229, \"storage nested aggregate path updates selected fields\");"
+      s!"assert_eq({refName}::storage_nested_lifecycle(), 252, \"storage nested aggregate path updates selected fields\");"
     ]
   else
     .ok #[

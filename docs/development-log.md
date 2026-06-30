@@ -17,6 +17,58 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Native U32 Storage Struct Paths
+
+Commit: feature commit for Psy native U32 storage struct paths
+
+Summary:
+
+- Fixed Psy `storagePathWrite` so U32 paths only cast to Felt for the validated
+  Felt-backed U32 storage-array representation.
+- Allowed native U32 storage struct field paths to use Psy's own `u32` storage
+  reference idiom for path writes, reads, and compound assignment.
+- Extended `StorageNestedAggregateProbe` with a native `Profile.rank: u32`
+  storage field across scalar struct and storage-array paths.
+- Removed the obsolete diagnostic that rejected non-array U32 storage-path
+  compound assignment.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
+diff -u Examples/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/storage-nested-aggregate-smoke.sh
+```
+
+Result:
+
+- Generated StorageNestedAggregateProbe source emits native `pub rank: u32`,
+  native U32 path writes such as `c.person.profile.rank = 9u32`, and native
+  U32 path compound assignment such as `c.person.profile.rank += 4u32`.
+- `scripts/psy/diagnostic-smoke.sh` passes all 48 diagnostic cases after
+  removing the obsolete unsupported U32 path case.
+- `scripts/psy/storage-nested-aggregate-smoke.sh` passes `dargo test`,
+  `dargo compile`, `dargo execute`, `dargo generate-abi`, deploy manifest
+  validation, and artifact metadata validation.
+- Dargo execution returns `result_vm: [252]` for `storage_nested_lifecycle`.
+
+Known limitations:
+
+- Direct Psy `[u32; N]` contract storage arrays remain avoided because current
+  `psyup` 0.1.0 rejects them with an `ArrayRef<u32, N>` mismatch.
+- Map value compound assignment remains outside the supported storage-path
+  surface.
+
+Next step:
+
+- Continue shrinking storage and ABI edge cases into Dargo-backed fixtures, one
+  committed feature at a time.
+
 ### Psy U32 Storage Path Assignment
 
 Commit: feature commit for Psy U32 storage path assignment
@@ -61,6 +113,8 @@ Known limitations:
   `psyup` 0.1.0 rejects them with an `ArrayRef<u32, N>` mismatch.
 - U32 storage-path compound assignment is supported only for the validated
   Felt-backed storage-array representation, not arbitrary U32 struct paths.
+  This struct-path limitation is superseded by the native U32 storage struct
+  path entry above.
 
 Next step:
 
