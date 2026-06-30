@@ -3,16 +3,16 @@ ValueType	unit	validated	valueTypeName emits unit return type; validateAbiValueT
 ValueType	bool	lowered	valueTypeName, literal, predicates, assertions, ExpressionPredicateProbe, BoolStorageScalarProbe, and BoolStorageArrayProbe cover Bool values plus Bool scalar/array storage.
 ValueType	u32	lowered	valueTypeName, literal, casts, U32ArithmeticProbe, U32HashPackingProbe, U32StorageScalarProbe, and U32StorageArrayProbe cover U32 values.
 ValueType	u64	lowered	valueTypeName lowers U64 to Felt; Counter, ArithmeticProbe, ArrayProbe, and storage fixtures cover Felt values.
-ValueType	hash	lowered	valueTypeName, literal hash4, HashProbe, MapProbe, and U32HashPackingProbe cover Hash values.
+ValueType	hash	lowered	valueTypeName, literal hash4, HashProbe, HashStorageProbe, MapProbe, and U32HashPackingProbe cover Hash values.
 ValueType	fixedArray	lowered	valueTypeName and array literal/index lowering are covered by ArrayProbe, BoolStorageArrayProbe, StructArrayProbe, AbiAggregateProbe, NestedAggregateProbe, and U32HashPackingProbe.
 ValueType	structType	lowered	structDecl, struct literals, field access, ABI structs, and storage structs are covered by StructProbe, StructArrayProbe, AbiAggregateProbe, NestedAggregateProbe, and StorageNestedAggregateProbe.
-StateKind	scalar	lowered	stateDecl and scalar storage effects are covered by Counter, ConditionalProbe, StructProbe, BoolStorageScalarProbe, U32StorageScalarProbe, and StorageNestedAggregateProbe.
+StateKind	scalar	lowered	stateDecl and scalar storage effects are covered by Counter, ConditionalProbe, StructProbe, BoolStorageScalarProbe, HashStorageProbe, U32StorageScalarProbe, and StorageNestedAggregateProbe.
 StateKind	map	validated	validateState accepts only Map<Hash, Hash, N>; MapProbe covers the supported shape and Tests/PsyDiagnostics.lean covers unsupported map shapes.
-StateKind	array	lowered	stateDecl and storage-array effects are covered by ArrayProbe, BoolStorageArrayProbe, StructArrayProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe.
+StateKind	array	lowered	stateDecl and storage-array effects are covered by ArrayProbe, BoolStorageArrayProbe, HashStorageProbe, StructArrayProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe.
 Literal	u32	lowered	literal emits Nu32 and is covered by U32ArithmeticProbe, U32HashPackingProbe, U32StorageScalarProbe, and U32StorageArrayProbe.
 Literal	u64	lowered	literal emits Felt numerals and is covered by Counter, ArithmeticProbe, ArrayProbe, and storage fixtures.
 Literal	bool	lowered	literal emits true/false and is covered by AssertProbe, ExpressionPredicateProbe, BoolStorageScalarProbe, and BoolStorageArrayProbe.
-Literal	hash4	lowered	literal emits Hash four-limb arrays and is covered by HashProbe and MapProbe.
+Literal	hash4	lowered	literal emits Hash four-limb arrays and is covered by HashProbe, HashStorageProbe, and MapProbe.
 ContextField	userId	lowered	contextFunction lowers to get_user_id and ContextProbe covers it.
 ContextField	contractId	lowered	contextFunction lowers to get_contract_id and ContextProbe covers it.
 ContextField	checkpointId	lowered	contextFunction lowers to get_checkpoint_id and ContextProbe covers it.
@@ -57,25 +57,25 @@ Expr	hashValue	lowered	lowerExpr emits dynamic Hash construction; U32HashPacking
 Expr	hash	lowered	lowerExpr emits hash intrinsic; HashProbe covers it.
 Expr	hashTwoToOne	lowered	lowerExpr emits hash_two_to_one intrinsic; HashProbe covers it.
 Expr	effect	lowered	lowerExpr delegates to lowerEffectExpr, which validates expression-only effects and rejects statement-only effects; effect fixtures and diagnostics cover the split.
-Effect	storageScalarRead	lowered	lowerEffectExpr emits scalar .get(); Counter, ConditionalProbe, StructProbe, BoolStorageScalarProbe, U32StorageScalarProbe, and diagnostics cover expression/statement use.
-Effect	storageScalarWrite	lowered	lowerEffectStmt emits scalar assignment; Counter, ConditionalProbe, StructProbe, BoolStorageScalarProbe, U32StorageScalarProbe, and diagnostics cover expression misuse.
+Effect	storageScalarRead	lowered	lowerEffectExpr emits scalar .get(); Counter, ConditionalProbe, StructProbe, BoolStorageScalarProbe, HashStorageProbe, U32StorageScalarProbe, and diagnostics cover expression/statement use.
+Effect	storageScalarWrite	lowered	lowerEffectStmt emits scalar assignment; Counter, ConditionalProbe, StructProbe, BoolStorageScalarProbe, HashStorageProbe, U32StorageScalarProbe, and diagnostics cover expression misuse.
 Effect	storageScalarAssignOp	lowered	lowerEffectStmt emits scalar compound assignment; U32StorageScalarProbe and StorageNestedAggregateProbe cover supported use and diagnostics cover expression misuse/type mismatch.
 Effect	storageMapContains	lowered	lowerEffectExpr emits Map.contains; MapProbe covers it.
 Effect	storageMapGet	lowered	lowerEffectExpr emits Map.get; MapProbe covers it.
 Effect	storageMapInsert	lowered	lowerEffectExpr and lowerEffectStmt emit Map.insert; MapProbe covers expression insert.
 Effect	storageMapSet	lowered	lowerEffectExpr and lowerEffectStmt emit Map.set; MapProbe covers expression set return values and statement set.
-Effect	storageArrayRead	lowered	lowerEffectExpr emits array .get(), with U32 casts when needed; ArrayProbe, BoolStorageArrayProbe, and U32StorageArrayProbe cover it.
-Effect	storageArrayWrite	lowered	lowerEffectStmt emits array assignment, with U32 casts when needed; ArrayProbe, BoolStorageArrayProbe, and U32StorageArrayProbe cover it.
+Effect	storageArrayRead	lowered	lowerEffectExpr emits array .get(), with U32 casts when needed; ArrayProbe, BoolStorageArrayProbe, HashStorageProbe, and U32StorageArrayProbe cover it.
+Effect	storageArrayWrite	lowered	lowerEffectStmt emits array assignment, with U32 casts when needed; ArrayProbe, BoolStorageArrayProbe, HashStorageProbe, and U32StorageArrayProbe cover it.
 Effect	storageArrayStructFieldRead	lowered	lowerEffectExpr emits storage struct-array field .get(); StructArrayProbe covers it.
 Effect	storageArrayStructFieldWrite	lowered	lowerEffectStmt emits storage struct-array field assignment; StructArrayProbe covers it.
 Effect	storageStructFieldRead	lowered	lowerEffectExpr emits scalar storage struct field .get(); StructProbe covers it.
 Effect	storageStructFieldWrite	lowered	lowerEffectStmt emits scalar storage struct field assignment; StructProbe covers it.
-Effect	storagePathRead	lowered	lowerStoragePathRead emits generic scalar, array, and map storage paths; MapProbe, BoolStorageArrayProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
-Effect	storagePathWrite	lowered	lowerStoragePathWrite emits generic scalar, array, and map storage path writes; MapProbe, BoolStorageArrayProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
+Effect	storagePathRead	lowered	lowerStoragePathRead emits generic scalar, array, and map storage paths; MapProbe, BoolStorageArrayProbe, HashStorageProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
+Effect	storagePathWrite	lowered	lowerStoragePathWrite emits generic scalar, array, and map storage path writes; MapProbe, BoolStorageArrayProbe, HashStorageProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
 Effect	storagePathAssignOp	validated	lowerStoragePathAssignOp emits supported scalar/array storage compound assignment and rejects map/U32 paths; StorageNestedAggregateProbe and diagnostics cover the boundary.
 Effect	contextRead	lowered	lowerEffectExpr emits context functions; ContextProbe covers it.
 StoragePathSegment	field	lowered	lowerStoragePathSegment emits field access; StorageNestedAggregateProbe covers it.
-StoragePathSegment	index	lowered	lowerStoragePathSegment emits index access; BoolStorageArrayProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
+StoragePathSegment	index	lowered	lowerStoragePathSegment emits index access; BoolStorageArrayProbe, HashStorageProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
 StoragePathSegment	mapKey	lowered	lowerStoragePathRead/lowerStoragePathWrite handle mapKey at the map boundary; MapProbe covers it.
 Statement	letBind	lowered	lowerStatement emits immutable let; most fixtures cover it.
 Statement	letMutBind	lowered	lowerStatement emits mutable let; U32ArithmeticProbe, BitwiseProbe, and NestedAggregateProbe cover it.

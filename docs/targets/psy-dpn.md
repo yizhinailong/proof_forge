@@ -14,7 +14,7 @@ ExpressionPredicateProbe, GenericEntrypointProbe, ArithmeticProbe,
 U32ArithmeticProbe, BitwiseProbe, U32HashPackingProbe,
 U32StorageScalarProbe, BoolStorageScalarProbe, BoolStorageArrayProbe,
 U32StorageArrayProbe, ConditionalProbe, ContextProbe, HashProbe, MapProbe,
-AssertProbe, LoopProbe, ArrayProbe, StructProbe, StructArrayProbe,
+HashStorageProbe, AssertProbe, LoopProbe, ArrayProbe, StructProbe, StructArrayProbe,
 AbiAggregateProbe, and NestedAggregateProbe fixtures. It also has an experimental
 StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
 across `#[ref]` struct fields and storage arrays. The
@@ -684,6 +684,14 @@ extra casts, generic storage paths use the same indexed syntax, and explicit
 execution validates `result_vm: [2]` for both the local fixed-array entrypoint
 and the storage lifecycle fixture.
 
+`HashStorageProbe` validates native Psy `Hash` storage. Portable scalar Hash
+state lowers to `pub root: Hash`, and portable Hash storage arrays lower to
+`pub roots: [Hash; N]`. Scalar storage read/write lowers through `.get()` and
+native assignment, while indexed storage-array effects and generic storage-path
+read/write lower to the same `c.roots[index]` reference idiom. Dargo execution
+validates `result_vm: [5, 6, 7, 8]` for scalar Hash storage and
+`result_vm: [55, 66, 77, 88]` for indexed Hash storage arrays.
+
 `U32StorageArrayProbe` validates that Felt-backed storage idiom. Portable
 `StateDecl.kind = .array N` with `type = .u32` lowers to `pub limbs: [Felt; N]`.
 Writes lower as `u32 as Felt`, reads lower as `.get() as u32`, and generic
@@ -908,6 +916,21 @@ It verifies both upstream hash idioms under Dargo local execution:
 
 The script emits and validates
 `build/psy/dargo-hash/target/proof-forge-artifact.json`.
+
+The same validation shape is also implemented for `HashStorageProbe`:
+
+```sh
+scripts/psy/hash-storage-smoke.sh
+```
+
+It verifies native Hash scalar and storage-array lowering under Dargo local
+execution:
+
+- `scalar_lifecycle`: `result_vm: [5, 6, 7, 8]`
+- `array_lifecycle`: `result_vm: [55, 66, 77, 88]`
+
+The script emits and validates
+`build/psy/dargo-hash-storage/target/proof-forge-artifact.json`.
 
 The same validation shape is also implemented for `MapProbe`:
 
@@ -1160,6 +1183,9 @@ Deployment smoke:
   `scripts/psy/bool-storage-array-smoke.sh` for native `[bool; N]` fixed-array
   literals/indexes, storage-array read/write, storage-path read/write, and
   `bool as Felt` cast validation.
+- Done: add `HashStorageProbe` and `scripts/psy/hash-storage-smoke.sh` for
+  native scalar `Hash` storage, `[Hash; N]` storage arrays, storage-path
+  read/write, and Dargo compile/execute validation.
 - Done: add `U32StorageArrayProbe` and
   `scripts/psy/u32-storage-array-smoke.sh` using Felt-backed storage arrays
   plus U32 read/write casts after Dargo validation showed current `psyup` 0.1.0
@@ -1296,6 +1322,8 @@ Deployment smoke:
   on a machine with the Psy toolchain.
 - Generated BoolStorageArrayProbe `.psy` package compiles with `dargo compile`
   on a machine with the Psy toolchain.
+- Generated HashStorageProbe `.psy` package compiles with `dargo compile` on a
+  machine with the Psy toolchain.
 - Generated U32StorageArrayProbe `.psy` package compiles with `dargo compile`
   on a machine with the Psy toolchain.
 - Generated ConditionalProbe `.psy` package compiles with `dargo compile` on a
@@ -1310,8 +1338,8 @@ Deployment smoke:
   parameter/return flattening results, conditional branch result, local nested
   aggregate mutation results, storage-backed nested aggregate path update
   results, native U32 scalar storage result, native Bool scalar storage result,
-  native Bool storage-array result, Felt-backed U32 storage-array result, and
-  generic-entrypoint result.
+  native Bool storage-array result, native Hash scalar/storage-array results,
+  Felt-backed U32 storage-array result, and generic-entrypoint result.
 - `scripts/psy/diagnostic-smoke.sh` proves unsupported or malformed Psy IR
   shapes produce explicit diagnostics before source generation.
 - Artifact metadata records:

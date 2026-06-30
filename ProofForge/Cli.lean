@@ -18,6 +18,7 @@ import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.ExpressionPredicateProbe
 import ProofForge.IR.Examples.GenericEntrypointProbe
 import ProofForge.IR.Examples.HashProbe
+import ProofForge.IR.Examples.HashStorageProbe
 import ProofForge.IR.Examples.LoopProbe
 import ProofForge.IR.Examples.MapProbe
 import ProofForge.IR.Examples.NestedAggregateProbe
@@ -51,6 +52,7 @@ inductive EmitMode where
   | conditionalIrPsy
   | contextIrPsy
   | hashIrPsy
+  | hashStorageIrPsy
   | mapIrPsy
   | assertIrPsy
   | loopIrPsy
@@ -96,6 +98,7 @@ def usage : String :=
     "  proof-forge --emit-conditional-ir-psy [-o output.psy]",
     "  proof-forge --emit-context-ir-psy [-o output.psy]",
     "  proof-forge --emit-hash-ir-psy [-o output.psy]",
+    "  proof-forge --emit-hash-storage-ir-psy [-o output.psy]",
     "  proof-forge --emit-map-ir-psy [-o output.psy]",
     "  proof-forge --emit-assert-ir-psy [-o output.psy]",
     "  proof-forge --emit-loop-ir-psy [-o output.psy]",
@@ -274,7 +277,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
         .ok opts
       else
         .error usage
@@ -325,6 +328,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .contextIrPsy }
   | "--emit-hash-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .hashIrPsy }
+  | "--emit-hash-storage-ir-psy" :: rest, opts =>
+      parseArgs rest { opts with mode := .hashStorageIrPsy }
   | "--emit-map-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .mapIrPsy }
   | "--emit-assert-ir-psy" :: rest, opts =>
@@ -543,6 +548,16 @@ def compileHashIrPsy (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileHashStorageIrPsy (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/psy/HashStorageProbe.psy")
+  match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.HashStorageProbe.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 def compileMapIrPsy (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/psy/MapProbe.psy")
   match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.MapProbe.module with
@@ -704,6 +719,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .conditionalIrPsy => compileConditionalIrPsy opts
   | .contextIrPsy => compileContextIrPsy opts
   | .hashIrPsy => compileHashIrPsy opts
+  | .hashStorageIrPsy => compileHashStorageIrPsy opts
   | .mapIrPsy => compileMapIrPsy opts
   | .assertIrPsy => compileAssertIrPsy opts
   | .loopIrPsy => compileLoopIrPsy opts

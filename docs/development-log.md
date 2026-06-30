@@ -17,6 +17,56 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Hash Storage Coverage
+
+Commit: feature commit for Psy Hash storage coverage
+
+Summary:
+
+- Added `HashStorageProbe` as a portable IR fixture for native Psy scalar
+  `Hash` storage and `[Hash; N]` storage arrays.
+- Extended Psy state validation so `StateDecl.kind = .scalar` with
+  `type = .hash` lowers to `pub root: Hash`.
+- Added CLI emission through `--emit-hash-storage-ir-psy` plus a checked
+  golden source fixture.
+- Added `scripts/psy/hash-storage-smoke.sh` to validate `dargo test`,
+  `dargo compile`, two `dargo execute` entrypoints, `dargo generate-abi`,
+  deploy manifest generation, and artifact metadata validation.
+
+Validation run:
+
+```sh
+lake build
+bash -n scripts/psy/*.sh
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+lake env proof-forge --emit-hash-storage-ir-psy -o build/psy/HashStorageProbe.psy
+diff -u Examples/Psy/HashStorageProbe.golden.psy build/psy/HashStorageProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/hash-storage-smoke.sh
+git diff --check
+```
+
+Result:
+
+- Generated HashStorageProbe source lowers `pub root: Hash`,
+  `pub roots: [Hash; 2]`, scalar Hash read/write, indexed Hash array read/write,
+  and generic storage-path read/write.
+- Dargo execution validates `result_vm: [5, 6, 7, 8]` for scalar storage and
+  `result_vm: [55, 66, 77, 88]` for storage-array access.
+
+Known limitations:
+
+- This does not change U32 storage arrays, which remain Felt-backed because
+  Dargo v0.1.0 rejects direct `[u32; N]` contract storage arrays.
+
+Next step:
+
+- Continue replacing explicit unsupported storage diagnostics with
+  Dargo-validated Psy storage idioms where the upstream toolchain accepts the
+  shape.
+
 ### Psy Bool Storage Array Coverage
 
 Commit: feature commit for Psy Bool storage array coverage

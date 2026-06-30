@@ -70,6 +70,8 @@ def testFunctionName (module : Module) : String :=
     "test_map_probe_fixture"
   else if module.name == "HashProbe" then
     "test_hash_probe_fixture"
+  else if module.name == "HashStorageProbe" then
+    "test_hash_storage_probe_fixture"
   else if module.name == "ContextProbe" then
     "test_context_probe_fixture"
   else if module.name == "Counter" then
@@ -1318,6 +1320,7 @@ def validateState (module : Module) : Except LowerError Unit := do
     match state.kind, state.type with
     | .scalar, .u32 => pure ()
     | .scalar, .bool => pure ()
+    | .scalar, .hash => pure ()
     | .scalar, .u64 => pure ()
     | .scalar, .structType typeName =>
         match findStruct? module typeName with
@@ -1463,6 +1466,15 @@ def testBody (module : Module) : Except LowerError (Array String) := do
       s!"let right: Hash = [5, 6, 7, 8];",
       s!"assert_eq({refName}::poseidon_hash(), hash(left), \"hash probe matches Poseidon hash\");",
       s!"assert_eq({refName}::poseidon_pair_hash(), hash_two_to_one(left, right), \"pair hash probe matches Poseidon two-to-one hash\");"
+    ]
+  else if module.name == "HashStorageProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "scalar_lifecycle" && entry.params.isEmpty && entry.returns == .hash) &&
+    module.entrypoints.any (fun entry => entry.name == "array_lifecycle" && entry.params.isEmpty && entry.returns == .hash) then
+    .ok #[
+      "let scalar_expected: Hash = [5, 6, 7, 8];",
+      "let array_expected: Hash = [55, 66, 77, 88];",
+      s!"assert_eq({refName}::scalar_lifecycle(), scalar_expected, \"hash scalar storage returns latest value\");",
+      s!"assert_eq({refName}::array_lifecycle(), array_expected, \"hash array storage returns indexed value\");"
     ]
   else if module.name == "MapProbe" &&
     module.state.any (fun state => state.id == "balances") &&
