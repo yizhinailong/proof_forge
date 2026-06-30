@@ -38,6 +38,27 @@
 - 制品元数据列出了构建所使用的 id（参见 RFC 0002 制品 schema）。
 - 诊断信息在拒绝时必须引用能力 id 和目标 id。
 
+## 尚未注册的候选能力
+
+这些候选项仅用于目标研究。在目标 profile 和 lowering 规则被接受前，不要将它们加入
+`ProofForge.Target.Capability`。
+
+### Kaspa Toccata
+
+参见 [Kaspa Toccata 目标](targets/kaspa-toccata.zh.md)。
+
+| 候选 id | 可移植含义 | 为什么需要单独表达 |
+|---|---|---|
+| `storage.utxo` | 状态位于 covenant 控制的 UTXO 或状态承诺中 | 不是账户/对象存储，也不是 EVM slot |
+| `covenant.lineage` | 后继输出保持在被授权的 covenant family 中 | 这是交易/输出校验，不是普通存储 |
+| `tx.v1` | 目标使用 Kaspa transaction v1 语义 | 交易投影和 payload 规则会影响正确性 |
+| `tx.compute_budget` | 每个 input 的脚本 compute budget 是显式字段 | 预算是交易设计的一部分，不只是 gas 计量 |
+| `lane.user` | app operation 可以使用 user lane | based-app 排序和 proof anchoring 需要它 |
+| `zk.verify` | 脚本验证 L1 支持的证明 | 不等同于把目标本身编译成电路 |
+
+`zk.circuit` 仍保留给主制品是电路或电路导向源包的目标。Toccata 可以使用证明，但它的
+base target 是 Kaspa covenant package。
+
 ## EVM 映射 (基准)
 
 | 能力 id | EVM 降级 |

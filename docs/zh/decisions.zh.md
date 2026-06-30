@@ -19,6 +19,7 @@
 | D-009 | 2026-06-30 | **`wasm-polkadot` / ink!** 保持为 Research 状态 | 在安排 spike 之前不会进入目标注册表 |
 | D-010 | 2026-06-30 | 云平台需等待**两个或更多目标**达到 Experimental 阶段 | 避免在本地后端真实可用前构建 UI 外壳 |
 | D-011 | 2026-06-30 | 将 **`psy-dpn`** 作为 ZK 电路源代码生成下的 Research 目标添加 | Psy 没有公开的类 Yul IR；首次集成应生成 `.psy` 并调用 Dargo |
+| D-012 | 2026-07-01 | 将 **`kaspa-toccata`** 归类为文档优先的 Research 候选，而不是 ZK 电路源代码生成目标 | Toccata 是 Kaspa L1 的 transaction v1、covenant、inline proof verification 和 based-app settlement 可编程栈；代码 registry 修改需等待 UTXO/covenant 能力审查 |
 
 ## 目标家族分类
 
@@ -29,6 +30,7 @@
 | 二进制工具链 | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | 源代码生成 | `move-aptos`, `move-sui` | 可移植 IR → Move 包源码 |
 | ZK 电路源代码生成 | `psy-dpn` | 可移植 IR → `.psy` 包 → Dargo → DPN 电路 JSON |
+| UTXO covenant research | `kaspa-toccata`（候选，仅文档） | 可移植 IR → covenant/Silverscript 包 + transaction v1 manifest + 可选 proof settlement metadata |
 
 ## 路线图摘要
 
@@ -38,6 +40,7 @@ Phase 1: Target registry + portable IR + artifact metadata + capability errors
 Phase 2: Parallel spikes — CosmWasm (wasm-cosmwasm) + Solana (solana-sbpf-linker)
 Phase 3: Move sourcegen — Aptos POC first, then Sui
 Phase 3.5: Psy DPN sourcegen research spike
+Research lane: Kaspa Toccata covenant/based-app target note before registry changes
 Phase 4: Cross-target shared scenario hardening
 Phase 5: Cloud platform
 ```
@@ -55,6 +58,7 @@ Phase 5: Cloud platform
 | CosmWasm SDK spike 草图 | [targets/wasm-family.md](targets/wasm-family.md) |
 | Solana 指令清单 | [targets/solana-sbf.md](targets/solana-sbf.md) |
 | Psy/DPN ZK 目标 | [targets/psy-dpn.md](targets/psy-dpn.md) |
+| Kaspa/Toccata 目标候选 | [targets/kaspa-toccata.md](targets/kaspa-toccata.md) |
 
 ## 已取代的立场
 
