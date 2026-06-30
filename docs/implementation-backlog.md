@@ -261,6 +261,38 @@ Acceptance criteria:
 - CI either pins a known-good `psyup` release or skips this gate clearly when a
   matching toolchain tarball is unavailable.
 
+## Workstream 11: Kaspa Toccata Research Target
+
+Goal: decide whether and how ProofForge should support Kaspa's Toccata
+programmability stack without pretending it is an EVM, account-state, or generic
+ZK circuit target.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `kaspa-toccata`.
+- Classify the target as UTXO covenant/based-app research, not
+  `zk-circuit-sourcegen`.
+- Review candidate capabilities for UTXO state, covenant lineage, transaction
+  v1, user lanes, compute budgets, and inline proof verification.
+- Decide whether the first spike should generate Silverscript or only produce a
+  target manifest around hand-authored covenant source.
+- Define a tiny L1 covenant Counter-like scenario with successor-output
+  validation.
+- Define the minimal artifact metadata shape for covenant source, transaction v1
+  manifest, covenant lineage manifest, and optional proof verifier manifest.
+- Defer based-app support until the L1 covenant artifact shape is clear.
+
+Acceptance criteria:
+
+- `docs/targets/kaspa-toccata.md` records the target classification and
+  non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish inline ZK verification from `psy-dpn`-style circuit
+  source generation.
+
 ## Suggested Order
 
 1. Target registry (Workstream 1).
@@ -272,6 +304,8 @@ Acceptance criteria:
 6. Solana runtime decision (Workstream 7 — after spike data).
 7. Move Aptos POC (Workstream 8).
 8. Psy DPN sourcegen spike (Workstream 10) once the IR fixture exists.
-9. CI target matrix (Workstream 9).
-10. Cloud platform design refresh (prerequisite: two+ targets at Experimental
+9. Kaspa Toccata research target review (Workstream 11) before any registry
+   changes.
+10. CI target matrix (Workstream 9).
+11. Cloud platform design refresh (prerequisite: two+ targets at Experimental
    stage; see [decisions.md](decisions.md)).

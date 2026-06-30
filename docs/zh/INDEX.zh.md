@@ -63,6 +63,7 @@ flowchart TB
   - [Solana sBPF](targets/solana-sbf.md) (`solana-sbpf-linker`)
   - [Move 家族](targets/move-family.md)
   - [Psy DPN ZK 目标](targets/psy-dpn.md)
+  - [Kaspa Toccata 目标](targets/kaspa-toccata.zh.md)
 
 ## 中文笔记
 
@@ -71,6 +72,7 @@ flowchart TB
 - [多链技术实现方案](zh/technical-implementation-plan.md) — 摘要；工程细节见 RFC 0002
 - [多链方案 Review 清单](zh/review-checklist.md)
 - [Psy/DPN ZK Target 初步分析](zh/zk-psy-target-analysis.md)
+- [Kaspa Toccata 目标说明](zh/targets/kaspa-toccata.zh.md)
 
 ## 当前实现基线
 

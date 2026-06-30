@@ -83,5 +83,25 @@
     "sha256": "3594d6ee9880f1412ea9afecf9ea97fd6631e4d2f3afa2946224caaba25f8e2a",
     "zh": "docs/zh/targets/evm.zh.md",
     "model": "gemini-3-flash-preview"
+  },
+  "docs/targets/wasm-family.md": {
+    "sha256": "2128c543e679873da3e2cdcdf68595b9e34bc3dc41a20965e17bbc895c1d3987",
+    "zh": "docs/zh/targets/wasm-family.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/targets/solana-sbf.md": {
+    "sha256": "85fef3ba16f8f82d5dfa792c22bf7ffb3421f893130ed147aa1eef81ffd5c5b0",
+    "zh": "docs/zh/targets/solana-sbf.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/targets/move-family.md": {
+    "sha256": "e79b06cf4c77ec11e6509ec915fe4fa36adb07d9dde35f2ec91c761bf8ca7f45",
+    "zh": "docs/zh/targets/move-family.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "Examples/Evm/README.md": {
+    "sha256": "8975f8c044d1b7536bd72ebf6ae10f8480b98cf86447e0a79abba80753b1ce43",
+    "zh": "docs/zh/examples-evm-README.zh.md",
+    "model": "gemini-3-flash-preview"
   }
 }

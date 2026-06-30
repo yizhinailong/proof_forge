@@ -37,6 +37,7 @@
 | Sui Move | Research | 源代码生成；遵循 Aptos POC。 |
 | Aptos Move | Research | 首个 Move POC 目标。 |
 | Psy DPN | Research | 通过生成的 `.psy` 和 Dargo 实现的 ZK 电路源代码生成目标。 |
+| [Kaspa Toccata](targets/kaspa-toccata.zh.md) | Research | 文档优先的 UTXO covenant / based-app 目标候选；尚未进入代码 registry。 |
 
 ## 文档
 
@@ -45,3 +46,4 @@
 - [Solana sBPF](solana-sbf.md) —— 目标 id `solana-sbpf-linker` 的说明
 - [Move 家族](move-family.md)
 - [Psy DPN ZK 目标](psy-dpn.md)
+- [Kaspa Toccata 目标](targets/kaspa-toccata.zh.md)

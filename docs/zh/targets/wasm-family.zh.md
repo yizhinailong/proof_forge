@@ -1,6 +1,6 @@
 # Wasm 家族目标
 
-Wasm 家族包括 NEAR、CosmWasm 以及后来的 Polkadot/ink 风格的合约。它们共享一种可执行格式，但合约 ABI 不同。ProofForge 应该只共享那些真正通用的部分。
+Wasm 家族包括 NEAR、CosmWasm 以及随后的 Polkadot/ink! 风格的合约。它们共享一种可执行格式，但合约 ABI 不同。ProofForge 应当仅共享那些真正通用的部分。
 
 ## 通用形态
 
@@ -16,14 +16,14 @@ Lean contract
 
 通用工作：
 
-- Lean 到 Zig 的源代码生成。
+- Lean 到 Zig 的代码生成。
 - 为 Wasm 编译的 Lean 运行时。
 - 单线程运行时 profile。
 - Wasm 安全的分配器策略。
 - 无 POSIX/libuv 假设。
 - 制品元数据。
 
-目标特定工作：
+特定目标工作：
 
 - 导出的函数名称和签名。
 - 宿主导入。
@@ -48,17 +48,17 @@ Lean.Near
 
 关键经验：
 
-- Lean SDK 可以通过 `@[extern]` 暴露链操作。
-- Zig 宿主桥接应当将 Lean 对象转换为目标宿主调用。
+- Lean SDK 可以通过 `@[extern]` 暴露链上操作。
+- Zig 宿主桥接应将 Lean 对象转换为目标宿主调用。
 - 方法导出可以从 sidecar 元数据生成。
-- WASI 导入可能需要针对目标 VM 进行剥离或存根（stubbing）。
+- 针对目标 VM，可能需要剥离或桩化 (stubbing) WASI 导入。
 - NEAR 的存储模型是隐式合约 KV 存储。
 
 移植前的设计清理：
 
 - 不要在通用的 EmitZig extern 列表中保留 `lean_near_*` 声明。
 - 不要为每个 Wasm 目标强制链接 NEAR 宿主代码。
-- 将方法元数据移动到统一的目标清单中。
+- 将方法元数据移入统一的目标清单。
 
 ## CosmWasm
 
@@ -76,7 +76,7 @@ CosmWasm 也是 Wasm，但其 ABI 是面向消息的。
   `ibc_channel_connect`, `ibc_channel_close`, `ibc_packet_receive`,
   `ibc_packet_ack`, `ibc_packet_timeout`
 
-预期的导入包括存储、地址、加密、调试和链查询宿主函数。具体的导入应在实现开始时从受支持的 CosmWasm VM 版本中获取。
+预期导入包括存储、地址、加密、调试和链查询宿主函数。开始实现时，应从支持的 CosmWasm VM 版本中获取确切的导入。
 
 首个适配器行为：
 
@@ -88,7 +88,7 @@ CosmWasm 也是 Wasm，但其 ABI 是面向消息的。
 
 ## 运行时 profile
 
-Wasm 运行时 profile 应当避免：
+Wasm 运行时 profile 应避免：
 
 - 线程
 - POSIX 文件系统
@@ -106,7 +106,7 @@ Wasm 运行时 profile 应当避免：
 | 宿主桥接 | `near` | `cosmwasm` |
 | 验证 | NEAR VM/MVP 检查 | `cosmwasm-check` |
 
-## CosmWasm Counter spike
+## CosmWasm Counter Spike
 
 最小 Lean 表面：
 
@@ -142,14 +142,14 @@ def query : CosmWasm.Entrypoint := do
 
 验收标准：
 
-- Wasm 导出所有要求的函数。
+- Wasm 导出所有必需的函数。
 - `cosmwasm-check` 接受该制品。
-- Counter 可以实例化、递增和查询。
-- 制品元数据记录 `target: wasm-cosmwasm`。
+- Counter 可以实例化、增加和查询。
+- 制品元数据记录了 `target: wasm-cosmwasm`。
 
 ## 待解决问题
 
 - CosmWasm 应该通过 `wasm32-freestanding` 编译，还是通过带有导入剥离的 WASI 路径编译？
 - 在制品大小成为实际问题之前，可以保留多少 Lean 运行时？
-- Schema 生成应该来自 Lean 类型还是独立的 manifest？
+- Schema 生成应该来自 Lean 类型还是独立的清单？
 - NEAR 和 CosmWasm 是否应该共享一个通用的 Wasm 内存分配器层？
