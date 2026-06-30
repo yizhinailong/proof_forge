@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Generic Test Fallback
+
+Commit: feature commit for generic Psy fallback tests
+
+Summary:
+
+- Replaced the Psy backend's fixture-only test generation failure with a
+  generic fallback test that instantiates `<Module>Ref`.
+- Added `GenericEntrypointProbe` as a valid non-whitelisted portable IR fixture
+  to prove that arbitrary supported modules can render `.psy` source.
+- Added a Dargo-backed smoke script, golden source, CI golden check, deploy
+  manifest generation, and artifact metadata validation for the new fixture.
+- Added an explicit empty-state diagnostic because Dargo v0.1.0 rejects empty
+  `#[derive(Storage)]` contracts.
+
+Validation run:
+
+```sh
+lake build
+bash -n scripts/psy/*.sh
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+lake env proof-forge --emit-generic-entrypoint-ir-psy -o build/psy/GenericEntrypointProbe.psy
+diff -u Examples/Psy/GenericEntrypointProbe.golden.psy build/psy/GenericEntrypointProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/generic-entrypoint-smoke.sh
+git diff --check
+```
+
+Result:
+
+- Dargo accepts the generic generated test and executes
+  `GenericEntrypointProbe.answer` with `result_vm: [42]`.
+- Psy diagnostic smoke now covers 49 malformed or unsupported IR cases.
+
+Known limitations:
+
+- The generic fallback only proves source/package validity and ref
+  instantiation. Fixture-specific behavior still needs dedicated assertions
+  and smoke scripts when a feature has semantic expectations.
+
+Next step:
+
+- Continue closing expression and storage coverage gaps with one fixture-backed
+  feature at a time.
+
 ### Psy Identifier Diagnostics
 
 Commit: feature commit for Psy identifier validation

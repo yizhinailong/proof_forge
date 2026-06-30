@@ -271,6 +271,10 @@ Tasks:
 - Done: validate Psy identifiers and duplicate declarations before source
   generation so invalid names do not fall through to Dargo parser/typechecker
   failures.
+- Done: add a generic generated test fallback for valid Psy IR modules that do
+  not have fixture-specific assertions, backed by `GenericEntrypointProbe`,
+  golden source, Dargo compile/execute validation, ABI generation, deploy
+  manifest generation, and artifact metadata validation.
 - Convert the deploy manifest path to upstream compressed genesis deploy JSON
   once the Psy tooling exposes a stable boundary, then exercise a local
   node/prover deployment smoke.
@@ -289,6 +293,8 @@ Acceptance criteria:
 - `dargo execute` returns deterministic four-Felt outputs for HashProbe's
   `poseidon_hash` and `poseidon_pair_hash` entrypoints.
 - `dargo generate-abi` produces a non-empty ABI JSON artifact.
+- `dargo execute` returns `result_vm: [42]` for the generic non-whitelisted
+  `GenericEntrypointProbe`.
 - Artifact metadata records target id, fixture id, used capabilities, artifact
   paths, hashes, byte sizes, Dargo package source copy, Dargo package manifest,
   and validation status.

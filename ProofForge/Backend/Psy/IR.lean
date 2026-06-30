@@ -1302,6 +1302,8 @@ def validateEntrypointBodies (module : Module) : Except LowerError Unit := do
       .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not end with a return statement" }
 
 def validateState (module : Module) : Except LowerError Unit := do
+  if module.state.isEmpty then
+    .error { message := "Psy IR v0 requires at least one state field because Dargo v0.1.0 rejects empty #[derive(Storage)] contracts; add a marker state field for stateless fixtures" }
   for state in module.state do
     match state.kind, state.type with
     | .scalar, .u32 => pure ()
@@ -1508,7 +1510,9 @@ def testBody (module : Module) : Except LowerError (Array String) := do
       s!"assert_eq({refName}::storage_nested_lifecycle(), 229, \"storage nested aggregate path updates selected fields\");"
     ]
   else
-    .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }
+    .ok #[
+      s!"let _c = {refName}::new(ContractMetadata::current());"
+    ]
 
 def renderModule (module : Module) : Except LowerError String := do
   validateCapabilities module

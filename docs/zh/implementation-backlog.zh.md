@@ -219,7 +219,9 @@
 - 已完成：添加 ContextProbe，用于参数 lowering 和 context reads。
 - 已完成：添加 HashProbe，用于 `Hash`、typed hash let-bindings、`hash` 和 `hash_two_to_one`。
 - 已完成：校验 Psy 制品元数据，包括 hash、byte size、能力、validation flag 和预期执行结果。
-- 待办：从上游 `psy-compiler/tests` 语料继续加入 map/storage-map 和 bounded-loop 覆盖。
+- 已完成：加入来自上游 `psy-compiler/tests` 和 `psy-precompiles` 语料的 map/storage-map、断言、有界循环、数组、结构体、ABI 聚合、嵌套聚合、U32 arithmetic、bitwise、U32 storage，以及 storage path 覆盖。
+- 已完成：为没有 fixture 专用断言的合法 Psy IR 模块添加通用 generated test fallback，并用 `GenericEntrypointProbe` 跑通 golden、Dargo compile/execute、ABI、deploy manifest 和 artifact metadata 校验。
+- 待办：等 Psy 工具链暴露稳定边界后，把 ProofForge deploy manifest 转成上游 compressed genesis deploy JSON，并进一步做本地 node/prover 部署冒烟测试。
 
 验收标准：
 
@@ -228,6 +230,7 @@
 - `dargo execute` 针对 Counter lifecycle 返回 `result_vm: [2]`。
 - `dargo execute` 针对 ContextProbe 的 `sum_context(2,3)` 返回 `result_vm: [15]`。
 - `dargo execute` 针对 HashProbe 的两个入口返回确定性的四 Felt 输出。
+- `dargo execute` 针对非白名单 `GenericEntrypointProbe` 返回 `result_vm: [42]`。
 - `dargo generate-abi` 生成非空 ABI JSON 制品。
 - 制品元数据记录目标 id、fixture id、使用的能力、制品路径、hash、byte size 和 validation status。
 - Psy 冒烟脚本会机器校验制品元数据。

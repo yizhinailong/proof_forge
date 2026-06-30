@@ -44,6 +44,12 @@ def invalidModuleIdentifierModule : Module := {
   entrypoints := #[unitEntrypoint "bad"]
 }
 
+def emptyStateModule : Module := {
+  name := "BadEmptyState"
+  state := #[]
+  entrypoints := #[unitEntrypoint "bad"]
+}
+
 def duplicateStateModule : Module := {
   name := "BadDuplicateState"
   state := #[countState, countState]
@@ -563,6 +569,11 @@ def cases : Array (String × Module × String) := #[
     "invalid module identifier",
     invalidModuleIdentifierModule,
     "module name `Bad-Module` is not a valid Psy identifier; identifiers must start with an ASCII letter or `_` and contain only ASCII letters, digits, or `_`"
+  ),
+  (
+    "empty state",
+    emptyStateModule,
+    "Psy IR v0 requires at least one state field because Dargo v0.1.0 rejects empty #[derive(Storage)] contracts; add a marker state field for stateless fixtures"
   ),
   (
     "duplicate state id",

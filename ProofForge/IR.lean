@@ -8,6 +8,7 @@ import ProofForge.IR.Examples.ContextProbe
 import ProofForge.IR.Examples.ConditionalProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.ExpressionPredicateProbe
+import ProofForge.IR.Examples.GenericEntrypointProbe
 import ProofForge.IR.Examples.HashProbe
 import ProofForge.IR.Examples.LoopProbe
 import ProofForge.IR.Examples.MapProbe

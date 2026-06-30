@@ -10,16 +10,17 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
-ExpressionPredicateProbe, ArithmeticProbe, U32ArithmeticProbe, BitwiseProbe,
-U32HashPackingProbe, U32StorageScalarProbe, U32StorageArrayProbe, ConditionalProbe, ContextProbe,
+ExpressionPredicateProbe, GenericEntrypointProbe, ArithmeticProbe,
+U32ArithmeticProbe, BitwiseProbe, U32HashPackingProbe,
+U32StorageScalarProbe, U32StorageArrayProbe, ConditionalProbe, ContextProbe,
 HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe, StructProbe,
 StructArrayProbe, AbiAggregateProbe, and NestedAggregateProbe fixtures. It also
 has an experimental StorageNestedAggregateProbe fixture for storage-backed
-nested aggregate updates across `#[ref]` struct fields and storage arrays. The target is not
-production-ready and does not yet cover else-if sugar,
-upstream compressed genesis deploy JSON, live Psy node/prover deployment, or
-broad Lean-to-IR extraction. It does
-produce a ProofForge deploy manifest for every Dargo-backed Psy smoke fixture.
+nested aggregate updates across `#[ref]` struct fields and storage arrays. The
+target is not production-ready and does not yet cover else-if sugar, upstream
+compressed genesis deploy JSON, live Psy node/prover deployment, or broad
+Lean-to-IR extraction. It does produce a ProofForge deploy manifest for every
+Dargo-backed Psy smoke fixture.
 
 ## Summary
 
@@ -987,6 +988,22 @@ compound assignments under Dargo local execution:
 The script emits and validates
 `build/psy/dargo-storage-nested-aggregate/target/proof-forge-artifact.json`.
 
+The same validation shape is also implemented for `GenericEntrypointProbe`:
+
+```sh
+scripts/psy/generic-entrypoint-smoke.sh
+```
+
+This fixture is intentionally not special-cased in `testBody`. It proves that
+otherwise valid Psy IR modules receive a generic generated test that instantiates
+`<Module>Ref` instead of failing source generation. Dargo local execution
+validates:
+
+- `answer`: `result_vm: [42]`
+
+The script emits and validates
+`build/psy/dargo-generic-entrypoint/target/proof-forge-artifact.json`.
+
 All Psy smoke scripts run
 `scripts/psy/validate-artifact-metadata.py` after metadata generation. The
 validator checks schema version, target id, target family, artifact kind,
@@ -1001,9 +1018,10 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts forty-eight explicit diagnostics for malformed or
+It currently asserts forty-nine explicit diagnostics for malformed or
 unsupported Psy IR shapes, including invalid Psy identifiers, duplicate
-declarations, reserved names, invalid storage paths, expression/body type
+declarations, reserved names, empty contract state rejected before Dargo's
+`#[derive(Storage)]` boundary, invalid storage paths, expression/body type
 mismatches, malformed equality, malformed comparison, and malformed Hash value
 construction, unsupported bool storage arrays, unsupported U32 storage path
 compound assignment, malformed arithmetic, unsupported casts, malformed
@@ -1154,6 +1172,9 @@ Deployment smoke:
 - Done: add `proof-forge-deploy.json` generation and validation for every
   Dargo-backed Psy smoke, and record the deploy manifest in
   `proof-forge-artifact.json`.
+- Done: add a generic generated test fallback for valid non-whitelisted Psy IR
+  modules, plus `GenericEntrypointProbe` and
+  `scripts/psy/generic-entrypoint-smoke.sh` to prove the fallback with Dargo.
 - Remaining: move to upstream genesis deploy JSON/live node research.
 
 ### Phase C: Metadata and Scenario Parity
@@ -1218,6 +1239,8 @@ Deployment smoke:
   on a machine with the Psy toolchain.
 - Generated ConditionalProbe `.psy` package compiles with `dargo compile` on a
   machine with the Psy toolchain.
+- Generated GenericEntrypointProbe `.psy` package compiles with `dargo compile`
+  on a machine with the Psy toolchain.
 - Dargo execution proves the expected Counter lifecycle, context-read result,
   deterministic hash outputs, map lifecycle output, and assertion-protected
   checked sum output, plus the Felt arithmetic result, U32 arithmetic result,
@@ -1225,8 +1248,8 @@ Deployment smoke:
   literal/storage results, struct-array literal/storage results, ABI aggregate
   parameter/return flattening results, conditional branch result, local nested
   aggregate mutation results, storage-backed nested aggregate path update
-  results, native U32 scalar storage result, and Felt-backed U32 storage-array
-  result.
+  results, native U32 scalar storage result, Felt-backed U32 storage-array
+  result, and generic-entrypoint result.
 - `scripts/psy/diagnostic-smoke.sh` proves unsupported or malformed Psy IR
   shapes produce explicit diagnostics before source generation.
 - Artifact metadata records:
