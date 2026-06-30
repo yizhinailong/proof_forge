@@ -9,14 +9,12 @@ actual scripts and `.github/workflows/ci.yml`; it does not add or edit CI jobs.
 | Gate | Command | Prerequisites | What it proves | What it does not prove |
 |---|---|---|---|---|
 | Lean package build | `lake build` | Lean toolchain from `lean-toolchain` | Library roots typecheck and `proof-forge` links | Generated Yul/bytecode validity, external tools, runtime behavior |
-| Counter IR-to-Yul smoke | `lake env proof-forge --emit-counter-ir-yul -o build/ir/Counter.yul` | Built `proof-forge` | Hand-written portable Counter IR lowers to Yul | Runtime dispatch, bytecode behavior, non-EVM targets |
-| Counter IR bytecode compile | `lake env proof-forge --emit-counter-ir-bytecode -o build/ir/Counter.bin` | Built `proof-forge`, `solc` on `PATH` | Counter IR lowers through runtime Yul to non-empty EVM bytecode | EVM execution behavior, non-EVM targets |
-| Counter IR Foundry smoke | `scripts/evm/ir-counter-smoke.sh` | Built `proof-forge`, `solc`, Foundry `forge` | Generated Counter IR bytecode runs `initialize`/`increment`/`get` through selector dispatch | Non-EVM targets, full Lean-source extraction |
 | Yul generation smoke | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | Built `proof-forge` | Lean frontend/LCNF lowers a simple contract to Yul | `solc` acceptance, ABI dispatch, EVM runtime behavior |
 | Yul-to-bytecode smoke | `solc --strict-assembly build/counter.yul --bin` | `solc` on `PATH` | Generated Yul is accepted by `solc` | Runtime semantics or method dispatch |
 | Single EVM bytecode compile | `lake env proof-forge --evm-bytecode --root . --module contract -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean` | `solc`, `cast`, and `Examples/Evm/Contracts/Counter.evm-methods` | Lean → Yul → `solc` → bytecode with selector generation | Runtime behavior, gas, exhaustive ABI correctness |
 | EVM examples compile | `scripts/evm/build-examples.sh` | `cast`, `solc`, `lake env proof-forge`; optional `PROOF_FORGE_BIN`, `CONTRACTS_DIR`, `EVM_OUT_DIR` | Every `.lean` contract with a sibling `.evm-methods` compiles to `.bin` | Runtime behavior; contracts without `.evm-methods` are skipped by the script |
 | EVM runtime smoke | `scripts/evm/foundry-smoke.sh` | `forge`, `cast`, `solc`; optional `EVM_OUT_DIR`, `EVM_FORGE_DIR` | Foundry executes generated runtime bytecode for Counter, ArrayExample, SimpleToken, and VerifiedVault, including revert checks | Formal proof coverage, cross-target equivalence, real deployment, exhaustive edge coverage |
+| Psy Counter IR smoke | `scripts/psy/counter-smoke.sh` | `dargo` on `PATH`; `psyup install 0.1.0` is known-good on macOS arm64 | Counter portable IR lowers to `.psy`, matches the golden fixture, passes `dargo test --file`, produces non-empty DPN JSON with `dargo compile`, returns `result_vm: [2]` through `dargo execute`, and emits non-empty ABI JSON | Deploy JSON, live Psy node/prover behavior, broader IR coverage |
 | CI baseline | `.github/workflows/ci.yml` `build-test` job | GitHub Actions Ubuntu, elan, Foundry stable, `solc` 0.8.30 | Clean-environment `lake build`, EVM compile, and Foundry smoke | Optional future targets, metadata validation, golden snapshots, non-Ubuntu behavior |
 
 ## Planned gates that are not runnable yet
@@ -30,7 +28,6 @@ The following gates are `Planned` and do not exist in CI or as scripts:
 - CosmWasm smoke — `cosmwasm-check` or `cw-multi-test` validation.
 - Solana smoke — Mollusk or `solana-test-validator` validation.
 - Move smoke — `aptos move compile/test` or Sui Move validation.
-- Psy DPN smoke — generated `.psy` package plus `dargo compile` validation.
 - Capability rejection tests — compile-time diagnostics for unsupported
   capability/target combinations.
 
@@ -49,6 +46,7 @@ If no runnable local command exists, the target remains `Research`.
 ## Optional external tools
 
 Current CI installs Foundry stable and `solc` 0.8.30. Local machines may not
-have `solc`, `cast`, `forge`, or `dargo`. Missing EVM tools block EVM toolchain
-gates but not `lake build`. Missing `dargo` will block future `psy-dpn`
-toolchain gates only.
+have `solc`, `cast`, `forge`, `psyup`, or `dargo`. Missing EVM tools block EVM
+toolchain gates but not `lake build`. Missing Psy tools block only the
+`scripts/psy/counter-smoke.sh` Dargo portion; source generation and golden diff
+still run before the script exits.

@@ -5,8 +5,8 @@ Lean-first multi-chain smart contract platform.
 ProofForge's long-term goal is one verified Lean contract codebase that can be
 compiled, tested, and deployed across multiple blockchain target families. The
 current repository contains the EVM backend baseline and the first design docs
-for expanding toward Solana/sBPF, Wasm-family chains, Move-family chains,
-ZK/circuit targets, and a future cloud deployment platform.
+for expanding toward Solana/sBPF, Wasm-family chains, Move-family chains, and a
+future cloud deployment platform.
 
 See [RFC 0001](docs/rfcs/0001-multichain-platform.md) for the multi-chain
 architecture and roadmap.
@@ -27,15 +27,13 @@ It adds:
 
 - `ProofForge.Evm`: a small EVM contract SDK using `@[extern "lean_evm_*"]`
   primitives.
-- `ProofForge.Psy`: an initial Psy/DPN ZK target SDK surface using
-  `@[extern "lean_psy_*"]` primitives for future source generation.
 - `ProofForge.Compiler.Yul`: a Yul AST and printer.
 - `ProofForge.Compiler.LCNF.EmitYul`: an LCNF-to-Yul emitter.
 - `proof-forge`: a CLI that compiles a Lean file to Yul or EVM runtime
   bytecode without patching `lean`.
 
-The implemented target today is EVM. Solana/sBPF, Wasm-family, Move-family, and
-ZK/circuit targets are design goals, not current compiler outputs.
+The implemented target today is EVM. Solana/sBPF, Wasm-family, and Move-family
+targets are design goals, not current compiler outputs.
 
 Build:
 
@@ -86,10 +84,26 @@ scripts/evm/foundry-smoke.sh
 The smoke runner uses Forge's local EVM test runner and `vm.etch` to execute
 the generated runtime bytecode.
 
+Generate and validate the current Psy/DPN Counter IR spike:
+
+```sh
+lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
+scripts/psy/counter-smoke.sh
+```
+
+The Psy smoke expects `dargo` on `PATH`. The preferred installer is `psyup`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/QEDProtocol/psyup/main/install.sh | bash
+```
+
+On macOS arm64, `psyup` latest may not currently publish a matching toolchain
+tarball. `psyup install 0.1.0` is known to provide
+`psy-toolchain-v0.1.0-aarch64-apple-darwin.tar.gz`.
+
 ## Development Docs
 
 - [Development standards](docs/development-standards.md)
-- [Development log](docs/development-log.md)
 - [Validation gates](docs/validation-gates.md)
 - [EVM target notes](docs/targets/evm.md)
 - [Capability registry](docs/capability-registry.md)
@@ -120,8 +134,6 @@ Planned target families:
 - Wasm family: planned adapters for NEAR, CosmWasm, and Polkadot/ink-style
   contracts.
 - Move family: research track for Sui and Aptos.
-- ZK circuit family: research track for Psy/DPN through generated `.psy` and
-  Dargo.
 - Bitcoin ecosystem: research-only for now; not an early direct L1 backend.
 
 Future CLI direction:
@@ -133,7 +145,6 @@ proof-forge build --target wasm-cosmwasm    # planned first new Wasm spike
 proof-forge build --target solana-sbpf-linker
 proof-forge build --target move-aptos       # planned first Move POC
 proof-forge build --target move-sui         # planned follow-up Move target
-proof-forge build --target psy-dpn          # planned ZK circuit sourcegen target
 ```
 
 `proof-forge build --target ...` is planned; the implemented command remains

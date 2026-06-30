@@ -1,0 +1,163 @@
+import Init.Data.Array.Basic
+import Init.Data.String.Basic
+import ProofForge.IR.Contract
+import ProofForge.Target.Check
+import ProofForge.Target.Registry
+
+namespace ProofForge.Backend.Psy.IR
+
+open ProofForge.IR
+open ProofForge.Target
+
+structure LowerError where
+  message : String
+  deriving Repr
+
+def LowerError.render (err : LowerError) : String :=
+  err.message
+
+def capabilityError (err : CapabilityError) : LowerError := {
+  message := err.render
+}
+
+def indent (level : Nat) (line : String) : String :=
+  String.ofList (List.replicate (level * 4) ' ') ++ line
+
+def lines (xs : Array String) : String :=
+  String.intercalate "\n" xs.toList
+
+def capitalizedRefName (module : Module) : String :=
+  s!"{module.name}Ref"
+
+def valueTypeName : ValueType → Except LowerError String
+  | .unit => .ok "()"
+  | .bool => .ok "bool"
+  | .u64 => .ok "Felt"
+
+def literal : Literal → String
+  | .u64 value => toString value
+  | .bool true => "true"
+  | .bool false => "false"
+
+def stateDecl (state : StateDecl) : Except LowerError String := do
+  match state.kind with
+  | .scalar =>
+      .ok s!"pub {state.id}: {← valueTypeName state.type},"
+
+def stateExists (module : Module) (stateId : String) : Bool :=
+  module.state.any fun state => state.id == stateId
+
+mutual
+  partial def lowerExpr (module : Module) : Expr → Except LowerError String
+    | .literal value => .ok (literal value)
+    | .local name => .ok name
+    | .add lhs rhs => do
+        .ok s!"{← lowerExpr module lhs} + {← lowerExpr module rhs}"
+    | .effect effect => lowerEffectExpr module effect
+
+  partial def lowerEffectExpr (module : Module) : Effect → Except LowerError String
+    | .storageScalarRead stateId => do
+        if stateExists module stateId then
+          .ok s!"c.{stateId}.get()"
+        else
+          .error { message := s!"unknown scalar state `{stateId}`" }
+    | .storageScalarWrite _ _ =>
+        .error { message := "storage.scalar.write is a statement effect, not an expression" }
+end
+
+def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array String)
+  | .storageScalarRead _ =>
+      .error { message := "storage.scalar.read must be used as an expression" }
+  | .storageScalarWrite stateId value => do
+      if !stateExists module stateId then
+        .error { message := s!"unknown scalar state `{stateId}`" }
+      .ok #[s!"c.{stateId} = {← lowerExpr module value};"]
+
+def lowerStatement (module : Module) : Statement → Except LowerError (Array String)
+  | .letBind name value => do
+      .ok #[s!"let {name}: Felt = {← lowerExpr module value};"]
+  | .effect effect =>
+      lowerEffectStmt module effect
+  | .return value => do
+      .ok #[s!"return {← lowerExpr module value};"]
+
+def lowerBody (module : Module) (body : Array Statement) : Except LowerError (Array String) := do
+  body.foldlM (init := #[]) fun acc stmt => do
+    .ok (acc ++ (← lowerStatement module stmt))
+
+def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError String := do
+  if !entrypoint.params.isEmpty then
+    .error { message := s!"entrypoint `{entrypoint.name}` has parameters; Psy IR v0 supports no parameters" }
+  let refName := capitalizedRefName module
+  let returnSuffix ←
+    match entrypoint.returns with
+    | .unit => .ok ""
+    | other => .ok s!" -> {← valueTypeName other}"
+  let body ← lowerBody module entrypoint.body
+  let header := indent 1 "#[contract_method]"
+  let signature := indent 1 (s!"pub fn {entrypoint.name}(){returnSuffix} " ++ "{")
+  let newRef := indent 2 s!"let c = {refName}::new(ContractMetadata::current());"
+  let bodyLines := body.map (indent 2)
+  lines (#[header, signature, newRef] ++ bodyLines ++ #[indent 1 "}"]) |> .ok
+
+def validateState (module : Module) : Except LowerError Unit := do
+  for state in module.state do
+    match state.kind, state.type with
+    | .scalar, .u64 => pure ()
+    | .scalar, other =>
+        .error { message := s!"state `{state.id}` has unsupported Psy IR v0 type `{other.name}`" }
+
+def validateCapabilities (module : Module) : Except LowerError Unit :=
+  match requireCapabilities Target.psyDpn module.capabilities with
+  | .ok () => .ok ()
+  | .error err => .error (capabilityError err)
+
+def testBody (module : Module) : Except LowerError (Array String) := do
+  let refName := capitalizedRefName module
+  let hasCounterShape :=
+    module.state.size == 1 &&
+    module.state.any (fun state => state.id == "count" && state.kind == .scalar && state.type == .u64) &&
+    module.entrypoints.any (fun entry => entry.name == "initialize") &&
+    module.entrypoints.any (fun entry => entry.name == "increment") &&
+    module.entrypoints.any (fun entry => entry.name == "get")
+  if hasCounterShape then
+    .ok #[
+      s!"let c = {refName}::new(ContractMetadata::current());",
+      s!"{refName}::initialize();",
+      "assert_eq(c.count, 0, \"counter starts at zero\");",
+      s!"{refName}::increment();",
+      s!"assert_eq({refName}::get(), 1, \"counter increments once\");",
+      s!"{refName}::increment();",
+      s!"assert_eq({refName}::get(), 2, \"counter increments twice\");"
+    ]
+  else
+    .error { message := "Psy IR v0 only generates a smoke test for the Counter-shaped fixture" }
+
+def renderModule (module : Module) : Except LowerError String := do
+  validateCapabilities module
+  validateState module
+  let stateLines ← module.state.mapM stateDecl
+  let entrypoints ← module.entrypoints.mapM (lowerEntrypoint module)
+  let testLines := (← testBody module).map (indent 1)
+  .ok <| lines <| #[
+    "// Generated by ProofForge from the portable Counter IR.",
+    "// This is Psy source intended for the official Dargo/Psy compiler toolchain.",
+    "",
+    "#[contract]",
+    "#[derive(Storage)]",
+    s!"pub struct {module.name} " ++ "{"
+  ] ++ stateLines.map (indent 1) ++ #[
+    "}",
+    "",
+    s!"impl {capitalizedRefName module} " ++ "{",
+    lines entrypoints,
+    "}",
+    "",
+    "#[test]",
+    "fn test_counter_lifecycle() {"
+  ] ++ testLines ++ #[
+    "}",
+    ""
+  ]
+
+end ProofForge.Backend.Psy.IR

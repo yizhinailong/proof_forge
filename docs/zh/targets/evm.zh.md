@@ -2,11 +2,9 @@
 
 目标 id: **`evm`**
 
-阶段: **Experimental** — CI 冒烟测试通过，但目标注册表、可移植 IR 和制品元数据尚未接入。
+阶段：**Experimental** — CI 冒烟测试通过，但目标注册表、可移植 IR 和制品元数据尚未集成。
 
-相关: [能力注册表](../capability-registry.md),
-[共享场景](../shared-scenario.md),
-[RFC 0002](../rfcs/0002-target-implementation-design.md)。
+相关：[能力注册表](../capability-registry.md)，[共享场景](../shared-scenario.md)，[RFC 0002](../rfcs/0002-target-implementation-design.md)。
 
 ## 流水线
 
@@ -40,7 +38,7 @@ scripts/evm/foundry-smoke.sh
 proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean
 ```
 
-EVM bytecode 模式：
+EVM 字节码模式：
 
 ```sh
 proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [-o output.bin] input.lean
@@ -52,7 +50,7 @@ proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file
 
 ## .evm-methods sidecar 格式
 
-每行遵循以下语法：
+每一行遵循以下语法：
 
 ```text
 <solidity-signature>=<lean-export-symbol>[view|update]
@@ -68,24 +66,24 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 
 解析器规则 (来自 `ProofForge/Cli.lean`):
 
-- 空行和 `#` 注释将被忽略。
+- 忽略空行和 `#` 注释。
 - 选择器使用 `cast sig <solidity-signature>` 计算。
-- `l_Counter_get` 通过去除前导 `l_` 并添加前缀 `f_` 映射到 Yul 函数 `f_Counter_get`；这必须与 `EmitYul.yulFnName` 保持一致。
+- `l_Counter_get` 通过剥离前导 `l_` 并添加前缀 `f_` 映射到 Yul 函数 `f_Counter_get`；这必须与 `EmitYul.yulFnName` 保持一致。
 - `view`、`pure`、`return`、`returns` 和 `true` 表示分派返回一个值；`update`、`void` 和 `false` 表示除非 Lean 入口通过显式的 EVM return 自行终止，否则它返回零字节。
-- EVM 字节码模式需要至少一个方法。
+- EVM 字节码模式要求至少有一个方法。
 
 ## 添加或更改 EVM 示例
 
 1. 在 `Examples/Evm/Contracts/` 下添加或更新 Lean 合约。
 2. 添加或更新同级的 `.evm-methods` 文件。
-3. 如果该示例是基线的一部分，请在 `scripts/evm/foundry-smoke.sh` 中添加或更新用例。
-4. 运行 `scripts/evm/build-examples.sh`；当 Foundry 和 `solc` 可用时运行 `scripts/evm/foundry-smoke.sh`。
+3. 如果该示例是基线的一部分，请在 `scripts/evm/foundry-smoke.sh` 中添加或更新一个用例。
+4. 运行 `scripts/evm/build-examples.sh`；当 Foundry 和 `solc` 可用时，运行 `scripts/evm/foundry-smoke.sh`。
 
 ## 已实现的能力
 
 映射到 [capability-registry](../capability-registry.md) id：
 
-| 能力 id | SDK 接口 |
+| 能力 id | SDK 表面 |
 |---|---|
 | `storage.scalar` | `Storage.load`, `Storage.store` |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore` |
@@ -95,7 +93,7 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 | `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
 | `events.emit` | `log0`, `log1`, `log2` |
 
-EVM 不支持（针对其他目标的设计）：
+在 EVM 上不支持（设计上用于其他目标）：
 
 - `account.explicit`, `storage.pda`, `crosscall.cpi`
 
@@ -123,8 +121,8 @@ EVM 不支持（针对其他目标的设计）：
 - `Nat` 限制为 U256；EVM 上没有大数 (bignum)。
 - Yul 运行时中的字符串操作 API 不完整。
 - 尚无统一的 `proof-forge-artifact.json`（计划于工作流 2）。
-- 目前的降级绕过了可移植 IR；Counter 必须在阶段 1 中通过 IR 路由。
+- 目前降级绕过了可移植 IR；在第一阶段，Counter 必须通过 IR 进行路由。
 
 ## 元数据
 
-方法分派使用 `.evm-methods` sidecar 文件，直到统一的目标清单落地 (RFC 0002)。
+方法分派使用 `.evm-methods` sidecar 文件，直到统一的目标清单落地（RFC 0002）。

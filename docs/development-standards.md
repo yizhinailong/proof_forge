@@ -16,7 +16,6 @@ source-of-truth docs and states when they must be updated.
 | EVM baseline details | `docs/targets/evm.md`, `Examples/Evm/README.md` |
 | Shared cross-target Counter scenario | `docs/shared-scenario.md` |
 | Execution backlog and acceptance criteria | `docs/implementation-backlog.md` |
-| Milestone and validation log | `docs/development-log.md` |
 | Validation commands and tool prerequisites | `docs/validation-gates.md` |
 | Chinese narrative / strategy docs | `docs/zh/*.md`; they must align to English engineering docs and must not introduce independent engineering policy |
 
@@ -45,10 +44,9 @@ source-of-truth docs and states when they must be updated.
 
 - Lean toolchain is `leanprover/lean4:v4.31.0` from `lean-toolchain`.
 - Base build gate is `lake build`.
-- Current library roots are `ProofForge`, `ProofForge.Evm`, `ProofForge.Psy`,
-  `ProofForge.Target`, `ProofForge.IR`, `ProofForge.Backend`,
+- Current library roots are `ProofForge`, `ProofForge.Evm`,
   `ProofForge.Compiler.Yul.AST`, `ProofForge.Compiler.Yul.Printer`, and
-  `ProofForge.Compiler.LCNF.EmitYul` from `lakefile.lean`.
+  `ProofForge.Compiler.LCNF.EmitYul` from `lakefile.lean` lines 7-14.
 - The executable is `proof-forge`, rooted at `ProofForge.Cli`, with
   `supportInterpreter := true` from `lakefile.lean` lines 16-19.
 - New compiled Lean modules must be imported by an existing root or added to

@@ -17,6 +17,77 @@ Each entry should include:
 
 ## 2026-06-30
 
+### Psy Counter IR Sourcegen And Smoke
+
+Commit: pending
+
+Summary:
+
+- Added `ProofForge.Backend.Psy.IR`, a strict v0 source generator for the
+  hand-written portable Counter IR fixture.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
+```
+
+- Added `Examples/Psy/Counter.golden.psy` as the reviewed source snapshot.
+- Added `scripts/psy/counter-smoke.sh`, which:
+  - regenerates Counter Psy source
+  - compares it against the golden fixture
+  - runs `dargo test --file`
+  - creates a temporary Dargo package
+  - runs `dargo compile --contract-name Counter --method-names initialize increment get`
+  - checks the Dargo JSON artifact is non-empty
+  - runs `dargo execute --contract-name Counter --method-names initialize increment increment get`
+  - checks the local execution log contains `result_vm: [2]`
+  - runs `dargo generate-abi --contract-name Counter --output-dir target --pretty`
+  - checks the ABI JSON artifact is non-empty
+- Verified `psyup install 0.1.0` as a working macOS arm64 toolchain path for
+  this smoke.
+- Recorded the upstream syntax/CI corpus: `psy-precompiles`, `tests`, and
+  `psy-compiler`'s Makefile `build`/`ci` targets.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
+diff -u Examples/Psy/Counter.golden.psy build/psy/Counter.psy
+psyup install 0.1.0
+scripts/psy/counter-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Counter IR emits reviewable Psy source.
+- Generated Psy source matches the checked-in golden fixture.
+- `scripts/psy/counter-smoke.sh` generated `build/psy/Counter.psy`, ran
+  `dargo test --file`, ran `dargo compile`, produced
+  `build/psy/dargo-counter/target/proof_forge_counter.json`, ran
+  `dargo execute`, and verified `get` returned `result_vm: [2]` after two
+  increments in the same local execution session.
+- The same smoke generated non-empty ABI output at
+  `build/psy/dargo-counter/target/Counter.json`.
+- Direct `cargo install --git https://github.com/PsyProtocol/psy-compiler dargo`
+  fetched `psy-compiler` but failed while Cargo updated the `psy-node`
+  `psy-contracts` submodule URL.
+- `psyup` v0.1.1 currently has only a Linux x86_64 release asset; macOS arm64
+  was validated by pinning `psyup install 0.1.0`.
+
+Known limitations:
+
+- The generator supports only the current no-argument Counter IR subset:
+  `u64` scalar state, scalar read/write, `add`, let-bind, and return.
+- No deploy JSON, artifact metadata, or live Psy node smoke exists yet.
+  `dargo execute` covers local user/contract execution, not network deployment.
+
+Next step:
+
+- Add `proof-forge-artifact.json` metadata to the Psy smoke, then decide
+  whether CI should pin `psyup` v0.1.0 or wait for a newer macOS release asset.
+
 ### Psy/DPN SDK Skeleton
 
 Commit: `feat: add Psy DPN SDK skeleton`

@@ -66,7 +66,7 @@ Observed public tooling:
 |---|---|
 | `.psy` language | Target source language for contracts and tests |
 | `dargo compile` | Compiles a Psy package to `Vec<DPNFunctionCircuitDefinition>` JSON |
-| `dargo execute` | Runs Psy examples/tests through the interpreter path |
+| `dargo execute` | Runs compiled circuits in a local user/contract execution session |
 | `dargo test` | Runs compiler/interpreter tests for Psy source |
 | `dargo generate-abi` | Generates ABI JSON from parsed/typechecked contracts |
 | `psy-wasm` | Browser/Node wrapper around the compiler and in-memory VM demo |
@@ -76,6 +76,55 @@ The first ProofForge adapter should shell out to `dargo` rather than embedding
 Psy Rust crates. Embedding is possible later, but the compiler workspace depends
 on `psy-node` crates through SSH git dependencies, so a CLI boundary is more
 practical for early spikes and CI.
+
+## Upstream Syntax And CI Corpus
+
+The best grammar and idiom corpus is the upstream `psy-compiler` repository:
+
+| Source | What to learn |
+|---|---|
+| `psy-precompiles/*/src/main.psy` | Production-style contract storage, events, fixed arrays, maps, hashing, cross-contract refs, and ABI method sets |
+| `psy-precompiles/*/Dargo.toml` | Package layout and local dependency structure |
+| `tests/*.psy` | Small syntax and semantic probes for storage refs, context functions, maps, traits, arrays, loops, hashes, and assertions |
+| `Makefile` `ci` target | Official local test matrix for `dargo test`, `dargo compile`, and `dargo execute` |
+| `Makefile` precompile targets | Method lists for compiling and ABI-generating shipped contracts |
+
+Important Makefile signals:
+
+```make
+export DARGO_STD_PATH := $(PWD)/psy-std/std.psy
+
+build:
+	@RUSTFLAGS="-A warnings" cargo build --profile ${PROFILE} -p psy-precompiles
+	@RUSTFLAGS="-A warnings" cargo build --profile ${PROFILE} --bin dargo --bin psy-lsp-server
+
+DARGO_CLI_COMPILE = RUST_LOG=$(LOG_LEVEL) ./target/${PROFILE}/dargo compile --program-dir tests --debug --entry-path
+DARGO_CLI_EXECUTE = RUST_LOG=${LOG_LEVEL} ./target/${PROFILE}/dargo execute --program-dir tests --debug --entry-path
+DARGO_CLI_TEST    = RUST_LOG=${LOG_LEVEL} ./target/${PROFILE}/dargo test --file
+```
+
+For ProofForge this gives two source-aligned validation styles:
+
+1. Package smoke, matching precompiled contracts:
+
+```sh
+cd build/psy/dargo-counter
+dargo compile --contract-name Counter --method-names initialize increment get
+dargo execute --contract-name Counter --method-names initialize increment increment get
+dargo generate-abi --contract-name Counter --output-dir target --pretty
+```
+
+2. Syntax corpus smoke, matching upstream `tests`:
+
+```sh
+dargo test --file path/to/test.psy
+dargo --program-dir tests execute --debug --entry-path ctx_test.psy --parameters 2,3
+```
+
+The current ProofForge smoke uses the package style because it mirrors the
+eventual generated artifact layout. A future syntax-regression gate should copy
+or vendor a curated subset of upstream tests and run them with the second style
+against the exact `dargo` version used in CI.
 
 ## SDK Surface
 
@@ -133,9 +182,32 @@ sideOutputs:
 Required external tools:
 
 - Rust toolchain compatible with the Psy compiler workspace
-- `dargo` built or installed from `psy-compiler`
+- `dargo`, preferably installed from `psyup`
 - optional `wasm-pack` only if using `psy-wasm`
 - optional Psy node/prover tooling for deployment-level tests
+
+`cargo install --git https://github.com/PsyProtocol/psy-compiler dargo` is the
+upstream Dargo install path, but it may pull `psy-node` and its submodules
+during Cargo dependency resolution. On this machine it failed on the
+`psy-contracts` submodule URL inside `psy-node`.
+
+`psyup` is the more practical local toolchain path. It installs a released
+toolchain tarball, symlinks `dargo`, and writes `DARGO_STD_PATH` to the bundled
+`psy-std`.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/QEDProtocol/psyup/main/install.sh | bash
+```
+
+Observed release caveat: `psyup` v0.1.1 currently publishes Linux x86_64 only.
+For macOS arm64, v0.1.0 includes
+`psy-toolchain-v0.1.0-aarch64-apple-darwin.tar.gz` and has been validated with
+the Counter smoke:
+
+```sh
+psyup install 0.1.0
+scripts/psy/counter-smoke.sh
+```
 
 ## Portable IR Subset
 
@@ -167,6 +239,13 @@ Rejected first:
 The target should fail before source generation when an unsupported IR node or
 capability appears.
 
+The design philosophy docs reinforce the same boundary: Psy is ZK-native and
+uses symbolic execution. Variables become circuit wires, operations become
+gates, control flow is flattened, bounded loops are unrolled, and function calls
+are inlined by default. The first Psy lowering should therefore prefer static
+Felt/Bool/U32 values, fixed-size arrays, bounded loops, explicit storage
+effects, and small helper functions over dynamic runtime-like constructs.
+
 ## Capability Mapping
 
 Initial mapping:
@@ -189,15 +268,15 @@ contract.
 
 ## Generated Package Sketch
 
-First output layout:
+Current Counter spike output layout:
 
 ```text
-build/psy-dpn/counter/
-  Dargo.toml
-  src/main.psy
-  target/counter.json
-  target/Counter.abi.json
-  proof-forge-artifact.json
+build/psy/
+  Counter.psy
+  dargo-counter/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_counter.json
 ```
 
 Example generated shape:
@@ -206,26 +285,39 @@ Example generated shape:
 #[contract]
 #[derive(Storage)]
 pub struct Counter {
-    pub value: Felt,
+    pub count: Felt,
 }
 
 impl CounterRef {
     #[contract_method]
+    pub fn initialize() {
+        let c = CounterRef::new(ContractMetadata::current());
+        c.count = 0;
+    }
+
+    #[contract_method]
     pub fn increment() {
         let c = CounterRef::new(ContractMetadata::current());
-        c.value += 1;
+        let n: Felt = c.count.get();
+        c.count = n + 1;
     }
 
     #[contract_method]
     pub fn get() -> Felt {
         let c = CounterRef::new(ContractMetadata::current());
-        c.value
+        return c.count.get();
     }
 }
 ```
 
-This is intentionally source-like and reviewable. It should not be optimized
-until the generated source compiles and has a smoke test.
+This is intentionally source-like and reviewable. The current implementation is
+`ProofForge.Backend.Psy.IR.renderModule`, exposed through:
+
+```sh
+lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
+```
+
+The checked-in golden source is `Examples/Psy/Counter.golden.psy`.
 
 ## Smoke Test Strategy
 
@@ -233,16 +325,30 @@ Research-stage smoke should not require a live Psy network.
 
 Preferred first smoke:
 
-1. Generate `.psy` source and `Dargo.toml`.
-2. Run `dargo compile`.
-3. Verify `target/<package>.json` is non-empty and parses as JSON.
-4. Run `dargo generate-abi`.
-5. Record tool versions and artifact hashes in `proof-forge-artifact.json`.
+1. Generate `.psy` source.
+2. Compare it against `Examples/Psy/Counter.golden.psy`.
+3. Run `dargo test --file build/psy/Counter.psy`.
+4. Generate a temporary Dargo package.
+5. Run `dargo compile --contract-name Counter --method-names initialize increment get`.
+6. Verify `target/proof_forge_counter.json` is non-empty.
+7. Run `dargo execute --contract-name Counter --method-names initialize increment increment get`.
+8. Verify the execution log contains `result_vm: [2]`.
+9. Run `dargo generate-abi --contract-name Counter --output-dir target --pretty`.
+10. Verify `target/Counter.json` is non-empty.
+
+This has been run locally with `psyup install 0.1.0` on macOS arm64. The smoke
+produced `build/psy/dargo-counter/target/proof_forge_counter.json` and
+`build/psy/dargo-counter/target/counter-execute.log`, plus ABI output at
+`build/psy/dargo-counter/target/Counter.json`.
+
+Observed behavior: `dargo execute` compiles the workspace, creates a local
+session with a registered user and deployed contract, then executes the method
+sequence against the same session. This is not a live network, but it is closer
+to an Ethereum-style local execution smoke than a pure compiler check.
 
 Second smoke:
 
-1. Use `dargo execute`, `dargo test`, or `psy-wasm` in-memory execution for a
-   Counter scenario.
+1. Record tool versions and artifact hashes in `proof-forge-artifact.json`.
 2. Compare high-level Counter behavior with the EVM shared scenario.
 
 Deployment smoke:
@@ -261,15 +367,23 @@ Deployment smoke:
 
 ### Phase B: Source Generator Spike
 
-- Generate one Counter `.psy` file from a hand-built portable IR fixture.
-- Generate `Dargo.toml`.
-- Call `dargo compile`.
-- Emit `proof-forge-artifact.json`.
+- Done: generate one Counter `.psy` file from a hand-built portable IR fixture.
+- Done: add a golden Psy source fixture.
+- Done: add `scripts/psy/counter-smoke.sh` to generate `Dargo.toml`, call
+  `dargo test --file`, call `dargo compile`, verify the JSON artifact, call
+  `dargo execute`, assert the local execution result, and call
+  `dargo generate-abi`.
+- Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
+  toolchain.
+- Remaining: emit `proof-forge-artifact.json`.
 
-### Phase C: ABI and In-Memory Smoke
+### Phase C: Metadata and Scenario Parity
 
-- Generate ABI with `dargo generate-abi`.
-- Try `dargo execute` or `psy-wasm` in-memory calls.
+- Emit `proof-forge-artifact.json` with Dargo version, source hash, circuit JSON
+  hash, ABI hash, and execution log hash.
+- Compare the Psy Counter behavior with the EVM shared Counter scenario.
+- Decide whether `psy-wasm` adds useful in-memory coverage beyond
+  `dargo execute`.
 - Add a target-specific Counter acceptance note.
 
 ### Phase D: Deployment Research
@@ -280,8 +394,8 @@ Deployment smoke:
 
 ## Open Questions
 
-- Can Psy's compiler/toolchain be built reproducibly in CI without private SSH
-  access to `psy-node`?
+- Should CI use the `psyup` release tarball, and should we pin v0.1.0 until the
+  latest release publishes macOS artifacts?
 - Which Psy storage patterns correspond to portable `storage.map` without
   semantic surprises?
 - What is the exact artifact schema for contract code versus circuit

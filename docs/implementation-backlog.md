@@ -228,13 +228,15 @@ compiler internals.
 
 Tasks:
 
-- Generate one Counter `.psy` package from a portable IR fixture.
-- Generate `Dargo.toml`.
-- Call `dargo compile` and capture DPN circuit JSON.
-- Call `dargo generate-abi` when available.
+- Done: generate one Counter `.psy` source file from a portable IR fixture.
+- Done: add a temporary Dargo package generator in `scripts/psy/counter-smoke.sh`.
+- Done: document `dargo test --file` as the first local smoke runner.
+- Done: run `dargo compile` with the `psyup` v0.1.0 macOS arm64 toolchain and
+  capture DPN circuit JSON.
+- Done: run `dargo execute` as a local user/contract session and assert the
+  Counter result after two increments.
+- Done: call `dargo generate-abi` and capture non-empty ABI JSON.
 - Emit `proof-forge-artifact.json` with target id `psy-dpn`.
-- Document whether `dargo execute`, `dargo test`, or `psy-wasm` is the best
-  local smoke runner.
 
 Acceptance criteria:
 
@@ -242,8 +244,12 @@ Acceptance criteria:
   snapshot.
 - `dargo compile` produces a non-empty JSON artifact on a machine with the Psy
   toolchain.
+- `dargo execute` returns `result_vm: [2]` for the Counter lifecycle.
+- `dargo generate-abi` produces a non-empty ABI JSON artifact.
 - Artifact metadata records Dargo/Psy compiler version or commit.
 - Unsupported non-circuit-friendly IR nodes fail before source generation.
+- CI either pins a known-good `psyup` release or skips this gate clearly when a
+  matching toolchain tarball is unavailable.
 
 ## Suggested Order
 
