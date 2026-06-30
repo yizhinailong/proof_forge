@@ -140,6 +140,14 @@ lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
 scripts/psy/array-smoke.sh
 ```
 
+Validate the Psy/DPN struct fixture, which exercises struct literals, field
+access, and scalar storage structs:
+
+```sh
+lake env proof-forge --emit-struct-ir-psy -o build/psy/StructProbe.psy
+scripts/psy/struct-smoke.sh
+```
+
 Each Psy smoke writes and validates `proof-forge-artifact.json` next to the
 Dargo outputs.
 

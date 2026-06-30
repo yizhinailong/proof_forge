@@ -30,7 +30,9 @@ def capitalizedRefName (module : Module) : String :=
   s!"{module.name}Ref"
 
 def testFunctionName (module : Module) : String :=
-  if module.name == "ArrayProbe" then
+  if module.name == "StructProbe" then
+    "test_struct_probe_fixture"
+  else if module.name == "ArrayProbe" then
     "test_array_probe_fixture"
   else if module.name == "LoopProbe" then
     "test_loop_probe_fixture"
@@ -56,6 +58,7 @@ def valueTypeName : ValueType → Except LowerError String
       if length == 0 then
         .error { message := "Psy IR v0 fixed arrays must have non-zero length" }
       .ok s!"[{← valueTypeName element}; {length}]"
+  | .structType name => .ok name
 
 def literal : Literal → String
   | .u64 value => toString value
@@ -78,17 +81,43 @@ def contextFunction : ContextField → String
   | .contractId => "get_contract_id()"
   | .checkpointId => "get_checkpoint_id()"
 
-def stateDecl (state : StateDecl) : Except LowerError String := do
+def fieldVisibility (isPublic : Bool) : String :=
+  if isPublic then "pub " else ""
+
+def structFieldDecl (field : StructField) : Except LowerError String := do
+  .ok s!"{fieldVisibility field.isPublic}{field.id}: {← valueTypeName field.type},"
+
+def structDecl (decl : StructDecl) : Except LowerError String := do
+  let deriveLines := if decl.deriveStorage then #["#[derive(Storage)]"] else #[]
+  let fields ← decl.fields.mapM structFieldDecl
+  .ok <| lines <|
+    deriveLines ++ #[
+      s!"{fieldVisibility decl.isPublic}struct {decl.name} " ++ "{"
+    ] ++ fields.map (indent 1) ++ #[
+      "}"
+    ]
+
+def stateDecl (state : StateDecl) : Except LowerError (Array String) := do
   match state.kind with
   | .scalar =>
-      .ok s!"pub {state.id}: {← valueTypeName state.type},"
+      match state.type with
+      | .structType _ =>
+          .ok #[
+            "#[ref]",
+            s!"pub {state.id}: {← valueTypeName state.type},"
+          ]
+      | _ =>
+          .ok #[s!"pub {state.id}: {← valueTypeName state.type},"]
   | .map keyType capacity =>
-      .ok s!"pub {state.id}: Map<{← valueTypeName keyType}, {← valueTypeName state.type}, {capacity}u32>,"
+      .ok #[s!"pub {state.id}: Map<{← valueTypeName keyType}, {← valueTypeName state.type}, {capacity}u32>,"]
   | .array length =>
-      .ok s!"pub {state.id}: [{← valueTypeName state.type}; {length}],"
+      .ok #[s!"pub {state.id}: [{← valueTypeName state.type}; {length}],"]
 
 def findState? (module : Module) (stateId : String) : Option StateDecl :=
   module.state.find? fun state => state.id == stateId
+
+def findStruct? (module : Module) (name : String) : Option StructDecl :=
+  module.structs.find? fun decl => decl.name == name
 
 def requireScalarState (module : Module) (stateId : String) : Except LowerError Unit :=
   match findState? module stateId with
@@ -117,6 +146,25 @@ def requireArrayState (module : Module) (stateId : String) : Except LowerError U
       | .map _ _ => .error { message := s!"state `{stateId}` is map storage, not an array" }
   | none => .error { message := s!"unknown array state `{stateId}`" }
 
+def requireStructScalarState (module : Module) (stateId fieldName : String) : Except LowerError Unit :=
+  match findState? module stateId with
+  | some state =>
+      match state.kind, state.type with
+      | .scalar, .structType typeName => do
+          let some decl := findStruct? module typeName
+            | .error { message := s!"state `{stateId}` references unknown struct `{typeName}`" }
+          if decl.fields.any (fun field => field.id == fieldName) then
+            .ok ()
+          else
+            .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
+      | .scalar, other =>
+          .error { message := s!"state `{stateId}` has scalar type `{other.name}`, not struct storage" }
+      | .map _ _, _ =>
+          .error { message := s!"state `{stateId}` is map storage, not struct scalar storage" }
+      | .array _, _ =>
+          .error { message := s!"state `{stateId}` is array storage, not struct scalar storage" }
+  | none => .error { message := s!"unknown struct state `{stateId}`" }
+
 mutual
   partial def lowerExpr (module : Module) : Expr → Except LowerError String
     | .literal value => .ok (literal value)
@@ -128,6 +176,14 @@ mutual
         .ok s!"[{String.intercalate ", " items.toList}]"
     | .arrayGet array index => do
         .ok s!"{← lowerExpr module array}[{← lowerExpr module index}]"
+    | .structLit typeName fields => do
+        if fields.isEmpty then
+          .error { message := s!"struct literal `{typeName}` must have at least one field" }
+        let items ← fields.mapM fun field => do
+          .ok s!"{field.fst}: {← lowerExpr module field.snd}"
+        .ok (s!"new {typeName} " ++ "{" ++ s!" {String.intercalate ", " items.toList} " ++ "}")
+    | .field base fieldName => do
+        .ok s!"{← lowerExpr module base}.{fieldName}"
     | .add lhs rhs => do
         .ok s!"{← lowerExpr module lhs} + {← lowerExpr module rhs}"
     | .hash preimage => do
@@ -158,6 +214,11 @@ mutual
         .ok s!"c.{stateId}[{← lowerExpr module index}].get()"
     | .storageArrayWrite _ _ _ =>
         .error { message := "storage.array.write is a statement effect, not an expression" }
+    | .storageStructFieldRead stateId fieldName => do
+        requireStructScalarState module stateId fieldName
+        .ok s!"c.{stateId}.{fieldName}.get()"
+    | .storageStructFieldWrite _ _ _ =>
+        .error { message := "storage.struct.field.write is a statement effect, not an expression" }
     | .contextRead field =>
         .ok (contextFunction field)
 end
@@ -183,6 +244,11 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
   | .storageArrayWrite stateId index value => do
       requireArrayState module stateId
       .ok #[s!"c.{stateId}[{← lowerExpr module index}] = {← lowerExpr module value};"]
+  | .storageStructFieldRead _ _ =>
+      .error { message := "storage.struct.field.read must be used as an expression" }
+  | .storageStructFieldWrite stateId fieldName value => do
+      requireStructScalarState module stateId fieldName
+      .ok #[s!"c.{stateId}.{fieldName} = {← lowerExpr module value};"]
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
 
@@ -229,10 +295,39 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
   let bodyLines := body.map (indent 2)
   lines (#[header, signature, newRef] ++ bodyLines ++ #[indent 1 "}"]) |> .ok
 
+partial def validateValueType (module : Module) (type : ValueType) : Except LowerError Unit := do
+  match type with
+  | .unit => .error { message := "Psy IR v0 does not support Unit as a stored or structured value type" }
+  | .bool | .u64 | .hash => pure ()
+  | .fixedArray element length =>
+      if length == 0 then
+        .error { message := "Psy IR v0 fixed arrays must have non-zero length" }
+      validateValueType module element
+  | .structType name =>
+      match findStruct? module name with
+      | some _ => pure ()
+      | none => .error { message := s!"unknown struct type `{name}`" }
+
+def validateStructs (module : Module) : Except LowerError Unit := do
+  for decl in module.structs do
+    if decl.fields.isEmpty then
+      .error { message := s!"struct `{decl.name}` must declare at least one field" }
+    for field in decl.fields do
+      validateValueType module field.type
+
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
     match state.kind, state.type with
     | .scalar, .u64 => pure ()
+    | .scalar, .structType typeName =>
+        match findStruct? module typeName with
+        | some decl =>
+            if decl.deriveStorage then
+              pure ()
+            else
+              .error { message := s!"state `{state.id}` uses struct `{typeName}`, but the struct is not marked deriveStorage" }
+        | none =>
+            .error { message := s!"state `{state.id}` references unknown struct `{typeName}`" }
     | .scalar, other =>
         .error { message := s!"state `{state.id}` has unsupported Psy IR v0 type `{other.name}`" }
     | .map .hash capacity, .hash =>
@@ -326,19 +421,35 @@ def testBody (module : Module) : Except LowerError (Array String) := do
       s!"assert_eq({refName}::sum_literal(), 60, \"fixed array literal indexes add up\");",
       s!"assert_eq({refName}::storage_lifecycle(), 31, \"storage array indexes read after writes\");"
     ]
+  else if module.name == "StructProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "local_sum" && entry.params.isEmpty && entry.returns == .u64) &&
+    module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::local_sum(), 30, \"struct literal fields add up\");",
+      s!"assert_eq({refName}::storage_lifecycle(), 26, \"storage struct fields read after writes\");"
+    ]
   else
     .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }
 
 def renderModule (module : Module) : Except LowerError String := do
   validateCapabilities module
+  validateStructs module
   validateState module
-  let stateLines ← module.state.mapM stateDecl
+  let structBlocks ← module.structs.mapM structDecl
+  let stateDecls ← module.state.mapM stateDecl
+  let stateLines := stateDecls.foldl (fun acc lines => acc ++ lines) #[]
   let entrypoints ← module.entrypoints.mapM (lowerEntrypoint module)
   let testLines := (← testBody module).map (indent 1)
+  let structLines :=
+    if structBlocks.isEmpty then
+      #[]
+    else
+      #[String.intercalate "\n\n" structBlocks.toList, ""]
   .ok <| lines <| #[
     s!"// Generated by ProofForge from the portable {module.name} IR.",
     "// This is Psy source intended for the official Dargo/Psy compiler toolchain.",
-    "",
+    ""
+  ] ++ structLines ++ #[
     "#[contract]",
     "#[derive(Storage)]",
     s!"pub struct {module.name} " ++ "{"

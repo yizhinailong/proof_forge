@@ -14,6 +14,7 @@ inductive Capability where
   | envBlock
   | controlBoundedLoop
   | dataFixedArray
+  | dataStruct
   | cryptoHash
   | assertions
   | accountExplicit
@@ -34,6 +35,7 @@ def Capability.id : Capability → String
   | .envBlock => "env.block"
   | .controlBoundedLoop => "control.bounded_loop"
   | .dataFixedArray => "data.fixed_array"
+  | .dataStruct => "data.struct"
   | .cryptoHash => "crypto.hash"
   | .assertions => "assertions.check"
   | .accountExplicit => "account.explicit"

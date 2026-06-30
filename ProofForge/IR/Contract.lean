@@ -10,6 +10,7 @@ inductive ValueType where
   | u64
   | hash
   | fixedArray (element : ValueType) (length : Nat)
+  | structType (name : String)
   deriving BEq, DecidableEq, Repr
 
 def ValueType.name : ValueType → String
@@ -18,6 +19,7 @@ def ValueType.name : ValueType → String
   | .u64 => "U64"
   | .hash => "Hash"
   | .fixedArray element length => s!"Array<{element.name},{length}>"
+  | .structType name => name
 
 def ValueType.capabilities : ValueType → Array ProofForge.Target.Capability
   | .unit => #[]
@@ -25,6 +27,20 @@ def ValueType.capabilities : ValueType → Array ProofForge.Target.Capability
   | .u64 => #[]
   | .hash => #[]
   | .fixedArray element _ => #[.dataFixedArray] ++ element.capabilities
+  | .structType _ => #[.dataStruct]
+
+structure StructField where
+  id : String
+  type : ValueType
+  isPublic : Bool := true
+  deriving Repr
+
+structure StructDecl where
+  name : String
+  fields : Array StructField
+  deriveStorage : Bool := false
+  isPublic : Bool := true
+  deriving Repr
 
 inductive StateKind where
   | scalar
@@ -66,6 +82,8 @@ mutual
     | local (name : String)
     | arrayLit (elementType : ValueType) (values : Array Expr)
     | arrayGet (array index : Expr)
+    | structLit (typeName : String) (fields : Array (String × Expr))
+    | field (base : Expr) (fieldName : String)
     | add (lhs rhs : Expr)
     | hash (preimage : Expr)
     | hashTwoToOne (lhs rhs : Expr)
@@ -81,6 +99,8 @@ mutual
     | storageMapSet (stateId : String) (key value : Expr)
     | storageArrayRead (stateId : String) (index : Expr)
     | storageArrayWrite (stateId : String) (index value : Expr)
+    | storageStructFieldRead (stateId fieldName : String)
+    | storageStructFieldWrite (stateId fieldName : String) (value : Expr)
     | contextRead (field : ContextField)
     deriving Repr
 end
@@ -104,6 +124,7 @@ structure Entrypoint where
 
 structure Module where
   name : String
+  structs : Array StructDecl := #[]
   state : Array StateDecl
   entrypoints : Array Entrypoint
   deriving Repr
@@ -117,6 +138,8 @@ def Effect.capability : Effect → ProofForge.Target.Capability
   | .storageMapSet _ _ _ => .storageMap
   | .storageArrayRead _ _ => .storageArray
   | .storageArrayWrite _ _ _ => .storageArray
+  | .storageStructFieldRead _ _ => .storageScalar
+  | .storageStructFieldWrite _ _ _ => .storageScalar
   | .contextRead field => field.capability
 
 mutual
@@ -127,6 +150,10 @@ mutual
         elementType.capabilities ++ values.foldl (fun acc value => acc ++ value.capabilities) #[.dataFixedArray]
     | .arrayGet array index =>
         #[.dataFixedArray] ++ array.capabilities ++ index.capabilities
+    | .structLit _ fields =>
+        fields.foldl (fun acc field => acc ++ field.snd.capabilities) #[.dataStruct]
+    | .field base _ =>
+        #[.dataStruct] ++ base.capabilities
     | .add lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .hash preimage => #[.cryptoHash] ++ preimage.capabilities
     | .hashTwoToOne lhs rhs => #[.cryptoHash] ++ lhs.capabilities ++ rhs.capabilities
@@ -141,8 +168,16 @@ mutual
     | .storageMapSet _ key value => key.capabilities ++ value.capabilities
     | .storageArrayRead _ index => index.capabilities
     | .storageArrayWrite _ index value => index.capabilities ++ value.capabilities
+    | .storageStructFieldRead _ _ => #[.dataStruct]
+    | .storageStructFieldWrite _ _ value => #[.dataStruct] ++ value.capabilities
     | .contextRead _ => #[]
 end
+
+def StructField.capabilities (field : StructField) : Array ProofForge.Target.Capability :=
+  field.type.capabilities
+
+def StructDecl.capabilities (decl : StructDecl) : Array ProofForge.Target.Capability :=
+  #[.dataStruct] ++ decl.fields.foldl (fun acc field => acc ++ field.capabilities) #[]
 
 def StateDecl.capabilities (state : StateDecl) : Array ProofForge.Target.Capability :=
   match state.kind with
@@ -165,7 +200,8 @@ def Entrypoint.capabilities (entrypoint : Entrypoint) : Array ProofForge.Target.
     entrypoint.body.foldl (fun acc stmt => acc ++ stmt.capabilities) #[]
 
 def Module.capabilities (module : Module) : Array ProofForge.Target.Capability :=
-  module.state.foldl (fun acc state => acc ++ state.capabilities) #[] ++
+  module.structs.foldl (fun acc decl => acc ++ decl.capabilities) #[] ++
+    module.state.foldl (fun acc state => acc ++ state.capabilities) #[] ++
     module.entrypoints.foldl (fun acc entrypoint => acc ++ entrypoint.capabilities) #[]
 
 end ProofForge.IR

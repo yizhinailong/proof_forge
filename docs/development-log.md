@@ -17,6 +17,69 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy StructProbe Struct Values And Storage
+
+Commit: feature commit for struct Psy IR coverage
+
+Summary:
+
+- Extended portable IR with struct declarations, struct value types, struct
+  literals, and field access expressions.
+- Registered `data.struct` as a target capability for struct values and field
+  access.
+- Extended portable IR storage effects with scalar storage struct field
+  read/write nodes.
+- Extended Psy sourcegen to emit `#[derive(Storage)]` struct declarations,
+  `new Struct { ... }` literals, local field access, scalar storage struct
+  assignment, and storage struct field reads through `.get()`.
+- Kept EVM IR v0 behavior explicit by rejecting struct literals, field access,
+  struct typed let bindings, struct returns, and storage struct field effects.
+- Added `ProofForge.IR.Examples.StructProbe`, covering local struct literals
+  plus scalar storage struct read/write behavior.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-struct-ir-psy -o build/psy/StructProbe.psy
+```
+
+- Added `Examples/Psy/StructProbe.golden.psy`.
+- Added `scripts/psy/struct-smoke.sh`, which generates a temporary Dargo
+  package, runs `dargo test --file`, `dargo compile`, two `dargo execute`
+  calls, `dargo generate-abi`, and validates `proof-forge-artifact.json`.
+- Added CI coverage for the StructProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-struct-ir-psy -o build/psy/StructProbe.psy
+diff -u Examples/Psy/StructProbe.golden.psy build/psy/StructProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/struct-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Generated StructProbe source matches the checked-in golden fixture.
+- `scripts/psy/struct-smoke.sh` generated DPN JSON, ABI JSON, execute log, and
+  `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [30]` for `local_sum`.
+- `dargo execute` returned `result_vm: [26]` for `storage_lifecycle`.
+
+Known limitations:
+
+- This feature covers flat struct values and scalar storage structs.
+- Struct arrays, nested structs, and methods on structs still need dedicated
+  coverage.
+- EVM IR v0 explicitly rejects struct IR nodes.
+
+Next step:
+
+- Combine structs with fixed arrays in a follow-up fixture aligned with
+  upstream `array_test.psy` and `array_ref_struct_index_test.psy`.
+
 ### Psy ArrayProbe Fixed Arrays
 
 Commit: feature commit for fixed-array Psy IR coverage

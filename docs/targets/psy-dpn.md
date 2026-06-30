@@ -10,9 +10,10 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
-ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe, and ArrayProbe
-fixtures. The target is not production-ready and does not yet cover structs,
-deploy JSON, live Psy node/prover deployment, or broad Lean-to-IR extraction.
+ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe, and
+StructProbe fixtures. The target is not production-ready and does not yet cover
+nested struct arrays, deploy JSON, live Psy node/prover deployment, or broad
+Lean-to-IR extraction.
 
 ## Summary
 
@@ -269,6 +270,7 @@ Initial mapping:
 | `env.block` | checkpoint/block-like context reads where valid |
 | `control.bounded_loop` | static Psy `for i in 0u32..Nu32` loops |
 | `data.fixed_array` | Psy `[T; N]` value types, literals, and index expressions |
+| `data.struct` | Psy `struct` definitions, `new Struct { ... }` literals, and field access |
 | `crypto.hash` | Psy hash intrinsics/prelude |
 | `assertions.check` | Psy `assert(...)` and `assert_eq(...)` statements in generated methods |
 | `zk.circuit` | every contract method lowers to a circuit definition |
@@ -457,6 +459,28 @@ as `xs[0]`, and fixed storage arrays such as `pub values: [Felt; 3]`. Storage
 array reads lower through `.get()` when used as arithmetic values, while writes
 use Psy's index assignment sugar: `c.values[0] = 7`.
 
+Current StructProbe output layout:
+
+```text
+build/psy/
+  StructProbe.psy
+  dargo-struct/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_struct.json
+    target/StructProbe.json
+    target/struct-execute.log
+    target/proof-forge-artifact.json
+```
+
+`StructProbe` follows upstream Psy struct and storage reference idioms from
+`tests/struct_field_test.psy`, `tests/ref_struct_eq_assign_test.psy`, and
+precompile storage structs. The portable IR now carries struct declarations,
+struct value types, `new Struct { ... }` literals, field access expressions,
+and scalar storage struct field read/write effects. Storage struct field reads
+lower through `.get()` when used as arithmetic values, while writes use Psy's
+field assignment sugar: `c.current.y = 19`.
+
 ## Smoke Test Strategy
 
 Experimental smoke does not require a live Psy network.
@@ -558,6 +582,21 @@ It verifies fixed-array value and storage lowering under Dargo local execution:
 The script emits and validates
 `build/psy/dargo-array/target/proof-forge-artifact.json`.
 
+The same validation shape is also implemented for `StructProbe`:
+
+```sh
+scripts/psy/struct-smoke.sh
+```
+
+It verifies struct value and scalar storage struct lowering under Dargo local
+execution:
+
+- `local_sum`: `result_vm: [30]`
+- `storage_lifecycle`: `result_vm: [26]`
+
+The script emits and validates
+`build/psy/dargo-struct/target/proof-forge-artifact.json`.
+
 All Psy smoke scripts run
 `scripts/psy/validate-artifact-metadata.py` after metadata generation. The
 validator checks schema version, target id, target family, artifact kind,
@@ -620,9 +659,13 @@ Deployment smoke:
   and fixed storage array index read/write lowering aligned with upstream Psy
   array and storage reference idioms.
 - Done: add `scripts/psy/array-smoke.sh` with the same Dargo validation shape.
+- Done: add `StructProbe` with struct declarations, struct literals, field
+  access, and scalar storage struct field read/write lowering aligned with
+  upstream Psy struct and storage reference idioms.
+- Done: add `scripts/psy/struct-smoke.sh` with the same Dargo validation shape.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
-- Remaining: add struct coverage from the upstream syntax corpus.
+- Remaining: add nested struct-array coverage from the upstream syntax corpus.
 
 ### Phase C: Metadata and Scenario Parity
 
@@ -666,10 +709,12 @@ Deployment smoke:
   with the Psy toolchain.
 - Generated ArrayProbe `.psy` package compiles with `dargo compile` on a
   machine with the Psy toolchain.
+- Generated StructProbe `.psy` package compiles with `dargo compile` on a
+  machine with the Psy toolchain.
 - Dargo execution proves the expected Counter lifecycle, context-read result,
   deterministic hash outputs, map lifecycle output, and assertion-protected
   checked sum output, plus the bounded loop count result and fixed-array
-  literal/storage results.
+  literal/storage results plus struct literal/storage results.
 - Artifact metadata records:
   - target id `psy-dpn`
   - target family and artifact kind

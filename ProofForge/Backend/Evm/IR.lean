@@ -52,6 +52,10 @@ mutual
         .error { message := "fixed array literals are not supported by IR EVM v0" }
     | .arrayGet _ _ =>
         .error { message := "fixed array indexing is not supported by IR EVM v0" }
+    | .structLit _ _ =>
+        .error { message := "struct literals are not supported by IR EVM v0" }
+    | .field _ _ =>
+        .error { message := "struct field access is not supported by IR EVM v0" }
     | .add lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "add" #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .hash _ =>
@@ -79,6 +83,10 @@ mutual
         .error { message := "storage.array.read is not supported by IR EVM v0" }
     | .storageArrayWrite _ _ _ =>
         .error { message := "storage.array.write is not supported by IR EVM v0" }
+    | .storageStructFieldRead _ _ =>
+        .error { message := "storage.struct.field.read is not supported by IR EVM v0" }
+    | .storageStructFieldWrite _ _ _ =>
+        .error { message := "storage.struct.field.write is not supported by IR EVM v0" }
     | .contextRead field =>
         .error { message := s!"context field `{field.name}` is not supported by IR EVM v0" }
 end
@@ -102,6 +110,10 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       .error { message := "storage.array.read must be used as an expression, but IR EVM v0 does not support storage arrays" }
   | .storageArrayWrite _ _ _ =>
       .error { message := "storage.array.write is not supported by IR EVM v0" }
+  | .storageStructFieldRead _ _ =>
+      .error { message := "storage.struct.field.read must be used as an expression, but IR EVM v0 does not support struct storage" }
+  | .storageStructFieldWrite _ _ _ =>
+      .error { message := "storage.struct.field.write is not supported by IR EVM v0" }
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
 
@@ -112,6 +124,7 @@ def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerE
       | .unit => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `Unit`" }
       | .hash => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `Hash`" }
       | .fixedArray _ _ => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `{type.name}`" }
+      | .structType _ => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `{type.name}`" }
       .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
   | .effect effect =>
       lowerEffectStmt module effect
@@ -135,9 +148,12 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
     | .u64 | .bool => #[{ name := "result" }]
     | .hash => #[]
     | .fixedArray _ _ => #[]
+    | .structType _ => #[]
   if entrypoint.returns == .hash then
     .error { message := s!"entrypoint `{entrypoint.name}` returns Hash; IR EVM v0 supports only Unit, U64, and Bool" }
   if entrypoint.returns.capabilities.contains .dataFixedArray then
+    .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U64, and Bool" }
+  if entrypoint.returns.capabilities.contains .dataStruct then
     .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U64, and Bool" }
   .ok (.funcDef (yulFunctionName module.name entrypoint.name) #[] returns { statements := body })
 
@@ -168,6 +184,10 @@ def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
         ]
     | .fixedArray _ _ =>
+        #[
+          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+        ]
+    | .structType _ =>
         #[
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
         ]
