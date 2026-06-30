@@ -41,6 +41,70 @@ def slotExpr (slot : Nat) : Lean.Compiler.Yul.Expr :=
 def yulFunctionName (moduleName entrypointName : String) : String :=
   s!"f_{moduleName}_{entrypointName}"
 
+def revertStmt : Lean.Compiler.Yul.Statement :=
+  Lean.Compiler.Yul.Statement.exprStmt
+    (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+
+def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num (4 + paramIndex * 32)]
+
+def ensureAbiScalarType (entrypointName paramName : String) (type : ValueType) : Except LowerError Unit :=
+  match type with
+  | .u32 | .u64 | .bool => .ok ()
+  | .unit =>
+      .error { message := s!"entrypoint `{entrypointName}` parameter `{paramName}` uses Unit; IR EVM v0 ABI parameters must use U32, U64, or Bool" }
+  | .hash =>
+      .error { message := s!"entrypoint `{entrypointName}` parameter `{paramName}` uses Hash; IR EVM v0 ABI parameters must use U32, U64, or Bool" }
+  | .fixedArray _ _ | .structType _ =>
+      .error { message := s!"entrypoint `{entrypointName}` parameter `{paramName}` uses `{type.name}`; IR EVM v0 ABI parameters must use U32, U64, or Bool" }
+
+def lowerEntrypointParams (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.TypedName) :=
+  entrypoint.params.foldlM (init := #[]) fun acc param => do
+    let (name, type) := param
+    ensureAbiScalarType entrypoint.name name type
+    .ok (acc.push ({ name := name } : Lean.Compiler.Yul.TypedName))
+
+def entrypointCallArgs (entrypoint : Entrypoint) : Array Lean.Compiler.Yul.Expr :=
+  go 0 #[]
+where
+  go (idx : Nat) (acc : Array Lean.Compiler.Yul.Expr) : Array Lean.Compiler.Yul.Expr :=
+    if h : idx < entrypoint.params.size then
+      go (idx + 1) (acc.push (calldataWordExpr idx))
+    else
+      acc
+
+def abiParamValidationStmts (entrypoint : Entrypoint) : Array Lean.Compiler.Yul.Statement :=
+  let minSize := 4 + entrypoint.params.size * 32
+  let lengthGuard :=
+    if entrypoint.params.isEmpty then
+      #[]
+    else
+      #[
+        Lean.Compiler.Yul.Statement.ifStmt
+          (Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.builtin "calldatasize" #[], Lean.Compiler.Yul.Expr.num minSize])
+          { statements := #[revertStmt] }
+      ]
+  go 0 lengthGuard
+where
+  go (idx : Nat) (acc : Array Lean.Compiler.Yul.Statement) : Array Lean.Compiler.Yul.Statement :=
+    if h : idx < entrypoint.params.size then
+      let (_, type) := entrypoint.params[idx]
+      let word := calldataWordExpr idx
+      let acc :=
+        match type with
+        | .u32 =>
+            acc.push <| Lean.Compiler.Yul.Statement.ifStmt
+              (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 4294967295])
+              { statements := #[revertStmt] }
+        | .bool =>
+            acc.push <| Lean.Compiler.Yul.Statement.ifStmt
+              (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 1])
+              { statements := #[revertStmt] }
+        | _ => acc
+      go (idx + 1) acc
+    else
+      acc
+
 mutual
   partial def lowerExpr (module : Module) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
     | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
@@ -221,8 +285,7 @@ def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerE
       .ok (.assignment #["result"] (← lowerExpr module value))
 
 def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do
-  if !entrypoint.params.isEmpty then
-    .error { message := s!"entrypoint `{entrypoint.name}` has parameters; IR EVM v0 supports no parameters" }
+  let params ← lowerEntrypointParams entrypoint
   match entrypoint.returns with
   | .unit => pure ()
   | _ =>
@@ -245,42 +308,34 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
     .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U64, and Bool" }
   if entrypoint.returns.capabilities.contains .dataStruct then
     .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U64, and Bool" }
-  .ok (.funcDef (yulFunctionName module.name entrypoint.name) #[] returns { statements := body })
+  .ok (.funcDef (yulFunctionName module.name entrypoint.name) params returns { statements := body })
 
 def entrypointCallExpr (module : Module) (entrypoint : Entrypoint) : Lean.Compiler.Yul.Expr :=
-  Lean.Compiler.Yul.call (yulFunctionName module.name entrypoint.name) #[]
+  Lean.Compiler.Yul.call (yulFunctionName module.name entrypoint.name) (entrypointCallArgs entrypoint)
 
 def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Case := do
   let some selector := entrypoint.selector?
     | .error { message := s!"entrypoint `{entrypoint.name}` has no EVM selector metadata" }
-  if !entrypoint.params.isEmpty then
-    .error { message := s!"entrypoint `{entrypoint.name}` has parameters; IR EVM dispatcher v0 supports no parameters" }
   let callExpr := entrypointCallExpr module entrypoint
   let bodyStmts :=
     match entrypoint.returns with
     | .unit =>
-        #[
+        abiParamValidationStmts entrypoint ++ #[
           Lean.Compiler.Yul.Statement.exprStmt callExpr,
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
         ]
     | .u32 | .u64 | .bool =>
-        #[
+        abiParamValidationStmts entrypoint ++ #[
           Lean.Compiler.Yul.Statement.varDecl #[({ name := "_r" } : Lean.Compiler.Yul.TypedName)] (some callExpr),
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "_r"]),
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32])
         ]
     | .hash =>
-        #[
-          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
-        ]
+        #[revertStmt]
     | .fixedArray _ _ =>
-        #[
-          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
-        ]
+        #[revertStmt]
     | .structType _ =>
-        #[
-          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
-        ]
+        #[revertStmt]
   .ok {
     value := some (Lean.Compiler.Yul.Literal.hex ("0x" ++ selector))
     body := { statements := bodyStmts }
@@ -296,9 +351,7 @@ def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statem
   let defaultCase : Lean.Compiler.Yul.Case := {
     value := none
     body := {
-      statements := #[
-        Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
-      ]
+      statements := #[revertStmt]
     }
   }
   .ok (.switchStmt selectorExpr (cases.push defaultCase))

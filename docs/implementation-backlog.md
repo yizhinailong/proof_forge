@@ -93,6 +93,9 @@ Tasks:
 - Done: add an EVM IR coverage manifest gate so every portable IR constructor
   must be classified as lowered, validated, unsupported, or structural for the
   EVM backend.
+- Done: add `AbiScalarProbe` for portable IR EVM scalar ABI parameter decoding
+  over `U64`, `U32`, and `Bool`, with golden Yul, solc bytecode, and Foundry
+  malformed-calldata validation.
 - Add golden Yul outputs for simple examples.
 - Add metadata emission around current `solc --strict-assembly` flow.
 - Keep Foundry smoke as the mature EVM smoke test.

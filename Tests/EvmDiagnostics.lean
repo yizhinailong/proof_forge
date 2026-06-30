@@ -47,11 +47,20 @@ def missingSelectorModule : Module := {
   }]
 }
 
-def parameterModule : Module :=
-  selectedModule "BadParameter" {
+def unitParameterModule : Module :=
+  selectedModule "BadUnitParameter" {
     name := "set"
     selector? := some "60fe47b1"
-    params := #[("value", .u64)]
+    params := #[("value", .unit)]
+    returns := .unit
+    body := #[]
+  }
+
+def hashParameterModule : Module :=
+  selectedModule "BadHashParameter" {
+    name := "set"
+    selector? := some "60fe47b1"
+    params := #[("value", .hash)]
     returns := .unit
     body := #[]
   }
@@ -215,9 +224,14 @@ def cases : Array (String × Module × String) := #[
     "entrypoint `bad` has no EVM selector metadata"
   ),
   (
-    "entrypoint parameter unsupported",
-    parameterModule,
-    "entrypoint `set` has parameters; IR EVM v0 supports no parameters"
+    "unit parameter unsupported",
+    unitParameterModule,
+    "entrypoint `set` parameter `value` uses Unit; IR EVM v0 ABI parameters must use U32, U64, or Bool"
+  ),
+  (
+    "hash parameter unsupported",
+    hashParameterModule,
+    "entrypoint `set` parameter `value` uses Hash; IR EVM v0 ABI parameters must use U32, U64, or Bool"
   ),
   (
     "missing return",

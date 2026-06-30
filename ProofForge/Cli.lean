@@ -6,6 +6,7 @@ import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Psy.IR
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
+import ProofForge.IR.Examples.AbiScalarProbe
 import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.ArithmeticProbe
 import ProofForge.IR.Examples.AssertProbe
@@ -44,6 +45,8 @@ inductive EmitMode where
   | evmBytecode
   | counterIrYul
   | counterIrBytecode
+  | abiScalarIrYul
+  | abiScalarIrBytecode
   | counterIrPsy
   | eventIrPsy
   | crosscallIrPsy
@@ -92,6 +95,8 @@ def usage : String :=
     "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
+    "  proof-forge --emit-abi-scalar-ir-yul [-o output.yul]",
+    "  proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
     "  proof-forge --emit-counter-ir-psy [-o output.psy]",
     "  proof-forge --emit-event-ir-psy [-o output.psy]",
     "  proof-forge --emit-crosscall-ir-psy [-o output.psy]",
@@ -283,7 +288,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
         .ok opts
       else
         .error usage
@@ -314,6 +319,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .counterIrYul }
   | "--emit-counter-ir-bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrBytecode }
+  | "--emit-abi-scalar-ir-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .abiScalarIrYul }
+  | "--emit-abi-scalar-ir-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .abiScalarIrBytecode }
   | "--emit-counter-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrPsy }
   | "--emit-event-ir-psy" :: rest, opts =>
@@ -454,6 +463,31 @@ def compileCounterIrBytecode (opts : CliOptions) : IO UInt32 := do
   writeTextFile yulOutput yul
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (FilePath.mk "build/ir/Counter.bin")
+  writeTextFile output (bytecode ++ "\n")
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
+def compileAbiScalarIrYul (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/ir/AbiScalarProbe.yul")
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.AbiScalarProbe.module with
+  | .ok yul =>
+      writeTextFile output yul
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def renderAbiScalarIrYul : IO String := do
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.AbiScalarProbe.module with
+  | .ok yul => return yul
+  | .error err => throw <| IO.userError err.render
+
+def compileAbiScalarIrBytecode (opts : CliOptions) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/AbiScalarProbe.yul")
+  let yul ← renderAbiScalarIrYul
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (FilePath.mk "build/ir/AbiScalarProbe.bin")
   writeTextFile output (bytecode ++ "\n")
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
@@ -739,6 +773,8 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .evmBytecode => compileEvmBytecode opts
   | .counterIrYul => compileCounterIrYul opts
   | .counterIrBytecode => compileCounterIrBytecode opts
+  | .abiScalarIrYul => compileAbiScalarIrYul opts
+  | .abiScalarIrBytecode => compileAbiScalarIrBytecode opts
   | .counterIrPsy => compileCounterIrPsy opts
   | .eventIrPsy => compileEventIrPsy opts
   | .crosscallIrPsy => compileCrosscallIrPsy opts

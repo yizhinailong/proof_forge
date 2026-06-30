@@ -17,6 +17,65 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Scalar ABI Parameters
+
+Commit: feature commit for EVM IR scalar ABI parameters
+
+Summary:
+
+- Added `ProofForge.IR.Examples.AbiScalarProbe` with `mix(uint256,uint32,bool)`
+  and `same(uint256,uint256)` portable IR entrypoints.
+- Extended `ProofForge.Backend.Evm.IR` so `U64`, `U32`, and `Bool` entrypoint
+  parameters lower to Yul function parameters and dispatcher `calldataload`
+  arguments.
+- Added dispatcher ABI guards for short calldata, out-of-range `uint32`
+  values, and invalid `bool` encodings.
+- Added CLI modes:
+  `--emit-abi-scalar-ir-yul` and `--emit-abi-scalar-ir-bytecode`.
+- Added `Examples/Evm/AbiScalarProbe.golden.yul` and
+  `scripts/evm/abi-scalar-ir-smoke.sh`, then wired the smoke into CI.
+- Updated EVM diagnostics to reject only non-scalar ABI parameter types instead
+  of rejecting every parameterized entrypoint.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-abi-scalar-ir-yul -o build/ir/AbiScalarProbe.yul
+diff -u Examples/Evm/AbiScalarProbe.golden.yul build/ir/AbiScalarProbe.yul
+bash -n scripts/evm/*.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/build-examples.sh
+scripts/evm/foundry-smoke.sh
+git diff --check
+```
+
+Result:
+
+- Generated Yul includes selector dispatch for `mix` and `same`, calldata size
+  guards, `uint32` range validation, and `bool` encoding validation.
+- `scripts/evm/abi-scalar-ir-smoke.sh` compiles the fixture to bytecode,
+  verifies the golden Yul snapshot, and passes Foundry tests for valid calls
+  and malformed calldata reverts.
+- EVM diagnostic smoke passes after replacing the obsolete all-parameter
+  rejection with Unit/Hash ABI parameter diagnostics.
+- Existing EVM SDK examples still build and the Foundry smoke suite passes all
+  four tests.
+
+Known limitations:
+
+- This only covers scalar word ABI parameters and one-word returns.
+- Aggregate ABI values, dynamic data, events, and artifact metadata remain
+  pending.
+
+Next step:
+
+- Add the next EVM IR positive fixture for either assertions/reverts or
+  statement-level assignment before expanding storage layout.
+
 ### EVM IR Coverage And Diagnostics Baseline
 
 Commit: feature commit for EVM IR coverage and diagnostics

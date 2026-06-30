@@ -109,6 +109,9 @@ jobs:
       - name: Check EVM IR coverage manifest
         run: scripts/evm/check-ir-coverage-manifest.py
 
+      - name: Run EVM ABI scalar IR smoke
+        run: scripts/evm/abi-scalar-ir-smoke.sh
+
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh
 

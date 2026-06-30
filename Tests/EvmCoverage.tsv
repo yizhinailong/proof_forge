@@ -1,9 +1,9 @@
 # inductive	constructor	status	evidence
 ValueType	unit	validated	EVM IR permits Unit entrypoint returns and rejects Unit let bindings through lowerStatement diagnostics.
-ValueType	bool	lowered	Bool literals, predicates, and return values lower to Yul 0/1 words; unsupported bool storage is rejected by validateState.
-ValueType	u32	lowered	U32 values lower as EVM words; scalar U32 storage is accepted by validateState.
-ValueType	u64	lowered	U64 values lower as EVM words; Counter IR covers scalar U64 storage and return values.
-ValueType	hash	unsupported	Hash literals, Hash returns, and hash construction currently fail with explicit EVM IR v0 diagnostics.
+ValueType	bool	lowered	Bool literals, predicates, ABI parameters, and return values lower to Yul 0/1 words; unsupported bool storage is rejected by validateState.
+ValueType	u32	lowered	U32 values and ABI parameters lower as EVM words with dispatcher range guards; scalar U32 storage is accepted by validateState.
+ValueType	u64	lowered	U64 values and ABI parameters lower as EVM words; Counter IR covers scalar U64 storage and return values.
+ValueType	hash	unsupported	Hash literals, Hash ABI parameters, Hash returns, and hash construction currently fail with explicit EVM IR v0 diagnostics.
 ValueType	fixedArray	unsupported	EVM target profile rejects data.fixed_array until fixed-array ABI, memory, and storage lowering are implemented.
 ValueType	structType	unsupported	EVM target profile rejects data.struct until struct ABI, memory, and storage layout lowering are implemented.
 StateKind	scalar	lowered	EVM IR lowers scalar U32/U64 state to direct slot-based sload/sstore and rejects other scalar types.

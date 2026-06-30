@@ -82,6 +82,7 @@
 - 保持 `proof-forge --evm-bytecode` 正常工作。
 - 已完成：加入 EVM IR 诊断冒烟测试，让不支持的 portable IR 形态在 Yul 生成前给出稳定错误。
 - 已完成：加入 EVM IR 覆盖清单 gate，要求每个 portable IR constructor 都被标记为 lowered、validated、unsupported 或 structural。
+- 已完成：加入 `AbiScalarProbe`，覆盖 portable IR EVM 的 `U64`、`U32` 和 `Bool` 标量 ABI 参数 decoding，并通过 golden Yul、solc bytecode 和 Foundry malformed-calldata 验证。
 - 为简单示例添加黄金 Yul 输出。
 - 在当前的 `solc --strict-assembly` 流程中添加元数据发射。
 - 保留 Foundry 冒烟测试作为成熟的 EVM 冒烟测试。

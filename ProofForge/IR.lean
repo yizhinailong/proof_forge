@@ -1,5 +1,6 @@
 import ProofForge.IR.Contract
 import ProofForge.IR.Examples.AbiAggregateProbe
+import ProofForge.IR.Examples.AbiScalarProbe
 import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.ArithmeticProbe
 import ProofForge.IR.Examples.AssertProbe

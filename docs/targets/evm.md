@@ -33,6 +33,7 @@ scripts/evm/build-examples.sh
 scripts/evm/foundry-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/abi-scalar-ir-smoke.sh
 ```
 
 ## CLI modes
@@ -47,6 +48,15 @@ EVM bytecode mode:
 
 ```sh
 proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [-o output.bin] input.lean
+```
+
+Portable IR EVM fixture modes:
+
+```sh
+proof-forge --emit-counter-ir-yul [-o output.yul]
+proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-abi-scalar-ir-yul [-o output.yul]
+proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
 ```
 
 `--bytecode` is an alias for `--evm-bytecode`.
@@ -135,9 +145,9 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
   IR EVM backend currently supports only a Counter-class subset and rejects
   wider portable IR nodes with explicit diagnostics.
-- Portable IR EVM currently lacks ABI parameter decoding, aggregate values,
-  mappings, storage arrays, structs, assertions/reverts, context opcodes,
-  hashing, events, cross-contract calls, and artifact metadata.
+- Portable IR EVM currently lacks aggregate ABI values, mappings, storage
+  arrays, structs, assertions/reverts, context opcodes, hashing, events,
+  cross-contract calls, and artifact metadata.
 
 ## Portable IR Gates
 
@@ -147,6 +157,7 @@ The portable IR EVM backend is tracked separately from the older
 ```sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
@@ -157,6 +168,12 @@ update this manifest before CI passes.
 `Tests/EvmDiagnostics.lean` locks the current unsupported-surface behavior so
 unsupported EVM IR shapes fail before Yul generation instead of silently
 omitting behavior.
+
+`AbiScalarProbe` is the first portable IR EVM ABI fixture beyond Counter. It
+validates dispatcher calldata decoding for `U64`, `U32`, and `Bool` parameters,
+one-word return data for `U64` and `Bool`, golden Yul reproducibility, solc
+bytecode generation, and Foundry runtime behavior including malformed calldata
+reverts.
 
 ## Metadata
 
