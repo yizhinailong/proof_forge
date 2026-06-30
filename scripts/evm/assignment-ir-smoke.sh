@@ -8,6 +8,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${IR_EVM_OUT_DIR:-$ROOT/build/ir}"
 FORGE_DIR="${IR_EVM_FORGE_DIR:-$ROOT/build/foundry-ir-assignment-smoke}"
 GOLDEN_FILE="${IR_EVM_GOLDEN:-$ROOT/Examples/Evm/AssignmentProbe.golden.yul}"
+METADATA_FILE="${IR_EVM_METADATA:-$OUT_DIR/AssignmentProbe.proof-forge-artifact.json}"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
@@ -26,11 +27,20 @@ mkdir -p "$OUT_DIR"
 lake build proof-forge >/dev/null
 "$ROOT/.lake/build/bin/proof-forge" --emit-assignment-ir-bytecode \
   --yul-output "$OUT_DIR/AssignmentProbe.yul" \
+  --artifact-output "$METADATA_FILE" \
   -o "$OUT_DIR/AssignmentProbe.bin"
 
 if [[ -f "$GOLDEN_FILE" ]]; then
   diff -u "$GOLDEN_FILE" "$OUT_DIR/AssignmentProbe.yul"
 fi
+
+python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
+  --root "$ROOT" \
+  --expect-fixture AssignmentProbe \
+  --expect-source-kind portable-ir \
+  --expect-capability assertions.check \
+  --expect-entrypoint reassignment:91a3e2ac \
+  "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/AssignmentProbe.bin")"
 
@@ -98,3 +108,5 @@ contract ProofForgeIRAssignmentSmokeTest {
 SOL
 
 forge test --root "$FORGE_DIR" -vv
+
+echo "assignment-ir-smoke: ProofForge metadata $METADATA_FILE"

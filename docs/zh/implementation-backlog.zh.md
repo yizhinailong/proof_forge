@@ -60,16 +60,16 @@
 
 任务：
 
-- 添加 `proof-forge-artifact.json` schema。
-- 为 EVM 字节码构建发射元数据。
-- 包含源模块、目标 id、制品路径、SHA-256、工具版本以及证明/检查状态。
+- 已完成（EVM）：为 EVM bytecode build 添加 `proof-forge-artifact.json` schema。
+- 已完成（EVM）：为 `--evm-bytecode` 和 portable IR EVM bytecode fixture build 发射 metadata。
+- 已完成（EVM）：包含 source module、target id、artifact path、SHA-256、byte size、solc path/version、selector metadata 和 validation status。
 - 从第一天起就保持 schema 的版本化。
 
 验收标准：
 
 - EVM 字节码构建将字节码和元数据并排写入。
 - 元数据可以由 CI 脚本独立解析。
-- 缺失的可选工具表示为警告，而不是格式错误的元数据。
+- EVM metadata 可以将缺失的可选 version 数据表示为 `null`，而不是格式错误的 metadata。
 
 ## 工作流 3：EVM 基线加固
 
@@ -87,7 +87,7 @@
 - 已完成：加入 EVM IR 可变标量 local binding 和 local assignment lowering，并用 `AssignmentProbe` 跑通 golden Yul、solc bytecode 和 Foundry 成功/失败路径验证。
 - 已完成：加入 EVM IR 语句级 `if/else` lowering，将其降为 Yul `switch` block，并用 `ConditionalProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证和分支内 return 显式诊断。
 - 为简单示例添加黄金 Yul 输出。
-- 在当前的 `solc --strict-assembly` 流程中添加元数据发射。
+- 已完成：为 SDK 和 portable IR EVM bytecode build 在当前 `solc --strict-assembly` 流程周围添加 metadata 发射与校验。
 - 保留 Foundry 冒烟测试作为成熟的 EVM 冒烟测试。
 
 验收标准：

@@ -2,7 +2,7 @@
 
 目标 id：**`evm`**
 
-阶段：**Experimental** —— CI 冒烟测试、目标注册表以及 portable IR 诊断/覆盖门禁已接入，但制品元数据尚未发射。
+阶段：**Experimental** —— CI 冒烟测试、目标注册表、portable IR 诊断/覆盖门禁以及 EVM 制品元数据校验已接入。
 
 相关内容：[能力注册表](../capability-registry.md)，[共享场景](../shared-scenario.md)，[RFC 0002](../rfcs/0002-target-implementation-design.md)。
 
@@ -24,6 +24,7 @@ Lean contract (ProofForge.Evm / Lean.Evm)
 lake build
 
 lake env proof-forge --evm-bytecode --root . --module contract \
+  --artifact-output build/evm/Counter.proof-forge-artifact.json \
   -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
 
 scripts/evm/build-examples.sh
@@ -47,27 +48,27 @@ proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:
 EVM 字节码模式：
 
 ```sh
-proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [-o output.bin] input.lean
+proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [-o output.bin] input.lean
 ```
 
 Portable IR EVM fixture 模式：
 
 ```sh
 proof-forge --emit-counter-ir-yul [-o output.yul]
-proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-abi-scalar-ir-yul [-o output.yul]
-proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-assert-ir-yul [-o output.yul]
-proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-assignment-ir-yul [-o output.yul]
-proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-conditional-ir-yul [-o output.yul]
-proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
 
 `--bytecode` 是 `--evm-bytecode` 的别名。
 
-`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。
+`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`。
 
 ## .evm-methods sidecar 格式
 
@@ -143,7 +144,6 @@ EVM 不支持（设计上针对其他目标）：
 
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
-- 尚未有统一的 `proof-forge-artifact.json`（计划于工作流 2）。
 - 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值和条件分支 fixture，其他更宽的 portable IR 节点仍以显式诊断拒绝。
 
 ## Portable IR 门禁
@@ -170,4 +170,19 @@ scripts/evm/ir-counter-smoke.sh
 
 ## 元数据
 
-在统一的目标清单发布（RFC 0002）之前，方法分派使用 `.evm-methods` sidecar 文件。
+EVM bytecode 模式会发射 ProofForge 制品元数据 JSON。默认路径是 bytecode 输出旁边的 `proof-forge-artifact.json`；smoke 脚本会显式传入 fixture 专属 `--artifact-output`，避免并行运行时互相覆盖。
+
+当前 EVM metadata schema 记录：
+
+- `schemaVersion: 1`
+- `target: evm`、`targetFamily: evm` 和 `artifactKind: evm-bytecode`
+- source kind（`lean-sdk` 或 `portable-ir`）、source module，以及 portable IR fixture 的 `irVersion: portable-ir-v0`
+- 可获得的 portable IR capability ids
+- selector-facing ABI entrypoints 或 SDK method specs
+- `solc` path/version
+- Yul 和 bytecode 的 artifact path、byte size 和 SHA-256
+- `solc --strict-assembly` 与 bytecode generation 的 validation flag
+
+`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件。
+
+在统一的目标清单发布（RFC 0002）之前，方法分派仍使用 `.evm-methods` sidecar 文件。

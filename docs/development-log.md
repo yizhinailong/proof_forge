@@ -17,6 +17,77 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM Artifact Metadata
+
+Commit: feature commit for EVM artifact metadata
+
+Summary:
+
+- Added EVM `proof-forge-artifact.json` emission to `proof-forge`
+  bytecode-producing modes, covering both `--evm-bytecode` SDK builds and
+  portable IR EVM bytecode fixtures.
+- Added `--artifact-output` to override the metadata path; without an override,
+  bytecode modes write `proof-forge-artifact.json` next to the bytecode output.
+- Added metadata fields for schema version, target id/family, artifact kind,
+  source kind/module, portable IR version, capability ids, selector-facing ABI,
+  `solc` path/version, Yul/bytecode/source artifact hashes and byte sizes, and
+  validation status.
+- Added `scripts/evm/validate-artifact-metadata.py` for machine validation of
+  EVM metadata files.
+- Updated EVM IR smoke scripts and `scripts/evm/build-examples.sh` so generated
+  metadata is validated in CI.
+- Updated EVM target docs, validation gates, backlog, portable IR docs, and
+  Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+PATH="$HOME/.foundry/bin:$PATH" lake env proof-forge --evm-bytecode --root . --module contract \
+  --artifact-output build/evm/Counter.proof-forge-artifact.json \
+  -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
+python3 scripts/evm/validate-artifact-metadata.py --root . \
+  --expect-fixture Counter.lean \
+  --expect-source-kind lean-sdk \
+  build/evm/Counter.proof-forge-artifact.json
+bash -n scripts/evm/*.sh
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py
+scripts/evm/conditional-ir-smoke.sh
+scripts/evm/assignment-ir-smoke.sh
+scripts/evm/assert-ir-smoke.sh
+scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/build-examples.sh
+scripts/evm/foundry-smoke.sh
+git diff --check
+```
+
+Result:
+
+- SDK EVM bytecode builds emit validated metadata with source, Yul, bytecode,
+  method selectors, and `solc` validation status.
+- Portable IR EVM bytecode builds emit validated metadata with fixture name,
+  source module, `irVersion: portable-ir-v0`, capability ids, ABI selectors,
+  Yul/bytecode hashes, and validation status.
+- Each EVM IR smoke now writes a fixture-specific metadata file to avoid
+  parallel-run overwrite races.
+- `scripts/evm/build-examples.sh` validates metadata for every SDK example with
+  a sibling `.evm-methods` file.
+
+Known limitations:
+
+- EVM metadata is still build metadata, not a full deploy manifest.
+- `capabilities` are populated for portable IR fixtures; SDK builds currently
+  record method metadata but not inferred SDK capability ids.
+
+Next step:
+
+- Add EVM context or hashing lowering as the next isolated capability slice, or
+  turn metadata into a unified target manifest when more targets share the
+  schema.
+
 ### EVM IR Conditionals
 
 Commit: feature commit for EVM IR conditionals

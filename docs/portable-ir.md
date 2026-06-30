@@ -147,7 +147,8 @@ CosmWasm maps to string-keyed KV; Aptos maps to an account resource field.
       path with a thin adapter).
 - [ ] Capability checker rejects at least one unsupported capability per
       non-EVM target with a clear diagnostic.
-- [ ] IR version recorded in `proof-forge-artifact.json`.
+- [x] EVM portable IR bytecode metadata records `irVersion:
+      portable-ir-v0` in `proof-forge-artifact.json`.
 
 ## Open Questions
 

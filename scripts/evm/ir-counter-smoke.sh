@@ -7,6 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${IR_EVM_OUT_DIR:-$ROOT/build/ir}"
 FORGE_DIR="${IR_EVM_FORGE_DIR:-$ROOT/build/foundry-ir-counter-smoke}"
+METADATA_FILE="${IR_EVM_METADATA:-$OUT_DIR/Counter.proof-forge-artifact.json}"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
@@ -24,7 +25,18 @@ fi
 mkdir -p "$OUT_DIR"
 "$ROOT/.lake/build/bin/proof-forge" --emit-counter-ir-bytecode \
   --yul-output "$OUT_DIR/Counter.yul" \
+  --artifact-output "$METADATA_FILE" \
   -o "$OUT_DIR/Counter.bin"
+
+python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
+  --root "$ROOT" \
+  --expect-fixture Counter \
+  --expect-source-kind portable-ir \
+  --expect-capability storage.scalar \
+  --expect-entrypoint initialize:8129fc1c \
+  --expect-entrypoint increment:d09de08a \
+  --expect-entrypoint get:6d4ce63c \
+  "$METADATA_FILE"
 
 counter_hex="$(tr -d '\n' < "$OUT_DIR/Counter.bin")"
 
@@ -102,3 +114,4 @@ SOL
 
 forge test --root "$FORGE_DIR" -vv
 
+echo "ir-counter-smoke: ProofForge metadata $METADATA_FILE"

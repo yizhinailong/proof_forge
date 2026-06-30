@@ -8,6 +8,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${IR_EVM_OUT_DIR:-$ROOT/build/ir}"
 FORGE_DIR="${IR_EVM_FORGE_DIR:-$ROOT/build/foundry-ir-abi-scalar-smoke}"
 GOLDEN_FILE="${IR_EVM_GOLDEN:-$ROOT/Examples/Evm/AbiScalarProbe.golden.yul}"
+METADATA_FILE="${IR_EVM_METADATA:-$OUT_DIR/AbiScalarProbe.proof-forge-artifact.json}"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
@@ -26,11 +27,20 @@ mkdir -p "$OUT_DIR"
 lake build proof-forge >/dev/null
 "$ROOT/.lake/build/bin/proof-forge" --emit-abi-scalar-ir-bytecode \
   --yul-output "$OUT_DIR/AbiScalarProbe.yul" \
+  --artifact-output "$METADATA_FILE" \
   -o "$OUT_DIR/AbiScalarProbe.bin"
 
 if [[ -f "$GOLDEN_FILE" ]]; then
   diff -u "$GOLDEN_FILE" "$OUT_DIR/AbiScalarProbe.yul"
 fi
+
+python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
+  --root "$ROOT" \
+  --expect-fixture AbiScalarProbe \
+  --expect-source-kind portable-ir \
+  --expect-entrypoint mix:7f97495c \
+  --expect-entrypoint same:c32c70b1 \
+  "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/AbiScalarProbe.bin")"
 
@@ -133,3 +143,5 @@ contract ProofForgeIRAbiScalarSmokeTest {
 SOL
 
 forge test --root "$FORGE_DIR" -vv
+
+echo "abi-scalar-ir-smoke: ProofForge metadata $METADATA_FILE"

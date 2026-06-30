@@ -107,7 +107,7 @@ EVM 降级将 `storage.scalar` 映射到插槽存储；Solana 映射到账户数
 - [ ] Counter 模块可在不使用 EVM 特有操作码的情况下在 IR 中表达。
 - [ ] EVM 后端可以将 Counter IR 降级为 Yul（直接降级或通过现有的带有薄适配器的 EmitYul 路径）。
 - [ ] 能力检查器针对每个非 EVM 目标拒绝至少一个不支持的能力，并提供清晰的诊断信息。
-- [ ] IR 版本记录在 `proof-forge-artifact.json` 中。
+- [x] EVM portable IR bytecode metadata 已在 `proof-forge-artifact.json` 中记录 `irVersion: portable-ir-v0`。
 
 ## 待解决问题
 

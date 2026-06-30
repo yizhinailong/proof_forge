@@ -8,6 +8,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${IR_EVM_OUT_DIR:-$ROOT/build/ir}"
 FORGE_DIR="${IR_EVM_FORGE_DIR:-$ROOT/build/foundry-ir-conditional-smoke}"
 GOLDEN_FILE="${IR_EVM_GOLDEN:-$ROOT/Examples/Evm/ConditionalProbe.golden.yul}"
+METADATA_FILE="${IR_EVM_METADATA:-$OUT_DIR/ConditionalProbe.proof-forge-artifact.json}"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
@@ -26,11 +27,22 @@ mkdir -p "$OUT_DIR"
 lake build proof-forge >/dev/null
 "$ROOT/.lake/build/bin/proof-forge" --emit-conditional-ir-bytecode \
   --yul-output "$OUT_DIR/ConditionalProbe.yul" \
+  --artifact-output "$METADATA_FILE" \
   -o "$OUT_DIR/ConditionalProbe.bin"
 
 if [[ -f "$GOLDEN_FILE" ]]; then
   diff -u "$GOLDEN_FILE" "$OUT_DIR/ConditionalProbe.yul"
 fi
+
+python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
+  --root "$ROOT" \
+  --expect-fixture ConditionalProbe \
+  --expect-source-kind portable-ir \
+  --expect-capability storage.scalar \
+  --expect-capability control.conditional \
+  --expect-capability assertions.check \
+  --expect-entrypoint conditional_lifecycle:f3380744 \
+  "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/ConditionalProbe.bin")"
 
@@ -97,3 +109,5 @@ contract ProofForgeIRConditionalSmokeTest {
 SOL
 
 forge test --root "$FORGE_DIR" -vv
+
+echo "conditional-ir-smoke: ProofForge metadata $METADATA_FILE"

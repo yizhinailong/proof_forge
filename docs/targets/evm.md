@@ -2,8 +2,8 @@
 
 Target id: **`evm`**
 
-Stage: **Experimental** — CI smoke tests pass, target registry and portable IR
-diagnostic/coverage gates are wired, but artifact metadata is not yet emitted.
+Stage: **Experimental** — CI smoke tests, target registry, portable IR
+diagnostic/coverage gates, and EVM artifact metadata validation are wired.
 
 Related: [Capability registry](../capability-registry.md),
 [Shared scenario](../shared-scenario.md),
@@ -27,6 +27,7 @@ Lean contract (ProofForge.Evm / Lean.Evm)
 lake build
 
 lake env proof-forge --evm-bytecode --root . --module contract \
+  --artifact-output build/evm/Counter.proof-forge-artifact.json \
   -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
 
 scripts/evm/build-examples.sh
@@ -50,27 +51,30 @@ proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:
 EVM bytecode mode:
 
 ```sh
-proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [-o output.bin] input.lean
+proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [-o output.bin] input.lean
 ```
 
 Portable IR EVM fixture modes:
 
 ```sh
 proof-forge --emit-counter-ir-yul [-o output.yul]
-proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-abi-scalar-ir-yul [-o output.yul]
-proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-assert-ir-yul [-o output.yul]
-proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-assignment-ir-yul [-o output.yul]
-proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-conditional-ir-yul [-o output.yul]
-proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
 
 `--bytecode` is an alias for `--evm-bytecode`.
 
 `--solc <path>` and `--cast <path>` override external tool paths.
+`--artifact-output <path>` overrides the default EVM metadata path. Without an
+override, bytecode modes write `proof-forge-artifact.json` next to the bytecode
+output.
 
 ## .evm-methods sidecar format
 
@@ -152,14 +156,13 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 
 - `Nat` capped at U256; no bignum on EVM.
 - String manipulation APIs incomplete in Yul runtime.
-- No unified `proof-forge-artifact.json` yet (planned Workstream 2).
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
   IR EVM backend currently supports scalar storage/ABI, assertions, local
   assignment, and conditional fixtures, and rejects wider portable IR nodes with explicit
   diagnostics.
 - Portable IR EVM currently lacks aggregate ABI values, mappings, storage
   arrays, structs, context opcodes, hashing, events, cross-contract calls, and
-  artifact metadata.
+  target-specific deploy manifests.
 
 ## Portable IR Gates
 
@@ -209,5 +212,25 @@ backend grows early-return lowering through Yul `leave`.
 
 ## Metadata
 
-Method dispatch uses `.evm-methods` sidecar files until a unified target
+EVM bytecode modes emit a ProofForge artifact metadata JSON file. The default
+path is `proof-forge-artifact.json` next to the bytecode output; smoke scripts
+pass fixture-specific `--artifact-output` paths to avoid parallel-run
+collisions.
+
+The current EVM metadata schema records:
+
+- `schemaVersion: 1`
+- `target: evm`, `targetFamily: evm`, and `artifactKind: evm-bytecode`
+- source kind (`lean-sdk` or `portable-ir`), source module, and `irVersion`
+  (`portable-ir-v0` for portable IR fixtures)
+- portable IR capability ids when available
+- selector-facing ABI entrypoints or SDK method specs
+- `solc` path/version
+- Yul and bytecode artifact paths, byte sizes, and SHA-256 hashes
+- validation flags for `solc --strict-assembly` and bytecode generation
+
+`scripts/evm/validate-artifact-metadata.py` validates these metadata files in
+the EVM IR smoke scripts and in `scripts/evm/build-examples.sh`.
+
+Method dispatch still uses `.evm-methods` sidecar files until a unified target
 manifest lands (RFC 0002).

@@ -67,17 +67,20 @@ CI and the cloud platform.
 
 Tasks:
 
-- Add a `proof-forge-artifact.json` schema.
-- Emit metadata for EVM bytecode builds.
-- Include source module, target id, artifact path, SHA-256, tool versions, and
-  proof/check status.
+- Done for EVM: add a `proof-forge-artifact.json` schema for EVM bytecode
+  builds.
+- Done for EVM: emit metadata for `--evm-bytecode` and portable IR EVM bytecode
+  fixture builds.
+- Done for EVM: include source module, target id, artifact paths, SHA-256, byte
+  sizes, solc path/version, selector metadata, and validation status.
 - Keep schema versioned from day one.
 
 Acceptance criteria:
 
 - EVM bytecode build writes bytecode and metadata next to each other.
 - Metadata can be parsed independently by CI scripts.
-- Missing optional tools are represented as warnings, not malformed metadata.
+- EVM metadata can represent missing optional version data as `null`, not
+  malformed metadata.
 
 ## Workstream 3: EVM Baseline Hardening
 
@@ -106,7 +109,8 @@ Tasks:
   with `ConditionalProbe` golden Yul, solc bytecode, Foundry runtime
   validation, and explicit branch-local return diagnostics.
 - Add golden Yul outputs for simple examples.
-- Add metadata emission around current `solc --strict-assembly` flow.
+- Done: add metadata emission and validation around the current
+  `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.
 - Keep Foundry smoke as the mature EVM smoke test.
 
 Acceptance criteria:

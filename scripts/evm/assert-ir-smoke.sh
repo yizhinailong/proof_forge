@@ -8,6 +8,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${IR_EVM_OUT_DIR:-$ROOT/build/ir}"
 FORGE_DIR="${IR_EVM_FORGE_DIR:-$ROOT/build/foundry-ir-assert-smoke}"
 GOLDEN_FILE="${IR_EVM_GOLDEN:-$ROOT/Examples/Evm/AssertProbe.golden.yul}"
+METADATA_FILE="${IR_EVM_METADATA:-$OUT_DIR/AssertProbe.proof-forge-artifact.json}"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
@@ -26,11 +27,20 @@ mkdir -p "$OUT_DIR"
 lake build proof-forge >/dev/null
 "$ROOT/.lake/build/bin/proof-forge" --emit-assert-ir-bytecode \
   --yul-output "$OUT_DIR/AssertProbe.yul" \
+  --artifact-output "$METADATA_FILE" \
   -o "$OUT_DIR/AssertProbe.bin"
 
 if [[ -f "$GOLDEN_FILE" ]]; then
   diff -u "$GOLDEN_FILE" "$OUT_DIR/AssertProbe.yul"
 fi
+
+python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
+  --root "$ROOT" \
+  --expect-fixture AssertProbe \
+  --expect-source-kind portable-ir \
+  --expect-capability assertions.check \
+  --expect-entrypoint checked_sum:fe24a759 \
+  "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/AssertProbe.bin")"
 
@@ -98,3 +108,5 @@ contract ProofForgeIRAssertSmokeTest {
 SOL
 
 forge test --root "$FORGE_DIR" -vv
+
+echo "assert-ir-smoke: ProofForge metadata $METADATA_FILE"

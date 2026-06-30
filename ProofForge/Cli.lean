@@ -90,6 +90,7 @@ structure CliOptions where
   methods : Array MethodSpec := #[]
   methodsFile? : Option FilePath := none
   yulOutput? : Option FilePath := none
+  artifactOutput? : Option FilePath := none
   solc : String := "solc"
   cast : String := "cast"
   mode : EmitMode := .yul
@@ -99,17 +100,17 @@ def usage : String :=
   String.intercalate "\n" [
     "Usage:",
     "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
-    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [-o output.bin] input.lean",
+    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
-    "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
+    "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-abi-scalar-ir-yul [-o output.yul]",
-    "  proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
+    "  proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-assert-ir-yul [-o output.yul]",
-    "  proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
+    "  proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-assignment-ir-yul [-o output.yul]",
-    "  proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
+    "  proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-conditional-ir-yul [-o output.yul]",
-    "  proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
+    "  proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-counter-ir-psy [-o output.psy]",
     "  proof-forge --emit-event-ir-psy [-o output.psy]",
     "  proof-forge --emit-crosscall-ir-psy [-o output.psy]",
@@ -299,6 +300,178 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
       return line
   throw <| IO.userError s!"solc did not emit bytecode for {yulFile}"
 
+def solcVersion? (solc : String) : IO (Option String) := do
+  try
+    return some (trimAsciiString (← runProcess solc #["--version"]))
+  catch _ =>
+    return none
+
+def fileDigestAndBytes (path : FilePath) : IO (String × Nat) := do
+  let script := "import hashlib, pathlib, sys; data = pathlib.Path(sys.argv[1]).read_bytes(); print(hashlib.sha256(data).hexdigest(), len(data))"
+  let stdout ← runProcess "python3" #["-c", script, path.toString]
+  match (trimAsciiString stdout).splitOn " " with
+  | [digest, byteCount] =>
+      let some bytes := byteCount.toNat?
+        | throw <| IO.userError s!"python3 returned invalid byte count for {path}: {byteCount}"
+      return (digest, bytes)
+  | _ =>
+      throw <| IO.userError s!"python3 returned invalid digest output for {path}: {trimAsciiString stdout}"
+
+def jsonString (value : String) : String :=
+  let escapeChar : Char → String
+    | '"' => "\\\""
+    | '\\' => "\\\\"
+    | '\n' => "\\n"
+    | '\r' => "\\r"
+    | '\t' => "\\t"
+    | ch => ch.toString
+  "\"" ++ String.intercalate "" (value.toList.map escapeChar) ++ "\""
+
+def jsonBool (value : Bool) : String :=
+  if value then "true" else "false"
+
+def jsonObject (fields : Array (String × String)) : String :=
+  "{" ++ String.intercalate "," (fields.toList.map fun field => jsonString field.fst ++ ":" ++ field.snd) ++ "}"
+
+def jsonArray (values : Array String) : String :=
+  "[" ++ String.intercalate "," values.toList ++ "]"
+
+def jsonStringArray (values : Array String) : String :=
+  jsonArray (values.map jsonString)
+
+def defaultArtifactOutput (bytecodeOutput : FilePath) : FilePath :=
+  let fileName := FilePath.mk "proof-forge-artifact.json"
+  match bytecodeOutput.parent with
+  | some parent => parent / fileName
+  | none => fileName
+
+def artifactEntryJson (path : FilePath) : IO String := do
+  let (digest, bytes) ← fileDigestAndBytes path
+  return jsonObject #[
+    ("path", jsonString path.toString),
+    ("sha256", jsonString digest),
+    ("bytes", toString bytes)
+  ]
+
+def dedupStrings (values : Array String) : Array String :=
+  values.foldl (init := #[]) fun acc value =>
+    if acc.contains value then acc else acc.push value
+
+def moduleCapabilityIds (module : ProofForge.IR.Module) : Array String :=
+  dedupStrings (module.capabilities.map fun capability => capability.id)
+
+def valueTypeJson (type : ProofForge.IR.ValueType) : String :=
+  jsonString type.name
+
+def entrypointJson (entrypoint : ProofForge.IR.Entrypoint) : String :=
+  let params := entrypoint.params.map fun param =>
+    jsonObject #[
+      ("name", jsonString param.fst),
+      ("type", valueTypeJson param.snd)
+    ]
+  let selectorValue :=
+    match entrypoint.selector? with
+    | some selector => jsonString selector
+    | none => "null"
+  jsonObject #[
+    ("name", jsonString entrypoint.name),
+    ("selector", selectorValue),
+    ("params", jsonArray params),
+    ("returns", valueTypeJson entrypoint.returns)
+  ]
+
+def methodSpecJson (method : MethodSpec) : String :=
+  jsonObject #[
+    ("selector", jsonString method.selector),
+    ("fnName", jsonString method.fnName),
+    ("argCount", toString method.argCount),
+    ("returnsValue", jsonBool method.returnsValue)
+  ]
+
+def writeEvmArtifactMetadata
+    (opts : CliOptions)
+    (fixture sourceKind sourceModule : String)
+    (capabilities : Array String)
+    (entrypoints : Array String)
+    (methods : Array String)
+    (source? : Option FilePath)
+    (yulOutput bytecodeOutput : FilePath) : IO Unit := do
+  let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput bytecodeOutput)
+  let mut artifactFields : Array (String × String) := #[
+    ("yul", ← artifactEntryJson yulOutput),
+    ("bytecode", ← artifactEntryJson bytecodeOutput)
+  ]
+  if let some source := source? then
+    artifactFields := artifactFields.push ("source", ← artifactEntryJson source)
+  let solcVersionValue :=
+    match (← solcVersion? opts.solc) with
+    | some version => jsonString version
+    | none => "null"
+  let metadata := jsonObject #[
+    ("schemaVersion", "1"),
+    ("target", jsonString "evm"),
+    ("targetFamily", jsonString "evm"),
+    ("artifactKind", jsonString "evm-bytecode"),
+    ("fixture", jsonString fixture),
+    ("sourceKind", jsonString sourceKind),
+    ("irVersion", if sourceKind == "portable-ir" then jsonString "portable-ir-v0" else "null"),
+    ("sourceModule", jsonString sourceModule),
+    ("capabilities", jsonStringArray (dedupStrings capabilities)),
+    ("toolchain", jsonObject #[
+      ("solc", jsonObject #[
+        ("path", jsonString opts.solc),
+        ("version", solcVersionValue)
+      ])
+    ]),
+    ("abi", jsonObject #[
+      ("entrypoints", jsonArray entrypoints),
+      ("methods", jsonArray methods)
+    ]),
+    ("artifacts", jsonObject artifactFields),
+    ("validation", jsonObject #[
+      ("solcStrictAssembly", jsonString "passed"),
+      ("bytecodeGeneration", jsonString "passed")
+    ])
+  ]
+  if let some parent := metadataOutput.parent then
+    IO.FS.createDirAll parent
+  IO.FS.writeFile metadataOutput (metadata ++ "\n")
+  IO.println s!"wrote {metadataOutput}"
+
+def writeEvmIrArtifactMetadata
+    (opts : CliOptions)
+    (fixture sourceModule : String)
+    (module : ProofForge.IR.Module)
+    (yulOutput bytecodeOutput : FilePath) : IO Unit :=
+  writeEvmArtifactMetadata
+    opts
+    fixture
+    "portable-ir"
+    sourceModule
+    (moduleCapabilityIds module)
+    (module.entrypoints.map entrypointJson)
+    #[]
+    none
+    yulOutput
+    bytecodeOutput
+
+def writeEvmSdkArtifactMetadata
+    (opts : CliOptions)
+    (sourceModule : String)
+    (input yulOutput bytecodeOutput : FilePath)
+    (methods : Array MethodSpec) : IO Unit :=
+  writeEvmArtifactMetadata
+    opts
+    (input.fileName.getD input.toString)
+    "lean-sdk"
+    sourceModule
+    #[]
+    #[]
+    (methods.map methodSpecJson)
+    (some input)
+    yulOutput
+    bytecodeOutput
+
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
       if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
@@ -320,6 +493,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with methodsFile? := some (FilePath.mk path) }
   | "--yul-output" :: path :: rest, opts =>
       parseArgs rest { opts with yulOutput? := some (FilePath.mk path) }
+  | "--artifact-output" :: path :: rest, opts =>
+      parseArgs rest { opts with artifactOutput? := some (FilePath.mk path) }
   | "--solc" :: path :: rest, opts =>
       parseArgs rest { opts with solc := path }
   | "--cast" :: path :: rest, opts =>
@@ -489,6 +664,7 @@ def compileCounterIrBytecode (opts : CliOptions) : IO UInt32 := do
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (FilePath.mk "build/ir/Counter.bin")
   writeTextFile output (bytecode ++ "\n")
+  writeEvmIrArtifactMetadata opts "Counter" "ProofForge.IR.Examples.Counter" ProofForge.IR.Examples.Counter.module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -514,6 +690,7 @@ def compileAbiScalarIrBytecode (opts : CliOptions) : IO UInt32 := do
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (FilePath.mk "build/ir/AbiScalarProbe.bin")
   writeTextFile output (bytecode ++ "\n")
+  writeEvmIrArtifactMetadata opts "AbiScalarProbe" "ProofForge.IR.Examples.AbiScalarProbe" ProofForge.IR.Examples.AbiScalarProbe.module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -539,6 +716,7 @@ def compileAssertIrBytecode (opts : CliOptions) : IO UInt32 := do
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (FilePath.mk "build/ir/AssertProbe.bin")
   writeTextFile output (bytecode ++ "\n")
+  writeEvmIrArtifactMetadata opts "AssertProbe" "ProofForge.IR.Examples.AssertProbe" ProofForge.IR.Examples.AssertProbe.module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -564,6 +742,7 @@ def compileAssignmentIrBytecode (opts : CliOptions) : IO UInt32 := do
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (FilePath.mk "build/ir/AssignmentProbe.bin")
   writeTextFile output (bytecode ++ "\n")
+  writeEvmIrArtifactMetadata opts "AssignmentProbe" "ProofForge.IR.Examples.AssignmentProbe" ProofForge.IR.Examples.AssignmentProbe.module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -589,6 +768,7 @@ def compileConditionalIrBytecode (opts : CliOptions) : IO UInt32 := do
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (FilePath.mk "build/ir/ConditionalProbe.bin")
   writeTextFile output (bytecode ++ "\n")
+  writeEvmIrArtifactMetadata opts "ConditionalProbe" "ProofForge.IR.Examples.ConditionalProbe" ProofForge.IR.Examples.ConditionalProbe.module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -864,6 +1044,11 @@ unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (input.withExtension "bin")
   writeTextFile output (bytecode ++ "\n")
+  let sourceModule :=
+    match opts.moduleName? with
+    | some name => toString name
+    | none => leanBaseName input
+  writeEvmSdkArtifactMetadata opts sourceModule input yulOutput output methods
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 

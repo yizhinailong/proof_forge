@@ -34,9 +34,15 @@ while IFS= read -r -d '' lean_file; do
     continue
   fi
   out="$OUT_DIR/$name.bin"
+  metadata="$OUT_DIR/$name.proof-forge-artifact.json"
   if (
     cd "$ROOT"
-    "${proof_forge[@]}" --evm-bytecode --root . --module contract -o "$out" "$lean_file"
+    "${proof_forge[@]}" --evm-bytecode --root . --module contract --artifact-output "$metadata" -o "$out" "$lean_file"
+    python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
+      --root "$ROOT" \
+      --expect-fixture "$name.lean" \
+      --expect-source-kind lean-sdk \
+      "$metadata"
   ); then
     :
   else
