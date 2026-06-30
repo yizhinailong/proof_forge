@@ -16,3 +16,4 @@ lean_lib ProofForge where
 @[default_target]
 lean_exe «proof-forge» where
   root := `ProofForge.Cli
+  supportInterpreter := true

@@ -27,11 +27,25 @@ Validate the generated Yul if `solc` is installed:
 solc --strict-assembly build/counter.yul --bin
 ```
 
+Build the EVM contract examples migrated from the Lean fork:
+
+```sh
+scripts/evm/build-examples.sh
+```
+
+Run Foundry smoke tests:
+
+```sh
+scripts/evm/foundry-smoke.sh
+```
+
+The smoke runner uses Forge's local EVM test runner and `vm.etch` to execute
+the generated runtime bytecode.
+
 Current scope:
 
 - The CLI emits a default no-argument `main` entry point.
-- ABI selector dispatch exists in the emitter model, but is not wired into the CLI yet.
-- The external frontend path currently has a notation loading gap for overloaded syntax such as `n + 1`; use explicit definitions such as `Nat.add n 1` in contract entry code for now.
+- ABI selector dispatch is wired through `tools/evmc` and `.evm-methods` files.
 
 Planned backend targets:
 

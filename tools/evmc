@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Compile a ProofForge EVM contract to bytecode.
+#
+# Usage:
+#   tools/evmc Examples/Evm/Contracts/Counter.lean build/evm/Counter.bin
+#
+# Expects a sidecar <contract>.evm-methods file:
+#   get()=l_Counter_get[view]
+#   set(uint256)=l_Counter_set[update]
+#
+# [view] returns one ABI-encoded uint256. [update] returns no data.
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOLC="${SOLC:-solc}"
+
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+  echo "Usage: tools/evmc <contract.lean> [output.bin]" >&2
+  exit 2
+fi
+
+INPUT="$1"
+OUTPUT="${2:-$(basename "$INPUT" .lean).bin}"
+BASENAME="$(basename "$INPUT" .lean)"
+DIR="$(dirname "$INPUT")"
+METHODS_FILE="${EVM_METHODS_FILE:-$DIR/$BASENAME.evm-methods}"
+YUL_FILE="${EVM_YUL_FILE:-$DIR/.$BASENAME.yul}"
+
+command -v "$SOLC" >/dev/null 2>&1 || {
+  echo "evmc: solc not found" >&2
+  exit 1
+}
+
+if [[ ! -f "$INPUT" ]]; then
+  echo "evmc: input not found: $INPUT" >&2
+  exit 1
+fi
+
+if [[ ! -f "$METHODS_FILE" ]]; then
+  echo "evmc: methods file not found: $METHODS_FILE" >&2
+  exit 1
+fi
+
+selector_for() {
+  local sig="$1"
+  local tmp
+  tmp="$(mktemp -d)"
+  cat > "$tmp/I.sol" <<SOL
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.20;
+interface I {
+  function ${sig} external;
+}
+SOL
+  "$SOLC" --hashes "$tmp/I.sol" 2>/tmp/proof_forge_solc_hashes_err \
+    | awk -v sig="$sig" '$2 == sig { sub(":", "", $1); print $1 }' \
+    | tail -n 1
+  rm -rf "$tmp"
+}
+
+arg_count_for() {
+  local sig="$1"
+  local inner="${sig#*(}"
+  inner="${inner%)*}"
+  if [[ -z "$inner" ]]; then
+    echo 0
+  else
+    local commas
+    commas="$(printf '%s' "$inner" | tr -cd ',' | wc -c | tr -d ' ')"
+    echo $((commas + 1))
+  fi
+}
+
+method_args=()
+while IFS= read -r line || [[ -n "${line:-}" ]]; do
+  [[ -z "${line:-}" || "${line:-}" == \#* ]] && continue
+
+  sig="${line%%=*}"
+  rest="${line#*=}"
+  if [[ "$rest" == *"]"* ]]; then
+    ret="${rest##*[}"
+    ret="${ret%%]}"
+    sym="${rest%%[*}"
+  else
+    ret="update"
+    sym="$rest"
+  fi
+
+  selector="$(selector_for "$sig")"
+  if [[ -z "$selector" ]]; then
+    echo "evmc: failed to compute selector for $sig" >&2
+    cat /tmp/proof_forge_solc_hashes_err >&2 || true
+    exit 1
+  fi
+
+  argc="$(arg_count_for "$sig")"
+  fn="f_${sym#l_}"
+  method_args+=(--method "$selector:$fn:$argc:$ret")
+done < "$METHODS_FILE"
+
+mkdir -p "$(dirname "$OUTPUT")"
+(
+  cd "$ROOT"
+  lake env proof-forge --root . --module contract -o "$YUL_FILE" "${method_args[@]}" "$INPUT"
+)
+
+"$SOLC" --strict-assembly "$YUL_FILE" --bin 2>/tmp/proof_forge_solc_asm_err \
+  | grep -E '^[0-9a-f]+$' > "$OUTPUT" || {
+    echo "evmc: solc failed:" >&2
+    cat /tmp/proof_forge_solc_asm_err >&2
+    exit 1
+  }
+
+echo "evmc: $INPUT -> $OUTPUT ($(wc -c < "$OUTPUT" | tr -d ' ') hex chars)"
