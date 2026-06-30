@@ -1,10 +1,10 @@
 # EVM 目标
 
-目标 id: **`evm`**
+目标 id：**`evm`**
 
-阶段：**Experimental** — CI 冒烟测试通过，但目标注册表、可移植 IR 和制品元数据尚未集成。
+阶段：**Experimental** —— CI 冒烟测试已通过，但目标注册表、可移植 IR 和制品元数据尚未接入。
 
-相关：[能力注册表](../capability-registry.md)，[共享场景](../shared-scenario.md)，[RFC 0002](../rfcs/0002-target-implementation-design.md)。
+相关内容：[能力注册表](../capability-registry.md)，[共享场景](../shared-scenario.md)，[RFC 0002](../rfcs/0002-target-implementation-design.md)。
 
 ## 流水线
 
@@ -46,11 +46,11 @@ proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file
 
 `--bytecode` 是 `--evm-bytecode` 的别名。
 
-`--solc <path>` 和 `--cast <path>` 覆盖外部工具路径。
+`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。
 
 ## .evm-methods sidecar 格式
 
-每一行遵循以下语法：
+每一行都遵循以下语法：
 
 ```text
 <solidity-signature>=<lean-export-symbol>[view|update]
@@ -64,12 +64,12 @@ set(uint256)=l_Counter_set[update]
 transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 ```
 
-解析器规则 (来自 `ProofForge/Cli.lean`):
+解析器规则（来自 `ProofForge/Cli.lean`）：
 
-- 忽略空行和 `#` 注释。
+- 空行和 `#` 注释会被忽略。
 - 选择器使用 `cast sig <solidity-signature>` 计算。
 - `l_Counter_get` 通过剥离前导 `l_` 并添加前缀 `f_` 映射到 Yul 函数 `f_Counter_get`；这必须与 `EmitYul.yulFnName` 保持一致。
-- `view`、`pure`、`return`、`returns` 和 `true` 表示分派返回一个值；`update`、`void` 和 `false` 表示除非 Lean 入口通过显式的 EVM return 自行终止，否则它返回零字节。
+- `view`、`pure`、`return`、`returns` 和 `true` 表示分派返回一个值；`update`、`void` 和 `false` 表示除非 Lean 入口以显式的 EVM return 终止，否则它返回零字节。
 - EVM 字节码模式要求至少有一个方法。
 
 ## 添加或更改 EVM 示例
@@ -93,13 +93,13 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 | `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
 | `events.emit` | `log0`, `log1`, `log2` |
 
-在 EVM 上不支持（设计上用于其他目标）：
+EVM 不支持（设计上针对其他目标）：
 
 - `account.explicit`, `storage.pda`, `crosscall.cpi`
 
 ## 模块布局
 
-- `ProofForge/Evm.lean` — EVM SDK (`@[extern "lean_evm_*"]` 原语)。
+- `ProofForge/Evm.lean` — EVM SDK（`@[extern "lean_evm_*"]` 原语）。
 - `ProofForge/Compiler/LCNF/EmitYul.lean` — LCNF 到 Yul 的降级。
 - `ProofForge/Compiler/Yul/` — Yul AST 和打印器。
 - `ProofForge/Cli.lean` — `proof-forge` CLI。
@@ -118,11 +118,11 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 
 ## 已知限制
 
-- `Nat` 限制为 U256；EVM 上没有大数 (bignum)。
+- `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
-- 尚无统一的 `proof-forge-artifact.json`（计划于工作流 2）。
-- 目前降级绕过了可移植 IR；在第一阶段，Counter 必须通过 IR 进行路由。
+- 尚未有统一的 `proof-forge-artifact.json`（计划于工作流 2）。
+- 目前降级绕过了可移植 IR；在阶段 1 中，Counter 必须通过 IR 路由。
 
 ## 元数据
 
-方法分派使用 `.evm-methods` sidecar 文件，直到统一的目标清单落地（RFC 0002）。
+在统一的目标清单发布（RFC 0002）之前，方法分派使用 `.evm-methods` sidecar 文件。

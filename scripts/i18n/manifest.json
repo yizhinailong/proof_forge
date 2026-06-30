@@ -78,5 +78,10 @@
     "sha256": "67faf3b58d0daafab738caac91646d185e3db2e49cf61b133bffe126509d44ba",
     "zh": "docs/zh/targets-README.zh.md",
     "model": "gemini-3-flash-preview"
+  },
+  "docs/targets/evm.md": {
+    "sha256": "3594d6ee9880f1412ea9afecf9ea97fd6631e4d2f3afa2946224caaba25f8e2a",
+    "zh": "docs/zh/targets/evm.zh.md",
+    "model": "gemini-3-flash-preview"
   }
 }
