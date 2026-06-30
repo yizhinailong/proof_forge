@@ -141,10 +141,24 @@ mutual
     deriving Repr
 end
 
+inductive AssignOp where
+  | add
+  | sub
+  | mul
+  | div
+  | mod
+  | bitAnd
+  | bitOr
+  | bitXor
+  | shiftLeft
+  | shiftRight
+  deriving BEq, DecidableEq, Repr
+
 inductive Statement where
   | letBind (name : String) (type : ValueType) (value : Expr)
   | letMutBind (name : String) (type : ValueType) (value : Expr)
   | assign (target value : Expr)
+  | assignOp (target : Expr) (op : AssignOp) (value : Expr)
   | effect (effect : Effect)
   | assert (condition : Expr) (message : String)
   | assertEq (lhs rhs : Expr) (message : String)
@@ -270,6 +284,7 @@ def Statement.capabilities : Statement → Array ProofForge.Target.Capability
   | .letBind _ type value => type.capabilities ++ value.capabilities
   | .letMutBind _ type value => type.capabilities ++ value.capabilities
   | .assign target value => target.capabilities ++ value.capabilities
+  | .assignOp target _ value => target.capabilities ++ value.capabilities
   | Statement.effect eff => #[eff.capability] ++ eff.capabilities
   | .assert condition _ => #[.assertions] ++ condition.capabilities
   | .assertEq lhs rhs _ => #[.assertions] ++ lhs.capabilities ++ rhs.capabilities

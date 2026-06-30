@@ -17,6 +17,63 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Compound Assignment Lowering
+
+Commit: feature commit for Psy compound assignment lowering
+
+Summary:
+
+- Added first-class `AssignOp` and `Statement.assignOp` nodes to the portable
+  IR for `+=`, `-=`, `*=`, `/=`, `%=`, `|=`, `&=`, `^=`, `<<=`, and `>>=`.
+- Lowered compound assignments to native Psy assignment operators for mutable
+  local, array-index, and field-path assignment targets.
+- Kept EVM IR v0 explicit by rejecting compound assignment statements with a
+  dedicated diagnostic.
+- Extended `U32ArithmeticProbe` with arithmetic compound assignment coverage
+  and `BitwiseProbe` with Felt/U32 bitwise and shift compound assignment
+  coverage.
+- Added Psy diagnostics for malformed compound assignment value types and
+  immutable compound assignment targets.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProbe.psy
+diff -u Examples/Psy/U32ArithmeticProbe.golden.psy build/psy/U32ArithmeticProbe.psy
+lake env proof-forge --emit-bitwise-ir-psy -o build/psy/BitwiseProbe.psy
+diff -u Examples/Psy/BitwiseProbe.golden.psy build/psy/BitwiseProbe.psy
+scripts/psy/diagnostic-smoke.sh
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/u32-arithmetic-smoke.sh
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/bitwise-smoke.sh
+```
+
+Result:
+
+- Generated U32ArithmeticProbe and BitwiseProbe sources match the checked-in
+  golden fixtures.
+- `scripts/psy/diagnostic-smoke.sh` passes all 39 diagnostic cases.
+- Dargo validates the updated U32ArithmeticProbe and BitwiseProbe sources with
+  `test`, `compile`, `execute`, `generate-abi`, deploy manifest validation, and
+  artifact metadata validation.
+
+Known limitations:
+
+- Compound assignment currently targets mutable local/aggregate assignment
+  paths. Storage-reference compound assignment remains a separate design item
+  because portable storage writes are modeled as effects.
+- U32 storage arrays remain explicitly rejected until a stable Dargo-compatible
+  storage idiom is identified.
+
+Next step:
+
+- Continue with U32 storage-array research or add storage-reference compound
+  assignment effects if that becomes the next Psy surface to close.
+
 ### Psy Map Storage Path Lowering
 
 Commit: feature commit for Psy map storage path coverage

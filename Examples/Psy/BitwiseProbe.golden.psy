@@ -33,6 +33,20 @@ impl BitwiseProbeRef {
         assert_eq(word, 20u32, "u32 shift-left follows upstream opcode_test");
         word = word >> 2u32;
         assert_eq(word, 5u32, "u32 shift-right follows upstream opcode_test");
+        let mut compound_felt: Felt = 20;
+        compound_felt |= 8;
+        compound_felt &= 10;
+        compound_felt ^= 3;
+        compound_felt <<= 1;
+        compound_felt >>= 1;
+        assert_eq(compound_felt, 11, "Felt compound bitwise and shifts lower to Psy assignment operators");
+        let mut compound_word: u32 = 20u32;
+        compound_word |= 8u32;
+        compound_word &= 10u32;
+        compound_word ^= 3u32;
+        compound_word <<= 1u32;
+        compound_word >>= 1u32;
+        assert_eq(compound_word, 11u32, "u32 compound bitwise and shifts lower to Psy assignment operators");
         return felt_bits + word as Felt;
     }
 }

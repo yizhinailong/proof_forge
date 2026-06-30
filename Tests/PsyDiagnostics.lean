@@ -322,6 +322,24 @@ def immutableAssignModule : Module := {
   ]]
 }
 
+def compoundAssignTypeMismatchModule : Module := {
+  name := "BadCompoundAssignTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letMutBind "x" .u32 (.literal (.u32 1)),
+    .assignOp (.local "x") .add (.literal (.u64 2))
+  ]]
+}
+
+def immutableCompoundAssignModule : Module := {
+  name := "BadImmutableCompoundAssign"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "x" .u32 (.literal (.u32 1)),
+    .assignOp (.local "x") .bitOr (.literal (.u32 2))
+  ]]
+}
+
 def returnTypeMismatchModule : Module := {
   name := "BadReturnTypeMismatch"
   state := #[markerState]
@@ -570,6 +588,16 @@ def cases : Array (String × Module × String) := #[
   (
     "immutable assignment",
     immutableAssignModule,
+    "assignment target local `x` is not mutable"
+  ),
+  (
+    "compound assignment type mismatch",
+    compoundAssignTypeMismatchModule,
+    "compound assignment addition right operand expected `U32`, got `U64`"
+  ),
+  (
+    "immutable compound assignment",
+    immutableCompoundAssignModule,
     "assignment target local `x` is not mutable"
   ),
   (

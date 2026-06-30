@@ -343,6 +343,33 @@ def ensureSameNumericType (operator : String) (lhs rhs : ValueType) : Except Low
   ensureType s!"{operator} right operand" lhs rhs
   .ok lhs
 
+def assignOpDiagnosticName : AssignOp → String
+  | .add => "addition"
+  | .sub => "subtraction"
+  | .mul => "multiplication"
+  | .div => "division"
+  | .mod => "modulo"
+  | .bitAnd => "bitwise and"
+  | .bitOr => "bitwise or"
+  | .bitXor => "bitwise xor"
+  | .shiftLeft => "shift-left"
+  | .shiftRight => "shift-right"
+
+def assignOpSymbol : AssignOp → String
+  | .add => "+="
+  | .sub => "-="
+  | .mul => "*="
+  | .div => "/="
+  | .mod => "%="
+  | .bitAnd => "&="
+  | .bitOr => "|="
+  | .bitXor => "^="
+  | .shiftLeft => "<<="
+  | .shiftRight => ">>="
+
+def ensureAssignOpTypes (op : AssignOp) (targetType valueType : ValueType) : Except LowerError Unit := do
+  discard <| ensureSameNumericType s!"compound assignment {assignOpDiagnosticName op}" targetType valueType
+
 def ensureEqType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
   | .unit =>
@@ -758,6 +785,11 @@ mutual
         let actual ← inferExprType module env value
         ensureType "assignment value" expected actual
         .ok env
+    | .assignOp target op value => do
+        let expected ← inferAssignTargetType module env target
+        let actual ← inferExprType module env value
+        ensureAssignOpTypes op expected actual
+        .ok env
     | .effect effect => do
         validateEffectStmt module env effect
         .ok env
@@ -1013,6 +1045,8 @@ mutual
         .ok #[s!"let mut {name}: {← valueTypeName type} = {← lowerExpr module value};"]
     | .assign target value => do
         .ok #[s!"{← lowerAssignTarget module target} = {← lowerExpr module value};"]
+    | .assignOp target op value => do
+        .ok #[s!"{← lowerAssignTarget module target} {assignOpSymbol op} {← lowerExpr module value};"]
     | .effect effect =>
         lowerEffectStmt module effect
     | .assert condition message => do

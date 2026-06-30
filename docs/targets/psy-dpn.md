@@ -16,9 +16,9 @@ AssertProbe, LoopProbe, ArrayProbe, StructProbe, StructArrayProbe,
 AbiAggregateProbe, and NestedAggregateProbe fixtures. It also has an experimental
 StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
 across `#[ref]` struct fields and storage arrays. The target is not
-production-ready and does not yet cover U32 storage arrays, compound
-assignment operators, else-if sugar, upstream compressed genesis deploy JSON,
-live Psy node/prover deployment, or broad Lean-to-IR extraction. It does
+production-ready and does not yet cover U32 storage arrays, storage-reference
+compound assignment forms, else-if sugar, upstream compressed genesis deploy
+JSON, live Psy node/prover deployment, or broad Lean-to-IR extraction. It does
 produce a ProofForge deploy manifest for every Dargo-backed Psy smoke fixture.
 
 ## Summary
@@ -608,14 +608,16 @@ token precompiles. It covers portable IR subtraction and multiplication for
 Felt-backed `U64` values, and deliberately includes nested arithmetic so the
 source generator must preserve Psy precedence with parentheses. Division,
 modulo, exponentiation, cast-heavy `u32` arithmetic, and compound assignment
-operators remain separate features.
+coverage live in `U32ArithmeticProbe`.
 
 `U32ArithmeticProbe` follows the executable shape of upstream
 `tests/u32_test.psy`. It adds first-class portable `U32` values, `Nu32`
 literals, `u32` ABI parameters, `/`, `%`, `**`, mutable assignment, and casts
-such as `z as bool` and `bb as Felt`. Dargo execution validates the same
-`a=2`, `b=3` scenario and returns `result_vm: [1]`. U32 storage probes and
-richer cast matrices remain separate features.
+such as `z as bool` and `bb as Felt`. It also exercises first-class portable
+compound assignment statements for `+=`, `-=`, `*=`, `/=`, and `%=` on mutable
+`U32` locals. Dargo execution validates the same `a=2`, `b=3` scenario and
+returns `result_vm: [1]`. U32 storage probes and richer cast matrices remain
+separate features.
 
 `BitwiseProbe` follows upstream bitwise idioms from `tests/opcode_test.psy`,
 `tests/storage_u32_assign_ops_test.psy`, and the Merkle path logic in
@@ -623,9 +625,11 @@ richer cast matrices remain separate features.
 `&`, `|`, `^`, `<<`, and `>>`, validates same-width numeric operands, and
 lowers both Felt-backed `U64` and `U32` operations to native Psy operators.
 Dargo execution validates `result_vm: [16]` for the combined Felt/U32 probe.
-Compound assignment operators such as `|=`, `&=`, `^=`, `<<=`, and `>>=`
-remain source-sugar features because the portable IR currently represents them
-as explicit assignment plus expression nodes.
+The same probe now exercises first-class portable compound assignment
+statements for `|=`, `&=`, `^=`, `<<=`, and `>>=` on mutable Felt-backed `U64`
+and `U32` locals. Storage-reference compound assignment remains a separate
+feature because portable storage writes are currently modeled as explicit
+effects.
 
 `U32HashPackingProbe` follows the hash limb representation used by
 `psy-precompiles/deposit_tree/src/main.psy` and related Merkle-tree code. It
@@ -937,12 +941,13 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts thirty-five explicit diagnostics for malformed or
+It currently asserts thirty-nine explicit diagnostics for malformed or
 unsupported Psy IR shapes, including invalid storage paths, expression/body
 type mismatches, malformed equality, malformed comparison, and malformed
 Hash value construction, unsupported U32 storage arrays, malformed arithmetic,
 unsupported casts, malformed bitwise/shift expressions, malformed boolean
-operators, malformed if conditions, and branch-local escape.
+operators, malformed compound assignment statements, malformed if conditions,
+and branch-local escape.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -952,8 +957,9 @@ to an Ethereum-style local execution smoke than a pure compiler check.
 Second smoke:
 
 1. Compare high-level Counter behavior with the EVM shared scenario.
-2. Add U32 storage-array research and decide whether compound assignment sugar
-   belongs in IR or source normalization.
+2. Add U32 storage-array research and, separately, decide whether
+   storage-reference compound assignment should become first-class portable IR
+   effects or remain target-source normalization.
 3. Extend the Counter deploy manifest into upstream genesis JSON and local
    node/prover deployment once the tooling boundary is stable.
 
@@ -997,6 +1003,9 @@ Deployment smoke:
   the same Dargo validation shape.
 - Done: add portable IR bitwise and shift expressions, `BitwiseProbe`, and
   `scripts/psy/bitwise-smoke.sh` with the same Dargo validation shape.
+- Done: add first-class portable compound assignment statements for mutable
+  local/aggregate assignment targets, with Psy lowering for `+=`, `-=`, `*=`,
+  `/=`, `%=`, `|=`, `&=`, `^=`, `<<=`, and `>>=`.
 - Done: add dynamic Hash value construction plus `U32HashPackingProbe` and
   `scripts/psy/u32-hash-packing-smoke.sh` for `[u32; 8]` literal and ABI limb
   packing into Psy `Hash` values.
@@ -1066,9 +1075,9 @@ Deployment smoke:
   Dargo-backed Psy smoke, and record the deploy manifest in
   `proof-forge-artifact.json`.
 - Remaining: add U32 storage arrays only after stable Psy idioms are
-  identified, decide whether compound assignment belongs in the IR or only in
-  source normalization, then move to upstream genesis deploy JSON/live node
-  research.
+  identified, decide whether storage-reference compound assignment belongs in
+  IR effects or source normalization, then move to upstream genesis deploy
+  JSON/live node research.
 
 ### Phase C: Metadata and Scenario Parity
 

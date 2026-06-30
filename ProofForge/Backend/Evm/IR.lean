@@ -189,6 +189,8 @@ def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerE
       .error { message := s!"mutable let binding `{name}` is not supported by IR EVM v0" }
   | .assign _ _ =>
       .error { message := "assignment statements are not supported by IR EVM v0" }
+  | .assignOp _ _ _ =>
+      .error { message := "compound assignment statements are not supported by IR EVM v0" }
   | .effect effect =>
       lowerEffectStmt module effect
   | .assert _ _ =>

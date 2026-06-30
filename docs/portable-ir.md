@@ -73,6 +73,11 @@ expression set for target-source backends:
 - effect expressions for storage reads, map reads, array reads, storage-path
   reads, and context reads
 
+The statement set includes immutable and mutable local bindings, plain
+assignment, first-class compound assignment (`+=`, `-=`, `*=`, `/=`, `%=`,
+`|=`, `&=`, `^=`, `<<=`, `>>=`), statement effects, assertions, `if/else`,
+bounded `for`, and explicit `return`.
+
 Each target backend is responsible for either lowering each node it accepts or
 rejecting it before source generation with an explicit diagnostic.
 

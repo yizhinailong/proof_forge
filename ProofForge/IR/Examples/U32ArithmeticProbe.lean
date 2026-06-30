@@ -37,6 +37,13 @@ def u32Arithmetic : Entrypoint := {
     .assertEq (.local "z") (u32 289) "u32 exponentiation lowers to Psy",
     .assign (.local "z") (.mod (.local "z") (u32 2)),
     .assertEq (.local "z") (u32 1) "u32 modulo lowers to Psy",
+    .letMutBind "compound" .u32 (u32 20),
+    .assignOp (.local "compound") .add (u32 3),
+    .assignOp (.local "compound") .sub (u32 1),
+    .assignOp (.local "compound") .mul (u32 2),
+    .assignOp (.local "compound") .div (u32 11),
+    .assignOp (.local "compound") .mod (u32 3),
+    .assertEq (.local "compound") (u32 1) "u32 compound arithmetic lowers to Psy assignment operators",
     .letBind "bb" .bool (.cast (.local "z") .bool),
     .return (.cast (.local "bb") .u64)
   ]
