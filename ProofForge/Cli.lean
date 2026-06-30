@@ -5,6 +5,7 @@ import Lean.Util.Path
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Psy.IR
 import ProofForge.Compiler.LCNF.EmitYul
+import ProofForge.IR.Examples.ContextProbe
 import ProofForge.IR.Examples.Counter
 
 open Lean
@@ -20,6 +21,7 @@ inductive EmitMode where
   | counterIrYul
   | counterIrBytecode
   | counterIrPsy
+  | contextIrPsy
   deriving BEq, Inhabited
 
 structure CliOptions where
@@ -43,9 +45,10 @@ def usage : String :=
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]",
     "  proof-forge --emit-counter-ir-psy [-o output.psy]",
+    "  proof-forge --emit-context-ir-psy [-o output.psy]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
-    "Counter IR mode renders the hand-written portable IR fixture to EVM Yul/bytecode or Psy source."
+    "IR fixture modes render hand-written portable IR fixtures to target source or bytecode."
   ]
 
 def parseModuleName (s : String) : Name :=
@@ -208,7 +211,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .contextIrPsy then
         .ok opts
       else
         .error usage
@@ -241,6 +244,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .counterIrBytecode }
   | "--emit-counter-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrPsy }
+  | "--emit-context-ir-psy" :: rest, opts =>
+      parseArgs rest { opts with mode := .contextIrPsy }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -343,6 +348,16 @@ def compileCounterIrPsy (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileContextIrPsy (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/psy/ContextProbe.psy")
+  match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.ContextProbe.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
@@ -365,6 +380,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .counterIrYul => compileCounterIrYul opts
   | .counterIrBytecode => compileCounterIrBytecode opts
   | .counterIrPsy => compileCounterIrPsy opts
+  | .contextIrPsy => compileContextIrPsy opts
 
 end ProofForge.Cli
 

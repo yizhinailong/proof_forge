@@ -30,6 +30,22 @@ inductive Literal where
   | bool (value : Bool)
   deriving BEq, Repr
 
+inductive ContextField where
+  | userId
+  | contractId
+  | checkpointId
+  deriving BEq, DecidableEq, Repr
+
+def ContextField.name : ContextField → String
+  | .userId => "userId"
+  | .contractId => "contractId"
+  | .checkpointId => "checkpointId"
+
+def ContextField.capability : ContextField → ProofForge.Target.Capability
+  | .userId => .callerSender
+  | .contractId => .accountExplicit
+  | .checkpointId => .envBlock
+
 mutual
   inductive Expr where
     | literal (value : Literal)
@@ -41,6 +57,7 @@ mutual
   inductive Effect where
     | storageScalarRead (stateId : String)
     | storageScalarWrite (stateId : String) (value : Expr)
+    | contextRead (field : ContextField)
     deriving Repr
 end
 
@@ -67,6 +84,7 @@ structure Module where
 def Effect.capability : Effect → ProofForge.Target.Capability
   | .storageScalarRead _ => .storageScalar
   | .storageScalarWrite _ _ => .storageScalar
+  | .contextRead field => field.capability
 
 mutual
   partial def Expr.capabilities : Expr → Array ProofForge.Target.Capability
@@ -78,6 +96,7 @@ mutual
   partial def Effect.capabilities : Effect → Array ProofForge.Target.Capability
     | .storageScalarRead _ => #[]
     | .storageScalarWrite _ value => value.capabilities
+    | .contextRead _ => #[]
 end
 
 def Statement.capabilities : Statement → Array ProofForge.Target.Capability

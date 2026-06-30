@@ -91,6 +91,14 @@ lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
 scripts/psy/counter-smoke.sh
 ```
 
+Validate the Psy/DPN context fixture, which exercises parameter lowering and
+Psy context reads:
+
+```sh
+lake env proof-forge --emit-context-ir-psy -o build/psy/ContextProbe.psy
+scripts/psy/context-smoke.sh
+```
+
 The Psy smoke expects `dargo` on `PATH`. The preferred installer is `psyup`:
 
 ```sh

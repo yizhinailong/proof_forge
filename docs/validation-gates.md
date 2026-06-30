@@ -14,7 +14,8 @@ actual scripts and `.github/workflows/ci.yml`; it does not add or edit CI jobs.
 | Single EVM bytecode compile | `lake env proof-forge --evm-bytecode --root . --module contract -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean` | `solc`, `cast`, and `Examples/Evm/Contracts/Counter.evm-methods` | Lean → Yul → `solc` → bytecode with selector generation | Runtime behavior, gas, exhaustive ABI correctness |
 | EVM examples compile | `scripts/evm/build-examples.sh` | `cast`, `solc`, `lake env proof-forge`; optional `PROOF_FORGE_BIN`, `CONTRACTS_DIR`, `EVM_OUT_DIR` | Every `.lean` contract with a sibling `.evm-methods` compiles to `.bin` | Runtime behavior; contracts without `.evm-methods` are skipped by the script |
 | EVM runtime smoke | `scripts/evm/foundry-smoke.sh` | `forge`, `cast`, `solc`; optional `EVM_OUT_DIR`, `EVM_FORGE_DIR` | Foundry executes generated runtime bytecode for Counter, ArrayExample, SimpleToken, and VerifiedVault, including revert checks | Formal proof coverage, cross-target equivalence, real deployment, exhaustive edge coverage |
-| Psy Counter IR smoke | `scripts/psy/counter-smoke.sh` | `dargo` on `PATH`; `psyup install 0.1.0` is known-good on macOS arm64 | Counter portable IR lowers to `.psy`, matches the golden fixture, passes `dargo test --file`, produces non-empty DPN JSON with `dargo compile`, returns `result_vm: [2]` through `dargo execute`, and emits non-empty ABI JSON | Deploy JSON, live Psy node/prover behavior, broader IR coverage |
+| Psy Counter IR smoke | `scripts/psy/counter-smoke.sh` | `dargo` on `PATH`; `python3`; `psyup install 0.1.0` is known-good on macOS arm64 | Counter portable IR lowers to `.psy`, matches the golden fixture, passes `dargo test --file`, produces non-empty DPN JSON with `dargo compile`, returns `result_vm: [2]` through `dargo execute`, emits non-empty ABI JSON, and writes `proof-forge-artifact.json` | Deploy JSON, live Psy node/prover behavior, broader IR coverage |
+| Psy ContextProbe IR smoke | `scripts/psy/context-smoke.sh` | `dargo` on `PATH`; `python3`; `psyup install 0.1.0` is known-good on macOS arm64 | Non-Counter Psy IR lowers parameters and context reads to `.psy`, matches the golden fixture, passes `dargo test --file`, produces non-empty DPN JSON and ABI JSON, returns `result_vm: [15]` through `dargo execute`, and writes `proof-forge-artifact.json` | Maps, arrays, hashes, deploy JSON, live Psy node/prover behavior |
 | CI baseline | `.github/workflows/ci.yml` `build-test` job | GitHub Actions Ubuntu, elan, Foundry stable, `solc` 0.8.30 | Clean-environment `lake build`, EVM compile, and Foundry smoke | Optional future targets, metadata validation, golden snapshots, non-Ubuntu behavior |
 
 ## Planned gates that are not runnable yet
@@ -47,6 +48,6 @@ If no runnable local command exists, the target remains `Research`.
 
 Current CI installs Foundry stable and `solc` 0.8.30. Local machines may not
 have `solc`, `cast`, `forge`, `psyup`, or `dargo`. Missing EVM tools block EVM
-toolchain gates but not `lake build`. Missing Psy tools block only the
-`scripts/psy/counter-smoke.sh` Dargo portion; source generation and golden diff
-still run before the script exits.
+toolchain gates but not `lake build`. Missing Psy tools block only the Psy
+smoke Dargo portions; source generation and golden diff still run before each
+script exits.

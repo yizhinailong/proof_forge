@@ -236,7 +236,13 @@ Tasks:
 - Done: run `dargo execute` as a local user/contract session and assert the
   Counter result after two increments.
 - Done: call `dargo generate-abi` and capture non-empty ABI JSON.
-- Emit `proof-forge-artifact.json` with target id `psy-dpn`.
+- Done: emit `proof-forge-artifact.json` with target id `psy-dpn` for Psy smoke
+  artifacts.
+- Done: add ContextProbe as a non-Counter fixture for parameter lowering and
+  context reads.
+- Add a curated upstream syntax regression subset from `psy-compiler/tests`.
+- Record Dargo/Psy compiler version or commit once the toolchain exposes a
+  stable value.
 
 Acceptance criteria:
 
@@ -245,8 +251,12 @@ Acceptance criteria:
 - `dargo compile` produces a non-empty JSON artifact on a machine with the Psy
   toolchain.
 - `dargo execute` returns `result_vm: [2]` for the Counter lifecycle.
+- `dargo execute` returns `result_vm: [15]` for ContextProbe's
+  `sum_context(2,3)` lifecycle.
 - `dargo generate-abi` produces a non-empty ABI JSON artifact.
-- Artifact metadata records Dargo/Psy compiler version or commit.
+- Artifact metadata records target id, fixture id, artifact paths, hashes, and
+  validation status.
+- Artifact metadata records Dargo/Psy compiler version or commit once available.
 - Unsupported non-circuit-friendly IR nodes fail before source generation.
 - CI either pins a known-good `psyup` release or skips this gate clearly when a
   matching toolchain tarball is unavailable.

@@ -15,6 +15,69 @@ Each entry should include:
 - known limitations
 - next step
 
+## 2026-07-01
+
+### Psy ContextProbe Fixture And Artifact Metadata
+
+Commit: pending
+
+Summary:
+
+- Extended portable IR with `context.read` effects for `userId`, `contractId`,
+  and `checkpointId`.
+- Extended Psy sourcegen to lower entrypoint parameters and context reads.
+- Added `ProofForge.IR.Examples.ContextProbe`, the first non-Counter Psy IR
+  fixture.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-context-ir-psy -o build/psy/ContextProbe.psy
+```
+
+- Added `Examples/Psy/ContextProbe.golden.psy`.
+- Added `scripts/psy/context-smoke.sh`, which mirrors the Counter Dargo smoke:
+  `dargo test --file`, `dargo compile`, `dargo execute`, and
+  `dargo generate-abi`.
+- Added `scripts/psy/write-artifact-metadata.py` and wired both Psy smoke
+  scripts to emit `proof-forge-artifact.json` with hashes for source, circuit
+  JSON, ABI JSON, and execute logs.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-context-ir-psy -o build/psy/ContextProbe.psy
+diff -u Examples/Psy/ContextProbe.golden.psy build/psy/ContextProbe.psy
+scripts/psy/context-smoke.sh
+scripts/psy/counter-smoke.sh
+git diff --check
+```
+
+Result:
+
+- `lake build` passed.
+- ContextProbe emits reviewable Psy source with parameters and context reads.
+- Generated ContextProbe source matches the checked-in golden fixture.
+- `scripts/psy/context-smoke.sh` generated DPN JSON, ABI JSON, execute log, and
+  `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [15]` for `sum_context(2,3)`.
+- `scripts/psy/counter-smoke.sh` now also emits `proof-forge-artifact.json`.
+
+Known limitations:
+
+- ContextProbe uses `_proof_forge_marker` storage because Dargo v0.1.0 panics on
+  an empty `#[contract] #[derive(Storage)]` struct.
+- The IR still lacks maps, fixed arrays, assertions, hashes, bounded loops, and
+  reusable package generation.
+- Dargo does not expose a `--version` flag, so metadata records the Dargo path
+  and leaves the version null for now.
+
+Next step:
+
+- Add a curated upstream syntax regression subset from `psy-compiler/tests`,
+  then expand the IR/sourcegen surface toward maps, arrays, assertions, and
+  hashes.
+
 ## 2026-06-30
 
 ### Psy Counter IR Sourcegen And Smoke

@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/counter-execute.log"
 ABI_FILE="$PROJECT_DIR/target/Counter.json"
+METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 
 if [[ -z "${DARGO_STD_PATH:-}" && -f "$PSY_HOME/env" ]]; then
   # psyup writes DARGO_STD_PATH here; sourcing avoids a slow stdlib fallback.
@@ -82,7 +83,19 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
+  --root "$ROOT" \
+  --fixture Counter \
+  --source "$PSY_FILE" \
+  --circuit-json "$ARTIFACT" \
+  --abi-json "$ABI_FILE" \
+  --execute-log "$EXEC_LOG" \
+  --out "$METADATA_FILE" \
+  --dargo "$DARGO_BIN" \
+  --execute-result "result_vm: [2]"
+
 echo "psy-counter-smoke: wrote $PSY_FILE"
 echo "psy-counter-smoke: Dargo artifact $ARTIFACT"
 echo "psy-counter-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-counter-smoke: Dargo ABI $ABI_FILE"
+echo "psy-counter-smoke: ProofForge metadata $METADATA_FILE"

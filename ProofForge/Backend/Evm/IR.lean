@@ -57,6 +57,8 @@ mutual
         .ok (Lean.Compiler.Yul.builtin "sload" #[slotExpr slot])
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
+    | .contextRead field =>
+        .error { message := s!"context field `{field.name}` is not supported by IR EVM v0" }
 end
 
 def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Statement
@@ -66,6 +68,8 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       let some slot := stateSlot? module stateId
         | .error { message := s!"unknown scalar state `{stateId}`" }
       .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module value]))
+  | .contextRead _ =>
+      .error { message := "context reads must be used as expressions" }
 
 def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError Lean.Compiler.Yul.Statement
   | .letBind name value => do

@@ -219,9 +219,11 @@ Allowed first:
 - fixed-size arrays
 - concrete structs
 - first-order functions
+- entrypoint parameters over supported scalar/fixed-size types
 - bounded `if` / `while` patterns that the Psy compiler accepts
 - assertions
 - hash operations represented through `crypto.hash`
+- context reads such as user id, contract id, and checkpoint id
 - persistent scalar state
 - fixed-capacity maps where represented in Psy storage
 - explicit contract methods
@@ -277,6 +279,9 @@ build/psy/
     Dargo.toml
     src/main.psy
     target/proof_forge_counter.json
+    target/Counter.json
+    target/counter-execute.log
+    target/proof-forge-artifact.json
 ```
 
 Example generated shape:
@@ -319,6 +324,26 @@ lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
 
 The checked-in golden source is `Examples/Psy/Counter.golden.psy`.
 
+Current ContextProbe spike output layout:
+
+```text
+build/psy/
+  ContextProbe.psy
+  dargo-context/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_context.json
+    target/ContextProbe.json
+    target/context-execute.log
+    target/proof-forge-artifact.json
+```
+
+`ContextProbe` is the first non-Counter fixture. It follows upstream
+`tests/ctx_test.psy` by lowering entrypoint parameters plus
+`get_user_id()`, `get_contract_id()`, and `get_checkpoint_id()` into Psy
+source. The contract includes a `_proof_forge_marker` storage field because
+Dargo v0.1.0 panics on an empty `#[contract] #[derive(Storage)]` struct.
+
 ## Smoke Test Strategy
 
 Research-stage smoke should not require a live Psy network.
@@ -335,11 +360,23 @@ Preferred first smoke:
 8. Verify the execution log contains `result_vm: [2]`.
 9. Run `dargo generate-abi --contract-name Counter --output-dir target --pretty`.
 10. Verify `target/Counter.json` is non-empty.
+11. Emit `target/proof-forge-artifact.json` with source, circuit JSON, ABI, and
+    execute-log hashes.
 
 This has been run locally with `psyup install 0.1.0` on macOS arm64. The smoke
 produced `build/psy/dargo-counter/target/proof_forge_counter.json` and
 `build/psy/dargo-counter/target/counter-execute.log`, plus ABI output at
-`build/psy/dargo-counter/target/Counter.json`.
+`build/psy/dargo-counter/target/Counter.json` and metadata at
+`build/psy/dargo-counter/target/proof-forge-artifact.json`.
+
+The same validation shape is implemented for `ContextProbe`:
+
+```sh
+scripts/psy/context-smoke.sh
+```
+
+It verifies `result_vm: [15]` for `sum_context(2,3)` under Dargo's local
+execution session and emits `build/psy/dargo-context/target/proof-forge-artifact.json`.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -348,8 +385,8 @@ to an Ethereum-style local execution smoke than a pure compiler check.
 
 Second smoke:
 
-1. Record tool versions and artifact hashes in `proof-forge-artifact.json`.
-2. Compare high-level Counter behavior with the EVM shared scenario.
+1. Compare high-level Counter behavior with the EVM shared scenario.
+2. Add a curated upstream syntax regression subset from `psy-compiler/tests`.
 
 Deployment smoke:
 
@@ -373,14 +410,16 @@ Deployment smoke:
   `dargo test --file`, call `dargo compile`, verify the JSON artifact, call
   `dargo execute`, assert the local execution result, and call
   `dargo generate-abi`.
+- Done: add `ContextProbe` as the first non-Counter Psy fixture with parameter
+  lowering and context reads.
+- Done: add `scripts/psy/context-smoke.sh` with the same Dargo validation shape.
+- Done: emit `proof-forge-artifact.json` metadata from both Psy smoke scripts.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
-- Remaining: emit `proof-forge-artifact.json`.
+- Remaining: add a curated upstream syntax regression subset.
 
 ### Phase C: Metadata and Scenario Parity
 
-- Emit `proof-forge-artifact.json` with Dargo version, source hash, circuit JSON
-  hash, ABI hash, and execution log hash.
 - Compare the Psy Counter behavior with the EVM shared Counter scenario.
 - Decide whether `psy-wasm` adds useful in-memory coverage beyond
   `dargo execute`.
