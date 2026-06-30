@@ -123,6 +123,15 @@ lake env proof-forge --emit-bitwise-ir-psy -o build/psy/BitwiseProbe.psy
 scripts/psy/bitwise-smoke.sh
 ```
 
+Validate the Psy/DPN U32 hash packing fixture, which exercises `[u32; 8]`
+limb arrays, U32 ABI parameters, casts to Felt, and dynamic `Hash`
+construction:
+
+```sh
+lake env proof-forge --emit-u32-hash-packing-ir-psy -o build/psy/U32HashPackingProbe.psy
+scripts/psy/u32-hash-packing-smoke.sh
+```
+
 Validate the Psy/DPN conditional fixture, which exercises statement-level
 `if/else` lowering:
 

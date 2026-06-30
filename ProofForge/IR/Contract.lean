@@ -110,6 +110,7 @@ mutual
     | boolAnd (lhs rhs : Expr)
     | boolOr (lhs rhs : Expr)
     | boolNot (value : Expr)
+    | hashValue (a b c d : Expr)
     | hash (preimage : Expr)
     | hashTwoToOne (lhs rhs : Expr)
     | effect (effect : Effect)
@@ -216,6 +217,7 @@ mutual
     | .boolAnd lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .boolOr lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .boolNot value => value.capabilities
+    | .hashValue a b c d => a.capabilities ++ b.capabilities ++ c.capabilities ++ d.capabilities
     | .hash preimage => #[.cryptoHash] ++ preimage.capabilities
     | .hashTwoToOne lhs rhs => #[.cryptoHash] ++ lhs.capabilities ++ rhs.capabilities
     | .effect effect => #[effect.capability] ++ effect.capabilities

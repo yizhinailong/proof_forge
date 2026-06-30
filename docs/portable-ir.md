@@ -56,6 +56,26 @@ Related: [RFC 0001](rfcs/0001-multichain-platform.md),
 - `args`: portable operands
 - `source`: optional Lean source span for diagnostics
 
+### Expression Surface
+
+The current executable IR in `ProofForge/IR/Contract.lean` includes a compact
+expression set for target-source backends:
+
+- literals: `U32`, `U64`/Felt, Bool, and fixed four-limb Hash literals
+- local variables, fixed-array literals/indexing, struct literals, and field
+  access
+- numeric operations: `+`, `-`, `*`, `/`, `%`, `**`
+- bitwise operations and shifts: `&`, `|`, `^`, `<<`, `>>`
+- casts between supported scalar value types
+- comparisons and boolean composition
+- dynamic Hash value construction from four Felt limbs
+- hash intrinsics: one-to-one and two-to-one hash operations
+- effect expressions for storage reads, map reads, array reads, storage-path
+  reads, and context reads
+
+Each target backend is responsible for either lowering each node it accepts or
+rejecting it before source generation with an explicit diagnostic.
+
 ## Relationship to LCNF
 
 ```text

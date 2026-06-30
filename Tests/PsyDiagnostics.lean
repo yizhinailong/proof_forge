@@ -80,6 +80,16 @@ def unsupportedMapModule : Module := {
   entrypoints := #[unitEntrypoint "bad"]
 }
 
+def unsupportedU32ArrayStateModule : Module := {
+  name := "BadU32ArrayState"
+  state := #[{
+    id := "limbs"
+    kind := .array 8
+    type := .u32
+  }]
+  entrypoints := #[unitEntrypoint "bad"]
+}
+
 def nonStorageStructStateModule : Module := {
   name := "BadStructState"
   structs := #[pointStructNoStorage]
@@ -261,6 +271,18 @@ def hashPreimageMismatchModule : Module := {
   }]
 }
 
+def hashValuePartMismatchModule : Module := {
+  name := "BadHashValuePartMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "h" .hash (.hashValue
+      (.literal (.u32 1))
+      (.literal (.u64 2))
+      (.literal (.u64 3))
+      (.literal (.u64 4)))
+  ]]
+}
+
 def immutableAssignModule : Module := {
   name := "BadImmutableAssign"
   state := #[markerState]
@@ -426,6 +448,11 @@ def cases : Array (String × Module × String) := #[
     "map state `bad_map` has unsupported Psy IR v0 type Map<U64, U64>; only Map<Hash, Hash, N> is supported"
   ),
   (
+    "unsupported u32 array state",
+    unsupportedU32ArrayStateModule,
+    "array state `limbs` has unsupported Psy IR v0 element type `U32`; current Dargo toolchains reject direct `[u32; N]` storage arrays, so use Felt/Hash storage or local U32 arrays"
+  ),
+  (
     "non-storage struct state",
     nonStorageStructStateModule,
     "state `current` uses struct `Point`, but the struct is not marked deriveStorage"
@@ -494,6 +521,11 @@ def cases : Array (String × Module × String) := #[
     "hash preimage mismatch",
     hashPreimageMismatchModule,
     "hash preimage expected `Hash`, got `U64`"
+  ),
+  (
+    "hash value part mismatch",
+    hashValuePartMismatchModule,
+    "hash value part 0 expected `U64`, got `U32`"
   ),
   (
     "immutable assignment",

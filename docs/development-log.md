@@ -17,6 +17,75 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy U32HashPackingProbe Dynamic Hash Construction
+
+Commit: feature commit for Psy U32 hash packing coverage
+
+Summary:
+
+- Added portable IR `Expr.hashValue` for dynamic `Hash` construction from four
+  Felt-backed limbs.
+- Extended Psy type validation so each dynamic Hash part must be `U64`/Felt and
+  malformed Hash construction fails before `.psy` generation.
+- Kept EVM IR v0 explicit by rejecting dynamic Hash value construction with a
+  clear diagnostic.
+- Added `ProofForge.IR.Examples.U32HashPackingProbe`, aligned with the
+  `[u32; 8]` limb packing idioms in the deposit-tree and mining-rewards
+  precompiles.
+- Covered both local `[u32; 8]` literals and U32 ABI parameters packed into Psy
+  `Hash` values through `lo + hi * 2^32`.
+- Added an explicit rejection diagnostic for U32 storage arrays after Dargo
+  validation showed current `psyup` 0.1.0 rejects direct `[u32; N]` contract
+  storage arrays with an `ArrayRef<u32, N>` type mismatch.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-u32-hash-packing-ir-psy -o build/psy/U32HashPackingProbe.psy
+```
+
+- Added `Examples/Psy/U32HashPackingProbe.golden.psy`.
+- Added `scripts/psy/u32-hash-packing-smoke.sh`, which generates a temporary
+  Dargo package, runs `dargo test --file`, `dargo compile`, two
+  `dargo execute` checks, `dargo generate-abi`, and validates
+  `proof-forge-artifact.json`.
+- Added CI coverage for the U32HashPackingProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+scripts/psy/diagnostic-smoke.sh
+lake env proof-forge --emit-u32-hash-packing-ir-psy -o build/psy/U32HashPackingProbe.psy
+diff -u Examples/Psy/U32HashPackingProbe.golden.psy build/psy/U32HashPackingProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/u32-hash-packing-smoke.sh
+```
+
+Result:
+
+- Generated U32HashPackingProbe source matches the checked-in golden fixture.
+- `scripts/psy/u32-hash-packing-smoke.sh` generated DPN JSON, ABI JSON,
+  execute log, and `proof-forge-artifact.json`.
+- `dargo execute` returned the expected four-Felt Hash values for both
+  `pack_literal` and `pack_params`.
+- `scripts/psy/diagnostic-smoke.sh` passed all 35 diagnostic cases.
+
+Known limitations:
+
+- This adds Hash value construction and U32 limb packing, not Psy deploy JSON
+  or live node/prover execution.
+- U32 storage arrays are explicitly rejected until a stable Psy storage idiom is
+  validated against Dargo.
+- Compound assignment operators remain represented as explicit assignment plus
+  expression nodes.
+- Map storage paths remain rejected until a stable Psy idiom is identified.
+
+Next step:
+
+- Decide whether to add compound assignment as IR sugar or leave it to a future
+  source normalizer, then continue with map storage paths or deploy JSON.
+
 ### Psy BitwiseProbe Native Bitwise Expressions
 
 Commit: feature commit for Psy bitwise expression coverage

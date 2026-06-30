@@ -248,8 +248,10 @@ Tasks:
   aggregate ABI, nested aggregate, storage nested aggregate, U32 arithmetic,
   and bitwise coverage from the upstream `psy-compiler/tests` and
   `psy-precompiles` corpus.
-- Add storage-heavy U32/Hash limb packing, map storage path, and deploy JSON
-  coverage from the upstream `psy-precompiles` corpus.
+- Done: add U32/Hash limb packing coverage for local arrays and ABI parameters
+  from the upstream `psy-precompiles` corpus.
+- Add U32 storage array, map storage path, and deploy JSON coverage from the upstream
+  `psy-precompiles` corpus.
 - Record Dargo/Psy compiler version or commit once the toolchain exposes a
   stable value.
 

@@ -22,6 +22,7 @@ import ProofForge.IR.Examples.StorageNestedAggregateProbe
 import ProofForge.IR.Examples.StructArrayProbe
 import ProofForge.IR.Examples.StructProbe
 import ProofForge.IR.Examples.U32ArithmeticProbe
+import ProofForge.IR.Examples.U32HashPackingProbe
 
 open Lean
 open System
@@ -52,6 +53,7 @@ inductive EmitMode where
   | nestedAggregateIrPsy
   | storageNestedAggregateIrPsy
   | u32ArithmeticIrPsy
+  | u32HashPackingIrPsy
   deriving BEq, Inhabited
 
 structure CliOptions where
@@ -91,6 +93,7 @@ def usage : String :=
     "  proof-forge --emit-nested-aggregate-ir-psy [-o output.psy]",
     "  proof-forge --emit-storage-nested-aggregate-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-arithmetic-ir-psy [-o output.psy]",
+    "  proof-forge --emit-u32-hash-packing-ir-psy [-o output.psy]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "IR fixture modes render hand-written portable IR fixtures to target source or bytecode."
@@ -256,7 +259,7 @@ def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .counterIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy then
         .ok opts
       else
         .error usage
@@ -321,6 +324,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .storageNestedAggregateIrPsy }
   | "--emit-u32-arithmetic-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .u32ArithmeticIrPsy }
+  | "--emit-u32-hash-packing-ir-psy" :: rest, opts =>
+      parseArgs rest { opts with mode := .u32HashPackingIrPsy }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -583,6 +588,16 @@ def compileU32ArithmeticIrPsy (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileU32HashPackingIrPsy (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/psy/U32HashPackingProbe.psy")
+  match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.U32HashPackingProbe.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
@@ -621,6 +636,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .nestedAggregateIrPsy => compileNestedAggregateIrPsy opts
   | .storageNestedAggregateIrPsy => compileStorageNestedAggregateIrPsy opts
   | .u32ArithmeticIrPsy => compileU32ArithmeticIrPsy opts
+  | .u32HashPackingIrPsy => compileU32HashPackingIrPsy opts
 
 end ProofForge.Cli
 

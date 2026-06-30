@@ -40,6 +40,8 @@ def testFunctionName (module : Module) : String :=
     "test_u32_arithmetic_probe_fixture"
   else if module.name == "BitwiseProbe" then
     "test_bitwise_probe_fixture"
+  else if module.name == "U32HashPackingProbe" then
+    "test_u32_hash_packing_probe_fixture"
   else if module.name == "ExpressionPredicateProbe" then
     "test_expression_predicate_probe_fixture"
   else if module.name == "NestedAggregateProbe" then
@@ -345,6 +347,9 @@ def ensureCastType (source target : ValueType) : Except LowerError Unit :=
   | source, target =>
       .error { message := s!"cast from `{source.name}` to `{target.name}` is not supported by Psy IR v0" }
 
+def ensureHashValuePart (partName : String) (type : ValueType) : Except LowerError Unit :=
+  ensureType s!"hash value part {partName}" .u64 type
+
 def structFieldType (module : Module) (typeName fieldName : String) : Except LowerError ValueType := do
   let some decl := findStruct? module typeName
     | .error { message := s!"unknown struct type `{typeName}`" }
@@ -524,6 +529,12 @@ mutual
         let valueType ← inferExprType module env value
         ensureType "boolean not operand" .bool valueType
         .ok .bool
+    | .hashValue a b c d => do
+        ensureHashValuePart "0" (← inferExprType module env a)
+        ensureHashValuePart "1" (← inferExprType module env b)
+        ensureHashValuePart "2" (← inferExprType module env c)
+        ensureHashValuePart "3" (← inferExprType module env d)
+        .ok .hash
     | .hash preimage => do
         let preimageType ← inferExprType module env preimage
         ensureType "hash preimage" .hash preimageType
@@ -793,6 +804,8 @@ mutual
         .ok s!"({← lowerExpr module lhs} || {← lowerExpr module rhs})"
     | .boolNot value => do
         .ok s!"!({← lowerExpr module value})"
+    | .hashValue a b c d => do
+        .ok s!"[{← lowerExpr module a}, {← lowerExpr module b}, {← lowerExpr module c}, {← lowerExpr module d}]"
     | .hash preimage => do
         .ok s!"hash({← lowerExpr module preimage})"
     | .hashTwoToOne lhs rhs => do
@@ -1030,11 +1043,8 @@ def validateState (module : Module) : Except LowerError Unit := do
           pure ()
     | .map keyType _, valueType =>
         .error { message := s!"map state `{state.id}` has unsupported Psy IR v0 type Map<{keyType.name}, {valueType.name}>; only Map<Hash, Hash, N> is supported" }
-    | .array length, .u32 =>
-        if length == 0 then
-          .error { message := s!"array state `{state.id}` must have non-zero length" }
-        else
-          pure ()
+    | .array _, .u32 =>
+        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `U32`; current Dargo toolchains reject direct `[u32; N]` storage arrays, so use Felt/Hash storage or local U32 arrays" }
     | .array length, .u64 =>
         if length == 0 then
           .error { message := s!"array state `{state.id}` must have non-zero length" }
@@ -1057,7 +1067,7 @@ def validateState (module : Module) : Except LowerError Unit := do
         | none =>
             .error { message := s!"array state `{state.id}` references unknown struct `{typeName}`" }
     | .array _, valueType =>
-        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt, U32, Hash, and deriveStorage structs are supported" }
+        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt, Hash, and deriveStorage structs are supported" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.psyDpn module.capabilities with
@@ -1101,6 +1111,15 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "bitwise_mix" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::bitwise_mix(), 16, \"bitwise expressions follow upstream opcode_test shape\");"
+    ]
+  else if module.name == "U32HashPackingProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "pack_literal" && entry.params.isEmpty && entry.returns == .hash) &&
+    module.entrypoints.any (fun entry => entry.name == "pack_params" && entry.params.size == 8 && entry.returns == .hash) then
+    .ok #[
+      "let literal_hash: Hash = [8589934593, 17179869187, 25769803781, 34359738375];",
+      "let param_hash: Hash = [42949672969, 51539607563, 60129542157, 68719476751];",
+      s!"assert_eq({refName}::pack_literal(), literal_hash, \"u32 literal limbs pack into Hash\");",
+      s!"assert_eq({refName}::pack_params(9u32, 10u32, 11u32, 12u32, 13u32, 14u32, 15u32, 16u32), param_hash, \"u32 ABI limbs pack into Hash\");"
     ]
   else if module.name == "ExpressionPredicateProbe" &&
     module.entrypoints.any (fun entry => entry.name == "predicate_sum" && entry.params.isEmpty && entry.returns == .u64) then

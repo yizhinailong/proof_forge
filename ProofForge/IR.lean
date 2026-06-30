@@ -16,3 +16,4 @@ import ProofForge.IR.Examples.StorageNestedAggregateProbe
 import ProofForge.IR.Examples.StructArrayProbe
 import ProofForge.IR.Examples.StructProbe
 import ProofForge.IR.Examples.U32ArithmeticProbe
+import ProofForge.IR.Examples.U32HashPackingProbe

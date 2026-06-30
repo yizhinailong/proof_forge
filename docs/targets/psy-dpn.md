@@ -11,14 +11,14 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
 ExpressionPredicateProbe, ArithmeticProbe, U32ArithmeticProbe, BitwiseProbe,
-ConditionalProbe, ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe,
-ArrayProbe, StructProbe, StructArrayProbe, AbiAggregateProbe, and
-NestedAggregateProbe fixtures. It also has an experimental
+U32HashPackingProbe, ConditionalProbe, ContextProbe, HashProbe, MapProbe,
+AssertProbe, LoopProbe, ArrayProbe, StructProbe, StructArrayProbe,
+AbiAggregateProbe, and NestedAggregateProbe fixtures. It also has an experimental
 StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
 across `#[ref]` struct fields and storage arrays. The target is not
-production-ready and does not yet cover compound assignment operators,
-else-if sugar, map storage paths, deploy JSON, live Psy node/prover deployment,
-or broad Lean-to-IR extraction.
+production-ready and does not yet cover U32 storage arrays, compound
+assignment operators, else-if sugar, map storage paths, deploy JSON, live Psy
+node/prover deployment, or broad Lean-to-IR extraction.
 
 ## Summary
 
@@ -239,6 +239,7 @@ Allowed first:
 - static bounded `for` loops that the Psy compiler accepts
 - assertions
 - hash operations represented through `crypto.hash`
+- dynamic `Hash` value construction from four Felt limbs
 - context reads such as user id, contract id, and checkpoint id
 - persistent scalar state
 - fixed-capacity maps where represented in Psy storage
@@ -267,12 +268,13 @@ It runs `Tests/PsyDiagnostics.lean` and checks that malformed Psy IR modules
 return stable, explicit errors before source generation. Current cases cover
 Unit entrypoint parameters, zero-length ABI arrays, unknown ABI structs,
 unsupported map key/value shapes, structs missing `deriveStorage` for storage,
-empty structs, invalid bounded loop ranges, storage writes used as expressions,
-storage reads used as statements, invalid assignment targets, invalid storage
-paths, unknown locals, local/array/struct/hash/return type mismatches, immutable
-assignment, missing return statements, malformed arithmetic expressions,
-unsupported casts, malformed bitwise/shift expressions, malformed if
-conditions, and branch-local escape.
+unsupported U32 storage arrays, empty structs, invalid bounded loop ranges,
+storage writes used as expressions, storage reads used as statements, invalid
+assignment targets, invalid storage paths, unknown locals,
+local/array/struct/hash/return type mismatches, immutable assignment, missing
+return statements, malformed arithmetic expressions, malformed Hash value
+construction, unsupported casts, malformed bitwise/shift expressions, malformed
+if conditions, and branch-local escape.
 
 The design philosophy docs reinforce the same boundary: Psy is ZK-native and
 uses symbolic execution. Variables become circuit wires, operations become
@@ -622,6 +624,16 @@ Compound assignment operators such as `|=`, `&=`, `^=`, `<<=`, and `>>=`
 remain source-sugar features because the portable IR currently represents them
 as explicit assignment plus expression nodes.
 
+`U32HashPackingProbe` follows the hash limb representation used by
+`psy-precompiles/deposit_tree/src/main.psy` and related Merkle-tree code. It
+adds a dynamic portable IR `Hash` constructor for four Felt limbs, then uses it
+to pack `[u32; 8]` local arrays and eight U32 ABI parameters into Psy `Hash`
+values with the same `lo + hi * 2^32` shape used upstream. Dargo execution
+validates deterministic four-Felt outputs for both literal and ABI limb
+packing. Current `psyup` 0.1.0 Dargo rejects direct `[u32; N]` contract storage
+arrays with an `ArrayRef<u32, N>` type mismatch, so ProofForge rejects U32
+storage arrays explicitly until a stable storage idiom is validated.
+
 `ConditionalProbe` follows upstream conditional idioms from
 `tests/conditional_assert_test.psy`, `tests/for_if_test.psy`, and
 `psy-precompiles/faucet/src/main.psy`. It lowers portable IR
@@ -717,6 +729,21 @@ execution:
 
 The script emits and validates
 `build/psy/dargo-bitwise/target/proof-forge-artifact.json`.
+
+The same validation shape is also implemented for `U32HashPackingProbe`:
+
+```sh
+scripts/psy/u32-hash-packing-smoke.sh
+```
+
+It verifies U32 limb packing and dynamic Hash construction under Dargo local
+execution:
+
+- `pack_literal`: `result_vm: [8589934593, 17179869187, 25769803781, 34359738375]`
+- `pack_params(9..16)`: `result_vm: [42949672969, 51539607563, 60129542157, 68719476751]`
+
+The script emits and validates
+`build/psy/dargo-u32-hash-packing/target/proof-forge-artifact.json`.
 
 The same validation shape is also implemented for `ConditionalProbe`:
 
@@ -883,11 +910,12 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts thirty-three explicit diagnostics for malformed or
+It currently asserts thirty-five explicit diagnostics for malformed or
 unsupported Psy IR shapes, including invalid storage paths, expression/body
 type mismatches, malformed equality, malformed comparison, and malformed
-arithmetic, unsupported casts, malformed bitwise/shift expressions, malformed
-boolean operators, malformed if conditions, and branch-local escape.
+Hash value construction, unsupported U32 storage arrays, malformed arithmetic,
+unsupported casts, malformed bitwise/shift expressions, malformed boolean
+operators, malformed if conditions, and branch-local escape.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -897,8 +925,9 @@ to an Ethereum-style local execution smoke than a pure compiler check.
 Second smoke:
 
 1. Compare high-level Counter behavior with the EVM shared scenario.
-2. Add cast-heavy storage arithmetic, compound assignment sugar, and map-path
-   coverage from `psy-compiler/tests` and `psy-precompiles`.
+2. Add U32 storage-array research, compound assignment sugar, and map-path coverage from
+   `psy-compiler/tests` and `psy-precompiles`.
+3. Add deploy JSON research against Psy's deployment tooling.
 
 Deployment smoke:
 
@@ -937,6 +966,12 @@ Deployment smoke:
   the same Dargo validation shape.
 - Done: add portable IR bitwise and shift expressions, `BitwiseProbe`, and
   `scripts/psy/bitwise-smoke.sh` with the same Dargo validation shape.
+- Done: add dynamic Hash value construction plus `U32HashPackingProbe` and
+  `scripts/psy/u32-hash-packing-smoke.sh` for `[u32; 8]` literal and ABI limb
+  packing into Psy `Hash` values.
+- Done: reject U32 storage arrays explicitly after Dargo validation showed
+  current `psyup` 0.1.0 rejects direct `[u32; N]` contract storage arrays with
+  an `ArrayRef<u32, N>` type mismatch.
 - Done: add `ConditionalProbe` with statement-level `if/else` lowering aligned
   with upstream conditional idioms.
 - Done: add `scripts/psy/conditional-smoke.sh` with the same Dargo validation
@@ -994,8 +1029,10 @@ Deployment smoke:
   array nested updates.
 - Done: add `scripts/psy/storage-nested-aggregate-smoke.sh` with the same
   Dargo validation shape.
-- Remaining: add map storage path support only after a stable Psy idiom is
-  identified, then move to deploy JSON/live node research.
+- Remaining: add U32 storage arrays and map storage path support only after
+  stable Psy idioms are identified, decide whether compound assignment belongs
+  in the IR or only in source normalization, then move to deploy JSON/live node
+  research.
 
 ### Phase C: Metadata and Scenario Parity
 

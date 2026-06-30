@@ -99,6 +99,8 @@ mutual
         .ok (Lean.Compiler.Yul.builtin "or" #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .boolNot value => do
         .ok (Lean.Compiler.Yul.builtin "iszero" #[← lowerExpr module value])
+    | .hashValue _ _ _ _ =>
+        .error { message := "Hash value construction is not supported by IR EVM v0" }
     | .hash _ =>
         .error { message := "crypto.hash is not supported by IR EVM v0" }
     | .hashTwoToOne _ _ =>
