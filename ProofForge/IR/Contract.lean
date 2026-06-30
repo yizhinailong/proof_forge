@@ -137,6 +137,7 @@ mutual
   inductive StoragePathSegment where
     | field (fieldName : String)
     | index (index : Expr)
+    | mapKey (key : Expr)
     deriving Repr
 end
 
@@ -180,8 +181,16 @@ def Effect.capability : Effect → ProofForge.Target.Capability
   | .storageArrayStructFieldWrite _ _ _ _ => .storageArray
   | .storageStructFieldRead _ _ => .storageScalar
   | .storageStructFieldWrite _ _ _ => .storageScalar
-  | .storagePathRead _ _ => .storageScalar
-  | .storagePathWrite _ _ _ => .storageScalar
+  | .storagePathRead _ path =>
+      if path.any (fun segment => match segment with | .mapKey _ => true | _ => false) then
+        .storageMap
+      else
+        .storageScalar
+  | .storagePathWrite _ path _ =>
+      if path.any (fun segment => match segment with | .mapKey _ => true | _ => false) then
+        .storageMap
+      else
+        .storageScalar
   | .contextRead field => field.capability
 
 mutual
@@ -242,6 +251,7 @@ mutual
   partial def StoragePathSegment.capabilities : StoragePathSegment → Array ProofForge.Target.Capability
     | .field _ => #[.dataStruct]
     | .index index => #[.dataFixedArray] ++ index.capabilities
+    | .mapKey key => #[.storageMap] ++ key.capabilities
 end
 
 def StructField.capabilities (field : StructField) : Array ProofForge.Target.Capability :=

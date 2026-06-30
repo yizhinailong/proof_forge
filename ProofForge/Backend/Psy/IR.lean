@@ -213,18 +213,32 @@ def requireStructArrayState (module : Module) (stateId fieldName : String) : Exc
           .error { message := s!"state `{stateId}` is map storage, not struct array storage" }
   | none => .error { message := s!"unknown struct array state `{stateId}`" }
 
-def storagePathStartType (module : Module) (stateId : String) : Except LowerError ValueType :=
+def storagePathStartType (module : Module) (stateId : String) (path : Array StoragePathSegment) : Except LowerError (ValueType × List StoragePathSegment) :=
   match findState? module stateId with
   | some state =>
       match state.kind with
-      | .scalar => .ok state.type
+      | .scalar =>
+          match path.toList with
+          | .mapKey _ :: _ =>
+              .error { message := s!"storage path state `{stateId}` is scalar storage, not map storage" }
+          | segments =>
+              .ok (state.type, segments)
       | .array length =>
           if length == 0 then
             .error { message := s!"array state `{stateId}` must have non-zero length" }
           else
-            .ok (.fixedArray state.type length)
-      | .map _ _ =>
-          .error { message := s!"storage path state `{stateId}` is map storage; map storage paths are not supported by Psy IR v0" }
+            match path.toList with
+            | .mapKey _ :: _ =>
+                .error { message := s!"storage path state `{stateId}` is array storage, not map storage" }
+            | segments =>
+                .ok (.fixedArray state.type length, segments)
+      | .map _ capacity =>
+          if capacity == 0 then
+            .error { message := s!"map state `{stateId}` must have non-zero capacity" }
+          else
+            match path.toList with
+            | .mapKey _ :: rest => .ok (state.type, rest)
+            | _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
   | none => .error { message := s!"unknown storage path state `{stateId}`" }
 
 partial def resolveStoragePathSegments (module : Module) : ValueType → List StoragePathSegment → Except LowerError ValueType
@@ -253,12 +267,14 @@ partial def resolveStoragePathSegments (module : Module) : ValueType → List St
         resolveStoragePathSegments module element rest
   | other, .index _ :: _ =>
       .error { message := s!"storage path index cannot be selected from `{other.name}`" }
+  | other, .mapKey _ :: _ =>
+      .error { message := s!"storage path map key cannot be selected from `{other.name}`" }
 
 def resolveStoragePathType (module : Module) (stateId : String) (path : Array StoragePathSegment) : Except LowerError ValueType := do
   if path.isEmpty then
     .error { message := s!"storage path for state `{stateId}` must contain at least one segment" }
-  let start ← storagePathStartType module stateId
-  resolveStoragePathSegments module start path.toList
+  let (start, segments) ← storagePathStartType module stateId path
+  resolveStoragePathSegments module start segments
 
 partial def validateValueType (module : Module) (type : ValueType) : Except LowerError Unit := do
   match type with
@@ -548,6 +564,37 @@ mutual
     | .effect effect =>
         inferEffectExprType module env effect
 
+  partial def validateStoragePathExprs (module : Module) (env : TypeEnv) (stateId : String) (path : Array StoragePathSegment) : Except LowerError Unit := do
+    if path.isEmpty then
+      pure ()
+    match findState? module stateId with
+    | some state =>
+        match state.kind with
+        | .map keyType _ =>
+            match path.toList with
+            | .mapKey key :: rest => do
+                let actualKey ← inferExprType module env key
+                ensureType s!"map `{stateId}` key" keyType actualKey
+                for segment in rest do
+                  match segment with
+                  | .field _ => pure ()
+                  | .index index => do
+                      let actualIndex ← inferExprType module env index
+                      ensureIndexType s!"storage path `{stateId}` index" actualIndex
+                  | .mapKey _ =>
+                      .error { message := s!"storage path `{stateId}` can use a map key only as its first segment" }
+            | _ => pure ()
+        | .scalar | .array _ =>
+            for segment in path do
+              match segment with
+              | .field _ => pure ()
+              | .index index => do
+                  let actualIndex ← inferExprType module env index
+                  ensureIndexType s!"storage path `{stateId}` index" actualIndex
+              | .mapKey _ =>
+                  pure ()
+    | none => pure ()
+
   partial def inferEffectExprType (module : Module) (env : TypeEnv) : Effect → Except LowerError ValueType
     | .storageScalarRead stateId =>
         scalarStateType module stateId
@@ -594,7 +641,8 @@ mutual
         | other => .error { message := s!"state `{stateId}` has scalar type `{other.name}`, not struct storage" }
     | .storageStructFieldWrite _ _ _ =>
         .error { message := "storage.struct.field.write is a statement effect, not an expression" }
-    | .storagePathRead stateId path =>
+    | .storagePathRead stateId path => do
+        validateStoragePathExprs module env stateId path
         resolveStoragePathType module stateId path
     | .storagePathWrite _ _ _ =>
         .error { message := "storage.path.write is a statement effect, not an expression" }
@@ -686,6 +734,7 @@ def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except Low
   | .storagePathRead _ _ =>
       .error { message := "storage.path.read must be used as an expression" }
   | .storagePathWrite stateId path value => do
+      validateStoragePathExprs module env stateId path
       let expected ← resolveStoragePathType module stateId path
       let actualValue ← inferExprType module env value
       ensureType s!"storage path `{stateId}` write" expected actualValue
@@ -857,7 +906,7 @@ mutual
         .error { message := "storage.struct.field.write is a statement effect, not an expression" }
     | .storagePathRead stateId path => do
         discard <| resolveStoragePathType module stateId path
-        .ok s!"{← lowerStoragePath module stateId path}.get()"
+        lowerStoragePathRead module stateId path
     | .storagePathWrite _ _ _ =>
         .error { message := "storage.path.write is a statement effect, not an expression" }
     | .contextRead field =>
@@ -867,11 +916,45 @@ mutual
     | .field fieldName => .ok s!".{fieldName}"
     | .index index => do
         .ok s!"[{← lowerExpr module index}]"
+    | .mapKey _ =>
+        .error { message := "storage path map key lowering is handled at the map state boundary" }
 
   partial def lowerStoragePath (module : Module) (stateId : String) (path : Array StoragePathSegment) : Except LowerError String := do
     discard <| resolveStoragePathType module stateId path
     let segments ← path.mapM (lowerStoragePathSegment module)
     .ok s!"c.{stateId}{String.intercalate "" segments.toList}"
+
+  partial def lowerStoragePathRead (module : Module) (stateId : String) (path : Array StoragePathSegment) : Except LowerError String := do
+    discard <| resolveStoragePathType module stateId path
+    match findState? module stateId with
+    | some { kind := .map _ _, .. } =>
+        match path.toList with
+        | .mapKey key :: [] =>
+            .ok s!"c.{stateId}.get({← lowerExpr module key})"
+        | .mapKey _ :: _ =>
+            .error { message := s!"storage path state `{stateId}` map values support direct key access only" }
+        | _ =>
+            .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+    | some _ =>
+        .ok s!"{← lowerStoragePath module stateId path}.get()"
+    | none =>
+        .error { message := s!"unknown storage path state `{stateId}`" }
+
+  partial def lowerStoragePathWrite (module : Module) (stateId : String) (path : Array StoragePathSegment) (value : Expr) : Except LowerError (Array String) := do
+    discard <| resolveStoragePathType module stateId path
+    match findState? module stateId with
+    | some { kind := .map _ _, .. } =>
+        match path.toList with
+        | .mapKey key :: [] =>
+            .ok #[s!"c.{stateId}.set({← lowerExpr module key}, {← lowerExpr module value});"]
+        | .mapKey _ :: _ =>
+            .error { message := s!"storage path state `{stateId}` map values support direct key access only" }
+        | _ =>
+            .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+    | some _ =>
+        .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExpr module value};"]
+    | none =>
+        .error { message := s!"unknown storage path state `{stateId}`" }
 end
 
 def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array String)
@@ -909,7 +992,7 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
       .error { message := "storage.path.read must be used as an expression" }
   | .storagePathWrite stateId path value => do
       discard <| resolveStoragePathType module stateId path
-      .ok #[s!"{← lowerStoragePath module stateId path} = {← lowerExpr module value};"]
+      lowerStoragePathWrite module stateId path value
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
 
@@ -1144,18 +1227,23 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.state.any (fun state => state.id == "balances") &&
     module.entrypoints.any (fun entry => entry.name == "map_lifecycle" && entry.params.isEmpty && entry.returns == .hash) &&
     module.entrypoints.any (fun entry => entry.name == "has_seed_balance" && entry.params.isEmpty && entry.returns == .bool) &&
-    module.entrypoints.any (fun entry => entry.name == "get_seed_balance" && entry.params.isEmpty && entry.returns == .hash) then
+    module.entrypoints.any (fun entry => entry.name == "get_seed_balance" && entry.params.isEmpty && entry.returns == .hash) &&
+    module.entrypoints.any (fun entry => entry.name == "path_lifecycle" && entry.params.isEmpty && entry.returns == .hash) then
     .ok #[
       s!"let c = {refName}::new(ContractMetadata::current());",
       "let key: Hash = [1001, 0, 0, 0];",
       "let value1: Hash = [55, 66, 77, 88];",
+      "let path_key: Hash = [2002, 0, 0, 0];",
+      "let path_value: Hash = [77, 88, 99, 111];",
       s!"assert_eq({refName}::has_seed_balance(), false, \"seed balance starts absent\");",
       s!"assert_eq({refName}::map_lifecycle(), value1, \"map lifecycle returns the updated value\");",
       s!"assert_eq({refName}::has_seed_balance(), true, \"seed balance exists after lifecycle\");",
       s!"assert_eq({refName}::get_seed_balance(), value1, \"seed getter reads the lifecycle value\");",
+      s!"assert_eq({refName}::path_lifecycle(), path_value, \"map storage path reads updated value\");",
       "assert_eq(c.before, 111, \"map lifecycle preserves before field\");",
       "assert_eq(c.after, 222, \"map lifecycle preserves after field\");",
-      "assert_eq(c.balances.contains(key), true, \"raw map contains follows generated entrypoint\");"
+      "assert_eq(c.balances.contains(key), true, \"raw map contains follows generated entrypoint\");",
+      "assert_eq(c.balances.get(path_key), path_value, \"raw map get follows storage path entrypoint\");"
     ]
   else if module.name == "AssertProbe" &&
     module.entrypoints.any (fun entry => entry.name == "checked_sum" && entry.params.size == 2 && entry.returns == .u64) then

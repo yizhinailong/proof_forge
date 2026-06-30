@@ -46,6 +46,14 @@ impl MapProbeRef {
         let c = MapProbeRef::new(ContractMetadata::current());
         c.balances.set(key, value);
     }
+    #[contract_method]
+    pub fn path_lifecycle() -> Hash {
+        let c = MapProbeRef::new(ContractMetadata::current());
+        let key: Hash = [2002, 0, 0, 0];
+        let value: Hash = [77, 88, 99, 111];
+        c.balances.set(key, value);
+        return c.balances.get(key);
+    }
 }
 
 #[test]
@@ -53,11 +61,15 @@ fn test_map_probe_fixture() {
     let c = MapProbeRef::new(ContractMetadata::current());
     let key: Hash = [1001, 0, 0, 0];
     let value1: Hash = [55, 66, 77, 88];
+    let path_key: Hash = [2002, 0, 0, 0];
+    let path_value: Hash = [77, 88, 99, 111];
     assert_eq(MapProbeRef::has_seed_balance(), false, "seed balance starts absent");
     assert_eq(MapProbeRef::map_lifecycle(), value1, "map lifecycle returns the updated value");
     assert_eq(MapProbeRef::has_seed_balance(), true, "seed balance exists after lifecycle");
     assert_eq(MapProbeRef::get_seed_balance(), value1, "seed getter reads the lifecycle value");
+    assert_eq(MapProbeRef::path_lifecycle(), path_value, "map storage path reads updated value");
     assert_eq(c.before, 111, "map lifecycle preserves before field");
     assert_eq(c.after, 222, "map lifecycle preserves after field");
     assert_eq(c.balances.contains(key), true, "raw map contains follows generated entrypoint");
+    assert_eq(c.balances.get(path_key), path_value, "raw map get follows storage path entrypoint");
 }

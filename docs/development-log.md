@@ -17,6 +17,59 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Map Storage Path Lowering
+
+Commit: feature commit for Psy map storage path coverage
+
+Summary:
+
+- Added `StoragePathSegment.mapKey` to the portable IR so generic storage path
+  effects can target supported `Map<Hash, Hash, N>` state.
+- Extended Psy storage path type resolution, validation, and source lowering so
+  `storagePathRead "balances" #[.mapKey key]` lowers to `c.balances.get(key)`
+  and `storagePathWrite "balances" #[.mapKey key] value` lowers to
+  `c.balances.set(key, value)`.
+- Added map path key validation and explicit diagnostics for malformed map
+  paths or wrong key types.
+- Extended `MapProbe` with `path_lifecycle`, updated its golden `.psy`, and
+  updated `scripts/psy/map-smoke.sh` to execute both direct map effects and the
+  generic map storage path entrypoint.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
+diff -u Examples/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
+scripts/psy/diagnostic-smoke.sh
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/map-smoke.sh
+```
+
+Result:
+
+- Generated MapProbe source matches the checked-in golden fixture.
+- `scripts/psy/diagnostic-smoke.sh` passes all 37 diagnostic cases.
+- `scripts/psy/map-smoke.sh` passes `dargo test`, `dargo compile`,
+  `dargo execute`, `dargo generate-abi`, deploy manifest validation, and
+  artifact metadata validation.
+- Dargo execution returns `result_vm: [55, 66, 77, 88]` for `map_lifecycle`
+  and `result_vm: [77, 88, 99, 111]` for `path_lifecycle`.
+
+Known limitations:
+
+- Map storage paths currently support direct `Map<Hash, Hash, N>` key access.
+  Nested map value traversal remains unsupported because Psy IR v0 only accepts
+  Hash map values.
+- U32 storage arrays remain explicitly rejected until a stable Dargo-compatible
+  storage idiom is identified.
+
+Next step:
+
+- Continue with U32 storage-array research or decide whether compound
+  assignment should become IR sugar.
+
 ### Psy Deploy Manifests For All Dargo Smokes
 
 Commit: feature commit for broad Psy deploy manifest coverage

@@ -90,6 +90,12 @@ def unsupportedU32ArrayStateModule : Module := {
   entrypoints := #[unitEntrypoint "bad"]
 }
 
+def balancesMapState : StateDecl := {
+  id := "balances"
+  kind := .map .hash 16
+  type := .hash
+}
+
 def nonStorageStructStateModule : Module := {
   name := "BadStructState"
   structs := #[pointStructNoStorage]
@@ -201,6 +207,30 @@ def missingRefStoragePathModule : Module := {
     returns := .u64
     body := #[
       .return (.effect (.storagePathRead "person" #[.field "profile", .field "age"]))
+    ]
+  }]
+}
+
+def mapPathMissingKeyModule : Module := {
+  name := "BadMapPathMissingKey"
+  state := #[balancesMapState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .hash
+    body := #[
+      .return (.effect (.storagePathRead "balances" #[.field "missing"]))
+    ]
+  }]
+}
+
+def mapPathKeyTypeMismatchModule : Module := {
+  name := "BadMapPathKeyType"
+  state := #[balancesMapState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .hash
+    body := #[
+      .return (.effect (.storagePathRead "balances" #[.mapKey (.literal (.u64 1))]))
     ]
   }]
 }
@@ -491,6 +521,16 @@ def cases : Array (String × Module × String) := #[
     "missing nested storage ref",
     missingRefStoragePathModule,
     "storage path field `profile` in struct `Person` must be marked ref to access nested storage"
+  ),
+  (
+    "map storage path missing key",
+    mapPathMissingKeyModule,
+    "storage path state `balances` is map storage; first segment must be a map key"
+  ),
+  (
+    "map storage path key type mismatch",
+    mapPathKeyTypeMismatchModule,
+    "map `balances` key expected `Hash`, got `U64`"
   ),
   (
     "unknown local",

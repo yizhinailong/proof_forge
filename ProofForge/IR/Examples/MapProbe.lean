@@ -31,6 +31,12 @@ def initialValue : Expr :=
 def updatedValue : Expr :=
   .literal (.hash4 55 66 77 88)
 
+def pathKey : Expr :=
+  .literal (.hash4 2002 0 0 0)
+
+def pathValue : Expr :=
+  .literal (.hash4 77 88 99 111)
+
 def mapLifecycle : Entrypoint := {
   name := "map_lifecycle"
   returns := .hash
@@ -45,6 +51,17 @@ def mapLifecycle : Entrypoint := {
     .letBind "present1" .bool (.effect (.storageMapContains "balances" (.local "key"))),
     .effect (.storageMapSet "balances" (.local "key") (.local "value1")),
     .return (.effect (.storageMapGet "balances" (.local "key")))
+  ]
+}
+
+def pathLifecycle : Entrypoint := {
+  name := "path_lifecycle"
+  returns := .hash
+  body := #[
+    .letBind "key" .hash pathKey,
+    .letBind "value" .hash pathValue,
+    .effect (.storagePathWrite "balances" #[.mapKey (.local "key")] (.local "value")),
+    .return (.effect (.storagePathRead "balances" #[.mapKey (.local "key")]))
   ]
 }
 
@@ -98,7 +115,8 @@ def module : Module := {
     getSeedBalance,
     hasSeedBalance,
     upsertBalance,
-    setBalance
+    setBalance,
+    pathLifecycle
   ]
 }
 

@@ -17,10 +17,9 @@ AbiAggregateProbe, and NestedAggregateProbe fixtures. It also has an experimenta
 StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
 across `#[ref]` struct fields and storage arrays. The target is not
 production-ready and does not yet cover U32 storage arrays, compound
-assignment operators, else-if sugar, map storage paths, upstream compressed
-genesis deploy JSON, live Psy node/prover deployment, or broad Lean-to-IR
-extraction. It does produce a ProofForge deploy manifest for every
-Dargo-backed Psy smoke fixture.
+assignment operators, else-if sugar, upstream compressed genesis deploy JSON,
+live Psy node/prover deployment, or broad Lean-to-IR extraction. It does
+produce a ProofForge deploy manifest for every Dargo-backed Psy smoke fixture.
 
 ## Summary
 
@@ -426,11 +425,12 @@ build/psy/
 `tests/map_chain_insert_set_get_test.psy`, and
 `tests/map_adjacent_fields_preserve_test.psy`. The portable IR now has
 fixed-capacity map state and map effects for `contains`, `get`, `insert`, and
-`set`. Psy sourcegen lowers the supported storage shape to
-`Map<Hash, Hash, Nu32>` and emits `c.map.contains(key)`, `c.map.get(key)`,
-`c.map.insert(key, value)`, and `c.map.set(key, value)`. The current Psy v0
-lowerer deliberately accepts only `Map<Hash, Hash, N>` and rejects other map
-key/value shapes with an explicit diagnostic.
+`set`, plus generic storage paths whose first segment is a map key. Psy
+sourcegen lowers the supported storage shape to `Map<Hash, Hash, Nu32>` and
+emits `c.map.contains(key)`, `c.map.get(key)`, `c.map.insert(key, value)`,
+`c.map.set(key, value)`, and direct map-path `get`/`set` lowering. The current
+Psy v0 lowerer deliberately accepts only `Map<Hash, Hash, N>` and rejects other
+map key/value shapes or malformed map paths with explicit diagnostics.
 
 Current AssertProbe output layout:
 
@@ -807,6 +807,7 @@ scripts/psy/map-smoke.sh
 It verifies fixed-capacity Psy map storage under Dargo local execution:
 
 - `map_lifecycle`: `result_vm: [55, 66, 77, 88]`
+- `path_lifecycle`: `result_vm: [77, 88, 99, 111]`
 
 The script emits and validates
 `build/psy/dargo-map/target/proof-forge-artifact.json`.
@@ -951,8 +952,8 @@ to an Ethereum-style local execution smoke than a pure compiler check.
 Second smoke:
 
 1. Compare high-level Counter behavior with the EVM shared scenario.
-2. Add U32 storage-array research, compound assignment sugar, and map-path coverage from
-   `psy-compiler/tests` and `psy-precompiles`.
+2. Add U32 storage-array research and decide whether compound assignment sugar
+   belongs in IR or source normalization.
 3. Extend the Counter deploy manifest into upstream genesis JSON and local
    node/prover deployment once the tooling boundary is stable.
 
@@ -1019,6 +1020,8 @@ Deployment smoke:
   `contains`, `get`, `insert`, and `set` lowering aligned with upstream Psy
   map tests.
 - Done: add `scripts/psy/map-smoke.sh` with the same Dargo validation shape.
+- Done: add generic map storage path read/write lowering for
+  `Map<Hash, Hash, N>` through first-class `mapKey` path segments.
 - Done: add `AssertProbe` with IR-level `assert` and `assert_eq` statements
   aligned with upstream Psy assertion idioms.
 - Done: add `scripts/psy/assert-smoke.sh` with the same Dargo validation shape.
@@ -1062,10 +1065,10 @@ Deployment smoke:
 - Done: add `proof-forge-deploy.json` generation and validation for every
   Dargo-backed Psy smoke, and record the deploy manifest in
   `proof-forge-artifact.json`.
-- Remaining: add U32 storage arrays and map storage path support only after
-  stable Psy idioms are identified, decide whether compound assignment belongs
-  in the IR or only in source normalization, then move to upstream genesis
-  deploy JSON/live node research.
+- Remaining: add U32 storage arrays only after stable Psy idioms are
+  identified, decide whether compound assignment belongs in the IR or only in
+  source normalization, then move to upstream genesis deploy JSON/live node
+  research.
 
 ### Phase C: Metadata and Scenario Parity
 

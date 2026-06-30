@@ -16,6 +16,7 @@ ABI_FILE="$PROJECT_DIR/target/MapProbe.json"
 DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 MAP_RESULT="result_vm: [55, 66, 77, 88]"
+MAP_PATH_RESULT="result_vm: [77, 88, 99, 111]"
 
 if [[ -z "${DARGO_STD_PATH:-}" && -f "$PSY_HOME/env" ]]; then
   # psyup writes DARGO_STD_PATH here; sourcing avoids a slow stdlib fallback.
@@ -63,10 +64,12 @@ TOML
 
 (
   cd "$PROJECT_DIR"
-  "$DARGO_BIN" compile --contract-name MapProbe --method-names map_lifecycle get_seed_balance has_seed_balance upsert_balance set_balance
-  "$DARGO_BIN" execute --contract-name MapProbe --method-names map_lifecycle | tee "$EXEC_LOG"
+  "$DARGO_BIN" compile --contract-name MapProbe --method-names map_lifecycle get_seed_balance has_seed_balance upsert_balance set_balance path_lifecycle
+  : > "$EXEC_LOG"
+  "$DARGO_BIN" execute --contract-name MapProbe --method-names map_lifecycle | tee -a "$EXEC_LOG"
+  "$DARGO_BIN" execute --contract-name MapProbe --method-names path_lifecycle | tee -a "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name MapProbe --output-dir target --pretty
-  "$DARGO_BIN" compile --contract-name MapProbe --method-names map_lifecycle get_seed_balance has_seed_balance upsert_balance set_balance
+  "$DARGO_BIN" compile --contract-name MapProbe --method-names map_lifecycle get_seed_balance has_seed_balance upsert_balance set_balance path_lifecycle
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_map.json"
@@ -77,6 +80,12 @@ fi
 
 if ! grep -Fq "$MAP_RESULT" "$EXEC_LOG"; then
   echo "psy-map-smoke: expected map_lifecycle execute to return $MAP_RESULT" >&2
+  echo "psy-map-smoke: execution log: $EXEC_LOG" >&2
+  exit 1
+fi
+
+if ! grep -Fq "$MAP_PATH_RESULT" "$EXEC_LOG"; then
+  echo "psy-map-smoke: expected path_lifecycle execute to return $MAP_PATH_RESULT" >&2
   echo "psy-map-smoke: execution log: $EXEC_LOG" >&2
   exit 1
 fi
@@ -105,7 +114,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
-  --execute-result "$MAP_RESULT" \
+  --execute-result "$MAP_RESULT; $MAP_PATH_RESULT" \
   --capability storage.map \
   --capability zk.circuit
 
