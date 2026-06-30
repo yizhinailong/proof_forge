@@ -11,20 +11,42 @@ namespace ProofForge.Cli
 
 abbrev MethodSpec := Lean.Compiler.LCNF.EmitYul.MethodSpec
 
+inductive EmitMode where
+  | yul
+  | evmBytecode
+  deriving BEq, Inhabited
+
 structure CliOptions where
   input? : Option FilePath := none
   output? : Option FilePath := none
   root? : Option FilePath := none
   moduleName? : Option Name := none
   methods : Array MethodSpec := #[]
+  methodsFile? : Option FilePath := none
+  yulOutput? : Option FilePath := none
+  solc : String := "solc"
+  cast : String := "cast"
+  mode : EmitMode := .yul
   deriving Inhabited
 
 def usage : String :=
-  "Usage: proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean"
+  String.intercalate "\n" [
+    "Usage:",
+    "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
+    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [-o output.bin] input.lean",
+    "",
+    "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`."
+  ]
 
 def parseModuleName (s : String) : Name :=
   s.splitOn "." |>.foldl (init := Name.anonymous) fun acc part =>
     if part.isEmpty then acc else acc.str part
+
+def trimAsciiString (s : String) : String :=
+  s.trimAscii.toString
+
+def dropEndString (s : String) (n : Nat) : String :=
+  (s.dropEnd n).toString
 
 def stripHexPrefix (s : String) : String :=
   if s.startsWith "0x" then (s.drop 2).toString else s
@@ -56,6 +78,124 @@ def parseMethodSpec (s : String) : Except String MethodSpec := do
   | _ =>
       .error s!"invalid method spec '{s}'\n{usage}"
 
+def leanBaseName (input : FilePath) : String :=
+  let fileName := input.fileName.getD input.toString
+  if fileName.endsWith ".lean" then
+    dropEndString fileName ".lean".length
+  else
+    fileName
+
+def siblingPath (input : FilePath) (fileName : String) : FilePath :=
+  let child := FilePath.mk fileName
+  match input.parent with
+  | some parent => parent / child
+  | none => child
+
+def defaultMethodsFile (input : FilePath) : FilePath :=
+  siblingPath input s!"{leanBaseName input}.evm-methods"
+
+def defaultYulOutput (input : FilePath) : FilePath :=
+  siblingPath input s!".{leanBaseName input}.yul"
+
+def methodArgCount (sig : String) : Except String Nat := do
+  match sig.splitOn "(" with
+  | [_name, rest] =>
+      if !rest.endsWith ")" then
+        .error s!"invalid method signature '{sig}'"
+      else
+        let args := trimAsciiString (dropEndString rest 1)
+        if args.isEmpty then
+          .ok 0
+        else
+          .ok (args.splitOn ",").length
+  | _ =>
+      .error s!"invalid method signature '{sig}'"
+
+def yulFunctionName (symbol : String) : String :=
+  let name :=
+    if symbol.startsWith "l_" then
+      (symbol.drop 2).toString
+    else
+      symbol
+  s!"f_{name}"
+
+def parseMethodTarget (target : String) : Except String (String × Bool) := do
+  match (trimAsciiString target).splitOn "[" with
+  | [symbol] =>
+      .ok (trimAsciiString symbol, false)
+  | [symbol, modeWithBracket] =>
+      if !modeWithBracket.endsWith "]" then
+        .error s!"invalid method target '{target}'"
+      else
+        let mode := trimAsciiString (dropEndString modeWithBracket 1)
+        let returnsValue ← parseReturnsValue mode
+        .ok (trimAsciiString symbol, returnsValue)
+  | _ =>
+      .error s!"invalid method target '{target}'"
+
+def parseMethodsLine (line : String) : Except String (Option (String × String × Bool × Nat)) := do
+  let line := trimAsciiString line
+  if line.isEmpty || line.startsWith "#" then
+    .ok none
+  else
+    match line.splitOn "=" with
+    | [sig, target] =>
+        let sig := trimAsciiString sig
+        let (symbol, returnsValue) ← parseMethodTarget target
+        let argc ← methodArgCount sig
+        .ok (some (sig, yulFunctionName symbol, returnsValue, argc))
+    | _ =>
+        .error s!"invalid .evm-methods line '{line}', expected signature=symbol[view|update]"
+
+def isHexChar (c : Char) : Bool :=
+  c.isDigit || "abcdefABCDEF".contains c
+
+def isHexString (s : String) : Bool :=
+  !s.isEmpty && s.all isHexChar
+
+def runProcess (cmd : String) (args : Array String) (cwd? : Option FilePath := none) : IO String := do
+  let output ← IO.Process.output { cmd := cmd, args := args, cwd := cwd? }
+  if output.exitCode != 0 then
+    let stderr := trimAsciiString output.stderr
+    let detail := if stderr.isEmpty then trimAsciiString output.stdout else stderr
+    throw <| IO.userError s!"{cmd} failed with exit code {output.exitCode}: {detail}"
+  return output.stdout
+
+def selectorFor (cast : String) (sig : String) : IO String := do
+  let stdout ← runProcess cast #["sig", sig]
+  let selector := stripHexPrefix (trimAsciiString stdout)
+  if selector.length != 8 || !isHexString selector then
+    throw <| IO.userError s!"cast returned invalid selector for {sig}: {trimAsciiString stdout}"
+  return selector
+
+def readMethodsFile (cast : String) (path : FilePath) : IO (Array MethodSpec) := do
+  if !(← path.pathExists) then
+    throw <| IO.userError s!"methods file not found: {path}"
+  let contents ← IO.FS.readFile path
+  let mut methods := #[]
+  for line in contents.splitOn "\n" do
+    match parseMethodsLine line with
+    | .ok none => pure ()
+    | .ok (some (sig, fnName, returnsValue, argCount)) =>
+        let selector ← selectorFor cast sig
+        methods := methods.push {
+          selector := selector
+          fnName := fnName
+          argCount := argCount
+          returnsValue := returnsValue
+        }
+    | .error msg =>
+        throw <| IO.userError s!"{path}: {msg}"
+  return methods
+
+def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
+  let stdout ← runProcess solc #["--strict-assembly", yulFile.toString, "--bin"]
+  for line in stdout.splitOn "\n" do
+    let line := trimAsciiString line
+    if isHexString line then
+      return line
+  throw <| IO.userError s!"solc did not emit bytecode for {yulFile}"
+
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
       if opts.input?.isSome then
@@ -73,6 +213,18 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
   | "--method" :: method :: rest, opts => do
       let spec ← parseMethodSpec method
       parseArgs rest { opts with methods := opts.methods.push spec }
+  | "--methods-file" :: path :: rest, opts =>
+      parseArgs rest { opts with methodsFile? := some (FilePath.mk path) }
+  | "--yul-output" :: path :: rest, opts =>
+      parseArgs rest { opts with yulOutput? := some (FilePath.mk path) }
+  | "--solc" :: path :: rest, opts =>
+      parseArgs rest { opts with solc := path }
+  | "--cast" :: path :: rest, opts =>
+      parseArgs rest { opts with cast := path }
+  | "--evm-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .evmBytecode }
+  | "--bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .evmBytecode }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -85,12 +237,18 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       else
         parseArgs rest { opts with input? := some (FilePath.mk arg) }
 
-unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
+def resolveMethods (opts : CliOptions) (input : FilePath) : IO (Array MethodSpec) := do
+  if !opts.methods.isEmpty then
+    return opts.methods
+  else if opts.mode == .evmBytecode then
+    let methodsFile := opts.methodsFile?.getD (defaultMethodsFile input)
+    readMethodsFile opts.cast methodsFile
+  else
+    return #[]
+
+unsafe def emitYulFile (opts : CliOptions) (input output : FilePath) (methods : Array MethodSpec) : IO Unit := do
   enableInitializersExecution
   initSearchPath (← findSysroot "lean")
-  let some input := opts.input?
-    | IO.eprintln usage
-      return 1
   let source ← IO.FS.readFile input
   let modName ← match opts.moduleName? with
     | some name => pure name
@@ -110,19 +268,48 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
     (printStats := false)
     (setup? := none)
   let some env := env?
-    | return 1
-  let emit := if opts.methods.isEmpty then
+    | throw <| IO.userError "frontend failed"
+  let emit := if methods.isEmpty then
     Lean.Compiler.LCNF.EmitYul.emitYul modName
   else
-    Lean.Compiler.LCNF.EmitYul.emitYulContract modName opts.methods
+    Lean.Compiler.LCNF.EmitYul.emitYulContract modName methods
   let yul ← emit
     |>.toIO' { fileName := input.toString, fileMap := default } { env := env }
-  let output := opts.output?.getD (input.withExtension "yul")
   if let some parent := output.parent then
     IO.FS.createDirAll parent
   IO.FS.writeFile output yul
+
+unsafe def compileYul (opts : CliOptions) : IO UInt32 := do
+  let some input := opts.input?
+    | IO.eprintln usage
+      return 1
+  let methods ← resolveMethods opts input
+  let output := opts.output?.getD (input.withExtension "yul")
+  emitYulFile opts input output methods
   IO.println s!"wrote {output}"
   return 0
+
+unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
+  let some input := opts.input?
+    | IO.eprintln usage
+      return 1
+  let methods ← resolveMethods opts input
+  if methods.isEmpty then
+    throw <| IO.userError "EVM bytecode mode requires at least one method"
+  let yulOutput := opts.yulOutput?.getD (defaultYulOutput input)
+  emitYulFile opts input yulOutput methods
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (input.withExtension "bin")
+  if let some parent := output.parent then
+    IO.FS.createDirAll parent
+  IO.FS.writeFile output (bytecode ++ "\n")
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
+unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
+  match opts.mode with
+  | .yul => compileYul opts
+  | .evmBytecode => compileEvmBytecode opts
 
 end ProofForge.Cli
 

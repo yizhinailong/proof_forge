@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Lean
+        run: |
+          toolchain="$(cat lean-toolchain)"
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain "$toolchain"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install solc
+        run: |
+          curl -L -o solc-static-linux https://github.com/ethereum/solidity/releases/download/v0.8.30/solc-static-linux
+          chmod +x solc-static-linux
+          sudo mv solc-static-linux /usr/local/bin/solc
+          solc --version
+
+      - name: Tool versions
+        run: |
+          lean --version
+          lake --version
+          forge --version
+          cast --version
+          solc --version
+
+      - name: Build Lean package
+        run: lake build
+
+      - name: Build EVM examples
+        run: scripts/evm/build-examples.sh
+
+      - name: Run Foundry smoke tests
+        run: scripts/evm/foundry-smoke.sh

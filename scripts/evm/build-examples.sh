@@ -5,6 +5,25 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONTRACTS_DIR="${CONTRACTS_DIR:-$ROOT/Examples/Evm/Contracts}"
 OUT_DIR="${EVM_OUT_DIR:-$ROOT/build/evm}"
 
+export PATH="$HOME/.foundry/bin:$PATH"
+
+if ! command -v cast >/dev/null 2>&1; then
+  echo "build-examples: cast not found. Install Foundry, then re-run this script." >&2
+  echo "build-examples: https://getfoundry.sh/" >&2
+  exit 127
+fi
+
+if ! command -v solc >/dev/null 2>&1; then
+  echo "build-examples: solc not found. Install solc, then re-run this script." >&2
+  exit 127
+fi
+
+if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then
+  proof_forge=("$PROOF_FORGE_BIN")
+else
+  proof_forge=(lake env proof-forge)
+fi
+
 mkdir -p "$OUT_DIR"
 
 failures=0
@@ -15,7 +34,10 @@ while IFS= read -r -d '' lean_file; do
     continue
   fi
   out="$OUT_DIR/$name.bin"
-  if "$ROOT/tools/evmc" "$lean_file" "$out"; then
+  if (
+    cd "$ROOT"
+    "${proof_forge[@]}" --evm-bytecode --root . --module contract -o "$out" "$lean_file"
+  ); then
     :
   else
     echo "build-examples: $name failed" >&2

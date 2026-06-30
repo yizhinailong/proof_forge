@@ -33,6 +33,15 @@ Build the EVM contract examples migrated from the Lean fork:
 scripts/evm/build-examples.sh
 ```
 
+This path expects Foundry (`cast`/`forge`) and `solc` on `PATH`.
+
+Compile one EVM contract directly to runtime bytecode:
+
+```sh
+lake env proof-forge --evm-bytecode --root . --module contract \
+  -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
+```
+
 Run Foundry smoke tests:
 
 ```sh
@@ -45,7 +54,7 @@ the generated runtime bytecode.
 Current scope:
 
 - The CLI emits a default no-argument `main` entry point.
-- ABI selector dispatch is wired through `tools/evmc` and `.evm-methods` files.
+- ABI selector dispatch is wired through `proof-forge --evm-bytecode` and `.evm-methods` files.
 
 Planned backend targets:
 

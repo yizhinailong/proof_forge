@@ -20,8 +20,10 @@ From the repository root:
 scripts/evm/build-examples.sh
 ```
 
-This compiles each `.lean` contract to EVM bytecode via `tools/evmc`
+This compiles each `.lean` contract to EVM bytecode via
+`proof-forge --evm-bytecode`
 (Lean -> EmitYul -> Yul -> `solc --strict-assembly` -> bytecode).
+It expects Foundry (`cast`/`forge`) and `solc` on `PATH`.
 
 ## Run Foundry smoke tests
 
@@ -35,7 +37,7 @@ bytecode using Foundry's `vm.etch` cheatcode.
 ## Current EVM support
 
 The support is enough to write and deploy small Lean EVM contracts through
-`tools/evmc`:
+`proof-forge --evm-bytecode`:
 
 - Contract methods: selector dispatch via 4-byte function selectors (`.evm-methods` files).
 - Storage: `Storage.load`/`store` (sload/sstore), `Storage.mapLoad`/`mapStore` (mapping via keccak256).
