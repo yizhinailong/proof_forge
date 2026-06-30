@@ -40,6 +40,8 @@ def testFunctionName (module : Module) : String :=
     "test_u32_arithmetic_probe_fixture"
   else if module.name == "BitwiseProbe" then
     "test_bitwise_probe_fixture"
+  else if module.name == "BoolStorageScalarProbe" then
+    "test_bool_storage_scalar_probe_fixture"
   else if module.name == "U32HashPackingProbe" then
     "test_u32_hash_packing_probe_fixture"
   else if module.name == "U32StorageScalarProbe" then
@@ -1313,6 +1315,7 @@ def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
     match state.kind, state.type with
     | .scalar, .u32 => pure ()
+    | .scalar, .bool => pure ()
     | .scalar, .u64 => pure ()
     | .scalar, .structType typeName =>
         match findStruct? module typeName with
@@ -1417,6 +1420,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::storage_lifecycle(), 12, \"u32 scalar storage reads preserve u32 values\");"
+    ]
+  else if module.name == "BoolStorageScalarProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::storage_lifecycle(), 1, \"bool scalar storage reads preserve bool values\");"
     ]
   else if module.name == "U32StorageArrayProbe" &&
     module.entrypoints.any (fun entry => entry.name == "storage_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then

@@ -261,6 +261,9 @@ Tasks:
   and generic storage paths with Dargo compile/execute validation.
 - Done: add native U32 scalar storage coverage using Psy `pub value: u32`
   storage plus scalar `+=` assignment, with Dargo compile/execute validation.
+- Done: add native Bool scalar storage coverage using Psy `pub flag: bool`
+  storage plus `bool as Felt` return casts, with Dargo compile/execute
+  validation.
 - Done: add U32 storage array coverage using Felt-backed storage plus explicit
   U32 read/write casts, with Dargo compile/execute validation.
 - Done: add a Psy IR coverage manifest gate so every portable IR constructor

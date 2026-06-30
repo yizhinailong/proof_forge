@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Bool Scalar Storage Coverage
+
+Commit: feature commit for Psy Bool scalar storage coverage
+
+Summary:
+
+- Added `BoolStorageScalarProbe` as a portable IR fixture for native Psy
+  `bool` scalar storage.
+- Added CLI emission through `--emit-bool-storage-scalar-ir-psy` plus a
+  checked golden source fixture.
+- Added `scripts/psy/bool-storage-scalar-smoke.sh` to validate `dargo test`,
+  `dargo compile`, `dargo execute`, `dargo generate-abi`, deploy manifest
+  generation, and artifact metadata validation.
+- Extended Psy coverage evidence, validation docs, and CI golden checks.
+
+Validation run:
+
+```sh
+lake build
+bash -n scripts/psy/*.sh
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+lake env proof-forge --emit-bool-storage-scalar-ir-psy -o build/psy/BoolStorageScalarProbe.psy
+diff -u Examples/Psy/BoolStorageScalarProbe.golden.psy build/psy/BoolStorageScalarProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/bool-storage-scalar-smoke.sh
+git diff --check
+```
+
+Result:
+
+- Generated BoolStorageScalarProbe source lowers scalar storage to
+  `pub flag: bool`, native Bool reads/writes, and `bool as Felt` return casts.
+- Dargo execution validates `result_vm: [1]`.
+
+Known limitations:
+
+- This covers native scalar `bool` storage only. Bool storage arrays remain
+  rejected until a dedicated Psy storage-array idiom is validated.
+
+Next step:
+
+- Continue filling the Psy scalar/aggregate storage matrix one feature at a
+  time, with Dargo execution backing each newly enabled shape.
+
 ### Psy Map Set Expression Return Coverage
 
 Commit: feature commit for Psy map set expression returns

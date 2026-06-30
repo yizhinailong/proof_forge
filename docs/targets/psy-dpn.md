@@ -12,11 +12,12 @@ Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
 ExpressionPredicateProbe, GenericEntrypointProbe, ArithmeticProbe,
 U32ArithmeticProbe, BitwiseProbe, U32HashPackingProbe,
-U32StorageScalarProbe, U32StorageArrayProbe, ConditionalProbe, ContextProbe,
-HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe, StructProbe,
-StructArrayProbe, AbiAggregateProbe, and NestedAggregateProbe fixtures. It also
-has an experimental StorageNestedAggregateProbe fixture for storage-backed
-nested aggregate updates across `#[ref]` struct fields and storage arrays. The
+U32StorageScalarProbe, BoolStorageScalarProbe, U32StorageArrayProbe,
+ConditionalProbe, ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe,
+ArrayProbe, StructProbe, StructArrayProbe, AbiAggregateProbe, and
+NestedAggregateProbe fixtures. It also has an experimental
+StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
+across `#[ref]` struct fields and storage arrays. The
 target is not production-ready and does not yet cover else-if sugar, upstream
 compressed genesis deploy JSON, live Psy node/prover deployment, or broad
 Lean-to-IR extraction. It does produce a ProofForge deploy manifest for every
@@ -666,6 +667,14 @@ Writes lower as native U32 assignments, reads lower through `.get()` into U32
 locals, and scalar storage compound assignment lowers to Psy `+=` for U32
 values. Dargo execution validates `result_vm: [12]` for the fixture.
 
+`BoolStorageScalarProbe` validates native Psy scalar `bool` storage. Portable
+`StateDecl.kind = .scalar` with `type = .bool` lowers to `pub flag: bool`.
+Writes lower as native Bool assignments, reads lower through `.get()` into Bool
+locals, and return casts use the same `bool as Felt` idiom already exercised by
+the U32 arithmetic cast fixture. Psy std exposes `Storage` for `bool` by
+casting the stored Felt back to Bool at reads, and Dargo execution validates
+`result_vm: [1]` for the fixture.
+
 `U32StorageArrayProbe` validates that Felt-backed storage idiom. Portable
 `StateDecl.kind = .array N` with `type = .u32` lowers to `pub limbs: [Felt; N]`.
 Writes lower as `u32 as Felt`, reads lower as `.get() as u32`, and generic
@@ -822,6 +831,19 @@ It verifies native U32 scalar storage lowering under Dargo local execution:
 
 The script emits and validates
 `build/psy/dargo-u32-storage-scalar/target/proof-forge-artifact.json`.
+
+The same validation shape is also implemented for `BoolStorageScalarProbe`:
+
+```sh
+scripts/psy/bool-storage-scalar-smoke.sh
+```
+
+It verifies native Bool scalar storage lowering under Dargo local execution:
+
+- `storage_lifecycle`: `result_vm: [1]`
+
+The script emits and validates
+`build/psy/dargo-bool-storage-scalar/target/proof-forge-artifact.json`.
 
 The same validation shape is also implemented for `U32StorageArrayProbe`:
 
@@ -1107,6 +1129,9 @@ Deployment smoke:
 - Done: add `U32StorageScalarProbe` and
   `scripts/psy/u32-storage-scalar-smoke.sh` for native scalar `u32` storage
   read/write plus scalar storage `+=` validation.
+- Done: add `BoolStorageScalarProbe` and
+  `scripts/psy/bool-storage-scalar-smoke.sh` for native scalar `bool` storage
+  read/write plus `bool as Felt` return-cast validation.
 - Done: add `U32StorageArrayProbe` and
   `scripts/psy/u32-storage-array-smoke.sh` using Felt-backed storage arrays
   plus U32 read/write casts after Dargo validation showed current `psyup` 0.1.0
@@ -1239,6 +1264,8 @@ Deployment smoke:
   `dargo compile` on a machine with the Psy toolchain.
 - Generated U32StorageScalarProbe `.psy` package compiles with `dargo compile`
   on a machine with the Psy toolchain.
+- Generated BoolStorageScalarProbe `.psy` package compiles with `dargo compile`
+  on a machine with the Psy toolchain.
 - Generated U32StorageArrayProbe `.psy` package compiles with `dargo compile`
   on a machine with the Psy toolchain.
 - Generated ConditionalProbe `.psy` package compiles with `dargo compile` on a
@@ -1252,8 +1279,8 @@ Deployment smoke:
   literal/storage results, struct-array literal/storage results, ABI aggregate
   parameter/return flattening results, conditional branch result, local nested
   aggregate mutation results, storage-backed nested aggregate path update
-  results, native U32 scalar storage result, Felt-backed U32 storage-array
-  result, and generic-entrypoint result.
+  results, native U32 scalar storage result, native Bool scalar storage result,
+  Felt-backed U32 storage-array result, and generic-entrypoint result.
 - `scripts/psy/diagnostic-smoke.sh` proves unsupported or malformed Psy IR
   shapes produce explicit diagnostics before source generation.
 - Artifact metadata records:
