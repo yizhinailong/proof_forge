@@ -30,7 +30,9 @@ def capitalizedRefName (module : Module) : String :=
   s!"{module.name}Ref"
 
 def testFunctionName (module : Module) : String :=
-  if module.name == "ContextProbe" then
+  if module.name == "HashProbe" then
+    "test_hash_probe_fixture"
+  else if module.name == "ContextProbe" then
     "test_context_probe_fixture"
   else if module.name == "Counter" then
     "test_counter_lifecycle"
@@ -41,11 +43,13 @@ def valueTypeName : ValueType → Except LowerError String
   | .unit => .ok "()"
   | .bool => .ok "bool"
   | .u64 => .ok "Felt"
+  | .hash => .ok "Hash"
 
 def literal : Literal → String
   | .u64 value => toString value
   | .bool true => "true"
   | .bool false => "false"
+  | .hash4 a b c d => s!"[{a}, {b}, {c}, {d}]"
 
 def contextFunction : ContextField → String
   | .userId => "get_user_id()"
@@ -66,6 +70,10 @@ mutual
     | .local name => .ok name
     | .add lhs rhs => do
         .ok s!"{← lowerExpr module lhs} + {← lowerExpr module rhs}"
+    | .hash preimage => do
+        .ok s!"hash({← lowerExpr module preimage})"
+    | .hashTwoToOne lhs rhs => do
+        .ok s!"hash_two_to_one({← lowerExpr module lhs}, {← lowerExpr module rhs})"
     | .effect effect => lowerEffectExpr module effect
 
   partial def lowerEffectExpr (module : Module) : Effect → Except LowerError String
@@ -91,8 +99,8 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
       .error { message := "context.read must be used as an expression" }
 
 def lowerStatement (module : Module) : Statement → Except LowerError (Array String)
-  | .letBind name value => do
-      .ok #[s!"let {name}: Felt = {← lowerExpr module value};"]
+  | .letBind name type value => do
+      .ok #[s!"let {name}: {← valueTypeName type} = {← lowerExpr module value};"]
   | .effect effect =>
       lowerEffectStmt module effect
   | .return value => do
@@ -153,6 +161,15 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "sum_context" && entry.params.size == 2 && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::sum_context(2, 3), 2 + 3 + get_user_id() + get_contract_id() + get_checkpoint_id(), \"context sum follows current context\");"
+    ]
+  else if module.name == "HashProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "poseidon_hash" && entry.params.isEmpty && entry.returns == .hash) &&
+    module.entrypoints.any (fun entry => entry.name == "poseidon_pair_hash" && entry.params.isEmpty && entry.returns == .hash) then
+    .ok #[
+      s!"let left: Hash = [1, 2, 3, 4];",
+      s!"let right: Hash = [5, 6, 7, 8];",
+      s!"assert_eq({refName}::poseidon_hash(), hash(left), \"hash probe matches Poseidon hash\");",
+      s!"assert_eq({refName}::poseidon_pair_hash(), hash_two_to_one(left, right), \"pair hash probe matches Poseidon two-to-one hash\");"
     ]
   else
     .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }

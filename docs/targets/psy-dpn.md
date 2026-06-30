@@ -1,12 +1,18 @@
 # Psy DPN ZK Target
 
-Status: **Research**
+Status: **Experimental**
 
 Canonical target id: `psy-dpn`
 
 Reference repository: `https://github.com/PsyProtocol/psy-compiler`
 
 Research snapshot: `mainnet-beta`, commit `24f5ec9`.
+
+Experimental scope: ProofForge can generate reviewable `.psy` source for a
+restricted portable IR subset and validate that source with Dargo for Counter,
+ContextProbe, and HashProbe fixtures. The target is not production-ready and
+does not yet cover maps, deploy JSON, live Psy node/prover deployment, or broad
+Lean-to-IR extraction.
 
 ## Summary
 
@@ -168,7 +174,7 @@ then generate `.psy` source.
 id: psy-dpn
 family: zkCircuitSourcegen
 artifactKind: psyCircuitJson
-stage: Research
+stage: Experimental
 primaryInput: ProofForge portable IR subset
 primaryOutput: target/contract.json containing DPNFunctionCircuitDefinition[]
 sideOutputs:
@@ -344,9 +350,29 @@ build/psy/
 source. The contract includes a `_proof_forge_marker` storage field because
 Dargo v0.1.0 panics on an empty `#[contract] #[derive(Storage)]` struct.
 
+Current HashProbe output layout:
+
+```text
+build/psy/
+  HashProbe.psy
+  dargo-hash/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_hash.json
+    target/HashProbe.json
+    target/hash-execute.log
+    target/proof-forge-artifact.json
+```
+
+`HashProbe` follows upstream `tests/hash_test.psy` and
+`tests/hash_two_to_one_test.psy`. The portable IR now has a `Hash` value type,
+four-Felt hash literals, typed `let` bindings, `hash`, and `hash_two_to_one`
+expressions. Psy sourcegen lowers those nodes to `Hash`, `[a, b, c, d]`,
+`hash(data)`, and `hash_two_to_one(left, right)`.
+
 ## Smoke Test Strategy
 
-Research-stage smoke should not require a live Psy network.
+Experimental smoke does not require a live Psy network.
 
 Preferred first smoke:
 
@@ -378,6 +404,19 @@ scripts/psy/context-smoke.sh
 It verifies `result_vm: [15]` for `sum_context(2,3)` under Dargo's local
 execution session and emits `build/psy/dargo-context/target/proof-forge-artifact.json`.
 
+The same validation shape is also implemented for `HashProbe`:
+
+```sh
+scripts/psy/hash-smoke.sh
+```
+
+It verifies both upstream hash idioms under Dargo local execution:
+
+- `poseidon_hash`: `result_vm: [16490263548047147048, 1812405431586978162, 16859324901997577793, 7123796541406703579]`
+- `poseidon_pair_hash`: `result_vm: [15064728126975588673, 10314245681893968020, 11300930272442645327, 2830815762300183090]`
+
+The script emits `build/psy/dargo-hash/target/proof-forge-artifact.json`.
+
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
 sequence against the same session. This is not a live network, but it is closer
@@ -386,7 +425,8 @@ to an Ethereum-style local execution smoke than a pure compiler check.
 Second smoke:
 
 1. Compare high-level Counter behavior with the EVM shared scenario.
-2. Add a curated upstream syntax regression subset from `psy-compiler/tests`.
+2. Add map/storage-map coverage from `psy-compiler/tests` and
+   `psy-precompiles`.
 
 Deployment smoke:
 
@@ -413,10 +453,14 @@ Deployment smoke:
 - Done: add `ContextProbe` as the first non-Counter Psy fixture with parameter
   lowering and context reads.
 - Done: add `scripts/psy/context-smoke.sh` with the same Dargo validation shape.
-- Done: emit `proof-forge-artifact.json` metadata from both Psy smoke scripts.
+- Done: add `HashProbe` with `Hash`, typed `let` bindings, `hash`, and
+  `hash_two_to_one` lowering aligned with upstream Psy tests.
+- Done: add `scripts/psy/hash-smoke.sh` with the same Dargo validation shape.
+- Done: emit `proof-forge-artifact.json` metadata from all Psy smoke scripts.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
-- Remaining: add a curated upstream syntax regression subset.
+- Remaining: add map/storage-map and bounded loop coverage from the upstream
+  syntax corpus.
 
 ### Phase C: Metadata and Scenario Parity
 
@@ -442,16 +486,18 @@ Deployment smoke:
 - Should `Felt` become a first-class portable type, or remain target-specific?
 - Can ProofForge expose privacy/ZK capabilities without making ordinary
   multi-chain contracts harder to write?
-- Should local deployment require a full Psy node, or is in-memory execution
-  sufficient for Experimental stage?
+- What is the smallest useful local Psy node/prover deployment smoke beyond
+  Dargo's in-memory execution session?
 
 ## First Acceptance Criteria
 
-- `psy-dpn` is listed as Research in target notes.
+- `psy-dpn` is listed as Experimental in target notes.
 - The target profile draft includes artifact kind, required tools, and smoke
   steps.
-- A generated Counter `.psy` package compiles with `dargo compile` on a machine
-  with the Psy toolchain.
+- Generated Counter, ContextProbe, and HashProbe `.psy` packages compile with
+  `dargo compile` on a machine with the Psy toolchain.
+- Dargo execution proves the expected Counter lifecycle, context-read result,
+  and deterministic hash outputs.
 - Artifact metadata records:
   - target id `psy-dpn`
   - generated `.psy` source

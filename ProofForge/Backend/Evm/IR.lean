@@ -45,9 +45,15 @@ mutual
   partial def lowerExpr (module : Module) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
     | .literal (.u64 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.bool value) => .ok (if value then Lean.Compiler.Yul.Expr.num 1 else Lean.Compiler.Yul.Expr.num 0)
+    | .literal (.hash4 _ _ _ _) =>
+        .error { message := "Hash literals are not supported by IR EVM v0" }
     | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
     | .add lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "add" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .hash _ =>
+        .error { message := "crypto.hash is not supported by IR EVM v0" }
+    | .hashTwoToOne _ _ =>
+        .error { message := "crypto.hash_two_to_one is not supported by IR EVM v0" }
     | .effect effect => lowerEffectExpr module effect
 
   partial def lowerEffectExpr (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Expr
@@ -72,7 +78,11 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       .error { message := "context reads must be used as expressions" }
 
 def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError Lean.Compiler.Yul.Statement
-  | .letBind name value => do
+  | .letBind name type value => do
+      match type with
+      | .u64 | .bool => pure ()
+      | .unit => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `Unit`" }
+      | .hash => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `Hash`" }
       .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
   | .effect effect =>
       lowerEffectStmt module effect
@@ -88,6 +98,9 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
     match entrypoint.returns with
     | .unit => #[]
     | .u64 | .bool => #[{ name := "result" }]
+    | .hash => #[]
+  if entrypoint.returns == .hash then
+    .error { message := s!"entrypoint `{entrypoint.name}` returns Hash; IR EVM v0 supports only Unit, U64, and Bool" }
   .ok (.funcDef (yulFunctionName module.name entrypoint.name) #[] returns { statements := body })
 
 def entrypointCallExpr (module : Module) (entrypoint : Entrypoint) : Lean.Compiler.Yul.Expr :=
@@ -111,6 +124,10 @@ def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError
           Lean.Compiler.Yul.Statement.varDecl #[({ name := "_r" } : Lean.Compiler.Yul.TypedName)] (some callExpr),
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "_r"]),
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32])
+        ]
+    | .hash =>
+        #[
+          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
         ]
   .ok {
     value := some (Lean.Compiler.Yul.Literal.hex ("0x" ++ selector))

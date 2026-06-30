@@ -8,12 +8,14 @@ inductive ValueType where
   | unit
   | bool
   | u64
+  | hash
   deriving BEq, DecidableEq, Repr
 
 def ValueType.name : ValueType → String
   | .unit => "Unit"
   | .bool => "Bool"
   | .u64 => "U64"
+  | .hash => "Hash"
 
 inductive StateKind where
   | scalar
@@ -28,6 +30,7 @@ structure StateDecl where
 inductive Literal where
   | u64 (value : Nat)
   | bool (value : Bool)
+  | hash4 (a b c d : Nat)
   deriving BEq, Repr
 
 inductive ContextField where
@@ -51,6 +54,8 @@ mutual
     | literal (value : Literal)
     | local (name : String)
     | add (lhs rhs : Expr)
+    | hash (preimage : Expr)
+    | hashTwoToOne (lhs rhs : Expr)
     | effect (effect : Effect)
     deriving Repr
 
@@ -62,7 +67,7 @@ mutual
 end
 
 inductive Statement where
-  | letBind (name : String) (value : Expr)
+  | letBind (name : String) (type : ValueType) (value : Expr)
   | effect (effect : Effect)
   | return (value : Expr)
   deriving Repr
@@ -91,6 +96,8 @@ mutual
     | .literal _ => #[]
     | .local _ => #[]
     | .add lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .hash preimage => #[.cryptoHash] ++ preimage.capabilities
+    | .hashTwoToOne lhs rhs => #[.cryptoHash] ++ lhs.capabilities ++ rhs.capabilities
     | .effect effect => #[effect.capability] ++ effect.capabilities
 
   partial def Effect.capabilities : Effect → Array ProofForge.Target.Capability
@@ -100,7 +107,7 @@ mutual
 end
 
 def Statement.capabilities : Statement → Array ProofForge.Target.Capability
-  | .letBind _ value => value.capabilities
+  | .letBind _ _ value => value.capabilities
   | Statement.effect eff => #[eff.capability] ++ eff.capabilities
   | .return value => value.capabilities
 

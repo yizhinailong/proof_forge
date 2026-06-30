@@ -99,6 +99,14 @@ lake env proof-forge --emit-context-ir-psy -o build/psy/ContextProbe.psy
 scripts/psy/context-smoke.sh
 ```
 
+Validate the Psy/DPN hash fixture, which exercises `crypto.hash` through
+Psy `hash` and `hash_two_to_one`:
+
+```sh
+lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
+scripts/psy/hash-smoke.sh
+```
+
 The Psy smoke expects `dargo` on `PATH`. The preferred installer is `psyup`:
 
 ```sh

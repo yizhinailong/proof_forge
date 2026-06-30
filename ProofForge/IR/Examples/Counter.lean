@@ -24,7 +24,7 @@ def increment : Entrypoint := {
   selector? := some "d09de08a"
   returns := .unit
   body := #[
-    .letBind "n" (.effect (.storageScalarRead "count")),
+    .letBind "n" .u64 (.effect (.storageScalarRead "count")),
     .effect (.storageScalarWrite "count" (.add (.local "n") (.literal (.u64 1))))
   ]
 }

@@ -17,6 +17,63 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy HashProbe And Experimental Target Slice
+
+Commit: pending
+
+Summary:
+
+- Extended portable IR with `Hash`, four-Felt hash literals, typed `let`
+  bindings, `hash`, and `hash_two_to_one` expressions.
+- Extended Psy sourcegen to lower hash values through upstream Psy idioms:
+  `Hash`, `[a, b, c, d]`, `hash(data)`, and `hash_two_to_one(left, right)`.
+- Added `ProofForge.IR.Examples.HashProbe` with two contract methods:
+  `poseidon_hash` and `poseidon_pair_hash`.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
+```
+
+- Added `Examples/Psy/HashProbe.golden.psy`.
+- Added `scripts/psy/hash-smoke.sh`, which generates a temporary Dargo package,
+  runs `dargo test --file`, `dargo compile`, two `dargo execute` calls,
+  `dargo generate-abi`, and writes `proof-forge-artifact.json`.
+- Added CI coverage for Psy golden source generation without requiring Dargo on
+  GitHub Actions.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
+diff -u Examples/Psy/HashProbe.golden.psy build/psy/HashProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/hash-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Generated HashProbe source matches the checked-in golden fixture.
+- `scripts/psy/hash-smoke.sh` generated DPN JSON, ABI JSON, execute log, and
+  `proof-forge-artifact.json`.
+- `dargo execute` returned the expected four-Felt output for `poseidon_hash`.
+- `dargo execute` returned the expected four-Felt output for
+  `poseidon_pair_hash`.
+
+Known limitations:
+
+- Hash support is deliberately narrow: fixed four-Felt `Hash` values only.
+- Psy storage maps, bounded loops, and deploy JSON are still not implemented.
+- EVM IR v0 explicitly rejects Hash values and hash expressions.
+
+Next step:
+
+- Add map/storage-map coverage from upstream `psy-compiler/tests` and
+  `psy-precompiles`, then factor the repeated Dargo package generation logic.
+
 ### Psy ContextProbe Fixture And Artifact Metadata
 
 Commit: pending
