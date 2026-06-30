@@ -1,22 +1,64 @@
 # ProofForge 中文文档
 
-这里放面向中文讨论、融资叙事、战略判断和产品路线的文档。英文 RFC
-负责稳定的工程契约；中文文档负责把愿景、可行性、风险和推进节奏说清楚。
+ProofForge 的工程权威文档是英文的（RFC、decisions、capability registry、
+validation gates 等）。本目录提供两类中文文档：
+
+1. **原生中文文档**：面向中文讨论、融资叙事、战略判断和产品路线的分析文档。
+2. **英文文档的中文翻译**：由 `scripts/translate-docs.py` 自动从英文权威文档
+   同步生成，文件名以 `.zh.md` 结尾。
+
+英文工程文档是单一权威源（见
+[development-standards](../development-standards.md)）；中文翻译必须与英文
+保持一致，不能引入独立的工程策略。
+
+## 同步机制
+
+中文翻译由翻译脚本增量维护，不需要手动翻译：
+
+```sh
+# 翻译所有有变更的英文文档
+python3 scripts/translate-docs.py
+
+# 只检查哪些文档过期，不翻译
+python3 scripts/translate-docs.py --check
+
+# 列出所有文档映射和状态
+python3 scripts/translate-docs.py --list
+
+# 强制重新翻译所有文档
+python3 scripts/translate-docs.py --force
+
+# 指定模型（默认 gemini-3-flash-preview）
+python3 scripts/translate-docs.py --model glm-4.7
+```
+
+工作原理：
+
+- `scripts/i18n/manifest.json` 记录每个英文文档上次翻译时的 sha256。
+- 脚本比对当前英文文件 sha256 与 manifest 记录，只翻译有变化的文档。
+- `scripts/i18n/glossary.json` 是术语表，约束技术术语的中文翻译一致性。
+- 代码块、内联代码、CLI 标志、文件路径、target id、capability id 保持原文。
+- 需要 `OLLAMA_API_KEY` 环境变量（Ollama Cloud）。
+
+新增英文文档时，在 `scripts/translate-docs.py` 的 `DOC_MAP` 里添加映射条目。
 
 ## 英文文档入口
 
-- [Documentation index (INDEX)](../INDEX.md)
-- [RFC 0002: Target implementation design](../rfcs/0002-target-implementation-design.md)
-- [Implementation backlog](../implementation-backlog.md)
-- [Design decisions](../decisions.md)
-- [Target notes](../targets/README.md)
-- [Development standards](../development-standards.md)
-- [Validation gates](../validation-gates.md)
-- [Capability registry](../capability-registry.md)
+- [Documentation index (INDEX)](../INDEX.md) / [中文翻译](INDEX.zh.md)
+- [RFC 0001: 多链合约平台](../rfcs/0001-multichain-platform.md) / [中文](rfcs/0001-multichain-platform.zh.md)
+- [RFC 0002: 目标实现设计](../rfcs/0002-target-implementation-design.md) / [中文](rfcs/0002-target-implementation-design.zh.md)
+- [RFC 0003: 可移植 IR 与运行时](../rfcs/0003-portable-ir-and-runtime.md) / [中文](rfcs/0003-portable-ir-and-runtime.zh.md)
+- [Design decisions](../decisions.md) / [中文](decisions.zh.md)
+- [Capability registry](../capability-registry.md) / [中文](capability-registry.zh.md)
+- [Portable IR](../portable-ir.md) / [中文](portable-ir.zh.md)
+- [Shared scenario](../shared-scenario.md) / [中文](shared-scenario.zh.md)
+- [Implementation backlog](../implementation-backlog.md) / [中文](implementation-backlog.zh.md)
+- [Development standards](../development-standards.md) / [中文](development-standards.zh.md)
+- [Validation gates](../validation-gates.md) / [中文](validation-gates.zh.md)
+- [Review checklist](../review-checklist.md) / [中文](review-checklist.zh.md)
+- [Target notes](../targets/README.md) / [中文](targets-README.zh.md)
 
-英文 RFC、decisions、capability registry 和 validation gates 是工程实现的权威来源；中文文档用于战略、评审和路线解释，必须与英文工程文档保持一致。
-
-## 文档索引
+## 原生中文文档
 
 - [多链愿景可行性分析](feasibility-analysis.md)
 - [多链技术实现方案](technical-implementation-plan.md) — 摘要版，工程细节见 RFC 0002

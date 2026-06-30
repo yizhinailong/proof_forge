@@ -1,0 +1,82 @@
+{
+  "README.md": {
+    "sha256": "18e72dc4a4db3567570082d3d32a33662ab2513ae7565a4fa8a02ff17de6270c",
+    "zh": "docs/zh/README-root.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "CONTRIBUTING.md": {
+    "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",
+    "zh": "docs/zh/CONTRIBUTING.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/INDEX.md": {
+    "sha256": "c678080b569ef9acd8fd16307d9ea0e3a4aa8131b7cf615838d5cb2d3794e76d",
+    "zh": "docs/zh/INDEX.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/decisions.md": {
+    "sha256": "90ef82a90579c5a62a13cdf5846193bf84cfbcb161652a116537d826c96dedbd",
+    "zh": "docs/zh/decisions.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/capability-registry.md": {
+    "sha256": "b57f3c6dc2b6901653b707aa96609bddf15fc83e91bfacc236d99c5c92c6e509",
+    "zh": "docs/zh/capability-registry.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/portable-ir.md": {
+    "sha256": "976e4b704d14f45f5bb342f30df3805499bf139d71ff9fa298930787080ec516",
+    "zh": "docs/zh/portable-ir.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/shared-scenario.md": {
+    "sha256": "c830db8cdb85b0f64285a4e0ae587c0af8a5177833e56978b9819311ebc2ea86",
+    "zh": "docs/zh/shared-scenario.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/implementation-backlog.md": {
+    "sha256": "e8934f0ac999103bb0c294224ebe3c4ee2c67a579d645fa2af11b06d51108e6d",
+    "zh": "docs/zh/implementation-backlog.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/review-checklist.md": {
+    "sha256": "174da3b61be44290f3b818b839c53bd359eea9bdfa2b3574acbfaa59163900b2",
+    "zh": "docs/zh/review-checklist.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/development-standards.md": {
+    "sha256": "2ff208c90bc4af3952e5e4a2a9f5c2212568e1f89b73591a7b756bc8ccaef890",
+    "zh": "docs/zh/development-standards.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/validation-gates.md": {
+    "sha256": "8143c642f000522488176a99053e95473fbf2d625e692562dea91458ecff5054",
+    "zh": "docs/zh/validation-gates.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/rfcs/README.md": {
+    "sha256": "3a20b17582ad8dbbf399de98b5c87be909917d32d1c9cb5009d5d594ba7f6949",
+    "zh": "docs/zh/rfcs-README.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/rfcs/0001-multichain-platform.md": {
+    "sha256": "0eb52f6c10d87eafd5d856af94c24df728a811876ea59aa68ebe831f9dc90755",
+    "zh": "docs/zh/rfcs/0001-multichain-platform.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/rfcs/0002-target-implementation-design.md": {
+    "sha256": "305d6a35cbe5293f992f216342bff5878ab3fc4135a2f0b001f1fac146ab8d0f",
+    "zh": "docs/zh/rfcs/0002-target-implementation-design.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/rfcs/0003-portable-ir-and-runtime.md": {
+    "sha256": "69b25d20fbef3b159eff46bb2af1a9423a5e047781d9e35fc123d0ed0512a3dd",
+    "zh": "docs/zh/rfcs/0003-portable-ir-and-runtime.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/targets/README.md": {
+    "sha256": "67faf3b58d0daafab738caac91646d185e3db2e49cf61b133bffe126509d44ba",
+    "zh": "docs/zh/targets-README.zh.md",
+    "model": "gemini-3-flash-preview"
+  }
+}
