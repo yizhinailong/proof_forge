@@ -102,6 +102,9 @@ Tasks:
 - Done: add EVM IR mutable scalar local bindings and local assignment lowering,
   with `AssignmentProbe` golden Yul, solc bytecode, and Foundry success/revert
   validation.
+- Done: add EVM IR statement-level `if/else` lowering as Yul `switch` blocks,
+  with `ConditionalProbe` golden Yul, solc bytecode, Foundry runtime
+  validation, and explicit branch-local return diagnostics.
 - Add golden Yul outputs for simple examples.
 - Add metadata emission around current `solc --strict-assembly` flow.
 - Keep Foundry smoke as the mature EVM smoke test.

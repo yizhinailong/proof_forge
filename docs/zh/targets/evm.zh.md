@@ -33,6 +33,7 @@ scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
+scripts/evm/conditional-ir-smoke.sh
 ```
 
 ## CLI 模式
@@ -60,6 +61,8 @@ proof-forge --emit-assert-ir-yul [-o output.yul]
 proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
 proof-forge --emit-assignment-ir-yul [-o output.yul]
 proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-conditional-ir-yul [-o output.yul]
+proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
 ```
 
 `--bytecode` 是 `--evm-bytecode` 的别名。
@@ -110,6 +113,8 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 | `env.block` | `Env.blockNumber`, `Env.balance` |
 | `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
 | `events.emit` | `log0`, `log1`, `log2` |
+| `assertions.check` | Portable IR `assert` / `assert_eq` 降为 Yul revert guard |
+| `control.conditional` | Portable IR `if/else` 降为 Yul `switch` block |
 
 EVM 不支持（设计上针对其他目标）：
 
@@ -139,7 +144,7 @@ EVM 不支持（设计上针对其他目标）：
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
 - 尚未有统一的 `proof-forge-artifact.json`（计划于工作流 2）。
-- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言和局部赋值 fixture，其他更宽的 portable IR 节点仍以显式诊断拒绝。
+- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值和条件分支 fixture，其他更宽的 portable IR 节点仍以显式诊断拒绝。
 
 ## Portable IR 门禁
 
@@ -151,6 +156,7 @@ scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
+scripts/evm/conditional-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
@@ -159,6 +165,8 @@ scripts/evm/ir-counter-smoke.sh
 `Tests/EvmDiagnostics.lean` 固定当前 unsupported surface 的行为，确保不支持的 EVM IR 形态在 Yul 生成前失败，而不是静默遗漏行为。
 
 `AssignmentProbe` 验证 portable IR 可变标量局部绑定和 local assignment 会降为 Yul `let` 声明与 `:=` 赋值。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、Foundry 成功执行，以及赋值后的 bool guard 为 false 时的 revert 路径。
+
+`ConditionalProbe` 验证 portable IR 语句级 `if/else` 会降为 Yul `switch condition case 0 { else } default { then }` block。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、Foundry 执行 then/else storage 更新，以及未知 selector revert。分支内部的 `return` 仍被显式拒绝，直到 EVM IR 后端通过 Yul `leave` 支持早退 lowering。
 
 ## 元数据
 

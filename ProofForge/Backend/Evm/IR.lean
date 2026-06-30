@@ -269,32 +269,59 @@ def ensureLocalScalarType (context name : String) (type : ValueType) : Except Lo
   | .fixedArray _ _ => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `{type.name}`" }
   | .structType _ => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `{type.name}`" }
 
-def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError Lean.Compiler.Yul.Statement
-  | .letBind name type value => do
-      ensureLocalScalarType "let binding" name type
-      .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
-  | .letMutBind name type value => do
-      ensureLocalScalarType "mutable let binding" name type
-      .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
-  | .assign (.local name) value => do
-      .ok (.assignment #[name] (← lowerExpr module value))
-  | .assign _ _ =>
-      .error { message := "assignment target must be a local in IR EVM v0" }
-  | .assignOp _ _ _ =>
-      .error { message := "compound assignment statements are not supported by IR EVM v0" }
-  | .effect effect =>
-      lowerEffectStmt module effect
-  | .assert condition _ => do
-      .ok (lowerAssertStmt (← lowerExpr module condition))
-  | .assertEq lhs rhs _ => do
-      let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs]
-      .ok (lowerAssertStmt condition)
-  | .ifElse _ _ _ =>
-      .error { message := "if/else statements are not supported by IR EVM v0" }
-  | .boundedFor _ _ _ _ =>
-      .error { message := "bounded for loops are not supported by IR EVM v0" }
-  | .return value => do
-      .ok (.assignment #["result"] (← lowerExpr module value))
+partial def hasNestedReturn (statements : Array Statement) : Bool :=
+  statements.any fun stmt =>
+    match stmt with
+    | .return _ => true
+    | .ifElse _ thenBody elseBody => hasNestedReturn thenBody || hasNestedReturn elseBody
+    | .boundedFor _ _ _ body => hasNestedReturn body
+    | _ => false
+
+mutual
+  partial def lowerStatements (module : Module) (statements : Array Statement) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
+    statements.foldlM (init := #[]) fun acc stmt => do
+      .ok (acc.push (← lowerStatement module stmt))
+
+  partial def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError Lean.Compiler.Yul.Statement
+    | .letBind name type value => do
+        ensureLocalScalarType "let binding" name type
+        .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
+    | .letMutBind name type value => do
+        ensureLocalScalarType "mutable let binding" name type
+        .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
+    | .assign (.local name) value => do
+        .ok (.assignment #[name] (← lowerExpr module value))
+    | .assign _ _ =>
+        .error { message := "assignment target must be a local in IR EVM v0" }
+    | .assignOp _ _ _ =>
+        .error { message := "compound assignment statements are not supported by IR EVM v0" }
+    | .effect effect =>
+        lowerEffectStmt module effect
+    | .assert condition _ => do
+        .ok (lowerAssertStmt (← lowerExpr module condition))
+    | .assertEq lhs rhs _ => do
+        let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs]
+        .ok (lowerAssertStmt condition)
+    | .ifElse condition thenBody elseBody => do
+        if hasNestedReturn thenBody || hasNestedReturn elseBody then
+          .error { message := "return statements inside if/else branches are not supported by IR EVM v0; return must be the final entrypoint statement" }
+        let thenStatements ← lowerStatements module thenBody
+        let elseStatements ← lowerStatements module elseBody
+        .ok (.switchStmt (← lowerExpr module condition) #[
+          {
+            value := some (Lean.Compiler.Yul.Literal.natLit 0)
+            body := { statements := elseStatements }
+          },
+          {
+            value := none
+            body := { statements := thenStatements }
+          }
+        ])
+    | .boundedFor _ _ _ _ =>
+        .error { message := "bounded for loops are not supported by IR EVM v0" }
+    | .return value => do
+        .ok (.assignment #["result"] (← lowerExpr module value))
+end
 
 def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do
   let params ← lowerEntrypointParams entrypoint
@@ -305,8 +332,7 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
       | some (.return _) => pure ()
       | _ =>
           .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not end with a return statement" }
-  let body ← entrypoint.body.foldlM (init := #[]) fun acc stmt => do
-    .ok (acc.push (← lowerStatement module stmt))
+  let body ← lowerStatements module entrypoint.body
   let returns : Array Lean.Compiler.Yul.TypedName :=
     match entrypoint.returns with
     | .unit => #[]

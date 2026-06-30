@@ -36,6 +36,7 @@ scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
+scripts/evm/conditional-ir-smoke.sh
 ```
 
 ## CLI modes
@@ -63,6 +64,8 @@ proof-forge --emit-assert-ir-yul [-o output.yul]
 proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
 proof-forge --emit-assignment-ir-yul [-o output.yul]
 proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
+proof-forge --emit-conditional-ir-yul [-o output.yul]
+proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [-o output.bin]
 ```
 
 `--bytecode` is an alias for `--evm-bytecode`.
@@ -120,6 +123,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
 | `events.emit` | `log0`, `log1`, `log2` |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
+| `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
 
 Not supported on EVM (by design for other targets):
 
@@ -150,8 +154,8 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - String manipulation APIs incomplete in Yul runtime.
 - No unified `proof-forge-artifact.json` yet (planned Workstream 2).
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
-  IR EVM backend currently supports scalar storage/ABI, assertions, and local
-  assignment fixtures, and rejects wider portable IR nodes with explicit
+  IR EVM backend currently supports scalar storage/ABI, assertions, local
+  assignment, and conditional fixtures, and rejects wider portable IR nodes with explicit
   diagnostics.
 - Portable IR EVM currently lacks aggregate ABI values, mappings, storage
   arrays, structs, context opcodes, hashing, events, cross-contract calls, and
@@ -168,6 +172,7 @@ scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
+scripts/evm/conditional-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
@@ -194,6 +199,13 @@ assignment lowering to Yul `let` declarations and `:=` assignments. The smoke
 checks golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
 successful Foundry execution, and the revert path when the assigned bool guard
 is false.
+
+`ConditionalProbe` validates portable IR statement-level `if/else` lowering to
+Yul `switch condition case 0 { else } default { then }` blocks. The smoke checks
+golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
+Foundry execution of then/else storage updates, and unknown-selector revert
+behavior. Branch-local `return` statements remain rejected until the EVM IR
+backend grows early-return lowering through Yul `leave`.
 
 ## Metadata
 

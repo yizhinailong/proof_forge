@@ -18,6 +18,7 @@ def readCount : Expr :=
 
 def conditionalLifecycle : Entrypoint := {
   name := "conditional_lifecycle"
+  selector? := some "f3380744"
   returns := .u64
   body := #[
     .effect (.storageScalarWrite "count" (felt 0)),

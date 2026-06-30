@@ -17,6 +17,70 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Conditionals
+
+Commit: feature commit for EVM IR conditionals
+
+Summary:
+
+- Added `control.conditional` to the EVM target profile.
+- Extended `ProofForge.Backend.Evm.IR` to lower portable IR `if/else` into Yul
+  `switch condition case 0 { else } default { then }` blocks.
+- Kept branch-local `return` statements explicitly rejected because EVM IR
+  `return` currently assigns the generated function result and does not yet
+  emit Yul `leave` for early return semantics.
+- Added an EVM selector to `ConditionalProbe` while preserving Psy output.
+- Added `--emit-conditional-ir-yul` and
+  `--emit-conditional-ir-bytecode` CLI modes.
+- Added `Examples/Evm/ConditionalProbe.golden.yul` and
+  `scripts/evm/conditional-ir-smoke.sh`, then wired the smoke into CI.
+- Updated EVM diagnostics, coverage manifest, capability registry, validation
+  docs, EVM target docs, and Chinese documentation.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-conditional-ir-yul -o build/ir/ConditionalProbe.yul
+diff -u Examples/Evm/ConditionalProbe.golden.yul build/ir/ConditionalProbe.yul
+lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
+diff -u Examples/Psy/ConditionalProbe.golden.psy build/psy/ConditionalProbe.psy
+bash -n scripts/evm/*.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/conditional-ir-smoke.sh
+scripts/evm/assignment-ir-smoke.sh
+scripts/evm/assert-ir-smoke.sh
+scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/build-examples.sh
+scripts/evm/foundry-smoke.sh
+git diff --check
+```
+
+Result:
+
+- Generated ConditionalProbe Yul matches the checked-in golden fixture and
+  contains Yul `switch` blocks for both then and else paths.
+- Psy ConditionalProbe output remains unchanged after adding target-specific
+  selector metadata.
+- `scripts/evm/conditional-ir-smoke.sh` compiles ConditionalProbe to bytecode
+  and passes Foundry tests for the expected conditional lifecycle result and
+  unknown-selector revert behavior.
+- EVM diagnostics now cover the remaining conditional boundary: branch-local
+  return statements.
+
+Known limitations:
+
+- Conditional branch early returns are not supported until EVM IR return
+  lowering grows Yul `leave`.
+- The EVM IR backend still has minimal expression type validation.
+
+Next step:
+
+- Add EVM artifact metadata or scalar context/hash lowering as the next isolated
+  feature slice.
+
 ### EVM IR Local Assignment
 
 Commit: feature commit for EVM IR local assignment

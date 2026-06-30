@@ -56,6 +56,7 @@ def evm : TargetProfile := {
     .eventsEmit,
     .crosscallInvoke,
     .envBlock,
+    .controlConditional,
     .cryptoHash,
     .assertions
   ]

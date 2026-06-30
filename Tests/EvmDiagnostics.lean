@@ -128,9 +128,14 @@ def structModule : Module := {
   entrypoints := #[selectedEntrypoint "bad"]
 }
 
-def conditionalModule : Module :=
-  selectedModule "BadConditional" <| selectedEntrypoint "bad" #[
-    .ifElse (.literal (.bool true)) #[] #[]
+def conditionalReturnModule : Module :=
+  selectedModule "BadConditionalReturn" <| selectedReturnEntrypoint "bad" .u64 #[
+    .ifElse (.literal (.bool true)) #[
+      .return (.literal (.u64 1))
+    ] #[
+      .letBind "x" .u64 (.literal (.u64 2))
+    ],
+    .return (.literal (.u64 3))
   ]
 
 def boundedLoopModule : Module :=
@@ -264,9 +269,9 @@ def cases : Array (String × Module × String) := #[
     "target `evm` does not support capability `data.struct`: capability is not present in the target profile"
   ),
   (
-    "conditional capability unsupported",
-    conditionalModule,
-    "target `evm` does not support capability `control.conditional`: capability is not present in the target profile"
+    "conditional branch return unsupported",
+    conditionalReturnModule,
+    "return statements inside if/else branches are not supported by IR EVM v0; return must be the final entrypoint statement"
   ),
   (
     "bounded loop capability unsupported",

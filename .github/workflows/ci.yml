@@ -118,6 +118,9 @@ jobs:
       - name: Run EVM AssignmentProbe IR smoke
         run: scripts/evm/assignment-ir-smoke.sh
 
+      - name: Run EVM ConditionalProbe IR smoke
+        run: scripts/evm/conditional-ir-smoke.sh
+
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh
 

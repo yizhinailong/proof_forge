@@ -88,6 +88,15 @@ mutual
     body : Block
 end
 
+instance : Inhabited Block where
+  default := { statements := #[] }
+
+instance : Inhabited Case where
+  default := { value := none, body := default }
+
+instance : Inhabited Statement where
+  default := .block default
+
 /-- A Yul object: the top-level unit passed to `solc --strict-assembly`. -/
 structure Object where
   name : Name
