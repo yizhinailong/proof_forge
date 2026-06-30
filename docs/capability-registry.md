@@ -26,7 +26,7 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 | `storage.array` | Fixed-size indexed storage array | N | N | N | N | N | N | P |
 | `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | Y | P |
 | `value.native` | Native token attached to call | Y | Y | Y | Y | Y | Y | P |
-| `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | P |
+| `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | Y |
 | `crosscall.invoke` | Call another contract/program | Y | Y | Y | Y | Y | Y | P |
 | `env.block` | Block height/time/chain id reads | Y | P | P | P | P | P | P |
 | `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | N | N | N | N | N | N | P |

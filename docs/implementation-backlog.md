@@ -284,8 +284,9 @@ Tasks:
 - Done: factor Dargo smoke package generation into a shared writer so every
   Psy smoke creates the same `src/main.psy` and `Dargo.toml` layout before
   metadata validation.
-- Done: reject EVM-style entrypoint selectors in the Psy backend instead of
-  silently dropping selector metadata that Dargo/Psy ABI does not use.
+- Done: allow EVM-style entrypoint selectors in the Psy backend as target-specific
+  ABI metadata; Psy source generation uses method names only and may record the
+  selector in artifact metadata for cross-target traceability.
 - Done: validate Psy identifiers and duplicate declarations before source
   generation so invalid names do not fall through to Dargo parser/typechecker
   failures.

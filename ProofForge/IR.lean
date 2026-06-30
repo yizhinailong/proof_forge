@@ -9,6 +9,8 @@ import ProofForge.IR.Examples.BoolStorageScalarProbe
 import ProofForge.IR.Examples.ContextProbe
 import ProofForge.IR.Examples.ConditionalProbe
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.CrosscallProbe
+import ProofForge.IR.Examples.EventProbe
 import ProofForge.IR.Examples.ExpressionPredicateProbe
 import ProofForge.IR.Examples.GenericEntrypointProbe
 import ProofForge.IR.Examples.HashProbe

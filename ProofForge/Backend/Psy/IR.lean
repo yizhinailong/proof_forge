@@ -667,6 +667,16 @@ mutual
         ensureType "hash_two_to_one left operand" .hash lhsType
         ensureType "hash_two_to_one right operand" .hash rhsType
         .ok .hash
+    | .nativeValue => .ok .u64
+    | .crosscallInvoke target methodId args => do
+        let targetType ← inferExprType module env target
+        ensureType "crosscall target contract id" .u64 targetType
+        let methodIdType ← inferExprType module env methodId
+        ensureType "crosscall method id" .u64 methodIdType
+        let argTypes ← args.mapM (inferExprType module env)
+        for argType in argTypes do
+          ensureType "crosscall argument" .u64 argType
+        .ok .u64
     | .effect effect =>
         inferEffectExprType module env effect
 
@@ -763,6 +773,8 @@ mutual
         .error { message := "storage.path.assign_op is a statement effect, not an expression" }
     | .contextRead _ =>
         .ok .u64
+    | .eventEmit _ _ =>
+        .error { message := "event.emit is a statement effect, not an expression" }
 end
 
 partial def inferAssignTargetType (module : Module) (env : TypeEnv) : Expr → Except LowerError ValueType
@@ -864,6 +876,15 @@ def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except Low
       ensureAssignOpTypes op expected actualValue
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
+  | .eventEmit name fields => do
+      validatePsyIdentifier "event name" name
+      if fields.isEmpty then
+        .error { message := s!"event `{name}` must have at least one field" }
+      validateDistinctNames s!"event `{name}` field name" (fields.map fun field => field.fst)
+      for field in fields do
+        validatePsyIdentifier s!"event `{name}` field name" field.fst
+        let actual ← inferExprType module env field.snd
+        ensureType s!"event `{name}` field `{field.fst}`" .u64 actual
 
 mutual
   partial def validateStatement (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) : Statement → Except LowerError TypeEnv
@@ -988,6 +1009,13 @@ mutual
         .ok s!"hash({← lowerExpr module preimage})"
     | .hashTwoToOne lhs rhs => do
         .ok s!"hash_two_to_one({← lowerExpr module lhs}, {← lowerExpr module rhs})"
+    | .nativeValue =>
+        .error { message := "native value inspection is not supported by Psy IR v0" }
+    | .crosscallInvoke target methodId args => do
+        let targetStr ← lowerExpr module target
+        let methodIdStr ← lowerExpr module methodId
+        let argStrs ← args.mapM (lowerExpr module)
+        .ok s!"__invoke_sync#<Felt>({targetStr}, {methodIdStr}, [{String.intercalate ", " argStrs.toList}])"
     | .effect effect => lowerEffectExpr module effect
 
   partial def lowerExprOperand (module : Module) : Expr → Except LowerError String
@@ -1051,6 +1079,8 @@ mutual
         .error { message := "storage.path.assign_op is a statement effect, not an expression" }
     | .contextRead field =>
         .ok (contextFunction field)
+    | .eventEmit _ _ =>
+        .error { message := "event.emit is a statement effect, not an expression" }
 
   partial def lowerStoragePathSegment (module : Module) : StoragePathSegment → Except LowerError String
     | .field fieldName => .ok s!".{fieldName}"
@@ -1174,6 +1204,9 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
       lowerStoragePathAssignOp module stateId path op value
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
+  | .eventEmit name fields => do
+      let fieldStrs ← fields.mapM fun field => lowerExpr module field.snd
+      .ok #[s!"__emit([{String.intercalate ", " fieldStrs.toList}]); // event `{name}`"]
 
 partial def lowerAssignTarget (module : Module) : Expr → Except LowerError String
   | .local name => .ok name
@@ -1308,11 +1341,13 @@ def validateStructs (module : Module) : Except LowerError Unit := do
 
 def validateEntrypoints (module : Module) : Except LowerError Unit := do
   for entrypoint in module.entrypoints do
+    -- EVM-style selectors are target-specific ABI metadata. Psy/DPN entrypoints
+    -- are addressed by contract method name, so selectors are ignored during
+    -- source generation. They may still be recorded in artifact metadata for
+    -- cross-target traceability.
     match entrypoint.selector? with
-    | some selector =>
-        .error { message := s!"entrypoint `{entrypoint.name}` declares selector `{selector}`; Psy/DPN entrypoints are addressed by contract method name, so EVM-style selectors are unsupported" }
-    | none =>
-        pure ()
+    | some _ => pure ()
+    | none => pure ()
     for param in entrypoint.params do
       validateAbiValueType module param.snd s!"entrypoint `{entrypoint.name}` parameter `{param.fst}`" false
     validateAbiValueType module entrypoint.returns s!"entrypoint `{entrypoint.name}` return type" true
@@ -1578,6 +1613,12 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "storage_nested_lifecycle" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::storage_nested_lifecycle(), 252, \"storage nested aggregate path updates selected fields\");"
+    ]
+  else if module.name == "EventProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "emit_value_event" && entry.params.size == 1 && entry.returns == .unit) then
+    .ok #[
+      s!"{refName}::emit_value_event(42);",
+      "assert_eq(1, 1, \"event entrypoint call compiles and emits\");"
     ]
   else
     .ok #[

@@ -545,6 +545,18 @@ def branchLocalEscapeModule : Module := {
   }]
 }
 
+def nativeValueExprModule : Module := {
+  name := "BadNativeValue"
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .u64
+    body := #[
+      .return .nativeValue
+    ]
+  }]
+}
+
 def renderError? (module : Module) : Option String :=
   match ProofForge.Backend.Psy.IR.renderModule module with
   | .ok _ => none
@@ -590,11 +602,6 @@ def cases : Array (String × Module × String) := #[
     "unknown struct return type",
     unknownReturnStructModule,
     "entrypoint `bad` return type references unknown struct type `Missing`"
-  ),
-  (
-    "unsupported entrypoint selector",
-    selectorEntrypointModule,
-    "entrypoint `bad` declares selector `0xdeadbeef`; Psy/DPN entrypoints are addressed by contract method name, so EVM-style selectors are unsupported"
   ),
   (
     "unsupported map key/value shape",
@@ -790,6 +797,11 @@ def cases : Array (String × Module × String) := #[
     "branch local escape",
     branchLocalEscapeModule,
     "unknown local `x`"
+  ),
+  (
+    "native value not supported",
+    nativeValueExprModule,
+    "native value inspection is not supported by Psy IR v0"
   )
 ]
 

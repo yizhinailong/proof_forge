@@ -274,7 +274,7 @@ scripts/psy/diagnostic-smoke.sh
 
 It runs `Tests/PsyDiagnostics.lean` and checks that malformed Psy IR modules
 return stable, explicit errors before source generation. Current cases cover
-Unit entrypoint parameters, EVM-style entrypoint selectors, zero-length ABI arrays, unknown ABI structs,
+Unit entrypoint parameters, zero-length ABI arrays, unknown ABI structs,
 unsupported map key/value shapes, unsupported Unit storage arrays, structs
 missing `deriveStorage` for storage,
 empty structs, invalid bounded loop ranges,
@@ -286,10 +286,12 @@ construction, unsupported casts, malformed bitwise/shift expressions, malformed
 if conditions, and branch-local escape.
 
 Psy/DPN entrypoints are addressed by contract method name through Dargo and the
-generated Psy ABI. The portable IR's optional `selector?` field is therefore
-not lowered for this target. If a module supplies an EVM-style selector, the Psy
-backend rejects it before source generation instead of silently dropping ABI
-intent.
+generated Psy ABI. The portable IR's optional `selector?` field is target-specific
+ABI metadata for EVM-style dispatch; it is not used during Psy source generation
+and is not required for this target. A module may still supply a selector (for
+example when the same IR module is shared with the EVM backend); the Psy backend
+allows it and may record it in artifact metadata for cross-target traceability,
+but the generated `.psy` source relies on method names only.
 
 The design philosophy docs reinforce the same boundary: Psy is ZK-native and
 uses symbolic execution. Variables become circuit wires, operations become
@@ -308,8 +310,9 @@ Initial mapping:
 | `storage.map` | fixed-capacity map/storage pattern where supported by Psy |
 | `storage.array` | fixed-size Psy storage arrays with indexed read/write access |
 | `caller.sender` | Psy user/context functions such as user id |
-| `events.emit` | target-specific event/log story to research |
-| `crosscall.invoke` | `invoke_sync` / `invoke_deferred` where valid |
+| `value.native` | rejected by Psy IR v0; Psy 0.1.0 has no `msg.value` equivalent |
+| `events.emit` | `__emit([field, ...])` with an event-name comment; EventProbe smoke validates `result_events` |
+| `crosscall.invoke` | `__invoke_sync#<Felt>(contract_id, method_id, [args])`; CrosscallProbe smoke validates Dargo compilation; local `dargo execute` panics on unimplemented cross-contract circuit gadget in Psy 0.1.0 |
 | `env.block` | checkpoint/block-like context reads where valid |
 | `control.conditional` | Psy `if condition { ... } else { ... };` statements |
 | `control.bounded_loop` | static Psy `for i in 0u32..Nu32` loops |

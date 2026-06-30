@@ -46,6 +46,10 @@ jobs:
         run: |
           lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
           diff -u Examples/Psy/Counter.golden.psy build/psy/Counter.psy
+          lake env proof-forge --emit-event-ir-psy -o build/psy/EventProbe.psy
+          diff -u Examples/Psy/EventProbe.golden.psy build/psy/EventProbe.psy
+          lake env proof-forge --emit-crosscall-ir-psy -o build/psy/CrosscallProbe.psy
+          diff -u Examples/Psy/CrosscallProbe.golden.psy build/psy/CrosscallProbe.psy
           lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionPredicateProbe.psy
           diff -u Examples/Psy/ExpressionPredicateProbe.golden.psy build/psy/ExpressionPredicateProbe.psy
           lake env proof-forge --emit-generic-entrypoint-ir-psy -o build/psy/GenericEntrypointProbe.psy

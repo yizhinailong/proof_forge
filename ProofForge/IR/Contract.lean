@@ -126,6 +126,8 @@ mutual
     | hashValue (a b c d : Expr)
     | hash (preimage : Expr)
     | hashTwoToOne (lhs rhs : Expr)
+    | nativeValue
+    | crosscallInvoke (targetContractId : Expr) (methodId : Expr) (args : Array Expr)
     | effect (effect : Effect)
     deriving Repr
 
@@ -147,6 +149,7 @@ mutual
     | storagePathWrite (stateId : String) (path : Array StoragePathSegment) (value : Expr)
     | storagePathAssignOp (stateId : String) (path : Array StoragePathSegment) (op : AssignOp) (value : Expr)
     | contextRead (field : ContextField)
+    | eventEmit (name : String) (fields : Array (String × Expr))
     deriving Repr
 
   inductive StoragePathSegment where
@@ -214,6 +217,7 @@ def Effect.capability : Effect → ProofForge.Target.Capability
       else
         .storageScalar
   | .contextRead field => field.capability
+  | .eventEmit _ _ => .eventsEmit
 
 mutual
   partial def Expr.capabilities : Expr → Array ProofForge.Target.Capability
@@ -251,6 +255,10 @@ mutual
     | .hashValue a b c d => a.capabilities ++ b.capabilities ++ c.capabilities ++ d.capabilities
     | .hash preimage => #[.cryptoHash] ++ preimage.capabilities
     | .hashTwoToOne lhs rhs => #[.cryptoHash] ++ lhs.capabilities ++ rhs.capabilities
+    | .nativeValue => #[.valueNative]
+    | .crosscallInvoke target methodId args =>
+        #[.crosscallInvoke] ++ target.capabilities ++ methodId.capabilities ++
+          args.foldl (fun acc arg => acc ++ arg.capabilities) #[]
     | .effect effect => #[effect.capability] ++ effect.capabilities
 
   partial def Effect.capabilities : Effect → Array ProofForge.Target.Capability
@@ -271,6 +279,7 @@ mutual
     | .storagePathWrite _ path value => path.foldl (fun acc segment => acc ++ segment.capabilities) value.capabilities
     | .storagePathAssignOp _ path _ value => path.foldl (fun acc segment => acc ++ segment.capabilities) value.capabilities
     | .contextRead _ => #[]
+    | .eventEmit _ fields => fields.foldl (fun acc field => acc ++ field.snd.capabilities) #[]
 
   partial def StoragePathSegment.capabilities : StoragePathSegment → Array ProofForge.Target.Capability
     | .field _ => #[.dataStruct]

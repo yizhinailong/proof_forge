@@ -105,6 +105,10 @@ mutual
         .error { message := "crypto.hash is not supported by IR EVM v0" }
     | .hashTwoToOne _ _ =>
         .error { message := "crypto.hash_two_to_one is not supported by IR EVM v0" }
+    | .nativeValue =>
+        .error { message := "native value inspection is not supported by IR EVM v0" }
+    | .crosscallInvoke _ _ _ =>
+        .error { message := "cross-contract calls are not supported by IR EVM v0" }
     | .effect effect => lowerEffectExpr module effect
 
   partial def lowerEffectExpr (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Expr
@@ -144,6 +148,8 @@ mutual
         .error { message := "storage.path.assign_op is not supported by IR EVM v0" }
     | .contextRead field =>
         .error { message := s!"context field `{field.name}` is not supported by IR EVM v0" }
+    | .eventEmit _ _ =>
+        .error { message := "event emission is not supported by IR EVM v0" }
 end
 
 def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Statement
@@ -183,6 +189,8 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       .error { message := "storage.path.assign_op is not supported by IR EVM v0" }
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
+  | .eventEmit _ _ =>
+      .error { message := "event emission is not supported by IR EVM v0" }
 
 def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError Lean.Compiler.Yul.Statement
   | .letBind name type value => do
