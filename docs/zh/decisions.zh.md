@@ -20,15 +20,23 @@
 | D-010 | 2026-06-30 | 云平台需等待**两个或更多目标**达到 Experimental 阶段 | 避免在本地后端真实可用前构建 UI 外壳 |
 | D-011 | 2026-06-30 | 将 **`psy-dpn`** 作为 ZK 电路源代码生成下的 Research 目标添加 | Psy 没有公开的类 Yul IR；首次集成应生成 `.psy` 并调用 Dargo |
 | D-012 | 2026-07-01 | 将 **`kaspa-toccata`** 归类为文档优先的 Research 候选，而不是 ZK 电路源代码生成目标 | Toccata 是 Kaspa L1 的 transaction v1、covenant、inline proof verification 和 based-app settlement 可编程栈；代码 registry 修改需等待 UTXO/covenant 能力审查 |
+| D-013 | 2026-07-01 | 将 **`wasm-stellar-soroban`** 归类为文档优先的 Wasm-host Research 候选 | Soroban 发射 Wasm，但有 Stellar 特有的 storage TTL、authorization、contract spec、deployment 和 CLI 语义；registry 修改需等待第一版 spike 路径确定 |
+| D-014 | 2026-07-01 | 将 **`wasm-icp-canister`** 归类为文档优先的 Wasm-host Research 候选 | Internet Computer canister 发射 Wasm，但有 Candid、principal identity、update/query call modes、cycles、stable memory、async inter-canister calls 和 lifecycle 语义；registry 修改需等待 canister spike 路径确定 |
+| D-015 | 2026-07-01 | 将 **`ton-tvm`** 归类为文档优先的 TVM/Tolk sourcegen Research 候选 | TON 合约目标是 TVM，具有 cells、TL-B serialization、message handlers、get methods、action lists、account lifecycle 和 TVM gas 语义；registry 修改需等待 sourcegen spike 路径确定 |
+| D-016 | 2026-07-01 | 将 **`bch-cashscript`** 归类为文档优先的 UTXO script/covenant sourcegen Research 候选 | Bitcoin Cash 通过 CashScript 锁定并花费 UTXO，使用 BCH Script、transaction introspection、CashTokens 和 SDK transaction-builder 语义；registry 修改需等待 CashScript spike 路径确定 |
+| D-017 | 2026-07-01 | 将 **`algorand-avm`** 归类为文档优先的 AVM/TEAL sourcegen Research 候选 | Algorand 合约目标是 AVM approval/clear-state 或 LogicSig program，具有 ARC-4 ABI、global/local/box storage、resource references、atomic transaction groups、inner transactions 和 AVM budget 语义；registry 修改需等待 Algorand package spike 路径确定 |
 
 ## 目标家族分类
 
 | 家族 | 目标 | 后端模式 |
 |---|---|---|
 | 直接编译器 | `evm` | Lean → LCNF → Yul → solc |
-| Wasm 宿主 | `wasm-near`, `wasm-cosmwasm` | Lean → EmitZig → Wasm + 链宿主桥接 |
+| Wasm 宿主 | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban`（候选，仅文档）, `wasm-icp-canister`（候选，仅文档） | Lean → EmitZig → Wasm + 链宿主桥接，或在能更快验证语义时先走目标原生源码包 |
 | 二进制工具链 | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | 源代码生成 | `move-aptos`, `move-sui` | 可移植 IR → Move 包源码 |
+| AVM sourcegen research | `algorand-avm`（候选，仅文档） | 可移植 IR → Algorand Python、Algorand TypeScript 或 TEAL package → AVM approval/clear-state 或 LogicSig bytecode + ARC-4/app metadata |
+| TVM sourcegen research | `ton-tvm`（候选，仅文档） | 可移植 IR → Tolk 或更底层 TON source → TVM/BOC artifact + TL-B/message manifests |
+| UTXO script sourcegen research | `bch-cashscript`（候选，仅文档） | 可移植 IR → CashScript `.cash` source → cashc artifact JSON + BCH transaction-builder validation |
 | ZK 电路源代码生成 | `psy-dpn` | 可移植 IR → `.psy` 包 → Dargo → DPN 电路 JSON |
 | UTXO covenant research | `kaspa-toccata`（候选，仅文档） | 可移植 IR → covenant/Silverscript 包 + transaction v1 manifest + 可选 proof settlement metadata |
 
@@ -41,6 +49,11 @@ Phase 2: Parallel spikes — CosmWasm (wasm-cosmwasm) + Solana (solana-sbpf-link
 Phase 3: Move sourcegen — Aptos POC first, then Sui
 Phase 3.5: Psy DPN sourcegen research spike
 Research lane: Kaspa Toccata covenant/based-app target note before registry changes
+Research lane: Stellar Soroban Wasm-host target note before registry changes
+Research lane: Internet Computer canister target note before registry changes
+Research lane: Algorand AVM/TEAL target note before registry changes
+Research lane: TON TVM/Tolk target note before registry changes
+Research lane: Bitcoin Cash CashScript target note before registry changes
 Phase 4: Cross-target shared scenario hardening
 Phase 5: Cloud platform
 ```
@@ -56,7 +69,12 @@ Phase 5: Cloud platform
 | 计数器共享场景 | [shared-scenario.md](shared-scenario.md) |
 | 目标工程形态 | [RFC 0002](rfcs/0002-target-implementation-design.md) |
 | CosmWasm SDK spike 草图 | [targets/wasm-family.md](targets/wasm-family.md) |
+| Stellar/Soroban 目标候选 | [targets/stellar-soroban.md](targets/stellar-soroban.md) |
+| Internet Computer 目标候选 | [targets/internet-computer.md](targets/internet-computer.md) |
+| Algorand AVM 目标候选 | [targets/algorand-avm.md](targets/algorand-avm.md) |
 | Solana 指令清单 | [targets/solana-sbf.md](targets/solana-sbf.md) |
+| TON TVM 目标候选 | [targets/ton-tvm.md](targets/ton-tvm.md) |
+| Bitcoin Cash CashScript 目标候选 | [targets/bitcoin-cash-cashscript.md](targets/bitcoin-cash-cashscript.md) |
 | Psy/DPN ZK 目标 | [targets/psy-dpn.md](targets/psy-dpn.md) |
 | Kaspa/Toccata 目标候选 | [targets/kaspa-toccata.md](targets/kaspa-toccata.md) |
 

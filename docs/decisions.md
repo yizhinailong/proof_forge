@@ -22,15 +22,23 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-010 | 2026-06-30 | Cloud platform waits until **two or more targets** reach Experimental stage | Avoid building a UI shell before local backends are real |
 | D-011 | 2026-06-30 | Add **`psy-dpn`** as a Research target under ZK circuit source generation | Psy has no public Yul-like IR; first integration should generate `.psy` and call Dargo |
 | D-012 | 2026-07-01 | Classify **`kaspa-toccata`** as a docs-first Research candidate, not a ZK circuit sourcegen target | Toccata is Kaspa L1 programmability through transaction v1, covenants, inline proof verification, and based-app settlement; code registry changes wait until UTXO/covenant capabilities are reviewed |
+| D-013 | 2026-07-01 | Classify **`wasm-stellar-soroban`** as a docs-first Wasm-host Research candidate | Soroban emits Wasm but has Stellar-specific storage TTL, authorization, contract spec, deployment, and CLI semantics; registry changes wait until the first spike path is chosen |
+| D-014 | 2026-07-01 | Classify **`wasm-icp-canister`** as a docs-first Wasm-host Research candidate | Internet Computer canisters emit Wasm but have Candid, principal identity, update/query call modes, cycles, stable memory, async inter-canister calls, and lifecycle semantics; registry changes wait until a canister spike path is chosen |
+| D-015 | 2026-07-01 | Classify **`ton-tvm`** as a docs-first TVM/Tolk sourcegen Research candidate | TON contracts target TVM with cells, TL-B serialization, message handlers, get methods, action lists, account lifecycle, and TVM gas semantics; registry changes wait until a sourcegen spike path is chosen |
+| D-016 | 2026-07-01 | Classify **`bch-cashscript`** as a docs-first UTXO script/covenant sourcegen Research candidate | Bitcoin Cash contracts through CashScript lock and spend UTXOs with BCH Script, transaction introspection, CashTokens, and SDK transaction-builder semantics; registry changes wait until a CashScript spike path is chosen |
+| D-017 | 2026-07-01 | Classify **`algorand-avm`** as a docs-first AVM/TEAL sourcegen Research candidate | Algorand contracts target AVM approval/clear-state or LogicSig programs with ARC-4 ABI, global/local/box storage, resource references, atomic transaction groups, inner transactions, and AVM budget semantics; registry changes wait until an Algorand package spike path is chosen |
 
 ## Target Family Classification
 
 | Family | Targets | Backend pattern |
 |---|---|---|
 | Direct compiler | `evm` | Lean → LCNF → Yul → solc |
-| Wasm host | `wasm-near`, `wasm-cosmwasm` | Lean → EmitZig → Wasm + chain host bridge |
+| Wasm host | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban` (candidate, docs only), `wasm-icp-canister` (candidate, docs only) | Lean → EmitZig → Wasm + chain host bridge, or first-pass target-native source package when that validates semantics faster |
 | Binary toolchain | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | Source codegen | `move-aptos`, `move-sui` | Portable IR → Move package source |
+| AVM sourcegen research | `algorand-avm` (candidate, docs only) | Portable IR → Algorand Python, Algorand TypeScript, or TEAL package → AVM approval/clear-state or LogicSig bytecode + ARC-4/app metadata |
+| TVM sourcegen research | `ton-tvm` (candidate, docs only) | Portable IR → Tolk or lower-level TON source → TVM/BOC artifact + TL-B/message manifests |
+| UTXO script sourcegen research | `bch-cashscript` (candidate, docs only) | Portable IR → CashScript `.cash` source → cashc artifact JSON + BCH transaction-builder validation |
 | ZK circuit sourcegen | `psy-dpn` | Portable IR → `.psy` package → Dargo → DPN circuit JSON |
 | UTXO covenant research | `kaspa-toccata` (candidate, docs only) | Portable IR → covenant/Silverscript package + transaction v1 manifest + optional proof settlement metadata |
 
@@ -43,6 +51,11 @@ Phase 2: Parallel spikes — CosmWasm (wasm-cosmwasm) + Solana (solana-sbpf-link
 Phase 3: Move sourcegen — Aptos POC first, then Sui
 Phase 3.5: Psy DPN sourcegen research spike
 Research lane: Kaspa Toccata covenant/based-app target note before registry changes
+Research lane: Stellar Soroban Wasm-host target note before registry changes
+Research lane: Internet Computer canister target note before registry changes
+Research lane: Algorand AVM/TEAL target note before registry changes
+Research lane: TON TVM/Tolk target note before registry changes
+Research lane: Bitcoin Cash CashScript target note before registry changes
 Phase 4: Cross-target shared scenario hardening
 Phase 5: Cloud platform
 ```
@@ -58,7 +71,12 @@ Detailed tasks: [Implementation backlog](implementation-backlog.md).
 | Counter shared scenario | [shared-scenario.md](shared-scenario.md) |
 | Target engineering shape | [RFC 0002](rfcs/0002-target-implementation-design.md) |
 | CosmWasm SDK spike sketch | [targets/wasm-family.md](targets/wasm-family.md) |
+| Stellar/Soroban target candidate | [targets/stellar-soroban.md](targets/stellar-soroban.md) |
+| Internet Computer target candidate | [targets/internet-computer.md](targets/internet-computer.md) |
+| Algorand AVM target candidate | [targets/algorand-avm.md](targets/algorand-avm.md) |
 | Solana instruction manifest | [targets/solana-sbf.md](targets/solana-sbf.md) |
+| TON TVM target candidate | [targets/ton-tvm.md](targets/ton-tvm.md) |
+| Bitcoin Cash CashScript target candidate | [targets/bitcoin-cash-cashscript.md](targets/bitcoin-cash-cashscript.md) |
 | Psy/DPN ZK target | [targets/psy-dpn.md](targets/psy-dpn.md) |
 | Kaspa/Toccata target candidate | [targets/kaspa-toccata.md](targets/kaspa-toccata.md) |
 

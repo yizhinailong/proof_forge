@@ -1,6 +1,6 @@
 # Wasm 家族目标
 
-Wasm 家族包括 NEAR、CosmWasm 以及随后的 Polkadot/ink! 风格的合约。它们共享一种可执行格式，但合约 ABI 不同。ProofForge 应当仅共享那些真正通用的部分。
+Wasm 家族包括 NEAR、CosmWasm、Stellar/Soroban、Internet Computer canisters 以及随后的 Polkadot/ink! 风格的合约。它们共享一种可执行格式，但合约 ABI 不同。ProofForge 应当仅共享那些真正通用的部分。
 
 ## 通用形态
 
@@ -86,6 +86,59 @@ CosmWasm 也是 Wasm，但其 ABI 是面向消息的。
 - 首先使用字符串键存储。
 - 稍后添加类型化 schema 生成。
 
+## Stellar/Soroban
+
+Stellar smart contracts 也是 Wasm 制品，但 Soroban 有自己的 SDK、host environment、storage lifecycle、authorization model、deployment flow 和 CLI tooling。
+
+候选 target id：`wasm-stellar-soroban`。
+
+当前原生路径：
+
+```text
+Rust + soroban-sdk
+  -> stellar contract build
+  -> wasm32v1-none Wasm
+  -> stellar contract deploy / invoke
+```
+
+目标特有问题：
+
+- build flow 使用 Rust 和 Stellar CLI，而不是 `cosmwasm-check`；
+- storage 区分 instance、persistent 和 temporary entries，并带 TTL 和 archival 行为；
+- authorization 是显式的、地址级的 `require_auth` 风格调用，而不只是 sender read；
+- contract account 可以实现自定义 authorization；
+- contract interface/spec metadata 是开发工作流的一部分；
+- deployment 将 Wasm upload/install 与 contract instantiation 分开。
+
+ProofForge 的第一版 spike 可以先生成或包装 native Soroban package，再尝试直接的 Lean-to-Wasm host bridge。参见 [Stellar Soroban 目标](stellar-soroban.zh.md)。
+
+## Internet Computer Canisters
+
+Internet Computer canister 是 Wasm module 加 persistent canister state 和 Candid interface。它有自己的 message model、lifecycle、cycles accounting、stable memory 和 management canister API。
+
+候选 target id：`wasm-icp-canister`。
+
+当前原生路径：
+
+```text
+Motoko or Rust CDK
+  -> Wasm canister module
+  -> Candid .did interface
+  -> local replica / PocketIC / ICP CLI validation
+```
+
+目标特有问题：
+
+- update、query 和 composite query method 语义不同；
+- Candid service metadata 是公开 contract interface 的一部分；
+- caller 和 canister identity 是 principal；
+- persistent state 可能依赖 canister memory、stable memory 或 CDK-managed stable structures；
+- inter-canister call 是异步消息流；
+- cycles 是资源计量单位，不是普通 native value；
+- deployment 和 upgrade 通过 canister lifecycle 与 management canister API 完成。
+
+ProofForge 的第一版 spike 可以先生成或包装 native Motoko/Rust CDK canister，再尝试直接的 Lean-to-Wasm host bridge。参见 [Internet Computer 目标](internet-computer.zh.md)。
+
 ## 运行时 profile
 
 Wasm 运行时 profile 应避免：
@@ -99,12 +152,12 @@ Wasm 运行时 profile 应避免：
 
 运行时选项应按目标选择：
 
-| 选项 | NEAR | CosmWasm |
-|---|---|---|
-| 分配器 | bump 或 Wasm 安全分配器 | CosmWasm 分配器 ABI |
-| MPZ | Zig bigint 或受限算术 | Zig bigint 或受限算术 |
-| 宿主桥接 | `near` | `cosmwasm` |
-| 验证 | NEAR VM/MVP 检查 | `cosmwasm-check` |
+| 选项 | NEAR | CosmWasm | Stellar/Soroban | ICP canister |
+|---|---|---|---|---|
+| 分配器 | bump 或 Wasm 安全分配器 | CosmWasm 分配器 ABI | Soroban-compatible Wasm allocation path | Canister-compatible Wasm allocation path |
+| MPZ | Zig bigint 或受限算术 | Zig bigint 或受限算术 | Zig bigint 或受限算术 | Zig bigint 或受限算术 |
+| 宿主桥接 | `near` | `cosmwasm` | `stellar-soroban` | `icp-canister` |
+| 验证 | NEAR VM/MVP 检查 | `cosmwasm-check` | Stellar CLI 或 sandbox | Local replica、PocketIC 或 ICP CLI |
 
 ## CosmWasm Counter Spike
 
@@ -153,3 +206,5 @@ def query : CosmWasm.Entrypoint := do
 - 在制品大小成为实际问题之前，可以保留多少 Lean 运行时？
 - Schema 生成应该来自 Lean 类型还是独立的清单？
 - NEAR 和 CosmWasm 是否应该共享一个通用的 Wasm 内存分配器层？
+- Soroban 是否应先走 native Rust/Soroban package sourcegen，再做直接 Lean-to-Wasm host bridge？
+- ICP 是否应先走 native Motoko/Rust CDK package sourcegen，再做直接 Lean-to-Wasm canister bridge？

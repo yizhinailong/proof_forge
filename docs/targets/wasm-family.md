@@ -1,8 +1,9 @@
 # Wasm Family Targets
 
-The Wasm family includes NEAR, CosmWasm, and later Polkadot/ink-style
-contracts. They share an executable format, but not a contract ABI. ProofForge
-should share only the parts that are genuinely common.
+The Wasm family includes NEAR, CosmWasm, Stellar/Soroban, Internet Computer
+canisters, and later Polkadot/ink-style contracts. They share an executable
+format, but not a contract ABI. ProofForge should share only the parts that are
+genuinely common.
 
 ## Common Shape
 
@@ -90,6 +91,71 @@ First adapter behavior:
 - Use string-keyed storage first.
 - Add typed schema generation later.
 
+## Stellar/Soroban
+
+Stellar smart contracts are also Wasm artifacts, but Soroban has its own SDK,
+host environment, storage lifecycle, authorization model, deployment flow, and
+CLI tooling.
+
+Candidate target id: `wasm-stellar-soroban`.
+
+Current native path:
+
+```text
+Rust + soroban-sdk
+  -> stellar contract build
+  -> wasm32v1-none Wasm
+  -> stellar contract deploy / invoke
+```
+
+Target-specific concerns:
+
+- build flow uses Rust and Stellar CLI rather than `cosmwasm-check`;
+- storage distinguishes instance, persistent, and temporary entries, with TTL
+  and archival behavior;
+- authorization is explicit and address-based through `require_auth`-style
+  calls, not just a sender read;
+- contract accounts can implement custom authorization;
+- contract interface/spec metadata is part of the developer workflow;
+- deployment separates Wasm upload/install from contract instantiation.
+
+The first ProofForge spike may generate or wrap a native Soroban package before
+attempting a direct Lean-to-Wasm host bridge. See
+[Stellar Soroban target](stellar-soroban.md).
+
+## Internet Computer Canisters
+
+Internet Computer canisters are Wasm modules plus persistent canister state and
+Candid interfaces. They have their own message model, lifecycle, cycles
+accounting, stable memory, and management canister APIs.
+
+Candidate target id: `wasm-icp-canister`.
+
+Current native paths:
+
+```text
+Motoko or Rust CDK
+  -> Wasm canister module
+  -> Candid .did interface
+  -> local replica / PocketIC / ICP CLI validation
+```
+
+Target-specific concerns:
+
+- update, query, and composite query methods have different semantics;
+- Candid service metadata is part of the public contract interface;
+- caller and canister identities are principals;
+- persistent state may rely on canister memory, stable memory, or
+  CDK-managed stable structures;
+- inter-canister calls are asynchronous message flows;
+- cycles are the resource-accounting unit, not ordinary native value;
+- deployment and upgrades go through canister lifecycle and management canister
+  APIs.
+
+The first ProofForge spike may generate or wrap a native Motoko/Rust CDK
+canister before attempting a direct Lean-to-Wasm host bridge. See
+[Internet Computer target](internet-computer.md).
+
 ## Runtime Profile
 
 The Wasm runtime profile should avoid:
@@ -103,12 +169,12 @@ The Wasm runtime profile should avoid:
 
 Runtime options should be selected by target:
 
-| Option | NEAR | CosmWasm |
-|---|---|---|
-| Allocator | bump or Wasm-safe allocator | CosmWasm allocator ABI |
-| MPZ | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic |
-| Host bridge | `near` | `cosmwasm` |
-| Validation | NEAR VM/MVP checks | `cosmwasm-check` |
+| Option | NEAR | CosmWasm | Stellar/Soroban | ICP canister |
+|---|---|---|---|---|
+| Allocator | bump or Wasm-safe allocator | CosmWasm allocator ABI | Soroban-compatible Wasm allocation path | Canister-compatible Wasm allocation path |
+| MPZ | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic |
+| Host bridge | `near` | `cosmwasm` | `stellar-soroban` | `icp-canister` |
+| Validation | NEAR VM/MVP checks | `cosmwasm-check` | Stellar CLI or sandbox | Local replica, PocketIC, or ICP CLI |
 
 ## CosmWasm Counter Spike
 
@@ -159,3 +225,7 @@ Acceptance criteria:
   practical issue?
 - Should schema generation come from Lean types or a separate manifest?
 - Should NEAR and CosmWasm share a generic Wasm memory allocator layer?
+- Should Soroban start as native Rust/Soroban package sourcegen before a direct
+  Lean-to-Wasm host bridge?
+- Should ICP start as native Motoko/Rust CDK package sourcegen before a direct
+  Lean-to-Wasm canister bridge?

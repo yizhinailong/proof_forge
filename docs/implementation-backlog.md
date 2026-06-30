@@ -301,6 +301,169 @@ Acceptance criteria:
 - The docs distinguish inline ZK verification from `psy-dpn`-style circuit
   source generation.
 
+## Workstream 12: Stellar Soroban Research Target
+
+Goal: decide whether and how ProofForge should support Stellar smart contracts
+without treating all Wasm contract chains as one target.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `wasm-stellar-soroban`.
+- Classify Soroban as a Wasm-host candidate, not a generic Wasm artifact target.
+- Decide whether the first spike should generate a native Rust/Soroban package
+  or wait for a direct Lean-to-Wasm host bridge.
+- Review candidate capabilities for address authorization, contract-account
+  authorization, storage TTL, contract spec metadata, and Stellar assets.
+- Define a tiny Counter-like scenario that exercises storage and event output.
+- Define artifact metadata for Wasm, contract spec, deployment manifest,
+  toolchain versions, and validation result.
+- Identify the local smoke command set: `stellar contract build`, sandbox or
+  testnet deploy, and invoke.
+
+Acceptance criteria:
+
+- `docs/targets/stellar-soroban.md` records the target classification and
+  non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish Soroban from NEAR and CosmWasm despite all three using
+  Wasm artifacts.
+
+## Workstream 13: Internet Computer Research Target
+
+Goal: decide whether and how ProofForge should support Internet Computer
+canisters without treating every Wasm artifact as the same contract target.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `wasm-icp-canister`.
+- Classify ICP canisters as a Wasm-host candidate, not a generic Wasm artifact
+  target.
+- Decide whether the first spike should generate a native Motoko/Rust CDK
+  package or wait for a direct Lean-to-Wasm canister bridge.
+- Review candidate capabilities for Candid, update/query method modes, stable
+  memory, orthogonal persistence, principals, cycles, async inter-canister
+  calls, canister lifecycle, certified data, and management canister APIs.
+- Define a tiny Counter-like scenario with one update method and one query
+  method.
+- Define artifact metadata for Wasm, Candid, canister manifest, stable-state or
+  upgrade policy, toolchain versions, and validation result.
+- Identify the local smoke command set: local replica, PocketIC, or ICP CLI
+  canister install/call flow.
+
+Acceptance criteria:
+
+- `docs/targets/internet-computer.md` records the target classification and
+  non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish ICP canisters from NEAR, CosmWasm, and Soroban despite
+  all using Wasm artifacts.
+
+## Workstream 14: TON TVM Research Target
+
+Goal: decide whether and how ProofForge should support TON smart contracts
+without pretending TVM contracts are EVM, Wasm-host, Move, or ZK targets.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `ton-tvm`.
+- Classify TON as a TVM/Tolk sourcegen candidate.
+- Decide whether the first spike should generate Tolk source/package artifacts
+  or wait for a lower-level TVM/cell IR.
+- Review candidate capabilities for cells, TL-B metadata, inbound messages,
+  outbound messages, get methods, action lists, `StateInit`, account status,
+  TVM gas, and jetton/token integration.
+- Define a tiny Counter-like scenario with one internal message and one get
+  method.
+- Define artifact metadata for source, TVM/BOC output, interface metadata,
+  initial state, message/action schema, toolchain versions, and validation
+  result.
+- Identify the local smoke command set: Acton/Tolk compile and local test or
+  emulator validation.
+
+Acceptance criteria:
+
+- `docs/targets/ton-tvm.md` records the target classification and non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish TON TVM from Wasm-host, EVM, Move, and ZK targets.
+
+## Workstream 15: Bitcoin Cash CashScript Research Target
+
+Goal: decide whether and how ProofForge should support Bitcoin Cash smart
+contracts without pretending UTXO spend paths are stateful contract method calls.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `bch-cashscript`.
+- Classify BCH/CashScript as a UTXO script/covenant sourcegen candidate.
+- Decide whether the first spike should generate CashScript source/package
+  artifacts before any lower-level BCH Script path.
+- Review candidate capabilities for UTXO state, P2SH scripts, unlockers,
+  transaction introspection, covenants, local state, CashTokens, timelocks,
+  signature checks, CashScript artifacts, and transaction-builder validation.
+- Define a tiny UTXO spend scenario with at least one contract function and a
+  transaction-builder smoke.
+- Define artifact metadata for `.cash` source, cashc artifact JSON, bytecode,
+  constructor/unlocker manifest, transaction scenario, toolchain versions, and
+  validation result.
+- Identify the local smoke command set: `cashc`, CashScript SDK,
+  `MockNetworkProvider`, and optional chipnet/node-backed validation.
+
+Acceptance criteria:
+
+- `docs/targets/bitcoin-cash-cashscript.md` records the target classification
+  and non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish BCH/CashScript from EVM, Wasm-host, Move, generic
+  Bitcoin, and Kaspa/Toccata targets.
+
+## Workstream 16: Algorand AVM Research Target
+
+Goal: decide whether and how ProofForge should support Algorand smart contracts
+without pretending AVM applications are EVM, Wasm-host, Move, Solana, TVM,
+UTXO, or ZK circuit targets.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `algorand-avm`.
+- Classify Algorand as an AVM/TEAL source or package-generation candidate.
+- Decide whether the first spike should generate Algorand Python or Algorand
+  TypeScript package artifacts before any direct TEAL emitter path.
+- Review candidate capabilities for stateful applications, LogicSig programs,
+  ARC-4 ABI/app specs, global/local/box storage, transaction groups, resource
+  references, inner transactions, Algorand Standard Assets, AVM budget, and
+  AlgoKit/Puya artifacts.
+- Define a tiny stateful Counter-like application with one update method, one
+  read/query path, explicit storage schema, and localnet or simulator-backed
+  validation.
+- Define artifact metadata for source, approval bytecode, clear-state bytecode,
+  optional LogicSig bytecode, ABI/app spec, storage schema, resource references,
+  toolchain versions, and validation result.
+- Identify the local smoke command set: AlgoKit/Puya compile plus LocalNet or
+  simulator-backed create/call/query validation.
+
+Acceptance criteria:
+
+- `docs/targets/algorand-avm.md` records the target classification and
+  non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish Algorand AVM from Wasm-host, EVM, Move, Solana, TVM,
+  UTXO, and ZK targets.
+
 ## Suggested Order
 
 1. Target registry (Workstream 1).
@@ -314,6 +477,15 @@ Acceptance criteria:
 8. Psy DPN sourcegen spike (Workstream 10) once the IR fixture exists.
 9. Kaspa Toccata research target review (Workstream 11) before any registry
    changes.
-10. CI target matrix (Workstream 9).
-11. Cloud platform design refresh (prerequisite: two+ targets at Experimental
+10. Stellar Soroban research target review (Workstream 12) before any registry
+    changes.
+11. Internet Computer research target review (Workstream 13) before any registry
+    changes.
+12. Algorand AVM research target review (Workstream 16) before any registry
+    changes.
+13. TON TVM research target review (Workstream 14) before any registry changes.
+14. Bitcoin Cash CashScript research target review (Workstream 15) before any
+    registry changes.
+15. CI target matrix (Workstream 9).
+16. Cloud platform design refresh (prerequisite: two+ targets at Experimental
    stage; see [decisions.md](decisions.md)).

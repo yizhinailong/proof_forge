@@ -255,6 +255,111 @@
 - 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
 - 文档区分 inline ZK verification 与 `psy-dpn` 风格的电路源代码生成。
 
+## 工作流 12: Stellar Soroban Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Stellar smart contracts，同时避免把所有 Wasm 合约链视为同一个目标。
+
+任务：
+
+- 已完成：为候选 id `wasm-stellar-soroban` 添加文档优先的目标说明。
+- 将 Soroban 归类为 Wasm-host candidate，而不是通用 Wasm artifact target。
+- 决定第一版 spike 是生成 native Rust/Soroban package，还是等待直接 Lean-to-Wasm host bridge。
+- 审查 address authorization、contract-account authorization、storage TTL、contract spec metadata 和 Stellar assets 的候选能力。
+- 定义一个使用 storage 和 event output 的极小 Counter-like 场景。
+- 定义 Wasm、contract spec、deployment manifest、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：`stellar contract build`、sandbox 或 testnet deploy，以及 invoke。
+
+验收标准：
+
+- `docs/targets/stellar-soroban.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 Soroban 与 NEAR、CosmWasm，尽管三者都使用 Wasm 制品。
+
+## 工作流 13: Internet Computer Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Internet Computer canisters，同时避免把所有 Wasm 制品视为同一种合约目标。
+
+任务：
+
+- 已完成：为候选 id `wasm-icp-canister` 添加文档优先的目标说明。
+- 将 ICP canister 归类为 Wasm-host candidate，而不是通用 Wasm artifact target。
+- 决定第一版 spike 是生成 native Motoko/Rust CDK package，还是等待直接 Lean-to-Wasm canister bridge。
+- 审查 Candid、update/query method modes、stable memory、orthogonal persistence、principals、cycles、async inter-canister calls、canister lifecycle、certified data 和 management canister API 的候选能力。
+- 定义一个包含一个 update method 和一个 query method 的极小 Counter-like 场景。
+- 定义 Wasm、Candid、canister manifest、stable-state 或 upgrade policy、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：local replica、PocketIC 或 ICP CLI canister install/call flow。
+
+验收标准：
+
+- `docs/targets/internet-computer.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 ICP canister 与 NEAR、CosmWasm、Soroban，尽管它们都使用 Wasm 制品。
+
+## 工作流 14: TON TVM Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 TON smart contracts，同时避免把 TVM 合约误建模为 EVM、Wasm-host、Move 或 ZK 目标。
+
+任务：
+
+- 已完成：为候选 id `ton-tvm` 添加文档优先的目标说明。
+- 将 TON 归类为 TVM/Tolk sourcegen candidate。
+- 决定第一版 spike 是生成 Tolk source/package artifacts，还是等待更底层的 TVM/cell IR。
+- 审查 cells、TL-B metadata、inbound messages、outbound messages、get methods、action lists、`StateInit`、account status、TVM gas 和 jetton/token integration 的候选能力。
+- 定义一个包含一个 internal message 和一个 get method 的极小 Counter-like 场景。
+- 定义 source、TVM/BOC output、interface metadata、initial state、message/action schema、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：Acton/Tolk compile 和 local test 或 emulator validation。
+
+验收标准：
+
+- `docs/targets/ton-tvm.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 TON TVM 与 Wasm-host、EVM、Move 和 ZK 目标。
+
+## 工作流 15: Bitcoin Cash CashScript Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Bitcoin Cash smart contracts，同时避免把 UTXO spend paths 误建模为 stateful contract method calls。
+
+任务：
+
+- 已完成：为候选 id `bch-cashscript` 添加文档优先的目标说明。
+- 将 BCH/CashScript 归类为 UTXO script/covenant sourcegen candidate。
+- 决定第一版 spike 是否先生成 CashScript source/package artifacts，再考虑更底层的 BCH Script 路径。
+- 审查 UTXO state、P2SH scripts、unlockers、transaction introspection、covenants、local state、CashTokens、timelocks、signature checks、CashScript artifacts 和 transaction-builder validation 的候选能力。
+- 定义一个包含至少一个 contract function 和 transaction-builder smoke 的极小 UTXO spend 场景。
+- 定义 `.cash` source、cashc artifact JSON、bytecode、constructor/unlocker manifest、transaction scenario、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：`cashc`、CashScript SDK、`MockNetworkProvider`，以及可选 chipnet/node-backed validation。
+
+验收标准：
+
+- `docs/targets/bitcoin-cash-cashscript.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 BCH/CashScript 与 EVM、Wasm-host、Move、generic Bitcoin 和 Kaspa/Toccata 目标。
+
+## 工作流 16: Algorand AVM Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Algorand smart contracts，同时避免把 AVM applications 误建模为 EVM、Wasm-host、Move、Solana、TVM、UTXO 或 ZK circuit 目标。
+
+任务：
+
+- 已完成：为候选 id `algorand-avm` 添加文档优先的目标说明。
+- 将 Algorand 归类为 AVM/TEAL source 或 package-generation candidate。
+- 决定第一版 spike 是否先生成 Algorand Python 或 Algorand TypeScript package artifacts，再考虑 direct TEAL emitter 路径。
+- 审查 stateful applications、LogicSig programs、ARC-4 ABI/app specs、global/local/box storage、transaction groups、resource references、inner transactions、Algorand Standard Assets、AVM budget 和 AlgoKit/Puya artifacts 的候选能力。
+- 定义一个极小 stateful Counter-like application，包含一个 update method、一个 read/query path、显式 storage schema，以及 localnet 或 simulator-backed validation。
+- 定义 source、approval bytecode、clear-state bytecode、可选 LogicSig bytecode、ABI/app spec、storage schema、resource references、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：AlgoKit/Puya compile，加上 LocalNet 或 simulator-backed create/call/query validation。
+
+验收标准：
+
+- `docs/targets/algorand-avm.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 Algorand AVM 与 Wasm-host、EVM、Move、Solana、TVM、UTXO 和 ZK 目标。
+
 ## 建议顺序
 
 1. 目标注册表（工作流 1）。
@@ -266,5 +371,10 @@
 7. Move Aptos POC（工作流 8）。
 8. 一旦 IR fixture 存在，进行 Psy DPN 源代码生成 spike（工作流 10）。
 9. 在任何 registry 变更前进行 Kaspa Toccata research target review（工作流 11）。
-10. CI 目标矩阵（工作流 9）。
-11. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。
+10. 在任何 registry 变更前进行 Stellar Soroban research target review（工作流 12）。
+11. 在任何 registry 变更前进行 Internet Computer research target review（工作流 13）。
+12. 在任何 registry 变更前进行 Algorand AVM research target review（工作流 16）。
+13. 在任何 registry 变更前进行 TON TVM research target review（工作流 14）。
+14. 在任何 registry 变更前进行 Bitcoin Cash CashScript research target review（工作流 15）。
+15. CI 目标矩阵（工作流 9）。
+16. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。

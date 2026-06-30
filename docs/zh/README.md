@@ -65,3 +65,8 @@ python3 scripts/translate-docs.py --model glm-4.7
 - [多链方案 Review 清单](review-checklist.md)
 - [Psy/DPN ZK Target 初步分析](zk-psy-target-analysis.md)
 - [Kaspa Toccata 目标说明](targets/kaspa-toccata.zh.md)
+- [Stellar Soroban 目标说明](targets/stellar-soroban.zh.md)
+- [Internet Computer 目标说明](targets/internet-computer.zh.md)
+- [Algorand AVM 目标说明](targets/algorand-avm.zh.md)
+- [TON TVM 目标说明](targets/ton-tvm.zh.md)
+- [Bitcoin Cash CashScript 目标说明](targets/bitcoin-cash-cashscript.zh.md)

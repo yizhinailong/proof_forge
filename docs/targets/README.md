@@ -39,10 +39,15 @@ target registry and portable IR integration.
 | [EVM](evm.md) | Experimental | Baseline through Yul, `solc`, Foundry smoke. |
 | NEAR | Research | Reference in local Lean fork; not yet ported into this repo. |
 | CosmWasm | Research | Strong Wasm spike candidate; reuses NEAR lessons. |
+| [Stellar Soroban](stellar-soroban.md) | Research | Docs-first Wasm-host candidate through Soroban/Stellar CLI tooling; not yet in the code registry. |
+| [Internet Computer](internet-computer.md) | Research | Docs-first Wasm canister candidate with Candid, cycles, stable memory, and canister lifecycle; not yet in the code registry. |
+| [Algorand AVM](algorand-avm.md) | Research | Docs-first AVM/TEAL source/package-generation candidate with app programs, LogicSig, ARC-4 ABI, storage, resource references, and transaction-group semantics; not yet in the code registry. |
 | Solana sBPF-linker | Research | Preferred Solana path (`solana-sbpf-linker` id). |
 | Solana Zig fork | Research | Fallback reference from `solana-sdk-mono`. |
 | Sui Move | Research | Source-generation; follows Aptos POC. |
 | Aptos Move | Research | First Move POC target. |
+| [TON TVM](ton-tvm.md) | Research | Docs-first TVM/Tolk sourcegen candidate with cells, messages, get methods, actions, and TVM gas. |
+| [Bitcoin Cash CashScript](bitcoin-cash-cashscript.md) | Research | Docs-first UTXO script/covenant sourcegen candidate through CashScript and BCH transaction-builder validation. |
 | Psy DPN | Experimental | Narrow ZK circuit sourcegen target through generated `.psy`, Dargo smokes, and artifact metadata validation. |
 | [Kaspa Toccata](kaspa-toccata.md) | Research | Docs-first UTXO covenant/based-app target candidate; not yet in the code registry. |
 
@@ -50,7 +55,12 @@ target registry and portable IR integration.
 
 - [EVM](evm.md)
 - [Wasm family](wasm-family.md)
+- [Stellar Soroban target](stellar-soroban.md)
+- [Internet Computer target](internet-computer.md)
+- [Algorand AVM target](algorand-avm.md)
 - [Solana sBPF](solana-sbf.md) — notes for target id `solana-sbpf-linker`
 - [Move family](move-family.md)
+- [TON TVM target](ton-tvm.md)
+- [Bitcoin Cash CashScript target](bitcoin-cash-cashscript.md)
 - [Psy DPN ZK target](psy-dpn.md)
 - [Kaspa Toccata target](kaspa-toccata.md)

@@ -32,10 +32,15 @@
 | [EVM](evm.md) | Experimental | 通过 Yul 实现基准线，`solc`，Foundry 冒烟测试。 |
 | NEAR | Research | 本地 Lean 分支中的参考实现；尚未移植到此仓库。 |
 | CosmWasm | Research | 强力的 Wasm Spike 候选；复用 NEAR 的经验。 |
+| [Stellar Soroban](targets/stellar-soroban.zh.md) | Research | 文档优先的 Wasm-host 候选，使用 Soroban/Stellar CLI 工具链；尚未进入代码 registry。 |
+| [Internet Computer](targets/internet-computer.zh.md) | Research | 文档优先的 Wasm canister 候选，包含 Candid、cycles、stable memory 和 canister lifecycle；尚未进入代码 registry。 |
+| [Algorand AVM](targets/algorand-avm.zh.md) | Research | 文档优先的 AVM/TEAL source/package-generation 候选，包含 app programs、LogicSig、ARC-4 ABI、storage、resource references 和 transaction-group 语义；尚未进入代码 registry。 |
 | Solana sBPF-linker | Research | 首选的 Solana 路径（`solana-sbpf-linker` id）。 |
 | Solana Zig fork | Research | 来自 `solana-sdk-mono` 的备选参考。 |
 | Sui Move | Research | 源代码生成；遵循 Aptos POC。 |
 | Aptos Move | Research | 首个 Move POC 目标。 |
+| [TON TVM](targets/ton-tvm.zh.md) | Research | 文档优先的 TVM/Tolk sourcegen 候选，包含 cells、messages、get methods、actions 和 TVM gas。 |
+| [Bitcoin Cash CashScript](targets/bitcoin-cash-cashscript.zh.md) | Research | 文档优先的 UTXO script/covenant sourcegen 候选，通过 CashScript 与 BCH transaction-builder 验证。 |
 | Psy DPN | Experimental | 通过生成的 `.psy`、Dargo 冒烟测试和制品元数据校验实现的窄范围 ZK 电路源代码生成目标。 |
 | [Kaspa Toccata](targets/kaspa-toccata.zh.md) | Research | 文档优先的 UTXO covenant / based-app 目标候选；尚未进入代码 registry。 |
 
@@ -43,7 +48,12 @@
 
 - [EVM](evm.md)
 - [Wasm 家族](wasm-family.md)
+- [Stellar Soroban 目标](targets/stellar-soroban.zh.md)
+- [Internet Computer 目标](targets/internet-computer.zh.md)
+- [Algorand AVM 目标](targets/algorand-avm.zh.md)
 - [Solana sBPF](solana-sbf.md) —— 目标 id `solana-sbpf-linker` 的说明
 - [Move 家族](move-family.md)
+- [TON TVM 目标](targets/ton-tvm.zh.md)
+- [Bitcoin Cash CashScript 目标](targets/bitcoin-cash-cashscript.zh.md)
 - [Psy DPN ZK 目标](psy-dpn.md)
 - [Kaspa Toccata 目标](targets/kaspa-toccata.zh.md)

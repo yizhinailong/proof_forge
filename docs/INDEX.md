@@ -63,8 +63,13 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Target notes](targets/README.md): per-family research and spike plans.
   - [EVM](targets/evm.md)
   - [Wasm family](targets/wasm-family.md)
+  - [Stellar Soroban target](targets/stellar-soroban.md)
+  - [Internet Computer target](targets/internet-computer.md)
+  - [Algorand AVM target](targets/algorand-avm.md)
   - [Solana sBPF](targets/solana-sbf.md) (`solana-sbpf-linker`)
   - [Move family](targets/move-family.md)
+  - [TON TVM target](targets/ton-tvm.md)
+  - [Bitcoin Cash CashScript target](targets/bitcoin-cash-cashscript.md)
   - [Psy DPN ZK target](targets/psy-dpn.md)
   - [Kaspa Toccata target](targets/kaspa-toccata.md)
 

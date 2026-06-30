@@ -10,17 +10,17 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "1082f5502dc196db8cf9e568a9c937cf2c553e4de04ff75b92c2548d6af2066a",
+    "sha256": "9f26751c404bc8469f3c86bed03b86c2275678ea651ed923317bd6749a9ee9ff",
     "zh": "docs/zh/INDEX.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/decisions.md": {
-    "sha256": "2a77e767bb098efb380b8cf818eb641515d6e6282762b582cf88d22299ccb849",
+    "sha256": "6663e4e995d6aae6ecd7572180db45e954bfc8f7ab0164a5a14b6f29068d432f",
     "zh": "docs/zh/decisions.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/capability-registry.md": {
-    "sha256": "d9ffb0748c53c0804cb331950c77a0ffdfb60fabde9c157f276ef3786aa77839",
+    "sha256": "7109cf5c07f6adcb20fe49f30f69c48efb3da407811e70a52a8079393938b76c",
     "zh": "docs/zh/capability-registry.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -35,7 +35,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/implementation-backlog.md": {
-    "sha256": "205605410e283d680159ce54f670a41e915bf380647919b5a64d9494240f3dbe",
+    "sha256": "3376d8ded3aa568ea5421f1881e062360a2e0f998b51be49a5d4a85e01387278",
     "zh": "docs/zh/implementation-backlog.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -75,7 +75,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/README.md": {
-    "sha256": "0ff5fca765424cf4df412c3792b7e451e513da63ac3fb532b33607ec10918d25",
+    "sha256": "60ccd7ec4bdf19cf9f4f766ac17ac1e3b542c009518e9837ff554439618c98c8",
     "zh": "docs/zh/targets-README.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -85,7 +85,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/wasm-family.md": {
-    "sha256": "2128c543e679873da3e2cdcdf68595b9e34bc3dc41a20965e17bbc895c1d3987",
+    "sha256": "e0de9fb9f3abc8315a309c8a6f6a4d28eb5cad9f1b945f6d4fd4ddb924919778",
     "zh": "docs/zh/targets/wasm-family.zh.md",
     "model": "gemini-3-flash-preview"
   },

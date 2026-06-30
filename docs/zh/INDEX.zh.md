@@ -60,8 +60,13 @@ flowchart TB
 - [目标笔记](targets/README.md)：各家族的 Research 和 spike 计划。
   - [EVM](targets/evm.md)
   - [Wasm 家族](targets/wasm-family.md)
+  - [Stellar Soroban 目标](targets/stellar-soroban.zh.md)
+  - [Internet Computer 目标](targets/internet-computer.zh.md)
+  - [Algorand AVM 目标](targets/algorand-avm.zh.md)
   - [Solana sBPF](targets/solana-sbf.md) (`solana-sbpf-linker`)
   - [Move 家族](targets/move-family.md)
+  - [TON TVM 目标](targets/ton-tvm.zh.md)
+  - [Bitcoin Cash CashScript 目标](targets/bitcoin-cash-cashscript.zh.md)
   - [Psy DPN ZK 目标](targets/psy-dpn.md)
   - [Kaspa Toccata 目标](targets/kaspa-toccata.zh.md)
 
@@ -73,6 +78,10 @@ flowchart TB
 - [多链方案 Review 清单](zh/review-checklist.md)
 - [Psy/DPN ZK Target 初步分析](zh/zk-psy-target-analysis.md)
 - [Kaspa Toccata 目标说明](zh/targets/kaspa-toccata.zh.md)
+- [Stellar Soroban 目标说明](zh/targets/stellar-soroban.zh.md)
+- [Internet Computer 目标说明](zh/targets/internet-computer.zh.md)
+- [TON TVM 目标说明](zh/targets/ton-tvm.zh.md)
+- [Bitcoin Cash CashScript 目标说明](zh/targets/bitcoin-cash-cashscript.zh.md)
 
 ## 当前实现基线
 
