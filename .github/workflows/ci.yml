@@ -86,6 +86,9 @@ jobs:
       - name: Check Psy diagnostics
         run: scripts/psy/diagnostic-smoke.sh
 
+      - name: Check Psy IR coverage manifest
+        run: scripts/psy/check-ir-coverage-manifest.py
+
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh
 

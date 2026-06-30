@@ -979,6 +979,20 @@ malformed bitwise/shift expressions, malformed boolean operators, malformed
 compound assignment statements, malformed storage compound assignment effects,
 malformed if conditions, and branch-local escape.
 
+The coverage manifest gate keeps the constructor-level backend contract in
+sync with the portable IR:
+
+```sh
+scripts/psy/check-ir-coverage-manifest.py
+```
+
+It parses `ProofForge/IR/Contract.lean` and requires `Tests/PsyCoverage.tsv` to
+contain one status/evidence row for every `ValueType`, `StateKind`, `Literal`,
+`ContextField`, `AssignOp`, `Expr`, `Effect`, `StoragePathSegment`, and
+`Statement` constructor. This is a structural guard against silent Psy backend
+omissions when the portable IR grows; behavior still needs golden and Dargo
+coverage in the fixture smokes.
+
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
 sequence against the same session. This is not a live network, but it is closer

@@ -258,6 +258,9 @@ Tasks:
   and generic storage paths with Dargo compile/execute validation.
 - Done: add U32 storage array coverage using Felt-backed storage plus explicit
   U32 read/write casts, with Dargo compile/execute validation.
+- Done: add a Psy IR coverage manifest gate so every portable IR constructor
+  must be classified as lowered, validated, unsupported, or structural for the
+  Psy backend.
 - Convert the deploy manifest path to upstream compressed genesis deploy JSON
   once the Psy tooling exposes a stable boundary, then exercise a local
   node/prover deployment smoke.

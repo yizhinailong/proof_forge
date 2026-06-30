@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy IR Coverage Manifest Gate
+
+Commit: feature commit for Psy IR coverage manifest validation
+
+Summary:
+
+- Added `Tests/PsyCoverage.tsv` as a constructor-level coverage manifest for
+  the portable IR surface used by the Psy backend.
+- Added `scripts/psy/check-ir-coverage-manifest.py`, which parses
+  `ProofForge/IR/Contract.lean` and fails if any tracked constructor is missing
+  from the manifest or if the manifest contains stale/duplicate entries.
+- Added CI and validation docs for the new gate so future IR expansion must
+  classify each constructor as lowered, validated, unsupported, or structural.
+
+Validation run:
+
+```sh
+python3 -m py_compile scripts/psy/check-ir-coverage-manifest.py
+scripts/psy/check-ir-coverage-manifest.py
+```
+
+Result:
+
+- The checker reports 88 constructor entries matching
+  `ProofForge/IR/Contract.lean`.
+
+Known limitations:
+
+- The manifest is a structural guard, not behavioral proof. Supported rows still
+  require fixture, golden, Dargo, and metadata validation when they describe
+  runtime behavior.
+
+Next step:
+
+- Continue closing behavioral Psy gaps and use the manifest as a tripwire when
+  extending the portable IR.
+
 ### Psy U32 Storage Array Lowering
 
 Commit: feature commit for Psy U32 storage array coverage
