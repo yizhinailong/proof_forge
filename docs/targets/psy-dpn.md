@@ -17,8 +17,9 @@ AbiAggregateProbe, and NestedAggregateProbe fixtures. It also has an experimenta
 StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
 across `#[ref]` struct fields and storage arrays. The target is not
 production-ready and does not yet cover U32 storage arrays, compound
-assignment operators, else-if sugar, map storage paths, deploy JSON, live Psy
-node/prover deployment, or broad Lean-to-IR extraction.
+assignment operators, else-if sugar, map storage paths, upstream compressed
+genesis deploy JSON, live Psy node/prover deployment, or broad Lean-to-IR
+extraction. It does produce a ProofForge deploy manifest for the Counter smoke.
 
 ## Summary
 
@@ -188,7 +189,8 @@ sideOutputs:
   - generated Dargo.toml
   - ABI JSON
   - proof-forge-artifact.json
-  - optional Psy deploy JSON
+  - ProofForge deploy manifest JSON
+  - optional upstream Psy genesis deploy JSON
 ```
 
 Required external tools:
@@ -659,14 +661,30 @@ Preferred first smoke:
 8. Verify the execution log contains `result_vm: [2]`.
 9. Run `dargo generate-abi --contract-name Counter --output-dir target --pretty`.
 10. Verify `target/Counter.json` is non-empty.
-11. Emit `target/proof-forge-artifact.json` with source, circuit JSON, ABI, and
-    execute-log hashes.
+11. Restore the deploy-oriented compile artifact with
+    `dargo compile --contract-name Counter --method-names initialize increment get`
+    because `dargo execute` writes method-sequence circuits for the local
+    execution trace.
+12. Emit and validate `target/proof-forge-deploy.json`, a ProofForge deploy
+    manifest containing the compiled DPN method ids, ABI summary, deployer,
+    state-tree height, source/circuit/ABI hashes, and upstream genesis JSON
+    status.
+13. Emit `target/proof-forge-artifact.json` with source, circuit JSON, ABI,
+    deploy manifest, and execute-log hashes.
 
 This has been run locally with `psyup install 0.1.0` on macOS arm64. The smoke
 produced `build/psy/dargo-counter/target/proof_forge_counter.json` and
 `build/psy/dargo-counter/target/counter-execute.log`, plus ABI output at
-`build/psy/dargo-counter/target/Counter.json` and metadata at
+`build/psy/dargo-counter/target/Counter.json`, a ProofForge deploy manifest at
+`build/psy/dargo-counter/target/proof-forge-deploy.json`, and metadata at
 `build/psy/dargo-counter/target/proof-forge-artifact.json`.
+
+The ProofForge deploy manifest is not Psy's upstream compressed genesis deploy
+JSON. The upstream `psy-dargo-cli/examples/gen_deploy_json.rs` sample builds
+that form through Rust workspace internals and the current released `dargo`
+does not expose it as a CLI subcommand. Until that boundary is stable, the
+manifest records reproducible deploy inputs and the upstream conversion gap
+explicitly.
 
 The same validation shape is implemented for `ContextProbe`:
 
@@ -927,12 +945,15 @@ Second smoke:
 1. Compare high-level Counter behavior with the EVM shared scenario.
 2. Add U32 storage-array research, compound assignment sugar, and map-path coverage from
    `psy-compiler/tests` and `psy-precompiles`.
-3. Add deploy JSON research against Psy's deployment tooling.
+3. Extend the Counter deploy manifest into upstream genesis JSON and local
+   node/prover deployment once the tooling boundary is stable.
 
 Deployment smoke:
 
-1. Convert `DPNFunctionCircuitDefinition[]` to deploy JSON with Psy tooling.
-2. Run against a local Psy node/prover stack when the toolchain is available.
+1. Done: emit a ProofForge deploy manifest for the Counter DPN compile output.
+2. Convert `DPNFunctionCircuitDefinition[]` to upstream compressed genesis
+   deploy JSON with Psy tooling.
+3. Run against a local Psy node/prover stack when the toolchain is available.
 
 ## Implementation Plan
 
@@ -1029,10 +1050,12 @@ Deployment smoke:
   array nested updates.
 - Done: add `scripts/psy/storage-nested-aggregate-smoke.sh` with the same
   Dargo validation shape.
+- Done: add `proof-forge-deploy.json` generation and validation for the Counter
+  smoke, and record the deploy manifest in `proof-forge-artifact.json`.
 - Remaining: add U32 storage arrays and map storage path support only after
   stable Psy idioms are identified, decide whether compound assignment belongs
-  in the IR or only in source normalization, then move to deploy JSON/live node
-  research.
+  in the IR or only in source normalization, then move to upstream genesis
+  deploy JSON/live node research.
 
 ### Phase C: Metadata and Scenario Parity
 
@@ -1043,7 +1066,9 @@ Deployment smoke:
 
 ### Phase D: Deployment Research
 
-- Use Psy deploy JSON conversion.
+- Done: produce a ProofForge deploy manifest for the Counter compile output.
+- Use Psy's upstream genesis deploy JSON conversion when it is available as a
+  stable CLI or vendorable library boundary.
 - Document local node/prover setup.
 - Decide whether ProofForge should own deployment or only artifact production.
 
@@ -1053,8 +1078,8 @@ Deployment smoke:
   latest release publishes macOS artifacts?
 - Which Psy storage patterns correspond to portable `storage.map` without
   semantic surprises?
-- What is the exact artifact schema for contract code versus circuit
-  definitions versus deploy JSON?
+- What is the exact artifact schema for contract code, circuit definitions,
+  ProofForge deploy manifests, and upstream compressed genesis deploy JSON?
 - Should `Felt` become a first-class portable type, or remain target-specific?
 - Can ProofForge expose privacy/ZK capabilities without making ordinary
   multi-chain contracts harder to write?
@@ -1105,6 +1130,7 @@ Deployment smoke:
   - generated `.psy` source
   - DPN circuit JSON artifact
   - ABI artifact if generated
+  - ProofForge deploy manifest if generated
   - Psy compiler/Dargo version or commit
   - used capabilities
 - Artifact metadata is machine-validated against the generated artifact files

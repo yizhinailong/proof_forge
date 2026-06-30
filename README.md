@@ -236,7 +236,10 @@ scripts/psy/diagnostic-smoke.sh
 ```
 
 Each Psy smoke writes and validates `proof-forge-artifact.json` next to the
-Dargo outputs.
+Dargo outputs. The Counter smoke also writes
+`target/proof-forge-deploy.json`, a ProofForge deploy manifest that records the
+compiled DPN method ids, ABI, deployer, state-tree height, source/circuit/ABI
+hashes, and the current upstream `gen_deploy_json` gap.
 
 The Psy smoke expects `dargo` on `PATH`. The preferred installer is `psyup`:
 

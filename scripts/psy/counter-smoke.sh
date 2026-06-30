@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/counter-execute.log"
 ABI_FILE="$PROJECT_DIR/target/Counter.json"
+DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 
 if [[ -z "${DARGO_STD_PATH:-}" && -f "$PSY_HOME/env" ]]; then
@@ -64,6 +65,9 @@ TOML
   "$DARGO_BIN" compile --contract-name Counter --method-names initialize increment get
   "$DARGO_BIN" execute --contract-name Counter --method-names initialize increment increment get | tee "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name Counter --output-dir target --pretty
+  # dargo execute writes method-sequence circuits; restore the deploy-oriented
+  # compile artifact before generating ProofForge metadata.
+  "$DARGO_BIN" compile --contract-name Counter --method-names initialize increment get
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_counter.json"
@@ -83,6 +87,19 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+python3 "$ROOT/scripts/psy/write-deploy-manifest.py" \
+  --root "$ROOT" \
+  --fixture Counter \
+  --contract-name Counter \
+  --source "$PSY_FILE" \
+  --circuit-json "$ARTIFACT" \
+  --abi-json "$ABI_FILE" \
+  --out "$DEPLOY_JSON_FILE"
+
+python3 "$ROOT/scripts/psy/validate-deploy-manifest.py" \
+  --root "$ROOT" \
+  "$DEPLOY_JSON_FILE"
+
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture Counter \
@@ -90,6 +107,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
+  --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "result_vm: [2]" \
@@ -104,4 +122,5 @@ echo "psy-counter-smoke: wrote $PSY_FILE"
 echo "psy-counter-smoke: Dargo artifact $ARTIFACT"
 echo "psy-counter-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-counter-smoke: Dargo ABI $ABI_FILE"
+echo "psy-counter-smoke: ProofForge deploy JSON $DEPLOY_JSON_FILE"
 echo "psy-counter-smoke: ProofForge metadata $METADATA_FILE"

@@ -44,6 +44,7 @@ def main() -> int:
     parser.add_argument("--circuit-json", required=True)
     parser.add_argument("--abi-json", required=True)
     parser.add_argument("--execute-log", required=True)
+    parser.add_argument("--deploy-json")
     parser.add_argument("--out", required=True)
     parser.add_argument("--dargo", required=True)
     parser.add_argument("--execute-result", required=True)
@@ -51,6 +52,23 @@ def main() -> int:
     args = parser.parse_args()
 
     root = Path(args.root)
+    artifacts = {
+        "source": file_entry(root, Path(args.source)),
+        "circuitJson": file_entry(root, Path(args.circuit_json)),
+        "abiJson": file_entry(root, Path(args.abi_json)),
+        "executeLog": file_entry(root, Path(args.execute_log)),
+    }
+    validation = {
+        "dargoTest": "passed",
+        "dargoCompile": "passed",
+        "dargoExecute": "passed",
+        "dargoGenerateAbi": "passed",
+        "executeResult": args.execute_result,
+    }
+    if args.deploy_json:
+        artifacts["deployJson"] = file_entry(root, Path(args.deploy_json))
+        validation["deployManifest"] = "passed"
+
     metadata = {
         "schemaVersion": 1,
         "target": "psy-dpn",
@@ -64,19 +82,8 @@ def main() -> int:
                 "version": dargo_version(args.dargo),
             }
         },
-        "artifacts": {
-            "source": file_entry(root, Path(args.source)),
-            "circuitJson": file_entry(root, Path(args.circuit_json)),
-            "abiJson": file_entry(root, Path(args.abi_json)),
-            "executeLog": file_entry(root, Path(args.execute_log)),
-        },
-        "validation": {
-            "dargoTest": "passed",
-            "dargoCompile": "passed",
-            "dargoExecute": "passed",
-            "dargoGenerateAbi": "passed",
-            "executeResult": args.execute_result,
-        },
+        "artifacts": artifacts,
+        "validation": validation,
     }
 
     out = Path(args.out)

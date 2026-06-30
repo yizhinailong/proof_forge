@@ -17,6 +17,66 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Counter Deploy Manifest Metadata
+
+Commit: feature commit for Psy Counter deploy manifest coverage
+
+Summary:
+
+- Added `scripts/psy/write-deploy-manifest.py` to produce
+  `proof-forge-deploy.json` from the Counter `.psy` source, Dargo circuit JSON,
+  and Dargo ABI JSON.
+- Added `scripts/psy/validate-deploy-manifest.py` to verify manifest schema,
+  deployer format, state-tree height, source/circuit/ABI hashes, function
+  whitelist ordering, and upstream genesis JSON status.
+- Updated `scripts/psy/counter-smoke.sh` so the Counter Dargo smoke now writes
+  and validates `target/proof-forge-deploy.json`.
+- Re-runs `dargo compile` after `dargo execute` so deploy metadata points at
+  the deploy-oriented compile artifact rather than the method-sequence
+  execution trace.
+- Extended Psy artifact metadata to optionally record `deployJson` and require
+  `validation.deployManifest = "passed"` whenever that artifact is present.
+- Documented that this is a ProofForge deploy manifest, not Psy's upstream
+  compressed genesis deploy JSON from `gen_deploy_json`.
+
+Validation run:
+
+```sh
+python3 -m py_compile \
+  scripts/psy/write-deploy-manifest.py \
+  scripts/psy/validate-deploy-manifest.py \
+  scripts/psy/write-artifact-metadata.py \
+  scripts/psy/validate-artifact-metadata.py
+git diff --check
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/counter-smoke.sh
+```
+
+Result:
+
+- Counter generated source still matches `Examples/Psy/Counter.golden.psy`.
+- Dargo `test`, `compile`, `execute`, and `generate-abi` passed.
+- `dargo execute` returned `result_vm: [2]` after initialize plus two
+  increments.
+- `proof-forge-deploy.json` and `proof-forge-artifact.json` were generated and
+  validated.
+
+Known limitations:
+
+- The manifest is ProofForge-owned metadata, not the upstream compressed
+  genesis deploy JSON consumed by Psy node setup.
+- The upstream `psy-dargo-cli/examples/gen_deploy_json.rs` path still requires
+  Rust workspace internals; current released `dargo` does not expose it as a
+  subcommand.
+- Only the Counter smoke emits deploy manifest metadata so far.
+
+Next step:
+
+- Either extend deploy manifest generation to the broader Psy fixture set, or
+  research the smallest stable upstream boundary for genesis deploy JSON plus a
+  local Psy node/prover smoke.
+
 ### Psy U32HashPackingProbe Dynamic Hash Construction
 
 Commit: feature commit for Psy U32 hash packing coverage

@@ -66,10 +66,14 @@ def main() -> int:
     artifacts = expect_object(metadata.get("artifacts"), "artifacts")
     for artifact_name in REQUIRED_ARTIFACTS:
         file_entry(root, expect_object(artifacts.get(artifact_name), f"artifacts.{artifact_name}"), artifact_name)
+    if "deployJson" in artifacts:
+        file_entry(root, expect_object(artifacts.get("deployJson"), "artifacts.deployJson"), "deployJson")
 
     validation = expect_object(metadata.get("validation"), "validation")
     for key in REQUIRED_VALIDATIONS:
         expect(validation.get(key) == "passed", f"validation.{key} must be passed")
+    if "deployJson" in artifacts:
+        expect(validation.get("deployManifest") == "passed", "validation.deployManifest must be passed when artifacts.deployJson is present")
     execute_result = expect_string(validation.get("executeResult"), "validation.executeResult")
 
     execute_log = (root / artifacts["executeLog"]["path"]).read_text()
