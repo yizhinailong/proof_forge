@@ -19,6 +19,7 @@ def ValueType.name : ValueType → String
 
 inductive StateKind where
   | scalar
+  | map (keyType : ValueType) (capacity : Nat)
   deriving BEq, DecidableEq, Repr
 
 structure StateDecl where
@@ -62,6 +63,10 @@ mutual
   inductive Effect where
     | storageScalarRead (stateId : String)
     | storageScalarWrite (stateId : String) (value : Expr)
+    | storageMapContains (stateId : String) (key : Expr)
+    | storageMapGet (stateId : String) (key : Expr)
+    | storageMapInsert (stateId : String) (key value : Expr)
+    | storageMapSet (stateId : String) (key value : Expr)
     | contextRead (field : ContextField)
     deriving Repr
 end
@@ -69,6 +74,8 @@ end
 inductive Statement where
   | letBind (name : String) (type : ValueType) (value : Expr)
   | effect (effect : Effect)
+  | assert (condition : Expr) (message : String)
+  | assertEq (lhs rhs : Expr) (message : String)
   | return (value : Expr)
   deriving Repr
 
@@ -89,6 +96,10 @@ structure Module where
 def Effect.capability : Effect → ProofForge.Target.Capability
   | .storageScalarRead _ => .storageScalar
   | .storageScalarWrite _ _ => .storageScalar
+  | .storageMapContains _ _ => .storageMap
+  | .storageMapGet _ _ => .storageMap
+  | .storageMapInsert _ _ _ => .storageMap
+  | .storageMapSet _ _ _ => .storageMap
   | .contextRead field => field.capability
 
 mutual
@@ -103,12 +114,18 @@ mutual
   partial def Effect.capabilities : Effect → Array ProofForge.Target.Capability
     | .storageScalarRead _ => #[]
     | .storageScalarWrite _ value => value.capabilities
+    | .storageMapContains _ key => key.capabilities
+    | .storageMapGet _ key => key.capabilities
+    | .storageMapInsert _ key value => key.capabilities ++ value.capabilities
+    | .storageMapSet _ key value => key.capabilities ++ value.capabilities
     | .contextRead _ => #[]
 end
 
 def Statement.capabilities : Statement → Array ProofForge.Target.Capability
   | .letBind _ _ value => value.capabilities
   | Statement.effect eff => #[eff.capability] ++ eff.capabilities
+  | .assert condition _ => #[.assertions] ++ condition.capabilities
+  | .assertEq lhs rhs _ => #[.assertions] ++ lhs.capabilities ++ rhs.capabilities
   | .return value => value.capabilities
 
 def Entrypoint.capabilities (entrypoint : Entrypoint) : Array ProofForge.Target.Capability :=

@@ -172,6 +172,7 @@ def psyDpn : TargetProfile := {
     .crosscallInvoke,
     .envBlock,
     .cryptoHash,
+    .assertions,
     .accountExplicit,
     .zkCircuit,
     .zkProof
@@ -200,4 +201,3 @@ def hasCapability (profile : TargetProfile) (capability : Capability) : Bool :=
   profile.capabilities.contains capability
 
 end ProofForge.Target
-

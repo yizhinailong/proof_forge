@@ -50,6 +50,10 @@ jobs:
           diff -u Examples/Psy/ContextProbe.golden.psy build/psy/ContextProbe.psy
           lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
           diff -u Examples/Psy/HashProbe.golden.psy build/psy/HashProbe.psy
+          lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
+          diff -u Examples/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
+          lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
+          diff -u Examples/Psy/AssertProbe.golden.psy build/psy/AssertProbe.psy
 
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh

@@ -17,6 +17,118 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy AssertProbe IR Assertions
+
+Commit: pending
+
+Summary:
+
+- Extended portable IR with statement-level `assert` and `assertEq` nodes.
+- Registered the `assertions` capability for target profiles and artifact
+  metadata.
+- Extended Psy sourcegen to lower assertion statements into method bodies as
+  `assert(condition, "message")` and `assert_eq(lhs, rhs, "message")`.
+- Added basic string escaping for generated Psy assertion messages.
+- Added `ProofForge.IR.Examples.AssertProbe`, which validates assertions inside
+  a contract method body.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
+```
+
+- Added `Examples/Psy/AssertProbe.golden.psy`.
+- Added `scripts/psy/assert-smoke.sh`, which generates a temporary Dargo
+  package, runs `dargo test --file`, `dargo compile`, `dargo execute`,
+  `dargo generate-abi`, and validates `proof-forge-artifact.json`.
+- Added CI coverage for the AssertProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
+diff -u Examples/Psy/AssertProbe.golden.psy build/psy/AssertProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/assert-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Generated AssertProbe source matches the checked-in golden fixture.
+- `scripts/psy/assert-smoke.sh` generated DPN JSON, ABI JSON, execute log, and
+  `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [12]` for `checked_sum(5,7)`.
+
+Known limitations:
+
+- Assertion conditions still depend on the currently narrow expression subset.
+- EVM IR v0 rejects assertion statements through capability diagnostics.
+
+Next step:
+
+- Add bounded-loop coverage next, because loops are heavily used by Psy
+  precompiles and are required for array/tree-style contracts.
+
+### Psy MapProbe Storage Map Coverage
+
+Commit: pending
+
+Summary:
+
+- Extended portable IR with fixed-capacity map state and `storage.map` effects:
+  `contains`, `get`, `insert`, and `set`.
+- Extended Psy sourcegen to lower the supported map shape to
+  `Map<Hash, Hash, Nu32>` and to reject unsupported map key/value types with an
+  explicit diagnostic.
+- Added `ProofForge.IR.Examples.MapProbe` with scalar fields adjacent to the
+  map to mirror upstream Psy storage-layout regression tests.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
+```
+
+- Added `Examples/Psy/MapProbe.golden.psy`.
+- Added `scripts/psy/map-smoke.sh`, which generates a temporary Dargo package,
+  runs `dargo test --file`, `dargo compile`, `dargo execute`,
+  `dargo generate-abi`, and validates `proof-forge-artifact.json`.
+- Added CI coverage for the MapProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
+diff -u Examples/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/map-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Generated MapProbe source matches the checked-in golden fixture.
+- `scripts/psy/map-smoke.sh` generated DPN JSON, ABI JSON, execute log, and
+  `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [55, 66, 77, 88]` for
+  `map_lifecycle`.
+
+Known limitations:
+
+- Psy map lowering currently supports only `Map<Hash, Hash, N>`.
+- The portable IR still lacks first-class assertions, bounded loops, arrays,
+  and structs.
+- EVM IR v0 explicitly rejects portable map storage.
+
+Next step:
+
+- Add IR-level assertions or bounded-loop coverage next, then validate the new
+  node through Psy golden output and Dargo smoke.
+
 ### Psy HashProbe And Experimental Target Slice
 
 Commit: pending

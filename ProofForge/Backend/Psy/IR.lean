@@ -30,7 +30,11 @@ def capitalizedRefName (module : Module) : String :=
   s!"{module.name}Ref"
 
 def testFunctionName (module : Module) : String :=
-  if module.name == "HashProbe" then
+  if module.name == "AssertProbe" then
+    "test_assert_probe_fixture"
+  else if module.name == "MapProbe" then
+    "test_map_probe_fixture"
+  else if module.name == "HashProbe" then
     "test_hash_probe_fixture"
   else if module.name == "ContextProbe" then
     "test_context_probe_fixture"
@@ -51,6 +55,16 @@ def literal : Literal → String
   | .bool false => "false"
   | .hash4 a b c d => s!"[{a}, {b}, {c}, {d}]"
 
+def stringLiteral (value : String) : String :=
+  let escapeChar : Char → String
+    | '"' => "\\\""
+    | '\\' => "\\\\"
+    | '\n' => "\\n"
+    | '\r' => "\\r"
+    | '\t' => "\\t"
+    | ch => ch.toString
+  "\"" ++ String.intercalate "" (value.toList.map escapeChar) ++ "\""
+
 def contextFunction : ContextField → String
   | .userId => "get_user_id()"
   | .contractId => "get_contract_id()"
@@ -60,9 +74,27 @@ def stateDecl (state : StateDecl) : Except LowerError String := do
   match state.kind with
   | .scalar =>
       .ok s!"pub {state.id}: {← valueTypeName state.type},"
+  | .map keyType capacity =>
+      .ok s!"pub {state.id}: Map<{← valueTypeName keyType}, {← valueTypeName state.type}, {capacity}u32>,"
 
-def stateExists (module : Module) (stateId : String) : Bool :=
-  module.state.any fun state => state.id == stateId
+def findState? (module : Module) (stateId : String) : Option StateDecl :=
+  module.state.find? fun state => state.id == stateId
+
+def requireScalarState (module : Module) (stateId : String) : Except LowerError Unit :=
+  match findState? module stateId with
+  | some state =>
+      match state.kind with
+      | .scalar => .ok ()
+      | .map _ _ => .error { message := s!"state `{stateId}` is a map, not scalar storage" }
+  | none => .error { message := s!"unknown scalar state `{stateId}`" }
+
+def requireMapState (module : Module) (stateId : String) : Except LowerError Unit :=
+  match findState? module stateId with
+  | some state =>
+      match state.kind with
+      | .map _ _ => .ok ()
+      | .scalar => .error { message := s!"state `{stateId}` is scalar storage, not a map" }
+  | none => .error { message := s!"unknown map state `{stateId}`" }
 
 mutual
   partial def lowerExpr (module : Module) : Expr → Except LowerError String
@@ -78,12 +110,21 @@ mutual
 
   partial def lowerEffectExpr (module : Module) : Effect → Except LowerError String
     | .storageScalarRead stateId => do
-        if stateExists module stateId then
-          .ok s!"c.{stateId}.get()"
-        else
-          .error { message := s!"unknown scalar state `{stateId}`" }
+        requireScalarState module stateId
+        .ok s!"c.{stateId}.get()"
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
+    | .storageMapContains stateId key => do
+        requireMapState module stateId
+        .ok s!"c.{stateId}.contains({← lowerExpr module key})"
+    | .storageMapGet stateId key => do
+        requireMapState module stateId
+        .ok s!"c.{stateId}.get({← lowerExpr module key})"
+    | .storageMapInsert stateId key value => do
+        requireMapState module stateId
+        .ok s!"c.{stateId}.insert({← lowerExpr module key}, {← lowerExpr module value})"
+    | .storageMapSet _ _ _ =>
+        .error { message := "storage.map.set is a statement effect, not an expression" }
     | .contextRead field =>
         .ok (contextFunction field)
 end
@@ -92,9 +133,18 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
   | .storageScalarRead _ =>
       .error { message := "storage.scalar.read must be used as an expression" }
   | .storageScalarWrite stateId value => do
-      if !stateExists module stateId then
-        .error { message := s!"unknown scalar state `{stateId}`" }
+      requireScalarState module stateId
       .ok #[s!"c.{stateId} = {← lowerExpr module value};"]
+  | .storageMapContains _ _ =>
+      .error { message := "storage.map.contains must be used as an expression" }
+  | .storageMapGet _ _ =>
+      .error { message := "storage.map.get must be used as an expression" }
+  | .storageMapInsert stateId key value => do
+      requireMapState module stateId
+      .ok #[s!"c.{stateId}.insert({← lowerExpr module key}, {← lowerExpr module value});"]
+  | .storageMapSet stateId key value => do
+      requireMapState module stateId
+      .ok #[s!"c.{stateId}.set({← lowerExpr module key}, {← lowerExpr module value});"]
   | .contextRead _ =>
       .error { message := "context.read must be used as an expression" }
 
@@ -103,6 +153,10 @@ def lowerStatement (module : Module) : Statement → Except LowerError (Array St
       .ok #[s!"let {name}: {← valueTypeName type} = {← lowerExpr module value};"]
   | .effect effect =>
       lowerEffectStmt module effect
+  | .assert condition message => do
+      .ok #[s!"assert({← lowerExpr module condition}, {stringLiteral message});"]
+  | .assertEq lhs rhs message => do
+      .ok #[s!"assert_eq({← lowerExpr module lhs}, {← lowerExpr module rhs}, {stringLiteral message});"]
   | .return value => do
       .ok #[s!"return {← lowerExpr module value};"]
 
@@ -133,6 +187,13 @@ def validateState (module : Module) : Except LowerError Unit := do
     | .scalar, .u64 => pure ()
     | .scalar, other =>
         .error { message := s!"state `{state.id}` has unsupported Psy IR v0 type `{other.name}`" }
+    | .map .hash capacity, .hash =>
+        if capacity == 0 then
+          .error { message := s!"map state `{state.id}` must have non-zero capacity" }
+        else
+          pure ()
+    | .map keyType _, valueType =>
+        .error { message := s!"map state `{state.id}` has unsupported Psy IR v0 type Map<{keyType.name}, {valueType.name}>; only Map<Hash, Hash, N> is supported" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.psyDpn module.capabilities with
@@ -170,6 +231,28 @@ def testBody (module : Module) : Except LowerError (Array String) := do
       s!"let right: Hash = [5, 6, 7, 8];",
       s!"assert_eq({refName}::poseidon_hash(), hash(left), \"hash probe matches Poseidon hash\");",
       s!"assert_eq({refName}::poseidon_pair_hash(), hash_two_to_one(left, right), \"pair hash probe matches Poseidon two-to-one hash\");"
+    ]
+  else if module.name == "MapProbe" &&
+    module.state.any (fun state => state.id == "balances") &&
+    module.entrypoints.any (fun entry => entry.name == "map_lifecycle" && entry.params.isEmpty && entry.returns == .hash) &&
+    module.entrypoints.any (fun entry => entry.name == "has_seed_balance" && entry.params.isEmpty && entry.returns == .bool) &&
+    module.entrypoints.any (fun entry => entry.name == "get_seed_balance" && entry.params.isEmpty && entry.returns == .hash) then
+    .ok #[
+      s!"let c = {refName}::new(ContractMetadata::current());",
+      "let key: Hash = [1001, 0, 0, 0];",
+      "let value1: Hash = [55, 66, 77, 88];",
+      s!"assert_eq({refName}::has_seed_balance(), false, \"seed balance starts absent\");",
+      s!"assert_eq({refName}::map_lifecycle(), value1, \"map lifecycle returns the updated value\");",
+      s!"assert_eq({refName}::has_seed_balance(), true, \"seed balance exists after lifecycle\");",
+      s!"assert_eq({refName}::get_seed_balance(), value1, \"seed getter reads the lifecycle value\");",
+      "assert_eq(c.before, 111, \"map lifecycle preserves before field\");",
+      "assert_eq(c.after, 222, \"map lifecycle preserves after field\");",
+      "assert_eq(c.balances.contains(key), true, \"raw map contains follows generated entrypoint\");"
+    ]
+  else if module.name == "AssertProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "checked_sum" && entry.params.size == 2 && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::checked_sum(5, 7), 12, \"checked_sum returns the asserted value\");"
     ]
   else
     .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }

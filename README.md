@@ -107,6 +107,23 @@ lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
 scripts/psy/hash-smoke.sh
 ```
 
+Validate the Psy/DPN map fixture, which exercises fixed-capacity
+`Map<Hash, Hash, N>` storage through Psy `contains`, `get`, `insert`, and
+`set`:
+
+```sh
+lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
+scripts/psy/map-smoke.sh
+```
+
+Validate the Psy/DPN assertion fixture, which exercises IR-level `assert` and
+`assert_eq` lowering:
+
+```sh
+lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
+scripts/psy/assert-smoke.sh
+```
+
 Each Psy smoke writes and validates `proof-forge-artifact.json` next to the
 Dargo outputs.
 

@@ -12,6 +12,7 @@ inductive Capability where
   | crosscallInvoke
   | envBlock
   | cryptoHash
+  | assertions
   | accountExplicit
   | storagePda
   | crosscallCpi
@@ -28,6 +29,7 @@ def Capability.id : Capability → String
   | .crosscallInvoke => "crosscall.invoke"
   | .envBlock => "env.block"
   | .cryptoHash => "crypto.hash"
+  | .assertions => "assertions.check"
   | .accountExplicit => "account.explicit"
   | .storagePda => "storage.pda"
   | .crosscallCpi => "crosscall.cpi"
@@ -46,4 +48,3 @@ def CapabilitySet.ids (set : CapabilitySet) : Array String :=
   set.map Capability.id
 
 end ProofForge.Target
-

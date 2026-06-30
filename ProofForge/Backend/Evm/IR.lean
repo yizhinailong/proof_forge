@@ -63,6 +63,14 @@ mutual
         .ok (Lean.Compiler.Yul.builtin "sload" #[slotExpr slot])
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
+    | .storageMapContains _ _ =>
+        .error { message := "storage.map.contains is not supported by IR EVM v0" }
+    | .storageMapGet _ _ =>
+        .error { message := "storage.map.get is not supported by IR EVM v0" }
+    | .storageMapInsert _ _ _ =>
+        .error { message := "storage.map.insert is not supported by IR EVM v0" }
+    | .storageMapSet _ _ _ =>
+        .error { message := "storage.map.set is not supported by IR EVM v0" }
     | .contextRead field =>
         .error { message := s!"context field `{field.name}` is not supported by IR EVM v0" }
 end
@@ -74,6 +82,14 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       let some slot := stateSlot? module stateId
         | .error { message := s!"unknown scalar state `{stateId}`" }
       .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module value]))
+  | .storageMapContains _ _ =>
+      .error { message := "storage.map.contains must be used as an expression, but IR EVM v0 does not support storage maps" }
+  | .storageMapGet _ _ =>
+      .error { message := "storage.map.get must be used as an expression, but IR EVM v0 does not support storage maps" }
+  | .storageMapInsert _ _ _ =>
+      .error { message := "storage.map.insert is not supported by IR EVM v0" }
+  | .storageMapSet _ _ _ =>
+      .error { message := "storage.map.set is not supported by IR EVM v0" }
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
 
@@ -86,6 +102,10 @@ def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerE
       .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
   | .effect effect =>
       lowerEffectStmt module effect
+  | .assert _ _ =>
+      .error { message := "assert statements are not supported by IR EVM v0" }
+  | .assertEq _ _ _ =>
+      .error { message := "assert_eq statements are not supported by IR EVM v0" }
   | .return value => do
       .ok (.assignment #["result"] (← lowerExpr module value))
 
@@ -157,6 +177,8 @@ def validateState (module : Module) : Except LowerError Unit := do
     | .scalar, .u64 => pure ()
     | .scalar, other =>
         .error { message := s!"state `{state.id}` has unsupported EVM IR v0 type `{other.name}`" }
+    | .map _ _, _ =>
+        .error { message := s!"state `{state.id}` is storage.map; IR EVM v0 does not lower portable map storage yet" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.evm module.capabilities with

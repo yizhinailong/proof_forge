@@ -10,9 +10,9 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
-ContextProbe, and HashProbe fixtures. The target is not production-ready and
-does not yet cover maps, deploy JSON, live Psy node/prover deployment, or broad
-Lean-to-IR extraction.
+ContextProbe, HashProbe, and MapProbe fixtures. The target is not
+production-ready and does not yet cover bounded loops, arrays, structs, deploy
+JSON, live Psy node/prover deployment, or broad Lean-to-IR extraction.
 
 ## Summary
 
@@ -267,6 +267,7 @@ Initial mapping:
 | `crosscall.invoke` | `invoke_sync` / `invoke_deferred` where valid |
 | `env.block` | checkpoint/block-like context reads where valid |
 | `crypto.hash` | Psy hash intrinsics/prelude |
+| `assertions.check` | Psy `assert(...)` and `assert_eq(...)` statements in generated methods |
 | `zk.circuit` | every contract method lowers to a circuit definition |
 | `zk.proof` | proof/deploy/test integration track; not a generic runtime effect |
 
@@ -370,6 +371,49 @@ four-Felt hash literals, typed `let` bindings, `hash`, and `hash_two_to_one`
 expressions. Psy sourcegen lowers those nodes to `Hash`, `[a, b, c, d]`,
 `hash(data)`, and `hash_two_to_one(left, right)`.
 
+Current MapProbe output layout:
+
+```text
+build/psy/
+  MapProbe.psy
+  dargo-map/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_map.json
+    target/MapProbe.json
+    target/map-execute.log
+    target/proof-forge-artifact.json
+```
+
+`MapProbe` follows upstream `tests/map_test.psy`,
+`tests/map_chain_insert_set_get_test.psy`, and
+`tests/map_adjacent_fields_preserve_test.psy`. The portable IR now has
+fixed-capacity map state and map effects for `contains`, `get`, `insert`, and
+`set`. Psy sourcegen lowers the supported storage shape to
+`Map<Hash, Hash, Nu32>` and emits `c.map.contains(key)`, `c.map.get(key)`,
+`c.map.insert(key, value)`, and `c.map.set(key, value)`. The current Psy v0
+lowerer deliberately accepts only `Map<Hash, Hash, N>` and rejects other map
+key/value shapes with an explicit diagnostic.
+
+Current AssertProbe output layout:
+
+```text
+build/psy/
+  AssertProbe.psy
+  dargo-assert/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_assert.json
+    target/AssertProbe.json
+    target/assert-execute.log
+    target/proof-forge-artifact.json
+```
+
+`AssertProbe` follows upstream precompile and test idioms that use
+`assert(condition, "message")` and `assert_eq(left, right, "message")`. The
+portable IR now has statement-level assertion nodes, and Psy sourcegen lowers
+them into contract method bodies rather than only generated tests.
+
 ## Smoke Test Strategy
 
 Experimental smoke does not require a live Psy network.
@@ -418,7 +462,33 @@ It verifies both upstream hash idioms under Dargo local execution:
 The script emits and validates
 `build/psy/dargo-hash/target/proof-forge-artifact.json`.
 
-All three Psy smoke scripts run
+The same validation shape is also implemented for `MapProbe`:
+
+```sh
+scripts/psy/map-smoke.sh
+```
+
+It verifies fixed-capacity Psy map storage under Dargo local execution:
+
+- `map_lifecycle`: `result_vm: [55, 66, 77, 88]`
+
+The script emits and validates
+`build/psy/dargo-map/target/proof-forge-artifact.json`.
+
+The same validation shape is also implemented for `AssertProbe`:
+
+```sh
+scripts/psy/assert-smoke.sh
+```
+
+It verifies IR-level assertions under Dargo local execution:
+
+- `checked_sum(5,7)`: `result_vm: [12]`
+
+The script emits and validates
+`build/psy/dargo-assert/target/proof-forge-artifact.json`.
+
+All Psy smoke scripts run
 `scripts/psy/validate-artifact-metadata.py` after metadata generation. The
 validator checks schema version, target id, target family, artifact kind,
 fixture id, non-empty capabilities, artifact paths, byte sizes, SHA-256 hashes,
@@ -432,7 +502,7 @@ to an Ethereum-style local execution smoke than a pure compiler check.
 Second smoke:
 
 1. Compare high-level Counter behavior with the EVM shared scenario.
-2. Add map/storage-map coverage from `psy-compiler/tests` and
+2. Add bounded-loop, array, and struct coverage from `psy-compiler/tests` and
    `psy-precompiles`.
 
 Deployment smoke:
@@ -466,9 +536,16 @@ Deployment smoke:
 - Done: emit `proof-forge-artifact.json` metadata from all Psy smoke scripts.
 - Done: validate Psy artifact metadata and record used capabilities from the
   smoke scripts.
+- Done: add `MapProbe` with fixed-capacity `Map<Hash, Hash, N>` storage and
+  `contains`, `get`, `insert`, and `set` lowering aligned with upstream Psy
+  map tests.
+- Done: add `scripts/psy/map-smoke.sh` with the same Dargo validation shape.
+- Done: add `AssertProbe` with IR-level `assert` and `assert_eq` statements
+  aligned with upstream Psy assertion idioms.
+- Done: add `scripts/psy/assert-smoke.sh` with the same Dargo validation shape.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
-- Remaining: add map/storage-map and bounded loop coverage from the upstream
+- Remaining: add bounded-loop, array, and struct coverage from the upstream
   syntax corpus.
 
 ### Phase C: Metadata and Scenario Parity
@@ -505,8 +582,13 @@ Deployment smoke:
   steps.
 - Generated Counter, ContextProbe, and HashProbe `.psy` packages compile with
   `dargo compile` on a machine with the Psy toolchain.
+- Generated MapProbe `.psy` package compiles with `dargo compile` on a machine
+  with the Psy toolchain.
+- Generated AssertProbe `.psy` package compiles with `dargo compile` on a
+  machine with the Psy toolchain.
 - Dargo execution proves the expected Counter lifecycle, context-read result,
-  and deterministic hash outputs.
+  deterministic hash outputs, map lifecycle output, and assertion-protected
+  checked sum output.
 - Artifact metadata records:
   - target id `psy-dpn`
   - target family and artifact kind
