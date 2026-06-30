@@ -69,6 +69,16 @@ mutual
         .ok (Lean.Compiler.Yul.builtin "mod" #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .pow lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "exp" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .bitAnd lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "and" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .bitOr lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "or" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .bitXor lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "xor" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .shiftLeft lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "shl" #[← lowerExpr module rhs, ← lowerExpr module lhs])
+    | .shiftRight lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "shr" #[← lowerExpr module rhs, ← lowerExpr module lhs])
     | .cast value _ => do
         lowerExpr module value
     | .eq lhs rhs => do

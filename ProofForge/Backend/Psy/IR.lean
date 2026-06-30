@@ -38,6 +38,8 @@ def testFunctionName (module : Module) : String :=
     "test_arithmetic_probe_fixture"
   else if module.name == "U32ArithmeticProbe" then
     "test_u32_arithmetic_probe_fixture"
+  else if module.name == "BitwiseProbe" then
+    "test_bitwise_probe_fixture"
   else if module.name == "ExpressionPredicateProbe" then
     "test_expression_predicate_probe_fixture"
   else if module.name == "NestedAggregateProbe" then
@@ -450,6 +452,26 @@ mutual
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
         ensureSameNumericType "exponentiation" lhsType rhsType
+    | .bitAnd lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureSameNumericType "bitwise and" lhsType rhsType
+    | .bitOr lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureSameNumericType "bitwise or" lhsType rhsType
+    | .bitXor lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureSameNumericType "bitwise xor" lhsType rhsType
+    | .shiftLeft lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureSameNumericType "shift-left" lhsType rhsType
+    | .shiftRight lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureSameNumericType "shift-right" lhsType rhsType
     | .cast value targetType => do
         let sourceType ← inferExprType module env value
         ensureCastType sourceType targetType
@@ -741,6 +763,16 @@ mutual
         .ok s!"{← lowerExprOperand module lhs} % {← lowerExprOperand module rhs}"
     | .pow lhs rhs => do
         .ok s!"{← lowerExprOperand module lhs} ** {← lowerExprOperand module rhs}"
+    | .bitAnd lhs rhs => do
+        .ok s!"{← lowerExprOperand module lhs} & {← lowerExprOperand module rhs}"
+    | .bitOr lhs rhs => do
+        .ok s!"{← lowerExprOperand module lhs} | {← lowerExprOperand module rhs}"
+    | .bitXor lhs rhs => do
+        .ok s!"{← lowerExprOperand module lhs} ^ {← lowerExprOperand module rhs}"
+    | .shiftLeft lhs rhs => do
+        .ok s!"{← lowerExprOperand module lhs} << {← lowerExprOperand module rhs}"
+    | .shiftRight lhs rhs => do
+        .ok s!"{← lowerExprOperand module lhs} >> {← lowerExprOperand module rhs}"
     | .cast value targetType => do
         .ok s!"{← lowerExprOperand module value} as {← valueTypeName targetType}"
     | .eq lhs rhs => do
@@ -1064,6 +1096,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "u32_arithmetic" && entry.params.size == 2 && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::u32_arithmetic(2u32, 3u32), 1, \"u32 arithmetic follows upstream u32 test shape\");"
+    ]
+  else if module.name == "BitwiseProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "bitwise_mix" && entry.params.isEmpty && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::bitwise_mix(), 16, \"bitwise expressions follow upstream opcode_test shape\");"
     ]
   else if module.name == "ExpressionPredicateProbe" &&
     module.entrypoints.any (fun entry => entry.name == "predicate_sum" && entry.params.isEmpty && entry.returns == .u64) then

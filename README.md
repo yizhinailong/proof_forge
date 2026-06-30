@@ -115,6 +115,14 @@ lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProb
 scripts/psy/u32-arithmetic-smoke.sh
 ```
 
+Validate the Psy/DPN bitwise fixture, which exercises Felt and `u32`
+`&`, `|`, `^`, `<<`, and `>>` lowering:
+
+```sh
+lake env proof-forge --emit-bitwise-ir-psy -o build/psy/BitwiseProbe.psy
+scripts/psy/bitwise-smoke.sh
+```
+
 Validate the Psy/DPN conditional fixture, which exercises statement-level
 `if/else` lowering:
 

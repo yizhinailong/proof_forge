@@ -350,6 +350,22 @@ def unsupportedCastModule : Module := {
   ]]
 }
 
+def bitwiseTypeMismatchModule : Module := {
+  name := "BadBitwiseTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "x" .u32 (.bitAnd (.literal (.bool true)) (.literal (.u32 1)))
+  ]]
+}
+
+def shiftTypeMismatchModule : Module := {
+  name := "BadShiftTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "x" .u32 (.shiftLeft (.literal (.u32 1)) (.literal (.u64 1)))
+  ]]
+}
+
 def booleanOperatorTypeMismatchModule : Module := {
   name := "BadBooleanOperatorTypeMismatch"
   state := #[markerState]
@@ -528,6 +544,16 @@ def cases : Array (String × Module × String) := #[
     "unsupported cast",
     unsupportedCastModule,
     "cast from `U32` to `Hash` is not supported by Psy IR v0"
+  ),
+  (
+    "bitwise type mismatch",
+    bitwiseTypeMismatchModule,
+    "bitwise and left operand expected numeric `U32` or `U64`, got `Bool`"
+  ),
+  (
+    "shift type mismatch",
+    shiftTypeMismatchModule,
+    "shift-left right operand expected `U32`, got `U64`"
   ),
   (
     "boolean operator type mismatch",

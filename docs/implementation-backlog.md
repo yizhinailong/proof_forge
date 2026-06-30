@@ -244,8 +244,12 @@ Tasks:
   `hash_two_to_one`, aligned with upstream Psy hash tests.
 - Done: validate Psy artifact metadata, including hashes, byte sizes,
   capabilities, validation flags, and expected execution results.
-- Add map/storage-map and bounded-loop coverage from the upstream
-  `psy-compiler/tests` corpus.
+- Done: add map/storage-map, assertions, bounded-loop, array, struct,
+  aggregate ABI, nested aggregate, storage nested aggregate, U32 arithmetic,
+  and bitwise coverage from the upstream `psy-compiler/tests` and
+  `psy-precompiles` corpus.
+- Add storage-heavy U32/Hash limb packing, map storage path, and deploy JSON
+  coverage from the upstream `psy-precompiles` corpus.
 - Record Dargo/Psy compiler version or commit once the toolchain exposes a
   stable value.
 

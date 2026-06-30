@@ -17,6 +17,65 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy BitwiseProbe Native Bitwise Expressions
+
+Commit: feature commit for Psy bitwise expression coverage
+
+Summary:
+
+- Added portable IR expression nodes for `&`, `|`, `^`, `<<`, and `>>`.
+- Extended Psy source generation for Felt-backed `U64` and `U32` bitwise
+  expressions, with same-width numeric validation before `.psy` generation.
+- Added EVM IR lowering for the same pure bitwise/shift nodes through Yul
+  `and`, `or`, `xor`, `shl`, and `shr` builtins.
+- Added explicit diagnostics for malformed bitwise and shift operands.
+- Added `ProofForge.IR.Examples.BitwiseProbe`, aligned with upstream
+  `psy-compiler/tests/opcode_test.psy`,
+  `tests/storage_u32_assign_ops_test.psy`, and precompile Merkle path idioms.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-bitwise-ir-psy -o build/psy/BitwiseProbe.psy
+```
+
+- Added `Examples/Psy/BitwiseProbe.golden.psy`.
+- Added `scripts/psy/bitwise-smoke.sh`, which generates a temporary Dargo
+  package, runs `dargo test --file`, `dargo compile`, `dargo execute`,
+  `dargo generate-abi`, and validates `proof-forge-artifact.json`.
+- Added CI coverage for the BitwiseProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+scripts/psy/diagnostic-smoke.sh
+lake env proof-forge --emit-bitwise-ir-psy -o build/psy/BitwiseProbe.psy
+diff -u Examples/Psy/BitwiseProbe.golden.psy build/psy/BitwiseProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/bitwise-smoke.sh
+```
+
+Result:
+
+- Generated BitwiseProbe source matches the checked-in golden fixture.
+- `scripts/psy/bitwise-smoke.sh` generated DPN JSON, ABI JSON, execute log,
+  and `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [16]` for `bitwise_mix`.
+- `scripts/psy/diagnostic-smoke.sh` passed all 33 diagnostic cases.
+
+Known limitations:
+
+- Compound assignment operators such as `|=`, `&=`, `^=`, `<<=`, and `>>=`
+  are still represented as explicit assignment plus expression nodes.
+- This does not yet add u32 storage arithmetic probes or map storage paths.
+
+Next step:
+
+- Add storage-heavy U32/Hash limb packing probes from the deposit-tree and
+  mining-rewards precompiles, then decide whether compound assignment sugar
+  belongs in the portable IR or only in sourcegen normalization.
+
 ### Psy U32ArithmeticProbe Native U32 Arithmetic
 
 Commit: feature commit for Psy U32 arithmetic coverage

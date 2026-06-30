@@ -95,6 +95,11 @@ mutual
     | div (lhs rhs : Expr)
     | mod (lhs rhs : Expr)
     | pow (lhs rhs : Expr)
+    | bitAnd (lhs rhs : Expr)
+    | bitOr (lhs rhs : Expr)
+    | bitXor (lhs rhs : Expr)
+    | shiftLeft (lhs rhs : Expr)
+    | shiftRight (lhs rhs : Expr)
     | cast (value : Expr) (targetType : ValueType)
     | eq (lhs rhs : Expr)
     | ne (lhs rhs : Expr)
@@ -196,6 +201,11 @@ mutual
     | .div lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .mod lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .pow lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .bitAnd lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .bitOr lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .bitXor lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .shiftLeft lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .shiftRight lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .cast value targetType => value.capabilities ++ targetType.capabilities
     | .eq lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .ne lhs rhs => lhs.capabilities ++ rhs.capabilities

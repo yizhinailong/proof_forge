@@ -10,15 +10,15 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
-ExpressionPredicateProbe, ArithmeticProbe, U32ArithmeticProbe,
+ExpressionPredicateProbe, ArithmeticProbe, U32ArithmeticProbe, BitwiseProbe,
 ConditionalProbe, ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe,
 ArrayProbe, StructProbe, StructArrayProbe, AbiAggregateProbe, and
 NestedAggregateProbe fixtures. It also has an experimental
 StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
 across `#[ref]` struct fields and storage arrays. The target is not
-production-ready and does not yet cover bitwise operations, else-if sugar, map
-storage paths, deploy JSON, live Psy node/prover deployment, or broad
-Lean-to-IR extraction.
+production-ready and does not yet cover compound assignment operators,
+else-if sugar, map storage paths, deploy JSON, live Psy node/prover deployment,
+or broad Lean-to-IR extraction.
 
 ## Summary
 
@@ -271,7 +271,8 @@ empty structs, invalid bounded loop ranges, storage writes used as expressions,
 storage reads used as statements, invalid assignment targets, invalid storage
 paths, unknown locals, local/array/struct/hash/return type mismatches, immutable
 assignment, missing return statements, malformed arithmetic expressions,
-unsupported casts, malformed if conditions, and branch-local escape.
+unsupported casts, malformed bitwise/shift expressions, malformed if
+conditions, and branch-local escape.
 
 The design philosophy docs reinforce the same boundary: Psy is ZK-native and
 uses symbolic execution. Variables become circuit wires, operations become
@@ -608,8 +609,18 @@ operators remain separate features.
 `tests/u32_test.psy`. It adds first-class portable `U32` values, `Nu32`
 literals, `u32` ABI parameters, `/`, `%`, `**`, mutable assignment, and casts
 such as `z as bool` and `bb as Felt`. Dargo execution validates the same
-`a=2`, `b=3` scenario and returns `result_vm: [1]`. Bitwise shifts, bitwise
-and/or, u32 storage probes, and richer cast matrices remain separate features.
+`a=2`, `b=3` scenario and returns `result_vm: [1]`. U32 storage probes and
+richer cast matrices remain separate features.
+
+`BitwiseProbe` follows upstream bitwise idioms from `tests/opcode_test.psy`,
+`tests/storage_u32_assign_ops_test.psy`, and the Merkle path logic in
+`psy-precompiles/mining_rewards/src/main.psy`. It adds portable IR nodes for
+`&`, `|`, `^`, `<<`, and `>>`, validates same-width numeric operands, and
+lowers both Felt-backed `U64` and `U32` operations to native Psy operators.
+Dargo execution validates `result_vm: [16]` for the combined Felt/U32 probe.
+Compound assignment operators such as `|=`, `&=`, `^=`, `<<=`, and `>>=`
+remain source-sugar features because the portable IR currently represents them
+as explicit assignment plus expression nodes.
 
 `ConditionalProbe` follows upstream conditional idioms from
 `tests/conditional_assert_test.psy`, `tests/for_if_test.psy`, and
@@ -692,6 +703,20 @@ It verifies U32 expression lowering under Dargo local execution:
 
 The script emits and validates
 `build/psy/dargo-u32-arithmetic/target/proof-forge-artifact.json`.
+
+The same validation shape is also implemented for `BitwiseProbe`:
+
+```sh
+scripts/psy/bitwise-smoke.sh
+```
+
+It verifies Felt and U32 bitwise expression lowering under Dargo local
+execution:
+
+- `bitwise_mix`: `result_vm: [16]`
+
+The script emits and validates
+`build/psy/dargo-bitwise/target/proof-forge-artifact.json`.
 
 The same validation shape is also implemented for `ConditionalProbe`:
 
@@ -858,11 +883,11 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts thirty-one explicit diagnostics for malformed or
+It currently asserts thirty-three explicit diagnostics for malformed or
 unsupported Psy IR shapes, including invalid storage paths, expression/body
 type mismatches, malformed equality, malformed comparison, and malformed
-arithmetic, unsupported casts, malformed boolean operators, malformed if conditions, and
-branch-local escape.
+arithmetic, unsupported casts, malformed bitwise/shift expressions, malformed
+boolean operators, malformed if conditions, and branch-local escape.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
 session with a registered user and deployed contract, then executes the method
@@ -872,8 +897,8 @@ to an Ethereum-style local execution smoke than a pure compiler check.
 Second smoke:
 
 1. Compare high-level Counter behavior with the EVM shared scenario.
-2. Add bitwise/cast-heavy storage arithmetic and map-path coverage from
-   `psy-compiler/tests` and `psy-precompiles`.
+2. Add cast-heavy storage arithmetic, compound assignment sugar, and map-path
+   coverage from `psy-compiler/tests` and `psy-precompiles`.
 
 Deployment smoke:
 
@@ -910,6 +935,8 @@ Deployment smoke:
   exponentiation, and casts for the upstream `u32_test.psy` arithmetic shape.
 - Done: add `U32ArithmeticProbe` and `scripts/psy/u32-arithmetic-smoke.sh` with
   the same Dargo validation shape.
+- Done: add portable IR bitwise and shift expressions, `BitwiseProbe`, and
+  `scripts/psy/bitwise-smoke.sh` with the same Dargo validation shape.
 - Done: add `ConditionalProbe` with statement-level `if/else` lowering aligned
   with upstream conditional idioms.
 - Done: add `scripts/psy/conditional-smoke.sh` with the same Dargo validation
