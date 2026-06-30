@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/expression-predicate-execute.log"
 ABI_FILE="$PROJECT_DIR/target/ExpressionPredicateProbe.json"
+DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 EXPRESSION_PREDICATE_RESULT="result_vm: [16]"
 
@@ -65,6 +66,7 @@ TOML
   "$DARGO_BIN" compile --contract-name ExpressionPredicateProbe --method-names predicate_sum
   "$DARGO_BIN" execute --contract-name ExpressionPredicateProbe --method-names predicate_sum | tee "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name ExpressionPredicateProbe --output-dir target --pretty
+  "$DARGO_BIN" compile --contract-name ExpressionPredicateProbe --method-names predicate_sum
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_expression_predicate.json"
@@ -84,6 +86,15 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+"$ROOT/scripts/psy/write-smoke-deploy-manifest.sh" \
+  "$ROOT" \
+  "ExpressionPredicateProbe" \
+  "ExpressionPredicateProbe" \
+  "$PSY_FILE" \
+  "$ARTIFACT" \
+  "$ABI_FILE" \
+  "$DEPLOY_JSON_FILE"
+
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture ExpressionPredicateProbe \
@@ -91,6 +102,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
+  --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "$EXPRESSION_PREDICATE_RESULT" \
@@ -105,4 +117,5 @@ echo "psy-expression-predicate-smoke: wrote $PSY_FILE"
 echo "psy-expression-predicate-smoke: Dargo artifact $ARTIFACT"
 echo "psy-expression-predicate-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-expression-predicate-smoke: Dargo ABI $ABI_FILE"
+echo "psy-expression-predicate-smoke: ProofForge deploy JSON $DEPLOY_JSON_FILE"
 echo "psy-expression-predicate-smoke: ProofForge metadata $METADATA_FILE"

@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/storage-nested-aggregate-execute.log"
 ABI_FILE="$PROJECT_DIR/target/StorageNestedAggregateProbe.json"
+DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 STORAGE_NESTED_AGGREGATE_RESULT="result_vm: [220]"
 
@@ -65,6 +66,7 @@ TOML
   "$DARGO_BIN" compile --contract-name StorageNestedAggregateProbe --method-names storage_nested_lifecycle
   "$DARGO_BIN" execute --contract-name StorageNestedAggregateProbe --method-names storage_nested_lifecycle | tee "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name StorageNestedAggregateProbe --output-dir target --pretty
+  "$DARGO_BIN" compile --contract-name StorageNestedAggregateProbe --method-names storage_nested_lifecycle
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_storage_nested_aggregate.json"
@@ -84,6 +86,15 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+"$ROOT/scripts/psy/write-smoke-deploy-manifest.sh" \
+  "$ROOT" \
+  "StorageNestedAggregateProbe" \
+  "StorageNestedAggregateProbe" \
+  "$PSY_FILE" \
+  "$ARTIFACT" \
+  "$ABI_FILE" \
+  "$DEPLOY_JSON_FILE"
+
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture StorageNestedAggregateProbe \
@@ -91,6 +102,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
+  --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "$STORAGE_NESTED_AGGREGATE_RESULT" \
@@ -108,4 +120,5 @@ echo "psy-storage-nested-aggregate-smoke: wrote $PSY_FILE"
 echo "psy-storage-nested-aggregate-smoke: Dargo artifact $ARTIFACT"
 echo "psy-storage-nested-aggregate-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-storage-nested-aggregate-smoke: Dargo ABI $ABI_FILE"
+echo "psy-storage-nested-aggregate-smoke: ProofForge deploy JSON $DEPLOY_JSON_FILE"
 echo "psy-storage-nested-aggregate-smoke: ProofForge metadata $METADATA_FILE"

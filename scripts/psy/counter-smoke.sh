@@ -87,17 +87,13 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
-python3 "$ROOT/scripts/psy/write-deploy-manifest.py" \
-  --root "$ROOT" \
-  --fixture Counter \
-  --contract-name Counter \
-  --source "$PSY_FILE" \
-  --circuit-json "$ARTIFACT" \
-  --abi-json "$ABI_FILE" \
-  --out "$DEPLOY_JSON_FILE"
-
-python3 "$ROOT/scripts/psy/validate-deploy-manifest.py" \
-  --root "$ROOT" \
+"$ROOT/scripts/psy/write-smoke-deploy-manifest.sh" \
+  "$ROOT" \
+  "Counter" \
+  "Counter" \
+  "$PSY_FILE" \
+  "$ARTIFACT" \
+  "$ABI_FILE" \
   "$DEPLOY_JSON_FILE"
 
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \

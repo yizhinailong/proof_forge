@@ -17,6 +17,68 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Deploy Manifests For All Dargo Smokes
+
+Commit: feature commit for broad Psy deploy manifest coverage
+
+Summary:
+
+- Added `scripts/psy/write-smoke-deploy-manifest.sh` as the shared smoke helper
+  for deploy manifest generation and validation.
+- Updated every Dargo-backed Psy smoke script to write
+  `target/proof-forge-deploy.json`, validate it, and record it as `deployJson`
+  inside `target/proof-forge-artifact.json`.
+- Restored each smoke's deploy-oriented `dargo compile` artifact after
+  `dargo execute` and `dargo generate-abi`, so deploy manifests describe the
+  compile method set rather than an execution trace.
+- Kept `scripts/psy/diagnostic-smoke.sh` separate because it validates
+  pre-codegen diagnostics and does not produce Dargo artifacts.
+- Updated validation docs, target notes, and backlog so the remaining deployment
+  gap is specifically upstream compressed genesis deploy JSON plus local
+  node/prover execution.
+
+Validation run:
+
+```sh
+python3 -m py_compile \
+  scripts/psy/write-deploy-manifest.py \
+  scripts/psy/validate-deploy-manifest.py \
+  scripts/psy/write-artifact-metadata.py \
+  scripts/psy/validate-artifact-metadata.py
+git diff --check
+lake build
+export PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy
+export DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo
+for script in scripts/psy/*-smoke.sh; do
+  case "$script" in
+    scripts/psy/diagnostic-smoke.sh) ;;
+    *) "$script" ;;
+  esac
+done
+scripts/psy/diagnostic-smoke.sh
+```
+
+Result:
+
+- All Dargo-backed Psy smokes generated DPN circuit JSON, ABI JSON, execute
+  logs, `proof-forge-deploy.json`, and `proof-forge-artifact.json`.
+- Artifact metadata validation now checks deploy-manifest file hashes whenever
+  `deployJson` is present.
+- Deploy manifests record the restored compile method set for each fixture.
+- `scripts/psy/diagnostic-smoke.sh` still passes all 35 diagnostic cases.
+
+Known limitations:
+
+- `proof-forge-deploy.json` remains ProofForge-owned metadata, not the upstream
+  compressed genesis deploy JSON consumed by Psy node setup.
+- The local node/prover deployment smoke is still not implemented.
+
+Next step:
+
+- Research whether to vendor or wrap Psy's `gen_deploy_json` path, then add the
+  smallest local node/prover smoke that consumes the resulting deployment
+  package.
+
 ### Psy Counter Deploy Manifest Metadata
 
 Commit: feature commit for Psy Counter deploy manifest coverage

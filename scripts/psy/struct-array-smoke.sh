@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/struct-array-execute.log"
 ABI_FILE="$PROJECT_DIR/target/StructArrayProbe.json"
+DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 STRUCT_ARRAY_LOCAL_RESULT="result_vm: [100]"
 STRUCT_ARRAY_STORAGE_RESULT="result_vm: [102]"
@@ -68,6 +69,7 @@ TOML
   "$DARGO_BIN" execute --contract-name StructArrayProbe --method-names local_struct_array_sum | tee -a "$EXEC_LOG"
   "$DARGO_BIN" execute --contract-name StructArrayProbe --method-names storage_struct_array_lifecycle | tee -a "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name StructArrayProbe --output-dir target --pretty
+  "$DARGO_BIN" compile --contract-name StructArrayProbe --method-names local_struct_array_sum storage_struct_array_lifecycle
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_struct_array.json"
@@ -93,6 +95,15 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+"$ROOT/scripts/psy/write-smoke-deploy-manifest.sh" \
+  "$ROOT" \
+  "StructArrayProbe" \
+  "StructArrayProbe" \
+  "$PSY_FILE" \
+  "$ARTIFACT" \
+  "$ABI_FILE" \
+  "$DEPLOY_JSON_FILE"
+
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture StructArrayProbe \
@@ -100,6 +111,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
+  --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "$STRUCT_ARRAY_LOCAL_RESULT; $STRUCT_ARRAY_STORAGE_RESULT" \
@@ -116,4 +128,5 @@ echo "psy-struct-array-smoke: wrote $PSY_FILE"
 echo "psy-struct-array-smoke: Dargo artifact $ARTIFACT"
 echo "psy-struct-array-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-struct-array-smoke: Dargo ABI $ABI_FILE"
+echo "psy-struct-array-smoke: ProofForge deploy JSON $DEPLOY_JSON_FILE"
 echo "psy-struct-array-smoke: ProofForge metadata $METADATA_FILE"

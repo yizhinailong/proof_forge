@@ -19,7 +19,8 @@ across `#[ref]` struct fields and storage arrays. The target is not
 production-ready and does not yet cover U32 storage arrays, compound
 assignment operators, else-if sugar, map storage paths, upstream compressed
 genesis deploy JSON, live Psy node/prover deployment, or broad Lean-to-IR
-extraction. It does produce a ProofForge deploy manifest for the Counter smoke.
+extraction. It does produce a ProofForge deploy manifest for every
+Dargo-backed Psy smoke fixture.
 
 ## Summary
 
@@ -672,8 +673,8 @@ Preferred first smoke:
 13. Emit `target/proof-forge-artifact.json` with source, circuit JSON, ABI,
     deploy manifest, and execute-log hashes.
 
-This has been run locally with `psyup install 0.1.0` on macOS arm64. The smoke
-produced `build/psy/dargo-counter/target/proof_forge_counter.json` and
+This has been run locally with `psyup install 0.1.0` on macOS arm64. The
+Counter smoke produced `build/psy/dargo-counter/target/proof_forge_counter.json` and
 `build/psy/dargo-counter/target/counter-execute.log`, plus ABI output at
 `build/psy/dargo-counter/target/Counter.json`, a ProofForge deploy manifest at
 `build/psy/dargo-counter/target/proof-forge-deploy.json`, and metadata at
@@ -685,6 +686,13 @@ that form through Rust workspace internals and the current released `dargo`
 does not expose it as a CLI subcommand. Until that boundary is stable, the
 manifest records reproducible deploy inputs and the upstream conversion gap
 explicitly.
+
+Every Dargo-backed Psy smoke script now follows the same deploy-manifest step:
+after behavior validation and ABI generation it restores the deploy-oriented
+`dargo compile` artifact, emits `target/proof-forge-deploy.json`, validates the
+manifest, and records it in `target/proof-forge-artifact.json`. The diagnostic
+smoke is intentionally excluded because it validates pre-codegen rejection
+paths rather than Dargo artifacts.
 
 The same validation shape is implemented for `ContextProbe`:
 
@@ -950,7 +958,8 @@ Second smoke:
 
 Deployment smoke:
 
-1. Done: emit a ProofForge deploy manifest for the Counter DPN compile output.
+1. Done: emit a ProofForge deploy manifest for every Dargo-backed Psy smoke
+   compile output.
 2. Convert `DPNFunctionCircuitDefinition[]` to upstream compressed genesis
    deploy JSON with Psy tooling.
 3. Run against a local Psy node/prover stack when the toolchain is available.
@@ -1050,8 +1059,9 @@ Deployment smoke:
   array nested updates.
 - Done: add `scripts/psy/storage-nested-aggregate-smoke.sh` with the same
   Dargo validation shape.
-- Done: add `proof-forge-deploy.json` generation and validation for the Counter
-  smoke, and record the deploy manifest in `proof-forge-artifact.json`.
+- Done: add `proof-forge-deploy.json` generation and validation for every
+  Dargo-backed Psy smoke, and record the deploy manifest in
+  `proof-forge-artifact.json`.
 - Remaining: add U32 storage arrays and map storage path support only after
   stable Psy idioms are identified, decide whether compound assignment belongs
   in the IR or only in source normalization, then move to upstream genesis
@@ -1066,7 +1076,8 @@ Deployment smoke:
 
 ### Phase D: Deployment Research
 
-- Done: produce a ProofForge deploy manifest for the Counter compile output.
+- Done: produce a ProofForge deploy manifest for every Dargo-backed Psy smoke
+  compile output.
 - Use Psy's upstream genesis deploy JSON conversion when it is available as a
   stable CLI or vendorable library boundary.
 - Document local node/prover setup.

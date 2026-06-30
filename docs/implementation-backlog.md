@@ -250,8 +250,8 @@ Tasks:
   `psy-precompiles` corpus.
 - Done: add U32/Hash limb packing coverage for local arrays and ABI parameters
   from the upstream `psy-precompiles` corpus.
-- Done: emit and validate a ProofForge deploy manifest for the Counter Dargo
-  compile output.
+- Done: emit and validate ProofForge deploy manifests for all Dargo-backed Psy
+  smoke compile outputs.
 - Add U32 storage array and map storage path coverage from the upstream
   `psy-precompiles` corpus.
 - Convert the deploy manifest path to upstream compressed genesis deploy JSON

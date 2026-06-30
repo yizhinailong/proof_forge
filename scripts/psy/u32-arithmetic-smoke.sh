@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/u32-arithmetic-execute.log"
 ABI_FILE="$PROJECT_DIR/target/U32ArithmeticProbe.json"
+DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 U32_ARITHMETIC_RESULT="result_vm: [1]"
 
@@ -65,6 +66,7 @@ TOML
   "$DARGO_BIN" compile --contract-name U32ArithmeticProbe --method-names u32_arithmetic
   "$DARGO_BIN" execute --contract-name U32ArithmeticProbe --method-names u32_arithmetic --parameters 2,3 | tee "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name U32ArithmeticProbe --output-dir target --pretty
+  "$DARGO_BIN" compile --contract-name U32ArithmeticProbe --method-names u32_arithmetic
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_u32_arithmetic.json"
@@ -84,6 +86,15 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+"$ROOT/scripts/psy/write-smoke-deploy-manifest.sh" \
+  "$ROOT" \
+  "U32ArithmeticProbe" \
+  "U32ArithmeticProbe" \
+  "$PSY_FILE" \
+  "$ARTIFACT" \
+  "$ABI_FILE" \
+  "$DEPLOY_JSON_FILE"
+
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture U32ArithmeticProbe \
@@ -91,6 +102,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
+  --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "$U32_ARITHMETIC_RESULT" \
@@ -105,4 +117,5 @@ echo "psy-u32-arithmetic-smoke: wrote $PSY_FILE"
 echo "psy-u32-arithmetic-smoke: Dargo artifact $ARTIFACT"
 echo "psy-u32-arithmetic-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-u32-arithmetic-smoke: Dargo ABI $ABI_FILE"
+echo "psy-u32-arithmetic-smoke: ProofForge deploy JSON $DEPLOY_JSON_FILE"
 echo "psy-u32-arithmetic-smoke: ProofForge metadata $METADATA_FILE"

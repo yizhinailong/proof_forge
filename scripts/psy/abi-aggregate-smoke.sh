@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/abi-aggregate-execute.log"
 ABI_FILE="$PROJECT_DIR/target/AbiAggregateProbe.json"
+DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 ABI_STRUCT_PARAM_RESULT="result_vm: [15]"
 ABI_ARRAY_PARAM_RESULT="result_vm: [6]"
@@ -70,6 +71,7 @@ TOML
   "$DARGO_BIN" execute --contract-name AbiAggregateProbe --method-names sum_array --parameters 1,2,3 | tee -a "$EXEC_LOG"
   "$DARGO_BIN" execute --contract-name AbiAggregateProbe --method-names make_pair --parameters 9,4 | tee -a "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name AbiAggregateProbe --output-dir target --pretty
+  "$DARGO_BIN" compile --contract-name AbiAggregateProbe --method-names sum_pair sum_array make_pair
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_abi_aggregate.json"
@@ -101,6 +103,15 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+"$ROOT/scripts/psy/write-smoke-deploy-manifest.sh" \
+  "$ROOT" \
+  "AbiAggregateProbe" \
+  "AbiAggregateProbe" \
+  "$PSY_FILE" \
+  "$ARTIFACT" \
+  "$ABI_FILE" \
+  "$DEPLOY_JSON_FILE"
+
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture AbiAggregateProbe \
@@ -108,6 +119,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
+  --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "$ABI_STRUCT_PARAM_RESULT; $ABI_ARRAY_PARAM_RESULT; $ABI_STRUCT_RETURN_RESULT" \
@@ -123,4 +135,5 @@ echo "psy-abi-aggregate-smoke: wrote $PSY_FILE"
 echo "psy-abi-aggregate-smoke: Dargo artifact $ARTIFACT"
 echo "psy-abi-aggregate-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-abi-aggregate-smoke: Dargo ABI $ABI_FILE"
+echo "psy-abi-aggregate-smoke: ProofForge deploy JSON $DEPLOY_JSON_FILE"
 echo "psy-abi-aggregate-smoke: ProofForge metadata $METADATA_FILE"

@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/hash-execute.log"
 ABI_FILE="$PROJECT_DIR/target/HashProbe.json"
+DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 HASH_RESULT="result_vm: [16490263548047147048, 1812405431586978162, 16859324901997577793, 7123796541406703579]"
 PAIR_HASH_RESULT="result_vm: [15064728126975588673, 10314245681893968020, 11300930272442645327, 2830815762300183090]"
@@ -68,6 +69,7 @@ TOML
   "$DARGO_BIN" execute --contract-name HashProbe --method-names poseidon_hash | tee -a "$EXEC_LOG"
   "$DARGO_BIN" execute --contract-name HashProbe --method-names poseidon_pair_hash | tee -a "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name HashProbe --output-dir target --pretty
+  "$DARGO_BIN" compile --contract-name HashProbe --method-names poseidon_hash poseidon_pair_hash
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_hash.json"
@@ -93,6 +95,15 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+"$ROOT/scripts/psy/write-smoke-deploy-manifest.sh" \
+  "$ROOT" \
+  "HashProbe" \
+  "HashProbe" \
+  "$PSY_FILE" \
+  "$ARTIFACT" \
+  "$ABI_FILE" \
+  "$DEPLOY_JSON_FILE"
+
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture HashProbe \
@@ -100,6 +111,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
+  --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "$HASH_RESULT; $PAIR_HASH_RESULT" \
@@ -114,4 +126,5 @@ echo "psy-hash-smoke: wrote $PSY_FILE"
 echo "psy-hash-smoke: Dargo artifact $ARTIFACT"
 echo "psy-hash-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-hash-smoke: Dargo ABI $ABI_FILE"
+echo "psy-hash-smoke: ProofForge deploy JSON $DEPLOY_JSON_FILE"
 echo "psy-hash-smoke: ProofForge metadata $METADATA_FILE"

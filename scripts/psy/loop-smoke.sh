@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/loop-execute.log"
 ABI_FILE="$PROJECT_DIR/target/LoopProbe.json"
+DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 LOOP_RESULT="result_vm: [3]"
 
@@ -65,6 +66,7 @@ TOML
   "$DARGO_BIN" compile --contract-name LoopProbe --method-names count_to_three
   "$DARGO_BIN" execute --contract-name LoopProbe --method-names count_to_three | tee "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name LoopProbe --output-dir target --pretty
+  "$DARGO_BIN" compile --contract-name LoopProbe --method-names count_to_three
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_loop.json"
@@ -84,6 +86,15 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+"$ROOT/scripts/psy/write-smoke-deploy-manifest.sh" \
+  "$ROOT" \
+  "LoopProbe" \
+  "LoopProbe" \
+  "$PSY_FILE" \
+  "$ARTIFACT" \
+  "$ABI_FILE" \
+  "$DEPLOY_JSON_FILE"
+
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture LoopProbe \
@@ -91,6 +102,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
+  --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "$LOOP_RESULT" \
@@ -106,4 +118,5 @@ echo "psy-loop-smoke: wrote $PSY_FILE"
 echo "psy-loop-smoke: Dargo artifact $ARTIFACT"
 echo "psy-loop-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-loop-smoke: Dargo ABI $ABI_FILE"
+echo "psy-loop-smoke: ProofForge deploy JSON $DEPLOY_JSON_FILE"
 echo "psy-loop-smoke: ProofForge metadata $METADATA_FILE"

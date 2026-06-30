@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/map-execute.log"
 ABI_FILE="$PROJECT_DIR/target/MapProbe.json"
+DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 MAP_RESULT="result_vm: [55, 66, 77, 88]"
 
@@ -65,6 +66,7 @@ TOML
   "$DARGO_BIN" compile --contract-name MapProbe --method-names map_lifecycle get_seed_balance has_seed_balance upsert_balance set_balance
   "$DARGO_BIN" execute --contract-name MapProbe --method-names map_lifecycle | tee "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name MapProbe --output-dir target --pretty
+  "$DARGO_BIN" compile --contract-name MapProbe --method-names map_lifecycle get_seed_balance has_seed_balance upsert_balance set_balance
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_map.json"
@@ -84,6 +86,15 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+"$ROOT/scripts/psy/write-smoke-deploy-manifest.sh" \
+  "$ROOT" \
+  "MapProbe" \
+  "MapProbe" \
+  "$PSY_FILE" \
+  "$ARTIFACT" \
+  "$ABI_FILE" \
+  "$DEPLOY_JSON_FILE"
+
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture MapProbe \
@@ -91,6 +102,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
+  --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "$MAP_RESULT" \
@@ -105,4 +117,5 @@ echo "psy-map-smoke: wrote $PSY_FILE"
 echo "psy-map-smoke: Dargo artifact $ARTIFACT"
 echo "psy-map-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-map-smoke: Dargo ABI $ABI_FILE"
+echo "psy-map-smoke: ProofForge deploy JSON $DEPLOY_JSON_FILE"
 echo "psy-map-smoke: ProofForge metadata $METADATA_FILE"

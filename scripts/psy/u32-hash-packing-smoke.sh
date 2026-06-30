@@ -13,6 +13,7 @@ DARGO_BIN="${DARGO:-dargo}"
 PSY_HOME="${PSY_HOME:-$HOME/.psy}"
 EXEC_LOG="$PROJECT_DIR/target/u32-hash-packing-execute.log"
 ABI_FILE="$PROJECT_DIR/target/U32HashPackingProbe.json"
+DEPLOY_JSON_FILE="$PROJECT_DIR/target/proof-forge-deploy.json"
 METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
 LITERAL_RESULT="result_vm: [8589934593, 17179869187, 25769803781, 34359738375]"
 PARAM_RESULT="result_vm: [42949672969, 51539607563, 60129542157, 68719476751]"
@@ -68,6 +69,7 @@ TOML
   "$DARGO_BIN" execute --contract-name U32HashPackingProbe --method-names pack_literal | tee -a "$EXEC_LOG"
   "$DARGO_BIN" execute --contract-name U32HashPackingProbe --method-names pack_params --parameters 9,10,11,12,13,14,15,16 | tee -a "$EXEC_LOG"
   "$DARGO_BIN" generate-abi --contract-name U32HashPackingProbe --output-dir target --pretty
+  "$DARGO_BIN" compile --contract-name U32HashPackingProbe --method-names pack_literal pack_params
 )
 
 ARTIFACT="$PROJECT_DIR/target/proof_forge_u32_hash_packing.json"
@@ -93,6 +95,15 @@ if [[ ! -s "$ABI_FILE" ]]; then
   exit 1
 fi
 
+"$ROOT/scripts/psy/write-smoke-deploy-manifest.sh" \
+  "$ROOT" \
+  "U32HashPackingProbe" \
+  "U32HashPackingProbe" \
+  "$PSY_FILE" \
+  "$ARTIFACT" \
+  "$ABI_FILE" \
+  "$DEPLOY_JSON_FILE"
+
 python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --root "$ROOT" \
   --fixture U32HashPackingProbe \
@@ -100,6 +111,7 @@ python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
   --circuit-json "$ARTIFACT" \
   --abi-json "$ABI_FILE" \
   --execute-log "$EXEC_LOG" \
+  --deploy-json "$DEPLOY_JSON_FILE" \
   --out "$METADATA_FILE" \
   --dargo "$DARGO_BIN" \
   --execute-result "$LITERAL_RESULT; $PARAM_RESULT" \
@@ -114,4 +126,5 @@ echo "psy-u32-hash-packing-smoke: wrote $PSY_FILE"
 echo "psy-u32-hash-packing-smoke: Dargo artifact $ARTIFACT"
 echo "psy-u32-hash-packing-smoke: Dargo execute log $EXEC_LOG"
 echo "psy-u32-hash-packing-smoke: Dargo ABI $ABI_FILE"
+echo "psy-u32-hash-packing-smoke: ProofForge deploy JSON $DEPLOY_JSON_FILE"
 echo "psy-u32-hash-packing-smoke: ProofForge metadata $METADATA_FILE"
