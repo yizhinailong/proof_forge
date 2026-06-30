@@ -25,9 +25,12 @@ Lean 业务核心 + 形式化证明
 
 ## 我们已经做了哪些分析
 
-已经做过初步可行性分析，结论写进了英文 RFC：
+已经做过初步可行性分析，结论写进了英文 RFC 与决策记录：
 
 - [RFC 0001: Lean-first multi-chain contract platform](../rfcs/0001-multichain-platform.md)
+- [RFC 0002: Target implementation design](../rfcs/0002-target-implementation-design.md)
+- [Design decisions](../decisions.md)
+- [Portable IR](../portable-ir.md) / [Shared scenario](../shared-scenario.md)
 
 本中文文档是在 RFC 基础上的战略版分析，重点回答：
 
@@ -245,15 +248,27 @@ Move 的世界：
 - 写一个不依赖 EVM 专属能力的 shared contract scenario。
 - EVM backend 从 IR 走通，而不是只从 EVM-specific path 走通。
 
-### Milestone 3：第二 target 跑通
+### Milestone 3：并行第二 target spike（CosmWasm + Solana）
 
-建议第二 target 选 Solana。
+Phase 1 完成后，CosmWasm 与 Solana 可并行推进，不固定先后顺序。详见
+[decisions.md](../decisions.md) 与 [shared-scenario.md](../shared-scenario.md)。
 
 验收标准：
 
-- 同一个 shared scenario 能编译到 EVM 和 Solana。
-- Solana 版本能在 local validator 或成熟本地 runner 上 smoke test。
-- 文档明确哪些 capability 在 Solana 上支持，哪些不支持。
+- 同一个 shared scenario（Counter）能分别编译到 `wasm-cosmwasm` 和
+  `solana-sbpf-linker`。
+- CosmWasm 版本通过 `cosmwasm-check` 并完成 instantiate/increment/query。
+- Solana 版本在 local validator 或 Mollusk 上 smoke test 通过。
+- 文档明确各 target 支持的 capability（见 [capability-registry.md](../capability-registry.md)）。
+
+两个 spike 均通过，Milestone 3 才算完成。
+
+### Milestone 4：Move（Aptos 优先）
+
+验收标准：
+
+- Aptos counter package 从 portable IR 生成并通过 `aptos move test`。
+- Sui object POC 作为后续 slice，不在 Milestone 4 阻塞项内。
 
 如果 Milestone 3 成功，这个愿景就从“概念”进入“高可信原型”。
 
@@ -262,11 +277,10 @@ Move 的世界：
 值得继续投入，但投入顺序要保守：
 
 1. 先把 EVM baseline 做扎实。
-2. 再做 portable IR 和 capability system。
-3. 再选 Solana 做高差异 target。
-4. 然后做 Wasm family。
-5. Move 做研究线，等前面抽象稳定后再落地。
-6. 云平台在至少两个 target 成功后启动。
+2. 再做 portable IR 和 capability system（见 [portable-ir.md](../portable-ir.md)）。
+3. Phase 1 完成后，CosmWasm 与 Solana **并行 spike**（见 [decisions.md](../decisions.md)）。
+4. Move 做 Aptos 优先的 sourcegen POC，Sui 随后。
+5. 云平台在至少两个 target 达到 Experimental 阶段后启动。
 
 ProofForge 的强叙事不是“我们支持很多链”，而是：
 

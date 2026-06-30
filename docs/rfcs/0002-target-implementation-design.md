@@ -1,6 +1,6 @@
 # RFC 0002: Target implementation design
 
-Status: Draft
+Status: Accepted
 
 Date: 2026-06-30
 
@@ -39,54 +39,55 @@ the selected target's capability profile.
 
 ## Proposed Repository Shape
 
-The current repository can evolve toward this layout:
+The current repository can evolve toward this layout (paths marked *planned* are
+not in the repo yet):
 
 ```text
 ProofForge/
-  Target.lean
+  Target.lean                    # planned
   Target/
-    Capability.lean
-    Artifact.lean
-    Registry.lean
+    Capability.lean              # planned
+    Artifact.lean                # planned
+    Registry.lean                # planned
   IR/
-    Contract.lean
-    Type.lean
-    Effect.lean
-    Manifest.lean
+    Contract.lean                # planned — see docs/portable-ir.md
+    Type.lean                    # planned
+    Effect.lean                  # planned
+    Manifest.lean                # planned
   Backend/
     Evm.lean
     Wasm/
-      Near.lean
-      CosmWasm.lean
+      Near.lean                  # planned
+      CosmWasm.lean              # planned
     Solana/
-      SbfLinker.lean
-      SolanaZig.lean
+      SbfLinker.lean             # planned
+      SolanaZig.lean             # planned
     Move/
-      Sui.lean
-      Aptos.lean
+      Sui.lean                   # planned
+      Aptos.lean                 # planned
 runtime/
   zig/
-    lean_rt/
+    lean_rt/                     # planned
     host/
-      near/
-      cosmwasm/
-      solana/
+      near/                      # planned
+      cosmwasm/                  # planned
+      solana/                    # planned
 tools/
-  zigc-near
-  zigc-cosmwasm
-  zigc-solana-sbpf
+  zigc-near                      # planned
+  zigc-cosmwasm                  # planned
+  zigc-solana-sbpf               # planned
 scripts/
   evm/
-  near/
-  cosmwasm/
-  solana/
-  move/
+  near/                          # planned
+  cosmwasm/                      # planned
+  solana/                        # planned
+  move/                          # planned
 Examples/
   Evm/
-  Near/
-  CosmWasm/
-  Solana/
-  Move/
+  Near/                          # planned
+  CosmWasm/                      # planned
+  Solana/                        # planned
+  Move/                          # planned
 ```
 
 This is not a required one-shot refactor. It is a direction for staged work.
@@ -133,6 +134,9 @@ Initial target ids:
 | `move-sui` | Move | Sui Move package | Research/codegen track |
 | `move-aptos` | Move | Aptos Move package | Research/codegen track |
 
+Future research (not in registry until scheduled): `wasm-polkadot` (ink!).
+See [decisions.md](../decisions.md).
+
 ## Capability Matrix
 
 The compiler should use a target capability matrix before lowering. If a
@@ -150,8 +154,8 @@ fail with a precise diagnostic.
 | Dynamic map storage | mapping/keccak slot | KV prefixes | KV prefixes | account-owned data or PDAs | dynamic fields/tables | table resources |
 | Contract deployment package | bytecode | Wasm | Wasm | ELF `.so` | Move package | Move package |
 
-This matrix is intentionally semantic. Backends can implement the same
-capability through very different mechanics.
+Capability ids are canonical in [capability-registry.md](../capability-registry.md).
+The semantic matrix below maps portable meaning to target mechanics.
 
 ## Artifact Metadata
 
@@ -175,7 +179,7 @@ Initial schema:
   "capabilities": [
     "storage.scalar",
     "caller.sender",
-    "events"
+    "events.emit"
   ],
   "artifacts": [
     {
@@ -186,8 +190,8 @@ Initial schema:
   ],
   "toolchain": {
     "proofForge": "0.1.0",
-    "lean": "4.3.0",
-    "zig": "0.15.2",
+    "lean": "4.31.0",
+    "zig": "0.15.x",
     "external": {
       "cosmwasm-check": "..."
     }
@@ -212,10 +216,10 @@ The target-oriented CLI should eventually expose:
 
 ```sh
 proof-forge build --target evm --out build/evm Examples/Evm/Contracts/Counter.lean
-proof-forge build --target wasm-near --out build/near Examples/Near/Counter.lean
-proof-forge build --target wasm-cosmwasm --out build/cosmwasm Examples/CosmWasm/Counter.lean
-proof-forge build --target solana-sbpf-linker --out build/solana Examples/Solana/Counter.lean
-proof-forge build --target move-sui --out build/sui Examples/Move/Counter.lean
+proof-forge build --target wasm-near --out build/near Examples/Near/Counter.lean          # planned
+proof-forge build --target wasm-cosmwasm --out build/cosmwasm Examples/CosmWasm/Counter.lean  # planned
+proof-forge build --target solana-sbpf-linker --out build/solana Examples/Solana/Counter.lean  # planned
+proof-forge build --target move-aptos --out build/aptos Examples/Move/Aptos/Counter/       # planned
 proof-forge test --target evm
 proof-forge test --target solana-sbpf-linker
 ```
@@ -304,29 +308,8 @@ The entrypoint adapter should use the CosmWasm region-pointer ABI. The first
 implementation should keep messages JSON-backed to avoid adding a full schema
 compiler before the backend exists.
 
-Lean SDK sketch:
-
-```lean
-namespace CosmWasm
-
-structure Env where
-  blockHeight : UInt64
-  blockTimeNanos : UInt64
-  contractAddress : String
-
-structure MessageInfo where
-  sender : String
-  fundsJson : String
-
-opaque storageRead : String -> IO (Option String)
-opaque storageWrite : String -> String -> IO Unit
-opaque storageRemove : String -> IO Unit
-opaque valueReturn : String -> IO Unit
-opaque logAttribute : String -> String -> IO Unit
-opaque queryChain : String -> IO String
-
-end CosmWasm
-```
+**Authoritative SDK and spike sketch:** [targets/wasm-family.md](../targets/wasm-family.md)
+(Counter spike section). Do not duplicate SDK definitions here.
 
 Zig bridge sketch:
 
@@ -391,7 +374,9 @@ Required Solana adapter pieces:
 - Instruction dispatch metadata, replacing NEAR-style method exports.
 - Explicit account schemas for each entrypoint.
 
-Solana method manifest sketch:
+Solana method manifest sketch (format: TOML v0, subject to change — full
+example with account `index` fields in
+[targets/solana-sbf.md](../targets/solana-sbf.md)):
 
 ```toml
 [[instruction]]
@@ -399,8 +384,8 @@ name = "increment"
 tag = 1
 handler = "l_Counter_increment"
 accounts = [
-  { name = "payer", signer = true, writable = true },
-  { name = "counter", signer = false, writable = true, owner = "program" }
+  { name = "payer", index = 0, signer = true, writable = true },
+  { name = "counter", index = 1, signer = false, writable = true, owner = "program" }
 ]
 ```
 
@@ -518,40 +503,42 @@ First Aptos POC:
 - `increment(account: &signer)`
 - `get(addr: address): u64`
 
+Sui object POC follows in a separate slice after Aptos (see
+[decisions.md](../decisions.md)).
+
 ## Implementation Phases
 
-### Phase 1: Target registry and metadata
+Aligned with [RFC 0001](0001-multichain-platform.md) and
+[decisions.md](../decisions.md):
 
-- Add target ids and capability sets.
+### Phase 1: Target registry, portable IR, metadata
+
+- Add target ids and capability sets ([capability-registry.md](../capability-registry.md)).
+- Implement portable IR per [portable-ir.md](../portable-ir.md).
+- Define Counter [shared scenario](../shared-scenario.md).
 - Add artifact metadata schema.
-- Add docs and CLI shape.
 - Keep current EVM command working.
 
-### Phase 2: EVM metadata hardening
+### Phase 2: Parallel spikes (CosmWasm + Solana)
+
+- Wasm-host extraction and `wasm-cosmwasm` Counter spike.
+- `solana-sbpf-linker` Counter spike with instruction manifest.
+- Both depend on Phase 1 completion; may run in parallel.
+
+### Phase 3: EVM hardening (ongoing)
 
 - Emit `proof-forge-artifact.json` for EVM builds.
-- Add target id to generated metadata.
-- Add golden output tests for core EVM examples.
+- Golden output tests for core EVM examples.
 
-### Phase 3: Wasm-host extraction
+### Phase 4: Move sourcegen (Aptos first)
 
-- Port NEAR runtime lessons into ProofForge docs and structure.
-- Design target-selectable runtime bridge modules.
-- Add `wasm-cosmwasm` spike with `allocate/deallocate` and one entrypoint.
+- Restricted Move-compatible IR subset.
+- Aptos counter package; Sui object POC as follow-up.
 
-### Phase 4: Solana sBPF smoke
+### Phase 5: Cross-target scenario hardening and cloud prep
 
-- Add `zigc-solana-sbpf` spike using `bpfel-freestanding` and `sbpf-linker`.
-- Generate a minimal `entrypoint`.
-- Verify whether the Lean Zig runtime can link under sBPF constraints.
-- If it fails, define a restricted Solana runtime subset before expanding SDK.
-
-### Phase 5: Move sourcegen POC
-
-- Define a restricted Move-compatible IR subset.
-- Generate Sui counter package.
-- Generate Aptos counter package.
-- Compare which Move target should be promoted first.
+- Shared scenario tests across multiple targets.
+- Cloud platform design after two+ Experimental targets.
 
 ## Open Engineering Risks
 
@@ -562,22 +549,21 @@ First Aptos POC:
 - A portable IR that is too close to EVM will fail on Solana and Move.
 - A portable IR that is too generic will become unusable for real contracts.
 
-## Immediate Next Decisions
+## Settled Decisions
 
-- Choose whether target registry work should land before the CosmWasm spike.
-- Choose `solana-sbpf-linker` as the primary Solana path or keep both paths
-  active until the first Lean runtime smoke.
-- Decide whether Move POC starts with Sui or Aptos. Aptos is likely simpler for
-  storage; Sui is strategically important because its object model is more
-  different and tests the abstraction harder.
+See [decisions.md](../decisions.md) for the decision log. Key items:
+
+- Phase 1 before non-EVM spikes.
+- CosmWasm and Solana spikes in parallel after Phase 1.
+- `solana-sbpf-linker` as primary Solana path; `solana-zig-fork` as fallback.
+- Aptos-first Move POC; Sui follows.
 
 ## Research References
 
 - EVM baseline in this repository: `ProofForge.Compiler.LCNF.EmitYul`,
   `ProofForge.Evm`, `scripts/evm/foundry-smoke.sh`.
-- NEAR reference in local Lean fork:
-  `/Users/davirian/dev/active/lean4-zig-compiler/src/Lean/Near.lean`,
-  `tools/zigc-near`, and `src/runtime/zig/host/near`.
+- NEAR reference in local Lean fork (lean4-zig-compiler): `Lean.Near.lean`,
+  `tools/zigc-near`, `src/runtime/zig/host/near`.
 - Solana fork-target reference:
   `https://github.com/DaviRain-Su/solana-sdk-mono.git`.
 - Solana stock-Zig reference:

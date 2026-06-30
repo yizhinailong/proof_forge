@@ -3,7 +3,10 @@
 This directory is a self-contained example repository for writing EVM smart
 contracts in Lean and compiling them through EmitYul.
 
-It demonstrates the `ProofForge.Evm` SDK surface in `src/Lean/Evm.lean`:
+It demonstrates the `ProofForge.Evm` SDK in [`ProofForge/Evm.lean`](../../ProofForge/Evm.lean).
+Import the module as `ProofForge.Evm` and use the `Lean.Evm` namespace (`open Lean.Evm`).
+
+See [docs/targets/evm.md](../../docs/targets/evm.md) for the canonical source on CLI modes, `.evm-methods` sidecar format, capability mapping, and known limits.
 
 - `Counter.lean` uses `Storage.load`/`store` for a simple counter with
   `get`/`set`/`increment`/`decrement` methods.

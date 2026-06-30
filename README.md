@@ -12,11 +12,13 @@ See [RFC 0001](docs/rfcs/0001-multichain-platform.md) for the multi-chain
 architecture and roadmap.
 See [RFC 0002](docs/rfcs/0002-target-implementation-design.md) for target
 profiles, backend implementation details, and proposed build pipelines.
+See [docs/INDEX.md](docs/INDEX.md) for the full documentation map.
 
 中文分析文档：
 
 - [ProofForge 多链愿景可行性分析](docs/zh/feasibility-analysis.md)
 - [ProofForge 多链技术实现方案](docs/zh/technical-implementation-plan.md)
+- [ProofForge 多链方案 Review 清单](docs/zh/review-checklist.md)
 
 ## Current Implementation
 
@@ -42,7 +44,14 @@ lake build
 Compile the example:
 
 ```sh
-lake env proof-forge --root . -o build/counter.yul Examples/Counter.lean
+lake env proof-forge --evm-bytecode --root . --module contract \
+  -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
+```
+
+For Yul-only output:
+
+```sh
+lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean
 ```
 
 Validate the generated Yul if `solc` is installed:
@@ -75,6 +84,21 @@ scripts/evm/foundry-smoke.sh
 The smoke runner uses Forge's local EVM test runner and `vm.etch` to execute
 the generated runtime bytecode.
 
+## Development Docs
+
+- [Development standards](docs/development-standards.md)
+- [Validation gates](docs/validation-gates.md)
+- [EVM target notes](docs/targets/evm.md)
+- [Capability registry](docs/capability-registry.md)
+
+## Module naming
+
+- **Lake module:** `ProofForge.Evm` (import in contract files).
+- **Lean namespace:** `Lean.Evm` (use via `open Lean.Evm` in examples).
+
+This split comes from the Lean fork migration; new code should keep both names
+until a rename is scheduled.
+
 ## Platform Direction
 
 ProofForge uses a portable core plus capabilities model:
@@ -99,7 +123,15 @@ Future CLI direction:
 
 ```sh
 proof-forge build --target evm
-proof-forge build --target solana-sbf
-proof-forge build --target wasm-near
-proof-forge build --target move-sui
+proof-forge build --target wasm-near        # planned reference target
+proof-forge build --target wasm-cosmwasm    # planned first new Wasm spike
+proof-forge build --target solana-sbpf-linker
+proof-forge build --target move-aptos       # planned first Move POC
+proof-forge build --target move-sui         # planned follow-up Move target
 ```
+
+`proof-forge build --target ...` is planned; the implemented command remains
+`proof-forge --evm-bytecode`.
+
+Canonical target ids: [docs/decisions.md](docs/decisions.md). The filename
+`docs/targets/solana-sbf.md` is a historical alias for the Solana target notes.

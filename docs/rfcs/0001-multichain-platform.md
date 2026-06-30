@@ -1,6 +1,6 @@
 # RFC 0001: Lean-first multi-chain contract platform
 
-Status: Draft
+Status: Accepted
 
 Date: 2026-06-30
 
@@ -150,13 +150,15 @@ interface:
 
 ```sh
 proof-forge build --target evm --out build/evm
-proof-forge build --target solana-sbf --out build/solana
+proof-forge build --target solana-sbpf-linker --out build/solana
 proof-forge build --target wasm-near --out build/near
 proof-forge build --target wasm-cosmwasm --out build/cosmwasm
-proof-forge build --target wasm-polkadot --out build/polkadot
 proof-forge build --target move-sui --out build/sui
 proof-forge build --target move-aptos --out build/aptos
 ```
+
+Polkadot/ink-style contracts (`wasm-polkadot`) remain research-only until a
+target profile and spike are scheduled. See [decisions.md](../decisions.md).
 
 The current `proof-forge --evm-bytecode` mode remains the EVM baseline until
 the target-oriented `build` command exists.
@@ -187,29 +189,40 @@ Status: implemented in this repository.
 
 - Introduce a target registry and target identifiers.
 - Split EVM-specific SDK calls from portable contract capabilities.
-- Define the portable contract IR and artifact metadata.
-- Add compile-time errors for unsupported target capabilities.
+- Define the portable contract IR ([spec](../portable-ir.md)) and artifact
+  metadata.
+- Add compile-time errors for unsupported target capabilities ([registry](../capability-registry.md)).
+- Define the Counter [shared scenario](../shared-scenario.md).
 
-### Phase 2: Solana/sBPF prototype
+### Phase 2: Parallel target spikes (CosmWasm + Solana)
 
-- Map portable entrypoints to instruction dispatch.
-- Model accounts explicitly in method signatures or target adapters.
-- Produce a minimal sBPF artifact and run it under a Solana local validator.
-- Validate one shared contract scenario against both EVM and Solana.
+Requires Phase 1 complete. CosmWasm and Solana spikes may proceed in parallel.
 
-### Phase 3: Wasm family
+**CosmWasm (`wasm-cosmwasm`):**
 
-- Add a Wasm lowering path shared by NEAR, CosmWasm, and Polkadot/ink-style
-  adapters where possible.
-- Keep host ABI, event, storage, and deployment packaging chain-specific.
-- Add one smoke test per Wasm family adapter.
+- Wasm-host adapter with region ABI and JSON messages.
+- Counter smoke through `cosmwasm-check`.
 
-### Phase 4: Move family
+**Solana (`solana-sbpf-linker`):**
 
-- Research whether generated Move source, direct Move bytecode, or a hybrid
-  adapter gives the safest first implementation.
+- Map portable entrypoints to instruction dispatch with explicit accounts.
+- Produce a minimal sBPF artifact via stock Zig + `sbpf-linker`.
+- Run under Mollusk or Solana local validator.
+
+Both spikes use the same portable IR Counter module. See
+[decisions.md](../decisions.md).
+
+### Phase 3: Move family
+
+- Generate Move source from restricted portable IR (Aptos POC first, then Sui).
 - Model Sui objects and Aptos resources as target capabilities.
-- Validate a portable state-machine contract across EVM and one Move target.
+- Validate Counter (or successor scenario) on EVM and Aptos.
+
+### Phase 4: Cross-target scenario hardening
+
+- Shared scenario tests across EVM and at least two non-EVM targets.
+- Golden IR and artifact snapshots.
+- Capability matrix coverage for Counter v1 (events, access control optional).
 
 ### Phase 5: Cloud platform
 
