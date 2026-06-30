@@ -223,6 +223,13 @@ def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerE
 def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do
   if !entrypoint.params.isEmpty then
     .error { message := s!"entrypoint `{entrypoint.name}` has parameters; IR EVM v0 supports no parameters" }
+  match entrypoint.returns with
+  | .unit => pure ()
+  | _ =>
+      match entrypoint.body.back? with
+      | some (.return _) => pure ()
+      | _ =>
+          .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not end with a return statement" }
   let body ← entrypoint.body.foldlM (init := #[]) fun acc stmt => do
     .ok (acc.push (← lowerStatement module stmt))
   let returns : Array Lean.Compiler.Yul.TypedName :=

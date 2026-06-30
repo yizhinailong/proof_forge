@@ -103,6 +103,12 @@ jobs:
       - name: Check Psy IR coverage manifest
         run: scripts/psy/check-ir-coverage-manifest.py
 
+      - name: Check EVM diagnostics
+        run: scripts/evm/diagnostic-smoke.sh
+
+      - name: Check EVM IR coverage manifest
+        run: scripts/evm/check-ir-coverage-manifest.py
+
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh
 

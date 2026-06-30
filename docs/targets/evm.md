@@ -2,8 +2,8 @@
 
 Target id: **`evm`**
 
-Stage: **Experimental** — CI smoke tests pass, but target registry, portable IR,
-and artifact metadata are not yet wired.
+Stage: **Experimental** — CI smoke tests pass, target registry and portable IR
+diagnostic/coverage gates are wired, but artifact metadata is not yet emitted.
 
 Related: [Capability registry](../capability-registry.md),
 [Shared scenario](../shared-scenario.md),
@@ -31,6 +31,8 @@ lake env proof-forge --evm-bytecode --root . --module contract \
 
 scripts/evm/build-examples.sh
 scripts/evm/foundry-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
 ```
 
 ## CLI modes
@@ -130,7 +132,31 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - `Nat` capped at U256; no bignum on EVM.
 - String manipulation APIs incomplete in Yul runtime.
 - No unified `proof-forge-artifact.json` yet (planned Workstream 2).
-- Lowering bypasses portable IR today; Counter must route through IR in Phase 1.
+- The production EVM SDK path still lowers through LCNF/EmitYul; the portable
+  IR EVM backend currently supports only a Counter-class subset and rejects
+  wider portable IR nodes with explicit diagnostics.
+- Portable IR EVM currently lacks ABI parameter decoding, aggregate values,
+  mappings, storage arrays, structs, assertions/reverts, context opcodes,
+  hashing, events, cross-contract calls, and artifact metadata.
+
+## Portable IR Gates
+
+The portable IR EVM backend is tracked separately from the older
+`ProofForge.Evm` SDK path:
+
+```sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/ir-counter-smoke.sh
+```
+
+`Tests/EvmCoverage.tsv` records every portable IR constructor as `lowered`,
+`validated`, `unsupported`, or `structural` for EVM. New portable IR nodes must
+update this manifest before CI passes.
+
+`Tests/EvmDiagnostics.lean` locks the current unsupported-surface behavior so
+unsupported EVM IR shapes fail before Yul generation instead of silently
+omitting behavior.
 
 ## Metadata
 

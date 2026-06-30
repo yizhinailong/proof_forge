@@ -88,6 +88,11 @@ Goal: keep EVM stable while the target model is introduced.
 Tasks:
 
 - Keep `proof-forge --evm-bytecode` working.
+- Done: add EVM IR diagnostic smoke so unsupported portable IR shapes fail
+  before Yul generation with stable messages.
+- Done: add an EVM IR coverage manifest gate so every portable IR constructor
+  must be classified as lowered, validated, unsupported, or structural for the
+  EVM backend.
 - Add golden Yul outputs for simple examples.
 - Add metadata emission around current `solc --strict-assembly` flow.
 - Keep Foundry smoke as the mature EVM smoke test.
@@ -95,6 +100,8 @@ Tasks:
 Acceptance criteria:
 
 - `lake build` passes.
+- `scripts/evm/diagnostic-smoke.sh` passes.
+- `scripts/evm/check-ir-coverage-manifest.py` passes.
 - `scripts/evm/build-examples.sh` succeeds on a machine with `solc`.
 - `scripts/evm/foundry-smoke.sh` succeeds on a machine with Foundry.
 - The generated metadata points to the bytecode artifact and records `target:

@@ -17,6 +17,58 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Coverage And Diagnostics Baseline
+
+Commit: feature commit for EVM IR coverage and diagnostics
+
+Summary:
+
+- Added `Tests/EvmCoverage.tsv`, tracking every portable IR constructor as
+  `lowered`, `validated`, `unsupported`, or `structural` for the current EVM
+  IR backend.
+- Added `scripts/evm/check-ir-coverage-manifest.py` so new portable IR nodes
+  must be classified for EVM before CI passes.
+- Added `Tests/EvmDiagnostics.lean` and `scripts/evm/diagnostic-smoke.sh`,
+  covering explicit diagnostics for missing selectors, unsupported ABI
+  parameters, missing returns, unsupported aggregate/control/storage/context
+  surfaces, events, crosscalls, native value, and Hash expressions.
+- Fixed the EVM IR backend to reject non-Unit entrypoints that do not end with
+  a return statement instead of emitting an unassigned `result`.
+- Wired the new EVM diagnostic and coverage gates into CI.
+
+Validation run:
+
+```sh
+lake build
+bash -n scripts/evm/*.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/build-examples.sh
+scripts/evm/foundry-smoke.sh
+git diff --check
+```
+
+Result:
+
+- `scripts/evm/diagnostic-smoke.sh` passes 25 diagnostic cases.
+- `scripts/evm/check-ir-coverage-manifest.py` confirms 91 portable IR
+  constructor entries match `ProofForge/IR/Contract.lean`.
+- The EVM IR Counter smoke still compiles to bytecode and passes Foundry.
+- The existing EVM SDK examples still build and the Foundry smoke suite passes
+  all four tests.
+
+Known limitations:
+
+- This feature does not expand EVM lowering support; unsupported surfaces remain
+  explicit until implemented with Yul golden, solc, and Foundry coverage.
+- EVM artifact metadata is still pending.
+
+Next step:
+
+- Start replacing selected `unsupported` EVM coverage rows with Dapp-style
+  Yul/Foundry-backed positive fixtures, one feature at a time.
+
 ### Psy Fixed Array Equality
 
 Commit: feature commit for Psy fixed-array equality

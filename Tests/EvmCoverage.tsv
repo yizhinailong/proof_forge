@@ -1,0 +1,92 @@
+# inductive	constructor	status	evidence
+ValueType	unit	validated	EVM IR permits Unit entrypoint returns and rejects Unit let bindings through lowerStatement diagnostics.
+ValueType	bool	lowered	Bool literals, predicates, and return values lower to Yul 0/1 words; unsupported bool storage is rejected by validateState.
+ValueType	u32	lowered	U32 values lower as EVM words; scalar U32 storage is accepted by validateState.
+ValueType	u64	lowered	U64 values lower as EVM words; Counter IR covers scalar U64 storage and return values.
+ValueType	hash	unsupported	Hash literals, Hash returns, and hash construction currently fail with explicit EVM IR v0 diagnostics.
+ValueType	fixedArray	unsupported	EVM target profile rejects data.fixed_array until fixed-array ABI, memory, and storage lowering are implemented.
+ValueType	structType	unsupported	EVM target profile rejects data.struct until struct ABI, memory, and storage layout lowering are implemented.
+StateKind	scalar	lowered	EVM IR lowers scalar U32/U64 state to direct slot-based sload/sstore and rejects other scalar types.
+StateKind	map	unsupported	validateState rejects storage.map because EVM IR v0 does not yet lower mapping slot hashing.
+StateKind	array	unsupported	EVM target profile rejects storage.array until fixed array storage layout lowering is implemented.
+Literal	u32	lowered	lowerExpr emits U32 literals as Yul numeric expressions.
+Literal	u64	lowered	lowerExpr emits U64 literals as Yul numeric expressions.
+Literal	bool	lowered	lowerExpr emits Bool literals as Yul 1 or 0.
+Literal	hash4	unsupported	lowerExpr rejects Hash literals with an explicit EVM IR v0 diagnostic.
+ContextField	userId	unsupported	contextRead userId reaches lowerEffectExpr and is rejected until caller() lowering is implemented.
+ContextField	contractId	unsupported	EVM target profile rejects account.explicit for contractId context reads.
+ContextField	checkpointId	unsupported	contextRead checkpointId reaches lowerEffectExpr and is rejected until block context lowering is implemented.
+AssignOp	add	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+AssignOp	sub	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+AssignOp	mul	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+AssignOp	div	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+AssignOp	mod	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+AssignOp	bitAnd	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+AssignOp	bitOr	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+AssignOp	bitXor	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+AssignOp	shiftLeft	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+AssignOp	shiftRight	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+Expr	literal	lowered	lowerExpr delegates supported U32/U64/Bool literals to Yul numeric expressions and rejects Hash literals.
+Expr	local	lowered	lowerExpr emits local identifiers directly.
+Expr	arrayLit	unsupported	EVM target profile rejects data.fixed_array and lowerExpr has an explicit fixed-array literal diagnostic.
+Expr	arrayGet	unsupported	EVM target profile rejects data.fixed_array and lowerExpr has an explicit fixed-array indexing diagnostic.
+Expr	structLit	unsupported	EVM target profile rejects data.struct and lowerExpr has an explicit struct literal diagnostic.
+Expr	field	unsupported	EVM target profile rejects data.struct and lowerExpr has an explicit struct field diagnostic.
+Expr	add	lowered	lowerExpr emits Yul add.
+Expr	sub	lowered	lowerExpr emits Yul sub.
+Expr	mul	lowered	lowerExpr emits Yul mul.
+Expr	div	lowered	lowerExpr emits Yul div.
+Expr	mod	lowered	lowerExpr emits Yul mod.
+Expr	pow	lowered	lowerExpr emits Yul exp.
+Expr	bitAnd	lowered	lowerExpr emits Yul and.
+Expr	bitOr	lowered	lowerExpr emits Yul or.
+Expr	bitXor	lowered	lowerExpr emits Yul xor.
+Expr	shiftLeft	lowered	lowerExpr emits Yul shl with EVM shift-argument ordering.
+Expr	shiftRight	lowered	lowerExpr emits Yul shr with EVM shift-argument ordering.
+Expr	cast	lowered	lowerExpr currently lowers casts as pass-through word expressions.
+Expr	eq	lowered	lowerExpr emits Yul eq.
+Expr	ne	lowered	lowerExpr emits iszero(eq(...)).
+Expr	lt	lowered	lowerExpr emits Yul lt.
+Expr	le	lowered	lowerExpr emits iszero(gt(...)).
+Expr	gt	lowered	lowerExpr emits Yul gt.
+Expr	ge	lowered	lowerExpr emits iszero(lt(...)).
+Expr	boolAnd	lowered	lowerExpr emits Yul and for word-level boolean conjunction.
+Expr	boolOr	lowered	lowerExpr emits Yul or for word-level boolean disjunction.
+Expr	boolNot	lowered	lowerExpr emits Yul iszero.
+Expr	hashValue	unsupported	lowerExpr rejects dynamic Hash value construction with an explicit EVM IR v0 diagnostic.
+Expr	hash	unsupported	lowerExpr rejects crypto.hash with an explicit EVM IR v0 diagnostic.
+Expr	hashTwoToOne	unsupported	lowerExpr rejects crypto.hash_two_to_one with an explicit EVM IR v0 diagnostic.
+Expr	nativeValue	unsupported	lowerExpr rejects native value inspection with an explicit EVM IR v0 diagnostic.
+Expr	crosscallInvoke	unsupported	lowerExpr rejects cross-contract calls with an explicit EVM IR v0 diagnostic.
+Expr	effect	structural	lowerExpr delegates effects to lowerEffectExpr; scalar reads lower and statement-only or unsupported effects reject.
+Effect	storageScalarRead	lowered	lowerEffectExpr emits sload(slot) and diagnostics cover unknown state and expression/statement misuse.
+Effect	storageScalarWrite	lowered	lowerEffectStmt emits sstore(slot, value) and rejects expression-position writes.
+Effect	storageScalarAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt reject scalar storage assign_op in EVM IR v0.
+Effect	storageMapContains	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.map.contains in EVM IR v0.
+Effect	storageMapGet	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.map.get in EVM IR v0.
+Effect	storageMapInsert	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.map.insert in EVM IR v0.
+Effect	storageMapSet	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.map.set in EVM IR v0.
+Effect	storageArrayRead	unsupported	EVM target profile rejects storage.array and lowerEffectExpr has an explicit storage.array.read diagnostic.
+Effect	storageArrayWrite	unsupported	EVM target profile rejects storage.array and lowerEffectStmt has an explicit storage.array.write diagnostic.
+Effect	storageArrayStructFieldRead	unsupported	EVM target profile rejects storage.array/data.struct and lowerEffectExpr has an explicit struct-array read diagnostic.
+Effect	storageArrayStructFieldWrite	unsupported	EVM target profile rejects storage.array/data.struct and lowerEffectStmt has an explicit struct-array write diagnostic.
+Effect	storageStructFieldRead	unsupported	EVM target profile rejects data.struct and lowerEffectExpr has an explicit struct storage read diagnostic.
+Effect	storageStructFieldWrite	unsupported	EVM target profile rejects data.struct and lowerEffectStmt has an explicit struct storage write diagnostic.
+Effect	storagePathRead	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.read in EVM IR v0.
+Effect	storagePathWrite	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.write in EVM IR v0.
+Effect	storagePathAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.assign_op in EVM IR v0.
+Effect	contextRead	unsupported	lowerEffectExpr rejects supported-profile context reads and the target profile rejects account.explicit contractId.
+Effect	eventEmit	unsupported	lowerEffectStmt rejects event emission with an explicit EVM IR v0 diagnostic.
+StoragePathSegment	field	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
+StoragePathSegment	index	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
+StoragePathSegment	mapKey	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
+Statement	letBind	lowered	lowerStatement emits immutable Yul varDecl for U32/U64/Bool let bindings and rejects unsupported types.
+Statement	letMutBind	unsupported	lowerStatement rejects mutable let bindings in EVM IR v0.
+Statement	assign	unsupported	lowerStatement rejects assignment statements in EVM IR v0.
+Statement	assignOp	unsupported	lowerStatement rejects compound assignment statements in EVM IR v0.
+Statement	effect	structural	lowerStatement delegates effects to lowerEffectStmt; scalar writes lower and unsupported effects reject.
+Statement	assert	unsupported	EVM target profile rejects assertions.check before lowering.
+Statement	assertEq	unsupported	EVM target profile rejects assertions.check before lowering.
+Statement	ifElse	unsupported	EVM target profile rejects control.conditional before lowering.
+Statement	boundedFor	unsupported	EVM target profile rejects control.bounded_loop before lowering.
+Statement	return	lowered	lowerStatement assigns supported return expressions to result and dispatch encodes one-word return data.
