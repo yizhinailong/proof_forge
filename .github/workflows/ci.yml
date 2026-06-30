@@ -62,6 +62,8 @@ jobs:
           diff -u Examples/Psy/StructProbe.golden.psy build/psy/StructProbe.psy
           lake env proof-forge --emit-struct-array-ir-psy -o build/psy/StructArrayProbe.psy
           diff -u Examples/Psy/StructArrayProbe.golden.psy build/psy/StructArrayProbe.psy
+          lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.psy
+          diff -u Examples/Psy/AbiAggregateProbe.golden.psy build/psy/AbiAggregateProbe.psy
 
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh

@@ -11,9 +11,10 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
 ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe,
-StructProbe, and StructArrayProbe fixtures. The target is not production-ready
-and does not yet cover deeply nested mixed aggregate updates, deploy JSON, live
-Psy node/prover deployment, or broad Lean-to-IR extraction.
+StructProbe, StructArrayProbe, and AbiAggregateProbe fixtures. The target is
+not production-ready and does not yet cover deeply nested mixed aggregate
+updates, deploy JSON, live Psy node/prover deployment, or broad Lean-to-IR
+extraction.
 
 ## Summary
 
@@ -502,6 +503,28 @@ and `tests/array_ref_struct_bulk_assign_test.psy`. It covers local
 arrays of structs, whole-element writes such as `c.people[0] = new Person {
 ... }`, and field writes such as `c.people[1].score = 92`.
 
+Current AbiAggregateProbe output layout:
+
+```text
+build/psy/
+  AbiAggregateProbe.psy
+  dargo-abi-aggregate/
+    Dargo.toml
+    src/main.psy
+    target/proof_forge_abi_aggregate.json
+    target/AbiAggregateProbe.json
+    target/abi-aggregate-execute.log
+    target/proof-forge-artifact.json
+```
+
+`AbiAggregateProbe` follows upstream ABI and precompile idioms from
+`tests/storage_test.psy` and `psy-precompiles/mining_rewards/src/main.psy`.
+It covers contract methods whose public ABI takes a struct parameter, takes a
+fixed-array parameter, and returns a struct value. Dargo's execute CLI accepts
+these aggregate values as flattened Felt input/output vectors, so the smoke
+checks `sum_pair(7,8) -> [15]`, `sum_array(1,2,3) -> [6]`, and
+`make_pair(9,4) -> [9,4]`.
+
 ## Smoke Test Strategy
 
 Experimental smoke does not require a live Psy network.
@@ -632,6 +655,22 @@ It verifies struct-array value and storage lowering under Dargo local execution:
 The script emits and validates
 `build/psy/dargo-struct-array/target/proof-forge-artifact.json`.
 
+The same validation shape is also implemented for `AbiAggregateProbe`:
+
+```sh
+scripts/psy/abi-aggregate-smoke.sh
+```
+
+It verifies ABI-facing aggregate parameter and return lowering under Dargo
+local execution:
+
+- `sum_pair(7,8)`: `result_vm: [15]`
+- `sum_array(1,2,3)`: `result_vm: [6]`
+- `make_pair(9,4)`: `result_vm: [9, 4]`
+
+The script emits and validates
+`build/psy/dargo-abi-aggregate/target/proof-forge-artifact.json`.
+
 All Psy smoke scripts run
 `scripts/psy/validate-artifact-metadata.py` after metadata generation. The
 validator checks schema version, target id, target family, artifact kind,
@@ -702,6 +741,12 @@ Deployment smoke:
   arrays of structs aligned with upstream Psy array/struct reference idioms.
 - Done: add `scripts/psy/struct-array-smoke.sh` with the same Dargo validation
   shape.
+- Done: add entrypoint ABI type validation for Unit rejection, declared struct
+  lookup, and non-zero fixed-array lengths.
+- Done: add `AbiAggregateProbe` with struct parameters, fixed-array parameters,
+  and struct return values aligned with upstream Psy ABI/precompile idioms.
+- Done: add `scripts/psy/abi-aggregate-smoke.sh` with the same Dargo
+  validation shape.
 - Done: validate the Dargo portion with the `psyup` v0.1.0 macOS arm64
   toolchain.
 - Remaining: add deeper nested mixed aggregate updates from the upstream syntax
@@ -753,11 +798,14 @@ Deployment smoke:
   machine with the Psy toolchain.
 - Generated StructArrayProbe `.psy` package compiles with `dargo compile` on a
   machine with the Psy toolchain.
+- Generated AbiAggregateProbe `.psy` package compiles with `dargo compile` on
+  a machine with the Psy toolchain.
 - Dargo execution proves the expected Counter lifecycle, context-read result,
   deterministic hash outputs, map lifecycle output, and assertion-protected
   checked sum output, plus the bounded loop count result and fixed-array
-  literal/storage results, struct literal/storage results, and struct-array
-  literal/storage results.
+  literal/storage results, struct literal/storage results, struct-array
+  literal/storage results, and ABI aggregate parameter/return flattening
+  results.
 - Artifact metadata records:
   - target id `psy-dpn`
   - target family and artifact kind

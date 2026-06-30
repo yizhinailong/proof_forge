@@ -30,7 +30,9 @@ def capitalizedRefName (module : Module) : String :=
   s!"{module.name}Ref"
 
 def testFunctionName (module : Module) : String :=
-  if module.name == "StructArrayProbe" then
+  if module.name == "AbiAggregateProbe" then
+    "test_abi_aggregate_probe_fixture"
+  else if module.name == "StructArrayProbe" then
     "test_struct_array_probe_fixture"
   else if module.name == "StructProbe" then
     "test_struct_probe_fixture"
@@ -341,12 +343,35 @@ partial def validateValueType (module : Module) (type : ValueType) : Except Lowe
       | some _ => pure ()
       | none => .error { message := s!"unknown struct type `{name}`" }
 
+partial def validateAbiValueType (module : Module) (type : ValueType) (context : String) (allowUnit : Bool) : Except LowerError Unit := do
+  match type with
+  | .unit =>
+      if allowUnit then
+        pure ()
+      else
+        .error { message := s!"{context} uses Unit; Psy IR v0 entrypoint parameters must use Felt, Bool, Hash, fixed arrays, or declared structs" }
+  | .bool | .u64 | .hash => pure ()
+  | .fixedArray element length =>
+      if length == 0 then
+        .error { message := s!"{context} uses a zero-length fixed array; Psy IR v0 fixed arrays must have non-zero length" }
+      validateAbiValueType module element context false
+  | .structType name =>
+      match findStruct? module name with
+      | some _ => pure ()
+      | none => .error { message := s!"{context} references unknown struct type `{name}`" }
+
 def validateStructs (module : Module) : Except LowerError Unit := do
   for decl in module.structs do
     if decl.fields.isEmpty then
       .error { message := s!"struct `{decl.name}` must declare at least one field" }
     for field in decl.fields do
       validateValueType module field.type
+
+def validateEntrypoints (module : Module) : Except LowerError Unit := do
+  for entrypoint in module.entrypoints do
+    for param in entrypoint.params do
+      validateAbiValueType module param.snd s!"entrypoint `{entrypoint.name}` parameter `{param.fst}`" false
+    validateAbiValueType module entrypoint.returns s!"entrypoint `{entrypoint.name}` return type" true
 
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
@@ -479,12 +504,23 @@ def testBody (module : Module) : Except LowerError (Array String) := do
       s!"assert_eq({refName}::local_struct_array_sum(), 100, \"struct array literal fields add up\");",
       s!"assert_eq({refName}::storage_struct_array_lifecycle(), 102, \"storage struct array fields read after writes\");"
     ]
+  else if module.name == "AbiAggregateProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "sum_pair" && entry.params.size == 1 && entry.returns == .u64) &&
+    module.entrypoints.any (fun entry => entry.name == "sum_array" && entry.params.size == 1 && entry.returns == .u64) &&
+    module.entrypoints.any (fun entry => entry.name == "make_pair" && entry.params.size == 2 && entry.returns == .structType "Pair") then
+    .ok #[
+      s!"assert_eq({refName}::sum_pair(new Pair " ++ "{ left: 7, right: 8 }), 15, \"struct ABI parameter flattens\");",
+      s!"assert_eq({refName}::sum_array([1, 2, 3]), 6, \"fixed-array ABI parameter flattens\");",
+      s!"let pair: Pair = {refName}::make_pair(9, 4);",
+      "assert_eq(pair.left + pair.right, 13, \"struct ABI return flattens\");"
+    ]
   else
     .error { message := "Psy IR v0 only generates smoke tests for known fixtures" }
 
 def renderModule (module : Module) : Except LowerError String := do
   validateCapabilities module
   validateStructs module
+  validateEntrypoints module
   validateState module
   let structBlocks ← module.structs.mapM structDecl
   let stateDecls ← module.state.mapM stateDecl

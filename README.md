@@ -156,6 +156,14 @@ lake env proof-forge --emit-struct-array-ir-psy -o build/psy/StructArrayProbe.ps
 scripts/psy/struct-array-smoke.sh
 ```
 
+Validate the Psy/DPN ABI aggregate fixture, which exercises ABI-facing struct
+parameters, fixed-array parameters, and struct return values:
+
+```sh
+lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.psy
+scripts/psy/abi-aggregate-smoke.sh
+```
+
 Each Psy smoke writes and validates `proof-forge-artifact.json` next to the
 Dargo outputs.
 

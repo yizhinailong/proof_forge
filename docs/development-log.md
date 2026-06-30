@@ -17,6 +17,64 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy AbiAggregateProbe ABI Aggregates
+
+Commit: feature commit for ABI aggregate Psy IR coverage
+
+Summary:
+
+- Added entrypoint ABI type validation for Psy IR parameters and returns.
+- Rejected Unit parameters before source generation, while keeping Unit returns
+  valid for void methods.
+- Validated entrypoint fixed-array ABI types as non-empty and struct ABI types
+  as declared.
+- Added `ProofForge.IR.Examples.AbiAggregateProbe`, covering a struct
+  parameter, fixed-array parameter, and struct return value.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.psy
+```
+
+- Added `Examples/Psy/AbiAggregateProbe.golden.psy`.
+- Added `scripts/psy/abi-aggregate-smoke.sh`, which generates a temporary
+  Dargo package, runs `dargo test --file`, `dargo compile`, three
+  `dargo execute` calls, `dargo generate-abi`, and validates
+  `proof-forge-artifact.json`.
+- Added CI coverage for the AbiAggregateProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.psy
+diff -u Examples/Psy/AbiAggregateProbe.golden.psy build/psy/AbiAggregateProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/abi-aggregate-smoke.sh
+```
+
+Result:
+
+- `lake build` passed.
+- Generated AbiAggregateProbe source matches the checked-in golden fixture.
+- `scripts/psy/abi-aggregate-smoke.sh` generated DPN JSON, ABI JSON, execute
+  log, and `proof-forge-artifact.json`.
+- `dargo execute` returned `result_vm: [15]` for `sum_pair`.
+- `dargo execute` returned `result_vm: [6]` for `sum_array`.
+- `dargo execute` returned `result_vm: [9, 4]` for `make_pair`.
+
+Known limitations:
+
+- Dargo CLI aggregate execution is flattened to Felt vectors.
+- This feature validates flat struct and one-dimensional fixed-array ABI
+  shapes, not deeply nested mixed aggregate ABI shapes.
+
+Next step:
+
+- Add deeper nested mixed aggregate update and ABI coverage from the upstream
+  Psy syntax corpus, then continue toward deploy JSON metadata.
+
 ### Psy StructArrayProbe Struct Arrays
 
 Commit: feature commit for struct-array Psy IR coverage
