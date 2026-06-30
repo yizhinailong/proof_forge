@@ -1180,6 +1180,11 @@ def validateStructs (module : Module) : Except LowerError Unit := do
 
 def validateEntrypoints (module : Module) : Except LowerError Unit := do
   for entrypoint in module.entrypoints do
+    match entrypoint.selector? with
+    | some selector =>
+        .error { message := s!"entrypoint `{entrypoint.name}` declares selector `{selector}`; Psy/DPN entrypoints are addressed by contract method name, so EVM-style selectors are unsupported" }
+    | none =>
+        pure ()
     for param in entrypoint.params do
       validateAbiValueType module param.snd s!"entrypoint `{entrypoint.name}` parameter `{param.fst}`" false
     validateAbiValueType module entrypoint.returns s!"entrypoint `{entrypoint.name}` return type" true

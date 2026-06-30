@@ -70,6 +70,17 @@ def unknownReturnStructModule : Module := {
   }]
 }
 
+def selectorEntrypointModule : Module := {
+  name := "BadEntrypointSelector"
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    selector? := some "0xdeadbeef"
+    returns := .unit
+    body := #[]
+  }]
+}
+
 def unsupportedMapModule : Module := {
   name := "BadMapShape"
   state := #[{
@@ -536,6 +547,11 @@ def cases : Array (String × Module × String) := #[
     "unknown struct return type",
     unknownReturnStructModule,
     "entrypoint `bad` return type references unknown struct type `Missing`"
+  ),
+  (
+    "unsupported entrypoint selector",
+    selectorEntrypointModule,
+    "entrypoint `bad` declares selector `0xdeadbeef`; Psy/DPN entrypoints are addressed by contract method name, so EVM-style selectors are unsupported"
   ),
   (
     "unsupported map key/value shape",

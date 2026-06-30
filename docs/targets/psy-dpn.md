@@ -272,7 +272,7 @@ scripts/psy/diagnostic-smoke.sh
 
 It runs `Tests/PsyDiagnostics.lean` and checks that malformed Psy IR modules
 return stable, explicit errors before source generation. Current cases cover
-Unit entrypoint parameters, zero-length ABI arrays, unknown ABI structs,
+Unit entrypoint parameters, EVM-style entrypoint selectors, zero-length ABI arrays, unknown ABI structs,
 unsupported map key/value shapes, unsupported bool storage arrays, structs
 missing `deriveStorage` for storage, U32 storage path compound assignment,
 empty structs, invalid bounded loop ranges,
@@ -282,6 +282,12 @@ local/array/struct/hash/return type mismatches, immutable assignment, missing
 return statements, malformed arithmetic expressions, malformed Hash value
 construction, unsupported casts, malformed bitwise/shift expressions, malformed
 if conditions, and branch-local escape.
+
+Psy/DPN entrypoints are addressed by contract method name through Dargo and the
+generated Psy ABI. The portable IR's optional `selector?` field is therefore
+not lowered for this target. If a module supplies an EVM-style selector, the Psy
+backend rejects it before source generation instead of silently dropping ABI
+intent.
 
 The design philosophy docs reinforce the same boundary: Psy is ZK-native and
 uses symbolic execution. Variables become circuit wires, operations become

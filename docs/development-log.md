@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy Entrypoint Selector Diagnostic
+
+Commit: feature commit for Psy selector rejection
+
+Summary:
+
+- Added a Psy backend validation rule that rejects `Entrypoint.selector?`
+  before source generation.
+- Documented that Psy/DPN entrypoints are addressed by contract method name via
+  Dargo and the generated Psy ABI, so EVM-style selectors are target-invalid
+  rather than ignored.
+- Added a `Tests/PsyDiagnostics.lean` case to lock the diagnostic text.
+
+Validation run:
+
+```sh
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+lake build
+git diff --check
+```
+
+Result:
+
+- Malformed Psy IR modules with entrypoint selectors now fail with an explicit
+  diagnostic instead of silently dropping selector metadata.
+
+Known limitations:
+
+- This does not add a Psy-native selector concept. If Psy later exposes stable
+  selector metadata, the backend should model it separately from EVM selectors.
+
+Next step:
+
+- Continue expanding non-fixture-specific Psy package generation and deployment
+  validation.
+
 ### Psy Shared Dargo Package Writer
 
 Commit: feature commit for shared Psy Dargo package generation
