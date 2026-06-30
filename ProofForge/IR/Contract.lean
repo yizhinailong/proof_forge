@@ -7,6 +7,7 @@ namespace ProofForge.IR
 inductive ValueType where
   | unit
   | bool
+  | u32
   | u64
   | hash
   | fixedArray (element : ValueType) (length : Nat)
@@ -16,6 +17,7 @@ inductive ValueType where
 def ValueType.name : ValueType → String
   | .unit => "Unit"
   | .bool => "Bool"
+  | .u32 => "U32"
   | .u64 => "U64"
   | .hash => "Hash"
   | .fixedArray element length => s!"Array<{element.name},{length}>"
@@ -24,6 +26,7 @@ def ValueType.name : ValueType → String
 def ValueType.capabilities : ValueType → Array ProofForge.Target.Capability
   | .unit => #[]
   | .bool => #[]
+  | .u32 => #[]
   | .u64 => #[]
   | .hash => #[]
   | .fixedArray element _ => #[.dataFixedArray] ++ element.capabilities
@@ -56,6 +59,7 @@ structure StateDecl where
   deriving Repr
 
 inductive Literal where
+  | u32 (value : Nat)
   | u64 (value : Nat)
   | bool (value : Bool)
   | hash4 (a b c d : Nat)
@@ -88,6 +92,10 @@ mutual
     | add (lhs rhs : Expr)
     | sub (lhs rhs : Expr)
     | mul (lhs rhs : Expr)
+    | div (lhs rhs : Expr)
+    | mod (lhs rhs : Expr)
+    | pow (lhs rhs : Expr)
+    | cast (value : Expr) (targetType : ValueType)
     | eq (lhs rhs : Expr)
     | ne (lhs rhs : Expr)
     | lt (lhs rhs : Expr)
@@ -185,6 +193,10 @@ mutual
     | .add lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .sub lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .mul lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .div lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .mod lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .pow lhs rhs => lhs.capabilities ++ rhs.capabilities
+    | .cast value targetType => value.capabilities ++ targetType.capabilities
     | .eq lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .ne lhs rhs => lhs.capabilities ++ rhs.capabilities
     | .lt lhs rhs => lhs.capabilities ++ rhs.capabilities

@@ -52,6 +52,8 @@ jobs:
           diff -u Examples/Psy/ArithmeticProbe.golden.psy build/psy/ArithmeticProbe.psy
           lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
           diff -u Examples/Psy/ConditionalProbe.golden.psy build/psy/ConditionalProbe.psy
+          lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProbe.psy
+          diff -u Examples/Psy/U32ArithmeticProbe.golden.psy build/psy/U32ArithmeticProbe.psy
           lake env proof-forge --emit-context-ir-psy -o build/psy/ContextProbe.psy
           diff -u Examples/Psy/ContextProbe.golden.psy build/psy/ContextProbe.psy
           lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy

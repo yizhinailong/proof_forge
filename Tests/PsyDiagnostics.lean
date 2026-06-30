@@ -334,6 +334,22 @@ def multiplicationTypeMismatchModule : Module := {
   ]]
 }
 
+def divisionTypeMismatchModule : Module := {
+  name := "BadDivisionTypeMismatch"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "x" .u32 (.div (.literal (.u32 8)) (.literal (.u64 2)))
+  ]]
+}
+
+def unsupportedCastModule : Module := {
+  name := "BadUnsupportedCast"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .letBind "x" .hash (.cast (.literal (.u32 1)) .hash)
+  ]]
+}
+
 def booleanOperatorTypeMismatchModule : Module := {
   name := "BadBooleanOperatorTypeMismatch"
   state := #[markerState]
@@ -376,7 +392,7 @@ def cases : Array (String × Module × String) := #[
   (
     "unit entrypoint parameter",
     unitParamModule,
-    "entrypoint `bad` parameter `x` uses Unit; Psy IR v0 entrypoint parameters must use Felt, Bool, Hash, fixed arrays, or declared structs"
+    "entrypoint `bad` parameter `x` uses Unit; Psy IR v0 entrypoint parameters must use Felt, U32, Bool, Hash, fixed arrays, or declared structs"
   ),
   (
     "zero-length ABI array parameter",
@@ -491,17 +507,27 @@ def cases : Array (String × Module × String) := #[
   (
     "comparison type mismatch",
     comparisonTypeMismatchModule,
-    "less-than left operand expected `U64`, got `Bool`"
+    "less-than left operand expected numeric `U32` or `U64`, got `Bool`"
   ),
   (
     "subtraction type mismatch",
     subtractionTypeMismatchModule,
-    "subtraction left operand expected `U64`, got `Bool`"
+    "subtraction left operand expected numeric `U32` or `U64`, got `Bool`"
   ),
   (
     "multiplication type mismatch",
     multiplicationTypeMismatchModule,
     "multiplication right operand expected `U64`, got `Bool`"
+  ),
+  (
+    "division type mismatch",
+    divisionTypeMismatchModule,
+    "division right operand expected `U32`, got `U64`"
+  ),
+  (
+    "unsupported cast",
+    unsupportedCastModule,
+    "cast from `U32` to `Hash` is not supported by Psy IR v0"
   ),
   (
     "boolean operator type mismatch",

@@ -17,6 +17,71 @@ Each entry should include:
 
 ## 2026-07-01
 
+### Psy U32ArithmeticProbe Native U32 Arithmetic
+
+Commit: feature commit for Psy U32 arithmetic coverage
+
+Summary:
+
+- Added portable IR `ValueType.u32` and `Literal.u32`.
+- Added portable IR expression nodes for division, modulo, exponentiation, and
+  explicit casts.
+- Extended Psy source generation for `u32`, `Nu32` literals, `/`, `%`, `**`,
+  and casts such as `z as bool` and `bb as Felt`.
+- Updated bounded-loop typing so generated `for i in 0u32..Nu32` loop indices
+  are tracked as `U32`.
+- Extended numeric type validation so `U32` arithmetic remains type-consistent
+  and malformed mixed-width arithmetic fails before source generation.
+- Added EVM IR lowering for the new pure arithmetic/cast nodes through Yul
+  builtins or no-op casts.
+- Added `ProofForge.IR.Examples.U32ArithmeticProbe`, mirroring the core
+  executable shape of upstream `psy-compiler/tests/u32_test.psy`.
+- Added CLI support:
+
+```sh
+lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProbe.psy
+```
+
+- Added `Examples/Psy/U32ArithmeticProbe.golden.psy`.
+- Added `scripts/psy/u32-arithmetic-smoke.sh`, which generates a temporary
+  Dargo package, runs `dargo test --file`, `dargo compile`, `dargo execute
+  --parameters 2,3`, `dargo generate-abi`, and validates
+  `proof-forge-artifact.json`.
+- Added CI coverage for the U32ArithmeticProbe Psy golden source snapshot.
+
+Validation run:
+
+```sh
+lake build
+scripts/psy/diagnostic-smoke.sh
+lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProbe.psy
+diff -u Examples/Psy/U32ArithmeticProbe.golden.psy build/psy/U32ArithmeticProbe.psy
+PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
+  DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
+  scripts/psy/u32-arithmetic-smoke.sh
+```
+
+Result:
+
+- Generated U32ArithmeticProbe source matches the checked-in golden fixture.
+- `scripts/psy/u32-arithmetic-smoke.sh` generated DPN JSON, ABI JSON, execute
+  log, and `proof-forge-artifact.json`.
+- `dargo execute --parameters 2,3` returned `result_vm: [1]` for
+  `u32_arithmetic`.
+- `scripts/psy/diagnostic-smoke.sh` passed all 31 diagnostic cases.
+
+Known limitations:
+
+- This does not yet add bitwise shifts, bitwise and/or, u32 storage probes, or
+  the full cast matrix used by the token/deposit-tree precompiles.
+- Cast lowering is intentionally explicit and rejects unsupported source/target
+  pairs before `.psy` source generation.
+
+Next step:
+
+- Add bitwise operations and u32 array/hash-packing probes, since the Psy
+  precompiles use `u32` limbs heavily for token addresses and tree roots.
+
 ### Psy ArithmeticProbe Sub/Mul Expressions
 
 Commit: feature commit for Psy arithmetic expression coverage

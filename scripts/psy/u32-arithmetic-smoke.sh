@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Generate Psy source from the hand-written U32ArithmeticProbe IR and validate
+# u32 parameters, literals, arithmetic, exponentiation, modulo, and casts.
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+OUT_DIR="${PSY_OUT_DIR:-$ROOT/build/psy}"
+PROJECT_DIR="$OUT_DIR/dargo-u32-arithmetic"
+PSY_FILE="$OUT_DIR/U32ArithmeticProbe.psy"
+GOLDEN_FILE="${PSY_GOLDEN:-$ROOT/Examples/Psy/U32ArithmeticProbe.golden.psy}"
+DARGO_BIN="${DARGO:-dargo}"
+PSY_HOME="${PSY_HOME:-$HOME/.psy}"
+EXEC_LOG="$PROJECT_DIR/target/u32-arithmetic-execute.log"
+ABI_FILE="$PROJECT_DIR/target/U32ArithmeticProbe.json"
+METADATA_FILE="$PROJECT_DIR/target/proof-forge-artifact.json"
+U32_ARITHMETIC_RESULT="result_vm: [1]"
+
+if [[ -z "${DARGO_STD_PATH:-}" && -f "$PSY_HOME/env" ]]; then
+  # psyup writes DARGO_STD_PATH here; sourcing avoids a slow stdlib fallback.
+  # shellcheck source=/dev/null
+  source "$PSY_HOME/env"
+fi
+
+if [[ "$DARGO_BIN" == "dargo" && ! -x "$(command -v dargo 2>/dev/null || true)" && -x "$PSY_HOME/bin/dargo" ]]; then
+  DARGO_BIN="$PSY_HOME/bin/dargo"
+fi
+
+mkdir -p "$OUT_DIR"
+
+lake build proof-forge >/dev/null
+"$ROOT/.lake/build/bin/proof-forge" --emit-u32-arithmetic-ir-psy -o "$PSY_FILE"
+
+if [[ -f "$GOLDEN_FILE" ]]; then
+  diff -u "$GOLDEN_FILE" "$PSY_FILE"
+fi
+
+if ! command -v "$DARGO_BIN" >/dev/null 2>&1; then
+  echo "psy-u32-arithmetic-smoke: dargo not found. Install the Psy toolchain with psyup, then re-run this script." >&2
+  echo "psy-u32-arithmetic-smoke: generated $PSY_FILE for inspection." >&2
+  echo "psy-u32-arithmetic-smoke: install: curl -fsSL https://raw.githubusercontent.com/QEDProtocol/psyup/main/install.sh | bash" >&2
+  echo "psy-u32-arithmetic-smoke: macOS arm64 note: psyup latest may not have a matching tarball; v0.1.0 is known to include one." >&2
+  echo "psy-u32-arithmetic-smoke: docs: https://docs.psy-protocol.xyz/language/dargo.html" >&2
+  exit 127
+fi
+
+"$DARGO_BIN" test --file "$PSY_FILE"
+
+rm -rf "$PROJECT_DIR"
+mkdir -p "$PROJECT_DIR/src"
+cp "$PSY_FILE" "$PROJECT_DIR/src/main.psy"
+
+cat > "$PROJECT_DIR/Dargo.toml" <<'TOML'
+[package]
+name = "proof_forge_u32_arithmetic"
+version = "0.1.0"
+type = "bin"
+description = "ProofForge generated U32ArithmeticProbe IR Psy smoke"
+
+[dependencies]
+TOML
+
+(
+  cd "$PROJECT_DIR"
+  "$DARGO_BIN" compile --contract-name U32ArithmeticProbe --method-names u32_arithmetic
+  "$DARGO_BIN" execute --contract-name U32ArithmeticProbe --method-names u32_arithmetic --parameters 2,3 | tee "$EXEC_LOG"
+  "$DARGO_BIN" generate-abi --contract-name U32ArithmeticProbe --output-dir target --pretty
+)
+
+ARTIFACT="$PROJECT_DIR/target/proof_forge_u32_arithmetic.json"
+if [[ ! -s "$ARTIFACT" ]]; then
+  echo "psy-u32-arithmetic-smoke: expected non-empty Dargo artifact at $ARTIFACT" >&2
+  exit 1
+fi
+
+if ! grep -Fq "$U32_ARITHMETIC_RESULT" "$EXEC_LOG"; then
+  echo "psy-u32-arithmetic-smoke: expected u32_arithmetic execute to return $U32_ARITHMETIC_RESULT" >&2
+  echo "psy-u32-arithmetic-smoke: execution log: $EXEC_LOG" >&2
+  exit 1
+fi
+
+if [[ ! -s "$ABI_FILE" ]]; then
+  echo "psy-u32-arithmetic-smoke: expected non-empty Dargo ABI at $ABI_FILE" >&2
+  exit 1
+fi
+
+python3 "$ROOT/scripts/psy/write-artifact-metadata.py" \
+  --root "$ROOT" \
+  --fixture U32ArithmeticProbe \
+  --source "$PSY_FILE" \
+  --circuit-json "$ARTIFACT" \
+  --abi-json "$ABI_FILE" \
+  --execute-log "$EXEC_LOG" \
+  --out "$METADATA_FILE" \
+  --dargo "$DARGO_BIN" \
+  --execute-result "$U32_ARITHMETIC_RESULT" \
+  --capability assertions.check \
+  --capability zk.circuit
+
+python3 "$ROOT/scripts/psy/validate-artifact-metadata.py" \
+  --root "$ROOT" \
+  "$METADATA_FILE"
+
+echo "psy-u32-arithmetic-smoke: wrote $PSY_FILE"
+echo "psy-u32-arithmetic-smoke: Dargo artifact $ARTIFACT"
+echo "psy-u32-arithmetic-smoke: Dargo execute log $EXEC_LOG"
+echo "psy-u32-arithmetic-smoke: Dargo ABI $ABI_FILE"
+echo "psy-u32-arithmetic-smoke: ProofForge metadata $METADATA_FILE"

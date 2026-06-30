@@ -10,13 +10,15 @@ Research snapshot: `mainnet-beta`, commit `24f5ec9`.
 
 Experimental scope: ProofForge can generate reviewable `.psy` source for a
 restricted portable IR subset and validate that source with Dargo for Counter,
-ExpressionPredicateProbe, ArithmeticProbe, ConditionalProbe, ContextProbe,
-HashProbe, MapProbe, AssertProbe, LoopProbe, ArrayProbe, StructProbe, StructArrayProbe,
-AbiAggregateProbe, and NestedAggregateProbe fixtures. It also has an
-experimental StorageNestedAggregateProbe fixture for storage-backed nested
-aggregate updates across `#[ref]` struct fields and storage arrays. The target
-is not production-ready and does not yet cover else-if sugar, map storage paths,
-deploy JSON, live Psy node/prover deployment, or broad Lean-to-IR extraction.
+ExpressionPredicateProbe, ArithmeticProbe, U32ArithmeticProbe,
+ConditionalProbe, ContextProbe, HashProbe, MapProbe, AssertProbe, LoopProbe,
+ArrayProbe, StructProbe, StructArrayProbe, AbiAggregateProbe, and
+NestedAggregateProbe fixtures. It also has an experimental
+StorageNestedAggregateProbe fixture for storage-backed nested aggregate updates
+across `#[ref]` struct fields and storage arrays. The target is not
+production-ready and does not yet cover bitwise operations, else-if sugar, map
+storage paths, deploy JSON, live Psy node/prover deployment, or broad
+Lean-to-IR extraction.
 
 ## Summary
 
@@ -227,6 +229,8 @@ Allowed first:
 
 - `Felt`, `Bool`, `U32`
 - Felt arithmetic for addition, subtraction, and multiplication
+- U32 arithmetic for addition, subtraction, multiplication, division, modulo,
+  exponentiation, and casts to/from Bool/Felt
 - fixed-size arrays
 - concrete structs
 - first-order functions
@@ -267,7 +271,7 @@ empty structs, invalid bounded loop ranges, storage writes used as expressions,
 storage reads used as statements, invalid assignment targets, invalid storage
 paths, unknown locals, local/array/struct/hash/return type mismatches, immutable
 assignment, missing return statements, malformed arithmetic expressions,
-malformed if conditions, and branch-local escape.
+unsupported casts, malformed if conditions, and branch-local escape.
 
 The design philosophy docs reinforce the same boundary: Psy is ZK-native and
 uses symbolic execution. Variables become circuit wires, operations become
@@ -600,6 +604,13 @@ source generator must preserve Psy precedence with parentheses. Division,
 modulo, exponentiation, cast-heavy `u32` arithmetic, and compound assignment
 operators remain separate features.
 
+`U32ArithmeticProbe` follows the executable shape of upstream
+`tests/u32_test.psy`. It adds first-class portable `U32` values, `Nu32`
+literals, `u32` ABI parameters, `/`, `%`, `**`, mutable assignment, and casts
+such as `z as bool` and `bb as Felt`. Dargo execution validates the same
+`a=2`, `b=3` scenario and returns `result_vm: [1]`. Bitwise shifts, bitwise
+and/or, u32 storage probes, and richer cast matrices remain separate features.
+
 `ConditionalProbe` follows upstream conditional idioms from
 `tests/conditional_assert_test.psy`, `tests/for_if_test.psy`, and
 `psy-precompiles/faucet/src/main.psy`. It lowers portable IR
@@ -668,6 +679,19 @@ It verifies arithmetic expression lowering under Dargo local execution:
 
 The script emits and validates
 `build/psy/dargo-arithmetic/target/proof-forge-artifact.json`.
+
+The same validation shape is also implemented for `U32ArithmeticProbe`:
+
+```sh
+scripts/psy/u32-arithmetic-smoke.sh
+```
+
+It verifies U32 expression lowering under Dargo local execution:
+
+- `u32_arithmetic(2,3)`: `result_vm: [1]`
+
+The script emits and validates
+`build/psy/dargo-u32-arithmetic/target/proof-forge-artifact.json`.
 
 The same validation shape is also implemented for `ConditionalProbe`:
 
@@ -834,10 +858,10 @@ generation rejection paths instead of supported Psy programs:
 scripts/psy/diagnostic-smoke.sh
 ```
 
-It currently asserts twenty-nine explicit diagnostics for malformed or
+It currently asserts thirty-one explicit diagnostics for malformed or
 unsupported Psy IR shapes, including invalid storage paths, expression/body
 type mismatches, malformed equality, malformed comparison, and malformed
-arithmetic, malformed boolean operators, malformed if conditions, and
+arithmetic, unsupported casts, malformed boolean operators, malformed if conditions, and
 branch-local escape.
 
 Observed behavior: `dargo execute` compiles the workspace, creates a local
@@ -848,7 +872,7 @@ to an Ethereum-style local execution smoke than a pure compiler check.
 Second smoke:
 
 1. Compare high-level Counter behavior with the EVM shared scenario.
-2. Add division/modulo/cast-heavy arithmetic and map-path coverage from
+2. Add bitwise/cast-heavy storage arithmetic and map-path coverage from
    `psy-compiler/tests` and `psy-precompiles`.
 
 Deployment smoke:
@@ -882,6 +906,10 @@ Deployment smoke:
   arithmetic precedence aligned with upstream arithmetic idioms.
 - Done: add `scripts/psy/arithmetic-smoke.sh` with the same Dargo validation
   shape.
+- Done: add first-class `U32` values, `Nu32` literals, division, modulo,
+  exponentiation, and casts for the upstream `u32_test.psy` arithmetic shape.
+- Done: add `U32ArithmeticProbe` and `scripts/psy/u32-arithmetic-smoke.sh` with
+  the same Dargo validation shape.
 - Done: add `ConditionalProbe` with statement-level `if/else` lowering aligned
   with upstream conditional idioms.
 - Done: add `scripts/psy/conditional-smoke.sh` with the same Dargo validation
@@ -974,8 +1002,9 @@ Deployment smoke:
 - `psy-dpn` is listed as Experimental in target notes.
 - The target profile draft includes artifact kind, required tools, and smoke
   steps.
-- Generated Counter, ArithmeticProbe, ContextProbe, and HashProbe `.psy`
-  packages compile with `dargo compile` on a machine with the Psy toolchain.
+- Generated Counter, ArithmeticProbe, U32ArithmeticProbe, ContextProbe, and
+  HashProbe `.psy` packages compile with `dargo compile` on a machine with the
+  Psy toolchain.
 - Generated MapProbe `.psy` package compiles with `dargo compile` on a machine
   with the Psy toolchain.
 - Generated AssertProbe `.psy` package compiles with `dargo compile` on a
@@ -998,11 +1027,12 @@ Deployment smoke:
   machine with the Psy toolchain.
 - Dargo execution proves the expected Counter lifecycle, context-read result,
   deterministic hash outputs, map lifecycle output, and assertion-protected
-  checked sum output, plus the arithmetic result, bounded loop count result,
-  fixed-array literal/storage results, struct literal/storage results,
-  struct-array literal/storage results, ABI aggregate parameter/return
-  flattening results, conditional branch result, local nested aggregate mutation
-  results, and storage-backed nested aggregate path update results.
+  checked sum output, plus the Felt arithmetic result, U32 arithmetic result,
+  bounded loop count result, fixed-array literal/storage results, struct
+  literal/storage results, struct-array literal/storage results, ABI aggregate
+  parameter/return flattening results, conditional branch result, local nested
+  aggregate mutation results, and storage-backed nested aggregate path update
+  results.
 - `scripts/psy/diagnostic-smoke.sh` proves unsupported or malformed Psy IR
   shapes produce explicit diagnostics before source generation.
 - Artifact metadata records:

@@ -43,6 +43,7 @@ def yulFunctionName (moduleName entrypointName : String) : String :=
 
 mutual
   partial def lowerExpr (module : Module) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
+    | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.u64 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.bool value) => .ok (if value then Lean.Compiler.Yul.Expr.num 1 else Lean.Compiler.Yul.Expr.num 0)
     | .literal (.hash4 _ _ _ _) =>
@@ -62,6 +63,14 @@ mutual
         .ok (Lean.Compiler.Yul.builtin "sub" #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .mul lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "mul" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .div lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "div" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .mod lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "mod" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .pow lhs rhs => do
+        .ok (Lean.Compiler.Yul.builtin "exp" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+    | .cast value _ => do
+        lowerExpr module value
     | .eq lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .ne lhs rhs => do
@@ -158,7 +167,7 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
 def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError Lean.Compiler.Yul.Statement
   | .letBind name type value => do
       match type with
-      | .u64 | .bool => pure ()
+      | .u32 | .u64 | .bool => pure ()
       | .unit => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `Unit`" }
       | .hash => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `Hash`" }
       | .fixedArray _ _ => .error { message := s!"let binding `{name}` has unsupported EVM IR v0 type `{type.name}`" }
@@ -189,7 +198,7 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
   let returns : Array Lean.Compiler.Yul.TypedName :=
     match entrypoint.returns with
     | .unit => #[]
-    | .u64 | .bool => #[{ name := "result" }]
+    | .u32 | .u64 | .bool => #[{ name := "result" }]
     | .hash => #[]
     | .fixedArray _ _ => #[]
     | .structType _ => #[]
@@ -217,7 +226,7 @@ def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError
           Lean.Compiler.Yul.Statement.exprStmt callExpr,
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
         ]
-    | .u64 | .bool =>
+    | .u32 | .u64 | .bool =>
         #[
           Lean.Compiler.Yul.Statement.varDecl #[({ name := "_r" } : Lean.Compiler.Yul.TypedName)] (some callExpr),
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "_r"]),
@@ -260,6 +269,7 @@ def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statem
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
     match state.kind, state.type with
+    | .scalar, .u32 => pure ()
     | .scalar, .u64 => pure ()
     | .scalar, other =>
         .error { message := s!"state `{state.id}` has unsupported EVM IR v0 type `{other.name}`" }

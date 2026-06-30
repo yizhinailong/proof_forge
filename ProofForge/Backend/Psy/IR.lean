@@ -36,6 +36,8 @@ def testFunctionName (module : Module) : String :=
     "test_conditional_probe_fixture"
   else if module.name == "ArithmeticProbe" then
     "test_arithmetic_probe_fixture"
+  else if module.name == "U32ArithmeticProbe" then
+    "test_u32_arithmetic_probe_fixture"
   else if module.name == "ExpressionPredicateProbe" then
     "test_expression_predicate_probe_fixture"
   else if module.name == "NestedAggregateProbe" then
@@ -66,6 +68,7 @@ def testFunctionName (module : Module) : String :=
 def valueTypeName : ValueType → Except LowerError String
   | .unit => .ok "()"
   | .bool => .ok "bool"
+  | .u32 => .ok "u32"
   | .u64 => .ok "Felt"
   | .hash => .ok "Hash"
   | .fixedArray element length => do
@@ -75,6 +78,7 @@ def valueTypeName : ValueType → Except LowerError String
   | .structType name => .ok name
 
 def literal : Literal → String
+  | .u32 value => s!"{value}u32"
   | .u64 value => toString value
   | .bool true => "true"
   | .bool false => "false"
@@ -255,7 +259,7 @@ def resolveStoragePathType (module : Module) (stateId : String) (path : Array St
 partial def validateValueType (module : Module) (type : ValueType) : Except LowerError Unit := do
   match type with
   | .unit => .error { message := "Psy IR v0 does not support Unit as a stored or structured value type" }
-  | .bool | .u64 | .hash => pure ()
+  | .bool | .u32 | .u64 | .hash => pure ()
   | .fixedArray element length =>
       if length == 0 then
         .error { message := "Psy IR v0 fixed arrays must have non-zero length" }
@@ -271,8 +275,8 @@ partial def validateAbiValueType (module : Module) (type : ValueType) (context :
       if allowUnit then
         pure ()
       else
-        .error { message := s!"{context} uses Unit; Psy IR v0 entrypoint parameters must use Felt, Bool, Hash, fixed arrays, or declared structs" }
-  | .bool | .u64 | .hash => pure ()
+        .error { message := s!"{context} uses Unit; Psy IR v0 entrypoint parameters must use Felt, U32, Bool, Hash, fixed arrays, or declared structs" }
+  | .bool | .u32 | .u64 | .hash => pure ()
   | .fixedArray element length =>
       if length == 0 then
         .error { message := s!"{context} uses a zero-length fixed array; Psy IR v0 fixed arrays must have non-zero length" }
@@ -305,7 +309,19 @@ def ensureType (context : String) (expected actual : ValueType) : Except LowerEr
     .error { message := s!"{context} expected `{expected.name}`, got `{actual.name}`" }
 
 def ensureIndexType (context : String) (type : ValueType) : Except LowerError Unit :=
-  ensureType context .u64 type
+  match type with
+  | .u32 | .u64 => .ok ()
+  | other => .error { message := s!"{context} expected `U32` or `U64`, got `{other.name}`" }
+
+def ensureNumericType (context : String) (type : ValueType) : Except LowerError Unit :=
+  match type with
+  | .u32 | .u64 => .ok ()
+  | other => .error { message := s!"{context} expected numeric `U32` or `U64`, got `{other.name}`" }
+
+def ensureSameNumericType (operator : String) (lhs rhs : ValueType) : Except LowerError ValueType := do
+  ensureNumericType s!"{operator} left operand" lhs
+  ensureType s!"{operator} right operand" lhs rhs
+  .ok lhs
 
 def ensureEqType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
@@ -313,8 +329,19 @@ def ensureEqType (context : String) (type : ValueType) : Except LowerError Unit 
       .error { message := s!"{context} does not support Unit equality" }
   | .fixedArray _ _ =>
       .error { message := s!"{context} does not support `{type.name}` equality; compare fixed-array elements explicitly" }
-  | .bool | .u64 | .hash | .structType _ =>
+  | .bool | .u32 | .u64 | .hash | .structType _ =>
       .ok ()
+
+def ensureCastType (source target : ValueType) : Except LowerError Unit :=
+  match source, target with
+  | .u32, .u64 => .ok ()
+  | .u64, .u32 => .ok ()
+  | .u32, .bool => .ok ()
+  | .bool, .u64 => .ok ()
+  | .bool, .u32 => .ok ()
+  | .u64, .bool => .ok ()
+  | source, target =>
+      .error { message := s!"cast from `{source.name}` to `{target.name}` is not supported by Psy IR v0" }
 
 def structFieldType (module : Module) (typeName fieldName : String) : Except LowerError ValueType := do
   let some decl := findStruct? module typeName
@@ -351,6 +378,7 @@ def arrayStateElementType (module : Module) (stateId : String) : Except LowerErr
 
 mutual
   partial def inferExprType (module : Module) (env : TypeEnv) : Expr → Except LowerError ValueType
+    | .literal (.u32 _) => .ok .u32
     | .literal (.u64 _) => .ok .u64
     | .literal (.bool _) => .ok .bool
     | .literal (.hash4 ..) => .ok .hash
@@ -401,21 +429,31 @@ mutual
     | .add lhs rhs => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
-        ensureType "addition left operand" .u64 lhsType
-        ensureType "addition right operand" .u64 rhsType
-        .ok .u64
+        ensureSameNumericType "addition" lhsType rhsType
     | .sub lhs rhs => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
-        ensureType "subtraction left operand" .u64 lhsType
-        ensureType "subtraction right operand" .u64 rhsType
-        .ok .u64
+        ensureSameNumericType "subtraction" lhsType rhsType
     | .mul lhs rhs => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
-        ensureType "multiplication left operand" .u64 lhsType
-        ensureType "multiplication right operand" .u64 rhsType
-        .ok .u64
+        ensureSameNumericType "multiplication" lhsType rhsType
+    | .div lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureSameNumericType "division" lhsType rhsType
+    | .mod lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureSameNumericType "modulo" lhsType rhsType
+    | .pow lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureSameNumericType "exponentiation" lhsType rhsType
+    | .cast value targetType => do
+        let sourceType ← inferExprType module env value
+        ensureCastType sourceType targetType
+        .ok targetType
     | .eq lhs rhs => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
@@ -431,26 +469,22 @@ mutual
     | .lt lhs rhs => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
-        ensureType "less-than left operand" .u64 lhsType
-        ensureType "less-than right operand" .u64 rhsType
+        discard <| ensureSameNumericType "less-than" lhsType rhsType
         .ok .bool
     | .le lhs rhs => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
-        ensureType "less-or-equal left operand" .u64 lhsType
-        ensureType "less-or-equal right operand" .u64 rhsType
+        discard <| ensureSameNumericType "less-or-equal" lhsType rhsType
         .ok .bool
     | .gt lhs rhs => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
-        ensureType "greater-than left operand" .u64 lhsType
-        ensureType "greater-than right operand" .u64 rhsType
+        discard <| ensureSameNumericType "greater-than" lhsType rhsType
         .ok .bool
     | .ge lhs rhs => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
-        ensureType "greater-or-equal left operand" .u64 lhsType
-        ensureType "greater-or-equal right operand" .u64 rhsType
+        discard <| ensureSameNumericType "greater-or-equal" lhsType rhsType
         .ok .bool
     | .boolAnd lhs rhs => do
         let lhsType ← inferExprType module env lhs
@@ -663,7 +697,7 @@ mutual
     | .boundedFor indexName start stopExclusive body => do
         if stopExclusive <= start then
           .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
-        let loopEnv ← addLocal env indexName .u64 false
+        let loopEnv ← addLocal env indexName .u32 false
         discard <| validateBody module entrypoint loopEnv body
         .ok env
     | .return value => do
@@ -701,6 +735,14 @@ mutual
         .ok s!"{← lowerExprOperand module lhs} - {← lowerExprOperand module rhs}"
     | .mul lhs rhs => do
         .ok s!"{← lowerExprOperand module lhs} * {← lowerExprOperand module rhs}"
+    | .div lhs rhs => do
+        .ok s!"{← lowerExprOperand module lhs} / {← lowerExprOperand module rhs}"
+    | .mod lhs rhs => do
+        .ok s!"{← lowerExprOperand module lhs} % {← lowerExprOperand module rhs}"
+    | .pow lhs rhs => do
+        .ok s!"{← lowerExprOperand module lhs} ** {← lowerExprOperand module rhs}"
+    | .cast value targetType => do
+        .ok s!"{← lowerExprOperand module value} as {← valueTypeName targetType}"
     | .eq lhs rhs => do
         .ok s!"({← lowerExpr module lhs} == {← lowerExpr module rhs})"
     | .ne lhs rhs => do
@@ -936,6 +978,7 @@ def validateEntrypointBodies (module : Module) : Except LowerError Unit := do
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
     match state.kind, state.type with
+    | .scalar, .u32 => pure ()
     | .scalar, .u64 => pure ()
     | .scalar, .structType typeName =>
         match findStruct? module typeName with
@@ -955,6 +998,11 @@ def validateState (module : Module) : Except LowerError Unit := do
           pure ()
     | .map keyType _, valueType =>
         .error { message := s!"map state `{state.id}` has unsupported Psy IR v0 type Map<{keyType.name}, {valueType.name}>; only Map<Hash, Hash, N> is supported" }
+    | .array length, .u32 =>
+        if length == 0 then
+          .error { message := s!"array state `{state.id}` must have non-zero length" }
+        else
+          pure ()
     | .array length, .u64 =>
         if length == 0 then
           .error { message := s!"array state `{state.id}` must have non-zero length" }
@@ -977,7 +1025,7 @@ def validateState (module : Module) : Except LowerError Unit := do
         | none =>
             .error { message := s!"array state `{state.id}` references unknown struct `{typeName}`" }
     | .array _, valueType =>
-        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt, Hash, and deriveStorage structs are supported" }
+        .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt, U32, Hash, and deriveStorage structs are supported" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.psyDpn module.capabilities with
@@ -1011,6 +1059,11 @@ def testBody (module : Module) : Except LowerError (Array String) := do
     module.entrypoints.any (fun entry => entry.name == "arithmetic_mix" && entry.params.isEmpty && entry.returns == .u64) then
     .ok #[
       s!"assert_eq({refName}::arithmetic_mix(), 60, \"arithmetic expressions preserve precedence\");"
+    ]
+  else if module.name == "U32ArithmeticProbe" &&
+    module.entrypoints.any (fun entry => entry.name == "u32_arithmetic" && entry.params.size == 2 && entry.returns == .u64) then
+    .ok #[
+      s!"assert_eq({refName}::u32_arithmetic(2u32, 3u32), 1, \"u32 arithmetic follows upstream u32 test shape\");"
     ]
   else if module.name == "ExpressionPredicateProbe" &&
     module.entrypoints.any (fun entry => entry.name == "predicate_sum" && entry.params.isEmpty && entry.returns == .u64) then

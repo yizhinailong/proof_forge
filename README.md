@@ -107,6 +107,14 @@ lake env proof-forge --emit-arithmetic-ir-psy -o build/psy/ArithmeticProbe.psy
 scripts/psy/arithmetic-smoke.sh
 ```
 
+Validate the Psy/DPN `u32` arithmetic fixture, which mirrors the core shape of
+upstream `u32_test.psy`:
+
+```sh
+lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProbe.psy
+scripts/psy/u32-arithmetic-smoke.sh
+```
+
 Validate the Psy/DPN conditional fixture, which exercises statement-level
 `if/else` lowering:
 
