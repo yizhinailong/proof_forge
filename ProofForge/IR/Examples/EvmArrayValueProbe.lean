@@ -211,6 +211,76 @@ def nestedWholeArrayAssign : Entrypoint := {
   ]
 }
 
+def nestedDynamicPick : Entrypoint := {
+  name := "nested_dynamic_pick"
+  selector? := some "deb5ba01"
+  params := #[
+    ("row", .u64),
+    ("col", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .letBind "matrix" (.fixedArray (.fixedArray .u64 2) 2) (.arrayLit (.fixedArray .u64 2) #[
+      .arrayLit .u64 #[u64 2, u64 3],
+      .arrayLit .u64 #[u64 5, u64 7]
+    ]),
+    .return (.arrayGet (.arrayGet (.local "matrix") (.local "row")) (.local "col"))
+  ]
+}
+
+def nestedDynamicRowPick : Entrypoint := {
+  name := "nested_dynamic_row_pick"
+  selector? := some "731f5daf"
+  params := #[
+    ("row", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .letBind "matrix" (.fixedArray (.fixedArray .u64 2) 2) (.arrayLit (.fixedArray .u64 2) #[
+      .arrayLit .u64 #[u64 2, u64 3],
+      .arrayLit .u64 #[u64 5, u64 7]
+    ]),
+    .return (.arrayGet (.arrayGet (.local "matrix") (.local "row")) (u64 1))
+  ]
+}
+
+def nestedDynamicUpdate : Entrypoint := {
+  name := "nested_dynamic_update"
+  selector? := some "bd33c419"
+  params := #[
+    ("row", .u64),
+    ("col", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .letMutBind "matrix" (.fixedArray (.fixedArray .u64 2) 2) (.arrayLit (.fixedArray .u64 2) #[
+      .arrayLit .u64 #[u64 2, u64 3],
+      .arrayLit .u64 #[u64 5, u64 7]
+    ]),
+    .assign (.arrayGet (.arrayGet (.local "matrix") (.local "row")) (.local "col")) (u64 20),
+    .assignOp (.arrayGet (.arrayGet (.local "matrix") (.local "row")) (.local "col")) .add (u64 3),
+    .return (.arrayGet (.arrayGet (.local "matrix") (.local "row")) (.local "col"))
+  ]
+}
+
+def nestedDynamicRowUpdate : Entrypoint := {
+  name := "nested_dynamic_row_update"
+  selector? := some "69437a57"
+  params := #[
+    ("row", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .letMutBind "matrix" (.fixedArray (.fixedArray .u64 2) 2) (.arrayLit (.fixedArray .u64 2) #[
+      .arrayLit .u64 #[u64 2, u64 3],
+      .arrayLit .u64 #[u64 5, u64 7]
+    ]),
+    .assign (.arrayGet (.arrayGet (.local "matrix") (.local "row")) (u64 1)) (u64 20),
+    .assignOp (.arrayGet (.arrayGet (.local "matrix") (.local "row")) (u64 1)) .add (u64 3),
+    .return (.arrayGet (.arrayGet (.local "matrix") (.local "row")) (u64 1))
+  ]
+}
+
 def module : Module := {
   name := "EvmArrayValueProbe"
   state := #[]
@@ -227,7 +297,11 @@ def module : Module := {
     wholeArrayAssign,
     nestedLocalSum,
     nestedMutableUpdate,
-    nestedWholeArrayAssign
+    nestedWholeArrayAssign,
+    nestedDynamicPick,
+    nestedDynamicRowPick,
+    nestedDynamicUpdate,
+    nestedDynamicRowUpdate
   ]
 }
 

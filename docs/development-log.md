@@ -4202,7 +4202,7 @@ Next step:
 
 ### Psy AssertProbe IR Assertions
 
-Commit: pending
+Commit: feature commit for dynamic nested EVM local arrays
 
 Summary:
 
@@ -4783,6 +4783,12 @@ Summary:
 - Added deterministic Yul locals for nested leaves such as `matrix[1][0]`.
 - Covered static nested reads, mutable leaf assignment, numeric leaf compound
   assignment, nested whole-local assignment, and RHS snapshotting.
+- Extended nested local scalar fixed arrays to dynamic index paths, including
+  nested getter helpers for reads and nested `switch` blocks for mutable leaf
+  assignment and compound assignment.
+- Added `nested_dynamic_pick`, `nested_dynamic_row_pick`,
+  `nested_dynamic_update`, and `nested_dynamic_row_update` coverage to
+  `EvmArrayValueProbe`.
 
 Validation run:
 
@@ -4795,9 +4801,9 @@ Result:
 
 - Lean build passed.
 - Array value smoke produced reproducible golden Yul, compiled bytecode with
-  `solc --strict-assembly`, validated metadata, and passed 14 Foundry tests.
+  `solc --strict-assembly`, validated metadata, and passed 17 Foundry tests.
 
 Known limitations:
 
-- Dynamic nested local indexes and nested local arrays with non-scalar leaves
-  remain explicit unsupported surfaces.
+- Nested local arrays with non-scalar leaves remain explicit unsupported
+  surfaces.

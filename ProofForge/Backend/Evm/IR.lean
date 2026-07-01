@@ -403,8 +403,29 @@ def arrayStructLocalPathFieldName (name : String) (path : Array Nat) (fieldName 
 def localArrayGetFunctionName (length : Nat) : String :=
   s!"__proof_forge_local_array_get_{length}"
 
+def nestedLocalArrayGetFunctionName (lengths : Array Nat) : String :=
+  s!"__proof_forge_local_array_get_nested_{natPathSuffix lengths}"
+
 def localArrayGetValueParamName (index : Nat) : String :=
   s!"value_{index}"
+
+def localArrayGetIndexParamName (index : Nat) : String :=
+  s!"index_{index}"
+
+def localArrayGetPathValueParamName (path : Array Nat) : String :=
+  s!"value_{natPathSuffix path}"
+
+partial def nestedLocalArrayLeafPaths (lengths : Array Nat) : Array (Array Nat) :=
+  match lengths.toList with
+  | [] => #[#[]]
+  | length :: rest =>
+      Id.run do
+        let nested := nestedLocalArrayLeafPaths rest.toArray
+        let mut paths : Array (Array Nat) := #[]
+        for _h : idx in [0:length] do
+          for path in nested do
+            paths := paths.push (#[idx] ++ path)
+        paths
 
 def structLocalFieldName (name fieldName : String) : String :=
   s!"__proof_forge_struct_{name}_{fieldName}"
@@ -760,6 +781,17 @@ partial def collectStaticLocalArrayGetPath : ProofForge.IR.Expr → Option (Stri
       | _, _ => none
   | _ => none
 
+partial def collectLocalArrayGetPath : ProofForge.IR.Expr → Option (String × Array ProofForge.IR.Expr)
+  | .arrayGet (.local name) index => some (name, #[index])
+  | .arrayGet array index =>
+      match collectLocalArrayGetPath array with
+      | some (name, path) => some (name, path.push index)
+      | none => none
+  | _ => none
+
+def arrayIndexPathHasDynamic (path : Array ProofForge.IR.Expr) : Bool :=
+  path.any fun index => (literalArrayIndex? index).isNone
+
 partial def fixedArrayPathType
     (context : String)
     (type : ValueType)
@@ -771,6 +803,20 @@ partial def fixedArrayPathType
       | .fixedArray elementType length => do
           ensureFixedArrayIndexInBounds context index length
           fixedArrayPathType context elementType rest.toArray
+      | other =>
+          .error { message := s!"{context} target expected `Array`, got `{other.name}`" }
+
+partial def fixedArrayPathShape
+    (context : String)
+    (type : ValueType)
+    (path : Array ProofForge.IR.Expr) : Except LowerError (Array Nat × ValueType) := do
+  match path.toList with
+  | [] => .ok (#[], type)
+  | _ :: rest =>
+      match type with
+      | .fixedArray elementType length => do
+          let (nested, leafType) ← fixedArrayPathShape context elementType rest.toArray
+          .ok (#[length] ++ nested, leafType)
       | other =>
           .error { message := s!"{context} target expected `Array`, got `{other.name}`" }
 
@@ -1326,6 +1372,25 @@ def requireMutableLocal (env : TypeEnv) (context name : String) : Except LowerEr
     .error { message := s!"{context} local `{name}` is not mutable" }
   .ok binding
 
+partial def validateFixedArrayIndexPathTarget
+    (module : Module)
+    (env : TypeEnv)
+    (context : String)
+    (type : ValueType)
+    (path : Array ProofForge.IR.Expr) : Except LowerError ValueType := do
+  match path.toList with
+  | [] => .ok type
+  | index :: rest =>
+      match type with
+      | .fixedArray elementType length => do
+          ensureArrayIndexType s!"{context} fixed-array index" (← inferExprType module env index)
+          match literalArrayIndex? index with
+          | some indexValue => ensureFixedArrayIndexInBounds s!"{context} fixed-array index" indexValue length
+          | none => pure ()
+          validateFixedArrayIndexPathTarget module env context elementType rest.toArray
+      | other =>
+          .error { message := s!"{context} target expected `Array`, got `{other.name}`" }
+
 def validateLocalFixedArrayTarget
     (module : Module)
     (env : TypeEnv)
@@ -1358,10 +1423,10 @@ def validateLocalFixedArrayStaticPathTarget
     (module : Module)
     (env : TypeEnv)
     (context name : String)
-    (path : Array Nat)
+    (path : Array ProofForge.IR.Expr)
     (value : ProofForge.IR.Expr) : Except LowerError ValueType := do
   let binding ← requireMutableLocal env context name
-  let targetType ← fixedArrayPathType s!"{context} fixed-array index" binding.type path
+  let targetType ← validateFixedArrayIndexPathTarget module env context binding.type path
   ensureType s!"{context} value" targetType (← inferExprType module env value)
   match targetType with
   | .u32 | .u64 | .bool | .hash => .ok targetType
@@ -1443,7 +1508,7 @@ def validateAssignTarget
         discard <| validateLocalStructTarget module env "assignment target" name fieldName value
     | _ =>
         .error { message := "assignment target must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0" }
-  match collectStaticLocalArrayGetPath target with
+  match collectLocalArrayGetPath target with
   | some (name, path) =>
       if path.size > 1 then
         discard <| validateLocalFixedArrayStaticPathTarget module env "assignment target" name path value
@@ -1474,7 +1539,7 @@ def validateAssignOpTarget
         ensureAssignOpTypes op targetType (← inferExprType module env value)
     | _ =>
         .error { message := "compound assignment target must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0" }
-  match collectStaticLocalArrayGetPath target with
+  match collectLocalArrayGetPath target with
   | some (name, path) =>
       if path.size > 1 then
         let targetType ← validateLocalFixedArrayStaticPathTarget module env "compound assignment target" name path value
@@ -1646,18 +1711,92 @@ mutual
         | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.read" }
     | _ => .error { message := "EVM IR v0 supports storage paths as mapKey, index, field, or index followed by field" }
 
+  partial def validateFixedArrayIndexExprPath
+      (module : Module)
+      (env : TypeEnv)
+      (context : String)
+      (type : ValueType)
+      (path : Array ProofForge.IR.Expr) : Except LowerError (Array Nat × ValueType) := do
+    match path.toList with
+    | [] => .ok (#[], type)
+    | index :: rest =>
+        match type with
+        | .fixedArray elementType length => do
+            ensureArrayIndexType context (← inferExprType module env index)
+            match literalArrayIndex? index with
+            | some indexValue => ensureFixedArrayIndexInBounds context indexValue length
+            | none => pure ()
+            let (nestedLengths, leafType) ← validateFixedArrayIndexExprPath module env context elementType rest.toArray
+            .ok (#[length] ++ nestedLengths, leafType)
+        | other =>
+            .error { message := s!"{context} target expected `Array`, got `{other.name}`" }
+
+  partial def lowerDynamicNestedLocalFixedArrayGetExpr
+      (module : Module)
+      (env : TypeEnv)
+      (name : String)
+      (binding : LocalBinding)
+      (path : Array ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let (lengths, leafType) ← validateFixedArrayIndexExprPath module env "fixed array index" binding.type path
+    match leafType with
+    | .u32 | .u64 | .bool | .hash => pure ()
+    | .structType _ =>
+        .error {
+          message := s!"fixed array indexing local `{name}` returns struct values; IR EVM v0 requires field access such as array[index].field"
+        }
+    | .unit | .fixedArray _ _ =>
+        .error {
+          message := s!"fixed array indexing local `{name}` has unsupported EVM IR v0 element type `{leafType.name}`"
+        }
+    let leafPaths := nestedLocalArrayLeafPaths lengths
+    let mut args : Array Lean.Compiler.Yul.Expr := #[]
+    for index in path do
+      args := args.push (← lowerExpr module env index)
+    for leafPath in leafPaths do
+      args := args.push (Lean.Compiler.Yul.Expr.id (arrayLocalPathName name leafPath))
+    .ok (Lean.Compiler.Yul.call (nestedLocalArrayGetFunctionName lengths) args)
+
   partial def lowerLocalFixedArrayGetExpr
       (module : Module)
       (env : TypeEnv)
       (array index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    match collectStaticLocalArrayGetPath (.arrayGet array index) with
-    | some (name, path) => do
-        let some binding := findLocal? env name
-          | .error { message := s!"unknown local `{name}`" }
-        let elementType ← fixedArrayPathType "fixed array index" binding.type path
+    let fullExpr := ProofForge.IR.Expr.arrayGet array index
+    match collectLocalArrayGetPath fullExpr with
+    | some (name, path) =>
+        if path.size > 1 && arrayIndexPathHasDynamic path then
+          let some binding := findLocal? env name
+            | .error { message := s!"unknown local `{name}`" }
+          lowerDynamicNestedLocalFixedArrayGetExpr module env name binding path
+        else
+          match collectStaticLocalArrayGetPath fullExpr with
+          | some (name, path) => do
+              let some binding := findLocal? env name
+                | .error { message := s!"unknown local `{name}`" }
+              let elementType ← fixedArrayPathType "fixed array index" binding.type path
+              match elementType with
+              | .u32 | .u64 | .bool | .hash =>
+                  .ok (Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path))
+              | .structType _ =>
+                  .error {
+                    message := s!"fixed array indexing local `{name}` returns struct values; IR EVM v0 requires field access such as array[index].field"
+                  }
+              | .unit | .fixedArray _ _ =>
+                  .error {
+                    message := s!"fixed array indexing local `{name}` has unsupported EVM IR v0 element type `{elementType.name}`"
+                  }
+          | none =>
+              lowerLocalFixedArrayGetExprFallback module env array index
+    | none =>
+        lowerLocalFixedArrayGetExprFallback module env array index
+
+  partial def lowerLocalFixedArrayGetExprFallback
+      (module : Module)
+      (env : TypeEnv)
+      (array index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr :=
+    match array with
+    | .local name => do
+        let (elementType, length) ← requireLocalFixedArray "fixed array indexing" env name
         match elementType with
-        | .u32 | .u64 | .bool | .hash =>
-            .ok (Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path))
         | .structType _ =>
             .error {
               message := s!"fixed array indexing local `{name}` returns struct values; IR EVM v0 requires field access such as array[index].field"
@@ -1666,44 +1805,32 @@ mutual
             .error {
               message := s!"fixed array indexing local `{name}` has unsupported EVM IR v0 element type `{elementType.name}`"
             }
-    | none => match array with
-      | .local name => do
-          let (elementType, length) ← requireLocalFixedArray "fixed array indexing" env name
-          match elementType with
-          | .structType _ =>
-              .error {
-                message := s!"fixed array indexing local `{name}` returns struct values; IR EVM v0 requires field access such as array[index].field"
-              }
-          | .unit | .fixedArray _ _ =>
-              .error {
-                message := s!"fixed array indexing local `{name}` has unsupported EVM IR v0 element type `{elementType.name}`"
-              }
-          | .u32 | .u64 | .bool | .hash => pure ()
-          match literalArrayIndex? index with
-          | some indexValue => do
-              ensureFixedArrayIndexInBounds "fixed array index" indexValue length
-              .ok (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name indexValue))
-          | none => do
-              let mut values : Array Lean.Compiler.Yul.Expr := #[]
-              for h : idx in [0:length] do
-                values := values.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
-              .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName length) (#[← lowerExpr module env index] ++ values))
-      | .arrayLit _ values =>
-          match literalArrayIndex? index with
-          | some indexValue =>
-              if h : indexValue < values.size then
-                lowerExpr module env values[indexValue]
-              else
-                .error { message := s!"fixed array literal index {indexValue} is out of bounds for length {values.size}" }
-          | none => do
-              let mut loweredValues : Array Lean.Compiler.Yul.Expr := #[]
-              for h : idx in [0:values.size] do
-                loweredValues := loweredValues.push (← lowerExpr module env values[idx])
-              .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName values.size) (#[← lowerExpr module env index] ++ loweredValues))
-      | _ =>
-          .error {
-            message := "fixed array indexing in IR EVM v0 supports local fixed-array values or array literals only"
-          }
+        | .u32 | .u64 | .bool | .hash => pure ()
+        match literalArrayIndex? index with
+        | some indexValue => do
+            ensureFixedArrayIndexInBounds "fixed array index" indexValue length
+            .ok (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name indexValue))
+        | none => do
+            let mut values : Array Lean.Compiler.Yul.Expr := #[]
+            for h : idx in [0:length] do
+              values := values.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
+            .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName length) (#[← lowerExpr module env index] ++ values))
+    | .arrayLit _ values =>
+        match literalArrayIndex? index with
+        | some indexValue =>
+            if h : indexValue < values.size then
+              lowerExpr module env values[indexValue]
+            else
+              .error { message := s!"fixed array literal index {indexValue} is out of bounds for length {values.size}" }
+        | none => do
+            let mut loweredValues : Array Lean.Compiler.Yul.Expr := #[]
+            for h : idx in [0:values.size] do
+              loweredValues := loweredValues.push (← lowerExpr module env values[idx])
+            .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName values.size) (#[← lowerExpr module env index] ++ loweredValues))
+    | _ =>
+        .error {
+          message := "fixed array indexing in IR EVM v0 supports local fixed-array values or array literals only"
+        }
 
   partial def lowerLocalStructFieldExpr
       (module : Module)
@@ -2994,6 +3121,9 @@ def lowerWholeLocalAssignStmt
 def dynamicArrayIndexLocalName : String := "__proof_forge_array_index"
 def dynamicArrayValueLocalName : String := "__proof_forge_array_value"
 
+def dynamicArrayIndexPathLocalName (depth : Nat) : String :=
+  s!"__proof_forge_array_index_{depth}"
+
 def dynamicLocalFixedArraySwitchCases
     (length : Nat)
     (bodyForIndex : Nat → Array Lean.Compiler.Yul.Statement) : Array Lean.Compiler.Yul.Case :=
@@ -3025,6 +3155,72 @@ def lowerDynamicLocalFixedArrayAssignStmt
       .varDecl #[{ name := dynamicArrayValueLocalName }] (some valueExpr),
       .switchStmt (Lean.Compiler.Yul.Expr.id dynamicArrayIndexLocalName) cases
     ]
+  })
+
+partial def lowerDynamicLocalFixedArrayPathAssignBody
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (type : ValueType)
+    (pathPrefix : Array Nat)
+    (path : Array ProofForge.IR.Expr)
+    (op? : Option AssignOp) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  match path.toList with
+  | [] =>
+      let targetName := arrayLocalPathName name pathPrefix
+      let valueExpr := Lean.Compiler.Yul.Expr.id dynamicArrayValueLocalName
+      let rhs :=
+        match op? with
+        | some op => lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) valueExpr
+        | none => valueExpr
+      .ok #[.assignment #[targetName] rhs]
+  | index :: rest =>
+      match type with
+      | .fixedArray elementType length =>
+          match literalArrayIndex? index with
+          | some indexValue => do
+              ensureFixedArrayIndexInBounds "assignment target fixed-array index" indexValue length
+              lowerDynamicLocalFixedArrayPathAssignBody module env name elementType (pathPrefix.push indexValue) rest.toArray op?
+          | none => do
+              let indexName := dynamicArrayIndexPathLocalName pathPrefix.size
+              let indexExpr ← lowerExpr module env index
+              let mut cases : Array Lean.Compiler.Yul.Case := #[]
+              for _h : idx in [0:length] do
+                cases := cases.push {
+                  value := some (Lean.Compiler.Yul.Literal.natLit idx)
+                  body := {
+                    statements := ← lowerDynamicLocalFixedArrayPathAssignBody module env name elementType (pathPrefix.push idx) rest.toArray op?
+                  }
+                }
+              cases := cases.push {
+                value := none
+                body := { statements := #[revertStmt] }
+              }
+              .ok #[
+                .block {
+                  statements := #[
+                    .varDecl #[{ name := indexName }] (some indexExpr),
+                    .switchStmt (Lean.Compiler.Yul.Expr.id indexName) cases
+                  ]
+                }
+              ]
+      | other =>
+          .error { message := s!"assignment target fixed-array path expected `Array`, got `{other.name}`" }
+
+def lowerDynamicLocalFixedArrayPathAssignStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (binding : LocalBinding)
+    (path : Array ProofForge.IR.Expr)
+    (op? : Option AssignOp)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let valueExpr ← lowerExpr module env value
+  let body ← lowerDynamicLocalFixedArrayPathAssignBody module env name binding.type #[] path op?
+  .ok (.block {
+    statements := #[
+      .varDecl #[{ name := dynamicArrayValueLocalName }] (some valueExpr)
+    ] ++ body
   })
 
 def lowerDynamicLocalFixedArrayAssignOpStmt
@@ -3118,8 +3314,17 @@ def lowerAssignStmt
           let (_, length, _) ← requireLocalFixedStructArrayField module env "assignment target" name fieldName
           .ok #[← lowerDynamicLocalStructArrayFieldAssignStmt module env name fieldName length index value]
   | _ => do
-      let targetName ← lowerAssignTargetName "assignment target" target
-      .ok #[.assignment #[targetName] (← lowerExpr module env value)]
+      match collectLocalArrayGetPath target with
+      | some (name, path) =>
+          if path.size > 1 && arrayIndexPathHasDynamic path then
+            let binding ← requireMutableLocal env "assignment target" name
+            .ok #[← lowerDynamicLocalFixedArrayPathAssignStmt module env name binding path none value]
+          else
+            let targetName ← lowerAssignTargetName "assignment target" target
+            .ok #[.assignment #[targetName] (← lowerExpr module env value)]
+      | none =>
+          let targetName ← lowerAssignTargetName "assignment target" target
+          .ok #[.assignment #[targetName] (← lowerExpr module env value)]
 
 def lowerAssignOpStmt
     (module : Module)
@@ -3145,8 +3350,17 @@ def lowerAssignOpStmt
           let (_, length, _) ← requireLocalFixedStructArrayField module env "compound assignment target" name fieldName
           .ok #[← lowerDynamicLocalStructArrayFieldAssignOpStmt module env name fieldName length index op value]
   | _ => do
-      let targetName ← lowerAssignTargetName "compound assignment target" target
-      .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
+      match collectLocalArrayGetPath target with
+      | some (name, path) =>
+          if path.size > 1 && arrayIndexPathHasDynamic path then
+            let binding ← requireMutableLocal env "compound assignment target" name
+            .ok #[← lowerDynamicLocalFixedArrayPathAssignStmt module env name binding path (some op) value]
+          else
+            let targetName ← lowerAssignTargetName "compound assignment target" target
+            .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
+      | none =>
+          let targetName ← lowerAssignTargetName "compound assignment target" target
+          .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
 
 mutual
   partial def statementAlwaysReturns : Statement → Bool
@@ -3776,6 +3990,56 @@ def localArrayGetHelperFunction (length : Nat) : Lean.Compiler.Yul.Statement :=
 def localArrayGetHelperFunctions (lengths : Array Nat) : Array Lean.Compiler.Yul.Statement :=
   lengths.map localArrayGetHelperFunction
 
+def nestedLocalArrayGetFunctionParams (lengths : Array Nat) : Array Lean.Compiler.Yul.TypedName :=
+  Id.run do
+    let mut params : Array Lean.Compiler.Yul.TypedName := #[]
+    for _h : idx in [0:lengths.size] do
+      params := params.push { name := localArrayGetIndexParamName idx }
+    for path in nestedLocalArrayLeafPaths lengths do
+      params := params.push { name := localArrayGetPathValueParamName path }
+    params
+
+partial def nestedLocalArrayGetSwitchStatements
+    (lengths : Array Nat)
+    (depth : Nat)
+    (path : Array Nat) : Array Lean.Compiler.Yul.Statement :=
+  match lengths.toList with
+  | [] =>
+      #[.assignment #["result"] (Lean.Compiler.Yul.Expr.id (localArrayGetPathValueParamName path))]
+  | length :: rest =>
+      let cases := Id.run do
+        let mut cases : Array Lean.Compiler.Yul.Case := #[]
+        for _h : idx in [0:length] do
+          cases := cases.push {
+            value := some (Lean.Compiler.Yul.Literal.natLit idx)
+            body := {
+              statements := nestedLocalArrayGetSwitchStatements rest.toArray (depth + 1) (path.push idx)
+            }
+          }
+        cases.push {
+          value := none
+          body := { statements := #[revertStmt] }
+        }
+      #[.switchStmt (Lean.Compiler.Yul.Expr.id (localArrayGetIndexParamName depth)) cases]
+
+def nestedLocalArrayGetHelperFunction (lengths : Array Nat) : Lean.Compiler.Yul.Statement :=
+  .funcDef (nestedLocalArrayGetFunctionName lengths)
+    (nestedLocalArrayGetFunctionParams lengths)
+    #[{ name := "result" }]
+    { statements := nestedLocalArrayGetSwitchStatements lengths 0 #[] }
+
+def arrayNatEq (lhs rhs : Array Nat) : Bool :=
+  lhs == rhs
+
+def pushNatArrayIfMissing (acc : Array (Array Nat)) (value : Array Nat) : Array (Array Nat) :=
+  if acc.any fun existing => arrayNatEq existing value then acc else acc.push value
+
+def mergeNatArraySets (lhs rhs : Array (Array Nat)) : Array (Array Nat) :=
+  rhs.foldl pushNatArrayIfMissing lhs
+
+def nestedLocalArrayGetHelperFunctions (lengths : Array (Array Nat)) : Array Lean.Compiler.Yul.Statement :=
+  lengths.map nestedLocalArrayGetHelperFunction
+
 def structArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
   .funcDef structArraySlotFunctionName
     #[
@@ -4372,6 +4636,24 @@ def localArrayGetLengthsForDynamicExprTarget
       | .arrayLit _ values => #[values.size]
       | _ => #[]
 
+def nestedLocalArrayGetShapesForDynamicExprTarget
+    (env : TypeEnv)
+    (array index : ProofForge.IR.Expr) : Array (Array Nat) :=
+  let fullExpr := ProofForge.IR.Expr.arrayGet array index
+  match collectLocalArrayGetPath fullExpr with
+  | some (name, path) =>
+      if path.size > 1 && arrayIndexPathHasDynamic path then
+        match findLocal? env name with
+        | some binding =>
+            match fixedArrayPathShape "fixed array index" binding.type path with
+            | .ok (lengths, leafType) =>
+                if isCrosscallWordType leafType then #[lengths] else #[]
+            | .error _ => #[]
+        | none => #[]
+      else
+        #[]
+  | none => #[]
+
 mutual
   partial def localArrayGetLengthsExpr (env : TypeEnv) : ProofForge.IR.Expr → Array Nat
     | .literal _ => #[]
@@ -4520,6 +4802,147 @@ def moduleLocalArrayGetLengths (module : Module) : Except LowerError (Array Nat)
     lengths := mergeNatSets lengths entrypointLengths
   .ok lengths
 
+mutual
+  partial def nestedLocalArrayGetShapesExpr (env : TypeEnv) : ProofForge.IR.Expr → Array (Array Nat)
+    | .literal _ => #[]
+    | .local _ => #[]
+    | .arrayLit _ values =>
+        values.foldl (init := #[]) fun acc value => mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env value)
+    | .arrayGet array index =>
+        let nested := mergeNatArraySets (nestedLocalArrayGetShapesExpr env array) (nestedLocalArrayGetShapesExpr env index)
+        mergeNatArraySets nested (nestedLocalArrayGetShapesForDynamicExprTarget env array index)
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field => mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env field.snd)
+    | .field base _ =>
+        nestedLocalArrayGetShapesExpr env base
+    | .add lhs rhs | .sub lhs rhs | .mul lhs rhs | .div lhs rhs | .mod lhs rhs
+    | .pow lhs rhs | .bitAnd lhs rhs | .bitOr lhs rhs | .bitXor lhs rhs
+    | .shiftLeft lhs rhs | .shiftRight lhs rhs | .eq lhs rhs | .ne lhs rhs
+    | .lt lhs rhs | .le lhs rhs | .gt lhs rhs | .ge lhs rhs
+    | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs =>
+        mergeNatArraySets (nestedLocalArrayGetShapesExpr env lhs) (nestedLocalArrayGetShapesExpr env rhs)
+    | .cast value _ | .boolNot value | .hash value =>
+        nestedLocalArrayGetShapesExpr env value
+    | .hashValue a b c d =>
+        mergeNatArraySets (mergeNatArraySets (nestedLocalArrayGetShapesExpr env a) (nestedLocalArrayGetShapesExpr env b))
+          (mergeNatArraySets (nestedLocalArrayGetShapesExpr env c) (nestedLocalArrayGetShapesExpr env d))
+    | .nativeValue => #[]
+    | .crosscallInvoke target methodId args
+    | .crosscallInvokeTyped target methodId args _
+    | .crosscallInvokeStaticTyped target methodId args _
+    | .crosscallInvokeDelegateTyped target methodId args _ =>
+        let nested := mergeNatArraySets (nestedLocalArrayGetShapesExpr env target) (nestedLocalArrayGetShapesExpr env methodId)
+        args.foldl (init := nested) fun acc arg =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env arg)
+    | .crosscallInvokeValueTyped target methodId callValue args _ =>
+        let nested := mergeNatArraySets (nestedLocalArrayGetShapesExpr env target) (nestedLocalArrayGetShapesExpr env methodId)
+        let nested := mergeNatArraySets nested (nestedLocalArrayGetShapesExpr env callValue)
+        args.foldl (init := nested) fun acc arg =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env arg)
+    | .crosscallCreate callValue _ =>
+        nestedLocalArrayGetShapesExpr env callValue
+    | .crosscallCreate2 callValue salt _ =>
+        mergeNatArraySets (nestedLocalArrayGetShapesExpr env callValue) (nestedLocalArrayGetShapesExpr env salt)
+    | .effect effect =>
+        nestedLocalArrayGetShapesEffect env effect
+
+  partial def nestedLocalArrayGetShapesEffect (env : TypeEnv) : Effect → Array (Array Nat)
+    | .storageScalarRead _ => #[]
+    | .storageScalarWrite _ value | .storageScalarAssignOp _ _ value =>
+        nestedLocalArrayGetShapesExpr env value
+    | .storageMapContains _ key | .storageMapGet _ key =>
+        nestedLocalArrayGetShapesExpr env key
+    | .storageMapInsert _ key value | .storageMapSet _ key value =>
+        mergeNatArraySets (nestedLocalArrayGetShapesExpr env key) (nestedLocalArrayGetShapesExpr env value)
+    | .storageArrayRead _ index =>
+        nestedLocalArrayGetShapesExpr env index
+    | .storageArrayWrite _ index value | .storageArrayStructFieldWrite _ index _ value =>
+        mergeNatArraySets (nestedLocalArrayGetShapesExpr env index) (nestedLocalArrayGetShapesExpr env value)
+    | .storageArrayStructFieldRead _ index _ =>
+        nestedLocalArrayGetShapesExpr env index
+    | .storageStructFieldRead _ _ => #[]
+    | .storageStructFieldWrite _ _ value =>
+        nestedLocalArrayGetShapesExpr env value
+    | .storagePathRead _ path =>
+        path.foldl (init := #[]) fun acc segment => mergeNatArraySets acc (nestedLocalArrayGetShapesStoragePathSegment env segment)
+    | .storagePathWrite _ path value =>
+        let pathShapes := path.foldl (init := #[]) fun acc segment =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesStoragePathSegment env segment)
+        mergeNatArraySets pathShapes (nestedLocalArrayGetShapesExpr env value)
+    | .storagePathAssignOp _ path _ value =>
+        let pathShapes := path.foldl (init := #[]) fun acc segment =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesStoragePathSegment env segment)
+        mergeNatArraySets pathShapes (nestedLocalArrayGetShapesExpr env value)
+    | .contextRead _ => #[]
+    | .eventEmit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env field.snd)
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexedShapes := indexedFields.foldl (init := #[]) fun acc field =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env field.snd)
+        dataFields.foldl (init := indexedShapes) fun acc field =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env field.snd)
+
+  partial def nestedLocalArrayGetShapesStoragePathSegment (env : TypeEnv) : StoragePathSegment → Array (Array Nat)
+    | .field _ => #[]
+    | .index index => nestedLocalArrayGetShapesExpr env index
+    | .mapKey key => nestedLocalArrayGetShapesExpr env key
+
+  partial def nestedLocalArrayGetShapesAssignTarget (env : TypeEnv) : ProofForge.IR.Expr → Array (Array Nat)
+    | .arrayGet array index =>
+        let nested := mergeNatArraySets (nestedLocalArrayGetShapesExpr env array) (nestedLocalArrayGetShapesExpr env index)
+        mergeNatArraySets nested (nestedLocalArrayGetShapesForDynamicExprTarget env array index)
+    | .field target _ =>
+        nestedLocalArrayGetShapesExpr env target
+    | _ => #[]
+
+  partial def nestedLocalArrayGetShapesStatement
+      (module : Module)
+      (env : TypeEnv) : Statement → Except LowerError (Array (Array Nat) × TypeEnv)
+    | .letBind name type value => do
+        let nextEnv ← addLocal env name type false
+        .ok (nestedLocalArrayGetShapesExpr env value, nextEnv)
+    | .letMutBind name type value => do
+        let nextEnv ← addLocal env name type true
+        .ok (nestedLocalArrayGetShapesExpr env value, nextEnv)
+    | .assign target value =>
+        .ok (mergeNatArraySets (nestedLocalArrayGetShapesAssignTarget env target) (nestedLocalArrayGetShapesExpr env value), env)
+    | .assignOp target _ value =>
+        .ok (mergeNatArraySets (nestedLocalArrayGetShapesAssignTarget env target) (nestedLocalArrayGetShapesExpr env value), env)
+    | .effect effect =>
+        .ok (nestedLocalArrayGetShapesEffect env effect, env)
+    | .assert condition _ =>
+        .ok (nestedLocalArrayGetShapesExpr env condition, env)
+    | .assertEq lhs rhs _ =>
+        .ok (mergeNatArraySets (nestedLocalArrayGetShapesExpr env lhs) (nestedLocalArrayGetShapesExpr env rhs), env)
+    | .ifElse condition thenBody elseBody => do
+        let (thenShapes, _) ← nestedLocalArrayGetShapesStatements module env thenBody
+        let (elseShapes, _) ← nestedLocalArrayGetShapesStatements module env elseBody
+        .ok (mergeNatArraySets (nestedLocalArrayGetShapesExpr env condition) (mergeNatArraySets thenShapes elseShapes), env)
+    | .boundedFor indexName _ _ body => do
+        let loopEnv ← addLocal env indexName .u32 false
+        let (bodyShapes, _) ← nestedLocalArrayGetShapesStatements module loopEnv body
+        .ok (bodyShapes, env)
+    | .return value =>
+        .ok (nestedLocalArrayGetShapesExpr env value, env)
+
+  partial def nestedLocalArrayGetShapesStatements
+      (module : Module)
+      (env : TypeEnv)
+      (statements : Array Statement) : Except LowerError (Array (Array Nat) × TypeEnv) :=
+    statements.foldlM (init := (#[], env)) fun acc stmt => do
+      let (shapes, currentEnv) := acc
+      let (stmtShapes, nextEnv) ← nestedLocalArrayGetShapesStatement module currentEnv stmt
+      .ok (mergeNatArraySets shapes stmtShapes, nextEnv)
+end
+
+def moduleNestedLocalArrayGetShapes (module : Module) : Except LowerError (Array (Array Nat)) := do
+  let mut shapes : Array (Array Nat) := #[]
+  for entrypoint in module.entrypoints do
+    let (entrypointShapes, _) ← nestedLocalArrayGetShapesStatements module (entrypointTypeEnv entrypoint) entrypoint.body
+    shapes := mergeNatArraySets shapes entrypointShapes
+  .ok shapes
+
 def pushAssignOpIfMissing (acc : Array AssignOp) (value : AssignOp) : Array AssignOp :=
   if acc.any (fun existing => existing == value) then acc else acc.push value
 
@@ -4629,6 +5052,7 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
   let helpers := helpers ++ (← crosscallHelperFunctions module (← moduleCrosscallHelperSpecs module))
   let helpers := helpers ++ (← createHelperFunctions (moduleCreateHelperSpecs module))
   let helpers := helpers ++ localArrayGetHelperFunctions (← moduleLocalArrayGetLengths module)
+  let helpers := helpers ++ nestedLocalArrayGetHelperFunctions (← moduleNestedLocalArrayGetShapes module)
   .ok {
     name := module.name
     code := { statements := #[dispatch] ++ functions ++ helpers }

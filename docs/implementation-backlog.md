@@ -299,8 +299,12 @@ Tasks:
   including immutable reads, mutable leaf assignment, numeric leaf compound
   assignment, nested whole-local assignment, and RHS snapshotting, with
   `EvmArrayValueProbe` golden Yul, metadata entrypoints, solc bytecode, and
-  Foundry runtime checks. Dynamic nested indexes and non-scalar nested leaves
-  remain explicit diagnostics.
+  Foundry runtime checks. Non-scalar nested leaves remain explicit diagnostics.
+- Done: extend EVM IR local fixed-array lowering to dynamic nested scalar array
+  indexes, including nested getter helpers for reads, nested `switch` lowering
+  for mutable leaf assignment and compound assignment, mixed static/dynamic
+  path coverage, runtime out-of-bounds reverts, `EvmArrayValueProbe` golden
+  Yul, metadata entrypoints, solc bytecode, and Foundry runtime checks.
 - Done: add EVM IR flat immutable local struct value lowering for `U64`,
   `U32`, `Bool`, and `Hash` fields, direct struct literal field access,
   `EvmStructValueProbe` golden Yul, solc bytecode, Foundry runtime validation,

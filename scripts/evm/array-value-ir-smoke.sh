@@ -53,6 +53,10 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint nested_local_sum:c54814ec \
   --expect-entrypoint nested_mutable_update:69c5b925 \
   --expect-entrypoint nested_whole_array_assign:1c21ce7e \
+  --expect-entrypoint nested_dynamic_pick:deb5ba01 \
+  --expect-entrypoint nested_dynamic_row_pick:731f5daf \
+  --expect-entrypoint nested_dynamic_update:bd33c419 \
+  --expect-entrypoint nested_dynamic_row_update:69437a57 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmArrayValueProbe.bin")"
@@ -211,6 +215,49 @@ contract ProofForgeIRArrayValueSmokeTest {
         deployRuntime(hex"$probe_hex", probe);
 
         assertEq(callU256(probe, abi.encodeWithSignature("nested_whole_array_assign()")), 13581);
+    }
+
+    function testIRNestedLocalFixedArrayDynamicReads() public {
+        address probe = address(uint160(0xA26E));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_dynamic_pick(uint256,uint256)", 1, 0)), 5);
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_dynamic_pick(uint256,uint256)", 0, 1)), 3);
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_dynamic_row_pick(uint256)", 0)), 3);
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_dynamic_row_pick(uint256)", 1)), 7);
+    }
+
+    function testIRNestedMutableLocalFixedArrayDynamicUpdates() public {
+        address probe = address(uint160(0xA26F));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_dynamic_update(uint256,uint256)", 1, 0)), 23);
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_dynamic_update(uint256,uint256)", 0, 1)), 23);
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_dynamic_row_update(uint256)", 0)), 23);
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_dynamic_row_update(uint256)", 1)), 23);
+    }
+
+    function testIRNestedLocalFixedArrayDynamicIndexesRejectOutOfBounds() public {
+        address probe = address(uint160(0xA270));
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool readRowOk,) = probe.call(abi.encodeWithSignature("nested_dynamic_pick(uint256,uint256)", 2, 0));
+        assertFalse(readRowOk);
+
+        (bool readColOk,) = probe.call(abi.encodeWithSignature("nested_dynamic_pick(uint256,uint256)", 0, 2));
+        assertFalse(readColOk);
+
+        (bool readMixedOk,) = probe.call(abi.encodeWithSignature("nested_dynamic_row_pick(uint256)", 2));
+        assertFalse(readMixedOk);
+
+        (bool writeRowOk,) = probe.call(abi.encodeWithSignature("nested_dynamic_update(uint256,uint256)", 2, 0));
+        assertFalse(writeRowOk);
+
+        (bool writeColOk,) = probe.call(abi.encodeWithSignature("nested_dynamic_update(uint256,uint256)", 0, 2));
+        assertFalse(writeColOk);
+
+        (bool writeMixedOk,) = probe.call(abi.encodeWithSignature("nested_dynamic_row_update(uint256)", 2));
+        assertFalse(writeMixedOk);
     }
 
     function testIRLocalFixedArrayRejectsUnknownSelector() public {
