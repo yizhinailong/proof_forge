@@ -63,12 +63,13 @@
 - 已完成（EVM）：为 EVM bytecode build 添加 `proof-forge-artifact.json` schema。
 - 已完成（EVM）：为 `--evm-bytecode` 和 portable IR EVM bytecode fixture build 发射 metadata。
 - 已完成（EVM）：包含 source module、target id、artifact path、SHA-256、byte size、solc path/version、selector metadata 和 validation status。
+- 已完成（EVM）：为每个 EVM bytecode build 发射并校验 ProofForge deploy manifest，记录 runtime bytecode 输入、ABI selector，以及当前 `not-generated` 的交易广播状态。
 - 从第一天起就保持 schema 的版本化。
 
 验收标准：
 
-- EVM 字节码构建将字节码和元数据并排写入。
-- 元数据可以由 CI 脚本独立解析。
+- EVM 字节码构建将字节码、元数据和 deploy manifest 并排写入。
+- 元数据和 deploy manifest 可以由 CI 脚本独立解析。
 - EVM metadata 可以将缺失的可选 version 数据表示为 `null`，而不是格式错误的 metadata。
 
 ## 工作流 3：EVM 基线加固
@@ -519,7 +520,7 @@ Zcash 当成 plain Bitcoin Script 或 generic ZK smart-contract chain。
 
 1. 目标注册表（工作流 1）。
 2. 可移植 IR + 共享 Counter 场景（工作流 1.5）。
-3. EVM 制品元数据（工作流 2–3）。
+3. EVM 制品元数据和 deploy manifest（工作流 2–3）。
 4. Wasm 运行时拆分（工作流 4）。
 5. **并行：** CosmWasm spike（工作流 5）和 Solana sbpf-linker spike（工作流 6）。
 6. Solana 运行时决策（工作流 7 —— 在 spike 数据之后）。

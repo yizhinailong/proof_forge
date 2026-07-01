@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM Deploy Manifest Metadata
+
+Commit: feature commit for EVM deploy manifest metadata
+
+Summary:
+
+- Extended EVM bytecode modes to emit a ProofForge EVM deploy manifest next to
+  each `proof-forge-artifact.json` metadata file.
+- The manifest records source kind/module, portable IR version when present,
+  capabilities, ABI entrypoints or SDK methods, Yul/source inputs, runtime
+  bytecode hash/size, and `creation.mode: runtime-bytecode`.
+- EVM artifact metadata now records the deploy manifest artifact and requires
+  `validation.deployManifest: passed`.
+- Added a standalone `scripts/evm/validate-deploy-manifest.py` validator and
+  extended `scripts/evm/validate-artifact-metadata.py` to validate the
+  referenced deploy manifest against metadata.
+- Updated EVM target docs, validation gates, backlog, and Chinese docs to
+  distinguish ProofForge runtime-bytecode manifests from future broadcast or
+  creation-transaction manifests.
+
+Validation run:
+
+```sh
+lake build ProofForge.Cli proof-forge
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py
+scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/build-examples.sh
+python3 scripts/evm/validate-deploy-manifest.py --root . --expect-fixture AbiScalarProbe --expect-source-kind portable-ir build/ir/AbiScalarProbe.proof-forge-deploy.json
+python3 scripts/evm/validate-deploy-manifest.py --root . --expect-fixture Counter.lean --expect-source-kind lean-sdk build/evm/Counter.proof-forge-deploy.json
+```
+
+Known limitations:
+
+- The deploy manifest describes runtime bytecode deployment inputs only.
+- It does not yet generate constructor initcode, Foundry broadcast JSON, chain
+  id, deployed address, or a signed/raw transaction.
+- Foundry smokes still install runtime bytecode with `vm.etch`.
+
+Next step:
+
+- Either extend EVM manifests toward creation/broadcast artifacts, or continue
+  shrinking the remaining EVM IR unsupported surface around dynamic aggregates
+  and richer cross-call returns.
+
 ### EVM IR Mutable Local Aggregates
 
 Commit: feature commit for EVM IR mutable local aggregate lowering

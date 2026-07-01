@@ -114,7 +114,10 @@ proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output out
 `--solc <path>` and `--cast <path>` override external tool paths.
 `--artifact-output <path>` overrides the default EVM metadata path. Without an
 override, bytecode modes write `proof-forge-artifact.json` next to the bytecode
-output.
+output and `proof-forge-deploy.json` next to the metadata file. When smoke
+scripts pass fixture-specific metadata paths such as
+`Counter.proof-forge-artifact.json`, the deploy manifest is written as
+`Counter.proof-forge-deploy.json`.
 
 ## .evm-methods sidecar format
 
@@ -218,7 +221,7 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   indexes, nested arrays, whole local aggregate assignment, whole-struct
   storage reads/writes, nested local structs, indexed/Solidity-signature event schemas,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
-  return data, and target-specific deploy manifests.
+  return data, and real creation-transaction or broadcast manifests.
 - `storage.map.contains` remains explicitly unsupported because EVM mappings do
   not track key presence without an auxiliary bitmap.
 
@@ -448,10 +451,12 @@ diagnostics.
 
 ## Metadata
 
-EVM bytecode modes emit a ProofForge artifact metadata JSON file. The default
-path is `proof-forge-artifact.json` next to the bytecode output; smoke scripts
-pass fixture-specific `--artifact-output` paths to avoid parallel-run
-collisions.
+EVM bytecode modes emit a ProofForge artifact metadata JSON file and a
+ProofForge EVM deploy manifest. The default metadata path is
+`proof-forge-artifact.json` next to the bytecode output; smoke scripts pass
+fixture-specific `--artifact-output` paths to avoid parallel-run collisions.
+The deploy manifest path is derived from the metadata path, for example
+`Counter.proof-forge-deploy.json`.
 
 The current EVM metadata schema records:
 
@@ -462,11 +467,25 @@ The current EVM metadata schema records:
 - portable IR capability ids when available
 - selector-facing ABI entrypoints or SDK method specs
 - `solc` path/version
-- Yul and bytecode artifact paths, byte sizes, and SHA-256 hashes
-- validation flags for `solc --strict-assembly` and bytecode generation
+- Yul, bytecode, source when available, and deploy-manifest artifact paths,
+  byte sizes, and SHA-256 hashes
+- validation flags for `solc --strict-assembly`, bytecode generation, and
+  deploy-manifest generation
 
-`scripts/evm/validate-artifact-metadata.py` validates these metadata files in
-the EVM IR smoke scripts and in `scripts/evm/build-examples.sh`.
+The EVM deploy manifest records:
+
+- `kind: proof-forge-evm-deploy-manifest`
+- source kind/module, `irVersion`, capabilities, and ABI entrypoints/methods
+- Yul/source inputs and runtime bytecode hash/size
+- `creation.mode: runtime-bytecode`, with empty constructor args and no init
+  code yet
+- `deployment.broadcast: not-generated`, because current Foundry smokes install
+  runtime bytecode with `vm.etch` instead of broadcasting a chain transaction
+
+`scripts/evm/validate-artifact-metadata.py` validates these metadata files and
+their referenced deploy manifests in the EVM IR smoke scripts and in
+`scripts/evm/build-examples.sh`. `scripts/evm/validate-deploy-manifest.py`
+can validate a deploy manifest directly.
 
 Method dispatch still uses `.evm-methods` sidecar files until a unified target
 manifest lands (RFC 0002).

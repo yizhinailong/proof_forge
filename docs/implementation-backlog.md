@@ -73,12 +73,16 @@ Tasks:
   fixture builds.
 - Done for EVM: include source module, target id, artifact paths, SHA-256, byte
   sizes, solc path/version, selector metadata, and validation status.
+- Done for EVM: emit and validate a ProofForge deploy manifest for every EVM
+  bytecode build, recording runtime bytecode inputs, ABI selectors, and the
+  current `not-generated` transaction-broadcast status.
 - Keep schema versioned from day one.
 
 Acceptance criteria:
 
-- EVM bytecode build writes bytecode and metadata next to each other.
-- Metadata can be parsed independently by CI scripts.
+- EVM bytecode build writes bytecode, metadata, and deploy manifest next to
+  each other.
+- Metadata and deploy manifests can be parsed independently by CI scripts.
 - EVM metadata can represent missing optional version data as `null`, not
   malformed metadata.
 
@@ -818,7 +822,7 @@ Acceptance criteria:
 
 1. Target registry (Workstream 1).
 2. Portable IR + shared Counter scenario (Workstream 1.5).
-3. EVM artifact metadata (Workstreams 2–3).
+3. EVM artifact metadata and deploy manifest (Workstreams 2–3).
 4. Wasm runtime split (Workstream 4).
 5. **Parallel:** CosmWasm spike (Workstream 5) and Solana sbpf-linker spike
    (Workstream 6).

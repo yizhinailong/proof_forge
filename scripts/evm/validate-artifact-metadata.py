@@ -3,11 +3,11 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
-REQUIRED_ARTIFACTS = ("yul", "bytecode")
-REQUIRED_VALIDATIONS = ("solcStrictAssembly", "bytecodeGeneration")
+REQUIRED_ARTIFACTS = ("yul", "bytecode", "deployManifest")
+REQUIRED_VALIDATIONS = ("solcStrictAssembly", "bytecodeGeneration", "deployManifest")
 
 
 def fail(message: str) -> None:
@@ -41,14 +41,14 @@ def resolve_path(root: Path, path_text: str) -> Path:
     return root / path
 
 
-def file_entry(root: Path, entry: dict, name: str) -> Path:
-    path = resolve_path(root, expect_string(entry.get("path"), f"artifacts.{name}.path"))
-    expect(path.is_file(), f"artifacts.{name}.path does not exist: {path}")
+def file_entry(root: Path, entry: dict, name: str, prefix: str = "artifacts") -> Path:
+    path = resolve_path(root, expect_string(entry.get("path"), f"{prefix}.{name}.path"))
+    expect(path.is_file(), f"{prefix}.{name}.path does not exist: {path}")
     data = path.read_bytes()
-    expect(entry.get("bytes") == len(data), f"artifacts.{name}.bytes mismatch")
+    expect(entry.get("bytes") == len(data), f"{prefix}.{name}.bytes mismatch")
     expect(
         entry.get("sha256") == hashlib.sha256(data).hexdigest(),
-        f"artifacts.{name}.sha256 mismatch",
+        f"{prefix}.{name}.sha256 mismatch",
     )
     return path
 
@@ -60,6 +60,68 @@ def parse_expected_mapping(value: str, option: str) -> tuple[str, str]:
     if not name or not selector:
         fail(f"{option} expects name:selector")
     return name, selector
+
+
+def same_path(left: Path, right: Path) -> bool:
+    return left.resolve() == right.resolve()
+
+
+def expect_hex_text(path: Path, name: str) -> str:
+    value = path.read_text().strip()
+    expect(value and all(ch in "0123456789abcdefABCDEF" for ch in value), f"{name} must be non-empty hex")
+    return value
+
+
+def validate_deploy_manifest(
+    root: Path,
+    manifest_path: Path,
+    metadata: dict,
+    yul_path: Path,
+    bytecode_path: Path,
+    source_path: Optional[Path],
+) -> None:
+    manifest = expect_object(json.loads(manifest_path.read_text()), "deploy manifest")
+    expect(manifest.get("schemaVersion") == 1, "deploy manifest schemaVersion must be 1")
+    expect(manifest.get("kind") == "proof-forge-evm-deploy-manifest", "deploy manifest kind mismatch")
+    expect(manifest.get("target") == "evm", "deploy manifest target must be evm")
+    expect(manifest.get("targetFamily") == "evm", "deploy manifest targetFamily mismatch")
+    expect(manifest.get("artifactKind") == "evm-runtime-bytecode-deploy", "deploy manifest artifactKind mismatch")
+    expect(manifest.get("fixture") == metadata.get("fixture"), "deploy manifest fixture mismatch")
+    expect_string(manifest.get("contractName"), "deploy manifest contractName")
+    expect(manifest.get("sourceKind") == metadata.get("sourceKind"), "deploy manifest sourceKind mismatch")
+    expect(manifest.get("sourceModule") == metadata.get("sourceModule"), "deploy manifest sourceModule mismatch")
+    expect(manifest.get("irVersion") == metadata.get("irVersion"), "deploy manifest irVersion mismatch")
+    expect(manifest.get("capabilities") == metadata.get("capabilities"), "deploy manifest capabilities mismatch")
+    expect(manifest.get("abi") == metadata.get("abi"), "deploy manifest ABI mismatch")
+
+    inputs = expect_object(manifest.get("inputs"), "deploy manifest inputs")
+    manifest_yul = file_entry(root, expect_object(inputs.get("yul"), "inputs.yul"), "yul", "inputs")
+    manifest_bytecode = file_entry(root, expect_object(inputs.get("bytecode"), "inputs.bytecode"), "bytecode", "inputs")
+    expect(same_path(manifest_yul, yul_path), "deploy manifest inputs.yul must match metadata artifacts.yul")
+    expect(same_path(manifest_bytecode, bytecode_path), "deploy manifest inputs.bytecode must match metadata artifacts.bytecode")
+    if source_path is None:
+        expect("source" not in inputs, "deploy manifest inputs.source must be absent when metadata has no source artifact")
+    else:
+        manifest_source = file_entry(root, expect_object(inputs.get("source"), "inputs.source"), "source", "inputs")
+        expect(same_path(manifest_source, source_path), "deploy manifest inputs.source must match metadata artifacts.source")
+
+    creation = expect_object(manifest.get("creation"), "deploy manifest creation")
+    expect(creation.get("mode") == "runtime-bytecode", "deploy manifest creation.mode mismatch")
+    constructor_args = expect_array(creation.get("constructorArgs"), "deploy manifest creation.constructorArgs")
+    expect(constructor_args == [], "deploy manifest creation.constructorArgs must be empty for runtime-bytecode mode")
+    expect(creation.get("initCode") is None, "deploy manifest creation.initCode must be null for runtime-bytecode mode")
+    runtime_entry = expect_object(creation.get("runtimeBytecode"), "deploy manifest creation.runtimeBytecode")
+    runtime_path = file_entry(root, runtime_entry, "runtimeBytecode", "creation")
+    expect(same_path(runtime_path, bytecode_path), "deploy manifest runtimeBytecode must match metadata artifacts.bytecode")
+    expect(runtime_entry == inputs["bytecode"], "deploy manifest runtimeBytecode entry must match inputs.bytecode")
+    expect_hex_text(runtime_path, "deploy manifest runtimeBytecode")
+
+    deployment = expect_object(manifest.get("deployment"), "deploy manifest deployment")
+    expect(deployment.get("chainId") is None, "deploy manifest deployment.chainId must be null before broadcast")
+    expect(deployment.get("address") is None, "deploy manifest deployment.address must be null before broadcast")
+    expect(deployment.get("broadcast") == "not-generated", "deploy manifest deployment.broadcast mismatch")
+    expect_string(deployment.get("reason"), "deploy manifest deployment.reason")
+    expect_string(deployment.get("reference"), "deploy manifest deployment.reference")
 
 
 def main() -> int:
@@ -102,14 +164,21 @@ def main() -> int:
     expect(solc.get("version") is None or isinstance(solc.get("version"), str), "toolchain.solc.version must be null or string")
 
     artifacts = expect_object(metadata.get("artifacts"), "artifacts")
+    artifact_paths = {}
     for artifact_name in REQUIRED_ARTIFACTS:
-        file_entry(root, expect_object(artifacts.get(artifact_name), f"artifacts.{artifact_name}"), artifact_name)
+        artifact_paths[artifact_name] = file_entry(
+            root,
+            expect_object(artifacts.get(artifact_name), f"artifacts.{artifact_name}"),
+            artifact_name,
+        )
+    source_path = None
     if "source" in artifacts:
-        file_entry(root, expect_object(artifacts.get("source"), "artifacts.source"), "source")
+        source_path = file_entry(root, expect_object(artifacts.get("source"), "artifacts.source"), "source")
 
-    bytecode_path = resolve_path(root, artifacts["bytecode"]["path"])
-    bytecode = bytecode_path.read_text().strip()
-    expect(bytecode and all(ch in "0123456789abcdefABCDEF" for ch in bytecode), "artifacts.bytecode must be non-empty hex")
+    yul_path = artifact_paths["yul"]
+    bytecode_path = artifact_paths["bytecode"]
+    deploy_manifest_path = artifact_paths["deployManifest"]
+    expect_hex_text(bytecode_path, "artifacts.bytecode")
 
     abi = expect_object(metadata.get("abi"), "abi")
     entrypoints = expect_array(abi.get("entrypoints"), "abi.entrypoints")
@@ -134,6 +203,8 @@ def main() -> int:
     validation = expect_object(metadata.get("validation"), "validation")
     for key in REQUIRED_VALIDATIONS:
         expect(validation.get(key) == "passed", f"validation.{key} must be passed")
+
+    validate_deploy_manifest(root, deploy_manifest_path, metadata, yul_path, bytecode_path, source_path)
 
     return 0
 

@@ -109,7 +109,7 @@ proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output out
 
 `--bytecode` 是 `--evm-bytecode` 的别名。
 
-`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`。
+`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`，并在 metadata 文件旁写入 `proof-forge-deploy.json`。当 smoke 脚本传入类似 `Counter.proof-forge-artifact.json` 的 fixture 专属 metadata 路径时，deploy manifest 会写成 `Counter.proof-forge-deploy.json`。
 
 ## .evm-methods sidecar 格式
 
@@ -192,7 +192,7 @@ EVM 不支持（设计上针对其他目标）：
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
 - 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、context read、event、`Hash` word 值与 hashing、word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态 index 的不可变和可变 local fixed-array value、标量/hash 字段上的扁平不可变和可变 local struct value、扁平静态聚合 ABI 参数/返回，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
-- Portable IR EVM 目前仍缺少动态或嵌套聚合 ABI 值、非 word 或 aggregate map 形态、动态 local fixed-array index、嵌套 array、whole local aggregate assignment、whole-struct storage read/write、nested local struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据和目标专属 deploy manifest。
+- Portable IR EVM 目前仍缺少动态或嵌套聚合 ABI 值、非 word 或 aggregate map 形态、动态 local fixed-array index、嵌套 array、whole local aggregate assignment、whole-struct storage read/write、nested local struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据，以及真实 creation transaction 或 broadcast manifest。
 - `storage.map.contains` 仍被显式拒绝，因为 EVM mapping 在没有辅助 bitmap 的情况下不跟踪 key presence。
 
 ## Portable IR 门禁
@@ -264,7 +264,7 @@ scripts/evm/ir-counter-smoke.sh
 
 ## 元数据
 
-EVM bytecode 模式会发射 ProofForge 制品元数据 JSON。默认路径是 bytecode 输出旁边的 `proof-forge-artifact.json`；smoke 脚本会显式传入 fixture 专属 `--artifact-output`，避免并行运行时互相覆盖。
+EVM bytecode 模式会发射 ProofForge 制品元数据 JSON 和 ProofForge EVM deploy manifest。默认 metadata 路径是 bytecode 输出旁边的 `proof-forge-artifact.json`；smoke 脚本会显式传入 fixture 专属 `--artifact-output`，避免并行运行时互相覆盖。deploy manifest 路径由 metadata 路径派生，例如 `Counter.proof-forge-deploy.json`。
 
 当前 EVM metadata schema 记录：
 
@@ -274,9 +274,17 @@ EVM bytecode 模式会发射 ProofForge 制品元数据 JSON。默认路径是 b
 - 可获得的 portable IR capability ids
 - selector-facing ABI entrypoints 或 SDK method specs
 - `solc` path/version
-- Yul 和 bytecode 的 artifact path、byte size 和 SHA-256
-- `solc --strict-assembly` 与 bytecode generation 的 validation flag
+- Yul、bytecode、可选 source 和 deploy manifest 的 artifact path、byte size 和 SHA-256
+- `solc --strict-assembly`、bytecode generation 与 deploy manifest generation 的 validation flag
 
-`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件。
+EVM deploy manifest 会记录：
+
+- `kind: proof-forge-evm-deploy-manifest`
+- source kind/module、`irVersion`、capabilities 和 ABI entrypoints/methods
+- Yul/source 输入以及 runtime bytecode 的 hash/size
+- `creation.mode: runtime-bytecode`，目前 constructor args 为空且没有 init code
+- `deployment.broadcast: not-generated`，因为当前 Foundry smoke 通过 `vm.etch` 安装 runtime bytecode，而不是广播链上交易
+
+`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
 
 在统一的目标清单发布（RFC 0002）之前，方法分派仍使用 `.evm-methods` sidecar 文件。

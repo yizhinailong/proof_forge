@@ -419,6 +419,20 @@ def defaultArtifactOutput (bytecodeOutput : FilePath) : FilePath :=
   | some parent => parent / fileName
   | none => fileName
 
+def defaultDeployManifestOutput (metadataOutput : FilePath) : FilePath :=
+  let fileName := metadataOutput.fileName.getD metadataOutput.toString
+  let deployName :=
+    if fileName == "proof-forge-artifact.json" then
+      "proof-forge-deploy.json"
+    else if fileName.endsWith ".proof-forge-artifact.json" then
+      s!"{dropEndString fileName ".proof-forge-artifact.json".length}.proof-forge-deploy.json"
+    else
+      s!"{fileName}.proof-forge-deploy.json"
+  let deployFile := FilePath.mk deployName
+  match metadataOutput.parent with
+  | some parent => parent / deployFile
+  | none => deployFile
+
 def artifactEntryJson (path : FilePath) : IO String := do
   let (digest, bytes) ← fileDigestAndBytes path
   return jsonObject #[
@@ -426,6 +440,12 @@ def artifactEntryJson (path : FilePath) : IO String := do
     ("sha256", jsonString digest),
     ("bytes", toString bytes)
   ]
+
+def optionalArtifactEntryJson : Option FilePath → IO (Option String)
+  | some path => do
+      let artifact ← artifactEntryJson path
+      return some artifact
+  | none => return none
 
 def dedupStrings (values : Array String) : Array String :=
   values.foldl (init := #[]) fun acc value =>
@@ -462,6 +482,61 @@ def methodSpecJson (method : MethodSpec) : String :=
     ("returnsValue", jsonBool method.returnsValue)
   ]
 
+def contractNameForFixture (fixture : String) : String :=
+  if fixture.endsWith ".lean" then
+    dropEndString fixture ".lean".length
+  else
+    fixture
+
+def writeEvmDeployManifest
+    (deployOutput : FilePath)
+    (fixture sourceKind sourceModule : String)
+    (capabilities : Array String)
+    (entrypoints : Array String)
+    (methods : Array String)
+    (sourceArtifact? : Option String)
+    (yulArtifact bytecodeArtifact : String) : IO Unit := do
+  let mut inputFields : Array (String × String) := #[
+    ("yul", yulArtifact),
+    ("bytecode", bytecodeArtifact)
+  ]
+  if let some sourceArtifact := sourceArtifact? then
+    inputFields := inputFields.push ("source", sourceArtifact)
+  let manifest := jsonObject #[
+    ("schemaVersion", "1"),
+    ("kind", jsonString "proof-forge-evm-deploy-manifest"),
+    ("target", jsonString "evm"),
+    ("targetFamily", jsonString "evm"),
+    ("artifactKind", jsonString "evm-runtime-bytecode-deploy"),
+    ("fixture", jsonString fixture),
+    ("contractName", jsonString (contractNameForFixture fixture)),
+    ("sourceKind", jsonString sourceKind),
+    ("irVersion", if sourceKind == "portable-ir" then jsonString "portable-ir-v0" else "null"),
+    ("sourceModule", jsonString sourceModule),
+    ("capabilities", jsonStringArray (dedupStrings capabilities)),
+    ("abi", jsonObject #[
+      ("entrypoints", jsonArray entrypoints),
+      ("methods", jsonArray methods)
+    ]),
+    ("creation", jsonObject #[
+      ("mode", jsonString "runtime-bytecode"),
+      ("constructorArgs", jsonArray #[]),
+      ("initCode", "null"),
+      ("runtimeBytecode", bytecodeArtifact)
+    ]),
+    ("inputs", jsonObject inputFields),
+    ("deployment", jsonObject #[
+      ("chainId", "null"),
+      ("address", "null"),
+      ("broadcast", jsonString "not-generated"),
+      ("reason", jsonString "ProofForge EVM bytecode modes currently emit runtime bytecode; Foundry smokes install it with vm.etch, and chain-specific creation transactions are not generated yet."),
+      ("reference", jsonString "scripts/evm/foundry-smoke.sh")
+    ])
+  ]
+  if let some parent := deployOutput.parent then
+    IO.FS.createDirAll parent
+  IO.FS.writeFile deployOutput (manifest ++ "\n")
+
 def writeEvmArtifactMetadata
     (opts : CliOptions)
     (fixture sourceKind sourceModule : String)
@@ -471,12 +546,28 @@ def writeEvmArtifactMetadata
     (source? : Option FilePath)
     (yulOutput bytecodeOutput : FilePath) : IO Unit := do
   let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput bytecodeOutput)
+  let deployOutput := defaultDeployManifestOutput metadataOutput
+  let yulArtifact ← artifactEntryJson yulOutput
+  let bytecodeArtifact ← artifactEntryJson bytecodeOutput
+  let sourceArtifact? ← optionalArtifactEntryJson source?
+  writeEvmDeployManifest
+    deployOutput
+    fixture
+    sourceKind
+    sourceModule
+    capabilities
+    entrypoints
+    methods
+    sourceArtifact?
+    yulArtifact
+    bytecodeArtifact
   let mut artifactFields : Array (String × String) := #[
-    ("yul", ← artifactEntryJson yulOutput),
-    ("bytecode", ← artifactEntryJson bytecodeOutput)
+    ("yul", yulArtifact),
+    ("bytecode", bytecodeArtifact),
+    ("deployManifest", ← artifactEntryJson deployOutput)
   ]
-  if let some source := source? then
-    artifactFields := artifactFields.push ("source", ← artifactEntryJson source)
+  if let some sourceArtifact := sourceArtifact? then
+    artifactFields := artifactFields.push ("source", sourceArtifact)
   let solcVersionValue :=
     match (← solcVersion? opts.solc) with
     | some version => jsonString version
@@ -504,7 +595,8 @@ def writeEvmArtifactMetadata
     ("artifacts", jsonObject artifactFields),
     ("validation", jsonObject #[
       ("solcStrictAssembly", jsonString "passed"),
-      ("bytecodeGeneration", jsonString "passed")
+      ("bytecodeGeneration", jsonString "passed"),
+      ("deployManifest", jsonString "passed")
     ])
   ]
   if let some parent := metadataOutput.parent then
