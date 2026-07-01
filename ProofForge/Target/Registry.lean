@@ -44,6 +44,23 @@ structure TargetProfile where
   requiredTools : Array String := #[]
   deriving Repr
 
+structure EvmChainProfile where
+  id : String
+  targetId : String
+  networkName : String
+  chainId : Nat
+  nativeCurrencySymbol : String
+  rollupFamily : Option String := none
+  dataAvailability : Option String := none
+  rpcUrls : Array String := #[]
+  websocketUrls : Array String := #[]
+  sequencerUrls : Array String := #[]
+  blockExplorerUrl : Option String := none
+  verifier : Option String := none
+  verifierUrl : Option String := none
+  notes : Array String := #[]
+  deriving Repr
+
 def evm : TargetProfile := {
   id := "evm"
   family := .evm
@@ -211,5 +228,46 @@ def knownIds : Array String :=
 
 def hasCapability (profile : TargetProfile) (capability : Capability) : Bool :=
   profile.capabilities.contains capability
+
+def robinhoodChainTestnet : EvmChainProfile := {
+  id := "robinhood-chain-testnet"
+  targetId := evm.id
+  networkName := "Robinhood Chain Testnet"
+  chainId := 46630
+  nativeCurrencySymbol := "ETH"
+  rollupFamily := some "arbitrum-orbit"
+  dataAvailability := some "ethereum-blobs"
+  rpcUrls := #[
+    "https://rpc.testnet.chain.robinhood.com",
+    "https://robinhood-testnet.g.alchemy.com/v2/<API_KEY>"
+  ]
+  websocketUrls := #[
+    "wss://feed.testnet.chain.robinhood.com",
+    "wss://robinhood-testnet.g.alchemy.com/v2/<API_KEY>"
+  ]
+  sequencerUrls := #[
+    "https://sequencer.testnet.chain.robinhood.com"
+  ]
+  blockExplorerUrl := some "https://explorer.testnet.chain.robinhood.com"
+  verifier := some "blockscout"
+  verifierUrl := some "https://explorer.testnet.chain.robinhood.com/api/"
+  notes := #[
+    "Ethereum-compatible Arbitrum Orbit L2; compile contracts with the evm target.",
+    "This profile owns deployment metadata, not a separate compiler backend."
+  ]
+}
+
+def evmChainProfiles : Array EvmChainProfile := #[
+  robinhoodChainTestnet
+]
+
+def findEvmChainProfile? (id : String) : Option EvmChainProfile :=
+  evmChainProfiles.find? (fun profile => profile.id == id)
+
+def findEvmChainProfileByChainId? (chainId : Nat) : Option EvmChainProfile :=
+  evmChainProfiles.find? (fun profile => profile.chainId == chainId)
+
+def knownEvmChainProfileIds : Array String :=
+  evmChainProfiles.map (fun profile => profile.id)
 
 end ProofForge.Target

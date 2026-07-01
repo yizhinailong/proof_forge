@@ -31,12 +31,14 @@
 | D-021 | 2026-07-01 | 将 **`bitcoin-script-miniscript`** 归类为文档优先的 Bitcoin base-layer spending-policy Research 候选 | Bitcoin Script 仅适合 UTXO locking/unlocking policy，包含 signatures、hash locks、timelocks、descriptors、Miniscript、Taproot/Tapscript、PSBT flows 和 standardness/fee constraints；registry 修改需等待 Miniscript/descriptor spike 路径确定 |
 | D-022 | 2026-07-01 | 将 **`zcash-shielded`** 归类为文档优先的 privacy UTXO/ZK payment Research 候选 | Zcash 源自 Bitcoin，但 shielded 支持依赖 Sapling/Orchard notes、nullifiers、anchors、value-balance constraints、viewing/disclosure policy 和协议定义的 ZK proofs；registry 修改需等待 shielded-note 能力和 proving/validation boundary 审查 |
 | D-023 | 2026-07-01 | 将 **`aleo-leo`** 归类为文档优先的 Aleo ZK application sourcegen Research 候选 | Aleo programs 结合 private off-chain proof execution、public on-chain finalization、encrypted records、public mappings/storage、Aleo Instructions、Aleo VM bytecode、ABI、prover/verifier artifacts 和 execute/deploy transactions；registry 修改需等待 proof/finalization split 审查 |
+| D-024 | 2026-07-01 | 将 Robinhood Chain 建模为 `evm` 下的 EVM-compatible chain profile **`robinhood-chain-testnet`**，而不是新的 compiler target | Robinhood Chain 执行 EVM-compatible Arbitrum Orbit L2 contracts；ProofForge 的 EVM backend 覆盖 bytecode generation，chain profile 记录 chain id、RPC、explorer、verifier、rollup 和 deployment metadata |
 
 ## 目标家族分类
 
 | 家族 | 目标 | 后端模式 |
 |---|---|---|
 | 直接编译器 | `evm` | Lean → LCNF → Yul → solc |
+| EVM-compatible chain profiles | `robinhood-chain-testnet` | 复用 `evm` bytecode/ABI 输出；补充 chain id、RPC、explorer、verifier、rollup 和 deployment metadata |
 | Wasm 宿主 | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban`（候选，仅文档）, `wasm-icp-canister`（候选，仅文档） | Lean → EmitZig → Wasm + 链宿主桥接，或在能更快验证语义时先走目标原生源码包 |
 | 二进制工具链 | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | 源代码生成 | `move-aptos`, `move-sui` | 可移植 IR → Move 包源码 |

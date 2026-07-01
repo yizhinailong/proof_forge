@@ -21,6 +21,38 @@ Lean contract (ProofForge.Evm / Lean.Evm)
   -> Foundry smoke (vm.etch)
 ```
 
+## EVM-Compatible Chain Profiles
+
+EVM-compatible L1s, L2s, and app chains do not need separate compiler targets
+when they execute standard EVM bytecode. ProofForge treats them as chain
+profiles below the `evm` target:
+
+```text
+ProofForge target: evm
+  -> EVM runtime bytecode + ABI
+  -> EVM-compatible chain profile
+  -> RPC deployment / explorer verification / chain metadata
+```
+
+The target profile owns compilation semantics and capabilities. The chain
+profile owns deployment metadata such as chain id, RPC endpoints, native gas
+symbol, explorer, rollup family, and verifier settings. Chain-specific L2
+contracts, bridges, precompiles, account abstraction services, or gas
+accounting differences should be modeled as profile metadata or optional
+deployment capabilities, not as a second EVM compiler backend.
+
+Implemented chain profiles:
+
+| Chain profile id | Compiler target | Chain id | Native gas | Rollup family | Public RPC | Explorer / verifier |
+|---|---|---:|---|---|---|---|
+| `robinhood-chain-testnet` | `evm` | `46630` | `ETH` | Arbitrum Orbit L2, Ethereum blobs DA | `https://rpc.testnet.chain.robinhood.com` | `https://explorer.testnet.chain.robinhood.com`, Blockscout API `https://explorer.testnet.chain.robinhood.com/api/` |
+
+Robinhood Chain is therefore already covered for ordinary contract compilation
+by the EVM backend. Full product support still needs deployment commands or
+manifests that can select `robinhood-chain-testnet`, pass the profile's RPC
+metadata to wallet/broadcast tooling, and record chain profile data in
+deployment artifacts.
+
 ## Build Commands
 
 ```sh
@@ -172,7 +204,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
-| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct and scalar fixed-array arguments flattened to ABI words; `crosscallInvokeTyped` returns Bool/U32/U64/Hash scalar words with Bool/U32 return guards and also supports direct entrypoint returns of flat struct and scalar fixed-array normal-call return data; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot; `crosscallInvokeStaticTyped` lowers typed calls through EVM `staticcall` and preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` lowers typed calls through EVM `delegatecall` and preserves caller-storage context |
+| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct and scalar fixed-array arguments flattened to ABI words; `crosscallInvokeTyped` returns Bool/U32/U64/Hash scalar words with Bool/U32 return guards and supports direct entrypoint returns of flat struct and scalar fixed-array normal-call return data; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot and supports the same scalar and direct aggregate entrypoint returns; `crosscallInvokeStaticTyped` lowers typed calls through EVM `staticcall` with scalar and direct aggregate entrypoint returns and preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` lowers typed calls through EVM `delegatecall` with scalar and direct aggregate entrypoint returns and preserves caller-storage context |
 | `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, and non-indexed data fields can be scalar words, flat structs, scalar fixed arrays, or fixed arrays of flat structs |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
@@ -222,17 +254,17 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   aggregate ABI parameters and returns, synchronous word-returning
   `crosscallInvoke`, typed `crosscallInvokeTyped` over scalar words and flat
   aggregate arguments, direct entrypoint returns of flat struct and scalar
-  fixed-array typed normal-call return data, value-bearing typed scalar-return
-  `crosscallInvokeValueTyped`, typed scalar-return
-  `crosscallInvokeStaticTyped`, typed scalar-return
-  `crosscallInvokeDelegateTyped`, static bounded loops, and
+  fixed-array typed normal-call return data, value-bearing typed scalar and
+  direct aggregate-return `crosscallInvokeValueTyped`, typed scalar and direct
+  aggregate-return `crosscallInvokeStaticTyped`, typed scalar and direct
+  aggregate-return `crosscallInvokeDelegateTyped`, static bounded loops, and
   branch/loop-local early returns through Yul `leave`. It rejects wider
   portable IR nodes with explicit diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
   non-word or aggregate map shapes, nested arrays, nested local structs beyond
   flat struct arrays, richer event declarations, contract-creation IR nodes,
-  aggregate value/static/delegate crosscall returns, variable-length cross-call
-  return data, and real creation-transaction or broadcast manifests.
+  variable-length cross-call return data, and real creation-transaction or
+  broadcast manifests.
 
 ## Portable IR Gates
 
@@ -375,24 +407,23 @@ executes either `call(gas(), target, 0, ...)`,
 `call(gas(), target, call_value, ...)`, `staticcall(gas(), target, ...)`, or
 `delegatecall(gas(), target, ...)`, reverts on call failure or returns shorter
 than the expected return-data size, and decodes one or more 32-byte return
-words. Typed normal-call helpers cover `Bool`, `U32`, `U64`, `Hash`, direct
-entrypoint returns of flat structs, and scalar fixed arrays; Bool and U32
-helpers reject out-of-range return words before returning to the dispatcher.
-Value-bearing, static, and delegate typed helpers currently remain scalar-return
-only but share the same scalar/flat-aggregate argument flattening. The smoke
-checks golden Yul reproducibility,
+words. Typed helpers cover `Bool`, `U32`, `U64`, `Hash`, direct entrypoint
+returns of flat structs, and scalar fixed arrays across normal, value-bearing,
+static, and delegate modes; Bool and U32 helpers reject out-of-range return
+words before returning to the dispatcher. The smoke checks golden Yul reproducibility,
 `solc --strict-assembly` bytecode generation, metadata capability
 `crosscall.invoke`, metadata entrypoints, Foundry U64 calls with zero/one/two
 arguments, typed Bool/U32/Hash calls, flat struct and scalar fixed-array
-aggregate typed returns, flat struct and scalar fixed-array typed-call
-arguments, aggregate Bool/U32 malformed-return guards, native-value forwarding
-to a payable callee, value-bearing flat struct arguments, U64 read-only
-staticcall return behavior, Bool/U32/Hash static typed returns, static flat
-struct arguments, invalid static Bool/U32 return guards, static-context
-state-write failure, caller-storage delegatecall read/write behavior,
-Bool/U32/Hash delegate typed returns, delegate flat struct arguments, invalid
-delegate Bool/U32 return guards, callee reverts, short-return reverts, invalid
-typed return reverts, and unknown-selector reverts.
+aggregate typed returns in normal/value/static/delegate modes, flat struct and
+scalar fixed-array typed-call arguments, aggregate Bool/U32 malformed-return
+guards in normal/value/static/delegate modes, native-value forwarding to a
+payable callee, value-bearing flat struct arguments, U64 read-only staticcall
+return behavior, Bool/U32/Hash static typed returns, static flat struct
+arguments, invalid static Bool/U32 return guards, static-context state-write
+failure, caller-storage delegatecall read/write behavior, Bool/U32/Hash delegate
+typed returns, delegate flat struct arguments, invalid delegate Bool/U32 return
+guards, callee reverts, short-return reverts, invalid typed return reverts, and
+unknown-selector reverts.
 
 `EvmExpressionProbe` validates scalar expression lowering directly rather than
 through storage or assignment side effects. It covers `U64` and `U32`

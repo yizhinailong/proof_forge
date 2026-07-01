@@ -30,12 +30,16 @@ Tasks:
 - Define target family, artifact kind, required tools, and capability set
   (see [capability-registry.md](capability-registry.md)).
 - Add a target lookup function for CLI and scripts.
+- Done: add an EVM-compatible chain profile layer for deployment metadata,
+  starting with `robinhood-chain-testnet` under the `evm` compiler target.
 - Add diagnostics for unknown targets and unsupported capabilities.
 
 Acceptance criteria:
 
 - `evm` can be represented as a target profile without changing current EVM
   behavior.
+- EVM-compatible chain profiles can reuse the `evm` compiler target without
+  being returned by target-id lookup.
 - A target profile can declare external tool requirements.
 - Unsupported capability errors include target id, capability id, and source
   location when available.
@@ -173,27 +177,30 @@ Tasks:
   metadata selector validation, and explicit diagnostics for nested aggregate
   argument shapes.
 - Done: add EVM IR `crosscallInvokeValueTyped` lowering for value-bearing typed
-  scalar crosscalls, forwarding an explicit U64 call-value expression through
-  value-specific Yul helpers, with `EvmCrosscallProbe` golden Yul, solc
-  bytecode, Foundry `msg.value`/callee-balance validation, metadata entrypoint
-  validation, EVM malformed value/return diagnostics, and explicit Psy
-  unsupported diagnostics.
-- Done: add EVM IR `crosscallInvokeStaticTyped` lowering for typed scalar
-  staticcalls, using value-free Yul `staticcall` helpers with the same
-  selector/scalar-word packing and Bool/U32 return guards as typed calls, with
+  crosscalls, forwarding an explicit U64 call-value expression through
+  value-specific Yul helpers for scalar returns plus flat struct and scalar
+  fixed-array entrypoint aggregate returns, with `EvmCrosscallProbe` golden Yul,
+  solc bytecode, Foundry `msg.value`/callee-balance validation, aggregate
+  Bool/U32 malformed-return guards, metadata entrypoint validation, EVM
+  malformed value/return diagnostics, and explicit Psy unsupported diagnostics.
+- Done: add EVM IR `crosscallInvokeStaticTyped` lowering for typed staticcalls,
+  using value-free Yul `staticcall` helpers with selector/scalar/flat-aggregate
+  argument packing, scalar returns, flat struct and scalar fixed-array
+  entrypoint aggregate returns, and Bool/U32 return guards, with
   `EvmCrosscallProbe` golden Yul, solc bytecode, Foundry U64 read-only return,
-  Bool/U32/Hash static typed return, invalid typed-return, and static-context
-  state-write failure validation, metadata entrypoint validation, EVM malformed
-  nested aggregate argument and aggregate return diagnostics, and explicit Psy unsupported
-  diagnostics.
-- Done: add EVM IR `crosscallInvokeDelegateTyped` lowering for typed scalar
-  delegatecalls, using value-free Yul `delegatecall` helpers with the same
-  selector/scalar-word packing and Bool/U32 return guards as typed calls, with
-  `EvmCrosscallProbe` golden Yul, solc bytecode, Foundry caller-storage
-  read/write validation, Bool/U32/Hash delegate typed return validation,
-  invalid typed-return validation, metadata entrypoint validation, EVM
-  malformed nested aggregate argument and aggregate return diagnostics, and explicit Psy unsupported
-  diagnostics.
+  Bool/U32/Hash static typed return, aggregate return validation, invalid
+  typed-return, static-context state-write failure validation, metadata
+  entrypoint validation, EVM malformed nested aggregate diagnostics, and
+  explicit Psy unsupported diagnostics.
+- Done: add EVM IR `crosscallInvokeDelegateTyped` lowering for typed
+  delegatecalls, using value-free Yul `delegatecall` helpers with
+  selector/scalar/flat-aggregate argument packing, scalar returns, flat struct
+  and scalar fixed-array entrypoint aggregate returns, and Bool/U32 return
+  guards, with `EvmCrosscallProbe` golden Yul, solc bytecode, Foundry
+  caller-storage read/write validation, Bool/U32/Hash delegate typed return
+  validation, aggregate return validation, invalid typed-return validation,
+  metadata entrypoint validation, EVM malformed nested aggregate diagnostics,
+  and explicit Psy unsupported diagnostics.
 - Done: add EVM IR direct scalar expression validation for `U64`/`U32`
   arithmetic, `U64` exponentiation, `U64`/`U32` bitwise operations and shifts,
   predicates, boolean operators, literals, immutable locals, supported casts,

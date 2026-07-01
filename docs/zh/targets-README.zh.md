@@ -29,7 +29,7 @@
 
 | 目标 | 阶段 | 说明 |
 |---|---|---|
-| [EVM](evm.md) | Experimental | 通过 Yul 实现基准线，`solc`，Foundry 冒烟测试。 |
+| [EVM](evm.md) | Experimental | 通过 Yul、`solc`、Foundry smoke 建立基线；包含 EVM-compatible chain profile `robinhood-chain-testnet`。 |
 | NEAR | Research | 本地 Lean 分支中的参考实现；尚未移植到此仓库。 |
 | CosmWasm | Research | 强力的 Wasm Spike 候选；复用 NEAR 的经验。 |
 | [Stellar Soroban](targets/stellar-soroban.zh.md) | Research | 文档优先的 Wasm-host 候选，使用 Soroban/Stellar CLI 工具链；尚未进入代码 registry。 |

@@ -1,0 +1,45 @@
+import ProofForge.Target
+
+namespace ProofForge.Tests.TargetRegistry
+
+open ProofForge.Target
+
+def require (condition : Bool) (message : String) : IO Unit :=
+  if condition then
+    pure ()
+  else
+    throw <| IO.userError message
+
+def requireSome {α : Type} (value : Option α) (message : String) : IO α :=
+  match value with
+  | some x => pure x
+  | none => throw <| IO.userError message
+
+def main : IO UInt32 := do
+  let evmProfile ← requireSome (find? "evm") "missing evm target profile"
+  require (evmProfile.id == "evm") "evm target id mismatch"
+  require (find? "robinhood-chain-testnet" |>.isNone)
+    "robinhood-chain-testnet must not be registered as a compiler target"
+
+  let robinhood ← requireSome (findEvmChainProfile? "robinhood-chain-testnet")
+    "missing Robinhood Chain testnet profile"
+  require (robinhood.targetId == evm.id)
+    "Robinhood Chain profile must reuse the evm compiler target"
+  require (robinhood.chainId == 46630)
+    "Robinhood Chain testnet chain id mismatch"
+  require (robinhood.nativeCurrencySymbol == "ETH")
+    "Robinhood Chain testnet gas token mismatch"
+  require (robinhood.rollupFamily == some "arbitrum-orbit")
+    "Robinhood Chain rollup family mismatch"
+  require (findEvmChainProfileByChainId? 46630 |>.isSome)
+    "Robinhood Chain testnet chain id lookup failed"
+  require (knownEvmChainProfileIds.contains "robinhood-chain-testnet")
+    "Robinhood Chain profile id missing from known ids"
+
+  IO.println "target-registry: ok"
+  return 0
+
+end ProofForge.Tests.TargetRegistry
+
+def main : IO UInt32 :=
+  ProofForge.Tests.TargetRegistry.main

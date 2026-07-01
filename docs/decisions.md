@@ -33,12 +33,14 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-021 | 2026-07-01 | Classify **`bitcoin-script-miniscript`** as a docs-first Bitcoin base-layer spending-policy Research candidate | Bitcoin Script is intentionally limited to UTXO locking/unlocking policy with signatures, hash locks, timelocks, descriptors, Miniscript, Taproot/Tapscript, PSBT flows, and standardness/fee constraints; registry changes wait until a Miniscript/descriptor spike path is chosen |
 | D-022 | 2026-07-01 | Classify **`zcash-shielded`** as a docs-first privacy UTXO/ZK payment Research candidate | Zcash is Bitcoin-derived but shielded support depends on Sapling/Orchard notes, nullifiers, anchors, value-balance constraints, viewing/disclosure policy, and protocol-defined ZK proofs; registry changes wait until shielded-note capabilities and a proving/validation boundary are reviewed |
 | D-023 | 2026-07-01 | Classify **`aleo-leo`** as a docs-first Aleo ZK application sourcegen Research candidate | Aleo programs combine private off-chain proof execution, public on-chain finalization, encrypted records, public mappings/storage, Aleo Instructions, Aleo VM bytecode, ABI, prover/verifier artifacts, and execute/deploy transactions; registry changes wait until the proof/finalization split is reviewed |
+| D-024 | 2026-07-01 | Model Robinhood Chain as **`robinhood-chain-testnet`**, an EVM-compatible chain profile under `evm`, not a new compiler target | Robinhood Chain executes EVM-compatible Arbitrum Orbit L2 contracts; ProofForge's EVM backend covers bytecode generation, while the chain profile records chain id, RPC, explorer, verifier, rollup, and deployment metadata |
 
 ## Target Family Classification
 
 | Family | Targets | Backend pattern |
 |---|---|---|
 | Direct compiler | `evm` | Lean → LCNF → Yul → solc |
+| EVM-compatible chain profiles | `robinhood-chain-testnet` | Reuse `evm` bytecode/ABI output; add chain id, RPC, explorer, verifier, rollup, and deployment metadata |
 | Wasm host | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban` (candidate, docs only), `wasm-icp-canister` (candidate, docs only) | Lean → EmitZig → Wasm + chain host bridge, or first-pass target-native source package when that validates semantics faster |
 | Binary toolchain | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | Source codegen | `move-aptos`, `move-sui` | Portable IR → Move package source |

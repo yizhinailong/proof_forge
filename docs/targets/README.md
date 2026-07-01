@@ -36,7 +36,7 @@ target registry and portable IR integration.
 
 | Target | Stage | Notes |
 |---|---|---|
-| [EVM](evm.md) | Experimental | Baseline through Yul, `solc`, Foundry smoke. |
+| [EVM](evm.md) | Experimental | Baseline through Yul, `solc`, Foundry smoke; includes EVM-compatible chain profile `robinhood-chain-testnet`. |
 | NEAR | Research | Reference in local Lean fork; not yet ported into this repo. |
 | CosmWasm | Research | Strong Wasm spike candidate; reuses NEAR lessons. |
 | [Stellar Soroban](stellar-soroban.md) | Research | Docs-first Wasm-host candidate through Soroban/Stellar CLI tooling; not yet in the code registry. |

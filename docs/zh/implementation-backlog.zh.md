@@ -26,11 +26,15 @@
 - 定义目标家族、制品种类、所需工具和能力集
   （参见 [capability-registry.md](capability-registry.md)）。
 - 为 CLI 和脚本添加目标查找函数。
+- 已完成：为 deployment metadata 增加 EVM-compatible chain profile 层，
+  首个 profile 是 `evm` compiler target 下的 `robinhood-chain-testnet`。
 - 为未知目标和不支持的能力添加诊断信息。
 
 验收标准：
 
 - `evm` 可以在不改变当前 EVM 行为的情况下表示为目标 profile。
+- EVM-compatible chain profiles 可以复用 `evm` compiler target，且不会被 target-id lookup
+  当成 compiler target 返回。
 - 目标 profile 可以声明外部工具需求。
 - 不支持的能力错误应包含目标 id、能力 id 以及可用的源代码位置。
 
@@ -98,9 +102,9 @@
 - 已完成：加入 EVM IR `crosscallInvokeTyped` lowering，支持 `Bool`、`U32`、`U64` 和 `Hash` typed scalar-word 跨合约调用，生成按返回类型区分的 Yul helper，并对 Bool/U32 return data 做范围 guard；用 `EvmCrosscallProbe` 跑通 golden Yul、solc bytecode、Foundry 合法/非法 typed return 验证、metadata entrypoint 校验，同时为 unsupported nested aggregate 参数/返回和 Psy typed crosscall unsupported 增加显式诊断。
 - 已完成：将 EVM IR normal `crosscallInvokeTyped` return lowering 从 scalar word 扩展到 entrypoint 直接返回的扁平 struct 和 scalar fixed array，生成按 ABI word shape 区分的 Yul helper，覆盖多 word return-data 长度检查、aggregate return word 中的 Bool/U32 range guard、`EvmCrosscallProbe` golden Yul、solc bytecode、Foundry aggregate struct/array return 验证、metadata selector 校验，并为 nested aggregate return shape 保留显式诊断。
 - 已完成：将 EVM IR typed crosscall 参数 lowering 从 scalar word 扩展到扁平 aggregate，使 normal、带 value、static 和 delegate typed call 都可以把扁平 struct 与 scalar fixed-array 参数展开为 ABI word。`EvmCrosscallProbe` 现在通过 golden Yul、solc bytecode、Foundry runtime、metadata selector 校验覆盖 normal struct/fixed-array 参数以及 value/static/delegate struct 参数，并为 nested aggregate 参数形态保留显式诊断。
-- 已完成：加入 EVM IR `crosscallInvokeValueTyped` lowering，支持带 value 的 typed scalar 跨合约调用，把显式 U64 call-value 表达式通过专用 Yul helper 转发到 EVM `call` 的 value slot；用 `EvmCrosscallProbe` 跑通 golden Yul、solc bytecode、Foundry `msg.value`/callee balance 验证、metadata entrypoint 校验，同时为 EVM malformed value/return 和 Psy value-bearing typed crosscall unsupported 增加显式诊断。
-- 已完成：加入 EVM IR `crosscallInvokeStaticTyped` lowering，支持 typed scalar-return `staticcall`，通过不带 value 的 Yul `staticcall` helper 复用 selector/scalar/扁平 aggregate 参数打包和 Bool/U32 return guard；用 `EvmCrosscallProbe` 跑通 golden Yul、solc bytecode、Foundry U64 read-only return、Bool/U32/Hash static typed return、static 扁平 struct 参数、非法 typed return 和 static context 下状态写入失败验证、metadata entrypoint 校验，同时为 EVM nested aggregate 参数、aggregate 返回和 Psy static typed crosscall unsupported 增加显式诊断。
-- 已完成：加入 EVM IR `crosscallInvokeDelegateTyped` lowering，支持 typed scalar-return `delegatecall`，通过不带 value 的 Yul `delegatecall` helper 复用 selector/scalar/扁平 aggregate 参数打包和 Bool/U32 return guard；用 `EvmCrosscallProbe` 跑通 golden Yul、solc bytecode、Foundry caller storage 读写、Bool/U32/Hash delegate typed return、delegate 扁平 struct 参数、非法 typed return 验证、metadata entrypoint 校验，同时为 EVM nested aggregate 参数、aggregate 返回和 Psy delegate typed crosscall unsupported 增加显式诊断。
+- 已完成：加入 EVM IR `crosscallInvokeValueTyped` lowering，支持带 value 的 typed 跨合约调用，把显式 U64 call-value 表达式通过专用 Yul helper 转发到 EVM `call` 的 value slot，同时覆盖 scalar return 以及扁平 struct、scalar fixed-array 的 entrypoint 直接 aggregate return；用 `EvmCrosscallProbe` 跑通 golden Yul、solc bytecode、Foundry `msg.value`/callee balance 验证、aggregate Bool/U32 malformed-return guard、metadata entrypoint 校验，同时为 EVM malformed value/return 和 Psy value-bearing typed crosscall unsupported 增加显式诊断。
+- 已完成：加入 EVM IR `crosscallInvokeStaticTyped` lowering，支持 typed `staticcall`，通过不带 value 的 Yul `staticcall` helper 复用 selector/scalar/扁平 aggregate 参数打包、scalar return、扁平 struct 和 scalar fixed-array entrypoint aggregate return 以及 Bool/U32 return guard；用 `EvmCrosscallProbe` 跑通 golden Yul、solc bytecode、Foundry U64 read-only return、Bool/U32/Hash static typed return、static aggregate return、static 扁平 struct 参数、非法 typed return 和 static context 下状态写入失败验证、metadata entrypoint 校验，同时为 EVM nested aggregate 参数/返回和 Psy static typed crosscall unsupported 增加显式诊断。
+- 已完成：加入 EVM IR `crosscallInvokeDelegateTyped` lowering，支持 typed `delegatecall`，通过不带 value 的 Yul `delegatecall` helper 复用 selector/scalar/扁平 aggregate 参数打包、scalar return、扁平 struct 和 scalar fixed-array entrypoint aggregate return 以及 Bool/U32 return guard；用 `EvmCrosscallProbe` 跑通 golden Yul、solc bytecode、Foundry caller storage 读写、Bool/U32/Hash delegate typed return、delegate aggregate return、delegate 扁平 struct 参数、非法 typed return 验证、metadata entrypoint 校验，同时为 EVM nested aggregate 参数/返回和 Psy delegate typed crosscall unsupported 增加显式诊断。
 - 已完成：加入 EVM IR direct scalar expression 验证，覆盖 `U64`/`U32` arithmetic、`U64` exponentiation、`U64`/`U32` bitwise 和 shift、predicate、boolean operator、literal、不可变 local、支持的 cast、单 word return、dispatcher guard 和 assertion guard，并用 `EvmExpressionProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/malformed calldata 验证、metadata 能力校验和 CI 覆盖。
 - 已完成：加入 EVM IR `Hash` word lowering、`hash4`/`hashValue` 打包，以及通过 Yul `keccak256` helper 实现的 `hash`/`hash_two_to_one` lowering，并用 `EvmHashProbe` 跑通 golden Yul、solc bytecode、Foundry ABI/storage 验证、metadata 能力校验，以及 Hash/U64 类型错配显式诊断。
 - 已完成：加入 EVM IR `Map<U64, U64, N>` storage lowering，使用 Solidity-style `keccak256(key, slot)` mapping slot，并用 `EvmMapProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验，以及不支持 map 形态和 statement-position 误用的显式诊断。
