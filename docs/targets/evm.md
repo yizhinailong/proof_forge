@@ -167,7 +167,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, and flat scalar storage struct field read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, local fixed arrays of flat structs with static/dynamic field reads and writes, flat static fixed-array ABI parameters/returns, and fixed-array ABI parameters/returns whose elements are flat structs; zero-length ABI arrays, nested arrays, whole local assignment of struct arrays, and unsupported element shapes still reject explicitly |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns, and fixed-array ABI parameters/returns whose elements are flat structs; zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
 | `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns, fixed arrays of flat structs in ABI-facing parameters/returns, flat scalar storage structs, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields, whole-struct storage reads/writes, and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
@@ -223,8 +223,8 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   through Yul `leave`. It rejects wider portable IR nodes with explicit
   diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
-  non-word or aggregate map shapes, nested arrays, whole local assignment of
-  struct arrays, whole-struct storage reads/writes, nested local structs beyond
+  non-word or aggregate map shapes, nested arrays, whole-struct storage
+  reads/writes, nested local structs beyond
   flat struct arrays, indexed/Solidity-signature event schemas,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call return
   data, and real creation-transaction or broadcast manifests.
@@ -468,8 +468,9 @@ field compound assignment, golden Yul reproducibility, `solc
 --strict-assembly`, artifact metadata capabilities (`data.fixed_array`,
 `data.struct`, `assertions.check`), Foundry runtime calls, dynamic
 out-of-bounds reverts, and unknown-selector revert behavior. Whole local
-assignment of struct arrays and nested array/struct elements remain explicit
-diagnostics.
+assignment from another local struct array and from self-referential struct
+array literals snapshots RHS fields before writing target fields. Nested
+array/struct elements remain explicit diagnostics.
 
 `EvmStructValueProbe` validates portable IR flat local struct values. Immutable
 and mutable struct local bindings expand into one internal Yul local per

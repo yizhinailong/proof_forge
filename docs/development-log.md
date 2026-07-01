@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Struct Array Whole Local Assignment
+
+Commit: feature commit for EVM IR struct-array whole local assignment
+
+Summary:
+
+- Allowed `assign (.local name) value` for mutable local fixed arrays whose
+  element type is a flat struct.
+- Lowered whole local struct-array assignment from another local struct array
+  or a struct-array literal by snapshotting every RHS element field into
+  temporary Yul locals before writing the expanded target fields.
+- Extended `EvmStructArrayValueProbe` with `whole_struct_array_assign()` and
+  `self_struct_array_assign()` to validate local-source assignment and
+  self-referential literal RHS snapshot semantics.
+- Refreshed the golden Yul, artifact metadata entrypoint checks, Foundry smoke
+  harness, EVM coverage manifest, target docs, validation gates, backlog, and
+  Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/struct-array-value-ir-smoke.sh
+```
+
+Known limitations:
+
+- Struct-array whole assignment is limited to fixed arrays whose element type is
+  a flat struct over EVM word fields (`U32`, `U64`, `Bool`, or `Hash`).
+- Nested arrays, nested local structs, whole-struct storage reads/writes, and
+  dynamic or nested aggregate ABI values remain explicit diagnostics.
+
+Next step:
+
+- Continue shrinking the remaining EVM aggregate unsupported surface, likely
+  around nested aggregate locals, richer cross-call return data, or event schema
+  fidelity.
+
 ### EVM IR Storage Map Contains
 
 Commit: feature commit for EVM IR storage map contains

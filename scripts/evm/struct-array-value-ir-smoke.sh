@@ -46,6 +46,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint mutable_struct_array_update:bfa2eef8 \
   --expect-entrypoint static_struct_array_update:c8c9bc70 \
   --expect-entrypoint mixed_struct_array_fields:8c32c4da \
+  --expect-entrypoint whole_struct_array_assign:cd4a0dc2 \
+  --expect-entrypoint self_struct_array_assign:e5ea5747 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmStructArrayValueProbe.bin")"
@@ -139,8 +141,22 @@ contract ProofForgeIRStructArrayValueSmokeTest {
         assertEq(callU256(probe, abi.encodeWithSignature("mixed_struct_array_fields()")), 12);
     }
 
-    function testIRLocalStructArrayDynamicIndexesRejectOutOfBounds() public {
+    function testIRLocalStructArrayWholeAssignmentFromLocal() public {
         address probe = address(uint160(0xA285));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("whole_struct_array_assign()")), 60);
+    }
+
+    function testIRLocalStructArrayWholeAssignmentSnapshotsRHS() public {
+        address probe = address(uint160(0xA286));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("self_struct_array_assign()")), 36);
+    }
+
+    function testIRLocalStructArrayDynamicIndexesRejectOutOfBounds() public {
+        address probe = address(uint160(0xA287));
         deployRuntime(hex"$probe_hex", probe);
 
         (bool readOk,) = probe.call(abi.encodeWithSignature("dynamic_struct_array_pick(uint256)", 2));
@@ -151,7 +167,7 @@ contract ProofForgeIRStructArrayValueSmokeTest {
     }
 
     function testIRLocalStructArrayRejectsUnknownSelector() public {
-        address probe = address(uint160(0xA286));
+        address probe = address(uint160(0xA288));
         deployRuntime(hex"$probe_hex", probe);
 
         (bool ok,) = probe.call(hex"ffffffff");

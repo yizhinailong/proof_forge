@@ -32,6 +32,16 @@ object "EvmStructArrayValueProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xcd4a0dc2 {
+      let _r := f_EvmStructArrayValueProbe_whole_struct_array_assign()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xe5ea5747 {
+      let _r := f_EvmStructArrayValueProbe_self_struct_array_assign()
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -110,6 +120,44 @@ object "EvmStructArrayValueProbe" {
         revert(0, 0)
       }
       result := add(__proof_forge_array_struct_rows_1_small, __proof_forge_array_struct_rows_0_enabled)
+    }
+    function f_EvmStructArrayValueProbe_whole_struct_array_assign() -> result {
+      let __proof_forge_array_struct_people_0_age := 1
+      let __proof_forge_array_struct_people_0_score := 2
+      let __proof_forge_array_struct_people_1_age := 3
+      let __proof_forge_array_struct_people_1_score := 4
+      let __proof_forge_array_struct_next_0_age := 11
+      let __proof_forge_array_struct_next_0_score := 13
+      let __proof_forge_array_struct_next_1_age := 17
+      let __proof_forge_array_struct_next_1_score := 19
+      {
+        let __proof_forge_assign_array_struct_people_0_age := __proof_forge_array_struct_next_0_age
+        let __proof_forge_assign_array_struct_people_0_score := __proof_forge_array_struct_next_0_score
+        let __proof_forge_assign_array_struct_people_1_age := __proof_forge_array_struct_next_1_age
+        let __proof_forge_assign_array_struct_people_1_score := __proof_forge_array_struct_next_1_score
+        __proof_forge_array_struct_people_0_age := __proof_forge_assign_array_struct_people_0_age
+        __proof_forge_array_struct_people_0_score := __proof_forge_assign_array_struct_people_0_score
+        __proof_forge_array_struct_people_1_age := __proof_forge_assign_array_struct_people_1_age
+        __proof_forge_array_struct_people_1_score := __proof_forge_assign_array_struct_people_1_score
+      }
+      result := add(add(__proof_forge_array_struct_people_0_age, __proof_forge_array_struct_people_0_score), add(__proof_forge_array_struct_people_1_age, __proof_forge_array_struct_people_1_score))
+    }
+    function f_EvmStructArrayValueProbe_self_struct_array_assign() -> result {
+      let __proof_forge_array_struct_people_0_age := 5
+      let __proof_forge_array_struct_people_0_score := 7
+      let __proof_forge_array_struct_people_1_age := 11
+      let __proof_forge_array_struct_people_1_score := 13
+      {
+        let __proof_forge_assign_array_struct_people_0_age := __proof_forge_array_struct_people_1_age
+        let __proof_forge_assign_array_struct_people_0_score := __proof_forge_array_struct_people_0_score
+        let __proof_forge_assign_array_struct_people_1_age := __proof_forge_array_struct_people_0_age
+        let __proof_forge_assign_array_struct_people_1_score := __proof_forge_array_struct_people_1_score
+        __proof_forge_array_struct_people_0_age := __proof_forge_assign_array_struct_people_0_age
+        __proof_forge_array_struct_people_0_score := __proof_forge_assign_array_struct_people_0_score
+        __proof_forge_array_struct_people_1_age := __proof_forge_assign_array_struct_people_1_age
+        __proof_forge_array_struct_people_1_score := __proof_forge_assign_array_struct_people_1_score
+      }
+      result := add(add(__proof_forge_array_struct_people_0_age, __proof_forge_array_struct_people_0_score), add(__proof_forge_array_struct_people_1_age, __proof_forge_array_struct_people_1_score))
     }
     function __proof_forge_local_array_get_2(index, value_0, value_1) -> result {
       switch index

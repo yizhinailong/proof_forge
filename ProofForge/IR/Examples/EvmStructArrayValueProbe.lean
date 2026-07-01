@@ -129,6 +129,54 @@ def mixedStructArrayFields : Entrypoint := {
   ]
 }
 
+def wholeStructArrayAssign : Entrypoint := {
+  name := "whole_struct_array_assign"
+  selector? := some "cd4a0dc2"
+  returns := .u64
+  body := #[
+    .letMutBind "people" (.fixedArray (.structType "Person") 2)
+      (.arrayLit (.structType "Person") #[person 1 2, person 3 4]),
+    .letBind "next" (.fixedArray (.structType "Person") 2)
+      (.arrayLit (.structType "Person") #[person 11 13, person 17 19]),
+    .assign (.local "people") (.local "next"),
+    .return (.add
+      (.add
+        (.field (.arrayGet (.local "people") (u64 0)) "age")
+        (.field (.arrayGet (.local "people") (u64 0)) "score"))
+      (.add
+        (.field (.arrayGet (.local "people") (u64 1)) "age")
+        (.field (.arrayGet (.local "people") (u64 1)) "score")))
+  ]
+}
+
+def selfStructArrayAssign : Entrypoint := {
+  name := "self_struct_array_assign"
+  selector? := some "e5ea5747"
+  returns := .u64
+  body := #[
+    .letMutBind "people" (.fixedArray (.structType "Person") 2)
+      (.arrayLit (.structType "Person") #[person 5 7, person 11 13]),
+    .assign (.local "people")
+      (.arrayLit (.structType "Person") #[
+        .structLit "Person" #[
+          ("age", .field (.arrayGet (.local "people") (u64 1)) "age"),
+          ("score", .field (.arrayGet (.local "people") (u64 0)) "score")
+        ],
+        .structLit "Person" #[
+          ("age", .field (.arrayGet (.local "people") (u64 0)) "age"),
+          ("score", .field (.arrayGet (.local "people") (u64 1)) "score")
+        ]
+      ]),
+    .return (.add
+      (.add
+        (.field (.arrayGet (.local "people") (u64 0)) "age")
+        (.field (.arrayGet (.local "people") (u64 0)) "score"))
+      (.add
+        (.field (.arrayGet (.local "people") (u64 1)) "age")
+        (.field (.arrayGet (.local "people") (u64 1)) "score")))
+  ]
+}
+
 def module : Module := {
   name := "EvmStructArrayValueProbe"
   structs := #[personStruct, mixedStruct]
@@ -138,7 +186,9 @@ def module : Module := {
     dynamicStructArrayPick,
     mutableStructArrayUpdate,
     staticStructArrayUpdate,
-    mixedStructArrayFields
+    mixedStructArrayFields,
+    wholeStructArrayAssign,
+    selfStructArrayAssign
   ]
 }
 
