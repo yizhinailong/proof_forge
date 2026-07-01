@@ -50,6 +50,10 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_static_bool:ae266f0a \
   --expect-entrypoint call_remote_static_u32:ec8c40f9 \
   --expect-entrypoint call_remote_static_hash:4e0edd3c \
+  --expect-entrypoint call_remote_delegate:427320b1 \
+  --expect-entrypoint call_remote_delegate_bool:62e5114d \
+  --expect-entrypoint call_remote_delegate_u32:e3abe276 \
+  --expect-entrypoint call_remote_delegate_hash:6a2c2006 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmCrosscallProbe.bin")"
@@ -477,6 +481,146 @@ contract ProofForgeIRCrosscallSmokeTest {
         (bool ok,) = probe.call(
             abi.encodeWithSignature(
                 "call_remote_static_u32(uint256,uint256,uint32)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.invalidU32.selector),
+                uint32(1)
+            )
+        );
+        assertFalse(ok);
+    }
+
+    function testIRCrosscallDelegateReadsCallerStorage() public {
+        address probe = address(uint160(0xE153));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(
+            callU256(
+                probe,
+                abi.encodeWithSignature(
+                    "call_remote_delegate(uint256,uint256)",
+                    uint256(uint160(address(callee))),
+                    selector(CrosscallCallee.readStored.selector)
+                )
+            ),
+            0
+        );
+        assertEq(callee.stored(), 88);
+    }
+
+    function testIRCrosscallDelegateWritesCallerStorage() public {
+        address probe = address(uint160(0xE154));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(
+            callU256(
+                probe,
+                abi.encodeWithSignature(
+                    "call_remote_delegate(uint256,uint256)",
+                    uint256(uint160(address(callee))),
+                    selector(CrosscallCallee.writeStored.selector)
+                )
+            ),
+            777
+        );
+        assertEq(callee.stored(), 88);
+        assertEq(
+            callU256(
+                probe,
+                abi.encodeWithSignature(
+                    "call_remote_delegate(uint256,uint256)",
+                    uint256(uint160(address(callee))),
+                    selector(CrosscallCallee.readStored.selector)
+                )
+            ),
+            777
+        );
+    }
+
+    function testIRCrosscallDelegateBoolReturn() public {
+        address probe = address(uint160(0xE155));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertTrue(
+            callBool(
+                probe,
+                abi.encodeWithSignature(
+                    "call_remote_delegate_bool(uint256,uint256,bool)",
+                    uint256(uint160(address(callee))),
+                    selector(CrosscallCallee.notFlag.selector),
+                    false
+                )
+            )
+        );
+    }
+
+    function testIRCrosscallDelegateU32Return() public {
+        address probe = address(uint160(0xE156));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(
+            uint256(
+                callU32(
+                    probe,
+                    abi.encodeWithSignature(
+                        "call_remote_delegate_u32(uint256,uint256,uint32)",
+                        uint256(uint160(address(callee))),
+                        selector(CrosscallCallee.plusSmall.selector),
+                        uint32(35)
+                    )
+                )
+            ),
+            42
+        );
+    }
+
+    function testIRCrosscallDelegateHashReturn() public {
+        address probe = address(uint160(0xE157));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+        bytes32 value = keccak256("proof-forge-delegate-crosscall-hash");
+
+        assertEq(
+            callHash(
+                probe,
+                abi.encodeWithSignature(
+                    "call_remote_delegate_hash(uint256,uint256,bytes32)",
+                    uint256(uint160(address(callee))),
+                    selector(CrosscallCallee.echoHash.selector),
+                    value
+                )
+            ),
+            value
+        );
+    }
+
+    function testIRCrosscallDelegateRejectsInvalidBoolReturn() public {
+        address probe = address(uint160(0xE158));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok,) = probe.call(
+            abi.encodeWithSignature(
+                "call_remote_delegate_bool(uint256,uint256,bool)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.invalidBool.selector),
+                true
+            )
+        );
+        assertFalse(ok);
+    }
+
+    function testIRCrosscallDelegateRejectsInvalidU32Return() public {
+        address probe = address(uint160(0xE159));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok,) = probe.call(
+            abi.encodeWithSignature(
+                "call_remote_delegate_u32(uint256,uint256,uint32)",
                 uint256(uint160(address(callee))),
                 selector(CrosscallCallee.invalidU32.selector),
                 uint32(1)

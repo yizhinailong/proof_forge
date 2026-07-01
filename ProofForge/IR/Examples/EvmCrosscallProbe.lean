@@ -162,6 +162,61 @@ def callRemoteStaticHash : Entrypoint := {
   ]
 }
 
+def callRemoteDelegate : Entrypoint := {
+  name := "call_remote_delegate"
+  selector? := some "427320b1"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[] .u64)
+  ]
+}
+
+def callRemoteDelegateBool : Entrypoint := {
+  name := "call_remote_delegate_bool"
+  selector? := some "62e5114d"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag", .bool)
+  ]
+  returns := .bool
+  body := #[
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[.local "flag"] .bool)
+  ]
+}
+
+def callRemoteDelegateU32 : Entrypoint := {
+  name := "call_remote_delegate_u32"
+  selector? := some "e3abe276"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("x", .u32)
+  ]
+  returns := .u32
+  body := #[
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[.local "x"] .u32)
+  ]
+}
+
+def callRemoteDelegateHash : Entrypoint := {
+  name := "call_remote_delegate_hash"
+  selector? := some "6a2c2006"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("value", .hash)
+  ]
+  returns := .hash
+  body := #[
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[.local "value"] .hash)
+  ]
+}
+
 def module : Module := {
   name := "EvmCrosscallProbe"
   state := #[stateMarker]
@@ -176,7 +231,11 @@ def module : Module := {
     callRemoteStatic,
     callRemoteStaticBool,
     callRemoteStaticU32,
-    callRemoteStaticHash
+    callRemoteStaticHash,
+    callRemoteDelegate,
+    callRemoteDelegateBool,
+    callRemoteDelegateU32,
+    callRemoteDelegateHash
   ]
 }
 

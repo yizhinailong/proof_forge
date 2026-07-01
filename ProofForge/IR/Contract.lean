@@ -131,6 +131,7 @@ mutual
     | crosscallInvokeTyped (targetContractId : Expr) (methodId : Expr) (args : Array Expr) (returnType : ValueType)
     | crosscallInvokeValueTyped (targetContractId : Expr) (methodId callValue : Expr) (args : Array Expr) (returnType : ValueType)
     | crosscallInvokeStaticTyped (targetContractId : Expr) (methodId : Expr) (args : Array Expr) (returnType : ValueType)
+    | crosscallInvokeDelegateTyped (targetContractId : Expr) (methodId : Expr) (args : Array Expr) (returnType : ValueType)
     | effect (effect : Effect)
     deriving Repr
 
@@ -271,6 +272,9 @@ mutual
         #[.crosscallInvoke] ++ target.capabilities ++ methodId.capabilities ++ callValue.capabilities ++
           returnType.capabilities ++ args.foldl (fun acc arg => acc ++ arg.capabilities) #[]
     | .crosscallInvokeStaticTyped target methodId args returnType =>
+        #[.crosscallInvoke] ++ target.capabilities ++ methodId.capabilities ++ returnType.capabilities ++
+          args.foldl (fun acc arg => acc ++ arg.capabilities) #[]
+    | .crosscallInvokeDelegateTyped target methodId args returnType =>
         #[.crosscallInvoke] ++ target.capabilities ++ methodId.capabilities ++ returnType.capabilities ++
           args.foldl (fun acc arg => acc ++ arg.capabilities) #[]
     | .effect effect => #[effect.capability] ++ effect.capabilities

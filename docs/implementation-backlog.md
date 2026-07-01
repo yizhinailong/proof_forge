@@ -172,6 +172,14 @@ Tasks:
   state-write failure validation, metadata entrypoint validation, EVM malformed
   aggregate argument/return diagnostics, and explicit Psy unsupported
   diagnostics.
+- Done: add EVM IR `crosscallInvokeDelegateTyped` lowering for typed scalar
+  delegatecalls, using value-free Yul `delegatecall` helpers with the same
+  selector/scalar-word packing and Bool/U32 return guards as typed calls, with
+  `EvmCrosscallProbe` golden Yul, solc bytecode, Foundry caller-storage
+  read/write validation, Bool/U32/Hash delegate typed return validation,
+  invalid typed-return validation, metadata entrypoint validation, EVM
+  malformed aggregate argument/return diagnostics, and explicit Psy unsupported
+  diagnostics.
 - Done: add EVM IR direct scalar expression validation for `U64`/`U32`
   arithmetic, `U64` exponentiation, `U64`/`U32` bitwise operations and shifts,
   predicates, boolean operators, literals, immutable locals, supported casts,

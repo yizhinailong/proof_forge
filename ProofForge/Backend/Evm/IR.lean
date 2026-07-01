@@ -84,6 +84,9 @@ def crosscallValueFunctionName (arity : Nat) (returnType : ValueType) : Except L
 def crosscallStaticFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
   .ok s!"__proof_forge_crosscall_static_{arity}{← crosscallReturnTypeSuffix returnType}"
 
+def crosscallDelegateFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
+  .ok s!"__proof_forge_crosscall_delegate_{arity}{← crosscallReturnTypeSuffix returnType}"
+
 def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
 def maxU32 : Nat := 4294967295
@@ -845,6 +848,13 @@ mutual
         for arg in args do
           ensureCrosscallWordType "static crosscall argument" (← inferExprType module env arg)
         .ok returnType
+    | .crosscallInvokeDelegateTyped target methodId args returnType => do
+        ensureType "delegate crosscall target contract id" .u64 (← inferExprType module env target)
+        ensureType "delegate crosscall method id" .u64 (← inferExprType module env methodId)
+        ensureCrosscallWordType "delegate crosscall return" returnType
+        for arg in args do
+          ensureCrosscallWordType "delegate crosscall argument" (← inferExprType module env arg)
+        .ok returnType
     | .effect effect => inferEffectExprType module env effect
 
   partial def inferBinaryNumericType
@@ -1467,6 +1477,14 @@ mutual
         for arg in args do
           callArgs := callArgs.push (← lowerExpr module env arg)
         .ok (Lean.Compiler.Yul.call (← crosscallStaticFunctionName args.size returnType) callArgs)
+    | .crosscallInvokeDelegateTyped target methodId args returnType => do
+        let mut callArgs := #[
+          ← lowerExpr module env target,
+          ← lowerExpr module env methodId
+        ]
+        for arg in args do
+          callArgs := callArgs.push (← lowerExpr module env arg)
+        .ok (Lean.Compiler.Yul.call (← crosscallDelegateFunctionName args.size returnType) callArgs)
     | .effect effect => lowerEffectExpr module env effect
 
   partial def lowerEffectExpr (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Expr
@@ -2986,11 +3004,12 @@ inductive CrosscallMode where
   | call
   | callValue
   | staticcall
+  | delegatecall
   deriving BEq, Repr
 
 def CrosscallMode.forwardsValue : CrosscallMode → Bool
   | .callValue => true
-  | .call | .staticcall => false
+  | .call | .staticcall | .delegatecall => false
 
 def crosscallFunctionParams (arity : Nat) (mode : CrosscallMode) : Array Lean.Compiler.Yul.TypedName :=
   let base := #[
@@ -3054,6 +3073,7 @@ def crosscallHelperFunction (spec : CrosscallHelperSpec) : Except LowerError Lea
     | .call => crosscallFunctionName spec.arity spec.returnType
     | .callValue => crosscallValueFunctionName spec.arity spec.returnType
     | .staticcall => crosscallStaticFunctionName spec.arity spec.returnType
+    | .delegatecall => crosscallDelegateFunctionName spec.arity spec.returnType
   let callValue :=
     if spec.mode.forwardsValue then
       Lean.Compiler.Yul.Expr.id crosscallCallValueName
@@ -3073,6 +3093,15 @@ def crosscallHelperFunction (spec : CrosscallHelperSpec) : Except LowerError Lea
         ]
     | .staticcall =>
         Lean.Compiler.Yul.builtin "staticcall" #[
+          Lean.Compiler.Yul.builtin "gas" #[],
+          Lean.Compiler.Yul.Expr.id "target",
+          Lean.Compiler.Yul.Expr.num 0,
+          Lean.Compiler.Yul.Expr.num (crosscallCalldataSize spec.arity),
+          Lean.Compiler.Yul.Expr.num 0,
+          Lean.Compiler.Yul.Expr.num 32
+        ]
+    | .delegatecall =>
+        Lean.Compiler.Yul.builtin "delegatecall" #[
           Lean.Compiler.Yul.builtin "gas" #[],
           Lean.Compiler.Yul.Expr.id "target",
           Lean.Compiler.Yul.Expr.num 0,
@@ -3173,6 +3202,11 @@ mutual
         let nested := args.foldl (init := nested) fun acc arg =>
           mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr arg)
         pushCrosscallHelperSpecIfMissing nested { arity := args.size, returnType := returnType, mode := .staticcall }
+    | .crosscallInvokeDelegateTyped target methodId args returnType =>
+        let nested := mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr target) (crosscallHelperSpecsExpr methodId)
+        let nested := args.foldl (init := nested) fun acc arg =>
+          mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr arg)
+        pushCrosscallHelperSpecIfMissing nested { arity := args.size, returnType := returnType, mode := .delegatecall }
     | .effect effect =>
         crosscallHelperSpecsEffect effect
 
@@ -3306,6 +3340,10 @@ mutual
         args.foldl (init := nested) fun acc arg =>
           mergeNatSets acc (localArrayGetLengthsExpr env arg)
     | .crosscallInvokeStaticTyped target methodId args _ =>
+        let nested := mergeNatSets (localArrayGetLengthsExpr env target) (localArrayGetLengthsExpr env methodId)
+        args.foldl (init := nested) fun acc arg =>
+          mergeNatSets acc (localArrayGetLengthsExpr env arg)
+    | .crosscallInvokeDelegateTyped target methodId args _ =>
         let nested := mergeNatSets (localArrayGetLengthsExpr env target) (localArrayGetLengthsExpr env methodId)
         args.foldl (init := nested) fun acc arg =>
           mergeNatSets acc (localArrayGetLengthsExpr env arg)
