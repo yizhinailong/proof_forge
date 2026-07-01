@@ -195,14 +195,16 @@ def printFunction (indentLevel : Nat) (f : Function) : Except LowerError String 
   let paramsStr := String.intercalate ", " params.toList
   let ret ← printType f.outputType
   let header := keyword ++ " " ++ f.identifier ++ "(" ++ paramsStr ++ ") -> " ++ ret ++ " {"
-  let body ← printBlock (indentLevel + 1) f.block
+  let bodyLines ← f.block.statements.mapM (printStatement (indentLevel + 1))
+  let body := String.intercalate "\n" bodyLines.toList
+  let footer := indent indentLevel "}"
   let annoLines := f.annotations.map printAnnotation
   let prefixed :=
     if annoLines.isEmpty then
-      indent indentLevel header ++ "\n" ++ body
+      indent indentLevel header ++ "\n" ++ body ++ "\n" ++ footer
     else
       let annos := String.intercalate "\n" (annoLines.map (indent indentLevel)).toList
-      annos ++ "\n" ++ indent indentLevel header ++ "\n" ++ body
+      annos ++ "\n" ++ indent indentLevel header ++ "\n" ++ body ++ "\n" ++ footer
   .ok prefixed
 
 def printMapping (indentLevel : Nat) (m : Mapping) : Except LowerError String := do
@@ -222,13 +224,22 @@ def printConstructor (indentLevel : Nat) (c : Constructor) : Except LowerError S
     .ok (annos ++ indent indentLevel header ++ "\n" ++ body ++ "\n" ++ footer)
 
 def printProgramScope (indentLevel : Nat) (scope : ProgramScope) : Except LowerError String := do
-  let mappingLines ← scope.mappings.mapM (fun (_, m) => printMapping indentLevel m)
-  let functionLines ← scope.functions.mapM (fun (_, f) => printFunction indentLevel f)
+  let mappingLines ← scope.mappings.mapM (fun (_, m) => printMapping (indentLevel + 1) m)
+  let functionLines ← scope.functions.mapM (fun (_, f) => printFunction (indentLevel + 1) f)
   let constructorLines ← match scope.constructor with
     | none => .ok #[]
-    | some c => do let s ← printConstructor indentLevel c; .ok #[s]
-  let all := mappingLines ++ constructorLines ++ functionLines
-  let body := String.intercalate "\n\n" all.toList
+    | some c => do let s ← printConstructor (indentLevel + 1) c; .ok #[s]
+  let blank := "\n" ++ indent (indentLevel + 1) "" ++ "\n"
+  let decls := mappingLines ++ constructorLines
+  let declsStr := String.intercalate blank decls.toList
+  let functionsStr := String.intercalate "\n" functionLines.toList
+  let body :=
+    if functionLines.isEmpty then
+      declsStr
+    else if decls.isEmpty then
+      functionsStr
+    else
+      declsStr ++ blank ++ functionsStr
   .ok ("program " ++ scope.programId ++ " {\n" ++ body ++ "\n" ++ indent indentLevel "}")
 
 def printProgram (p : Program) : Except LowerError String :=
