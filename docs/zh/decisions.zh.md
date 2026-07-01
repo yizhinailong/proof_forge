@@ -32,6 +32,9 @@
 | D-022 | 2026-07-01 | 将 **`zcash-shielded`** 归类为文档优先的 privacy UTXO/ZK payment Research 候选 | Zcash 源自 Bitcoin，但 shielded 支持依赖 Sapling/Orchard notes、nullifiers、anchors、value-balance constraints、viewing/disclosure policy 和协议定义的 ZK proofs；registry 修改需等待 shielded-note 能力和 proving/validation boundary 审查 |
 | D-023 | 2026-07-01 | 将 **`aleo-leo`** 归类为文档优先的 Aleo ZK application sourcegen Research 候选 | Aleo programs 结合 private off-chain proof execution、public on-chain finalization、encrypted records、public mappings/storage、Aleo Instructions、Aleo VM bytecode、ABI、prover/verifier artifacts 和 execute/deploy transactions；registry 修改需等待 proof/finalization split 审查 |
 | D-024 | 2026-07-01 | 将 Robinhood Chain 建模为 `evm` 下的 EVM-compatible chain profile **`robinhood-chain-testnet`**，而不是新的 compiler target | Robinhood Chain 执行 EVM-compatible Arbitrum Orbit L2 contracts；ProofForge 的 EVM backend 覆盖 bytecode generation，chain profile 记录 chain id、RPC、explorer、verifier、rollup 和 deployment metadata |
+| D-025 | 2026-07-01 | 采用 Rust `near-sdk-rs` source generation 作为仓库内 `wasm-near` v0 后端 | 仓库中没有 EmitZig/Zig host bridge 源码；portable IR → near-sdk-rs package → cargo wasm32 现在即可验证 NEAR 语义，并为后续恢复 Zig host-bridge 路径保留空间 |
+| D-026 | 2026-07-01 | `wasm-near` v0 支持 `Hash` map keys、`.assertions.check` 和 `.account.explicit` | 现有 `MapProbe` 需要 Hash keys 和 `assertEq`，`ContextProbe` 需要 `contractId`；`.crosscall.invoke` 在 sourcegen v0 中仍不支持 |
+| D-027 | 2026-07-01 | 采用 **`EmitWat`**（portable IR → Wasm AST → WAT text → `wat2wasm`）作为 Wasm 家族的 canonical backend；将 Rust `near-sdk-rs` sourcegen 降级为**冻结的 v0 stopgap** | `EmitWat` 对齐仓库内 **portable-IR → Yul** renderer `Backend/Evm/IR.lean`（所有 `--emit-*-ir-yul` CLI mode 使用的路径），而不是单独的 LCNF-based `Compiler/LCNF/EmitYul.lean`。portable IR 已经抽象掉 Lean 对象（只有 `u32`/`u64`/`bool`/`hash` 标量 + storage effects），因此 `EmitWat` 不需要 Lean runtime port、object-model boxing 或 GC，避开了 Rust 路线的 `near-sdk` macro coupling（E0119 Borsh / missing-`&self` cargo-check failures）以及阻塞旧 `EmitZig` 计划的 Lean-runtime-to-Wasm port。共享层：`Compiler/Wasm/AST.lean` + `Printer.lean` + IR→AST lowering（并行于 `Compiler/Yul/AST.lean` + `Printer.lean`）；可复用 `Backend/WasmNear/IR.lean` 和 `Backend/Evm/IR.lean` 的 validation。按链区分：host imports + ABI serialization。关键 spike risk：NEAR argument (de)serialization（JSON/Borsh），这是 EVM backend 不会遇到的（EVM 使用 calldata） |
 
 ## 目标家族分类
 
@@ -39,7 +42,7 @@
 |---|---|---|
 | 直接编译器 | `evm` | Lean → LCNF → Yul → solc |
 | EVM-compatible chain profiles | `robinhood-chain-testnet` | 复用 `evm` bytecode/ABI 输出；补充 chain id、RPC、explorer、verifier、rollup 和 deployment metadata |
-| Wasm 宿主 | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban`（候选，仅文档）, `wasm-icp-canister`（候选，仅文档） | Lean → EmitZig → Wasm + 链宿主桥接，或在能更快验证语义时先走目标原生源码包 |
+| Wasm 宿主 | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban`（候选，仅文档）, `wasm-icp-canister`（候选，仅文档） | Portable IR → **`EmitWat`**（Wasm AST → WAT）→ `wat2wasm` + per-chain host imports；Rust/CDK sourcegen 仅作为冻结的 v0 stopgap ([D-027](targets/wasm-family.md)) |
 | 二进制工具链 | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | 源代码生成 | `move-aptos`, `move-sui` | 可移植 IR → Move 包源码 |
 | AVM sourcegen research | `algorand-avm`（候选，仅文档） | 可移植 IR → Algorand Python、Algorand TypeScript 或 TEAL package → AVM approval/clear-state 或 LogicSig bytecode + ARC-4/app metadata |
@@ -89,6 +92,7 @@ Phase 5: Cloud platform
 | 计数器共享场景 | [shared-scenario.md](shared-scenario.md) |
 | 目标工程形态 | [RFC 0002](rfcs/0002-target-implementation-design.md) |
 | CosmWasm SDK spike 草图 | [targets/wasm-family.md](targets/wasm-family.md) |
+| Wasm-NEAR sourcegen 目标 | [targets/wasm-near.md](targets/wasm-near.md) |
 | Stellar/Soroban 目标候选 | [targets/stellar-soroban.md](targets/stellar-soroban.md) |
 | Internet Computer 目标候选 | [targets/internet-computer.md](targets/internet-computer.md) |
 | Algorand AVM 目标候选 | [targets/algorand-avm.md](targets/algorand-avm.md) |

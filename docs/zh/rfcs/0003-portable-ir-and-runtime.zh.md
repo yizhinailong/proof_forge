@@ -309,10 +309,11 @@ EVM 后端仍作为工作基准。它不会在第一天就通过 IR 进行重写
 - 能力 id 如何在源代码层面绑定到 SDK 函数——是通过 Lean 属性、派生声明还是单独的清单？这里假设使用属性形式（`@[capability "..."]`），但尚未最终确定。
 - 静态特性检查应该是保守的（拒绝任何可能使用闭包的内容）还是精确的（仅拒绝确认的闭包）？对于初版来说，保守做法更安全。
 - 对于 Move 源代码生成，资源 abilities 和 `acquires` 子句存放在哪里——在 IR 中、在目标清单中，还是从能力使用中派生？RFC 0002 的 Move 说明倾向于 IR；本 RFC 暂缓讨论。
-- Wasm 家族是在 NEAR 和 CosmWasm 之间共享通用的分配器层，还是每个桥接拥有自己的分配器？运行时 profile 列出了每个目标的分配器，暗示了后者；这需要确认。
 - 可移植 IR 应该是被 Lean 实现的后端所使用的 Lean 数据结构，还是可以被外部（Zig/Rust）后端使用的序列化格式？答案将影响后端是否可以按照 RFC 0001 的待解决问题采用非 Lean 实现。
 
-## 研究参考- EVM 基准和退化运行时方法：`ProofForge.Evm`，`ProofForge.Compiler.LCNF.EmitYul`。EmitYul 中对 `lean_evm_*` 的识别是能力降级表的先驱。
+## 研究参考
+
+- EVM 基准和退化运行时方法：`ProofForge.Evm`，`ProofForge.Compiler.LCNF.EmitYul`。EmitYul 中对 `lean_evm_*` 的识别是能力降级表的先驱。
 - NEAR 全运行时加桥接参考：本地 Lean 分叉 `Lean.Near`，`tools/zigc-near`，`src/runtime/zig/host/near`。
 - Solana 运行时决策（Strategy B vs B' vs 回退到 Strategy A）：`docs/implementation-backlog.md`，`docs/targets/solana-sbf.md` 中的工作流 6/7。
 - Move 源代码生成限制（Strategy C IR 子集）：`docs/targets/move-family.md`。

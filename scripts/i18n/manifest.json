@@ -10,17 +10,17 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "b94e05b67db6873fc40d7b4fd142d771ba25363af187b52e1969385e17bd3c8f",
+    "sha256": "2d5d3b5b29a3d9dbbffbb383e3f9452ca1bb683f05f36b6d1a5d7a96fb3a553b",
     "zh": "docs/zh/INDEX.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/decisions.md": {
-    "sha256": "eafc03c535dbb18620d6abb907b9ec1bd602e7e6295b76eaa0e1259cdec44143",
+    "sha256": "eba47948e34dfa9149532edd33d3882272a3924c5484f1368df35d591c5b3afa",
     "zh": "docs/zh/decisions.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/capability-registry.md": {
-    "sha256": "9be4c9fcb2134ce79836d1f64da04263fa2cdd2b74930196f48b92f49d05ac2b",
+    "sha256": "2071d97b6bc47a7d54751e79f79c9b330c7f881c74fc31648516caabca228502",
     "zh": "docs/zh/capability-registry.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -70,12 +70,12 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/0003-portable-ir-and-runtime.md": {
-    "sha256": "69b25d20fbef3b159eff46bb2af1a9423a5e047781d9e35fc123d0ed0512a3dd",
+    "sha256": "4fb2f8e83e2536daa4cfa9e957abe124a70d18f0a0cc7be9dfaa17990babbf46",
     "zh": "docs/zh/rfcs/0003-portable-ir-and-runtime.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/README.md": {
-    "sha256": "e3f2fec20d8ac0d8f76666da92a4d14914301e97855b9e90bc97f30f9a6e55ce",
+    "sha256": "7b310e3d7fd6f6561e34a35a8d234376d5afc94e1e218a0fc934ad72625aa0f8",
     "zh": "docs/zh/targets-README.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -85,8 +85,13 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/wasm-family.md": {
-    "sha256": "e0de9fb9f3abc8315a309c8a6f6a4d28eb5cad9f1b945f6d4fd4ddb924919778",
+    "sha256": "b1de1dd1123255d065d423945ce7cb9c16b59cf0c9f91761b0270fb09041ee5f",
     "zh": "docs/zh/targets/wasm-family.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/targets/wasm-near.md": {
+    "sha256": "e13bc905193238416f3ae479add0fa03141aae334e4ca817367fcf2b2264a3fe",
+    "zh": "docs/zh/targets/wasm-near.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/solana-sbf.md": {
