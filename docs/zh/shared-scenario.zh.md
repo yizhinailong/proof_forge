@@ -35,11 +35,11 @@ v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events
 |---|---|---|
 | `evm` | 合约存储槽 | Foundry + `vm.etch` |
 | `wasm-cosmwasm` | 宿主 KV 中的字符串键 `"count"` | `cosmwasm-check` + instantiate/execute/query |
-| `solana-sbpf-linker` | 账户数据字段 | Mollusk 或 `solana-test-validator` |
+| `solana-sbpf-asm` | 账户数据字段 | `sbpf test` (Mollusk) 或 `solana-test-validator` |
 | `move-aptos` | 签名者账户下的 `Counter` 资源 | `aptos move test` |
 | `psy-dpn` | Psy 存储字段，在 v0 中可能是 `Felt`/`U32` | `dargo compile` + 内存冒烟测试 |
 
-目标特定的账户 schema 和 manifest 是适配器关注点——不会隐藏在可移植 Lean 逻辑内部。有关指令 manifest 格式，请参阅 [solana-sbf.md](targets/solana-sbf.md)。
+目标特定的账户 schema 和 manifest 是适配器关注点——不会隐藏在可移植 Lean 逻辑内部。有关指令 manifest 格式和 direct-assembly 路线（D-026），请参阅 [solana-sbpf-asm.md](targets/solana-sbpf-asm.md)。
 
 ## Phase 2 验收标准
 
@@ -52,12 +52,13 @@ v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events
 - [ ] instantiate → increment → query 返回预期计数。
 - [ ] 制品元数据记录 `target: wasm-cosmwasm` 和所使用的能力。
 
-### Solana (`solana-sbpf-linker`)
+### Solana (`solana-sbpf-asm`)
 
-- [ ] 来自标准 Zig 的最小 `entrypoint.bc`。
-- [ ] `sbpf-linker` 生成可加载的 `.so`。
-- [ ] 在 Mollusk 或验证节点中执行 initialize → increment → read counter。
-- [ ] 指令 manifest 记录账户布局。
+- [ ] `--emit-sbpf-asm` 产生可被 `sbpf build` 接受的有效 `.s`。
+- [ ] `sbpf build` 产生可加载的 eBPF ELF (`.so`)。
+- [ ] 在 `sbpf test` (Mollusk) 或 `solana-test-validator` 中执行 initialize → increment → read counter。
+- [ ] 指令 manifest (`manifest.toml`) 记录账户布局。
+- [ ] 能力检查器用包含 target id 的诊断拒绝不支持的能力。
 
 ### 联合（在两个 spike 之后）
 
@@ -80,7 +81,7 @@ v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events
 |---|---|---|
 | EVM | `Examples/Evm/Contracts/Counter.lean` | **代码库中** |
 | CosmWasm | `Examples/CosmWasm/Counter.lean` | 已规划，不在代码库中 |
-| Solana | `Examples/Solana/Counter.lean` | 已规划，不在代码库中 |
+| Solana | `Examples/Solana/Counter.lean` + manifest | 已规划，不在代码库中（工作流 7） |
 | Aptos | `Examples/Move/Aptos/Counter/` | 已规划，不在代码库中 |
 | Psy DPN | `Examples/Psy/*.golden.psy`, `scripts/psy/*-smoke.sh` | **代码库中** |
 

@@ -1,6 +1,10 @@
-# Solana sBPF 目标
+# Solana sBPF 目标（已取代）
 
-规范目标 id：**`solana-sbpf-linker`**。此文件名 (`solana-sbf.md`) 仅为便于导航的简短别名。
+> **已被 [`solana-sbpf-asm`](solana-sbpf-asm.md) 取代**（D-026）。
+> direct sBPF assembly 路线（`solana-sbpf-asm`）是规范 Solana 后端。
+> 本 Zig/sbpf-linker 路线仅作为历史参考保留。
+
+规范目标 id：**`solana-sbpf-linker`**（已取代）。此文件名 (`solana-sbf.md`) 仅为便于导航的简短别名。
 
 Solana 是最重要的非 EVM 目标，用于证明 ProofForge 的可移植核心并非暗中基于 EVM 构建。其状态模型是显式账户，而非隐式合约存储。
 
@@ -21,7 +25,7 @@ export fn entrypoint(input: [*]u8) callconv(.c) u64
 
 程序必须解析账户和指令数据，验证签名者和可写标志，修改账户数据，并可选地执行 CPI。
 
-## 首选流水线：sbpf-linker
+## 历史流水线：sbpf-linker
 
 `zignocchio` 项目演示了一条无分叉路线：
 

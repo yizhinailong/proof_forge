@@ -21,8 +21,8 @@
 任务：
 
 - 添加目标 id：`evm`, `wasm-near`, `wasm-cosmwasm`,
-  `solana-sbpf-linker`, `solana-zig-fork`, `move-sui`, `move-aptos`,
-  `psy-dpn`。
+  `solana-sbpf-asm`, `solana-sbpf-linker`（已取代）, `solana-zig-fork`,
+  `move-sui`, `move-aptos`, `psy-dpn`。
 - 定义目标家族、制品种类、所需工具和能力集
   （参见 [capability-registry.md](capability-registry.md)）。
 - 为 CLI 和脚本添加目标查找函数。
@@ -176,46 +176,60 @@
 - `instantiate`、`execute` 和 `query` 存在于导出中。
 - 冒烟测试可以增加并查询计数器状态。
 
-## 工作流 6: Solana sBPF-Linker spike
+## 工作流 6: Solana sBPF Assembly 工具链集成（Phase 0）
 
-目标：在采用分叉编译器之前验证无分叉的 Solana 流水线。
+目标：端到端验证 direct-assembly 路线，即一个固定 `.s` 文件可以通过
+blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-linker spike（D-026）。
 
 任务：
 
-- 围绕 `zig build-lib -target bpfel-freestanding -femit-llvm-bc` 添加 `zigc-solana-sbpf` 包装器。
-- 调用 `sbpf-linker --cpu v2 --export entrypoint`。
-- 添加具有一个导出 `entrypoint` 的 `solana_contract_root.zig`。
-- 添加最小的 syscall/log 桥接。
-- 添加显式指令清单格式（参见 [solana-sbf.md](targets/solana-sbf.md)）。
-- 添加 Counter 账户示例。
+- 通过 `cargo install --git https://github.com/blueshift-gg/sbpf.git` 安装 `sbpf`。
+- 添加 `--emit-sbpf-asm` CLI 模式，写出固定 `entrypoint.s`（返回成功，不解析账户）。
+- 对固定 `.s` 运行 `sbpf build`，验证生成有效 eBPF ELF。
+- 验证 `sbpf disassemble` 可以 round-trip 该 ELF。
+- 在制品元数据中记录工具链版本。
 
 验收标准：
 
-- 由原生 Zig 生成一个最小的 `entrypoint.bc`。
-- `sbpf-linker` 产生一个 `.so`。
-- `.so` 在 Mollusk 或 `solana-test-validator` 中运行。
-- 该 spike 记录 Lean Zig 运行时是否可以在 sBPF 约束下链接。
+- [x] `sbpf build` 产生被识别为 `ELF 64-bit LSB ... eBPF` 的 `.so`。
+- [x] `sbpf disassemble` 产生与输入匹配的 assembly。
+- [x] `--emit-sbpf-asm` 写出无 assembly 错误的有效 `.s`。
+- [x] `proof-forge-artifact.json` 记录 `target: "solana-sbpf-asm"`。
+- [ ] `sbpf` 通过 `cargo install` 安装到 PATH（当前从源码构建）。
 
-## 工作流 7: Solana 运行时决策
+参考：[solana-sbpf-asm 设计文档](targets/solana-sbpf-asm.md),
+[RFC 0004](rfcs/0004-solana-sbpf-assembly-backend.md)。
 
-目标：决定 ProofForge 在 Solana 上是可以使用完整的 Lean 运行时，还是需要受限的运行时子集。**在工作流 6 产生 spike 数据后运行。**
+## 工作流 7: Solana sBPF Assembly Counter Codegen（Phase 1）
 
-问题：
+目标：将 portable IR Counter 模块降级为 sBPF assembly 并通过 `sbpf test`。
+这是 assembly 路线的第一个真实 codegen 后端。
 
-- 完整的 Lean Zig 运行时是否可以在 `bpfel-freestanding` 下链接？
-- 生成的 ELF 是否通过 Solana 加载器约束？
-- 制品大小是否可以接受？
-- 4KB 栈压力是否可控？
-- 在 Solana 计算预算内，堆分配和引用计数是否可行？
+任务：
 
-决策结果：
+- 实现 `ProofForge.Backend.Solana.StateLayout`：根据 instruction manifest 计算账户字段 offset，并发射 `.equ` 常量。
+- 实现 `ProofForge.Backend.Solana.SbpfAsm`：将 `IR.Module` 降为 `.s`：
+  - entrypoint adapter：解析序列化账户，根据 instruction discriminant 分派。
+  - account validation：根据 manifest 检查 signer、writable、owner。
+  - expression lowering：literal、local、add/sub、comparison、cast。
+  - statement lowering：letBind、assign、assignOp、ifElse、return、assert。
+  - effect lowering：按 account-data offset 读写 storageScalar。
+- 添加 `--solana-elf` CLI 模式：发射 `.s` 后调用 `sbpf build`。
+- 与 `.s` 一起生成 instruction manifest (`manifest.toml`)。
+- 创建 `Examples/Solana/Counter.lean` + manifest。
+- 运行 `sbpf test` (Mollusk)，并可选运行 `solana-test-validator --bpf-program`。
 
-- 在 Solana 上使用完整的 Lean Zig 运行时。
-- 在 Solana 上使用受限的 Lean 运行时子集。
-- 为不带完整 Lean 运行时的可移植 IR 子集生成直接的 Zig 代码。
-- 回退到 `solana-zig` 分叉，同时保持 `sbpf-linker` 开放。
+验收标准：
 
-在 [decisions.md](decisions.md) 中记录结果。
+- Counter 场景（initialize、increment、get）通过 `sbpf test`。
+- `solana-test-validator` 冒烟测试通过（可选，取决于工具是否可用）。
+- 能力检查器用清晰诊断拒绝使用不支持能力的 IR 模块，诊断包含 target id 和 capability id。
+- 同一个 portable IR Counter 模块可以降级到 EVM 和 Solana。
+- 制品元数据记录 `target: "solana-sbpf-asm"`、`irVersion`、entrypoints 和使用的 capabilities。
+
+范围外（Phase 2+）：CPI、PDA、maps、struct types、events、bounded loops、Borsh serialization、SPL Token。CPI 和 PDA effect 按 D-027 留在 `ProofForge.Backend.Solana.Effect` 的 Solana 特定层，而不是 portable IR。
+
+参考：[solana-sbpf-asm 设计文档](targets/solana-sbpf-asm.md) 的 Phased Implementation Plan。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）
 
@@ -577,8 +591,8 @@ Zcash 当成 plain Bitcoin Script 或 generic ZK smart-contract chain。
 2. 可移植 IR + 共享 Counter 场景（工作流 1.5）。
 3. EVM 制品元数据和 deploy manifest（工作流 2–3）。
 4. Wasm 运行时拆分（工作流 4）。
-5. **并行：** CosmWasm spike（工作流 5）和 Solana sbpf-linker spike（工作流 6）。
-6. Solana 运行时决策（工作流 7 —— 在 spike 数据之后）。
+5. **并行：** CosmWasm spike（工作流 5）和 Solana sBPF assembly 工具链集成（工作流 6，D-026 取代旧 sbpf-linker spike）。
+6. Solana sBPF assembly Counter codegen（工作流 7，D-026）。
 7. Move Aptos POC（工作流 8）。
 8. 一旦 IR fixture 存在，进行 Psy DPN 源代码生成 spike（工作流 10）。
 9. 在任何 registry 变更前进行 Kaspa Toccata research target review（工作流 11）。

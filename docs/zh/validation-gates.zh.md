@@ -49,7 +49,14 @@
 - 非 EVM、非 Psy 的 `proof-forge-artifact.json` 验证 — 尚未写出 metadata 的目标仍需制品元数据 schema 验证。
 - 黄金 Yul/输出快照 — 通过快照差异对比进行回归检测。
 - CosmWasm 冒烟测试 — `cosmwasm-check` 或 `cw-multi-test` 验证。
-- Solana 冒烟测试 — Mollusk 或 `solana-test-validator` 验证。
+- Solana sBPF assembly 门禁（目标 `solana-sbpf-asm`，D-026）。这些门禁会随工作流 6-7 落地变成可运行项；`sbpf` 工具链先在本地验证 build + disassemble round-trip + Counter 的 `sbpf test`：
+  - **V-GATE-SOLANA-01** — `--emit-sbpf-asm` 产生可被 `sbpf build` 接受的有效 `.s`。脚本：`scripts/solana/emit-asm-smoke.sh`（可运行，Phase 0 完成）。
+  - **V-GATE-SOLANA-02** — `sbpf build` 产生有效 ELF，且 `sbpf disassemble` 可以 round-trip。脚本：`scripts/solana/emit-asm-smoke.sh`（可运行，Phase 0 完成）。
+  - **V-GATE-SOLANA-03** — Counter 场景（initialize、increment、get）通过 `sbpf test` (Mollusk)。脚本：`scripts/solana/counter-smoke.sh`（计划中）。
+  - **V-GATE-SOLANA-04** — Counter 场景通过 `solana-test-validator --bpf-program` 冒烟测试（可选，取决于 `solana-test-validator` 是否可用）。
+  - **V-GATE-SOLANA-05** — 能力检查器以包含 target id 和 capability id 的清晰诊断拒绝不支持能力。
+  - **V-GATE-SOLANA-06** — `proof-forge-artifact.json` 包含 `target: "solana-sbpf-asm"`、`irVersion` 和 entrypoint 列表。
+  - **V-GATE-SOLANA-07** — `sbpf debug --elf --input` 可交互工作（开发者体验门禁，不进入 CI）。
 - Move 冒烟测试 — `aptos move compile/test` 或 Sui Move 验证。
 - 能力拒绝测试 — 针对不支持的能力/目标组合的编译时诊断。
 
@@ -67,4 +74,4 @@
 
 ## 可选外部工具
 
-当前的 CI 安装了 Foundry stable 和 `solc` 0.8.30。本地机器可能没有 `solc`、`cast`、`forge`、`psyup` 或 `dargo`。缺失 EVM 工具会阻塞 EVM 工具链门禁，但不会阻塞 `lake build`。缺失 Psy 工具只会阻塞 Psy smoke 的 Dargo 部分；source generation 和 golden diff 会在脚本退出前先运行。
+当前的 CI 安装了 Foundry stable 和 `solc` 0.8.30。本地机器可能没有 `solc`、`cast`、`forge`、`psyup`、`dargo`、`sbpf` 或 `solana-test-validator`。缺失 EVM 工具会阻塞 EVM 工具链门禁，但不会阻塞 `lake build`。缺失 Psy 工具只会阻塞 Psy smoke 的 Dargo 部分；source generation 和 golden diff 会在脚本退出前先运行。

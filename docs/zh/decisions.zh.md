@@ -11,7 +11,7 @@
 | D-001 | 2026-06-30 | RFC 0001 和 RFC 0002 被**接受**为工程方向 | 已存在详细的目标和待办事项文档；草案状态具有误导性 |
 | D-002 | 2026-06-30 | 第一阶段（目标注册表 + 可移植 IR + 制品元数据）必须在非 EVM spike 之前完成 | spike 需要能力检查和共享场景定义 |
 | D-003 | 2026-06-30 | CosmWasm 和 Solana spike 在第一阶段后**并行**运行 | 两者之间没有固定顺序；两者都验证不同的后端家族 |
-| D-004 | 2026-06-30 | 规范的 Solana 目标 id 为 **`solana-sbpf-linker`** | 标准 Zig + sbpf-linker 符合平台工具链；`solana-sbf` 仅为文件名别名 |
+| D-004 | 2026-06-30 | ~~规范的 Solana 目标 id 为 `solana-sbpf-linker`~~ **已被 D-026 取代** | 标准 Zig + sbpf-linker 曾符合平台工具链；`solana-sbf` 仅为文件名别名。D-026 用 `solana-sbpf-asm` 作为首选 direct-assembly 路线取代该决策。 |
 | D-005 | 2026-06-30 | 保留 **`solana-zig-fork`** 作为备选/参考路径 | 来自 solana-sdk-mono 的成熟 SDK 参考；非主要产品路径 |
 | D-006 | 2026-06-30 | NEAR 是 Wasm 宿主**参考**；CosmWasm 是仓库中第一个新的 Wasm spike | 分叉经验为结构提供了参考；CosmWasm 验证了宿主适配器的通用性 |
 | D-007 | 2026-06-30 | Move POC 从 **仅限 Aptos** 开始；Sui 紧随其后 | Aptos 账户资源更简单；Sui 对象模型对抽象的测试更严苛 |
@@ -32,6 +32,9 @@
 | D-022 | 2026-07-01 | 将 **`zcash-shielded`** 归类为文档优先的 privacy UTXO/ZK payment Research 候选 | Zcash 源自 Bitcoin，但 shielded 支持依赖 Sapling/Orchard notes、nullifiers、anchors、value-balance constraints、viewing/disclosure policy 和协议定义的 ZK proofs；registry 修改需等待 shielded-note 能力和 proving/validation boundary 审查 |
 | D-023 | 2026-07-01 | 将 **`aleo-leo`** 归类为文档优先的 Aleo ZK application sourcegen Research 候选 | Aleo programs 结合 private off-chain proof execution、public on-chain finalization、encrypted records、public mappings/storage、Aleo Instructions、Aleo VM bytecode、ABI、prover/verifier artifacts 和 execute/deploy transactions；registry 修改需等待 proof/finalization split 审查 |
 | D-024 | 2026-07-01 | 将 Robinhood Chain 建模为 `evm` 下的 EVM-compatible chain profile **`robinhood-chain-testnet`**，而不是新的 compiler target | Robinhood Chain 执行 EVM-compatible Arbitrum Orbit L2 contracts；ProofForge 的 EVM backend 覆盖 bytecode generation，chain profile 记录 chain id、RPC、explorer、verifier、rollup 和 deployment metadata |
+| D-025 | 2026-07-01 | 增加 **`solana-sbpf-asm`** 作为新的 Solana 路线（direct sBPF assembly codegen）并进入探索；保留 `solana-sbpf-linker` 作为 fallback | 从 portable IR 直接生成 sBPF assembly 可以避开完整 Lean Zig runtime 链接风险；blueshift-gg/sbpf 工具链负责 assembly 和 linking。见 [RFC 0004](rfcs/0004-solana-sbpf-assembly-backend.md) 与 [设计文档](targets/solana-sbpf-asm.md)。 |
+| D-026 | 2026-07-01 | **采用 `solana-sbpf-asm` 作为规范 Solana 路线；取代 `solana-sbpf-linker`** | direct-assembly 路线避开 Lean runtime 链接风险，能完全控制 compute units 和 stack，并且更接近 EVM/Yul 模式。`solana-sbpf-linker` 仅保留为历史参考。 |
+| D-027 | 2026-07-01 | **CPI 和 PDA effect 留在 Solana 特定层，而不是 portable IR** | `cpiInvoke`、`cpiInvokeSigned` 和 `pdaDerive` 是 Solana 独有概念；它们属于 `ProofForge.Backend.Solana.Effects` 或 Solana SDK 模块，由 `crosscall.cpi` 和 `storage.pda` 能力门控。portable IR 保持链中立，只有两个或更多目标家族共享同一语义形态时才新增 constructor。 |
 
 ## 目标家族分类
 
@@ -40,7 +43,8 @@
 | 直接编译器 | `evm` | Lean → LCNF → Yul → solc |
 | EVM-compatible chain profiles | `robinhood-chain-testnet` | 复用 `evm` bytecode/ABI 输出；补充 chain id、RPC、explorer、verifier、rollup 和 deployment metadata |
 | Wasm 宿主 | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban`（候选，仅文档）, `wasm-icp-canister`（候选，仅文档） | Lean → EmitZig → Wasm + 链宿主桥接，或在能更快验证语义时先走目标原生源码包 |
-| 二进制工具链 | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
+| 二进制工具链 | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker（历史参考；已被 D-026 取代） |
+| sBPF direct codegen | `solana-sbpf-asm` | Lean → IR → sBPF assembly (`.s`) → sbpf toolchain → ELF（D-026 规范路线） |
 | 源代码生成 | `move-aptos`, `move-sui` | 可移植 IR → Move 包源码 |
 | AVM sourcegen research | `algorand-avm`（候选，仅文档） | 可移植 IR → Algorand Python、Algorand TypeScript 或 TEAL package → AVM approval/clear-state 或 LogicSig bytecode + ARC-4/app metadata |
 | eUTXO validator sourcegen research | `cardano-plutus-aiken`（候选，仅文档） | 可移植 IR → Aiken package → UPLC/Plutus validator artifacts + Plutus blueprint + transaction scenario metadata |
@@ -59,7 +63,7 @@
 ```text
 Phase 0: EVM baseline (done)
 Phase 1: Target registry + portable IR + artifact metadata + capability errors
-Phase 2: Parallel spikes — CosmWasm (wasm-cosmwasm) + Solana (solana-sbpf-linker)
+Phase 2: Parallel spikes — CosmWasm (wasm-cosmwasm) + Solana (solana-sbpf-asm)
 Phase 3: Move sourcegen — Aptos POC first, then Sui
 Phase 3.5: Psy DPN sourcegen research spike
 Research lane: Kaspa Toccata covenant/based-app target note before registry changes
@@ -92,7 +96,8 @@ Phase 5: Cloud platform
 | Stellar/Soroban 目标候选 | [targets/stellar-soroban.md](targets/stellar-soroban.md) |
 | Internet Computer 目标候选 | [targets/internet-computer.md](targets/internet-computer.md) |
 | Algorand AVM 目标候选 | [targets/algorand-avm.md](targets/algorand-avm.md) |
-| Solana 指令清单 | [targets/solana-sbf.md](targets/solana-sbf.md) |
+| Solana sBPF assembly 路线 | [targets/solana-sbpf-asm.md](targets/solana-sbpf-asm.md) |
+| Solana sbpf-linker 历史参考 | [targets/solana-sbf.md](targets/solana-sbf.md) |
 | Cardano Plutus/Aiken 目标候选 | [targets/cardano-plutus-aiken.md](targets/cardano-plutus-aiken.md) |
 | Tezos Michelson/LIGO 目标候选 | [targets/tezos-michelson-ligo.md](targets/tezos-michelson-ligo.md) |
 | Starknet Cairo 目标候选 | [targets/starknet-cairo.md](targets/starknet-cairo.md) |
@@ -110,5 +115,5 @@ Phase 5: Cloud platform
 
 - RFC 0001 阶段 2 = 仅限 Solana，阶段 3 = 仅限 Wasm —— 已被并行的阶段 2 spike (D-003) 取代。
 - 里程碑 3 = Solana 作为唯一的第二个目标 —— 已被并行的 CosmWasm + Solana (D-003) 取代。
-- CLI id `solana-sbf` —— 使用 `solana-sbpf-linker` (D-004)。
+- CLI id `solana-sbf` —— 使用 `solana-sbpf-asm` (D-026)。
 - Move POC 同时生成 Sui 和 Aptos 包 —— Aptos 优先 (D-007)。
