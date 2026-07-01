@@ -72,6 +72,62 @@ mutual
         .error { message := s!"Leo emitter does not support statement: {repr other}" }
 end
 
+partial def hasEffectExpr : Expr → Bool
+  | .effect _ => true
+  | .add lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .sub lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .mul lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .div lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .mod lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .pow lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .bitAnd lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .bitOr lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .bitXor lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .shiftLeft lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .shiftRight lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .cast v _ => hasEffectExpr v
+  | .eq lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .ne lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .lt lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .le lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .gt lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .ge lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .boolAnd lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .boolOr lhs rhs => hasEffectExpr lhs || hasEffectExpr rhs
+  | .boolNot v => hasEffectExpr v
+  | .arrayLit _ vs => vs.any hasEffectExpr
+  | .arrayGet a i => hasEffectExpr a || hasEffectExpr i
+  | .structLit _ fs => fs.any (fun (_, e) => hasEffectExpr e)
+  | .field b _ => hasEffectExpr b
+  | .hashValue a b c d => hasEffectExpr a || hasEffectExpr b || hasEffectExpr c || hasEffectExpr d
+  | .hash v => hasEffectExpr v
+  | .hashTwoToOne l r => hasEffectExpr l || hasEffectExpr r
+  | .crosscallInvoke t m args => hasEffectExpr t || hasEffectExpr m || args.any hasEffectExpr
+  | .crosscallInvokeTyped t m args _ => hasEffectExpr t || hasEffectExpr m || args.any hasEffectExpr
+  | .crosscallInvokeValueTyped t m cv args _ => hasEffectExpr t || hasEffectExpr m || hasEffectExpr cv || args.any hasEffectExpr
+  | .crosscallInvokeStaticTyped t m args _ => hasEffectExpr t || hasEffectExpr m || args.any hasEffectExpr
+  | .crosscallInvokeDelegateTyped t m args _ => hasEffectExpr t || hasEffectExpr m || args.any hasEffectExpr
+  | .crosscallCreate cv _ => hasEffectExpr cv
+  | .crosscallCreate2 cv s _ => hasEffectExpr cv || hasEffectExpr s
+  | _ => false
+
+mutual
+  partial def hasEffect (body : Array IR.Statement) : Bool :=
+    body.any hasEffectStmt
+
+  partial def hasEffectStmt : IR.Statement → Bool
+    | .effect _ => true
+    | .letBind _ _ v => hasEffectExpr v
+    | .letMutBind _ _ v => hasEffectExpr v
+    | .assign t v => hasEffectExpr t || hasEffectExpr v
+    | .assignOp t _ v => hasEffectExpr t || hasEffectExpr v
+    | .assert c _ => hasEffectExpr c
+    | .assertEq l r _ => hasEffectExpr l || hasEffectExpr r
+    | .ifElse c thenBody elseBody => hasEffectExpr c || hasEffect thenBody || hasEffect elseBody
+    | .boundedFor _ _ _ body => hasEffect body
+    | .return v => hasEffectExpr v
+end
+
 def statements (body : Array IR.Statement) : Except AST.LowerError (Array AST.Statement) := do
   let mut result := #[]
   for stmt in body do
@@ -96,12 +152,17 @@ def constructor : Constructor :=
 def futureUnit : LeoType :=
   .future #[] .unit
 
+def makeInput (name : String) (ty : ValueType) : Except AST.LowerError Input := do
+  .ok { name := name, ty := ← valueType ty, mode := .public_ }
+
 /-- Build an entrypoint function. Counter spike special-cases initialize/get/increment. -/
 def entrypointFunction (ep : Entrypoint) : Except AST.LowerError Function := do
-  if ep.name == "initialize" then
+  if hasEffect ep.body then
     if ep.returns != .unit then
-      .error { message := "Aleo IR v0 expects `initialize` entrypoint to return Unit" }
-    else
+      .error { message := s!"Stateful Aleo entrypoint `{ep.name}` must return Unit" }
+    else if !ep.params.isEmpty then
+      .error { message := s!"Stateful Aleo entrypoint `{ep.name}` cannot have parameters yet" }
+    else if ep.name == "initialize" then
       let setCall := Expression.call ⟨#["Mapping", "set"], #[], #[.identifier "count", .literal (.integer .u64 0), .literal (.integer .u64 0)]⟩
       let asyncBlock : Block := { statements := #[.expression setCall] }
       .ok {
@@ -114,10 +175,7 @@ def entrypointFunction (ep : Entrypoint) : Except AST.LowerError Function := do
         outputType := futureUnit
         block := { statements := #[.returnSt (some (.async asyncBlock))] }
       }
-  else if ep.name == "get" then
-    if ep.returns != .u64 then
-      .error { message := "Aleo IR v0 expects `get` entrypoint to return U64" }
-    else
+    else if ep.name == "get" then
       let readCall := Expression.call ⟨#["Mapping", "get_or_use"], #[], #[.identifier "count", .literal (.integer .u64 0), .literal (.integer .u64 0)]⟩
       let asyncBlock : Block := { statements := #[.definition (.single "n") (some (.integer .u64)) readCall] }
       .ok {
@@ -130,10 +188,7 @@ def entrypointFunction (ep : Entrypoint) : Except AST.LowerError Function := do
         outputType := futureUnit
         block := { statements := #[.returnSt (some (.async asyncBlock))] }
       }
-  else if ep.name == "increment" then
-    if ep.returns != .unit then
-      .error { message := "Aleo IR v0 expects `increment` entrypoint to return Unit" }
-    else
+    else if ep.name == "increment" then
       let bodyStmts ← statements ep.body
       let asyncBlock : Block := { statements := bodyStmts }
       .ok {
@@ -146,8 +201,22 @@ def entrypointFunction (ep : Entrypoint) : Except AST.LowerError Function := do
         outputType := futureUnit
         block := { statements := #[.returnSt (some (.async asyncBlock))] }
       }
+    else
+      .error { message := s!"Aleo IR v0 does not support stateful entrypoint `{ep.name}`" }
   else
-    .error { message := s!"Aleo IR v0 does not support entrypoint `{ep.name}`" }
+    let inputs ← ep.params.mapM (fun (n, t) => makeInput n t)
+    let ret ← valueType ep.returns
+    let bodyStmts ← statements ep.body
+    .ok {
+      annotations := #[]
+      variant := .entryPoint
+      identifier := ep.name
+      constParameters := #[]
+      input := inputs
+      output := #[]
+      outputType := ret
+      block := { statements := bodyStmts }
+    }
 
 /-- Emit a full IR module as a Leo Program AST. -/
 def emitModule (module : Module) : Except AST.LowerError Program := do
