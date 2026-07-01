@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Nested Local Struct Arrays
+
+Commit: feature commit for EVM IR nested local struct arrays
+
+Summary:
+
+- Extended portable IR EVM local fixed-array lowering so nested fixed arrays can
+  use flat struct leaves, expanding every nested element field into
+  deterministic Yul locals such as `grid[1][0].age`.
+- Added static and dynamic nested struct field reads through nested local-array
+  getter helpers, plus nested mutable field assignment and numeric compound
+  assignment through bounds-checked `switch` lowering.
+- Added nested whole-local assignment from another local array and from
+  self-referential nested array literals, preserving RHS snapshot semantics.
+- Extended `EvmStructArrayValueProbe` with `nested_struct_array_sum`,
+  `nested_struct_array_dynamic_pick`, `nested_struct_array_update`,
+  `nested_struct_array_whole_assign`, and `nested_struct_array_self_assign`.
+- Refreshed golden Yul, artifact metadata selector checks, Foundry smoke tests,
+  EVM coverage manifest entries, English target docs, Chinese target docs, and
+  implementation backlog notes.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/struct-array-value-ir-smoke.sh
+```
+
+Result:
+
+- `EvmStructArrayValueProbe` generated reproducible Yul and runtime bytecode
+  through `solc --strict-assembly`.
+- Foundry ran 14 StructArrayValueProbe tests, including nested flat-struct
+  field reads, nested field mutation, nested whole assignment, RHS snapshotting,
+  dynamic out-of-bounds reverts, and unknown-selector revert behavior.
+
+Known limitations:
+
+- Nested local fixed arrays are still limited to scalar word leaves or flat
+  struct leaves. Non-flat struct leaves and other unsupported aggregate leaves
+  remain explicit diagnostics.
+
+Next step:
+
+- Continue shrinking the EVM aggregate gap around unsupported nested aggregate
+  leaves, richer event schemas, or broader cross-call return data.
+
 ### EVM IR Nested Struct Crosscall Fixed Arrays
 
 Commit: feature commit for EVM IR nested struct crosscall arrays
@@ -124,8 +171,9 @@ Summary:
   static, and delegate typed calls.
 - Added `EvmCrosscallProbe` entrypoints for nested scalar fixed-array arguments
   and direct entrypoint returns across all four call modes.
-- Kept nested fixed arrays with struct or other non-scalar leaves as explicit
-  unsupported diagnostics.
+- At this milestone, kept nested fixed arrays with struct or other non-scalar
+  leaves as explicit unsupported diagnostics; flat struct leaves were covered by
+  a later follow-up.
 - Refreshed `EvmCrosscallProbe.golden.yul`, metadata selector expectations, and
   the Foundry smoke harness with `uint64[2][2]` callee helpers.
 
@@ -4805,8 +4853,9 @@ Result:
 
 Known limitations:
 
-- Nested local arrays with non-scalar leaves remain explicit unsupported
-  surfaces.
+- Nested local arrays with unsupported aggregate or non-flat leaves remain
+  explicit unsupported surfaces; flat struct leaves are covered by
+  `EvmStructArrayValueProbe`.
 
 ### EVM SDK Example Golden Yul
 
