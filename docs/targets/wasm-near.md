@@ -54,13 +54,20 @@ GC) — the documented blocker. `EmitWat` lowers the portable IR directly and
 avoids that port entirely; it also avoids coupling to `near-sdk` macros (the
 source of the E0119 / missing-`&self` bugs in the Rust v0).
 
-### Spike gate (highest risk)
+### Spike gate (highest risk) — FOUNDATIONALLY DE-RISKED
 
 NEAR passes entrypoint arguments as serialized JSON/Borsh and expects
-serialized returns. The EVM backend does not face this (EVM uses calldata), so
-argument (de)serialization is the main new work and the top spike risk. The
-spike must prove a clean lowering of one entrypoint's args in/out before
-scaling `EmitWat` to the full IR.
+serialized returns; contract methods export as `() -> ()` dispatchers that
+read args via `env.input()`/`env.read_register` and return via
+`env.value_return` (not wasm function returns).
+
+A hand-written reference counter (`examples/near/spike/handwritten-counter.wat`,
+~40 lines, no Lean runtime / no WASI / no `near-sdk`) deploys to `near-sandbox`
+and passes the counter scenario (`init`→`get`==0→`increment`→`get`==1). This
+proves the register-based host ABI and JSON-ish returns are tractable at the
+WAT level. Remaining work is the IR→WAT lowering itself plus multi-argument /
+structured JSON (de)serialization for non-trivial entrypoint signatures; the
+foundational risk is resolved.
 
 ## Frozen v0 reference (Rust sourcegen)
 
