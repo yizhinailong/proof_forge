@@ -3,16 +3,16 @@ ValueType	unit	validated	EVM IR permits Unit entrypoint returns and rejects Unit
 ValueType	bool	lowered	Bool literals, predicates, ABI parameters, and return values lower to Yul 0/1 words; unsupported bool storage is rejected by validateState.
 ValueType	u32	lowered	U32 values and ABI parameters lower as EVM words with dispatcher range guards; scalar U32 storage is accepted by validateState.
 ValueType	u64	lowered	U64 values and ABI parameters lower as EVM words; Counter IR covers scalar U64 storage and return values.
-ValueType	hash	unsupported	Hash literals, Hash ABI parameters, Hash returns, and hash construction currently fail with explicit EVM IR v0 diagnostics.
+ValueType	hash	validated	EvmHashProbe validates Hash as a one-word EVM ABI/storage value, including Hash params, Hash returns, Hash locals, and scalar Hash storage.
 ValueType	fixedArray	unsupported	EVM target profile rejects data.fixed_array until fixed-array ABI, memory, and storage lowering are implemented.
 ValueType	structType	unsupported	EVM target profile rejects data.struct until struct ABI, memory, and storage layout lowering are implemented.
-StateKind	scalar	lowered	EVM IR lowers scalar U32/U64 state to direct slot-based sload/sstore and rejects other scalar types.
+StateKind	scalar	lowered	EVM IR lowers scalar U32/U64/Hash state to direct slot-based sload/sstore and rejects other scalar types.
 StateKind	map	validated	EvmMapProbe validates Map<U64, U64, N> storage via Solidity-style keccak256(key, slot) mapping slots; diagnostics reject unsupported map key/value shapes.
 StateKind	array	unsupported	EVM target profile rejects storage.array until fixed array storage layout lowering is implemented.
 Literal	u32	lowered	lowerExpr emits U32 literals as Yul numeric expressions.
 Literal	u64	lowered	lowerExpr emits U64 literals as Yul numeric expressions.
 Literal	bool	lowered	lowerExpr emits Bool literals as Yul 1 or 0.
-Literal	hash4	unsupported	lowerExpr rejects Hash literals with an explicit EVM IR v0 diagnostic.
+Literal	hash4	validated	EvmHashProbe validates four-limb Hash literals packed into one EVM bytes32 word.
 ContextField	userId	validated	ContextProbe lowers userId context reads to Yul caller() and Foundry verifies a vm.prank sender.
 ContextField	contractId	validated	ContextProbe lowers contractId context reads to Yul address() and Foundry verifies the etched runtime address.
 ContextField	checkpointId	validated	ContextProbe lowers checkpointId context reads to Yul number() and Foundry verifies a vm.roll block number.
@@ -26,7 +26,7 @@ AssignOp	bitOr	unsupported	Assignment and storage compound assignment lowerers r
 AssignOp	bitXor	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
 AssignOp	shiftLeft	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
 AssignOp	shiftRight	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
-Expr	literal	lowered	lowerExpr delegates supported U32/U64/Bool literals to Yul numeric expressions and rejects Hash literals.
+Expr	literal	lowered	lowerExpr delegates U32/U64/Bool literals to Yul numeric expressions and packs Hash literals into one EVM word.
 Expr	local	lowered	lowerExpr emits local identifiers directly.
 Expr	arrayLit	unsupported	EVM target profile rejects data.fixed_array and lowerExpr has an explicit fixed-array literal diagnostic.
 Expr	arrayGet	unsupported	EVM target profile rejects data.fixed_array and lowerExpr has an explicit fixed-array indexing diagnostic.
@@ -53,14 +53,14 @@ Expr	ge	lowered	lowerExpr emits iszero(lt(...)).
 Expr	boolAnd	lowered	lowerExpr emits Yul and for word-level boolean conjunction.
 Expr	boolOr	lowered	lowerExpr emits Yul or for word-level boolean disjunction.
 Expr	boolNot	lowered	lowerExpr emits Yul iszero.
-Expr	hashValue	unsupported	lowerExpr rejects dynamic Hash value construction with an explicit EVM IR v0 diagnostic.
-Expr	hash	unsupported	lowerExpr rejects crypto.hash with an explicit EVM IR v0 diagnostic.
-Expr	hashTwoToOne	unsupported	lowerExpr rejects crypto.hash_two_to_one with an explicit EVM IR v0 diagnostic.
+Expr	hashValue	validated	EvmHashProbe validates dynamic four-limb Hash construction with Yul shl/or packing.
+Expr	hash	validated	EvmHashProbe validates crypto.hash as keccak256 over one 32-byte Hash word.
+Expr	hashTwoToOne	validated	EvmHashProbe validates crypto.hash_two_to_one as keccak256 over two contiguous 32-byte Hash words.
 Expr	nativeValue	unsupported	lowerExpr rejects native value inspection with an explicit EVM IR v0 diagnostic.
 Expr	crosscallInvoke	unsupported	lowerExpr rejects cross-contract calls with an explicit EVM IR v0 diagnostic.
 Expr	effect	structural	lowerExpr delegates effects to lowerEffectExpr; scalar reads lower and statement-only or unsupported effects reject.
-Effect	storageScalarRead	lowered	lowerEffectExpr emits sload(slot) and diagnostics cover unknown state and expression/statement misuse.
-Effect	storageScalarWrite	lowered	lowerEffectStmt emits sstore(slot, value) and rejects expression-position writes.
+Effect	storageScalarRead	lowered	lowerEffectExpr emits sload(slot); Counter and EvmHashProbe cover U64 and Hash scalar reads, and diagnostics cover statement misuse.
+Effect	storageScalarWrite	lowered	lowerEffectStmt emits sstore(slot, value); Counter and EvmHashProbe cover U64 and Hash scalar writes, and diagnostics reject expression-position writes.
 Effect	storageScalarAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt reject scalar storage assign_op in EVM IR v0.
 Effect	storageMapContains	unsupported	EVM mappings do not track key presence; diagnostics reject storage.map.contains instead of treating nonzero values as presence.
 Effect	storageMapGet	validated	lowerEffectExpr emits sload(__proof_forge_map_slot(slot, key)); EvmMapProbe validates ABI reads and raw Foundry vm.load slots.
@@ -80,7 +80,7 @@ Effect	eventEmit	unsupported	lowerEffectStmt rejects event emission with an expl
 StoragePathSegment	field	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
 StoragePathSegment	index	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
 StoragePathSegment	mapKey	validated	EvmMapProbe validates mapKey as the first and only storage-path segment for EVM Map<U64, U64, N> reads and writes.
-Statement	letBind	lowered	lowerStatement emits immutable Yul varDecl for U32/U64/Bool let bindings and rejects unsupported types.
+Statement	letBind	lowered	lowerStatement emits immutable Yul varDecl for U32/U64/Bool/Hash let bindings and rejects unsupported types.
 Statement	letMutBind	lowered	lowerStatement emits mutable scalar Yul let bindings; AssignmentProbe covers mutable U64 and Bool locals.
 Statement	assign	lowered	lowerStatement emits Yul assignment for local targets; AssignmentProbe covers local reassignment and diagnostics reject non-local targets.
 Statement	assignOp	unsupported	lowerStatement rejects compound assignment statements in EVM IR v0.

@@ -17,6 +17,65 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Hash Words
+
+Commit: feature commit for EVM IR hash words
+
+Summary:
+
+- Added EVM portable IR lowering for `Hash` as a one-word EVM `bytes32`
+  representation across locals, ABI parameters, ABI returns, and scalar
+  storage.
+- Added `hash4` literal packing and dynamic `hashValue` packing from four
+  `U64` limbs into one 256-bit word.
+- Added Yul helper lowering for `hash` and `hash_two_to_one` using
+  `keccak256(0, 32)` and `keccak256(0, 64)`.
+- Added lightweight EVM IR type validation for the currently supported scalar
+  and Hash subset so Hash/U64 mismatches fail before Yul generation.
+- Added `ProofForge.IR.Examples.EvmHashProbe`,
+  `--emit-evm-hash-ir-yul`, `--emit-evm-hash-ir-bytecode`,
+  `Examples/Evm/EvmHashProbe.golden.yul`, and
+  `scripts/evm/hash-ir-smoke.sh`.
+- Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
+  gates, backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-evm-hash-ir-yul -o build/ir/EvmHashProbe.yul
+diff -u Examples/Evm/EvmHashProbe.golden.yul build/ir/EvmHashProbe.yul
+scripts/evm/hash-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Result:
+
+- Generated EvmHashProbe Yul includes selector dispatch, ABI calldata size
+  guards, Hash literal packing, dynamic Hash packing, `keccak256` helpers,
+  Hash scalar storage reads/writes, and one-word return encoding.
+- Foundry verifies `bytes32` ABI params/returns, single-word and pair hashing,
+  dynamic packing, Hash scalar storage, raw slot reads through `vm.load`, and
+  unknown-selector reverts.
+- EVM artifact metadata records and validates `crypto.hash` and
+  `storage.scalar`.
+- Diagnostics now treat Hash as supported in the EVM scalar subset and reject
+  malformed Hash/U64 usage with explicit type mismatch messages.
+
+Known limitations:
+
+- EVM portable IR Hash currently uses a target-specific one-word `bytes32`
+  representation; Psy still uses four Felt limbs.
+- Hash map key/value shapes are still unsupported; EVM map support remains
+  limited to `Map<U64, U64, N>`.
+- Aggregate hashing inputs, arrays, structs, and events remain future work.
+
+Next step:
+
+- Extend EVM maps to additional scalar key/value shapes, or add event emission
+  lowering with indexed topic/data metadata.
+
 ### EVM IR Storage Maps
 
 Commit: feature commit for EVM IR storage maps

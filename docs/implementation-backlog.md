@@ -112,6 +112,10 @@ Tasks:
   `checkpointId` as Yul `caller()`, `address()`, and `number()`, with
   `ContextProbe` golden Yul, solc bytecode, Foundry runtime validation, and
   metadata capability validation.
+- Done: add EVM IR `Hash` word lowering, `hash4`/`hashValue` packing, and
+  `hash`/`hash_two_to_one` lowering through Yul `keccak256` helpers, with
+  `EvmHashProbe` golden Yul, solc bytecode, Foundry ABI/storage validation,
+  metadata capability validation, and explicit Hash/U64 mismatch diagnostics.
 - Done: add EVM IR `Map<U64, U64, N>` storage lowering through
   Solidity-style `keccak256(key, slot)` mapping slots, with `EvmMapProbe`
   golden Yul, solc bytecode, Foundry runtime/raw-slot validation, metadata

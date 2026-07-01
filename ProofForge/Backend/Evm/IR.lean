@@ -13,7 +13,7 @@ open ProofForge.Target
 
 structure LowerError where
   message : String
-  deriving Repr
+  deriving Repr, Inhabited
 
 def LowerError.render (err : LowerError) : String :=
   err.message
@@ -57,6 +57,37 @@ def yulFunctionName (moduleName entrypointName : String) : String :=
 def mapSlotFunctionName : String := "__proof_forge_map_slot"
 def mapWriteFunctionName : String := "__proof_forge_map_write"
 def mapSetReturnFunctionName : String := "__proof_forge_map_set_return"
+def hashWordFunctionName : String := "__proof_forge_hash_word"
+def hashPairFunctionName : String := "__proof_forge_hash_pair"
+
+def twoPow64 : Nat := 18446744073709551616
+def maxU64 : Nat := twoPow64 - 1
+
+def checkedHashLiteralLimb (name : String) (value : Nat) : Except LowerError Nat :=
+  if value <= maxU64 then
+    .ok value
+  else
+    .error { message := s!"Hash literal limb `{name}` exceeds U64 range" }
+
+def packedHashLiteral (a b c d : Nat) : Except LowerError Nat := do
+  let a ← checkedHashLiteralLimb "a" a
+  let b ← checkedHashLiteralLimb "b" b
+  let c ← checkedHashLiteralLimb "c" c
+  let d ← checkedHashLiteralLimb "d" d
+  .ok ((((a * twoPow64) + b) * twoPow64 + c) * twoPow64 + d)
+
+def hashPackExpr
+    (a b c d : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.builtin "or" #[
+    Lean.Compiler.Yul.builtin "shl" #[Lean.Compiler.Yul.Expr.num 192, a],
+    Lean.Compiler.Yul.builtin "or" #[
+      Lean.Compiler.Yul.builtin "shl" #[Lean.Compiler.Yul.Expr.num 128, b],
+      Lean.Compiler.Yul.builtin "or" #[
+        Lean.Compiler.Yul.builtin "shl" #[Lean.Compiler.Yul.Expr.num 64, c],
+        d
+      ]
+    ]
+  ]
 
 def revertStmt : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.exprStmt
@@ -67,13 +98,11 @@ def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
 
 def ensureAbiScalarType (entrypointName paramName : String) (type : ValueType) : Except LowerError Unit :=
   match type with
-  | .u32 | .u64 | .bool => .ok ()
+  | .u32 | .u64 | .bool | .hash => .ok ()
   | .unit =>
-      .error { message := s!"entrypoint `{entrypointName}` parameter `{paramName}` uses Unit; IR EVM v0 ABI parameters must use U32, U64, or Bool" }
-  | .hash =>
-      .error { message := s!"entrypoint `{entrypointName}` parameter `{paramName}` uses Hash; IR EVM v0 ABI parameters must use U32, U64, or Bool" }
+      .error { message := s!"entrypoint `{entrypointName}` parameter `{paramName}` uses Unit; IR EVM v0 ABI parameters must use U32, U64, Bool, or Hash" }
   | .fixedArray _ _ | .structType _ =>
-      .error { message := s!"entrypoint `{entrypointName}` parameter `{paramName}` uses `{type.name}`; IR EVM v0 ABI parameters must use U32, U64, or Bool" }
+      .error { message := s!"entrypoint `{entrypointName}` parameter `{paramName}` uses `{type.name}`; IR EVM v0 ABI parameters must use U32, U64, Bool, or Hash" }
 
 def lowerEntrypointParams (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.TypedName) :=
   entrypoint.params.foldlM (init := #[]) fun acc param => do
@@ -146,6 +175,328 @@ def requireU64MapState (module : Module) (stateId : String) : Except LowerError 
       | .scalar, _ => .error { message := s!"state `{stateId}` is scalar storage, not a map" }
       | .array _, _ => .error { message := s!"state `{stateId}` is array storage, not a map" }
 
+structure LocalBinding where
+  name : String
+  type : ValueType
+  isMutable : Bool
+  deriving Repr
+
+abbrev TypeEnv := Array LocalBinding
+
+def findLocal? (env : TypeEnv) (name : String) : Option LocalBinding :=
+  env.find? fun binding => binding.name == name
+
+def addLocal (env : TypeEnv) (name : String) (type : ValueType) (isMutable : Bool) : Except LowerError TypeEnv :=
+  if (findLocal? env name).isSome then
+    .error { message := s!"duplicate local `{name}`" }
+  else
+    .ok (env.push { name, type, isMutable })
+
+def ensureType (context : String) (expected actual : ValueType) : Except LowerError Unit :=
+  if expected == actual then
+    .ok ()
+  else
+    .error { message := s!"{context} expected `{expected.name}`, got `{actual.name}`" }
+
+def ensureNumericType (context : String) (lhs rhs : ValueType) : Except LowerError ValueType :=
+  match lhs, rhs with
+  | .u32, .u32 => .ok .u32
+  | .u64, .u64 => .ok .u64
+  | _, _ => .error { message := s!"{context} expects matching numeric operands, got `{lhs.name}` and `{rhs.name}`" }
+
+def ensureEqType (context : String) (type : ValueType) : Except LowerError Unit :=
+  match type with
+  | .bool | .u32 | .u64 | .hash => .ok ()
+  | .unit => .error { message := s!"{context} does not support Unit equality" }
+  | .fixedArray _ _ | .structType _ =>
+      .error { message := s!"{context} does not support `{type.name}` equality in IR EVM v0" }
+
+def ensureCastType (source target : ValueType) : Except LowerError Unit :=
+  match source, target with
+  | .u32, .u64 => .ok ()
+  | .u64, .u32 => .ok ()
+  | .u32, .bool => .ok ()
+  | .bool, .u64 => .ok ()
+  | .bool, .u32 => .ok ()
+  | .u64, .bool => .ok ()
+  | _, _ =>
+      .error { message := s!"cast from `{source.name}` to `{target.name}` is not supported by IR EVM v0" }
+
+def stateDeclOf (module : Module) (stateId kind : String) : Except LowerError StateDecl :=
+  match stateInfo? module stateId with
+  | some (_, state) => .ok state
+  | none => .error { message := s!"unknown {kind} state `{stateId}`" }
+
+def scalarStateType (module : Module) (stateId : String) : Except LowerError ValueType := do
+  let state ← stateDeclOf module stateId "scalar"
+  match state.kind with
+  | .scalar => .ok state.type
+  | .map _ _ => .error { message := s!"state `{stateId}` is a map, not scalar storage" }
+  | .array _ => .error { message := s!"state `{stateId}` is an array, not scalar storage" }
+
+def mapStateTypes (module : Module) (stateId : String) : Except LowerError (ValueType × ValueType) := do
+  let state ← stateDeclOf module stateId "map"
+  match state.kind with
+  | .map keyType _ => .ok (keyType, state.type)
+  | .scalar => .error { message := s!"state `{stateId}` is scalar storage, not a map" }
+  | .array _ => .error { message := s!"state `{stateId}` is array storage, not a map" }
+
+mutual
+  partial def inferExprType (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError ValueType
+    | .literal (.u32 _) => .ok .u32
+    | .literal (.u64 _) => .ok .u64
+    | .literal (.bool _) => .ok .bool
+    | .literal (.hash4 ..) => .ok .hash
+    | .local name =>
+        match findLocal? env name with
+        | some binding => .ok binding.type
+        | none => .error { message := s!"unknown local `{name}`" }
+    | .arrayLit elementType _ => .ok (.fixedArray elementType 0)
+    | .arrayGet _ _ => .error { message := "fixed array indexing is not supported by IR EVM v0" }
+    | .structLit typeName _ => .ok (.structType typeName)
+    | .field _ _ => .error { message := "struct field access is not supported by IR EVM v0" }
+    | .add lhs rhs => do inferBinaryNumericType "addition" module env lhs rhs
+    | .sub lhs rhs => do inferBinaryNumericType "subtraction" module env lhs rhs
+    | .mul lhs rhs => do inferBinaryNumericType "multiplication" module env lhs rhs
+    | .div lhs rhs => do inferBinaryNumericType "division" module env lhs rhs
+    | .mod lhs rhs => do inferBinaryNumericType "modulo" module env lhs rhs
+    | .pow lhs rhs => do inferBinaryNumericType "exponentiation" module env lhs rhs
+    | .bitAnd lhs rhs => do inferBinaryNumericType "bitwise and" module env lhs rhs
+    | .bitOr lhs rhs => do inferBinaryNumericType "bitwise or" module env lhs rhs
+    | .bitXor lhs rhs => do inferBinaryNumericType "bitwise xor" module env lhs rhs
+    | .shiftLeft lhs rhs => do inferBinaryNumericType "shift-left" module env lhs rhs
+    | .shiftRight lhs rhs => do inferBinaryNumericType "shift-right" module env lhs rhs
+    | .cast value targetType => do
+        ensureCastType (← inferExprType module env value) targetType
+        .ok targetType
+    | .eq lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "equality right operand" lhsType rhsType
+        ensureEqType "equality expression" lhsType
+        .ok .bool
+    | .ne lhs rhs => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "inequality right operand" lhsType rhsType
+        ensureEqType "inequality expression" lhsType
+        .ok .bool
+    | .lt lhs rhs => do
+        discard <| inferBinaryNumericType "less-than" module env lhs rhs
+        .ok .bool
+    | .le lhs rhs => do
+        discard <| inferBinaryNumericType "less-or-equal" module env lhs rhs
+        .ok .bool
+    | .gt lhs rhs => do
+        discard <| inferBinaryNumericType "greater-than" module env lhs rhs
+        .ok .bool
+    | .ge lhs rhs => do
+        discard <| inferBinaryNumericType "greater-or-equal" module env lhs rhs
+        .ok .bool
+    | .boolAnd lhs rhs => do
+        ensureType "boolean and left operand" .bool (← inferExprType module env lhs)
+        ensureType "boolean and right operand" .bool (← inferExprType module env rhs)
+        .ok .bool
+    | .boolOr lhs rhs => do
+        ensureType "boolean or left operand" .bool (← inferExprType module env lhs)
+        ensureType "boolean or right operand" .bool (← inferExprType module env rhs)
+        .ok .bool
+    | .boolNot value => do
+        ensureType "boolean not operand" .bool (← inferExprType module env value)
+        .ok .bool
+    | .hashValue a b c d => do
+        ensureType "hash value part 0" .u64 (← inferExprType module env a)
+        ensureType "hash value part 1" .u64 (← inferExprType module env b)
+        ensureType "hash value part 2" .u64 (← inferExprType module env c)
+        ensureType "hash value part 3" .u64 (← inferExprType module env d)
+        .ok .hash
+    | .hash preimage => do
+        ensureType "hash preimage" .hash (← inferExprType module env preimage)
+        .ok .hash
+    | .hashTwoToOne lhs rhs => do
+        ensureType "hash_two_to_one left operand" .hash (← inferExprType module env lhs)
+        ensureType "hash_two_to_one right operand" .hash (← inferExprType module env rhs)
+        .ok .hash
+    | .nativeValue => .ok .u64
+    | .crosscallInvoke _ _ _ => .ok .u64
+    | .effect effect => inferEffectExprType module env effect
+
+  partial def inferBinaryNumericType
+      (context : String)
+      (module : Module)
+      (env : TypeEnv)
+      (lhs rhs : ProofForge.IR.Expr) : Except LowerError ValueType := do
+    ensureNumericType context (← inferExprType module env lhs) (← inferExprType module env rhs)
+
+  partial def inferStoragePathType
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (path : Array StoragePathSegment) : Except LowerError ValueType := do
+    let state ← stateDeclOf module stateId "storage path"
+    match state.kind, path.toList with
+    | .map keyType _, .mapKey key :: _ => do
+        ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
+        .ok state.type
+    | .map _ _, [] =>
+        .ok state.type
+    | .map _ _, _ =>
+        .ok state.type
+    | .scalar, [] =>
+        .ok state.type
+    | .scalar, _ =>
+        .error { message := "EVM IR v0 supports storage paths only for single-segment mapKey map access" }
+    | .array _, _ =>
+        .error { message := "storage.array paths are not supported by IR EVM v0" }
+
+  partial def inferEffectExprType (module : Module) (env : TypeEnv) : Effect → Except LowerError ValueType
+    | .storageScalarRead stateId =>
+        scalarStateType module stateId
+    | .storageScalarWrite _ _ =>
+        .error { message := "storage.scalar.write is a statement effect, not an expression" }
+    | .storageScalarAssignOp _ _ _ =>
+        .error { message := "storage.scalar.assign_op is not supported by IR EVM v0" }
+    | .storageMapContains stateId key => do
+        let (keyType, _) ← mapStateTypes module stateId
+        ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
+        .ok .bool
+    | .storageMapGet stateId key => do
+        let (keyType, valueType) ← mapStateTypes module stateId
+        ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
+        .ok valueType
+    | .storageMapInsert stateId key value => do
+        let (keyType, valueType) ← mapStateTypes module stateId
+        ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
+        ensureType s!"map `{stateId}` value" valueType (← inferExprType module env value)
+        .ok valueType
+    | .storageMapSet stateId key value => do
+        let (keyType, valueType) ← mapStateTypes module stateId
+        ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
+        ensureType s!"map `{stateId}` value" valueType (← inferExprType module env value)
+        .ok valueType
+    | .storageArrayRead _ _ =>
+        .error { message := "storage.array.read is not supported by IR EVM v0" }
+    | .storageArrayWrite _ _ _ =>
+        .error { message := "storage.array.write is not supported by IR EVM v0" }
+    | .storageArrayStructFieldRead _ _ _ =>
+        .error { message := "storage.array.struct.field.read is not supported by IR EVM v0" }
+    | .storageArrayStructFieldWrite _ _ _ _ =>
+        .error { message := "storage.array.struct.field.write is not supported by IR EVM v0" }
+    | .storageStructFieldRead _ _ =>
+        .error { message := "storage.struct.field.read is not supported by IR EVM v0" }
+    | .storageStructFieldWrite _ _ _ =>
+        .error { message := "storage.struct.field.write is not supported by IR EVM v0" }
+    | .storagePathRead stateId path =>
+        inferStoragePathType module env stateId path
+    | .storagePathWrite _ _ _ =>
+        .error { message := "storage.path.write is a statement effect, not an expression" }
+    | .storagePathAssignOp _ _ _ _ =>
+        .error { message := "storage.path.assign_op is not supported by IR EVM v0" }
+    | .contextRead _ =>
+        .ok .u64
+    | .eventEmit _ _ =>
+        .error { message := "event emission is not supported by IR EVM v0" }
+end
+
+def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Except LowerError Unit
+  | .storageScalarRead _ =>
+      .error { message := "storage.scalar.read must be used as an expression" }
+  | .storageScalarWrite stateId value => do
+      ensureType s!"scalar state `{stateId}` write" (← scalarStateType module stateId) (← inferExprType module env value)
+  | .storageScalarAssignOp _ _ _ =>
+      .ok ()
+  | .storageMapContains _ _ =>
+      .ok ()
+  | .storageMapGet _ _ =>
+      .error { message := "storage.map.get must be used as an expression" }
+  | .storageMapInsert stateId key value => do
+      let (keyType, valueType) ← mapStateTypes module stateId
+      ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
+      ensureType s!"map `{stateId}` value" valueType (← inferExprType module env value)
+  | .storageMapSet stateId key value => do
+      let (keyType, valueType) ← mapStateTypes module stateId
+      ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
+      ensureType s!"map `{stateId}` value" valueType (← inferExprType module env value)
+  | .storageArrayRead _ _ =>
+      .ok ()
+  | .storageArrayWrite _ _ _ =>
+      .ok ()
+  | .storageArrayStructFieldRead _ _ _ =>
+      .ok ()
+  | .storageArrayStructFieldWrite _ _ _ _ =>
+      .ok ()
+  | .storageStructFieldRead _ _ =>
+      .ok ()
+  | .storageStructFieldWrite _ _ _ =>
+      .ok ()
+  | .storagePathRead _ _ =>
+      .error { message := "storage.path.read must be used as an expression" }
+  | .storagePathWrite stateId path value => do
+      ensureType s!"storage path `{stateId}` write" (← inferStoragePathType module env stateId path) (← inferExprType module env value)
+  | .storagePathAssignOp _ _ _ _ =>
+      .ok ()
+  | .contextRead _ =>
+      .error { message := "context reads must be used as expressions" }
+  | .eventEmit _ _ =>
+      .ok ()
+
+mutual
+  partial def validateStatements (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) (statements : Array Statement) : Except LowerError TypeEnv :=
+    statements.foldlM (init := env) fun env stmt =>
+      validateStatementTypes module entrypoint env stmt
+
+  partial def validateStatementTypes (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) : Statement → Except LowerError TypeEnv
+    | .letBind name type value => do
+        ensureType s!"let binding `{name}`" type (← inferExprType module env value)
+        addLocal env name type false
+    | .letMutBind name type value => do
+        ensureType s!"mutable let binding `{name}`" type (← inferExprType module env value)
+        addLocal env name type true
+    | .assign (.local name) value => do
+        let some binding := findLocal? env name
+          | .error { message := s!"unknown local `{name}`" }
+        if !binding.isMutable then
+          .error { message := s!"assignment target local `{name}` is not mutable" }
+        ensureType "assignment value" binding.type (← inferExprType module env value)
+        .ok env
+    | .assign _ _ =>
+        .error { message := "assignment target must be a local in IR EVM v0" }
+    | .assignOp _ _ _ =>
+        .ok env
+    | .effect effect => do
+        validateEffectStmtTypes module env effect
+        .ok env
+    | .assert condition _ => do
+        ensureType "assert condition" .bool (← inferExprType module env condition)
+        .ok env
+    | .assertEq lhs rhs _ => do
+        let lhsType ← inferExprType module env lhs
+        let rhsType ← inferExprType module env rhs
+        ensureType "assert_eq right operand" lhsType rhsType
+        ensureEqType "assert_eq" lhsType
+        .ok env
+    | .ifElse condition thenBody elseBody => do
+        ensureType "if condition" .bool (← inferExprType module env condition)
+        discard <| validateStatements module entrypoint env thenBody
+        discard <| validateStatements module entrypoint env elseBody
+        .ok env
+    | .boundedFor _ _ _ _ =>
+        .ok env
+    | .return value => do
+        ensureType "return value" entrypoint.returns (← inferExprType module env value)
+        .ok env
+end
+
+def entrypointTypeEnv (entrypoint : Entrypoint) : TypeEnv :=
+  entrypoint.params.map fun param => {
+    name := param.fst
+    type := param.snd
+    isMutable := false
+  }
+
+def validateEntrypointTypes (module : Module) (entrypoint : Entrypoint) : Except LowerError Unit := do
+  discard <| validateStatements module entrypoint (entrypointTypeEnv entrypoint) entrypoint.body
+
 mutual
   partial def lowerMapSlotExpr (module : Module) (stateId : String) (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     let slot ← requireU64MapState module stateId
@@ -168,8 +519,8 @@ mutual
     | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.u64 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.bool value) => .ok (if value then Lean.Compiler.Yul.Expr.num 1 else Lean.Compiler.Yul.Expr.num 0)
-    | .literal (.hash4 _ _ _ _) =>
-        .error { message := "Hash literals are not supported by IR EVM v0" }
+    | .literal (.hash4 a b c d) => do
+        .ok (Lean.Compiler.Yul.Expr.num (← packedHashLiteral a b c d))
     | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
     | .arrayLit _ _ =>
         .error { message := "fixed array literals are not supported by IR EVM v0" }
@@ -221,12 +572,12 @@ mutual
         .ok (Lean.Compiler.Yul.builtin "or" #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .boolNot value => do
         .ok (Lean.Compiler.Yul.builtin "iszero" #[← lowerExpr module value])
-    | .hashValue _ _ _ _ =>
-        .error { message := "Hash value construction is not supported by IR EVM v0" }
-    | .hash _ =>
-        .error { message := "crypto.hash is not supported by IR EVM v0" }
-    | .hashTwoToOne _ _ =>
-        .error { message := "crypto.hash_two_to_one is not supported by IR EVM v0" }
+    | .hashValue a b c d => do
+        .ok (hashPackExpr (← lowerExpr module a) (← lowerExpr module b) (← lowerExpr module c) (← lowerExpr module d))
+    | .hash preimage => do
+        .ok (Lean.Compiler.Yul.call hashWordFunctionName #[← lowerExpr module preimage])
+    | .hashTwoToOne lhs rhs => do
+        .ok (Lean.Compiler.Yul.call hashPairFunctionName #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .nativeValue =>
         .error { message := "native value inspection is not supported by IR EVM v0" }
     | .crosscallInvoke _ _ _ =>
@@ -330,9 +681,8 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
 
 def ensureLocalScalarType (context name : String) (type : ValueType) : Except LowerError Unit :=
   match type with
-  | .u32 | .u64 | .bool => .ok ()
+  | .u32 | .u64 | .bool | .hash => .ok ()
   | .unit => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `Unit`" }
-  | .hash => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `Hash`" }
   | .fixedArray _ _ => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `{type.name}`" }
   | .structType _ => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `{type.name}`" }
 
@@ -399,20 +749,18 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
       | some (.return _) => pure ()
       | _ =>
           .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not end with a return statement" }
+  validateEntrypointTypes module entrypoint
   let body ← lowerStatements module entrypoint.body
   let returns : Array Lean.Compiler.Yul.TypedName :=
     match entrypoint.returns with
     | .unit => #[]
-    | .u32 | .u64 | .bool => #[{ name := "result" }]
-    | .hash => #[]
+    | .u32 | .u64 | .bool | .hash => #[{ name := "result" }]
     | .fixedArray _ _ => #[]
     | .structType _ => #[]
-  if entrypoint.returns == .hash then
-    .error { message := s!"entrypoint `{entrypoint.name}` returns Hash; IR EVM v0 supports only Unit, U64, and Bool" }
   if entrypoint.returns.capabilities.contains .dataFixedArray then
-    .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U64, and Bool" }
+    .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U32, U64, Bool, and Hash" }
   if entrypoint.returns.capabilities.contains .dataStruct then
-    .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U64, and Bool" }
+    .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U32, U64, Bool, and Hash" }
   .ok (.funcDef (yulFunctionName module.name entrypoint.name) params returns { statements := body })
 
 def entrypointCallExpr (module : Module) (entrypoint : Entrypoint) : Lean.Compiler.Yul.Expr :=
@@ -429,14 +777,12 @@ def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError
           Lean.Compiler.Yul.Statement.exprStmt callExpr,
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
         ]
-    | .u32 | .u64 | .bool =>
+    | .u32 | .u64 | .bool | .hash =>
         abiParamValidationStmts entrypoint ++ #[
           Lean.Compiler.Yul.Statement.varDecl #[({ name := "_r" } : Lean.Compiler.Yul.TypedName)] (some callExpr),
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "_r"]),
           Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32])
         ]
-    | .hash =>
-        #[revertStmt]
     | .fixedArray _ _ =>
         #[revertStmt]
     | .structType _ =>
@@ -468,6 +814,31 @@ def isSupportedMapState (state : StateDecl) : Bool :=
 
 def moduleUsesSupportedMap (module : Module) : Bool :=
   module.state.any isSupportedMapState
+
+def moduleUsesHash (module : Module) : Bool :=
+  module.capabilities.contains .cryptoHash
+
+def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+  .funcDef hashWordFunctionName
+    #[{ name := "value" }]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "value"]),
+        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32])
+      ]
+    },
+  .funcDef hashPairFunctionName
+    #[{ name := "left" }, { name := "right" }]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "left"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "right"]),
+        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
+      ]
+    }
+]
 
 def mapHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
   .funcDef mapSlotFunctionName
@@ -506,6 +877,7 @@ def validateState (module : Module) : Except LowerError Unit := do
     match state.kind, state.type with
     | .scalar, .u32 => pure ()
     | .scalar, .u64 => pure ()
+    | .scalar, .hash => pure ()
     | .scalar, other =>
         .error { message := s!"state `{state.id}` has unsupported EVM IR v0 type `{other.name}`" }
     | .map .u64 _, .u64 => pure ()
@@ -526,6 +898,7 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
     .ok (acc.push (← lowerEntrypoint module entrypoint))
   let dispatch ← dispatchBlock module
   let helpers := if moduleUsesSupportedMap module then mapHelperFunctions else #[]
+  let helpers := helpers ++ (if moduleUsesHash module then hashHelperFunctions else #[])
   .ok {
     name := module.name
     code := { statements := #[dispatch] ++ functions ++ helpers }

@@ -19,6 +19,7 @@ import ProofForge.IR.Examples.ConditionalProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.CrosscallProbe
 import ProofForge.IR.Examples.EventProbe
+import ProofForge.IR.Examples.EvmHashProbe
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.ExpressionPredicateProbe
 import ProofForge.IR.Examples.GenericEntrypointProbe
@@ -57,6 +58,8 @@ inductive EmitMode where
   | conditionalIrBytecode
   | contextIrYul
   | contextIrBytecode
+  | evmHashIrYul
+  | evmHashIrBytecode
   | evmMapIrYul
   | evmMapIrBytecode
   | counterIrPsy
@@ -118,6 +121,8 @@ def usage : String :=
     "  proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-context-ir-yul [-o output.yul]",
     "  proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
+    "  proof-forge --emit-evm-hash-ir-yul [-o output.yul]",
+    "  proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-evm-map-ir-yul [-o output.yul]",
     "  proof-forge --emit-evm-map-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-counter-ir-psy [-o output.psy]",
@@ -483,7 +488,7 @@ def writeEvmSdkArtifactMetadata
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
         .ok opts
       else
         .error usage
@@ -536,6 +541,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .contextIrYul }
   | "--emit-context-ir-bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .contextIrBytecode }
+  | "--emit-evm-hash-ir-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .evmHashIrYul }
+  | "--emit-evm-hash-ir-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .evmHashIrBytecode }
   | "--emit-evm-map-ir-yul" :: rest, opts =>
       parseArgs rest { opts with mode := .evmMapIrYul }
   | "--emit-evm-map-ir-bytecode" :: rest, opts =>
@@ -812,6 +821,32 @@ def compileContextIrBytecode (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/ir/ContextProbe.bin")
   writeTextFile output (bytecode ++ "\n")
   writeEvmIrArtifactMetadata opts "ContextProbe" "ProofForge.IR.Examples.ContextProbe" ProofForge.IR.Examples.ContextProbe.module yulOutput output
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
+def compileEvmHashIrYul (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/ir/EvmHashProbe.yul")
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.EvmHashProbe.module with
+  | .ok yul =>
+      writeTextFile output yul
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def renderEvmHashIrYul : IO String := do
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.EvmHashProbe.module with
+  | .ok yul => return yul
+  | .error err => throw <| IO.userError err.render
+
+def compileEvmHashIrBytecode (opts : CliOptions) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/EvmHashProbe.yul")
+  let yul ← renderEvmHashIrYul
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (FilePath.mk "build/ir/EvmHashProbe.bin")
+  writeTextFile output (bytecode ++ "\n")
+  writeEvmIrArtifactMetadata opts "EvmHashProbe" "ProofForge.IR.Examples.EvmHashProbe" ProofForge.IR.Examples.EvmHashProbe.module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -1137,6 +1172,8 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .conditionalIrBytecode => compileConditionalIrBytecode opts
   | .contextIrYul => compileContextIrYul opts
   | .contextIrBytecode => compileContextIrBytecode opts
+  | .evmHashIrYul => compileEvmHashIrYul opts
+  | .evmHashIrBytecode => compileEvmHashIrBytecode opts
   | .evmMapIrYul => compileEvmMapIrYul opts
   | .evmMapIrBytecode => compileEvmMapIrBytecode opts
   | .counterIrPsy => compileCounterIrPsy opts

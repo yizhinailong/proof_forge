@@ -214,13 +214,19 @@ def hashLiteralModule : Module :=
   ]
 
 def hashExprModule : Module :=
-  selectedModule "BadHashExpr" <| selectedReturnEntrypoint "bad" .u64 #[
-    .return (.hash (.literal (.hash4 1 2 3 4)))
+  selectedModule "BadHashExpr" <| selectedReturnEntrypoint "bad" .hash #[
+    .return (.hash (.literal (.u64 1)))
   ]
 
 def invalidAssignmentTargetModule : Module :=
   selectedModule "BadAssignmentTarget" <| selectedEntrypoint "bad" #[
     .assign (.add (.literal (.u64 1)) (.literal (.u64 2))) (.literal (.u64 3))
+  ]
+
+def immutableAssignmentModule : Module :=
+  selectedModule "BadImmutableAssignment" <| selectedEntrypoint "bad" #[
+    .letBind "x" .u64 (.literal (.u64 1)),
+    .assign (.local "x") (.literal (.u64 2))
   ]
 
 def compoundAssignmentModule : Module :=
@@ -243,12 +249,7 @@ def cases : Array (String × Module × String) := #[
   (
     "unit parameter unsupported",
     unitParameterModule,
-    "entrypoint `set` parameter `value` uses Unit; IR EVM v0 ABI parameters must use U32, U64, or Bool"
-  ),
-  (
-    "hash parameter unsupported",
-    hashParameterModule,
-    "entrypoint `set` parameter `value` uses Hash; IR EVM v0 ABI parameters must use U32, U64, or Bool"
+    "entrypoint `set` parameter `value` uses Unit; IR EVM v0 ABI parameters must use U32, U64, Bool, or Hash"
   ),
   (
     "missing return",
@@ -256,9 +257,9 @@ def cases : Array (String × Module × String) := #[
     "entrypoint `bad` returns `U64` but does not end with a return statement"
   ),
   (
-    "hash return unsupported",
+    "hash return type mismatch",
     hashReturnModule,
-    "entrypoint `bad` returns Hash; IR EVM v0 supports only Unit, U64, and Bool"
+    "return value expected `Hash`, got `U64`"
   ),
   (
     "bool scalar state unsupported",
@@ -346,19 +347,24 @@ def cases : Array (String × Module × String) := #[
     "cross-contract calls are not supported by IR EVM v0"
   ),
   (
-    "hash literal unsupported",
+    "hash literal return type mismatch",
     hashLiteralModule,
-    "Hash literals are not supported by IR EVM v0"
+    "return value expected `U64`, got `Hash`"
   ),
   (
-    "hash expression unsupported",
+    "hash preimage type mismatch",
     hashExprModule,
-    "crypto.hash is not supported by IR EVM v0"
+    "hash preimage expected `Hash`, got `U64`"
   ),
   (
     "invalid assignment target unsupported",
     invalidAssignmentTargetModule,
     "assignment target must be a local in IR EVM v0"
+  ),
+  (
+    "immutable assignment unsupported",
+    immutableAssignmentModule,
+    "assignment target local `x` is not mutable"
   ),
   (
     "compound assignment unsupported",

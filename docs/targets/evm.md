@@ -38,6 +38,9 @@ scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
+scripts/evm/context-ir-smoke.sh
+scripts/evm/hash-ir-smoke.sh
+scripts/evm/map-ir-smoke.sh
 ```
 
 ## CLI modes
@@ -69,6 +72,8 @@ proof-forge --emit-conditional-ir-yul [-o output.yul]
 proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-context-ir-yul [-o output.yul]
 proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-hash-ir-yul [-o output.yul]
+proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-map-ir-yul [-o output.yul]
 proof-forge --emit-evm-map-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
@@ -132,6 +137,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `events.emit` | `log0`, `log1`, `log2` |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
+| `crypto.hash` | Portable IR `Hash` values lower to one-word EVM `bytes32`; `hash` / `hash_two_to_one` lower to Yul `keccak256` helpers |
 | `account.explicit` | Partial: portable IR `contractId` context reads lower to Yul `address()` |
 
 Not supported on EVM (by design for other targets):
@@ -163,10 +169,11 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - String manipulation APIs incomplete in Yul runtime.
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
   IR EVM backend currently supports scalar storage/ABI, assertions, local
-  assignment, conditionals, context reads, and `Map<U64, U64, N>` storage, and
-  rejects wider portable IR nodes with explicit diagnostics.
-- Portable IR EVM currently lacks aggregate ABI values, Hash/aggregate map
-  shapes, storage arrays, structs, hashing, events, cross-contract calls, and
+  assignment, conditionals, context reads, `Hash` word values and hashing, and
+  `Map<U64, U64, N>` storage, and rejects wider portable IR nodes with explicit
+  diagnostics.
+- Portable IR EVM currently lacks aggregate ABI values, non-`U64` map
+  shapes, storage arrays, structs, events, cross-contract calls, and
   target-specific deploy manifests.
 - `storage.map.contains` remains explicitly unsupported because EVM mappings do
   not track key presence without an auxiliary bitmap.
@@ -184,6 +191,7 @@ scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
+scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
@@ -226,6 +234,16 @@ reproducibility, `solc --strict-assembly` bytecode generation, metadata
 capabilities (`caller.sender`, `account.explicit`, `env.block`), Foundry
 runtime context values through `vm.prank`/`vm.roll`, and unknown-selector
 revert behavior.
+
+`EvmHashProbe` validates portable IR `Hash` values as a one-word EVM ABI and
+storage representation. Four-limb `hash4` literals and dynamic `hashValue`
+expressions pack into a single 256-bit word, while `hash` and
+`hash_two_to_one` lower to Yul helpers that call `keccak256` over one or two
+32-byte memory words. The smoke checks golden Yul reproducibility,
+`solc --strict-assembly` bytecode generation, metadata capabilities
+(`crypto.hash`, `storage.scalar`), ABI `bytes32` parameters/returns, scalar
+Hash storage through `sload`/`sstore`, Foundry `vm.load` raw slots, and
+unknown-selector revert behavior.
 
 `EvmMapProbe` validates portable IR `Map<U64, U64, N>` storage through the same
 Solidity-style slot layout used by the SDK: `keccak256(key || slot)` after

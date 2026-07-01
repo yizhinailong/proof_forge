@@ -35,6 +35,9 @@ scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
+scripts/evm/context-ir-smoke.sh
+scripts/evm/hash-ir-smoke.sh
+scripts/evm/map-ir-smoke.sh
 ```
 
 ## CLI 模式
@@ -66,6 +69,8 @@ proof-forge --emit-conditional-ir-yul [-o output.yul]
 proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-context-ir-yul [-o output.yul]
 proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-hash-ir-yul [-o output.yul]
+proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-map-ir-yul [-o output.yul]
 proof-forge --emit-evm-map-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
@@ -120,6 +125,7 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 | `events.emit` | `log0`, `log1`, `log2` |
 | `assertions.check` | Portable IR `assert` / `assert_eq` 降为 Yul revert guard |
 | `control.conditional` | Portable IR `if/else` 降为 Yul `switch` block |
+| `crypto.hash` | Portable IR `Hash` 值降为单 word EVM `bytes32`；`hash` / `hash_two_to_one` 降为 Yul `keccak256` helper |
 | `account.explicit` | 部分支持：Portable IR `contractId` context read 降为 Yul `address()` |
 
 EVM 不支持（设计上针对其他目标）：
@@ -149,8 +155,8 @@ EVM 不支持（设计上针对其他目标）：
 
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
-- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、条件分支、context read 和 `Map<U64, U64, N>` storage fixture，其他更宽的 portable IR 节点仍以显式诊断拒绝。
-- Portable IR EVM 目前仍缺少聚合 ABI 值、Hash/聚合 map 形态、storage array、struct、hashing、event、跨合约调用和目标专属 deploy manifest。
+- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、条件分支、context read、`Hash` word 值与 hashing，以及 `Map<U64, U64, N>` storage fixture，其他更宽的 portable IR 节点仍以显式诊断拒绝。
+- Portable IR EVM 目前仍缺少聚合 ABI 值、非 `U64` map 形态、storage array、struct、event、跨合约调用和目标专属 deploy manifest。
 - `storage.map.contains` 仍被显式拒绝，因为 EVM mapping 在没有辅助 bitmap 的情况下不跟踪 key presence。
 
 ## Portable IR 门禁
@@ -165,6 +171,7 @@ scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
+scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
@@ -178,6 +185,8 @@ scripts/evm/ir-counter-smoke.sh
 `ConditionalProbe` 验证 portable IR 语句级 `if/else` 会降为 Yul `switch condition case 0 { else } default { then }` block。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、Foundry 执行 then/else storage 更新，以及未知 selector revert。分支内部的 `return` 仍被显式拒绝，直到 EVM IR 后端通过 Yul `leave` 支持早退 lowering。
 
 `ContextProbe` 验证 portable IR context read 到 EVM opcode 的 lowering：`userId` 降为 `caller()`，`contractId` 降为 `address()`，`checkpointId` 降为 `number()`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`caller.sender`、`account.explicit`、`env.block`）、通过 `vm.prank`/`vm.roll` 得到的 Foundry 运行时 context 值，以及未知 selector revert。
+
+`EvmHashProbe` 验证 portable IR `Hash` 值在 EVM 上使用单 word ABI/storage 表示。四 limb `hash4` literal 和动态 `hashValue` 表达式会打包为一个 256-bit word；`hash` 与 `hash_two_to_one` 会降为调用 `keccak256` 的 Yul helper，分别对一个或两个 32-byte memory word 取哈希。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`crypto.hash`、`storage.scalar`）、ABI `bytes32` 参数/返回、通过 `sload`/`sstore` 的 Hash 标量 storage、Foundry `vm.load` 原始 slot，以及未知 selector revert。
 
 `EvmMapProbe` 验证 portable IR `Map<U64, U64, N>` storage 使用与 SDK 一致的 Solidity-style slot layout：先把 `key` 和 `slot` 作为两个 32-byte word 写入内存，再计算 `keccak256(key || slot)`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.map`、`assertions.check`）、ABI get/set/insert 行为、单段 `mapKey` storage path、Foundry `vm.load` 原始 storage slot，以及未知 selector revert。
 
