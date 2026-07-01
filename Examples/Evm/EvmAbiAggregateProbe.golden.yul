@@ -17,6 +17,14 @@ object "EvmAbiAggregateProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x10e4c1da {
+      if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      let _r := f_EvmAbiAggregateProbe_sum_pair_array(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
+      mstore(0, _r)
+      return(0, 32)
+    }
     case 0xef51ff62 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
@@ -25,6 +33,17 @@ object "EvmAbiAggregateProbe" {
       mstore(0, _r0)
       mstore(32, _r1)
       return(0, 64)
+    }
+    case 0x617df171 {
+      if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      let _r0, _r1, _r2, _r3 := f_EvmAbiAggregateProbe_make_pair_array(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      mstore(64, _r2)
+      mstore(96, _r3)
+      return(0, 128)
     }
     case 0xffac5c16 {
       if lt(calldatasize(), 100) {
@@ -73,9 +92,22 @@ object "EvmAbiAggregateProbe" {
     function f_EvmAbiAggregateProbe_sum_array(__proof_forge_array_xs_0, __proof_forge_array_xs_1, __proof_forge_array_xs_2) -> result {
       result := add(add(__proof_forge_array_xs_0, __proof_forge_array_xs_1), __proof_forge_array_xs_2)
     }
+    function f_EvmAbiAggregateProbe_sum_pair_array(__proof_forge_array_struct_pairs_0_left, __proof_forge_array_struct_pairs_0_right, __proof_forge_array_struct_pairs_1_left, __proof_forge_array_struct_pairs_1_right) -> result {
+      result := add(add(__proof_forge_array_struct_pairs_0_left, __proof_forge_array_struct_pairs_0_right), add(__proof_forge_array_struct_pairs_1_left, __proof_forge_array_struct_pairs_1_right))
+    }
     function f_EvmAbiAggregateProbe_make_pair(left, right) -> __proof_forge_return_0, __proof_forge_return_1 {
       __proof_forge_return_0 := left
       __proof_forge_return_1 := right
+    }
+    function f_EvmAbiAggregateProbe_make_pair_array(a, b, c, d) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
+      let __proof_forge_array_struct_pairs_0_left := a
+      let __proof_forge_array_struct_pairs_0_right := b
+      let __proof_forge_array_struct_pairs_1_left := c
+      let __proof_forge_array_struct_pairs_1_right := d
+      __proof_forge_return_0 := __proof_forge_array_struct_pairs_0_left
+      __proof_forge_return_1 := __proof_forge_array_struct_pairs_0_right
+      __proof_forge_return_2 := __proof_forge_array_struct_pairs_1_left
+      __proof_forge_return_3 := __proof_forge_array_struct_pairs_1_right
     }
     function f_EvmAbiAggregateProbe_make_array(a, b, c) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2 {
       let __proof_forge_array_xs_0 := a

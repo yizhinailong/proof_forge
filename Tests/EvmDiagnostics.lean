@@ -435,7 +435,7 @@ def cases : Array (String × Module × String) := #[
   (
     "nested ABI array unsupported",
     nestedAbiArrayModule,
-    "entrypoint `bad` parameter `xs` fixed-array element has unsupported EVM IR v0 ABI word type `Array<U64,2>`; ABI aggregate words support U32, U64, Bool, or Hash"
+    "entrypoint `bad` parameter `xs` fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "missing return",

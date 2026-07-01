@@ -167,8 +167,8 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, and flat scalar storage struct field read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, local fixed arrays of flat structs with static/dynamic field reads and writes, flat static fixed-array ABI parameters, and multi-word fixed-array returns; zero-length ABI arrays, nested arrays, whole local assignment of struct arrays, and unsupported element shapes still reject explicitly |
-| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters, multi-word struct returns, flat scalar storage structs, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields, whole-struct storage reads/writes, and unsupported field shapes still reject explicitly |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, local fixed arrays of flat structs with static/dynamic field reads and writes, flat static fixed-array ABI parameters/returns, and fixed-array ABI parameters/returns whose elements are flat structs; zero-length ABI arrays, nested arrays, whole local assignment of struct arrays, and unsupported element shapes still reject explicitly |
+| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns, fixed arrays of flat structs in ABI-facing parameters/returns, flat scalar storage structs, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields, whole-struct storage reads/writes, and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -273,13 +273,14 @@ bytecode generation, and Foundry runtime behavior including malformed calldata
 reverts.
 
 `EvmAbiAggregateProbe` validates flat static aggregate ABI lowering. Struct
-parameters and fixed-array parameters flatten to contiguous calldata words,
-`U32` and `Bool` words retain dispatcher range guards, and flat struct or
-fixed-array returns encode as multi-word ABI return data. The smoke checks
+parameters, fixed-array parameters, and fixed arrays whose elements are flat
+structs flatten to contiguous calldata words. `U32` and `Bool` words retain
+dispatcher range guards, and flat struct/fixed-array returns, including fixed
+arrays of flat structs, encode as multi-word ABI return data. The smoke checks
 golden Yul reproducibility, `solc --strict-assembly`, artifact metadata
-capabilities `data.struct` and `data.fixed_array`, Foundry calls for struct and
-array parameters/returns, malformed calldata reverts, and unknown-selector
-reverts.
+capabilities `data.struct` and `data.fixed_array`, Foundry calls for struct,
+array, and tuple-array parameters/returns, malformed calldata reverts, and
+unknown-selector reverts.
 
 `AssertProbe` validates portable IR `assert` and `assert_eq` lowering to Yul
 `if iszero(...) { revert(0, 0) }` guards, including Foundry coverage for the

@@ -232,11 +232,12 @@ Tasks:
   validation, metadata capability validation, CI coverage, and explicit
   diagnostics for whole-struct reads/writes and missing fields.
 - Done: add EVM IR flat static aggregate ABI lowering for fixed-array and
-  struct parameters/returns, with calldata word flattening, `U32`/`Bool`
-  aggregate word guards, multi-word return-data encoding,
-  `EvmAbiAggregateProbe` golden Yul, solc bytecode, Foundry runtime/malformed
-  calldata validation, metadata capability validation, CI coverage, and
-  explicit diagnostics for Unit, zero-length, and nested aggregate ABI values.
+  struct parameters/returns, including fixed arrays of flat structs, with
+  calldata word flattening, `U32`/`Bool` aggregate word guards, multi-word
+  return-data encoding, `EvmAbiAggregateProbe` golden Yul, solc bytecode,
+  Foundry runtime/malformed calldata validation, metadata capability
+  validation, CI coverage, and explicit diagnostics for Unit, zero-length, and
+  nested aggregate ABI values.
 - Add golden Yul outputs for simple examples.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.

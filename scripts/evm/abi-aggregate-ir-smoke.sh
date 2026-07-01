@@ -42,7 +42,9 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-capability data.struct \
   --expect-entrypoint sum_pair:25508e13 \
   --expect-entrypoint sum_array:eb353b80 \
+  --expect-entrypoint sum_pair_array:10e4c1da \
   --expect-entrypoint make_pair:ef51ff62 \
+  --expect-entrypoint make_pair_array:617df171 \
   --expect-entrypoint make_array:ffac5c16 \
   --expect-entrypoint sum_small:384e9976 \
   --expect-entrypoint and_flags:1df89823 \
@@ -74,6 +76,11 @@ interface Vm {
 }
 
 contract ProofForgeIRAbiAggregateSmokeTest {
+    struct Pair {
+        uint256 left;
+        uint256 right;
+    }
+
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     function assertTrue(bool value) internal pure {
@@ -118,6 +125,11 @@ contract ProofForgeIRAbiAggregateSmokeTest {
         uint256[3] memory xs = [uint256(2), uint256(3), uint256(5)];
         assertEq(callU256(probe, abi.encodeWithSignature("sum_array(uint256[3])", xs)), 10);
 
+        Pair[2] memory pairs;
+        pairs[0] = Pair({left: 2, right: 3});
+        pairs[1] = Pair({left: 5, right: 7});
+        assertEq(callU256(probe, abi.encodeWithSignature("sum_pair_array((uint256,uint256)[2])", pairs)), 17);
+
         uint32[2] memory smalls = [uint32(17), uint32(19)];
         assertEq(callU256(probe, abi.encodeWithSignature("sum_small(uint32[2])", smalls)), 36);
 
@@ -147,6 +159,24 @@ contract ProofForgeIRAbiAggregateSmokeTest {
         assertEq(ys[0], 5);
         assertEq(ys[1], 8);
         assertEq(ys[2], 13);
+
+        Pair[2] memory pairs = abi.decode(
+            callBytes(
+                probe,
+                abi.encodeWithSignature(
+                    "make_pair_array(uint256,uint256,uint256,uint256)",
+                    uint256(1),
+                    uint256(1),
+                    uint256(2),
+                    uint256(3)
+                )
+            ),
+            (Pair[2])
+        );
+        assertEq(pairs[0].left, 1);
+        assertEq(pairs[0].right, 1);
+        assertEq(pairs[1].left, 2);
+        assertEq(pairs[1].right, 3);
     }
 
     function testIRAbiAggregateRejectsMalformedCalldata() public {
@@ -156,6 +186,15 @@ contract ProofForgeIRAbiAggregateSmokeTest {
         bytes4 sumArraySelector = bytes4(keccak256("sum_array(uint256[3])"));
         (bool shortArrayOk,) = probe.call(abi.encodePacked(sumArraySelector, uint256(1)));
         assertFalse(shortArrayOk);
+
+        bytes4 sumPairArraySelector = bytes4(keccak256("sum_pair_array((uint256,uint256)[2])"));
+        (bool shortPairArrayOk,) = probe.call(abi.encodePacked(
+            sumPairArraySelector,
+            uint256(1),
+            uint256(2),
+            uint256(3)
+        ));
+        assertFalse(shortPairArrayOk);
 
         bytes4 sumSmallSelector = bytes4(keccak256("sum_small(uint32[2])"));
         (bool overflowU32Ok,) = probe.call(abi.encodePacked(

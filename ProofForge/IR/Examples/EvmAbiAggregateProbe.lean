@@ -62,6 +62,25 @@ def sumArray : Entrypoint := {
   ]
 }
 
+def sumPairArray : Entrypoint := {
+  name := "sum_pair_array"
+  selector? := some "10e4c1da"
+  params := #[
+    ("pairs", .fixedArray (.structType "Pair") 2)
+  ]
+  returns := .u64
+  body := #[
+    .return (.add
+      (.add
+        (.field (.arrayGet (.local "pairs") (u64 0)) "left")
+        (.field (.arrayGet (.local "pairs") (u64 0)) "right"))
+      (.add
+        (.field (.arrayGet (.local "pairs") (u64 1)) "left")
+        (.field (.arrayGet (.local "pairs") (u64 1)) "right"))
+    )
+  ]
+}
+
 def makePair : Entrypoint := {
   name := "make_pair"
   selector? := some "ef51ff62"
@@ -72,6 +91,25 @@ def makePair : Entrypoint := {
   returns := .structType "Pair"
   body := #[
     .return (pair (.local "left") (.local "right"))
+  ]
+}
+
+def makePairArray : Entrypoint := {
+  name := "make_pair_array"
+  selector? := some "617df171"
+  params := #[
+    ("a", .u64),
+    ("b", .u64),
+    ("c", .u64),
+    ("d", .u64)
+  ]
+  returns := .fixedArray (.structType "Pair") 2
+  body := #[
+    .letBind "pairs" (.fixedArray (.structType "Pair") 2) (.arrayLit (.structType "Pair") #[
+      pair (.local "a") (.local "b"),
+      pair (.local "c") (.local "d")
+    ]),
+    .return (.local "pairs")
   ]
 }
 
@@ -122,7 +160,7 @@ def module : Module := {
   name := "EvmAbiAggregateProbe"
   structs := #[pairStruct, flagsStruct]
   state := #[]
-  entrypoints := #[sumPair, sumArray, makePair, makeArray, sumSmall, andFlags]
+  entrypoints := #[sumPair, sumArray, sumPairArray, makePair, makePairArray, makeArray, sumSmall, andFlags]
 }
 
 end ProofForge.IR.Examples.EvmAbiAggregateProbe

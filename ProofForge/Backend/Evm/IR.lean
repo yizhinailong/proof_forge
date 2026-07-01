@@ -170,7 +170,7 @@ def ensureAbiWordType (context : String) (type : ValueType) : Except LowerError 
         message := s!"{context} has unsupported EVM IR v0 ABI word type `{type.name}`; ABI aggregate words support U32, U64, Bool, or Hash"
       }
 
-def abiValueWordTypes (module : Module) (context : String) : ValueType → Except LowerError (Array ValueType)
+partial def abiValueWordTypes (module : Module) (context : String) : ValueType → Except LowerError (Array ValueType)
   | .u32 => .ok #[.u32]
   | .u64 => .ok #[.u64]
   | .bool => .ok #[.bool]
@@ -180,10 +180,22 @@ def abiValueWordTypes (module : Module) (context : String) : ValueType → Excep
   | .fixedArray elementType length => do
       if length == 0 then
         .error { message := s!"{context} uses Array<{elementType.name},0>; IR EVM v0 ABI fixed arrays must have non-zero length" }
-      ensureAbiWordType s!"{context} fixed-array element" elementType
+      match elementType with
+      | .fixedArray _ _ =>
+          .error {
+            message := s!"{context} fixed-array element has unsupported EVM IR v0 ABI aggregate type `{elementType.name}`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+          }
+      | _ => pure ()
+      let elementWords ←
+        match elementType with
+        | .structType _ =>
+            abiValueWordTypes module s!"{context} fixed-array element" elementType
+        | _ => do
+            ensureAbiWordType s!"{context} fixed-array element" elementType
+            .ok #[elementType]
       let mut words : Array ValueType := #[]
       for _h : _idx in [0:length] do
-        words := words.push elementType
+        words := words ++ elementWords
       .ok words
   | .structType typeName => do
       let some decl := module.structs.find? fun decl => decl.name == typeName
@@ -205,10 +217,20 @@ def abiValueParamNames
       .ok #[]
   | .fixedArray elementType length => do
       discard <| abiValueWordTypes module context (.fixedArray elementType length)
-      let mut names : Array String := #[]
-      for _h : index in [0:length] do
-        names := names.push (arrayLocalElementName name index)
-      .ok names
+      match elementType with
+      | .structType typeName => do
+          let some decl := module.structs.find? fun decl => decl.name == typeName
+            | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+          let mut names : Array String := #[]
+          for _h : index in [0:length] do
+            for field in decl.fields do
+              names := names.push (arrayStructLocalFieldName name index field.id)
+          .ok names
+      | _ => do
+          let mut names : Array String := #[]
+          for _h : index in [0:length] do
+            names := names.push (arrayLocalElementName name index)
+          .ok names
   | .structType typeName => do
       discard <| abiValueWordTypes module context (.structType typeName)
       let some decl := module.structs.find? fun decl => decl.name == typeName
@@ -1894,6 +1916,57 @@ def abiReturnTypedNames (module : Module) (entrypoint : Entrypoint) : Except Low
   let names ← abiReturnNames module entrypoint.name entrypoint.returns
   .ok (names.map fun name => ({ name := name } : Lean.Compiler.Yul.TypedName))
 
+def lowerStructArrayReturnWords
+    (module : Module)
+    (env : TypeEnv)
+    (entrypointName typeName : String)
+    (length : Nat)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  discard <| abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.fixedArray (.structType typeName) length)
+  let some decl := findStruct? module typeName
+    | .error { message := s!"entrypoint `{entrypointName}` return value uses unknown struct `{typeName}`" }
+  match value with
+  | .local name => do
+      let (elementType, sourceLength) ← requireLocalFixedArray "entrypoint return value" env name
+      ensureType s!"entrypoint `{entrypointName}` fixed-array return element type" (.structType typeName) elementType
+      if sourceLength != length then
+        .error {
+          message := s!"entrypoint `{entrypointName}` fixed-array return expected length {length}, got {sourceLength}"
+        }
+      let mut words : Array Lean.Compiler.Yul.Expr := #[]
+      for _h : idx in [0:length] do
+        for fieldDecl in decl.fields do
+          ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+          words := words.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName name idx fieldDecl.id))
+      .ok words
+  | .arrayLit literalElementType values => do
+      ensureType s!"entrypoint `{entrypointName}` fixed-array return element type" (.structType typeName) literalElementType
+      if values.size != length then
+        .error {
+          message := s!"entrypoint `{entrypointName}` fixed-array return expected length {length}, got {values.size}"
+        }
+      let mut words : Array Lean.Compiler.Yul.Expr := #[]
+      for h : idx in [0:values.size] do
+        match values[idx] with
+        | .structLit literalTypeName fields => do
+            if literalTypeName != typeName then
+              .error { message := s!"entrypoint `{entrypointName}` fixed-array return expected struct `{typeName}`, got `{literalTypeName}`" }
+            for fieldDecl in decl.fields do
+              ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+              let some field := fields.find? fun field => field.fst == fieldDecl.id
+                | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+              words := words.push (← lowerExpr module env field.snd)
+        | other =>
+            let actualType ← inferExprType module env other
+            .error {
+              message := s!"entrypoint `{entrypointName}` fixed-array return element {idx} expected struct literal `{typeName}`, got `{actualType.name}`"
+            }
+      .ok words
+  | _ =>
+      .error {
+        message := s!"entrypoint `{entrypointName}` fixed-array returns in IR EVM v0 support local fixed-array values or array literals only"
+      }
+
 def lowerFixedArrayReturnWords
     (module : Module)
     (env : TypeEnv)
@@ -1902,26 +1975,36 @@ def lowerFixedArrayReturnWords
     (length : Nat)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
   discard <| abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.fixedArray elementType length)
-  match value with
-  | .local name => do
-      let mut words : Array Lean.Compiler.Yul.Expr := #[]
-      for h : idx in [0:length] do
-        words := words.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
-      .ok words
-  | .arrayLit literalElementType values => do
-      ensureType s!"entrypoint `{entrypointName}` fixed-array return element type" elementType literalElementType
-      if values.size != length then
-        .error {
-          message := s!"entrypoint `{entrypointName}` fixed-array return expected length {length}, got {values.size}"
-        }
-      let mut words : Array Lean.Compiler.Yul.Expr := #[]
-      for h : idx in [0:values.size] do
-        words := words.push (← lowerExpr module env values[idx])
-      .ok words
-  | _ =>
-      .error {
-        message := s!"entrypoint `{entrypointName}` fixed-array returns in IR EVM v0 support local fixed-array values or array literals only"
-      }
+  match elementType with
+  | .structType typeName =>
+      lowerStructArrayReturnWords module env entrypointName typeName length value
+  | _ => do
+      match value with
+      | .local name => do
+          let (sourceElementType, sourceLength) ← requireLocalFixedArray "entrypoint return value" env name
+          ensureType s!"entrypoint `{entrypointName}` fixed-array return element type" elementType sourceElementType
+          if sourceLength != length then
+            .error {
+              message := s!"entrypoint `{entrypointName}` fixed-array return expected length {length}, got {sourceLength}"
+            }
+          let mut words : Array Lean.Compiler.Yul.Expr := #[]
+          for h : idx in [0:length] do
+            words := words.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
+          .ok words
+      | .arrayLit literalElementType values => do
+          ensureType s!"entrypoint `{entrypointName}` fixed-array return element type" elementType literalElementType
+          if values.size != length then
+            .error {
+              message := s!"entrypoint `{entrypointName}` fixed-array return expected length {length}, got {values.size}"
+            }
+          let mut words : Array Lean.Compiler.Yul.Expr := #[]
+          for h : idx in [0:values.size] do
+            words := words.push (← lowerExpr module env values[idx])
+          .ok words
+      | _ =>
+          .error {
+            message := s!"entrypoint `{entrypointName}` fixed-array returns in IR EVM v0 support local fixed-array values or array literals only"
+          }
 
 def lowerStructReturnWords
     (module : Module)
