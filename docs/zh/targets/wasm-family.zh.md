@@ -35,16 +35,17 @@ Lean contract
 
 ## NEAR
 
-本地 Lean 分叉已经证明了 NEAR 的形态：
+详见 [Wasm-NEAR 目标](../targets/wasm-near.md)（英文）获取完整实现设计。
 
-```text
-Lean.Near
-  -> EmitZig
-  -> tools/zigc-near
-  -> near_contract_root.zig
-  -> host/near/lean_near.zig
-  -> NEAR-compatible Wasm
-```
+存在两条路径：
+
+1. **未来规范路径**（来自本地 Lean 分叉）：
+   `Lean.Near → EmitZig → tools/zigc-near → host/near/lean_near.zig → Wasm`
+   — 受限于缺失的 EmitZig 分叉和 Zig 宿主桥接源码。
+
+2. **当前仓库内 v0 路径**（Rust `near-sdk-rs` 源码生成）：
+   `Portable IR → near-sdk-rs package → cargo wasm32 → Wasm`
+   — 现在即可验证 NEAR 语义；保留 Zig 路径供后续恢复。
 
 关键经验：
 
@@ -53,12 +54,6 @@ Lean.Near
 - 方法导出可以从 sidecar 元数据生成。
 - 针对目标 VM，可能需要剥离或桩化 (stubbing) WASI 导入。
 - NEAR 的存储模型是隐式合约 KV 存储。
-
-移植前的设计清理：
-
-- 不要在通用的 EmitZig extern 列表中保留 `lean_near_*` 声明。
-- 不要为每个 Wasm 目标强制链接 NEAR 宿主代码。
-- 将方法元数据移入统一的目标清单。
 
 ## CosmWasm
 

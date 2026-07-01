@@ -38,18 +38,19 @@ Target-specific work:
 
 ## NEAR
 
-The local Lean fork already proves the NEAR shape:
+See [Wasm-NEAR target](wasm-near.md) for the full implementation design.
 
-```text
-Lean.Near
-  -> EmitZig
-  -> tools/zigc-near
-  -> near_contract_root.zig
-  -> host/near/lean_near.zig
-  -> NEAR-compatible Wasm
-```
+Two paths exist:
 
-Key lessons:
+1. **Future canonical path** (from the local Lean fork):
+   `Lean.Near → EmitZig → tools/zigc-near → host/near/lean_near.zig → Wasm`
+   — blocked on missing EmitZig fork and Zig host bridge sources.
+
+2. **Current in-repo v0 path** (Rust `near-sdk-rs` source generation):
+   `Portable IR → near-sdk-rs package → cargo wasm32 → Wasm`
+   — validates NEAR semantics now; preserves the Zig path for later.
+
+Key lessons from the fork:
 
 - The Lean SDK can expose chain operations through `@[extern]`.
 - The Zig host bridge should convert Lean objects into target host calls.

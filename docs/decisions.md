@@ -34,6 +34,8 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-022 | 2026-07-01 | Classify **`zcash-shielded`** as a docs-first privacy UTXO/ZK payment Research candidate | Zcash is Bitcoin-derived but shielded support depends on Sapling/Orchard notes, nullifiers, anchors, value-balance constraints, viewing/disclosure policy, and protocol-defined ZK proofs; registry changes wait until shielded-note capabilities and a proving/validation boundary are reviewed |
 | D-023 | 2026-07-01 | Classify **`aleo-leo`** as a docs-first Aleo ZK application sourcegen Research candidate | Aleo programs combine private off-chain proof execution, public on-chain finalization, encrypted records, public mappings/storage, Aleo Instructions, Aleo VM bytecode, ABI, prover/verifier artifacts, and execute/deploy transactions; registry changes wait until the proof/finalization split is reviewed |
 | D-024 | 2026-07-01 | Model Robinhood Chain as **`robinhood-chain-testnet`**, an EVM-compatible chain profile under `evm`, not a new compiler target | Robinhood Chain executes EVM-compatible Arbitrum Orbit L2 contracts; ProofForge's EVM backend covers bytecode generation, while the chain profile records chain id, RPC, explorer, verifier, rollup, and deployment metadata |
+| D-025 | 2026-07-01 | Adopt Rust `near-sdk-rs` source generation as the in-repo `wasm-near` v0 backend | The EmitZig/Zig host bridge sources are not present in the repository; portable IR → near-sdk-rs package → cargo wasm32 validates NEAR semantics now and preserves the Zig host-bridge path for restoration later |
+| D-026 | 2026-07-01 | `wasm-near` v0 supports `Hash` map keys, `.assertions.check`, and `.account.explicit` | Required by existing `MapProbe` (Hash keys, `assertEq`) and `ContextProbe` (`contractId`) fixtures; `.crosscall.invoke` remains unsupported for sourcegen v0 |
 
 ## Target Family Classification
 
@@ -91,6 +93,7 @@ Detailed tasks: [Implementation backlog](implementation-backlog.md).
 | Counter shared scenario | [shared-scenario.md](shared-scenario.md) |
 | Target engineering shape | [RFC 0002](rfcs/0002-target-implementation-design.md) |
 | CosmWasm SDK spike sketch | [targets/wasm-family.md](targets/wasm-family.md) |
+| Wasm-NEAR sourcegen target | [targets/wasm-near.md](targets/wasm-near.md) |
 | Stellar/Soroban target candidate | [targets/stellar-soroban.md](targets/stellar-soroban.md) |
 | Internet Computer target candidate | [targets/internet-computer.md](targets/internet-computer.md) |
 | Algorand AVM target candidate | [targets/algorand-avm.md](targets/algorand-avm.md) |

@@ -76,6 +76,7 @@ DOC_MAP: dict[str, str] = {
     "docs/targets/README.md": "docs/zh/targets-README.zh.md",
     "docs/targets/evm.md": "docs/zh/targets/evm.zh.md",
     "docs/targets/wasm-family.md": "docs/zh/targets/wasm-family.zh.md",
+    "docs/targets/wasm-near.md": "docs/zh/targets/wasm-near.zh.md",
     "docs/targets/solana-sbf.md": "docs/zh/targets/solana-sbf.zh.md",
     "docs/targets/move-family.md": "docs/zh/targets/move-family.zh.md",
     "Examples/Evm/README.md": "docs/zh/examples-evm-README.zh.md",

@@ -4,6 +4,7 @@ import Lean.Elab.Frontend
 import Lean.Util.Path
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Psy.IR
+import ProofForge.Backend.WasmNear
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -127,6 +128,10 @@ inductive EmitMode where
   | u32HashPackingIrPsy
   | u32StorageScalarIrPsy
   | u32StorageArrayIrPsy
+  | counterIrWasmNear
+  | contextIrWasmNear
+  | hashIrWasmNear
+  | mapIrWasmNear
   deriving BEq, Inhabited
 
 structure CliOptions where
@@ -216,6 +221,10 @@ def usage : String :=
     "  proof-forge --emit-u32-hash-packing-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-storage-scalar-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-storage-array-ir-psy [-o output.psy]",
+    "  proof-forge --emit-counter-ir-wasm-near -o output-dir",
+    "  proof-forge --emit-context-ir-wasm-near -o output-dir",
+    "  proof-forge --emit-hash-ir-wasm-near -o output-dir",
+    "  proof-forge --emit-map-ir-wasm-near -o output-dir",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "IR fixture modes render hand-written portable IR fixtures to target source or bytecode."
@@ -645,7 +654,7 @@ def writeEvmSdkArtifactMetadata
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy || opts.mode == .counterIrWasmNear || opts.mode == .contextIrWasmNear || opts.mode == .hashIrWasmNear || opts.mode == .mapIrWasmNear then
         .ok opts
       else
         .error usage
@@ -810,6 +819,14 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .u32StorageScalarIrPsy }
   | "--emit-u32-storage-array-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .u32StorageArrayIrPsy }
+  | "--emit-counter-ir-wasm-near" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrWasmNear }
+  | "--emit-context-ir-wasm-near" :: rest, opts =>
+      parseArgs rest { opts with mode := .contextIrWasmNear }
+  | "--emit-hash-ir-wasm-near" :: rest, opts =>
+      parseArgs rest { opts with mode := .hashIrWasmNear }
+  | "--emit-map-ir-wasm-near" :: rest, opts =>
+      parseArgs rest { opts with mode := .mapIrWasmNear }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -835,6 +852,13 @@ def writeTextFile (path : FilePath) (contents : String) : IO Unit := do
   if let some parent := path.parent then
     IO.FS.createDirAll parent
   IO.FS.writeFile path contents
+
+def writeNearPackage (outputDir : FilePath) (pkg : ProofForge.Backend.WasmNear.IR.NearPackage) : IO Unit := do
+  for file in pkg.files do
+    let path := outputDir / file.path
+    if let some parent := path.parent then
+      IO.FS.createDirAll parent
+    IO.FS.writeFile path file.content
 
 unsafe def emitYulFile (opts : CliOptions) (input output : FilePath) (methods : Array MethodSpec) : IO Unit := do
   enableInitializersExecution
@@ -1682,6 +1706,49 @@ def compileU32StorageArrayIrPsy (opts : CliOptions) : IO UInt32 := do
       return 0
   | .error err =>
       throw <| IO.userError err.render
+def compileCounterIrWasmNear (opts : CliOptions) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.Counter.module with
+  | .ok pkg =>
+      writeNearPackage output pkg
+      IO.println s!"wrote wasm-near Counter package to {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileContextIrWasmNear (opts : CliOptions) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.ContextProbe.module with
+  | .ok pkg =>
+      writeNearPackage output pkg
+      IO.println s!"wrote wasm-near ContextProbe package to {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileHashIrWasmNear (opts : CliOptions) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.HashProbe.module with
+  | .ok pkg =>
+      writeNearPackage output pkg
+      IO.println s!"wrote wasm-near HashProbe package to {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileMapIrWasmNear (opts : CliOptions) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.MapProbe.module with
+  | .ok pkg =>
+      writeNearPackage output pkg
+      IO.println s!"wrote wasm-near MapProbe package to {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
 
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
@@ -1775,6 +1842,10 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .u32HashPackingIrPsy => compileU32HashPackingIrPsy opts
   | .u32StorageScalarIrPsy => compileU32StorageScalarIrPsy opts
   | .u32StorageArrayIrPsy => compileU32StorageArrayIrPsy opts
+  | .counterIrWasmNear => compileCounterIrWasmNear opts
+  | .contextIrWasmNear => compileContextIrWasmNear opts
+  | .hashIrWasmNear => compileHashIrWasmNear opts
+  | .mapIrWasmNear => compileMapIrWasmNear opts
 
 end ProofForge.Cli
 

@@ -95,11 +95,12 @@ def wasmNear : TargetProfile := {
     .callerSender,
     .valueNative,
     .eventsEmit,
-    .crosscallInvoke,
     .envBlock,
-    .cryptoHash
+    .cryptoHash,
+    .accountExplicit,
+    .assertions
   ]
-  requiredTools := #["zig"]
+  requiredTools := #["rustup", "cargo", "near-cli"]
 }
 
 def wasmCosmWasm : TargetProfile := {

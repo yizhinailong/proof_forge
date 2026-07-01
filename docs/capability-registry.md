@@ -27,15 +27,15 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 | `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | Y | P |
 | `value.native` | Native token attached to call | Y | Y | Y | Y | Y | Y | P |
 | `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | Y |
-| `crosscall.invoke` | Call another contract/program | Y | Y | Y | Y | Y | Y | P |
-| `env.block` | Block height/time/chain id reads | Y | P | P | P | P | P | P |
+| `crosscall.invoke` | Call another contract/program | Y | N | Y | Y | Y | Y | P |
+| `env.block` | Block height/time/chain id reads | Y | Y | P | P | P | P | P |
 | `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | P | N | N | N | N | N | P |
 | `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | N | N | N | P |
 | `data.fixed_array` | Fixed-size array value type, literals, and index expressions | P | N | N | N | N | N | P |
 | `data.struct` | Struct value type, literals, and field access | P | N | N | N | N | N | P |
 | `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y | Y |
-| `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | N | N | N | N | N | P |
-| `account.explicit` | Named account/object/resource binding | P | N | N | Y | Y | Y | P |
+| `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | Y | N | N | N | N | P |
+| `account.explicit` | Named account/object/resource binding | P | Y | N | Y | Y | Y | P |
 | `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N |
 | `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N | N |
 | `zk.circuit` | Compile entrypoints into target circuit definitions | N | N | N | N | N | N | Y |
