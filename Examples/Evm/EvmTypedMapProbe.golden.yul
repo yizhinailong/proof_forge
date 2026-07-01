@@ -30,6 +30,17 @@ object "EvmTypedMapProbe" {
       f_EvmTypedMapProbe_write_score(calldataload(4), calldataload(36))
       return(0, 0)
     }
+    case 0x40bbd11a {
+      if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 4294967295) {
+        revert(0, 0)
+      }
+      let _r := f_EvmTypedMapProbe_contains_score(calldataload(4))
+      mstore(0, _r)
+      return(0, 32)
+    }
     case 0x7c7d06af {
       if lt(calldatasize(), 36) {
         revert(0, 0)
@@ -55,6 +66,17 @@ object "EvmTypedMapProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x430d2c8d {
+      if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1) {
+        revert(0, 0)
+      }
+      let _r := f_EvmTypedMapProbe_contains_flag(calldataload(4))
+      mstore(0, _r)
+      return(0, 32)
+    }
     case 0xca27ec99 {
       if lt(calldatasize(), 36) {
         revert(0, 0)
@@ -68,6 +90,14 @@ object "EvmTypedMapProbe" {
         revert(0, 0)
       }
       let _r := f_EvmTypedMapProbe_set_root(calldataload(4), calldataload(36))
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x1f24b6db {
+      if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      let _r := f_EvmTypedMapProbe_contains_root(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
@@ -117,17 +147,26 @@ object "EvmTypedMapProbe" {
     function f_EvmTypedMapProbe_write_score(key, value) {
       __proof_forge_map_write(0, key, value)
     }
+    function f_EvmTypedMapProbe_contains_score(key) -> result {
+      result := iszero(iszero(sload(__proof_forge_map_presence_slot(0, key))))
+    }
     function f_EvmTypedMapProbe_read_flag(key) -> result {
       result := sload(__proof_forge_map_slot(1, key))
     }
     function f_EvmTypedMapProbe_set_flag(key, value) -> result {
       result := __proof_forge_map_set_return(1, key, value)
     }
+    function f_EvmTypedMapProbe_contains_flag(key) -> result {
+      result := iszero(iszero(sload(__proof_forge_map_presence_slot(1, key))))
+    }
     function f_EvmTypedMapProbe_read_root(key) -> result {
       result := sload(__proof_forge_map_slot(2, key))
     }
     function f_EvmTypedMapProbe_set_root(key, value) -> result {
       result := __proof_forge_map_set_return(2, key, value)
+    }
+    function f_EvmTypedMapProbe_contains_root(key) -> result {
+      result := iszero(iszero(sload(__proof_forge_map_presence_slot(2, key))))
     }
     function f_EvmTypedMapProbe_path_assign_score() -> result {
       __proof_forge_map_write(0, 9, 10)
@@ -140,22 +179,34 @@ object "EvmTypedMapProbe" {
       mstore(32, slot)
       result := keccak256(0, 64)
     }
+    function __proof_forge_map_presence_slot(slot, key) -> result {
+      mstore(0, slot)
+      mstore(32, 1969478005224772198022937154314036040895674356107534287685)
+      let _presence_slot := keccak256(0, 64)
+      mstore(0, key)
+      mstore(32, _presence_slot)
+      result := keccak256(0, 64)
+    }
     function __proof_forge_map_write(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
       sstore(_slot, value)
+      sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_set_return(slot, key, value) -> old {
       let _slot := __proof_forge_map_slot(slot, key)
       old := sload(_slot)
       sstore(_slot, value)
+      sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_assign_add(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
       sstore(_slot, add(sload(_slot), value))
+      sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_assign_mul(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
       sstore(_slot, mul(sload(_slot), value))
+      sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
   }
 }

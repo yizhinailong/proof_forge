@@ -150,7 +150,7 @@ Tasks:
   Solidity-style `keccak256(key, slot)` mapping slots, with `EvmMapProbe`
   golden Yul, solc bytecode, Foundry runtime/raw-slot validation, metadata
   capability validation, and explicit diagnostics for unsupported map shapes
-  and `contains`.
+  and statement-position misuse.
 - Done: add EVM IR single-segment `mapKey` storage path compound assignment
   over `Map<U64, U64, N>`, with `EvmMapProbe` golden Yul, solc bytecode,
   Foundry runtime/raw-slot validation, metadata capability validation, and
@@ -160,7 +160,13 @@ Tasks:
   mapping slots, with `EvmTypedMapProbe` golden Yul, solc bytecode, Foundry
   runtime/raw-slot validation, `U32`/`Bool` calldata guards, metadata
   capability validation, CI coverage, and explicit diagnostics for non-word map
-  shapes and `contains`.
+  shapes.
+- Done: add EVM IR `storage.map.contains` lowering through ProofForge-managed
+  presence slots rooted at `keccak256(slot || PROOF_FORGE_MAP_PRESENCE)`,
+  with `EvmMapProbe` and `EvmTypedMapProbe` golden Yul, solc bytecode, Foundry
+  value/presence-slot validation for U64/U32/Bool/Hash maps, zero-valued
+  present-key coverage, metadata validation, and explicit diagnostics for
+  statement-position misuse.
 - Done: add EVM IR `U64` fixed storage array lowering as contiguous storage
   slots with runtime bounds checks, with `EvmStorageArrayProbe` golden Yul,
   solc bytecode, Foundry runtime/raw-slot validation, metadata capability

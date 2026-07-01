@@ -309,9 +309,9 @@ def storageScalarAssignModule : Module := {
   ]]
 }
 
-def storageMapContainsModule : Module :=
-  selectedMapModule "BadStorageMapContains" <| selectedReturnEntrypoint "bad" .bool #[
-    .return (.effect (.storageMapContains "balances" (.literal (.u64 1))))
+def storageMapContainsStatementModule : Module :=
+  selectedMapModule "BadStorageMapContainsStatement" <| selectedEntrypoint "bad" #[
+    .effect (.storageMapContains "balances" (.literal (.u64 1)))
   ]
 
 def storagePathEmptyModule : Module :=
@@ -548,9 +548,9 @@ def cases : Array (String × Module × String) := #[
     "compound assignment addition expects matching numeric operands, got `Hash` and `Hash`"
   ),
   (
-    "storage map contains unsupported",
-    storageMapContainsModule,
-    "storage.map.contains is not supported by IR EVM v0 because EVM mappings do not track key presence"
+    "storage map contains statement misuse",
+    storageMapContainsStatementModule,
+    "storage.map.contains must be used as an expression"
   ),
   (
     "storage path missing map key",

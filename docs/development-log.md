@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Storage Map Contains
+
+Commit: feature commit for EVM IR storage map contains
+
+Summary:
+
+- Lowered `storage.map.contains` for EVM portable IR through
+  ProofForge-managed presence slots instead of treating nonzero map values as
+  presence.
+- Added `__proof_forge_map_presence_slot(slot, key)`, rooted at
+  `keccak256(slot || PROOF_FORGE_MAP_PRESENCE)`, while preserving the existing
+  Solidity-style value slot `keccak256(key || slot)`.
+- Updated map insert/set, map statement writes, and map storage-path compound
+  assignment helpers to mark key presence whenever ProofForge writes a map key.
+- Extended `EvmMapProbe` with U64 contains coverage, including a zero-valued
+  present key, and extended `EvmTypedMapProbe` with U32/Bool/Hash contains
+  entrypoints.
+- Updated diagnostics so statement-position `storage.map.contains` fails with
+  an expression-only diagnostic instead of an unsupported-capability error.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR proof-forge
+scripts/evm/map-ir-smoke.sh
+scripts/evm/typed-map-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- Presence tracks keys written through ProofForge-generated map helpers; raw
+  external storage mutation outside those helpers can still bypass the
+  presence mapping.
+- Nested map paths and aggregate/non-word map key/value shapes remain explicit
+  diagnostics.
+
+Next step:
+
+- Continue shrinking the remaining EVM aggregate unsupported surface, likely
+  around nested aggregate locals, richer event schemas, or broader cross-call
+  return data.
+
 ### EVM IR Whole Local Aggregate Assignment
 
 Commit: feature commit for EVM IR whole local aggregate assignment

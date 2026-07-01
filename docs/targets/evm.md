@@ -163,7 +163,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | Capability id | SDK / IR surface |
 |---|---|
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, and flat scalar storage struct field read/write |
-| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`) |
+| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks |
 | `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, flat static fixed-array ABI parameters, and multi-word fixed-array returns; zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
 | `data.struct` | Partial: portable IR flat immutable and mutable local struct values, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters, multi-word struct returns, flat scalar storage structs, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields, whole-struct storage reads/writes, and unsupported field shapes still reject explicitly |
@@ -209,9 +209,11 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   IR EVM backend currently supports scalar storage/ABI, assertions, local
   assignment, local compound assignment, scalar storage compound assignment,
   conditionals, context reads, events, `Hash` word values and hashing,
-  word key/value `Map<K, V, N>` storage, `Bool`/`U32`/`U64`/`Hash` fixed
+  word key/value `Map<K, V, N>` storage including managed key presence,
+  `Bool`/`U32`/`U64`/`Hash` fixed
   storage arrays, flat scalar storage structs, fixed storage arrays of flat
-  structs, immutable and mutable local fixed-array values with static indexes,
+  structs, immutable and mutable local fixed-array values with static and
+  dynamic indexes,
   flat immutable and mutable local struct values over scalar/hash fields, flat
   static aggregate ABI parameters and returns, synchronous word-returning
   `crosscallInvoke`, and static bounded loops. It rejects wider portable IR
@@ -221,9 +223,6 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   storage reads/writes, nested local structs, indexed/Solidity-signature event schemas,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
   return data, and real creation-transaction or broadcast manifests.
-- `storage.map.contains` remains explicitly unsupported because EVM mappings do
-  not track key presence without an auxiliary bitmap.
-
 ## Portable IR Gates
 
 The portable IR EVM backend is tracked separately from the older
@@ -364,26 +363,30 @@ capability `assertions.check`, Foundry runtime results, malformed calldata
 reverts, and unknown-selector reverts.
 
 `EvmMapProbe` validates portable IR `Map<U64, U64, N>` storage through the same
-Solidity-style slot layout used by the SDK: `keccak256(key || slot)` after
-writing `key` and `slot` as two 32-byte memory words. The smoke checks golden
-Yul reproducibility, `solc --strict-assembly` bytecode generation, metadata
+Solidity-style value slot layout used by the SDK: `keccak256(key || slot)` after
+writing `key` and `slot` as two 32-byte memory words. `storage.map.contains`
+uses a ProofForge-managed presence mapping rooted at
+`keccak256(slot || PROOF_FORGE_MAP_PRESENCE)` so inserted or set keys remain
+present even when their stored value is zero. The smoke checks golden Yul
+reproducibility, `solc --strict-assembly` bytecode generation, metadata
 capabilities (`storage.scalar`, `storage.map`, `assertions.check`), ABI
-get/set/insert behavior, single-segment `mapKey` storage path reads, writes,
-and compound assignment, raw Foundry `vm.load` storage slots, and
-unknown-selector revert behavior. EVM IR v0 still keeps map paths scoped to a
-single `mapKey`; nested map/aggregate storage paths remain explicit
-diagnostics.
+get/set/insert/contains behavior, single-segment `mapKey` storage path reads,
+writes, and compound assignment, raw Foundry `vm.load` value and presence
+storage slots, and unknown-selector revert behavior. EVM IR v0 still keeps map
+paths scoped to a single `mapKey`; nested map/aggregate storage paths remain
+explicit diagnostics.
 
 `EvmTypedMapProbe` extends the same mapping slot layout to word key/value maps.
 It validates `U32`, `Bool`, and `Hash` map keys and values using the same
-`keccak256(key || slot)` helper, with one declared mapping slot per state. The
-smoke checks golden Yul reproducibility, `solc --strict-assembly` bytecode
-generation, metadata capabilities (`storage.scalar`, `storage.map`,
-`assertions.check`), ABI dispatcher guards for `U32` and `Bool` map parameters,
-statement and expression map writes, previous-value returns, `Hash`/`bytes32`
-map values, single-segment `mapKey` path reads/writes, numeric `U32` map-path
-compound assignment, raw Foundry `vm.load` storage slots, and unknown-selector
-revert behavior. `storage.map.contains`, nested map paths, and aggregate or
+`keccak256(key || slot)` helper, with one declared mapping slot per state and a
+domain-separated presence mapping for `contains`. The smoke checks golden Yul
+reproducibility, `solc --strict-assembly` bytecode generation, metadata
+capabilities (`storage.scalar`, `storage.map`, `assertions.check`), ABI
+dispatcher guards for `U32` and `Bool` map parameters, statement and expression
+map writes, previous-value returns, `Hash`/`bytes32` map values,
+single-segment `mapKey` path reads/writes, numeric `U32` map-path compound
+assignment, typed `contains`, raw Foundry `vm.load` value and presence storage
+slots, and unknown-selector revert behavior. Nested map paths and aggregate or
 non-word key/value shapes remain explicit diagnostics.
 
 `EvmStorageArrayProbe` validates portable IR `U64` fixed storage arrays through

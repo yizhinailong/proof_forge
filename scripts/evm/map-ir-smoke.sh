@@ -46,6 +46,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint read_balance:68eb1eef \
   --expect-entrypoint upsert_balance:e1de6ac8 \
   --expect-entrypoint set_balance:b41d1f5c \
+  --expect-entrypoint contains_lifecycle:a0c7a60a \
+  --expect-entrypoint contains_balance:4c136189 \
   --expect-entrypoint path_lifecycle:84c21205 \
   --expect-entrypoint path_assign_lifecycle:bce9e77b \
   "$METADATA_FILE"
@@ -78,6 +80,7 @@ interface Vm {
 
 contract ProofForgeIRMapSmokeTest {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+    uint256 constant MAP_PRESENCE_DOMAIN = 0x50524f4f465f464f5247455f4d41505f50524553454e4345;
 
     function assertTrue(bool value) internal pure {
         require(value, "assertTrue failed");
@@ -99,6 +102,11 @@ contract ProofForgeIRMapSmokeTest {
         return keccak256(abi.encode(key, uint256(1)));
     }
 
+    function mapPresenceSlot(uint256 key) internal pure returns (bytes32) {
+        bytes32 presenceBase = keccak256(abi.encode(uint256(1), MAP_PRESENCE_DOMAIN));
+        return keccak256(abi.encode(key, uint256(presenceBase)));
+    }
+
     function readStorage(address target, bytes32 slot) internal view returns (uint256) {
         return uint256(vm.load(target, slot));
     }
@@ -107,6 +115,12 @@ contract ProofForgeIRMapSmokeTest {
         (bool ok, bytes memory result) = probe.call(payload);
         assertTrue(ok);
         return abi.decode(result, (uint256));
+    }
+
+    function callBool(address probe, bytes memory payload) internal returns (bool) {
+        (bool ok, bytes memory result) = probe.call(payload);
+        assertTrue(ok);
+        return abi.decode(result, (bool));
     }
 
     function testIRMapLifecycleUsesSolidityMappingSlot() public {
@@ -120,6 +134,7 @@ contract ProofForgeIRMapSmokeTest {
         assertEq(readStorage(probe, bytes32(uint256(1))), 0);
         assertEq(readStorage(probe, bytes32(uint256(2))), 222);
         assertEq(readStorage(probe, mapSlot(1001)), 55);
+        assertEq(readStorage(probe, mapPresenceSlot(1001)), 1);
     }
 
     function testIRMapParameterizedReadWrite() public {
@@ -138,6 +153,18 @@ contract ProofForgeIRMapSmokeTest {
         assertEq(result.length, 0);
         assertEq(callU256(probe, abi.encodeWithSignature("read_balance(uint256)", 9001)), 789);
         assertEq(readStorage(probe, mapSlot(9001)), 789);
+        assertEq(readStorage(probe, mapPresenceSlot(9001)), 1);
+    }
+
+    function testIRMapContainsUsesPresenceSlots() public {
+        address probe = address(uint160(0xE115));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertFalse(callBool(probe, abi.encodeWithSignature("contains_balance(uint256)", 1001)));
+        assertEq(callU256(probe, abi.encodeWithSignature("contains_lifecycle()")), 99);
+        assertTrue(callBool(probe, abi.encodeWithSignature("contains_balance(uint256)", 1001)));
+        assertEq(readStorage(probe, mapSlot(1001)), 99);
+        assertEq(readStorage(probe, mapPresenceSlot(1001)), 1);
     }
 
     function testIRMapStoragePath() public {
@@ -146,6 +173,7 @@ contract ProofForgeIRMapSmokeTest {
 
         assertEq(callU256(probe, abi.encodeWithSignature("path_lifecycle()")), 77);
         assertEq(readStorage(probe, mapSlot(2002)), 77);
+        assertEq(readStorage(probe, mapPresenceSlot(2002)), 1);
     }
 
     function testIRMapStoragePathCompoundAssignment() public {
@@ -154,6 +182,7 @@ contract ProofForgeIRMapSmokeTest {
 
         assertEq(callU256(probe, abi.encodeWithSignature("path_assign_lifecycle()")), 58);
         assertEq(readStorage(probe, mapSlot(3003)), 58);
+        assertEq(readStorage(probe, mapPresenceSlot(3003)), 1);
     }
 
     function testIRMapRejectsUnknownSelector() public {

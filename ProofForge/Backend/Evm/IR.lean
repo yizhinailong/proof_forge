@@ -60,6 +60,7 @@ def yulFunctionName (moduleName entrypointName : String) : String :=
   s!"f_{moduleName}_{entrypointName}"
 
 def mapSlotFunctionName : String := "__proof_forge_map_slot"
+def mapPresenceSlotFunctionName : String := "__proof_forge_map_presence_slot"
 def mapWriteFunctionName : String := "__proof_forge_map_write"
 def mapSetReturnFunctionName : String := "__proof_forge_map_set_return"
 def arraySlotFunctionName : String := "__proof_forge_array_slot"
@@ -70,6 +71,9 @@ def crosscallFunctionName (arity : Nat) : String := s!"__proof_forge_crosscall_{
 
 def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
+
+-- ASCII "PROOF_FORGE_MAP_PRESENCE" packed as one EVM word.
+def mapPresenceDomain : Nat := 1969478005224772198022937154314036040895674356107534287685
 
 def checkedHashLiteralLimb (name : String) (value : Nat) : Except LowerError Nat :=
   if value <= maxU64 then
@@ -762,7 +766,7 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
   | .storageScalarAssignOp stateId op value => do
       ensureAssignOpTypes op (← scalarStateType module stateId) (← inferExprType module env value)
   | .storageMapContains _ _ =>
-      .ok ()
+      .error { message := "storage.map.contains must be used as an expression" }
   | .storageMapGet _ _ =>
       .error { message := "storage.map.get must be used as an expression" }
   | .storageMapInsert stateId key value => do
@@ -967,6 +971,20 @@ mutual
       (stateId : String)
       (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerMapSlotExpr module env stateId key])
+
+  partial def lowerMapContainsExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let (slot, _, _) ← requireStorageMapState module stateId
+    .ok (Lean.Compiler.Yul.builtin "iszero" #[
+      Lean.Compiler.Yul.builtin "iszero" #[
+        Lean.Compiler.Yul.builtin "sload" #[
+          Lean.Compiler.Yul.call mapPresenceSlotFunctionName #[slotExpr slot, ← lowerExpr module env key]
+        ]
+      ]
+    ])
 
   partial def lowerMapSetReturnExpr
       (module : Module)
@@ -1179,8 +1197,8 @@ mutual
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
     | .storageScalarAssignOp _ _ _ =>
         .error { message := "storage.scalar.assign_op is a statement effect, not an expression" }
-    | .storageMapContains _ _ =>
-        .error { message := "storage.map.contains is not supported by IR EVM v0 because EVM mappings do not track key presence" }
+    | .storageMapContains stateId key =>
+        lowerMapContainsExpr module env stateId key
     | .storageMapGet stateId key =>
         lowerMapGetExpr module env stateId key
     | .storageMapInsert stateId key value =>
@@ -1353,7 +1371,7 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
         lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[storageSlot]) (← lowerExpr module env value)
       ]))
   | .storageMapContains _ _ =>
-      .error { message := "storage.map.contains must be used as an expression, but EVM mappings do not track key presence" }
+      .error { message := "storage.map.contains must be used as an expression" }
   | .storageMapGet _ _ =>
       .error { message := "storage.map.get must be used as an expression" }
   | .storageMapInsert stateId key value =>
@@ -2029,13 +2047,31 @@ def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
         .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
       ]
     },
+  .funcDef mapPresenceSlotFunctionName
+    #[{ name := "slot" }, { name := "key" }]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "slot"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.num mapPresenceDomain]),
+        .varDecl #[{ name := "_presence_slot" }]
+          (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])),
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "key"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "_presence_slot"]),
+        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
+      ]
+    },
   .funcDef mapWriteFunctionName
     #[{ name := "slot" }, { name := "key" }, { name := "value" }]
     #[]
     {
       statements := #[
         .varDecl #[{ name := "_slot" }] (some (Lean.Compiler.Yul.call mapSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"])),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[Lean.Compiler.Yul.Expr.id "_slot", Lean.Compiler.Yul.Expr.id "value"])
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[Lean.Compiler.Yul.Expr.id "_slot", Lean.Compiler.Yul.Expr.id "value"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          Lean.Compiler.Yul.call mapPresenceSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"],
+          Lean.Compiler.Yul.Expr.num 1
+        ])
       ]
     },
   .funcDef mapSetReturnFunctionName
@@ -2045,7 +2081,11 @@ def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
       statements := #[
         .varDecl #[{ name := "_slot" }] (some (Lean.Compiler.Yul.call mapSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"])),
         .assignment #["old"] (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[Lean.Compiler.Yul.Expr.id "_slot", Lean.Compiler.Yul.Expr.id "value"])
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[Lean.Compiler.Yul.Expr.id "_slot", Lean.Compiler.Yul.Expr.id "value"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          Lean.Compiler.Yul.call mapPresenceSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"],
+          Lean.Compiler.Yul.Expr.num 1
+        ])
       ]
     }
 ]
@@ -2060,6 +2100,10 @@ def mapAssignHelperFunction (op : AssignOp) : Lean.Compiler.Yul.Statement :=
         .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
           Lean.Compiler.Yul.Expr.id "_slot",
           lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (Lean.Compiler.Yul.Expr.id "value")
+        ]),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          Lean.Compiler.Yul.call mapPresenceSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"],
+          Lean.Compiler.Yul.Expr.num 1
         ])
       ]
     }

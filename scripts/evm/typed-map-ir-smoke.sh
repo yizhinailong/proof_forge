@@ -44,10 +44,13 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint typed_map_lifecycle:e4e7feaf \
   --expect-entrypoint read_score:da367450 \
   --expect-entrypoint write_score:d00c2a34 \
+  --expect-entrypoint contains_score:40bbd11a \
   --expect-entrypoint read_flag:7c7d06af \
   --expect-entrypoint set_flag:481794a0 \
+  --expect-entrypoint contains_flag:430d2c8d \
   --expect-entrypoint read_root:ca27ec99 \
   --expect-entrypoint set_root:86370059 \
+  --expect-entrypoint contains_root:1f24b6db \
   --expect-entrypoint path_assign_score:a82c9bea \
   "$METADATA_FILE"
 
@@ -79,6 +82,7 @@ interface Vm {
 
 contract ProofForgeIRTypedMapSmokeTest {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+    uint256 constant MAP_PRESENCE_DOMAIN = 0x50524f4f465f464f5247455f4d41505f50524553454e4345;
 
     function assertTrue(bool value) internal pure {
         require(value, "assertTrue failed");
@@ -104,12 +108,27 @@ contract ProofForgeIRTypedMapSmokeTest {
         return keccak256(abi.encode(key, slotIndex));
     }
 
+    function mapPresenceSlot(uint256 key, uint256 slotIndex) internal pure returns (bytes32) {
+        bytes32 presenceBase = keccak256(abi.encode(slotIndex, MAP_PRESENCE_DOMAIN));
+        return keccak256(abi.encode(key, uint256(presenceBase)));
+    }
+
     function mapSlotBool(bool key, uint256 slotIndex) internal pure returns (bytes32) {
         return keccak256(abi.encode(key, slotIndex));
     }
 
+    function mapPresenceSlotBool(bool key, uint256 slotIndex) internal pure returns (bytes32) {
+        bytes32 presenceBase = keccak256(abi.encode(slotIndex, MAP_PRESENCE_DOMAIN));
+        return keccak256(abi.encode(key, uint256(presenceBase)));
+    }
+
     function mapSlotBytes32(bytes32 key, uint256 slotIndex) internal pure returns (bytes32) {
         return keccak256(abi.encode(key, slotIndex));
+    }
+
+    function mapPresenceSlotBytes32(bytes32 key, uint256 slotIndex) internal pure returns (bytes32) {
+        bytes32 presenceBase = keccak256(abi.encode(slotIndex, MAP_PRESENCE_DOMAIN));
+        return keccak256(abi.encode(key, uint256(presenceBase)));
     }
 
     function packed(uint64 a, uint64 b, uint64 c, uint64 d) internal pure returns (bytes32) {
@@ -154,9 +173,14 @@ contract ProofForgeIRTypedMapSmokeTest {
         assertEq(readStorage(probe, bytes32(uint256(3))), 777);
         assertEq(readStorage(probe, mapSlot(7, 0)), 13);
         assertEq(readStorage(probe, mapSlot(8, 0)), 17);
+        assertEq(readStorage(probe, mapPresenceSlot(7, 0)), 1);
+        assertEq(readStorage(probe, mapPresenceSlot(8, 0)), 1);
         assertEq(readStorage(probe, mapSlotBool(true, 1)), 1);
         assertEq(readStorage(probe, mapSlotBool(false, 1)), 0);
+        assertEq(readStorage(probe, mapPresenceSlotBool(true, 1)), 1);
+        assertEq(readStorage(probe, mapPresenceSlotBool(false, 1)), 1);
         assertEq(vm.load(probe, mapSlotBytes32(rootA, 2)), rootB);
+        assertEq(readStorage(probe, mapPresenceSlotBytes32(rootA, 2)), 1);
     }
 
     function testIRU32MapReadWriteGuardsCalldata() public {
@@ -165,16 +189,19 @@ contract ProofForgeIRTypedMapSmokeTest {
 
         uint256 maxU32 = uint256(type(uint32).max);
         assertEq(callU256(probe, abi.encodeWithSignature("read_score(uint256)", 99)), 0);
+        assertFalse(callBool(probe, abi.encodeWithSignature("contains_score(uint256)", 99)));
 
         (bool writeOk, bytes memory result) =
             probe.call(abi.encodeWithSignature("write_score(uint256,uint256)", maxU32, maxU32));
         assertTrue(writeOk);
         assertEq(result.length, 0);
         assertEq(callU256(probe, abi.encodeWithSignature("read_score(uint256)", maxU32)), maxU32);
+        assertTrue(callBool(probe, abi.encodeWithSignature("contains_score(uint256)", maxU32)));
         assertEq(readStorage(probe, mapSlot(maxU32, 0)), maxU32);
+        assertEq(readStorage(probe, mapPresenceSlot(maxU32, 0)), 1);
 
         (bool keyRangeOk,) =
-            probe.call(abi.encodeWithSignature("read_score(uint256)", maxU32 + 1));
+            probe.call(abi.encodeWithSignature("contains_score(uint256)", maxU32 + 1));
         assertFalse(keyRangeOk);
 
         (bool valueRangeOk,) =
@@ -188,11 +215,14 @@ contract ProofForgeIRTypedMapSmokeTest {
 
         assertFalse(callBool(probe, abi.encodeWithSignature("set_flag(bool,bool)", true, true)));
         assertTrue(callBool(probe, abi.encodeWithSignature("read_flag(bool)", true)));
+        assertTrue(callBool(probe, abi.encodeWithSignature("contains_flag(bool)", true)));
         assertTrue(callBool(probe, abi.encodeWithSignature("set_flag(bool,bool)", true, false)));
         assertFalse(callBool(probe, abi.encodeWithSignature("read_flag(bool)", true)));
+        assertTrue(callBool(probe, abi.encodeWithSignature("contains_flag(bool)", true)));
         assertEq(readStorage(probe, mapSlotBool(true, 1)), 0);
+        assertEq(readStorage(probe, mapPresenceSlotBool(true, 1)), 1);
 
-        (bool badKeyOk,) = probe.call(abi.encodeWithSelector(bytes4(0x7c7d06af), uint256(2)));
+        (bool badKeyOk,) = probe.call(abi.encodeWithSelector(bytes4(0x430d2c8d), uint256(2)));
         assertFalse(badKeyOk);
 
         (bool badValueOk,) = probe.call(abi.encodeWithSelector(bytes4(0x481794a0), uint256(0), uint256(2)));
@@ -210,9 +240,12 @@ contract ProofForgeIRTypedMapSmokeTest {
 
         assertEq(callBytes32(probe, abi.encodeWithSignature("set_root(bytes32,bytes32)", rootA, rootB)), zero);
         assertEq(callBytes32(probe, abi.encodeWithSignature("read_root(bytes32)", rootA)), rootB);
+        assertTrue(callBool(probe, abi.encodeWithSignature("contains_root(bytes32)", rootA)));
         assertEq(vm.load(probe, mapSlotBytes32(rootA, 2)), rootB);
+        assertEq(readStorage(probe, mapPresenceSlotBytes32(rootA, 2)), 1);
         assertEq(callBytes32(probe, abi.encodeWithSignature("set_root(bytes32,bytes32)", rootA, rootC)), rootB);
         assertEq(callBytes32(probe, abi.encodeWithSignature("read_root(bytes32)", rootA)), rootC);
+        assertTrue(callBool(probe, abi.encodeWithSignature("contains_root(bytes32)", rootA)));
         assertEq(vm.load(probe, mapSlotBytes32(rootA, 2)), rootC);
     }
 
@@ -222,6 +255,7 @@ contract ProofForgeIRTypedMapSmokeTest {
 
         assertEq(callU256(probe, abi.encodeWithSignature("path_assign_score()")), 30);
         assertEq(readStorage(probe, mapSlot(9, 0)), 30);
+        assertEq(readStorage(probe, mapPresenceSlot(9, 0)), 1);
     }
 
     function testIRTypedMapRejectsUnknownSelector() public {

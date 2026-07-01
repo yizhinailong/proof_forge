@@ -92,6 +92,32 @@ def setBalance : Entrypoint := {
   ]
 }
 
+def containsLifecycle : Entrypoint := {
+  name := "contains_lifecycle"
+  selector? := some "a0c7a60a"
+  returns := .u64
+  body := #[
+    .assertEq (.effect (.storageMapContains "balances" seedKey)) (.literal (.bool false)) "fresh key is absent",
+    .letBind "old0" .u64 (.effect (.storageMapInsert "balances" seedKey (.literal (.u64 0)))),
+    .assertEq (.local "old0") (.literal (.u64 0)) "first zero insert returns default zero",
+    .assertEq (.effect (.storageMapGet "balances" seedKey)) (.literal (.u64 0)) "zero insert writes zero value",
+    .assertEq (.effect (.storageMapContains "balances" seedKey)) (.literal (.bool true)) "zero-valued inserted key is present",
+    .effect (.storageMapSet "balances" seedKey (.literal (.u64 99))),
+    .assertEq (.effect (.storageMapContains "balances" seedKey)) (.literal (.bool true)) "set key remains present",
+    .return (.effect (.storageMapGet "balances" seedKey))
+  ]
+}
+
+def containsBalance : Entrypoint := {
+  name := "contains_balance"
+  selector? := some "4c136189"
+  params := #[("key", .u64)]
+  returns := .bool
+  body := #[
+    .return (.effect (.storageMapContains "balances" (.local "key")))
+  ]
+}
+
 def pathLifecycle : Entrypoint := {
   name := "path_lifecycle"
   selector? := some "84c21205"
@@ -131,6 +157,8 @@ def module : Module := {
     readBalance,
     upsertBalance,
     setBalance,
+    containsLifecycle,
+    containsBalance,
     pathLifecycle,
     pathAssignLifecycle
   ]

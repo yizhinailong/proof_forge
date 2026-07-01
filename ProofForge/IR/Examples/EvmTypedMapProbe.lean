@@ -100,6 +100,16 @@ def writeScore : Entrypoint := {
   ]
 }
 
+def containsScore : Entrypoint := {
+  name := "contains_score"
+  selector? := some "40bbd11a"
+  params := #[("key", .u32)]
+  returns := .bool
+  body := #[
+    .return (.effect (.storageMapContains "scores" (.local "key")))
+  ]
+}
+
 def readFlag : Entrypoint := {
   name := "read_flag"
   selector? := some "7c7d06af"
@@ -120,6 +130,16 @@ def setFlag : Entrypoint := {
   returns := .bool
   body := #[
     .return (.effect (.storageMapSet "flags" (.local "key") (.local "value")))
+  ]
+}
+
+def containsFlag : Entrypoint := {
+  name := "contains_flag"
+  selector? := some "430d2c8d"
+  params := #[("key", .bool)]
+  returns := .bool
+  body := #[
+    .return (.effect (.storageMapContains "flags" (.local "key")))
   ]
 }
 
@@ -146,6 +166,16 @@ def setRoot : Entrypoint := {
   ]
 }
 
+def containsRoot : Entrypoint := {
+  name := "contains_root"
+  selector? := some "1f24b6db"
+  params := #[("key", .hash)]
+  returns := .bool
+  body := #[
+    .return (.effect (.storageMapContains "roots" (.local "key")))
+  ]
+}
+
 def pathAssignScore : Entrypoint := {
   name := "path_assign_score"
   selector? := some "a82c9bea"
@@ -165,10 +195,13 @@ def module : Module := {
     typedMapLifecycle,
     readScore,
     writeScore,
+    containsScore,
     readFlag,
     setFlag,
+    containsFlag,
     readRoot,
     setRoot,
+    containsRoot,
     pathAssignScore
   ]
 }
