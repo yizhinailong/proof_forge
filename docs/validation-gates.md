@@ -85,7 +85,8 @@ The following gates are `Planned` and do not exist in CI or as scripts:
   - **V-GATE-SOLANA-02** — `sbpf build` produces a valid ELF that
     `sbpf disassemble` round-trips. Script: `scripts/solana/emit-asm-smoke.sh` (runnable, Phase 0 complete).
   - **V-GATE-SOLANA-03** — Counter scenario (initialize, increment, get) passes
-    `sbpf test` (Mollusk). Script: `scripts/solana/counter-smoke.sh` (planned).
+    `sbpf test` (Mollusk). Script: `scripts/solana/counter-smoke.sh` (Phase 1 complete;
+    4 Mollusk assertions: initialize→0, increment 0→1, increment 5→6, get→return_data).
   - **V-GATE-SOLANA-04** — Counter scenario passes
     `solana-test-validator --bpf-program` smoke (optional, gated on
     `solana-test-validator` availability).
