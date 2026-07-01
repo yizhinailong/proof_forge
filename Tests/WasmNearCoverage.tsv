@@ -1,0 +1,92 @@
+# inductive	constructor	status	evidence
+ValueType	unit	validated	valueTypeName emits () for Unit returns; validateEntrypointParameters rejects Unit parameters and validateState rejects scalar Unit storage; Tests/WasmNearDiagnostics.lean covers Unit parameter and Unit scalar state rejection.
+ValueType	bool	lowered	valueTypeName emits bool, literal emits true/false, and predicates/assertions lower to Rust; bool scalar storage and bool map values are accepted by validateState.
+ValueType	u32	lowered	valueTypeName emits u32, literal emits Nu32, and U32 ABI parameters / locals / map values lower with the u32 codec helpers; cast/assignOp tests cover U32 numeric use.
+ValueType	u64	lowered	valueTypeName emits u64, literal emits Nu64, and U64 scalar/map storage, ABI parameters, returns, and arithmetic lower directly; Counter, Ledger, and Accum fixtures cover it.
+ValueType	hash	lowered	valueTypeName emits [u64; 4], literal emits four-limb arrays, and hash/hash_two_to_one intrinsics plus hash map values lower with sha256 helpers; Hasher fixture and diagnostics cover it.
+ValueType	fixedArray	unsupported	wasm-near target profile rejects data.fixed_array before lowering; validateCapabilities emits a capability error and lowerExpr also rejects array literals/indexing.
+ValueType	structType	unsupported	wasm-near target profile rejects data.struct before lowering; struct decls and struct literals/field access are rejected by validateCapabilities.
+StateKind	scalar	lowered	scalar state lowers to a pub struct field read/written via self.<id>; U32/U64/Bool/Hash scalar shapes are accepted by validateState and Counter covers U64 scalar storage.
+StateKind	map	validated	validateState accepts only Map<U64|Hash, U32|U64|Bool|Hash, N>; Ledger covers Map<U64, U64, 16> and Tests/WasmNearDiagnostics.lean covers zero-capacity and U32-key map rejection.
+StateKind	array	unsupported	wasm-near target profile rejects storage.array before lowering; array state triggers a capability error in validateCapabilities.
+Literal	u32	lowered	literal emits Nu32 and is covered by cast/assignOp diagnostics and U32 codec helpers.
+Literal	u64	lowered	literal emits Nu64 and is covered by Counter, Ledger, Hasher, and Accum fixtures plus arithmetic/return diagnostics.
+Literal	bool	lowered	literal emits true/false and is covered by the conditional and assert diagnostics and the Accum fixture.
+Literal	hash4	lowered	literal emits four-limb [u64; 4] arrays and is covered by the Hasher fixture and the cast-mismatch diagnostic.
+ContextField	userId	lowered	lowerEffectExpr emits __pf_account_id_hash_u64(&env::predecessor_account_id()); Hasher fixture covers it and the context-as-statement diagnostic guards misuse.
+ContextField	contractId	lowered	lowerEffectExpr emits __pf_account_id_hash_u64(&env::current_account_id()); AccountIdHash helper generation is gated by moduleUsesAccountIdHash.
+ContextField	checkpointId	lowered	lowerEffectExpr emits env::block_height(); capability envBlock is present in the wasm-near profile.
+AssignOp	add	lowered	assignOpSymbol emits += and lowerStatement lowers compound assignment to a mutable local; Accum fixture exercises it and immutable-target diagnostics guard misuse.
+AssignOp	sub	lowered	assignOpSymbol emits -= and lowerStatement lowers compound assignment to a mutable local; immutable-target diagnostics guard misuse.
+AssignOp	mul	lowered	assignOpSymbol emits *= and the Accum fixture emits acc *= 2u64; immutable-target diagnostics guard misuse.
+AssignOp	div	lowered	assignOpSymbol emits /= and lowerStatement lowers compound assignment to a mutable local; immutable-target diagnostics guard misuse.
+AssignOp	mod	lowered	assignOpSymbol emits %= and lowerStatement lowers compound assignment to a mutable local; immutable-target diagnostics guard misuse.
+AssignOp	bitAnd	lowered	assignOpSymbol emits &= and lowerStatement lowers compound assignment to a mutable local; immutable-target diagnostics guard misuse.
+AssignOp	bitOr	lowered	assignOpSymbol emits |= and lowerStatement lowers compound assignment to a mutable local; immutable-target diagnostics guard misuse.
+AssignOp	bitXor	lowered	assignOpSymbol emits ^= and lowerStatement lowers compound assignment to a mutable local; immutable-target diagnostics guard misuse.
+AssignOp	shiftLeft	lowered	assignOpSymbol emits <<= and lowerStatement lowers compound assignment to a mutable local; immutable-target diagnostics guard misuse.
+AssignOp	shiftRight	lowered	assignOpSymbol emits >>= and lowerStatement lowers compound assignment to a mutable local; immutable-target diagnostics guard misuse.
+Expr	literal	lowered	lowerExpr delegates to literal; all fixtures and diagnostics use literal expressions.
+Expr	local	lowered	lowerExpr emits local names; Ledger set/get and most diagnostics use local bindings.
+Expr	arrayLit	unsupported	wasm-near target profile rejects data.fixed_array; lowerExpr also emits a fixed-array-literals-not-supported error.
+Expr	arrayGet	unsupported	wasm-near target profile rejects data.fixed_array; lowerExpr emits a fixed-array-indexing-not-supported error.
+Expr	structLit	unsupported	wasm-near target profile rejects data.struct; lowerExpr emits a struct-literals-not-supported error.
+Expr	field	unsupported	wasm-near target profile rejects data.struct; lowerExpr emits a struct-field-access-not-supported error.
+Expr	add	lowered	lowerExpr emits parenthesized (lhs + rhs); Counter increment and arithmetic diagnostics cover it.
+Expr	sub	lowered	lowerExpr emits parenthesized (lhs - rhs) with operand parenthesization.
+Expr	mul	lowered	lowerExpr emits parenthesized (lhs * rhs); Accum fixture exercises it.
+Expr	div	lowered	lowerExpr emits parenthesized (lhs / rhs).
+Expr	mod	lowered	lowerExpr emits parenthesized (lhs % rhs).
+Expr	pow	lowered	lowerExpr emits (base).pow(exp as u32) for U32/U64 bases after numeric inference.
+Expr	bitAnd	lowered	lowerExpr emits parenthesized (lhs & rhs).
+Expr	bitOr	lowered	lowerExpr emits parenthesized (lhs | rhs).
+Expr	bitXor	lowered	lowerExpr emits parenthesized (lhs ^ rhs).
+Expr	shiftLeft	lowered	lowerExpr emits parenthesized (lhs << rhs).
+Expr	shiftRight	lowered	lowerExpr emits parenthesized (lhs >> rhs).
+Expr	cast	lowered	lowerExpr emits Rust as casts after ensureCastType validation; cast-mismatch diagnostics reject unsupported casts such as Hash to U64.
+Expr	eq	lowered	lowerExpr emits parenthesized (lhs == rhs) after numeric/bool/hash equality validation.
+Expr	ne	lowered	lowerExpr emits parenthesized (lhs != rhs) after numeric/bool/hash inequality validation.
+Expr	lt	lowered	lowerExpr emits parenthesized (lhs < rhs); Accum assert exercises greater-than and numeric comparison validation covers it.
+Expr	le	lowered	lowerExpr emits parenthesized (lhs <= rhs) after numeric comparison validation.
+Expr	gt	lowered	lowerExpr emits parenthesized (lhs > rhs); Accum fixture asserts (acc > 0u64).
+Expr	ge	lowered	lowerExpr emits parenthesized (lhs >= rhs) after numeric comparison validation.
+Expr	boolAnd	lowered	lowerExpr emits parenthesized (lhs && rhs) after boolean operand validation.
+Expr	boolOr	lowered	lowerExpr emits parenthesized (lhs || rhs) after boolean operand validation.
+Expr	boolNot	lowered	lowerExpr emits (!value) after boolean operand validation.
+Expr	hashValue	lowered	lowerExpr emits [a, b, c, d] dynamic four-limb construction after U64 part validation.
+Expr	hash	lowered	lowerExpr emits __pf_hash(preimage) and moduleHelpers emits the sha256-backed helper when cryptoHash is used; Hasher fixture covers it.
+Expr	hashTwoToOne	lowered	lowerExpr emits __pf_hash_two_to_one(lhs, rhs) and moduleHelpers emits the sha256-backed helper when cryptoHash is used.
+Expr	effect	lowered	lowerExpr delegates to lowerEffectExpr, which validates expression-only effects and rejects statement-only effects; fixtures and diagnostics cover the split.
+Expr	nativeValue	validated	inferExprType types nativeValue as U64 but wasm-near Rust sourcegen v0 explicitly rejects native value inspection with a clear diagnostic.
+Expr	crosscallInvoke	unsupported	wasm-near target profile rejects crosscall.invoke in validateCapabilities before lowering.
+Effect	storageScalarRead	lowered	lowerEffectExpr emits self.<id>; Counter get covers it and the read-as-statement diagnostic guards misuse.
+Effect	storageScalarWrite	lowered	lowerEffectStmt emits self.<id> = value;; Counter increment covers it and the write-as-expression diagnostic guards misuse.
+Effect	storageScalarAssignOp	unsupported	validateEffectStmtTypes and lowerEffectStmt both reject storage.scalar.assign_op in wasm-near IR v0; diagnostic covers it.
+Effect	storageMapContains	lowered	lowerEffectExpr emits env::storage_has_key after key-type validation; statement-misuse diagnostic guards it.
+Effect	storageMapGet	lowered	lowerEffectExpr emits __pf_decode_<t>(env::storage_read(...)); Ledger get covers it.
+Effect	storageMapInsert	lowered	lowerEffectExpr and lowerEffectStmt emit __pf_map_set_<t>(key, value); Ledger fixtures cover expression and statement forms.
+Effect	storageMapSet	lowered	lowerEffectExpr and lowerEffectStmt emit __pf_map_set_<t>(key, value); Ledger set covers the statement form.
+Effect	storageArrayRead	unsupported	wasm-near target profile rejects storage.array; lowerEffectExpr emits a storage.array.read-not-supported error.
+Effect	storageArrayWrite	unsupported	wasm-near target profile rejects storage.array; lowerEffectStmt emits a storage.array.write-not-supported error.
+Effect	storageArrayStructFieldRead	unsupported	wasm-near target profile rejects storage.array/data.struct; lowerEffectExpr emits a not-supported error.
+Effect	storageArrayStructFieldWrite	unsupported	wasm-near target profile rejects storage.array/data.struct; lowerEffectStmt emits a not-supported error.
+Effect	storageStructFieldRead	unsupported	wasm-near target profile rejects data.struct; lowerEffectExpr emits a storage.struct.field.read-not-supported error.
+Effect	storageStructFieldWrite	unsupported	wasm-near target profile rejects data.struct; lowerEffectStmt emits a storage.struct.field.write-not-supported error.
+Effect	storagePathRead	lowered	lowerStoragePathRead emits a single-segment mapKey decode for map storage; Ledger-style maps cover it and empty/nested-path diagnostics guard the boundary.
+Effect	storagePathWrite	lowered	lowerStoragePathWrite emits a single-segment mapKey __pf_map_set_<t> for map storage; the empty/nested-path diagnostics guard the boundary.
+Effect	storagePathAssignOp	unsupported	validateEffectStmtTypes and lowerEffectStmt both reject storage.path.assign_op in wasm-near IR v0.
+Effect	contextRead	lowered	lowerEffectExpr emits predecessor/current account-id or block-height reads; Hasher fixture covers userId and the context-as-statement diagnostic guards misuse.
+Effect	eventEmit	lowered	lowerEffectStmt emits near_sdk::log! with a JSON object after field-type validation; empty-name and event-as-expression diagnostics guard misuse.
+StoragePathSegment	field	unsupported	storage paths only support a single mapKey segment in wasm-near IR v0; any field segment is rejected by inferStoragePathType/lowerStoragePathRead.
+StoragePathSegment	index	unsupported	storage paths only support a single mapKey segment in wasm-near IR v0; index segments require unsupported array storage.
+StoragePathSegment	mapKey	lowered	inferStoragePathType and lowerStoragePathRead/lowerStoragePathWrite handle a single mapKey at the map boundary; Ledger fixtures and path diagnostics cover it.
+Statement	letBind	lowered	lowerStatement emits let name: type = value;; most fixtures and diagnostics use immutable let bindings.
+Statement	letMutBind	lowered	lowerStatement emits let mut name: type = value;; Accum fixture and assignment diagnostics cover mutable bindings.
+Statement	assign	lowered	lowerStatement emits name = value; for mutable locals; immutable-target and invalid-target diagnostics guard misuse.
+Statement	assignOp	lowered	lowerStatement emits name <op>= value; for mutable locals; Accum fixture and immutable-target diagnostics cover it.
+Statement	effect	lowered	lowerStatement delegates to lowerEffectStmt, which rejects expression-only effects; storage fixtures and diagnostics cover the split.
+Statement	assert	lowered	lowerStatement emits assert!(cond, "msg");; Accum fixture and the conditional/bool diagnostics cover it.
+Statement	assertEq	lowered	lowerStatement emits assert_eq!(lhs, rhs, "msg"); after equality-type validation.
+Statement	ifElse	unsupported	wasm-near target profile rejects control.conditional in validateCapabilities; lowerStatement also rejects if/else statements.
+Statement	boundedFor	unsupported	wasm-near target profile rejects control.bounded_loop in validateCapabilities; lowerStatement also rejects bounded for loops.
+Statement	return	lowered	lowerStatement emits return value;; validateModule requires non-Unit returns to end with return and return-type diagnostics guard mismatches.
