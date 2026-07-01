@@ -212,9 +212,10 @@ target profile is added.
 
 #### Canonical capabilities (Road 1 spike)
 
-These capabilities are accepted for the first `aleo-leo` spike and documented in
-the design spec. They are **not** added to `ProofForge.Target.Capability` until
-the spike succeeds.
+These capabilities are accepted for the first `aleo-leo` spike and are listed in
+Aleo artifact metadata produced by `scripts/aleo/counter-smoke.sh`. They are
+**not** added to `ProofForge.Target.Capability` until the target profile and
+proof/finalization split are reviewed.
 
 | Capability id | Portable meaning | Why it is separate |
 |---|---|---|

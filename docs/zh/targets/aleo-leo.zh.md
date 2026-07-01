@@ -1,12 +1,19 @@
 # Aleo Leo 目标
 
-状态：**Research（文档优先候选 — 设计规格已就绪，等待评审）**
+状态：**Spike（本地冒烟已存在 — `scripts/aleo/counter-smoke.sh`）**
 
 候选目标 id：**`aleo-leo`**
 
-本文记录 ProofForge 对 Aleo 的第一版分类。它不会立刻添加 Lean target profile。
-目的是在修改 registry 或编译器前，先确定 Aleo 的 ZK application 模型如何进入
-目标系统。
+本文记录 ProofForge 对 Aleo 的第一版分类以及已实现的 Road 1 spike。它不会立刻
+添加 Lean target profile；spike 先验证 Leo 源码生成边界，再决定是否修改代码注册表。
+
+主要交付物：
+
+- `ProofForge.Backend.Aleo.IR` 将 portable IR `Counter` fixture 降级为 Leo。
+- `proof-forge --emit-counter-ir-leo` 输出 `Counter.leo`。
+- `Examples/Aleo/Counter.golden.leo` 是已跟踪的 golden fixture。
+- `scripts/aleo/counter-smoke.sh` 生成 Leo 包、运行 `leo build` 和 `leo test`、
+  写入 `proof-forge-artifact.json` 并校验 metadata。
 
 主要来源：
 
@@ -21,6 +28,38 @@
 - [leo build](https://docs.aleo.org/build/leo/documentation/cli/cli_build)
 - [leo execute](https://docs.aleo.org/build/leo/documentation/cli/cli_execute)
 - [leo test](https://docs.aleo.org/build/leo/documentation/cli/cli_test)
+
+## 本地冒烟测试
+
+Road 1 spike 通过以下脚本进行端到端验证：
+
+```bash
+./scripts/aleo/counter-smoke.sh
+```
+
+前置条件：
+
+- `lean-toolchain` 指定的 Lean 工具链以及构建好的 `proof-forge` 二进制文件。
+- 用于包/清单辅助脚本的 `python3`。
+- `PATH` 上的 `leo` CLI（Aleo build/test 门禁）；如果未安装 `leo`，脚本会
+  输出生成的 `Counter.leo` 并以退出码 `127` 退出。
+
+它证明了什么：
+
+- Portable IR `ProofForge.IR.Examples.Counter` 可降级为带公开 `mapping` 和
+  `final` 块的 Leo 程序。
+- 生成的 Leo source 与已跟踪的 golden fixture
+  `Examples/Aleo/Counter.golden.leo` 一致。
+- `leo build` 能生成 Aleo Instructions、AVM bytecode 和 ABI JSON。
+- `leo test` 通过。
+- `proof-forge-artifact.json` 被生成并通过了 schema 校验。
+
+它没有证明什么：
+
+- private records、transitions 或 proof generation。
+- 直接生成 Aleo Instructions。
+- devnet 部署或 execute transactions。
+- 与 EVM/Psy Counter 语义的跨目标等价性。
 
 ## 分类
 
@@ -214,6 +253,10 @@ Aleo 只有在满足以下条件后才能离开 Research：
 - 一个可重复的本地命令或脚本，能验证极小 Leo program package，即使
   proving-heavy gates 在 CI 中保持可选。
 
+**状态：** Road 1 spike 已满足“可重复本地命令”和“artifact manifest schema”
+标准。其余标准（target profile、完整 capability proposal、devnet validation）
+在 private records 和 transitions 审查完成前保持开放。
+
 ## Research 退出计划
 
 详细的设计规格（Research 退出 + Road 1 spike）见
@@ -236,5 +279,6 @@ Aleo 只有在满足以下条件后才能离开 Research：
 - Spike 范围：仅 Road 1，公开 mapping Counter，输入为
   `ProofForge.IR.Examples.Counter`。
 
-在 spike 成功且 proof/finalization split 审查完成前，不计划修改代码注册表
-（Capability.lean / Registry.lean）。
+Road 1 spike 已实现；代码注册表修改
+（`ProofForge.Target.Capability` / `ProofForge.Target.Registry`）仍推迟到
+proof/finalization split 与 private-record 路线图审查之后。

@@ -39,6 +39,7 @@
 | Psy ContextProbe IR 冒烟测试 | `scripts/psy/context-smoke.sh` | `PATH` 上的 `dargo`；`python3`；macOS arm64 上 `psyup install 0.1.0` 已知可用 | 非 Counter Psy IR 降级参数和 context reads，匹配 golden fixture，通过 `dargo test --file`，生成非空 DPN JSON 和 ABI JSON，通过 `dargo execute` 返回 `result_vm: [15]`，写出 `proof-forge-deploy.json`，并在 `proof-forge-artifact.json` 中记录和校验 metadata/deploy manifest | maps、arrays、hashes、上游压缩 genesis deploy JSON、真实 Psy node/prover 行为 |
 | Psy HashProbe IR 冒烟测试 | `scripts/psy/hash-smoke.sh` | `PATH` 上的 `dargo`；`python3`；macOS arm64 上 `psyup install 0.1.0` 已知可用 | Psy IR 将 `Hash`、typed hash let-bindings、`hash` 和 `hash_two_to_one` 降级为 `.psy`，匹配 golden fixture，通过 `dargo test --file`，生成非空 DPN JSON 和 ABI JSON，通过 `dargo execute` 返回预期四 Felt hash 输出，写出 `proof-forge-deploy.json`，并在 `proof-forge-artifact.json` 中记录和校验 metadata/deploy manifest | maps、storage maps、上游压缩 genesis deploy JSON、真实 Psy node/prover 行为 |
 | CI 基线 | `.github/workflows/ci.yml` `build-test` 任务 | GitHub Actions Ubuntu、elan、Foundry stable、`solc` 0.8.30 | 清洁环境下的 `lake build`、文档翻译同步检查、Psy golden source 快照、Psy 诊断、Psy IR 覆盖清单、EVM 诊断、EVM IR 覆盖清单、EVM ABI ScalarProbe/AssertProbe/AssignmentProbe/AssignOpProbe/ConditionalProbe/LoopProbe/ContextProbe/EventProbe/CrosscallProbe/ExpressionProbe/HashProbe/MapProbe/TypedMapProbe/StorageArrayProbe/StorageStructProbe/TypedStorageProbe/ArrayValueProbe/StructArrayValueProbe/StructValueProbe/AbiAggregateProbe IR 冒烟测试、EVM metadata/deploy-manifest 校验、EVM 编译和 Foundry 冒烟测试 | 可选 Dargo 目标冒烟测试、非 Ubuntu 行为 |
+| Aleo Counter IR 冒烟测试 | `scripts/aleo/counter-smoke.sh` | `PATH` 上的 `leo` CLI；`python3`；来自 `lean-toolchain` 的 Lean 工具链 | Portable IR `Counter` 降级为 Leo，匹配 `Examples/Aleo/Counter.golden.leo`，`leo build` 生成 Aleo Instructions/AVM bytecode/ABI JSON，`leo test` 通过，`proof-forge-artifact.json` schema 校验通过 | private records、transitions、proofs、直接 Aleo Instructions、devnet 部署、跨目标等价性 |
 
 ## 计划中但尚不可运行的门禁
 
@@ -50,8 +51,6 @@
 - 黄金 Yul/输出快照 — 通过快照差异对比进行回归检测。
 - CosmWasm 冒烟测试 — `cosmwasm-check` 或 `cw-multi-test` 验证。
 - Solana 冒烟测试 — Mollusk 或 `solana-test-validator` 验证。
-- Aleo Leo 冒烟测试 — `scripts/aleo/counter-smoke.sh`，用 `leo build` 和
-  `leo test` 验证生成的 Counter Leo 包。
 - Move 冒烟测试 — `aptos move compile/test` 或 Sui Move 验证。
 - 能力拒绝测试 — 针对不支持的能力/目标组合的编译时诊断。
 

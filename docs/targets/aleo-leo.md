@@ -1,12 +1,21 @@
 # Aleo Leo Target
 
-Status: **Research (docs-first candidate — design spec ready for review)**
+Status: **Spike (local smoke exists — `scripts/aleo/counter-smoke.sh`)**
 
 Candidate target id: **`aleo-leo`**
 
-This note records the first ProofForge classification for Aleo. It does not add
-a Lean target profile yet. The purpose is to decide how Aleo's ZK application
-model fits the target system before changing the registry or compiler.
+This note records the first ProofForge classification for Aleo and the
+implemented Road 1 spike. It does not add a Lean target profile yet; the spike
+validates the Leo source-generation boundary before any code registry changes.
+
+Primary deliverables:
+
+- `ProofForge.Backend.Aleo.IR` lowers the portable IR `Counter` fixture to Leo.
+- `proof-forge --emit-counter-ir-leo` emits `Counter.leo`.
+- `Examples/Aleo/Counter.golden.leo` is the tracked golden fixture.
+- `scripts/aleo/counter-smoke.sh` generates a Leo package, runs `leo build` and
+  `leo test`, writes `proof-forge-artifact.json`, and validates the metadata.
+
 
 Primary sources:
 
@@ -21,6 +30,38 @@ Primary sources:
 - [leo build](https://docs.aleo.org/build/leo/documentation/cli/cli_build)
 - [leo execute](https://docs.aleo.org/build/leo/documentation/cli/cli_execute)
 - [leo test](https://docs.aleo.org/build/leo/documentation/cli/cli_test)
+
+## Local Smoke
+
+The Road 1 spike is validated end-to-end by:
+
+```bash
+./scripts/aleo/counter-smoke.sh
+```
+
+Prerequisites:
+
+- Lean toolchain from `lean-toolchain` and a built `proof-forge` binary.
+- `python3` for package/manifest helpers.
+- `leo` CLI on `PATH` (Aleo build/test gate); if `leo` is missing, the script
+  reports the generated `Counter.leo` and exits with code `127`.
+
+What it proves:
+
+- Portable IR `ProofForge.IR.Examples.Counter` lowers to a Leo program with a
+  public `mapping` and `final` blocks.
+- Generated Leo source matches the tracked golden fixture
+  `Examples/Aleo/Counter.golden.leo`.
+- `leo build` produces Aleo Instructions, AVM bytecode, and ABI JSON.
+- `leo test` passes.
+- `proof-forge-artifact.json` is produced and schema-validated.
+
+What it does not prove:
+
+- Private records, transitions, or proof generation.
+- Direct Aleo Instructions generation.
+- Devnet deployment or execute transactions.
+- Cross-target equivalence with EVM/Psy Counter semantics.
 
 ## Classification
 
@@ -223,6 +264,11 @@ Aleo can leave Research only when we have:
 - one reproducible local command or script that validates a tiny Leo program
   package, even if proving-heavy gates are optional in CI.
 
+**Status:** The Road 1 spike satisfies the reproducible local command and
+artifact manifest schema criteria. The remaining criteria (target profile,
+full capability proposal, devnet validation) stay open until private records
+and transitions are reviewed.
+
 ## Research Exit Plan
 
 A detailed design spec covering Research exit + Road 1 spike is in
@@ -245,5 +291,6 @@ The spec finalizes:
 - Spike scope: Road 1 only, public mapping Counter from
   `ProofForge.IR.Examples.Counter`.
 
-No code registry changes are planned until the Spike succeeds and the
-proof/finalization split is reviewed.
+The Road 1 spike is implemented; code registry changes
+(`ProofForge.Target.Capability` / `ProofForge.Target.Registry`) remain deferred
+until the proof/finalization split and private-record roadmap are reviewed.
