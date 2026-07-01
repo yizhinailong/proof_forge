@@ -128,6 +128,7 @@ inductive EmitMode where
   | u32HashPackingIrPsy
   | u32StorageScalarIrPsy
   | u32StorageArrayIrPsy
+  | counterIrSbpf
   | sbpfAsm
   deriving BEq, Inhabited
 
@@ -218,6 +219,7 @@ def usage : String :=
     "  proof-forge --emit-u32-hash-packing-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-storage-scalar-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-storage-array-ir-psy [-o output.psy]",
+    "  proof-forge --emit-counter-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -648,7 +650,7 @@ def writeEvmSdkArtifactMetadata
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy || opts.mode == .sbpfAsm then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy || opts.mode == .counterIrSbpf || opts.mode == .sbpfAsm then
         .ok opts
       else
         .error usage
@@ -813,6 +815,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .u32StorageScalarIrPsy }
   | "--emit-u32-storage-array-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .u32StorageArrayIrPsy }
+  | "--emit-counter-ir-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrSbpf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
@@ -1688,6 +1692,48 @@ def compileU32StorageArrayIrPsy (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileCounterIrSbpf (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/Counter.s")
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule ProofForge.IR.Examples.Counter.module with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson output
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "counter-ir-sbpf"),
+        ("sourceKind", jsonString "portable-ir"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString "Counter"),
+        ("capabilities", jsonStringArray #["storage.scalar", "account.explicit", "control.conditional"]),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("sbpfBuild", jsonString "pending"),
+          ("sbpfDisassembleRoundtrip", jsonString "pending")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/entrypoint.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderCannedEntrypoint with
@@ -1821,6 +1867,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .u32HashPackingIrPsy => compileU32HashPackingIrPsy opts
   | .u32StorageScalarIrPsy => compileU32StorageScalarIrPsy opts
   | .u32StorageArrayIrPsy => compileU32StorageArrayIrPsy opts
+  | .counterIrSbpf => compileCounterIrSbpf opts
   | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli
