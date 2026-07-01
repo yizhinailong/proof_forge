@@ -86,6 +86,7 @@ Statement	assert	lowered	lowerStatement emits assert; AssertProbe and Expression
 Statement	assertEq	lowered	lowerStatement emits assert_eq; AssertProbe, ArrayProbe fixed-array equality, and most executable fixtures cover it.
 Statement	ifElse	lowered	lowerStatement emits Psy if/else statement; ConditionalProbe covers it.
 Statement	boundedFor	lowered	lowerStatement emits static Psy for loop; LoopProbe covers it.
+Statement	release	unsupported	Psy IR v0 rejects release statements with an explicit diagnostic; release is currently only lowered by EmitWat allocator-aware paths.
 Statement	return	lowered	lowerStatement emits return and validateEntrypointBodies requires non-Unit returns to end with return; all returning fixtures and diagnostics cover it.
 Expr	nativeValue	validated	inferExprType types nativeValue as U64; Psy IR v0 explicitly rejects native value inspection with a clear diagnostic.
 Expr	crosscallInvoke	lowered	lowerExpr emits __invoke_sync#<Felt>(target, methodId, [args]); CrosscallProbe covers it and Dargo compilation accepts the generated source.
