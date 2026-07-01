@@ -50,6 +50,9 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint dynamic_pick:17e4f54c \
   --expect-entrypoint dynamic_update:f45e18ed \
   --expect-entrypoint whole_array_assign:d59d3191 \
+  --expect-entrypoint nested_local_sum:c54814ec \
+  --expect-entrypoint nested_mutable_update:69c5b925 \
+  --expect-entrypoint nested_whole_array_assign:1c21ce7e \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmArrayValueProbe.bin")"
@@ -187,6 +190,27 @@ contract ProofForgeIRArrayValueSmokeTest {
         deployRuntime(hex"$probe_hex", probe);
 
         assertEq(callU256(probe, abi.encodeWithSignature("whole_array_assign()")), 94);
+    }
+
+    function testIRNestedLocalFixedArrayStaticReads() public {
+        address probe = address(uint160(0xA26B));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_local_sum()")), 8);
+    }
+
+    function testIRNestedMutableLocalFixedArrayStaticUpdates() public {
+        address probe = address(uint160(0xA26C));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_mutable_update()")), 24);
+    }
+
+    function testIRNestedWholeLocalFixedArrayAssignmentSnapshotsRhs() public {
+        address probe = address(uint160(0xA26D));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_whole_array_assign()")), 13581);
     }
 
     function testIRLocalFixedArrayRejectsUnknownSelector() public {

@@ -295,6 +295,12 @@ Tasks:
   target elements, and validating local-source and self-referential literal RHS
   behavior through `EvmArrayValueProbe` golden Yul, metadata entrypoints, solc
   bytecode, and Foundry runtime checks.
+- Done: extend EVM IR local fixed-array lowering to static nested scalar arrays,
+  including immutable reads, mutable leaf assignment, numeric leaf compound
+  assignment, nested whole-local assignment, and RHS snapshotting, with
+  `EvmArrayValueProbe` golden Yul, metadata entrypoints, solc bytecode, and
+  Foundry runtime checks. Dynamic nested indexes and non-scalar nested leaves
+  remain explicit diagnostics.
 - Done: add EVM IR flat immutable local struct value lowering for `U64`,
   `U32`, `Bool`, and `Hash` fields, direct struct literal field access,
   `EvmStructValueProbe` golden Yul, solc bytecode, Foundry runtime validation,

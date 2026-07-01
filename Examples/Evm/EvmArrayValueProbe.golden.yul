@@ -57,6 +57,21 @@ object "EvmArrayValueProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xc54814ec {
+      let _r := f_EvmArrayValueProbe_nested_local_sum()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x69c5b925 {
+      let _r := f_EvmArrayValueProbe_nested_mutable_update()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x1c21ce7e {
+      let _r := f_EvmArrayValueProbe_nested_whole_array_assign()
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -184,6 +199,53 @@ object "EvmArrayValueProbe" {
         __proof_forge_array_xs_2 := __proof_forge_assign_array_xs_2
       }
       result := add(add(__proof_forge_array_xs_0, mul(__proof_forge_array_xs_1, 10)), __proof_forge_array_xs_2)
+    }
+    function f_EvmArrayValueProbe_nested_local_sum() -> result {
+      let __proof_forge_array_matrix_0_0 := 2
+      let __proof_forge_array_matrix_0_1 := 3
+      let __proof_forge_array_matrix_1_0 := 5
+      let __proof_forge_array_matrix_1_1 := 7
+      result := add(__proof_forge_array_matrix_0_1, __proof_forge_array_matrix_1_0)
+    }
+    function f_EvmArrayValueProbe_nested_mutable_update() -> result {
+      let __proof_forge_array_matrix_0_0 := 2
+      let __proof_forge_array_matrix_0_1 := 3
+      let __proof_forge_array_matrix_1_0 := 5
+      let __proof_forge_array_matrix_1_1 := 7
+      __proof_forge_array_matrix_1_0 := 17
+      __proof_forge_array_matrix_0_1 := add(__proof_forge_array_matrix_0_1, 4)
+      result := add(__proof_forge_array_matrix_1_0, __proof_forge_array_matrix_0_1)
+    }
+    function f_EvmArrayValueProbe_nested_whole_array_assign() -> result {
+      let __proof_forge_array_matrix_0_0 := 1
+      let __proof_forge_array_matrix_0_1 := 2
+      let __proof_forge_array_matrix_1_0 := 3
+      let __proof_forge_array_matrix_1_1 := 4
+      let __proof_forge_array_other_0_0 := 5
+      let __proof_forge_array_other_0_1 := 7
+      let __proof_forge_array_other_1_0 := 11
+      let __proof_forge_array_other_1_1 := 13
+      {
+        let __proof_forge_assign_array_matrix_0_0 := __proof_forge_array_other_0_0
+        let __proof_forge_assign_array_matrix_0_1 := __proof_forge_array_other_0_1
+        let __proof_forge_assign_array_matrix_1_0 := __proof_forge_array_other_1_0
+        let __proof_forge_assign_array_matrix_1_1 := __proof_forge_array_other_1_1
+        __proof_forge_array_matrix_0_0 := __proof_forge_assign_array_matrix_0_0
+        __proof_forge_array_matrix_0_1 := __proof_forge_assign_array_matrix_0_1
+        __proof_forge_array_matrix_1_0 := __proof_forge_assign_array_matrix_1_0
+        __proof_forge_array_matrix_1_1 := __proof_forge_assign_array_matrix_1_1
+      }
+      {
+        let __proof_forge_assign_array_matrix_0_0 := __proof_forge_array_matrix_1_0
+        let __proof_forge_assign_array_matrix_0_1 := __proof_forge_array_matrix_0_1
+        let __proof_forge_assign_array_matrix_1_0 := __proof_forge_array_matrix_0_0
+        let __proof_forge_assign_array_matrix_1_1 := __proof_forge_array_matrix_1_1
+        __proof_forge_array_matrix_0_0 := __proof_forge_assign_array_matrix_0_0
+        __proof_forge_array_matrix_0_1 := __proof_forge_assign_array_matrix_0_1
+        __proof_forge_array_matrix_1_0 := __proof_forge_assign_array_matrix_1_0
+        __proof_forge_array_matrix_1_1 := __proof_forge_assign_array_matrix_1_1
+      }
+      result := add(add(__proof_forge_array_matrix_0_0, mul(__proof_forge_array_matrix_0_1, 10)), add(mul(__proof_forge_array_matrix_1_0, 100), mul(__proof_forge_array_matrix_1_1, 1000)))
     }
     function __proof_forge_local_array_get_3(index, value_0, value_1, value_2) -> result {
       switch index

@@ -4771,3 +4771,33 @@ Current role:
 - EVM remains the first working target.
 - New IR work should use EVM as the first executable backend to validate
   semantics before adding more chains.
+
+### EVM Nested Local Fixed Arrays
+
+Commit: pending
+
+Summary:
+
+- Extended portable IR EVM local fixed-array lowering to static nested scalar
+  arrays.
+- Added deterministic Yul locals for nested leaves such as `matrix[1][0]`.
+- Covered static nested reads, mutable leaf assignment, numeric leaf compound
+  assignment, nested whole-local assignment, and RHS snapshotting.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/array-value-ir-smoke.sh
+```
+
+Result:
+
+- Lean build passed.
+- Array value smoke produced reproducible golden Yul, compiled bytecode with
+  `solc --strict-assembly`, validated metadata, and passed 14 Foundry tests.
+
+Known limitations:
+
+- Dynamic nested local indexes and nested local arrays with non-scalar leaves
+  remain explicit unsupported surfaces.
