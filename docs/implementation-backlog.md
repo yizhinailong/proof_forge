@@ -410,10 +410,11 @@ Tasks:
 
 Acceptance criteria:
 
-- `sbpf build` produces a `.so` recognized as `ELF 64-bit LSB ... eBPF`.
-- `sbpf disassemble` produces assembly matching the input.
-- `--emit-sbpf-asm` writes valid `.s` without assembly errors.
-- `proof-forge-artifact.json` records `target: "solana-sbpf-asm"`.
+- [x] `sbpf build` produces a `.so` recognized as `ELF 64-bit LSB ... eBPF`.
+- [x] `sbpf disassemble` produces assembly matching the input.
+- [x] `--emit-sbpf-asm` writes valid `.s` without assembly errors.
+- [x] `proof-forge-artifact.json` records `target: "solana-sbpf-asm"`.
+- [ ] `sbpf` installed to PATH via `cargo install` (currently built from source).
 
 Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md),
 [RFC 0004](rfcs/0004-solana-sbpf-assembly-backend.md).

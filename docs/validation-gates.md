@@ -81,9 +81,9 @@ The following gates are `Planned` and do not exist in CI or as scripts:
   runnable as Workstreams 6–7 land; the `sbpf` toolchain is validated locally
   (build + disassemble round-trip + `sbpf test` on the counter example):
   - **V-GATE-SOLANA-01** — `--emit-sbpf-asm` produces valid `.s` accepted by
-    `sbpf build` (no assembly errors). Script: `scripts/solana/emit-asm-smoke.sh` (planned).
+    `sbpf build` (no assembly errors). Script: `scripts/solana/emit-asm-smoke.sh` (runnable, Phase 0 complete).
   - **V-GATE-SOLANA-02** — `sbpf build` produces a valid ELF that
-    `sbpf disassemble` round-trips. Script: `scripts/solana/build-roundtrip-smoke.sh` (planned).
+    `sbpf disassemble` round-trips. Script: `scripts/solana/emit-asm-smoke.sh` (runnable, Phase 0 complete).
   - **V-GATE-SOLANA-03** — Counter scenario (initialize, increment, get) passes
     `sbpf test` (Mollusk). Script: `scripts/solana/counter-smoke.sh` (planned).
   - **V-GATE-SOLANA-04** — Counter scenario passes
