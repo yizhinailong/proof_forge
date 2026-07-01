@@ -238,6 +238,42 @@ def ensureNumericType (context : String) (lhs rhs : ValueType) : Except LowerErr
   | .u64, .u64 => .ok .u64
   | _, _ => .error { message := s!"{context} expects matching numeric operands, got `{lhs.name}` and `{rhs.name}`" }
 
+def assignOpDiagnosticName : AssignOp → String
+  | .add => "addition"
+  | .sub => "subtraction"
+  | .mul => "multiplication"
+  | .div => "division"
+  | .mod => "modulo"
+  | .bitAnd => "bitwise and"
+  | .bitOr => "bitwise or"
+  | .bitXor => "bitwise xor"
+  | .shiftLeft => "shift-left"
+  | .shiftRight => "shift-right"
+
+def assignOpBuiltinName : AssignOp → String
+  | .add => "add"
+  | .sub => "sub"
+  | .mul => "mul"
+  | .div => "div"
+  | .mod => "mod"
+  | .bitAnd => "and"
+  | .bitOr => "or"
+  | .bitXor => "xor"
+  | .shiftLeft => "shl"
+  | .shiftRight => "shr"
+
+def ensureAssignOpTypes (op : AssignOp) (targetType valueType : ValueType) : Except LowerError Unit := do
+  discard <| ensureNumericType s!"compound assignment {assignOpDiagnosticName op}" targetType valueType
+
+def lowerAssignOpExpr
+    (op : AssignOp)
+    (target value : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
+  match op with
+  | .shiftLeft | .shiftRight =>
+      Lean.Compiler.Yul.builtin (assignOpBuiltinName op) #[value, target]
+  | _ =>
+      Lean.Compiler.Yul.builtin (assignOpBuiltinName op) #[target, value]
+
 def ensureEqType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
   | .bool | .u32 | .u64 | .hash => .ok ()
@@ -394,7 +430,7 @@ mutual
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
     | .storageScalarAssignOp _ _ _ =>
-        .error { message := "storage.scalar.assign_op is not supported by IR EVM v0" }
+        .error { message := "storage.scalar.assign_op is a statement effect, not an expression" }
     | .storageMapContains stateId key => do
         let (keyType, _) ← mapStateTypes module stateId
         ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
@@ -442,8 +478,8 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
       .error { message := "storage.scalar.read must be used as an expression" }
   | .storageScalarWrite stateId value => do
       ensureType s!"scalar state `{stateId}` write" (← scalarStateType module stateId) (← inferExprType module env value)
-  | .storageScalarAssignOp _ _ _ =>
-      .ok ()
+  | .storageScalarAssignOp stateId op value => do
+      ensureAssignOpTypes op (← scalarStateType module stateId) (← inferExprType module env value)
   | .storageMapContains _ _ =>
       .ok ()
   | .storageMapGet _ _ =>
@@ -505,8 +541,15 @@ mutual
         .ok env
     | .assign _ _ =>
         .error { message := "assignment target must be a local in IR EVM v0" }
-    | .assignOp _ _ _ =>
+    | .assignOp (.local name) op value => do
+        let some binding := findLocal? env name
+          | .error { message := s!"unknown local `{name}`" }
+        if !binding.isMutable then
+          .error { message := s!"assignment target local `{name}` is not mutable" }
+        ensureAssignOpTypes op binding.type (← inferExprType module env value)
         .ok env
+    | .assignOp _ _ _ =>
+        .error { message := "compound assignment target must be a local in IR EVM v0" }
     | .effect effect => do
         validateEffectStmtTypes module env effect
         .ok env
@@ -646,7 +689,7 @@ mutual
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
     | .storageScalarAssignOp _ _ _ =>
-        .error { message := "storage.scalar.assign_op is not supported by IR EVM v0" }
+        .error { message := "storage.scalar.assign_op is a statement effect, not an expression" }
     | .storageMapContains _ _ =>
         .error { message := "storage.map.contains is not supported by IR EVM v0 because EVM mappings do not track key presence" }
     | .storageMapGet stateId key =>
@@ -722,8 +765,14 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       let some slot := stateSlot? module stateId
         | .error { message := s!"unknown scalar state `{stateId}`" }
       .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module value]))
-  | .storageScalarAssignOp _ _ _ =>
-      .error { message := "storage.scalar.assign_op is not supported by IR EVM v0" }
+  | .storageScalarAssignOp stateId op value => do
+      let some slot := stateSlot? module stateId
+        | .error { message := s!"unknown scalar state `{stateId}`" }
+      let storageSlot := slotExpr slot
+      .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+        storageSlot,
+        lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[storageSlot]) (← lowerExpr module value)
+      ]))
   | .storageMapContains _ _ =>
       .error { message := "storage.map.contains must be used as an expression, but EVM mappings do not track key presence" }
   | .storageMapGet _ _ =>
@@ -786,8 +835,10 @@ mutual
         .ok (.assignment #[name] (← lowerExpr module value))
     | .assign _ _ =>
         .error { message := "assignment target must be a local in IR EVM v0" }
+    | .assignOp (.local name) op value => do
+        .ok (.assignment #[name] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id name) (← lowerExpr module value)))
     | .assignOp _ _ _ =>
-        .error { message := "compound assignment statements are not supported by IR EVM v0" }
+        .error { message := "compound assignment target must be a local in IR EVM v0" }
     | .effect effect =>
         lowerEffectStmt module effect
     | .assert condition _ => do

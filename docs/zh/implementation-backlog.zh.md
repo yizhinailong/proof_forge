@@ -85,6 +85,7 @@
 - 已完成：加入 `AbiScalarProbe`，覆盖 portable IR EVM 的 `U64`、`U32` 和 `Bool` 标量 ABI 参数 decoding，并通过 golden Yul、solc bytecode 和 Foundry malformed-calldata 验证。
 - 已完成：加入 EVM IR `assert` 和 `assert_eq` lowering，将其降为 Yul revert guard，并用 `AssertProbe` 跑通 golden Yul、solc bytecode 和 Foundry 成功/失败路径验证。
 - 已完成：加入 EVM IR 可变标量 local binding 和 local assignment lowering，并用 `AssignmentProbe` 跑通 golden Yul、solc bytecode 和 Foundry 成功/失败路径验证。
+- 已完成：加入 EVM IR local 和标量 storage 复合赋值 lowering，覆盖所有 portable `AssignOp` 变体，并用 `EvmAssignOpProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验，以及 malformed target/type 显式诊断。
 - 已完成：加入 EVM IR 语句级 `if/else` lowering，将其降为 Yul `switch` block，并用 `ConditionalProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证和分支内 return 显式诊断。
 - 已完成：加入 EVM IR `boundedFor` lowering，将其降为带静态边界的 Yul `for` loop，并用 `EvmLoopProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 storage 验证、metadata 能力校验，以及无效范围/loop 内 return 显式诊断。
 - 已完成：加入 EVM IR context read lowering，将 `userId`、`contractId` 和 `checkpointId` 降为 Yul `caller()`、`address()` 和 `number()`，并用 `ContextProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证和 metadata 能力校验。

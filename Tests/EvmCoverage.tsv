@@ -16,16 +16,16 @@ Literal	hash4	validated	EvmHashProbe validates four-limb Hash literals packed in
 ContextField	userId	validated	ContextProbe lowers userId context reads to Yul caller() and Foundry verifies a vm.prank sender.
 ContextField	contractId	validated	ContextProbe lowers contractId context reads to Yul address() and Foundry verifies the etched runtime address.
 ContextField	checkpointId	validated	ContextProbe lowers checkpointId context reads to Yul number() and Foundry verifies a vm.roll block number.
-AssignOp	add	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
-AssignOp	sub	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
-AssignOp	mul	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
-AssignOp	div	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
-AssignOp	mod	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
-AssignOp	bitAnd	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
-AssignOp	bitOr	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
-AssignOp	bitXor	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
-AssignOp	shiftLeft	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
-AssignOp	shiftRight	unsupported	Assignment and storage compound assignment lowerers reject all AssignOp variants in EVM IR v0.
+AssignOp	add	validated	EvmAssignOpProbe validates local and scalar-storage addition compound assignment; diagnostics reject non-numeric operands.
+AssignOp	sub	validated	EvmAssignOpProbe validates local and scalar-storage subtraction compound assignment; diagnostics reject non-numeric operands.
+AssignOp	mul	validated	EvmAssignOpProbe validates local and scalar-storage multiplication compound assignment; diagnostics reject non-numeric operands.
+AssignOp	div	validated	EvmAssignOpProbe validates local and scalar-storage division compound assignment; diagnostics reject non-numeric operands.
+AssignOp	mod	validated	EvmAssignOpProbe validates local and scalar-storage modulo compound assignment; diagnostics reject non-numeric operands.
+AssignOp	bitAnd	validated	EvmAssignOpProbe validates local and scalar-storage bitwise-and compound assignment; diagnostics reject non-numeric operands.
+AssignOp	bitOr	validated	EvmAssignOpProbe validates local and scalar-storage bitwise-or compound assignment; diagnostics reject non-numeric operands.
+AssignOp	bitXor	validated	EvmAssignOpProbe validates local and scalar-storage bitwise-xor compound assignment; diagnostics reject non-numeric operands.
+AssignOp	shiftLeft	validated	EvmAssignOpProbe validates local and scalar-storage shift-left compound assignment with EVM shl operand ordering; diagnostics reject non-numeric operands.
+AssignOp	shiftRight	validated	EvmAssignOpProbe validates local and scalar-storage shift-right compound assignment with EVM shr operand ordering; diagnostics reject non-numeric operands.
 Expr	literal	lowered	lowerExpr delegates U32/U64/Bool literals to Yul numeric expressions and packs Hash literals into one EVM word.
 Expr	local	lowered	lowerExpr emits local identifiers directly.
 Expr	arrayLit	unsupported	EVM target profile rejects data.fixed_array and lowerExpr has an explicit fixed-array literal diagnostic.
@@ -61,7 +61,7 @@ Expr	crosscallInvoke	validated	EvmCrosscallProbe validates crosscallInvoke lower
 Expr	effect	structural	lowerExpr delegates effects to lowerEffectExpr; scalar reads lower and statement-only or unsupported effects reject.
 Effect	storageScalarRead	lowered	lowerEffectExpr emits sload(slot); Counter and EvmHashProbe cover U64 and Hash scalar reads, and diagnostics cover statement misuse.
 Effect	storageScalarWrite	lowered	lowerEffectStmt emits sstore(slot, value); Counter and EvmHashProbe cover U64 and Hash scalar writes, and diagnostics reject expression-position writes.
-Effect	storageScalarAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt reject scalar storage assign_op in EVM IR v0.
+Effect	storageScalarAssignOp	validated	lowerEffectStmt emits sstore(slot, op(sload(slot), value)); EvmAssignOpProbe validates all AssignOp variants on U64 scalar storage and diagnostics reject expression-position or non-numeric use.
 Effect	storageMapContains	unsupported	EVM mappings do not track key presence; diagnostics reject storage.map.contains instead of treating nonzero values as presence.
 Effect	storageMapGet	validated	lowerEffectExpr emits sload(__proof_forge_map_slot(slot, key)); EvmMapProbe validates ABI reads and raw Foundry vm.load slots.
 Effect	storageMapInsert	validated	lowerEffectExpr emits __proof_forge_map_set_return and statement position emits __proof_forge_map_write; EvmMapProbe validates previous-value returns and writes.
@@ -74,7 +74,7 @@ Effect	storageStructFieldRead	unsupported	EVM target profile rejects data.struct
 Effect	storageStructFieldWrite	unsupported	EVM target profile rejects data.struct and lowerEffectStmt has an explicit struct storage write diagnostic.
 Effect	storagePathRead	validated	EvmMapProbe validates single-segment mapKey storage path reads over Map<U64, U64, N>; diagnostics reject missing and nested map keys.
 Effect	storagePathWrite	validated	EvmMapProbe validates single-segment mapKey storage path writes over Map<U64, U64, N>; diagnostics reject missing and nested map keys.
-Effect	storagePathAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.assign_op in EVM IR v0.
+Effect	storagePathAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt still reject storage.path.assign_op in EVM IR v0; storage path compound updates require separate map/array/struct layout support.
 Effect	contextRead	validated	lowerEffectExpr emits EVM context opcodes for expression-position context reads; diagnostics still reject statement-position context reads.
 Effect	eventEmit	validated	EventProbe validates eventEmit lowering to Yul log1 with topic0 = keccak256(event name) and 32-byte word data fields; diagnostics reject expression-position events and malformed names.
 StoragePathSegment	field	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
@@ -83,7 +83,7 @@ StoragePathSegment	mapKey	validated	EvmMapProbe validates mapKey as the first an
 Statement	letBind	lowered	lowerStatement emits immutable Yul varDecl for U32/U64/Bool/Hash let bindings and rejects unsupported types.
 Statement	letMutBind	lowered	lowerStatement emits mutable scalar Yul let bindings; AssignmentProbe covers mutable U64 and Bool locals.
 Statement	assign	lowered	lowerStatement emits Yul assignment for local targets; AssignmentProbe covers local reassignment and diagnostics reject non-local targets.
-Statement	assignOp	unsupported	lowerStatement rejects compound assignment statements in EVM IR v0.
+Statement	assignOp	validated	lowerStatement emits Yul assignments for mutable local U32/U64 compound assignment; EvmAssignOpProbe validates all AssignOp variants and diagnostics reject non-local targets, immutable locals, and non-numeric operands.
 Statement	effect	structural	lowerStatement delegates effects to lowerEffectStmt; scalar writes lower and unsupported effects reject.
 Statement	assert	lowered	lowerStatement emits a Yul if iszero(condition) revert guard; AssertProbe covers the passing path and Foundry revert behavior.
 Statement	assertEq	lowered	lowerStatement emits a Yul if iszero(eq(lhs, rhs)) revert guard; AssertProbe covers the passing path and Foundry revert behavior.

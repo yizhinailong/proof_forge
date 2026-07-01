@@ -17,6 +17,66 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Compound Assignment
+
+Commit: feature commit for EVM IR compound assignment
+
+Summary:
+
+- Added EVM portable IR lowering for `Statement.assignOp` on mutable local
+  `U32`/`U64` bindings.
+- Added EVM portable IR lowering for statement-position
+  `storageScalarAssignOp` on numeric scalar storage.
+- Lowered arithmetic/bitwise compound assignment to Yul
+  `add/sub/mul/div/mod/and/or/xor`, and lowered shifts with EVM operand order
+  through `shl(shift, value)` and `shr(shift, value)`.
+- Added type validation so compound assignment requires matching `U32` or
+  `U64` operands, mutable local targets, and scalar numeric storage targets.
+- Kept aggregate assignment targets and `storagePathAssignOp` explicitly
+  rejected until EVM map/array/struct path update layout is designed.
+- Added `ProofForge.IR.Examples.EvmAssignOpProbe`,
+  `--emit-evm-assign-op-ir-yul`, `--emit-evm-assign-op-ir-bytecode`,
+  `Examples/Evm/EvmAssignOpProbe.golden.yul`, and
+  `scripts/evm/assign-op-ir-smoke.sh`.
+- Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
+  gates, backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-evm-assign-op-ir-yul -o build/ir/EvmAssignOpProbe.yul
+diff -u Examples/Evm/EvmAssignOpProbe.golden.yul build/ir/EvmAssignOpProbe.yul
+scripts/evm/assign-op-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Result:
+
+- Generated EvmAssignOpProbe Yul includes selector dispatch, local compound
+  assignment, scalar storage `sstore(slot, op(sload(slot), value))`, and U32
+  ABI range guards.
+- Foundry verifies `compound_assignment(uint256)` returns `58`, raw storage
+  slot `0` is `58`, `compound_u32(uint32)` returns `11`, and unknown selectors
+  revert.
+- EVM artifact metadata records and validates `storage.scalar`.
+- Diagnostics reject non-local compound assignment targets, non-numeric
+  compound operands, expression-position scalar storage compound assignment,
+  and unsupported `storagePathAssignOp`.
+
+Known limitations:
+
+- EVM IR compound assignment currently supports only mutable local scalars and
+  scalar storage; aggregate locals and storage paths remain out of scope.
+- Operations use raw EVM word semantics and do not add checked-overflow
+  behavior.
+
+Next step:
+
+- Continue EVM portable IR support toward storage arrays, structs, aggregate
+  ABI values, or storage-path compound updates.
+
 ### EVM IR Bounded Loops
 
 Commit: feature commit for EVM IR bounded loops

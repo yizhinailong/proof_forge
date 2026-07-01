@@ -105,6 +105,10 @@ Tasks:
 - Done: add EVM IR mutable scalar local bindings and local assignment lowering,
   with `AssignmentProbe` golden Yul, solc bytecode, and Foundry success/revert
   validation.
+- Done: add EVM IR local and scalar storage compound assignment lowering for
+  all portable `AssignOp` variants, with `EvmAssignOpProbe` golden Yul, solc
+  bytecode, Foundry runtime/raw-slot validation, metadata capability
+  validation, and explicit diagnostics for malformed targets/types.
 - Done: add EVM IR statement-level `if/else` lowering as Yul `switch` blocks,
   with `ConditionalProbe` golden Yul, solc bytecode, Foundry runtime
   validation, and explicit branch-local return diagnostics.

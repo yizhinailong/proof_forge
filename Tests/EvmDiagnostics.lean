@@ -17,6 +17,12 @@ def countState : StateDecl := {
   type := .u64
 }
 
+def rootState : StateDecl := {
+  id := "root"
+  kind := .scalar
+  type := .hash
+}
+
 def selectedEntrypoint (name : String) (body : Array Statement := #[]) : Entrypoint := {
   name := name
   selector? := some "deadbeef"
@@ -175,9 +181,9 @@ def storageReadStmtModule : Module :=
 
 def storageScalarAssignModule : Module := {
   name := "BadStorageAssign"
-  state := #[countState]
+  state := #[rootState]
   entrypoints := #[selectedEntrypoint "bad" #[
-    .effect (.storageScalarAssignOp "count" .add (.literal (.u64 1)))
+    .effect (.storageScalarAssignOp "root" .add (.literal (.hash4 1 2 3 4)))
   ]]
 }
 
@@ -252,10 +258,20 @@ def immutableAssignmentModule : Module :=
     .assign (.local "x") (.literal (.u64 2))
   ]
 
-def compoundAssignmentModule : Module :=
-  selectedModule "BadCompoundAssignment" <| selectedEntrypoint "bad" #[
-    .letMutBind "x" .u64 (.literal (.u64 1)),
-    .assignOp (.local "x") .add (.literal (.u64 2))
+def storagePathAssignModule : Module :=
+  selectedMapModule "BadStoragePathAssign" <| selectedEntrypoint "bad" #[
+    .effect (.storagePathAssignOp "balances" #[.mapKey (.literal (.u64 1))] .add (.literal (.u64 2)))
+  ]
+
+def compoundAssignmentTargetModule : Module :=
+  selectedModule "BadCompoundAssignmentTarget" <| selectedEntrypoint "bad" #[
+    .assignOp (.add (.literal (.u64 1)) (.literal (.u64 2))) .add (.literal (.u64 3))
+  ]
+
+def compoundAssignmentTypeModule : Module :=
+  selectedModule "BadCompoundAssignmentType" <| selectedEntrypoint "bad" #[
+    .letMutBind "flag" .bool (.literal (.bool true)),
+    .assignOp (.local "flag") .add (.literal (.bool false))
   ]
 
 def renderError? (module : Module) : Option String :=
@@ -335,9 +351,9 @@ def cases : Array (String × Module × String) := #[
     "storage.scalar.read must be used as an expression"
   ),
   (
-    "storage scalar assign_op unsupported",
+    "storage scalar assign_op type mismatch",
     storageScalarAssignModule,
-    "storage.scalar.assign_op is not supported by IR EVM v0"
+    "compound assignment addition expects matching numeric operands, got `Hash` and `Hash`"
   ),
   (
     "storage map contains unsupported",
@@ -353,6 +369,11 @@ def cases : Array (String × Module × String) := #[
     "storage path nested map unsupported",
     storagePathNestedMapModule,
     "EVM IR v0 supports only single-segment mapKey storage paths"
+  ),
+  (
+    "storage path assign_op unsupported",
+    storagePathAssignModule,
+    "storage.path.assign_op is not supported by IR EVM v0"
   ),
   (
     "context read used as statement",
@@ -410,9 +431,14 @@ def cases : Array (String × Module × String) := #[
     "assignment target local `x` is not mutable"
   ),
   (
-    "compound assignment unsupported",
-    compoundAssignmentModule,
-    "compound assignment statements are not supported by IR EVM v0"
+    "compound assignment target unsupported",
+    compoundAssignmentTargetModule,
+    "compound assignment target must be a local in IR EVM v0"
+  ),
+  (
+    "compound assignment type mismatch",
+    compoundAssignmentTypeModule,
+    "compound assignment addition expects matching numeric operands, got `Bool` and `Bool`"
   )
 ]
 

@@ -37,6 +37,7 @@ scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
+scripts/evm/assign-op-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/loop-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
@@ -71,6 +72,8 @@ proof-forge --emit-assert-ir-yul [-o output.yul]
 proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-assignment-ir-yul [-o output.yul]
 proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-assign-op-ir-yul [-o output.yul]
+proof-forge --emit-evm-assign-op-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-conditional-ir-yul [-o output.yul]
 proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-loop-ir-yul [-o output.yul]
@@ -137,7 +140,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 
 | Capability id | SDK / IR surface |
 |---|---|
-| `storage.scalar` | `Storage.load`, `Storage.store` |
+| `storage.scalar` | `Storage.load`, `Storage.store`; portable IR scalar storage read/write and scalar storage compound assignment |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<U64, U64, N>` get/set/insert and single-segment map storage paths |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
@@ -179,10 +182,11 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - String manipulation APIs incomplete in Yul runtime.
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
   IR EVM backend currently supports scalar storage/ABI, assertions, local
-  assignment, conditionals, context reads, events, `Hash` word values and
-  hashing, `Map<U64, U64, N>` storage, and synchronous word-returning
-  `crosscallInvoke`, and static bounded loops. It rejects wider portable IR
-  nodes with explicit diagnostics.
+  assignment, local compound assignment, scalar storage compound assignment,
+  conditionals, context reads, events, `Hash` word values and hashing,
+  `Map<U64, U64, N>` storage, synchronous word-returning `crosscallInvoke`,
+  and static bounded loops. It rejects wider portable IR nodes with explicit
+  diagnostics.
 - Portable IR EVM currently lacks aggregate ABI values, non-`U64` map
   shapes, storage arrays, structs, indexed/Solidity-signature event schemas,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
@@ -201,6 +205,7 @@ scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
+scripts/evm/assign-op-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/loop-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
@@ -234,6 +239,16 @@ assignment lowering to Yul `let` declarations and `:=` assignments. The smoke
 checks golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
 successful Foundry execution, and the revert path when the assigned bool guard
 is false.
+
+`EvmAssignOpProbe` validates portable IR compound assignment for mutable
+`U32`/`U64` locals and `U64` scalar storage. Local compound assignment lowers
+to Yul `name := op(name, value)`, while scalar storage compound assignment
+lowers to `sstore(slot, op(sload(slot), value))`. Shift operators preserve EVM
+operand ordering through `shl(shift, value)` and `shr(shift, value)`. The
+smoke checks golden Yul reproducibility, `solc --strict-assembly` bytecode
+generation, metadata capability `storage.scalar`, Foundry return values, raw
+storage slot updates, and unknown-selector revert behavior. Aggregate targets
+and `storagePathAssignOp` remain explicit diagnostics.
 
 `ConditionalProbe` validates portable IR statement-level `if/else` lowering to
 Yul `switch condition case 0 { else } default { then }` blocks. The smoke checks
