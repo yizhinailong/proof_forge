@@ -365,14 +365,16 @@ def eventTooManyIndexedModule : Module :=
     ] #[("value", .literal (.u64 5))])
   ]
 
-def eventIndexedAggregateModule : Module := {
-  name := "BadEventIndexedAggregate"
-  structs := #[pointStruct]
+def eventIndexedUnsupportedAggregateModule : Module := {
+  name := "BadEventIndexedUnsupportedAggregate"
   state := #[markerState]
   entrypoints := #[selectedEntrypoint "bad" #[
     .effect (.eventEmitIndexed
       "Seen"
-      #[("point", .structLit "Point" #[("x", .literal (.u64 1))])]
+      #[("matrix", .arrayLit (.fixedArray .u64 2) #[
+        .arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)],
+        .arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)]
+      ])]
       #[])
   ]]
 }
@@ -742,9 +744,9 @@ def cases : Array (String × Module × String) := #[
     "event `Seen` has 4 indexed field(s); EVM IR v0 supports at most 3 indexed fields"
   ),
   (
-    "indexed aggregate event field unsupported",
-    eventIndexedAggregateModule,
-    "event `Seen` indexed field `point` has unsupported EVM IR v0 type `Point`; indexed event fields must be U32, U64, Bool, or Hash"
+    "indexed unsupported aggregate event field unsupported",
+    eventIndexedUnsupportedAggregateModule,
+    "event `Seen` field `matrix` has unsupported EVM IR v0 aggregate type `Array<Array<U64,2>,2>`; event fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "crosscall target type mismatch",

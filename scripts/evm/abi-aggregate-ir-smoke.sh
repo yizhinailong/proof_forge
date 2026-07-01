@@ -51,6 +51,10 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint sum_small:384e9976 \
   --expect-entrypoint sum_small_matrix:94f90bdd \
   --expect-entrypoint and_flags:1df89823 \
+  --expect-entrypoint echo_hash_pair:5e248cf3 \
+  --expect-entrypoint make_hash_pair:d3a9b1bd \
+  --expect-entrypoint pick_hash:44d9885a \
+  --expect-entrypoint make_hash_array:3fcd733b \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmAbiAggregateProbe.bin")"
@@ -102,8 +106,16 @@ contract ProofForgeIRAbiAggregateSmokeTest {
         require(actual == expected, "assertEq(bool) failed");
     }
 
+    function assertEq(bytes32 actual, bytes32 expected) internal pure {
+        require(actual == expected, "assertEq(bytes32) failed");
+    }
+
     function deployRuntime(bytes memory code, address target) internal {
         vm.etch(target, code);
+    }
+
+    function packed(uint64 a, uint64 b, uint64 c, uint64 d) internal pure returns (bytes32) {
+        return bytes32((uint256(a) << 192) | (uint256(b) << 128) | (uint256(c) << 64) | uint256(d));
     }
 
     function callBytes(address probe, bytes memory payload) internal returns (bytes memory) {
@@ -154,6 +166,22 @@ contract ProofForgeIRAbiAggregateSmokeTest {
             callBytes(probe, abi.encodeWithSignature("and_flags((bool,bool))", true, false)),
             (bool)
         ));
+
+        bytes32 rootA = packed(1, 2, 3, 4);
+        bytes32 rootB = packed(5, 6, 7, 8);
+        assertEq(
+            abi.decode(
+                callBytes(probe, abi.encodeWithSignature("echo_hash_pair((bytes32,bytes32))", rootA, rootB)),
+                (bytes32)
+            ),
+            rootB
+        );
+
+        bytes32[2] memory roots = [rootA, rootB];
+        assertEq(
+            abi.decode(callBytes(probe, abi.encodeWithSignature("pick_hash(bytes32[2])", roots)), (bytes32)),
+            rootB
+        );
     }
 
     function testIRAbiAggregateReturns() public {
@@ -212,6 +240,21 @@ contract ProofForgeIRAbiAggregateSmokeTest {
         assertEq(matrix[0][1], 13);
         assertEq(matrix[1][0], 21);
         assertEq(matrix[1][1], 34);
+
+        bytes32 rootA = packed(21, 22, 23, 24);
+        bytes32 rootB = packed(34, 35, 36, 37);
+        bytes memory hashPairResult =
+            callBytes(probe, abi.encodeWithSignature("make_hash_pair(bytes32,bytes32)", rootA, rootB));
+        (bytes32 leftHash, bytes32 rightHash) = abi.decode(hashPairResult, (bytes32, bytes32));
+        assertEq(leftHash, rootA);
+        assertEq(rightHash, rootB);
+
+        bytes32[2] memory hashes = abi.decode(
+            callBytes(probe, abi.encodeWithSignature("make_hash_array(bytes32,bytes32)", rootA, rootB)),
+            (bytes32[2])
+        );
+        assertEq(hashes[0], rootA);
+        assertEq(hashes[1], rootB);
     }
 
     function testIRAbiAggregateRejectsMalformedCalldata() public {
@@ -257,6 +300,13 @@ contract ProofForgeIRAbiAggregateSmokeTest {
             uint256(4)
         ));
         assertFalse(overflowU32MatrixOk);
+
+        bytes4 pickHashSelector = bytes4(keccak256("pick_hash(bytes32[2])"));
+        (bool shortHashArrayOk,) = probe.call(abi.encodePacked(
+            pickHashSelector,
+            packed(1, 2, 3, 4)
+        ));
+        assertFalse(shortHashArrayOk);
 
         bytes4 flagsSelector = bytes4(keccak256("and_flags((bool,bool))"));
         (bool invalidBoolOk,) = probe.call(abi.encodePacked(flagsSelector, uint256(2), uint256(1)));
