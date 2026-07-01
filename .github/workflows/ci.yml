@@ -121,6 +121,9 @@ jobs:
       - name: Run EVM ConditionalProbe IR smoke
         run: scripts/evm/conditional-ir-smoke.sh
 
+      - name: Run EVM LoopProbe IR smoke
+        run: scripts/evm/loop-ir-smoke.sh
+
       - name: Run EVM ContextProbe IR smoke
         run: scripts/evm/context-ir-smoke.sh
 

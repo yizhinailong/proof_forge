@@ -38,6 +38,7 @@ scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
+scripts/evm/loop-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
 scripts/evm/event-ir-smoke.sh
 scripts/evm/crosscall-ir-smoke.sh
@@ -72,6 +73,8 @@ proof-forge --emit-assignment-ir-yul [-o output.yul]
 proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-conditional-ir-yul [-o output.yul]
 proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-loop-ir-yul [-o output.yul]
+proof-forge --emit-evm-loop-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-context-ir-yul [-o output.yul]
 proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-event-ir-yul [-o output.yul]
@@ -143,6 +146,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `events.emit` | `log0`, `log1`, `log2`; portable IR `eventEmit` lowers to `log1` with topic0 derived from the event name |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
+| `control.bounded_loop` | Portable IR `boundedFor` lowers to Yul `for` loops with static bounds |
 | `crypto.hash` | Portable IR `Hash` values lower to one-word EVM `bytes32`; `hash` / `hash_two_to_one` lower to Yul `keccak256` helpers |
 | `account.explicit` | Partial: portable IR `contractId` context reads lower to Yul `address()` |
 
@@ -177,8 +181,8 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   IR EVM backend currently supports scalar storage/ABI, assertions, local
   assignment, conditionals, context reads, events, `Hash` word values and
   hashing, `Map<U64, U64, N>` storage, and synchronous word-returning
-  `crosscallInvoke`, and rejects wider portable IR nodes with explicit
-  diagnostics.
+  `crosscallInvoke`, and static bounded loops. It rejects wider portable IR
+  nodes with explicit diagnostics.
 - Portable IR EVM currently lacks aggregate ABI values, non-`U64` map
   shapes, storage arrays, structs, indexed/Solidity-signature event schemas,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
@@ -198,6 +202,7 @@ scripts/evm/abi-scalar-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
+scripts/evm/loop-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
 scripts/evm/event-ir-smoke.sh
 scripts/evm/crosscall-ir-smoke.sh
@@ -236,6 +241,14 @@ golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
 Foundry execution of then/else storage updates, and unknown-selector revert
 behavior. Branch-local `return` statements remain rejected until the EVM IR
 backend grows early-return lowering through Yul `leave`.
+
+`EvmLoopProbe` validates portable IR `boundedFor` lowering to Yul `for` loops:
+the loop prelude declares the index, the condition compares it with the static
+exclusive stop bound, and the post block increments it by one. The smoke checks
+golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
+metadata capabilities (`storage.scalar`, `control.bounded_loop`), Foundry
+runtime storage updates, and unknown-selector revert behavior. Invalid loop
+ranges and loop-local `return` statements remain explicit diagnostics.
 
 `ContextProbe` validates portable IR context reads through EVM opcodes:
 `userId` lowers to `caller()`, `contractId` lowers to `address()`, and

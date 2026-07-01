@@ -88,5 +88,5 @@ Statement	effect	structural	lowerStatement delegates effects to lowerEffectStmt;
 Statement	assert	lowered	lowerStatement emits a Yul if iszero(condition) revert guard; AssertProbe covers the passing path and Foundry revert behavior.
 Statement	assertEq	lowered	lowerStatement emits a Yul if iszero(eq(lhs, rhs)) revert guard; AssertProbe covers the passing path and Foundry revert behavior.
 Statement	ifElse	lowered	lowerStatement emits Yul switch/case/default for if/else; ConditionalProbe covers then/else storage updates and diagnostics reject nested branch returns.
-Statement	boundedFor	unsupported	EVM target profile rejects control.bounded_loop before lowering.
+Statement	boundedFor	validated	EvmLoopProbe validates boundedFor lowering to Yul for loops with scalar storage updates; diagnostics reject invalid loop ranges and loop-local returns.
 Statement	return	lowered	lowerStatement assigns supported return expressions to result and dispatch encodes one-word return data.

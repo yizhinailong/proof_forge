@@ -108,6 +108,10 @@ Tasks:
 - Done: add EVM IR statement-level `if/else` lowering as Yul `switch` blocks,
   with `ConditionalProbe` golden Yul, solc bytecode, Foundry runtime
   validation, and explicit branch-local return diagnostics.
+- Done: add EVM IR `boundedFor` lowering as Yul `for` loops with static
+  bounds, with `EvmLoopProbe` golden Yul, solc bytecode, Foundry runtime/raw
+  storage validation, metadata capability validation, and explicit invalid
+  range / loop-local return diagnostics.
 - Done: add EVM IR context read lowering for `userId`, `contractId`, and
   `checkpointId` as Yul `caller()`, `address()`, and `number()`, with
   `ContextProbe` golden Yul, solc bytecode, Foundry runtime validation, and

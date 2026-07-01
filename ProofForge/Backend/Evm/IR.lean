@@ -524,7 +524,11 @@ mutual
         discard <| validateStatements module entrypoint env thenBody
         discard <| validateStatements module entrypoint env elseBody
         .ok env
-    | .boundedFor _ _ _ _ =>
+    | .boundedFor indexName start stopExclusive body => do
+        if stopExclusive <= start then
+          .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
+        let loopEnv ← addLocal env indexName .u32 false
+        discard <| validateStatements module entrypoint loopEnv body
         .ok env
     | .return value => do
         ensureType "return value" entrypoint.returns (← inferExprType module env value)
@@ -806,8 +810,21 @@ mutual
             body := { statements := thenStatements }
           }
         ])
-    | .boundedFor _ _ _ _ =>
-        .error { message := "bounded for loops are not supported by IR EVM v0" }
+    | .boundedFor indexName start stopExclusive body => do
+        if stopExclusive <= start then
+          .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
+        if hasNestedReturn body then
+          .error { message := "return statements inside bounded for loops are not supported by IR EVM v0; return must be the final entrypoint statement" }
+        let bodyStatements ← lowerStatements module body
+        .ok (.forLoop
+          { statements := #[
+            .varDecl #[{ name := indexName }] (some (Lean.Compiler.Yul.Expr.num start))
+          ] }
+          (Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.Expr.id indexName, Lean.Compiler.Yul.Expr.num stopExclusive])
+          { statements := #[
+            .assignment #[indexName] (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id indexName, Lean.Compiler.Yul.Expr.num 1])
+          ] }
+          { statements := bodyStatements })
     | .return value => do
         .ok (.assignment #["result"] (← lowerExpr module value))
 end

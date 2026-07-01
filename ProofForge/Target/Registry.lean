@@ -57,6 +57,7 @@ def evm : TargetProfile := {
     .crosscallInvoke,
     .envBlock,
     .controlConditional,
+    .controlBoundedLoop,
     .cryptoHash,
     .assertions,
     .accountExplicit

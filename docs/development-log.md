@@ -17,6 +17,58 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Bounded Loops
+
+Commit: feature commit for EVM IR bounded loops
+
+Summary:
+
+- Added EVM target support for `control.bounded_loop`.
+- Added EVM portable IR lowering for statement-position `boundedFor`.
+- Lowered bounded loops to Yul `for` loops with a static `let` index prelude,
+  `lt(index, stopExclusive)` condition, and `index := add(index, 1)` post
+  block.
+- Added type validation for loop bodies with the loop index available as an
+  immutable `U32` local.
+- Added explicit diagnostics for invalid loop ranges and loop-local returns.
+- Added `ProofForge.IR.Examples.EvmLoopProbe`,
+  `--emit-evm-loop-ir-yul`, `--emit-evm-loop-ir-bytecode`,
+  `Examples/Evm/EvmLoopProbe.golden.yul`, and
+  `scripts/evm/loop-ir-smoke.sh`.
+- Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
+  gates, backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-evm-loop-ir-yul -o build/ir/EvmLoopProbe.yul
+diff -u Examples/Evm/EvmLoopProbe.golden.yul build/ir/EvmLoopProbe.yul
+scripts/evm/loop-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Result:
+
+- Generated EvmLoopProbe Yul includes selector dispatch and a Yul `for` loop
+  that increments scalar storage three times.
+- Foundry verifies the returned value and raw storage slot are both `3`, plus
+  unknown-selector revert behavior.
+- EVM artifact metadata records and validates `control.bounded_loop`.
+- Diagnostics reject invalid bounded-loop ranges and loop-local returns.
+
+Known limitations:
+
+- EVM IR bounded loops currently require static natural-number bounds from the
+  portable IR node.
+- Loop-local `return`, `break`, and `continue` are not modeled yet.
+
+Next step:
+
+- Continue expanding EVM portable IR support for aggregate values, storage
+  arrays, structs, or compound assignment.
+
 ### EVM IR Crosscalls
 
 Commit: feature commit for EVM IR crosscalls

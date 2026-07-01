@@ -150,9 +150,17 @@ def conditionalReturnModule : Module :=
     .return (.literal (.u64 3))
   ]
 
-def boundedLoopModule : Module :=
-  selectedModule "BadLoop" <| selectedEntrypoint "bad" #[
-    .boundedFor "_i" 0 1 #[]
+def invalidBoundedLoopModule : Module :=
+  selectedModule "BadLoopRange" <| selectedEntrypoint "bad" #[
+    .boundedFor "_i" 3 3 #[]
+  ]
+
+def boundedLoopReturnModule : Module :=
+  selectedModule "BadLoopReturn" <| selectedReturnEntrypoint "bad" .u64 #[
+    .boundedFor "_i" 0 1 #[
+      .return (.literal (.u64 1))
+    ],
+    .return (.literal (.u64 0))
   ]
 
 def storageWriteExprModule : Module :=
@@ -307,9 +315,14 @@ def cases : Array (String × Module × String) := #[
     "return statements inside if/else branches are not supported by IR EVM v0; return must be the final entrypoint statement"
   ),
   (
-    "bounded loop capability unsupported",
-    boundedLoopModule,
-    "target `evm` does not support capability `control.bounded_loop`: capability is not present in the target profile"
+    "bounded loop invalid range",
+    invalidBoundedLoopModule,
+    "bounded loop `_i` must have stop greater than start"
+  ),
+  (
+    "bounded loop return unsupported",
+    boundedLoopReturnModule,
+    "return statements inside bounded for loops are not supported by IR EVM v0; return must be the final entrypoint statement"
   ),
   (
     "storage write used as expression",
