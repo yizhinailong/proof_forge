@@ -69,7 +69,7 @@ partial def statement : Statement → Except LowerError (Array String)
       .ok #[s!"Mapping::set({stateId}, {valueStr});"]
   | .effect ef =>
       .error { message := s!"Aleo IR v0 does not support effect statement: {repr ef}" }
-  | .return value => do
+  | .«return» value => do
       let valueStr ← expr value
       .ok #[s!"return {valueStr};"]
   | other =>
@@ -103,32 +103,35 @@ def entrypoint (ep : Entrypoint) : Except LowerError (Array String) := do
   if ep.name == "get" then
     if ep.returns != .u64 then
       .error { message := "Aleo IR v0 expects `get` entrypoint to return U64" }
-    .ok #[
-      s!"transition get() -> public u64 {{",
-      indent 1 "return Mapping::get_or_use(count, 0u64);",
-      "}"
-    ]
+    else
+      .ok #[
+        "transition get() -> public u64 {",
+        indent 1 "return Mapping::get_or_use(count, 0u64);",
+        "}"
+      ]
   else if ep.name == "initialize" then
     if ep.returns != .unit then
       .error { message := "Aleo IR v0 expects `initialize` entrypoint to return Unit" }
-    .ok #[
-      "transition initialize() {",
-      indent 1 "return;",
-      "}",
-      "final initialize() {",
-      indent 1 "Mapping::set(count, 0u64);",
-      "}"
-    ]
+    else
+      .ok #[
+        "transition initialize() {",
+        indent 1 "return;",
+        "}",
+        "final initialize() {",
+        indent 1 "Mapping::set(count, 0u64);",
+        "}"
+      ]
   else if ep.name == "increment" then
     if ep.returns != .unit then
       .error { message := "Aleo IR v0 expects `increment` entrypoint to return Unit" }
-    let finalBody := bodyLines.map (indent 1)
-    .ok #[
-      "transition increment() {",
-      indent 1 "return;",
-      "}",
-      "final increment() {"
-    ] ++ finalBody ++ #["}"]
+    else
+      let finalBody := bodyLines.map (indent 1)
+      .ok (#[
+        "transition increment() {",
+        indent 1 "return;",
+        "}",
+        "final increment() {"
+      ] ++ finalBody ++ #["}"])
   else
     .error { message := s!"Aleo IR v0 does not support entrypoint `{ep.name}`" }
 
@@ -138,6 +141,7 @@ def renderModule (module : Module) : Except LowerError String := do
   let entrypointBlocks ← module.entrypoints.mapM entrypoint
   let entrypointLines := entrypointBlocks.foldl (fun acc block => acc ++ block) #[]
   let body := stateLines ++ #[""] ++ entrypointLines
-  .ok s!"program {module.name.toLower}.aleo {{\n{body.map (indent 1) |> lines}\n}}"
+  let renderedBody := lines (body.map (indent 1))
+  .ok ("program " ++ module.name.toLower ++ ".aleo {\n" ++ renderedBody ++ "\n}")
 
 end ProofForge.Backend.Aleo.IR
