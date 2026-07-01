@@ -3,8 +3,9 @@ set -euo pipefail
 
 # Compile the ProofForge EVM examples and run smoke tests with Foundry.
 #
-# This intentionally uses Forge's mature local EVM test runner and `vm.etch`
-# cheatcode rather than a hand-rolled JSON-RPC harness.
+# This intentionally uses Forge's mature local EVM test runner, `vm.etch`
+# for fast runtime checks, and one direct `create` initcode deployment check
+# rather than a hand-rolled JSON-RPC harness.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${EVM_OUT_DIR:-$ROOT/build/evm}"
@@ -64,10 +65,14 @@ contract ProofForgeSmokeTest {
         vm.etch(target, code);
     }
 
-    function testCounterLifecycle() public {
-        address counter = address(0xCAFE);
-        deployRuntime(hex"$(cat "$OUT_DIR/Counter.bin")", counter);
+    function deployInitCode(bytes memory initCode) internal returns (address deployed) {
+        assembly {
+            deployed := create(0, add(initCode, 0x20), mload(initCode))
+        }
+        require(deployed != address(0), "create failed");
+    }
 
+    function assertCounterLifecycle(address counter) internal {
         (bool ok0, bytes memory r0) = counter.call(abi.encodeWithSignature("get()"));
         assertTrue(ok0);
         assertEq(abi.decode(r0, (uint256)), 0);
@@ -92,6 +97,17 @@ contract ProofForgeSmokeTest {
         (bool ok6, bytes memory r6) = counter.call(abi.encodeWithSignature("get()"));
         assertTrue(ok6);
         assertEq(abi.decode(r6, (uint256)), 42);
+    }
+
+    function testCounterLifecycle() public {
+        address counter = address(0xCAFE);
+        deployRuntime(hex"$(cat "$OUT_DIR/Counter.bin")", counter);
+        assertCounterLifecycle(counter);
+    }
+
+    function testCounterInitCodeDeploysRuntime() public {
+        address counter = deployInitCode(hex"$(cat "$OUT_DIR/Counter.init.bin")");
+        assertCounterLifecycle(counter);
     }
 
     function testArrayExample() public {

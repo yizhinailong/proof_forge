@@ -78,14 +78,18 @@ Tasks:
 - Done for EVM: include source module, target id, artifact paths, SHA-256, byte
   sizes, solc path/version, selector metadata, and validation status.
 - Done for EVM: emit and validate a ProofForge deploy manifest for every EVM
-  bytecode build, recording runtime bytecode inputs, ABI selectors, and the
-  current `not-generated` transaction-broadcast status.
+  bytecode build, recording runtime bytecode inputs, ABI selectors, deployable
+  initcode, and the current `not-generated` transaction-broadcast status.
+- Done for EVM: generate an artifact-linked `.init.bin` creation bytecode file
+  for each EVM bytecode build, record it in both `proof-forge-artifact.json`
+  and `proof-forge-deploy.json`, and validate that the initcode header copies
+  and returns the referenced runtime bytecode.
 - Keep schema versioned from day one.
 
 Acceptance criteria:
 
-- EVM bytecode build writes bytecode, metadata, and deploy manifest next to
-  each other.
+- EVM bytecode build writes runtime bytecode, deployable initcode, metadata,
+  and deploy manifest next to each other.
 - Metadata and deploy manifests can be parsed independently by CI scripts.
 - EVM metadata can represent missing optional version data as `null`, not
   malformed metadata.

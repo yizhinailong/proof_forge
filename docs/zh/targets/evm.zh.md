@@ -223,7 +223,7 @@ EVM 不支持（设计上针对其他目标）：
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
 - 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、通过 Yul `leave` 实现的分支/loop 内早退、context read、scalar 和扁平 aggregate event data、`Hash` word 值与 hashing、带托管 key presence 的 word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态和动态 index 的不可变和可变 local fixed-array value、静态和动态嵌套 scalar/扁平 struct local fixed-array read 以及可变 leaf/whole-array 更新、标量/hash 字段上的扁平不可变和可变 local struct value、带静态/动态字段访问的扁平 struct local fixed array 和嵌套扁平 struct local fixed array、扁平静态聚合 ABI 参数/返回（包括 Hash/bytes32 聚合 leaf）、嵌套标量 fixed-array ABI 参数/返回、word array 和扁平 struct array 的 storage-backed fixed-array ABI return、同步返回一个 word 的 `crosscallInvoke`、支持 scalar word、扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array 参数/返回的 typed crosscall、normal/value/static/delegate typed call 的扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array entrypoint 直接返回、带 value 的 typed `crosscallInvokeValueTyped`、typed `crosscallInvokeStaticTyped`、typed `crosscallInvokeDelegateTyped`，以及固定 init-code 的 `crosscallCreate` 和 `crosscallCreate2`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
-- Portable IR EVM 目前仍缺少动态 ABI 值、leaf 为不支持 aggregate 或非扁平 struct 的嵌套 local array、leaf 为非扁平 struct 或其他不支持形态的嵌套 crosscall fixed array、非 word 或 aggregate map 形态、超出扁平 struct array 的 nested local struct、更完整的 event declaration、动态 constructor 参数、artifact-linked init code、variable-length 跨调用返回数据，以及真实 creation transaction 或 broadcast manifest。
+- Portable IR EVM 目前仍缺少动态 ABI 值、leaf 为不支持 aggregate 或非扁平 struct 的嵌套 local array、leaf 为非扁平 struct 或其他不支持形态的嵌套 crosscall fixed array、非 word 或 aggregate map 形态、超出扁平 struct array 的 nested local struct、更完整的 event declaration、动态 constructor 参数、variable-length 跨调用返回数据，以及真实 creation transaction 或 broadcast manifest。
 
 ## Portable IR 门禁
 
@@ -306,17 +306,17 @@ EVM bytecode 模式会发射 ProofForge 制品元数据 JSON 和 ProofForge EVM 
 - 可获得的 portable IR capability ids
 - selector-facing ABI entrypoints 或 SDK method specs
 - `solc` path/version
-- Yul、bytecode、可选 source 和 deploy manifest 的 artifact path、byte size 和 SHA-256
-- `solc --strict-assembly`、bytecode generation 与 deploy manifest generation 的 validation flag
+- Yul、runtime bytecode、可部署 initcode、可选 source 和 deploy manifest 的 artifact path、byte size 和 SHA-256
+- `solc --strict-assembly`、bytecode generation、initcode generation 与 deploy manifest generation 的 validation flag
 
 EVM deploy manifest 会记录：
 
 - `kind: proof-forge-evm-deploy-manifest`
 - source kind/module、`irVersion`、capabilities 和 ABI entrypoints/methods
-- Yul/source 输入以及 runtime bytecode 的 hash/size
-- `creation.mode: runtime-bytecode`，目前 constructor args 为空且没有 init code
-- `deployment.broadcast: not-generated`，因为当前 Foundry smoke 通过 `vm.etch` 安装 runtime bytecode，而不是广播链上交易
+- Yul/source 输入，以及 runtime bytecode 和 initcode 的 hash/size
+- `creation.mode: init-code`，constructor args 仍为空，但 manifest 已记录 artifact-linked initcode 文件和它引用的 runtime bytecode
+- `deployment.broadcast: not-generated`，因为交易签名、chain profile 选择和 broadcast JSON 还没有生成
 
-`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
+`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
 
 在统一的目标清单发布（RFC 0002）之前，方法分派仍使用 `.evm-methods` sidecar 文件。
