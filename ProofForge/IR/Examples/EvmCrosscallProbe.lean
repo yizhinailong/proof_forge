@@ -107,10 +107,77 @@ def callRemoteValue : Entrypoint := {
   ]
 }
 
+def callRemoteStatic : Entrypoint := {
+  name := "call_remote_static"
+  selector? := some "d13203a8"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[] .u64)
+  ]
+}
+
+def callRemoteStaticBool : Entrypoint := {
+  name := "call_remote_static_bool"
+  selector? := some "ae266f0a"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag", .bool)
+  ]
+  returns := .bool
+  body := #[
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[.local "flag"] .bool)
+  ]
+}
+
+def callRemoteStaticU32 : Entrypoint := {
+  name := "call_remote_static_u32"
+  selector? := some "ec8c40f9"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("x", .u32)
+  ]
+  returns := .u32
+  body := #[
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[.local "x"] .u32)
+  ]
+}
+
+def callRemoteStaticHash : Entrypoint := {
+  name := "call_remote_static_hash"
+  selector? := some "4e0edd3c"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("value", .hash)
+  ]
+  returns := .hash
+  body := #[
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[.local "value"] .hash)
+  ]
+}
+
 def module : Module := {
   name := "EvmCrosscallProbe"
   state := #[stateMarker]
-  entrypoints := #[callRemote, callRemote1, callRemote2, callRemoteBool, callRemoteU32, callRemoteHash, callRemoteValue]
+  entrypoints := #[
+    callRemote,
+    callRemote1,
+    callRemote2,
+    callRemoteBool,
+    callRemoteU32,
+    callRemoteHash,
+    callRemoteValue,
+    callRemoteStatic,
+    callRemoteStaticBool,
+    callRemoteStaticU32,
+    callRemoteStaticHash
+  ]
 }
 
 end ProofForge.IR.Examples.EvmCrosscallProbe

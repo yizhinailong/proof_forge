@@ -164,6 +164,14 @@ Tasks:
   bytecode, Foundry `msg.value`/callee-balance validation, metadata entrypoint
   validation, EVM malformed value/return diagnostics, and explicit Psy
   unsupported diagnostics.
+- Done: add EVM IR `crosscallInvokeStaticTyped` lowering for typed scalar
+  staticcalls, using value-free Yul `staticcall` helpers with the same
+  selector/scalar-word packing and Bool/U32 return guards as typed calls, with
+  `EvmCrosscallProbe` golden Yul, solc bytecode, Foundry U64 read-only return,
+  Bool/U32/Hash static typed return, invalid typed-return, and static-context
+  state-write failure validation, metadata entrypoint validation, EVM malformed
+  aggregate argument/return diagnostics, and explicit Psy unsupported
+  diagnostics.
 - Done: add EVM IR direct scalar expression validation for `U64`/`U32`
   arithmetic, `U64` exponentiation, `U64`/`U32` bitwise operations and shifts,
   predicates, boolean operators, literals, immutable locals, supported casts,

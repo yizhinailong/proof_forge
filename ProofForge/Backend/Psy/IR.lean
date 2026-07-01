@@ -681,6 +681,8 @@ mutual
         .error { message := s!"typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
     | .crosscallInvokeValueTyped _ _ _ _ returnType =>
         .error { message := s!"value-bearing typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
+    | .crosscallInvokeStaticTyped _ _ _ returnType =>
+        .error { message := s!"static typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
     | .effect effect =>
         inferEffectExprType module env effect
 
@@ -1028,6 +1030,8 @@ mutual
         .error { message := s!"typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
     | .crosscallInvokeValueTyped _ _ _ _ returnType =>
         .error { message := s!"value-bearing typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
+    | .crosscallInvokeStaticTyped _ _ _ returnType =>
+        .error { message := s!"static typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
     | .effect effect => lowerEffectExpr module effect
 
   partial def lowerExprOperand (module : Module) : Expr → Except LowerError String

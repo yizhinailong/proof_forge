@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Typed Staticcalls
+
+Commit: feature commit for EVM IR typed staticcalls
+
+Summary:
+
+- Added portable IR `crosscallInvokeStaticTyped` for read-only EVM
+  cross-contract calls that return one scalar word.
+- Lowered typed static calls to arity- and return-type-specific Yul helpers
+  using `staticcall(gas(), target, ...)`, sharing selector packing, scalar-word
+  argument encoding, short-return checks, and Bool/U32 return guards with the
+  existing call helpers.
+- Kept target semantics explicit across backends: Psy IR v0 rejects static
+  typed crosscalls with a stable unsupported diagnostic rather than silently
+  lowering them to the existing Felt-returning `__invoke_sync` form.
+- Extended `EvmCrosscallProbe` with `call_remote_static` plus Bool/U32/Hash
+  static typed variants, refreshed golden Yul, Foundry read-only return,
+  typed-return guard, and static-context state-write failure checks, metadata
+  selector checks, EVM/Psy diagnostics, coverage manifests, target docs,
+  validation gates, backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+scripts/i18n/check-sync.sh
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/crosscall-ir-smoke.sh
+```
+
+Known limitations:
+
+- Static crosscalls are currently limited to scalar word arguments and one
+  scalar word return (`U32`, `U64`, `Bool`, or `Hash`).
+- `delegatecall`, contract creation, aggregate crosscall arguments/returns, and
+  variable-length return data remain future EVM IR work.
+
+Next step:
+
+- Continue shrinking EVM cross-call gaps around `delegatecall`, create/create2,
+  aggregate calldata/return-data, or richer artifact metadata for deployment.
+
 ### EVM IR Aggregate Event Data
 
 Commit: feature commit for EVM IR aggregate event data

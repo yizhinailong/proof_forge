@@ -421,6 +421,24 @@ def valueCrosscallReturnTypeModule : Module :=
       (.fixedArray .u64 2))
   ]
 
+def staticCrosscallArgumentTypeModule : Module :=
+  selectedModule "BadStaticCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.crosscallInvokeStaticTyped
+      (.literal (.u64 1))
+      (.literal (.u64 2))
+      #[.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]]
+      .u64)
+  ]
+
+def staticCrosscallReturnTypeModule : Module :=
+  selectedModule "BadStaticCrosscallReturnType" <| selectedReturnEntrypoint "bad" (.fixedArray .u64 2) #[
+    .return (.crosscallInvokeStaticTyped
+      (.literal (.u64 1))
+      (.literal (.u64 2))
+      #[]
+      (.fixedArray .u64 2))
+  ]
+
 def hashLiteralModule : Module :=
   selectedModule "BadHashLiteral" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.literal (.hash4 1 2 3 4))
@@ -688,6 +706,16 @@ def cases : Array (String × Module × String) := #[
     "value crosscall return type unsupported",
     valueCrosscallReturnTypeModule,
     "value crosscall return has unsupported EVM IR v0 crosscall word type `Array<U64,2>`; crosscall scalar words support U32, U64, Bool, or Hash"
+  ),
+  (
+    "static crosscall argument type unsupported",
+    staticCrosscallArgumentTypeModule,
+    "static crosscall argument has unsupported EVM IR v0 crosscall word type `Array<U64,2>`; crosscall scalar words support U32, U64, Bool, or Hash"
+  ),
+  (
+    "static crosscall return type unsupported",
+    staticCrosscallReturnTypeModule,
+    "static crosscall return has unsupported EVM IR v0 crosscall word type `Array<U64,2>`; crosscall scalar words support U32, U64, Bool, or Hash"
   ),
   (
     "hash literal return type mismatch",
