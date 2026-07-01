@@ -1,29 +1,74 @@
-# Wasm-NEAR Target (Rust `near-sdk-rs` Sourcegen)
+# Wasm-NEAR Target
 
 **Target id:** `wasm-near`
 **Family:** Wasm host
-**Stage:** Spike (in progress — CLI emit modes, IR lowering, package generation)
-**Backend pattern:** Portable IR → Rust `near-sdk-rs` package → `cargo build --target wasm32-unknown-unknown` → NEAR-compatible Wasm
 
-## Two Paths
+Two backends coexist:
 
-The canonical future path (from the local Lean fork) is:
+- **Canonical (target state):** `EmitWat` — Lean LCNF → WAT → `wat2wasm`,
+  mirroring the in-repo `EmitYul` EVM backend. See [D-027](../decisions.md) and
+  [Wasm family common shape](wasm-family.md).
+- **Frozen v0 stopgap (in-repo, compiles):** Rust `near-sdk-rs` sourcegen —
+  `Portable IR → near-sdk-rs package → cargo wasm32`. Validates NEAR semantics
+  now; **not expanded**. Its details are documented below under
+  [Frozen v0 reference](#frozen-v0-reference-rust-sourcegen).
+
+## Canonical architecture (`EmitWat`)
 
 ```text
-Lean.Near → EmitZig → tools/zigc-near → host/near/lean_near.zig → Wasm
+ProofForge.Near (@[extern "lean_near_*"])
+  -> Lean compiler LCNF
+  -> EmitWat                       (shared Wasm-family lowering)
+  -> WAT module                    (host imports declared for env.*)
+  -> wat2wasm                      (shared toolchain)
+  -> NEAR-compatible Wasm
 ```
 
-The EmitZig fork and Zig host bridge sources are not present in this repository.
-The current in-repo v0 path uses Rust source generation as a fallback:
+`ProofForge.Near` mirrors `ProofForge.Evm`: chain operations are opaque
+`@[extern]` functions that `EmitWat` recognizes and lowers to NEAR host
+imports. The Lean object model (boxed scalars, bump allocator, refcount
+elided, no GC) is ported from `EmitYul` — safe because NEAR calls are atomic
+with fresh linear memory per invocation, exactly like EVM.
 
-```text
-Portable IR → near-sdk-rs package (Cargo.toml, src/lib.rs) → cargo wasm32 → Wasm
-```
+Planned NEAR host surface (lowered from externs to wasm imports):
 
-This validates NEAR semantics now and preserves the Zig host-bridge path for
-restoration later. See [D-018](../decisions.md).
+| Extern | NEAR host import |
+|---|---|
+| `lean_near_storage_read` | `env.storage_read` |
+| `lean_near_storage_write` | `env.storage_write` |
+| `lean_near_storage_has_key` | `env.storage_has_key` |
+| `lean_near_sha256` | `env.sha256` |
+| `lean_near_predecessor_account_id` | `env.predecessor_account_id` |
+| `lean_near_current_account_id` | `env.current_account_id` |
+| `lean_near_block_height` | `env.block_height` |
+| `lean_near_log` | `env.log` |
 
-## Capability Profile
+### Why not `EmitZig`
+
+The earlier plan (`Lean → EmitZig → Zig → host bridge → Wasm`) is superseded
+because it requires porting the full Lean runtime to Wasm (libuv / threads /
+GC) — the documented blocker. `EmitWat` reuses the `EmitYul` object-model
+trick and avoids that port entirely.
+
+### Spike gate (highest risk)
+
+NEAR passes entrypoint arguments as serialized JSON/Borsh and expects
+serialized returns. The EVM backend does not face this (EVM uses calldata), so
+argument (de)serialization is the main new work and the top spike risk. The
+spike must prove a clean lowering of one entrypoint's args in/out before
+scaling `EmitWat` to the full IR.
+
+## Frozen v0 reference (Rust sourcegen)
+
+The remainder of this document describes the frozen Rust `near-sdk-rs`
+sourcegen backend (`ProofForge/Backend/WasmNear/IR.lean`). It is kept as a
+working reference that validates NEAR semantics and capability coverage; it is
+not the canonical path and is not being expanded.
+
+**Backend pattern:** Portable IR → Rust `near-sdk-rs` package → `cargo build
+--target wasm32-unknown-unknown` → NEAR-compatible Wasm.
+
+### Capability Profile
 
 Defined in `ProofForge/Target/Registry.lean` (`def wasmNear`):
 
@@ -172,9 +217,13 @@ lake env lean --run Tests/WasmNearDiagnostics.lean
 
 ## Open Questions
 
-- Should the Zig host-bridge path be restored before expanding capability
-  coverage beyond the current subset?
-- Should `nativeValue` expression inspection be added as a dedicated IR context
-  field for attached deposit?
-- Should map storage use `near_sdk::collections::LookupMap` instead of raw
-  `env::storage_read`/`env::storage_write` for better NEAR SDK integration?
+These concern the **frozen v0** (Rust sourcegen). The canonical-path open
+questions live in [Wasm family common shape](wasm-family.md#open-questions).
+
+- The v0 is frozen; capability coverage is **not** being expanded on the Rust
+  route. New capabilities land on the canonical `EmitWat` path instead.
+- Should `nativeValue` expression inspection (attached deposit) be added as a
+  dedicated IR context field on the canonical path?
+- Should map storage use `near_sdk::collections::LookupMap` in the v0 reference,
+  or leave raw `env::storage_read`/`env::storage_write` as the documented
+  semantics that `EmitWat` must reproduce?
