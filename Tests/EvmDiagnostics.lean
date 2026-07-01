@@ -71,14 +71,23 @@ def zeroLengthAbiArrayModule : Module :=
     body := #[]
   }
 
-def nestedAbiArrayModule : Module :=
-  selectedModule "BadNestedAbiArray" {
+def abiArrayBoxStruct : StructDecl := {
+  name := "AbiArrayBox"
+  fields := #[{ id := "xs", type := .fixedArray .u64 2 }]
+}
+
+def nestedAbiStructFieldModule : Module := {
+  name := "BadNestedAbiStructField"
+  structs := #[abiArrayBoxStruct]
+  state := #[markerState]
+  entrypoints := #[{
     name := "bad"
     selector? := some "deadbeef"
-    params := #[("xs", .fixedArray (.fixedArray .u64 2) 2)]
+    params := #[("box", .structType "AbiArrayBox")]
     returns := .unit
     body := #[]
-  }
+  }]
+}
 
 def hashParameterModule : Module :=
   selectedModule "BadHashParameter" {
@@ -558,9 +567,9 @@ def cases : Array (String × Module × String) := #[
     "entrypoint `bad` parameter `xs` uses Array<U64,0>; IR EVM v0 ABI fixed arrays must have non-zero length"
   ),
   (
-    "nested ABI array unsupported",
-    nestedAbiArrayModule,
-    "entrypoint `bad` parameter `xs` fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "nested ABI struct field unsupported",
+    nestedAbiStructFieldModule,
+    "field `xs` in struct `AbiArrayBox` has unsupported EVM IR v0 local struct field type `Array<U64,2>`; local structs support U32, U64, Bool, or Hash fields"
   ),
   (
     "missing return",
@@ -745,12 +754,12 @@ def cases : Array (String × Module × String) := #[
   (
     "typed crosscall return type unsupported",
     typedCrosscallReturnTypeModule,
-    "typed crosscall return fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "typed crosscall return fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "typed crosscall argument type unsupported",
     typedCrosscallArgumentTypeModule,
-    "typed crosscall argument fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "typed crosscall argument fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "value crosscall call value type mismatch",
@@ -760,32 +769,32 @@ def cases : Array (String × Module × String) := #[
   (
     "value crosscall return type unsupported",
     valueCrosscallReturnTypeModule,
-    "value crosscall return fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "value crosscall return fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "value crosscall argument type unsupported",
     valueCrosscallArgumentTypeModule,
-    "value crosscall argument fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "value crosscall argument fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "static crosscall argument type unsupported",
     staticCrosscallArgumentTypeModule,
-    "static crosscall argument fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "static crosscall argument fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "static crosscall return type unsupported",
     staticCrosscallReturnTypeModule,
-    "static crosscall return fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "static crosscall return fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "delegate crosscall argument type unsupported",
     delegateCrosscallArgumentTypeModule,
-    "delegate crosscall argument fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "delegate crosscall argument fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "delegate crosscall return type unsupported",
     delegateCrosscallReturnTypeModule,
-    "delegate crosscall return fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "delegate crosscall return fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "create call value type mismatch",

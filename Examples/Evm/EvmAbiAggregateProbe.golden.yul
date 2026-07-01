@@ -17,6 +17,14 @@ object "EvmAbiAggregateProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xda76e471 {
+      if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      let _r := f_EvmAbiAggregateProbe_sum_matrix(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
+      mstore(0, _r)
+      return(0, 32)
+    }
     case 0x10e4c1da {
       if lt(calldatasize(), 132) {
         revert(0, 0)
@@ -39,6 +47,17 @@ object "EvmAbiAggregateProbe" {
         revert(0, 0)
       }
       let _r0, _r1, _r2, _r3 := f_EvmAbiAggregateProbe_make_pair_array(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      mstore(64, _r2)
+      mstore(96, _r3)
+      return(0, 128)
+    }
+    case 0xb61c11b8 {
+      if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      let _r0, _r1, _r2, _r3 := f_EvmAbiAggregateProbe_make_matrix(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       mstore(0, _r0)
       mstore(32, _r1)
       mstore(64, _r2)
@@ -69,6 +88,26 @@ object "EvmAbiAggregateProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x94f90bdd {
+      if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 4294967295) {
+        revert(0, 0)
+      }
+      let _r := f_EvmAbiAggregateProbe_sum_small_matrix(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
+      mstore(0, _r)
+      return(0, 32)
+    }
     case 0x1df89823 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
@@ -92,6 +131,9 @@ object "EvmAbiAggregateProbe" {
     function f_EvmAbiAggregateProbe_sum_array(__proof_forge_array_xs_0, __proof_forge_array_xs_1, __proof_forge_array_xs_2) -> result {
       result := add(add(__proof_forge_array_xs_0, __proof_forge_array_xs_1), __proof_forge_array_xs_2)
     }
+    function f_EvmAbiAggregateProbe_sum_matrix(__proof_forge_array_matrix_0_0, __proof_forge_array_matrix_0_1, __proof_forge_array_matrix_1_0, __proof_forge_array_matrix_1_1) -> result {
+      result := add(add(__proof_forge_array_matrix_0_0, __proof_forge_array_matrix_0_1), add(__proof_forge_array_matrix_1_0, __proof_forge_array_matrix_1_1))
+    }
     function f_EvmAbiAggregateProbe_sum_pair_array(__proof_forge_array_struct_pairs_0_left, __proof_forge_array_struct_pairs_0_right, __proof_forge_array_struct_pairs_1_left, __proof_forge_array_struct_pairs_1_right) -> result {
       result := add(add(__proof_forge_array_struct_pairs_0_left, __proof_forge_array_struct_pairs_0_right), add(__proof_forge_array_struct_pairs_1_left, __proof_forge_array_struct_pairs_1_right))
     }
@@ -109,6 +151,12 @@ object "EvmAbiAggregateProbe" {
       __proof_forge_return_2 := __proof_forge_array_struct_pairs_1_left
       __proof_forge_return_3 := __proof_forge_array_struct_pairs_1_right
     }
+    function f_EvmAbiAggregateProbe_make_matrix(a, b, c, d) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
+      __proof_forge_return_0 := a
+      __proof_forge_return_1 := b
+      __proof_forge_return_2 := c
+      __proof_forge_return_3 := d
+    }
     function f_EvmAbiAggregateProbe_make_array(a, b, c) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2 {
       let __proof_forge_array_xs_0 := a
       let __proof_forge_array_xs_1 := b
@@ -119,6 +167,9 @@ object "EvmAbiAggregateProbe" {
     }
     function f_EvmAbiAggregateProbe_sum_small(__proof_forge_array_xs_0, __proof_forge_array_xs_1) -> result {
       result := add(__proof_forge_array_xs_0, __proof_forge_array_xs_1)
+    }
+    function f_EvmAbiAggregateProbe_sum_small_matrix(__proof_forge_array_xs_0_0, __proof_forge_array_xs_0_1, __proof_forge_array_xs_1_0, __proof_forge_array_xs_1_1) -> result {
+      result := add(add(__proof_forge_array_xs_0_0, __proof_forge_array_xs_0_1), add(__proof_forge_array_xs_1_0, __proof_forge_array_xs_1_1))
     }
     function f_EvmAbiAggregateProbe_and_flags(__proof_forge_struct_flags_enabled, __proof_forge_struct_flags_archived) -> result {
       result := and(__proof_forge_struct_flags_enabled, __proof_forge_struct_flags_archived)

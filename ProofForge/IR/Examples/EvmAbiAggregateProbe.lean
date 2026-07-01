@@ -62,6 +62,24 @@ def sumArray : Entrypoint := {
   ]
 }
 
+def sumMatrix : Entrypoint := {
+  name := "sum_matrix"
+  selector? := some "da76e471"
+  params := #[
+    ("matrix", .fixedArray (.fixedArray .u64 2) 2)
+  ]
+  returns := .u64
+  body := #[
+    .return (.add
+      (.add
+        (.arrayGet (.arrayGet (.local "matrix") (u64 0)) (u64 0))
+        (.arrayGet (.arrayGet (.local "matrix") (u64 0)) (u64 1)))
+      (.add
+        (.arrayGet (.arrayGet (.local "matrix") (u64 1)) (u64 0))
+        (.arrayGet (.arrayGet (.local "matrix") (u64 1)) (u64 1))))
+  ]
+}
+
 def sumPairArray : Entrypoint := {
   name := "sum_pair_array"
   selector? := some "10e4c1da"
@@ -113,6 +131,24 @@ def makePairArray : Entrypoint := {
   ]
 }
 
+def makeMatrix : Entrypoint := {
+  name := "make_matrix"
+  selector? := some "b61c11b8"
+  params := #[
+    ("a", .u64),
+    ("b", .u64),
+    ("c", .u64),
+    ("d", .u64)
+  ]
+  returns := .fixedArray (.fixedArray .u64 2) 2
+  body := #[
+    .return (.arrayLit (.fixedArray .u64 2) #[
+      .arrayLit .u64 #[.local "a", .local "b"],
+      .arrayLit .u64 #[.local "c", .local "d"]
+    ])
+  ]
+}
+
 def makeArray : Entrypoint := {
   name := "make_array"
   selector? := some "ffac5c16"
@@ -142,6 +178,24 @@ def sumSmall : Entrypoint := {
   ]
 }
 
+def sumSmallMatrix : Entrypoint := {
+  name := "sum_small_matrix"
+  selector? := some "94f90bdd"
+  params := #[
+    ("xs", .fixedArray (.fixedArray .u32 2) 2)
+  ]
+  returns := .u32
+  body := #[
+    .return (.add
+      (.add
+        (.arrayGet (.arrayGet (.local "xs") (u64 0)) (u64 0))
+        (.arrayGet (.arrayGet (.local "xs") (u64 0)) (u64 1)))
+      (.add
+        (.arrayGet (.arrayGet (.local "xs") (u64 1)) (u64 0))
+        (.arrayGet (.arrayGet (.local "xs") (u64 1)) (u64 1))))
+  ]
+}
+
 def andFlags : Entrypoint := {
   name := "and_flags"
   selector? := some "1df89823"
@@ -160,7 +214,19 @@ def module : Module := {
   name := "EvmAbiAggregateProbe"
   structs := #[pairStruct, flagsStruct]
   state := #[]
-  entrypoints := #[sumPair, sumArray, sumPairArray, makePair, makePairArray, makeArray, sumSmall, andFlags]
+  entrypoints := #[
+    sumPair,
+    sumArray,
+    sumMatrix,
+    sumPairArray,
+    makePair,
+    makePairArray,
+    makeMatrix,
+    makeArray,
+    sumSmall,
+    sumSmallMatrix,
+    andFlags
+  ]
 }
 
 end ProofForge.IR.Examples.EvmAbiAggregateProbe

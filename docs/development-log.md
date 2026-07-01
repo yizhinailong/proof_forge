@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Nested Fixed-Array ABI
+
+Commit: feature commit for EVM IR nested fixed-array ABI
+
+Summary:
+
+- Extended EVM ABI word flattening for entrypoint parameters and returns from
+  flat fixed arrays to nested scalar fixed arrays such as
+  `Array<Array<U64,2>,2>`.
+- Added deterministic flattened Yul local names for nested ABI array words and
+  static nested index reads such as `matrix[0][1]`.
+- Extended `EvmAbiAggregateProbe` with `sum_matrix`, `make_matrix`, and
+  `sum_small_matrix` entrypoints covering nested `U64`/`U32` ABI calldata,
+  return-data encoding, and range guards.
+- Kept typed crosscall nested aggregate arrays explicitly unsupported with
+  crosscall-specific diagnostics instead of silently inheriting ABI entrypoint
+  support.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/abi-aggregate-ir-smoke.sh
+```
+
+Result:
+
+- `EvmAbiAggregateProbe` generated reproducible Yul and runtime bytecode
+  through `solc --strict-assembly`.
+- Foundry validated nested fixed-array parameters, nested fixed-array returns,
+  malformed nested calldata length checks, and nested `U32` range guards.
+- EVM diagnostics now keep zero-length arrays, non-flat struct fields, nested
+  crosscall aggregate arrays, and malformed crosscall surfaces explicit.
+
+Known limitations:
+
+- Nested fixed-array support is currently ABI-entrypoint focused.
+- Dynamic ABI values, nested local fixed-array mutation, nested crosscall
+  aggregate arrays, and variable-length return data remain future EVM IR work.
+
+Next step:
+
+- Continue shrinking the EVM aggregate gap around nested crosscall aggregates
+  or dynamic ABI data.
+
 ### EVM IR Contract Creation
 
 Commit: feature commit for EVM IR contract creation

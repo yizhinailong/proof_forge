@@ -42,11 +42,14 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-capability data.struct \
   --expect-entrypoint sum_pair:25508e13 \
   --expect-entrypoint sum_array:eb353b80 \
+  --expect-entrypoint sum_matrix:da76e471 \
   --expect-entrypoint sum_pair_array:10e4c1da \
   --expect-entrypoint make_pair:ef51ff62 \
   --expect-entrypoint make_pair_array:617df171 \
+  --expect-entrypoint make_matrix:b61c11b8 \
   --expect-entrypoint make_array:ffac5c16 \
   --expect-entrypoint sum_small:384e9976 \
+  --expect-entrypoint sum_small_matrix:94f90bdd \
   --expect-entrypoint and_flags:1df89823 \
   "$METADATA_FILE"
 
@@ -125,6 +128,13 @@ contract ProofForgeIRAbiAggregateSmokeTest {
         uint256[3] memory xs = [uint256(2), uint256(3), uint256(5)];
         assertEq(callU256(probe, abi.encodeWithSignature("sum_array(uint256[3])", xs)), 10);
 
+        uint256[2][2] memory matrix;
+        matrix[0][0] = 1;
+        matrix[0][1] = 2;
+        matrix[1][0] = 3;
+        matrix[1][1] = 5;
+        assertEq(callU256(probe, abi.encodeWithSignature("sum_matrix(uint256[2][2])", matrix)), 11);
+
         Pair[2] memory pairs;
         pairs[0] = Pair({left: 2, right: 3});
         pairs[1] = Pair({left: 5, right: 7});
@@ -132,6 +142,13 @@ contract ProofForgeIRAbiAggregateSmokeTest {
 
         uint32[2] memory smalls = [uint32(17), uint32(19)];
         assertEq(callU256(probe, abi.encodeWithSignature("sum_small(uint32[2])", smalls)), 36);
+
+        uint32[2][2] memory smallMatrix;
+        smallMatrix[0][0] = 1;
+        smallMatrix[0][1] = 2;
+        smallMatrix[1][0] = 3;
+        smallMatrix[1][1] = 4;
+        assertEq(callU256(probe, abi.encodeWithSignature("sum_small_matrix(uint32[2][2])", smallMatrix)), 10);
 
         assertFalse(abi.decode(
             callBytes(probe, abi.encodeWithSignature("and_flags((bool,bool))", true, false)),
@@ -177,6 +194,24 @@ contract ProofForgeIRAbiAggregateSmokeTest {
         assertEq(pairs[0].right, 1);
         assertEq(pairs[1].left, 2);
         assertEq(pairs[1].right, 3);
+
+        uint256[2][2] memory matrix = abi.decode(
+            callBytes(
+                probe,
+                abi.encodeWithSignature(
+                    "make_matrix(uint256,uint256,uint256,uint256)",
+                    uint256(8),
+                    uint256(13),
+                    uint256(21),
+                    uint256(34)
+                )
+            ),
+            (uint256[2][2])
+        );
+        assertEq(matrix[0][0], 8);
+        assertEq(matrix[0][1], 13);
+        assertEq(matrix[1][0], 21);
+        assertEq(matrix[1][1], 34);
     }
 
     function testIRAbiAggregateRejectsMalformedCalldata() public {
@@ -186,6 +221,15 @@ contract ProofForgeIRAbiAggregateSmokeTest {
         bytes4 sumArraySelector = bytes4(keccak256("sum_array(uint256[3])"));
         (bool shortArrayOk,) = probe.call(abi.encodePacked(sumArraySelector, uint256(1)));
         assertFalse(shortArrayOk);
+
+        bytes4 sumMatrixSelector = bytes4(keccak256("sum_matrix(uint256[2][2])"));
+        (bool shortMatrixOk,) = probe.call(abi.encodePacked(
+            sumMatrixSelector,
+            uint256(1),
+            uint256(2),
+            uint256(3)
+        ));
+        assertFalse(shortMatrixOk);
 
         bytes4 sumPairArraySelector = bytes4(keccak256("sum_pair_array((uint256,uint256)[2])"));
         (bool shortPairArrayOk,) = probe.call(abi.encodePacked(
@@ -203,6 +247,16 @@ contract ProofForgeIRAbiAggregateSmokeTest {
             uint256(1)
         ));
         assertFalse(overflowU32Ok);
+
+        bytes4 smallMatrixSelector = bytes4(keccak256("sum_small_matrix(uint32[2][2])"));
+        (bool overflowU32MatrixOk,) = probe.call(abi.encodePacked(
+            smallMatrixSelector,
+            uint256(1),
+            uint256(type(uint32).max) + 1,
+            uint256(3),
+            uint256(4)
+        ));
+        assertFalse(overflowU32MatrixOk);
 
         bytes4 flagsSelector = bytes4(keccak256("and_flags((bool,bool))"));
         (bool invalidBoolOk,) = probe.call(abi.encodePacked(flagsSelector, uint256(2), uint256(1)));
