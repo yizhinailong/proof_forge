@@ -95,6 +95,7 @@
 - 已完成：加入 EVM IR `Hash` word lowering、`hash4`/`hashValue` 打包，以及通过 Yul `keccak256` helper 实现的 `hash`/`hash_two_to_one` lowering，并用 `EvmHashProbe` 跑通 golden Yul、solc bytecode、Foundry ABI/storage 验证、metadata 能力校验，以及 Hash/U64 类型错配显式诊断。
 - 已完成：加入 EVM IR `Map<U64, U64, N>` storage lowering，使用 Solidity-style `keccak256(key, slot)` mapping slot，并用 `EvmMapProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验，以及不支持 map 形态和 `contains` 的显式诊断。
 - 已完成：加入 EVM IR 单段 `mapKey` storage path 复合赋值，限定在 `Map<U64, U64, N>` 上，并用 `EvmMapProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验，以及表达式位置/嵌套路径误用的显式诊断。
+- 已完成：加入 EVM IR `U64` 固定 storage array lowering，将其降为连续 storage slot 并带运行时 bounds check，并用 `EvmStorageArrayProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验，以及不支持 array element 类型的显式诊断。
 - 为简单示例添加黄金 Yul 输出。
 - 已完成：为 SDK 和 portable IR EVM bytecode build 在当前 `solc --strict-assembly` 流程周围添加 metadata 发射与校验。
 - 保留 Foundry 冒烟测试作为成熟的 EVM 冒烟测试。

@@ -18,6 +18,7 @@ import ProofForge.IR.Examples.EvmCrosscallProbe
 import ProofForge.IR.Examples.EvmHashProbe
 import ProofForge.IR.Examples.EvmLoopProbe
 import ProofForge.IR.Examples.EvmMapProbe
+import ProofForge.IR.Examples.EvmStorageArrayProbe
 import ProofForge.IR.Examples.ExpressionPredicateProbe
 import ProofForge.IR.Examples.GenericEntrypointProbe
 import ProofForge.IR.Examples.HashProbe

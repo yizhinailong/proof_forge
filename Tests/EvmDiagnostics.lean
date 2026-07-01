@@ -120,13 +120,25 @@ def selectedMapModule (name : String) (entrypoint : Entrypoint) : Module := {
 }
 
 def storageArrayModule : Module := {
-  name := "BadStorageArray"
+  name := "BadBoolStorageArray"
   state := #[{
-    id := "values"
+    id := "flags"
     kind := .array 3
-    type := .u64
+    type := .bool
   }]
   entrypoints := #[selectedEntrypoint "bad"]
+}
+
+def u64ArrayState : StateDecl := {
+  id := "values"
+  kind := .array 3
+  type := .u64
+}
+
+def selectedArrayModule (name : String) (entrypoint : Entrypoint) : Module := {
+  name := name
+  state := #[u64ArrayState]
+  entrypoints := #[entrypoint]
 }
 
 def fixedArrayModule : Module :=
@@ -177,6 +189,16 @@ def storageWriteExprModule : Module :=
 def storageReadStmtModule : Module :=
   selectedModule "BadStorageReadStmt" <| selectedEntrypoint "bad" #[
     .effect (.storageScalarRead "_proof_forge_marker")
+  ]
+
+def storageArrayReadStmtModule : Module :=
+  selectedArrayModule "BadStorageArrayReadStmt" <| selectedEntrypoint "bad" #[
+    .effect (.storageArrayRead "values" (.literal (.u64 0)))
+  ]
+
+def storageArrayWriteExprModule : Module :=
+  selectedArrayModule "BadStorageArrayWriteExpr" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.effect (.storageArrayWrite "values" (.literal (.u64 0)) (.literal (.u64 1))))
   ]
 
 def storageScalarAssignModule : Module := {
@@ -321,14 +343,14 @@ def cases : Array (String × Module × String) := #[
     "map state `balances` has unsupported EVM IR v0 type `Map<Hash, Hash, 16>`; only Map<U64, U64, N> is supported"
   ),
   (
-    "storage array capability unsupported",
+    "storage array element type unsupported",
     storageArrayModule,
-    "target `evm` does not support capability `storage.array`: capability is not present in the target profile"
+    "array state `flags` has unsupported EVM IR v0 element type `Bool`; only U64 storage arrays are supported"
   ),
   (
-    "fixed array capability unsupported",
+    "fixed array local unsupported",
     fixedArrayModule,
-    "target `evm` does not support capability `data.fixed_array`: capability is not present in the target profile"
+    "let binding `xs` has unsupported EVM IR v0 type `Array<U64,2>`"
   ),
   (
     "struct capability unsupported",
@@ -361,6 +383,16 @@ def cases : Array (String × Module × String) := #[
     "storage.scalar.read must be used as an expression"
   ),
   (
+    "storage array read used as statement",
+    storageArrayReadStmtModule,
+    "storage.array.read must be used as an expression"
+  ),
+  (
+    "storage array write used as expression",
+    storageArrayWriteExprModule,
+    "storage.array.write is a statement effect, not an expression"
+  ),
+  (
     "storage scalar assign_op type mismatch",
     storageScalarAssignModule,
     "compound assignment addition expects matching numeric operands, got `Hash` and `Hash`"
@@ -388,7 +420,7 @@ def cases : Array (String × Module × String) := #[
   (
     "storage path index unsupported",
     storagePathIndexModule,
-    "target `evm` does not support capability `data.fixed_array`: capability is not present in the target profile"
+    "EVM IR v0 supports only single-segment mapKey storage paths"
   ),
   (
     "storage path assign_op used as expression",

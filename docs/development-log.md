@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR U64 Storage Arrays
+
+Commit: feature commit for EVM IR U64 storage array lowering
+
+Summary:
+
+- Added EVM target-profile support for `storage.array` and partial
+  `data.fixed_array`.
+- Added state-slot span accounting so fixed storage arrays reserve one EVM
+  storage slot per element and later state starts after the full array span.
+- Added portable IR lowering for `storageArrayRead` and `storageArrayWrite`
+  over `U64` storage arrays.
+- Lowered array access through `__proof_forge_array_slot(base, length, index)`,
+  which reverts when the runtime index is out of bounds before `sload` or
+  `sstore`.
+- Added `ProofForge.IR.Examples.EvmStorageArrayProbe`, CLI emission modes,
+  golden Yul, Foundry smoke coverage, artifact metadata validation, and CI.
+- Kept local fixed-array values, aggregate ABI arrays, generic index storage
+  paths, structs, and non-`U64` storage arrays explicitly rejected.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-evm-storage-array-ir-yul -o build/ir/EvmStorageArrayProbe.yul
+diff -u Examples/Evm/EvmStorageArrayProbe.golden.yul build/ir/EvmStorageArrayProbe.yul
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+git diff --check
+```
+
+Known limitations:
+
+- This feature covers `U64` storage arrays only. `U32`, `Hash`, `Bool`,
+  struct arrays, local fixed-array values, ABI arrays, and generic index
+  storage paths remain follow-up work.
+
+Next step:
+
+- Extend EVM aggregate support toward local fixed-array values or generic index
+  storage paths, then move into structs once the array layout is stable.
+
 ### EVM IR Native Value
 
 Commit: feature commit for EVM IR native value lowering

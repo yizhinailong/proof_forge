@@ -88,6 +88,8 @@ proof-forge --emit-evm-hash-ir-yul [-o output.yul]
 proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-map-ir-yul [-o output.yul]
 proof-forge --emit-evm-map-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-storage-array-ir-yul [-o output.yul]
+proof-forge --emit-evm-storage-array-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
 
 `--bytecode` is an alias for `--evm-bytecode`.
@@ -142,6 +144,8 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 |---|---|
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR scalar storage read/write and scalar storage compound assignment |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<U64, U64, N>` get/set/insert and single-segment map storage paths |
+| `storage.array` | Partial: portable IR `U64` fixed storage arrays lower to contiguous EVM storage slots with runtime index bounds checks |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays; local fixed-array values, ABI arrays, and generic index paths still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -184,13 +188,14 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   IR EVM backend currently supports scalar storage/ABI, assertions, local
   assignment, local compound assignment, scalar storage compound assignment,
   conditionals, context reads, events, `Hash` word values and hashing,
-  `Map<U64, U64, N>` storage, synchronous word-returning `crosscallInvoke`,
-  and static bounded loops. It rejects wider portable IR nodes with explicit
-  diagnostics.
+  `Map<U64, U64, N>` storage, `U64` fixed storage arrays, synchronous
+  word-returning `crosscallInvoke`, and static bounded loops. It rejects wider
+  portable IR nodes with explicit diagnostics.
 - Portable IR EVM currently lacks aggregate ABI values, non-`U64` map
-  shapes, storage arrays, structs, indexed/Solidity-signature event schemas,
-  `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
-  return data, and target-specific deploy manifests.
+  shapes, non-`U64` storage arrays, local fixed-array values, structs,
+  indexed/Solidity-signature event schemas, `staticcall`/`delegatecall`/
+  contract-creation IR nodes, richer cross-call return data, and
+  target-specific deploy manifests.
 - `storage.map.contains` remains explicitly unsupported because EVM mappings do
   not track key presence without an auxiliary bitmap.
 
@@ -213,6 +218,7 @@ scripts/evm/event-ir-smoke.sh
 scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
@@ -314,6 +320,16 @@ and compound assignment, raw Foundry `vm.load` storage slots, and
 unknown-selector revert behavior. EVM IR v0 keeps storage-path compound
 assignment scoped to `Map<U64, U64, N>` until array and struct storage layouts
 land.
+
+`EvmStorageArrayProbe` validates portable IR `U64` fixed storage arrays through
+contiguous EVM storage slots. Array state occupies `length` slots, so state
+declared after an array starts after the full array span. Reads and writes lower
+through `__proof_forge_array_slot(base, length, index)`, which reverts when the
+index is out of bounds before calling `sload` or `sstore`. The smoke checks
+golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
+metadata capabilities (`storage.scalar`, `storage.array`, `data.fixed_array`),
+ABI read/write selectors, Foundry raw slot layout, out-of-bounds reverts, and
+unknown-selector revert behavior.
 
 ## Metadata
 

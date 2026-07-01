@@ -145,6 +145,10 @@ Tasks:
   over `Map<U64, U64, N>`, with `EvmMapProbe` golden Yul, solc bytecode,
   Foundry runtime/raw-slot validation, metadata capability validation, and
   explicit diagnostics for expression-position and nested-path misuse.
+- Done: add EVM IR `U64` fixed storage array lowering as contiguous storage
+  slots with runtime bounds checks, with `EvmStorageArrayProbe` golden Yul,
+  solc bytecode, Foundry runtime/raw-slot validation, metadata capability
+  validation, and explicit diagnostics for unsupported array element types.
 - Add golden Yul outputs for simple examples.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.

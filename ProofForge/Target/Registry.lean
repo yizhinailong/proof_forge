@@ -51,6 +51,7 @@ def evm : TargetProfile := {
   capabilities := #[
     .storageScalar,
     .storageMap,
+    .storageArray,
     .callerSender,
     .valueNative,
     .eventsEmit,
@@ -58,6 +59,7 @@ def evm : TargetProfile := {
     .envBlock,
     .controlConditional,
     .controlBoundedLoop,
+    .dataFixedArray,
     .cryptoHash,
     .assertions,
     .accountExplicit
