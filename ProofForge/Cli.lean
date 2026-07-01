@@ -438,6 +438,9 @@ def defaultDeployManifestOutput (metadataOutput : FilePath) : FilePath :=
   | some parent => parent / deployFile
   | none => deployFile
 
+def defaultInitCodeOutput (bytecodeOutput : FilePath) : FilePath :=
+  bytecodeOutput.withExtension "init.bin"
+
 def artifactEntryJson (path : FilePath) : IO String := do
   let (digest, bytes) ← fileDigestAndBytes path
   return jsonObject #[
@@ -455,6 +458,99 @@ def optionalArtifactEntryJson : Option FilePath → IO (Option String)
 def dedupStrings (values : Array String) : Array String :=
   values.foldl (init := #[]) fun acc value =>
     if acc.contains value then acc else acc.push value
+
+def repeatString : Nat → String → String
+  | 0, _ => ""
+  | n+1, s => s ++ repeatString n s
+
+def hexDigit (value : Nat) : String :=
+  match value with
+  | 0 => "0"
+  | 1 => "1"
+  | 2 => "2"
+  | 3 => "3"
+  | 4 => "4"
+  | 5 => "5"
+  | 6 => "6"
+  | 7 => "7"
+  | 8 => "8"
+  | 9 => "9"
+  | 10 => "a"
+  | 11 => "b"
+  | 12 => "c"
+  | 13 => "d"
+  | 14 => "e"
+  | _ => "f"
+
+partial def natToHex (value : Nat) : String :=
+  if value < 16 then
+    hexDigit value
+  else
+    natToHex (value / 16) ++ hexDigit (value % 16)
+
+def byteLimit : Nat → Nat
+  | 0 => 1
+  | n+1 => 256 * byteLimit n
+
+partial def pushByteWidthFrom (value width : Nat) : Option Nat :=
+  if width > 32 then
+    none
+  else if value < byteLimit width then
+    some width
+  else
+    pushByteWidthFrom value (width + 1)
+
+def pushByteWidth (value : Nat) : Option Nat :=
+  pushByteWidthFrom value 1
+
+def fixedHexBytes (byteCount value : Nat) : String :=
+  let raw := natToHex value
+  repeatString (byteCount * 2 - raw.length) "0" ++ raw
+
+def pushDataHex (value : Nat) : Except String String := do
+  let some width := pushByteWidth value
+    | .error s!"EVM initcode value {value} is too large for PUSH32"
+  .ok (fixedHexBytes 1 (0x5f + width) ++ fixedHexBytes width value)
+
+partial def initCodeOffsetWidth (sizePushWidth offsetWidth : Nat) : Except String Nat := do
+  let headerBytes := 9 + 2 * sizePushWidth + offsetWidth
+  let some requiredWidth := pushByteWidth headerBytes
+    | .error s!"EVM initcode header offset {headerBytes} is too large for PUSH32"
+  if requiredWidth == offsetWidth then
+    .ok offsetWidth
+  else
+    initCodeOffsetWidth sizePushWidth requiredWidth
+
+def deploymentInitCodeHex (runtimeBytecode : String) : Except String String := do
+  let runtime := stripHexPrefix (trimAsciiString runtimeBytecode)
+  if runtime.isEmpty then
+    .error "EVM runtime bytecode must be non-empty before initcode generation"
+  else if runtime.length % 2 != 0 then
+    .error "EVM runtime bytecode hex must have an even number of digits before initcode generation"
+  else if !runtime.all isHexChar then
+    .error "EVM runtime bytecode must contain only hex digits before initcode generation"
+  else
+    let runtimeBytes := runtime.length / 2
+    let some sizePushWidth := pushByteWidth runtimeBytes
+      | .error s!"EVM runtime bytecode length {runtimeBytes} is too large for PUSH32 initcode"
+    let offsetWidth ← initCodeOffsetWidth sizePushWidth 1
+    let headerBytes := 9 + 2 * sizePushWidth + offsetWidth
+    let sizePush ← pushDataHex runtimeBytes
+    let offsetPush ← pushDataHex headerBytes
+    .ok (sizePush ++ offsetPush ++ "600039" ++ sizePush ++ "6000f3" ++ runtime)
+
+def writeEvmInitCode (bytecodeOutput : FilePath) : IO FilePath := do
+  let runtimeBytecode ← IO.FS.readFile bytecodeOutput
+  let initCode ←
+    match deploymentInitCodeHex runtimeBytecode with
+    | .ok initCode => pure initCode
+    | .error msg => throw <| IO.userError msg
+  let initCodeOutput := defaultInitCodeOutput bytecodeOutput
+  if let some parent := initCodeOutput.parent then
+    IO.FS.createDirAll parent
+  IO.FS.writeFile initCodeOutput (initCode ++ "\n")
+  IO.println s!"wrote {initCodeOutput} ({initCode.length} hex chars)"
+  return initCodeOutput
 
 def moduleCapabilityIds (module : ProofForge.IR.Module) : Array String :=
   dedupStrings (module.capabilities.map fun capability => capability.id)
@@ -500,10 +596,11 @@ def writeEvmDeployManifest
     (entrypoints : Array String)
     (methods : Array String)
     (sourceArtifact? : Option String)
-    (yulArtifact bytecodeArtifact : String) : IO Unit := do
+    (yulArtifact bytecodeArtifact initCodeArtifact : String) : IO Unit := do
   let mut inputFields : Array (String × String) := #[
     ("yul", yulArtifact),
-    ("bytecode", bytecodeArtifact)
+    ("bytecode", bytecodeArtifact),
+    ("initCode", initCodeArtifact)
   ]
   if let some sourceArtifact := sourceArtifact? then
     inputFields := inputFields.push ("source", sourceArtifact)
@@ -512,7 +609,7 @@ def writeEvmDeployManifest
     ("kind", jsonString "proof-forge-evm-deploy-manifest"),
     ("target", jsonString "evm"),
     ("targetFamily", jsonString "evm"),
-    ("artifactKind", jsonString "evm-runtime-bytecode-deploy"),
+    ("artifactKind", jsonString "evm-initcode-deploy"),
     ("fixture", jsonString fixture),
     ("contractName", jsonString (contractNameForFixture fixture)),
     ("sourceKind", jsonString sourceKind),
@@ -524,9 +621,9 @@ def writeEvmDeployManifest
       ("methods", jsonArray methods)
     ]),
     ("creation", jsonObject #[
-      ("mode", jsonString "runtime-bytecode"),
+      ("mode", jsonString "init-code"),
       ("constructorArgs", jsonArray #[]),
-      ("initCode", "null"),
+      ("initCode", initCodeArtifact),
       ("runtimeBytecode", bytecodeArtifact)
     ]),
     ("inputs", jsonObject inputFields),
@@ -534,7 +631,7 @@ def writeEvmDeployManifest
       ("chainId", "null"),
       ("address", "null"),
       ("broadcast", jsonString "not-generated"),
-      ("reason", jsonString "ProofForge EVM bytecode modes currently emit runtime bytecode; Foundry smokes install it with vm.etch, and chain-specific creation transactions are not generated yet."),
+      ("reason", jsonString "ProofForge EVM bytecode modes emit deployable initcode and runtime bytecode artifacts, but chain-specific transaction broadcasting is not generated yet."),
       ("reference", jsonString "scripts/evm/foundry-smoke.sh")
     ])
   ]
@@ -552,8 +649,10 @@ def writeEvmArtifactMetadata
     (yulOutput bytecodeOutput : FilePath) : IO Unit := do
   let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput bytecodeOutput)
   let deployOutput := defaultDeployManifestOutput metadataOutput
+  let initCodeOutput ← writeEvmInitCode bytecodeOutput
   let yulArtifact ← artifactEntryJson yulOutput
   let bytecodeArtifact ← artifactEntryJson bytecodeOutput
+  let initCodeArtifact ← artifactEntryJson initCodeOutput
   let sourceArtifact? ← optionalArtifactEntryJson source?
   writeEvmDeployManifest
     deployOutput
@@ -566,9 +665,11 @@ def writeEvmArtifactMetadata
     sourceArtifact?
     yulArtifact
     bytecodeArtifact
+    initCodeArtifact
   let mut artifactFields : Array (String × String) := #[
     ("yul", yulArtifact),
     ("bytecode", bytecodeArtifact),
+    ("initCode", initCodeArtifact),
     ("deployManifest", ← artifactEntryJson deployOutput)
   ]
   if let some sourceArtifact := sourceArtifact? then
@@ -601,6 +702,7 @@ def writeEvmArtifactMetadata
     ("validation", jsonObject #[
       ("solcStrictAssembly", jsonString "passed"),
       ("bytecodeGeneration", jsonString "passed"),
+      ("initCodeGeneration", jsonString "passed"),
       ("deployManifest", jsonString "passed")
     ])
   ]

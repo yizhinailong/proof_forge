@@ -67,12 +67,13 @@
 - 已完成（EVM）：为 EVM bytecode build 添加 `proof-forge-artifact.json` schema。
 - 已完成（EVM）：为 `--evm-bytecode` 和 portable IR EVM bytecode fixture build 发射 metadata。
 - 已完成（EVM）：包含 source module、target id、artifact path、SHA-256、byte size、solc path/version、selector metadata 和 validation status。
-- 已完成（EVM）：为每个 EVM bytecode build 发射并校验 ProofForge deploy manifest，记录 runtime bytecode 输入、ABI selector，以及当前 `not-generated` 的交易广播状态。
+- 已完成（EVM）：为每个 EVM bytecode build 发射并校验 ProofForge deploy manifest，记录 runtime bytecode 输入、ABI selector、可部署 initcode，以及当前 `not-generated` 的交易广播状态。
+- 已完成（EVM）：为每个 EVM bytecode build 生成与 artifact 关联的 `.init.bin` creation bytecode 文件，在 `proof-forge-artifact.json` 和 `proof-forge-deploy.json` 中记录它，并验证 initcode header 会复制并返回引用的 runtime bytecode。
 - 从第一天起就保持 schema 的版本化。
 
 验收标准：
 
-- EVM 字节码构建将字节码、元数据和 deploy manifest 并排写入。
+- EVM 字节码构建将 runtime bytecode、可部署 initcode、元数据和 deploy manifest 并排写入。
 - 元数据和 deploy manifest 可以由 CI 脚本独立解析。
 - EVM metadata 可以将缺失的可选 version 数据表示为 `null`，而不是格式错误的 metadata。
 

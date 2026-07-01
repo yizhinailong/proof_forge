@@ -49,7 +49,38 @@ def file_entry(root: Path, entry: dict, name: str) -> Path:
 def expect_hex_text(path: Path, name: str) -> str:
     value = path.read_text().strip()
     expect(value and all(ch in "0123456789abcdefABCDEF" for ch in value), f"{name} must be non-empty hex")
+    expect(len(value) % 2 == 0, f"{name} must have an even number of hex digits")
     return value
+
+
+def read_push_value(init_hex: str, offset: int, name: str) -> tuple[int, int]:
+    expect(offset + 2 <= len(init_hex), f"{name} is missing PUSH opcode")
+    opcode = int(init_hex[offset : offset + 2], 16)
+    expect(0x60 <= opcode <= 0x7F, f"{name} must use PUSH1..PUSH32")
+    width = opcode - 0x5F
+    data_start = offset + 2
+    data_end = data_start + width * 2
+    expect(data_end <= len(init_hex), f"{name} PUSH data is truncated")
+    return int(init_hex[data_start:data_end], 16), data_end
+
+
+def validate_deployment_init_code(init_path: Path, runtime_path: Path, prefix: str) -> None:
+    init_hex = expect_hex_text(init_path, f"{prefix}.initCode")
+    runtime_hex = expect_hex_text(runtime_path, f"{prefix}.runtimeBytecode")
+    runtime_size = len(runtime_hex) // 2
+
+    size, offset = read_push_value(init_hex, 0, f"{prefix}.initCode.runtimeSize")
+    code_offset, offset = read_push_value(init_hex, offset, f"{prefix}.initCode.codeOffset")
+    expect(init_hex[offset : offset + 6].lower() == "600039", f"{prefix}.initCode must copy runtime to memory")
+    offset += 6
+    return_size, offset = read_push_value(init_hex, offset, f"{prefix}.initCode.returnSize")
+    expect(init_hex[offset : offset + 6].lower() == "6000f3", f"{prefix}.initCode must return copied runtime")
+    offset += 6
+
+    expect(size == runtime_size, f"{prefix}.initCode runtime size mismatch")
+    expect(return_size == runtime_size, f"{prefix}.initCode return size mismatch")
+    expect(code_offset == offset // 2, f"{prefix}.initCode code offset mismatch")
+    expect(init_hex[offset:].lower() == runtime_hex.lower(), f"{prefix}.initCode runtime suffix mismatch")
 
 
 def validate_abi(abi: dict) -> None:
@@ -85,7 +116,7 @@ def main() -> int:
     expect(manifest.get("kind") == "proof-forge-evm-deploy-manifest", "kind mismatch")
     expect(manifest.get("target") == "evm", "target must be evm")
     expect(manifest.get("targetFamily") == "evm", "targetFamily mismatch")
-    expect(manifest.get("artifactKind") == "evm-runtime-bytecode-deploy", "artifactKind mismatch")
+    expect(manifest.get("artifactKind") == "evm-initcode-deploy", "artifactKind mismatch")
     if args.expect_fixture:
         expect(manifest.get("fixture") == args.expect_fixture, "fixture mismatch")
     else:
@@ -106,18 +137,23 @@ def main() -> int:
     inputs = expect_object(manifest.get("inputs"), "inputs")
     file_entry(root, expect_object(inputs.get("yul"), "inputs.yul"), "inputs.yul")
     bytecode_path = file_entry(root, expect_object(inputs.get("bytecode"), "inputs.bytecode"), "inputs.bytecode")
+    init_code_path = file_entry(root, expect_object(inputs.get("initCode"), "inputs.initCode"), "inputs.initCode")
     if "source" in inputs:
         file_entry(root, expect_object(inputs.get("source"), "inputs.source"), "inputs.source")
     expect_hex_text(bytecode_path, "inputs.bytecode")
 
     creation = expect_object(manifest.get("creation"), "creation")
-    expect(creation.get("mode") == "runtime-bytecode", "creation.mode mismatch")
+    expect(creation.get("mode") == "init-code", "creation.mode mismatch")
     expect(expect_array(creation.get("constructorArgs"), "creation.constructorArgs") == [], "creation.constructorArgs must be empty")
-    expect(creation.get("initCode") is None, "creation.initCode must be null")
+    init_code_entry = expect_object(creation.get("initCode"), "creation.initCode")
+    creation_init_code_path = file_entry(root, init_code_entry, "creation.initCode")
+    expect(init_code_entry == inputs["initCode"], "creation.initCode must match inputs.initCode")
+    expect(creation_init_code_path.resolve() == init_code_path.resolve(), "creation.initCode path must match inputs.initCode")
     runtime_entry = expect_object(creation.get("runtimeBytecode"), "creation.runtimeBytecode")
     runtime_path = file_entry(root, runtime_entry, "creation.runtimeBytecode")
     expect(runtime_entry == inputs["bytecode"], "creation.runtimeBytecode must match inputs.bytecode")
     expect(runtime_path.resolve() == bytecode_path.resolve(), "creation.runtimeBytecode path must match inputs.bytecode")
+    validate_deployment_init_code(creation_init_code_path, runtime_path, "creation")
 
     deployment = expect_object(manifest.get("deployment"), "deployment")
     expect(deployment.get("chainId") is None, "deployment.chainId must be null before broadcast")

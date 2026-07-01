@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-REQUIRED_ARTIFACTS = ("yul", "bytecode", "deployManifest")
-REQUIRED_VALIDATIONS = ("solcStrictAssembly", "bytecodeGeneration", "deployManifest")
+REQUIRED_ARTIFACTS = ("yul", "bytecode", "initCode", "deployManifest")
+REQUIRED_VALIDATIONS = ("solcStrictAssembly", "bytecodeGeneration", "initCodeGeneration", "deployManifest")
 
 
 def fail(message: str) -> None:
@@ -69,7 +69,38 @@ def same_path(left: Path, right: Path) -> bool:
 def expect_hex_text(path: Path, name: str) -> str:
     value = path.read_text().strip()
     expect(value and all(ch in "0123456789abcdefABCDEF" for ch in value), f"{name} must be non-empty hex")
+    expect(len(value) % 2 == 0, f"{name} must have an even number of hex digits")
     return value
+
+
+def read_push_value(init_hex: str, offset: int, name: str) -> tuple[int, int]:
+    expect(offset + 2 <= len(init_hex), f"{name} is missing PUSH opcode")
+    opcode = int(init_hex[offset : offset + 2], 16)
+    expect(0x60 <= opcode <= 0x7F, f"{name} must use PUSH1..PUSH32")
+    width = opcode - 0x5F
+    data_start = offset + 2
+    data_end = data_start + width * 2
+    expect(data_end <= len(init_hex), f"{name} PUSH data is truncated")
+    return int(init_hex[data_start:data_end], 16), data_end
+
+
+def validate_deployment_init_code(init_path: Path, runtime_path: Path, prefix: str) -> None:
+    init_hex = expect_hex_text(init_path, f"{prefix}.initCode")
+    runtime_hex = expect_hex_text(runtime_path, f"{prefix}.runtimeBytecode")
+    runtime_size = len(runtime_hex) // 2
+
+    size, offset = read_push_value(init_hex, 0, f"{prefix}.initCode.runtimeSize")
+    code_offset, offset = read_push_value(init_hex, offset, f"{prefix}.initCode.codeOffset")
+    expect(init_hex[offset : offset + 6].lower() == "600039", f"{prefix}.initCode must copy runtime to memory")
+    offset += 6
+    return_size, offset = read_push_value(init_hex, offset, f"{prefix}.initCode.returnSize")
+    expect(init_hex[offset : offset + 6].lower() == "6000f3", f"{prefix}.initCode must return copied runtime")
+    offset += 6
+
+    expect(size == runtime_size, f"{prefix}.initCode runtime size mismatch")
+    expect(return_size == runtime_size, f"{prefix}.initCode return size mismatch")
+    expect(code_offset == offset // 2, f"{prefix}.initCode code offset mismatch")
+    expect(init_hex[offset:].lower() == runtime_hex.lower(), f"{prefix}.initCode runtime suffix mismatch")
 
 
 def validate_deploy_manifest(
@@ -78,6 +109,7 @@ def validate_deploy_manifest(
     metadata: dict,
     yul_path: Path,
     bytecode_path: Path,
+    init_code_path: Path,
     source_path: Optional[Path],
 ) -> None:
     manifest = expect_object(json.loads(manifest_path.read_text()), "deploy manifest")
@@ -85,7 +117,7 @@ def validate_deploy_manifest(
     expect(manifest.get("kind") == "proof-forge-evm-deploy-manifest", "deploy manifest kind mismatch")
     expect(manifest.get("target") == "evm", "deploy manifest target must be evm")
     expect(manifest.get("targetFamily") == "evm", "deploy manifest targetFamily mismatch")
-    expect(manifest.get("artifactKind") == "evm-runtime-bytecode-deploy", "deploy manifest artifactKind mismatch")
+    expect(manifest.get("artifactKind") == "evm-initcode-deploy", "deploy manifest artifactKind mismatch")
     expect(manifest.get("fixture") == metadata.get("fixture"), "deploy manifest fixture mismatch")
     expect_string(manifest.get("contractName"), "deploy manifest contractName")
     expect(manifest.get("sourceKind") == metadata.get("sourceKind"), "deploy manifest sourceKind mismatch")
@@ -97,8 +129,10 @@ def validate_deploy_manifest(
     inputs = expect_object(manifest.get("inputs"), "deploy manifest inputs")
     manifest_yul = file_entry(root, expect_object(inputs.get("yul"), "inputs.yul"), "yul", "inputs")
     manifest_bytecode = file_entry(root, expect_object(inputs.get("bytecode"), "inputs.bytecode"), "bytecode", "inputs")
+    manifest_init_code = file_entry(root, expect_object(inputs.get("initCode"), "inputs.initCode"), "initCode", "inputs")
     expect(same_path(manifest_yul, yul_path), "deploy manifest inputs.yul must match metadata artifacts.yul")
     expect(same_path(manifest_bytecode, bytecode_path), "deploy manifest inputs.bytecode must match metadata artifacts.bytecode")
+    expect(same_path(manifest_init_code, init_code_path), "deploy manifest inputs.initCode must match metadata artifacts.initCode")
     if source_path is None:
         expect("source" not in inputs, "deploy manifest inputs.source must be absent when metadata has no source artifact")
     else:
@@ -106,15 +140,18 @@ def validate_deploy_manifest(
         expect(same_path(manifest_source, source_path), "deploy manifest inputs.source must match metadata artifacts.source")
 
     creation = expect_object(manifest.get("creation"), "deploy manifest creation")
-    expect(creation.get("mode") == "runtime-bytecode", "deploy manifest creation.mode mismatch")
+    expect(creation.get("mode") == "init-code", "deploy manifest creation.mode mismatch")
     constructor_args = expect_array(creation.get("constructorArgs"), "deploy manifest creation.constructorArgs")
-    expect(constructor_args == [], "deploy manifest creation.constructorArgs must be empty for runtime-bytecode mode")
-    expect(creation.get("initCode") is None, "deploy manifest creation.initCode must be null for runtime-bytecode mode")
+    expect(constructor_args == [], "deploy manifest creation.constructorArgs must be empty for init-code mode")
+    init_code_entry = expect_object(creation.get("initCode"), "deploy manifest creation.initCode")
+    creation_init_code = file_entry(root, init_code_entry, "initCode", "creation")
+    expect(init_code_entry == inputs["initCode"], "deploy manifest creation.initCode entry must match inputs.initCode")
+    expect(same_path(creation_init_code, init_code_path), "deploy manifest creation.initCode must match metadata artifacts.initCode")
     runtime_entry = expect_object(creation.get("runtimeBytecode"), "deploy manifest creation.runtimeBytecode")
     runtime_path = file_entry(root, runtime_entry, "runtimeBytecode", "creation")
     expect(same_path(runtime_path, bytecode_path), "deploy manifest runtimeBytecode must match metadata artifacts.bytecode")
     expect(runtime_entry == inputs["bytecode"], "deploy manifest runtimeBytecode entry must match inputs.bytecode")
-    expect_hex_text(runtime_path, "deploy manifest runtimeBytecode")
+    validate_deployment_init_code(creation_init_code, runtime_path, "deploy manifest creation")
 
     deployment = expect_object(manifest.get("deployment"), "deploy manifest deployment")
     expect(deployment.get("chainId") is None, "deploy manifest deployment.chainId must be null before broadcast")
@@ -177,8 +214,10 @@ def main() -> int:
 
     yul_path = artifact_paths["yul"]
     bytecode_path = artifact_paths["bytecode"]
+    init_code_path = artifact_paths["initCode"]
     deploy_manifest_path = artifact_paths["deployManifest"]
     expect_hex_text(bytecode_path, "artifacts.bytecode")
+    validate_deployment_init_code(init_code_path, bytecode_path, "artifacts")
 
     abi = expect_object(metadata.get("abi"), "abi")
     entrypoints = expect_array(abi.get("entrypoints"), "abi.entrypoints")
@@ -204,7 +243,7 @@ def main() -> int:
     for key in REQUIRED_VALIDATIONS:
         expect(validation.get(key) == "passed", f"validation.{key} must be passed")
 
-    validate_deploy_manifest(root, deploy_manifest_path, metadata, yul_path, bytecode_path, source_path)
+    validate_deploy_manifest(root, deploy_manifest_path, metadata, yul_path, bytecode_path, init_code_path, source_path)
 
     return 0
 

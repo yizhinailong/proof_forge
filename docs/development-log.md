@@ -17,6 +17,60 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Deploy Initcode Artifacts
+
+Commit: `feat: emit EVM deploy initcode artifacts`
+
+Summary:
+
+- Extended every EVM bytecode build to emit a sibling `.init.bin` deployable
+  creation bytecode artifact in addition to the existing runtime `.bin`.
+- Updated `proof-forge-artifact.json` and `proof-forge-deploy.json` so EVM
+  metadata records the initcode artifact, `creation.mode: init-code`, and
+  `validation.initCodeGeneration: passed`.
+- Strengthened both EVM metadata validators to parse the initcode
+  `PUSH/CODECOPY/RETURN` header and prove it copies and returns the exact
+  referenced runtime bytecode artifact.
+- Refreshed English/Chinese EVM metadata docs, validation gates, and backlog
+  notes to distinguish deployable initcode from future transaction broadcast
+  manifests.
+
+Validation run:
+
+```sh
+lake build
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py
+scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/build-examples.sh
+python3 scripts/evm/validate-deploy-manifest.py --root . --expect-fixture AbiScalarProbe --expect-source-kind portable-ir build/ir/AbiScalarProbe.proof-forge-deploy.json
+python3 scripts/evm/validate-deploy-manifest.py --root . --expect-fixture Counter.lean --expect-source-kind lean-sdk build/evm/Counter.proof-forge-deploy.json
+scripts/evm/foundry-smoke.sh
+```
+
+Result:
+
+- `AbiScalarProbe` generated `AbiScalarProbe.init.bin` and passed Foundry
+  scalar ABI runtime checks.
+- SDK examples generated `.init.bin` artifacts for Counter, ArrayExample,
+  SimpleToken, ERC20, Ownable, Pausable, and VerifiedVault; the validator
+  accepted both small and multi-byte-length runtimes.
+- Foundry ran 5 runtime smoke tests, including deploying the generated Counter
+  `.init.bin` through EVM `create` and then running the Counter lifecycle.
+
+Known limitations:
+
+- Constructor arguments are still empty.
+- Chain profile selection, signed/raw transaction generation, broadcast JSON,
+  deployed address recording, and explorer verification remain future work.
+- Most Foundry smoke coverage still installs runtime bytecode with `vm.etch`
+  for fast runtime checks; Counter now also has a real initcode `create` path.
+
+Next step:
+
+- Continue toward real deployment manifests by adding chain-profile selection
+  and a Foundry/Anvil broadcast artifact, or return to the remaining EVM IR
+  unsupported surfaces such as dynamic ABI values.
+
 ### EVM IR Hash Aggregate ABI Leaves
 
 Commit: `test: cover EVM hash aggregate ABI leaves`

@@ -276,9 +276,9 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   unsupported aggregate or non-flat leaves, nested crosscall fixed
   arrays with non-flat struct or unsupported leaves,
   non-word or aggregate map shapes, nested
-  local structs beyond flat struct arrays, richer event declarations, dynamic constructor
-  arguments, artifact-linked init code, variable-length cross-call return
-  data, and real creation-transaction or broadcast manifests.
+  local structs beyond flat struct arrays, richer event declarations, dynamic
+  constructor arguments, variable-length cross-call return data, and real
+  creation-transaction or broadcast manifests.
 
 ## Portable IR Gates
 
@@ -627,25 +627,27 @@ The current EVM metadata schema records:
 - portable IR capability ids when available
 - selector-facing ABI entrypoints or SDK method specs
 - `solc` path/version
-- Yul, bytecode, source when available, and deploy-manifest artifact paths,
-  byte sizes, and SHA-256 hashes
-- validation flags for `solc --strict-assembly`, bytecode generation, and
-  deploy-manifest generation
+- Yul, runtime bytecode, deployable initcode, source when available, and
+  deploy-manifest artifact paths, byte sizes, and SHA-256 hashes
+- validation flags for `solc --strict-assembly`, bytecode generation, initcode
+  generation, and deploy-manifest generation
 
 The EVM deploy manifest records:
 
 - `kind: proof-forge-evm-deploy-manifest`
 - source kind/module, `irVersion`, capabilities, and ABI entrypoints/methods
-- Yul/source inputs and runtime bytecode hash/size
-- `creation.mode: runtime-bytecode`, with empty constructor args and no init
-  code yet
-- `deployment.broadcast: not-generated`, because current Foundry smokes install
-  runtime bytecode with `vm.etch` instead of broadcasting a chain transaction
+- Yul/source inputs plus runtime bytecode and initcode hash/size
+- `creation.mode: init-code`, with empty constructor args, an artifact-linked
+  initcode file, and the referenced runtime bytecode
+- `deployment.broadcast: not-generated`, because transaction signing,
+  chain-profile selection, and broadcast JSON are not generated yet
 
 `scripts/evm/validate-artifact-metadata.py` validates these metadata files and
 their referenced deploy manifests in the EVM IR smoke scripts and in
-`scripts/evm/build-examples.sh`. `scripts/evm/validate-deploy-manifest.py`
-can validate a deploy manifest directly.
+`scripts/evm/build-examples.sh`. The validators parse the initcode header and
+check that it copies and returns the exact runtime bytecode artifact.
+`scripts/evm/validate-deploy-manifest.py` can validate a deploy manifest
+directly.
 
 Method dispatch still uses `.evm-methods` sidecar files until a unified target
 manifest lands (RFC 0002).
