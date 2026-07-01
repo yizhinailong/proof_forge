@@ -440,7 +440,7 @@ def cases : Array (String × Module × String) := #[
   (
     "missing return",
     missingReturnModule,
-    "entrypoint `bad` returns `U64` but does not end with a return statement"
+    "entrypoint `bad` returns `U64` but does not return on every control-flow path"
   ),
   (
     "hash return type mismatch",
@@ -508,19 +508,9 @@ def cases : Array (String × Module × String) := #[
     "duplicate field `x` in struct `DuplicateField`"
   ),
   (
-    "conditional branch return unsupported",
-    conditionalReturnModule,
-    "return statements inside if/else branches are not supported by IR EVM v0; return must be the final entrypoint statement"
-  ),
-  (
     "bounded loop invalid range",
     invalidBoundedLoopModule,
     "bounded loop `_i` must have stop greater than start"
-  ),
-  (
-    "bounded loop return unsupported",
-    boundedLoopReturnModule,
-    "return statements inside bounded for loops are not supported by IR EVM v0; return must be the final entrypoint statement"
   ),
   (
     "storage write used as expression",

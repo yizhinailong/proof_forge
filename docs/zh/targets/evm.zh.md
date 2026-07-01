@@ -193,7 +193,7 @@ EVM 不支持（设计上针对其他目标）：
 
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
-- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、context read、event、`Hash` word 值与 hashing、带托管 key presence 的 word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态和动态 index 的不可变和可变 local fixed-array value、标量/hash 字段上的扁平不可变和可变 local struct value、带静态/动态字段访问的扁平 struct local fixed array、扁平静态聚合 ABI 参数/返回，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
+- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、通过 Yul `leave` 实现的分支/loop 内早退、context read、event、`Hash` word 值与 hashing、带托管 key presence 的 word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态和动态 index 的不可变和可变 local fixed-array value、标量/hash 字段上的扁平不可变和可变 local struct value、带静态/动态字段访问的扁平 struct local fixed array、扁平静态聚合 ABI 参数/返回，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
 - Portable IR EVM 目前仍缺少动态或嵌套聚合 ABI 值、非 word 或 aggregate map 形态、嵌套 array、struct array 的 whole local assignment、whole-struct storage read/write、超出扁平 struct array 的 nested local struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据，以及真实 creation transaction 或 broadcast manifest。
 
 ## Portable IR 门禁
@@ -235,9 +235,9 @@ scripts/evm/ir-counter-smoke.sh
 
 `EvmAssignOpProbe` 验证 portable IR 对可变 `U32`/`U64` local 和 `U64` 标量 storage 的复合赋值。local 复合赋值降为 Yul `name := op(name, value)`；标量 storage 复合赋值降为 `sstore(slot, op(sload(slot), value))`。shift operator 保持 EVM 的参数顺序，即 `shl(shift, value)` 和 `shr(shift, value)`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力 `storage.scalar`、Foundry 返回值、原始 storage slot 更新，以及未知 selector revert。聚合 target 仍保持显式诊断。
 
-`ConditionalProbe` 验证 portable IR 语句级 `if/else` 会降为 Yul `switch condition case 0 { else } default { then }` block。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、Foundry 执行 then/else storage 更新，以及未知 selector revert。分支内部的 `return` 仍被显式拒绝，直到 EVM IR 后端通过 Yul `leave` 支持早退 lowering。
+`ConditionalProbe` 验证 portable IR 语句级 `if/else` 会降为 Yul `switch condition case 0 { else } default { then }` block。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、Foundry 执行 then/else storage 更新，以及未知 selector revert。EVM 专用的分支内早退由 `EvmLoopProbe` 覆盖。
 
-`EvmLoopProbe` 验证 portable IR `boundedFor` 会降为 Yul `for` loop：prelude 声明 loop index，condition 与静态 exclusive stop bound 比较，post block 每轮加一。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`control.bounded_loop`）、Foundry 运行时 storage 更新，以及未知 selector revert。无效 loop 范围和 loop 内 `return` 仍会以显式诊断失败。
+`EvmLoopProbe` 验证 portable IR `boundedFor` 会降为 Yul `for` loop：prelude 声明 loop index，condition 与静态 exclusive stop bound 比较，post block 每轮加一。它也验证分支内和 loop 内早退：嵌套 `return` 会先写入返回值，再用 Yul `leave` 离开当前函数。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`control.conditional`、`control.bounded_loop`）、Foundry 运行时 storage 更新、早退返回值与 storage effect，以及未知 selector revert。无效 loop 范围仍会以显式诊断失败。
 
 `ContextProbe` 验证 portable IR context read 到 EVM opcode 的 lowering：`userId` 降为 `caller()`，`contractId` 降为 `address()`，`checkpointId` 降为 `number()`。它也通过 `native_value()` selector 验证 `nativeValue` 降为 `callvalue()`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`caller.sender`、`account.explicit`、`env.block`、`value.native`）、通过 `vm.prank`/`vm.roll` 得到的 Foundry 运行时 context 值、通过 `probe.call{value: ...}` 得到的原生 value，以及未知 selector revert。
 

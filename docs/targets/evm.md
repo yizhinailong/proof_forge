@@ -219,8 +219,9 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   flat immutable and mutable local struct values over scalar/hash fields, local
   fixed arrays of flat structs with static and dynamic field access, flat static
   aggregate ABI parameters and returns, synchronous word-returning
-  `crosscallInvoke`, and static bounded loops. It rejects wider portable IR nodes
-  with explicit diagnostics.
+  `crosscallInvoke`, static bounded loops, and branch/loop-local early returns
+  through Yul `leave`. It rejects wider portable IR nodes with explicit
+  diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
   non-word or aggregate map shapes, nested arrays, whole local assignment of
   struct arrays, whole-struct storage reads/writes, nested local structs beyond
@@ -306,16 +307,19 @@ remain explicit diagnostics.
 Yul `switch condition case 0 { else } default { then }` blocks. The smoke checks
 golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
 Foundry execution of then/else storage updates, and unknown-selector revert
-behavior. Branch-local `return` statements remain rejected until the EVM IR
-backend grows early-return lowering through Yul `leave`.
+behavior. EVM-specific branch-local early returns are validated by
+`EvmLoopProbe`.
 
 `EvmLoopProbe` validates portable IR `boundedFor` lowering to Yul `for` loops:
 the loop prelude declares the index, the condition compares it with the static
-exclusive stop bound, and the post block increments it by one. The smoke checks
-golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
-metadata capabilities (`storage.scalar`, `control.bounded_loop`), Foundry
-runtime storage updates, and unknown-selector revert behavior. Invalid loop
-ranges and loop-local `return` statements remain explicit diagnostics.
+exclusive stop bound, and the post block increments it by one. It also validates
+branch-local and loop-local early returns by lowering nested `return` statements
+to return-value assignments followed by Yul `leave`. The smoke checks golden Yul
+reproducibility, `solc --strict-assembly` bytecode generation, metadata
+capabilities (`storage.scalar`, `control.conditional`, `control.bounded_loop`),
+Foundry runtime storage updates, early-return storage effects, and
+unknown-selector revert behavior. Invalid loop ranges remain explicit
+diagnostics.
 
 `ContextProbe` validates portable IR context reads through EVM opcodes:
 `userId` lowers to `caller()`, `contractId` lowers to `address()`, and

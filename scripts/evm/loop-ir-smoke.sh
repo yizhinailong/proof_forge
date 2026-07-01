@@ -39,8 +39,11 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-fixture EvmLoopProbe \
   --expect-source-kind portable-ir \
   --expect-capability storage.scalar \
+  --expect-capability control.conditional \
   --expect-capability control.bounded_loop \
   --expect-entrypoint count_to_three:c4eff2de \
+  --expect-entrypoint choose_with_early_return:d9b42937 \
+  --expect-entrypoint loop_early_return:d11c9505 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmLoopProbe.bin")"
@@ -100,6 +103,25 @@ contract ProofForgeIRLoopSmokeTest {
 
         assertEq(callU256(probe, abi.encodeWithSignature("count_to_three()")), 3);
         assertEq(uint256(vm.load(probe, bytes32(uint256(0)))), 3);
+    }
+
+    function testIRBranchLocalEarlyReturn() public {
+        address probe = address(uint160(0xE152));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("choose_with_early_return(bool)", true)), 11);
+        assertEq(uint256(vm.load(probe, bytes32(uint256(0)))), 0);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("choose_with_early_return(bool)", false)), 99);
+        assertEq(uint256(vm.load(probe, bytes32(uint256(0)))), 99);
+    }
+
+    function testIRLoopLocalEarlyReturn() public {
+        address probe = address(uint160(0xE153));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("loop_early_return()")), 0);
+        assertEq(uint256(vm.load(probe, bytes32(uint256(0)))), 100);
     }
 
     function testIRBoundedLoopRejectsUnknownSelector() public {

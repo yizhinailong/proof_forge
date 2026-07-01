@@ -1888,13 +1888,18 @@ def lowerAssignOpStmt
       let targetName ← lowerAssignTargetName "compound assignment target" target
       .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
 
-partial def hasNestedReturn (statements : Array Statement) : Bool :=
-  statements.any fun stmt =>
-    match stmt with
+mutual
+  partial def statementAlwaysReturns : Statement → Bool
     | .return _ => true
-    | .ifElse _ thenBody elseBody => hasNestedReturn thenBody || hasNestedReturn elseBody
-    | .boundedFor _ _ _ body => hasNestedReturn body
+    | .ifElse _ thenBody elseBody =>
+        statementsAlwaysReturn thenBody && statementsAlwaysReturn elseBody
+    | .boundedFor _ start stopExclusive body =>
+        start < stopExclusive && statementsAlwaysReturn body
     | _ => false
+
+  partial def statementsAlwaysReturn (statements : Array Statement) : Bool :=
+    statements.any statementAlwaysReturns
+end
 
 def abiReturnNames (module : Module) (entrypointName : String) : ValueType → Except LowerError (Array String)
   | .unit => .ok #[]
@@ -2069,23 +2074,43 @@ def lowerReturnAssignments
     statements := statements.push (.assignment #[names[idx]] word)
   .ok statements
 
+def lowerReturnStmt
+    (module : Module)
+    (env : TypeEnv)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : ProofForge.IR.Expr)
+    (leaveAfterReturn : Bool) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let statements ← lowerReturnAssignments module env entrypointName returnType value
+  if leaveAfterReturn then
+    .ok (statements.push .leave)
+  else
+    .ok statements
+
 mutual
   partial def lowerStatements
       (module : Module)
       (entrypointName : String)
       (returnType : ValueType)
       (env : TypeEnv)
+      (leaveAfterReturn : Bool)
       (statements : Array Statement) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
-    statements.foldlM (init := (#[], env)) (fun acc stmt => do
-      let (statementsAcc, currentEnv) := acc
-      let (lowered, nextEnv) ← lowerStatement module entrypointName returnType currentEnv stmt
-      .ok (statementsAcc ++ lowered, nextEnv)) |>.map Prod.fst
+    do
+      let mut statementsAcc : Array Lean.Compiler.Yul.Statement := #[]
+      let mut currentEnv := env
+      for h : idx in [0:statements.size] do
+        let stmtLeaveAfterReturn := leaveAfterReturn || decide (idx + 1 < statements.size)
+        let (lowered, nextEnv) ← lowerStatement module entrypointName returnType currentEnv stmtLeaveAfterReturn statements[idx]
+        statementsAcc := statementsAcc ++ lowered
+        currentEnv := nextEnv
+      .ok statementsAcc
 
   partial def lowerStatement
       (module : Module)
       (entrypointName : String)
       (returnType : ValueType)
-      (env : TypeEnv) : ProofForge.IR.Statement → Except LowerError (Array Lean.Compiler.Yul.Statement × TypeEnv)
+      (env : TypeEnv)
+      (leaveAfterReturn : Bool) : ProofForge.IR.Statement → Except LowerError (Array Lean.Compiler.Yul.Statement × TypeEnv)
     | .letBind name (.fixedArray elementType length) value => do
         let lowered ← lowerFixedArrayLetBinding module env name elementType length value
         let nextEnv ← addLocal env name (.fixedArray elementType length) false
@@ -2122,10 +2147,8 @@ mutual
         let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]
         .ok (#[lowerAssertStmt condition], env)
     | .ifElse condition thenBody elseBody => do
-        if hasNestedReturn thenBody || hasNestedReturn elseBody then
-          .error { message := "return statements inside if/else branches are not supported by IR EVM v0; return must be the final entrypoint statement" }
-        let thenStatements ← lowerStatements module entrypointName returnType env thenBody
-        let elseStatements ← lowerStatements module entrypointName returnType env elseBody
+        let thenStatements ← lowerStatements module entrypointName returnType env true thenBody
+        let elseStatements ← lowerStatements module entrypointName returnType env true elseBody
         .ok (#[.switchStmt (← lowerExpr module env condition) #[
           {
             value := some (Lean.Compiler.Yul.Literal.natLit 0)
@@ -2139,10 +2162,8 @@ mutual
     | .boundedFor indexName start stopExclusive body => do
         if stopExclusive <= start then
           .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
-        if hasNestedReturn body then
-          .error { message := "return statements inside bounded for loops are not supported by IR EVM v0; return must be the final entrypoint statement" }
         let loopEnv ← addLocal env indexName .u32 false
-        let bodyStatements ← lowerStatements module entrypointName returnType loopEnv body
+        let bodyStatements ← lowerStatements module entrypointName returnType loopEnv true body
         .ok (#[.forLoop
           { statements := #[
             .varDecl #[{ name := indexName }] (some (Lean.Compiler.Yul.Expr.num start))
@@ -2153,7 +2174,7 @@ mutual
           ] }
           { statements := bodyStatements }], env)
     | .return value => do
-        .ok (← lowerReturnAssignments module env entrypointName returnType value, env)
+        .ok (← lowerReturnStmt module env entrypointName returnType value leaveAfterReturn, env)
 end
 
 def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do
@@ -2161,12 +2182,12 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
   match entrypoint.returns with
   | .unit => pure ()
   | _ =>
-      match entrypoint.body.back? with
-      | some (.return _) => pure ()
-      | _ =>
-          .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not end with a return statement" }
+      if statementsAlwaysReturn entrypoint.body then
+        pure ()
+      else
+        .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not return on every control-flow path" }
   validateEntrypointTypes module entrypoint
-  let body ← lowerStatements module entrypoint.name entrypoint.returns (entrypointTypeEnv entrypoint) entrypoint.body
+  let body ← lowerStatements module entrypoint.name entrypoint.returns (entrypointTypeEnv entrypoint) false entrypoint.body
   let returns ← abiReturnTypedNames module entrypoint
   .ok (.funcDef (yulFunctionName module.name entrypoint.name) params returns { statements := body })
 

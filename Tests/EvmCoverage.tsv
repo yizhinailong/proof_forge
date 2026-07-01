@@ -87,6 +87,6 @@ Statement	assignOp	validated	lowerStatement emits Yul assignments for mutable lo
 Statement	effect	structural	lowerStatement delegates effects to lowerEffectStmt; scalar writes lower and unsupported effects reject.
 Statement	assert	validated	AssertProbe and EvmExpressionProbe validate Yul if iszero(condition) revert guards through passing paths and Foundry revert behavior.
 Statement	assertEq	validated	AssertProbe and EvmExpressionProbe validate Yul if iszero(eq(lhs, rhs)) revert guards through passing paths and Foundry revert behavior.
-Statement	ifElse	validated	ConditionalProbe validates Yul switch/case/default lowering for if/else through then/else storage updates and diagnostics reject nested branch returns.
-Statement	boundedFor	validated	EvmLoopProbe validates boundedFor lowering to Yul for loops with scalar storage updates; diagnostics reject invalid loop ranges and loop-local returns.
-Statement	return	validated	EvmExpressionProbe validates one-word scalar return assignment and dispatch encoding; EvmAbiAggregateProbe validates multi-word flat struct/fixed-array returns.
+Statement	ifElse	validated	ConditionalProbe validates Yul switch/case/default lowering for if/else through then/else storage updates; EvmLoopProbe validates branch-local early returns through Yul leave.
+Statement	boundedFor	validated	EvmLoopProbe validates boundedFor lowering to Yul for loops with scalar storage updates and loop-local early returns through Yul leave; diagnostics reject invalid loop ranges.
+Statement	return	validated	EvmExpressionProbe validates one-word scalar return assignment and dispatch encoding; EvmAbiAggregateProbe validates multi-word flat struct/fixed-array returns; EvmLoopProbe validates nested return lowering with Yul leave and non-final top-level return path analysis.
