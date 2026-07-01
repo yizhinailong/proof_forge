@@ -152,6 +152,11 @@ proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output out
 `--evm-chain-profile <id>` records a known EVM chain profile, such as
 `robinhood-chain-testnet`, in the generated deploy manifest without signing or
 broadcasting a transaction.
+`--evm-constructor-param <name:type>` records static-word constructor ABI
+schema metadata in `abi.constructor.params`. Supported schema types are
+`uint256`, `uint64`, `uint32`, `bool`, `bytes32`, and `address`. The flag does
+not auto-encode values; it validates the size of the ABI-encoded blob supplied
+through `--evm-constructor-args-hex`.
 `--evm-constructor-args-hex <hex>` appends an ABI-encoded constructor argument
 blob to generated `.init.bin` creation bytecode and records the normalized hex,
 byte length, and SHA-256 in `proof-forge-deploy.json`.
@@ -286,7 +291,7 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   arrays with non-flat struct or unsupported leaves,
   non-word or aggregate map shapes, nested
   local structs beyond flat struct arrays, richer event declarations,
-  constructor ABI schema generation beyond explicit ABI-encoded hex,
+  typed constructor value parsing/encoding beyond explicit ABI-encoded hex,
   variable-length cross-call return data, and real creation-transaction or
   broadcast manifests.
 
@@ -635,7 +640,7 @@ The current EVM metadata schema records:
 - source kind (`lean-sdk` or `portable-ir`), source module, and `irVersion`
   (`portable-ir-v0` for portable IR fixtures)
 - portable IR capability ids when available
-- selector-facing ABI entrypoints or SDK method specs
+- constructor ABI schema, selector-facing ABI entrypoints, or SDK method specs
 - `solc` path/version
 - Yul, runtime bytecode, deployable initcode, source when available, and
   deploy-manifest artifact paths, byte sizes, and SHA-256 hashes
@@ -645,12 +650,14 @@ The current EVM metadata schema records:
 The EVM deploy manifest records:
 
 - `kind: proof-forge-evm-deploy-manifest`
-- source kind/module, `irVersion`, capabilities, and ABI entrypoints/methods
+- source kind/module, `irVersion`, capabilities, constructor ABI schema, and
+  ABI entrypoints/methods
 - optional `chainProfile` metadata copied from the EVM target registry when
   `--evm-chain-profile` is provided, including profile id, chain id, RPC URLs,
   native gas symbol, explorer, verifier, and notes
 - Yul/source inputs plus runtime bytecode and initcode hash/size
-- `creation.mode: init-code`, optional ABI-encoded constructor args from
+- `creation.mode: init-code`, optional static-word constructor ABI schema from
+  `--evm-constructor-param`, optional ABI-encoded constructor args from
   `--evm-constructor-args-hex`, an artifact-linked initcode file, and the
   referenced runtime bytecode
 - `deployment.profileId`, `deployment.chainId`, `deployment.rpcUrls`,
@@ -664,23 +671,28 @@ The EVM deploy manifest records:
 their referenced deploy manifests in the EVM IR smoke scripts and in
 `scripts/evm/build-examples.sh`. The validators parse the initcode header and
 check that it copies and returns the exact runtime bytecode artifact, and that
-any constructor-argument tail matches the deploy manifest. When a chain profile
-is selected, they also verify that `chainProfile` and `deployment` agree on
-profile id, chain id, RPC URLs, explorer, and verifier metadata.
+any constructor-argument tail matches the deploy manifest. When constructor ABI
+schema metadata is present, they also verify each static-word parameter and
+check that the ABI-encoded constructor blob has the expected 32-byte word
+length. When a chain profile is selected, they also verify that `chainProfile`
+and `deployment` agree on profile id, chain id, RPC URLs, explorer, and
+verifier metadata.
 `scripts/evm/validate-deploy-manifest.py` can validate a deploy manifest
 directly.
 
 `scripts/evm/anvil-deploy-smoke.sh` consumes the generated Counter deploy
 manifest and `.init.bin`, regenerates Counter with a deterministic non-empty
-constructor-argument blob by default, starts a local Anvil chain, sends the
-initcode with `cast send --create`, checks the receipt, verifies that the
-deployed runtime code equals `Counter.bin`, runs the Counter lifecycle through
-JSON-RPC calls, and writes
+constructor-argument blob plus a static `initial:uint256` constructor schema by
+default, starts a local Anvil chain, sends the initcode with
+`cast send --create`, checks the receipt, verifies that the deployed runtime
+code equals `Counter.bin`, runs the Counter lifecycle through JSON-RPC calls,
+and writes
 `build/anvil-deploy-smoke/Counter.proof-forge-deploy-run.json`.
 `scripts/evm/validate-deploy-run.py` validates that deploy-run artifact. The
 original deploy manifest remains a reproducible plan with
 `deployment.broadcast: not-generated`; the deploy-run artifact records one
-observed local Anvil deployment execution.
+observed local Anvil deployment execution, including the constructor ABI schema
+and constructor args that were used.
 
 Method dispatch still uses `.evm-methods` sidecar files until a unified target
 manifest lands (RFC 0002).

@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Constructor ABI Schema Metadata
+
+Commit: `feat: record EVM constructor ABI schema`
+
+Summary:
+
+- Added `--evm-constructor-param <name:type>` for EVM bytecode modes.
+- Constructor params are recorded under `abi.constructor.params` in both
+  `proof-forge-artifact.json` and `proof-forge-deploy.json` using static
+  32-byte ABI-word metadata.
+- Validators now check constructor ABI schema shape, supported static-word
+  types, expected parameters, and constructor-argument byte length.
+- The Anvil deploy smoke now regenerates Counter with
+  `--evm-constructor-param initial:uint256`, records `constructorAbi` in
+  `Counter.proof-forge-deploy-run.json`, and validates it against the deploy
+  manifest.
+
+Validation run:
+
+```sh
+lake build
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py scripts/evm/validate-deploy-run.py
+bash -n scripts/evm/anvil-deploy-smoke.sh
+lake env proof-forge --evm-bytecode --root . --module contract --evm-constructor-param initial:uint256 --evm-constructor-args-hex 0x000000000000000000000000000000000000000000000000000000000000007b ...
+scripts/evm/anvil-deploy-smoke.sh
+just check
+just evm-all
+just psy-golden-sources
+git diff --check
+```
+
+Known limitations:
+
+- ProofForge records and validates static constructor ABI schema, but does not
+  yet parse typed constructor values or ABI-encode them from CLI inputs.
+- Dynamic constructor ABI types remain out of scope for the current EVM schema
+  slice.
+
+Next step:
+
+- Add typed constructor value parsing/encoding or move to a first-class EVM
+  deploy/broadcast command that consumes the deploy manifest.
+
 ### Just-Based CI Command Entry
 
 Commit: feature commit for just-based CI command entry

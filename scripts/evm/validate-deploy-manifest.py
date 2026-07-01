@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
+SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
+
 
 def fail(message: str) -> None:
     raise SystemExit(f"evm-deploy-validate: {message}")
@@ -39,6 +41,14 @@ def normalize_hex(value: str, name: str) -> str:
     expect(all(ch in "0123456789abcdefABCDEF" for ch in text), f"{name} must contain only hex digits")
     expect(len(text) % 2 == 0, f"{name} must have an even number of hex digits")
     return text.lower()
+
+
+def parse_expected_constructor_param(value: str) -> dict:
+    if ":" not in value:
+        fail("--expect-constructor-param expects name:type")
+    name, abi_type = value.split(":", 1)
+    expect(name and abi_type, "--expect-constructor-param expects name:type")
+    return {"name": name, "type": abi_type}
 
 
 def resolve_path(root: Path, path_text: str) -> Path:
@@ -117,7 +127,38 @@ def validate_deployment_init_code(init_path: Path, runtime_path: Path, construct
     expect(init_hex[runtime_end:].lower() == constructor_args_hex, f"{prefix}.initCode constructor args suffix mismatch")
 
 
-def validate_abi(abi: dict) -> None:
+def validate_constructor_abi(abi: dict, expected_params: list[dict]) -> list[dict]:
+    constructor = expect_object(abi.get("constructor"), "abi.constructor")
+    params = expect_array(constructor.get("params"), "abi.constructor.params")
+    expect(constructor.get("encoding") == "abi", "abi.constructor.encoding mismatch")
+    actual_params = []
+    for idx, param in enumerate(params):
+        param = expect_object(param, f"abi.constructor.params[{idx}]")
+        name = expect_string(param.get("name"), f"abi.constructor.params[{idx}].name")
+        abi_type = expect_string(param.get("type"), f"abi.constructor.params[{idx}].type")
+        expect(abi_type in SUPPORTED_CONSTRUCTOR_TYPES, f"abi.constructor.params[{idx}].type unsupported")
+        expect(param.get("encoding") == "abi-static-word", f"abi.constructor.params[{idx}].encoding mismatch")
+        expect(param.get("slotBytes") == 32, f"abi.constructor.params[{idx}].slotBytes must be 32")
+        actual_params.append({"name": name, "type": abi_type})
+    if expected_params:
+        expect(actual_params == expected_params, "abi.constructor.params mismatch")
+    return actual_params
+
+
+def validate_constructor_schema_args(params: list[dict], constructor_args_hex: str) -> None:
+    if not params:
+        return
+    expect(constructor_args_hex, "abi.constructor.params requires non-empty creation.constructorArgs")
+    expected_bytes = len(params) * 32
+    actual_bytes = len(constructor_args_hex) // 2
+    expect(
+        actual_bytes == expected_bytes,
+        f"abi.constructor.params expects {expected_bytes} constructor arg bytes, got {actual_bytes}",
+    )
+
+
+def validate_abi(abi: dict, expected_constructor_params: list[dict]) -> list[dict]:
+    constructor_params = validate_constructor_abi(abi, expected_constructor_params)
     entrypoints = expect_array(abi.get("entrypoints"), "abi.entrypoints")
     for idx, entry in enumerate(entrypoints):
         entry = expect_object(entry, f"abi.entrypoints[{idx}]")
@@ -133,6 +174,7 @@ def validate_abi(abi: dict) -> None:
         expect_string(method.get("fnName"), f"abi.methods[{idx}].fnName")
         expect(isinstance(method.get("argCount"), int), f"abi.methods[{idx}].argCount must be an integer")
         expect(isinstance(method.get("returnsValue"), bool), f"abi.methods[{idx}].returnsValue must be a boolean")
+    return constructor_params
 
 
 def validate_chain_profile(manifest: dict, expected_profile: Optional[str], expected_chain_id: Optional[int]) -> None:
@@ -194,11 +236,15 @@ def main() -> int:
     parser.add_argument("--expect-chain-profile")
     parser.add_argument("--expect-chain-id", type=int)
     parser.add_argument("--expect-constructor-args-hex")
+    parser.add_argument("--expect-constructor-param", action="append", default=[])
     parser.add_argument("manifest")
     args = parser.parse_args()
 
     root = Path(args.root)
     manifest = expect_object(json.loads(Path(args.manifest).read_text()), "manifest")
+    expected_constructor_params = [
+        parse_expected_constructor_param(value) for value in args.expect_constructor_param
+    ]
 
     expect(manifest.get("schemaVersion") == 1, "schemaVersion must be 1")
     expect(manifest.get("kind") == "proof-forge-evm-deploy-manifest", "kind mismatch")
@@ -221,7 +267,7 @@ def main() -> int:
     capabilities = expect_array(manifest.get("capabilities"), "capabilities")
     for idx, capability in enumerate(capabilities):
         expect_string(capability, f"capabilities[{idx}]")
-    validate_abi(expect_object(manifest.get("abi"), "abi"))
+    constructor_params = validate_abi(expect_object(manifest.get("abi"), "abi"), expected_constructor_params)
 
     inputs = expect_object(manifest.get("inputs"), "inputs")
     file_entry(root, expect_object(inputs.get("yul"), "inputs.yul"), "inputs.yul")
@@ -237,6 +283,7 @@ def main() -> int:
         expect_array(creation.get("constructorArgs"), "creation.constructorArgs"),
         args.expect_constructor_args_hex,
     )
+    validate_constructor_schema_args(constructor_params, constructor_args_hex)
     init_code_entry = expect_object(creation.get("initCode"), "creation.initCode")
     creation_init_code_path = file_entry(root, init_code_entry, "creation.initCode")
     expect(init_code_entry == inputs["initCode"], "creation.initCode must match inputs.initCode")

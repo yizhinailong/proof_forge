@@ -57,6 +57,11 @@ namespace ProofForge.Cli
 
 abbrev MethodSpec := Lean.Compiler.LCNF.EmitYul.MethodSpec
 
+structure ConstructorParamSpec where
+  name : String
+  abiType : String
+  deriving Repr
+
 inductive EmitMode where
   | yul
   | evmBytecode
@@ -155,6 +160,77 @@ def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
   | .evmAbiAggregateIrBytecode => true
   | _ => false
 
+def EmitMode.hasBuiltInFixture : EmitMode → Bool
+  | .counterIrYul
+  | .counterIrBytecode
+  | .abiScalarIrYul
+  | .abiScalarIrBytecode
+  | .assertIrYul
+  | .assertIrBytecode
+  | .assignmentIrYul
+  | .assignmentIrBytecode
+  | .evmAssignOpIrYul
+  | .evmAssignOpIrBytecode
+  | .conditionalIrYul
+  | .conditionalIrBytecode
+  | .contextIrYul
+  | .contextIrBytecode
+  | .evmEventIrYul
+  | .evmEventIrBytecode
+  | .evmCrosscallIrYul
+  | .evmCrosscallIrBytecode
+  | .evmExpressionIrYul
+  | .evmExpressionIrBytecode
+  | .evmHashIrYul
+  | .evmHashIrBytecode
+  | .evmLoopIrYul
+  | .evmLoopIrBytecode
+  | .evmMapIrYul
+  | .evmMapIrBytecode
+  | .evmStorageArrayIrYul
+  | .evmStorageArrayIrBytecode
+  | .evmStorageStructIrYul
+  | .evmStorageStructIrBytecode
+  | .evmTypedMapIrYul
+  | .evmTypedMapIrBytecode
+  | .evmTypedStorageIrYul
+  | .evmTypedStorageIrBytecode
+  | .evmArrayValueIrYul
+  | .evmArrayValueIrBytecode
+  | .evmStructArrayValueIrYul
+  | .evmStructArrayValueIrBytecode
+  | .evmStructValueIrYul
+  | .evmStructValueIrBytecode
+  | .evmAbiAggregateIrYul
+  | .evmAbiAggregateIrBytecode
+  | .counterIrPsy
+  | .eventIrPsy
+  | .crosscallIrPsy
+  | .expressionPredicateIrPsy
+  | .genericEntrypointIrPsy
+  | .arithmeticIrPsy
+  | .bitwiseIrPsy
+  | .boolStorageArrayIrPsy
+  | .boolStorageScalarIrPsy
+  | .conditionalIrPsy
+  | .contextIrPsy
+  | .hashIrPsy
+  | .hashStorageIrPsy
+  | .mapIrPsy
+  | .assertIrPsy
+  | .loopIrPsy
+  | .arrayIrPsy
+  | .structIrPsy
+  | .structArrayIrPsy
+  | .abiAggregateIrPsy
+  | .nestedAggregateIrPsy
+  | .storageNestedAggregateIrPsy
+  | .u32ArithmeticIrPsy
+  | .u32HashPackingIrPsy
+  | .u32StorageScalarIrPsy
+  | .u32StorageArrayIrPsy => true
+  | _ => false
+
 structure CliOptions where
   input? : Option FilePath := none
   output? : Option FilePath := none
@@ -168,6 +244,7 @@ structure CliOptions where
   cast : String := "cast"
   evmChainProfile? : Option String := none
   evmConstructorArgsHex : String := ""
+  evmConstructorParams : Array ConstructorParamSpec := #[]
   mode : EmitMode := .yul
   deriving Inhabited
 
@@ -175,7 +252,7 @@ def usage : String :=
   String.intercalate "\n" [
     "Usage:",
     "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
-    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
+    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-abi-scalar-ir-yul [-o output.yul]",
@@ -247,6 +324,7 @@ def usage : String :=
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
+    "`--evm-constructor-param name:type` records static-word constructor ABI schema metadata for an ABI-encoded constructor args blob.",
     "`--evm-constructor-args-hex <hex>` appends ABI-encoded constructor arguments to generated EVM initcode.",
     "IR fixture modes render hand-written portable IR fixtures to target source or bytecode."
   ]
@@ -387,6 +465,43 @@ def normalizeConstructorArgsHex (value : String) : Except String String :=
     .error "--evm-constructor-args-hex must contain only hex digits"
   else
     .ok (lowerHexString hex)
+
+def supportedConstructorAbiTypes : Array String :=
+  #["uint256", "uint64", "uint32", "bool", "bytes32", "address"]
+
+def constructorAbiTypeSupported (abiType : String) : Bool :=
+  supportedConstructorAbiTypes.contains abiType
+
+def parseConstructorParamSpec (s : String) : Except String ConstructorParamSpec := do
+  match s.splitOn ":" with
+  | [name, abiType] =>
+      let name := trimAsciiString name
+      let abiType := trimAsciiString abiType
+      if name.isEmpty then
+        .error s!"invalid constructor parameter spec '{s}': name is empty"
+      else if abiType.isEmpty then
+        .error s!"invalid constructor parameter spec '{s}': type is empty"
+      else if !constructorAbiTypeSupported abiType then
+        let supported := String.intercalate ", " supportedConstructorAbiTypes.toList
+        .error s!"unsupported constructor ABI type '{abiType}'; supported static-word types: {supported}"
+      else
+        .ok { name := name, abiType := abiType }
+  | _ =>
+      .error s!"invalid constructor parameter spec '{s}', expected name:type"
+
+def validateConstructorSchemaAndArgs (params : Array ConstructorParamSpec) (constructorArgsHex : String) : Except String Unit := do
+  let argsHex ← normalizeConstructorArgsHex constructorArgsHex
+  if params.isEmpty then
+    .ok ()
+  else if argsHex.isEmpty then
+    .error "--evm-constructor-param requires --evm-constructor-args-hex because ProofForge does not auto-encode constructor values yet"
+  else
+    let expectedBytes := params.size * 32
+    let actualBytes := argsHex.length / 2
+    if actualBytes == expectedBytes then
+      .ok ()
+    else
+      .error s!"constructor ABI schema expects {expectedBytes} bytes ({params.size} static-word parameter(s)), but --evm-constructor-args-hex has {actualBytes} byte(s)"
 
 def runProcess (cmd : String) (args : Array String) (cwd? : Option FilePath := none) : IO String := do
   let output ← IO.Process.output { cmd := cmd, args := args, cwd := cwd? }
@@ -648,6 +763,20 @@ def methodSpecJson (method : MethodSpec) : String :=
     ("returnsValue", jsonBool method.returnsValue)
   ]
 
+def constructorParamJson (param : ConstructorParamSpec) : String :=
+  jsonObject #[
+    ("name", jsonString param.name),
+    ("type", jsonString param.abiType),
+    ("encoding", jsonString "abi-static-word"),
+    ("slotBytes", "32")
+  ]
+
+def constructorAbiJson (params : Array ConstructorParamSpec) : String :=
+  jsonObject #[
+    ("params", jsonArray (params.map constructorParamJson)),
+    ("encoding", jsonString "abi")
+  ]
+
 def contractNameForFixture (fixture : String) : String :=
   if fixture.endsWith ".lean" then
     dropEndString fixture ".lean".length
@@ -749,6 +878,7 @@ def writeEvmDeployManifest
     (entrypoints : Array String)
     (methods : Array String)
     (chainProfile? : Option ProofForge.Target.EvmChainProfile)
+    (constructorParams : Array ConstructorParamSpec)
     (sourceArtifact? : Option String)
     (yulArtifact bytecodeArtifact initCodeArtifact constructorArgs : String) : IO Unit := do
   let mut inputFields : Array (String × String) := #[
@@ -772,6 +902,7 @@ def writeEvmDeployManifest
     ("chainProfile", evmChainProfileFieldJson chainProfile?),
     ("capabilities", jsonStringArray (dedupStrings capabilities)),
     ("abi", jsonObject #[
+      ("constructor", constructorAbiJson constructorParams),
       ("entrypoints", jsonArray entrypoints),
       ("methods", jsonArray methods)
     ]),
@@ -814,6 +945,7 @@ def writeEvmArtifactMetadata
     entrypoints
     methods
     chainProfile?
+    opts.evmConstructorParams
     sourceArtifact?
     yulArtifact
     bytecodeArtifact
@@ -848,6 +980,7 @@ def writeEvmArtifactMetadata
       ])
     ]),
     ("abi", jsonObject #[
+      ("constructor", constructorAbiJson opts.evmConstructorParams),
       ("entrypoints", jsonArray entrypoints),
       ("methods", jsonArray methods)
     ]),
@@ -900,11 +1033,18 @@ def writeEvmSdkArtifactMetadata
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
+      let hasRunnableInput := opts.input?.isSome || opts.mode.hasBuiltInFixture
       if opts.evmChainProfile?.isSome && !opts.mode.emitsEvmDeployManifest then
         .error "--evm-chain-profile only applies to EVM bytecode modes that emit proof-forge-deploy.json"
       else if !opts.evmConstructorArgsHex.isEmpty && !opts.mode.emitsEvmDeployManifest then
         .error "--evm-constructor-args-hex only applies to EVM bytecode modes that emit proof-forge-deploy.json"
-      else if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
+      else if !opts.evmConstructorParams.isEmpty && !opts.mode.emitsEvmDeployManifest then
+        .error "--evm-constructor-param only applies to EVM bytecode modes that emit proof-forge-deploy.json"
+      else if !opts.evmConstructorParams.isEmpty then
+        match validateConstructorSchemaAndArgs opts.evmConstructorParams opts.evmConstructorArgsHex with
+        | .ok () => if hasRunnableInput then .ok opts else .error usage
+        | .error msg => .error msg
+      else if hasRunnableInput then
         .ok opts
       else
         .error usage
@@ -930,6 +1070,9 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
   | "--evm-constructor-args-hex" :: hex :: rest, opts => do
       let normalized ← normalizeConstructorArgsHex hex
       parseArgs rest { opts with evmConstructorArgsHex := normalized }
+  | "--evm-constructor-param" :: param :: rest, opts => do
+      let spec ← parseConstructorParamSpec param
+      parseArgs rest { opts with evmConstructorParams := opts.evmConstructorParams.push spec }
   | "--solc" :: path :: rest, opts =>
       parseArgs rest { opts with solc := path }
   | "--cast" :: path :: rest, opts =>

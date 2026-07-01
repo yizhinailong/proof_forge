@@ -9,6 +9,7 @@ from typing import Any
 
 ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 HASH_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
+SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
 
 
 def fail(message: str) -> None:
@@ -91,6 +92,44 @@ def validate_constructor_args(constructor_args: list, name: str) -> str:
     return actual_hex
 
 
+def parse_expected_constructor_param(value: str) -> dict:
+    if ":" not in value:
+        fail("--expect-constructor-param expects name:type")
+    name, abi_type = value.split(":", 1)
+    expect(name and abi_type, "--expect-constructor-param expects name:type")
+    return {"name": name, "type": abi_type}
+
+
+def validate_constructor_abi(abi: dict, expected_params: list[dict]) -> list[dict]:
+    constructor = expect_object(abi.get("constructor"), "deploy manifest abi.constructor")
+    params = expect_array(constructor.get("params"), "deploy manifest abi.constructor.params")
+    expect(constructor.get("encoding") == "abi", "deploy manifest abi.constructor.encoding mismatch")
+    actual_params = []
+    for idx, param in enumerate(params):
+        param = expect_object(param, f"deploy manifest abi.constructor.params[{idx}]")
+        name = expect_string(param.get("name"), f"deploy manifest abi.constructor.params[{idx}].name")
+        abi_type = expect_string(param.get("type"), f"deploy manifest abi.constructor.params[{idx}].type")
+        expect(abi_type in SUPPORTED_CONSTRUCTOR_TYPES, f"deploy manifest abi.constructor.params[{idx}].type unsupported")
+        expect(param.get("encoding") == "abi-static-word", f"deploy manifest abi.constructor.params[{idx}].encoding mismatch")
+        expect(param.get("slotBytes") == 32, f"deploy manifest abi.constructor.params[{idx}].slotBytes must be 32")
+        actual_params.append({"name": name, "type": abi_type})
+    if expected_params:
+        expect(actual_params == expected_params, "deploy manifest abi.constructor.params mismatch")
+    return actual_params
+
+
+def validate_constructor_schema_args(params: list[dict], constructor_args_hex: str) -> None:
+    if not params:
+        return
+    expect(constructor_args_hex, "deploy manifest abi.constructor.params requires non-empty constructorArgs")
+    expected_bytes = len(params) * 32
+    actual_bytes = len(constructor_args_hex) // 2
+    expect(
+        actual_bytes == expected_bytes,
+        f"deploy manifest abi.constructor.params expects {expected_bytes} constructor arg bytes, got {actual_bytes}",
+    )
+
+
 def validate_deployment_init_code(init_hex: str, runtime_hex: str, constructor_args_hex: str, prefix: str) -> None:
     runtime_size = len(runtime_hex) // 2
     size, offset = read_push_value(init_hex, 0, f"{prefix}.runtimeSize")
@@ -126,12 +165,16 @@ def main() -> int:
     parser.add_argument("--expect-fixture", default="Counter.lean")
     parser.add_argument("--expect-chain-id", type=int, default=31337)
     parser.add_argument("--expect-contract-name", default="Counter")
+    parser.add_argument("--expect-constructor-param", action="append", default=[])
     parser.add_argument("deploy_run")
     args = parser.parse_args()
 
     root = Path(args.root)
     deploy_run_path = Path(args.deploy_run)
     run = expect_object(json.loads(deploy_run_path.read_text()), "deploy run")
+    expected_constructor_params = [
+        parse_expected_constructor_param(value) for value in args.expect_constructor_param
+    ]
 
     expect(run.get("schemaVersion") == 1, "schemaVersion must be 1")
     expect(run.get("kind") == "proof-forge-evm-deploy-run", "kind mismatch")
@@ -149,6 +192,10 @@ def main() -> int:
     expect(manifest.get("kind") == "proof-forge-evm-deploy-manifest", "deploy manifest kind mismatch")
     expect(manifest.get("fixture") == args.expect_fixture, "deploy manifest fixture mismatch")
     expect(manifest.get("contractName") == args.expect_contract_name, "deploy manifest contractName mismatch")
+    constructor_params = validate_constructor_abi(
+        expect_object(manifest.get("abi"), "deploy manifest abi"),
+        expected_constructor_params,
+    )
 
     runtime_path = file_entry(
         root,
@@ -182,6 +229,8 @@ def main() -> int:
     creation = expect_object(manifest.get("creation"), "deploy manifest creation")
     constructor_args = expect_array(creation.get("constructorArgs"), "deploy manifest creation.constructorArgs")
     constructor_args_hex = validate_constructor_args(constructor_args, "deploy manifest creation.constructorArgs")
+    validate_constructor_schema_args(constructor_params, constructor_args_hex)
+    expect(run.get("constructorAbi") == manifest["abi"]["constructor"], "constructorAbi must match deploy manifest")
     expect(run.get("constructorArgs") == constructor_args, "constructorArgs must match deploy manifest")
     validate_deployment_init_code(init_hex, runtime_hex, constructor_args_hex, "initCode")
 

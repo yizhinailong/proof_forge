@@ -13,6 +13,7 @@ DEPLOYER_PRIVATE_KEY="${EVM_ANVIL_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff9
 DEPLOYER_ADDRESS="${EVM_ANVIL_DEPLOYER:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
 SET_VALUE="${EVM_ANVIL_SET_VALUE:-99}"
 CONSTRUCTOR_ARGS_HEX="${EVM_ANVIL_CONSTRUCTOR_ARGS_HEX-000000000000000000000000000000000000000000000000000000000000007b}"
+CONSTRUCTOR_PARAM="${EVM_ANVIL_CONSTRUCTOR_PARAM:-initial:uint256}"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
@@ -43,12 +44,20 @@ DEPLOY_RUN="$RUN_DIR/Counter.proof-forge-deploy-run.json"
 RUNTIME_FILE="$OUT_DIR/Counter.bin"
 INIT_FILE="$OUT_DIR/Counter.init.bin"
 DEPLOY_MANIFEST="$OUT_DIR/Counter.proof-forge-deploy.json"
+validator_constructor_param_args=()
+if [[ -n "$CONSTRUCTOR_ARGS_HEX" && -n "$CONSTRUCTOR_PARAM" ]]; then
+  validator_constructor_param_args=(--expect-constructor-param "$CONSTRUCTOR_PARAM")
+fi
 
 if [[ -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
   if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then
     proof_forge=("$PROOF_FORGE_BIN")
   else
     proof_forge=(lake env proof-forge)
+  fi
+  constructor_param_args=()
+  if [[ -n "$CONSTRUCTOR_PARAM" ]]; then
+    constructor_param_args=(--evm-constructor-param "$CONSTRUCTOR_PARAM")
   fi
 
   (
@@ -59,6 +68,7 @@ if [[ -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
       --module contract \
       --yul-output "$OUT_DIR/Counter.yul" \
       --artifact-output "$OUT_DIR/Counter.proof-forge-artifact.json" \
+      "${constructor_param_args[@]}" \
       --evm-constructor-args-hex "$CONSTRUCTOR_ARGS_HEX" \
       -o "$RUNTIME_FILE" \
       Examples/Evm/Contracts/Counter.lean
@@ -67,6 +77,7 @@ if [[ -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
       --root "$ROOT" \
       --expect-fixture Counter.lean \
       --expect-source-kind lean-sdk \
+      "${validator_constructor_param_args[@]}" \
       --expect-constructor-args-hex "$CONSTRUCTOR_ARGS_HEX" \
       "$OUT_DIR/Counter.proof-forge-artifact.json"
   )
@@ -242,6 +253,7 @@ run = {
     "deployManifest": file_entry(deploy_manifest_path),
     "runtimeBytecode": file_entry(runtime_path),
     "initCode": file_entry(init_path),
+    "constructorAbi": deploy_manifest["abi"]["constructor"],
     "constructorArgs": deploy_manifest["creation"]["constructorArgs"],
     "castSendReceipt": file_entry(deploy_receipt_path),
     "setReceipt": file_entry(set_receipt_path),
@@ -297,6 +309,7 @@ python3 "$ROOT/scripts/evm/validate-deploy-run.py" \
   --root "$ROOT" \
   --expect-fixture Counter.lean \
   --expect-chain-id "$CHAIN_ID" \
+  "${validator_constructor_param_args[@]}" \
   "$DEPLOY_RUN"
 
 echo "anvil-deploy-smoke: deployed Counter to $CONTRACT_ADDRESS on Anvil chain $CHAIN_ID"

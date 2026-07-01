@@ -74,10 +74,14 @@
   `robinhood-chain-testnet`；validator 会检查 profile id、chain id、RPC URLs、
   explorer、verifier 和 deployment block 的一致性，但不会广播交易。
 - 已完成（EVM）：添加 `--evm-constructor-args-hex <hex>`，让 bytecode build 可以把显式 ABI-encoded constructor arguments 追加到生成的 `.init.bin`，在 `proof-forge-deploy.json` 中记录规范化 hex、byte size 和 SHA-256，并校验 initcode tail 与 manifest 一致。
+- 已完成（EVM）：添加 `--evm-constructor-param <name:type>`，让 bytecode
+  build 可以在 artifact metadata 和 deploy manifest 中记录静态 word
+  constructor ABI schema，校验受支持的 schema 类型，并确认显式
+  ABI-encoded constructor-argument blob 具有预期的 32-byte word 长度。
 - 已完成（EVM）：加入 Anvil deploy smoke，通过 `cast send --create` 发送生成的
-  Counter `.init.bin`，记录 constructor args 和 `proof-forge-deploy-run.json`
-  artifact，校验 receipt、deployed address、runtime-code match，并通过 JSON-RPC
-  运行 Counter lifecycle。
+  Counter `.init.bin`，记录 constructor ABI schema、constructor args 和
+  `proof-forge-deploy-run.json` artifact，校验 receipt、deployed address、
+  runtime-code match，并通过 JSON-RPC 运行 Counter lifecycle。
 - 从第一天起就保持 schema 的版本化。
 
 验收标准：
@@ -88,7 +92,8 @@
   metadata，同时让 transaction broadcast artifacts 明确保持 `not-generated`。
 - 本地 Anvil 部署可以消费生成的 deploy manifest 和 initcode，产出经过校验的
   deploy-run artifact，并证明即使 initcode 包含 ABI-encoded constructor-argument
-  tail，deployed runtime code 仍然与生成的 bytecode 一致。
+  tail 和记录的静态 constructor ABI schema，deployed runtime code 仍然与生成的
+  bytecode 一致。
 - EVM metadata 可以将缺失的可选 version 数据表示为 `null`，而不是格式错误的 metadata。
 
 ## 工作流 3：EVM 基线加固
