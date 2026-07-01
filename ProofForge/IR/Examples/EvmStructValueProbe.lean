@@ -123,11 +123,40 @@ def hashPick : Entrypoint := {
   ]
 }
 
+def mutablePointUpdate : Entrypoint := {
+  name := "mutable_point_update"
+  selector? := some "c7096012"
+  returns := .u64
+  body := #[
+    .letMutBind "p" (.structType "Point") (point 7 13),
+    .assign (.field (.local "p") "x") (u64 9),
+    .assignOp (.field (.local "p") "y") .add (u64 5),
+    .return (.add (.field (.local "p") "x") (.field (.local "p") "y"))
+  ]
+}
+
+def mutableMixedFields : Entrypoint := {
+  name := "mutable_mixed_fields"
+  selector? := some "b18f76a4"
+  returns := .u64
+  body := #[
+    .letMutBind "flags" (.structType "Flags") (flags false false),
+    .assign (.field (.local "flags") "enabled") (bool true),
+    .assert (.field (.local "flags") "enabled") "mutable bool field must be true",
+    .letMutBind "small" (.structType "Small") (small 3 5),
+    .assign (.field (.local "small") "b") (u32 9),
+    .letMutBind "roots" (.structType "Roots") (roots (hash 1 2 3 4) (hash 5 6 7 8)),
+    .assign (.field (.local "roots") "next") (hash 9 10 11 12),
+    .assertEq (.field (.local "roots") "next") (hash 9 10 11 12) "mutable hash field must update",
+    .return (.add (.cast (.field (.local "flags") "enabled") .u64) (.cast (.field (.local "small") "b") .u64))
+  ]
+}
+
 def module : Module := {
   name := "EvmStructValueProbe"
   structs := #[pointStruct, flagsStruct, smallStruct, rootsStruct]
   state := #[]
-  entrypoints := #[localSum, directLiteralField, boolGuard, u32Pick, hashPick]
+  entrypoints := #[localSum, directLiteralField, boolGuard, u32Pick, hashPick, mutablePointUpdate, mutableMixedFields]
 }
 
 end ProofForge.IR.Examples.EvmStructValueProbe

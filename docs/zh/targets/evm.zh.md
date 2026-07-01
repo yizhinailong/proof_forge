@@ -151,8 +151,8 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 | `storage.scalar` | `Storage.load`, `Storage.store`；portable IR `Bool`/`U32`/`U64`/`Hash` 标量 storage read/write、numeric word 的标量 storage 复合赋值，以及扁平 scalar storage struct 字段 read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`；portable IR `Map<K, V, N>` get/set/insert 和单段 map storage path，其中 `K` 和 `V` 是 word 类型（`Bool`、`U32`、`U64` 或 `Hash`） |
 | `storage.array` | 部分支持：portable IR `Bool`/`U32`/`U64`/`Hash` 固定 storage array 和扁平 struct 固定 storage array 降为连续 EVM storage slot，并带运行时 index bounds check |
-| `data.fixed_array` | 部分支持：用于 portable IR 固定 storage array、word array 的单段 index storage path、struct array 上的 index+field storage path、不可变 local fixed-array value、fixed-array literal、静态 local/literal index read、扁平静态 fixed-array ABI 参数，以及多 word fixed-array 返回；mutable local array、动态 local index、零长度 ABI array、嵌套 array 和不支持的元素形态仍会显式拒绝 |
-| `data.struct` | 部分支持：portable IR 扁平不可变 local struct value、struct literal、field access、扁平 ABI-facing struct 参数、多 word struct 返回、扁平 scalar storage struct，以及扁平 struct 固定 storage array 会把支持字段展开为 EVM word；mutable local、嵌套字段、whole-struct storage read/write 和不支持的字段形态仍会显式拒绝 |
+| `data.fixed_array` | 部分支持：用于 portable IR 固定 storage array、word array 的单段 index storage path、struct array 上的 index+field storage path、不可变和可变 local fixed-array value、fixed-array literal、静态 local/literal index read、静态 local 元素赋值/复合赋值、扁平静态 fixed-array ABI 参数，以及多 word fixed-array 返回；动态 local index、零长度 ABI array、嵌套 array 和不支持的元素形态仍会显式拒绝 |
+| `data.struct` | 部分支持：portable IR 扁平不可变和可变 local struct value、struct literal、field access、静态 local 字段赋值/复合赋值、扁平 ABI-facing struct 参数、多 word struct 返回、扁平 scalar storage struct，以及扁平 struct 固定 storage array 会把支持字段展开为 EVM word；嵌套字段、whole-struct storage read/write 和不支持的字段形态仍会显式拒绝 |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -191,8 +191,8 @@ EVM 不支持（设计上针对其他目标）：
 
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
-- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、context read、event、`Hash` word 值与 hashing、word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态 index 的不可变 local fixed-array value、标量/hash 字段上的扁平不可变 local struct value、扁平静态聚合 ABI 参数/返回，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
-- Portable IR EVM 目前仍缺少动态或嵌套聚合 ABI 值、非 word 或 aggregate map 形态、动态 local fixed-array index、mutable local fixed array、嵌套 array、whole-struct storage read/write、mutable 或 nested local struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据和目标专属 deploy manifest。
+- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、context read、event、`Hash` word 值与 hashing、word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态 index 的不可变和可变 local fixed-array value、标量/hash 字段上的扁平不可变和可变 local struct value、扁平静态聚合 ABI 参数/返回，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
+- Portable IR EVM 目前仍缺少动态或嵌套聚合 ABI 值、非 word 或 aggregate map 形态、动态 local fixed-array index、嵌套 array、whole local aggregate assignment、whole-struct storage read/write、nested local struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据和目标专属 deploy manifest。
 - `storage.map.contains` 仍被显式拒绝，因为 EVM mapping 在没有辅助 bitmap 的情况下不跟踪 key presence。
 
 ## Portable IR 门禁
@@ -258,9 +258,9 @@ scripts/evm/ir-counter-smoke.sh
 
 `EvmStorageStructProbe` 验证 portable IR 扁平 storage struct。Scalar storage struct 会按字段声明顺序为每个支持字段保留一个 EVM storage slot；struct 的固定 storage array 会保留 `length * field_count` 个 slot。直接 `storageStructFieldRead`/`storageStructFieldWrite`、`storageArrayStructFieldRead`/`storageArrayStructFieldWrite`、scalar `field` storage path，以及 `index`+`field` storage path 都会降为确定性的 `sload`/`sstore`。Struct array 会使用 `__proof_forge_struct_array_slot(base, length, field_count, field_offset, index)`，先对越界 index revert，再计算 `base + index * field_count + field_offset`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.array`、`data.fixed_array`、`data.struct`）、scalar 和 array struct 字段 read/write、field path 复合赋值、`Bool`/`U32`/`Hash` 字段、Foundry 原始 slot layout、越界 revert，以及未知 selector revert。Whole-struct storage read/write、嵌套 struct 字段和非扁平 struct storage 仍保持显式诊断。
 
-`EvmArrayValueProbe` 验证 portable IR local fixed-array value。不可变 local fixed-array binding 会展开为每个元素一个内部 Yul local；对 local array 或 array literal 的 `arrayGet` 目前要求静态 `U32`/`U64` literal index。对应 smoke 覆盖 `U64`、`U32`、`Bool` 和 `Hash` 元素 array、golden Yul 可复现、`solc --strict-assembly`、artifact metadata、Foundry 运行时调用，以及未知 selector revert。
+`EvmArrayValueProbe` 验证 portable IR local fixed-array value。不可变和可变 local fixed-array binding 都会展开为每个元素一个内部 Yul local；对 local array 或 array literal 的 `arrayGet` 目前要求静态 `U32`/`U64` literal index，同样的静态 index 形式也支持作为可变 local 元素赋值和数字元素复合赋值 target。对应 smoke 覆盖 `U64`、`U32`、`Bool` 和 `Hash` 元素 array、可变元素写入、golden Yul 可复现、`solc --strict-assembly`、artifact metadata、Foundry 运行时调用，以及未知 selector revert。动态 local index 和嵌套 array 仍保持显式诊断。
 
-`EvmStructValueProbe` 验证 portable IR 扁平不可变 local struct value。struct local binding 会展开为每个支持字段一个内部 Yul local；对 local struct 或直接 struct literal 的 `field` access 会降为对应的标量/hash word 表达式。对应 smoke 覆盖 `U64`、`U32`、`Bool` 和 `Hash` 字段、golden Yul 可复现、`solc --strict-assembly`、artifact metadata 能力 `data.struct`、Foundry 运行时调用，以及未知 selector revert。mutable local struct 和嵌套 struct field 仍保持显式诊断。
+`EvmStructValueProbe` 验证 portable IR 扁平 local struct value。不可变和可变 struct local binding 都会展开为每个支持字段一个内部 Yul local；对 local struct 或直接 struct literal 的 `field` access 会降为对应的标量/hash word 表达式。静态 local 字段赋值和数字字段复合赋值会降为对这些展开 local 的赋值。对应 smoke 覆盖 `U64`、`U32`、`Bool` 和 `Hash` 字段、可变字段写入、golden Yul 可复现、`solc --strict-assembly`、artifact metadata 能力 `data.struct`、Foundry 运行时调用，以及未知 selector revert。嵌套 struct field 仍保持显式诊断。
 
 ## 元数据
 

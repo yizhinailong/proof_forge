@@ -789,6 +789,82 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
         let actual ← inferExprType module env field.snd
         ensureEventFieldType name field.fst actual
 
+def requireMutableLocal (env : TypeEnv) (context name : String) : Except LowerError LocalBinding := do
+  let some binding := findLocal? env name
+    | .error { message := s!"unknown local `{name}`" }
+  if !binding.isMutable then
+    .error { message := s!"{context} local `{name}` is not mutable" }
+  .ok binding
+
+def validateLocalFixedArrayTarget
+    (module : Module)
+    (env : TypeEnv)
+    (context name : String)
+    (index value : ProofForge.IR.Expr) : Except LowerError ValueType := do
+  let binding ← requireMutableLocal env context name
+  match binding.type with
+  | .fixedArray elementType length => do
+      ensureArrayIndexType s!"{context} fixed-array index" (← inferExprType module env index)
+      let indexValue ← requireStaticArrayIndex s!"{context} fixed-array index" index
+      ensureFixedArrayIndexInBounds s!"{context} fixed-array index" indexValue length
+      ensureType s!"{context} value" elementType (← inferExprType module env value)
+      .ok elementType
+  | other =>
+      .error { message := s!"{context} local `{name}` expected fixed-array target, got `{other.name}`" }
+
+def validateLocalStructTarget
+    (module : Module)
+    (env : TypeEnv)
+    (context name fieldName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError ValueType := do
+  let binding ← requireMutableLocal env context name
+  match binding.type with
+  | .structType typeName => do
+      let fieldType ← structFieldType module typeName fieldName
+      ensureStructLocalFieldType typeName fieldName fieldType
+      ensureType s!"{context} value" fieldType (← inferExprType module env value)
+      .ok fieldType
+  | other =>
+      .error { message := s!"{context} local `{name}` expected struct target, got `{other.name}`" }
+
+def validateAssignTarget
+    (module : Module)
+    (env : TypeEnv)
+    (target value : ProofForge.IR.Expr) : Except LowerError Unit := do
+  match target with
+  | .local name => do
+      let binding ← requireMutableLocal env "assignment target" name
+      match binding.type with
+      | .fixedArray _ _ | .structType _ =>
+          .error { message := s!"assignment target local `{name}` has aggregate type `{binding.type.name}`; assign fixed-array elements or struct fields explicitly in IR EVM v0" }
+      | _ =>
+          ensureType "assignment value" binding.type (← inferExprType module env value)
+  | .arrayGet (.local name) index => do
+      discard <| validateLocalFixedArrayTarget module env "assignment target" name index value
+  | .field (.local name) fieldName => do
+      discard <| validateLocalStructTarget module env "assignment target" name fieldName value
+  | _ =>
+      .error { message := "assignment target must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0" }
+
+def validateAssignOpTarget
+    (module : Module)
+    (env : TypeEnv)
+    (target : ProofForge.IR.Expr)
+    (op : AssignOp)
+    (value : ProofForge.IR.Expr) : Except LowerError Unit := do
+  match target with
+  | .local name => do
+      let binding ← requireMutableLocal env "compound assignment target" name
+      ensureAssignOpTypes op binding.type (← inferExprType module env value)
+  | .arrayGet (.local name) index => do
+      let targetType ← validateLocalFixedArrayTarget module env "compound assignment target" name index value
+      ensureAssignOpTypes op targetType (← inferExprType module env value)
+  | .field (.local name) fieldName => do
+      let targetType ← validateLocalStructTarget module env "compound assignment target" name fieldName value
+      ensureAssignOpTypes op targetType (← inferExprType module env value)
+  | _ =>
+      .error { message := "compound assignment target must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0" }
+
 mutual
   partial def validateStatements (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) (statements : Array Statement) : Except LowerError TypeEnv :=
     statements.foldlM (init := env) fun env stmt =>
@@ -801,24 +877,12 @@ mutual
     | .letMutBind name type value => do
         ensureType s!"mutable let binding `{name}`" type (← inferExprType module env value)
         addLocal env name type true
-    | .assign (.local name) value => do
-        let some binding := findLocal? env name
-          | .error { message := s!"unknown local `{name}`" }
-        if !binding.isMutable then
-          .error { message := s!"assignment target local `{name}` is not mutable" }
-        ensureType "assignment value" binding.type (← inferExprType module env value)
+    | .assign target value => do
+        validateAssignTarget module env target value
         .ok env
-    | .assign _ _ =>
-        .error { message := "assignment target must be a local in IR EVM v0" }
-    | .assignOp (.local name) op value => do
-        let some binding := findLocal? env name
-          | .error { message := s!"unknown local `{name}`" }
-        if !binding.isMutable then
-          .error { message := s!"assignment target local `{name}` is not mutable" }
-        ensureAssignOpTypes op binding.type (← inferExprType module env value)
+    | .assignOp target op value => do
+        validateAssignOpTarget module env target op value
         .ok env
-    | .assignOp _ _ _ =>
-        .error { message := "compound assignment target must be a local in IR EVM v0" }
     | .effect effect => do
         validateEffectStmtTypes module env effect
         .ok env
@@ -1301,6 +1365,17 @@ def lowerStructLetBinding
         message := s!"let binding `{name}` struct must be initialized from a struct literal in IR EVM v0"
       }
 
+def lowerAssignTargetName (context : String) : ProofForge.IR.Expr → Except LowerError String
+  | .local name =>
+      .ok name
+  | .arrayGet (.local name) index => do
+      let indexValue ← requireStaticArrayIndex s!"{context} fixed-array index" index
+      .ok (arrayLocalElementName name indexValue)
+  | .field (.local name) fieldName =>
+      .ok (structLocalFieldName name fieldName)
+  | _ =>
+      .error { message := s!"{context} must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0" }
+
 partial def hasNestedReturn (statements : Array Statement) : Bool :=
   statements.any fun stmt =>
     match stmt with
@@ -1437,17 +1512,19 @@ mutual
     | .letBind name type value => do
         ensureLocalScalarType "let binding" name type
         .ok #[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value))]
+    | .letMutBind name (.fixedArray elementType length) value =>
+        lowerFixedArrayLetBinding module name elementType length value
+    | .letMutBind name (.structType typeName) value =>
+        lowerStructLetBinding module name typeName value
     | .letMutBind name type value => do
         ensureLocalScalarType "mutable let binding" name type
         .ok #[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value))]
-    | .assign (.local name) value => do
+    | .assign target value => do
+        let name ← lowerAssignTargetName "assignment target" target
         .ok #[.assignment #[name] (← lowerExpr module value)]
-    | .assign _ _ =>
-        .error { message := "assignment target must be a local in IR EVM v0" }
-    | .assignOp (.local name) op value => do
+    | .assignOp target op value => do
+        let name ← lowerAssignTargetName "compound assignment target" target
         .ok #[.assignment #[name] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id name) (← lowerExpr module value))]
-    | .assignOp _ _ _ =>
-        .error { message := "compound assignment target must be a local in IR EVM v0" }
     | .effect effect => do
         .ok #[← lowerEffectStmt module effect]
     | .assert condition _ => do

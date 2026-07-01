@@ -67,10 +67,39 @@ def hashPick : Entrypoint := {
   ]
 }
 
+def mutableUpdate : Entrypoint := {
+  name := "mutable_update"
+  selector? := some "0cde63a1"
+  returns := .u64
+  body := #[
+    .letMutBind "xs" (.fixedArray .u64 3) (.arrayLit .u64 #[u64 7, u64 11, u64 13]),
+    .assign (.arrayGet (.local "xs") (u64 1)) (u64 19),
+    .assignOp (.arrayGet (.local "xs") (u64 2)) .add (u64 5),
+    .return (.add (.arrayGet (.local "xs") (u64 1)) (.arrayGet (.local "xs") (u64 2)))
+  ]
+}
+
+def mutableMixed : Entrypoint := {
+  name := "mutable_mixed"
+  selector? := some "70d82dc9"
+  returns := .u64
+  body := #[
+    .letMutBind "flags" (.fixedArray .bool 2) (.arrayLit .bool #[bool false, bool false]),
+    .assign (.arrayGet (.local "flags") (u64 0)) (bool true),
+    .assert (.arrayGet (.local "flags") (u64 0)) "mutable bool element must be true",
+    .letMutBind "smalls" (.fixedArray .u32 2) (.arrayLit .u32 #[u32 3, u32 5]),
+    .assign (.arrayGet (.local "smalls") (u64 1)) (u32 9),
+    .letMutBind "roots" (.fixedArray .hash 2) (.arrayLit .hash #[hash 1 2 3 4, hash 5 6 7 8]),
+    .assign (.arrayGet (.local "roots") (u64 1)) (hash 9 10 11 12),
+    .assertEq (.arrayGet (.local "roots") (u64 1)) (hash 9 10 11 12) "mutable hash element must update",
+    .return (.add (.cast (.arrayGet (.local "flags") (u64 0)) .u64) (.cast (.arrayGet (.local "smalls") (u64 1)) .u64))
+  ]
+}
+
 def module : Module := {
   name := "EvmArrayValueProbe"
   state := #[]
-  entrypoints := #[localSum, directLiteralIndex, boolGuard, u32Pick, hashPick]
+  entrypoints := #[localSum, directLiteralIndex, boolGuard, u32Pick, hashPick, mutableUpdate, mutableMixed]
 }
 
 end ProofForge.IR.Examples.EvmArrayValueProbe

@@ -26,6 +26,16 @@ object "EvmArrayValueProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x0cde63a1 {
+      let _r := f_EvmArrayValueProbe_mutable_update()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x70d82dc9 {
+      let _r := f_EvmArrayValueProbe_mutable_mixed()
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -56,6 +66,32 @@ object "EvmArrayValueProbe" {
       let __proof_forge_array_roots_0 := 6277101735386680764516354157049543343084444891548699590660
       let __proof_forge_array_roots_1 := 31385508676933403821220641317563962861421152075426748694536
       result := __proof_forge_array_roots_0
+    }
+    function f_EvmArrayValueProbe_mutable_update() -> result {
+      let __proof_forge_array_xs_0 := 7
+      let __proof_forge_array_xs_1 := 11
+      let __proof_forge_array_xs_2 := 13
+      __proof_forge_array_xs_1 := 19
+      __proof_forge_array_xs_2 := add(__proof_forge_array_xs_2, 5)
+      result := add(__proof_forge_array_xs_1, __proof_forge_array_xs_2)
+    }
+    function f_EvmArrayValueProbe_mutable_mixed() -> result {
+      let __proof_forge_array_flags_0 := 0
+      let __proof_forge_array_flags_1 := 0
+      __proof_forge_array_flags_0 := 1
+      if iszero(__proof_forge_array_flags_0) {
+        revert(0, 0)
+      }
+      let __proof_forge_array_smalls_0 := 3
+      let __proof_forge_array_smalls_1 := 5
+      __proof_forge_array_smalls_1 := 9
+      let __proof_forge_array_roots_0 := 6277101735386680764516354157049543343084444891548699590660
+      let __proof_forge_array_roots_1 := 31385508676933403821220641317563962861421152075426748694536
+      __proof_forge_array_roots_1 := 56493915618480126877924928478078382379757859259304797798412
+      if iszero(eq(__proof_forge_array_roots_1, 56493915618480126877924928478078382379757859259304797798412)) {
+        revert(0, 0)
+      }
+      result := add(__proof_forge_array_flags_0, __proof_forge_array_smalls_1)
     }
   }
 }

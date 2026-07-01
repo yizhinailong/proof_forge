@@ -26,6 +26,16 @@ object "EvmStructValueProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xc7096012 {
+      let _r := f_EvmStructValueProbe_mutable_point_update()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xb18f76a4 {
+      let _r := f_EvmStructValueProbe_mutable_mixed_fields()
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -55,6 +65,31 @@ object "EvmStructValueProbe" {
       let __proof_forge_struct_roots_root := 6277101735386680764516354157049543343084444891548699590660
       let __proof_forge_struct_roots_next := 31385508676933403821220641317563962861421152075426748694536
       result := __proof_forge_struct_roots_root
+    }
+    function f_EvmStructValueProbe_mutable_point_update() -> result {
+      let __proof_forge_struct_p_x := 7
+      let __proof_forge_struct_p_y := 13
+      __proof_forge_struct_p_x := 9
+      __proof_forge_struct_p_y := add(__proof_forge_struct_p_y, 5)
+      result := add(__proof_forge_struct_p_x, __proof_forge_struct_p_y)
+    }
+    function f_EvmStructValueProbe_mutable_mixed_fields() -> result {
+      let __proof_forge_struct_flags_enabled := 0
+      let __proof_forge_struct_flags_archived := 0
+      __proof_forge_struct_flags_enabled := 1
+      if iszero(__proof_forge_struct_flags_enabled) {
+        revert(0, 0)
+      }
+      let __proof_forge_struct_small_a := 3
+      let __proof_forge_struct_small_b := 5
+      __proof_forge_struct_small_b := 9
+      let __proof_forge_struct_roots_root := 6277101735386680764516354157049543343084444891548699590660
+      let __proof_forge_struct_roots_next := 31385508676933403821220641317563962861421152075426748694536
+      __proof_forge_struct_roots_next := 56493915618480126877924928478078382379757859259304797798412
+      if iszero(eq(__proof_forge_struct_roots_next, 56493915618480126877924928478078382379757859259304797798412)) {
+        revert(0, 0)
+      }
+      result := add(__proof_forge_struct_flags_enabled, __proof_forge_struct_small_b)
     }
   }
 }

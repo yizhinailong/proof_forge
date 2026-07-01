@@ -45,6 +45,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint bool_guard:7c95ba13 \
   --expect-entrypoint u32_pick:a13f4ee0 \
   --expect-entrypoint hash_pick:211a2fc4 \
+  --expect-entrypoint mutable_update:0cde63a1 \
+  --expect-entrypoint mutable_mixed:70d82dc9 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmArrayValueProbe.bin")"
@@ -136,8 +138,22 @@ contract ProofForgeIRArrayValueSmokeTest {
         assertEq(actual, expected);
     }
 
-    function testIRLocalFixedArrayRejectsUnknownSelector() public {
+    function testIRMutableLocalFixedArrayUpdates() public {
         address probe = address(uint160(0xA264));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("mutable_update()")), 37);
+    }
+
+    function testIRMutableLocalFixedArrayMixedWordUpdates() public {
+        address probe = address(uint160(0xA265));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("mutable_mixed()")), 10);
+    }
+
+    function testIRLocalFixedArrayRejectsUnknownSelector() public {
+        address probe = address(uint160(0xA266));
         deployRuntime(hex"$probe_hex", probe);
 
         (bool ok,) = probe.call(hex"ffffffff");

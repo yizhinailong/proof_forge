@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Mutable Local Aggregates
+
+Commit: feature commit for EVM IR mutable local aggregate lowering
+
+Summary:
+
+- Extended EVM IR lowering for local fixed-array and flat struct values from
+  immutable-only bindings to mutable aggregate locals.
+- Added static local fixed-array element assignment and numeric compound
+  assignment over expanded Yul locals.
+- Added static local struct field assignment and numeric compound assignment
+  over expanded Yul locals.
+- Extended `EvmArrayValueProbe` and `EvmStructValueProbe` with mutable
+  `U64`/`U32`/`Bool`/`Hash` write paths, metadata entrypoint validation,
+  refreshed golden Yul, and Foundry runtime assertions.
+- Updated EVM diagnostics so immutable aggregate element/field assignment still
+  fails explicitly while mutable aggregate locals now lower successfully.
+- Updated EVM coverage, target docs, validation gates, backlog, and Chinese
+  docs to remove stale mutable-local aggregate limitations.
+
+Validation run:
+
+```sh
+lake build ProofForge.IR.Examples.EvmArrayValueProbe ProofForge.IR.Examples.EvmStructValueProbe proof-forge
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/struct-value-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- Local fixed-array indexes still require static `U32`/`U64` literal indexes.
+- Whole local aggregate assignment remains an explicit diagnostic; update
+  elements or fields directly for now.
+- Nested arrays, nested local structs, and whole-struct storage reads/writes
+  remain explicit diagnostics.
+
+Next step:
+
+- Decide whether the next EVM aggregate increment should be dynamic local
+  fixed-array indexing, nested aggregate locals, or target-specific deployment
+  manifests.
+
 ### EVM IR Scalar Expression Probe
 
 Commit: feature commit for EVM IR scalar expression validation

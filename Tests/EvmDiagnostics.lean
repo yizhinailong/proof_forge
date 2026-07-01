@@ -159,9 +159,16 @@ def selectedArrayModule (name : String) (entrypoint : Entrypoint) : Module := {
   entrypoints := #[entrypoint]
 }
 
-def mutableFixedArrayModule : Module :=
-  selectedModule "BadMutableFixedArray" <| selectedEntrypoint "bad" #[
-    .letMutBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)])
+def immutableFixedArrayElementAssignmentModule : Module :=
+  selectedModule "BadImmutableFixedArrayElementAssignment" <| selectedEntrypoint "bad" #[
+    .letBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]),
+    .assign (.arrayGet (.local "xs") (.literal (.u64 0))) (.literal (.u64 3))
+  ]
+
+def wholeFixedArrayAssignmentModule : Module :=
+  selectedModule "BadWholeFixedArrayAssignment" <| selectedEntrypoint "bad" #[
+    .letMutBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]),
+    .assign (.local "xs") (.arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)])
   ]
 
 def fixedArrayDynamicIndexModule : Module := {
@@ -216,12 +223,23 @@ def structStorageMissingFieldModule : Module := {
   ]]
 }
 
-def mutableStructModule : Module := {
-  name := "BadMutableStruct"
+def immutableStructFieldAssignmentModule : Module := {
+  name := "BadImmutableStructFieldAssignment"
   structs := #[pointStruct]
   state := #[markerState]
   entrypoints := #[selectedEntrypoint "bad" #[
-    .letMutBind "p" (.structType "Point") (.structLit "Point" #[("x", .literal (.u64 1))])
+    .letBind "p" (.structType "Point") (.structLit "Point" #[("x", .literal (.u64 1))]),
+    .assign (.field (.local "p") "x") (.literal (.u64 2))
+  ]]
+}
+
+def wholeStructAssignmentModule : Module := {
+  name := "BadWholeStructAssignment"
+  structs := #[pointStruct]
+  state := #[markerState]
+  entrypoints := #[selectedEntrypoint "bad" #[
+    .letMutBind "p" (.structType "Point") (.structLit "Point" #[("x", .literal (.u64 1))]),
+    .assign (.local "p") (.structLit "Point" #[("x", .literal (.u64 2))])
   ]]
 }
 
@@ -476,9 +494,14 @@ def cases : Array (String × Module × String) := #[
     "array state `voids` has unsupported EVM IR v0 element type `Unit`; storage arrays support U32, U64, Bool, Hash, or flat struct arrays"
   ),
   (
-    "mutable fixed array local unsupported",
-    mutableFixedArrayModule,
-    "mutable let binding `xs` has unsupported EVM IR v0 type `Array<U64,2>`"
+    "immutable fixed array element assignment unsupported",
+    immutableFixedArrayElementAssignmentModule,
+    "assignment target local `xs` is not mutable"
+  ),
+  (
+    "whole fixed array assignment unsupported",
+    wholeFixedArrayAssignmentModule,
+    "assignment target local `xs` has aggregate type `Array<U64,2>`; assign fixed-array elements or struct fields explicitly in IR EVM v0"
   ),
   (
     "fixed array dynamic local index unsupported",
@@ -501,9 +524,14 @@ def cases : Array (String × Module × String) := #[
     "struct `Point` has no field `y`"
   ),
   (
-    "mutable struct local unsupported",
-    mutableStructModule,
-    "mutable let binding `p` has unsupported EVM IR v0 type `Point`"
+    "immutable struct field assignment unsupported",
+    immutableStructFieldAssignmentModule,
+    "assignment target local `p` is not mutable"
+  ),
+  (
+    "whole struct assignment unsupported",
+    wholeStructAssignmentModule,
+    "assignment target local `p` has aggregate type `Point`; assign fixed-array elements or struct fields explicitly in IR EVM v0"
   ),
   (
     "nested struct field unsupported",
@@ -648,7 +676,7 @@ def cases : Array (String × Module × String) := #[
   (
     "invalid assignment target unsupported",
     invalidAssignmentTargetModule,
-    "assignment target must be a local in IR EVM v0"
+    "assignment target must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0"
   ),
   (
     "immutable assignment unsupported",
@@ -658,7 +686,7 @@ def cases : Array (String × Module × String) := #[
   (
     "compound assignment target unsupported",
     compoundAssignmentTargetModule,
-    "compound assignment target must be a local in IR EVM v0"
+    "compound assignment target must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0"
   ),
   (
     "compound assignment type mismatch",

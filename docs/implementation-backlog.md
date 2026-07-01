@@ -174,13 +174,23 @@ Tasks:
   `U32`, `Bool`, and `Hash` elements with static literal indexes, direct
   fixed-array literal indexing, `EvmArrayValueProbe` golden Yul, solc
   bytecode, Foundry runtime validation, metadata capability validation, and
-  explicit diagnostics for mutable fixed-array locals, dynamic local indexes,
-  and static out-of-bounds indexes.
+  explicit diagnostics for dynamic local indexes and static out-of-bounds
+  indexes.
+- Done: extend EVM IR local fixed-array lowering to mutable aggregate locals,
+  including static element assignment, numeric element compound assignment, and
+  `U32`/`Bool`/`Hash` element writes, with `EvmArrayValueProbe` golden Yul,
+  solc bytecode, Foundry runtime validation, metadata entrypoint validation,
+  CI coverage, and explicit diagnostics for immutable element assignment.
 - Done: add EVM IR flat immutable local struct value lowering for `U64`,
   `U32`, `Bool`, and `Hash` fields, direct struct literal field access,
   `EvmStructValueProbe` golden Yul, solc bytecode, Foundry runtime validation,
   metadata capability validation, and explicit diagnostics for whole-struct
-  storage misuse, mutable local structs, and nested fields.
+  storage misuse and nested fields.
+- Done: extend EVM IR flat local struct lowering to mutable aggregate locals,
+  including static field assignment, numeric field compound assignment, and
+  `U32`/`Bool`/`Hash` field writes, with `EvmStructValueProbe` golden Yul,
+  solc bytecode, Foundry runtime validation, metadata entrypoint validation,
+  CI coverage, and explicit diagnostics for immutable field assignment.
 - Done: add EVM IR flat storage struct lowering for scalar storage structs and
   fixed storage arrays of flat structs, including direct struct field effects,
   scalar `field` storage paths, array `index`+`field` storage paths, numeric
