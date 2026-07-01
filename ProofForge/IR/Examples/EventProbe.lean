@@ -72,6 +72,18 @@ def emitValueEvent : Entrypoint := {
   ]
 }
 
+def emitTypedScalarEvent : Entrypoint := {
+  name := "emit_typed_scalar_event"
+  selector? := some "989413a3"
+  returns := .unit
+  params := #[("flag", .bool), ("count", .u32), ("root", .hash)]
+  body := #[
+    .effect (.eventEmit
+      "TypedScalarEvent"
+      #[("flag", .local "flag"), ("count", .local "count"), ("root", .local "root")])
+  ]
+}
+
 def emitIndexedEvent : Entrypoint := {
   name := "emit_indexed_event"
   selector? := some "bc07d04f"
@@ -81,6 +93,19 @@ def emitIndexedEvent : Entrypoint := {
     .effect (.eventEmitIndexed
       "IndexedValue"
       #[("user", .local "user")]
+      #[("value", .local "value")])
+  ]
+}
+
+def emitIndexedTypedScalarEvent : Entrypoint := {
+  name := "emit_indexed_typed_scalar_event"
+  selector? := some "b94b71db"
+  returns := .unit
+  params := #[("flag", .bool), ("count", .u32), ("root", .hash), ("value", .u64)]
+  body := #[
+    .effect (.eventEmitIndexed
+      "IndexedTypedScalar"
+      #[("flag", .local "flag"), ("count", .local "count"), ("root", .local "root")]
       #[("value", .local "value")])
   ]
 }
@@ -287,7 +312,9 @@ def evmModule : Module := {
   state := #[stateMarker, storedPairState, storedValuesState, storedPairsState]
   entrypoints := #[
     emitValueEvent,
+    emitTypedScalarEvent,
     emitIndexedEvent,
+    emitIndexedTypedScalarEvent,
     emitTwoIndexedEvent,
     emitThreeIndexedEvent,
     emitPairEvent,

@@ -149,6 +149,12 @@ Tasks:
   emits `log3` and `log4`, preserves ordered scalar indexed topics, validates
   metadata selectors, compiles with `solc`, and passes Foundry recorded-log
   assertions.
+- Done: close the EventProbe validation gap for typed scalar event fields.
+  `TypedScalarEvent(bool,uint32,bytes32)` and
+  `IndexedTypedScalar(bool,uint32,bytes32,uint64)` now prove Bool, U32, and
+  Hash event data words and indexed topics lower correctly, with Bool/U32
+  dispatcher guards, golden Yul, metadata selector checks, `solc`, and Foundry
+  recorded-log assertions.
 - Done: extend EVM IR event data lowering beyond scalar words so non-indexed
   flat struct fields, scalar fixed-array fields, and fixed arrays of flat
   structs emit ABI-style flattened data words, with canonical Solidity-style

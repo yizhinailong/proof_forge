@@ -8,11 +8,37 @@ object "EventProbe" {
       f_EventProbe_emit_value_event(calldataload(4))
       return(0, 0)
     }
+    case 0x989413a3 {
+      if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 4294967295) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_typed_scalar_event(calldataload(4), calldataload(36), calldataload(68))
+      return(0, 0)
+    }
     case 0xbc07d04f {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
       f_EventProbe_emit_indexed_event(calldataload(4), calldataload(36))
+      return(0, 0)
+    }
+    case 0xb94b71db {
+      if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 4294967295) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_indexed_typed_scalar_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       return(0, 0)
     }
     case 0x2d00700c {
@@ -124,6 +150,17 @@ object "EventProbe" {
         log1(0, 32, _topic0)
       }
     }
+    function f_EventProbe_emit_typed_scalar_event(flag, count, root) {
+      {
+        mstore(0, 38208843504943548137420489878118617993276775205112769762916566927252878686580)
+        mstore(32, 45887138460738243058303812952308706388865680699246200689541685559113304506368)
+        let _topic0 := keccak256(0, 37)
+        mstore(0, flag)
+        mstore(32, count)
+        mstore(64, root)
+        log1(0, 96, _topic0)
+      }
+    }
     function f_EventProbe_emit_indexed_event(user, value) {
       {
         mstore(0, 33213884033972546292423408501581198898028345886020401664275624245368457265152)
@@ -131,6 +168,18 @@ object "EventProbe" {
         let _indexed_topic0 := user
         mstore(0, value)
         log2(0, 32, _topic0, _indexed_topic0)
+      }
+    }
+    function f_EventProbe_emit_indexed_typed_scalar_event(flag, count, root, value) {
+      {
+        mstore(0, 33213884033972546280458060454858431511599761331471597493913756931208338615394)
+        mstore(32, 54935509120255985269012947118551815935645971419818835731411993511806399152128)
+        let _topic0 := keccak256(0, 46)
+        let _indexed_topic0 := flag
+        let _indexed_topic1 := count
+        let _indexed_topic2 := root
+        mstore(0, value)
+        log4(0, 32, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
       }
     }
     function f_EventProbe_emit_two_indexed_event(first, second, value) {

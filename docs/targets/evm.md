@@ -207,7 +207,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
 | `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested fixed-array arguments whose leaves are scalar words or flat structs, flattened to ABI words; typed normal/value/static/delegate calls return Bool/U32/U64/Hash scalar words with Bool/U32 return guards and support direct entrypoint returns of flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested fixed-array return data whose leaves are scalar words or flat structs; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot; `crosscallInvokeStaticTyped` preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` preserves caller-storage context; `crosscallCreate` and `crosscallCreate2` deploy fixed init-code hex through Yul `create`/`create2`, revert on zero-address failure, and return the deployed address word |
-| `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, non-indexed data fields can be scalar words, flat structs from local values or storage scalar struct reads, scalar fixed arrays from local values or storage array reads, or fixed arrays of flat structs from local literals or storage array struct field reads, and indexed aggregate fields use `keccak256` over flattened ABI-style words |
+| `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, non-indexed data fields can be U64/Bool/U32/Hash scalar words, flat structs from local values or storage scalar struct reads, scalar fixed arrays from local values or storage array reads, or fixed arrays of flat structs from local literals or storage array struct field reads, scalar indexed topics can be U64/Bool/U32/Hash words, and indexed aggregate fields use `keccak256` over flattened ABI-style words |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
 | `control.bounded_loop` | Portable IR `boundedFor` lowers to Yul `for` loops with static bounds |
@@ -395,12 +395,14 @@ unknown-selector revert behavior.
 `EventProbe` validates portable IR event emission through Yul logs. EVM IR v0
 derives topic0 from a Solidity-style event signature generated from the event
 name and field types, for example `ValueEvent(uint64)`,
+`TypedScalarEvent(bool,uint32,bytes32)`,
 `PairEvent((uint64,uint64))`, `StoragePairEvent((uint64,uint64))`,
 `StorageArrayEvent(uint64[2])`, `ArrayEvent(uint64[2])`,
 `PairArrayEvent((uint64,uint64)[2])`,
 `StoragePairArrayEvent((uint64,uint64)[2])`,
 `IndexedPair((uint64,uint64),uint64)`,
 `IndexedStoragePair((uint64,uint64),uint64)`,
+`IndexedTypedScalar(bool,uint32,bytes32,uint64)`,
 `IndexedTwoValues(uint64,uint64,uint64)`,
 `IndexedThreeValues(uint64,uint64,uint64,uint64)`,
 `IndexedStorageArray(uint64[2],uint64)`,
@@ -409,7 +411,7 @@ name and field types, for example `ValueEvent(uint64)`,
 `IndexedPairArray((uint64,uint64)[2],uint64)`. Plain `eventEmit` lowers to
 `log1`, while `eventEmitIndexed` snapshots up to three indexed fields into
 topics, producing `log2`, `log3`, or `log4`. Scalar indexed fields become direct
-topics. Flat structs, including
+topics for U64, Bool, U32, and Hash values. Flat structs, including
 storage-backed scalar struct reads, scalar fixed arrays, and fixed arrays of flat
 structs flatten into ABI-style 32-byte words and use `keccak256` of those words
 as the indexed topic; storage-backed fixed arrays do the same from storage array
@@ -419,9 +421,10 @@ arrays, or fixed arrays of flat structs, and aggregate values flatten in ABI
 order before the Yul log call. The smoke checks golden Yul reproducibility,
 `solc --strict-assembly` bytecode generation, metadata capability
 `events.emit`, Foundry recorded logs (`emitter`, signature topic, scalar indexed
-topics across one, two, and three indexed fields, indexed aggregate topic hash,
-flat struct data from local values and storage reads, scalar fixed-array data
-from local values and storage array
+topics across U64/Bool/U32/Hash values and one, two, or three indexed fields,
+indexed aggregate topic hash, Bool/U32/Hash scalar event data with dispatcher
+range guards, flat struct data from local values and storage reads, scalar
+fixed-array data from local values and storage array
 reads, fixed-array-of-struct data from local literals and storage array struct
 field reads, and decoded scalar data), ABI selector dispatch, and unknown-selector revert
 behavior. Nested/unsupported aggregate indexed fields and richer event

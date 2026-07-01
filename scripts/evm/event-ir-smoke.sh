@@ -40,7 +40,9 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-source-kind portable-ir \
   --expect-capability events.emit \
   --expect-entrypoint emit_value_event:2ae8cae3 \
+  --expect-entrypoint emit_typed_scalar_event:989413a3 \
   --expect-entrypoint emit_indexed_event:bc07d04f \
+  --expect-entrypoint emit_indexed_typed_scalar_event:b94b71db \
   --expect-entrypoint emit_two_indexed_event:2d00700c \
   --expect-entrypoint emit_three_indexed_event:e7d142d1 \
   --expect-entrypoint emit_pair_event:35361bda \
@@ -117,6 +119,15 @@ contract ProofForgeIREventSmokeTest {
         vm.etch(target, code);
     }
 
+    function packed(uint64 a, uint64 b, uint64 c, uint64 d) internal pure returns (bytes32) {
+        return bytes32(
+            (uint256(a) << 192) |
+            (uint256(b) << 128) |
+            (uint256(c) << 64) |
+            uint256(d)
+        );
+    }
+
     function testIREventEmitsNamedTopicAndData() public {
         address probe = address(uint160(0xE130));
         deployRuntime(hex"$probe_hex", probe);
@@ -135,6 +146,41 @@ contract ProofForgeIREventSmokeTest {
         assertEq(abi.decode(logs[0].data, (uint256)), 42);
     }
 
+    function testIRTypedScalarEventEmitsBoolU32AndHashData() public {
+        address probe = address(uint160(0xE141));
+        deployRuntime(hex"$probe_hex", probe);
+        bytes32 root = packed(1, 2, 3, 4);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_typed_scalar_event(bool,uint32,bytes32)", true, uint32(17), root));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 1);
+        assertEq(logs[0].topics[0], keccak256(bytes("TypedScalarEvent(bool,uint32,bytes32)")));
+        (bool flag, uint32 count, bytes32 decodedRoot) = abi.decode(logs[0].data, (bool, uint32, bytes32));
+        assertTrue(flag);
+        assertEq(uint256(count), 17);
+        assertEq(decodedRoot, root);
+    }
+
+    function testIRTypedScalarEventRejectsMalformedBoolAndU32Calldata() public {
+        address probe = address(uint160(0xE142));
+        deployRuntime(hex"$probe_hex", probe);
+        bytes4 selector = bytes4(keccak256("emit_typed_scalar_event(bool,uint32,bytes32)"));
+        bytes32 root = packed(1, 2, 3, 4);
+
+        (bool boolOk,) = probe.call(abi.encodeWithSelector(selector, uint256(2), uint32(17), root));
+        assertFalse(boolOk);
+
+        (bool u32Ok,) = probe.call(abi.encodeWithSelector(selector, true, uint256(type(uint32).max) + 1, root));
+        assertFalse(u32Ok);
+    }
+
     function testIRIndexedEventEmitsSignatureIndexedTopicAndData() public {
         address probe = address(uint160(0xE132));
         deployRuntime(hex"$probe_hex", probe);
@@ -151,6 +197,28 @@ contract ProofForgeIREventSmokeTest {
         assertEq(logs[0].topics.length, 2);
         assertEq(logs[0].topics[0], keccak256(bytes("IndexedValue(uint64,uint64)")));
         assertEq(logs[0].topics[1], bytes32(uint256(7)));
+        assertEq(abi.decode(logs[0].data, (uint256)), 99);
+    }
+
+    function testIRIndexedTypedScalarEventEmitsBoolU32AndHashTopics() public {
+        address probe = address(uint160(0xE143));
+        deployRuntime(hex"$probe_hex", probe);
+        bytes32 root = packed(5, 6, 7, 8);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_indexed_typed_scalar_event(bool,uint32,bytes32,uint256)", true, uint32(23), root, 99));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 4);
+        assertEq(logs[0].topics[0], keccak256(bytes("IndexedTypedScalar(bool,uint32,bytes32,uint64)")));
+        assertEq(logs[0].topics[1], bytes32(uint256(1)));
+        assertEq(logs[0].topics[2], bytes32(uint256(23)));
+        assertEq(logs[0].topics[3], root);
         assertEq(abi.decode(logs[0].data, (uint256)), 99);
     }
 

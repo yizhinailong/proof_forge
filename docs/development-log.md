@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Typed Scalar Event Fields
+
+Commit: feature commit for EVM IR typed scalar event fields
+
+Summary:
+
+- Extended `EventProbe` with typed scalar event entrypoints:
+  `emit_typed_scalar_event(bool,uint32,bytes32)` and
+  `emit_indexed_typed_scalar_event(bool,uint32,bytes32,uint256)`.
+- Validated `Bool`, `U32`, and `Hash` event data fields and indexed topics,
+  including `Bool`/`U32` calldata range guards before the event lowering runs.
+- Refreshed `EventProbe` golden Yul, metadata selector checks, Foundry
+  recorded-log checks, coverage, English/Chinese EVM target docs, validation
+  gates, and implementation backlog notes.
+
+Validation run:
+
+```sh
+scripts/evm/event-ir-smoke.sh
+```
+
+Result:
+
+- `EventProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 20 EventProbe tests, including typed scalar data/topic checks and
+  malformed `Bool`/`U32` calldata rejection.
+
+Known limitations:
+
+- Indexed event fields remain limited to three fields after the signature topic.
+- Nested fixed arrays, non-flat structs, and unsupported aggregate leaves remain
+  explicit diagnostics for event fields.
+- First-class event declarations are still not represented in the portable IR.
+
+Next step:
+
+- Continue shrinking the EVM event gap around richer event declarations, or move
+  to another unsupported EVM capability surface.
+
 ### EVM IR Multi-Topic Indexed Events
 
 Commit: feature commit for EVM IR multi-topic indexed events
