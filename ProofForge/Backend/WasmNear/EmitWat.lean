@@ -36,6 +36,7 @@ def FALSE_PTR : Nat := 12006
 def MAPKEY_BUF : Nat := 12500    -- scratch for building map storage keys (prefix ++ key bytes)
 def HASH_HEAP : Nat := 30000       -- bump-allocator base for hash (32-byte) temporaries
 def HASH_CONCAT_BUF : Nat := 40000 -- 64-byte scratch for hash_two_to_one
+def CTX_BUF : Nat := 41000          -- 128-byte scratch for account-id → sha256 → u64
 
 -- Value type → Wasm
 def wasmTypeOf : ValueType → ValType
@@ -201,6 +202,12 @@ def writeHashName     : String := "__pf_write_hash"
 def hashPtrGlobal     : String := "hash_ptr"
 
 def sha256Import : Import := hostImport "sha256" #[.i64, .i64, .i64] #[]
+def predecessorImport : Import := hostImport "predecessor_account_id" #[.i64] #[]
+def currentAcctImport : Import := hostImport "current_account_id" #[.i64] #[]
+def registerLenImport : Import := hostImport "register_len" #[.i64] #[.i64]
+def blockHeightImport : Import := hostImport "block_index" #[] #[.i64]
+def ctxUserIdName : String := "__pf_ctx_user_id"
+def ctxContractIdName : String := "__pf_ctx_contract_id"
 
 def hashPtrGlobalDecl : Global :=
   { name := hashPtrGlobal, type := .i32, init := toString HASH_HEAP, isMutable := true }
@@ -288,6 +295,32 @@ def writeHashFunc : Func :=
 def hashHelperFuncs : Array Func :=
   #[ hashAllocFunc, hashMakeFunc, hashSFunc, memcpyFunc, hashTwoFunc, hashEqFunc,
      readHashFunc, writeHashFunc ]
+
+-- Context helpers ------------------------------------------------------
+-- userId/contractId: sha256(account_id_bytes)[0..8] as u64.
+
+def ctxUserIdFunc : Func :=
+  { name := ctxUserIdName, results := #[.i64], locals := #[{ name := "len", type := .i64 }],
+    body := { insns := #[
+      .i64Const 0, .call "predecessor_account_id",
+      .i64Const 0, .call "register_len", .localSet "len",
+      .i64Const 0, .i64Const CTX_BUF, .call "read_register",
+      .localGet "len", .i64Const CTX_BUF, .i64Const 1, .call "sha256",
+      .i64Const 1, .i64Const CTX_BUF, .call "read_register",
+      .i32Const CTX_BUF, .load "i64.load" 0 ] } }
+
+def ctxContractIdFunc : Func :=
+  { name := ctxContractIdName, results := #[.i64], locals := #[{ name := "len", type := .i64 }],
+    body := { insns := #[
+      .i64Const 0, .call "current_account_id",
+      .i64Const 0, .call "register_len", .localSet "len",
+      .i64Const 0, .i64Const CTX_BUF, .call "read_register",
+      .localGet "len", .i64Const CTX_BUF, .i64Const 1, .call "sha256",
+      .i64Const 1, .i64Const CTX_BUF, .call "read_register",
+      .i32Const CTX_BUF, .load "i64.load" 0 ] } }
+
+def ctxHelperFuncs : Array Func := #[ ctxUserIdFunc, ctxContractIdFunc ]
+def ctxImports : Array Import := #[ predecessorImport, currentAcctImport, registerLenImport, blockHeightImport ]
 
 -- State layout
 structure StateInfo where
@@ -407,6 +440,9 @@ mutual
       | none => err s!"EmitWat: unknown scalar state `{id}`"
     | .effect (.storageMapGet id key) => lowerMapGet ctx env id key
     | .effect (.storageMapContains id key) => lowerMapContains ctx env id key
+    | .effect (.contextRead .userId) => .ok (#[.call ctxUserIdName], .u64)
+    | .effect (.contextRead .contractId) => .ok (#[.call ctxContractIdName], .u64)
+    | .effect (.contextRead .checkpointId) => .ok (#[.call "block_index"], .u64)
     | _ => err "EmitWat: this expression form is not yet supported"
 
   partial def lowerNumBin (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
@@ -564,8 +600,9 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let mapData := maps.map fun m => { offset := m.prefixPtr, bytes := m.id ++ ":" : DataSegment }
   let boolData : Array DataSegment :=
     #[{ offset := TRUE_PTR, bytes := "true" }, { offset := FALSE_PTR, bytes := "false" }]
-  let imports := if maps.isEmpty then nearImports.push sha256Import else nearImports.push storageHasKeyImport |>.push sha256Import
-  let funcs := helperFuncs ++ hashHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ entryFuncs
+  let baseImports := nearImports.push sha256Import
+  let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport])
+  let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ entryFuncs
   .ok { imports := imports, globals := #[hashPtrGlobalDecl], funcs := funcs,
         memory := some { min := 1 }, dataSegments := scalarData ++ mapData ++ boolData }
 
