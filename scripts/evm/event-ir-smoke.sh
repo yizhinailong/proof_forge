@@ -43,11 +43,15 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint emit_indexed_event:bc07d04f \
   --expect-entrypoint emit_pair_event:35361bda \
   --expect-entrypoint emit_storage_pair_event:65123829 \
+  --expect-entrypoint emit_storage_array_event:99eb21de \
   --expect-entrypoint emit_array_event:393f7138 \
   --expect-entrypoint emit_pair_array_event:85611e74 \
+  --expect-entrypoint emit_storage_pair_array_event:f31d3375 \
   --expect-entrypoint emit_indexed_pair_event:e027f054 \
   --expect-entrypoint emit_indexed_storage_pair_event:f4a27402 \
+  --expect-entrypoint emit_indexed_storage_array_event:42a8056e \
   --expect-entrypoint emit_indexed_array_event:b7de5dd7 \
+  --expect-entrypoint emit_indexed_storage_pair_array_event:45440e6c \
   --expect-entrypoint emit_indexed_pair_array_event:c1375f82 \
   "$METADATA_FILE"
 
@@ -186,6 +190,25 @@ contract ProofForgeIREventSmokeTest {
         assertEq(abi.decode(logs[0].data, (uint256)), 88);
     }
 
+    function testIRIndexedStorageFixedArrayEventHashesAggregateTopic() public {
+        address probe = address(uint160(0xE13D));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_indexed_storage_array_event(uint256,uint256,uint256)", 103, 104, 105));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 2);
+        assertEq(logs[0].topics[0], keccak256(bytes("IndexedStorageArray(uint64[2],uint64)")));
+        assertEq(logs[0].topics[1], keccak256(abi.encode(uint256(103), uint256(104))));
+        assertEq(abi.decode(logs[0].data, (uint256)), 105);
+    }
+
     function testIRIndexedFixedArrayEventHashesAggregateTopic() public {
         address probe = address(uint160(0xE138));
         deployRuntime(hex"$probe_hex", probe);
@@ -222,6 +245,25 @@ contract ProofForgeIREventSmokeTest {
         assertEq(logs[0].topics[0], keccak256(bytes("IndexedPairArray((uint64,uint64)[2],uint64)")));
         assertEq(logs[0].topics[1], keccak256(abi.encode(uint256(1), uint256(2), uint256(3), uint256(4))));
         assertEq(abi.decode(logs[0].data, (uint256)), 77);
+    }
+
+    function testIRIndexedStorageStructArrayEventHashesAggregateTopic() public {
+        address probe = address(uint160(0xE13E));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_indexed_storage_pair_array_event(uint256,uint256,uint256,uint256,uint256)", 11, 12, 13, 14, 15));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 2);
+        assertEq(logs[0].topics[0], keccak256(bytes("IndexedStoragePairArray((uint64,uint64)[2],uint64)")));
+        assertEq(logs[0].topics[1], keccak256(abi.encode(uint256(11), uint256(12), uint256(13), uint256(14))));
+        assertEq(abi.decode(logs[0].data, (uint256)), 15);
     }
 
     function testIRStructEventFlattensDataWords() public {
@@ -264,6 +306,26 @@ contract ProofForgeIREventSmokeTest {
         assertEq(right, 77);
     }
 
+    function testIRStorageFixedArrayEventFlattensDataWords() public {
+        address probe = address(uint160(0xE13B));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_storage_array_event(uint256,uint256)", 101, 102));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 1);
+        assertEq(logs[0].topics[0], keccak256(bytes("StorageArrayEvent(uint64[2])")));
+        (uint256 left, uint256 right) = abi.decode(logs[0].data, (uint256, uint256));
+        assertEq(left, 101);
+        assertEq(right, 102);
+    }
+
     function testIRFixedArrayEventFlattensDataWords() public {
         address probe = address(uint160(0xE134));
         deployRuntime(hex"$probe_hex", probe);
@@ -304,6 +366,28 @@ contract ProofForgeIREventSmokeTest {
         assertEq(b, 2);
         assertEq(c, 3);
         assertEq(d, 4);
+    }
+
+    function testIRStorageStructArrayEventFlattensDataWords() public {
+        address probe = address(uint160(0xE13C));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_storage_pair_array_event(uint256,uint256,uint256,uint256)", 5, 6, 7, 8));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 1);
+        assertEq(logs[0].topics[0], keccak256(bytes("StoragePairArrayEvent((uint64,uint64)[2])")));
+        (uint256 a, uint256 b, uint256 c, uint256 d) = abi.decode(logs[0].data, (uint256, uint256, uint256, uint256));
+        assertEq(a, 5);
+        assertEq(b, 6);
+        assertEq(c, 7);
+        assertEq(d, 8);
     }
 
     function testIREventRejectsUnknownSelector() public {

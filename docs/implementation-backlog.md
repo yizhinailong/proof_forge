@@ -169,6 +169,14 @@ Tasks:
   into event data words, hashed into indexed topics, validated in golden Yul,
   checked in metadata selectors, compiled by `solc`, and decoded by Foundry
   recorded logs.
+- Done: add EventProbe coverage for storage-backed fixed-array event aggregates.
+  `StorageArrayEvent(uint64[2])`,
+  `StoragePairArrayEvent((uint64,uint64)[2])`,
+  `IndexedStorageArray(uint64[2],uint64)`, and
+  `IndexedStoragePairArray((uint64,uint64)[2],uint64)` now prove that storage
+  array reads and storage array struct field reads can feed non-indexed event
+  data flattening and indexed aggregate topic hashing, with golden Yul,
+  metadata selector checks, `solc`, and Foundry recorded-log validation.
 - Done: add EVM IR `crosscallInvoke` lowering to synchronous EVM `call`
   helpers with selector packing, word arguments, one-word returns, failed-call
   and short-return reverts, with `EvmCrosscallProbe` golden Yul, solc bytecode,

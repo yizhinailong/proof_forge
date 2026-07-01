@@ -16,6 +16,18 @@ def storedPairState : StateDecl := {
   type := .structType "Pair"
 }
 
+def storedValuesState : StateDecl := {
+  id := "storedValues"
+  kind := .array 2
+  type := .u64
+}
+
+def storedPairsState : StateDecl := {
+  id := "storedPairs"
+  kind := .array 2
+  type := .structType "Pair"
+}
+
 def pairStruct : StructDecl := {
   name := "Pair"
   fields := #[
@@ -28,6 +40,26 @@ def pair (left right : Expr) : Expr :=
   .structLit "Pair" #[
     ("left", left),
     ("right", right)
+  ]
+
+def u64 (value : Nat) : Expr :=
+  .literal (.u64 value)
+
+def storedValues : Expr :=
+  .arrayLit .u64 #[
+    .effect (.storageArrayRead "storedValues" (u64 0)),
+    .effect (.storageArrayRead "storedValues" (u64 1))
+  ]
+
+def storedPairAt (index : Nat) : Expr :=
+  pair
+    (.effect (.storageArrayStructFieldRead "storedPairs" (u64 index) "left"))
+    (.effect (.storageArrayStructFieldRead "storedPairs" (u64 index) "right"))
+
+def storedPairs : Expr :=
+  .arrayLit (.structType "Pair") #[
+    storedPairAt 0,
+    storedPairAt 1
   ]
 
 def emitValueEvent : Entrypoint := {
@@ -75,6 +107,18 @@ def emitStoragePairEvent : Entrypoint := {
   ]
 }
 
+def emitStorageArrayEvent : Entrypoint := {
+  name := "emit_storage_array_event"
+  selector? := some "99eb21de"
+  returns := .unit
+  params := #[("left", .u64), ("right", .u64)]
+  body := #[
+    .effect (.storageArrayWrite "storedValues" (u64 0) (.local "left")),
+    .effect (.storageArrayWrite "storedValues" (u64 1) (.local "right")),
+    .effect (.eventEmit "StorageArrayEvent" #[("values", storedValues)])
+  ]
+}
+
 def emitArrayEvent : Entrypoint := {
   name := "emit_array_event"
   selector? := some "393f7138"
@@ -97,6 +141,20 @@ def emitPairArrayEvent : Entrypoint := {
       pair (.local "c") (.local "d")
     ]),
     .effect (.eventEmit "PairArrayEvent" #[("pairs", .local "pairs")])
+  ]
+}
+
+def emitStoragePairArrayEvent : Entrypoint := {
+  name := "emit_storage_pair_array_event"
+  selector? := some "f31d3375"
+  returns := .unit
+  params := #[("a", .u64), ("b", .u64), ("c", .u64), ("d", .u64)]
+  body := #[
+    .effect (.storageArrayStructFieldWrite "storedPairs" (u64 0) "left" (.local "a")),
+    .effect (.storageArrayStructFieldWrite "storedPairs" (u64 0) "right" (.local "b")),
+    .effect (.storageArrayStructFieldWrite "storedPairs" (u64 1) "left" (.local "c")),
+    .effect (.storageArrayStructFieldWrite "storedPairs" (u64 1) "right" (.local "d")),
+    .effect (.eventEmit "StoragePairArrayEvent" #[("pairs", storedPairs)])
   ]
 }
 
@@ -128,6 +186,21 @@ def emitIndexedStoragePairEvent : Entrypoint := {
   ]
 }
 
+def emitIndexedStorageArrayEvent : Entrypoint := {
+  name := "emit_indexed_storage_array_event"
+  selector? := some "42a8056e"
+  returns := .unit
+  params := #[("left", .u64), ("right", .u64), ("value", .u64)]
+  body := #[
+    .effect (.storageArrayWrite "storedValues" (u64 0) (.local "left")),
+    .effect (.storageArrayWrite "storedValues" (u64 1) (.local "right")),
+    .effect (.eventEmitIndexed
+      "IndexedStorageArray"
+      #[("values", storedValues)]
+      #[("value", .local "value")])
+  ]
+}
+
 def emitIndexedArrayEvent : Entrypoint := {
   name := "emit_indexed_array_event"
   selector? := some "b7de5dd7"
@@ -138,6 +211,23 @@ def emitIndexedArrayEvent : Entrypoint := {
     .effect (.eventEmitIndexed
       "IndexedArray"
       #[("values", .local "values")]
+      #[("value", .local "value")])
+  ]
+}
+
+def emitIndexedStoragePairArrayEvent : Entrypoint := {
+  name := "emit_indexed_storage_pair_array_event"
+  selector? := some "45440e6c"
+  returns := .unit
+  params := #[("a", .u64), ("b", .u64), ("c", .u64), ("d", .u64), ("value", .u64)]
+  body := #[
+    .effect (.storageArrayStructFieldWrite "storedPairs" (u64 0) "left" (.local "a")),
+    .effect (.storageArrayStructFieldWrite "storedPairs" (u64 0) "right" (.local "b")),
+    .effect (.storageArrayStructFieldWrite "storedPairs" (u64 1) "left" (.local "c")),
+    .effect (.storageArrayStructFieldWrite "storedPairs" (u64 1) "right" (.local "d")),
+    .effect (.eventEmitIndexed
+      "IndexedStoragePairArray"
+      #[("pairs", storedPairs)]
       #[("value", .local "value")])
   ]
 }
@@ -168,17 +258,21 @@ def module : Module := {
 def evmModule : Module := {
   name := "EventProbe"
   structs := #[pairStruct]
-  state := #[stateMarker, storedPairState]
+  state := #[stateMarker, storedPairState, storedValuesState, storedPairsState]
   entrypoints := #[
     emitValueEvent,
     emitIndexedEvent,
     emitPairEvent,
     emitStoragePairEvent,
+    emitStorageArrayEvent,
     emitArrayEvent,
     emitPairArrayEvent,
+    emitStoragePairArrayEvent,
     emitIndexedPairEvent,
     emitIndexedStoragePairEvent,
+    emitIndexedStorageArrayEvent,
     emitIndexedArrayEvent,
+    emitIndexedStoragePairArrayEvent,
     emitIndexedPairArrayEvent
   ]
 }

@@ -29,6 +29,13 @@ object "EventProbe" {
       f_EventProbe_emit_storage_pair_event(calldataload(4), calldataload(36))
       return(0, 0)
     }
+    case 0x99eb21de {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_storage_array_event(calldataload(4), calldataload(36))
+      return(0, 0)
+    }
     case 0x393f7138 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
@@ -41,6 +48,13 @@ object "EventProbe" {
         revert(0, 0)
       }
       f_EventProbe_emit_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
+      return(0, 0)
+    }
+    case 0xf31d3375 {
+      if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_storage_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       return(0, 0)
     }
     case 0xe027f054 {
@@ -57,11 +71,25 @@ object "EventProbe" {
       f_EventProbe_emit_indexed_storage_pair_event(calldataload(4), calldataload(36), calldataload(68))
       return(0, 0)
     }
+    case 0x42a8056e {
+      if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_indexed_storage_array_event(calldataload(4), calldataload(36), calldataload(68))
+      return(0, 0)
+    }
     case 0xb7de5dd7 {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
       f_EventProbe_emit_indexed_array_event(calldataload(4), calldataload(36), calldataload(68))
+      return(0, 0)
+    }
+    case 0x45440e6c {
+      if lt(calldatasize(), 164) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_indexed_storage_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132))
       return(0, 0)
     }
     case 0xc1375f82 {
@@ -118,6 +146,17 @@ object "EventProbe" {
         log1(0, 64, _topic0)
       }
     }
+    function f_EventProbe_emit_storage_array_event(left, right) {
+      sstore(__proof_forge_array_slot(3, 2, 0), left)
+      sstore(__proof_forge_array_slot(3, 2, 1), right)
+      {
+        mstore(0, 37747689869461643370732288145762730112294565184148027269019221409560751243264)
+        let _topic0 := keccak256(0, 28)
+        mstore(0, sload(__proof_forge_array_slot(3, 2, 0)))
+        mstore(32, sload(__proof_forge_array_slot(3, 2, 1)))
+        log1(0, 64, _topic0)
+      }
+    }
     function f_EventProbe_emit_array_event(left, right) {
       let __proof_forge_array_values_0 := left
       let __proof_forge_array_values_1 := right
@@ -142,6 +181,22 @@ object "EventProbe" {
         mstore(32, __proof_forge_array_struct_pairs_0_right)
         mstore(64, __proof_forge_array_struct_pairs_1_left)
         mstore(96, __proof_forge_array_struct_pairs_1_right)
+        log1(0, 128, _topic0)
+      }
+    }
+    function f_EventProbe_emit_storage_pair_array_event(a, b, c, d) {
+      sstore(__proof_forge_struct_array_slot(5, 2, 2, 0, 0), a)
+      sstore(__proof_forge_struct_array_slot(5, 2, 2, 1, 0), b)
+      sstore(__proof_forge_struct_array_slot(5, 2, 2, 0, 1), c)
+      sstore(__proof_forge_struct_array_slot(5, 2, 2, 1, 1), d)
+      {
+        mstore(0, 37747689869461643464471119639573531748372218098125097347532376174202949760361)
+        mstore(32, 49959741704248868804343004437864887347782938572387770617318600583713283637248)
+        let _topic0 := keccak256(0, 41)
+        mstore(0, sload(__proof_forge_struct_array_slot(5, 2, 2, 0, 0)))
+        mstore(32, sload(__proof_forge_struct_array_slot(5, 2, 2, 1, 0)))
+        mstore(64, sload(__proof_forge_struct_array_slot(5, 2, 2, 0, 1)))
+        mstore(96, sload(__proof_forge_struct_array_slot(5, 2, 2, 1, 1)))
         log1(0, 128, _topic0)
       }
     }
@@ -177,6 +232,20 @@ object "EventProbe" {
         log2(0, 32, _topic0, _indexed_topic0)
       }
     }
+    function f_EventProbe_emit_indexed_storage_array_event(left, right, value) {
+      sstore(__proof_forge_array_slot(3, 2, 0), left)
+      sstore(__proof_forge_array_slot(3, 2, 1), right)
+      {
+        mstore(0, 33213884033972546274058268154838341277671788258747004883246941827730250691945)
+        mstore(32, 49959741704211352643985955585122750572963649782145707744252798302872684986368)
+        let _topic0 := keccak256(0, 37)
+        mstore(0, sload(__proof_forge_array_slot(3, 2, 0)))
+        mstore(32, sload(__proof_forge_array_slot(3, 2, 1)))
+        let _indexed_topic0 := keccak256(0, 64)
+        mstore(0, value)
+        log2(0, 32, _topic0, _indexed_topic0)
+      }
+    }
     function f_EventProbe_emit_indexed_array_event(left, right, value) {
       let __proof_forge_array_values_0 := left
       let __proof_forge_array_values_1 := right
@@ -186,6 +255,24 @@ object "EventProbe" {
         mstore(0, __proof_forge_array_values_0)
         mstore(32, __proof_forge_array_values_1)
         let _indexed_topic0 := keccak256(0, 64)
+        mstore(0, value)
+        log2(0, 32, _topic0, _indexed_topic0)
+      }
+    }
+    function f_EventProbe_emit_indexed_storage_pair_array_event(a, b, c, d, value) {
+      sstore(__proof_forge_struct_array_slot(5, 2, 2, 0, 0), a)
+      sstore(__proof_forge_struct_array_slot(5, 2, 2, 1, 0), b)
+      sstore(__proof_forge_struct_array_slot(5, 2, 2, 0, 1), c)
+      sstore(__proof_forge_struct_array_slot(5, 2, 2, 1, 1), d)
+      {
+        mstore(0, 33213884033972546274058268154838342578559401084626289698610701350084179014700)
+        mstore(32, 53106884551204179912034263980349372986157771400049621062947512377323015897088)
+        let _topic0 := keccak256(0, 50)
+        mstore(0, sload(__proof_forge_struct_array_slot(5, 2, 2, 0, 0)))
+        mstore(32, sload(__proof_forge_struct_array_slot(5, 2, 2, 1, 0)))
+        mstore(64, sload(__proof_forge_struct_array_slot(5, 2, 2, 0, 1)))
+        mstore(96, sload(__proof_forge_struct_array_slot(5, 2, 2, 1, 1)))
+        let _indexed_topic0 := keccak256(0, 128)
         mstore(0, value)
         log2(0, 32, _topic0, _indexed_topic0)
       }
@@ -207,6 +294,18 @@ object "EventProbe" {
         mstore(0, value)
         log2(0, 32, _topic0, _indexed_topic0)
       }
+    }
+    function __proof_forge_array_slot(slot, length, index) -> result {
+      if iszero(lt(index, length)) {
+        revert(0, 0)
+      }
+      result := add(slot, index)
+    }
+    function __proof_forge_struct_array_slot(slot, length, field_count, field_offset, index) -> result {
+      if iszero(lt(index, length)) {
+        revert(0, 0)
+      }
+      result := add(add(slot, mul(index, field_count)), field_offset)
     }
   }
 }

@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Storage-Backed Event Fixed Arrays
+
+Commit: feature commit for EVM IR storage-backed event fixed arrays
+
+Summary:
+
+- Extended `EventProbe` with `storedValues` and `storedPairs` fixed storage
+  arrays plus four entrypoints:
+  `emit_storage_array_event(uint256,uint256)`,
+  `emit_storage_pair_array_event(uint256,uint256,uint256,uint256)`,
+  `emit_indexed_storage_array_event(uint256,uint256,uint256)`, and
+  `emit_indexed_storage_pair_array_event(uint256,uint256,uint256,uint256,uint256)`.
+- Validated that storage array reads and storage array struct field reads can
+  feed scalar fixed-array and fixed-array-of-flat-struct event aggregates.
+- Refreshed `EventProbe` golden Yul, metadata selector checks, Foundry
+  recorded-log checks, coverage, English/Chinese EVM target docs, validation
+  gates, and implementation backlog notes.
+
+Validation run:
+
+```sh
+scripts/evm/event-ir-smoke.sh
+```
+
+Result:
+
+- `EventProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 15 EventProbe tests, including storage-backed fixed-array data
+  flattening and storage-backed fixed-array indexed topic hashing.
+
+Known limitations:
+
+- Indexed event fields remain limited to three fields after the signature topic.
+- Nested fixed arrays, non-flat structs, and unsupported aggregate leaves remain
+  explicit diagnostics for event fields.
+- First-class event declarations are still not represented in the portable IR.
+
+Next step:
+
+- Continue shrinking the EVM event gap around richer event declarations, or move
+  to another unsupported EVM capability surface.
+
 ### EVM IR Storage-Backed Event Aggregates
 
 Commit: feature commit for EVM IR storage-backed aggregate events
