@@ -565,6 +565,7 @@ def mapLayout (mod : ProofForge.IR.Module) : Array MapInfo :=
   let step (acc : Array MapInfo) (offset : Nat) (s : StateDecl) : Array MapInfo × Nat :=
     match s.kind with
     | .map kt _ => (acc.push { id := s.id, keyType := kt, valueType := s.type, prefixPtr := offset, prefixLen := s.id.length + 1 }, offset + s.id.length + 2)
+    | .array _ => (acc.push { id := s.id, keyType := .u64, valueType := s.type, prefixPtr := offset, prefixLen := s.id.length + 1 }, offset + s.id.length + 2)
     | _ => (acc, offset)
   let result : Array MapInfo × Nat := mod.state.foldl (init := (#[], 20000)) fun (acc, offset) s => step acc offset s
   result.fst
@@ -684,6 +685,14 @@ mutual
     | .effect (.contextRead .checkpointId) => .ok (#[.call "block_index"], .u64)
     | .effect (.storageMapSet id key value) | .effect (.storageMapInsert id key value) =>
       lowerMapWrite ctx env id key value
+    | .effect (.storageArrayRead id index) =>
+      match findMapState? ctx.maps id with
+      | none => err s!"EmitWat: unknown array state `{id}`"
+      | some m =>
+        if m.keyType != .u64 then err s!"EmitWat: storage array `{id}` index must be U64"
+        else do
+          let kis ← lowerMapKeyU64 ctx env index
+          .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ #[.call (mapReadName m.valueType)], m.valueType)
     | _ => err "EmitWat: this expression form is not yet supported"
 
   partial def lowerNumBin (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
@@ -862,6 +871,16 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
   | .effect (.storageMapSet id key value) | .effect (.storageMapInsert id key value) => do
     let (is, _) ← lowerMapWrite ctx env id key value
     .ok (is ++ #[.drop])
+  | .effect (.storageArrayWrite id index value) => do
+    match findMapState? ctx.maps id with
+    | none => err s!"EmitWat: unknown array state `{id}`"
+    | some m =>
+      if m.keyType != .u64 then err s!"EmitWat: storage array `{id}` index must be U64"
+      else do
+        let kis ← lowerMapKeyU64 ctx env index
+        let (vis, vt) ← lowerExpr ctx env value
+        if vt != m.valueType then err s!"EmitWat: array write `{id}` expected `{m.valueType.name}`, got `{vt.name}`"
+        else .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ vis ++ #[.call (mapWriteName m.valueType), .drop])
   | .effect (.eventEmit name fields) => lowerEventEmit ctx env name fields
   | .assert cond _ => do
     let (is, t) ← lowerExpr ctx env cond
@@ -951,7 +970,7 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
     and `controlBoundedLoop` (if/else + boundedFor are lowered natively in WAT).
     Arrays / structs / fixed arrays / crosscall stay rejected. -/
 def emitWatCapabilities : ProofForge.Target.CapabilitySet :=
-  ProofForge.Target.wasmNear.capabilities ++ #[.controlConditional, .controlBoundedLoop]
+  ProofForge.Target.wasmNear.capabilities ++ #[.controlConditional, .controlBoundedLoop, .storageArray, .dataFixedArray]
 
 def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
   mod.capabilities.foldlM (fun _ c =>

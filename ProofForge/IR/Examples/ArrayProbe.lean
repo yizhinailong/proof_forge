@@ -58,6 +58,12 @@ def arrayPredicates : Entrypoint := {
   ]
 }
 
+def emitWatStorageModule : Module := {
+  name := "ArrayProbe",
+  state := #[stateValues],
+  entrypoints := #[storageLifecycle]
+}
+
 def module : Module := {
   name := "ArrayProbe"
   state := #[stateValues]
