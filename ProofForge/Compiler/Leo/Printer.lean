@@ -170,13 +170,9 @@ mutual
         | value => do
             let v ← printExpression value
             .ok (indent indentLevel ("return " ++ v ++ ";"))
-    | .assert cond msg? => do
+    | .assert cond _ => do
         let c ← printExpression cond
-        match msg? with
-        | none => .ok (indent indentLevel s!"assert({c});")
-        | some msg => do
-            let m ← printExpression msg
-            .ok (indent indentLevel s!"assert_eq({c}, {m});")
+        .ok (indent indentLevel s!"assert({c});")
 end
 
 def printAnnotation (a : Annotation) : String := s!"@{a.name}"
