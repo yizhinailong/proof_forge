@@ -339,6 +339,8 @@ code 等于 `Counter.bin`，通过 JSON-RPC 跑 Counter lifecycle，并写出
 `scripts/evm/validate-deploy-run.py` 会校验这个 deploy-run artifact。原始 deploy
 manifest 仍然是可复现的部署计划，并保持 `deployment.broadcast: not-generated`；
 deploy-run artifact 会记录这次使用的 constructor ABI schema 和 constructor args，
-以及一次已观察到的本地 Anvil 部署执行。
+以及一次已观察到的本地 Anvil 部署执行。它也会关联 `cast send` receipt 和
+`eth_getTransactionByHash` creation transaction JSON，并验证 transaction hash、
+sender、creation 的空 `to`、block metadata 和 input initcode 都与生成的部署制品一致。
 
 在统一的目标清单发布（RFC 0002）之前，方法分派仍使用 `.evm-methods` sidecar 文件。

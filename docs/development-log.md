@@ -17,6 +17,39 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Creation Transaction Deploy-Run Artifact
+
+Commit: `feat: record EVM creation transactions`
+
+Summary:
+
+- Anvil deploy smoke now records the `eth_getTransactionByHash` creation
+  transaction JSON alongside the `cast send --create` receipt.
+- `proof-forge-deploy-run.json` links that creation transaction artifact with
+  path, byte size, and SHA-256 metadata.
+- `scripts/evm/validate-deploy-run.py` now validates that the creation
+  transaction hash, sender, null `to`, block metadata, and initcode `input`
+  match the deploy receipt and generated `.init.bin`.
+
+Validation run:
+
+```sh
+python3 -m py_compile scripts/evm/validate-deploy-run.py
+bash -n scripts/evm/anvil-deploy-smoke.sh
+scripts/evm/anvil-deploy-smoke.sh
+just evm-all
+```
+
+Known limitations:
+
+- This records a local Anvil creation transaction and receipt, not a signed raw
+  transaction artifact or public RPC broadcast workflow.
+
+Next step:
+
+- Promote the deploy-run artifact shape into a first-class deploy/broadcast
+  command that consumes `proof-forge-deploy.json`.
+
 ### EVM ABI Method Signature Metadata
 
 Commit: `feat: record EVM method signatures`

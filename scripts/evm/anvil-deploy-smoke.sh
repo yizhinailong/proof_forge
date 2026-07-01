@@ -57,6 +57,7 @@ fi
 mkdir -p "$RUN_DIR"
 ANVIL_LOG="$RUN_DIR/anvil.log"
 DEPLOY_RECEIPT="$RUN_DIR/Counter.cast-send.json"
+DEPLOY_TX="$RUN_DIR/Counter.creation-transaction.json"
 SET_RECEIPT="$RUN_DIR/Counter.set-receipt.json"
 DEPLOY_RUN="$RUN_DIR/Counter.proof-forge-deploy-run.json"
 RUNTIME_FILE="$OUT_DIR/Counter.bin"
@@ -164,6 +165,19 @@ cast send \
   --json \
   >"$DEPLOY_RECEIPT"
 
+DEPLOY_TX_HASH="$(python3 - "$DEPLOY_RECEIPT" <<'PY'
+import json
+import sys
+
+receipt = json.load(open(sys.argv[1], encoding="utf-8"))
+print(receipt["transactionHash"])
+PY
+)"
+cast rpc \
+  --rpc-url "$RPC_URL" \
+  eth_getTransactionByHash "$DEPLOY_TX_HASH" \
+  >"$DEPLOY_TX"
+
 CONTRACT_ADDRESS="$(python3 - "$DEPLOY_RECEIPT" <<'PY'
 import json
 import sys
@@ -213,6 +227,7 @@ python3 - \
   "$DEPLOYER_ADDRESS" \
   "$CONTRACT_ADDRESS" \
   "$DEPLOY_RECEIPT" \
+  "$DEPLOY_TX" \
   "$SET_RECEIPT" \
   "$DEPLOY_MANIFEST" \
   "$RUNTIME_FILE" \
@@ -235,6 +250,7 @@ from pathlib import Path
     deployer,
     contract_address,
     deploy_receipt_path,
+    deploy_tx_path,
     set_receipt_path,
     deploy_manifest_path,
     runtime_path,
@@ -284,6 +300,7 @@ run = {
     "constructorAbi": deploy_manifest["abi"]["constructor"],
     "constructorArgs": deploy_manifest["creation"]["constructorArgs"],
     "castSendReceipt": file_entry(deploy_receipt_path),
+    "creationTransaction": file_entry(deploy_tx_path),
     "setReceipt": file_entry(set_receipt_path),
     "network": {
         "kind": "anvil",
@@ -323,6 +340,7 @@ run = {
         "anvilStarted": "passed",
         "chainId": "passed",
         "castCreate": "passed",
+        "creationTransaction": "passed",
         "receipt": "passed",
         "runtimeCodeMatch": "passed",
         "counterLifecycle": "passed",

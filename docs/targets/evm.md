@@ -705,7 +705,10 @@ and writes
 original deploy manifest remains a reproducible plan with
 `deployment.broadcast: not-generated`; the deploy-run artifact records one
 observed local Anvil deployment execution, including the constructor ABI schema
-and constructor args that were used.
+and constructor args that were used. It also links the `cast send` receipt and
+the `eth_getTransactionByHash` creation transaction JSON, and validates that
+the transaction hash, sender, null creation `to`, block metadata, and input
+initcode match the generated deploy artifacts.
 
 Method dispatch still uses `.evm-methods` sidecar files until a unified target
 manifest lands (RFC 0002).

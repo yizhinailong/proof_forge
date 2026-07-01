@@ -94,8 +94,10 @@
   过短等格式错误的 static-word value。
 - 已完成（EVM）：加入 Anvil deploy smoke，通过 `cast send --create` 发送生成的
   Counter `.init.bin`，记录 constructor ABI schema、typed constructor args
-  和 `proof-forge-deploy-run.json` artifact，校验 receipt、deployed address、
-  runtime-code match，并通过 JSON-RPC 运行 Counter lifecycle。
+  和 `proof-forge-deploy-run.json` artifact，同时记录
+  `eth_getTransactionByHash` creation transaction JSON，校验 receipt、deployed
+  address、runtime-code match 和 transaction input initcode，并通过 JSON-RPC
+  运行 Counter lifecycle。
 - 从第一天起就保持 schema 的版本化。
 
 验收标准：
@@ -107,7 +109,8 @@
 - 本地 Anvil 部署可以消费生成的 deploy manifest 和 initcode，产出经过校验的
   deploy-run artifact，并证明即使 initcode 包含 typed 或 raw ABI-encoded
   constructor-argument tail 和记录的静态 constructor ABI schema，deployed
-  runtime code 仍然与生成的 bytecode 一致。
+  runtime code 仍然与生成的 bytecode 一致；deploy-run artifact 也会关联已观察到的
+  creation transaction JSON，并验证其 input 等于生成的 initcode。
 - EVM metadata 可以将缺失的可选 version 数据表示为 `null`，而不是格式错误的 metadata。
 
 ## 工作流 3：EVM 基线加固

@@ -44,6 +44,14 @@ def normalize_hex(value: str, name: str) -> str:
     return text.lower()
 
 
+def parse_hex_quantity(value: Any, name: str) -> int:
+    text = expect_string(value, name)
+    expect(text.startswith(("0x", "0X")), f"{name} must be a hex quantity")
+    digits = text[2:]
+    expect(digits and all(ch in "0123456789abcdefABCDEF" for ch in digits), f"{name} must contain hex digits")
+    return int(digits, 16)
+
+
 def resolve_path(root: Path, path_text: str) -> Path:
     path = Path(path_text)
     if path.is_absolute():
@@ -168,6 +176,13 @@ def expect_hash(value: Any, name: str) -> str:
     return text.lower()
 
 
+def unwrap_rpc_result(value: Any, name: str) -> dict:
+    obj = expect_object(value, name)
+    if "result" in obj:
+        return expect_object(obj.get("result"), f"{name}.result")
+    return obj
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
@@ -222,6 +237,11 @@ def main() -> int:
         expect_object(run.get("castSendReceipt"), "castSendReceipt"),
         "castSendReceipt",
     )
+    creation_tx_path = file_entry(
+        root,
+        expect_object(run.get("creationTransaction"), "creationTransaction"),
+        "creationTransaction",
+    )
     set_receipt_path = file_entry(
         root,
         expect_object(run.get("setReceipt"), "setReceipt"),
@@ -272,6 +292,15 @@ def main() -> int:
     expect(receipt.get("contractAddress", "").lower() == contract_address, "cast send contractAddress mismatch")
     expect(receipt.get("status") == "0x1", "cast send status must be 0x1")
 
+    creation_tx = unwrap_rpc_result(json.loads(creation_tx_path.read_text()), "creation transaction")
+    expect(expect_hash(creation_tx.get("hash"), "creation transaction.hash") == tx_hash, "creation transaction.hash mismatch")
+    expect(expect_address(creation_tx.get("from"), "creation transaction.from") == deployer_address, "creation transaction.from mismatch")
+    expect(creation_tx.get("to") is None, "creation transaction.to must be null for contract creation")
+    expect(expect_hash(creation_tx.get("blockHash"), "creation transaction.blockHash") == transaction["blockHash"].lower(), "creation transaction.blockHash mismatch")
+    expect(parse_hex_quantity(creation_tx.get("blockNumber"), "creation transaction.blockNumber") == transaction["blockNumber"], "creation transaction.blockNumber mismatch")
+    tx_input = creation_tx.get("input", creation_tx.get("data"))
+    expect(normalize_hex(expect_string(tx_input, "creation transaction.input"), "creation transaction.input") == init_hex, "creation transaction.input must match initCode")
+
     set_receipt = expect_object(json.loads(set_receipt_path.read_text()), "set receipt")
     expect(set_receipt.get("status") == "0x1", "set receipt status must be 0x1")
 
@@ -293,6 +322,7 @@ def main() -> int:
         "anvilStarted",
         "chainId",
         "castCreate",
+        "creationTransaction",
         "receipt",
         "runtimeCodeMatch",
         "counterLifecycle",
