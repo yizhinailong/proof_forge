@@ -740,6 +740,10 @@ mutual
                      .i32Const off, .i32Const STRUCT_BUF, .plain "i32.add", .load (loadOpFor ft) 0], ft)
             | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
         | _ => err s!"EmitWat: storageStructFieldRead expects a struct state, got `{s.type.name}`"
+    | .effect (.storagePathRead id path) =>
+      match path.toList with
+      | [.mapKey k] => lowerMapGet ctx env id k
+      | _ => err "EmitWat: storagePathRead only supports single mapKey-segment paths (multi-segment struct/array paths not yet lowered)"
     | .arrayLit elementType values => do
       let lowered ← values.mapM fun v => do
         let (is, t) ← lowerExpr ctx env v
@@ -1139,6 +1143,12 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
                        .i64Const s.keyLen, .i64Const s.keyPtr, .i64Const (structTotalSize sd), .i64Const STRUCT_BUF, .i64Const 0, .call "storage_write", .drop])
           | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
       | _ => err s!"EmitWat: storageStructFieldWrite expects a struct state, got `{s.type.name}`"
+  | .effect (.storagePathWrite id path value) => do
+    match path.toList with
+    | [.mapKey k] => do
+      let (is, _) ← lowerMapWrite ctx env id k value
+      .ok (is ++ #[.drop])
+    | _ => err "EmitWat: storagePathWrite only supports single mapKey-segment paths (multi-segment struct/array paths not yet lowered)"
   | .effect (.storageScalarAssignOp id op value) => do
     let some s ← pure (findScalarState? ctx.scalars id) | err s!"EmitWat: unknown scalar state `{id}`"
     if s.type == .hash then err s!"EmitWat: storageScalarAssignOp not supported on Hash scalars (`{id}`)"

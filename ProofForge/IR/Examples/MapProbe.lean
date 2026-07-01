@@ -219,4 +219,13 @@ def emitWatFullModule : Module := {
                    setBalance, setReturnLifecycle, insertReturnLifecycle]
 }
 
+/-- EmitWat subset for 16d: only `pathLifecycle` (storagePathRead/Write with a single
+    mapKey segment). -/
+def emitWatPathModule : Module := {
+  name := "MapProbe",
+  state := #[stateBalances],
+  entrypoints := #[pathLifecycle]
+}
+
+
 end ProofForge.IR.Examples.MapProbe
