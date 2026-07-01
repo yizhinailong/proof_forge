@@ -112,6 +112,10 @@ Tasks:
   `checkpointId` as Yul `caller()`, `address()`, and `number()`, with
   `ContextProbe` golden Yul, solc bytecode, Foundry runtime validation, and
   metadata capability validation.
+- Done: add EVM IR `eventEmit` lowering to Yul `log1` with
+  `keccak256(UTF-8 event name)` topic0 and 32-byte word data fields, with
+  `EventProbe` golden Yul, solc bytecode, Foundry recorded-log validation,
+  metadata capability validation, and explicit malformed event diagnostics.
 - Done: add EVM IR `Hash` word lowering, `hash4`/`hashValue` packing, and
   `hash`/`hash_two_to_one` lowering through Yul `keccak256` helpers, with
   `EvmHashProbe` golden Yul, solc bytecode, Foundry ABI/storage validation,

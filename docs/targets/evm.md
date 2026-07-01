@@ -39,6 +39,7 @@ scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
+scripts/evm/event-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 ```
@@ -72,6 +73,8 @@ proof-forge --emit-conditional-ir-yul [-o output.yul]
 proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-context-ir-yul [-o output.yul]
 proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-event-ir-yul [-o output.yul]
+proof-forge --emit-evm-event-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-hash-ir-yul [-o output.yul]
 proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-map-ir-yul [-o output.yul]
@@ -134,7 +137,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
 | `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
-| `events.emit` | `log0`, `log1`, `log2` |
+| `events.emit` | `log0`, `log1`, `log2`; portable IR `eventEmit` lowers to `log1` with topic0 derived from the event name |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
 | `crypto.hash` | Portable IR `Hash` values lower to one-word EVM `bytes32`; `hash` / `hash_two_to_one` lower to Yul `keccak256` helpers |
@@ -169,12 +172,12 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - String manipulation APIs incomplete in Yul runtime.
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
   IR EVM backend currently supports scalar storage/ABI, assertions, local
-  assignment, conditionals, context reads, `Hash` word values and hashing, and
-  `Map<U64, U64, N>` storage, and rejects wider portable IR nodes with explicit
-  diagnostics.
+  assignment, conditionals, context reads, events, `Hash` word values and
+  hashing, and `Map<U64, U64, N>` storage, and rejects wider portable IR nodes
+  with explicit diagnostics.
 - Portable IR EVM currently lacks aggregate ABI values, non-`U64` map
-  shapes, storage arrays, structs, events, cross-contract calls, and
-  target-specific deploy manifests.
+  shapes, storage arrays, structs, indexed/Solidity-signature event schemas,
+  cross-contract calls, and target-specific deploy manifests.
 - `storage.map.contains` remains explicitly unsupported because EVM mappings do
   not track key presence without an auxiliary bitmap.
 
@@ -191,6 +194,7 @@ scripts/evm/assert-ir-smoke.sh
 scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
+scripts/evm/event-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -244,6 +248,15 @@ expressions pack into a single 256-bit word, while `hash` and
 (`crypto.hash`, `storage.scalar`), ABI `bytes32` parameters/returns, scalar
 Hash storage through `sload`/`sstore`, Foundry `vm.load` raw slots, and
 unknown-selector revert behavior.
+
+`EventProbe` validates portable IR event emission through Yul `log1`. EVM IR
+v0 uses a deliberately small event policy: `topic0 = keccak256(UTF-8 event
+name)` and the log data is the ABI-style sequence of 32-byte field words. The
+smoke checks golden Yul reproducibility, `solc --strict-assembly` bytecode
+generation, metadata capability `events.emit`, Foundry recorded logs
+(`emitter`, topic, and decoded data), ABI selector dispatch, and
+unknown-selector revert behavior. Indexed fields and Solidity event-signature
+topics wait for explicit event declarations in the portable IR.
 
 `EvmMapProbe` validates portable IR `Map<U64, U64, N>` storage through the same
 Solidity-style slot layout used by the SDK: `keccak256(key || slot)` after

@@ -76,7 +76,7 @@ Effect	storagePathRead	validated	EvmMapProbe validates single-segment mapKey sto
 Effect	storagePathWrite	validated	EvmMapProbe validates single-segment mapKey storage path writes over Map<U64, U64, N>; diagnostics reject missing and nested map keys.
 Effect	storagePathAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt reject storage.path.assign_op in EVM IR v0.
 Effect	contextRead	validated	lowerEffectExpr emits EVM context opcodes for expression-position context reads; diagnostics still reject statement-position context reads.
-Effect	eventEmit	unsupported	lowerEffectStmt rejects event emission with an explicit EVM IR v0 diagnostic.
+Effect	eventEmit	validated	EventProbe validates eventEmit lowering to Yul log1 with topic0 = keccak256(event name) and 32-byte word data fields; diagnostics reject expression-position events and malformed names.
 StoragePathSegment	field	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
 StoragePathSegment	index	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
 StoragePathSegment	mapKey	validated	EvmMapProbe validates mapKey as the first and only storage-path segment for EVM Map<U64, U64, N> reads and writes.

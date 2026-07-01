@@ -193,9 +193,14 @@ def contextReadStmtModule : Module :=
     .effect (.contextRead .userId)
   ]
 
-def eventModule : Module :=
-  selectedModule "BadEvent" <| selectedEntrypoint "bad" #[
-    .effect (.eventEmit "Seen" #[("value", .literal (.u64 1))])
+def eventExprModule : Module :=
+  selectedModule "BadEventExpr" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.effect (.eventEmit "Seen" #[("value", .literal (.u64 1))]))
+  ]
+
+def eventEmptyNameModule : Module :=
+  selectedModule "BadEventEmptyName" <| selectedEntrypoint "bad" #[
+    .effect (.eventEmit "" #[("value", .literal (.u64 1))])
   ]
 
 def nativeValueModule : Module :=
@@ -332,9 +337,14 @@ def cases : Array (String × Module × String) := #[
     "context reads must be used as expressions"
   ),
   (
-    "event unsupported",
-    eventModule,
-    "event emission is not supported by IR EVM v0"
+    "event used as expression",
+    eventExprModule,
+    "event.emit is a statement effect, not an expression"
+  ),
+  (
+    "event empty name unsupported",
+    eventEmptyNameModule,
+    "event name must be non-empty for IR EVM v0"
   ),
   (
     "native value unsupported",

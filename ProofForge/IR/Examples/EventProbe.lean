@@ -12,6 +12,7 @@ def stateMarker : StateDecl := {
 
 def emitValueEvent : Entrypoint := {
   name := "emit_value_event"
+  selector? := some "2ae8cae3"
   returns := .unit
   params := #[("value", .u64)]
   body := #[

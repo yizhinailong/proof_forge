@@ -89,6 +89,39 @@ def hashPackExpr
     ]
   ]
 
+def eventNameWordAndLength (name : String) : Except LowerError (Nat × Nat) := do
+  let bytes := name.toUTF8
+  if bytes.size == 0 then
+    .error { message := "event name must be non-empty for IR EVM v0" }
+  if bytes.size > 32 then
+    .error { message := s!"event `{name}` name is {bytes.size} byte(s); IR EVM v0 supports event names up to 32 UTF-8 bytes" }
+  let mut wordVal := 0
+  for _h : j in [0:32] do
+    if j < bytes.size then
+      let b := (bytes.get! j).toNat
+      let shift := (31 - j) * 8
+      wordVal := wordVal + (b * (2 ^ shift))
+  .ok (wordVal, bytes.size)
+
+def ensureEventFieldType (eventName fieldName : String) (type : ValueType) : Except LowerError Unit :=
+  match type with
+  | .u32 | .u64 | .bool | .hash => .ok ()
+  | .unit | .fixedArray _ _ | .structType _ =>
+      .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `{type.name}`; event fields must be U32, U64, Bool, or Hash" }
+
+def validateEventFieldName (eventName fieldName : String) : Except LowerError Unit :=
+  if fieldName.isEmpty then
+    .error { message := s!"event `{eventName}` field name must be non-empty" }
+  else
+    .ok ()
+
+def validateDistinctEventFieldName (eventName : String) (seen : Array String) (fieldName : String) : Except LowerError (Array String) := do
+  validateEventFieldName eventName fieldName
+  if seen.contains fieldName then
+    .error { message := s!"duplicate event `{eventName}` field name `{fieldName}`" }
+  else
+    .ok (seen.push fieldName)
+
 def revertStmt : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.exprStmt
     (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
@@ -395,7 +428,7 @@ mutual
     | .contextRead _ =>
         .ok .u64
     | .eventEmit _ _ =>
-        .error { message := "event emission is not supported by IR EVM v0" }
+        .error { message := "event.emit is a statement effect, not an expression" }
 end
 
 def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Except LowerError Unit
@@ -437,8 +470,13 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
       .ok ()
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
-  | .eventEmit _ _ =>
-      .ok ()
+  | .eventEmit name fields => do
+      discard <| eventNameWordAndLength name
+      let _ ← fields.foldlM (init := #[]) fun seen field =>
+        validateDistinctEventFieldName name seen field.fst
+      for field in fields do
+        let actual ← inferExprType module env field.snd
+        ensureEventFieldType name field.fst actual
 
 mutual
   partial def validateStatements (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) (statements : Array Statement) : Except LowerError TypeEnv :=
@@ -622,8 +660,30 @@ mutual
     | .contextRead field =>
         .ok (contextExpr field)
     | .eventEmit _ _ =>
-        .error { message := "event emission is not supported by IR EVM v0" }
+        .error { message := "event.emit is a statement effect, not an expression" }
 end
+
+def lowerEventEmitStmt
+    (module : Module)
+    (name : String)
+    (fields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let (nameWord, nameLen) ← eventNameWordAndLength name
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num nameWord]),
+    .varDecl #[{ name := "_topic0" }]
+      (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num nameLen]))
+  ]
+  for h : idx in [0:fields.size] do
+    let field := fields[idx]
+    statements := statements.push <|
+      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), ← lowerExpr module field.snd])
+  statements := statements.push <|
+    .exprStmt (Lean.Compiler.Yul.builtin "log1" #[
+      Lean.Compiler.Yul.Expr.num 0,
+      Lean.Compiler.Yul.Expr.num (fields.size * 32),
+      Lean.Compiler.Yul.Expr.id "_topic0"
+    ])
+  .ok (.block { statements := statements })
 
 def lowerMapWriteStmt (module : Module) (stateId : String) (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   let slot ← requireU64MapState module stateId
@@ -676,8 +736,8 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       .error { message := "storage.path.assign_op is not supported by IR EVM v0" }
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
-  | .eventEmit _ _ =>
-      .error { message := "event emission is not supported by IR EVM v0" }
+  | .eventEmit name fields =>
+      lowerEventEmitStmt module name fields
 
 def ensureLocalScalarType (context name : String) (type : ValueType) : Except LowerError Unit :=
   match type with
