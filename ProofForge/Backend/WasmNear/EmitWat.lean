@@ -840,6 +840,15 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     else
       let callName := if s.type == .hash then writeHashName else writeName s.type
       .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen] ++ is ++ #[.call callName])
+  | .effect (.storageScalarAssignOp id op value) => do
+    let some s ← pure (findScalarState? ctx.scalars id) | err s!"EmitWat: unknown scalar state `{id}`"
+    if s.type == .hash then err s!"EmitWat: storageScalarAssignOp not supported on Hash scalars (`{id}`)"
+    else do
+      let (vis, vt) ← lowerExpr ctx env value
+      if vt != s.type then err s!"EmitWat: scalar assignOp `{id}` expected `{s.type.name}`, got `{vt.name}`"
+      else .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen, .i32Const s.keyPtr, .i32Const s.keyLen,
+                     .call (readName s.type)] ++ vis
+                ++ #[.plain (widthOf s.type ++ "." ++ assignOpName op), .call (writeName s.type)])
   | .effect (.storageMapSet id key value) | .effect (.storageMapInsert id key value) => do
     let (is, _) ← lowerMapWrite ctx env id key value
     .ok (is ++ #[.drop])
