@@ -87,6 +87,23 @@ def crosscallStaticFunctionName (arity : Nat) (returnType : ValueType) : Except 
 def crosscallDelegateFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
   .ok s!"__proof_forge_crosscall_delegate_{arity}{← crosscallReturnTypeSuffix returnType}"
 
+def crosscallReturnWordTag : ValueType → Except LowerError String
+  | .u64 => .ok "u64"
+  | .u32 => .ok "u32"
+  | .bool => .ok "bool"
+  | .hash => .ok "hash"
+  | .unit | .fixedArray _ _ | .structType _ =>
+      .error { message := "crosscall aggregate return words must be U32, U64, Bool, or Hash in IR EVM v0" }
+
+def crosscallReturnWordTagsSuffix (wordTypes : Array ValueType) : Except LowerError String := do
+  let mut suffix := ""
+  for wordType in wordTypes do
+    suffix := suffix ++ "_" ++ (← crosscallReturnWordTag wordType)
+  .ok suffix
+
+def crosscallAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
+  .ok s!"__proof_forge_crosscall_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
+
 def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
 def maxU32 : Nat := 4294967295
@@ -279,6 +296,10 @@ def ensureCrosscallWordType (context : String) (type : ValueType) : Except Lower
         message := s!"{context} has unsupported EVM IR v0 crosscall word type `{type.name}`; crosscall scalar words support U32, U64, Bool, or Hash"
       }
 
+def isCrosscallWordType : ValueType → Bool
+  | .u32 | .u64 | .bool | .hash => true
+  | .unit | .fixedArray _ _ | .structType _ => false
+
 partial def abiValueWordTypes (module : Module) (context : String) : ValueType → Except LowerError (Array ValueType)
   | .u32 => .ok #[.u32]
   | .u64 => .ok #[.u64]
@@ -316,6 +337,12 @@ partial def abiValueWordTypes (module : Module) (context : String) : ValueType �
         ensureAbiWordType s!"{context} struct `{typeName}` field `{field.id}`" field.type
         words := words.push field.type
       .ok words
+
+def crosscallReturnWordTypes (module : Module) (context : String) (returnType : ValueType) : Except LowerError (Array ValueType) := do
+  if isCrosscallWordType returnType then
+    .ok #[returnType]
+  else
+    abiValueWordTypes module context returnType
 
 def abiValueParamNames
     (module : Module)
@@ -1453,6 +1480,8 @@ mutual
           callArgs := callArgs.push (← lowerExpr module env arg)
         .ok (Lean.Compiler.Yul.call (← crosscallFunctionName args.size .u64) callArgs)
     | .crosscallInvokeTyped target methodId args returnType => do
+        if !isCrosscallWordType returnType then
+          .error { message := s!"typed aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
         let mut callArgs := #[
           ← lowerExpr module env target,
           ← lowerExpr module env methodId
@@ -3049,31 +3078,60 @@ structure CrosscallHelperSpec where
   mode : CrosscallMode := .call
   deriving BEq, Repr
 
-def crosscallReturnGuardStatements (returnType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
+def crosscallReturnGuardStatementsForName (resultName : String) (returnType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
   match returnType with
   | .u32 =>
       .ok #[
         .ifStmt
-          (Lean.Compiler.Yul.builtin "gt" #[Lean.Compiler.Yul.Expr.id "result", Lean.Compiler.Yul.Expr.num maxU32])
+          (Lean.Compiler.Yul.builtin "gt" #[Lean.Compiler.Yul.Expr.id resultName, Lean.Compiler.Yul.Expr.num maxU32])
           { statements := #[revertStmt] }
       ]
   | .bool =>
       .ok #[
         .ifStmt
-          (Lean.Compiler.Yul.builtin "gt" #[Lean.Compiler.Yul.Expr.id "result", Lean.Compiler.Yul.Expr.num 1])
+          (Lean.Compiler.Yul.builtin "gt" #[Lean.Compiler.Yul.Expr.id resultName, Lean.Compiler.Yul.Expr.num 1])
           { statements := #[revertStmt] }
       ]
   | .u64 | .hash => .ok #[]
   | .unit | .fixedArray _ _ | .structType _ =>
       .error { message := "crosscall return type must be U32, U64, Bool, or Hash in IR EVM v0" }
 
-def crosscallHelperFunction (spec : CrosscallHelperSpec) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let functionName ←
+def crosscallReturnGuardStatements (returnType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
+  match returnType with
+  | .u32 => crosscallReturnGuardStatementsForName "result" .u32
+  | .bool => crosscallReturnGuardStatementsForName "result" .bool
+  | .u64 | .hash => .ok #[]
+  | .unit | .fixedArray _ _ | .structType _ =>
+      .error { message := "crosscall return type must be U32, U64, Bool, or Hash in IR EVM v0" }
+
+def crosscallHelperReturnNames (wordCount : Nat) : Array Lean.Compiler.Yul.TypedName :=
+  if wordCount == 1 then
+    #[{ name := "result" }]
+  else
+    Id.run do
+      let mut names : Array Lean.Compiler.Yul.TypedName := #[]
+      for _h : idx in [0:wordCount] do
+        names := names.push ({ name := s!"result{idx}" } : Lean.Compiler.Yul.TypedName)
+      names
+
+def crosscallHelperReturnNameStrings (wordCount : Nat) : Array String :=
+  (crosscallHelperReturnNames wordCount).map fun name => name.name
+
+def crosscallHelperFunction (module : Module) (spec : CrosscallHelperSpec) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let wordTypes ←
     match spec.mode with
-    | .call => crosscallFunctionName spec.arity spec.returnType
-    | .callValue => crosscallValueFunctionName spec.arity spec.returnType
-    | .staticcall => crosscallStaticFunctionName spec.arity spec.returnType
-    | .delegatecall => crosscallDelegateFunctionName spec.arity spec.returnType
+    | .call => crosscallReturnWordTypes module "typed crosscall return" spec.returnType
+    | .callValue | .staticcall | .delegatecall => do
+        ensureCrosscallWordType "typed crosscall return" spec.returnType
+        .ok #[spec.returnType]
+  let functionName ←
+    match spec.mode, isCrosscallWordType spec.returnType with
+    | .call, true => crosscallFunctionName spec.arity spec.returnType
+    | .call, false => crosscallAggregateFunctionName spec.arity wordTypes
+    | .callValue, _ => crosscallValueFunctionName spec.arity spec.returnType
+    | .staticcall, _ => crosscallStaticFunctionName spec.arity spec.returnType
+    | .delegatecall, _ => crosscallDelegateFunctionName spec.arity spec.returnType
+  let outputSize := wordTypes.size * 32
   let callValue :=
     if spec.mode.forwardsValue then
       Lean.Compiler.Yul.Expr.id crosscallCallValueName
@@ -3089,7 +3147,7 @@ def crosscallHelperFunction (spec : CrosscallHelperSpec) : Except LowerError Lea
           Lean.Compiler.Yul.Expr.num 0,
           Lean.Compiler.Yul.Expr.num (crosscallCalldataSize spec.arity),
           Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num 32
+          Lean.Compiler.Yul.Expr.num outputSize
         ]
     | .staticcall =>
         Lean.Compiler.Yul.builtin "staticcall" #[
@@ -3098,7 +3156,7 @@ def crosscallHelperFunction (spec : CrosscallHelperSpec) : Except LowerError Lea
           Lean.Compiler.Yul.Expr.num 0,
           Lean.Compiler.Yul.Expr.num (crosscallCalldataSize spec.arity),
           Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num 32
+          Lean.Compiler.Yul.Expr.num outputSize
         ]
     | .delegatecall =>
         Lean.Compiler.Yul.builtin "delegatecall" #[
@@ -3107,11 +3165,20 @@ def crosscallHelperFunction (spec : CrosscallHelperSpec) : Except LowerError Lea
           Lean.Compiler.Yul.Expr.num 0,
           Lean.Compiler.Yul.Expr.num (crosscallCalldataSize spec.arity),
           Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num 32
+          Lean.Compiler.Yul.Expr.num outputSize
         ]
+  let returnNameStrings := crosscallHelperReturnNameStrings wordTypes.size
+  let mut copyAssignments : Array Lean.Compiler.Yul.Statement := #[]
+  for h : idx in [0:wordTypes.size] do
+    copyAssignments := copyAssignments.push <|
+      .assignment #[returnNameStrings[idx]!]
+        (Lean.Compiler.Yul.builtin "mload" #[Lean.Compiler.Yul.Expr.num (idx * 32)])
+  let mut guardStatements : Array Lean.Compiler.Yul.Statement := #[]
+  for h : idx in [0:wordTypes.size] do
+    guardStatements := guardStatements ++ (← crosscallReturnGuardStatementsForName returnNameStrings[idx]! wordTypes[idx])
   .ok <| .funcDef functionName
     (crosscallFunctionParams spec.arity spec.mode)
-    #[{ name := "result" }]
+    (crosscallHelperReturnNames wordTypes.size)
     {
       statements :=
         #[
@@ -3132,17 +3199,17 @@ def crosscallHelperFunction (spec : CrosscallHelperSpec) : Except LowerError Lea
           .ifStmt
             (Lean.Compiler.Yul.builtin "lt" #[
               Lean.Compiler.Yul.builtin "returndatasize" #[],
-              Lean.Compiler.Yul.Expr.num 32
+              Lean.Compiler.Yul.Expr.num outputSize
             ])
             { statements := #[revertStmt] },
           .exprStmt (Lean.Compiler.Yul.builtin "returndatacopy" #[
             Lean.Compiler.Yul.Expr.num 0,
             Lean.Compiler.Yul.Expr.num 0,
-            Lean.Compiler.Yul.Expr.num 32
-          ]),
-          .assignment #["result"] (Lean.Compiler.Yul.builtin "mload" #[Lean.Compiler.Yul.Expr.num 0])
+            Lean.Compiler.Yul.Expr.num outputSize
+          ])
         ] ++
-        (← crosscallReturnGuardStatements spec.returnType)
+        copyAssignments ++
+        guardStatements
     }
 
 def pushNatIfMissing (acc : Array Nat) (value : Nat) : Array Nat :=
@@ -3284,8 +3351,8 @@ def moduleCrosscallHelperSpecs (module : Module) : Array CrosscallHelperSpec :=
   module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
     mergeCrosscallHelperSpecs acc (crosscallHelperSpecsStatements entrypoint.body)
 
-def crosscallHelperFunctions (specs : Array CrosscallHelperSpec) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
-  specs.mapM crosscallHelperFunction
+def crosscallHelperFunctions (module : Module) (specs : Array CrosscallHelperSpec) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
+  specs.mapM (crosscallHelperFunction module)
 
 def localArrayGetLengthsForDynamicExprTarget
     (env : TypeEnv)
@@ -3551,7 +3618,7 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
   let helpers := helpers ++ (if moduleUsesSupportedArray module then arrayHelperFunctions else #[])
   let helpers := helpers ++ (if moduleUsesSupportedStructArray module then structArrayHelperFunctions else #[])
   let helpers := helpers ++ (if moduleUsesHash module then hashHelperFunctions else #[])
-  let helpers := helpers ++ (← crosscallHelperFunctions (moduleCrosscallHelperSpecs module))
+  let helpers := helpers ++ (← crosscallHelperFunctions module (moduleCrosscallHelperSpecs module))
   let helpers := helpers ++ localArrayGetHelperFunctions (← moduleLocalArrayGetLengths module)
   .ok {
     name := module.name
