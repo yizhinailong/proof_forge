@@ -363,6 +363,8 @@ def arrPtrGlobal     : String := "arr_ptr"
 def arrAllocName     : String := "__pf_arr_alloc"
 def arrayLitName (elemType : ValueType) (len : Nat) : String :=
   "__pf_arr_lit_" ++ typeSuffix elemType ++ "_" ++ toString len
+def arrEqName (elemType : ValueType) (len : Nat) : String :=
+  "__pf_arr_eq_" ++ typeSuffix elemType ++ "_" ++ toString len
 def arrPtrGlobalDecl : Global :=
   { name := arrPtrGlobal, type := .i32, init := toString ARR_HEAP, isMutable := true }
 def arrAllocFunc : Func :=
@@ -743,7 +745,12 @@ mutual
     if ta != tb then err s!"EmitWat: `{op}` expected matching operand types, got `{ta.name}`/`{tb.name}`"
     else if ta == .hash && op == "eq" then .ok (la ++ lb ++ #[.call hashEqName], .bool)
     else if ta == .hash && op == "ne" then .ok (la ++ lb ++ #[.call hashEqName, .plain "i32.eqz"], .bool)
-    else .ok (la ++ lb ++ #[.plain (widthOf ta ++ "." ++ op)], .bool)
+    else match ta with
+      | .fixedArray elemType len =>
+        if op == "eq" then .ok (la ++ lb ++ #[.call (arrEqName elemType len)], .bool)
+        else if op == "ne" then .ok (la ++ lb ++ #[.call (arrEqName elemType len), .plain "i32.eqz"], .bool)
+        else err s!"EmitWat: `{op}` not supported on array values"
+      | _ => .ok (la ++ lb ++ #[.plain (widthOf ta ++ "." ++ op)], .bool)
 
   partial def lowerBoolBin (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
       : Except EmitError (Array Insn × ValueType) := do
@@ -886,6 +893,28 @@ def arrLitFunc (elemType : ValueType) (len : Nat) : Func :=
       ]).flatten ++ #[.localGet "p"] } }
 def arrLitHelperFuncs (mod : ProofForge.IR.Module) : Array Func :=
   moduleArrayLits mod |>.map (fun (e, n) => arrLitFunc e n)
+/-- `__pf_arr_eq_<elem>_<len>(pa, pb) -> i32`: element-wise equality.
+    Returns 1 if all len elements match, 0 on first mismatch. -/
+def arrEqFunc (elemType : ValueType) (len : Nat) : Func :=
+  let w   := scalarWidth elemType
+  let lop := loadOpFor elemType
+  let neq := if elemType == .u64 then "i64.ne" else "i32.ne"
+  { name := arrEqName elemType len,
+    params := #[{ name := "pa", type := .i32 }, { name := "pb", type := .i32 }],
+    results := #[.i32],
+    locals := #[{ name := "eq", type := .i32 }, { name := "i", type := .i32 }],
+    body := { insns := #[.i32Const 1, .localSet "eq",
+      .block_ { insns := #[ .loop_ { insns := #[
+        .localGet "i", .i32Const len, .plain "i32.ge_u", .brIf 1,
+        .localGet "pa", .localGet "i", .i32Const w, .plain "i32.mul", .plain "i32.add", .load lop 0,
+        .localGet "pb", .localGet "i", .i32Const w, .plain "i32.mul", .plain "i32.add", .load lop 0,
+        .plain neq,
+        .if_ { insns := #[.i32Const 0, .localSet "eq", .br 2] } { insns := #[] },
+        .localGet "i", .i32Const 1, .plain "i32.add", .localSet "i", .br 0
+      ] } ] },
+      .localGet "eq"] } }
+def arrEqHelperFuncs (mod : ProofForge.IR.Module) : Array Func :=
+  moduleArrayLits mod |>.map (fun (e, n) => arrEqFunc e n)
 
 partial def collectLocalsFrom (acc : LocalTypes) (s : Statement) : Except EmitError LocalTypes := do
   match s with
@@ -996,7 +1025,10 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     let (lb, tb) ← lowerExpr ctx env b
     if ta != tb then err "EmitWat: assertEq operands must share a type"
     else
-      let eqInsn := if ta == .hash then #[.call hashEqName] else #[.plain (widthOf ta ++ ".eq")]
+      let eqInsn := match ta with
+        | .hash => #[.call hashEqName]
+        | .fixedArray elemType len => #[.call (arrEqName elemType len)]
+        | _ => #[.plain (widthOf ta ++ ".eq")]
       .ok (la ++ lb ++ eqInsn ++ #[.plain "i32.eqz",
                             .if_ { insns := #[.unreachable] } { insns := #[] }])
   | .return e => lowerReturn ctx env returns e
@@ -1060,7 +1092,7 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let stringData := strs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
   let baseImports := nearImports.push sha256Import |>.push logUtf8Import |>.push inputImport
   let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport])
-  let arrFuncs := arrLitHelperFuncs mod ++ #[arrAllocFunc]
+  let arrFuncs := arrLitHelperFuncs mod ++ arrEqHelperFuncs mod ++ #[arrAllocFunc]
   let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ (if maps.any (fun m => m.keyType == .hash) then mapHashHelperFuncs else #[]) ++ arrFuncs ++ entryFuncs
   let globals := #[hashPtrGlobalDecl] ++ evtGlobals ++ #[arrPtrGlobalDecl]
   .ok { imports := imports, globals := globals, funcs := funcs,
