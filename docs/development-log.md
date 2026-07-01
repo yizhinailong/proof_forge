@@ -17,6 +17,40 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Local Fixed-Array Values
+
+Commit: feature commit for EVM IR local fixed-array values
+
+Summary:
+
+- Added EVM portable IR lowering for immutable local fixed-array values by
+  expanding each array element into an internal Yul local.
+- Added static `arrayGet` lowering for local fixed-array values and direct
+  fixed-array literals over `U64`, `U32`, `Bool`, and `Hash` elements.
+- Added explicit diagnostics for mutable fixed-array locals, dynamic local
+  fixed-array indexes, and static out-of-bounds indexes.
+- Added `ProofForge.IR.Examples.EvmArrayValueProbe`, CLI emission modes,
+  golden Yul, Foundry smoke coverage, artifact metadata validation, and CI.
+
+Validation run:
+
+```sh
+lake build proof-forge
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- This feature supports immutable local fixed-array values with static indexes.
+  Dynamic local indexes, mutable local arrays, nested arrays, aggregate ABI
+  arrays, and storage arrays beyond the existing `U64` path remain future work.
+
+Next step:
+
+- Continue EVM aggregate coverage toward structs or ABI aggregate values, using
+  the same fixture/golden/smoke/metadata pattern.
+
 ### EVM IR Array Index Storage Paths
 
 Commit: feature commit for EVM IR array index storage paths

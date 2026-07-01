@@ -152,6 +152,12 @@ Tasks:
 - Done: add EVM IR single-segment `index` storage path read/write/compound
   assignment over `U64` fixed storage arrays, reusing the bounded array slot
   helper and extending `EvmStorageArrayProbe` validation.
+- Done: add EVM IR immutable local fixed-array value lowering for `U64`,
+  `U32`, `Bool`, and `Hash` elements with static literal indexes, direct
+  fixed-array literal indexing, `EvmArrayValueProbe` golden Yul, solc
+  bytecode, Foundry runtime validation, metadata capability validation, and
+  explicit diagnostics for mutable fixed-array locals, dynamic local indexes,
+  and static out-of-bounds indexes.
 - Add golden Yul outputs for simple examples.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.

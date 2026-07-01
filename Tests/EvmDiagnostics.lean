@@ -141,9 +141,30 @@ def selectedArrayModule (name : String) (entrypoint : Entrypoint) : Module := {
   entrypoints := #[entrypoint]
 }
 
-def fixedArrayModule : Module :=
-  selectedModule "BadFixedArray" <| selectedEntrypoint "bad" #[
-    .letBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)])
+def mutableFixedArrayModule : Module :=
+  selectedModule "BadMutableFixedArray" <| selectedEntrypoint "bad" #[
+    .letMutBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)])
+  ]
+
+def fixedArrayDynamicIndexModule : Module := {
+  name := "BadFixedArrayDynamicIndex"
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    selector? := some "deadbeef"
+    params := #[("index", .u64)]
+    returns := .u64
+    body := #[
+      .letBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]),
+      .return (.arrayGet (.local "xs") (.local "index"))
+    ]
+  }]
+}
+
+def fixedArrayOutOfBoundsModule : Module :=
+  selectedModule "BadFixedArrayOutOfBounds" <| selectedReturnEntrypoint "bad" .u64 #[
+    .letBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]),
+    .return (.arrayGet (.local "xs") (.literal (.u64 2)))
   ]
 
 def pointStruct : StructDecl := {
@@ -353,9 +374,19 @@ def cases : Array (String × Module × String) := #[
     "array state `flags` has unsupported EVM IR v0 element type `Bool`; only U64 storage arrays are supported"
   ),
   (
-    "fixed array local unsupported",
-    fixedArrayModule,
-    "let binding `xs` has unsupported EVM IR v0 type `Array<U64,2>`"
+    "mutable fixed array local unsupported",
+    mutableFixedArrayModule,
+    "mutable let binding `xs` has unsupported EVM IR v0 type `Array<U64,2>`"
+  ),
+  (
+    "fixed array dynamic local index unsupported",
+    fixedArrayDynamicIndexModule,
+    "fixed array indexing in IR EVM v0 requires a U32/U64 literal index for local fixed-array values"
+  ),
+  (
+    "fixed array literal out of bounds",
+    fixedArrayOutOfBoundsModule,
+    "fixed array index 2 is out of bounds for length 2"
   ),
   (
     "struct capability unsupported",

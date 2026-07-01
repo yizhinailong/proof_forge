@@ -256,6 +256,28 @@ def ensureArrayIndexType (context : String) (type : ValueType) : Except LowerErr
   | .u32 | .u64 => .ok ()
   | _ => .error { message := s!"{context} expected U32 or U64 index, got `{type.name}`" }
 
+def literalArrayIndex? : ProofForge.IR.Expr → Option Nat
+  | .literal (.u32 value) => some value
+  | .literal (.u64 value) => some value
+  | _ => none
+
+def requireStaticArrayIndex (context : String) (index : ProofForge.IR.Expr) : Except LowerError Nat :=
+  match literalArrayIndex? index with
+  | some value => .ok value
+  | none =>
+      .error {
+        message := s!"{context} in IR EVM v0 requires a U32/U64 literal index for local fixed-array values"
+      }
+
+def ensureFixedArrayIndexInBounds (context : String) (index length : Nat) : Except LowerError Unit :=
+  if index < length then
+    .ok ()
+  else
+    .error { message := s!"{context} {index} is out of bounds for length {length}" }
+
+def arrayLocalElementName (name : String) (index : Nat) : String :=
+  s!"__proof_forge_array_{name}_{index}"
+
 def assignOpDiagnosticName : AssignOp → String
   | .add => "addition"
   | .sub => "subtraction"
@@ -349,7 +371,12 @@ mutual
     | .arrayGet array index => do
         ensureArrayIndexType "fixed array index" (← inferExprType module env index)
         match ← inferExprType module env array with
-        | .fixedArray elementType _ => .ok elementType
+        | .fixedArray elementType length => do
+            match literalArrayIndex? index with
+            | some indexValue =>
+                ensureFixedArrayIndexInBounds "fixed array index" indexValue length
+            | none => pure ()
+            .ok elementType
         | other => .error { message := s!"fixed array indexing target expected `Array`, got `{other.name}`" }
     | .structLit typeName _ => .ok (.structType typeName)
     | .field _ _ => .error { message := "struct field access is not supported by IR EVM v0" }
@@ -657,6 +684,23 @@ mutual
         | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.read" }
     | _ => .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
 
+  partial def lowerLocalFixedArrayGetExpr
+      (module : Module)
+      (array index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let indexValue ← requireStaticArrayIndex "fixed array indexing" index
+    match array with
+    | .local name =>
+        .ok (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name indexValue))
+    | .arrayLit _ values =>
+        if h : indexValue < values.size then
+          lowerExpr module values[indexValue]
+        else
+          .error { message := s!"fixed array literal index {indexValue} is out of bounds for length {values.size}" }
+    | _ =>
+        .error {
+          message := "fixed array indexing in IR EVM v0 supports local fixed-array values or array literals only"
+        }
+
   partial def lowerExpr (module : Module) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
     | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.u64 value) => .ok (Lean.Compiler.Yul.Expr.num value)
@@ -665,9 +709,9 @@ mutual
         .ok (Lean.Compiler.Yul.Expr.num (← packedHashLiteral a b c d))
     | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
     | .arrayLit _ _ =>
-        .error { message := "fixed array literals are not supported by IR EVM v0" }
-    | .arrayGet _ _ =>
-        .error { message := "fixed array indexing is not supported by IR EVM v0" }
+        .error { message := "fixed array literals must be consumed by a fixed array local binding or literal index in IR EVM v0" }
+    | .arrayGet array index =>
+        lowerLocalFixedArrayGetExpr module array index
     | .structLit _ _ =>
         .error { message := "struct literals are not supported by IR EVM v0" }
     | .field _ _ =>
@@ -898,6 +942,42 @@ def ensureLocalScalarType (context name : String) (type : ValueType) : Except Lo
   | .fixedArray _ _ => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `{type.name}`" }
   | .structType _ => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `{type.name}`" }
 
+def ensureLocalFixedArrayElementType (context name : String) (type : ValueType) : Except LowerError Unit :=
+  match type with
+  | .u32 | .u64 | .bool | .hash => .ok ()
+  | .unit | .fixedArray _ _ | .structType _ =>
+      .error {
+        message := s!"{context} `{name}` has unsupported EVM IR v0 fixed-array element type `{type.name}`; local fixed arrays support U32, U64, Bool, or Hash elements"
+      }
+
+def lowerFixedArrayLetBinding
+    (module : Module)
+    (name : String)
+    (elementType : ValueType)
+    (length : Nat)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  if length == 0 then
+    .error { message := s!"let binding `{name}` fixed array must have non-zero length in IR EVM v0" }
+  ensureLocalFixedArrayElementType "let binding" name elementType
+  match value with
+  | .arrayLit literalElementType values => do
+      ensureType s!"let binding `{name}` fixed-array element type" elementType literalElementType
+      if values.size != length then
+        .error {
+          message := s!"let binding `{name}` expected fixed array length {length}, got {values.size}"
+        }
+      let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+      for h : index in [0:values.size] do
+        statements := statements.push <|
+          Lean.Compiler.Yul.Statement.varDecl
+            #[{ name := arrayLocalElementName name index }]
+            (some (← lowerExpr module values[index]))
+      .ok statements
+  | _ =>
+      .error {
+        message := s!"let binding `{name}` fixed array must be initialized from an array literal in IR EVM v0"
+      }
+
 partial def hasNestedReturn (statements : Array Statement) : Bool :=
   statements.any fun stmt =>
     match stmt with
@@ -909,36 +989,38 @@ partial def hasNestedReturn (statements : Array Statement) : Bool :=
 mutual
   partial def lowerStatements (module : Module) (statements : Array Statement) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
     statements.foldlM (init := #[]) fun acc stmt => do
-      .ok (acc.push (← lowerStatement module stmt))
+      .ok (acc ++ (← lowerStatement module stmt))
 
-  partial def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError Lean.Compiler.Yul.Statement
+  partial def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError (Array Lean.Compiler.Yul.Statement)
+    | .letBind name (.fixedArray elementType length) value =>
+        lowerFixedArrayLetBinding module name elementType length value
     | .letBind name type value => do
         ensureLocalScalarType "let binding" name type
-        .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
+        .ok #[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value))]
     | .letMutBind name type value => do
         ensureLocalScalarType "mutable let binding" name type
-        .ok (.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value)))
+        .ok #[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value))]
     | .assign (.local name) value => do
-        .ok (.assignment #[name] (← lowerExpr module value))
+        .ok #[.assignment #[name] (← lowerExpr module value)]
     | .assign _ _ =>
         .error { message := "assignment target must be a local in IR EVM v0" }
     | .assignOp (.local name) op value => do
-        .ok (.assignment #[name] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id name) (← lowerExpr module value)))
+        .ok #[.assignment #[name] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id name) (← lowerExpr module value))]
     | .assignOp _ _ _ =>
         .error { message := "compound assignment target must be a local in IR EVM v0" }
-    | .effect effect =>
-        lowerEffectStmt module effect
+    | .effect effect => do
+        .ok #[← lowerEffectStmt module effect]
     | .assert condition _ => do
-        .ok (lowerAssertStmt (← lowerExpr module condition))
+        .ok #[lowerAssertStmt (← lowerExpr module condition)]
     | .assertEq lhs rhs _ => do
         let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs]
-        .ok (lowerAssertStmt condition)
+        .ok #[lowerAssertStmt condition]
     | .ifElse condition thenBody elseBody => do
         if hasNestedReturn thenBody || hasNestedReturn elseBody then
           .error { message := "return statements inside if/else branches are not supported by IR EVM v0; return must be the final entrypoint statement" }
         let thenStatements ← lowerStatements module thenBody
         let elseStatements ← lowerStatements module elseBody
-        .ok (.switchStmt (← lowerExpr module condition) #[
+        .ok #[.switchStmt (← lowerExpr module condition) #[
           {
             value := some (Lean.Compiler.Yul.Literal.natLit 0)
             body := { statements := elseStatements }
@@ -947,14 +1029,14 @@ mutual
             value := none
             body := { statements := thenStatements }
           }
-        ])
+        ]]
     | .boundedFor indexName start stopExclusive body => do
         if stopExclusive <= start then
           .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
         if hasNestedReturn body then
           .error { message := "return statements inside bounded for loops are not supported by IR EVM v0; return must be the final entrypoint statement" }
         let bodyStatements ← lowerStatements module body
-        .ok (.forLoop
+        .ok #[.forLoop
           { statements := #[
             .varDecl #[{ name := indexName }] (some (Lean.Compiler.Yul.Expr.num start))
           ] }
@@ -962,9 +1044,9 @@ mutual
           { statements := #[
             .assignment #[indexName] (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id indexName, Lean.Compiler.Yul.Expr.num 1])
           ] }
-          { statements := bodyStatements })
+          { statements := bodyStatements }]
     | .return value => do
-        .ok (.assignment #["result"] (← lowerExpr module value))
+        .ok #[.assignment #["result"] (← lowerExpr module value)]
 end
 
 def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do

@@ -42,6 +42,8 @@ scripts/evm/event-ir-smoke.sh
 scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/array-value-ir-smoke.sh
 ```
 
 ## CLI 模式
@@ -87,6 +89,8 @@ proof-forge --emit-evm-map-ir-yul [-o output.yul]
 proof-forge --emit-evm-map-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-storage-array-ir-yul [-o output.yul]
 proof-forge --emit-evm-storage-array-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-array-value-ir-yul [-o output.yul]
+proof-forge --emit-evm-array-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
 
 `--bytecode` 是 `--evm-bytecode` 的别名。
@@ -133,7 +137,7 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 | `storage.scalar` | `Storage.load`, `Storage.store`；portable IR 标量 storage read/write 和标量 storage 复合赋值 |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`；portable IR `Map<U64, U64, N>` get/set/insert 和单段 map storage path |
 | `storage.array` | 部分支持：portable IR `U64` 固定 storage array 降为连续 EVM storage slot，并带运行时 index bounds check |
-| `data.fixed_array` | 部分支持：用于 portable IR 固定 storage array 和单段 index storage path；local fixed-array value 和 ABI array 仍会显式拒绝 |
+| `data.fixed_array` | 部分支持：用于 portable IR 固定 storage array、单段 index storage path、不可变 local fixed-array value、fixed-array literal，以及静态 local/literal index read；mutable local array、动态 local index、嵌套 array 和 ABI array 仍会显式拒绝 |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -172,8 +176,8 @@ EVM 不支持（设计上针对其他目标）：
 
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
-- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、context read、event、`Hash` word 值与 hashing、`Map<U64, U64, N>` storage、`U64` 固定 storage array，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
-- Portable IR EVM 目前仍缺少聚合 ABI 值、非 `U64` map 形态、非 `U64` storage array、local fixed-array value、struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据和目标专属 deploy manifest。
+- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、context read、event、`Hash` word 值与 hashing、`Map<U64, U64, N>` storage、`U64` 固定 storage array、带静态 index 的不可变 local fixed-array value，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
+- Portable IR EVM 目前仍缺少聚合 ABI 值、非 `U64` map 形态、非 `U64` storage array、动态 local fixed-array index、mutable local fixed array、嵌套 array、struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据和目标专属 deploy manifest。
 - `storage.map.contains` 仍被显式拒绝，因为 EVM mapping 在没有辅助 bitmap 的情况下不跟踪 key presence。
 
 ## Portable IR 门禁
@@ -221,6 +225,8 @@ scripts/evm/ir-counter-smoke.sh
 `EvmMapProbe` 验证 portable IR `Map<U64, U64, N>` storage 使用与 SDK 一致的 Solidity-style slot layout：先把 `key` 和 `slot` 作为两个 32-byte word 写入内存，再计算 `keccak256(key || slot)`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.map`、`assertions.check`）、ABI get/set/insert 行为、单段 `mapKey` storage path 的 read、write 和复合赋值、Foundry `vm.load` 原始 storage slot，以及未知 selector revert。EVM IR v0 会把 storage path 复合赋值限制在 `Map<U64, U64, N>` 上，直到 array 和 struct storage layout 落地。
 
 `EvmStorageArrayProbe` 验证 portable IR `U64` 固定 storage array 会降为连续的 EVM storage slot。Array state 会占用 `length` 个 slot，因此定义在 array 后面的 state 会从整个 array span 之后开始。直接 `storageArrayRead`/`storageArrayWrite` effect 和单段 `index` storage path 都会通过 `__proof_forge_array_slot(base, length, index)`，在 `sload` 或 `sstore` 前对越界 index revert。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.array`、`data.fixed_array`）、ABI read/write selector、generic path read/write 和复合赋值、Foundry 原始 slot layout、越界 revert，以及未知 selector revert。
+
+`EvmArrayValueProbe` 验证 portable IR local fixed-array value。不可变 local fixed-array binding 会展开为每个元素一个内部 Yul local；对 local array 或 array literal 的 `arrayGet` 目前要求静态 `U32`/`U64` literal index。对应 smoke 覆盖 `U64`、`U32`、`Bool` 和 `Hash` 元素 array、golden Yul 可复现、`solc --strict-assembly`、artifact metadata、Foundry 运行时调用，以及未知 selector revert。
 
 ## 元数据
 
