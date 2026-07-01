@@ -97,6 +97,30 @@ The following gates are `Planned` and do not exist in CI or as scripts:
     `target: "solana-sbpf-asm"`, `irVersion`, and entrypoint list.
   - **V-GATE-SOLANA-07** — `sbpf debug --elf --input` works interactively
     (developer ergonomics gate — not CI).
+  - **V-GATE-SOLANA-08** — Control-flow + assertion IR coverage.
+    Two halves:
+      * Emission half (runnable, no `sbpf` required) —
+        `scripts/solana/emit-control-smoke.sh` runs `--emit-control-ir-sbpf`,
+        greps the emitted `.s` for the `control.conditional` / `control.assert`
+        / `control.assert_eq` markers, the `assert_fail` (exit 2) and
+        `assert_eq_fail` (exit 3) global labels, the dispatch lines for the
+        three entrypoints, the comparison instructions `jeq`/`jlt` driving
+        `r3` vs `r2`, asserts the asm is bit-for-bit reproducible across
+        re-emissions, and validates the artifact metadata records
+        `target: "solana-sbpf-asm"`, `fixture: "control-ir-sbpf"`,
+        `sourceModule: "ControlFlowAssertProbe"`, and the `storage.scalar` /
+        `control.conditional` / `assertions.check` / `account.explicit`
+        capabilities. (Emission half complete.)
+      * Runtime half (gated on `sbpf` + `cargo` + `solana-keygen`) —
+        `scripts/solana/control-smoke.sh` assembles the emitted `.s` via
+        `sbpf build` and runs the Mollusk test crate rendered from
+        `Tests/solana/control_mollusk.rs.tpl`. Six Mollusk checks cover
+        `lifecycle` from a zero and from a large pre-state (both land on 10u64
+        and return 10), `guarded_increment` from 3 (assert passes, count→4)
+        and from 9 (assert reverts via `assert_fail` exit 2), and
+        `equality_guard` from 7 (assertEq passes, count→7 and return 7) and
+        from 42 (assertEq reverts via `assert_eq_fail` exit 3).
+        (Runtime half pending toolchain availability; Phase 1 stable.)
 - Move smoke — `aptos move compile/test` or Sui Move validation.
 - Cross-target capability rejection matrix — compile-time diagnostics for
   unsupported capability/target combinations beyond the target-specific Psy and

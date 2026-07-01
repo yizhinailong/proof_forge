@@ -242,6 +242,20 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 
 参考：[solana-sbpf-asm 设计文档](targets/solana-sbpf-asm.md) 的 Phased Implementation Plan。
 
+### Phase 1 进度（增量子项）
+
+工作流 7 的 Phase 1 后端（`ProofForge.Backend.Solana.SbpfAsm`）以增量方式落地。每个子项都自带可运行的验证门禁，以便在全部验收标准闭合前可以看到部分进展：
+
+- [x] IR → sBPF AST → text pipeline；entrypoint adapter 按第一条 instruction-data byte 分派（V-GATE-SOLANA-01/02；Phase 0 基线）。
+- [x] Counter codegen（literal、local、`add`、标量 storage 读/写/`assignOp`、`letBind`/`letMutBind`、`assign`、`return`）；Mollusk 冒烟覆盖 initialize / increment 0→1 / increment 5→6 / get→return_data（V-GATE-SOLANA-03）。
+- [x] 控制流 + 断言覆盖：比较表达式（`.eq`/`.ne`/`.lt`/`.le`/`.gt`/`.ge`），布尔表达式（`.boolAnd`/`.boolOr`/`.boolNot`），语句级 `.ifElse` then/else 降级（使用 fresh 命名 label），以及 `.assert` 和 `.assertEq` 降级到共享的 `assert_fail`（exit 2）/ `assert_eq_fail`（exit 3）label。Fixture：`ProofForge.IR.Examples.ControlFlowAssertProbe`（三个 entrypoint：`lifecycle`、`guarded_increment`、`equality_guard`）；CLI 模式 `--emit-control-ir-sbpf`；确定性发射门禁 `scripts/solana/emit-control-smoke.sh`（不需要 `sbpf`）；Mollusk 运行时门禁 `scripts/solana/control-smoke.sh`（6 项断言：lifecycle x2、guarded_increment 成功 + assert revert、equality_guard 成功 + assertEq revert）（V-GATE-SOLANA-08）。
+- [ ] instruction manifest（`manifest.toml`）与 `.s` 一起生成。
+- [ ] `--solana-elf` CLI 模式：发射 `.s` 后调用 `sbpf build`。
+- [ ] account validation：按 manifest 检查 signer / writable / owner。
+- [ ] `Examples/Solana/Counter.lean` + manifest 作为自包含示例。
+- [ ] 能力检查器以清晰诊断拒绝不支持的能力/目标组合，诊断含 target id 和 capability id（V-GATE-SOLANA-05 的基础）。
+- [ ] 可选 `solana-test-validator --bpf-program` 冒烟（V-GATE-SOLANA-04，取决于工具是否可用）。
+
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）
 
 目标：避免将 Move 伪装成另一个 Lean 运行时目标。

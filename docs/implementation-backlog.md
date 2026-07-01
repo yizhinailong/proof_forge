@@ -528,6 +528,40 @@ in `ProofForge.Backend.Solana.Effect`, not the portable IR.
 Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md) § Phased
 Implementation Plan.
 
+### Phase 1 progress (incremental sub-items)
+
+The Workstream 7 Phase 1 backend (`ProofForge.Backend.Solana.SbpfAsm`) lands
+incrementally. Each sub-item carries its own runnable validation gate so
+partial progress is visible before the full acceptance criteria close:
+
+- [x] IR → sBPF AST → text pipeline; entrypoint adapter dispatches on the
+      first instruction-data byte (V-GATE-SOLANA-01/02; Phase 0 baseline).
+- [x] Counter codegen (literals, locals, `add`, scalar storage
+      read/write/`assignOp`, `letBind`/`letMutBind`, `assign`, `return`);
+      Mollusk smoke covers initialize / increment 0→1 / increment 5→6 /
+      get→return_data (V-GATE-SOLANA-03).
+- [x] Control-flow + assertion coverage: comparison expressions
+      (`.eq`/`.ne`/`.lt`/`.le`/`.gt`/`.ge`), boolean expressions
+      (`.boolAnd`/`.boolOr`/`.boolNot`), statement-level `.ifElse` then/else
+      lowering with fresh named labels, `.assert` and `.assertEq` lowering to
+      the shared `assert_fail` (exit 2) / `assert_eq_fail` (exit 3) labels.
+      Fixture: `ProofForge.IR.Examples.ControlFlowAssertProbe` (three
+      entrypoints: `lifecycle`, `guarded_increment`, `equality_guard`);
+      CLI mode `--emit-control-ir-sbpf`; deterministic emission gate
+      `scripts/solana/emit-control-smoke.sh` (no `sbpf` required); Mollusk
+      runtime gate `scripts/solana/control-smoke.sh` (six checks: lifecycle
+      x2, guarded_increment success + assert revert, equality_guard success
+      + assertEq revert) (V-GATE-SOLANA-08).
+- [ ] Instruction manifest (`manifest.toml`) generation alongside the `.s`.
+- [ ] `--solana-elf` CLI mode: emit `.s` then invoke `sbpf build`.
+- [ ] Account validation: signer / writable / owner checks per manifest.
+- [ ] `Examples/Solana/Counter.lean` + manifest as a self-contained example.
+- [ ] Capability checker rejects unsupported capability/target combinations
+      with a clear diagnostic citing target id and capability id (basis for
+      V-GATE-SOLANA-05).
+- [ ] Optional `solana-test-validator --bpf-program` smoke (V-GATE-SOLANA-04,
+      gated on tool availability).
+
 ## Workstream 8: Move Source Generation POC (Aptos first)
 
 Goal: avoid pretending Move is another Lean runtime target.

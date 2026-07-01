@@ -52,11 +52,14 @@
 - Solana sBPF assembly 门禁（目标 `solana-sbpf-asm`，D-026）。这些门禁会随工作流 6-7 落地变成可运行项；`sbpf` 工具链先在本地验证 build + disassemble round-trip + Counter 的 `sbpf test`：
   - **V-GATE-SOLANA-01** — `--emit-sbpf-asm` 产生可被 `sbpf build` 接受的有效 `.s`。脚本：`scripts/solana/emit-asm-smoke.sh`（可运行，Phase 0 完成）。
   - **V-GATE-SOLANA-02** — `sbpf build` 产生有效 ELF，且 `sbpf disassemble` 可以 round-trip。脚本：`scripts/solana/emit-asm-smoke.sh`（可运行，Phase 0 完成）。
-  - **V-GATE-SOLANA-03** — Counter 场景（initialize、increment、get）通过 `sbpf test` (Mollusk)。脚本：`scripts/solana/counter-smoke.sh`（计划中）。
+  - **V-GATE-SOLANA-03** — Counter 场景（initialize、increment、get）通过 `sbpf test` (Mollusk)。脚本：`scripts/solana/counter-smoke.sh`（Phase 1 完成；4 项 Mollusk 断言：initialize→0、increment 0→1、increment 5→6、get→return_data）。
   - **V-GATE-SOLANA-04** — Counter 场景通过 `solana-test-validator --bpf-program` 冒烟测试（可选，取决于 `solana-test-validator` 是否可用）。
   - **V-GATE-SOLANA-05** — 能力检查器以包含 target id 和 capability id 的清晰诊断拒绝不支持能力。
   - **V-GATE-SOLANA-06** — `proof-forge-artifact.json` 包含 `target: "solana-sbpf-asm"`、`irVersion` 和 entrypoint 列表。
   - **V-GATE-SOLANA-07** — `sbpf debug --elf --input` 可交互工作（开发者体验门禁，不进入 CI）。
+  - **V-GATE-SOLANA-08** — 控制流 + 断言 IR 覆盖。两半部分：
+      * 发射半部分（可运行，不需要 `sbpf`）：`scripts/solana/emit-control-smoke.sh` 运行 `--emit-control-ir-sbpf`，grep 生成的 `.s` 中 `control.conditional` / `control.assert` / `control.assert_eq` 标记、`assert_fail`（exit 2）与 `assert_eq_fail`（exit 3）全局 label、三个 entrypoint 的 dispatch 行、驱动 `r3` 与 `r2` 的 `jeq`/`jlt` 比较指令，判断汇编跨重发射逐字节可复现，并校验制品 metadata 记录 `target: "solana-sbpf-asm"`、`fixture: "control-ir-sbpf"`、`sourceModule: "ControlFlowAssertProbe"` 以及 `storage.scalar` / `control.conditional` / `assertions.check` / `account.explicit` 能力。（发射半部分完成）。
+      * 运行时半部分（依 `sbpf` + `cargo` + `solana-keygen`）：`scripts/solana/control-smoke.sh` 通过 `sbpf build` 汇编生成的 `.s` 并跑由 `Tests/solana/control_mollusk.rs.tpl` 渲染的 Mollusk 测试 crate。6 项 Mollusk 断言覆盖从零状态及非零 pre-state 调用 `lifecycle`（都落到 10u64 并返回 10）、从 3 调用 `guarded_increment`（`.assert` 通过、count→4）及从 9 调用（`.assert` 经 `assert_fail` exit 2 revert）、从 7 调用 `equality_guard`（`.assertEq` 通过、count→7 且返回 7）及从 42 调用（`.assertEq` 经 `assert_eq_fail` exit 3 revert）。（运行时半部分待工具链可用；Phase 1 稳定）。
 - Move 冒烟测试 — `aptos move compile/test` 或 Sui Move 验证。
 - 能力拒绝测试 — 针对不支持的能力/目标组合的编译时诊断。
 

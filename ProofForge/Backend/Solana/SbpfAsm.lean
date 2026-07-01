@@ -246,6 +246,7 @@ structure LowerCtx where
   locals : Array LocalSlot
   nextLocalOffset : Nat
   scratchOffset : Nat
+  nextLabel : Nat
   deriving Inhabited
 
 def LowerCtx.localOffset? (ctx : LowerCtx) (name : String) : Option Nat :=
@@ -261,6 +262,12 @@ def LowerCtx.addLocal (ctx : LowerCtx) (name : String) : LowerCtx :=
 def LowerCtx.stateAbsOff? (ctx : LowerCtx) (id : String) : Option Nat :=
   ctx.stateFieldOffsets.find? (fun p => p.fst == id) |>.map fun p => p.snd
 
+/-- Mint a fresh local label name and a context with the label counter bumped.
+Used by nested control flow and boolean expressions so labels stay unique
+across an entire entrypoint lowering. -/
+def LowerCtx.freshLabel (ctx : LowerCtx) : String × LowerCtx :=
+  (s!"sol_lbl_{ctx.nextLabel}", { ctx with nextLabel := ctx.nextLabel + 1 })
+
 def buildCtx (module : Module) : Except LowerError LowerCtx := do
   let dataSize := moduleDataSize module
   let (acctDataOff, _) := computeSingleAccountLayout dataSize
@@ -269,7 +276,7 @@ def buildCtx (module : Module) : Except LowerError LowerCtx := do
   for state in module.state do
     stateOffsets := stateOffsets.push (state.id, acctDataOff + fieldOff)
     fieldOff := fieldOff + 8
-  return { stateFieldOffsets := stateOffsets, locals := #[], nextLocalOffset := 8, scratchOffset := 8 }
+  return { stateFieldOffsets := stateOffsets, locals := #[], nextLocalOffset := 8, scratchOffset := 8, nextLabel := 0 }
 
 -- ============================================================================
 -- IR expression → AST nodes (result in r2, r3 as scratch)
@@ -279,7 +286,9 @@ def buildCtx (module : Module) : Except LowerError LowerCtx := do
 def res (opcode : Opcode) (src : Option Reg := none) (off : Option MemOff := none) (imm : Option Imm := none) : Inst :=
   { opcode, dst := some .r2, src, off, imm }
 
-/-- Combine already-lowered LHS/RHS nodes for a binary ALU op. -/
+/-- Combine already-lowered LHS/RHS nodes for a binary ALU op.
+The result lands in r2. LHS is stashed to the scratch slot, RHS is evaluated
+into r2, then LHS is reloaded into r3 and `op r2, r3` is applied. -/
 def lowerBinaryCombine (lhsNodes rhsNodes : Array AstNode) (op : Opcode) (scratchOffset : Nat) : Array AstNode :=
   lhsNodes ++ #[
     .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratchOffset), src := some .r2 }
@@ -288,37 +297,97 @@ def lowerBinaryCombine (lhsNodes rhsNodes : Array AstNode) (op : Opcode) (scratc
     .instruction { opcode := op, dst := some .r2, src := some .r3 }
   ]
 
-partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Array AstNode) :=
+/-- Combine already-lowered LHS/RHS nodes for an unsigned comparison that
+returns a boolean 0/1 in r2 (and leaves the boolean in r4 before the final
+mov). `condJmp` is `jeq/jne/jlt/jle/jgt/jge`; it jumps to `trueLabel` when
+the comparison holds. -/
+def lowerCmpCombine (lhsNodes rhsNodes : Array AstNode) (condJmp : Opcode) (trueLabel endLabel : String) (scratchOffset : Nat) : Array AstNode :=
+  lhsNodes ++ #[
+    .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratchOffset), src := some .r2 }
+  ] ++ rhsNodes ++ #[
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num scratchOffset) },
+    .instruction { opcode := .mov64, dst := some .r4, imm := some (.num 0) },
+    .instruction { opcode := condJmp, dst := some .r3, src := some .r2, off := some (.sym trueLabel) },
+    .instruction { opcode := .ja, off := some (.sym endLabel) },
+    .label trueLabel,
+    .instruction { opcode := .mov64, dst := some .r4, imm := some (.num 1) },
+    .label endLabel,
+    .instruction { opcode := .mov64, dst := some .r2, src := some .r4 }
+  ]
+
+/-- `lowerExpr` lowers an IR expr into AST nodes that compute the value in r2
+and thread the lowering context so nested comparisons can mint fresh labels. -/
+partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Array AstNode × LowerCtx) :=
   match expr with
   | .literal (.u64 n) =>
-    .ok #[ .instruction (res .mov64 (imm := some (.num n))) ]
+    .ok (#[ .instruction (res .mov64 (imm := some (.num n))) ], ctx)
   | .literal (.u32 n) =>
-    .ok #[ .instruction (res .mov32 (imm := some (.num n))) ]
+    .ok (#[ .instruction (res .mov32 (imm := some (.num n))) ], ctx)
   | .literal (.bool true) =>
-    .ok #[ .instruction (res .mov64 (imm := some (.num 1))) ]
+    .ok (#[ .instruction (res .mov64 (imm := some (.num 1))) ], ctx)
   | .literal (.bool false) =>
-    .ok #[ .instruction (res .mov64 (imm := some (.num 0))) ]
+    .ok (#[ .instruction (res .mov64 (imm := some (.num 0))) ], ctx)
   | .literal _ => .error { message := "unsupported literal type in Phase 1" }
   | .local name =>
     match ctx.localOffset? name with
-    | some off => .ok #[ .instruction (res .ldxdw (src := some .r10) (off := some (.num off))) ]
+    | some off => .ok (#[ .instruction (res .ldxdw (src := some .r10) (off := some (.num off))) ], ctx)
     | none => .error { message := s!"unknown local: {name}" }
-  | .add lhs rhs  => do let ln ← lowerExpr ctx lhs; let rn ← lowerExpr ctx rhs; .ok (lowerBinaryCombine ln rn .add64 ctx.scratchOffset)
-  | .sub lhs rhs  => do let ln ← lowerExpr ctx lhs; let rn ← lowerExpr ctx rhs; .ok (lowerBinaryCombine ln rn .sub64 ctx.scratchOffset)
-  | .mul lhs rhs  => do let ln ← lowerExpr ctx lhs; let rn ← lowerExpr ctx rhs; .ok (lowerBinaryCombine ln rn .mul64 ctx.scratchOffset)
-  | .div lhs rhs  => do let ln ← lowerExpr ctx lhs; let rn ← lowerExpr ctx rhs; .ok (lowerBinaryCombine ln rn .div64 ctx.scratchOffset)
-  | .mod lhs rhs  => do let ln ← lowerExpr ctx lhs; let rn ← lowerExpr ctx rhs; .ok (lowerBinaryCombine ln rn .mod64 ctx.scratchOffset)
+  | .add lhs rhs => do
+    let (ln, ctx) ← lowerExpr ctx lhs
+    let (rn, ctx) ← lowerExpr ctx rhs
+    .ok (lowerBinaryCombine ln rn .add64 ctx.scratchOffset, ctx)
+  | .sub lhs rhs => do
+    let (ln, ctx) ← lowerExpr ctx lhs
+    let (rn, ctx) ← lowerExpr ctx rhs
+    .ok (lowerBinaryCombine ln rn .sub64 ctx.scratchOffset, ctx)
+  | .mul lhs rhs => do
+    let (ln, ctx) ← lowerExpr ctx lhs
+    let (rn, ctx) ← lowerExpr ctx rhs
+    .ok (lowerBinaryCombine ln rn .mul64 ctx.scratchOffset, ctx)
+  | .div lhs rhs => do
+    let (ln, ctx) ← lowerExpr ctx lhs
+    let (rn, ctx) ← lowerExpr ctx rhs
+    .ok (lowerBinaryCombine ln rn .div64 ctx.scratchOffset, ctx)
+  | .mod lhs rhs => do
+    let (ln, ctx) ← lowerExpr ctx lhs
+    let (rn, ctx) ← lowerExpr ctx rhs
+    .ok (lowerBinaryCombine ln rn .mod64 ctx.scratchOffset, ctx)
+  | .boolAnd lhs rhs => do
+    let (ln, ctx) ← lowerExpr ctx lhs
+    let (rn, ctx) ← lowerExpr ctx rhs
+    .ok (lowerBinaryCombine ln rn .and64 ctx.scratchOffset, ctx)
+  | .boolOr lhs rhs => do
+    let (ln, ctx) ← lowerExpr ctx lhs
+    let (rn, ctx) ← lowerExpr ctx rhs
+    .ok (lowerBinaryCombine ln rn .or64 ctx.scratchOffset, ctx)
+  | .boolNot value => do
+    -- value is a strict 0/1 boolean: bitwise NOT via xor with 1.
+    let (vn, ctx) ← lowerExpr ctx value
+    .ok (vn ++ #[ .instruction { opcode := .xor64, dst := some .r2, imm := some (.num 1) } ], ctx)
+  | .eq lhs rhs => lowerCmp ctx lhs rhs .jeq
+  | .ne lhs rhs => lowerCmp ctx lhs rhs .jne
+  | .lt lhs rhs => lowerCmp ctx lhs rhs .jlt
+  | .le lhs rhs => lowerCmp ctx lhs rhs .jle
+  | .gt lhs rhs => lowerCmp ctx lhs rhs .jgt
+  | .ge lhs rhs => lowerCmp ctx lhs rhs .jge
   | .effect (.storageScalarRead stateId) =>
     match ctx.stateAbsOff? stateId with
-    | some absOff => .ok #[ .instruction (res .ldxdw (src := some .r1) (off := some (.num absOff))) ]
+    | some absOff => .ok (#[ .instruction (res .ldxdw (src := some .r1) (off := some (.num absOff))) ], ctx)
     | none => .error { message := s!"unknown state: {stateId}" }
   | .effect (.storagePathRead stateId path) =>
     if path.isEmpty then
       match ctx.stateAbsOff? stateId with
-      | some absOff => .ok #[ .instruction (res .ldxdw (src := some .r1) (off := some (.num absOff))) ]
+      | some absOff => .ok (#[ .instruction (res .ldxdw (src := some .r1) (off := some (.num absOff))) ], ctx)
       | none => .error { message := s!"unknown state: {stateId}" }
     else .error { message := "storage path read with non-empty path not supported in Phase 1" }
   | _ => .error { message := "unsupported expression in Phase 1" }
+where
+  lowerCmp (ctx : LowerCtx) (lhs rhs : IR.Expr) (condJmp : Opcode) : Except LowerError (Array AstNode × LowerCtx) := do
+    let (ln, ctx) ← lowerExpr ctx lhs
+    let (rn, ctx) ← lowerExpr ctx rhs
+    let (trueLabel, ctx) := ctx.freshLabel
+    let (endLabel, ctx) := ctx.freshLabel
+    .ok (lowerCmpCombine ln rn condJmp trueLabel endLabel ctx.scratchOffset, ctx)
 
 -- ============================================================================
 -- IR statement → AST nodes
@@ -327,13 +396,12 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
 partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError (Array AstNode × LowerCtx) :=
   match stmt with
   | .letBind name _ value => do
-    let vn ← lowerExpr ctx value
-    let ctx' := ctx.addLocal name
+    let (vn, ctx) ← lowerExpr ctx value
     let off := ctx.nextLocalOffset
     let ctx' := ctx.addLocal name
     .ok (vn ++ #[ .instruction { opcode := .stxdw, dst := some .r10, off := some (.num off), src := some .r2 } ], ctx')
   | .letMutBind name _ value => do
-    let vn ← lowerExpr ctx value
+    let (vn, ctx) ← lowerExpr ctx value
     let off := ctx.nextLocalOffset
     let ctx' := ctx.addLocal name
     .ok (vn ++ #[ .instruction { opcode := .stxdw, dst := some .r10, off := some (.num off), src := some .r2 } ], ctx')
@@ -342,39 +410,77 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
     | .local name =>
       match ctx.localOffset? name with
       | some off => do
-        let vn ← lowerExpr ctx value
-        .ok (vn ++ #[ .instruction { opcode := .stxdw, dst := some .r10, off := some (.num off), src := some .r2 } ], ctx)
+        let (vn, ctx') ← lowerExpr ctx value
+        .ok (vn ++ #[ .instruction { opcode := .stxdw, dst := some .r10, off := some (.num off), src := some .r2 } ], ctx')
       | none => .error { message := s!"assign to unknown local: {name}" }
     | _ => .error { message := "assign to non-local not supported in Phase 1" }
   | .effect (.storageScalarWrite stateId value) => do
     match ctx.stateAbsOff? stateId with
     | some absOff => do
-      let vn ← lowerExpr ctx value
-      .ok (vn ++ #[ .instruction { opcode := .stxdw, dst := some .r1, off := some (.num absOff), src := some .r2 } ], ctx)
+      let (vn, ctx') ← lowerExpr ctx value
+      .ok (vn ++ #[ .instruction { opcode := .stxdw, dst := some .r1, off := some (.num absOff), src := some .r2 } ], ctx')
     | none => .error { message := s!"unknown state: {stateId}" }
   | .effect (.storagePathWrite stateId path value) =>
     if path.isEmpty then
       match ctx.stateAbsOff? stateId with
       | some absOff => do
-        let vn ← lowerExpr ctx value
-        .ok (vn ++ #[ .instruction { opcode := .stxdw, dst := some .r1, off := some (.num absOff), src := some .r2 } ], ctx)
+        let (vn, ctx') ← lowerExpr ctx value
+        .ok (vn ++ #[ .instruction { opcode := .stxdw, dst := some .r1, off := some (.num absOff), src := some .r2 } ], ctx')
       | none => .error { message := s!"unknown state: {stateId}" }
     else .error { message := "storage path write with non-empty path not supported in Phase 1" }
-  | .effect (.storageScalarAssignOp stateId op value) => do
+  | .effect (.storageScalarAssignOp stateId opA value) => do
     match ctx.stateAbsOff? stateId with
     | some absOff => do
-      let op : Opcode := match op with | .add => .add64 | .sub => .sub64 | .mul => .mul64 | .div => .div64 | .mod => .mod64 | _ => .add64
-      let vn ← lowerExpr ctx value
+      let aluOp : Opcode := match opA with | .add => .add64 | .sub => .sub64 | .mul => .mul64 | .div => .div64 | .mod => .mod64 | _ => .add64
       let sc := ctx.scratchOffset
+      let (vn, ctx') ← lowerExpr ctx value
       .ok (#[
         .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num absOff) },
         .instruction { opcode := .stxdw, dst := some .r10, off := some (.num sc), src := some .r3 }
       ] ++ vn ++ #[
         .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num sc) },
-        .instruction { opcode := op, dst := some .r2, src := some .r3 },
+        .instruction { opcode := aluOp, dst := some .r2, src := some .r3 },
         .instruction { opcode := .stxdw, dst := some .r1, off := some (.num absOff), src := some .r2 }
-      ], ctx)
+      ], ctx')
     | none => .error { message := s!"unknown state: {stateId}" }
+  | .assert cond _ => do
+    let (cn, ctx') ← lowerExpr ctx cond
+    .ok (cn ++ #[
+      .comment "control.assert",
+      .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "assert_fail") }
+    ], ctx')
+  | .assertEq lhs rhs _ => do
+    let sc := ctx.scratchOffset
+    let (ln, ctx') ← lowerExpr ctx lhs
+    let (rn, ctx') ← lowerExpr ctx' rhs
+    .ok (ln ++ #[
+      .comment "control.assert_eq",
+      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num sc), src := some .r2 }
+    ] ++ rn ++ #[
+      .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num sc) },
+      .instruction { opcode := .jne, dst := some .r3, src := some .r2, off := some (.sym "assert_eq_fail") }
+    ], ctx')
+  | .ifElse cond thenBody elseBody => do
+    let (cn, ctx) ← lowerExpr ctx cond
+    let (elseLabel, ctx) := ctx.freshLabel
+    let (endLabel, ctx) := ctx.freshLabel
+    let mut nodes : Array AstNode := cn ++ #[
+      .comment "control.conditional",
+      .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym elseLabel) }
+    ]
+    let mut ctx := ctx
+    for stmt in thenBody do
+      let (sn, ctx') ← lowerStmt ctx stmt
+      nodes := nodes.append sn
+      ctx := ctx'
+    nodes := nodes.push (.instruction { opcode := .ja, off := some (.sym endLabel) })
+    nodes := nodes.push (.label elseLabel)
+    for stmt in elseBody do
+      let (sn, ctx') ← lowerStmt ctx stmt
+      nodes := nodes.append sn
+      ctx := ctx'
+    nodes := nodes.push (.label endLabel)
+    .ok (nodes, ctx)
   | .return value =>
     match value with
     | .effect (.storageScalarRead stateId) =>

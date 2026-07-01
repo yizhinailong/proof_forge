@@ -17,6 +17,105 @@ Each entry should include:
 
 ## 2026-07-02
 
+### Solana sBPF Control-Flow + Assertion IR Coverage
+
+Commit: `feat: lower control-flow + assertions to sBPF (V-GATE-SOLANA-08)`
+
+Summary:
+
+- Extended `ProofForge.Backend.Solana.SbpfAsm` with the control-flow and
+  assertion statement shapes that close out Workstream 7's Phase 1 statement
+  lowering list:
+  - comparison expressions (`.eq`/`.ne`/`.lt`/`.le`/`.gt`/`.ge`) lowering to a
+    `mov64 r4, 0` + conditional jump + `mov64 r4, 1` boolean sequence ending
+    in `r2`;
+  - boolean expressions (`.boolAnd`/`.boolOr`/`.boolNot`) — the first two reuse
+    the existing `lowerBinaryCombine` with `and64`/`or64`, the last uses
+    `xor64 r2, 1` over a strict 0/1 bool;
+  - statement-level `.ifElse` then/else lowering with a fresh named
+    `elseLabel`/`endLabel` pair minted by an added `LowerCtx.freshLabel`
+    counter;
+  - `.assert cond` lowering to `jeq r2, 0, assert_fail` and `.assertEq lhs rhs`
+    lowering to stash/reload/lhsv-vs-rhs `jne r3, r2, assert_eq_fail`, exercising
+    the shared `assert_fail` (exit 2) / `assert_eq_fail` (exit 3) labels that the
+    module-level epilogue already emits.
+- `lowerExpr` now threads `LowerCtx` in and out so it can mint fresh labels for
+  nested comparisons, fixing a latent double-`addLocal`/linter warning in
+  `.letBind` along the way.
+- Added the chain-neutral fixture `ProofForge.IR.Examples.ControlFlowAssertProbe`
+  with three entrypoints — `lifecycle`, `guarded_increment`, `equality_guard` —
+  that exercise all of the above against `storageScalar` state and that
+  simultaneously lower to EVM/Yul unchanged.
+- Added a `--emit-control-ir-sbpf` CLI mode (mirroring
+  `--emit-counter-ir-sbpf`) that emits the fixture `.s` plus a
+  `proof-forge-artifact.json` recording `fixture: "control-ir-sbpf"`, the
+  `storage.scalar` / `control.conditional` / `assertions.check` /
+  `account.explicit` capabilities, and a `validation.molluskRuntime` block
+  tracking the five runtime scenarios.
+- Added two validation scripts:
+  - `scripts/solana/emit-control-smoke.sh` — the emission half of the new
+    gate V-GATE-SOLANA-08. It runs purely on a Lean toolchain: emits the `.s`,
+    greps for the `control.conditional` / `control.assert` / `control.assert_eq`
+    markers, the dispatch lines, the `jeq`/`jlt` comparison drivers, and the
+    `assert_fail`/`assert_eq_fail` labels, asserts bit-for-bit reproducibility
+    across re-emissions, and validates the artifact metadata shape.
+  - `scripts/solana/control-smoke.sh` — the runtime half, mirroring
+    `scripts/solana/counter-smoke.sh`: emits `.s`, scaffolds an sbpf project
+    from `Tests/solana/control_mollusk.rs.tpl`, builds the ELF, and runs six
+    Mollusk checks (`lifecycle` from 0 and from 12345; `guarded_increment`
+    success from 3 and assert-revert from 9; `equality_guard` success from 7
+    and assertEq-revert from 42). Skips with exit 2 when `sbpf`, `cargo`, or
+    `solana-keygen` are missing.
+- Synced documentation: `docs/validation-gates.md` (EN) and
+  `docs/zh/validation-gates.zh.md` (zh) register V-GATE-SOLANA-08 and refresh
+  V-GATE-SOLANA-03's status to “Phase 1 complete”, and
+  `docs/implementation-backlog.md` enumerates Workstream 7 Phase 1 sub-items.
+
+Validation run:
+
+```sh
+lake build
+scripts/solana/emit-control-smoke.sh
+# Skips locally (no sbpf on PATH) but scripts/solana/control-smoke.sh
+# mirrors counter-smoke.sh's toolchain-availability gating.
+```
+
+Result:
+
+- `lake build` (112 jobs) succeeded; the `proof-forge --emit-control-ir-sbpf`
+  mode emitted `build/solana/ControlFlowAssertProbe.s` carrying dispatch,
+  `control.conditional`/`control.assert`/`control.assert_eq` markers,
+  comparison-driven boolean sequences over `r3`/`r2`, and the
+  `assert_fail`/`assert_eq_fail` epilogue labels.
+- The emission gate asserted the asm is bit-for-bit reproducible across
+  re-emissions (`sha256
+  c3aa119278c6c0294572c794568288ec9f4479a74b2171d6d4f1c41f6d45efcd`) and
+  that the artifact metadata lists `target: "solana-sbpf-asm"`, `fixture:
+  "control-ir-sbpf"`, `sourceModule: "ControlFlowAssertProbe"`, and the four
+  capabilities.
+- Existing `--emit-counter-ir-sbpf` and `scripts/solana/emit-asm-smoke.sh`
+  keep working unchanged (Counter `.s` ends with the same `assert_fail` /
+  `assert_eq_fail` epilogue labels).
+
+Known limitations:
+
+- The runtime half of V-GATE-SOLANA-08 is gated on the `sbpf` toolchain, so it
+  skips with exit 2 wherever `sbpf` is not on PATH (every CI run today; outside
+  Workstream 6's local-only mandate).
+- `sub`/`div`/`mod` lowering in `lowerBinaryCombine` computes `rhs op lhs`
+  rather than `lhs op rhs` — same latent behavior as before this change and
+  unexercised by any current sBPF smoke; leaves only the commutative ops (`add`,
+  `mul`, `and`, `or`) lowering in operator-correct order.
+- Account validation (signer / writable / owner checks), the `manifest.toml`
+  sidecar, and `--solana-elf` “emit + assemble” CLI mode remain open Workstream 7
+  Phase 1 sub-items (see backlog).
+
+Next step:
+
+- Land the next Workstream 7 sub-item (e.g. `--solana-elf`, `manifest.toml`,
+  or account validation), or install `sbpf` locally so the runtime half of
+  V-GATE-SOLANA-08 closes byte-for-byte against the emission half.
+
 ### EVM Deploy Initcode Artifacts
 
 Commit: `feat: emit EVM deploy initcode artifacts`
