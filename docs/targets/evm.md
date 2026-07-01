@@ -167,13 +167,13 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, flat scalar storage struct field read/write, and whole flat scalar storage struct read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns, and fixed-array ABI parameters/returns whose elements are flat structs; zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
-| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns, fixed arrays of flat structs in ABI-facing parameters/returns, flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, scalar fixed-array non-indexed event data fields, and fixed-array event data fields whose elements are flat structs; zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
+| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns, fixed arrays of flat structs in ABI-facing parameters/returns, flat non-indexed event data fields, flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
 | `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts |
-| `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, and `eventEmitIndexed` lowers up to `log4` with topic0 derived from a Solidity-style event signature |
+| `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, and non-indexed data fields can be scalar words, flat structs, scalar fixed arrays, or fixed arrays of flat structs |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
 | `control.bounded_loop` | Portable IR `boundedFor` lowers to Yul `for` loops with static bounds |
@@ -210,7 +210,8 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
   IR EVM backend currently supports scalar storage/ABI, assertions, local
   assignment, local compound assignment, scalar storage compound assignment,
-  conditionals, context reads, events, `Hash` word values and hashing,
+  conditionals, context reads, scalar and flat aggregate event data, `Hash`
+  word values and hashing,
   word key/value `Map<K, V, N>` storage including managed key presence,
   `Bool`/`U32`/`U64`/`Hash` fixed
   storage arrays, flat scalar storage structs, fixed storage arrays of flat
@@ -224,7 +225,7 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
   non-word or aggregate map shapes, nested arrays, nested local structs beyond
-  flat struct arrays, richer event declarations, aggregate event fields,
+  flat struct arrays, richer event declarations,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call return
   data, and real creation-transaction or broadcast manifests.
 
@@ -342,15 +343,20 @@ unknown-selector revert behavior.
 
 `EventProbe` validates portable IR event emission through Yul logs. EVM IR v0
 derives topic0 from a Solidity-style event signature generated from the event
-name and scalar field types, for example `ValueEvent(uint64)`. Plain
-`eventEmit` lowers to `log1`, while `eventEmitIndexed` snapshots up to three
-scalar indexed fields into topics and writes the remaining non-indexed fields
-as ABI-style 32-byte data words. The smoke checks golden Yul reproducibility,
-`solc --strict-assembly` bytecode generation, metadata capability
-`events.emit`, Foundry recorded logs (`emitter`, signature topic, indexed
-topics, and decoded data), ABI selector dispatch, and unknown-selector revert
-behavior. Aggregate event fields and richer event declarations remain future
-work for the portable IR.
+name and field types, for example `ValueEvent(uint64)`,
+`PairEvent((uint64,uint64))`, `ArrayEvent(uint64[2])`, or
+`PairArrayEvent((uint64,uint64)[2])`. Plain `eventEmit` lowers to `log1`, while
+`eventEmitIndexed` snapshots up to three scalar indexed fields into topics and
+writes the remaining non-indexed fields as ABI-style 32-byte data words.
+Non-indexed data fields can be scalar words, flat structs, scalar fixed arrays,
+or fixed arrays of flat structs, and aggregate values flatten in ABI order
+before the Yul log call. The smoke checks golden Yul reproducibility, `solc
+--strict-assembly` bytecode generation, metadata capability `events.emit`,
+Foundry recorded logs (`emitter`, signature topic, indexed topic, flat struct
+data, scalar fixed-array data, fixed-array-of-struct data, and decoded scalar
+data), ABI selector dispatch, and unknown-selector revert behavior. Aggregate
+indexed fields and richer event declarations remain explicit unsupported
+surfaces for the portable IR.
 
 `EvmCrosscallProbe` validates portable IR `crosscallInvoke` lowering to
 arity-specific Yul helpers. EVM IR v0 interprets the target expression as an

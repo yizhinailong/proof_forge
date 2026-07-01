@@ -356,6 +356,18 @@ def eventTooManyIndexedModule : Module :=
     ] #[("value", .literal (.u64 5))])
   ]
 
+def eventIndexedAggregateModule : Module := {
+  name := "BadEventIndexedAggregate"
+  structs := #[pointStruct]
+  state := #[markerState]
+  entrypoints := #[selectedEntrypoint "bad" #[
+    .effect (.eventEmitIndexed
+      "Seen"
+      #[("point", .structLit "Point" #[("x", .literal (.u64 1))])]
+      #[])
+  ]]
+}
+
 def crosscallTargetTypeModule : Module :=
   selectedModule "BadCrosscallTargetType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvoke (.literal (.bool true)) (.literal (.u64 2)) #[])
@@ -598,6 +610,11 @@ def cases : Array (String × Module × String) := #[
     "event too many indexed fields unsupported",
     eventTooManyIndexedModule,
     "event `Seen` has 4 indexed field(s); EVM IR v0 supports at most 3 indexed fields"
+  ),
+  (
+    "indexed aggregate event field unsupported",
+    eventIndexedAggregateModule,
+    "event `Seen` indexed field `point` has unsupported EVM IR v0 type `Point`; indexed event fields must be U32, U64, Bool, or Hash"
   ),
   (
     "crosscall target type mismatch",

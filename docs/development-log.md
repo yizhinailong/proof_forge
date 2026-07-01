@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Aggregate Event Data
+
+Commit: feature commit for EVM IR aggregate event data
+
+Summary:
+
+- Extended EVM `eventEmit` / `eventEmitIndexed` lowering so non-indexed event
+  data fields can be scalar words, flat structs, scalar fixed arrays, or fixed
+  arrays of flat structs.
+- Added canonical Solidity-style event signature generation for flat aggregate
+  event fields, including `PairEvent((uint64,uint64))`,
+  `ArrayEvent(uint64[2])`, and `PairArrayEvent((uint64,uint64)[2])`.
+- Flattened aggregate event data into ABI-style 32-byte words before `log1`
+  through `log4`, preserving scalar indexed topics for `eventEmitIndexed`.
+- Kept aggregate indexed fields explicit: they now fail with a diagnostic
+  rather than pretending EVM's indexed aggregate topic-hash semantics are
+  direct scalar topics.
+- Extended `EventProbe` with `emit_pair_event`, `emit_array_event`, and
+  `emit_pair_array_event`, refreshed golden Yul, Foundry recorded-log checks,
+  metadata selector checks, EVM diagnostics, coverage, target docs, validation
+  gates, backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- Indexed event fields remain scalar-only (`U32`, `U64`, `Bool`, or `Hash`) and
+  limited to three indexed fields after the signature topic.
+- Richer first-class event declarations are still not represented in the
+  portable IR.
+
+Next step:
+
+- Continue shrinking EVM gaps around richer cross-call return data,
+  `staticcall`/`delegatecall`/creation call kinds, nested aggregate lowering,
+  or real creation/broadcast manifests.
+
 ### EVM IR Indexed Event Topics
 
 Commit: feature commit for EVM IR indexed events

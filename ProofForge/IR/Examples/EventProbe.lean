@@ -10,6 +10,20 @@ def stateMarker : StateDecl := {
   type := .u64
 }
 
+def pairStruct : StructDecl := {
+  name := "Pair"
+  fields := #[
+    { id := "left", type := .u64 },
+    { id := "right", type := .u64 }
+  ]
+}
+
+def pair (left right : Expr) : Expr :=
+  .structLit "Pair" #[
+    ("left", left),
+    ("right", right)
+  ]
+
 def emitValueEvent : Entrypoint := {
   name := "emit_value_event"
   selector? := some "2ae8cae3"
@@ -33,6 +47,42 @@ def emitIndexedEvent : Entrypoint := {
   ]
 }
 
+def emitPairEvent : Entrypoint := {
+  name := "emit_pair_event"
+  selector? := some "35361bda"
+  returns := .unit
+  params := #[("left", .u64), ("right", .u64)]
+  body := #[
+    .letBind "pair" (.structType "Pair") (pair (.local "left") (.local "right")),
+    .effect (.eventEmit "PairEvent" #[("pair", .local "pair")])
+  ]
+}
+
+def emitArrayEvent : Entrypoint := {
+  name := "emit_array_event"
+  selector? := some "393f7138"
+  returns := .unit
+  params := #[("left", .u64), ("right", .u64)]
+  body := #[
+    .letBind "values" (.fixedArray .u64 2) (.arrayLit .u64 #[.local "left", .local "right"]),
+    .effect (.eventEmit "ArrayEvent" #[("values", .local "values")])
+  ]
+}
+
+def emitPairArrayEvent : Entrypoint := {
+  name := "emit_pair_array_event"
+  selector? := some "85611e74"
+  returns := .unit
+  params := #[("a", .u64), ("b", .u64), ("c", .u64), ("d", .u64)]
+  body := #[
+    .letBind "pairs" (.fixedArray (.structType "Pair") 2) (.arrayLit (.structType "Pair") #[
+      pair (.local "a") (.local "b"),
+      pair (.local "c") (.local "d")
+    ]),
+    .effect (.eventEmit "PairArrayEvent" #[("pairs", .local "pairs")])
+  ]
+}
+
 def module : Module := {
   name := "EventProbe"
   state := #[stateMarker]
@@ -41,8 +91,9 @@ def module : Module := {
 
 def evmModule : Module := {
   name := "EventProbe"
+  structs := #[pairStruct]
   state := #[stateMarker]
-  entrypoints := #[emitValueEvent, emitIndexedEvent]
+  entrypoints := #[emitValueEvent, emitIndexedEvent, emitPairEvent, emitArrayEvent, emitPairArrayEvent]
 }
 
 end ProofForge.IR.Examples.EventProbe

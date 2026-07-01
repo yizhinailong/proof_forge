@@ -139,6 +139,14 @@ Tasks:
   non-indexed 32-byte word data, `EventProbe` golden Yul, solc bytecode,
   Foundry recorded-log validation, metadata capability validation, and explicit
   indexed event diagnostics.
+- Done: extend EVM IR event data lowering beyond scalar words so non-indexed
+  flat struct fields, scalar fixed-array fields, and fixed arrays of flat
+  structs emit ABI-style flattened data words, with canonical Solidity-style
+  event signatures such as `PairEvent((uint64,uint64))`,
+  `ArrayEvent(uint64[2])`, and `PairArrayEvent((uint64,uint64)[2])`,
+  `EventProbe`
+  golden Yul, solc bytecode, Foundry recorded-log validation, metadata selector
+  validation, and explicit diagnostics for aggregate indexed fields.
 - Done: add EVM IR `crosscallInvoke` lowering to synchronous EVM `call`
   helpers with selector packing, word arguments, one-word returns, failed-call
   and short-return reverts, with `EvmCrosscallProbe` golden Yul, solc bytecode,
