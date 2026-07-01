@@ -152,6 +152,21 @@ def validateDistinctEventFieldName (eventName : String) (seen : Array String) (f
   else
     .ok (seen.push fieldName)
 
+def validateIndexedEventFieldCount (eventName : String) (count : Nat) : Except LowerError Unit :=
+  if count > 3 then
+    .error { message := s!"event `{eventName}` has {count} indexed field(s); EVM IR v0 supports at most 3 indexed fields" }
+  else
+    .ok ()
+
+def eventIndexedTopicName (index : Nat) : String :=
+  s!"_indexed_topic{index}"
+
+def eventLogBuiltinName (indexedFieldCount : Nat) : Except LowerError String :=
+  if indexedFieldCount <= 3 then
+    .ok s!"log{indexedFieldCount + 1}"
+  else
+    .error { message := s!"EVM IR v0 supports at most 3 indexed event fields" }
+
 def revertStmt : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.exprStmt
     (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
@@ -840,6 +855,8 @@ mutual
         .ok .u64
     | .eventEmit _ _ =>
         .error { message := "event.emit is a statement effect, not an expression" }
+    | .eventEmitIndexed _ _ _ =>
+        .error { message := "event.emit.indexed is a statement effect, not an expression" }
 end
 
 def eventSignature
@@ -902,6 +919,9 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
       .error { message := "context reads must be used as expressions" }
   | .eventEmit name fields => do
       discard <| eventSignature module env name fields
+  | .eventEmitIndexed name indexedFields dataFields => do
+      validateIndexedEventFieldCount name indexedFields.size
+      discard <| eventSignature module env name (indexedFields ++ dataFields)
 
 def requireMutableLocal (env : TypeEnv) (context name : String) : Except LowerError LocalBinding := do
   let some binding := findLocal? env name
@@ -1372,26 +1392,50 @@ mutual
         .ok (contextExpr field)
     | .eventEmit _ _ =>
         .error { message := "event.emit is a statement effect, not an expression" }
+    | .eventEmitIndexed _ _ _ =>
+        .error { message := "event.emit.indexed is a statement effect, not an expression" }
 end
+
+def lowerEventEmitCoreStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (indexedFields dataFields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement := do
+  validateIndexedEventFieldCount name indexedFields.size
+  let signature ← eventSignature module env name (indexedFields ++ dataFields)
+  let mut statements := eventSignatureTopicStatements signature
+  for h : idx in [0:indexedFields.size] do
+    let field := indexedFields[idx]
+    statements := statements.push <|
+      .varDecl #[{ name := eventIndexedTopicName idx }] (some (← lowerExpr module env field.snd))
+  for h : idx in [0:dataFields.size] do
+    let field := dataFields[idx]
+    statements := statements.push <|
+      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), ← lowerExpr module env field.snd])
+  let mut logArgs : Array Lean.Compiler.Yul.Expr := #[
+    Lean.Compiler.Yul.Expr.num 0,
+    Lean.Compiler.Yul.Expr.num (dataFields.size * 32),
+    Lean.Compiler.Yul.Expr.id "_topic0"
+  ]
+  for h : idx in [0:indexedFields.size] do
+    logArgs := logArgs.push (Lean.Compiler.Yul.Expr.id (eventIndexedTopicName idx))
+  statements := statements.push <|
+    .exprStmt (Lean.Compiler.Yul.builtin (← eventLogBuiltinName indexedFields.size) logArgs)
+  .ok (.block { statements := statements })
 
 def lowerEventEmitStmt
     (module : Module)
     (env : TypeEnv)
     (name : String)
-    (fields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let signature ← eventSignature module env name fields
-  let mut statements := eventSignatureTopicStatements signature
-  for h : idx in [0:fields.size] do
-    let field := fields[idx]
-    statements := statements.push <|
-      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), ← lowerExpr module env field.snd])
-  statements := statements.push <|
-    .exprStmt (Lean.Compiler.Yul.builtin "log1" #[
-      Lean.Compiler.Yul.Expr.num 0,
-      Lean.Compiler.Yul.Expr.num (fields.size * 32),
-      Lean.Compiler.Yul.Expr.id "_topic0"
-    ])
-  .ok (.block { statements := statements })
+    (fields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement :=
+  lowerEventEmitCoreStmt module env name #[] fields
+
+def lowerEventEmitIndexedStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (indexedFields dataFields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement :=
+  lowerEventEmitCoreStmt module env name indexedFields dataFields
 
 def lowerMapWriteStmt
     (module : Module)
@@ -1612,6 +1656,8 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
       .error { message := "context reads must be used as expressions" }
   | .eventEmit name fields =>
       lowerEventEmitStmt module env name fields
+  | .eventEmitIndexed name indexedFields dataFields =>
+      lowerEventEmitIndexedStmt module env name indexedFields dataFields
 
 def ensureLocalScalarType (context name : String) (type : ValueType) : Except LowerError Unit :=
   match type with
@@ -2811,6 +2857,11 @@ mutual
     | .contextRead _ => #[]
     | .eventEmit _ fields =>
         fields.foldl (init := #[]) fun acc field => mergeNatSets acc (crosscallAritiesExpr field.snd)
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexedArities := indexedFields.foldl (init := #[]) fun acc field =>
+          mergeNatSets acc (crosscallAritiesExpr field.snd)
+        dataFields.foldl (init := indexedArities) fun acc field =>
+          mergeNatSets acc (crosscallAritiesExpr field.snd)
 
   partial def crosscallAritiesStoragePathSegment : StoragePathSegment → Array Nat
     | .field _ => #[]
@@ -2923,6 +2974,11 @@ mutual
     | .contextRead _ => #[]
     | .eventEmit _ fields =>
         fields.foldl (init := #[]) fun acc field => mergeNatSets acc (localArrayGetLengthsExpr env field.snd)
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexedLengths := indexedFields.foldl (init := #[]) fun acc field =>
+          mergeNatSets acc (localArrayGetLengthsExpr env field.snd)
+        dataFields.foldl (init := indexedLengths) fun acc field =>
+          mergeNatSets acc (localArrayGetLengthsExpr env field.snd)
 
   partial def localArrayGetLengthsStoragePathSegment (env : TypeEnv) : StoragePathSegment → Array Nat
     | .field _ => #[]

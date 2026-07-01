@@ -341,6 +341,21 @@ def eventEmptyNameModule : Module :=
     .effect (.eventEmit "" #[("value", .literal (.u64 1))])
   ]
 
+def eventIndexedExprModule : Module :=
+  selectedModule "BadEventIndexedExpr" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.effect (.eventEmitIndexed "Seen" #[("user", .literal (.u64 1))] #[("value", .literal (.u64 2))]))
+  ]
+
+def eventTooManyIndexedModule : Module :=
+  selectedModule "BadEventTooManyIndexed" <| selectedEntrypoint "bad" #[
+    .effect (.eventEmitIndexed "Seen" #[
+      ("a", .literal (.u64 1)),
+      ("b", .literal (.u64 2)),
+      ("c", .literal (.u64 3)),
+      ("d", .literal (.u64 4))
+    ] #[("value", .literal (.u64 5))])
+  ]
+
 def crosscallTargetTypeModule : Module :=
   selectedModule "BadCrosscallTargetType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvoke (.literal (.bool true)) (.literal (.u64 2)) #[])
@@ -573,6 +588,16 @@ def cases : Array (String × Module × String) := #[
     "event empty name unsupported",
     eventEmptyNameModule,
     "event name must be non-empty for IR EVM v0"
+  ),
+  (
+    "indexed event used as expression",
+    eventIndexedExprModule,
+    "event.emit.indexed is a statement effect, not an expression"
+  ),
+  (
+    "event too many indexed fields unsupported",
+    eventTooManyIndexedModule,
+    "event `Seen` has 4 indexed field(s); EVM IR v0 supports at most 3 indexed fields"
   ),
   (
     "crosscall target type mismatch",

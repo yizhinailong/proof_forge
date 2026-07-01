@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Indexed Event Topics
+
+Commit: feature commit for EVM IR indexed events
+
+Summary:
+
+- Added portable IR `eventEmitIndexed` for EVM-style events with scalar indexed
+  fields and non-indexed data fields.
+- Lowered indexed events to Yul `log2`/`log3`/`log4`: topic0 is the
+  Solidity-style event signature hash, indexed fields become topics, and
+  non-indexed fields remain ABI-style 32-byte data words.
+- Kept indexed events explicit on non-EVM targets: Psy IR v0 rejects the new
+  node with a diagnostic instead of silently dropping topic semantics.
+- Extended `EventProbe` with `emit_indexed_event`, refreshed golden Yul,
+  Foundry recorded-log checks, metadata selector checks, EVM/Psy diagnostics,
+  coverage manifests, target docs, validation gates, backlog, capability
+  registry entries, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/event-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+scripts/i18n/check-sync.sh
+```
+
+Known limitations:
+
+- Indexed event fields are limited to scalar EVM word values (`U32`, `U64`,
+  `Bool`, or `Hash`) and at most three indexed fields after the signature
+  topic.
+- Aggregate event payloads and richer event declarations remain future work.
+
+Next step:
+
+- Continue shrinking EVM gaps around aggregate event payloads, richer
+  cross-call return data, contract-creation call kinds, or nested aggregate
+  lowering.
+
 ### EVM IR Solidity-Style Event Signatures
 
 Commit: feature commit for EVM IR event signature topics
@@ -47,13 +90,13 @@ Known limitations:
 
 - Portable IR event payload fields remain limited to scalar word values:
   `U32`, `U64`, `Bool`, or `Hash`.
-- Indexed event fields and richer event declarations are still not represented
-  in the portable IR.
+- Richer event declarations are still not represented in the portable IR.
 
 Next step:
 
-- Continue shrinking event gaps around indexed fields or move to another EVM
-  surface such as richer cross-call return data or nested aggregate lowering.
+- Continue shrinking event gaps around aggregate event payloads or richer event
+  declarations, or move to another EVM surface such as richer cross-call return
+  data or nested aggregate lowering.
 
 ### EVM IR Whole Storage Struct Read/Write
 
@@ -1064,15 +1107,14 @@ Result:
 
 Known limitations:
 
-- EVM IR v0 does not yet model indexed fields because portable IR has no event
-  declarations.
 - Event data fields are limited to scalar word values.
-- Aggregate event payloads remain future work.
+- Indexed fields are now covered by `eventEmitIndexed`; aggregate event
+  payloads and richer event declarations remain future work.
 
 Next step:
 
-- Extend event declarations/indexed topics, or start cross-contract call
-  lowering for the EVM portable IR backend.
+- Extend aggregate event payloads or richer event declarations, or start
+  cross-contract call lowering for the EVM portable IR backend.
 
 ### EVM IR Hash Words
 

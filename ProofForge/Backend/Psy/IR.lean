@@ -775,6 +775,8 @@ mutual
         .ok .u64
     | .eventEmit _ _ =>
         .error { message := "event.emit is a statement effect, not an expression" }
+    | .eventEmitIndexed _ _ _ =>
+        .error { message := "event.emit.indexed is a statement effect, not an expression" }
 end
 
 partial def inferAssignTargetType (module : Module) (env : TypeEnv) : Expr → Except LowerError ValueType
@@ -885,6 +887,8 @@ def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except Low
         validatePsyIdentifier s!"event `{name}` field name" field.fst
         let actual ← inferExprType module env field.snd
         ensureType s!"event `{name}` field `{field.fst}`" .u64 actual
+  | .eventEmitIndexed name _ _ =>
+      .error { message := s!"event `{name}` uses indexed fields, which are not supported by Psy IR v0" }
 
 mutual
   partial def validateStatement (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) : Statement → Except LowerError TypeEnv
@@ -1081,6 +1085,8 @@ mutual
         .ok (contextFunction field)
     | .eventEmit _ _ =>
         .error { message := "event.emit is a statement effect, not an expression" }
+    | .eventEmitIndexed _ _ _ =>
+        .error { message := "event.emit.indexed is a statement effect, not an expression" }
 
   partial def lowerStoragePathSegment (module : Module) : StoragePathSegment → Except LowerError String
     | .field fieldName => .ok s!".{fieldName}"
@@ -1207,6 +1213,8 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError (Array Stri
   | .eventEmit name fields => do
       let fieldStrs ← fields.mapM fun field => lowerExpr module field.snd
       .ok #[s!"__emit([{String.intercalate ", " fieldStrs.toList}]); // event `{name}`"]
+  | .eventEmitIndexed name _ _ =>
+      .error { message := s!"event `{name}` uses indexed fields, which are not supported by Psy IR v0" }
 
 partial def lowerAssignTarget (module : Module) : Expr → Except LowerError String
   | .local name => .ok name

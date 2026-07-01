@@ -40,6 +40,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-source-kind portable-ir \
   --expect-capability events.emit \
   --expect-entrypoint emit_value_event:2ae8cae3 \
+  --expect-entrypoint emit_indexed_event:bc07d04f \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EventProbe.bin")"
@@ -118,6 +119,25 @@ contract ProofForgeIREventSmokeTest {
         assertEq(logs[0].topics.length, 1);
         assertEq(logs[0].topics[0], keccak256(bytes("ValueEvent(uint64)")));
         assertEq(abi.decode(logs[0].data, (uint256)), 42);
+    }
+
+    function testIRIndexedEventEmitsSignatureIndexedTopicAndData() public {
+        address probe = address(uint160(0xE132));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_indexed_event(uint256,uint256)", 7, 99));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 2);
+        assertEq(logs[0].topics[0], keccak256(bytes("IndexedValue(uint64,uint64)")));
+        assertEq(logs[0].topics[1], bytes32(uint256(7)));
+        assertEq(abi.decode(logs[0].data, (uint256)), 99);
     }
 
     function testIREventRejectsUnknownSelector() public {

@@ -150,6 +150,7 @@ mutual
     | storagePathAssignOp (stateId : String) (path : Array StoragePathSegment) (op : AssignOp) (value : Expr)
     | contextRead (field : ContextField)
     | eventEmit (name : String) (fields : Array (String × Expr))
+    | eventEmitIndexed (name : String) (indexedFields dataFields : Array (String × Expr))
     deriving Repr
 
   inductive StoragePathSegment where
@@ -218,6 +219,7 @@ def Effect.capability : Effect → ProofForge.Target.Capability
         .storageScalar
   | .contextRead field => field.capability
   | .eventEmit _ _ => .eventsEmit
+  | .eventEmitIndexed _ _ _ => .eventsEmit
 
 mutual
   partial def Expr.capabilities : Expr → Array ProofForge.Target.Capability
@@ -280,6 +282,9 @@ mutual
     | .storagePathAssignOp _ path _ value => path.foldl (fun acc segment => acc ++ segment.capabilities) value.capabilities
     | .contextRead _ => #[]
     | .eventEmit _ fields => fields.foldl (fun acc field => acc ++ field.snd.capabilities) #[]
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        indexedFields.foldl (fun acc field => acc ++ field.snd.capabilities)
+          (dataFields.foldl (fun acc field => acc ++ field.snd.capabilities) #[])
 
   partial def StoragePathSegment.capabilities : StoragePathSegment → Array ProofForge.Target.Capability
     | .field _ => #[.dataStruct]

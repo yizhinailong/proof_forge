@@ -134,6 +134,11 @@ Tasks:
   fields, with `EventProbe` golden Yul, solc bytecode, Foundry recorded-log
   validation, metadata capability validation, and explicit malformed event
   diagnostics.
+- Done: add EVM IR `eventEmitIndexed` lowering to Yul `log2`/`log3`/`log4`
+  for up to three scalar indexed fields, with signature topic0, indexed topics,
+  non-indexed 32-byte word data, `EventProbe` golden Yul, solc bytecode,
+  Foundry recorded-log validation, metadata capability validation, and explicit
+  indexed event diagnostics.
 - Done: add EVM IR `crosscallInvoke` lowering to synchronous EVM `call`
   helpers with selector packing, word arguments, one-word returns, failed-call
   and short-return reverts, with `EvmCrosscallProbe` golden Yul, solc bytecode,

@@ -286,7 +286,7 @@ BCH/CashScript 与 UTXO covenant 目标有重叠，但 CashVM、transaction intr
 | `storage.map` | `Storage.mapLoad` / `Storage.mapStore` |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
-| `events.emit` | `log0`–`log2` |
+| `events.emit` | `log0`–`log4` |
 | `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
 | `env.block` | `Env.blockNumber`, 等 |
 

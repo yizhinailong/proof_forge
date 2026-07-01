@@ -20,10 +20,23 @@ def emitValueEvent : Entrypoint := {
   ]
 }
 
+def emitIndexedEvent : Entrypoint := {
+  name := "emit_indexed_event"
+  selector? := some "bc07d04f"
+  returns := .unit
+  params := #[("user", .u64), ("value", .u64)]
+  body := #[
+    .effect (.eventEmitIndexed
+      "IndexedValue"
+      #[("user", .local "user")]
+      #[("value", .local "value")])
+  ]
+}
+
 def module : Module := {
   name := "EventProbe"
   state := #[stateMarker]
-  entrypoints := #[emitValueEvent]
+  entrypoints := #[emitValueEvent, emitIndexedEvent]
 }
 
 end ProofForge.IR.Examples.EventProbe

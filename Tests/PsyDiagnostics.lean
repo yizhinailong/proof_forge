@@ -557,6 +557,14 @@ def nativeValueExprModule : Module := {
   }]
 }
 
+def indexedEventModule : Module := {
+  name := "BadIndexedEvent"
+  state := #[markerState]
+  entrypoints := #[unitEntrypoint "bad" #[
+    .effect (.eventEmitIndexed "Seen" #[("user", .literal (.u64 1))] #[("value", .literal (.u64 2))])
+  ]]
+}
+
 def renderError? (module : Module) : Option String :=
   match ProofForge.Backend.Psy.IR.renderModule module with
   | .ok _ => none
@@ -802,6 +810,11 @@ def cases : Array (String × Module × String) := #[
     "native value not supported",
     nativeValueExprModule,
     "native value inspection is not supported by Psy IR v0"
+  ),
+  (
+    "indexed event unsupported",
+    indexedEventModule,
+    "event `Seen` uses indexed fields, which are not supported by Psy IR v0"
   )
 ]
 
