@@ -36,6 +36,12 @@ def emitIndexedEvent : Entrypoint := {
 def module : Module := {
   name := "EventProbe"
   state := #[stateMarker]
+  entrypoints := #[emitValueEvent]
+}
+
+def evmModule : Module := {
+  name := "EventProbe"
+  state := #[stateMarker]
   entrypoints := #[emitValueEvent, emitIndexedEvent]
 }
 
