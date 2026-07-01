@@ -1,4 +1,4 @@
-import ProofForge.Target
+import ProofForge.Target.Registry
 
 namespace ProofForge.Tests.TargetRegistry
 
