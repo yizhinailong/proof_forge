@@ -192,49 +192,59 @@ def makeInput (name : String) (ty : ValueType) : Except AST.LowerError Input := 
 /-- Build an entrypoint function. Counter spike special-cases initialize/get/increment. -/
 def entrypointFunction (ep : Entrypoint) : Except AST.LowerError Function := do
   if hasEffect ep.body then
-    if ep.returns != .unit then
+    -- Counter spike special cases are allowed to have non-unit returns and no params.
+    if ep.name == "initialize" then
+      if ep.returns != .unit then
+        .error { message := "Aleo IR v0 expects `initialize` entrypoint to return Unit" }
+      else
+        let setCall := Expression.call ⟨#["Mapping", "set"], #[], #[.identifier "count", .literal (.integer .u64 0), .literal (.integer .u64 0)]⟩
+        let asyncBlock : Block := { statements := #[.expression setCall] }
+        .ok {
+          annotations := #[]
+          variant := .entryPoint
+          identifier := "initialize"
+          constParameters := #[]
+          input := #[]
+          output := #[]
+          outputType := futureUnit
+          block := { statements := #[.returnSt (some (.async asyncBlock))] }
+        }
+    else if ep.name == "get" then
+      if ep.returns != .u64 then
+        .error { message := "Aleo IR v0 expects `get` entrypoint to return U64" }
+      else
+        let readCall := Expression.call ⟨#["Mapping", "get_or_use"], #[], #[.identifier "count", .literal (.integer .u64 0), .literal (.integer .u64 0)]⟩
+        let asyncBlock : Block := { statements := #[.definition (.single "n") (some (.integer .u64)) readCall] }
+        .ok {
+          annotations := #[]
+          variant := .entryPoint
+          identifier := "get"
+          constParameters := #[]
+          input := #[]
+          output := #[]
+          outputType := futureUnit
+          block := { statements := #[.returnSt (some (.async asyncBlock))] }
+        }
+    else if ep.name == "increment" then
+      if ep.returns != .unit then
+        .error { message := "Aleo IR v0 expects `increment` entrypoint to return Unit" }
+      else
+        let bodyStmts ← statements ep.body
+        let asyncBlock : Block := { statements := bodyStmts }
+        .ok {
+          annotations := #[]
+          variant := .entryPoint
+          identifier := "increment"
+          constParameters := #[]
+          input := #[]
+          output := #[]
+          outputType := futureUnit
+          block := { statements := #[.returnSt (some (.async asyncBlock))] }
+        }
+    else if ep.returns != .unit then
       .error { message := s!"Stateful Aleo entrypoint `{ep.name}` must return Unit" }
     else if !ep.params.isEmpty then
       .error { message := s!"Stateful Aleo entrypoint `{ep.name}` cannot have parameters yet" }
-    else if ep.name == "initialize" then
-      let setCall := Expression.call ⟨#["Mapping", "set"], #[], #[.identifier "count", .literal (.integer .u64 0), .literal (.integer .u64 0)]⟩
-      let asyncBlock : Block := { statements := #[.expression setCall] }
-      .ok {
-        annotations := #[]
-        variant := .entryPoint
-        identifier := "initialize"
-        constParameters := #[]
-        input := #[]
-        output := #[]
-        outputType := futureUnit
-        block := { statements := #[.returnSt (some (.async asyncBlock))] }
-      }
-    else if ep.name == "get" then
-      let readCall := Expression.call ⟨#["Mapping", "get_or_use"], #[], #[.identifier "count", .literal (.integer .u64 0), .literal (.integer .u64 0)]⟩
-      let asyncBlock : Block := { statements := #[.definition (.single "n") (some (.integer .u64)) readCall] }
-      .ok {
-        annotations := #[]
-        variant := .entryPoint
-        identifier := "get"
-        constParameters := #[]
-        input := #[]
-        output := #[]
-        outputType := futureUnit
-        block := { statements := #[.returnSt (some (.async asyncBlock))] }
-      }
-    else if ep.name == "increment" then
-      let bodyStmts ← statements ep.body
-      let asyncBlock : Block := { statements := bodyStmts }
-      .ok {
-        annotations := #[]
-        variant := .entryPoint
-        identifier := "increment"
-        constParameters := #[]
-        input := #[]
-        output := #[]
-        outputType := futureUnit
-        block := { statements := #[.returnSt (some (.async asyncBlock))] }
-      }
     else
       .error { message := s!"Aleo IR v0 does not support stateful entrypoint `{ep.name}`" }
   else
