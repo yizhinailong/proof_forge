@@ -1,6 +1,6 @@
 # Aleo Leo Target
 
-Status: **Research (docs-first candidate)**
+Status: **Research (docs-first candidate — design spec ready for review)**
 
 Candidate target id: **`aleo-leo`**
 
@@ -222,3 +222,28 @@ Aleo can leave Research only when we have:
   devnode;
 - one reproducible local command or script that validates a tiny Leo program
   package, even if proving-heavy gates are optional in CI.
+
+## Research Exit Plan
+
+A detailed design spec covering Research exit + Road 1 spike is in
+[docs/superpowers/specs/2026-07-01-aleo-leo-design.md](../../superpowers/specs/2026-07-01-aleo-leo-design.md).
+
+The spec finalizes:
+
+- Target family: `zk-app-sourcegen`.
+- Canonical capabilities for the first spike:
+  `lang.leo`, `vm.aleo_avm`, `artifact.avm`, `artifact.aleo_abi`,
+  `execution.finalize`, `state.mapping`, `input.public`, `output.public`,
+  `test.leo`.
+- Research-only capabilities for future spikes:
+  `ir.aleo_instructions`, `proof.prover_key`, `proof.verifier_key`,
+  `execution.transition`, `state.record`, `state.storage`, `input.private`,
+  `output.private`, `program.import`, `program.upgrade`, `transaction.execute`,
+  `transaction.deploy`, `fee.credits`, `test.aleo_devnet`.
+- Artifact manifest schema for `aleo-leo-package`.
+- Toolchain decision: `leo build` + `leo test` primary; prove/execute optional.
+- Spike scope: Road 1 only, public mapping Counter from
+  `ProofForge.IR.Examples.Counter`.
+
+No code registry changes are planned until the Spike succeeds and the
+proof/finalization split is reviewed.

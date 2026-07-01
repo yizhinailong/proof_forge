@@ -1,6 +1,6 @@
 # Aleo Leo 目标
 
-状态：**Research（文档优先候选）**
+状态：**Research（文档优先候选 — 设计规格已就绪，等待评审）**
 
 候选目标 id：**`aleo-leo`**
 
@@ -213,3 +213,28 @@ Aleo 只有在满足以下条件后才能离开 Research：
 - 基于 Leo CLI、SDK、devnet 或 devnode 的本地验证工具链决策；
 - 一个可重复的本地命令或脚本，能验证极小 Leo program package，即使
   proving-heavy gates 在 CI 中保持可选。
+
+## Research 退出计划
+
+详细的设计规格（Research 退出 + Road 1 spike）见
+[docs/zh/superpowers/specs/2026-07-01-aleo-leo-design.zh.md](../../superpowers/specs/2026-07-01-aleo-leo-design.zh.md)。
+
+该规格确定了：
+
+- 目标家族：`zk-app-sourcegen`。
+- 第一个 spike 的规范能力：
+  `lang.leo`、`vm.aleo_avm`、`artifact.avm`、`artifact.aleo_abi`、
+  `execution.finalize`、`state.mapping`、`input.public`、`output.public`、
+  `test.leo`。
+- 留给未来 spike 的研究候选能力：
+  `ir.aleo_instructions`、`proof.prover_key`、`proof.verifier_key`、
+  `execution.transition`、`state.record`、`state.storage`、`input.private`、
+  `output.private`、`program.import`、`program.upgrade`、`transaction.execute`、
+  `transaction.deploy`、`fee.credits`、`test.aleo_devnet`。
+- `aleo-leo-package` 的制品清单 schema。
+- 工具链决策：`leo build` + `leo test` 为主；prove/execute 可选。
+- Spike 范围：仅 Road 1，公开 mapping Counter，输入为
+  `ProofForge.IR.Examples.Counter`。
+
+在 spike 成功且 proof/finalization split 审查完成前，不计划修改代码注册表
+（Capability.lean / Registry.lean）。

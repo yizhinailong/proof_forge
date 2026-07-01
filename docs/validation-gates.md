@@ -78,6 +78,8 @@ The following gates are `Planned` and do not exist in CI or as scripts:
 - Golden Yul/output snapshots — regression detection via snapshot diffing.
 - CosmWasm smoke — `cosmwasm-check` or `cw-multi-test` validation.
 - Solana smoke — Mollusk or `solana-test-validator` validation.
+- Aleo Leo smoke — `scripts/aleo/counter-smoke.sh` with `leo build` and
+  `leo test` for a generated Counter Leo package.
 - Move smoke — `aptos move compile/test` or Sui Move validation.
 - Cross-target capability rejection matrix — compile-time diagnostics for
   unsupported capability/target combinations beyond the target-specific Psy and

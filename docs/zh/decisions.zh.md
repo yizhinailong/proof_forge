@@ -32,6 +32,7 @@
 | D-022 | 2026-07-01 | 将 **`zcash-shielded`** 归类为文档优先的 privacy UTXO/ZK payment Research 候选 | Zcash 源自 Bitcoin，但 shielded 支持依赖 Sapling/Orchard notes、nullifiers、anchors、value-balance constraints、viewing/disclosure policy 和协议定义的 ZK proofs；registry 修改需等待 shielded-note 能力和 proving/validation boundary 审查 |
 | D-023 | 2026-07-01 | 将 **`aleo-leo`** 归类为文档优先的 Aleo ZK application sourcegen Research 候选 | Aleo programs 结合 private off-chain proof execution、public on-chain finalization、encrypted records、public mappings/storage、Aleo Instructions、Aleo VM bytecode、ABI、prover/verifier artifacts 和 execute/deploy transactions；registry 修改需等待 proof/finalization split 审查 |
 | D-024 | 2026-07-01 | 将 Robinhood Chain 建模为 `evm` 下的 EVM-compatible chain profile **`robinhood-chain-testnet`**，而不是新的 compiler target | Robinhood Chain 执行 EVM-compatible Arbitrum Orbit L2 contracts；ProofForge 的 EVM backend 覆盖 bytecode generation，chain profile 记录 chain id、RPC、explorer、verifier、rollup 和 deployment metadata |
+| D-025 | 2026-07-01 | 批准 **`aleo-leo`** Research 退出设计：Leo-first 的 `zk-app-sourcegen` 边界、Road 1 规范能力、制品清单 schema 以及 `leo build`/`leo test` 工具链 | Aleo 的 proof/finalization split 需要独立于 `psy-dpn` 风格电路 sourcegen 的自有 sourcegen 家族；代码注册表变更仍延后到 Road 1 spike 成功后 |
 
 ## 目标家族分类
 
@@ -46,7 +47,7 @@
 | eUTXO validator sourcegen research | `cardano-plutus-aiken`（候选，仅文档） | 可移植 IR → Aiken package → UPLC/Plutus validator artifacts + Plutus blueprint + transaction scenario metadata |
 | Michelson sourcegen research | `tezos-michelson-ligo`（候选，仅文档） | 可移植 IR → LIGO package → Michelson contract + parameter/storage schema + operation/view/event manifests |
 | Cairo sourcegen research | `starknet-cairo`（候选，仅文档） | 可移植 IR → Cairo/Scarb package → Sierra/CASM artifacts + ABI/class-hash/deployment metadata |
-| Aleo ZK app sourcegen research | `aleo-leo`（候选，仅文档） | 可移植 IR → Leo package → Aleo Instructions → Aleo VM bytecode + ABI/prover/verifier artifacts + execute/deploy metadata |
+| Aleo ZK app sourcegen（`zk-app-sourcegen`） | `aleo-leo`（候选，仅文档） | 可移植 IR → Leo package → Aleo Instructions → Aleo VM bytecode + ABI/prover/verifier artifacts + execute/deploy metadata |
 | TVM sourcegen research | `ton-tvm`（候选，仅文档） | 可移植 IR → Tolk 或更底层 TON source → TVM/BOC artifact + TL-B/message manifests |
 | Bitcoin script policy research | `bitcoin-script-miniscript`（候选，仅文档） | 可移植 IR → policy/Miniscript/descriptor package → Script/Tapscript output + PSBT/regtest validation metadata |
 | Privacy UTXO ZK payment research | `zcash-shielded`（候选，仅文档） | 可移植 IR → shielded transaction/proving manifest → Zcash transaction with Sapling/Orchard proof bundle + zcashd/library validation metadata |

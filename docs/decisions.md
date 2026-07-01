@@ -34,6 +34,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-022 | 2026-07-01 | Classify **`zcash-shielded`** as a docs-first privacy UTXO/ZK payment Research candidate | Zcash is Bitcoin-derived but shielded support depends on Sapling/Orchard notes, nullifiers, anchors, value-balance constraints, viewing/disclosure policy, and protocol-defined ZK proofs; registry changes wait until shielded-note capabilities and a proving/validation boundary are reviewed |
 | D-023 | 2026-07-01 | Classify **`aleo-leo`** as a docs-first Aleo ZK application sourcegen Research candidate | Aleo programs combine private off-chain proof execution, public on-chain finalization, encrypted records, public mappings/storage, Aleo Instructions, Aleo VM bytecode, ABI, prover/verifier artifacts, and execute/deploy transactions; registry changes wait until the proof/finalization split is reviewed |
 | D-024 | 2026-07-01 | Model Robinhood Chain as **`robinhood-chain-testnet`**, an EVM-compatible chain profile under `evm`, not a new compiler target | Robinhood Chain executes EVM-compatible Arbitrum Orbit L2 contracts; ProofForge's EVM backend covers bytecode generation, while the chain profile records chain id, RPC, explorer, verifier, rollup, and deployment metadata |
+| D-025 | 2026-07-01 | Ratify **`aleo-leo`** Research exit design: Leo-first `zk-app-sourcegen` boundary, canonical capabilities for Road 1, artifact manifest schema, and `leo build`/`leo test` toolchain | Aleo's proof/finalization split requires its own sourcegen family distinct from `psy-dpn`-style circuit sourcegen; code registry changes remain deferred until the Road 1 spike succeeds |
 
 ## Target Family Classification
 
@@ -48,7 +49,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | eUTXO validator sourcegen research | `cardano-plutus-aiken` (candidate, docs only) | Portable IR → Aiken package → UPLC/Plutus validator artifacts + Plutus blueprint + transaction scenario metadata |
 | Michelson sourcegen research | `tezos-michelson-ligo` (candidate, docs only) | Portable IR → LIGO package → Michelson contract + parameter/storage schema + operation/view/event manifests |
 | Cairo sourcegen research | `starknet-cairo` (candidate, docs only) | Portable IR → Cairo/Scarb package → Sierra/CASM artifacts + ABI/class-hash/deployment metadata |
-| Aleo ZK app sourcegen research | `aleo-leo` (candidate, docs only) | Portable IR → Leo package → Aleo Instructions → Aleo VM bytecode + ABI/prover/verifier artifacts + execute/deploy metadata |
+| Aleo ZK app sourcegen (`zk-app-sourcegen`) | `aleo-leo` (candidate, docs only) | Portable IR → Leo package → Aleo Instructions → Aleo VM bytecode + ABI/prover/verifier artifacts + execute/deploy metadata |
 | TVM sourcegen research | `ton-tvm` (candidate, docs only) | Portable IR → Tolk or lower-level TON source → TVM/BOC artifact + TL-B/message manifests |
 | Bitcoin script policy research | `bitcoin-script-miniscript` (candidate, docs only) | Portable IR → policy/Miniscript/descriptor package → Script/Tapscript output + PSBT/regtest validation metadata |
 | Privacy UTXO ZK payment research | `zcash-shielded` (candidate, docs only) | Portable IR → shielded transaction/proving manifest → Zcash transaction with Sapling/Orchard proof bundle + zcashd/library validation metadata |

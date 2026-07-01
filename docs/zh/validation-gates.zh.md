@@ -50,6 +50,8 @@
 - 黄金 Yul/输出快照 — 通过快照差异对比进行回归检测。
 - CosmWasm 冒烟测试 — `cosmwasm-check` 或 `cw-multi-test` 验证。
 - Solana 冒烟测试 — Mollusk 或 `solana-test-validator` 验证。
+- Aleo Leo 冒烟测试 — `scripts/aleo/counter-smoke.sh`，用 `leo build` 和
+  `leo test` 验证生成的 Counter Leo 包。
 - Move 冒烟测试 — `aptos move compile/test` 或 Sui Move 验证。
 - 能力拒绝测试 — 针对不支持的能力/目标组合的编译时诊断。
 
