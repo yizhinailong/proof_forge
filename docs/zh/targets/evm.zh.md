@@ -133,7 +133,7 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 | `storage.scalar` | `Storage.load`, `Storage.store`；portable IR 标量 storage read/write 和标量 storage 复合赋值 |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`；portable IR `Map<U64, U64, N>` get/set/insert 和单段 map storage path |
 | `storage.array` | 部分支持：portable IR `U64` 固定 storage array 降为连续 EVM storage slot，并带运行时 index bounds check |
-| `data.fixed_array` | 部分支持：用于 portable IR 固定 storage array；local fixed-array value、ABI array 和通用 index path 仍会显式拒绝 |
+| `data.fixed_array` | 部分支持：用于 portable IR 固定 storage array 和单段 index storage path；local fixed-array value 和 ABI array 仍会显式拒绝 |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -220,7 +220,7 @@ scripts/evm/ir-counter-smoke.sh
 
 `EvmMapProbe` 验证 portable IR `Map<U64, U64, N>` storage 使用与 SDK 一致的 Solidity-style slot layout：先把 `key` 和 `slot` 作为两个 32-byte word 写入内存，再计算 `keccak256(key || slot)`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.map`、`assertions.check`）、ABI get/set/insert 行为、单段 `mapKey` storage path 的 read、write 和复合赋值、Foundry `vm.load` 原始 storage slot，以及未知 selector revert。EVM IR v0 会把 storage path 复合赋值限制在 `Map<U64, U64, N>` 上，直到 array 和 struct storage layout 落地。
 
-`EvmStorageArrayProbe` 验证 portable IR `U64` 固定 storage array 会降为连续的 EVM storage slot。Array state 会占用 `length` 个 slot，因此定义在 array 后面的 state 会从整个 array span 之后开始。读写会通过 `__proof_forge_array_slot(base, length, index)`，在 `sload` 或 `sstore` 前对越界 index revert。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.array`、`data.fixed_array`）、ABI read/write selector、Foundry 原始 slot layout、越界 revert，以及未知 selector revert。
+`EvmStorageArrayProbe` 验证 portable IR `U64` 固定 storage array 会降为连续的 EVM storage slot。Array state 会占用 `length` 个 slot，因此定义在 array 后面的 state 会从整个 array span 之后开始。直接 `storageArrayRead`/`storageArrayWrite` effect 和单段 `index` storage path 都会通过 `__proof_forge_array_slot(base, length, index)`，在 `sload` 或 `sstore` 前对越界 index revert。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.array`、`data.fixed_array`）、ABI read/write selector、generic path read/write 和复合赋值、Foundry 原始 slot layout、越界 revert，以及未知 selector revert。
 
 ## 元数据
 

@@ -145,7 +145,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR scalar storage read/write and scalar storage compound assignment |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<U64, U64, N>` get/set/insert and single-segment map storage paths |
 | `storage.array` | Partial: portable IR `U64` fixed storage arrays lower to contiguous EVM storage slots with runtime index bounds checks |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays; local fixed-array values, ABI arrays, and generic index paths still reject explicitly |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays and single-segment index storage paths; local fixed-array values and ABI arrays still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -323,12 +323,14 @@ land.
 
 `EvmStorageArrayProbe` validates portable IR `U64` fixed storage arrays through
 contiguous EVM storage slots. Array state occupies `length` slots, so state
-declared after an array starts after the full array span. Reads and writes lower
-through `__proof_forge_array_slot(base, length, index)`, which reverts when the
-index is out of bounds before calling `sload` or `sstore`. The smoke checks
-golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
-metadata capabilities (`storage.scalar`, `storage.array`, `data.fixed_array`),
-ABI read/write selectors, Foundry raw slot layout, out-of-bounds reverts, and
+declared after an array starts after the full array span. Direct
+`storageArrayRead`/`storageArrayWrite` effects and single-segment `index`
+storage paths lower through `__proof_forge_array_slot(base, length, index)`,
+which reverts when the index is out of bounds before calling `sload` or
+`sstore`. The smoke checks golden Yul reproducibility, `solc --strict-assembly`
+bytecode generation, metadata capabilities (`storage.scalar`, `storage.array`,
+`data.fixed_array`), ABI read/write selectors, generic path read/write and
+compound assignment, Foundry raw slot layout, out-of-bounds reverts, and
 unknown-selector revert behavior.
 
 ## Metadata

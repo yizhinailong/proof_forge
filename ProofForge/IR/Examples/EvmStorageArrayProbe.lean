@@ -25,6 +25,9 @@ def stateAfter : StateDecl := {
 def u64 (value : Nat) : Expr :=
   .literal (.u64 value)
 
+def pathIndex (value : Nat) : StoragePathSegment :=
+  .index (u64 value)
+
 def storageLifecycle : Entrypoint := {
   name := "storage_lifecycle"
   selector? := some "e4684b67"
@@ -63,10 +66,34 @@ def writeValue : Entrypoint := {
   ]
 }
 
+def pathLifecycle : Entrypoint := {
+  name := "path_lifecycle"
+  selector? := some "84c21205"
+  returns := .u64
+  body := #[
+    .effect (.storagePathWrite "values" #[pathIndex 0] (u64 21)),
+    .effect (.storagePathWrite "values" #[pathIndex 1] (u64 22)),
+    .return (.add
+      (.effect (.storagePathRead "values" #[pathIndex 0]))
+      (.effect (.storagePathRead "values" #[pathIndex 1])))
+  ]
+}
+
+def pathAssignLifecycle : Entrypoint := {
+  name := "path_assign_lifecycle"
+  selector? := some "bce9e77b"
+  returns := .u64
+  body := #[
+    .effect (.storagePathWrite "values" #[pathIndex 2] (u64 10)),
+    .effect (.storagePathAssignOp "values" #[pathIndex 2] .add (u64 5)),
+    .return (.effect (.storagePathRead "values" #[pathIndex 2]))
+  ]
+}
+
 def module : Module := {
   name := "EvmStorageArrayProbe"
   state := #[stateBefore, stateValues, stateAfter]
-  entrypoints := #[storageLifecycle, readValue, writeValue]
+  entrypoints := #[storageLifecycle, readValue, writeValue, pathLifecycle, pathAssignLifecycle]
 }
 
 end ProofForge.IR.Examples.EvmStorageArrayProbe

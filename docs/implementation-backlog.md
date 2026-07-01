@@ -149,6 +149,9 @@ Tasks:
   slots with runtime bounds checks, with `EvmStorageArrayProbe` golden Yul,
   solc bytecode, Foundry runtime/raw-slot validation, metadata capability
   validation, and explicit diagnostics for unsupported array element types.
+- Done: add EVM IR single-segment `index` storage path read/write/compound
+  assignment over `U64` fixed storage arrays, reusing the bounded array slot
+  helper and extending `EvmStorageArrayProbe` validation.
 - Add golden Yul outputs for simple examples.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.

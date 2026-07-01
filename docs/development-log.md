@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Array Index Storage Paths
+
+Commit: feature commit for EVM IR array index storage paths
+
+Summary:
+
+- Added EVM portable IR lowering for single-segment `StoragePathSegment.index`
+  paths over `U64` fixed storage arrays.
+- Reused `__proof_forge_array_slot(base, length, index)` for generic
+  `storagePathRead`, `storagePathWrite`, and `storagePathAssignOp` so direct
+  array effects and storage paths share bounds-checking behavior.
+- Extended `EvmStorageArrayProbe` with `path_lifecycle()` and
+  `path_assign_lifecycle()`.
+- Extended `scripts/evm/storage-array-ir-smoke.sh` to validate path read,
+  write, compound assignment, metadata selectors, and raw storage slots.
+- Kept nested index paths, struct paths, and non-`U64` arrays explicitly
+  rejected.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-evm-storage-array-ir-yul -o build/ir/EvmStorageArrayProbe.yul
+diff -u Examples/Evm/EvmStorageArrayProbe.golden.yul build/ir/EvmStorageArrayProbe.yul
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+git diff --check
+```
+
+Known limitations:
+
+- This feature supports exactly one `index` path segment over `U64` storage
+  arrays. Nested array paths, struct fields, local fixed-array values, and
+  aggregate ABI arrays remain future work.
+
+Next step:
+
+- Move from storage-array paths toward local fixed-array values or flat structs,
+  depending on which aggregate surface is needed first.
+
 ### EVM IR U64 Storage Arrays
 
 Commit: feature commit for EVM IR U64 storage array lowering

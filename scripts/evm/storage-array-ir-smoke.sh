@@ -44,6 +44,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint storage_lifecycle:e4684b67 \
   --expect-entrypoint read_value:ac35feee \
   --expect-entrypoint write_value:5a6fd3b0 \
+  --expect-entrypoint path_lifecycle:84c21205 \
+  --expect-entrypoint path_assign_lifecycle:bce9e77b \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmStorageArrayProbe.bin")"
@@ -128,6 +130,23 @@ contract ProofForgeIRStorageArraySmokeTest {
 
         assertEq(callU256(probe, abi.encodeWithSignature("read_value(uint256)", 1)), 44);
         assertEq(readStorage(probe, arraySlot(1)), 44);
+    }
+
+    function testIRStorageArrayIndexStoragePath() public {
+        address probe = address(uint160(0xA224));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("path_lifecycle()")), 43);
+        assertEq(readStorage(probe, arraySlot(0)), 21);
+        assertEq(readStorage(probe, arraySlot(1)), 22);
+    }
+
+    function testIRStorageArrayIndexStoragePathCompoundAssignment() public {
+        address probe = address(uint160(0xA225));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("path_assign_lifecycle()")), 15);
+        assertEq(readStorage(probe, arraySlot(2)), 15);
     }
 
     function testIRStorageArrayRejectsOutOfBoundsIndex() public {

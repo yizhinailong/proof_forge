@@ -234,6 +234,11 @@ def storagePathIndexModule : Module :=
     .return (.effect (.storagePathRead "balances" #[.index (.literal (.u64 0))]))
   ]
 
+def storageArrayPathNestedIndexModule : Module :=
+  selectedArrayModule "BadStorageArrayPathNestedIndex" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.effect (.storagePathRead "values" #[.index (.literal (.u64 0)), .index (.literal (.u64 1))]))
+  ]
+
 def contextReadStmtModule : Module :=
   selectedModule "BadContextReadStmt" <| selectedEntrypoint "bad" #[
     .effect (.contextRead .userId)
@@ -421,6 +426,11 @@ def cases : Array (String × Module × String) := #[
     "storage path index unsupported",
     storagePathIndexModule,
     "EVM IR v0 supports only single-segment mapKey storage paths"
+  ),
+  (
+    "storage array path nested index unsupported",
+    storageArrayPathNestedIndexModule,
+    "EVM IR v0 supports only single-segment index storage paths for arrays"
   ),
   (
     "storage path assign_op used as expression",

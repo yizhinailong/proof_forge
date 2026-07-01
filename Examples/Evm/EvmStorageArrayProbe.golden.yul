@@ -21,6 +21,16 @@ object "EvmStorageArrayProbe" {
       f_EvmStorageArrayProbe_write_value(calldataload(4), calldataload(36))
       return(0, 0)
     }
+    case 0x84c21205 {
+      let _r := f_EvmStorageArrayProbe_path_lifecycle()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xbce9e77b {
+      let _r := f_EvmStorageArrayProbe_path_assign_lifecycle()
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -37,6 +47,19 @@ object "EvmStorageArrayProbe" {
     }
     function f_EvmStorageArrayProbe_write_value(index, value) {
       sstore(__proof_forge_array_slot(1, 3, index), value)
+    }
+    function f_EvmStorageArrayProbe_path_lifecycle() -> result {
+      sstore(__proof_forge_array_slot(1, 3, 0), 21)
+      sstore(__proof_forge_array_slot(1, 3, 1), 22)
+      result := add(sload(__proof_forge_array_slot(1, 3, 0)), sload(__proof_forge_array_slot(1, 3, 1)))
+    }
+    function f_EvmStorageArrayProbe_path_assign_lifecycle() -> result {
+      sstore(__proof_forge_array_slot(1, 3, 2), 10)
+      {
+        let _slot := __proof_forge_array_slot(1, 3, 2)
+        sstore(_slot, add(sload(_slot), 5))
+      }
+      result := sload(__proof_forge_array_slot(1, 3, 2))
     }
     function __proof_forge_array_slot(slot, length, index) -> result {
       if iszero(lt(index, length)) {

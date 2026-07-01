@@ -449,8 +449,14 @@ mutual
         .ok state.type
     | .scalar, _ =>
         .error { message := "EVM IR v0 supports storage paths only for single-segment mapKey map access" }
+    | .array _, [StoragePathSegment.index index] => do
+        let _ ← requireU64ArrayState module stateId
+        ensureArrayIndexType s!"array state `{stateId}` index" (← inferExprType module env index)
+        .ok .u64
+    | .array _, [] =>
+        .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
     | .array _, _ =>
-        .error { message := "storage.array paths are not supported by IR EVM v0" }
+        .error { message := "EVM IR v0 supports only single-segment index storage paths for arrays" }
 
   partial def inferEffectExprType (module : Module) (env : TypeEnv) : Effect → Except LowerError ValueType
     | .storageScalarRead stateId =>
@@ -642,7 +648,13 @@ mutual
   partial def lowerStoragePathReadExpr (module : Module) (stateId : String) (path : Array StoragePathSegment) : Except LowerError Lean.Compiler.Yul.Expr :=
     match path.toList with
     | [StoragePathSegment.mapKey key] => lowerMapGetExpr module stateId key
-    | [] => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+    | [StoragePathSegment.index index] => lowerArrayReadExpr module stateId index
+    | [] => do
+        let state ← stateDeclOf module stateId "storage path"
+        match state.kind with
+        | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+        | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
+        | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.read" }
     | _ => .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
 
   partial def lowerExpr (module : Module) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
@@ -797,7 +809,13 @@ def lowerStoragePathWriteStmt
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement :=
   match path.toList with
   | [StoragePathSegment.mapKey key] => lowerMapWriteStmt module stateId key value
-  | [] => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+  | [StoragePathSegment.index index] => lowerArrayWriteStmt module stateId index value
+  | [] => do
+      let state ← stateDeclOf module stateId "storage path"
+      match state.kind with
+      | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+      | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
+      | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.write" }
   | _ => .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
 
 def lowerStoragePathAssignOpStmt
@@ -810,7 +828,21 @@ def lowerStoragePathAssignOpStmt
   | [StoragePathSegment.mapKey key] => do
       let slot ← requireU64MapState module stateId
       .ok (.exprStmt (Lean.Compiler.Yul.call (mapAssignFunctionName op) #[slotExpr slot, ← lowerExpr module key, ← lowerExpr module value]))
-  | [] => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+  | [StoragePathSegment.index index] => do
+      let storageSlot ← lowerArraySlotExpr module stateId index
+      .ok (.block { statements := #[
+        .varDecl #[{ name := "_slot" }] (some storageSlot),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          Lean.Compiler.Yul.Expr.id "_slot",
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module value)
+        ])
+      ]})
+  | [] => do
+      let state ← stateDeclOf module stateId "storage path"
+      match state.kind with
+      | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+      | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
+      | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.assign_op" }
   | _ => .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
 
 def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Statement
