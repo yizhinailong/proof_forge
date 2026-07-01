@@ -62,6 +62,24 @@ def unitParameterModule : Module :=
     body := #[]
   }
 
+def zeroLengthAbiArrayModule : Module :=
+  selectedModule "BadZeroLengthAbiArray" {
+    name := "bad"
+    selector? := some "deadbeef"
+    params := #[("xs", .fixedArray .u64 0)]
+    returns := .unit
+    body := #[]
+  }
+
+def nestedAbiArrayModule : Module :=
+  selectedModule "BadNestedAbiArray" {
+    name := "bad"
+    selector? := some "deadbeef"
+    params := #[("xs", .fixedArray (.fixedArray .u64 2) 2)]
+    returns := .unit
+    body := #[]
+  }
+
 def hashParameterModule : Module :=
   selectedModule "BadHashParameter" {
     name := "set"
@@ -405,7 +423,17 @@ def cases : Array (String × Module × String) := #[
   (
     "unit parameter unsupported",
     unitParameterModule,
-    "entrypoint `set` parameter `value` uses Unit; IR EVM v0 ABI parameters must use U32, U64, Bool, or Hash"
+    "entrypoint `set` parameter `value` uses Unit; IR EVM v0 ABI values must use U32, U64, Bool, Hash, fixed arrays, or structs"
+  ),
+  (
+    "zero-length ABI array unsupported",
+    zeroLengthAbiArrayModule,
+    "entrypoint `bad` parameter `xs` uses Array<U64,0>; IR EVM v0 ABI fixed arrays must have non-zero length"
+  ),
+  (
+    "nested ABI array unsupported",
+    nestedAbiArrayModule,
+    "entrypoint `bad` parameter `xs` fixed-array element has unsupported EVM IR v0 ABI word type `Array<U64,2>`; ABI aggregate words support U32, U64, Bool, or Hash"
   ),
   (
     "missing return",

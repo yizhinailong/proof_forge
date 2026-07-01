@@ -151,6 +151,9 @@ jobs:
       - name: Run EVM StructValueProbe IR smoke
         run: scripts/evm/struct-value-ir-smoke.sh
 
+      - name: Run EVM AbiAggregateProbe IR smoke
+        run: scripts/evm/abi-aggregate-ir-smoke.sh
+
       - name: Build EVM examples
         run: scripts/evm/build-examples.sh
 

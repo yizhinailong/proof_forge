@@ -48,6 +48,7 @@ scripts/evm/map-ir-smoke.sh
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/array-value-ir-smoke.sh
 scripts/evm/struct-value-ir-smoke.sh
+scripts/evm/abi-aggregate-ir-smoke.sh
 ```
 
 ## CLI modes
@@ -97,6 +98,8 @@ proof-forge --emit-evm-array-value-ir-yul [-o output.yul]
 proof-forge --emit-evm-array-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-struct-value-ir-yul [-o output.yul]
 proof-forge --emit-evm-struct-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-abi-aggregate-ir-yul [-o output.yul]
+proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
 
 `--bytecode` is an alias for `--evm-bytecode`.
@@ -152,8 +155,8 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR scalar storage read/write and scalar storage compound assignment |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<U64, U64, N>` get/set/insert and single-segment map storage paths |
 | `storage.array` | Partial: portable IR `U64` fixed storage arrays lower to contiguous EVM storage slots with runtime index bounds checks |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths, immutable local fixed-array values, fixed-array literals, and static local/literal index reads; mutable local arrays, dynamic local indexes, nested arrays, and ABI arrays still reject explicitly |
-| `data.struct` | Partial: portable IR flat immutable local struct values, struct literals, and field access lower by expanding supported fields to internal Yul locals; mutable locals, nested fields, storage structs, and ABI structs still reject explicitly |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths, immutable local fixed-array values, fixed-array literals, static local/literal index reads, flat static fixed-array ABI parameters, and multi-word fixed-array returns; mutable local arrays, dynamic local indexes, zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
+| `data.struct` | Partial: portable IR flat immutable local struct values, struct literals, field access, flat ABI-facing struct parameters, and multi-word struct returns lower by expanding supported fields to EVM words; mutable locals, nested fields, storage structs, and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -198,13 +201,14 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   conditionals, context reads, events, `Hash` word values and hashing,
   `Map<U64, U64, N>` storage, `U64` fixed storage arrays, immutable local
   fixed-array values with static indexes, flat immutable local struct values
-  over scalar/hash fields, synchronous
+  over scalar/hash fields, flat static aggregate ABI parameters and returns,
+  synchronous
   word-returning `crosscallInvoke`, and static bounded loops. It rejects wider
   portable IR nodes with explicit diagnostics.
-- Portable IR EVM currently lacks aggregate ABI values, non-`U64` map
-  shapes, non-`U64` storage arrays, dynamic local fixed-array indexes, mutable
-  local fixed arrays, nested arrays, storage structs, mutable or nested local
-  structs, ABI structs, indexed/Solidity-signature event schemas,
+- Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
+  non-`U64` map shapes, non-`U64` storage arrays, dynamic local fixed-array
+  indexes, mutable local fixed arrays, nested arrays, storage structs, mutable
+  or nested local structs, indexed/Solidity-signature event schemas,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
   return data, and target-specific deploy manifests.
 - `storage.map.contains` remains explicitly unsupported because EVM mappings do
@@ -232,6 +236,7 @@ scripts/evm/map-ir-smoke.sh
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/array-value-ir-smoke.sh
 scripts/evm/struct-value-ir-smoke.sh
+scripts/evm/abi-aggregate-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
@@ -247,6 +252,15 @@ omitting behavior.
 validates dispatcher calldata decoding for `U64`, `U32`, and `Bool` parameters,
 one-word return data for `U64` and `Bool`, golden Yul reproducibility, solc
 bytecode generation, and Foundry runtime behavior including malformed calldata
+reverts.
+
+`EvmAbiAggregateProbe` validates flat static aggregate ABI lowering. Struct
+parameters and fixed-array parameters flatten to contiguous calldata words,
+`U32` and `Bool` words retain dispatcher range guards, and flat struct or
+fixed-array returns encode as multi-word ABI return data. The smoke checks
+golden Yul reproducibility, `solc --strict-assembly`, artifact metadata
+capabilities `data.struct` and `data.fixed_array`, Foundry calls for struct and
+array parameters/returns, malformed calldata reverts, and unknown-selector
 reverts.
 
 `AssertProbe` validates portable IR `assert` and `assert_eq` lowering to Yul
@@ -360,8 +374,8 @@ corresponding scalar/hash word expression. The smoke covers `U64`, `U32`,
 `Bool`, and `Hash` fields, golden Yul reproducibility,
 `solc --strict-assembly`, artifact metadata capability `data.struct`, Foundry
 runtime calls, and unknown-selector revert behavior. Mutable local structs,
-nested struct fields, storage structs, and ABI-facing structs remain explicit
-diagnostics until EVM layout and ABI lowering are specified.
+nested struct fields, and storage structs remain explicit diagnostics until
+EVM layout support is specified.
 
 ## Metadata
 

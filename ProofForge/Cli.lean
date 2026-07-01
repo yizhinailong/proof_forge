@@ -19,6 +19,7 @@ import ProofForge.IR.Examples.ConditionalProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.CrosscallProbe
 import ProofForge.IR.Examples.EventProbe
+import ProofForge.IR.Examples.EvmAbiAggregateProbe
 import ProofForge.IR.Examples.EvmArrayValueProbe
 import ProofForge.IR.Examples.EvmAssignOpProbe
 import ProofForge.IR.Examples.EvmCrosscallProbe
@@ -83,6 +84,8 @@ inductive EmitMode where
   | evmArrayValueIrBytecode
   | evmStructValueIrYul
   | evmStructValueIrBytecode
+  | evmAbiAggregateIrYul
+  | evmAbiAggregateIrBytecode
   | counterIrPsy
   | eventIrPsy
   | crosscallIrPsy
@@ -160,6 +163,8 @@ def usage : String :=
     "  proof-forge --emit-evm-array-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-evm-struct-value-ir-yul [-o output.yul]",
     "  proof-forge --emit-evm-struct-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
+    "  proof-forge --emit-evm-abi-aggregate-ir-yul [-o output.yul]",
+    "  proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-counter-ir-psy [-o output.psy]",
     "  proof-forge --emit-event-ir-psy [-o output.psy]",
     "  proof-forge --emit-crosscall-ir-psy [-o output.psy]",
@@ -523,7 +528,7 @@ def writeEvmSdkArtifactMetadata
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
         .ok opts
       else
         .error usage
@@ -612,6 +617,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .evmStructValueIrYul }
   | "--emit-evm-struct-value-ir-bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .evmStructValueIrBytecode }
+  | "--emit-evm-abi-aggregate-ir-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .evmAbiAggregateIrYul }
+  | "--emit-evm-abi-aggregate-ir-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .evmAbiAggregateIrBytecode }
   | "--emit-counter-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrPsy }
   | "--emit-event-ir-psy" :: rest, opts =>
@@ -1121,6 +1130,32 @@ def compileEvmStructValueIrBytecode (opts : CliOptions) : IO UInt32 := do
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
+def compileEvmAbiAggregateIrYul (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/ir/EvmAbiAggregateProbe.yul")
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.EvmAbiAggregateProbe.module with
+  | .ok yul =>
+      writeTextFile output yul
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def renderEvmAbiAggregateIrYul : IO String := do
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.EvmAbiAggregateProbe.module with
+  | .ok yul => return yul
+  | .error err => throw <| IO.userError err.render
+
+def compileEvmAbiAggregateIrBytecode (opts : CliOptions) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/EvmAbiAggregateProbe.yul")
+  let yul ← renderEvmAbiAggregateIrYul
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (FilePath.mk "build/ir/EvmAbiAggregateProbe.bin")
+  writeTextFile output (bytecode ++ "\n")
+  writeEvmIrArtifactMetadata opts "EvmAbiAggregateProbe" "ProofForge.IR.Examples.EvmAbiAggregateProbe" ProofForge.IR.Examples.EvmAbiAggregateProbe.module yulOutput output
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
 def compileCounterIrPsy (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/psy/Counter.psy")
   match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.Counter.module with
@@ -1435,6 +1470,8 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .evmArrayValueIrBytecode => compileEvmArrayValueIrBytecode opts
   | .evmStructValueIrYul => compileEvmStructValueIrYul opts
   | .evmStructValueIrBytecode => compileEvmStructValueIrBytecode opts
+  | .evmAbiAggregateIrYul => compileEvmAbiAggregateIrYul opts
+  | .evmAbiAggregateIrBytecode => compileEvmAbiAggregateIrBytecode opts
   | .counterIrPsy => compileCounterIrPsy opts
   | .eventIrPsy => compileEventIrPsy opts
   | .crosscallIrPsy => compileCrosscallIrPsy opts

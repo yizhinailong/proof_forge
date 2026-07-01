@@ -4,8 +4,8 @@ ValueType	bool	lowered	Bool literals, predicates, ABI parameters, and return val
 ValueType	u32	lowered	U32 values and ABI parameters lower as EVM words with dispatcher range guards; scalar U32 storage is accepted by validateState.
 ValueType	u64	lowered	U64 values and ABI parameters lower as EVM words; Counter IR covers scalar U64 storage and return values.
 ValueType	hash	validated	EvmHashProbe validates Hash as a one-word EVM ABI/storage value, including Hash params, Hash returns, Hash locals, and scalar Hash storage.
-ValueType	fixedArray	validated	EvmStorageArrayProbe validates U64 fixed storage arrays; EvmArrayValueProbe validates immutable local fixed-array values over U64, U32, Bool, and Hash elements with static indexes; diagnostics reject mutable locals, dynamic local indexes, out-of-bounds literals, aggregate ABI arrays, and unsupported element shapes.
-ValueType	structType	validated	EvmStructValueProbe validates flat immutable local struct values over U64, U32, Bool, and Hash fields; diagnostics reject struct storage, mutable local structs, nested fields, and ABI-facing structs until layout/ABI lowering is implemented.
+ValueType	fixedArray	validated	EvmStorageArrayProbe validates U64 fixed storage arrays; EvmArrayValueProbe validates immutable local fixed-array values over U64, U32, Bool, and Hash elements with static indexes; EvmAbiAggregateProbe validates flat static fixed-array ABI parameters and multi-word fixed-array returns; diagnostics reject mutable locals, dynamic local indexes, out-of-bounds literals, zero-length ABI arrays, nested ABI arrays, and unsupported element shapes.
+ValueType	structType	validated	EvmStructValueProbe validates flat immutable local struct values over U64, U32, Bool, and Hash fields; EvmAbiAggregateProbe validates flat ABI-facing struct parameters and multi-word struct returns; diagnostics reject struct storage, mutable local structs, nested fields, and unsupported struct field shapes.
 StateKind	scalar	lowered	EVM IR lowers scalar U32/U64/Hash state to direct slot-based sload/sstore and rejects other scalar types.
 StateKind	map	validated	EvmMapProbe validates Map<U64, U64, N> storage via Solidity-style keccak256(key, slot) mapping slots; diagnostics reject unsupported map key/value shapes.
 StateKind	array	validated	EvmStorageArrayProbe validates U64 fixed storage arrays as contiguous EVM storage slots with runtime bounds checks; diagnostics reject unsupported array element types.
@@ -28,9 +28,9 @@ AssignOp	shiftLeft	validated	EvmAssignOpProbe validates local and scalar-storage
 AssignOp	shiftRight	validated	EvmAssignOpProbe validates local and scalar-storage shift-right compound assignment with EVM shr operand ordering; diagnostics reject non-numeric operands.
 Expr	literal	lowered	lowerExpr delegates U32/U64/Bool literals to Yul numeric expressions and packs Hash literals into one EVM word.
 Expr	local	lowered	lowerExpr emits local identifiers directly.
-Expr	arrayLit	validated	EvmArrayValueProbe validates fixed-array literals as immutable local fixed-array initializers and direct literal-index sources for U64, U32, Bool, and Hash values; standalone array values and ABI arrays remain explicit diagnostics.
+Expr	arrayLit	validated	EvmArrayValueProbe validates fixed-array literals as immutable local fixed-array initializers and direct literal-index sources for U64, U32, Bool, and Hash values; EvmAbiAggregateProbe validates fixed-array return data from local aggregate values; standalone array values remain explicit diagnostics.
 Expr	arrayGet	validated	EvmArrayValueProbe validates local fixed-array static index reads and direct fixed-array literal index reads; diagnostics reject dynamic local fixed-array indexes and static out-of-bounds indexes.
-Expr	structLit	validated	EvmStructValueProbe validates struct literals as immutable local struct initializers and direct field-access sources; standalone struct values remain explicit diagnostics.
+Expr	structLit	validated	EvmStructValueProbe validates struct literals as immutable local struct initializers and direct field-access sources; EvmAbiAggregateProbe validates struct return data from struct literals; standalone struct values remain explicit diagnostics.
 Expr	field	validated	EvmStructValueProbe validates field access over immutable local struct values and direct struct literals; diagnostics reject non-struct bases and unsupported field shapes.
 Expr	add	lowered	lowerExpr emits Yul add.
 Expr	sub	lowered	lowerExpr emits Yul sub.
@@ -89,4 +89,4 @@ Statement	assert	lowered	lowerStatement emits a Yul if iszero(condition) revert 
 Statement	assertEq	lowered	lowerStatement emits a Yul if iszero(eq(lhs, rhs)) revert guard; AssertProbe covers the passing path and Foundry revert behavior.
 Statement	ifElse	lowered	lowerStatement emits Yul switch/case/default for if/else; ConditionalProbe covers then/else storage updates and diagnostics reject nested branch returns.
 Statement	boundedFor	validated	EvmLoopProbe validates boundedFor lowering to Yul for loops with scalar storage updates; diagnostics reject invalid loop ranges and loop-local returns.
-Statement	return	lowered	lowerStatement assigns supported return expressions to result and dispatch encodes one-word return data.
+Statement	return	lowered	lowerStatement assigns scalar returns to result, expands flat struct/fixed-array returns into multiple Yul return variables, and dispatch encodes one-word or multi-word ABI return data.

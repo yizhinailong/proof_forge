@@ -162,7 +162,13 @@ Tasks:
   `U32`, `Bool`, and `Hash` fields, direct struct literal field access,
   `EvmStructValueProbe` golden Yul, solc bytecode, Foundry runtime validation,
   metadata capability validation, and explicit diagnostics for struct storage,
-  mutable local structs, nested fields, and ABI-facing structs.
+  mutable local structs, and nested fields.
+- Done: add EVM IR flat static aggregate ABI lowering for fixed-array and
+  struct parameters/returns, with calldata word flattening, `U32`/`Bool`
+  aggregate word guards, multi-word return-data encoding,
+  `EvmAbiAggregateProbe` golden Yul, solc bytecode, Foundry runtime/malformed
+  calldata validation, metadata capability validation, CI coverage, and
+  explicit diagnostics for Unit, zero-length, and nested aggregate ABI values.
 - Add golden Yul outputs for simple examples.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.

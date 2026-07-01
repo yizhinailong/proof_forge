@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Flat Aggregate ABI
+
+Commit: feature commit for EVM IR flat aggregate ABI lowering
+
+Summary:
+
+- Added EVM portable IR ABI flattening for flat static fixed-array and struct
+  parameters. Fixed arrays lower to one calldata word per element, and structs
+  lower to fields in declaration order.
+- Added dispatcher range guards for `U32` and `Bool` words inside aggregate
+  ABI parameters.
+- Added multi-word return-data lowering for flat fixed-array and struct return
+  values, including local fixed-array returns and struct literal returns.
+- Added `ProofForge.IR.Examples.EvmAbiAggregateProbe`, CLI emission modes,
+  golden Yul, Foundry smoke coverage, artifact metadata validation, and CI.
+- Updated EVM diagnostics so Unit ABI values, zero-length ABI arrays, and
+  nested aggregate ABI values fail explicitly before Yul generation.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/abi-aggregate-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Known limitations:
+
+- Aggregate ABI support is flat/static only. Nested aggregate ABI values,
+  dynamic arrays, storage structs, mutable local structs, and struct arrays
+  remain future work.
+
+Next step:
+
+- Continue the EVM backend toward storage struct layout or richer ABI/event
+  schemas, using the same fixture, golden, metadata, Foundry, and CI pattern.
+
 ### CI ContextProbe Target Split
 
 Commit: bugfix commit for CI fixture isolation

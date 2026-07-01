@@ -28,7 +28,7 @@
 | `control.conditional` | 使用目标支持的布尔谓词进行语句级条件分支 | P | N | N | N | N | N | P |
 | `control.bounded_loop` | 目标可展开或静态处理的有界循环 | N | N | N | N | N | N | P |
 | `data.fixed_array` | 固定大小数组值类型、字面量和索引表达式 | P | N | N | N | N | N | P |
-| `data.struct` | 结构体值类型、字面量和字段访问 | N | N | N | N | N | N | P |
+| `data.struct` | 结构体值类型、字面量和字段访问 | P | N | N | N | N | N | P |
 | `crypto.hash` | 宿主或库哈希 | Y | Y | Y | Y | Y | Y | Y |
 | `assertions.check` | 从 portable IR 语句发射运行时或电路断言 | Y | N | N | N | N | N | P |
 | `account.explicit` | 具名账户/对象/资源绑定 | P | N | N | Y | Y | Y | P |

@@ -128,33 +128,95 @@ def revertStmt : Lean.Compiler.Yul.Statement :=
 def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num (4 + paramIndex * 32)]
 
-def ensureAbiScalarType (entrypointName paramName : String) (type : ValueType) : Except LowerError Unit :=
+def arrayLocalElementName (name : String) (index : Nat) : String :=
+  s!"__proof_forge_array_{name}_{index}"
+
+def structLocalFieldName (name fieldName : String) : String :=
+  s!"__proof_forge_struct_{name}_{fieldName}"
+
+def abiReturnName (index : Nat) : String :=
+  s!"__proof_forge_return_{index}"
+
+def abiDispatchResultName (index : Nat) : String :=
+  s!"_r{index}"
+
+def ensureAbiWordType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
   | .u32 | .u64 | .bool | .hash => .ok ()
-  | .unit =>
-      .error { message := s!"entrypoint `{entrypointName}` parameter `{paramName}` uses Unit; IR EVM v0 ABI parameters must use U32, U64, Bool, or Hash" }
-  | .fixedArray _ _ | .structType _ =>
-      .error { message := s!"entrypoint `{entrypointName}` parameter `{paramName}` uses `{type.name}`; IR EVM v0 ABI parameters must use U32, U64, Bool, or Hash" }
+  | .unit | .fixedArray _ _ | .structType _ =>
+      .error {
+        message := s!"{context} has unsupported EVM IR v0 ABI word type `{type.name}`; ABI aggregate words support U32, U64, Bool, or Hash"
+      }
 
-def lowerEntrypointParams (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.TypedName) :=
+def abiValueWordTypes (module : Module) (context : String) : ValueType → Except LowerError (Array ValueType)
+  | .u32 => .ok #[.u32]
+  | .u64 => .ok #[.u64]
+  | .bool => .ok #[.bool]
+  | .hash => .ok #[.hash]
+  | .unit =>
+      .error { message := s!"{context} uses Unit; IR EVM v0 ABI values must use U32, U64, Bool, Hash, fixed arrays, or structs" }
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error { message := s!"{context} uses Array<{elementType.name},0>; IR EVM v0 ABI fixed arrays must have non-zero length" }
+      ensureAbiWordType s!"{context} fixed-array element" elementType
+      let mut words : Array ValueType := #[]
+      for _h : _idx in [0:length] do
+        words := words.push elementType
+      .ok words
+  | .structType typeName => do
+      let some decl := module.structs.find? fun decl => decl.name == typeName
+        | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+      if decl.fields.isEmpty then
+        .error { message := s!"{context} uses empty struct `{typeName}`; IR EVM v0 ABI structs must have at least one field" }
+      let mut words : Array ValueType := #[]
+      for field in decl.fields do
+        ensureAbiWordType s!"{context} struct `{typeName}` field `{field.id}`" field.type
+        words := words.push field.type
+      .ok words
+
+def abiValueParamNames
+    (module : Module)
+    (context name : String) : ValueType → Except LowerError (Array String)
+  | .u32 | .u64 | .bool | .hash => .ok #[name]
+  | .unit => do
+      discard <| abiValueWordTypes module context .unit
+      .ok #[]
+  | .fixedArray elementType length => do
+      discard <| abiValueWordTypes module context (.fixedArray elementType length)
+      let mut names : Array String := #[]
+      for _h : index in [0:length] do
+        names := names.push (arrayLocalElementName name index)
+      .ok names
+  | .structType typeName => do
+      discard <| abiValueWordTypes module context (.structType typeName)
+      let some decl := module.structs.find? fun decl => decl.name == typeName
+        | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+      .ok (decl.fields.map fun field => structLocalFieldName name field.id)
+
+def lowerEntrypointParams (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.TypedName) :=
   entrypoint.params.foldlM (init := #[]) fun acc param => do
     let (name, type) := param
-    ensureAbiScalarType entrypoint.name name type
-    .ok (acc.push ({ name := name } : Lean.Compiler.Yul.TypedName))
+    let paramNames ← abiValueParamNames module s!"entrypoint `{entrypoint.name}` parameter `{name}`" name type
+    .ok (acc ++ (paramNames.map fun name => ({ name := name } : Lean.Compiler.Yul.TypedName)))
 
-def entrypointCallArgs (entrypoint : Entrypoint) : Array Lean.Compiler.Yul.Expr :=
-  go 0 #[]
-where
-  go (idx : Nat) (acc : Array Lean.Compiler.Yul.Expr) : Array Lean.Compiler.Yul.Expr :=
-    if h : idx < entrypoint.params.size then
-      go (idx + 1) (acc.push (calldataWordExpr idx))
-    else
-      acc
+def entrypointParamWordTypes (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array ValueType) := do
+  let mut words : Array ValueType := #[]
+  for param in entrypoint.params do
+    words := words ++ (← abiValueWordTypes module s!"entrypoint `{entrypoint.name}` parameter `{param.fst}`" param.snd)
+  .ok words
 
-def abiParamValidationStmts (entrypoint : Entrypoint) : Array Lean.Compiler.Yul.Statement :=
-  let minSize := 4 + entrypoint.params.size * 32
-  let lengthGuard :=
-    if entrypoint.params.isEmpty then
+def entrypointCallArgs (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  let wordTypes ← entrypointParamWordTypes module entrypoint
+  let mut args : Array Lean.Compiler.Yul.Expr := #[]
+  for _h : index in [0:wordTypes.size] do
+    args := args.push (calldataWordExpr index)
+  .ok args
+
+def abiParamValidationStmts (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let wordTypes ← entrypointParamWordTypes module entrypoint
+  let minSize := 4 + wordTypes.size * 32
+  let mut statements : Array Lean.Compiler.Yul.Statement :=
+    if wordTypes.isEmpty then
       #[]
     else
       #[
@@ -162,26 +224,20 @@ def abiParamValidationStmts (entrypoint : Entrypoint) : Array Lean.Compiler.Yul.
           (Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.builtin "calldatasize" #[], Lean.Compiler.Yul.Expr.num minSize])
           { statements := #[revertStmt] }
       ]
-  go 0 lengthGuard
-where
-  go (idx : Nat) (acc : Array Lean.Compiler.Yul.Statement) : Array Lean.Compiler.Yul.Statement :=
-    if h : idx < entrypoint.params.size then
-      let (_, type) := entrypoint.params[idx]
-      let word := calldataWordExpr idx
-      let acc :=
-        match type with
-        | .u32 =>
-            acc.push <| Lean.Compiler.Yul.Statement.ifStmt
-              (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 4294967295])
-              { statements := #[revertStmt] }
-        | .bool =>
-            acc.push <| Lean.Compiler.Yul.Statement.ifStmt
-              (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 1])
-              { statements := #[revertStmt] }
-        | _ => acc
-      go (idx + 1) acc
-    else
-      acc
+  for h : idx in [0:wordTypes.size] do
+    let word := calldataWordExpr idx
+    statements :=
+      match wordTypes[idx] with
+      | .u32 =>
+          statements.push <| Lean.Compiler.Yul.Statement.ifStmt
+            (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 4294967295])
+            { statements := #[revertStmt] }
+      | .bool =>
+          statements.push <| Lean.Compiler.Yul.Statement.ifStmt
+            (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 1])
+            { statements := #[revertStmt] }
+      | _ => statements
+  .ok statements
 
 def lowerAssertStmt (condition : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.ifStmt
@@ -274,12 +330,6 @@ def ensureFixedArrayIndexInBounds (context : String) (index length : Nat) : Exce
     .ok ()
   else
     .error { message := s!"{context} {index} is out of bounds for length {length}" }
-
-def arrayLocalElementName (name : String) (index : Nat) : String :=
-  s!"__proof_forge_array_{name}_{index}"
-
-def structLocalFieldName (name fieldName : String) : String :=
-  s!"__proof_forge_struct_{name}_{fieldName}"
 
 def assignOpDiagnosticName : AssignOp → String
   | .add => "addition"
@@ -1080,12 +1130,127 @@ partial def hasNestedReturn (statements : Array Statement) : Bool :=
     | .boundedFor _ _ _ body => hasNestedReturn body
     | _ => false
 
-mutual
-  partial def lowerStatements (module : Module) (statements : Array Statement) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
-    statements.foldlM (init := #[]) fun acc stmt => do
-      .ok (acc ++ (← lowerStatement module stmt))
+def abiReturnNames (module : Module) (entrypointName : String) : ValueType → Except LowerError (Array String)
+  | .unit => .ok #[]
+  | .u32 | .u64 | .bool | .hash => .ok #["result"]
+  | .fixedArray elementType length => do
+      let words ← abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.fixedArray elementType length)
+      let mut names : Array String := #[]
+      for _h : idx in [0:words.size] do
+        names := names.push (abiReturnName idx)
+      .ok names
+  | .structType typeName => do
+      let words ← abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.structType typeName)
+      let mut names : Array String := #[]
+      for _h : idx in [0:words.size] do
+        names := names.push (abiReturnName idx)
+      .ok names
 
-  partial def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError (Array Lean.Compiler.Yul.Statement)
+def abiReturnTypedNames (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.TypedName) := do
+  let names ← abiReturnNames module entrypoint.name entrypoint.returns
+  .ok (names.map fun name => ({ name := name } : Lean.Compiler.Yul.TypedName))
+
+def lowerFixedArrayReturnWords
+    (module : Module)
+    (entrypointName : String)
+    (elementType : ValueType)
+    (length : Nat)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  discard <| abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.fixedArray elementType length)
+  match value with
+  | .local name => do
+      let mut words : Array Lean.Compiler.Yul.Expr := #[]
+      for h : idx in [0:length] do
+        words := words.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
+      .ok words
+  | .arrayLit literalElementType values => do
+      ensureType s!"entrypoint `{entrypointName}` fixed-array return element type" elementType literalElementType
+      if values.size != length then
+        .error {
+          message := s!"entrypoint `{entrypointName}` fixed-array return expected length {length}, got {values.size}"
+        }
+      let mut words : Array Lean.Compiler.Yul.Expr := #[]
+      for h : idx in [0:values.size] do
+        words := words.push (← lowerExpr module values[idx])
+      .ok words
+  | _ =>
+      .error {
+        message := s!"entrypoint `{entrypointName}` fixed-array returns in IR EVM v0 support local fixed-array values or array literals only"
+      }
+
+def lowerStructReturnWords
+    (module : Module)
+    (entrypointName typeName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  discard <| abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.structType typeName)
+  let some decl := findStruct? module typeName
+    | .error { message := s!"entrypoint `{entrypointName}` return value uses unknown struct `{typeName}`" }
+  match value with
+  | .local name => do
+      let mut words : Array Lean.Compiler.Yul.Expr := #[]
+      for fieldDecl in decl.fields do
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        words := words.push (Lean.Compiler.Yul.Expr.id (structLocalFieldName name fieldDecl.id))
+      .ok words
+  | .structLit literalTypeName fields => do
+      if literalTypeName != typeName then
+        .error { message := s!"entrypoint `{entrypointName}` struct return expected `{typeName}`, got `{literalTypeName}`" }
+      let mut words : Array Lean.Compiler.Yul.Expr := #[]
+      for fieldDecl in decl.fields do
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        let some field := fields.find? fun field => field.fst == fieldDecl.id
+          | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+        words := words.push (← lowerExpr module field.snd)
+      .ok words
+  | _ =>
+      .error {
+        message := s!"entrypoint `{entrypointName}` struct returns in IR EVM v0 support local struct values or struct literals only"
+      }
+
+def lowerReturnWords
+    (module : Module)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
+  match returnType with
+  | .unit =>
+      .error { message := s!"entrypoint `{entrypointName}` has Unit return type and cannot return a value" }
+  | .u32 | .u64 | .bool | .hash => do
+      .ok #[← lowerExpr module value]
+  | .fixedArray elementType length =>
+      lowerFixedArrayReturnWords module entrypointName elementType length value
+  | .structType typeName =>
+      lowerStructReturnWords module entrypointName typeName value
+
+def lowerReturnAssignments
+    (module : Module)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let names ← abiReturnNames module entrypointName returnType
+  let words ← lowerReturnWords module entrypointName returnType value
+  if names.size != words.size then
+    .error { message := s!"entrypoint `{entrypointName}` return lowering produced {words.size} word(s), expected {names.size}" }
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  for h : idx in [0:names.size] do
+    let some word := words[idx]?
+      | .error { message := s!"entrypoint `{entrypointName}` return lowering is missing word {idx}" }
+    statements := statements.push (.assignment #[names[idx]] word)
+  .ok statements
+
+mutual
+  partial def lowerStatements
+      (module : Module)
+      (entrypointName : String)
+      (returnType : ValueType)
+      (statements : Array Statement) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
+    statements.foldlM (init := #[]) fun acc stmt => do
+      .ok (acc ++ (← lowerStatement module entrypointName returnType stmt))
+
+  partial def lowerStatement
+      (module : Module)
+      (entrypointName : String)
+      (returnType : ValueType) : ProofForge.IR.Statement → Except LowerError (Array Lean.Compiler.Yul.Statement)
     | .letBind name (.fixedArray elementType length) value =>
         lowerFixedArrayLetBinding module name elementType length value
     | .letBind name (.structType typeName) value =>
@@ -1114,8 +1279,8 @@ mutual
     | .ifElse condition thenBody elseBody => do
         if hasNestedReturn thenBody || hasNestedReturn elseBody then
           .error { message := "return statements inside if/else branches are not supported by IR EVM v0; return must be the final entrypoint statement" }
-        let thenStatements ← lowerStatements module thenBody
-        let elseStatements ← lowerStatements module elseBody
+        let thenStatements ← lowerStatements module entrypointName returnType thenBody
+        let elseStatements ← lowerStatements module entrypointName returnType elseBody
         .ok #[.switchStmt (← lowerExpr module condition) #[
           {
             value := some (Lean.Compiler.Yul.Literal.natLit 0)
@@ -1131,7 +1296,7 @@ mutual
           .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
         if hasNestedReturn body then
           .error { message := "return statements inside bounded for loops are not supported by IR EVM v0; return must be the final entrypoint statement" }
-        let bodyStatements ← lowerStatements module body
+        let bodyStatements ← lowerStatements module entrypointName returnType body
         .ok #[.forLoop
           { statements := #[
             .varDecl #[{ name := indexName }] (some (Lean.Compiler.Yul.Expr.num start))
@@ -1142,11 +1307,11 @@ mutual
           ] }
           { statements := bodyStatements }]
     | .return value => do
-        .ok #[.assignment #["result"] (← lowerExpr module value)]
+        lowerReturnAssignments module entrypointName returnType value
 end
 
 def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let params ← lowerEntrypointParams entrypoint
+  let params ← lowerEntrypointParams module entrypoint
   match entrypoint.returns with
   | .unit => pure ()
   | _ =>
@@ -1155,43 +1320,60 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
       | _ =>
           .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not end with a return statement" }
   validateEntrypointTypes module entrypoint
-  let body ← lowerStatements module entrypoint.body
-  let returns : Array Lean.Compiler.Yul.TypedName :=
-    match entrypoint.returns with
-    | .unit => #[]
-    | .u32 | .u64 | .bool | .hash => #[{ name := "result" }]
-    | .fixedArray _ _ => #[]
-    | .structType _ => #[]
-  if entrypoint.returns.capabilities.contains .dataFixedArray then
-    .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U32, U64, Bool, and Hash" }
-  if entrypoint.returns.capabilities.contains .dataStruct then
-    .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; IR EVM v0 supports only Unit, U32, U64, Bool, and Hash" }
+  let body ← lowerStatements module entrypoint.name entrypoint.returns entrypoint.body
+  let returns ← abiReturnTypedNames module entrypoint
   .ok (.funcDef (yulFunctionName module.name entrypoint.name) params returns { statements := body })
 
-def entrypointCallExpr (module : Module) (entrypoint : Entrypoint) : Lean.Compiler.Yul.Expr :=
-  Lean.Compiler.Yul.call (yulFunctionName module.name entrypoint.name) (entrypointCallArgs entrypoint)
+def entrypointCallExpr (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Expr := do
+  .ok (Lean.Compiler.Yul.call (yulFunctionName module.name entrypoint.name) (← entrypointCallArgs module entrypoint))
+
+def dispatchResultNames (wordCount : Nat) : Array String :=
+  if wordCount == 1 then
+    #["_r"]
+  else
+    Id.run do
+      let mut names : Array String := #[]
+      for _h : idx in [0:wordCount] do
+        names := names.push (abiDispatchResultName idx)
+      names
+
+def dispatchReturnStatements
+    (module : Module)
+    (entrypoint : Entrypoint)
+    (callExpr : Lean.Compiler.Yul.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let validationStmts ← abiParamValidationStmts module entrypoint
+  match entrypoint.returns with
+  | .unit =>
+      .ok (validationStmts ++ #[
+        Lean.Compiler.Yul.Statement.exprStmt callExpr,
+        Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+      ])
+  | _ => do
+      let wordTypes ← abiValueWordTypes module s!"entrypoint `{entrypoint.name}` return value" entrypoint.returns
+      let resultNames := dispatchResultNames wordTypes.size
+      let mut statements : Array Lean.Compiler.Yul.Statement :=
+        validationStmts ++ #[
+          Lean.Compiler.Yul.Statement.varDecl
+            (resultNames.map fun name => ({ name := name } : Lean.Compiler.Yul.TypedName))
+            (some callExpr)
+        ]
+      for h : idx in [0:resultNames.size] do
+        statements := statements.push <|
+          Lean.Compiler.Yul.Statement.exprStmt
+            (Lean.Compiler.Yul.builtin "mstore" #[
+              Lean.Compiler.Yul.Expr.num (idx * 32),
+              Lean.Compiler.Yul.Expr.id resultNames[idx]
+            ])
+      statements := statements.push <|
+        Lean.Compiler.Yul.Statement.exprStmt
+          (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num (wordTypes.size * 32)])
+      .ok statements
 
 def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Case := do
   let some selector := entrypoint.selector?
     | .error { message := s!"entrypoint `{entrypoint.name}` has no EVM selector metadata" }
-  let callExpr := entrypointCallExpr module entrypoint
-  let bodyStmts :=
-    match entrypoint.returns with
-    | .unit =>
-        abiParamValidationStmts entrypoint ++ #[
-          Lean.Compiler.Yul.Statement.exprStmt callExpr,
-          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
-        ]
-    | .u32 | .u64 | .bool | .hash =>
-        abiParamValidationStmts entrypoint ++ #[
-          Lean.Compiler.Yul.Statement.varDecl #[({ name := "_r" } : Lean.Compiler.Yul.TypedName)] (some callExpr),
-          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "_r"]),
-          Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32])
-        ]
-    | .fixedArray _ _ =>
-        #[revertStmt]
-    | .structType _ =>
-        #[revertStmt]
+  let callExpr ← entrypointCallExpr module entrypoint
+  let bodyStmts ← dispatchReturnStatements module entrypoint callExpr
   .ok {
     value := some (Lean.Compiler.Yul.Literal.hex ("0x" ++ selector))
     body := { statements := bodyStmts }

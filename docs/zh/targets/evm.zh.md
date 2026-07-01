@@ -45,6 +45,7 @@ scripts/evm/map-ir-smoke.sh
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/array-value-ir-smoke.sh
 scripts/evm/struct-value-ir-smoke.sh
+scripts/evm/abi-aggregate-ir-smoke.sh
 ```
 
 ## CLI 模式
@@ -94,6 +95,8 @@ proof-forge --emit-evm-array-value-ir-yul [-o output.yul]
 proof-forge --emit-evm-array-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-struct-value-ir-yul [-o output.yul]
 proof-forge --emit-evm-struct-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-abi-aggregate-ir-yul [-o output.yul]
+proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
 
 `--bytecode` 是 `--evm-bytecode` 的别名。
@@ -140,8 +143,8 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 | `storage.scalar` | `Storage.load`, `Storage.store`；portable IR 标量 storage read/write 和标量 storage 复合赋值 |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`；portable IR `Map<U64, U64, N>` get/set/insert 和单段 map storage path |
 | `storage.array` | 部分支持：portable IR `U64` 固定 storage array 降为连续 EVM storage slot，并带运行时 index bounds check |
-| `data.fixed_array` | 部分支持：用于 portable IR 固定 storage array、单段 index storage path、不可变 local fixed-array value、fixed-array literal，以及静态 local/literal index read；mutable local array、动态 local index、嵌套 array 和 ABI array 仍会显式拒绝 |
-| `data.struct` | 部分支持：portable IR 扁平不可变 local struct value、struct literal 和 field access 会把支持的字段展开为内部 Yul local；mutable local、嵌套字段、storage struct 和 ABI struct 仍会显式拒绝 |
+| `data.fixed_array` | 部分支持：用于 portable IR 固定 storage array、单段 index storage path、不可变 local fixed-array value、fixed-array literal、静态 local/literal index read、扁平静态 fixed-array ABI 参数，以及多 word fixed-array 返回；mutable local array、动态 local index、零长度 ABI array、嵌套 array 和不支持的元素形态仍会显式拒绝 |
+| `data.struct` | 部分支持：portable IR 扁平不可变 local struct value、struct literal、field access、扁平 ABI-facing struct 参数和多 word struct 返回会把支持字段展开为 EVM word；mutable local、嵌套字段、storage struct 和不支持的字段形态仍会显式拒绝 |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -180,8 +183,8 @@ EVM 不支持（设计上针对其他目标）：
 
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
-- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、context read、event、`Hash` word 值与 hashing、`Map<U64, U64, N>` storage、`U64` 固定 storage array、带静态 index 的不可变 local fixed-array value、标量/hash 字段上的扁平不可变 local struct value，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
-- Portable IR EVM 目前仍缺少聚合 ABI 值、非 `U64` map 形态、非 `U64` storage array、动态 local fixed-array index、mutable local fixed array、嵌套 array、storage struct、mutable 或 nested local struct、ABI struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据和目标专属 deploy manifest。
+- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、context read、event、`Hash` word 值与 hashing、`Map<U64, U64, N>` storage、`U64` 固定 storage array、带静态 index 的不可变 local fixed-array value、标量/hash 字段上的扁平不可变 local struct value、扁平静态聚合 ABI 参数/返回，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
+- Portable IR EVM 目前仍缺少动态或嵌套聚合 ABI 值、非 `U64` map 形态、非 `U64` storage array、动态 local fixed-array index、mutable local fixed array、嵌套 array、storage struct、mutable 或 nested local struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据和目标专属 deploy manifest。
 - `storage.map.contains` 仍被显式拒绝，因为 EVM mapping 在没有辅助 bitmap 的情况下不跟踪 key presence。
 
 ## Portable IR 门禁
@@ -205,6 +208,7 @@ scripts/evm/map-ir-smoke.sh
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/array-value-ir-smoke.sh
 scripts/evm/struct-value-ir-smoke.sh
+scripts/evm/abi-aggregate-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
@@ -213,6 +217,8 @@ scripts/evm/ir-counter-smoke.sh
 `Tests/EvmDiagnostics.lean` 固定当前 unsupported surface 的行为，确保不支持的 EVM IR 形态在 Yul 生成前失败，而不是静默遗漏行为。
 
 `AssignmentProbe` 验证 portable IR 可变标量局部绑定和 local assignment 会降为 Yul `let` 声明与 `:=` 赋值。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、Foundry 成功执行，以及赋值后的 bool guard 为 false 时的 revert 路径。
+
+`EvmAbiAggregateProbe` 验证 portable IR 扁平静态聚合 ABI lowering。struct 参数和 fixed-array 参数会展开为连续 calldata word，`U32` 和 `Bool` 聚合 word 会保留 dispatcher range guard，扁平 struct 或 fixed-array 返回会编码为多 word ABI return data。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly`、artifact metadata 能力 `data.struct` 和 `data.fixed_array`、Foundry 对 struct/array 参数与返回的调用、malformed calldata revert，以及未知 selector revert。
 
 `EvmAssignOpProbe` 验证 portable IR 对可变 `U32`/`U64` local 和 `U64` 标量 storage 的复合赋值。local 复合赋值降为 Yul `name := op(name, value)`；标量 storage 复合赋值降为 `sstore(slot, op(sload(slot), value))`。shift operator 保持 EVM 的参数顺序，即 `shl(shift, value)` 和 `shr(shift, value)`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力 `storage.scalar`、Foundry 返回值、原始 storage slot 更新，以及未知 selector revert。聚合 target 仍保持显式诊断。
 
@@ -234,7 +240,7 @@ scripts/evm/ir-counter-smoke.sh
 
 `EvmArrayValueProbe` 验证 portable IR local fixed-array value。不可变 local fixed-array binding 会展开为每个元素一个内部 Yul local；对 local array 或 array literal 的 `arrayGet` 目前要求静态 `U32`/`U64` literal index。对应 smoke 覆盖 `U64`、`U32`、`Bool` 和 `Hash` 元素 array、golden Yul 可复现、`solc --strict-assembly`、artifact metadata、Foundry 运行时调用，以及未知 selector revert。
 
-`EvmStructValueProbe` 验证 portable IR 扁平不可变 local struct value。struct local binding 会展开为每个支持字段一个内部 Yul local；对 local struct 或直接 struct literal 的 `field` access 会降为对应的标量/hash word 表达式。对应 smoke 覆盖 `U64`、`U32`、`Bool` 和 `Hash` 字段、golden Yul 可复现、`solc --strict-assembly`、artifact metadata 能力 `data.struct`、Foundry 运行时调用，以及未知 selector revert。mutable local struct、嵌套 struct field、storage struct 和 ABI-facing struct 会保持显式诊断，直到 EVM layout 与 ABI lowering 策略确定。
+`EvmStructValueProbe` 验证 portable IR 扁平不可变 local struct value。struct local binding 会展开为每个支持字段一个内部 Yul local；对 local struct 或直接 struct literal 的 `field` access 会降为对应的标量/hash word 表达式。对应 smoke 覆盖 `U64`、`U32`、`Bool` 和 `Hash` 字段、golden Yul 可复现、`solc --strict-assembly`、artifact metadata 能力 `data.struct`、Foundry 运行时调用，以及未知 selector revert。mutable local struct、嵌套 struct field 和 storage struct 会保持显式诊断，直到 EVM layout 支持确定。
 
 ## 元数据
 
