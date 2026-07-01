@@ -93,7 +93,7 @@ def wasmNear : TargetProfile := {
   family := .wasmHost
   artifactKind := .wasm
   deploymentAllocator? := some .nearWeeModel
-  offlineAllocators := #[.hostBump, .hostJemallocShape, .hostMimallocShape]
+  offlineAllocators := #[.hostBump]
   capabilities := #[
     .storageScalar,
     .storageMap,

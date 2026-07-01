@@ -59,6 +59,12 @@ Expr	hashTwoToOne	lowered	lowerExpr emits __pf_hash_two_to_one(lhs, rhs) and mod
 Expr	effect	lowered	lowerExpr delegates to lowerEffectExpr, which validates expression-only effects and rejects statement-only effects; fixtures and diagnostics cover the split.
 Expr	nativeValue	validated	inferExprType types nativeValue as U64 but wasm-near Rust sourcegen v0 explicitly rejects native value inspection with a clear diagnostic.
 Expr	crosscallInvoke	unsupported	wasm-near target profile rejects crosscall.invoke in validateCapabilities before lowering.
+Expr	crosscallInvokeTyped	unsupported	wasm-near target profile rejects crosscall.invoke in validateCapabilities before lowering; lowerExpr also rejects typed cross-contract calls.
+Expr	crosscallInvokeValueTyped	unsupported	wasm-near target profile rejects crosscall.invoke in validateCapabilities before lowering; lowerExpr also rejects value-bearing typed cross-contract calls.
+Expr	crosscallInvokeStaticTyped	unsupported	wasm-near target profile rejects crosscall.invoke in validateCapabilities before lowering; lowerExpr also rejects static typed cross-contract calls.
+Expr	crosscallInvokeDelegateTyped	unsupported	wasm-near target profile rejects crosscall.invoke in validateCapabilities before lowering; lowerExpr also rejects delegate typed cross-contract calls.
+Expr	crosscallCreate	unsupported	wasm-near target profile rejects crosscall.invoke in validateCapabilities before lowering; lowerExpr also rejects contract creation.
+Expr	crosscallCreate2	unsupported	wasm-near target profile rejects crosscall.invoke in validateCapabilities before lowering; lowerExpr also rejects create2 contract creation.
 Effect	storageScalarRead	lowered	lowerEffectExpr emits self.<id>; Counter get covers it and the read-as-statement diagnostic guards misuse.
 Effect	storageScalarWrite	lowered	lowerEffectStmt emits self.<id> = value;; Counter increment covers it and the write-as-expression diagnostic guards misuse.
 Effect	storageScalarAssignOp	unsupported	validateEffectStmtTypes and lowerEffectStmt both reject storage.scalar.assign_op in wasm-near IR v0; diagnostic covers it.
@@ -77,6 +83,7 @@ Effect	storagePathWrite	lowered	lowerStoragePathWrite emits a single-segment map
 Effect	storagePathAssignOp	unsupported	validateEffectStmtTypes and lowerEffectStmt both reject storage.path.assign_op in wasm-near IR v0.
 Effect	contextRead	lowered	lowerEffectExpr emits predecessor/current account-id or block-height reads; Hasher fixture covers userId and the context-as-statement diagnostic guards misuse.
 Effect	eventEmit	lowered	lowerEffectStmt emits near_sdk::log! with a JSON object after field-type validation; empty-name and event-as-expression diagnostics guard misuse.
+Effect	eventEmitIndexed	unsupported	wasm-near Rust sourcegen v0 rejects indexed events in lowerEffectStmt; the target profile carries eventsEmit for non-indexed events only.
 StoragePathSegment	field	unsupported	storage paths only support a single mapKey segment in wasm-near IR v0; any field segment is rejected by inferStoragePathType/lowerStoragePathRead.
 StoragePathSegment	index	unsupported	storage paths only support a single mapKey segment in wasm-near IR v0; index segments require unsupported array storage.
 StoragePathSegment	mapKey	lowered	inferStoragePathType and lowerStoragePathRead/lowerStoragePathWrite handle a single mapKey at the map boundary; Ledger fixtures and path diagnostics cover it.
@@ -87,6 +94,7 @@ Statement	assignOp	lowered	lowerStatement emits name <op>= value; for mutable lo
 Statement	effect	lowered	lowerStatement delegates to lowerEffectStmt, which rejects expression-only effects; storage fixtures and diagnostics cover the split.
 Statement	assert	lowered	lowerStatement emits assert!(cond, "msg");; Accum fixture and the conditional/bool diagnostics cover it.
 Statement	assertEq	lowered	lowerStatement emits assert_eq!(lhs, rhs, "msg"); after equality-type validation.
+Statement	release	unsupported	wasm-near Rust sourcegen v0 rejects release statements; the SDK allocator manages heap-backed locals and explicit name-based release has no Rust lowering. The direct-WAT EmitWat backend lowers release to __pf_arr_dealloc for minimalMalloc/nearWeeModel, but that path is not tracked by this Rust sourcegen coverage manifest.
 Statement	ifElse	unsupported	wasm-near target profile rejects control.conditional in validateCapabilities; lowerStatement also rejects if/else statements.
 Statement	boundedFor	unsupported	wasm-near target profile rejects control.bounded_loop in validateCapabilities; lowerStatement also rejects bounded for loops.
 Statement	return	lowered	lowerStatement emits return value;; validateModule requires non-Unit returns to end with return and return-type diagnostics guard mismatches.

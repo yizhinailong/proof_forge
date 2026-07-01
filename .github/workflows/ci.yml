@@ -48,6 +48,21 @@ jobs:
       - name: Check documentation translations
         run: scripts/i18n/check-sync.sh
 
+      - name: Check Wasm-NEAR diagnostics
+        run: scripts/near/diagnostic-smoke.sh
+
+      - name: Check Wasm-NEAR IR coverage manifest
+        run: scripts/near/check-ir-coverage-manifest.py
+
+      - name: Check IR ownership rules
+        run: lake env lean --run Tests/IROwnership.lean
+
+      - name: Check Wasm-NEAR formal semantics anchors
+        run: lake env lean --run Tests/NearWasmFormal.lean
+
+      - name: Run EmitWat offline host smoke
+        run: scripts/near/emitwat-ci-smoke.sh
+
       - name: Check Psy golden sources
         run: |
           lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy

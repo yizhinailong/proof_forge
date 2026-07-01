@@ -21,6 +21,12 @@ That gives ProofForge two allocator modes:
 | offline experiment | `alloc.offline.host_bump` | offline host import ABI | no on NEAR | simulator hook for allocator experiments |
 | offline experiment | `alloc.offline.host_jemalloc_shape` / `alloc.offline.host_mimalloc_shape` | imported or wasm-linked allocator ABI | no on NEAR unless linked into the final wasm | future experiments |
 
+The current `wasm-near` target profile advertises only
+`alloc.near_wee_model` for deployment and `alloc.offline.host_bump` for offline
+experiments. Jemalloc/mimalloc-shaped strategies remain generic future
+experiments, not NEAR-supported allocators. CosmWasm allocation remains
+deferred while NEAR is the active Wasm target.
+
 The offline runner in `runtime/offline-host` is not the chain allocator. It
 only supplies host imports for local execution. For imported allocator
 strategies, it also implements `pf_alloc` / `pf_dealloc` by managing offsets in
@@ -71,6 +77,11 @@ locals. EmitWat lowers `release` of fixed-array and struct locals to
 `__pf_arr_dealloc`; scalar releases are rejected. This gives later IR checkers a
 name-based ownership boundary for proving no use-after-release and no
 double-release properties.
+
+The IR ownership checker now enforces that boundary before EmitWat lowering:
+release must target an owned heap-backed local, released locals cannot be used
+again, double release is rejected, and conditional branches must agree on the
+release status of pre-existing locals.
 
 The current implementation is intentionally simple: it does not split or
 coalesce blocks, and broader lifetime inference is still future work.

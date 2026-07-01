@@ -14,6 +14,7 @@ later.
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.IR.Contract
+import ProofForge.IR.Ownership
 import ProofForge.Compiler.Wasm.AST
 import ProofForge.Compiler.Wasm.Printer
 import ProofForge.Target.Check
@@ -1396,6 +1397,9 @@ def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
 
 def renderModule (mod : ProofForge.IR.Module) : Except EmitError String := do
   checkCapabilities mod
+  match ProofForge.IR.Ownership.checkModule mod with
+  | .ok _ => pure ()
+  | .error error => err s!"EmitWat: {error.render}"
   let m ← lowerModule mod
   .ok (Printer.render m)
 
