@@ -15,6 +15,12 @@ Primary deliverables:
 - `Examples/Aleo/Counter.golden.leo` is the tracked golden fixture.
 - `scripts/aleo/counter-smoke.sh` generates a Leo package, runs `leo build` and
   `leo test`, writes `proof-forge-artifact.json`, and validates the metadata.
+- `ProofForge.Compiler.Leo.Emit` additionally supports pure entrypoints with
+  parameters/return values and control-flow statements (`assert`, `if/else`,
+  `boundedFor`, `assign`, `assignOp`).
+- `proof-forge --emit-pure-math-ir-leo` emits `PureMath.leo`.
+- `Examples/Aleo/PureMath.golden.leo` is the tracked golden fixture.
+- `scripts/aleo/pure-math-smoke.sh` validates the PureMath fixture end-to-end.
 
 
 Primary sources:

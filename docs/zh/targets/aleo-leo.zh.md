@@ -14,6 +14,11 @@
 - `Examples/Aleo/Counter.golden.leo` 是已跟踪的 golden fixture。
 - `scripts/aleo/counter-smoke.sh` 生成 Leo 包、运行 `leo build` 和 `leo test`、
   写入 `proof-forge-artifact.json` 并校验 metadata。
+- `ProofForge.Compiler.Leo.Emit` 额外支持带参数/返回值的纯函数入口，以及控制流语句
+  （`assert`、`if/else`、`boundedFor`、`assign`、`assignOp`）。
+- `proof-forge --emit-pure-math-ir-leo` 输出 `PureMath.leo`。
+- `Examples/Aleo/PureMath.golden.leo` 是已跟踪的 golden fixture。
+- `scripts/aleo/pure-math-smoke.sh` 端到端验证 PureMath fixture。
 
 主要来源：
 
