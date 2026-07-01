@@ -96,6 +96,7 @@ if [[ -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
       --root "$ROOT" \
       --expect-fixture Counter.lean \
       --expect-source-kind lean-sdk
+      --require-method-signatures
     )
     if [[ ( -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ) && -n "$CONSTRUCTOR_PARAM" ]]; then
       metadata_validator+=(--expect-constructor-param "$CONSTRUCTOR_PARAM")

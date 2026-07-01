@@ -717,6 +717,7 @@ def readMethodsFile (cast : String) (path : FilePath) : IO (Array MethodSpec) :=
           selector := selector
           fnName := fnName
           argCount := argCount
+          signature? := some sig
           returnsValue := returnsValue
         }
     | .error msg =>
@@ -906,6 +907,7 @@ def entrypointJson (entrypoint : ProofForge.IR.Entrypoint) : String :=
 def methodSpecJson (method : MethodSpec) : String :=
   jsonObject #[
     ("selector", jsonString method.selector),
+    ("signature", jsonStringOption method.signature?),
     ("fnName", jsonString method.fnName),
     ("argCount", toString method.argCount),
     ("returnsValue", jsonBool method.returnsValue)

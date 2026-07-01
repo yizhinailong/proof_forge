@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -10,6 +11,8 @@ REQUIRED_ARTIFACTS = ("yul", "bytecode", "initCode", "deployManifest")
 REQUIRED_VALIDATIONS = ("solcStrictAssembly", "bytecodeGeneration", "initCodeGeneration", "deployManifest")
 SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
 SUPPORTED_CONSTRUCTOR_ARG_SOURCES = {"--evm-constructor-args-hex", "--evm-constructor-arg"}
+SELECTOR_RE = re.compile(r"^[0-9a-fA-F]{8}$")
+SIGNATURE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\((.*)\)$")
 
 
 def fail(message: str) -> None:
@@ -72,7 +75,55 @@ def parse_expected_mapping(value: str, option: str) -> tuple[str, str]:
     name, selector = value.split(":", 1)
     if not name or not selector:
         fail(f"{option} expects name:selector")
-    return name, selector
+    return name, normalize_selector(selector, option)
+
+
+def normalize_selector(value: str, name: str) -> str:
+    selector = value[2:] if value.startswith(("0x", "0X")) else value
+    expect(SELECTOR_RE.fullmatch(selector) is not None, f"{name} must be an 8-hex-digit selector")
+    return selector.lower()
+
+
+def signature_arg_count(signature: str, name: str) -> int:
+    match = SIGNATURE_RE.fullmatch(signature)
+    expect(match is not None, f"{name} must be a Solidity-style signature")
+    args = match.group(1).strip()
+    if not args:
+        return 0
+    count = 1
+    paren_depth = 0
+    bracket_depth = 0
+    token_has_content = False
+    for char in args:
+        if char == "(":
+            paren_depth += 1
+            token_has_content = True
+        elif char == ")":
+            paren_depth -= 1
+            expect(paren_depth >= 0, f"{name} has unbalanced tuple parentheses")
+            token_has_content = True
+        elif char == "[":
+            bracket_depth += 1
+            token_has_content = True
+        elif char == "]":
+            bracket_depth -= 1
+            expect(bracket_depth >= 0, f"{name} has unbalanced array brackets")
+            token_has_content = True
+        elif char == "," and paren_depth == 0 and bracket_depth == 0:
+            expect(token_has_content, f"{name} has an empty argument")
+            count += 1
+            token_has_content = False
+        elif not char.isspace():
+            token_has_content = True
+    expect(paren_depth == 0, f"{name} has unbalanced tuple parentheses")
+    expect(bracket_depth == 0, f"{name} has unbalanced array brackets")
+    expect(token_has_content, f"{name} has an empty argument")
+    return count
+
+
+def expect_no_duplicate(value: str, seen: set[str], name: str) -> None:
+    expect(value not in seen, f"duplicate {name}: {value}")
+    seen.add(value)
 
 
 def parse_expected_constructor_param(value: str) -> dict:
@@ -322,6 +373,7 @@ def main() -> int:
     parser.add_argument("--expect-constructor-args-hex")
     parser.add_argument("--expect-constructor-args-source")
     parser.add_argument("--expect-constructor-param", action="append", default=[])
+    parser.add_argument("--require-method-signatures", action="store_true")
     parser.add_argument("--expect-capability", action="append", default=[])
     parser.add_argument("--expect-entrypoint", action="append", default=[])
     parser.add_argument("metadata")
@@ -381,22 +433,41 @@ def main() -> int:
     constructor_params = validate_constructor_abi(abi, expected_constructor_params)
     entrypoints = expect_array(abi.get("entrypoints"), "abi.entrypoints")
     actual_entrypoints = {}
+    seen_entrypoint_names: set[str] = set()
+    seen_entrypoint_selectors: set[str] = set()
     for idx, entry in enumerate(entrypoints):
         entry = expect_object(entry, f"abi.entrypoints[{idx}]")
-        actual_entrypoints[expect_string(entry.get("name"), f"abi.entrypoints[{idx}].name")] = expect_string(
-            entry.get("selector"), f"abi.entrypoints[{idx}].selector"
-        )
+        name = expect_string(entry.get("name"), f"abi.entrypoints[{idx}].name")
+        selector = normalize_selector(expect_string(entry.get("selector"), f"abi.entrypoints[{idx}].selector"), f"abi.entrypoints[{idx}].selector")
+        expect_no_duplicate(name, seen_entrypoint_names, "abi.entrypoints.name")
+        expect_no_duplicate(selector, seen_entrypoint_selectors, "abi.entrypoints.selector")
+        actual_entrypoints[name] = selector
     for expected in args.expect_entrypoint:
         name, selector = parse_expected_mapping(expected, "--expect-entrypoint")
         expect(actual_entrypoints.get(name) == selector, f"entrypoint selector mismatch for {name}")
 
     methods = expect_array(abi.get("methods"), "abi.methods")
+    seen_method_selectors: set[str] = set()
+    seen_method_functions: set[str] = set()
+    seen_method_signatures: set[str] = set()
     for idx, method in enumerate(methods):
         method = expect_object(method, f"abi.methods[{idx}]")
-        expect_string(method.get("selector"), f"abi.methods[{idx}].selector")
-        expect_string(method.get("fnName"), f"abi.methods[{idx}].fnName")
-        expect(isinstance(method.get("argCount"), int), f"abi.methods[{idx}].argCount must be an integer")
+        selector = normalize_selector(expect_string(method.get("selector"), f"abi.methods[{idx}].selector"), f"abi.methods[{idx}].selector")
+        fn_name = expect_string(method.get("fnName"), f"abi.methods[{idx}].fnName")
+        expect(fn_name.startswith("f_"), f"abi.methods[{idx}].fnName must be a generated Yul function name")
+        arg_count = method.get("argCount")
+        expect(isinstance(arg_count, int) and arg_count >= 0, f"abi.methods[{idx}].argCount must be a non-negative integer")
         expect(isinstance(method.get("returnsValue"), bool), f"abi.methods[{idx}].returnsValue must be a boolean")
+        expect_no_duplicate(selector, seen_method_selectors, "abi.methods.selector")
+        expect_no_duplicate(fn_name, seen_method_functions, "abi.methods.fnName")
+        signature = method.get("signature")
+        if args.require_method_signatures:
+            signature = expect_string(signature, f"abi.methods[{idx}].signature")
+        else:
+            expect(signature is None or (isinstance(signature, str) and signature), f"abi.methods[{idx}].signature must be null or a non-empty string")
+        if isinstance(signature, str):
+            expect_no_duplicate(signature, seen_method_signatures, "abi.methods.signature")
+            expect(signature_arg_count(signature, f"abi.methods[{idx}].signature") == arg_count, f"abi.methods[{idx}].signature arg count mismatch")
 
     validation = expect_object(metadata.get("validation"), "validation")
     for key in REQUIRED_VALIDATIONS:

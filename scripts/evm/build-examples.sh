@@ -54,6 +54,7 @@ while IFS= read -r -d '' lean_file; do
       --root "$ROOT" \
       --expect-fixture "$name.lean" \
       --expect-source-kind lean-sdk \
+      --require-method-signatures \
       "$metadata"
   ); then
     :

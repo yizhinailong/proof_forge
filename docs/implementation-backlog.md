@@ -76,7 +76,12 @@ Tasks:
 - Done for EVM: emit metadata for `--evm-bytecode` and portable IR EVM bytecode
   fixture builds.
 - Done for EVM: include source module, target id, artifact paths, SHA-256, byte
-  sizes, solc path/version, selector metadata, and validation status.
+  sizes, solc path/version, selector/signature metadata, and validation status.
+- Done for EVM: preserve SDK `.evm-methods` Solidity signatures in
+  `abi.methods[].signature` for both `proof-forge-artifact.json` and
+  `proof-forge-deploy.json`; validators check selector shape, duplicate method
+  selectors/functions/signatures, generated Yul function names, and
+  signature/arg-count consistency, and SDK example gates require signatures.
 - Done for EVM: emit and validate a ProofForge deploy manifest for every EVM
   bytecode build, recording runtime bytecode inputs, ABI selectors, deployable
   initcode, and the current `not-generated` transaction-broadcast status.

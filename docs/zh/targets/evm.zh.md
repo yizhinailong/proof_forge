@@ -309,7 +309,7 @@ EVM bytecode 模式会发射 ProofForge 制品元数据 JSON 和 ProofForge EVM 
 - `target: evm`、`targetFamily: evm` 和 `artifactKind: evm-bytecode`
 - source kind（`lean-sdk` 或 `portable-ir`）、source module，以及 portable IR fixture 的 `irVersion: portable-ir-v0`
 - 可获得的 portable IR capability ids
-- constructor ABI schema、selector-facing ABI entrypoints 或 SDK method specs
+- constructor ABI schema、selector-facing ABI entrypoints 或 SDK method specs，其中从 `.evm-methods` 加载的方法会记录 Solidity signature
 - `solc` path/version
 - Yul、runtime bytecode、可部署 initcode、可选 source 和 deploy manifest 的 artifact path、byte size 和 SHA-256
 - `solc --strict-assembly`、bytecode generation、initcode generation 与 deploy manifest generation 的 validation flag
@@ -317,7 +317,7 @@ EVM bytecode 模式会发射 ProofForge 制品元数据 JSON 和 ProofForge EVM 
 EVM deploy manifest 会记录：
 
 - `kind: proof-forge-evm-deploy-manifest`
-- source kind/module、`irVersion`、capabilities、constructor ABI schema 和 ABI entrypoints/methods
+- source kind/module、`irVersion`、capabilities、constructor ABI schema 和 ABI entrypoints/methods；可获得时也会包含 SDK method signature
 - 当传入 `--evm-chain-profile` 时，从 EVM target registry 复制的可选
   `chainProfile` metadata，包括 profile id、chain id、RPC URLs、native gas
   symbol、explorer、verifier 和 notes
@@ -328,7 +328,7 @@ EVM deploy manifest 会记录：
 - `deployment.broadcast: not-generated`，因为交易签名、broadcast JSON、deployed
   address 记录和 explorer verification 还没有生成
 
-`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact，同时检查 constructor-argument tail 与 deploy manifest 一致。当存在 constructor ABI schema metadata 时，validator 还会检查每个静态 word 参数，并确认 ABI-encoded constructor blob 的长度符合预期的 32-byte word 数量。validator 还可以确认 constructor args 来自 raw hex 还是 typed constructor values。选择 chain profile 时，validator 还会检查 `chainProfile` 和 `deployment` 中的 profile id、chain id、RPC URLs、explorer 和 verifier metadata 是否一致。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
+`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact，同时检查 constructor-argument tail 与 deploy manifest 一致。当存在 constructor ABI schema metadata 时，validator 还会检查每个静态 word 参数，并确认 ABI-encoded constructor blob 的长度符合预期的 32-byte word 数量。validator 还可以确认 constructor args 来自 raw hex 还是 typed constructor values。选择 chain profile 时，validator 还会检查 `chainProfile` 和 `deployment` 中的 profile id、chain id、RPC URLs、explorer 和 verifier metadata 是否一致。ABI 校验还会检查 4-byte selector 形态、重复 selector、生成的 Yul function name、可选 method signature，以及 signature/argument-count 一致性；SDK 示例和 Anvil 门禁会要求 `.evm-methods` 派生的方法带有 signature。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
 
 `scripts/evm/anvil-deploy-smoke.sh` 会消费生成的 Counter deploy manifest 和
 `.init.bin`，默认用 typed `initial=123` constructor argument 和静态

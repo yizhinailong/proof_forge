@@ -648,7 +648,8 @@ The current EVM metadata schema records:
 - source kind (`lean-sdk` or `portable-ir`), source module, and `irVersion`
   (`portable-ir-v0` for portable IR fixtures)
 - portable IR capability ids when available
-- constructor ABI schema, selector-facing ABI entrypoints, or SDK method specs
+- constructor ABI schema, selector-facing ABI entrypoints, or SDK method specs,
+  including Solidity signatures for methods loaded from `.evm-methods`
 - `solc` path/version
 - Yul, runtime bytecode, deployable initcode, source when available, and
   deploy-manifest artifact paths, byte sizes, and SHA-256 hashes
@@ -659,7 +660,7 @@ The EVM deploy manifest records:
 
 - `kind: proof-forge-evm-deploy-manifest`
 - source kind/module, `irVersion`, capabilities, constructor ABI schema, and
-  ABI entrypoints/methods
+  ABI entrypoints/methods, including SDK method signatures when available
 - optional `chainProfile` metadata copied from the EVM target registry when
   `--evm-chain-profile` is provided, including profile id, chain id, RPC URLs,
   native gas symbol, explorer, verifier, and notes
@@ -685,7 +686,10 @@ check that the ABI-encoded constructor blob has the expected 32-byte word
 length. They also accept and can assert whether constructor args came from raw
 hex or typed constructor values. When a chain profile is selected, they also
 verify that `chainProfile` and `deployment` agree on profile id, chain id, RPC
-URLs, explorer, and verifier metadata.
+URLs, explorer, and verifier metadata. ABI validation also checks 4-byte
+selector shape, duplicate selectors, generated Yul function names, optional
+method signatures, and signature/argument-count consistency; SDK example and
+Anvil gates require signatures for `.evm-methods`-derived methods.
 `scripts/evm/validate-deploy-manifest.py` can validate a deploy manifest
 directly.
 

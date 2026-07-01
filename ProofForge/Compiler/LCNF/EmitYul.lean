@@ -629,11 +629,15 @@ def runtimeHelpers : Array YStmt :=
     `selector` is the 4-byte function selector as a hex string (e.g. "6d4ce63c").
     `fnName` is the Yul function name (e.g. "f_get").
     `argCount` is the number of U256 calldata args.
+    `signature?` preserves the Solidity signature when the spec came from an
+    `.evm-methods` sidecar; manual `--method selector:fn:argc:mode` specs may
+    leave it absent.
     `returnsValue` is true if the function returns a Nat (returned via mstore+return). -/
 structure MethodSpec where
   selector : String
   fnName : String
   argCount : Nat
+  signature? : Option String := none
   returnsValue : Bool
 
 /-- Read calldata arg `i` (0-indexed, after the 4-byte selector), boxed. -/

@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM ABI Method Signature Metadata
+
+Commit: `feat: record EVM method signatures`
+
+Summary:
+
+- SDK `.evm-methods` sidecars now preserve the original Solidity method
+  signature in `abi.methods[].signature` for EVM artifact metadata and deploy
+  manifests.
+- Manual `--method selector:fn:argc:view|update` specs remain supported; those
+  method entries use `null` signature metadata.
+- EVM metadata validators now check selector shape, duplicate method and
+  entrypoint selectors, generated Yul function names, signature syntax, and
+  signature/arg-count consistency.
+- SDK example builds and the Anvil deploy smoke now require method signatures
+  in metadata validation.
+
+Validation run:
+
+```sh
+lake build proof-forge
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py
+bash -n scripts/evm/build-examples.sh
+bash -n scripts/evm/anvil-deploy-smoke.sh
+scripts/evm/build-examples.sh
+scripts/evm/anvil-deploy-smoke.sh
+```
+
+Known limitations:
+
+- The validators check selector format and method signature metadata, while the
+  selector derivation itself still comes from Foundry `cast sig` during
+  compilation.
+
+Next step:
+
+- Continue strengthening ABI-facing artifact checks and close remaining
+  deploy/broadcast metadata gaps.
+
 ### EVM Constructor Diagnostic Coverage
 
 Commit: `test: cover EVM constructor CLI diagnostics`
