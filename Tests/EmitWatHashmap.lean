@@ -4,13 +4,13 @@ import ProofForge.IR.Examples.MapProbe
 open ProofForge.IR.Examples MapProbe
 open ProofForge.Backend.WasmNear.EmitWat
 
-/-! Render the EmitWat-compatible `MapProbe.emitWatModule` (Map\u003cHash, Hash\u003e, hash-keyed)
+/-! Render the EmitWat-compatible `MapProbe.emitWatFullModule` (Map\u003cHash, Hash\u003e, hash-keyed)
     to WAT for the hash-map smoke test. The full `MapProbe.module` uses
     `storageMapInsert` and `pathLifecycle` (struct/path storage) which EmitWat
     does not lower; `emitWatModule` is the supported subset (get/has/set). -/
 
 def main : IO UInt32 := do
-  match renderModule emitWatModule with
+  match renderModule emitWatFullModule with
   | .ok wat =>
       let path := "build/wasm-near/emitwat-maphash.wat"
       IO.FS.createDirAll "build/wasm-near"

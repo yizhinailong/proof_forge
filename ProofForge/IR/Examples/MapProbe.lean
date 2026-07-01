@@ -209,4 +209,14 @@ def emitWatModule : Module := {
   entrypoints := #[ewGetBalance, ewHasBalance, ewSetBalance]
 }
 
+/-! EmitWat "full" subset: every MapProbe entrypoint EXCEPT `pathLifecycle` (which
+    needs `storagePath*`, task #16). Exercises `storageMapInsert` + `storageMapSet`
+    return-old-value semantics (setReturnLifecycle / insertReturnLifecycle / mapLifecycle). -/
+def emitWatFullModule : Module := {
+  name := "MapProbe",
+  state := #[stateBefore, stateBalances, stateAfter],
+  entrypoints := #[mapLifecycle, getSeedBalance, hasSeedBalance, upsertBalance,
+                   setBalance, setReturnLifecycle, insertReturnLifecycle]
+}
+
 end ProofForge.IR.Examples.MapProbe

@@ -43,6 +43,7 @@ def STRING_BASE : Nat := 43000     -- event/field name string pool base
 def INPUT_BUF : Nat := 44000       -- 1 KB scratch for Borsh input args
 def PARAM_HASH_BUF : Nat := 46000  -- 32-byte slots for decoded hash params (one per hash param)
 def ZERO_HASH_BUF : Nat := 50000  -- 32 zero bytes returned for missing hash-valued map entries
+def OLD_HASH_BUF   : Nat := 50500  -- 32-byte slot holding the previous value for hash-valued map set/insert
 
 -- Value type → Wasm
 def wasmTypeOf : ValueType → ValType
@@ -184,12 +185,21 @@ def mapWriteFunc (vt : ValueType) : Func :=
   { name := mapWriteName vt,
     params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
                 { name := "k", type := .i64 }, { name := "v", type := wasmTypeOf vt }],
+    results := #[wasmTypeOf vt],
+    locals := #[{ name := "found", type := .i64 }, { name := "r", type := wasmTypeOf vt }],
     body := { insns := #[
+      .const (wasmTypeOf vt) "0", .localSet "r",
       .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName,
+      .localGet "pl", .i32Const 8, .plain "i32.add", .plain "i64.extend_i32_u",
+      .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
+      .localGet "found", .i64Const 0, .plain "i64.ne",
+      .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
+                        .i32Const KEY_BUF, .load (loadOpFor vt) 0, .localSet "r" ] } { insns := #[] },
       .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0,
       .localGet "pl", .i32Const 8, .plain "i32.add", .plain "i64.extend_i32_u",
       .i64Const MAPKEY_BUF, .i64Const (scalarWidth vt), .i64Const KEY_BUF, .i64Const 0,
-      .call "storage_write", .drop ] } }
+      .call "storage_write", .drop,
+      .localGet "r" ] } }
 
 def mapContainsFunc : Func :=
   { name := mapContainsName,
@@ -264,22 +274,40 @@ def mapWriteHashFunc (vt : ValueType) : Func :=
     { name := mapWriteHashName vt,
       params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
                   { name := "kp", type := .i32 }, { name := "v", type := .i32 }],
+      results := #[.i32],
+      locals := #[{ name := "found", type := .i64 }, { name := "r", type := .i32 }],
       body := { insns := #[
+        .i32Const ZERO_HASH_BUF, .localSet "r",
         .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
+        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
+        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
+        .localGet "found", .i64Const 0, .plain "i64.ne",
+        .if_ { insns := #[ .i64Const 0, .i64Const OLD_HASH_BUF, .call "read_register",
+                          .i32Const OLD_HASH_BUF, .localSet "r" ] } { insns := #[] },
         .i32Const KEY_BUF, .localGet "v", .i32Const 32, .call memcpyName,
         .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
         .i64Const MAPKEY_BUF, .i64Const 32, .i64Const KEY_BUF, .i64Const 0,
-        .call "storage_write", .drop ] } }
+        .call "storage_write", .drop,
+        .localGet "r" ] } }
   else
     { name := mapWriteHashName vt,
       params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
                   { name := "kp", type := .i32 }, { name := "v", type := wasmTypeOf vt }],
+      results := #[wasmTypeOf vt],
+      locals := #[{ name := "found", type := .i64 }, { name := "r", type := wasmTypeOf vt }],
       body := { insns := #[
+        .const (wasmTypeOf vt) "0", .localSet "r",
         .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
+        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
+        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
+        .localGet "found", .i64Const 0, .plain "i64.ne",
+        .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
+                          .i32Const KEY_BUF, .load (loadOpFor vt) 0, .localSet "r" ] } { insns := #[] },
         .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0,
         .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
         .i64Const MAPKEY_BUF, .i64Const (scalarWidth vt), .i64Const KEY_BUF, .i64Const 0,
-        .call "storage_write", .drop ] } }
+        .call "storage_write", .drop,
+        .localGet "r" ] } }
 
 def mapContainsHashFunc : Func :=
   { name := mapContainsHashName,
@@ -652,6 +680,8 @@ mutual
     | .effect (.contextRead .userId) => .ok (#[.call ctxUserIdName], .u64)
     | .effect (.contextRead .contractId) => .ok (#[.call ctxContractIdName], .u64)
     | .effect (.contextRead .checkpointId) => .ok (#[.call "block_index"], .u64)
+    | .effect (.storageMapSet id key value) | .effect (.storageMapInsert id key value) =>
+      lowerMapWrite ctx env id key value
     | _ => err "EmitWat: this expression form is not yet supported"
 
   partial def lowerNumBin (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
@@ -727,6 +757,19 @@ mutual
         | _ => err s!"EmitWat: only Map<U64|Hash, T> is supported"
       let kis ← if m.keyType == .hash then lowerMapKeyHash ctx env key else lowerMapKeyU64 ctx env key
       .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ containsCall ++ #[.plain "i32.wrap_i64"], .bool)
+  partial def lowerMapWrite (ctx : Ctx) (env : LocalTypes) (id : String) (key value : Expr)
+      : Except EmitError (Array Insn × ValueType) := do
+    match findMapState? ctx.maps id with
+    | none => err s!"EmitWat: unknown map state `{id}`"
+    | some m =>
+      let writeCall ← match m.keyType with
+        | .u64 => pure #[.call (mapWriteName m.valueType)]
+        | .hash => pure #[.call (mapWriteHashName m.valueType)]
+        | _ => err s!"EmitWat: only Map<U64|Hash, T> is supported"
+      let kis ← if m.keyType == .hash then lowerMapKeyHash ctx env key else lowerMapKeyU64 ctx env key
+      let (vis, vt) ← lowerExpr ctx env value
+      if vt != m.valueType then err s!"EmitWat: map write `{id}` expected `{m.valueType.name}`, got `{vt.name}`"
+      else .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ vis ++ writeCall, m.valueType)
 end
 
 -- Statements
@@ -770,20 +813,6 @@ partial def lowerEventEmit (ctx : Ctx) (env : LocalTypes) (name : String) (field
             ++ putc 0x22 ++ putc 0x3A ++ vis ++ valInsn)
   .ok (header ++ fieldInsns ++ putc 0x7D ++ #[.call evtLogName])
 
-partial def lowerMapWrite (ctx : Ctx) (env : LocalTypes) (id : String) (key value : Expr)
-    : Except EmitError (Array Insn) := do
-  match findMapState? ctx.maps id with
-  | none => err s!"EmitWat: unknown map state `{id}`"
-  | some m =>
-    let writeCall ← match m.keyType with
-      | .u64 => pure #[.call (mapWriteName m.valueType)]
-      | .hash => pure #[.call (mapWriteHashName m.valueType)]
-      | _ => err s!"EmitWat: only Map<U64|Hash, T> is supported"
-    let kis ← if m.keyType == .hash then lowerMapKeyHash ctx env key else lowerMapKeyU64 ctx env key
-    let (vis, vt) ← lowerExpr ctx env value
-    if vt != m.valueType then err s!"EmitWat: map write `{id}` expected `{m.valueType.name}`, got `{vt.name}`"
-    else .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ vis ++ writeCall)
-
 partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     (s : Statement) : Except EmitError (Array Insn) :=
   match s with
@@ -811,8 +840,9 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     else
       let callName := if s.type == .hash then writeHashName else writeName s.type
       .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen] ++ is ++ #[.call callName])
-  | .effect (.storageMapSet id key value) | .effect (.storageMapInsert id key value) =>
-    lowerMapWrite ctx env id key value
+  | .effect (.storageMapSet id key value) | .effect (.storageMapInsert id key value) => do
+    let (is, _) ← lowerMapWrite ctx env id key value
+    .ok (is ++ #[.drop])
   | .effect (.eventEmit name fields) => lowerEventEmit ctx env name fields
   | .assert cond _ => do
     let (is, t) ← lowerExpr ctx env cond
