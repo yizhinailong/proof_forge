@@ -272,18 +272,26 @@ def requireU64MapState (module : Module) (stateId : String) : Except LowerError 
       | .scalar, _ => .error { message := s!"state `{stateId}` is scalar storage, not a map" }
       | .array _, _ => .error { message := s!"state `{stateId}` is array storage, not a map" }
 
-def requireU64ArrayState (module : Module) (stateId : String) : Except LowerError (Nat × Nat) :=
+def isStorageWordType : ValueType → Bool
+  | .u32 | .u64 | .bool | .hash => true
+  | .unit | .fixedArray _ _ | .structType _ => false
+
+def requireStorageArrayState (module : Module) (stateId : String) : Except LowerError (Nat × Nat × ValueType) :=
   match stateInfo? module stateId with
   | none => .error { message := s!"unknown array state `{stateId}`" }
   | some (slot, state) =>
       match state.kind, state.type with
-      | .array length, .u64 =>
+      | .array length, elementType =>
           if length == 0 then
             .error { message := s!"array state `{stateId}` must have non-zero length" }
+          else if isStorageWordType elementType then
+            .ok (slot, length, elementType)
           else
-            .ok (slot, length)
-      | .array _, other =>
-          .error { message := s!"array state `{stateId}` has unsupported EVM IR v0 element type `{other.name}`; only U64 storage arrays are supported" }
+            match elementType with
+            | .structType _ =>
+                .error { message := s!"array state `{stateId}` is struct storage; use storage.array.struct.field.read/write" }
+            | other =>
+                .error { message := s!"array state `{stateId}` has unsupported EVM IR v0 element type `{other.name}`; storage arrays support U32, U64, Bool, Hash, or flat struct arrays" }
       | .scalar, _ => .error { message := s!"state `{stateId}` is scalar storage, not an array" }
       | .map _ _, _ => .error { message := s!"state `{stateId}` is map storage, not an array" }
 
@@ -654,10 +662,6 @@ mutual
         .error { message := s!"state `{stateId}` has unsupported EVM IR v0 struct storage type `{state.type.name}`; expected struct storage for field `{fieldName}`" }
     | .scalar, _, _ =>
         .error { message := "EVM IR v0 supports storage paths only for single-segment mapKey map access" }
-    | .array _, .u64, [StoragePathSegment.index index] => do
-        let _ ← requireU64ArrayState module stateId
-        ensureArrayIndexType s!"array state `{stateId}` index" (← inferExprType module env index)
-        .ok .u64
     | .array _, .structType _, [StoragePathSegment.index index, StoragePathSegment.field fieldName] => do
         let (_, _, _, _, field) ← requireStructArrayStateField module stateId fieldName
         ensureArrayIndexType s!"struct array state `{stateId}` index" (← inferExprType module env index)
@@ -668,6 +672,10 @@ mutual
         .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
     | .array _, .structType _, _ =>
         .error { message := "EVM IR v0 supports struct-array storage paths only as index followed by field" }
+    | .array _, _, [StoragePathSegment.index index] => do
+        let (_, _, elementType) ← requireStorageArrayState module stateId
+        ensureArrayIndexType s!"array state `{stateId}` index" (← inferExprType module env index)
+        .ok elementType
     | .array _, _, _ =>
         .error { message := "EVM IR v0 supports only single-segment index storage paths for arrays" }
 
@@ -697,9 +705,9 @@ mutual
         ensureType s!"map `{stateId}` value" valueType (← inferExprType module env value)
         .ok valueType
     | .storageArrayRead stateId index => do
-        let _ ← requireU64ArrayState module stateId
+        let (_, _, elementType) ← requireStorageArrayState module stateId
         ensureArrayIndexType s!"array state `{stateId}` index" (← inferExprType module env index)
-        .ok .u64
+        .ok elementType
     | .storageArrayWrite _ _ _ =>
         .error { message := "storage.array.write is a statement effect, not an expression" }
     | .storageArrayStructFieldRead stateId index fieldName => do
@@ -747,9 +755,9 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
   | .storageArrayRead _ _ =>
       .error { message := "storage.array.read must be used as an expression" }
   | .storageArrayWrite stateId index value => do
-      let _ ← requireU64ArrayState module stateId
+      let (_, _, elementType) ← requireStorageArrayState module stateId
       ensureArrayIndexType s!"array state `{stateId}` index" (← inferExprType module env index)
-      ensureType s!"array state `{stateId}` write" .u64 (← inferExprType module env value)
+      ensureType s!"array state `{stateId}` write" elementType (← inferExprType module env value)
   | .storageArrayStructFieldRead _ _ _ =>
       .error { message := "storage.array.struct.field.read must be used as an expression" }
   | .storageArrayStructFieldWrite stateId index fieldName value => do
@@ -858,7 +866,7 @@ mutual
     .ok (Lean.Compiler.Yul.call mapSetReturnFunctionName #[slotExpr slot, ← lowerExpr module key, ← lowerExpr module value])
 
   partial def lowerArraySlotExpr (module : Module) (stateId : String) (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let (slot, length) ← requireU64ArrayState module stateId
+    let (slot, length, _) ← requireStorageArrayState module stateId
     .ok (Lean.Compiler.Yul.call arraySlotFunctionName #[slotExpr slot, Lean.Compiler.Yul.Expr.num length, ← lowerExpr module index])
 
   partial def lowerArrayReadExpr (module : Module) (stateId : String) (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
@@ -1571,7 +1579,7 @@ def moduleUsesSupportedMap (module : Module) : Bool :=
 
 def isSupportedArrayState (state : StateDecl) : Bool :=
   match state.kind, state.type with
-  | .array length, .u64 => length > 0
+  | .array length, elementType => length > 0 && isStorageWordType elementType
   | _, _ => false
 
 def moduleUsesSupportedArray (module : Module) : Bool :=
@@ -1951,6 +1959,7 @@ def validateState (module : Module) : Except LowerError Unit := do
     match state.kind, state.type with
     | .scalar, .u32 => pure ()
     | .scalar, .u64 => pure ()
+    | .scalar, .bool => pure ()
     | .scalar, .hash => pure ()
     | .scalar, .structType typeName =>
         validateStorageStructState s!"state `{state.id}`" typeName module
@@ -1961,11 +1970,14 @@ def validateState (module : Module) : Except LowerError Unit := do
         .error { message := s!"map state `{state.id}` has unsupported EVM IR v0 type `{mapShapeName keyType valueType capacity}`; only Map<U64, U64, N> is supported" }
     | .array 0, _ =>
         .error { message := s!"array state `{state.id}` must have non-zero length" }
+    | .array _, .u32 => pure ()
     | .array _, .u64 => pure ()
+    | .array _, .bool => pure ()
+    | .array _, .hash => pure ()
     | .array _, .structType typeName =>
         validateStorageStructState s!"array state `{state.id}`" typeName module
     | .array _, other =>
-        .error { message := s!"array state `{state.id}` has unsupported EVM IR v0 element type `{other.name}`; only U64 storage arrays or flat struct arrays are supported" }
+        .error { message := s!"array state `{state.id}` has unsupported EVM IR v0 element type `{other.name}`; storage arrays support U32, U64, Bool, Hash, or flat struct arrays" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.evm module.capabilities with

@@ -105,12 +105,12 @@ def hashReturnModule : Module :=
     body := #[.return (.literal (.u64 1))]
   }
 
-def boolStateModule : Module := {
-  name := "BadBoolState"
+def unitStateModule : Module := {
+  name := "BadUnitState"
   state := #[{
-    id := "flag"
+    id := "void"
     kind := .scalar
-    type := .bool
+    type := .unit
   }]
   entrypoints := #[selectedEntrypoint "bad"]
 }
@@ -138,11 +138,11 @@ def selectedMapModule (name : String) (entrypoint : Entrypoint) : Module := {
 }
 
 def storageArrayModule : Module := {
-  name := "BadBoolStorageArray"
+  name := "BadUnitStorageArray"
   state := #[{
-    id := "flags"
+    id := "voids"
     kind := .array 3
-    type := .bool
+    type := .unit
   }]
   entrypoints := #[selectedEntrypoint "bad"]
 }
@@ -461,9 +461,9 @@ def cases : Array (String × Module × String) := #[
     "return value expected `Hash`, got `U64`"
   ),
   (
-    "bool scalar state unsupported",
-    boolStateModule,
-    "state `flag` has unsupported EVM IR v0 type `Bool`"
+    "unit scalar state unsupported",
+    unitStateModule,
+    "state `void` has unsupported EVM IR v0 type `Unit`"
   ),
   (
     "map state shape unsupported",
@@ -473,7 +473,7 @@ def cases : Array (String × Module × String) := #[
   (
     "storage array element type unsupported",
     storageArrayModule,
-    "array state `flags` has unsupported EVM IR v0 element type `Bool`; only U64 storage arrays or flat struct arrays are supported"
+    "array state `voids` has unsupported EVM IR v0 element type `Unit`; storage arrays support U32, U64, Bool, Hash, or flat struct arrays"
   ),
   (
     "mutable fixed array local unsupported",

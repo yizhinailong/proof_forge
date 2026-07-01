@@ -152,6 +152,12 @@ Tasks:
 - Done: add EVM IR single-segment `index` storage path read/write/compound
   assignment over `U64` fixed storage arrays, reusing the bounded array slot
   helper and extending `EvmStorageArrayProbe` validation.
+- Done: generalize EVM IR word storage to `Bool` scalar storage and
+  `U32`/`Bool`/`Hash` fixed storage arrays, reusing the bounded array slot
+  helper, with `EvmTypedStorageProbe` golden Yul, solc bytecode, Foundry
+  runtime/raw-slot validation, `U32` calldata range guards, metadata capability
+  validation, CI coverage, and explicit diagnostics for unsupported non-word
+  storage element types.
 - Done: add EVM IR immutable local fixed-array value lowering for `U64`,
   `U32`, `Bool`, and `Hash` elements with static literal indexes, direct
   fixed-array literal indexing, `EvmArrayValueProbe` golden Yul, solc

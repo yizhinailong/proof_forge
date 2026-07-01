@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Typed Storage Words
+
+Commit: feature commit for EVM IR typed storage word arrays
+
+Summary:
+
+- Generalized portable EVM storage arrays from `U64`-only arrays to word-scalar
+  arrays over `U32`, `U64`, `Bool`, and `Hash`.
+- Enabled `Bool` scalar storage in the portable EVM backend; scalar storage
+  still rejects unsupported non-word shapes explicitly.
+- Reused the existing contiguous `__proof_forge_array_slot(base, length,
+  index)` helper for typed word arrays, preserving runtime out-of-bounds
+  checks and deterministic slot layout.
+- Added `ProofForge.IR.Examples.EvmTypedStorageProbe`, CLI emission modes,
+  golden Yul, Foundry smoke coverage, artifact metadata validation, and CI.
+- Updated EVM diagnostics, coverage, target docs, validation gates, and Chinese
+  docs so `Unit` storage remains the explicit unsupported case while
+  `Bool`/`U32`/`Hash` storage arrays are validated behavior.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR proof-forge
+scripts/evm/typed-storage-ir-smoke.sh
+```
+
+Known limitations:
+
+- Typed storage arrays are still fixed-size word arrays. Nested arrays, dynamic
+  storage arrays, non-word storage elements, and map key/value shapes beyond
+  `Map<U64, U64, N>` remain future work.
+
+Next step:
+
+- Continue reducing the remaining EVM IR unsupported surface, likely either
+  richer map shapes or the next ABI/control/cross-call gap, with the same
+  golden Yul, metadata, Foundry, diagnostics, and CI pattern.
+
 ### EVM IR Flat Storage Structs
 
 Commit: feature commit for EVM IR flat storage struct lowering

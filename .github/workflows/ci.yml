@@ -148,6 +148,9 @@ jobs:
       - name: Run EVM StorageStructProbe IR smoke
         run: scripts/evm/storage-struct-ir-smoke.sh
 
+      - name: Run EVM TypedStorageProbe IR smoke
+        run: scripts/evm/typed-storage-ir-smoke.sh
+
       - name: Run EVM ArrayValueProbe IR smoke
         run: scripts/evm/array-value-ir-smoke.sh
 
