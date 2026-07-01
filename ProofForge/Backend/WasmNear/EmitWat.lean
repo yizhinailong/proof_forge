@@ -775,13 +775,21 @@ mutual
 end
 
 -- Statements
+partial def collectLocalsFrom (acc : LocalTypes) (s : Statement) : Except EmitError LocalTypes := do
+  match s with
+  | .letBind name t _ | .letMutBind name t _ =>
+    if isNumeric t || t == .bool || t == .hash then .ok (acc.push { name := name, vt := t })
+    else err s!"EmitWat: only U32/U64/Bool/Hash locals are supported (got `{t.name}`)"
+  | .ifElse _ thenBody elseBody =>
+    let acc ← thenBody.foldlM (init := acc) collectLocalsFrom
+    elseBody.foldlM (init := acc) collectLocalsFrom
+  | .boundedFor indexName _ _ body =>
+    let acc := acc.push { name := indexName, vt := .u64 }
+    body.foldlM (init := acc) collectLocalsFrom
+  | _ => .ok acc
+
 def collectLocals (body : Array Statement) : Except EmitError LocalTypes :=
-  body.foldlM (init := #[]) fun acc s =>
-    match s with
-    | .letBind name t _ | .letMutBind name t _ =>
-      if isNumeric t || t == .bool || t == .hash then .ok (acc.push { name := name, vt := t })
-      else err s!"EmitWat: only U32/U64/Bool locals are supported (got `{t.name}`)"
-    | _ => .ok acc
+  body.foldlM (init := #[]) collectLocalsFrom
 
 def lowerReturn (ctx : Ctx) (env : LocalTypes) (expected : ValueType) (e : Expr)
     : Except EmitError (Array Insn) := do
@@ -868,6 +876,19 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
       .ok (la ++ lb ++ eqInsn ++ #[.plain "i32.eqz",
                             .if_ { insns := #[.unreachable] } { insns := #[] }])
   | .return e => lowerReturn ctx env returns e
+  | .ifElse cond thenBody elseBody => do
+    let (cis, ct) ← lowerExpr ctx env cond
+    if ct != .bool then err "EmitWat: if/else condition must be Bool"
+    else do
+      let thenInsns ← thenBody.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx env returns s)
+      let elseInsns ← elseBody.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx env returns s)
+      .ok (cis ++ #[.if_ { insns := thenInsns } { insns := elseInsns }])
+  | .boundedFor indexName start stop body => do
+    let bodyInsns ← body.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx env returns s)
+    .ok (#[.i64Const start, .localSet indexName,
+           .block_ { insns := #[ .loop_ { insns := #[
+             .localGet indexName, .i64Const stop, .plain "i64.ge_u", .brIf 1 ] ++ bodyInsns ++ #[
+             .localGet indexName, .i64Const 1, .plain "i64.add", .localSet indexName, .br 0 ] } ] } ])
   | _ => err "EmitWat: this statement form is not yet supported"
 
 /-- Build the Borsh input prologue: env.input → INPUT_BUF, then load each
@@ -926,10 +947,16 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
     profile rejects (arrays, structs, control flow, crosscall, …) EmitWat also
     cannot lower — fail fast with a capability error instead of reaching the
     lowering and reporting an opaque "not yet supported". -/
+/- EmitWat capability surface: the wasmNear profile plus `controlConditional`
+    and `controlBoundedLoop` (if/else + boundedFor are lowered natively in WAT).
+    Arrays / structs / fixed arrays / crosscall stay rejected. -/
+def emitWatCapabilities : ProofForge.Target.CapabilitySet :=
+  ProofForge.Target.wasmNear.capabilities ++ #[.controlConditional, .controlBoundedLoop]
+
 def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
-  match ProofForge.Target.requireCapabilities ProofForge.Target.wasmNear mod.capabilities with
-  | .ok () => .ok ()
-  | .error e => .error { message := s!"EmitWat: capability `{e.capability.id}` is not supported by the EmitWat backend (rejected by wasm-near profile)" }
+  mod.capabilities.foldlM (fun _ c =>
+    if emitWatCapabilities.contains c then .ok ()
+    else .error { message := s!"EmitWat: capability `{c.id}` is not supported by the EmitWat backend" }) ()
 
 def renderModule (mod : ProofForge.IR.Module) : Except EmitError String := do
   checkCapabilities mod
