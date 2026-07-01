@@ -45,6 +45,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint emit_array_event:393f7138 \
   --expect-entrypoint emit_pair_array_event:85611e74 \
   --expect-entrypoint emit_indexed_pair_event:e027f054 \
+  --expect-entrypoint emit_indexed_array_event:b7de5dd7 \
   --expect-entrypoint emit_indexed_pair_array_event:c1375f82 \
   "$METADATA_FILE"
 
@@ -162,6 +163,25 @@ contract ProofForgeIREventSmokeTest {
         assertEq(logs[0].topics[0], keccak256(bytes("IndexedPair((uint64,uint64),uint64)")));
         assertEq(logs[0].topics[1], keccak256(abi.encode(uint256(11), uint256(22))));
         assertEq(abi.decode(logs[0].data, (uint256)), 99);
+    }
+
+    function testIRIndexedFixedArrayEventHashesAggregateTopic() public {
+        address probe = address(uint160(0xE138));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_indexed_array_event(uint256,uint256,uint256)", 33, 44, 55));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 2);
+        assertEq(logs[0].topics[0], keccak256(bytes("IndexedArray(uint64[2],uint64)")));
+        assertEq(logs[0].topics[1], keccak256(abi.encode(uint256(33), uint256(44))));
+        assertEq(abi.decode(logs[0].data, (uint256)), 55);
     }
 
     function testIRIndexedStructArrayEventHashesAggregateTopic() public {

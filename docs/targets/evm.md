@@ -397,7 +397,8 @@ derives topic0 from a Solidity-style event signature generated from the event
 name and field types, for example `ValueEvent(uint64)`,
 `PairEvent((uint64,uint64))`, `ArrayEvent(uint64[2])`, or
 `PairArrayEvent((uint64,uint64)[2])`,
-`IndexedPair((uint64,uint64),uint64)`, or
+`IndexedPair((uint64,uint64),uint64)`,
+`IndexedArray(uint64[2],uint64)`, or
 `IndexedPairArray((uint64,uint64)[2],uint64)`. Plain `eventEmit` lowers to
 `log1`, while `eventEmitIndexed` snapshots up to three indexed fields into
 topics. Scalar indexed fields become direct topics. Flat structs, scalar fixed

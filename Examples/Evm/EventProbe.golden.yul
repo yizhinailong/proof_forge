@@ -43,6 +43,13 @@ object "EventProbe" {
       f_EventProbe_emit_indexed_pair_event(calldataload(4), calldataload(36), calldataload(68))
       return(0, 0)
     }
+    case 0xb7de5dd7 {
+      if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_indexed_array_event(calldataload(4), calldataload(36), calldataload(68))
+      return(0, 0)
+    }
     case 0xc1375f82 {
       if lt(calldatasize(), 164) {
         revert(0, 0)
@@ -117,6 +124,19 @@ object "EventProbe" {
         let _topic0 := keccak256(0, 35)
         mstore(0, __proof_forge_struct_pair_left)
         mstore(32, __proof_forge_struct_pair_right)
+        let _indexed_topic0 := keccak256(0, 64)
+        mstore(0, value)
+        log2(0, 32, _topic0, _indexed_topic0)
+      }
+    }
+    function f_EventProbe_emit_indexed_array_event(left, right, value) {
+      let __proof_forge_array_values_0 := left
+      let __proof_forge_array_values_1 := right
+      {
+        mstore(0, 33213884033972546161021678077745898947667239935089798860719422326732315230208)
+        let _topic0 := keccak256(0, 30)
+        mstore(0, __proof_forge_array_values_0)
+        mstore(32, __proof_forge_array_values_1)
         let _indexed_topic0 := keccak256(0, 64)
         mstore(0, value)
         log2(0, 32, _topic0, _indexed_topic0)

@@ -97,6 +97,20 @@ def emitIndexedPairEvent : Entrypoint := {
   ]
 }
 
+def emitIndexedArrayEvent : Entrypoint := {
+  name := "emit_indexed_array_event"
+  selector? := some "b7de5dd7"
+  returns := .unit
+  params := #[("left", .u64), ("right", .u64), ("value", .u64)]
+  body := #[
+    .letBind "values" (.fixedArray .u64 2) (.arrayLit .u64 #[.local "left", .local "right"]),
+    .effect (.eventEmitIndexed
+      "IndexedArray"
+      #[("values", .local "values")]
+      #[("value", .local "value")])
+  ]
+}
+
 def emitIndexedPairArrayEvent : Entrypoint := {
   name := "emit_indexed_pair_array_event"
   selector? := some "c1375f82"
@@ -131,6 +145,7 @@ def evmModule : Module := {
     emitArrayEvent,
     emitPairArrayEvent,
     emitIndexedPairEvent,
+    emitIndexedArrayEvent,
     emitIndexedPairArrayEvent
   ]
 }

@@ -28,9 +28,10 @@ Summary:
   elements are flat structs now flatten to ABI-style 32-byte words and use
   `keccak256` over those words as the indexed topic.
 - Preserved direct scalar indexed topics for `U32`, `U64`, `Bool`, and `Hash`.
-- Extended `EventProbe` with `emit_indexed_pair_event` and
-  `emit_indexed_pair_array_event`, covering
+- Extended `EventProbe` with `emit_indexed_pair_event`,
+  `emit_indexed_array_event`, and `emit_indexed_pair_array_event`, covering
   `IndexedPair((uint64,uint64),uint64)` and
+  `IndexedArray(uint64[2],uint64)` and
   `IndexedPairArray((uint64,uint64)[2],uint64)`.
 - Replaced the old flat-aggregate indexed diagnostic with a nested aggregate
   indexed diagnostic, so unsupported event shapes still fail explicitly instead
@@ -51,8 +52,9 @@ Result:
 
 - `EventProbe` generated reproducible Yul and runtime bytecode through
   `solc --strict-assembly`.
-- Foundry ran 8 EventProbe tests, including scalar indexed topics, flat struct
-  indexed topic hashes, fixed-array-of-flat-struct indexed topic hashes,
+- Foundry ran 9 EventProbe tests, including scalar indexed topics, flat struct
+  indexed topic hashes, scalar fixed-array indexed topic hashes,
+  fixed-array-of-flat-struct indexed topic hashes,
   aggregate data flattening, selector dispatch, and unknown-selector revert
   behavior.
 

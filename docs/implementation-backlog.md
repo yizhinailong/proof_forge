@@ -158,6 +158,10 @@ Tasks:
   `IndexedPairArray((uint64,uint64)[2],uint64)` with golden Yul, solc bytecode,
   metadata selector validation, Foundry recorded-log topic-hash checks, and a
   diagnostic for nested/unsupported aggregate indexed shapes.
+- Done: close the EventProbe validation gap for scalar fixed-array indexed
+  topics by adding `IndexedArray(uint64[2],uint64)` golden Yul, metadata selector
+  validation, solc bytecode generation, and Foundry recorded-log topic-hash
+  checks.
 - Done: add EVM IR `crosscallInvoke` lowering to synchronous EVM `call`
   helpers with selector packing, word arguments, one-word returns, failed-call
   and short-return reverts, with `EvmCrosscallProbe` golden Yul, solc bytecode,
