@@ -59,6 +59,7 @@ def mapWriteFunctionName : String := "__proof_forge_map_write"
 def mapSetReturnFunctionName : String := "__proof_forge_map_set_return"
 def hashWordFunctionName : String := "__proof_forge_hash_word"
 def hashPairFunctionName : String := "__proof_forge_hash_pair"
+def crosscallFunctionName (arity : Nat) : String := s!"__proof_forge_crosscall_{arity}"
 
 def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
@@ -351,7 +352,12 @@ mutual
         ensureType "hash_two_to_one right operand" .hash (← inferExprType module env rhs)
         .ok .hash
     | .nativeValue => .ok .u64
-    | .crosscallInvoke _ _ _ => .ok .u64
+    | .crosscallInvoke target methodId args => do
+        ensureType "crosscall target contract id" .u64 (← inferExprType module env target)
+        ensureType "crosscall method id" .u64 (← inferExprType module env methodId)
+        for arg in args do
+          ensureType "crosscall argument" .u64 (← inferExprType module env arg)
+        .ok .u64
     | .effect effect => inferEffectExprType module env effect
 
   partial def inferBinaryNumericType
@@ -618,8 +624,14 @@ mutual
         .ok (Lean.Compiler.Yul.call hashPairFunctionName #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .nativeValue =>
         .error { message := "native value inspection is not supported by IR EVM v0" }
-    | .crosscallInvoke _ _ _ =>
-        .error { message := "cross-contract calls are not supported by IR EVM v0" }
+    | .crosscallInvoke target methodId args => do
+        let mut callArgs := #[
+          ← lowerExpr module target,
+          ← lowerExpr module methodId
+        ]
+        for arg in args do
+          callArgs := callArgs.push (← lowerExpr module arg)
+        .ok (Lean.Compiler.Yul.call (crosscallFunctionName args.size) callArgs)
     | .effect effect => lowerEffectExpr module effect
 
   partial def lowerEffectExpr (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Expr
@@ -932,6 +944,193 @@ def mapHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
     }
 ]
 
+def crosscallArgName (idx : Nat) : String :=
+  s!"arg{idx}"
+
+def crosscallCalldataSize (arity : Nat) : Nat :=
+  4 + arity * 32
+
+def crosscallFunctionParams (arity : Nat) : Array Lean.Compiler.Yul.TypedName :=
+  go 0 #[
+    ({ name := "target" } : Lean.Compiler.Yul.TypedName),
+    ({ name := "selector" } : Lean.Compiler.Yul.TypedName)
+  ]
+where
+  go (idx : Nat) (acc : Array Lean.Compiler.Yul.TypedName) : Array Lean.Compiler.Yul.TypedName :=
+    if h : idx < arity then
+      go (idx + 1) (acc.push ({ name := crosscallArgName idx } : Lean.Compiler.Yul.TypedName))
+    else
+      acc
+
+def crosscallArgStoreStatements (arity : Nat) : Array Lean.Compiler.Yul.Statement :=
+  go 0 #[]
+where
+  go (idx : Nat) (acc : Array Lean.Compiler.Yul.Statement) : Array Lean.Compiler.Yul.Statement :=
+    if h : idx < arity then
+      let store := Lean.Compiler.Yul.Statement.exprStmt
+        (Lean.Compiler.Yul.builtin "mstore" #[
+          Lean.Compiler.Yul.Expr.num (4 + idx * 32),
+          Lean.Compiler.Yul.Expr.id (crosscallArgName idx)
+        ])
+      go (idx + 1) (acc.push store)
+    else
+      acc
+
+def crosscallHelperFunction (arity : Nat) : Lean.Compiler.Yul.Statement :=
+  .funcDef (crosscallFunctionName arity)
+    (crosscallFunctionParams arity)
+    #[{ name := "result" }]
+    {
+      statements :=
+        #[
+          .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[
+            Lean.Compiler.Yul.Expr.num 0,
+            Lean.Compiler.Yul.builtin "shl" #[
+              Lean.Compiler.Yul.Expr.num 224,
+              Lean.Compiler.Yul.Expr.id "selector"
+            ]
+          ])
+        ] ++
+        crosscallArgStoreStatements arity ++
+        #[
+          .varDecl #[{ name := "_success" }]
+            (some (Lean.Compiler.Yul.builtin "call" #[
+              Lean.Compiler.Yul.builtin "gas" #[],
+              Lean.Compiler.Yul.Expr.id "target",
+              Lean.Compiler.Yul.Expr.num 0,
+              Lean.Compiler.Yul.Expr.num 0,
+              Lean.Compiler.Yul.Expr.num (crosscallCalldataSize arity),
+              Lean.Compiler.Yul.Expr.num 0,
+              Lean.Compiler.Yul.Expr.num 32
+            ])),
+          .ifStmt
+            (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "_success"])
+            { statements := #[revertStmt] },
+          .ifStmt
+            (Lean.Compiler.Yul.builtin "lt" #[
+              Lean.Compiler.Yul.builtin "returndatasize" #[],
+              Lean.Compiler.Yul.Expr.num 32
+            ])
+            { statements := #[revertStmt] },
+          .exprStmt (Lean.Compiler.Yul.builtin "returndatacopy" #[
+            Lean.Compiler.Yul.Expr.num 0,
+            Lean.Compiler.Yul.Expr.num 0,
+            Lean.Compiler.Yul.Expr.num 32
+          ]),
+          .assignment #["result"] (Lean.Compiler.Yul.builtin "mload" #[Lean.Compiler.Yul.Expr.num 0])
+        ]
+    }
+
+def pushNatIfMissing (acc : Array Nat) (value : Nat) : Array Nat :=
+  if acc.contains value then acc else acc.push value
+
+def mergeNatSets (lhs rhs : Array Nat) : Array Nat :=
+  rhs.foldl pushNatIfMissing lhs
+
+mutual
+  partial def crosscallAritiesExpr : ProofForge.IR.Expr → Array Nat
+    | .literal _ => #[]
+    | .local _ => #[]
+    | .arrayLit _ values =>
+        values.foldl (init := #[]) fun acc value => mergeNatSets acc (crosscallAritiesExpr value)
+    | .arrayGet array index =>
+        mergeNatSets (crosscallAritiesExpr array) (crosscallAritiesExpr index)
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field => mergeNatSets acc (crosscallAritiesExpr field.snd)
+    | .field base _ =>
+        crosscallAritiesExpr base
+    | .add lhs rhs | .sub lhs rhs | .mul lhs rhs | .div lhs rhs | .mod lhs rhs
+    | .pow lhs rhs | .bitAnd lhs rhs | .bitOr lhs rhs | .bitXor lhs rhs
+    | .shiftLeft lhs rhs | .shiftRight lhs rhs | .eq lhs rhs | .ne lhs rhs
+    | .lt lhs rhs | .le lhs rhs | .gt lhs rhs | .ge lhs rhs
+    | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs =>
+        mergeNatSets (crosscallAritiesExpr lhs) (crosscallAritiesExpr rhs)
+    | .cast value _ | .boolNot value | .hash value =>
+        crosscallAritiesExpr value
+    | .hashValue a b c d =>
+        mergeNatSets (mergeNatSets (crosscallAritiesExpr a) (crosscallAritiesExpr b))
+          (mergeNatSets (crosscallAritiesExpr c) (crosscallAritiesExpr d))
+    | .nativeValue => #[]
+    | .crosscallInvoke target methodId args =>
+        let nested := mergeNatSets (crosscallAritiesExpr target) (crosscallAritiesExpr methodId)
+        let nested := args.foldl (init := nested) fun acc arg =>
+          mergeNatSets acc (crosscallAritiesExpr arg)
+        pushNatIfMissing nested args.size
+    | .effect effect =>
+        crosscallAritiesEffect effect
+
+  partial def crosscallAritiesEffect : Effect → Array Nat
+    | .storageScalarRead _ => #[]
+    | .storageScalarWrite _ value =>
+        crosscallAritiesExpr value
+    | .storageScalarAssignOp _ _ value =>
+        crosscallAritiesExpr value
+    | .storageMapContains _ key =>
+        crosscallAritiesExpr key
+    | .storageMapGet _ key =>
+        crosscallAritiesExpr key
+    | .storageMapInsert _ key value | .storageMapSet _ key value =>
+        mergeNatSets (crosscallAritiesExpr key) (crosscallAritiesExpr value)
+    | .storageArrayRead _ index =>
+        crosscallAritiesExpr index
+    | .storageArrayWrite _ index value | .storageArrayStructFieldWrite _ index _ value =>
+        mergeNatSets (crosscallAritiesExpr index) (crosscallAritiesExpr value)
+    | .storageArrayStructFieldRead _ index _ =>
+        crosscallAritiesExpr index
+    | .storageStructFieldRead _ _ => #[]
+    | .storageStructFieldWrite _ _ value =>
+        crosscallAritiesExpr value
+    | .storagePathRead _ path =>
+        path.foldl (init := #[]) fun acc segment => mergeNatSets acc (crosscallAritiesStoragePathSegment segment)
+    | .storagePathWrite _ path value =>
+        let pathArities := path.foldl (init := #[]) fun acc segment =>
+          mergeNatSets acc (crosscallAritiesStoragePathSegment segment)
+        mergeNatSets pathArities (crosscallAritiesExpr value)
+    | .storagePathAssignOp _ path _ value =>
+        let pathArities := path.foldl (init := #[]) fun acc segment =>
+          mergeNatSets acc (crosscallAritiesStoragePathSegment segment)
+        mergeNatSets pathArities (crosscallAritiesExpr value)
+    | .contextRead _ => #[]
+    | .eventEmit _ fields =>
+        fields.foldl (init := #[]) fun acc field => mergeNatSets acc (crosscallAritiesExpr field.snd)
+
+  partial def crosscallAritiesStoragePathSegment : StoragePathSegment → Array Nat
+    | .field _ => #[]
+    | .index index => crosscallAritiesExpr index
+    | .mapKey key => crosscallAritiesExpr key
+
+  partial def crosscallAritiesStatement : Statement → Array Nat
+    | .letBind _ _ value | .letMutBind _ _ value =>
+        crosscallAritiesExpr value
+    | .assign target value =>
+        mergeNatSets (crosscallAritiesExpr target) (crosscallAritiesExpr value)
+    | .assignOp target _ value =>
+        mergeNatSets (crosscallAritiesExpr target) (crosscallAritiesExpr value)
+    | .effect effect =>
+        crosscallAritiesEffect effect
+    | .assert condition _ =>
+        crosscallAritiesExpr condition
+    | .assertEq lhs rhs _ =>
+        mergeNatSets (crosscallAritiesExpr lhs) (crosscallAritiesExpr rhs)
+    | .ifElse condition thenBody elseBody =>
+        let bodyArities := mergeNatSets (crosscallAritiesStatements thenBody) (crosscallAritiesStatements elseBody)
+        mergeNatSets (crosscallAritiesExpr condition) bodyArities
+    | .boundedFor _ _ _ body =>
+        crosscallAritiesStatements body
+    | .return value =>
+        crosscallAritiesExpr value
+
+  partial def crosscallAritiesStatements (statements : Array Statement) : Array Nat :=
+    statements.foldl (init := #[]) fun acc stmt => mergeNatSets acc (crosscallAritiesStatement stmt)
+end
+
+def moduleCrosscallArities (module : Module) : Array Nat :=
+  module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
+    mergeNatSets acc (crosscallAritiesStatements entrypoint.body)
+
+def crosscallHelperFunctions (arities : Array Nat) : Array Lean.Compiler.Yul.Statement :=
+  arities.map crosscallHelperFunction
+
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
     match state.kind, state.type with
@@ -959,6 +1158,7 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
   let dispatch ← dispatchBlock module
   let helpers := if moduleUsesSupportedMap module then mapHelperFunctions else #[]
   let helpers := helpers ++ (if moduleUsesHash module then hashHelperFunctions else #[])
+  let helpers := helpers ++ crosscallHelperFunctions (moduleCrosscallArities module)
   .ok {
     name := module.name
     code := { statements := #[dispatch] ++ functions ++ helpers }

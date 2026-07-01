@@ -127,6 +127,9 @@ jobs:
       - name: Run EVM EventProbe IR smoke
         run: scripts/evm/event-ir-smoke.sh
 
+      - name: Run EVM CrosscallProbe IR smoke
+        run: scripts/evm/crosscall-ir-smoke.sh
+
       - name: Run EVM HashProbe IR smoke
         run: scripts/evm/hash-ir-smoke.sh
 

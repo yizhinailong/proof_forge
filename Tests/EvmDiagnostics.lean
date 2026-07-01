@@ -208,9 +208,19 @@ def nativeValueModule : Module :=
     .return .nativeValue
   ]
 
-def crosscallModule : Module :=
-  selectedModule "BadCrosscall" <| selectedReturnEntrypoint "bad" .u64 #[
-    .return (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[])
+def crosscallTargetTypeModule : Module :=
+  selectedModule "BadCrosscallTargetType" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.crosscallInvoke (.literal (.bool true)) (.literal (.u64 2)) #[])
+  ]
+
+def crosscallMethodTypeModule : Module :=
+  selectedModule "BadCrosscallMethodType" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.crosscallInvoke (.literal (.u64 1)) (.literal (.bool true)) #[])
+  ]
+
+def crosscallArgumentTypeModule : Module :=
+  selectedModule "BadCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[.literal (.bool true)])
   ]
 
 def hashLiteralModule : Module :=
@@ -352,9 +362,19 @@ def cases : Array (String × Module × String) := #[
     "native value inspection is not supported by IR EVM v0"
   ),
   (
-    "crosscall unsupported",
-    crosscallModule,
-    "cross-contract calls are not supported by IR EVM v0"
+    "crosscall target type mismatch",
+    crosscallTargetTypeModule,
+    "crosscall target contract id expected `U64`, got `Bool`"
+  ),
+  (
+    "crosscall method type mismatch",
+    crosscallMethodTypeModule,
+    "crosscall method id expected `U64`, got `Bool`"
+  ),
+  (
+    "crosscall argument type mismatch",
+    crosscallArgumentTypeModule,
+    "crosscall argument expected `U64`, got `Bool`"
   ),
   (
     "hash literal return type mismatch",

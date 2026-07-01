@@ -40,6 +40,7 @@ scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
 scripts/evm/event-ir-smoke.sh
+scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 ```
@@ -75,6 +76,8 @@ proof-forge --emit-context-ir-yul [-o output.yul]
 proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-event-ir-yul [-o output.yul]
 proof-forge --emit-evm-event-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-crosscall-ir-yul [-o output.yul]
+proof-forge --emit-evm-crosscall-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-hash-ir-yul [-o output.yul]
 proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-map-ir-yul [-o output.yul]
@@ -136,7 +139,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
-| `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
+| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts |
 | `events.emit` | `log0`, `log1`, `log2`; portable IR `eventEmit` lowers to `log1` with topic0 derived from the event name |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
@@ -173,11 +176,13 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 - The production EVM SDK path still lowers through LCNF/EmitYul; the portable
   IR EVM backend currently supports scalar storage/ABI, assertions, local
   assignment, conditionals, context reads, events, `Hash` word values and
-  hashing, and `Map<U64, U64, N>` storage, and rejects wider portable IR nodes
-  with explicit diagnostics.
+  hashing, `Map<U64, U64, N>` storage, and synchronous word-returning
+  `crosscallInvoke`, and rejects wider portable IR nodes with explicit
+  diagnostics.
 - Portable IR EVM currently lacks aggregate ABI values, non-`U64` map
   shapes, storage arrays, structs, indexed/Solidity-signature event schemas,
-  cross-contract calls, and target-specific deploy manifests.
+  `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
+  return data, and target-specific deploy manifests.
 - `storage.map.contains` remains explicitly unsupported because EVM mappings do
   not track key presence without an auxiliary bitmap.
 
@@ -195,6 +200,7 @@ scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
 scripts/evm/event-ir-smoke.sh
+scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -257,6 +263,16 @@ generation, metadata capability `events.emit`, Foundry recorded logs
 (`emitter`, topic, and decoded data), ABI selector dispatch, and
 unknown-selector revert behavior. Indexed fields and Solidity event-signature
 topics wait for explicit event declarations in the portable IR.
+
+`EvmCrosscallProbe` validates portable IR `crosscallInvoke` lowering to
+arity-specific Yul helpers. EVM IR v0 interprets the target expression as an
+address word, the method expression as a low-32-bit selector, and arguments as
+32-byte words. The helper packs calldata, executes `call(gas(), target, 0,
+...)`, reverts on call failure or returns shorter than one word, and decodes a
+single 32-byte return word. The smoke checks golden Yul reproducibility,
+`solc --strict-assembly` bytecode generation, metadata capability
+`crosscall.invoke`, Foundry calls with zero/one/two arguments, callee reverts,
+short-return reverts, and unknown-selector reverts.
 
 `EvmMapProbe` validates portable IR `Map<U64, U64, N>` storage through the same
 Solidity-style slot layout used by the SDK: `keccak256(key || slot)` after

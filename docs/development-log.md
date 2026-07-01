@@ -17,6 +17,60 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Crosscalls
+
+Commit: feature commit for EVM IR crosscalls
+
+Summary:
+
+- Added EVM portable IR lowering for expression-position `crosscallInvoke`.
+- Defined the EVM IR v0 crosscall policy: target is an address word, method is
+  a low-32-bit selector, arguments are 32-byte words, the call uses zero ETH
+  value, and the result is one 32-byte return word.
+- Added arity-specific Yul helpers that pack calldata, call
+  `call(gas(), target, 0, ...)`, revert on failed calls or short returns, and
+  decode the returned word.
+- Added type validation so crosscall target, method, and every argument must be
+  `U64`.
+- Added `ProofForge.IR.Examples.EvmCrosscallProbe`,
+  `--emit-evm-crosscall-ir-yul`, `--emit-evm-crosscall-ir-bytecode`,
+  `Examples/Evm/EvmCrosscallProbe.golden.yul`, and
+  `scripts/evm/crosscall-ir-smoke.sh`.
+- Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
+  gates, backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-evm-crosscall-ir-yul -o build/ir/EvmCrosscallProbe.yul
+diff -u Examples/Evm/EvmCrosscallProbe.golden.yul build/ir/EvmCrosscallProbe.yul
+scripts/evm/crosscall-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Result:
+
+- Generated EvmCrosscallProbe Yul includes selector dispatch, calldata size
+  guards, zero/one/two-argument crosscall helpers, failed-call reverts,
+  short-return reverts, and one-word return decoding.
+- Foundry verifies a Solidity callee for zero/one/two argument calls, callee
+  reverts, short returns, and unknown-selector reverts.
+- EVM artifact metadata records and validates `crosscall.invoke`.
+- Diagnostics reject malformed crosscall target, method, and argument types.
+
+Known limitations:
+
+- Portable IR EVM crosscalls currently model only synchronous zero-value `call`.
+- `staticcall`, `delegatecall`, create/create2, value-bearing calls, aggregate
+  arguments/returns, and variable-length return data remain future IR work.
+
+Next step:
+
+- Continue expanding the EVM portable IR surface toward aggregate ABI values,
+  arrays, structs, or richer call semantics.
+
 ### EVM IR Events
 
 Commit: feature commit for EVM IR events

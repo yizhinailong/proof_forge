@@ -37,6 +37,7 @@ scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
 scripts/evm/event-ir-smoke.sh
+scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 ```
@@ -72,6 +73,8 @@ proof-forge --emit-context-ir-yul [-o output.yul]
 proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-event-ir-yul [-o output.yul]
 proof-forge --emit-evm-event-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-crosscall-ir-yul [-o output.yul]
+proof-forge --emit-evm-crosscall-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-hash-ir-yul [-o output.yul]
 proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-map-ir-yul [-o output.yul]
@@ -124,7 +127,7 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
-| `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
+| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`；portable IR `crosscallInvoke` 降为同步 EVM `call`，method 使用低 32 位 selector，参数是 32-byte word，调用失败和返回不足一个 word 都会 revert |
 | `events.emit` | `log0`, `log1`, `log2`；portable IR `eventEmit` 降为 `log1`，topic0 由事件名派生 |
 | `assertions.check` | Portable IR `assert` / `assert_eq` 降为 Yul revert guard |
 | `control.conditional` | Portable IR `if/else` 降为 Yul `switch` block |
@@ -158,8 +161,8 @@ EVM 不支持（设计上针对其他目标）：
 
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
-- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、条件分支、context read、event、`Hash` word 值与 hashing，以及 `Map<U64, U64, N>` storage fixture，其他更宽的 portable IR 节点仍以显式诊断拒绝。
-- Portable IR EVM 目前仍缺少聚合 ABI 值、非 `U64` map 形态、storage array、struct、indexed/Solidity-signature event schema、跨合约调用和目标专属 deploy manifest。
+- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、条件分支、context read、event、`Hash` word 值与 hashing、`Map<U64, U64, N>` storage fixture，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
+- Portable IR EVM 目前仍缺少聚合 ABI 值、非 `U64` map 形态、storage array、struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据和目标专属 deploy manifest。
 - `storage.map.contains` 仍被显式拒绝，因为 EVM mapping 在没有辅助 bitmap 的情况下不跟踪 key presence。
 
 ## Portable IR 门禁
@@ -175,6 +178,7 @@ scripts/evm/assignment-ir-smoke.sh
 scripts/evm/conditional-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
 scripts/evm/event-ir-smoke.sh
+scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -193,6 +197,8 @@ scripts/evm/ir-counter-smoke.sh
 `EvmHashProbe` 验证 portable IR `Hash` 值在 EVM 上使用单 word ABI/storage 表示。四 limb `hash4` literal 和动态 `hashValue` 表达式会打包为一个 256-bit word；`hash` 与 `hash_two_to_one` 会降为调用 `keccak256` 的 Yul helper，分别对一个或两个 32-byte memory word 取哈希。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`crypto.hash`、`storage.scalar`）、ABI `bytes32` 参数/返回、通过 `sload`/`sstore` 的 Hash 标量 storage、Foundry `vm.load` 原始 slot，以及未知 selector revert。
 
 `EventProbe` 验证 portable IR event emission 通过 Yul `log1` 降级。EVM IR v0 使用刻意较小的事件策略：`topic0 = keccak256(UTF-8 event name)`，log data 是按 32-byte word 连续编码的字段值。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力 `events.emit`、Foundry recorded logs（`emitter`、topic 和 decoded data）、ABI selector dispatch，以及未知 selector revert。indexed fields 和 Solidity event-signature topics 需要等 portable IR 里有显式 event declaration 后再实现。
+
+`EvmCrosscallProbe` 验证 portable IR `crosscallInvoke` 会降为按 arity 生成的 Yul helper。EVM IR v0 把 target 表达式解释为地址 word，把 method 表达式解释为低 32 位 selector，把参数解释为 32-byte word。helper 会打包 calldata，执行 `call(gas(), target, 0, ...)`，在调用失败或返回不足一个 word 时 revert，并解码单个 32-byte 返回 word。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力 `crosscall.invoke`、Foundry 零/一/二参数调用、callee revert、短返回 revert，以及未知 selector revert。
 
 `EvmMapProbe` 验证 portable IR `Map<U64, U64, N>` storage 使用与 SDK 一致的 Solidity-style slot layout：先把 `key` 和 `slot` 作为两个 32-byte word 写入内存，再计算 `keccak256(key || slot)`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.map`、`assertions.check`）、ABI get/set/insert 行为、单段 `mapKey` storage path、Foundry `vm.load` 原始 storage slot，以及未知 selector revert。
 
