@@ -13,6 +13,7 @@ const RET_BUF = 8192, HEAP_BASE = 60000;
   let bumpPtr = HEAP_BASE;
   const env = {
     pf_alloc: (n) => { const p = bumpPtr; bumpPtr += Number(n); return p >>> 0; },
+    pf_dealloc: () => {},   // reuse-capable dealloc; IR has no free sites yet, so never called
     input: () => 0,                        // no input bytes
     read_register: () => {},               // no input data to copy
     register_len: () => 0,

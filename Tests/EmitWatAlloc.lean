@@ -17,4 +17,5 @@ def main : IO UInt32 := do
     | .error e => IO.eprintln e.message *> pure 1
   let r1 ← render emitWatSumResetModule "emitwat-alloc-reset.wat"
   let r2 ← render emitWatSumExternalModule "emitwat-alloc-external.wat"
-  if r1 == 0 && r2 == 0 then pure 0 else pure 1
+  let r3 ← render emitWatSumJemallocModule "emitwat-alloc-jemalloc.wat"
+  if r1 == 0 && r2 == 0 && r3 == 0 then pure 0 else pure 1

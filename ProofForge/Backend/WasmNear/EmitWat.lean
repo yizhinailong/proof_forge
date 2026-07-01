@@ -363,6 +363,7 @@ def hashAllocFunc : Func :=
 def arrPtrGlobal     : String := "arr_ptr"
 def arrAllocName     : String := "__pf_arr_alloc"
 def allocImportName   : String := "pf_alloc"
+def deallocImportName : String := "pf_dealloc"
 def arrayLitName (elemType : ValueType) (len : Nat) : String :=
   "__pf_arr_lit_" ++ typeSuffix elemType ++ "_" ++ toString len
 def arrEqName (elemType : ValueType) (len : Nat) : String :=
@@ -391,13 +392,24 @@ def arrPtrGlobalDecl (heapBase : Nat) : Global :=
 def arrAllocFunc (cfg : ProofForge.IR.AllocatorConfig) : Func :=
   { name := arrAllocName, params := #[{ name := "n", type := .i64 }], results := #[.i32],
     body := { insns :=
-      match cfg.strategy with
-      | .bump | .bumpReset => #[ .globalGet arrPtrGlobal,
-        .globalGet arrPtrGlobal, .localGet "n", .plain "i32.wrap_i64", .plain "i32.add", .globalSet arrPtrGlobal ]
-      | .external => #[.localGet "n", .call allocImportName] } }
-/-- Host import for the `external` strategy: `(import "env" "pf_alloc" (func (param i64) (result i32)))`. -/
+      if cfg.requiresHost then #[.localGet "n", .call allocImportName]
+      else #[ .globalGet arrPtrGlobal,
+        .globalGet arrPtrGlobal, .localGet "n", .plain "i32.wrap_i64", .plain "i32.add", .globalSet arrPtrGlobal ] } }
+/-- `__pf_arr_dealloc(ptr, n)`: no-op for bump strategies; forwards to the host
+    `pf_dealloc` for reuse-capable strategies. The IR has no release/scope
+    semantics yet, so no lowering currently emits a call to this helper — it is
+    emitted so the import is wired and ready once free semantics land. -/
+def arrDeallocFunc (cfg : ProofForge.IR.AllocatorConfig) : Func :=
+  { name := "__pf_arr_dealloc", params := #[{ name := "p", type := .i32 }, { name := "n", type := .i64 }],
+    results := #[],
+    body := { insns := if cfg.requiresHost then #[.localGet "p", .localGet "n", .call deallocImportName] else #[] } }
+/-- Host imports for reuse-capable strategies: `pf_alloc` + `pf_dealloc`.
+    `(import "env" "pf_alloc"   (func (param i64) (result i32)))`
+    `(import "env" "pf_dealloc" (func (param i32 i64)))` -/
 def allocImport : Import :=
   hostImport allocImportName #[.i64] #[.i32]
+def deallocImport : Import :=
+  hostImport deallocImportName #[.i32, .i64] #[]
 
 def hashMakeFunc : Func :=
   { name := hashMakeName,
@@ -1263,12 +1275,13 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let evtKeyData : DataSegment := { offset := EVT_KEY_PTR, bytes := "event" }
   let stringData := strs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
   let baseImports := nearImports.push sha256Import |>.push logUtf8Import |>.push inputImport
-  let isExternal := mod.allocator.strategy == ProofForge.IR.AllocatorStrategy.external
-  let extraImports := if isExternal then #[allocImport] else #[]
+  let isHost := mod.allocator.requiresHost
+  let extraImports := if isHost then #[allocImport, deallocImport] else #[]
   let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport]) ++ extraImports
-  let arrFuncs := arrLitHelperFuncs mod ++ arrEqHelperFuncs mod ++ structLitHelperFuncs mod ++ #[arrAllocFunc mod.allocator]
+  let arrFuncs := arrLitHelperFuncs mod ++ arrEqHelperFuncs mod ++ structLitHelperFuncs mod
+    ++ #[arrAllocFunc mod.allocator] ++ (if isHost then #[arrDeallocFunc mod.allocator] else #[])
   let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ (if maps.any (fun m => m.keyType == .hash) then mapHashHelperFuncs else #[]) ++ arrFuncs ++ entryFuncs
-  let arrPtrDecls := if isExternal then #[] else #[arrPtrGlobalDecl mod.allocator.heapBase]
+  let arrPtrDecls := if isHost then #[] else #[arrPtrGlobalDecl mod.allocator.heapBase]
   let globals := #[hashPtrGlobalDecl] ++ evtGlobals ++ arrPtrDecls
   .ok { imports := imports, globals := globals, funcs := funcs,
         memory := some { min := 1 },

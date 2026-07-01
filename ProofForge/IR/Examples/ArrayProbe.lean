@@ -84,6 +84,16 @@ def emitWatSumExternalModule : Module := {
   entrypoints := #[sumLiteral],
   allocator := { strategy := .external }
 }
+/-- A reuse-capable strategy: host must provide jemalloc-backed pf_alloc/pf_dealloc.
+    Same lowering surface as `external`; the strategy records which host
+    implementation is expected. Not chain-deployable (NEAR runtime exports
+    neither pf_alloc nor pf_dealloc). -/
+def emitWatSumJemallocModule : Module := {
+  name := "ArrayProbe",
+  state := #[],
+  entrypoints := #[sumLiteral],
+  allocator := { strategy := .jemalloc }
+}
 
 
 def module : Module := {
