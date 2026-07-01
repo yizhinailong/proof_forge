@@ -1,0 +1,241 @@
+import ProofForge.Compiler.Leo.AST
+
+namespace ProofForge.Compiler.Leo.Printer
+
+open ProofForge.Compiler.Leo.AST
+
+def unsupported (what : String) : Except LowerError String :=
+  .error { message := s!"Leo printer does not yet support {what}" }
+
+def printIdentifier (id : Identifier) : String := id
+
+def printPath (path : Path) : String :=
+  String.intercalate "::" path.toList
+
+def printIntegerType : IntegerType → String
+  | .u8 => "u8" | .u16 => "u16" | .u32 => "u32" | .u64 => "u64"
+  | .u128 => "u128" | .i8 => "i8" | .i16 => "i16" | .i32 => "i32" | .i64 => "i64"
+
+partial def printType : LeoType → Except LowerError String
+  | .integer t => .ok (printIntegerType t)
+  | .boolean => .ok "bool"
+  | .unit => .ok "()"
+  | .address => unsupported "address type"
+  | .array _ _ => unsupported "array type"
+  | .composite name => .ok name
+  | .field => unsupported "field type"
+  | .future _ _ => .ok "Final"  -- downgrade Future<Fn(...)> to Final for Leo 4.0.2
+  | .group => unsupported "group type"
+  | .mapping k v => do
+      let ks ← printType k
+      let vs ← printType v
+      .ok s!"mapping[{ks}, {vs}]"
+  | .scalar => unsupported "scalar type"
+  | .signature => unsupported "signature type"
+  | .string => .ok "string"
+  | .tuple _ => unsupported "tuple type"
+  | .err => unsupported "error type"
+
+def printLiteral : Literal → String
+  | .boolean true => "true"
+  | .boolean false => "false"
+  | .integer ty value => s!"{value}{printIntegerType ty}"
+  | .string s => s!"\"{s}\""
+  | .address s => s
+  | .field s => s
+  | .group s => s
+  | .none => "none"
+  | .scalar s => s
+  | .signature s => s
+
+def printBinaryOp : BinaryOperation → String
+  | .add => "+" | .addWrapped => "+" | .and => "&&" | .bitwiseAnd => "&"
+  | .div => "/" | .divWrapped => "/" | .eq => "==" | .gte => ">=" | .gt => ">"
+  | .lte => "<=" | .lt => "<" | .mod => "%" | .mul => "*" | .mulWrapped => "*"
+  | .nand => "/* nand */" | .neq => "!=" | .nor => "/* nor */"
+  | .or => "||" | .bitwiseOr => "|" | .pow => "**" | .powWrapped => "**"
+  | .rem => "/* rem */" | .remWrapped => "/* remWrapped */"
+  | .shl => "<<" | .shlWrapped => "<<" | .shr => ">>" | .shrWrapped => ">>"
+  | .sub => "-" | .subWrapped => "-" | .xor => "^"
+
+def printUnaryOp : UnaryOperation → String
+  | .not => "!"
+  | .negate => "-"
+  | _ => "/* unsupported unary */"
+
+mutual
+  partial def printExpression (e : Expression) : Except LowerError String :=
+    match e with
+    | .literal l => .ok (printLiteral l)
+    | .identifier name => .ok (printIdentifier name)
+    | .binary b => do
+        let l ← printExpression b.left
+        let r ← printExpression b.right
+        .ok s!"({l} {printBinaryOp b.op} {r})"
+    | .unary u => do
+        let r ← printExpression u.receiver
+        .ok s!"({printUnaryOp u.op}{r})"
+    | .call c => do
+        let fn := printPath c.function
+        let args ← c.arguments.mapM printExpression
+        .ok s!"{fn}({String.intercalate ", " args.toList})"
+    | .memberAccess m => do
+        let inner ← printExpression m.inner
+        .ok s!"{inner}.{m.name}"
+    | .async b => do
+        let bodyLines ← b.statements.mapM (printStatement 1)
+        let body := String.intercalate "\n" bodyLines.toList
+        .ok ("final {" ++ "\n" ++ body ++ "\n" ++ "}")
+    | .cast c => do
+        let v ← printExpression c.value
+        let t ← printType c.target
+        .ok s!"({v} as {t})"
+    | .array values => do
+        let vs ← values.mapM printExpression
+        .ok s!"[{String.intercalate ", " vs.toList}]"
+    | .composite name fields => do
+        let fs ← fields.mapM (fun (n, e) => do let s ← printExpression e; .ok (n ++ ": " ++ s))
+        .ok (name ++ " { " ++ String.intercalate ", " fs.toList ++ " }")
+    | .ternary cond t e => do
+        let c ← printExpression cond
+        let tt ← printExpression t
+        let ee ← printExpression e
+        .ok s!"if {c} ? {tt} : {ee}"
+    | .tuple values => do
+        let vs ← values.mapM printExpression
+        .ok s!"({String.intercalate ", " vs.toList})"
+    | .repeat value count => do
+        let v ← printExpression value
+        .ok s!"[{v}; {count}]"
+    | .arrayAccess a => do
+        let arr ← printExpression a.array
+        let idx ← printExpression a.index
+        .ok s!"{arr}[{idx}]"
+    | .unit => .ok "()"
+    | .err => unsupported "error expression"
+
+  partial def printBlock (indentLevel : Nat) (b : Block) : Except LowerError String := do
+    if b.statements.isEmpty then
+      .ok (indent indentLevel "{ }")
+    else
+      let header := indent indentLevel "{"
+      let body ← b.statements.mapM (printStatement (indentLevel + 1))
+      let footer := indent indentLevel "}"
+      .ok (String.intercalate "\n" ([header] ++ body.toList ++ [footer]))
+
+  partial def printStatement (indentLevel : Nat) : Statement → Except LowerError String
+    | .definition place ty? value => do
+        let name := match place with | .single n => n | .multiple ns => String.intercalate ", " ns.toList
+        let val ← printExpression value
+        let typeAnnot ← match ty? with
+          | some t => do let s ← printType t; .ok (": " ++ s ++ " ")
+          | none => .ok " "
+        .ok (indent indentLevel s!"let {name}{typeAnnot}= {val};")
+    | .assign place value => do
+        let p ← printExpression place
+        let v ← printExpression value
+        .ok (indent indentLevel s!"{p} = {v};")
+    | .block b => printBlock indentLevel b
+    | .conditional cond thenBranch elseBranch? => do
+        let c ← printExpression cond
+        let t ← printBlock indentLevel thenBranch
+        match elseBranch? with
+        | none => .ok (indent indentLevel ("if " ++ c ++ " " ++ t))
+        | some elseSt => do
+            let e ← printStatement indentLevel elseSt
+            .ok (indent indentLevel ("if " ++ c ++ " " ++ t ++ " else " ++ e))
+    | .constDecl name ty? value => do
+        let val ← printExpression value
+        let typeAnnot ← match ty? with
+          | some t => do let s ← printType t; .ok (": " ++ s ++ " ")
+          | none => .ok " "
+        .ok (indent indentLevel s!"const {name}{typeAnnot}= {val};")
+    | .expression e => do
+        let s ← printExpression e
+        .ok (indent indentLevel s!"{s};")
+    | .iteration var ty? start stop inclusive body => do
+        let lo ← printExpression start
+        let hi ← printExpression stop
+        let range := if inclusive then s!"{lo}..={hi}" else s!"{lo}..{hi}"
+        let tyStr ← match ty? with | some t => do let s ← printType t; .ok (": " ++ s) | none => .ok ""
+        let b ← printBlock indentLevel body
+        .ok (indent indentLevel ("for " ++ var ++ tyStr ++ " in " ++ range ++ " " ++ b))
+    | .returnSt none => .ok (indent indentLevel "return;")
+    | .returnSt (some e) => do
+        match e with
+        | .async b =>
+            let bodyLines ← b.statements.mapM (printStatement (indentLevel + 1))
+            let body := String.intercalate "\n" bodyLines.toList
+            .ok (indent indentLevel "return final {" ++ "\n" ++ body ++ "\n" ++ indent indentLevel "};")
+        | value => do
+            let v ← printExpression value
+            .ok (indent indentLevel ("return " ++ v ++ ";"))
+    | .assert cond msg? => do
+        let c ← printExpression cond
+        match msg? with
+        | none => .ok (indent indentLevel s!"assert({c});")
+        | some msg => do
+            let m ← printExpression msg
+            .ok (indent indentLevel s!"assert_eq({c}, {m});")
+end
+
+def printAnnotation (a : Annotation) : String := s!"@{a.name}"
+
+def printInput (i : Input) : Except LowerError String := do
+  let ty ← printType i.ty
+  .ok s!"{i.name}: {ty}"
+
+def printFunction (indentLevel : Nat) (f : Function) : Except LowerError String := do
+  let keyword := match f.variant with
+    | .fn => "fn"
+    | .finalFn => "final fn"
+    | .entryPoint => "fn"
+    | .view => "view fn"
+  let params ← f.input.mapM printInput
+  let paramsStr := String.intercalate ", " params.toList
+  let ret ← printType f.outputType
+  let header := keyword ++ " " ++ f.identifier ++ "(" ++ paramsStr ++ ") -> " ++ ret ++ " {"
+  let body ← printBlock (indentLevel + 1) f.block
+  let annoLines := f.annotations.map printAnnotation
+  let prefixed :=
+    if annoLines.isEmpty then
+      indent indentLevel header ++ "\n" ++ body
+    else
+      let annos := String.intercalate "\n" (annoLines.map (indent indentLevel)).toList
+      annos ++ "\n" ++ indent indentLevel header ++ "\n" ++ body
+  .ok prefixed
+
+def printMapping (indentLevel : Nat) (m : Mapping) : Except LowerError String := do
+  let k ← printType m.keyType
+  let v ← printType m.valueType
+  .ok (indent indentLevel s!"mapping {m.identifier}: {k} => {v};")
+
+def printConstructor (indentLevel : Nat) (c : Constructor) : Except LowerError String := do
+  let annoLines := c.annotations.map printAnnotation
+  let annos := if annoLines.isEmpty then "" else String.intercalate "\n" (annoLines.map (indent indentLevel)).toList ++ "\n"
+  if c.block.statements.isEmpty then
+    .ok (annos ++ indent indentLevel "constructor() {}")
+  else
+    let header := "constructor() {"
+    let body ← printBlock (indentLevel + 1) c.block
+    let footer := indent indentLevel "}"
+    .ok (annos ++ indent indentLevel header ++ "\n" ++ body ++ "\n" ++ footer)
+
+def printProgramScope (indentLevel : Nat) (scope : ProgramScope) : Except LowerError String := do
+  let mappingLines ← scope.mappings.mapM (fun (_, m) => printMapping indentLevel m)
+  let functionLines ← scope.functions.mapM (fun (_, f) => printFunction indentLevel f)
+  let constructorLines ← match scope.constructor with
+    | none => .ok #[]
+    | some c => do let s ← printConstructor indentLevel c; .ok #[s]
+  let all := mappingLines ++ constructorLines ++ functionLines
+  let body := String.intercalate "\n\n" all.toList
+  .ok ("program " ++ scope.programId ++ " {\n" ++ body ++ "\n" ++ indent indentLevel "}")
+
+def printProgram (p : Program) : Except LowerError String :=
+  match p.scopes with
+  | #[(_, scope)] => printProgramScope 0 scope
+  | _ => .error { message := "Leo printer currently supports exactly one program scope" }
+
+def printProgramToString (p : Program) : Except LowerError String := printProgram p
+
+end ProofForge.Compiler.Leo.Printer
