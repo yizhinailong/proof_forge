@@ -362,6 +362,7 @@ def hashAllocFunc : Func :=
 -- advances by the byte count; the caller stores elements into [ptr, ptr+n).
 def arrPtrGlobal     : String := "arr_ptr"
 def arrAllocName     : String := "__pf_arr_alloc"
+def allocImportName   : String := "pf_alloc"
 def arrayLitName (elemType : ValueType) (len : Nat) : String :=
   "__pf_arr_lit_" ++ typeSuffix elemType ++ "_" ++ toString len
 def arrEqName (elemType : ValueType) (len : Nat) : String :=
@@ -381,12 +382,22 @@ def structFieldOffset? (s : ProofForge.IR.StructDecl) (fieldName : String) : Opt
 def structFieldType? (s : ProofForge.IR.StructDecl) (fieldName : String) : Option ValueType :=
   (s.fields.find? (fun f => f.id == fieldName)).map (fun f => f.type)
 def structLitName (typeName : String) : String := "__pf_struct_lit_" ++ typeName
-def arrPtrGlobalDecl : Global :=
-  { name := arrPtrGlobal, type := .i32, init := toString ARR_HEAP, isMutable := true }
-def arrAllocFunc : Func :=
+/-- The `arr_ptr` mutable global holds the bump frontier; only emitted for the
+    `bump`/`bumpReset` strategies (`external` has no frontier). -/
+def arrPtrGlobalDecl (heapBase : Nat) : Global :=
+  { name := arrPtrGlobal, type := .i32, init := toString heapBase, isMutable := true }
+/-- `__pf_arr_alloc(n) -> i32` lowered per strategy: `bump`/`bumpReset` advance the
+    frontier; `external` forwards to the host-provided `pf_alloc` import. -/
+def arrAllocFunc (cfg : ProofForge.IR.AllocatorConfig) : Func :=
   { name := arrAllocName, params := #[{ name := "n", type := .i64 }], results := #[.i32],
-    body := { insns := #[ .globalGet arrPtrGlobal,
-      .globalGet arrPtrGlobal, .localGet "n", .plain "i32.wrap_i64", .plain "i32.add", .globalSet arrPtrGlobal ] } }
+    body := { insns :=
+      match cfg.strategy with
+      | .bump | .bumpReset => #[ .globalGet arrPtrGlobal,
+        .globalGet arrPtrGlobal, .localGet "n", .plain "i32.wrap_i64", .plain "i32.add", .globalSet arrPtrGlobal ]
+      | .external => #[.localGet "n", .call allocImportName] } }
+/-- Host import for the `external` strategy: `(import "env" "pf_alloc" (func (param i64) (result i32)))`. -/
+def allocImport : Import :=
+  hostImport allocImportName #[.i64] #[.i32]
 
 def hashMakeFunc : Func :=
   { name := hashMakeName,
@@ -632,6 +643,7 @@ structure Ctx where
   maps    : Array MapInfo
   strings : Array StringInfo
   structs : Array ProofForge.IR.StructDecl
+  allocator : ProofForge.IR.AllocatorConfig
 
 structure LBind where
   name : String
@@ -1232,13 +1244,17 @@ def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
     (ep.params.map (fun (n, t) => { name := n, vt := t : LBind })) ++ bodyLocals
   let locals := paramLocals ++ bodyLocals.map (fun b => { name := b.name, type := wasmTypeOf b.vt : Local })
   let bodyInsns ← ep.body.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx allLocalTypes ep.returns s)
-  .ok { name := ep.name, locals := locals, body := { insns := paramPrologue ++ bodyInsns }, exportName := ep.name }
+  let resetPrefix : Array Insn :=
+    if ctx.allocator.strategy == ProofForge.IR.AllocatorStrategy.bumpReset then
+      #[.i32Const ctx.allocator.heapBase, .globalSet arrPtrGlobal]
+    else #[]
+  .ok { name := ep.name, locals := locals, body := { insns := resetPrefix ++ paramPrologue ++ bodyInsns }, exportName := ep.name }
 
 def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compiler.Wasm.Module := do
   let scalars := stateLayout mod
   let maps := mapLayout mod
   let strs := stringPool mod
-  let ctx := { scalars := scalars, maps := maps, strings := strs, structs := mod.structs : Ctx }
+  let ctx := { scalars := scalars, maps := maps, strings := strs, structs := mod.structs, allocator := mod.allocator : Ctx }
   let entryFuncs ← mod.entrypoints.mapM (lowerEntrypoint ctx)
   let scalarData := scalars.map fun s => { offset := s.keyPtr, bytes := s.id : DataSegment }
   let mapData := maps.map fun m => { offset := m.prefixPtr, bytes := m.id ++ ":" : DataSegment }
@@ -1247,10 +1263,13 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let evtKeyData : DataSegment := { offset := EVT_KEY_PTR, bytes := "event" }
   let stringData := strs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
   let baseImports := nearImports.push sha256Import |>.push logUtf8Import |>.push inputImport
-  let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport])
-  let arrFuncs := arrLitHelperFuncs mod ++ arrEqHelperFuncs mod ++ structLitHelperFuncs mod ++ #[arrAllocFunc]
+  let isExternal := mod.allocator.strategy == ProofForge.IR.AllocatorStrategy.external
+  let extraImports := if isExternal then #[allocImport] else #[]
+  let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport]) ++ extraImports
+  let arrFuncs := arrLitHelperFuncs mod ++ arrEqHelperFuncs mod ++ structLitHelperFuncs mod ++ #[arrAllocFunc mod.allocator]
   let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ (if maps.any (fun m => m.keyType == .hash) then mapHashHelperFuncs else #[]) ++ arrFuncs ++ entryFuncs
-  let globals := #[hashPtrGlobalDecl] ++ evtGlobals ++ #[arrPtrGlobalDecl]
+  let arrPtrDecls := if isExternal then #[] else #[arrPtrGlobalDecl mod.allocator.heapBase]
+  let globals := #[hashPtrGlobalDecl] ++ evtGlobals ++ arrPtrDecls
   .ok { imports := imports, globals := globals, funcs := funcs,
         memory := some { min := 1 },
         dataSegments := scalarData ++ mapData ++ boolData ++ #[evtKeyData] ++ stringData }

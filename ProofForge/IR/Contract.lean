@@ -1,6 +1,7 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Target.Capability
+import ProofForge.IR.Allocator
 
 namespace ProofForge.IR
 
@@ -192,6 +193,7 @@ structure Module where
   structs : Array StructDecl := #[]
   state : Array StateDecl
   entrypoints : Array Entrypoint
+  allocator : AllocatorConfig := defaultAllocator
   deriving Repr
 
 def Effect.capability : Effect → ProofForge.Target.Capability

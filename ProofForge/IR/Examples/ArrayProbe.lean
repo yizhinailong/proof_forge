@@ -71,6 +71,19 @@ def emitWatSumModule : Module := {
   state := #[],
   entrypoints := #[sumLiteral]
 }
+/-- Allocator-strategy variants of the sumLiteral subset. -/
+def emitWatSumResetModule : Module := {
+  name := "ArrayProbe",
+  state := #[],
+  entrypoints := #[sumLiteral],
+  allocator := { strategy := .bumpReset }
+}
+def emitWatSumExternalModule : Module := {
+  name := "ArrayProbe",
+  state := #[],
+  entrypoints := #[sumLiteral],
+  allocator := { strategy := .external }
+}
 
 
 def module : Module := {

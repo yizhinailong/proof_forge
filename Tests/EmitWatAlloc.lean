@@ -1,0 +1,20 @@
+import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.IR.Examples.ArrayProbe
+open ProofForge.IR.Examples ArrayProbe ProofForge.Backend.WasmNear.EmitWat
+
+/-! Render allocator-strategy variants of ArrayProbe.sumLiteral:
+    bumpReset (entrypoint-boundary reset) and external (host-provided pf_alloc). -/
+
+def main : IO UInt32 := do
+  let render (m : ProofForge.IR.Module) (fname : String) : IO UInt32 := do
+    match renderModule m with
+    | .ok wat =>
+        let path := s!"build/wasm-near/{fname}"
+        IO.FS.createDirAll "build/wasm-near"
+        IO.FS.writeFile path wat
+        IO.println s!"wrote {path} ({wat.length} bytes)"
+        pure 0
+    | .error e => IO.eprintln e.message *> pure 1
+  let r1 ← render emitWatSumResetModule "emitwat-alloc-reset.wat"
+  let r2 ← render emitWatSumExternalModule "emitwat-alloc-external.wat"
+  if r1 == 0 && r2 == 0 then pure 0 else pure 1
