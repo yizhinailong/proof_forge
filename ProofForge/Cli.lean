@@ -50,6 +50,7 @@ import ProofForge.IR.Examples.U32ArithmeticProbe
 import ProofForge.IR.Examples.U32HashPackingProbe
 import ProofForge.IR.Examples.U32StorageArrayProbe
 import ProofForge.IR.Examples.U32StorageScalarProbe
+import ProofForge.Target
 
 open Lean
 open System
@@ -133,6 +134,31 @@ inductive EmitMode where
   | pureMathIrLeo
   deriving BEq, Inhabited
 
+def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
+  | .evmBytecode
+  | .counterIrBytecode
+  | .abiScalarIrBytecode
+  | .assertIrBytecode
+  | .assignmentIrBytecode
+  | .evmAssignOpIrBytecode
+  | .conditionalIrBytecode
+  | .contextIrBytecode
+  | .evmEventIrBytecode
+  | .evmCrosscallIrBytecode
+  | .evmExpressionIrBytecode
+  | .evmHashIrBytecode
+  | .evmLoopIrBytecode
+  | .evmMapIrBytecode
+  | .evmStorageArrayIrBytecode
+  | .evmStorageStructIrBytecode
+  | .evmTypedMapIrBytecode
+  | .evmTypedStorageIrBytecode
+  | .evmArrayValueIrBytecode
+  | .evmStructArrayValueIrBytecode
+  | .evmStructValueIrBytecode
+  | .evmAbiAggregateIrBytecode => true
+  | _ => false
+
 structure CliOptions where
   input? : Option FilePath := none
   output? : Option FilePath := none
@@ -144,6 +170,7 @@ structure CliOptions where
   artifactOutput? : Option FilePath := none
   solc : String := "solc"
   cast : String := "cast"
+  evmChainProfile? : Option String := none
   mode : EmitMode := .yul
   deriving Inhabited
 
@@ -151,7 +178,7 @@ def usage : String :=
   String.intercalate "\n" [
     "Usage:",
     "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
-    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [-o output.bin] input.lean",
+    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-abi-scalar-ir-yul [-o output.yul]",
@@ -223,6 +250,7 @@ def usage : String :=
     "  proof-forge --emit-counter-ir-leo [-o output.leo]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
+    "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
     "IR fixture modes render hand-written portable IR fixtures to target source or bytecode."
   ]
 
@@ -423,6 +451,10 @@ def jsonArray (values : Array String) : String :=
 def jsonStringArray (values : Array String) : String :=
   jsonArray (values.map jsonString)
 
+def jsonStringOption : Option String → String
+  | some value => jsonString value
+  | none => "null"
+
 def defaultArtifactOutput (bytecodeOutput : FilePath) : FilePath :=
   let fileName := FilePath.mk "proof-forge-artifact.json"
   match bytecodeOutput.parent with
@@ -594,12 +626,82 @@ def contractNameForFixture (fixture : String) : String :=
   else
     fixture
 
+def resolveEvmChainProfile? (profileId? : Option String) : IO (Option ProofForge.Target.EvmChainProfile) := do
+  match profileId? with
+  | none => return none
+  | some profileId =>
+      match ProofForge.Target.findEvmChainProfile? profileId with
+      | some profile => return some profile
+      | none =>
+          let known := String.intercalate ", " ProofForge.Target.knownEvmChainProfileIds.toList
+          throw <| IO.userError s!"unknown EVM chain profile `{profileId}`; known profiles: {known}"
+
+def evmChainProfileJson (profile : ProofForge.Target.EvmChainProfile) : String :=
+  jsonObject #[
+    ("id", jsonString profile.id),
+    ("targetId", jsonString profile.targetId),
+    ("networkName", jsonString profile.networkName),
+    ("chainId", toString profile.chainId),
+    ("nativeCurrencySymbol", jsonString profile.nativeCurrencySymbol),
+    ("rollupFamily", jsonStringOption profile.rollupFamily),
+    ("dataAvailability", jsonStringOption profile.dataAvailability),
+    ("rpcUrls", jsonStringArray profile.rpcUrls),
+    ("websocketUrls", jsonStringArray profile.websocketUrls),
+    ("sequencerUrls", jsonStringArray profile.sequencerUrls),
+    ("blockExplorerUrl", jsonStringOption profile.blockExplorerUrl),
+    ("verifier", jsonStringOption profile.verifier),
+    ("verifierUrl", jsonStringOption profile.verifierUrl),
+    ("notes", jsonStringArray profile.notes)
+  ]
+
+def evmChainProfileFieldJson (profile? : Option ProofForge.Target.EvmChainProfile) : String :=
+  match profile? with
+  | some profile => evmChainProfileJson profile
+  | none => "null"
+
+def evmDeploymentJson (profile? : Option ProofForge.Target.EvmChainProfile) : String :=
+  let (profileId, chainId, networkName, rpcUrls, blockExplorerUrl, verifier, verifierUrl, reason) :=
+    match profile? with
+    | some profile =>
+        (jsonString profile.id,
+          toString profile.chainId,
+          jsonString profile.networkName,
+          jsonStringArray profile.rpcUrls,
+          jsonStringOption profile.blockExplorerUrl,
+          jsonStringOption profile.verifier,
+          jsonStringOption profile.verifierUrl,
+          jsonString "ProofForge emitted a chain-profile-aware deployment plan, but transaction signing and broadcast artifacts are not generated yet.")
+    | none =>
+        ("null",
+          "null",
+          "null",
+          jsonArray #[],
+          "null",
+          "null",
+          "null",
+          jsonString "ProofForge EVM bytecode modes emit deployable initcode and runtime bytecode artifacts, but no EVM chain profile was selected and transaction broadcasting is not generated yet.")
+  jsonObject #[
+    ("profileId", profileId),
+    ("chainId", chainId),
+    ("networkName", networkName),
+    ("rpcUrls", rpcUrls),
+    ("blockExplorerUrl", blockExplorerUrl),
+    ("verifier", verifier),
+    ("verifierUrl", verifierUrl),
+    ("address", "null"),
+    ("broadcast", jsonString "not-generated"),
+    ("broadcastArtifact", "null"),
+    ("reason", reason),
+    ("reference", jsonString "scripts/evm/foundry-smoke.sh")
+  ]
+
 def writeEvmDeployManifest
     (deployOutput : FilePath)
     (fixture sourceKind sourceModule : String)
     (capabilities : Array String)
     (entrypoints : Array String)
     (methods : Array String)
+    (chainProfile? : Option ProofForge.Target.EvmChainProfile)
     (sourceArtifact? : Option String)
     (yulArtifact bytecodeArtifact initCodeArtifact : String) : IO Unit := do
   let mut inputFields : Array (String × String) := #[
@@ -620,6 +722,7 @@ def writeEvmDeployManifest
     ("sourceKind", jsonString sourceKind),
     ("irVersion", if sourceKind == "portable-ir" then jsonString "portable-ir-v0" else "null"),
     ("sourceModule", jsonString sourceModule),
+    ("chainProfile", evmChainProfileFieldJson chainProfile?),
     ("capabilities", jsonStringArray (dedupStrings capabilities)),
     ("abi", jsonObject #[
       ("entrypoints", jsonArray entrypoints),
@@ -632,13 +735,7 @@ def writeEvmDeployManifest
       ("runtimeBytecode", bytecodeArtifact)
     ]),
     ("inputs", jsonObject inputFields),
-    ("deployment", jsonObject #[
-      ("chainId", "null"),
-      ("address", "null"),
-      ("broadcast", jsonString "not-generated"),
-      ("reason", jsonString "ProofForge EVM bytecode modes emit deployable initcode and runtime bytecode artifacts, but chain-specific transaction broadcasting is not generated yet."),
-      ("reference", jsonString "scripts/evm/foundry-smoke.sh")
-    ])
+    ("deployment", evmDeploymentJson chainProfile?)
   ]
   if let some parent := deployOutput.parent then
     IO.FS.createDirAll parent
@@ -654,6 +751,7 @@ def writeEvmArtifactMetadata
     (yulOutput bytecodeOutput : FilePath) : IO Unit := do
   let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput bytecodeOutput)
   let deployOutput := defaultDeployManifestOutput metadataOutput
+  let chainProfile? ← resolveEvmChainProfile? opts.evmChainProfile?
   let initCodeOutput ← writeEvmInitCode bytecodeOutput
   let yulArtifact ← artifactEntryJson yulOutput
   let bytecodeArtifact ← artifactEntryJson bytecodeOutput
@@ -667,6 +765,7 @@ def writeEvmArtifactMetadata
     capabilities
     entrypoints
     methods
+    chainProfile?
     sourceArtifact?
     yulArtifact
     bytecodeArtifact
@@ -752,7 +851,9 @@ def writeEvmSdkArtifactMetadata
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy || opts.mode == .counterIrLeo || opts.mode == .pureMathIrLeo then
+      if opts.evmChainProfile?.isSome && !opts.mode.emitsEvmDeployManifest then
+        .error "--evm-chain-profile only applies to EVM bytecode modes that emit proof-forge-deploy.json"
+      else if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy || opts.mode == .counterIrLeo || opts.mode == .pureMathIrLeo then
         .ok opts
       else
         .error usage
@@ -773,6 +874,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with yulOutput? := some (FilePath.mk path) }
   | "--artifact-output" :: path :: rest, opts =>
       parseArgs rest { opts with artifactOutput? := some (FilePath.mk path) }
+  | "--evm-chain-profile" :: profile :: rest, opts =>
+      parseArgs rest { opts with evmChainProfile? := some profile }
   | "--solc" :: path :: rest, opts =>
       parseArgs rest { opts with solc := path }
   | "--cast" :: path :: rest, opts =>
@@ -1913,7 +2016,10 @@ end ProofForge.Cli
 
 unsafe def main (args : List String) : IO UInt32 := do
   match ProofForge.Cli.parseArgs args {} with
-  | .ok opts => ProofForge.Cli.compileFile opts
+  | .ok opts => do
+      if opts.evmChainProfile?.isSome then
+        discard <| ProofForge.Cli.resolveEvmChainProfile? opts.evmChainProfile?
+      ProofForge.Cli.compileFile opts
   | .error msg =>
       IO.eprintln msg
       return 1

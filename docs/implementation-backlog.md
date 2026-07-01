@@ -84,6 +84,10 @@ Tasks:
   for each EVM bytecode build, record it in both `proof-forge-artifact.json`
   and `proof-forge-deploy.json`, and validate that the initcode header copies
   and returns the referenced runtime bytecode.
+- Done for EVM: add `--evm-chain-profile <id>` so bytecode builds can record a
+  known EVM chain profile such as `robinhood-chain-testnet` in
+  `proof-forge-deploy.json`; validators check profile id, chain id, RPC URLs,
+  explorer, verifier, and deployment-block consistency without broadcasting.
 - Keep schema versioned from day one.
 
 Acceptance criteria:
@@ -91,6 +95,9 @@ Acceptance criteria:
 - EVM bytecode build writes runtime bytecode, deployable initcode, metadata,
   and deploy manifest next to each other.
 - Metadata and deploy manifests can be parsed independently by CI scripts.
+- Deploy manifests can carry optional EVM chain profile metadata from the
+  target registry while keeping transaction broadcast artifacts explicitly
+  `not-generated`.
 - EVM metadata can represent missing optional version data as `null`, not
   malformed metadata.
 
