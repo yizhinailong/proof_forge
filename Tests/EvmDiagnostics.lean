@@ -383,14 +383,14 @@ def crosscallArgumentTypeModule : Module :=
     .return (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[.literal (.bool true)])
   ]
 
-def typedCrosscallReturnTypeModule : Module := {
-  name := "BadTypedCrosscallReturnType"
-  structs := #[pointStruct]
-  state := #[markerState]
-  entrypoints := #[selectedReturnEntrypoint "bad" (.structType "Point") #[
-    .return (.crosscallInvokeTyped (.literal (.u64 1)) (.literal (.u64 2)) #[] (.structType "Point"))
-  ]]
-}
+def typedCrosscallReturnTypeModule : Module :=
+  selectedModule "BadTypedCrosscallReturnType" <| selectedReturnEntrypoint "bad" (.fixedArray (.fixedArray .u64 2) 2) #[
+    .return (.crosscallInvokeTyped
+      (.literal (.u64 1))
+      (.literal (.u64 2))
+      #[]
+      (.fixedArray (.fixedArray .u64 2) 2))
+  ]
 
 def typedCrosscallArgumentTypeModule : Module :=
   selectedModule "BadTypedCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
@@ -708,7 +708,7 @@ def cases : Array (String × Module × String) := #[
   (
     "typed crosscall return type unsupported",
     typedCrosscallReturnTypeModule,
-    "typed crosscall return has unsupported EVM IR v0 crosscall word type `Point`; crosscall scalar words support U32, U64, Bool, or Hash"
+    "typed crosscall return fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "typed crosscall argument type unsupported",

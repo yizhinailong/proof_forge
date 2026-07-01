@@ -55,6 +55,24 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x47c6c9b7 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1 := f_EvmCrosscallProbe_call_remote_pair(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      return(0, 64)
+    }
+    case 0x717d6851 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1 := f_EvmCrosscallProbe_call_remote_array(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      return(0, 64)
+    }
     case 0x365f4a44 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
@@ -159,6 +177,12 @@ object "EvmCrosscallProbe" {
     }
     function f_EvmCrosscallProbe_call_remote_hash(target, method, value) -> result {
       result := __proof_forge_crosscall_1_hash(target, method, value)
+    }
+    function f_EvmCrosscallProbe_call_remote_pair(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
+      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_0_abi_bool_u32(target, method)
+    }
+    function f_EvmCrosscallProbe_call_remote_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
+      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_0_abi_u64_u64(target, method)
     }
     function f_EvmCrosscallProbe_call_remote_value(target, method) -> result {
       result := __proof_forge_crosscall_value_0(target, method, callvalue())
@@ -270,6 +294,38 @@ object "EvmCrosscallProbe" {
       }
       returndatacopy(0, 0, 32)
       result := mload(0)
+    }
+    function __proof_forge_crosscall_0_abi_bool_u32(target, selector) -> result0, result1 {
+      mstore(0, shl(224, selector))
+      let _success := call(gas(), target, 0, 0, 4, 0, 64)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 64) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 64)
+      result0 := mload(0)
+      result1 := mload(32)
+      if gt(result0, 1) {
+        revert(0, 0)
+      }
+      if gt(result1, 4294967295) {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_crosscall_0_abi_u64_u64(target, selector) -> result0, result1 {
+      mstore(0, shl(224, selector))
+      let _success := call(gas(), target, 0, 0, 4, 0, 64)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 64) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 64)
+      result0 := mload(0)
+      result1 := mload(32)
     }
     function __proof_forge_crosscall_value_0(target, selector, call_value) -> result {
       mstore(0, shl(224, selector))

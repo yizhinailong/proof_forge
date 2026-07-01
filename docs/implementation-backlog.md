@@ -156,8 +156,15 @@ Tasks:
   crosscalls over `Bool`, `U32`, `U64`, and `Hash`, with return-type-specific
   Yul helpers, Bool/U32 return-data guards, `EvmCrosscallProbe` golden Yul,
   solc bytecode, Foundry valid/invalid typed-return validation, metadata
-  entrypoint validation, EVM aggregate-typed crosscall diagnostics, and explicit
-  Psy unsupported diagnostics.
+  entrypoint validation, unsupported aggregate argument/nested-return
+  diagnostics, and explicit Psy unsupported diagnostics.
+- Done: extend EVM IR normal `crosscallInvokeTyped` return lowering beyond
+  scalar words for direct entrypoint returns of flat structs and scalar fixed
+  arrays, with ABI-word-shape-specific Yul helpers, multi-word return-data
+  size checks, Bool/U32 range guards across aggregate return words,
+  `EvmCrosscallProbe` golden Yul, solc bytecode, Foundry aggregate
+  struct/array return validation, metadata selector validation, and explicit
+  diagnostics for nested aggregate return shapes.
 - Done: add EVM IR `crosscallInvokeValueTyped` lowering for value-bearing typed
   scalar crosscalls, forwarding an explicit U64 call-value expression through
   value-specific Yul helpers, with `EvmCrosscallProbe` golden Yul, solc

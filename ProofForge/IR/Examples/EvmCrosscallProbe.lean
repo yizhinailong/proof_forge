@@ -10,6 +10,14 @@ def stateMarker : StateDecl := {
   type := .u64
 }
 
+def remotePairStruct : StructDecl := {
+  name := "RemotePair"
+  fields := #[
+    { id := "flag", type := .bool },
+    { id := "small", type := .u32 }
+  ]
+}
+
 def callRemote : Entrypoint := {
   name := "call_remote"
   selector? := some "0de1d044"
@@ -91,6 +99,32 @@ def callRemoteHash : Entrypoint := {
   returns := .hash
   body := #[
     .return (.crosscallInvokeTyped (.local "target") (.local "method") #[.local "value"] .hash)
+  ]
+}
+
+def callRemotePair : Entrypoint := {
+  name := "call_remote_pair"
+  selector? := some "47c6c9b7"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .structType "RemotePair"
+  body := #[
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[] (.structType "RemotePair"))
+  ]
+}
+
+def callRemoteArray : Entrypoint := {
+  name := "call_remote_array"
+  selector? := some "717d6851"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray .u64 2
+  body := #[
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[] (.fixedArray .u64 2))
   ]
 }
 
@@ -219,6 +253,7 @@ def callRemoteDelegateHash : Entrypoint := {
 
 def module : Module := {
   name := "EvmCrosscallProbe"
+  structs := #[remotePairStruct]
   state := #[stateMarker]
   entrypoints := #[
     callRemote,
@@ -227,6 +262,8 @@ def module : Module := {
     callRemoteBool,
     callRemoteU32,
     callRemoteHash,
+    callRemotePair,
+    callRemoteArray,
     callRemoteValue,
     callRemoteStatic,
     callRemoteStaticBool,

@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Aggregate Crosscall Returns
+
+Commit: feature commit for EVM IR aggregate crosscall returns
+
+Summary:
+
+- Extended normal `crosscallInvokeTyped` returns beyond scalar words when the
+  expression is returned directly from an ABI-facing entrypoint.
+- Lowered flat struct and scalar fixed-array crosscall return data through
+  arity- and ABI-word-shape-specific Yul helpers such as
+  `__proof_forge_crosscall_0_abi_bool_u32`, assigning multiple helper results
+  directly to the entrypoint's ABI return words.
+- Preserved scalar behavior for value-bearing, static, and delegate typed
+  crosscalls, and kept unsupported nested aggregate return shapes as explicit
+  diagnostics.
+- Extended `EvmCrosscallProbe` with `call_remote_pair` and
+  `call_remote_array`, refreshed golden Yul, metadata selector checks, Foundry
+  aggregate struct/array return tests, malformed Bool/U32 aggregate return
+  guard tests, coverage manifests, validation gates, target docs, backlog, and
+  Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+scripts/i18n/check-sync.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/crosscall-ir-smoke.sh
+scripts/evm/foundry-smoke.sh
+```
+
+Known limitations:
+
+- Aggregate crosscall support is limited to normal typed calls returned
+  directly from entrypoints.
+- Aggregate crosscall arguments, value/static/delegate aggregate returns,
+  nested aggregate return data, contract creation, and variable-length return
+  data remain future EVM IR work.
+
+Next step:
+
+- Continue shrinking EVM cross-call gaps around aggregate arguments,
+  value/static/delegate aggregate returns, or create/create2.
+
 ### EVM IR Typed Delegatecalls
 
 Commit: feature commit for EVM IR typed delegatecalls

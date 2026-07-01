@@ -856,7 +856,7 @@ mutual
     | .crosscallInvokeTyped target methodId args returnType => do
         ensureType "typed crosscall target contract id" .u64 (← inferExprType module env target)
         ensureType "typed crosscall method id" .u64 (← inferExprType module env methodId)
-        ensureCrosscallWordType "typed crosscall return" returnType
+        discard <| crosscallReturnWordTypes module "typed crosscall return" returnType
         for arg in args do
           ensureCrosscallWordType "typed crosscall argument" (← inferExprType module env arg)
         .ok returnType
@@ -2617,22 +2617,51 @@ def lowerReturnWords
   | .structType typeName =>
       lowerStructReturnWords module env entrypointName typeName value
 
+def lowerAggregateCrosscallReturnAssignment?
+    (module : Module)
+    (env : TypeEnv)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : ProofForge.IR.Expr) : Except LowerError (Option (Array Lean.Compiler.Yul.Statement)) := do
+  if isCrosscallWordType returnType then
+    .ok none
+  else
+    match value with
+    | .crosscallInvokeTyped target methodId args callReturnType => do
+        ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
+        let names ← abiReturnNames module entrypointName returnType
+        let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
+        let mut callArgs := #[
+          ← lowerExpr module env target,
+          ← lowerExpr module env methodId
+        ]
+        for arg in args do
+          callArgs := callArgs.push (← lowerExpr module env arg)
+        .ok (some #[
+          .assignment names (Lean.Compiler.Yul.call (← crosscallAggregateFunctionName args.size wordTypes) callArgs)
+        ])
+    | _ => .ok none
+
 def lowerReturnAssignments
     (module : Module)
     (env : TypeEnv)
     (entrypointName : String)
     (returnType : ValueType)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let names ← abiReturnNames module entrypointName returnType
-  let words ← lowerReturnWords module env entrypointName returnType value
-  if names.size != words.size then
-    .error { message := s!"entrypoint `{entrypointName}` return lowering produced {words.size} word(s), expected {names.size}" }
-  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
-  for h : idx in [0:names.size] do
-    let some word := words[idx]?
-      | .error { message := s!"entrypoint `{entrypointName}` return lowering is missing word {idx}" }
-    statements := statements.push (.assignment #[names[idx]] word)
-  .ok statements
+  let aggregateAssignment? ← lowerAggregateCrosscallReturnAssignment? module env entrypointName returnType value
+  match aggregateAssignment? with
+  | some statements => .ok statements
+  | none => do
+      let names ← abiReturnNames module entrypointName returnType
+      let words ← lowerReturnWords module env entrypointName returnType value
+      if names.size != words.size then
+        .error { message := s!"entrypoint `{entrypointName}` return lowering produced {words.size} word(s), expected {names.size}" }
+      let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+      for h : idx in [0:names.size] do
+        let some word := words[idx]?
+          | .error { message := s!"entrypoint `{entrypointName}` return lowering is missing word {idx}" }
+        statements := statements.push (.assignment #[names[idx]] word)
+      .ok statements
 
 def lowerReturnStmt
     (module : Module)
