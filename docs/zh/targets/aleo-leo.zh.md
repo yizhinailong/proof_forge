@@ -41,16 +41,18 @@ Road 1 spike 通过以下脚本进行端到端验证：
 
 - `lean-toolchain` 指定的 Lean 工具链以及构建好的 `proof-forge` 二进制文件。
 - 用于包/清单辅助脚本的 `python3`。
-- `PATH` 上的 `leo` CLI（Aleo build/test 门禁）；如果未安装 `leo`，脚本会
+- `PATH` 上的 `leo` CLI（已在 Leo 4.0.2 上测试）；如果未安装 `leo`，脚本会
   输出生成的 `Counter.leo` 并以退出码 `127` 退出。
 
 它证明了什么：
 
-- Portable IR `ProofForge.IR.Examples.Counter` 可降级为带公开 `mapping` 和
-  `final` 块的 Leo 程序。
+- Portable IR `ProofForge.IR.Examples.Counter` 可降级为 Leo 4.0 程序，包含
+  公开 `mapping`、`@noupgrade constructor` 以及通过 `fn ... -> Final` 暴露、
+  在 `final` 块中读写 mapping 的 entry point。
 - 生成的 Leo source 与已跟踪的 golden fixture
   `Examples/Aleo/Counter.golden.leo` 一致。
-- `leo build` 能生成 Aleo Instructions、AVM bytecode 和 ABI JSON。
+- `leo build` 能生成 Aleo Instructions（`build/main.aleo`）和 ABI JSON
+  （`build/abi.json`）。
 - `leo test` 通过。
 - `proof-forge-artifact.json` 被生成并通过了 schema 校验。
 
@@ -60,6 +62,8 @@ Road 1 spike 通过以下脚本进行端到端验证：
 - 直接生成 Aleo Instructions。
 - devnet 部署或 execute transactions。
 - 与 EVM/Psy Counter 语义的跨目标等价性。
+- 独立的 `.avm` 字节码文件；当前 `leo build` 将 VM 制品嵌入编译包，而非输出
+  单独文件。
 
 ## 分类
 

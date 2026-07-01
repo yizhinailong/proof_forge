@@ -43,16 +43,18 @@ Prerequisites:
 
 - Lean toolchain from `lean-toolchain` and a built `proof-forge` binary.
 - `python3` for package/manifest helpers.
-- `leo` CLI on `PATH` (Aleo build/test gate); if `leo` is missing, the script
+- `leo` CLI on `PATH` (tested with Leo 4.0.2); if `leo` is missing, the script
   reports the generated `Counter.leo` and exits with code `127`.
 
 What it proves:
 
-- Portable IR `ProofForge.IR.Examples.Counter` lowers to a Leo program with a
-  public `mapping` and `final` blocks.
+- Portable IR `ProofForge.IR.Examples.Counter` lowers to a Leo 4.0 program with
+  a public `mapping`, `@noupgrade constructor`, and `fn ... -> Final` entry
+  points whose `final` blocks read/write the mapping.
 - Generated Leo source matches the tracked golden fixture
   `Examples/Aleo/Counter.golden.leo`.
-- `leo build` produces Aleo Instructions, AVM bytecode, and ABI JSON.
+- `leo build` produces Aleo Instructions (`build/main.aleo`) and ABI JSON
+  (`build/abi.json`).
 - `leo test` passes.
 - `proof-forge-artifact.json` is produced and schema-validated.
 
@@ -62,6 +64,8 @@ What it does not prove:
 - Direct Aleo Instructions generation.
 - Devnet deployment or execute transactions.
 - Cross-target equivalence with EVM/Psy Counter semantics.
+- A standalone `.avm` bytecode file; the current `leo build` output embeds VM
+  artifacts in the compiled package rather than emitting a separate file.
 
 ## Classification
 

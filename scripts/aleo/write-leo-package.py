@@ -51,19 +51,19 @@ import {program_name}.aleo;
 
 program test_{program_name}.aleo {{
     @test
-    fn test_initialize_and_get() {{
-        {program_name}.aleo::initialize();
-        let value: u64 = {program_name}.aleo::get();
-        assert_eq(value, 0u64);
-    }}
-
-    @test
-    fn test_increment() {{
-        {program_name}.aleo::initialize();
-        {program_name}.aleo::increment();
-        {program_name}.aleo::increment();
-        let value: u64 = {program_name}.aleo::get();
-        assert_eq(value, 2u64);
+    fn test_lifecycle() -> Final {{
+        let f1: Final = {program_name}.aleo::initialize();
+        let f2: Final = {program_name}.aleo::get();
+        let f3: Final = {program_name}.aleo::increment();
+        let f4: Final = {program_name}.aleo::increment();
+        let f5: Final = {program_name}.aleo::get();
+        return final {{
+            f1.run();
+            f2.run();
+            f3.run();
+            f4.run();
+            f5.run();
+        }};
     }}
 
     @noupgrade

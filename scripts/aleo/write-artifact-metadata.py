@@ -57,8 +57,7 @@ def main() -> int:
 
     optional_artifacts = {
         "aleoInstructions": build_dir / "main.aleo",
-        "avmBytecode": build_dir / f"{program_name}.avm",
-        "abiJson": build_dir / f"{program_name}.abi",
+        "abiJson": build_dir / "abi.json",
     }
 
     for key, path in optional_artifacts.items():
@@ -121,8 +120,8 @@ def main() -> int:
                 {
                     "name": "get",
                     "publicInputs": [],
-                    "publicOutputs": ["u64"],
-                    "finalize": False,
+                    "publicOutputs": [],
+                    "finalize": True,
                 },
             ],
         },
