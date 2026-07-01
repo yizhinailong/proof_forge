@@ -98,7 +98,7 @@ proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:
 EVM bytecode mode:
 
 ```sh
-proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
+proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
 ```
 
 Portable IR EVM fixture modes:
@@ -154,12 +154,16 @@ proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output out
 broadcasting a transaction.
 `--evm-constructor-param <name:type>` records static-word constructor ABI
 schema metadata in `abi.constructor.params`. Supported schema types are
-`uint256`, `uint64`, `uint32`, `bool`, `bytes32`, and `address`. The flag does
-not auto-encode values; it validates the size of the ABI-encoded blob supplied
-through `--evm-constructor-args-hex`.
+`uint256`, `uint64`, `uint32`, `bool`, `bytes32`, and `address`.
+`--evm-constructor-arg <name=value>` ABI-encodes one typed constructor value
+using the declared schema. Unsigned integer values may be decimal or
+`0x`-prefixed hex; `bool` accepts `true`, `false`, `1`, or `0`; `bytes32`
+expects exactly 32 hex bytes; `address` expects exactly 20 hex bytes and is
+left-padded to one ABI word. Typed constructor args cannot be combined with
+`--evm-constructor-args-hex`.
 `--evm-constructor-args-hex <hex>` appends an ABI-encoded constructor argument
 blob to generated `.init.bin` creation bytecode and records the normalized hex,
-byte length, and SHA-256 in `proof-forge-deploy.json`.
+byte length, SHA-256, and source flag in `proof-forge-deploy.json`.
 `--artifact-output <path>` overrides the default EVM metadata path. Without an
 override, bytecode modes write `proof-forge-artifact.json` next to the bytecode
 output and `proof-forge-deploy.json` next to the metadata file. When smoke
@@ -291,9 +295,8 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   arrays with non-flat struct or unsupported leaves,
   non-word or aggregate map shapes, nested
   local structs beyond flat struct arrays, richer event declarations,
-  typed constructor value parsing/encoding beyond explicit ABI-encoded hex,
-  variable-length cross-call return data, and real creation-transaction or
-  broadcast manifests.
+  dynamic constructor ABI types, variable-length cross-call return data, and
+  real creation-transaction or broadcast manifests.
 
 ## Portable IR Gates
 
@@ -657,9 +660,9 @@ The EVM deploy manifest records:
   native gas symbol, explorer, verifier, and notes
 - Yul/source inputs plus runtime bytecode and initcode hash/size
 - `creation.mode: init-code`, optional static-word constructor ABI schema from
-  `--evm-constructor-param`, optional ABI-encoded constructor args from
-  `--evm-constructor-args-hex`, an artifact-linked initcode file, and the
-  referenced runtime bytecode
+  `--evm-constructor-param`, optional ABI-encoded constructor args from typed
+  `--evm-constructor-arg` values or raw `--evm-constructor-args-hex`, an
+  artifact-linked initcode file, and the referenced runtime bytecode
 - `deployment.profileId`, `deployment.chainId`, `deployment.rpcUrls`,
   `deployment.blockExplorerUrl`, and verifier fields when a chain profile is
   selected
@@ -674,16 +677,17 @@ check that it copies and returns the exact runtime bytecode artifact, and that
 any constructor-argument tail matches the deploy manifest. When constructor ABI
 schema metadata is present, they also verify each static-word parameter and
 check that the ABI-encoded constructor blob has the expected 32-byte word
-length. When a chain profile is selected, they also verify that `chainProfile`
-and `deployment` agree on profile id, chain id, RPC URLs, explorer, and
-verifier metadata.
+length. They also accept and can assert whether constructor args came from raw
+hex or typed constructor values. When a chain profile is selected, they also
+verify that `chainProfile` and `deployment` agree on profile id, chain id, RPC
+URLs, explorer, and verifier metadata.
 `scripts/evm/validate-deploy-manifest.py` can validate a deploy manifest
 directly.
 
 `scripts/evm/anvil-deploy-smoke.sh` consumes the generated Counter deploy
 manifest and `.init.bin`, regenerates Counter with a deterministic non-empty
-constructor-argument blob plus a static `initial:uint256` constructor schema by
-default, starts a local Anvil chain, sends the initcode with
+typed `initial=123` constructor argument plus a static `initial:uint256`
+constructor schema by default, starts a local Anvil chain, sends the initcode with
 `cast send --create`, checks the receipt, verifies that the deployed runtime
 code equals `Counter.bin`, runs the Counter lifecycle through JSON-RPC calls,
 and writes

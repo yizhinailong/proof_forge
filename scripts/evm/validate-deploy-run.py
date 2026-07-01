@@ -10,6 +10,7 @@ from typing import Any
 ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 HASH_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
 SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
+SUPPORTED_CONSTRUCTOR_ARG_SOURCES = {"--evm-constructor-args-hex", "--evm-constructor-arg"}
 
 
 def fail(message: str) -> None:
@@ -78,7 +79,12 @@ def read_push_value(init_hex: str, offset: int, name: str) -> tuple[int, int]:
     return int(init_hex[data_start:data_end], 16), data_end
 
 
-def validate_constructor_args(constructor_args: list, name: str) -> str:
+def validate_constructor_args(constructor_args: list, name: str, expected_source: str | None) -> str:
+    if expected_source is not None:
+        expect(
+            expected_source in SUPPORTED_CONSTRUCTOR_ARG_SOURCES,
+            "--expect-constructor-args-source is unsupported",
+        )
     if constructor_args == []:
         return ""
     expect(len(constructor_args) == 1, f"{name} supports one ABI-encoded argument blob")
@@ -88,7 +94,10 @@ def validate_constructor_args(constructor_args: list, name: str) -> str:
     arg_bytes = bytes.fromhex(actual_hex)
     expect(arg.get("bytes") == len(arg_bytes), f"{name}[0].bytes mismatch")
     expect(arg.get("sha256") == hashlib.sha256(arg_bytes).hexdigest(), f"{name}[0].sha256 mismatch")
-    expect(arg.get("source") == "--evm-constructor-args-hex", f"{name}[0].source mismatch")
+    source = expect_string(arg.get("source"), f"{name}[0].source")
+    expect(source in SUPPORTED_CONSTRUCTOR_ARG_SOURCES, f"{name}[0].source unsupported")
+    if expected_source is not None:
+        expect(source == expected_source, f"{name}[0].source mismatch")
     return actual_hex
 
 
@@ -165,6 +174,7 @@ def main() -> int:
     parser.add_argument("--expect-fixture", default="Counter.lean")
     parser.add_argument("--expect-chain-id", type=int, default=31337)
     parser.add_argument("--expect-contract-name", default="Counter")
+    parser.add_argument("--expect-constructor-args-source")
     parser.add_argument("--expect-constructor-param", action="append", default=[])
     parser.add_argument("deploy_run")
     args = parser.parse_args()
@@ -228,7 +238,11 @@ def main() -> int:
     init_hex = expect_hex_file(init_code_path, "initCode").lower()
     creation = expect_object(manifest.get("creation"), "deploy manifest creation")
     constructor_args = expect_array(creation.get("constructorArgs"), "deploy manifest creation.constructorArgs")
-    constructor_args_hex = validate_constructor_args(constructor_args, "deploy manifest creation.constructorArgs")
+    constructor_args_hex = validate_constructor_args(
+        constructor_args,
+        "deploy manifest creation.constructorArgs",
+        args.expect_constructor_args_source,
+    )
     validate_constructor_schema_args(constructor_params, constructor_args_hex)
     expect(run.get("constructorAbi") == manifest["abi"]["constructor"], "constructorAbi must match deploy manifest")
     expect(run.get("constructorArgs") == constructor_args, "constructorArgs must match deploy manifest")

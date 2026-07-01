@@ -62,6 +62,11 @@ structure ConstructorParamSpec where
   abiType : String
   deriving Repr
 
+structure ConstructorValueSpec where
+  name : String
+  value : String
+  deriving Repr
+
 inductive EmitMode where
   | yul
   | evmBytecode
@@ -244,7 +249,9 @@ structure CliOptions where
   cast : String := "cast"
   evmChainProfile? : Option String := none
   evmConstructorArgsHex : String := ""
+  evmConstructorArgsSource : String := "--evm-constructor-args-hex"
   evmConstructorParams : Array ConstructorParamSpec := #[]
+  evmConstructorValues : Array ConstructorValueSpec := #[]
   mode : EmitMode := .yul
   deriving Inhabited
 
@@ -252,7 +259,7 @@ def usage : String :=
   String.intercalate "\n" [
     "Usage:",
     "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
-    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
+    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-abi-scalar-ir-yul [-o output.yul]",
@@ -325,6 +332,7 @@ def usage : String :=
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
     "`--evm-constructor-param name:type` records static-word constructor ABI schema metadata for an ABI-encoded constructor args blob.",
+    "`--evm-constructor-arg name=value` ABI-encodes one typed constructor value using the declared constructor schema.",
     "`--evm-constructor-args-hex <hex>` appends ABI-encoded constructor arguments to generated EVM initcode.",
     "IR fixture modes render hand-written portable IR fixtures to target source or bytecode."
   ]
@@ -455,6 +463,43 @@ def isHexChar (c : Char) : Bool :=
 def isHexString (s : String) : Bool :=
   !s.isEmpty && s.all isHexChar
 
+def repeatString : Nat → String → String
+  | 0, _ => ""
+  | n+1, s => s ++ repeatString n s
+
+def hexDigit (value : Nat) : String :=
+  match value with
+  | 0 => "0"
+  | 1 => "1"
+  | 2 => "2"
+  | 3 => "3"
+  | 4 => "4"
+  | 5 => "5"
+  | 6 => "6"
+  | 7 => "7"
+  | 8 => "8"
+  | 9 => "9"
+  | 10 => "a"
+  | 11 => "b"
+  | 12 => "c"
+  | 13 => "d"
+  | 14 => "e"
+  | _ => "f"
+
+partial def natToHex (value : Nat) : String :=
+  if value < 16 then
+    hexDigit value
+  else
+    natToHex (value / 16) ++ hexDigit (value % 16)
+
+def byteLimit : Nat → Nat
+  | 0 => 1
+  | n+1 => 256 * byteLimit n
+
+def fixedHexBytes (byteCount value : Nat) : String :=
+  let raw := natToHex value
+  repeatString (byteCount * 2 - raw.length) "0" ++ raw
+
 def normalizeConstructorArgsHex (value : String) : Except String String :=
   let hex := stripHexPrefix (trimAsciiString value)
   if hex.isEmpty then
@@ -489,12 +534,133 @@ def parseConstructorParamSpec (s : String) : Except String ConstructorParamSpec 
   | _ =>
       .error s!"invalid constructor parameter spec '{s}', expected name:type"
 
+def parseConstructorValueSpec (s : String) : Except String ConstructorValueSpec := do
+  match s.splitOn "=" with
+  | [name, value] =>
+      let name := trimAsciiString name
+      let value := trimAsciiString value
+      if name.isEmpty then
+        .error s!"invalid constructor argument spec '{s}': name is empty"
+      else if value.isEmpty then
+        .error s!"invalid constructor argument spec '{s}': value is empty"
+      else
+        .ok { name := name, value := value }
+  | _ =>
+      .error s!"invalid constructor argument spec '{s}', expected name=value"
+
+def hexCharValue! : Char → Nat
+  | '0' => 0
+  | '1' => 1
+  | '2' => 2
+  | '3' => 3
+  | '4' => 4
+  | '5' => 5
+  | '6' => 6
+  | '7' => 7
+  | '8' => 8
+  | '9' => 9
+  | 'a' | 'A' => 10
+  | 'b' | 'B' => 11
+  | 'c' | 'C' => 12
+  | 'd' | 'D' => 13
+  | 'e' | 'E' => 14
+  | _ => 15
+
+def parseHexNat (value name : String) : Except String Nat :=
+  let hex := stripHexPrefix (trimAsciiString value)
+  if hex.isEmpty then
+    .error s!"{name} must not be empty"
+  else if !hex.all isHexChar then
+    .error s!"{name} must contain only hex digits"
+  else
+    .ok (hex.toList.foldl (fun acc ch => acc * 16 + hexCharValue! ch) 0)
+
+def parseUnsignedNat (value name : String) : Except String Nat :=
+  let value := trimAsciiString value
+  if value.startsWith "0x" || value.startsWith "0X" then
+    parseHexNat value name
+  else
+    match value.toNat? with
+    | some n => .ok n
+    | none => .error s!"{name} must be an unsigned decimal integer or 0x-prefixed hex integer"
+
+def normalizeExactHexBytes (value name : String) (bytes : Nat) : Except String String :=
+  let hex := stripHexPrefix (trimAsciiString value)
+  if hex.length != bytes * 2 then
+    .error s!"{name} must be exactly {bytes} byte(s)"
+  else if !hex.all isHexChar then
+    .error s!"{name} must contain only hex digits"
+  else
+    .ok (lowerHexString hex)
+
+def encodeUintConstructorArg (name value : String) (bytes : Nat) : Except String String := do
+  let n ← parseUnsignedNat value s!"constructor argument `{name}`"
+  if n < byteLimit bytes then
+    .ok (fixedHexBytes 32 n)
+  else
+    .error s!"constructor argument `{name}` does not fit in uint{bytes * 8}"
+
+def encodeBoolConstructorArg (name value : String) : Except String String :=
+  match trimAsciiString value with
+  | "true" | "True" | "TRUE" | "1" => .ok (fixedHexBytes 32 1)
+  | "false" | "False" | "FALSE" | "0" => .ok (fixedHexBytes 32 0)
+  | _ => .error s!"constructor argument `{name}` must be true, false, 1, or 0"
+
+def encodeConstructorValue (param : ConstructorParamSpec) (value : String) : Except String String := do
+  match param.abiType with
+  | "uint256" => encodeUintConstructorArg param.name value 32
+  | "uint64" => encodeUintConstructorArg param.name value 8
+  | "uint32" => encodeUintConstructorArg param.name value 4
+  | "bool" => encodeBoolConstructorArg param.name value
+  | "bytes32" => normalizeExactHexBytes value s!"constructor argument `{param.name}`" 32
+  | "address" =>
+      let address ← normalizeExactHexBytes value s!"constructor argument `{param.name}`" 20
+      .ok (repeatString 24 "0" ++ address)
+  | abiType => .error s!"unsupported constructor ABI type '{abiType}'"
+
+def constructorParamExists (params : Array ConstructorParamSpec) (name : String) : Bool :=
+  params.any (fun param => param.name == name)
+
+def constructorValueCount (values : Array ConstructorValueSpec) (name : String) : Nat :=
+  values.foldl (fun count value => if value.name == name then count + 1 else count) 0
+
+def findConstructorValue? (values : Array ConstructorValueSpec) (name : String) : Option String :=
+  values.foldl
+    (fun found value =>
+      match found with
+      | some _ => found
+      | none => if value.name == name then some value.value else none)
+    none
+
+def validateConstructorValues (params : Array ConstructorParamSpec) (values : Array ConstructorValueSpec) : Except String Unit := do
+  for value in values do
+    if constructorValueCount values value.name > 1 then
+      .error s!"duplicate --evm-constructor-arg for `{value.name}`"
+    else if !constructorParamExists params value.name then
+      .error s!"--evm-constructor-arg `{value.name}` has no matching --evm-constructor-param"
+    else
+      pure ()
+
+def encodeConstructorValues (params : Array ConstructorParamSpec) (values : Array ConstructorValueSpec) : Except String String := do
+  if params.isEmpty then
+    .error "--evm-constructor-arg requires at least one --evm-constructor-param"
+  validateConstructorValues params values
+  let mut words : Array String := #[]
+  for param in params do
+    match findConstructorValue? values param.name with
+    | some value =>
+        let word ← encodeConstructorValue param value
+        words := words.push word
+    | none =>
+        .error s!"missing --evm-constructor-arg for constructor parameter `{param.name}`"
+  .ok (String.intercalate "" words.toList)
+
 def validateConstructorSchemaAndArgs (params : Array ConstructorParamSpec) (constructorArgsHex : String) : Except String Unit := do
   let argsHex ← normalizeConstructorArgsHex constructorArgsHex
   if params.isEmpty then
     .ok ()
   else if argsHex.isEmpty then
-    .error "--evm-constructor-param requires --evm-constructor-args-hex because ProofForge does not auto-encode constructor values yet"
+    .error "--evm-constructor-param requires --evm-constructor-args-hex or matching --evm-constructor-arg values"
   else
     let expectedBytes := params.size * 32
     let actualBytes := argsHex.length / 2
@@ -502,6 +668,25 @@ def validateConstructorSchemaAndArgs (params : Array ConstructorParamSpec) (cons
       .ok ()
     else
       .error s!"constructor ABI schema expects {expectedBytes} bytes ({params.size} static-word parameter(s)), but --evm-constructor-args-hex has {actualBytes} byte(s)"
+
+def finalizeConstructorOptions (opts : CliOptions) : Except String CliOptions := do
+  let argsHex ← normalizeConstructorArgsHex opts.evmConstructorArgsHex
+  if !opts.evmConstructorValues.isEmpty then
+    if !argsHex.isEmpty then
+      .error "--evm-constructor-arg cannot be combined with --evm-constructor-args-hex"
+    else
+      let encoded ← encodeConstructorValues opts.evmConstructorParams opts.evmConstructorValues
+      validateConstructorSchemaAndArgs opts.evmConstructorParams encoded
+      .ok { opts with
+        evmConstructorArgsHex := encoded,
+        evmConstructorArgsSource := "--evm-constructor-arg"
+      }
+  else
+    validateConstructorSchemaAndArgs opts.evmConstructorParams argsHex
+    .ok { opts with
+      evmConstructorArgsHex := argsHex,
+      evmConstructorArgsSource := "--evm-constructor-args-hex"
+    }
 
 def runProcess (cmd : String) (args : Array String) (cwd? : Option FilePath := none) : IO String := do
   let output ← IO.Process.output { cmd := cmd, args := args, cwd := cwd? }
@@ -638,39 +823,6 @@ def dedupStrings (values : Array String) : Array String :=
   values.foldl (init := #[]) fun acc value =>
     if acc.contains value then acc else acc.push value
 
-def repeatString : Nat → String → String
-  | 0, _ => ""
-  | n+1, s => s ++ repeatString n s
-
-def hexDigit (value : Nat) : String :=
-  match value with
-  | 0 => "0"
-  | 1 => "1"
-  | 2 => "2"
-  | 3 => "3"
-  | 4 => "4"
-  | 5 => "5"
-  | 6 => "6"
-  | 7 => "7"
-  | 8 => "8"
-  | 9 => "9"
-  | 10 => "a"
-  | 11 => "b"
-  | 12 => "c"
-  | 13 => "d"
-  | 14 => "e"
-  | _ => "f"
-
-partial def natToHex (value : Nat) : String :=
-  if value < 16 then
-    hexDigit value
-  else
-    natToHex (value / 16) ++ hexDigit (value % 16)
-
-def byteLimit : Nat → Nat
-  | 0 => 1
-  | n+1 => 256 * byteLimit n
-
 partial def pushByteWidthFrom (value width : Nat) : Option Nat :=
   if width > 32 then
     none
@@ -681,10 +833,6 @@ partial def pushByteWidthFrom (value width : Nat) : Option Nat :=
 
 def pushByteWidth (value : Nat) : Option Nat :=
   pushByteWidthFrom value 1
-
-def fixedHexBytes (byteCount value : Nat) : String :=
-  let raw := natToHex value
-  repeatString (byteCount * 2 - raw.length) "0" ++ raw
 
 def pushDataHex (value : Nat) : Except String String := do
   let some width := pushByteWidth value
@@ -816,7 +964,7 @@ def evmChainProfileFieldJson (profile? : Option ProofForge.Target.EvmChainProfil
   | some profile => evmChainProfileJson profile
   | none => "null"
 
-def constructorArgsJson (constructorArgsHex : String) : IO String := do
+def constructorArgsJson (constructorArgsHex source : String) : IO String := do
   let normalized ←
     match normalizeConstructorArgsHex constructorArgsHex with
     | .ok hex => pure hex
@@ -831,7 +979,7 @@ def constructorArgsJson (constructorArgsHex : String) : IO String := do
         ("hex", jsonString s!"0x{normalized}"),
         ("bytes", toString (normalized.length / 2)),
         ("sha256", jsonString digest),
-        ("source", jsonString "--evm-constructor-args-hex")
+        ("source", jsonString source)
       ]
     ]
 
@@ -930,7 +1078,7 @@ def writeEvmArtifactMetadata
   let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput bytecodeOutput)
   let deployOutput := defaultDeployManifestOutput metadataOutput
   let chainProfile? ← resolveEvmChainProfile? opts.evmChainProfile?
-  let constructorArgs ← constructorArgsJson opts.evmConstructorArgsHex
+  let constructorArgs ← constructorArgsJson opts.evmConstructorArgsHex opts.evmConstructorArgsSource
   let initCodeOutput ← writeEvmInitCode bytecodeOutput opts.evmConstructorArgsHex
   let yulArtifact ← artifactEntryJson yulOutput
   let bytecodeArtifact ← artifactEntryJson bytecodeOutput
@@ -1040,14 +1188,12 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
         .error "--evm-constructor-args-hex only applies to EVM bytecode modes that emit proof-forge-deploy.json"
       else if !opts.evmConstructorParams.isEmpty && !opts.mode.emitsEvmDeployManifest then
         .error "--evm-constructor-param only applies to EVM bytecode modes that emit proof-forge-deploy.json"
-      else if !opts.evmConstructorParams.isEmpty then
-        match validateConstructorSchemaAndArgs opts.evmConstructorParams opts.evmConstructorArgsHex with
-        | .ok () => if hasRunnableInput then .ok opts else .error usage
-        | .error msg => .error msg
-      else if hasRunnableInput then
-        .ok opts
+      else if !opts.evmConstructorValues.isEmpty && !opts.mode.emitsEvmDeployManifest then
+        .error "--evm-constructor-arg only applies to EVM bytecode modes that emit proof-forge-deploy.json"
       else
-        .error usage
+        match finalizeConstructorOptions opts with
+        | .ok opts => if hasRunnableInput then .ok opts else .error usage
+        | .error msg => .error msg
   | "-o" :: out :: rest, opts =>
       parseArgs rest { opts with output? := some (FilePath.mk out) }
   | "--output" :: out :: rest, opts =>
@@ -1073,6 +1219,9 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
   | "--evm-constructor-param" :: param :: rest, opts => do
       let spec ← parseConstructorParamSpec param
       parseArgs rest { opts with evmConstructorParams := opts.evmConstructorParams.push spec }
+  | "--evm-constructor-arg" :: value :: rest, opts => do
+      let spec ← parseConstructorValueSpec value
+      parseArgs rest { opts with evmConstructorValues := opts.evmConstructorValues.push spec }
   | "--solc" :: path :: rest, opts =>
       parseArgs rest { opts with solc := path }
   | "--cast" :: path :: rest, opts =>

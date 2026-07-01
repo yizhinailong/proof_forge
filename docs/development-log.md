@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Typed Constructor Value Encoding
+
+Commit: `feat: encode EVM constructor values`
+
+Summary:
+
+- Added `--evm-constructor-arg <name=value>` for EVM bytecode modes.
+- Typed constructor args are ABI-encoded from the declared
+  `--evm-constructor-param <name:type>` schema and support `uint256`, `uint64`,
+  `uint32`, `bool`, `bytes32`, and `address`.
+- Constructor arg metadata now records whether the ABI blob came from typed CLI
+  args or raw `--evm-constructor-args-hex`.
+- Validators accept and can assert constructor arg source, and Anvil deploy
+  smoke now defaults to typed `initial=123` input for Counter.
+- CLI validation rejects missing typed values, duplicate typed values,
+  out-of-range integer values, and mixing typed values with raw constructor hex.
+
+Validation run:
+
+```sh
+lake build proof-forge
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py scripts/evm/validate-deploy-run.py
+bash -n scripts/evm/anvil-deploy-smoke.sh
+lake env proof-forge --evm-bytecode --root . --module contract --evm-constructor-param initial:uint256 --evm-constructor-arg initial=123 ...
+python3 scripts/evm/validate-artifact-metadata.py --expect-constructor-args-source=--evm-constructor-arg ...
+python3 scripts/evm/validate-deploy-manifest.py --expect-constructor-args-source=--evm-constructor-arg ...
+```
+
+Known limitations:
+
+- Constructor value encoding is limited to static one-word ABI types; dynamic
+  constructor ABI types are still unsupported.
+- This still emits deployable initcode and local Anvil deploy-run artifacts,
+  not signed transaction/broadcast artifacts for public RPC networks.
+
+Next step:
+
+- Add first-class EVM deploy/broadcast commands that consume the deploy
+  manifest, or continue closing remaining non-dynamic EVM backend gaps.
+
 ### EVM Constructor ABI Schema Metadata
 
 Commit: `feat: record EVM constructor ABI schema`

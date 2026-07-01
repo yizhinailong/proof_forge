@@ -12,8 +12,26 @@ MNEMONIC="${EVM_ANVIL_MNEMONIC:-test test test test test test test test test tes
 DEPLOYER_PRIVATE_KEY="${EVM_ANVIL_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
 DEPLOYER_ADDRESS="${EVM_ANVIL_DEPLOYER:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
 SET_VALUE="${EVM_ANVIL_SET_VALUE:-99}"
-CONSTRUCTOR_ARGS_HEX="${EVM_ANVIL_CONSTRUCTOR_ARGS_HEX-000000000000000000000000000000000000000000000000000000000000007b}"
+CONSTRUCTOR_ARGS_HEX="${EVM_ANVIL_CONSTRUCTOR_ARGS_HEX-}"
+if [[ -n "${EVM_ANVIL_CONSTRUCTOR_ARG+x}" ]]; then
+  CONSTRUCTOR_ARG="$EVM_ANVIL_CONSTRUCTOR_ARG"
+elif [[ -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
+  CONSTRUCTOR_ARG=""
+else
+  CONSTRUCTOR_ARG="initial=123"
+fi
 CONSTRUCTOR_PARAM="${EVM_ANVIL_CONSTRUCTOR_PARAM:-initial:uint256}"
+if [[ -n "${EVM_ANVIL_CONSTRUCTOR_ARG+x}" && -n "$CONSTRUCTOR_ARG" && -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
+  echo "anvil-deploy-smoke: set either EVM_ANVIL_CONSTRUCTOR_ARG or EVM_ANVIL_CONSTRUCTOR_ARGS_HEX, not both" >&2
+  exit 2
+fi
+if [[ -n "$CONSTRUCTOR_ARG" ]]; then
+  CONSTRUCTOR_ARGS_SOURCE="--evm-constructor-arg"
+elif [[ -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
+  CONSTRUCTOR_ARGS_SOURCE="--evm-constructor-args-hex"
+else
+  CONSTRUCTOR_ARGS_SOURCE=""
+fi
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
@@ -44,42 +62,51 @@ DEPLOY_RUN="$RUN_DIR/Counter.proof-forge-deploy-run.json"
 RUNTIME_FILE="$OUT_DIR/Counter.bin"
 INIT_FILE="$OUT_DIR/Counter.init.bin"
 DEPLOY_MANIFEST="$OUT_DIR/Counter.proof-forge-deploy.json"
-validator_constructor_param_args=()
-if [[ -n "$CONSTRUCTOR_ARGS_HEX" && -n "$CONSTRUCTOR_PARAM" ]]; then
-  validator_constructor_param_args=(--expect-constructor-param "$CONSTRUCTOR_PARAM")
-fi
 
-if [[ -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
+if [[ -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
   if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then
     proof_forge=("$PROOF_FORGE_BIN")
   else
     proof_forge=(lake env proof-forge)
   fi
-  constructor_param_args=()
+  proof_forge_args=(
+    --evm-bytecode
+    --root .
+    --module contract
+    --yul-output "$OUT_DIR/Counter.yul"
+    --artifact-output "$OUT_DIR/Counter.proof-forge-artifact.json"
+  )
   if [[ -n "$CONSTRUCTOR_PARAM" ]]; then
-    constructor_param_args=(--evm-constructor-param "$CONSTRUCTOR_PARAM")
+    proof_forge_args+=(--evm-constructor-param "$CONSTRUCTOR_PARAM")
   fi
+  if [[ -n "$CONSTRUCTOR_ARG" ]]; then
+    proof_forge_args+=(--evm-constructor-arg "$CONSTRUCTOR_ARG")
+  fi
+  if [[ -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
+    proof_forge_args+=(--evm-constructor-args-hex "$CONSTRUCTOR_ARGS_HEX")
+  fi
+  proof_forge_args+=(-o "$RUNTIME_FILE" Examples/Evm/Contracts/Counter.lean)
 
   (
     cd "$ROOT"
-    "${proof_forge[@]}" \
-      --evm-bytecode \
-      --root . \
-      --module contract \
-      --yul-output "$OUT_DIR/Counter.yul" \
-      --artifact-output "$OUT_DIR/Counter.proof-forge-artifact.json" \
-      "${constructor_param_args[@]}" \
-      --evm-constructor-args-hex "$CONSTRUCTOR_ARGS_HEX" \
-      -o "$RUNTIME_FILE" \
-      Examples/Evm/Contracts/Counter.lean
+    "${proof_forge[@]}" "${proof_forge_args[@]}"
     diff -u Examples/Evm/Contracts/Counter.golden.yul "$OUT_DIR/Counter.yul"
-    python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
+    metadata_validator=(
+      python3 "$ROOT/scripts/evm/validate-artifact-metadata.py"
       --root "$ROOT" \
       --expect-fixture Counter.lean \
-      --expect-source-kind lean-sdk \
-      "${validator_constructor_param_args[@]}" \
-      --expect-constructor-args-hex "$CONSTRUCTOR_ARGS_HEX" \
+      --expect-source-kind lean-sdk
+    )
+    if [[ ( -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ) && -n "$CONSTRUCTOR_PARAM" ]]; then
+      metadata_validator+=(--expect-constructor-param "$CONSTRUCTOR_PARAM")
+    fi
+    if [[ -n "$CONSTRUCTOR_ARGS_SOURCE" ]]; then
+      metadata_validator+=("--expect-constructor-args-source=$CONSTRUCTOR_ARGS_SOURCE")
+    fi
+    metadata_validator+=(
       "$OUT_DIR/Counter.proof-forge-artifact.json"
+    )
+    "${metadata_validator[@]}"
   )
 fi
 
@@ -305,12 +332,22 @@ run = {
 Path(deploy_run_path).write_text(json.dumps(run, indent=2, sort_keys=True) + "\n")
 PY
 
-python3 "$ROOT/scripts/evm/validate-deploy-run.py" \
+deploy_run_validator=(
+  python3 "$ROOT/scripts/evm/validate-deploy-run.py"
   --root "$ROOT" \
   --expect-fixture Counter.lean \
-  --expect-chain-id "$CHAIN_ID" \
-  "${validator_constructor_param_args[@]}" \
+  --expect-chain-id "$CHAIN_ID"
+)
+if [[ ( -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ) && -n "$CONSTRUCTOR_PARAM" ]]; then
+  deploy_run_validator+=(--expect-constructor-param "$CONSTRUCTOR_PARAM")
+fi
+if [[ -n "$CONSTRUCTOR_ARGS_SOURCE" ]]; then
+  deploy_run_validator+=("--expect-constructor-args-source=$CONSTRUCTOR_ARGS_SOURCE")
+fi
+deploy_run_validator+=(
   "$DEPLOY_RUN"
+)
+"${deploy_run_validator[@]}"
 
 echo "anvil-deploy-smoke: deployed Counter to $CONTRACT_ADDRESS on Anvil chain $CHAIN_ID"
 echo "anvil-deploy-smoke: ProofForge deploy-run artifact $DEPLOY_RUN"

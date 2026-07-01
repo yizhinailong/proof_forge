@@ -92,7 +92,7 @@ proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:
 EVM 字节码模式：
 
 ```sh
-proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
+proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
 ```
 
 Portable IR EVM fixture 模式：
@@ -142,7 +142,7 @@ proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output out
 
 `--bytecode` 是 `--evm-bytecode` 的别名。
 
-`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--evm-chain-profile <id>` 会把已知 EVM chain profile（例如 `robinhood-chain-testnet`）记录到生成的 deploy manifest 中，但不会签名或广播交易。`--evm-constructor-param <name:type>` 会在 `abi.constructor.params` 中记录静态 word constructor ABI schema；支持的 schema 类型是 `uint256`、`uint64`、`uint32`、`bool`、`bytes32` 和 `address`。它不会自动编码值，而是校验通过 `--evm-constructor-args-hex` 传入的 ABI-encoded blob 大小。`--evm-constructor-args-hex <hex>` 会把一段 ABI-encoded constructor argument blob 追加到生成的 `.init.bin` creation bytecode，并在 `proof-forge-deploy.json` 中记录规范化 hex、byte length 和 SHA-256。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`，并在 metadata 文件旁写入 `proof-forge-deploy.json`。当 smoke 脚本传入类似 `Counter.proof-forge-artifact.json` 的 fixture 专属 metadata 路径时，deploy manifest 会写成 `Counter.proof-forge-deploy.json`。
+`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--evm-chain-profile <id>` 会把已知 EVM chain profile（例如 `robinhood-chain-testnet`）记录到生成的 deploy manifest 中，但不会签名或广播交易。`--evm-constructor-param <name:type>` 会在 `abi.constructor.params` 中记录静态 word constructor ABI schema；支持的 schema 类型是 `uint256`、`uint64`、`uint32`、`bool`、`bytes32` 和 `address`。`--evm-constructor-arg <name=value>` 会根据声明的 schema ABI-encode 一个 typed constructor value：无符号整数可以是十进制或 `0x` 前缀 hex，`bool` 接受 `true`、`false`、`1` 或 `0`，`bytes32` 必须正好是 32 个 hex byte，`address` 必须正好是 20 个 hex byte 并左填充到一个 ABI word。typed constructor args 不能和 `--evm-constructor-args-hex` 混用。`--evm-constructor-args-hex <hex>` 会把一段 ABI-encoded constructor argument blob 追加到生成的 `.init.bin` creation bytecode，并在 `proof-forge-deploy.json` 中记录规范化 hex、byte length、SHA-256 和 source flag。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`，并在 metadata 文件旁写入 `proof-forge-deploy.json`。当 smoke 脚本传入类似 `Counter.proof-forge-artifact.json` 的 fixture 专属 metadata 路径时，deploy manifest 会写成 `Counter.proof-forge-deploy.json`。
 
 ## .evm-methods sidecar 格式
 
@@ -226,7 +226,7 @@ EVM 不支持（设计上针对其他目标）：
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
 - 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、通过 Yul `leave` 实现的分支/loop 内早退、context read、scalar 和扁平 aggregate event data、`Hash` word 值与 hashing、带托管 key presence 的 word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态和动态 index 的不可变和可变 local fixed-array value、静态和动态嵌套 scalar/扁平 struct local fixed-array read 以及可变 leaf/whole-array 更新、标量/hash 字段上的扁平不可变和可变 local struct value、带静态/动态字段访问的扁平 struct local fixed array 和嵌套扁平 struct local fixed array、扁平静态聚合 ABI 参数/返回（包括 Hash/bytes32 聚合 leaf）、嵌套标量 fixed-array ABI 参数/返回、word array 和扁平 struct array 的 storage-backed fixed-array ABI return、同步返回一个 word 的 `crosscallInvoke`、支持 scalar word、扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array 参数/返回的 typed crosscall、normal/value/static/delegate typed call 的扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array entrypoint 直接返回、带 value 的 typed `crosscallInvokeValueTyped`、typed `crosscallInvokeStaticTyped`、typed `crosscallInvokeDelegateTyped`，以及固定 init-code 的 `crosscallCreate` 和 `crosscallCreate2`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
-- Portable IR EVM 目前仍缺少动态 ABI 值、leaf 为不支持 aggregate 或非扁平 struct 的嵌套 local array、leaf 为非扁平 struct 或其他不支持形态的嵌套 crosscall fixed array、非 word 或 aggregate map 形态、超出扁平 struct array 的 nested local struct、更完整的 event declaration、超出显式 ABI-encoded hex 的 typed constructor value parsing/encoding、variable-length 跨调用返回数据，以及真实 creation transaction 或 broadcast manifest。
+- Portable IR EVM 目前仍缺少动态 ABI 值、leaf 为不支持 aggregate 或非扁平 struct 的嵌套 local array、leaf 为非扁平 struct 或其他不支持形态的嵌套 crosscall fixed array、非 word 或 aggregate map 形态、超出扁平 struct array 的 nested local struct、更完整的 event declaration、dynamic constructor ABI types、variable-length 跨调用返回数据，以及真实 creation transaction 或 broadcast manifest。
 
 ## Portable IR 门禁
 
@@ -320,16 +320,16 @@ EVM deploy manifest 会记录：
   `chainProfile` metadata，包括 profile id、chain id、RPC URLs、native gas
   symbol、explorer、verifier 和 notes
 - Yul/source 输入，以及 runtime bytecode 和 initcode 的 hash/size
-- `creation.mode: init-code`，可选记录来自 `--evm-constructor-param` 的静态 word constructor ABI schema、来自 `--evm-constructor-args-hex` 的 ABI-encoded constructor args，并记录 artifact-linked initcode 文件和它引用的 runtime bytecode
+- `creation.mode: init-code`，可选记录来自 `--evm-constructor-param` 的静态 word constructor ABI schema、来自 typed `--evm-constructor-arg` value 或 raw `--evm-constructor-args-hex` 的 ABI-encoded constructor args，并记录 artifact-linked initcode 文件和它引用的 runtime bytecode
 - 选择 chain profile 时的 `deployment.profileId`、`deployment.chainId`、
   `deployment.rpcUrls`、`deployment.blockExplorerUrl` 和 verifier 字段
 - `deployment.broadcast: not-generated`，因为交易签名、broadcast JSON、deployed
   address 记录和 explorer verification 还没有生成
 
-`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact，同时检查 constructor-argument tail 与 deploy manifest 一致。当存在 constructor ABI schema metadata 时，validator 还会检查每个静态 word 参数，并确认 ABI-encoded constructor blob 的长度符合预期的 32-byte word 数量。选择 chain profile 时，validator 还会检查 `chainProfile` 和 `deployment` 中的 profile id、chain id、RPC URLs、explorer 和 verifier metadata 是否一致。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
+`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact，同时检查 constructor-argument tail 与 deploy manifest 一致。当存在 constructor ABI schema metadata 时，validator 还会检查每个静态 word 参数，并确认 ABI-encoded constructor blob 的长度符合预期的 32-byte word 数量。validator 还可以确认 constructor args 来自 raw hex 还是 typed constructor values。选择 chain profile 时，validator 还会检查 `chainProfile` 和 `deployment` 中的 profile id、chain id、RPC URLs、explorer 和 verifier metadata 是否一致。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
 
 `scripts/evm/anvil-deploy-smoke.sh` 会消费生成的 Counter deploy manifest 和
-`.init.bin`，默认用一段确定性的非空 constructor-argument blob 和静态
+`.init.bin`，默认用 typed `initial=123` constructor argument 和静态
 `initial:uint256` constructor schema 重新生成 Counter 部署制品，启动本地 Anvil
 链，用 `cast send --create` 发送 initcode，检查 receipt，验证 deployed runtime
 code 等于 `Counter.bin`，通过 JSON-RPC 跑 Counter lifecycle，并写出

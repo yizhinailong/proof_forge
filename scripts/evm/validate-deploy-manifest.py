@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
+SUPPORTED_CONSTRUCTOR_ARG_SOURCES = {"--evm-constructor-args-hex", "--evm-constructor-arg"}
 
 
 def fail(message: str) -> None:
@@ -85,9 +86,18 @@ def read_push_value(init_hex: str, offset: int, name: str) -> tuple[int, int]:
     return int(init_hex[data_start:data_end], 16), data_end
 
 
-def validate_constructor_args(constructor_args: list, expected_hex: Optional[str]) -> str:
+def validate_constructor_args(
+    constructor_args: list,
+    expected_hex: Optional[str],
+    expected_source: Optional[str],
+) -> str:
     if expected_hex is not None:
         expected_hex = normalize_hex(expected_hex, "--expect-constructor-args-hex")
+    if expected_source is not None:
+        expect(
+            expected_source in SUPPORTED_CONSTRUCTOR_ARG_SOURCES,
+            "--expect-constructor-args-source is unsupported",
+        )
 
     if constructor_args == []:
         actual_hex = ""
@@ -99,7 +109,10 @@ def validate_constructor_args(constructor_args: list, expected_hex: Optional[str
         arg_bytes = bytes.fromhex(actual_hex)
         expect(arg.get("bytes") == len(arg_bytes), "creation.constructorArgs[0].bytes mismatch")
         expect(arg.get("sha256") == hashlib.sha256(arg_bytes).hexdigest(), "creation.constructorArgs[0].sha256 mismatch")
-        expect(arg.get("source") == "--evm-constructor-args-hex", "creation.constructorArgs[0].source mismatch")
+        source = expect_string(arg.get("source"), "creation.constructorArgs[0].source")
+        expect(source in SUPPORTED_CONSTRUCTOR_ARG_SOURCES, "creation.constructorArgs[0].source unsupported")
+        if expected_source is not None:
+            expect(source == expected_source, "creation.constructorArgs[0].source mismatch")
 
     if expected_hex is not None:
         expect(actual_hex == expected_hex, "creation.constructorArgs hex mismatch")
@@ -236,6 +249,7 @@ def main() -> int:
     parser.add_argument("--expect-chain-profile")
     parser.add_argument("--expect-chain-id", type=int)
     parser.add_argument("--expect-constructor-args-hex")
+    parser.add_argument("--expect-constructor-args-source")
     parser.add_argument("--expect-constructor-param", action="append", default=[])
     parser.add_argument("manifest")
     args = parser.parse_args()
@@ -282,6 +296,7 @@ def main() -> int:
     constructor_args_hex = validate_constructor_args(
         expect_array(creation.get("constructorArgs"), "creation.constructorArgs"),
         args.expect_constructor_args_hex,
+        args.expect_constructor_args_source,
     )
     validate_constructor_schema_args(constructor_params, constructor_args_hex)
     init_code_entry = expect_object(creation.get("initCode"), "creation.initCode")

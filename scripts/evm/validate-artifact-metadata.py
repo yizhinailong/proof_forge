@@ -9,6 +9,7 @@ from typing import Any, Optional
 REQUIRED_ARTIFACTS = ("yul", "bytecode", "initCode", "deployManifest")
 REQUIRED_VALIDATIONS = ("solcStrictAssembly", "bytecodeGeneration", "initCodeGeneration", "deployManifest")
 SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
+SUPPORTED_CONSTRUCTOR_ARG_SOURCES = {"--evm-constructor-args-hex", "--evm-constructor-arg"}
 
 
 def fail(message: str) -> None:
@@ -104,9 +105,19 @@ def read_push_value(init_hex: str, offset: int, name: str) -> tuple[int, int]:
     return int(init_hex[data_start:data_end], 16), data_end
 
 
-def validate_constructor_args(constructor_args: list, expected_hex: Optional[str], prefix: str) -> str:
+def validate_constructor_args(
+    constructor_args: list,
+    expected_hex: Optional[str],
+    expected_source: Optional[str],
+    prefix: str,
+) -> str:
     if expected_hex is not None:
         expected_hex = normalize_hex(expected_hex, "--expect-constructor-args-hex")
+    if expected_source is not None:
+        expect(
+            expected_source in SUPPORTED_CONSTRUCTOR_ARG_SOURCES,
+            "--expect-constructor-args-source is unsupported",
+        )
 
     if constructor_args == []:
         actual_hex = ""
@@ -118,7 +129,10 @@ def validate_constructor_args(constructor_args: list, expected_hex: Optional[str
         arg_bytes = bytes.fromhex(actual_hex)
         expect(arg.get("bytes") == len(arg_bytes), f"{prefix}.constructorArgs[0].bytes mismatch")
         expect(arg.get("sha256") == hashlib.sha256(arg_bytes).hexdigest(), f"{prefix}.constructorArgs[0].sha256 mismatch")
-        expect(arg.get("source") == "--evm-constructor-args-hex", f"{prefix}.constructorArgs[0].source mismatch")
+        source = expect_string(arg.get("source"), f"{prefix}.constructorArgs[0].source")
+        expect(source in SUPPORTED_CONSTRUCTOR_ARG_SOURCES, f"{prefix}.constructorArgs[0].source unsupported")
+        if expected_source is not None:
+            expect(source == expected_source, f"{prefix}.constructorArgs[0].source mismatch")
 
     if expected_hex is not None:
         expect(actual_hex == expected_hex, f"{prefix}.constructorArgs hex mismatch")
@@ -242,6 +256,7 @@ def validate_deploy_manifest(
     expected_profile: Optional[str],
     expected_chain_id: Optional[int],
     expected_constructor_args_hex: Optional[str],
+    expected_constructor_args_source: Optional[str],
     expected_constructor_params: list[dict],
 ) -> None:
     manifest = expect_object(json.loads(manifest_path.read_text()), "deploy manifest")
@@ -282,6 +297,7 @@ def validate_deploy_manifest(
     constructor_args_hex = validate_constructor_args(
         constructor_args,
         expected_constructor_args_hex,
+        expected_constructor_args_source,
         "deploy manifest creation",
     )
     validate_constructor_schema_args(constructor_params, constructor_args_hex)
@@ -304,6 +320,7 @@ def main() -> int:
     parser.add_argument("--expect-chain-profile")
     parser.add_argument("--expect-chain-id", type=int)
     parser.add_argument("--expect-constructor-args-hex")
+    parser.add_argument("--expect-constructor-args-source")
     parser.add_argument("--expect-constructor-param", action="append", default=[])
     parser.add_argument("--expect-capability", action="append", default=[])
     parser.add_argument("--expect-entrypoint", action="append", default=[])
@@ -396,6 +413,7 @@ def main() -> int:
         args.expect_chain_profile,
         args.expect_chain_id,
         args.expect_constructor_args_hex,
+        args.expect_constructor_args_source,
         expected_constructor_params,
     )
 
