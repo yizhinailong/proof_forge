@@ -147,6 +147,10 @@ evm-build-examples:
 evm-foundry:
     scripts/evm/foundry-smoke.sh
 
+# Deploy generated Counter initcode to a local Anvil chain and validate a deploy-run artifact.
+evm-anvil-deploy:
+    scripts/evm/anvil-deploy-smoke.sh
+
 # Run all CI-tracked EVM IR smokes.
 evm-ir-smokes:
     #!/usr/bin/env bash
@@ -178,7 +182,7 @@ evm-ir-smokes:
     done
 
 # Run all EVM gates that CI tracks locally.
-evm-all: evm-diagnostics evm-coverage evm-ir-smokes evm-build-examples evm-foundry
+evm-all: evm-diagnostics evm-coverage evm-ir-smokes evm-build-examples evm-foundry evm-anvil-deploy
 
 # Run the current GitHub CI build-test sequence locally.
 ci: build target-registry docs-check psy-golden-sources psy-diagnostics psy-coverage evm-all

@@ -180,3 +180,6 @@ jobs:
 
       - name: Run Foundry smoke tests
         run: scripts/evm/foundry-smoke.sh
+
+      - name: Run Anvil deploy smoke
+        run: scripts/evm/anvil-deploy-smoke.sh

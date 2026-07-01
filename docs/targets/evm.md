@@ -50,9 +50,10 @@ Implemented chain profiles:
 Robinhood Chain is therefore already covered for ordinary contract compilation
 by the EVM backend. EVM bytecode modes can select
 `robinhood-chain-testnet` with `--evm-chain-profile` and record the profile in
-the deploy manifest. Full product support still needs deployment commands that
-pass the profile's RPC metadata to wallet/broadcast tooling and record signed
-or broadcast transaction artifacts.
+the deploy manifest. Local Anvil deployment is available for smoke validation,
+but full product support still needs live-network deployment commands that pass
+the profile's RPC metadata to wallet/broadcast tooling and record signed or
+broadcast transaction artifacts for the selected chain.
 
 ## Build Commands
 
@@ -65,6 +66,7 @@ lake env proof-forge --evm-bytecode --root . --module contract \
 
 scripts/evm/build-examples.sh
 scripts/evm/foundry-smoke.sh
+scripts/evm/anvil-deploy-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
@@ -661,6 +663,16 @@ chain profile is selected, they also verify that `chainProfile` and
 `deployment` agree on profile id, chain id, RPC URLs, explorer, and verifier
 metadata. `scripts/evm/validate-deploy-manifest.py` can validate a deploy
 manifest directly.
+
+`scripts/evm/anvil-deploy-smoke.sh` consumes the generated Counter deploy
+manifest and `.init.bin`, starts a local Anvil chain, sends the initcode with
+`cast send --create`, checks the receipt, verifies that the deployed runtime
+code equals `Counter.bin`, runs the Counter lifecycle through JSON-RPC calls,
+and writes `build/anvil-deploy-smoke/Counter.proof-forge-deploy-run.json`.
+`scripts/evm/validate-deploy-run.py` validates that deploy-run artifact. The
+original deploy manifest remains a reproducible plan with
+`deployment.broadcast: not-generated`; the deploy-run artifact records one
+observed local Anvil deployment execution.
 
 Method dispatch still uses `.evm-methods` sidecar files until a unified target
 manifest lands (RFC 0002).

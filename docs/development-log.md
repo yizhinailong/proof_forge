@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Anvil Deploy-Run Smoke
+
+Commit: `feat: validate EVM initcode deployment on Anvil`
+
+Summary:
+
+- Added `scripts/evm/anvil-deploy-smoke.sh`, which starts a local Anvil chain
+  and deploys generated `Counter.init.bin` with `cast send --create`.
+- The smoke records the creation transaction receipt, deployed address, local
+  Anvil network id, referenced deploy manifest, initcode, runtime bytecode, and
+  Counter lifecycle call results in
+  `build/anvil-deploy-smoke/Counter.proof-forge-deploy-run.json`.
+- Added `scripts/evm/validate-deploy-run.py` to validate deploy-run artifacts,
+  including receipt status, transaction/deployer consistency, deployed runtime
+  code hash/size, and `get`/`set`/`increment`/`decrement` JSON-RPC behavior.
+- Wired the new smoke into `just evm-anvil-deploy`, `just evm-all`, and CI.
+
+Validation run:
+
+```sh
+python3 -m py_compile scripts/evm/validate-deploy-run.py
+scripts/evm/anvil-deploy-smoke.sh
+```
+
+Result:
+
+- Anvil chain id `31337` started locally.
+- `Counter.init.bin` deployed to
+  `0x5fbdb2315678afecb367f032d93f642f64180aa3` with a successful creation
+  receipt.
+- The on-chain deployed code matched `build/evm/Counter.bin`.
+- Counter JSON-RPC lifecycle returned `0`, then `99`, `100`, and `99`.
+
+Known limitations:
+
+- This is a local Anvil deploy-run artifact, not a live public RPC broadcast.
+- Constructor arguments remain empty.
+- Explorer verification and wallet UX are still future work.
+
+Next step:
+
+- Extend deploy-run generation toward chain-profile-aware live RPC deployment
+  and constructor argument encoding, while keeping Anvil as the deterministic
+  CI smoke.
+
 ### EVM Chain Profile Deploy Metadata
 
 Commit: `feat: record EVM chain profile deploy metadata`

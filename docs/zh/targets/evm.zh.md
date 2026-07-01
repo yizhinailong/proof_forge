@@ -44,8 +44,9 @@ EVM compiler backend。
 
 因此，Robinhood Chain 的普通合约编译已由 EVM backend 覆盖。EVM bytecode 模式可以通过
 `--evm-chain-profile` 选择 `robinhood-chain-testnet`，并把该 profile 写入 deploy manifest。
-完整产品支持仍需要部署命令把该 profile 的 RPC metadata 传给 wallet/broadcast tooling，
-并记录已签名或已广播的交易制品。
+本地 Anvil 部署已经可用于 smoke validation，但完整产品支持仍需要 live-network
+deployment command，把该 profile 的 RPC metadata 传给 wallet/broadcast tooling，
+并记录所选链上的已签名或已广播交易制品。
 
 ## 构建命令
 
@@ -58,6 +59,7 @@ lake env proof-forge --evm-bytecode --root . --module contract \
 
 scripts/evm/build-examples.sh
 scripts/evm/foundry-smoke.sh
+scripts/evm/anvil-deploy-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
@@ -325,5 +327,13 @@ EVM deploy manifest 会记录：
   address 记录和 explorer verification 还没有生成
 
 `scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact。选择 chain profile 时，validator 还会检查 `chainProfile` 和 `deployment` 中的 profile id、chain id、RPC URLs、explorer 和 verifier metadata 是否一致。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
+
+`scripts/evm/anvil-deploy-smoke.sh` 会消费生成的 Counter deploy manifest 和
+`.init.bin`，启动本地 Anvil 链，用 `cast send --create` 发送 initcode，检查 receipt，
+验证 deployed runtime code 等于 `Counter.bin`，通过 JSON-RPC 跑 Counter lifecycle，
+并写出 `build/anvil-deploy-smoke/Counter.proof-forge-deploy-run.json`。
+`scripts/evm/validate-deploy-run.py` 会校验这个 deploy-run artifact。原始 deploy
+manifest 仍然是可复现的部署计划，并保持 `deployment.broadcast: not-generated`；
+deploy-run artifact 记录一次已观察到的本地 Anvil 部署执行。
 
 在统一的目标清单发布（RFC 0002）之前，方法分派仍使用 `.evm-methods` sidecar 文件。
