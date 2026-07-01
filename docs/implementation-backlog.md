@@ -78,14 +78,18 @@ Tasks:
 - Done for EVM: include source module, target id, artifact paths, SHA-256, byte
   sizes, solc path/version, selector metadata, and validation status.
 - Done for EVM: emit and validate a ProofForge deploy manifest for every EVM
-  bytecode build, recording runtime bytecode inputs, ABI selectors, and the
-  current `not-generated` transaction-broadcast status.
+  bytecode build, recording runtime bytecode inputs, ABI selectors, deployable
+  initcode, and the current `not-generated` transaction-broadcast status.
+- Done for EVM: generate an artifact-linked `.init.bin` creation bytecode file
+  for each EVM bytecode build, record it in both `proof-forge-artifact.json`
+  and `proof-forge-deploy.json`, and validate that the initcode header copies
+  and returns the referenced runtime bytecode.
 - Keep schema versioned from day one.
 
 Acceptance criteria:
 
-- EVM bytecode build writes bytecode, metadata, and deploy manifest next to
-  each other.
+- EVM bytecode build writes runtime bytecode, deployable initcode, metadata,
+  and deploy manifest next to each other.
 - Metadata and deploy manifests can be parsed independently by CI scripts.
 - EVM metadata can represent missing optional version data as `null`, not
   malformed metadata.
@@ -143,6 +147,18 @@ Tasks:
   non-indexed 32-byte word data, `EventProbe` golden Yul, solc bytecode,
   Foundry recorded-log validation, metadata capability validation, and explicit
   indexed event diagnostics.
+- Done: close the EventProbe validation gap for multi-topic scalar indexed
+  events. `IndexedTwoValues(uint64,uint64,uint64)` and
+  `IndexedThreeValues(uint64,uint64,uint64,uint64)` now prove the generated Yul
+  emits `log3` and `log4`, preserves ordered scalar indexed topics, validates
+  metadata selectors, compiles with `solc`, and passes Foundry recorded-log
+  assertions.
+- Done: close the EventProbe validation gap for typed scalar event fields.
+  `TypedScalarEvent(bool,uint32,bytes32)` and
+  `IndexedTypedScalar(bool,uint32,bytes32,uint64)` now prove Bool, U32, and
+  Hash event data words and indexed topics lower correctly, with Bool/U32
+  dispatcher guards, golden Yul, metadata selector checks, `solc`, and Foundry
+  recorded-log assertions.
 - Done: extend EVM IR event data lowering beyond scalar words so non-indexed
   flat struct fields, scalar fixed-array fields, and fixed arrays of flat
   structs emit ABI-style flattened data words, with canonical Solidity-style
@@ -150,7 +166,33 @@ Tasks:
   `ArrayEvent(uint64[2])`, and `PairArrayEvent((uint64,uint64)[2])`,
   `EventProbe`
   golden Yul, solc bytecode, Foundry recorded-log validation, metadata selector
-  validation, and explicit diagnostics for aggregate indexed fields.
+  validation, and explicit diagnostics for unsupported aggregate indexed fields.
+- Done: extend EVM IR `eventEmitIndexed` lowering so flat struct indexed fields
+  and fixed-array indexed fields whose elements are flat structs hash their
+  ABI-style flattened words into indexed topics. `EventProbe` now covers
+  `IndexedPair((uint64,uint64),uint64)` and
+  `IndexedPairArray((uint64,uint64)[2],uint64)` with golden Yul, solc bytecode,
+  metadata selector validation, Foundry recorded-log topic-hash checks, and a
+  diagnostic for nested/unsupported aggregate indexed shapes.
+- Done: close the EventProbe validation gap for scalar fixed-array indexed
+  topics by adding `IndexedArray(uint64[2],uint64)` golden Yul, metadata selector
+  validation, solc bytecode generation, and Foundry recorded-log topic-hash
+  checks.
+- Done: add EventProbe coverage for storage-backed flat struct event data and
+  indexed aggregate topics. `StoragePairEvent((uint64,uint64))` and
+  `IndexedStoragePair((uint64,uint64),uint64)` now prove that a whole scalar
+  storage struct write can be read back through `storageScalarRead`, flattened
+  into event data words, hashed into indexed topics, validated in golden Yul,
+  checked in metadata selectors, compiled by `solc`, and decoded by Foundry
+  recorded logs.
+- Done: add EventProbe coverage for storage-backed fixed-array event aggregates.
+  `StorageArrayEvent(uint64[2])`,
+  `StoragePairArrayEvent((uint64,uint64)[2])`,
+  `IndexedStorageArray(uint64[2],uint64)`, and
+  `IndexedStoragePairArray((uint64,uint64)[2],uint64)` now prove that storage
+  array reads and storage array struct field reads can feed non-indexed event
+  data flattening and indexed aggregate topic hashing, with golden Yul,
+  metadata selector checks, `solc`, and Foundry recorded-log validation.
 - Done: add EVM IR `crosscallInvoke` lowering to synchronous EVM `call`
   helpers with selector packing, word arguments, one-word returns, failed-call
   and short-return reverts, with `EvmCrosscallProbe` golden Yul, solc bytecode,
@@ -299,7 +341,9 @@ Tasks:
   including immutable reads, mutable leaf assignment, numeric leaf compound
   assignment, nested whole-local assignment, and RHS snapshotting, with
   `EvmArrayValueProbe` golden Yul, metadata entrypoints, solc bytecode, and
-  Foundry runtime checks. Non-scalar nested leaves remain explicit diagnostics.
+  Foundry runtime checks. Flat struct nested leaves are covered by
+  `EvmStructArrayValueProbe`; other unsupported aggregate leaves remain
+  explicit diagnostics.
 - Done: extend EVM IR local fixed-array lowering to dynamic nested scalar array
   indexes, including nested getter helpers for reads, nested `switch` lowering
   for mutable leaf assignment and compound assignment, mixed static/dynamic
@@ -329,6 +373,14 @@ Tasks:
   `EvmStructArrayValueProbe` golden Yul, metadata entrypoint/capability
   validation, solc bytecode generation, Foundry runtime checks, and CI
   coverage.
+- Done: extend EVM IR nested local fixed arrays to flat struct leaves, expanding
+  each nested element field into deterministic Yul locals, supporting static and
+  dynamic nested field reads, nested mutable field assignment, numeric nested
+  field compound assignment, whole nested local assignment from local arrays and
+  self-referential nested array literals with RHS snapshotting, dynamic
+  out-of-bounds reverts, refreshed `EvmStructArrayValueProbe` golden Yul,
+  metadata entrypoint validation, solc bytecode generation, Foundry runtime
+  checks, and coverage manifest updates.
 - Done: add EVM IR flat storage struct lowering for scalar storage structs and
   fixed storage arrays of flat structs, including direct struct field effects,
   scalar `field` storage paths, array `index`+`field` storage paths, numeric
@@ -350,6 +402,12 @@ Tasks:
   capability validation, CI coverage, and explicit diagnostics for Unit,
   zero-length arrays, non-flat struct fields, and crosscall-only unsupported
   nested fixed-array leaf shapes.
+- Done: close the EVM aggregate ABI validation gap for `Hash` leaves.
+  `HashPair(bytes32,bytes32)`, `pick_hash(bytes32[2])`, and
+  `make_hash_array(bytes32,bytes32)` now prove `Hash`/`bytes32` fields and
+  fixed arrays flatten through calldata and return-data encoding, with golden
+  Yul, metadata selector checks, `solc`, Foundry ABI decoding, and short
+  `bytes32[2]` calldata rejection.
 - Done: add golden Yul outputs for SDK EVM examples (`Counter`,
   `ArrayExample`, `SimpleToken`, `ERC20`, `Ownable`, `Pausable`, and
   `VerifiedVault`) and make `scripts/evm/build-examples.sh` diff generated Yul

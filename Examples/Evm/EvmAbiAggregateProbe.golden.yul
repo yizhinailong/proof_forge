@@ -122,6 +122,40 @@ object "EvmAbiAggregateProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x5e248cf3 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r := f_EvmAbiAggregateProbe_echo_hash_pair(calldataload(4), calldataload(36))
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xd3a9b1bd {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1 := f_EvmAbiAggregateProbe_make_hash_pair(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      return(0, 64)
+    }
+    case 0x44d9885a {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r := f_EvmAbiAggregateProbe_pick_hash(calldataload(4), calldataload(36))
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x3fcd733b {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1 := f_EvmAbiAggregateProbe_make_hash_array(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      return(0, 64)
+    }
     default {
       revert(0, 0)
     }
@@ -173,6 +207,20 @@ object "EvmAbiAggregateProbe" {
     }
     function f_EvmAbiAggregateProbe_and_flags(__proof_forge_struct_flags_enabled, __proof_forge_struct_flags_archived) -> result {
       result := and(__proof_forge_struct_flags_enabled, __proof_forge_struct_flags_archived)
+    }
+    function f_EvmAbiAggregateProbe_echo_hash_pair(__proof_forge_struct_pair_left, __proof_forge_struct_pair_right) -> result {
+      result := __proof_forge_struct_pair_right
+    }
+    function f_EvmAbiAggregateProbe_make_hash_pair(left, right) -> __proof_forge_return_0, __proof_forge_return_1 {
+      __proof_forge_return_0 := left
+      __proof_forge_return_1 := right
+    }
+    function f_EvmAbiAggregateProbe_pick_hash(__proof_forge_array_roots_0, __proof_forge_array_roots_1) -> result {
+      result := __proof_forge_array_roots_1
+    }
+    function f_EvmAbiAggregateProbe_make_hash_array(left, right) -> __proof_forge_return_0, __proof_forge_return_1 {
+      __proof_forge_return_0 := left
+      __proof_forge_return_1 := right
     }
   }
 }

@@ -46,6 +46,21 @@ def mixed (enabled : Bool) (small : Nat) (root : Expr) : Expr :=
     ("root", root)
   ]
 
+def personGridType : ValueType :=
+  .fixedArray (.fixedArray (.structType "Person") 2) 2
+
+def personRow (left right : Expr) : Expr :=
+  .arrayLit (.structType "Person") #[left, right]
+
+def personGrid (topLeft topRight bottomLeft bottomRight : Expr) : Expr :=
+  .arrayLit (.fixedArray (.structType "Person") 2) #[
+    personRow topLeft topRight,
+    personRow bottomLeft bottomRight
+  ]
+
+def personGridField (name : String) (row col : Expr) (fieldName : String) : Expr :=
+  .field (.arrayGet (.arrayGet (.local name) row) col) fieldName
+
 def localStructArraySum : Entrypoint := {
   name := "local_struct_array_sum"
   selector? := some "6dcefec0"
@@ -177,6 +192,138 @@ def selfStructArrayAssign : Entrypoint := {
   ]
 }
 
+def nestedStructArraySum : Entrypoint := {
+  name := "nested_struct_array_sum"
+  selector? := some "25daebe2"
+  returns := .u64
+  body := #[
+    .letBind "grid" personGridType
+      (personGrid
+        (person 10 80)
+        (person 20 90)
+        (person 30 100)
+        (person 40 110)),
+    .return (.add
+      (personGridField "grid" (u64 1) (u64 0) "age")
+      (personGridField "grid" (u64 0) (u64 1) "score"))
+  ]
+}
+
+def nestedStructArrayDynamicPick : Entrypoint := {
+  name := "nested_struct_array_dynamic_pick"
+  selector? := some "56d9da6f"
+  params := #[
+    ("row", .u64),
+    ("col", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .letBind "grid" personGridType
+      (personGrid
+        (person 10 80)
+        (person 20 90)
+        (person 30 100)
+        (person 40 110)),
+    .return (.add
+      (personGridField "grid" (.local "row") (.local "col") "age")
+      (personGridField "grid" (.local "row") (.local "col") "score"))
+  ]
+}
+
+def nestedStructArrayUpdate : Entrypoint := {
+  name := "nested_struct_array_update"
+  selector? := some "d29b2aa1"
+  params := #[
+    ("row", .u64),
+    ("col", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .letMutBind "grid" personGridType
+      (personGrid
+        (person 10 80)
+        (person 20 90)
+        (person 30 100)
+        (person 40 110)),
+    .assign (personGridField "grid" (.local "row") (.local "col") "age") (u64 50),
+    .assignOp (personGridField "grid" (.local "row") (.local "col") "score") .add (u64 7),
+    .return (.add
+      (personGridField "grid" (.local "row") (.local "col") "age")
+      (personGridField "grid" (.local "row") (.local "col") "score"))
+  ]
+}
+
+def nestedStructArrayWholeAssign : Entrypoint := {
+  name := "nested_struct_array_whole_assign"
+  selector? := some "3bd4106e"
+  returns := .u64
+  body := #[
+    .letMutBind "grid" personGridType
+      (personGrid
+        (person 1 2)
+        (person 3 4)
+        (person 5 6)
+        (person 7 8)),
+    .letBind "next" personGridType
+      (personGrid
+        (person 11 13)
+        (person 17 19)
+        (person 23 29)
+        (person 31 37)),
+    .assign (.local "grid") (.local "next"),
+    .return (.add
+      (.add
+        (.add
+          (personGridField "grid" (u64 0) (u64 0) "age")
+          (personGridField "grid" (u64 0) (u64 0) "score"))
+        (.add
+          (personGridField "grid" (u64 0) (u64 1) "age")
+          (personGridField "grid" (u64 0) (u64 1) "score")))
+      (.add
+        (.add
+          (personGridField "grid" (u64 1) (u64 0) "age")
+          (personGridField "grid" (u64 1) (u64 0) "score"))
+        (.add
+          (personGridField "grid" (u64 1) (u64 1) "age")
+          (personGridField "grid" (u64 1) (u64 1) "score"))))
+  ]
+}
+
+def nestedStructArraySelfAssign : Entrypoint := {
+  name := "nested_struct_array_self_assign"
+  selector? := some "cd232639"
+  returns := .u64
+  body := #[
+    .letMutBind "grid" personGridType
+      (personGrid
+        (person 1 2)
+        (person 3 4)
+        (person 5 6)
+        (person 7 8)),
+    .assign (.local "grid")
+      (personGrid
+        (.structLit "Person" #[
+          ("age", personGridField "grid" (u64 1) (u64 1) "age"),
+          ("score", u64 100)
+        ])
+        (.structLit "Person" #[
+          ("age", personGridField "grid" (u64 0) (u64 0) "age"),
+          ("score", u64 200)
+        ])
+        (.structLit "Person" #[
+          ("age", personGridField "grid" (u64 0) (u64 1) "age"),
+          ("score", u64 300)
+        ])
+        (.structLit "Person" #[
+          ("age", personGridField "grid" (u64 1) (u64 0) "age"),
+          ("score", u64 400)
+        ])),
+    .return (.add
+      (personGridField "grid" (u64 0) (u64 0) "age")
+      (personGridField "grid" (u64 0) (u64 1) "age"))
+  ]
+}
+
 def module : Module := {
   name := "EvmStructArrayValueProbe"
   structs := #[personStruct, mixedStruct]
@@ -188,7 +335,12 @@ def module : Module := {
     staticStructArrayUpdate,
     mixedStructArrayFields,
     wholeStructArrayAssign,
-    selfStructArrayAssign
+    selfStructArrayAssign,
+    nestedStructArraySum,
+    nestedStructArrayDynamicPick,
+    nestedStructArrayUpdate,
+    nestedStructArrayWholeAssign,
+    nestedStructArraySelfAssign
   ]
 }
 

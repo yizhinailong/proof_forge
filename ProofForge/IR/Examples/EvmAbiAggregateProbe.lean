@@ -20,6 +20,14 @@ def flagsStruct : StructDecl := {
   ]
 }
 
+def hashPairStruct : StructDecl := {
+  name := "HashPair"
+  fields := #[
+    { id := "left", type := .hash },
+    { id := "right", type := .hash }
+  ]
+}
+
 def u32 (value : Nat) : Expr :=
   .literal (.u32 value)
 
@@ -28,6 +36,12 @@ def u64 (value : Nat) : Expr :=
 
 def pair (left right : Expr) : Expr :=
   .structLit "Pair" #[
+    ("left", left),
+    ("right", right)
+  ]
+
+def hashPair (left right : Expr) : Expr :=
+  .structLit "HashPair" #[
     ("left", left),
     ("right", right)
   ]
@@ -210,9 +224,59 @@ def andFlags : Entrypoint := {
   ]
 }
 
+def echoHashPair : Entrypoint := {
+  name := "echo_hash_pair"
+  selector? := some "5e248cf3"
+  params := #[
+    ("pair", .structType "HashPair")
+  ]
+  returns := .hash
+  body := #[
+    .return (.field (.local "pair") "right")
+  ]
+}
+
+def makeHashPair : Entrypoint := {
+  name := "make_hash_pair"
+  selector? := some "d3a9b1bd"
+  params := #[
+    ("left", .hash),
+    ("right", .hash)
+  ]
+  returns := .structType "HashPair"
+  body := #[
+    .return (hashPair (.local "left") (.local "right"))
+  ]
+}
+
+def pickHash : Entrypoint := {
+  name := "pick_hash"
+  selector? := some "44d9885a"
+  params := #[
+    ("roots", .fixedArray .hash 2)
+  ]
+  returns := .hash
+  body := #[
+    .return (.arrayGet (.local "roots") (u64 1))
+  ]
+}
+
+def makeHashArray : Entrypoint := {
+  name := "make_hash_array"
+  selector? := some "3fcd733b"
+  params := #[
+    ("left", .hash),
+    ("right", .hash)
+  ]
+  returns := .fixedArray .hash 2
+  body := #[
+    .return (.arrayLit .hash #[.local "left", .local "right"])
+  ]
+}
+
 def module : Module := {
   name := "EvmAbiAggregateProbe"
-  structs := #[pairStruct, flagsStruct]
+  structs := #[pairStruct, flagsStruct, hashPairStruct]
   state := #[]
   entrypoints := #[
     sumPair,
@@ -225,7 +289,11 @@ def module : Module := {
     makeArray,
     sumSmall,
     sumSmallMatrix,
-    andFlags
+    andFlags,
+    echoHashPair,
+    makeHashPair,
+    pickHash,
+    makeHashArray
   ]
 }
 

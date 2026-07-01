@@ -15,7 +15,372 @@ Each entry should include:
 - known limitations
 - next step
 
+## 2026-07-02
+
+### EVM Deploy Initcode Artifacts
+
+Commit: `feat: emit EVM deploy initcode artifacts`
+
+Summary:
+
+- Extended every EVM bytecode build to emit a sibling `.init.bin` deployable
+  creation bytecode artifact in addition to the existing runtime `.bin`.
+- Updated `proof-forge-artifact.json` and `proof-forge-deploy.json` so EVM
+  metadata records the initcode artifact, `creation.mode: init-code`, and
+  `validation.initCodeGeneration: passed`.
+- Strengthened both EVM metadata validators to parse the initcode
+  `PUSH/CODECOPY/RETURN` header and prove it copies and returns the exact
+  referenced runtime bytecode artifact.
+- Refreshed English/Chinese EVM metadata docs, validation gates, and backlog
+  notes to distinguish deployable initcode from future transaction broadcast
+  manifests.
+
+Validation run:
+
+```sh
+lake build
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py
+scripts/evm/abi-scalar-ir-smoke.sh
+scripts/evm/build-examples.sh
+python3 scripts/evm/validate-deploy-manifest.py --root . --expect-fixture AbiScalarProbe --expect-source-kind portable-ir build/ir/AbiScalarProbe.proof-forge-deploy.json
+python3 scripts/evm/validate-deploy-manifest.py --root . --expect-fixture Counter.lean --expect-source-kind lean-sdk build/evm/Counter.proof-forge-deploy.json
+scripts/evm/foundry-smoke.sh
+```
+
+Result:
+
+- `AbiScalarProbe` generated `AbiScalarProbe.init.bin` and passed Foundry
+  scalar ABI runtime checks.
+- SDK examples generated `.init.bin` artifacts for Counter, ArrayExample,
+  SimpleToken, ERC20, Ownable, Pausable, and VerifiedVault; the validator
+  accepted both small and multi-byte-length runtimes.
+- Foundry ran 5 runtime smoke tests, including deploying the generated Counter
+  `.init.bin` through EVM `create` and then running the Counter lifecycle.
+
+Known limitations:
+
+- Constructor arguments are still empty.
+- Chain profile selection, signed/raw transaction generation, broadcast JSON,
+  deployed address recording, and explorer verification remain future work.
+- Most Foundry smoke coverage still installs runtime bytecode with `vm.etch`
+  for fast runtime checks; Counter now also has a real initcode `create` path.
+
+Next step:
+
+- Continue toward real deployment manifests by adding chain-profile selection
+  and a Foundry/Anvil broadcast artifact, or return to the remaining EVM IR
+  unsupported surfaces such as dynamic ABI values.
+
+### EVM IR Hash Aggregate ABI Leaves
+
+Commit: `test: cover EVM hash aggregate ABI leaves`
+
+Summary:
+
+- Extended `EvmAbiAggregateProbe` with `HashPair` and `Hash` fixed-array ABI
+  entrypoints:
+  `echo_hash_pair((bytes32,bytes32))`,
+  `make_hash_pair(bytes32,bytes32)`, `pick_hash(bytes32[2])`, and
+  `make_hash_array(bytes32,bytes32)`.
+- Validated that `Hash` leaves flatten as Solidity `bytes32` words inside flat
+  structs and fixed arrays for ABI-facing calldata and return data.
+- Refreshed the `EvmAbiAggregateProbe` golden Yul, selector metadata checks,
+  Foundry ABI decode checks, coverage table, English/Chinese EVM target docs,
+  validation gates, and backlog notes.
+
+Validation run:
+
+```sh
+scripts/evm/abi-aggregate-ir-smoke.sh
+```
+
+Result:
+
+- `EvmAbiAggregateProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 3 ABI aggregate tests, including `HashPair` calldata/return-data,
+  `bytes32[2]` calldata/return-data, and short `bytes32[2]` calldata rejection.
+
+Known limitations:
+
+- Dynamic ABI values remain outside the portable IR EVM v0 surface.
+- Rich ABI tuples beyond flat word aggregates remain explicit future work.
+- Storage-backed aggregate ABI returns stay covered only by the fixed word-array
+  and flat struct-array cases in the dedicated storage probes.
+
+Next step:
+
+- Continue shrinking aggregate ABI/crosscall gaps, or decide whether richer
+  dynamic ABI values require a portable IR extension first.
+
 ## 2026-07-01
+
+### EVM IR Typed Scalar Event Fields
+
+Commit: feature commit for EVM IR typed scalar event fields
+
+Summary:
+
+- Extended `EventProbe` with typed scalar event entrypoints:
+  `emit_typed_scalar_event(bool,uint32,bytes32)` and
+  `emit_indexed_typed_scalar_event(bool,uint32,bytes32,uint256)`.
+- Validated `Bool`, `U32`, and `Hash` event data fields and indexed topics,
+  including `Bool`/`U32` calldata range guards before the event lowering runs.
+- Refreshed `EventProbe` golden Yul, metadata selector checks, Foundry
+  recorded-log checks, coverage, English/Chinese EVM target docs, validation
+  gates, and implementation backlog notes.
+
+Validation run:
+
+```sh
+scripts/evm/event-ir-smoke.sh
+```
+
+Result:
+
+- `EventProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 20 EventProbe tests, including typed scalar data/topic checks and
+  malformed `Bool`/`U32` calldata rejection.
+
+Known limitations:
+
+- Indexed event fields remain limited to three fields after the signature topic.
+- Nested fixed arrays, non-flat structs, and unsupported aggregate leaves remain
+  explicit diagnostics for event fields.
+- First-class event declarations are still not represented in the portable IR.
+
+Next step:
+
+- Continue shrinking the EVM event gap around richer event declarations, or move
+  to another unsupported EVM capability surface.
+
+### EVM IR Multi-Topic Indexed Events
+
+Commit: feature commit for EVM IR multi-topic indexed events
+
+Summary:
+
+- Extended `EventProbe` with two scalar indexed-event entrypoints:
+  `emit_two_indexed_event(uint256,uint256,uint256)` and
+  `emit_three_indexed_event(uint256,uint256,uint256,uint256)`.
+- Validated that `eventEmitIndexed` generates `log3` for two indexed fields and
+  `log4` for three indexed fields, with ordered scalar topics and one
+  non-indexed data word.
+- Refreshed `EventProbe` golden Yul, metadata selector checks, Foundry
+  recorded-log checks, coverage, English/Chinese EVM target docs, validation
+  gates, and implementation backlog notes.
+
+Validation run:
+
+```sh
+scripts/evm/event-ir-smoke.sh
+```
+
+Result:
+
+- `EventProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 17 EventProbe tests, including `log3` and `log4` scalar indexed
+  event coverage.
+
+Known limitations:
+
+- Indexed event fields remain limited to three fields after the signature topic.
+- Nested fixed arrays, non-flat structs, and unsupported aggregate leaves remain
+  explicit diagnostics for event fields.
+- First-class event declarations are still not represented in the portable IR.
+
+Next step:
+
+- Continue shrinking the EVM event gap around richer event declarations, or move
+  to another unsupported EVM capability surface.
+
+### EVM IR Storage-Backed Event Fixed Arrays
+
+Commit: feature commit for EVM IR storage-backed event fixed arrays
+
+Summary:
+
+- Extended `EventProbe` with `storedValues` and `storedPairs` fixed storage
+  arrays plus four entrypoints:
+  `emit_storage_array_event(uint256,uint256)`,
+  `emit_storage_pair_array_event(uint256,uint256,uint256,uint256)`,
+  `emit_indexed_storage_array_event(uint256,uint256,uint256)`, and
+  `emit_indexed_storage_pair_array_event(uint256,uint256,uint256,uint256,uint256)`.
+- Validated that storage array reads and storage array struct field reads can
+  feed scalar fixed-array and fixed-array-of-flat-struct event aggregates.
+- Refreshed `EventProbe` golden Yul, metadata selector checks, Foundry
+  recorded-log checks, coverage, English/Chinese EVM target docs, validation
+  gates, and implementation backlog notes.
+
+Validation run:
+
+```sh
+scripts/evm/event-ir-smoke.sh
+```
+
+Result:
+
+- `EventProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 15 EventProbe tests, including storage-backed fixed-array data
+  flattening and storage-backed fixed-array indexed topic hashing.
+
+Known limitations:
+
+- Indexed event fields remain limited to three fields after the signature topic.
+- Nested fixed arrays, non-flat structs, and unsupported aggregate leaves remain
+  explicit diagnostics for event fields.
+- First-class event declarations are still not represented in the portable IR.
+
+Next step:
+
+- Continue shrinking the EVM event gap around richer event declarations, or move
+  to another unsupported EVM capability surface.
+
+### EVM IR Storage-Backed Event Aggregates
+
+Commit: feature commit for EVM IR storage-backed aggregate events
+
+Summary:
+
+- Extended `EventProbe` with a flat scalar storage struct state and two
+  entrypoints:
+  `emit_storage_pair_event(uint256,uint256)` and
+  `emit_indexed_storage_pair_event(uint256,uint256,uint256)`.
+- Validated the existing storage-backed event lowering path where a whole flat
+  struct is written with `storageScalarWrite`, read with `storageScalarRead`,
+  flattened into non-indexed event data words, or flattened and hashed into an
+  indexed aggregate topic.
+- Refreshed `EventProbe` golden Yul, metadata selector checks, Foundry
+  recorded-log checks, coverage, English target docs, Chinese target docs,
+  validation gates, and implementation backlog notes.
+
+Validation run:
+
+```sh
+scripts/evm/event-ir-smoke.sh
+```
+
+Result:
+
+- `EventProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 11 EventProbe tests, including `StoragePairEvent` data flattening
+  from storage reads and `IndexedStoragePair` topic hashing from storage reads.
+
+Known limitations:
+
+- Indexed event fields remain limited to three fields after the signature topic.
+- Nested fixed arrays, non-flat structs, and unsupported aggregate leaves remain
+  explicit diagnostics for event fields.
+- First-class event declarations are still not represented in the portable IR.
+
+Next step:
+
+- Continue shrinking the EVM event gap around richer event declarations, or move
+  to another unsupported EVM capability surface.
+
+### EVM IR Indexed Aggregate Event Topics
+
+Commit: feature commit for EVM IR indexed aggregate event topics
+
+Summary:
+
+- Extended `eventEmitIndexed` lowering so supported aggregate indexed fields no
+  longer pretend to be scalar topics. Flat structs and fixed arrays whose
+  elements are flat structs now flatten to ABI-style 32-byte words and use
+  `keccak256` over those words as the indexed topic.
+- Preserved direct scalar indexed topics for `U32`, `U64`, `Bool`, and `Hash`.
+- Extended `EventProbe` with `emit_indexed_pair_event`,
+  `emit_indexed_array_event`, and `emit_indexed_pair_array_event`, covering
+  `IndexedPair((uint64,uint64),uint64)` and
+  `IndexedArray(uint64[2],uint64)` and
+  `IndexedPairArray((uint64,uint64)[2],uint64)`.
+- Replaced the old flat-aggregate indexed diagnostic with a nested aggregate
+  indexed diagnostic, so unsupported event shapes still fail explicitly instead
+  of lowering partially.
+- Refreshed golden Yul, artifact metadata selector checks, Foundry recorded-log
+  checks, EVM diagnostics, coverage, English target docs, Chinese target docs,
+  and implementation backlog notes.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/event-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Result:
+
+- `EventProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 9 EventProbe tests, including scalar indexed topics, flat struct
+  indexed topic hashes, scalar fixed-array indexed topic hashes,
+  fixed-array-of-flat-struct indexed topic hashes,
+  aggregate data flattening, selector dispatch, and unknown-selector revert
+  behavior.
+
+Known limitations:
+
+- Indexed event fields remain limited to three fields after the signature topic.
+- Nested fixed arrays, non-flat structs, and unsupported aggregate leaves remain
+  explicit diagnostics for event fields.
+- First-class event declarations are still not represented in the portable IR.
+
+Next step:
+
+- Continue shrinking the EVM event gap around richer event declarations, or move
+  to the next uncovered EVM capability surface.
+
+### EVM IR Nested Local Struct Arrays
+
+Commit: feature commit for EVM IR nested local struct arrays
+
+Summary:
+
+- Extended portable IR EVM local fixed-array lowering so nested fixed arrays can
+  use flat struct leaves, expanding every nested element field into
+  deterministic Yul locals such as `grid[1][0].age`.
+- Added static and dynamic nested struct field reads through nested local-array
+  getter helpers, plus nested mutable field assignment and numeric compound
+  assignment through bounds-checked `switch` lowering.
+- Added nested whole-local assignment from another local array and from
+  self-referential nested array literals, preserving RHS snapshot semantics.
+- Extended `EvmStructArrayValueProbe` with `nested_struct_array_sum`,
+  `nested_struct_array_dynamic_pick`, `nested_struct_array_update`,
+  `nested_struct_array_whole_assign`, and `nested_struct_array_self_assign`.
+- Refreshed golden Yul, artifact metadata selector checks, Foundry smoke tests,
+  EVM coverage manifest entries, English target docs, Chinese target docs, and
+  implementation backlog notes.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/struct-array-value-ir-smoke.sh
+```
+
+Result:
+
+- `EvmStructArrayValueProbe` generated reproducible Yul and runtime bytecode
+  through `solc --strict-assembly`.
+- Foundry ran 14 StructArrayValueProbe tests, including nested flat-struct
+  field reads, nested field mutation, nested whole assignment, RHS snapshotting,
+  dynamic out-of-bounds reverts, and unknown-selector revert behavior.
+
+Known limitations:
+
+- Nested local fixed arrays are still limited to scalar word leaves or flat
+  struct leaves. Non-flat struct leaves and other unsupported aggregate leaves
+  remain explicit diagnostics.
+
+Next step:
+
+- Continue shrinking the EVM aggregate gap around unsupported nested aggregate
+  leaves, richer event schemas, or broader cross-call return data.
 
 ### EVM IR Nested Struct Crosscall Fixed Arrays
 
@@ -124,8 +489,9 @@ Summary:
   static, and delegate typed calls.
 - Added `EvmCrosscallProbe` entrypoints for nested scalar fixed-array arguments
   and direct entrypoint returns across all four call modes.
-- Kept nested fixed arrays with struct or other non-scalar leaves as explicit
-  unsupported diagnostics.
+- At this milestone, kept nested fixed arrays with struct or other non-scalar
+  leaves as explicit unsupported diagnostics; flat struct leaves were covered by
+  a later follow-up.
 - Refreshed `EvmCrosscallProbe.golden.yul`, metadata selector expectations, and
   the Foundry smoke harness with `uint64[2][2]` callee helpers.
 
@@ -495,9 +861,9 @@ Summary:
   `ArrayEvent(uint64[2])`, and `PairArrayEvent((uint64,uint64)[2])`.
 - Flattened aggregate event data into ABI-style 32-byte words before `log1`
   through `log4`, preserving scalar indexed topics for `eventEmitIndexed`.
-- Kept aggregate indexed fields explicit: they now fail with a diagnostic
-  rather than pretending EVM's indexed aggregate topic-hash semantics are
-  direct scalar topics.
+- At the time of this entry, aggregate indexed fields still failed with a
+  diagnostic instead of lowering. That limitation is resolved by the later
+  "EVM IR Indexed Aggregate Event Topics" entry for flat supported aggregates.
 - Extended `EventProbe` with `emit_pair_event`, `emit_array_event`, and
   `emit_pair_array_event`, refreshed golden Yul, Foundry recorded-log checks,
   metadata selector checks, EVM diagnostics, coverage, target docs, validation
@@ -513,8 +879,10 @@ scripts/evm/diagnostic-smoke.sh
 
 Known limitations:
 
-- Indexed event fields remain scalar-only (`U32`, `U64`, `Bool`, or `Hash`) and
-  limited to three indexed fields after the signature topic.
+- At the time of this entry, indexed event fields were scalar-only (`U32`,
+  `U64`, `Bool`, or `Hash`) and limited to three indexed fields after the
+  signature topic. Flat supported aggregate indexed fields are covered by the
+  later "EVM IR Indexed Aggregate Event Topics" entry.
 - Richer first-class event declarations are still not represented in the
   portable IR.
 
@@ -4805,8 +5173,9 @@ Result:
 
 Known limitations:
 
-- Nested local arrays with non-scalar leaves remain explicit unsupported
-  surfaces.
+- Nested local arrays with unsupported aggregate or non-flat leaves remain
+  explicit unsupported surfaces; flat struct leaves are covered by
+  `EvmStructArrayValueProbe`.
 
 ### EVM SDK Example Golden Yul
 

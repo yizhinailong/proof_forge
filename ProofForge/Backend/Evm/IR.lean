@@ -323,13 +323,11 @@ partial def eventSignatureFieldType (module : Module) (eventName fieldName : Str
   | .unit =>
       .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays" }
 
-def ensureIndexedEventFieldType (eventName fieldName : String) (type : ValueType) : Except LowerError Unit :=
-  match type with
-  | .u32 | .u64 | .bool | .hash => .ok ()
-  | .unit | .fixedArray _ _ | .structType _ =>
-      .error {
-        message := s!"event `{eventName}` indexed field `{fieldName}` has unsupported EVM IR v0 type `{type.name}`; indexed event fields must be U32, U64, Bool, or Hash"
-      }
+def ensureIndexedEventFieldType
+    (module : Module)
+    (eventName fieldName : String)
+    (type : ValueType) : Except LowerError Unit := do
+  discard <| eventSignatureFieldType module eventName fieldName type
 
 def eventSignatureTopicStatements (signature : String) : Array Lean.Compiler.Yul.Statement := Id.run do
   let (words, length) := packedUtf8Words signature
@@ -789,6 +787,13 @@ partial def collectLocalArrayGetPath : ProofForge.IR.Expr → Option (String × 
       | none => none
   | _ => none
 
+partial def collectLocalArrayFieldGetPath : ProofForge.IR.Expr → Option (String × Array ProofForge.IR.Expr × String)
+  | .field base fieldName =>
+      match collectLocalArrayGetPath base with
+      | some (name, path) => some (name, path, fieldName)
+      | none => none
+  | _ => none
+
 def arrayIndexPathHasDynamic (path : Array ProofForge.IR.Expr) : Bool :=
   path.any fun index => (literalArrayIndex? index).isNone
 
@@ -819,19 +824,6 @@ partial def fixedArrayPathShape
           .ok (#[length] ++ nested, leafType)
       | other =>
           .error { message := s!"{context} target expected `Array`, got `{other.name}`" }
-
-partial def ensureLocalNestedFixedArrayLeafType (context name : String) : ValueType → Except LowerError Unit
-  | .u32 | .u64 | .bool | .hash => .ok ()
-  | .fixedArray elementType length => do
-      if length == 0 then
-        .error { message := s!"{context} `{name}` nested fixed array must have non-zero length in IR EVM v0" }
-      else
-        pure ()
-      ensureLocalNestedFixedArrayLeafType context name elementType
-  | other =>
-      .error {
-        message := s!"{context} `{name}` has unsupported EVM IR v0 nested fixed-array leaf type `{other.name}`; nested local fixed arrays support U32, U64, Bool, or Hash leaves"
-      }
 
 def assignOpDiagnosticName : AssignOp → String
   | .add => "addition"
@@ -941,6 +933,23 @@ def ensureLocalFlatStructType (module : Module) (context typeName : String) : Ex
   for field in decl.fields do
     ensureStructLocalFieldType typeName field.id field.type
   .ok decl
+
+partial def ensureLocalNestedFixedArrayValueType
+    (module : Module)
+    (context name : String) : ValueType → Except LowerError Unit
+  | .u32 | .u64 | .bool | .hash => .ok ()
+  | .structType typeName => do
+      discard <| ensureLocalFlatStructType module s!"{context} `{name}` nested fixed-array leaf" typeName
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error { message := s!"{context} `{name}` nested fixed array must have non-zero length in IR EVM v0" }
+      else
+        pure ()
+      ensureLocalNestedFixedArrayValueType module context name elementType
+  | .unit =>
+      .error {
+        message := s!"{context} `{name}` has unsupported EVM IR v0 nested fixed-array leaf type `Unit`; nested local fixed arrays support U32, U64, Bool, Hash, or flat struct leaves"
+      }
 
 def structFieldType (module : Module) (typeName fieldName : String) : Except LowerError ValueType := do
   let some decl := findStruct? module typeName
@@ -1362,7 +1371,7 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
   | .eventEmitIndexed name indexedFields dataFields => do
       validateIndexedEventFieldCount name indexedFields.size
       for field in indexedFields do
-        ensureIndexedEventFieldType name field.fst (← inferExprType module env field.snd)
+        ensureIndexedEventFieldType module name field.fst (← inferExprType module env field.snd)
       discard <| eventSignature module env name (indexedFields ++ dataFields)
 
 def requireMutableLocal (env : TypeEnv) (context name : String) : Except LowerError LocalBinding := do
@@ -1471,6 +1480,27 @@ def validateLocalStructArrayFieldTarget
   ensureType s!"{context} value" fieldType (← inferExprType module env value)
   .ok fieldType
 
+def validateLocalFixedArrayPathFieldTarget
+    (module : Module)
+    (env : TypeEnv)
+    (context name : String)
+    (path : Array ProofForge.IR.Expr)
+    (fieldName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError ValueType := do
+  let binding ← requireMutableLocal env context name
+  let targetType ← validateFixedArrayIndexPathTarget module env context binding.type path
+  match targetType with
+  | .structType typeName => do
+      discard <| ensureLocalFlatStructType module s!"{context} local `{name}` fixed-array leaf" typeName
+      let fieldType ← structFieldType module typeName fieldName
+      ensureStructLocalFieldType typeName fieldName fieldType
+      ensureType s!"{context} value" fieldType (← inferExprType module env value)
+      .ok fieldType
+  | other =>
+      .error {
+        message := s!"{context} local `{name}` field target expected flat struct leaf, got `{other.name}`"
+      }
+
 def validateAssignTarget
     (module : Module)
     (env : TypeEnv)
@@ -1484,12 +1514,12 @@ def validateAssignTarget
             match elementType with
             | .u32 | .u64 | .bool | .hash => pure ()
             | .fixedArray _ _ =>
-                ensureLocalNestedFixedArrayLeafType "assignment target" name elementType
+                ensureLocalNestedFixedArrayValueType module "assignment target" name elementType
             | .structType typeName =>
                 discard <| ensureLocalFlatStructType module s!"assignment target `{name}` fixed-array element" typeName
             | .unit =>
                 .error {
-                  message := s!"assignment target `{name}` has unsupported EVM IR v0 fixed-array element type `{elementType.name}`; local fixed arrays support U32, U64, Bool, Hash, flat struct elements, or nested scalar fixed arrays"
+                  message := s!"assignment target `{name}` has unsupported EVM IR v0 fixed-array element type `{elementType.name}`; local fixed arrays support U32, U64, Bool, Hash, flat struct elements, or nested fixed arrays with scalar or flat struct leaves"
                 }
             ensureType "assignment value" binding.type (← inferExprType module env value)
         | .structType typeName => do
@@ -1508,14 +1538,21 @@ def validateAssignTarget
         discard <| validateLocalStructTarget module env "assignment target" name fieldName value
     | _ =>
         .error { message := "assignment target must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0" }
-  match collectLocalArrayGetPath target with
-  | some (name, path) =>
+  match collectLocalArrayFieldGetPath target with
+  | some (name, path, fieldName) =>
       if path.size > 1 then
-        discard <| validateLocalFixedArrayStaticPathTarget module env "assignment target" name path value
+        discard <| validateLocalFixedArrayPathFieldTarget module env "assignment target" name path fieldName value
       else
         validateDefault
   | none =>
-      validateDefault
+      match collectLocalArrayGetPath target with
+      | some (name, path) =>
+          if path.size > 1 then
+            discard <| validateLocalFixedArrayStaticPathTarget module env "assignment target" name path value
+          else
+            validateDefault
+      | none =>
+          validateDefault
 
 def validateAssignOpTarget
     (module : Module)
@@ -1539,15 +1576,23 @@ def validateAssignOpTarget
         ensureAssignOpTypes op targetType (← inferExprType module env value)
     | _ =>
         .error { message := "compound assignment target must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0" }
-  match collectLocalArrayGetPath target with
-  | some (name, path) =>
+  match collectLocalArrayFieldGetPath target with
+  | some (name, path, fieldName) =>
       if path.size > 1 then
-        let targetType ← validateLocalFixedArrayStaticPathTarget module env "compound assignment target" name path value
+        let targetType ← validateLocalFixedArrayPathFieldTarget module env "compound assignment target" name path fieldName value
         ensureAssignOpTypes op targetType (← inferExprType module env value)
       else
         validateDefault
   | none =>
-      validateDefault
+      match collectLocalArrayGetPath target with
+      | some (name, path) =>
+          if path.size > 1 then
+            let targetType ← validateLocalFixedArrayStaticPathTarget module env "compound assignment target" name path value
+            ensureAssignOpTypes op targetType (← inferExprType module env value)
+          else
+            validateDefault
+      | none =>
+          validateDefault
 
 mutual
   partial def validateStatements (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) (statements : Array Statement) : Except LowerError TypeEnv :=
@@ -1832,6 +1877,37 @@ mutual
           message := "fixed array indexing in IR EVM v0 supports local fixed-array values or array literals only"
         }
 
+  partial def lowerNestedLocalStructFieldGetExpr
+      (module : Module)
+      (env : TypeEnv)
+      (name : String)
+      (binding : LocalBinding)
+      (path : Array ProofForge.IR.Expr)
+      (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let (lengths, leafType) ← validateFixedArrayIndexExprPath module env "struct field fixed-array index" binding.type path
+    match leafType with
+    | .structType typeName => do
+        discard <| ensureLocalFlatStructType module s!"struct field access local `{name}` fixed-array leaf" typeName
+        let fieldType ← structFieldType module typeName fieldName
+        ensureStructLocalFieldType typeName fieldName fieldType
+    | other =>
+        .error {
+          message := s!"struct field access local `{name}` fixed-array leaf expected flat struct, got `{other.name}`"
+        }
+    if arrayIndexPathHasDynamic path then do
+      let leafPaths := nestedLocalArrayLeafPaths lengths
+      let mut args : Array Lean.Compiler.Yul.Expr := #[]
+      for index in path do
+        args := args.push (← lowerExpr module env index)
+      for leafPath in leafPaths do
+        args := args.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalPathFieldName name leafPath fieldName))
+      .ok (Lean.Compiler.Yul.call (nestedLocalArrayGetFunctionName lengths) args)
+    else do
+      let mut staticPath : Array Nat := #[]
+      for index in path do
+        staticPath := staticPath.push (← requireStaticArrayIndex "struct field fixed-array index" index)
+      .ok (Lean.Compiler.Yul.Expr.id (arrayStructLocalPathFieldName name staticPath fieldName))
+
   partial def lowerLocalStructFieldExpr
       (module : Module)
       (env : TypeEnv)
@@ -1858,9 +1934,20 @@ mutual
           | .error { message := s!"struct literal has no field `{fieldName}`" }
         lowerExpr module env field.snd
     | _ =>
-        .error {
-          message := "struct field access in IR EVM v0 supports local struct values or struct literals only"
-        }
+        match collectLocalArrayGetPath base with
+        | some (name, path) =>
+            if path.size > 1 then do
+              let some binding := findLocal? env name
+                | .error { message := s!"unknown local `{name}`" }
+              lowerNestedLocalStructFieldGetExpr module env name binding path fieldName
+            else
+              .error {
+                message := "struct field access in IR EVM v0 supports local struct values, local struct-array values, nested local fixed-array struct leaves, or struct literals only"
+              }
+        | none =>
+            .error {
+              message := "struct field access in IR EVM v0 supports local struct values, local struct-array values, nested local fixed-array struct leaves, or struct literals only"
+            }
 
   partial def lowerLocalAbiWordsAt
       (module : Module)
@@ -2413,6 +2500,34 @@ partial def lowerEventDataWords
         message := s!"event `{eventName}` data field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event data fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays"
       }
 
+def eventDataStoreStatements (words : Array Lean.Compiler.Yul.Expr) : Array Lean.Compiler.Yul.Statement := Id.run do
+  let mut statements := #[]
+  for h : idx in [0:words.size] do
+    statements := statements.push <|
+      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), words[idx]])
+  pure statements
+
+partial def lowerIndexedEventTopicStatements
+    (module : Module)
+    (env : TypeEnv)
+    (eventName fieldName : String)
+    (index : Nat)
+    (type : ValueType)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let topicName := eventIndexedTopicName index
+  match type with
+  | .u32 | .u64 | .bool | .hash =>
+      .ok #[.varDecl #[{ name := topicName }] (some (← lowerExpr module env value))]
+  | .fixedArray _ _ | .structType _ => do
+      let words ← lowerEventDataWords module env eventName fieldName type value
+      .ok <| eventDataStoreStatements words |>.push
+        (.varDecl #[{ name := topicName }]
+          (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num (words.size * 32)])))
+  | .unit =>
+      .error {
+        message := s!"event `{eventName}` indexed field `{fieldName}` has unsupported EVM IR v0 type `Unit`; indexed event fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays"
+      }
+
 def lowerEventEmitCoreStmt
     (module : Module)
     (env : TypeEnv)
@@ -2420,20 +2535,18 @@ def lowerEventEmitCoreStmt
     (indexedFields dataFields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement := do
   validateIndexedEventFieldCount name indexedFields.size
   for field in indexedFields do
-    ensureIndexedEventFieldType name field.fst (← inferExprType module env field.snd)
+    ensureIndexedEventFieldType module name field.fst (← inferExprType module env field.snd)
   let signature ← eventSignature module env name (indexedFields ++ dataFields)
   let mut statements := eventSignatureTopicStatements signature
   for h : idx in [0:indexedFields.size] do
     let field := indexedFields[idx]
-    statements := statements.push <|
-      .varDecl #[{ name := eventIndexedTopicName idx }] (some (← lowerExpr module env field.snd))
+    let type ← inferExprType module env field.snd
+    statements := statements ++ (← lowerIndexedEventTopicStatements module env name field.fst idx type field.snd)
   let mut dataWords : Array Lean.Compiler.Yul.Expr := #[]
   for field in dataFields do
     let type ← inferExprType module env field.snd
     dataWords := dataWords ++ (← lowerEventDataWords module env name field.fst type field.snd)
-  for h : idx in [0:dataWords.size] do
-    statements := statements.push <|
-      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), dataWords[idx]])
+  statements := statements ++ eventDataStoreStatements dataWords
   let mut logArgs : Array Lean.Compiler.Yul.Expr := #[
     Lean.Compiler.Yul.Expr.num 0,
     Lean.Compiler.Yul.Expr.num (dataWords.size * 32),
@@ -2696,6 +2809,47 @@ def ensureLocalFixedArrayElementType (context name : String) (type : ValueType) 
         message := s!"{context} `{name}` has unsupported EVM IR v0 fixed-array element type `{type.name}`; local fixed arrays support U32, U64, Bool, or Hash elements"
       }
 
+def lowerStructValueFieldExprs
+    (module : Module)
+    (env : TypeEnv)
+    (context typeName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array (String × Lean.Compiler.Yul.Expr)) := do
+  let decl ← ensureLocalFlatStructType module context typeName
+  match value with
+  | .local sourceName => do
+      let some binding := findLocal? env sourceName
+        | .error { message := s!"unknown local `{sourceName}`" }
+      ensureType context (.structType typeName) binding.type
+      let mut values : Array (String × Lean.Compiler.Yul.Expr) := #[]
+      for fieldDecl in decl.fields do
+        values := values.push (fieldDecl.id, Lean.Compiler.Yul.Expr.id (structLocalFieldName sourceName fieldDecl.id))
+      .ok values
+  | .structLit literalTypeName fields => do
+      if literalTypeName != typeName then
+        .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }
+      let mut values : Array (String × Lean.Compiler.Yul.Expr) := #[]
+      for fieldDecl in decl.fields do
+        let some field := fields.find? fun field => field.fst == fieldDecl.id
+          | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+        values := values.push (fieldDecl.id, ← lowerExpr module env field.snd)
+      .ok values
+  | .effect (.storageScalarRead stateId) =>
+      lowerStructStorageReadFields module context typeName stateId
+  | _ =>
+      .error {
+        message := s!"{context} supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0"
+      }
+
+structure NestedFixedArraySourceExpr where
+  path : Array Nat
+  fieldName? : Option String
+  expr : Lean.Compiler.Yul.Expr
+
+def nestedFixedArrayTargetName (name : String) (source : NestedFixedArraySourceExpr) : String :=
+  match source.fieldName? with
+  | none => arrayLocalPathName name source.path
+  | some fieldName => arrayStructLocalPathFieldName name source.path fieldName
+
 partial def lowerNestedFixedArrayLetBindings
     (module : Module)
     (env : TypeEnv)
@@ -2709,7 +2863,7 @@ partial def lowerNestedFixedArrayLetBindings
         #[{ name := arrayLocalPathName name path }]
         (some (← lowerExpr module env value))]
   | .fixedArray elementType length => do
-      ensureLocalNestedFixedArrayLeafType "let binding" name elementType
+      ensureLocalNestedFixedArrayValueType module "let binding" name elementType
       match value with
       | .arrayLit literalElementType values => do
           ensureType s!"let binding `{name}` fixed-array element type" elementType literalElementType
@@ -2726,9 +2880,18 @@ partial def lowerNestedFixedArrayLetBindings
           .error {
             message := s!"let binding `{name}` fixed array must be initialized from an array literal in IR EVM v0"
           }
-  | .unit | .structType _ =>
+  | .structType typeName => do
+      let fields ← lowerStructValueFieldExprs module env s!"let binding `{name}` nested fixed-array leaf" typeName value
+      let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+      for field in fields do
+        statements := statements.push <|
+          Lean.Compiler.Yul.Statement.varDecl
+            #[{ name := arrayStructLocalPathFieldName name path field.fst }]
+            (some field.snd)
+      .ok statements
+  | .unit =>
       .error {
-        message := s!"let binding `{name}` has unsupported EVM IR v0 nested fixed-array leaf type `{type.name}`; nested local fixed arrays support U32, U64, Bool, or Hash leaves"
+        message := s!"let binding `{name}` has unsupported EVM IR v0 nested fixed-array leaf type `Unit`; nested local fixed arrays support U32, U64, Bool, Hash, or flat struct leaves"
       }
 
 def lowerStructArrayLetBinding
@@ -2782,7 +2945,7 @@ def lowerFixedArrayLetBinding
   | .structType typeName =>
       lowerStructArrayLetBinding module env name typeName length value
   | .fixedArray _ _ => do
-      ensureLocalNestedFixedArrayLeafType "let binding" name elementType
+      ensureLocalNestedFixedArrayValueType module "let binding" name elementType
       lowerNestedFixedArrayLetBindings module env name #[] (.fixedArray elementType length) value
   | _ => do
       ensureLocalFixedArrayElementType "let binding" name elementType
@@ -2852,6 +3015,12 @@ def lowerAssignTargetName (context : String) : ProofForge.IR.Expr → Except Low
       .ok (arrayStructLocalFieldName name indexValue fieldName)
   | .field (.local name) fieldName =>
       .ok (structLocalFieldName name fieldName)
+  | .field base fieldName =>
+      match collectStaticLocalArrayGetPath base with
+      | some (name, path) =>
+          .ok (arrayStructLocalPathFieldName name path fieldName)
+      | none =>
+          .error { message := s!"{context} must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0" }
   | target =>
       match collectStaticLocalArrayGetPath target with
       | some (name, path) =>
@@ -2870,6 +3039,11 @@ def aggregateAssignStructTempName (name fieldName : String) : String :=
 
 def aggregateAssignStructArrayTempName (name : String) (index : Nat) (fieldName : String) : String :=
   s!"__proof_forge_assign_array_struct_{name}_{index}_{fieldName}"
+
+def aggregateAssignNestedFixedArrayTempName (name : String) (source : NestedFixedArraySourceExpr) : String :=
+  match source.fieldName? with
+  | none => aggregateAssignArrayPathTempName name source.path
+  | some fieldName => s!"__proof_forge_assign_array_struct_{name}_{natPathSuffix source.path}_{fieldName}"
 
 def lowerFixedArrayAssignmentSourceExprs
     (module : Module)
@@ -2900,19 +3074,30 @@ def lowerFixedArrayAssignmentSourceExprs
       .error { message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0" }
 
 partial def lowerNestedFixedArrayLocalSourceExprs
+    (module : Module)
     (sourceName : String)
-    (path : Array Nat) : ValueType → Except LowerError (Array (Array Nat × Lean.Compiler.Yul.Expr))
+    (path : Array Nat) : ValueType → Except LowerError (Array NestedFixedArraySourceExpr)
   | .u32 | .u64 | .bool | .hash =>
-      .ok #[(path, Lean.Compiler.Yul.Expr.id (arrayLocalPathName sourceName path))]
-  | .fixedArray elementType length => do
-      ensureLocalNestedFixedArrayLeafType "assignment value" sourceName elementType
-      let mut values : Array (Array Nat × Lean.Compiler.Yul.Expr) := #[]
-      for _h : idx in [0:length] do
-        values := values ++ (← lowerNestedFixedArrayLocalSourceExprs sourceName (path.push idx) elementType)
+      .ok #[{ path := path, fieldName? := none, expr := Lean.Compiler.Yul.Expr.id (arrayLocalPathName sourceName path) }]
+  | .structType typeName => do
+      let decl ← ensureLocalFlatStructType module s!"assignment value `{sourceName}` nested fixed-array leaf" typeName
+      let mut values : Array NestedFixedArraySourceExpr := #[]
+      for fieldDecl in decl.fields do
+        values := values.push {
+          path := path,
+          fieldName? := some fieldDecl.id,
+          expr := Lean.Compiler.Yul.Expr.id (arrayStructLocalPathFieldName sourceName path fieldDecl.id)
+        }
       .ok values
-  | other =>
+  | .fixedArray elementType length => do
+      ensureLocalNestedFixedArrayValueType module "assignment value" sourceName elementType
+      let mut values : Array NestedFixedArraySourceExpr := #[]
+      for _h : idx in [0:length] do
+        values := values ++ (← lowerNestedFixedArrayLocalSourceExprs module sourceName (path.push idx) elementType)
+      .ok values
+  | .unit =>
       .error {
-        message := s!"assignment value `{sourceName}` has unsupported EVM IR v0 nested fixed-array leaf type `{other.name}`; nested local fixed arrays support U32, U64, Bool, or Hash leaves"
+        message := s!"assignment value `{sourceName}` has unsupported EVM IR v0 nested fixed-array leaf type `Unit`; nested local fixed arrays support U32, U64, Bool, Hash, or flat struct leaves"
       }
 
 partial def lowerNestedFixedArrayLiteralSourceExprs
@@ -2921,27 +3106,33 @@ partial def lowerNestedFixedArrayLiteralSourceExprs
     (name : String)
     (path : Array Nat)
     (expectedType : ValueType)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array (Array Nat × Lean.Compiler.Yul.Expr)) := do
+    (value : ProofForge.IR.Expr) : Except LowerError (Array NestedFixedArraySourceExpr) := do
   match expectedType with
   | .u32 | .u64 | .bool | .hash =>
-      .ok #[(path, ← lowerExpr module env value)]
+      .ok #[{ path := path, fieldName? := none, expr := ← lowerExpr module env value }]
+  | .structType typeName => do
+      let fields ← lowerStructValueFieldExprs module env s!"assignment target `{name}` nested fixed-array leaf" typeName value
+      let mut values : Array NestedFixedArraySourceExpr := #[]
+      for field in fields do
+        values := values.push { path := path, fieldName? := some field.fst, expr := field.snd }
+      .ok values
   | .fixedArray elementType length => do
-      ensureLocalNestedFixedArrayLeafType "assignment target" name elementType
+      ensureLocalNestedFixedArrayValueType module "assignment target" name elementType
       match value with
       | .arrayLit literalElementType values => do
           ensureType s!"assignment target `{name}` fixed-array element type" elementType literalElementType
           if values.size != length then
             .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {values.size}" }
-          let mut lowered : Array (Array Nat × Lean.Compiler.Yul.Expr) := #[]
+          let mut lowered : Array NestedFixedArraySourceExpr := #[]
           for h : idx in [0:values.size] do
             lowered := lowered ++
               (← lowerNestedFixedArrayLiteralSourceExprs module env name (path.push idx) elementType values[idx])
           .ok lowered
       | _ =>
           .error { message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0" }
-  | .unit | .structType _ =>
+  | .unit =>
       .error {
-        message := s!"assignment target `{name}` has unsupported EVM IR v0 nested fixed-array leaf type `{expectedType.name}`; nested local fixed arrays support U32, U64, Bool, or Hash leaves"
+        message := s!"assignment target `{name}` has unsupported EVM IR v0 nested fixed-array leaf type `{expectedType.name}`; nested local fixed arrays support U32, U64, Bool, Hash, or flat struct leaves"
       }
 
 def lowerNestedFixedArrayAssignmentSourceExprs
@@ -2949,14 +3140,14 @@ def lowerNestedFixedArrayAssignmentSourceExprs
     (env : TypeEnv)
     (name : String)
     (expectedType : ValueType)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array (Array Nat × Lean.Compiler.Yul.Expr)) := do
-  ensureLocalNestedFixedArrayLeafType "assignment target" name expectedType
+    (value : ProofForge.IR.Expr) : Except LowerError (Array NestedFixedArraySourceExpr) := do
+  ensureLocalNestedFixedArrayValueType module "assignment target" name expectedType
   match value with
   | .local sourceName => do
       let some binding := findLocal? env sourceName
         | .error { message := s!"unknown local `{sourceName}`" }
       ensureType s!"assignment target `{name}` fixed-array type" expectedType binding.type
-      lowerNestedFixedArrayLocalSourceExprs sourceName #[] expectedType
+      lowerNestedFixedArrayLocalSourceExprs module sourceName #[] expectedType
   | .arrayLit _ _ =>
       lowerNestedFixedArrayLiteralSourceExprs module env name #[] expectedType value
   | _ =>
@@ -3036,13 +3227,11 @@ def lowerWholeFixedArrayAssignStmt
       let sourceExprs ← lowerNestedFixedArrayAssignmentSourceExprs module env name expectedType value
       let mut statements : Array Lean.Compiler.Yul.Statement := #[]
       for source in sourceExprs do
-        let (path, expr) := source
         statements := statements.push <|
-          .varDecl #[{ name := aggregateAssignArrayPathTempName name path }] (some expr)
+          .varDecl #[{ name := aggregateAssignNestedFixedArrayTempName name source }] (some source.expr)
       for source in sourceExprs do
-        let (path, _) := source
         statements := statements.push <|
-          .assignment #[arrayLocalPathName name path] (Lean.Compiler.Yul.Expr.id (aggregateAssignArrayPathTempName name path))
+          .assignment #[nestedFixedArrayTargetName name source] (Lean.Compiler.Yul.Expr.id (aggregateAssignNestedFixedArrayTempName name source))
       .ok (.block { statements := statements })
   | _ => do
       let sourceExprs ← lowerFixedArrayAssignmentSourceExprs module env name elementType length value
@@ -3223,6 +3412,81 @@ def lowerDynamicLocalFixedArrayPathAssignStmt
     ] ++ body
   })
 
+partial def lowerDynamicLocalFixedArrayPathFieldAssignBody
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (type : ValueType)
+    (pathPrefix : Array Nat)
+    (path : Array ProofForge.IR.Expr)
+    (fieldName : String)
+    (op? : Option AssignOp) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  match path.toList with
+  | [] =>
+      match type with
+      | .structType typeName => do
+          discard <| ensureLocalFlatStructType module s!"assignment target local `{name}` fixed-array leaf" typeName
+          let fieldType ← structFieldType module typeName fieldName
+          ensureStructLocalFieldType typeName fieldName fieldType
+          let targetName := arrayStructLocalPathFieldName name pathPrefix fieldName
+          let valueExpr := Lean.Compiler.Yul.Expr.id dynamicArrayValueLocalName
+          let rhs :=
+            match op? with
+            | some op => lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) valueExpr
+            | none => valueExpr
+          .ok #[.assignment #[targetName] rhs]
+      | other =>
+          .error { message := s!"assignment target fixed-array path field expected flat struct leaf, got `{other.name}`" }
+  | index :: rest =>
+      match type with
+      | .fixedArray elementType length =>
+          match literalArrayIndex? index with
+          | some indexValue => do
+              ensureFixedArrayIndexInBounds "assignment target fixed-array index" indexValue length
+              lowerDynamicLocalFixedArrayPathFieldAssignBody module env name elementType (pathPrefix.push indexValue) rest.toArray fieldName op?
+          | none => do
+              let indexName := dynamicArrayIndexPathLocalName pathPrefix.size
+              let indexExpr ← lowerExpr module env index
+              let mut cases : Array Lean.Compiler.Yul.Case := #[]
+              for _h : idx in [0:length] do
+                cases := cases.push {
+                  value := some (Lean.Compiler.Yul.Literal.natLit idx)
+                  body := {
+                    statements := ← lowerDynamicLocalFixedArrayPathFieldAssignBody module env name elementType (pathPrefix.push idx) rest.toArray fieldName op?
+                  }
+                }
+              cases := cases.push {
+                value := none
+                body := { statements := #[revertStmt] }
+              }
+              .ok #[
+                .block {
+                  statements := #[
+                    .varDecl #[{ name := indexName }] (some indexExpr),
+                    .switchStmt (Lean.Compiler.Yul.Expr.id indexName) cases
+                  ]
+                }
+              ]
+      | other =>
+          .error { message := s!"assignment target fixed-array path expected `Array`, got `{other.name}`" }
+
+def lowerDynamicLocalFixedArrayPathFieldAssignStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (binding : LocalBinding)
+    (path : Array ProofForge.IR.Expr)
+    (fieldName : String)
+    (op? : Option AssignOp)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let valueExpr ← lowerExpr module env value
+  let body ← lowerDynamicLocalFixedArrayPathFieldAssignBody module env name binding.type #[] path fieldName op?
+  .ok (.block {
+    statements := #[
+      .varDecl #[{ name := dynamicArrayValueLocalName }] (some valueExpr)
+    ] ++ body
+  })
+
 def lowerDynamicLocalFixedArrayAssignOpStmt
     (module : Module)
     (env : TypeEnv)
@@ -3314,17 +3578,26 @@ def lowerAssignStmt
           let (_, length, _) ← requireLocalFixedStructArrayField module env "assignment target" name fieldName
           .ok #[← lowerDynamicLocalStructArrayFieldAssignStmt module env name fieldName length index value]
   | _ => do
-      match collectLocalArrayGetPath target with
-      | some (name, path) =>
+      match collectLocalArrayFieldGetPath target with
+      | some (name, path, fieldName) =>
           if path.size > 1 && arrayIndexPathHasDynamic path then
             let binding ← requireMutableLocal env "assignment target" name
-            .ok #[← lowerDynamicLocalFixedArrayPathAssignStmt module env name binding path none value]
+            .ok #[← lowerDynamicLocalFixedArrayPathFieldAssignStmt module env name binding path fieldName none value]
           else
             let targetName ← lowerAssignTargetName "assignment target" target
             .ok #[.assignment #[targetName] (← lowerExpr module env value)]
       | none =>
-          let targetName ← lowerAssignTargetName "assignment target" target
-          .ok #[.assignment #[targetName] (← lowerExpr module env value)]
+          match collectLocalArrayGetPath target with
+          | some (name, path) =>
+              if path.size > 1 && arrayIndexPathHasDynamic path then
+                let binding ← requireMutableLocal env "assignment target" name
+                .ok #[← lowerDynamicLocalFixedArrayPathAssignStmt module env name binding path none value]
+              else
+                let targetName ← lowerAssignTargetName "assignment target" target
+                .ok #[.assignment #[targetName] (← lowerExpr module env value)]
+          | none =>
+              let targetName ← lowerAssignTargetName "assignment target" target
+              .ok #[.assignment #[targetName] (← lowerExpr module env value)]
 
 def lowerAssignOpStmt
     (module : Module)
@@ -3350,17 +3623,26 @@ def lowerAssignOpStmt
           let (_, length, _) ← requireLocalFixedStructArrayField module env "compound assignment target" name fieldName
           .ok #[← lowerDynamicLocalStructArrayFieldAssignOpStmt module env name fieldName length index op value]
   | _ => do
-      match collectLocalArrayGetPath target with
-      | some (name, path) =>
+      match collectLocalArrayFieldGetPath target with
+      | some (name, path, fieldName) =>
           if path.size > 1 && arrayIndexPathHasDynamic path then
             let binding ← requireMutableLocal env "compound assignment target" name
-            .ok #[← lowerDynamicLocalFixedArrayPathAssignStmt module env name binding path (some op) value]
+            .ok #[← lowerDynamicLocalFixedArrayPathFieldAssignStmt module env name binding path fieldName (some op) value]
           else
             let targetName ← lowerAssignTargetName "compound assignment target" target
             .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
       | none =>
-          let targetName ← lowerAssignTargetName "compound assignment target" target
-          .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
+          match collectLocalArrayGetPath target with
+          | some (name, path) =>
+              if path.size > 1 && arrayIndexPathHasDynamic path then
+                let binding ← requireMutableLocal env "compound assignment target" name
+                .ok #[← lowerDynamicLocalFixedArrayPathAssignStmt module env name binding path (some op) value]
+              else
+                let targetName ← lowerAssignTargetName "compound assignment target" target
+                .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
+          | none =>
+              let targetName ← lowerAssignTargetName "compound assignment target" target
+              .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
 
 mutual
   partial def statementAlwaysReturns : Statement → Bool
@@ -4647,7 +4929,9 @@ def nestedLocalArrayGetShapesForDynamicExprTarget
         | some binding =>
             match fixedArrayPathShape "fixed array index" binding.type path with
             | .ok (lengths, leafType) =>
-                if isCrosscallWordType leafType then #[lengths] else #[]
+                match leafType with
+                | .u32 | .u64 | .bool | .hash | .structType _ => #[lengths]
+                | .unit | .fixedArray _ _ => #[]
             | .error _ => #[]
         | none => #[]
       else
