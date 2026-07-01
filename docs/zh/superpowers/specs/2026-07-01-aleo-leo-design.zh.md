@@ -160,7 +160,7 @@ aleo-leo-package
   ],
   "artifacts": {
     "leoSource": {
-      "path": "build/aleo/Counter.leo",
+      "path": "build/aleo/counter/src/main.leo",
       "sha256": "...",
       "bytes": 0
     },
@@ -169,13 +169,8 @@ aleo-leo-package
       "sha256": "...",
       "bytes": 0
     },
-    "avmBytecode": {
-      "path": "build/aleo/counter/build/counter.avm",
-      "sha256": "...",
-      "bytes": 0
-    },
     "abiJson": {
-      "path": "build/aleo/counter/build/counter.abi",
+      "path": "build/aleo/counter/build/abi.json",
       "sha256": "...",
       "bytes": 0
     }
@@ -193,9 +188,9 @@ aleo-leo-package
       { "name": "count", "keyType": "u64", "valueType": "u64" }
     ],
     "entrypoints": [
-      { "name": "initialize", "publicInputs": ["value"], "publicOutputs": ["value"], "finalize": true },
+      { "name": "initialize", "publicInputs": [], "publicOutputs": [], "finalize": true },
       { "name": "increment", "publicInputs": [], "publicOutputs": [], "finalize": true },
-      { "name": "get", "publicInputs": [], "publicOutputs": ["u64"], "finalize": false }
+      { "name": "get", "publicInputs": [], "publicOutputs": [], "finalize": true }
     ]
   },
   "validation": {
@@ -209,6 +204,7 @@ aleo-leo-package
 说明：
 - `targetMetadata` 是目标相关的。对于 Aleo，它记录 program id、mappings 以及 entrypoint 的可见性/finalization 元数据。
 - prover/verifier 制品和 transaction 元数据在本 spike 中为可选，可记录为 `null` 或直接省略。
+- Leo 4.0.2 的 `leo build` 输出 `main.aleo` 和 `abi.json`；不输出独立的 `.avm` 文件，因此 spike 的 artifact 列表中省略 `avmBytecode`。
 
 ### 4.3 工具链决策
 
@@ -253,12 +249,13 @@ Aleo 只有在以下全部文档化并评审通过后才能离开 Research：
 
 ```text
 ProofForge.IR.Examples.Counter.module
-  -> ProofForge.Backend.Aleo.IR.renderModule
+  -> ProofForge.Compiler.Leo.Emit.emitModule
+  -> ProofForge.Compiler.Leo.Printer.printProgram
   -> Counter.leo
   -> scripts/aleo/write-leo-package.py
   -> build/aleo/counter/{leo.toml, src/main.leo}
   -> leo build
-  -> .aleo 指令 + AVM 字节码 + ABI JSON
+  -> .aleo 指令 + ABI JSON
   -> leo test
   -> proof-forge-artifact.json
 ```
@@ -276,7 +273,8 @@ Spike 复用 Psy DPN sourcegen 模式：
 | 文件 | 职责 |
 |---|---|
 | `ProofForge/Backend/Aleo.lean` | 公开导出 `ProofForge.Backend.Aleo.IR`。 |
-| `ProofForge/Backend/Aleo/IR.lean` | IR → Leo 的降级、校验与渲染。 |
+| `ProofForge/Backend/Aleo/IR.lean` | 对 `ProofForge.Compiler.Leo.Emit` 和 `ProofForge.Compiler.Leo.Printer` 的薄封装。 |
+| `ProofForge/Compiler/Leo/` | 结构化 Leo AST（`AST`）、AST 打印器（`Printer`）以及 IR→AST 发射器（`Emit`）。 |
 | `ProofForge/Aleo.lean` | 可选的未来 SDK 表面。本 spike 可为空或省略。 |
 
 #### 新增示例与 golden fixture
@@ -338,53 +336,64 @@ module Counter {
 }
 ```
 
-输出形态（Leo，具体以 `leo build` 实际接受为准，实现阶段可按工具链反馈调整）：
+输出形态（Leo 4.0，已通过 `leo build` 和 `leo test` 验证）：
 
 ```leo
 program counter.aleo {
     mapping count: u64 => u64;
 
-    transition initialize(public value: u64) -> u64 {
-        return value;
-    }
-    final initialize(public value: u64) {
-        Mapping::set(count, value);
+    @noupgrade
+    constructor() {}
+
+    fn initialize() -> Final {
+        return final {
+            Mapping::set(count, 0u64, 0u64);
+        };
     }
 
-    transition increment() -> u64 {
-        return 1u64;
-    }
-    final increment() {
-        let current: u64 = Mapping::get_or_use(count, 0u64);
-        Mapping::set(count, current + 1u64);
+    fn increment() -> Final {
+        return final {
+            let current: u64 = Mapping::get_or_use(count, 0u64, 0u64);
+            Mapping::set(count, 0u64, current + 1u64);
+        };
     }
 
-    transition get() -> public u64 {
-        return Mapping::get_or_use(count, 0u64);
+    fn get() -> Final {
+        return final {
+            let current: u64 = Mapping::get_or_use(count, 0u64, 0u64);
+        };
     }
 }
 ```
 
 说明：
-- 标量 `U64` 状态映射为公开 `mapping`，因为 Aleo 要求公开可变状态使用 `mapping` 和 `final` 块。
-- `storage.scalar.read` 映射为 `Mapping::get_or_use`，默认 `0u64`，以匹配未初始化计数器语义。
-- `storage.scalar.write` 映射为 `final` 块中的 `Mapping::set`。
-- `get` 返回 `public u64`，使值在链上可见。
+- 标量 `U64` 状态映射为以固定 `0u64` 为键的公开 `mapping`，因为 Aleo mapping 需要显式 key。
+- Leo 4.0 对所有 entry point 使用 `fn`。会改变状态的 entry point 返回 `Final`，并将逻辑嵌入
+  `final { ... }` 块以在链上执行。
+- 新程序必须包含 `@noupgrade constructor() {}` 以满足部署规则。
+- `storage.scalar.read` 映射为 `final` 块中的 `Mapping::get_or_use(<name>, 0u64, 0u64)`；
+  mapping 读取只允许出现在 finalization 上下文。
+- `storage.scalar.write` 映射为 `final` 块中的 `Mapping::set(<name>, 0u64, <value>);`。
+- `get` 不能从 transition 返回普通 `u64`，因为 transition 无法读取 mapping。它返回 `Final`，
+  使 mapping 读取发生在 finalization 上下文。
 
 ### 6.2 通用降级规则（v0）
 
 | 可移植 IR | Leo（v0） |
 |---|---|
 | `Module.name` | `program <name>.aleo { ... }` |
-| `StateDecl scalar U64` | `mapping <name>: u64 => u64;`（Counter 专用） |
-| 无参数 `Entrypoint` | `transition <name>() { ... }` |
-| 返回 `U64` 的 `Entrypoint` | `transition <name>() -> public u64 { ... }` |
-| `storageScalarRead` | `Mapping::get_or_use(<name>, 0u64)` |
-| `storageScalarWrite` | `final { Mapping::set(<name>, <value>); }` |
+| 程序 constructor | `@noupgrade constructor() {}` |
+| `StateDecl scalar U64` | 以 `0u64` 为键的 `mapping <name>: u64 => u64;`（Counter 专用） |
+| 带副作用的 `Entrypoint` | `fn <name>() -> Final { return final { ... }; }` |
+| 读取 mapping 的 `Entrypoint` | `fn <name>() -> Final { return final { ... }; }` |
+| `storageScalarRead` | `Mapping::get_or_use(<name>, 0u64, 0u64)` |
+| `storageScalarWrite` | `Mapping::set(<name>, 0u64, <value>);` |
 | `add` / `sub` / 等 | `+` / `-` / 等 |
 | `U64 literal` | `<value>u64` |
 | `letBind` / `letMutBind` | `let <name>: <type> = <value>;` |
 | `return` | `return <expr>;` |
+
+实际降级在 `ProofForge.Compiler.Leo.Emit` 中实现：它先把 IR 转换为结构化的 Leo AST（`ProofForge.Compiler.Leo.AST`），再由 `ProofForge.Compiler.Leo.Printer` 输出兼容 Leo 4.0.2 的源码。AST 对齐 `ProvableHQ/leo crates/ast/src/`（v4.3.2），而打印器将 `async { }` / `Future<Fn(...)>` 降级为本地工具链支持的 `final { }` / `Final`。
 
 ### 6.3 被拒绝的 IR 节点
 

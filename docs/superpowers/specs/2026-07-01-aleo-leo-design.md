@@ -160,7 +160,7 @@ The corresponding `proof-forge-artifact.json` shape:
   ],
   "artifacts": {
     "leoSource": {
-      "path": "build/aleo/Counter.leo",
+      "path": "build/aleo/counter/src/main.leo",
       "sha256": "...",
       "bytes": 0
     },
@@ -169,13 +169,8 @@ The corresponding `proof-forge-artifact.json` shape:
       "sha256": "...",
       "bytes": 0
     },
-    "avmBytecode": {
-      "path": "build/aleo/counter/build/counter.avm",
-      "sha256": "...",
-      "bytes": 0
-    },
     "abiJson": {
-      "path": "build/aleo/counter/build/counter.abi",
+      "path": "build/aleo/counter/build/abi.json",
       "sha256": "...",
       "bytes": 0
     }
@@ -193,9 +188,9 @@ The corresponding `proof-forge-artifact.json` shape:
       { "name": "count", "keyType": "u64", "valueType": "u64" }
     ],
     "entrypoints": [
-      { "name": "initialize", "publicInputs": ["value"], "publicOutputs": ["value"], "finalize": true },
+      { "name": "initialize", "publicInputs": [], "publicOutputs": [], "finalize": true },
       { "name": "increment", "publicInputs": [], "publicOutputs": [], "finalize": true },
-      { "name": "get", "publicInputs": [], "publicOutputs": ["u64"], "finalize": false }
+      { "name": "get", "publicInputs": [], "publicOutputs": [], "finalize": true }
     ]
   },
   "validation": {
@@ -209,6 +204,7 @@ The corresponding `proof-forge-artifact.json` shape:
 Notes:
 - `targetMetadata` is target-specific. For Aleo it records program id, mappings, and entrypoint visibility/finalization metadata.
 - Prover/verifier artifacts and transaction metadata are optional in the spike and recorded as `null` or omitted if not produced.
+- `leo build` for Leo 4.0.2 emits `main.aleo` and `abi.json`; a standalone `.avm` file is not produced, so `avmBytecode` is omitted from the spike artifact list.
 
 ### 4.3 Toolchain Decision
 
@@ -253,12 +249,13 @@ Aleo leaves Research when all of the following are documented and reviewed:
 
 ```text
 ProofForge.IR.Examples.Counter.module
-  -> ProofForge.Backend.Aleo.IR.renderModule
+  -> ProofForge.Compiler.Leo.Emit.emitModule
+  -> ProofForge.Compiler.Leo.Printer.printProgram
   -> Counter.leo
   -> scripts/aleo/write-leo-package.py
   -> build/aleo/counter/{leo.toml, src/main.leo}
   -> leo build
-  -> .aleo instructions + AVM bytecode + ABI JSON
+  -> .aleo instructions + ABI JSON
   -> leo test
   -> proof-forge-artifact.json
 ```
@@ -276,7 +273,8 @@ The spike mirrors the Psy DPN sourcegen pattern:
 | File | Responsibility |
 |---|---|
 | `ProofForge/Backend/Aleo.lean` | Public export of `ProofForge.Backend.Aleo.IR`. |
-| `ProofForge/Backend/Aleo/IR.lean` | IR → Leo lowering, validation, and rendering. |
+| `ProofForge/Backend/Aleo/IR.lean` | Thin wrapper around `ProofForge.Compiler.Leo.Emit` and `ProofForge.Compiler.Leo.Printer`. |
+| `ProofForge/Compiler/Leo/` | Structured Leo AST (`AST`), AST printer (`Printer`), and IR-to-AST emitter (`Emit`). |
 | `ProofForge/Aleo.lean` | Optional future SDK surface. For the spike it may be empty or omitted. |
 
 #### New examples and fixtures
@@ -338,53 +336,66 @@ module Counter {
 }
 ```
 
-Output shape (Leo, subject to `leo build` compatibility confirmation during implementation):
+Output shape (Leo 4.0, confirmed by `leo build` and `leo test`):
 
 ```leo
 program counter.aleo {
     mapping count: u64 => u64;
 
-    transition initialize(public value: u64) -> u64 {
-        return value;
-    }
-    final initialize(public value: u64) {
-        Mapping::set(count, value);
+    @noupgrade
+    constructor() {}
+
+    fn initialize() -> Final {
+        return final {
+            Mapping::set(count, 0u64, 0u64);
+        };
     }
 
-    transition increment() -> u64 {
-        return 1u64;
-    }
-    final increment() {
-        let current: u64 = Mapping::get_or_use(count, 0u64);
-        Mapping::set(count, current + 1u64);
+    fn increment() -> Final {
+        return final {
+            let current: u64 = Mapping::get_or_use(count, 0u64, 0u64);
+            Mapping::set(count, 0u64, current + 1u64);
+        };
     }
 
-    transition get() -> public u64 {
-        return Mapping::get_or_use(count, 0u64);
+    fn get() -> Final {
+        return final {
+            let current: u64 = Mapping::get_or_use(count, 0u64, 0u64);
+        };
     }
 }
 ```
 
 Notes:
-- The scalar `U64` state maps to a public `mapping` because Aleo requires public mutable state to use `mapping`s and `final` blocks.
-- `storage.scalar.read` maps to `Mapping::get_or_use` with a default of `0u64` to match the uninitialized counter semantics.
-- `storage.scalar.write` maps to `Mapping::set` inside a `final` block.
-- `get` returns a `public u64` so that the value is visible on-chain.
+- The scalar `U64` state maps to a public `mapping` keyed by a fixed `0u64` placeholder,
+  because Aleo mappings require an explicit key.
+- Leo 4.0 uses `fn` for all entry points. State-changing entry points return `Final` and
+  embed a `final { ... }` block for on-chain execution.
+- New programs must include `@noupgrade constructor() {}` to satisfy deployment rules.
+- `storage.scalar.read` maps to `Mapping::get_or_use(<name>, 0u64, 0u64)` inside a `final`
+  block; mapping reads are only allowed in finalization context.
+- `storage.scalar.write` maps to `Mapping::set(<name>, 0u64, <value>);` inside a `final`
+  block.
+- `get` cannot return a plain `u64` from a transition because transitions cannot read
+  mappings. It returns `Final` so the mapping read happens in finalization context.
 
 ### 6.2 General Lowering Rules (v0)
 
 | Portable IR | Leo (v0) |
 |---|---|
 | `Module.name` | `program <name>.aleo { ... }` |
-| `StateDecl scalar U64` | `mapping <name>: u64 => u64;` (Counter-specific) |
-| `Entrypoint` with no params | `transition <name>() { ... }` |
-| `Entrypoint` returning `U64` | `transition <name>() -> public u64 { ... }` |
-| `storageScalarRead` | `Mapping::get_or_use(<name>, 0u64)` |
-| `storageScalarWrite` | `final { Mapping::set(<name>, <value>); }` |
+| Program constructor | `@noupgrade constructor() {}` |
+| `StateDecl scalar U64` | `mapping <name>: u64 => u64;` keyed by `0u64` (Counter-specific) |
+| `Entrypoint` with side effects | `fn <name>() -> Final { return final { ... }; }` |
+| `Entrypoint` reading mapping | `fn <name>() -> Final { return final { ... }; }` |
+| `storageScalarRead` | `Mapping::get_or_use(<name>, 0u64, 0u64)` |
+| `storageScalarWrite` | `Mapping::set(<name>, 0u64, <value>);` |
 | `add` / `sub` / etc. | `+` / `-` / etc. |
 | `U64 literal` | `<value>u64` |
 | `letBind` / `letMutBind` | `let <name>: <type> = <value>;` |
 | `return` | `return <expr>;` |
+
+The actual lowering is implemented in `ProofForge.Compiler.Leo.Emit`, which first translates the IR into a structured Leo AST (`ProofForge.Compiler.Leo.AST`) and then uses `ProofForge.Compiler.Leo.Printer` to emit Leo 4.0.2 compatible source. The AST mirrors `ProvableHQ/leo crates/ast/src/` (v4.3.2) while the printer downgrades `async { }` / `Future<Fn(...)>` to `final { }` / `Final` for the local toolchain.
 
 ### 6.3 Rejected IR Nodes
 
