@@ -72,4 +72,6 @@ python3 scripts/translate-docs.py --model glm-4.7
 - [Tezos Michelson/LIGO 目标说明](targets/tezos-michelson-ligo.zh.md)
 - [Starknet Cairo 目标说明](targets/starknet-cairo.zh.md)
 - [TON TVM 目标说明](targets/ton-tvm.zh.md)
+- [Bitcoin Script/Miniscript 目标说明](targets/bitcoin-script-miniscript.zh.md)
+- [Zcash Shielded 目标说明](targets/zcash-shielded.zh.md)
 - [Bitcoin Cash CashScript 目标说明](targets/bitcoin-cash-cashscript.zh.md)

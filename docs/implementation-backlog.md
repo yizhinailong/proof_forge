@@ -655,6 +655,86 @@ Acceptance criteria:
 - The docs distinguish Starknet from EVM, Wasm-host, Move, Solana, TVM, AVM,
   UTXO, and `psy-dpn`-style ZK circuit targets.
 
+## Workstream 20: Bitcoin Script/Miniscript Research Target
+
+Goal: decide whether and how ProofForge should support Bitcoin base-layer
+spending policies without pretending Bitcoin Script is a general smart-contract
+runtime.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id
+  `bitcoin-script-miniscript`.
+- Classify Bitcoin as a limited UTXO spending-policy target through Script,
+  Miniscript, descriptors, PSBT, and Bitcoin Core validation.
+- Review candidate capabilities for Bitcoin Script, Miniscript, descriptors,
+  SegWit, Taproot, Tapscript, witness stacks, sighash modes, hash locks,
+  threshold multisig, PSBT flows, standardness, weight/fee constraints, and
+  Bitcoin Core regtest validation.
+- Define a tiny spending-policy scenario such as "A can spend immediately, or B
+  can spend after a relative timelock."
+- Define artifact metadata for policy, descriptor, output script, witness
+  requirements, PSBT/raw transaction scenario, weight/fee, toolchain versions,
+  and validation result.
+- Identify the local smoke command set: Bitcoin Core regtest, descriptor import
+  or address derivation, PSBT signing/finalization, and `testmempoolaccept` or
+  equivalent spend validation.
+
+Acceptance criteria:
+
+- `docs/targets/bitcoin-script-miniscript.md` records the target classification
+  and non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish Bitcoin Script/Miniscript from EVM, Wasm-host, Move,
+  Solana, TVM, AVM, Cardano eUTXO, BCH/CashScript, Kaspa/Toccata, and generic
+  smart-contract targets.
+
+## Workstream 21: Zcash Shielded Research Target
+
+Goal: decide whether and how ProofForge should support Zcash shielded payments
+without treating Zcash as either plain Bitcoin Script or a generic ZK
+smart-contract chain.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `zcash-shielded`.
+- Classify Zcash as a privacy UTXO/ZK payment candidate with transparent
+  Zcash flows plus Sapling/Orchard shielded pools.
+- Review candidate capabilities for shielded privacy, transparent pool
+  crossings, Sapling, Orchard, shielded notes, note commitments, nullifiers,
+  commitment tree anchors, Zcash protocol proofs, private witnesses,
+  value-balance constraints, viewing keys, unified addresses, privacy policy,
+  and zcashd/library validation.
+- Define a tiny shielded payment scenario such as "spend one Orchard note,
+  create one Orchard note, reveal one nullifier, preserve value balance, and
+  pay a transparent fee."
+- Define how a JDL-Z11-like script may express `shield`, `spendNote`,
+  `createNote`, `revealNullifier`, `selectAnchor`, and `privacyPolicy` while
+  rejecting global mutable shielded storage, method dispatch, and arbitrary
+  proof verification.
+- Define artifact metadata for transparent inputs/outputs, shielded pool,
+  note input/output schema, nullifiers, anchors, value balance, witness/proving
+  requirements, viewing-key disclosure, toolchain versions, and validation
+  result.
+- Identify the local smoke command set: zcashd RPC or a compatible Rust
+  wallet/protocol library, with an explicit fallback blocker if local proving is
+  too heavy for CI.
+
+Acceptance criteria:
+
+- `docs/targets/zcash-shielded.md` records the target classification and
+  non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish Zcash from Bitcoin Script/Miniscript, BCH/CashScript,
+  Kaspa/Toccata inline ZK, `psy-dpn` circuit sourcegen, and generic smart
+  contracts.
+
 ## Suggested Order
 
 1. Target registry (Workstream 1).
@@ -681,8 +761,12 @@ Acceptance criteria:
 15. Starknet Cairo research target review (Workstream 19) before any registry
     changes.
 16. TON TVM research target review (Workstream 14) before any registry changes.
-17. Bitcoin Cash CashScript research target review (Workstream 15) before any
+17. Bitcoin Script/Miniscript research target review (Workstream 20) before any
     registry changes.
-18. CI target matrix (Workstream 9).
-19. Cloud platform design refresh (prerequisite: two+ targets at Experimental
+18. Zcash Shielded research target review (Workstream 21) before any registry
+    changes.
+19. Bitcoin Cash CashScript research target review (Workstream 15) before any
+    registry changes.
+20. CI target matrix (Workstream 9).
+21. Cloud platform design refresh (prerequisite: two+ targets at Experimental
    stage; see [decisions.md](decisions.md)).

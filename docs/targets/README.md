@@ -50,6 +50,8 @@ target registry and portable IR integration.
 | [Tezos Michelson/LIGO](tezos-michelson-ligo.md) | Research | Docs-first Michelson sourcegen candidate through LIGO with typed storage, entrypoints, views/events, operation lists, and sandbox/test validation. |
 | [Starknet Cairo](starknet-cairo.md) | Research | Docs-first Cairo/Sierra/CASM sourcegen candidate with Scarb, ABI/class hash metadata, Starknet storage/events, and Starknet Foundry/devnet validation. |
 | [TON TVM](ton-tvm.md) | Research | Docs-first TVM/Tolk sourcegen candidate with cells, messages, get methods, actions, and TVM gas. |
+| [Bitcoin Script/Miniscript](bitcoin-script-miniscript.md) | Research | Docs-first Bitcoin base-layer spending-policy candidate through Script, Miniscript, descriptors, PSBT, Taproot/Tapscript, and Bitcoin Core regtest validation. |
+| [Zcash Shielded](zcash-shielded.md) | Research | Docs-first privacy UTXO/ZK payment candidate through transparent Zcash flows, Sapling/Orchard shielded notes, nullifiers, anchors, value-balance constraints, and zcashd/library validation. |
 | [Bitcoin Cash CashScript](bitcoin-cash-cashscript.md) | Research | Docs-first UTXO script/covenant sourcegen candidate through CashScript and BCH transaction-builder validation. |
 | Psy DPN | Experimental | Narrow ZK circuit sourcegen target through generated `.psy`, Dargo smokes, and artifact metadata validation. |
 | [Kaspa Toccata](kaspa-toccata.md) | Research | Docs-first UTXO covenant/based-app target candidate; not yet in the code registry. |
@@ -67,6 +69,8 @@ target registry and portable IR integration.
 - [Tezos Michelson/LIGO target](tezos-michelson-ligo.md)
 - [Starknet Cairo target](starknet-cairo.md)
 - [TON TVM target](ton-tvm.md)
+- [Bitcoin Script/Miniscript target](bitcoin-script-miniscript.md)
+- [Zcash Shielded target](zcash-shielded.md)
 - [Bitcoin Cash CashScript target](bitcoin-cash-cashscript.md)
 - [Psy DPN ZK target](psy-dpn.md)
 - [Kaspa Toccata target](kaspa-toccata.md)

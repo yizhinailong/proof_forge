@@ -43,6 +43,8 @@
 | [Tezos Michelson/LIGO](targets/tezos-michelson-ligo.zh.md) | Research | 文档优先的 Michelson sourcegen 候选，通过 LIGO、typed storage、entrypoints、views/events、operation lists 和 sandbox/test validation。 |
 | [Starknet Cairo](targets/starknet-cairo.zh.md) | Research | 文档优先的 Cairo/Sierra/CASM sourcegen 候选，包含 Scarb、ABI/class hash metadata、Starknet storage/events 和 Starknet Foundry/devnet validation。 |
 | [TON TVM](targets/ton-tvm.zh.md) | Research | 文档优先的 TVM/Tolk sourcegen 候选，包含 cells、messages、get methods、actions 和 TVM gas。 |
+| [Bitcoin Script/Miniscript](targets/bitcoin-script-miniscript.zh.md) | Research | 文档优先的 Bitcoin base-layer spending-policy 候选，通过 Script、Miniscript、descriptors、PSBT、Taproot/Tapscript 和 Bitcoin Core regtest validation。 |
+| [Zcash Shielded](targets/zcash-shielded.zh.md) | Research | 文档优先的 privacy UTXO/ZK payment 候选，包含 transparent Zcash flows、Sapling/Orchard shielded notes、nullifiers、anchors、value-balance constraints 和 zcashd/library validation。 |
 | [Bitcoin Cash CashScript](targets/bitcoin-cash-cashscript.zh.md) | Research | 文档优先的 UTXO script/covenant sourcegen 候选，通过 CashScript 与 BCH transaction-builder 验证。 |
 | Psy DPN | Experimental | 通过生成的 `.psy`、Dargo 冒烟测试和制品元数据校验实现的窄范围 ZK 电路源代码生成目标。 |
 | [Kaspa Toccata](targets/kaspa-toccata.zh.md) | Research | 文档优先的 UTXO covenant / based-app 目标候选；尚未进入代码 registry。 |
@@ -60,6 +62,8 @@
 - [Tezos Michelson/LIGO 目标](targets/tezos-michelson-ligo.zh.md)
 - [Starknet Cairo 目标](targets/starknet-cairo.zh.md)
 - [TON TVM 目标](targets/ton-tvm.zh.md)
+- [Bitcoin Script/Miniscript 目标](targets/bitcoin-script-miniscript.zh.md)
+- [Zcash Shielded 目标](targets/zcash-shielded.zh.md)
 - [Bitcoin Cash CashScript 目标](targets/bitcoin-cash-cashscript.zh.md)
 - [Psy DPN ZK 目标](psy-dpn.md)
 - [Kaspa Toccata 目标](targets/kaspa-toccata.zh.md)

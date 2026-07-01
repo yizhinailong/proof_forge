@@ -443,6 +443,62 @@
 - 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
 - 文档明确区分 Starknet 与 EVM、Wasm-host、Move、Solana、TVM、AVM、UTXO 和 `psy-dpn` 风格 ZK circuit targets。
 
+## 工作流 20: Bitcoin Script/Miniscript Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Bitcoin base-layer spending policies，同时避免把 Bitcoin Script 误建模为 general smart-contract runtime。
+
+任务：
+
+- 已完成：为候选 id `bitcoin-script-miniscript` 添加文档优先的目标说明。
+- 将 Bitcoin 归类为受限 UTXO spending-policy target，通过 Script、Miniscript、descriptors、PSBT 和 Bitcoin Core validation。
+- 审查 Bitcoin Script、Miniscript、descriptors、SegWit、Taproot、Tapscript、witness stacks、sighash modes、hash locks、threshold multisig、PSBT flows、standardness、weight/fee constraints 和 Bitcoin Core regtest validation 的候选能力。
+- 定义一个极小 spending-policy scenario，例如 “A can spend immediately, or B can spend after a relative timelock”。
+- 定义 policy、descriptor、output script、witness requirements、PSBT/raw transaction scenario、weight/fee、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：Bitcoin Core regtest、descriptor import 或 address derivation、PSBT signing/finalization，以及 `testmempoolaccept` 或等价 spend validation。
+
+验收标准：
+
+- `docs/targets/bitcoin-script-miniscript.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 Bitcoin Script/Miniscript 与 EVM、Wasm-host、Move、Solana、TVM、AVM、Cardano eUTXO、BCH/CashScript、Kaspa/Toccata 和 generic smart-contract targets。
+
+## 工作流 21: Zcash Shielded Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Zcash shielded payments，同时避免把
+Zcash 当成 plain Bitcoin Script 或 generic ZK smart-contract chain。
+
+任务：
+
+- 已完成：为候选 id `zcash-shielded` 添加文档优先的目标说明。
+- 将 Zcash 归类为 privacy UTXO/ZK payment candidate，包含 transparent
+  Zcash flows 和 Sapling/Orchard shielded pools。
+- 审查 shielded privacy、transparent pool crossings、Sapling、Orchard、
+  shielded notes、note commitments、nullifiers、commitment tree anchors、
+  Zcash protocol proofs、private witnesses、value-balance constraints、
+  viewing keys、unified addresses、privacy policy 和 zcashd/library validation
+  的候选能力。
+- 定义一个极小 shielded payment scenario，例如 “spend one Orchard note,
+  create one Orchard note, reveal one nullifier, preserve value balance, and
+  pay a transparent fee”。
+- 定义 JDL-Z11-like 脚本如何表达 `shield`、`spendNote`、`createNote`、
+  `revealNullifier`、`selectAnchor` 和 `privacyPolicy`，同时拒绝 global
+  mutable shielded storage、method dispatch 和 arbitrary proof verification。
+- 定义 transparent inputs/outputs、shielded pool、note input/output schema、
+  nullifiers、anchors、value balance、witness/proving requirements、
+  viewing-key disclosure、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：zcashd RPC 或兼容的 Rust wallet/protocol library；
+  如果本地 proving 对 CI 太重，则明确记录 fallback blocker。
+
+验收标准：
+
+- `docs/targets/zcash-shielded.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 Zcash 与 Bitcoin Script/Miniscript、BCH/CashScript、
+  Kaspa/Toccata inline ZK、`psy-dpn` circuit sourcegen 和 generic smart
+  contracts。
+
 ## 建议顺序
 
 1. 目标注册表（工作流 1）。
@@ -461,6 +517,8 @@
 14. 在任何 registry 变更前进行 Tezos Michelson/LIGO research target review（工作流 18）。
 15. 在任何 registry 变更前进行 Starknet Cairo research target review（工作流 19）。
 16. 在任何 registry 变更前进行 TON TVM research target review（工作流 14）。
-17. 在任何 registry 变更前进行 Bitcoin Cash CashScript research target review（工作流 15）。
-18. CI 目标矩阵（工作流 9）。
-19. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。
+17. 在任何 registry 变更前进行 Bitcoin Script/Miniscript research target review（工作流 20）。
+18. 在任何 registry 变更前进行 Zcash Shielded research target review（工作流 21）。
+19. 在任何 registry 变更前进行 Bitcoin Cash CashScript research target review（工作流 15）。
+20. CI 目标矩阵（工作流 9）。
+21. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。

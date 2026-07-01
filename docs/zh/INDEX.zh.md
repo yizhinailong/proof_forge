@@ -69,6 +69,8 @@ flowchart TB
   - [Tezos Michelson/LIGO 目标](targets/tezos-michelson-ligo.zh.md)
   - [Starknet Cairo 目标](targets/starknet-cairo.zh.md)
   - [TON TVM 目标](targets/ton-tvm.zh.md)
+  - [Bitcoin Script/Miniscript 目标](targets/bitcoin-script-miniscript.zh.md)
+  - [Zcash Shielded 目标](targets/zcash-shielded.zh.md)
   - [Bitcoin Cash CashScript 目标](targets/bitcoin-cash-cashscript.zh.md)
   - [Psy DPN ZK 目标](targets/psy-dpn.md)
   - [Kaspa Toccata 目标](targets/kaspa-toccata.zh.md)
@@ -87,6 +89,8 @@ flowchart TB
 - [Tezos Michelson/LIGO 目标说明](zh/targets/tezos-michelson-ligo.zh.md)
 - [Starknet Cairo 目标说明](zh/targets/starknet-cairo.zh.md)
 - [TON TVM 目标说明](zh/targets/ton-tvm.zh.md)
+- [Bitcoin Script/Miniscript 目标说明](zh/targets/bitcoin-script-miniscript.zh.md)
+- [Zcash Shielded 目标说明](zh/targets/zcash-shielded.zh.md)
 - [Bitcoin Cash CashScript 目标说明](zh/targets/bitcoin-cash-cashscript.zh.md)
 
 ## 当前实现基线

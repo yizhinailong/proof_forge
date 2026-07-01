@@ -201,6 +201,63 @@ TON 与通用合约能力有部分重叠，但 TVM cells、messages 和 actions 
 | `gas.tvm` | TVM gas 和 fee model 显式存在 | 不是通用 EVM gas 或 host fee metering |
 | `asset.jetton` | contract 集成 TON jetton/token standards | 原生 token standard 不同于 `value.native` |
 
+### Bitcoin Script/Miniscript
+
+参见 [Bitcoin Script/Miniscript 目标](targets/bitcoin-script-miniscript.zh.md)。
+
+Bitcoin 与 UTXO script targets 有重叠，但 base-layer Script 更适合建模为 spending policy，而不是 general contract execution。Miniscript、descriptors、Taproot/Tapscript、PSBT flows、standardness 和 weight/fee checks 在添加 target profile 前需要显式表达。
+
+| 候选 id | 可移植含义 | 为什么需要单独表达 |
+|---|---|---|
+| `script.bitcoin` | target 发射 Bitcoin Script 或 script fragments | Bitcoin Script 有独立的 consensus 和 standardness rules |
+| `script.miniscript` | target 发射可分析的 Miniscript policy | 对 spending policies 来说，它比 raw Script 更适合作为第一制品 |
+| `descriptor.output` | target 发射 Bitcoin Core output descriptors | descriptors 驱动 wallet/address/script workflows |
+| `script.segwit` | target 发射 P2WPKH/P2WSH 等 SegWit v0 script paths | SegWit witness semantics 不同于 legacy script paths |
+| `script.taproot` | target 发射 Taproot key-path 或 script-path outputs | Taproot 改变 address、commitment 和 spend semantics |
+| `script.tapscript` | target 发射或验证 Tapscript semantics | Tapscript 改变 opcode 和 signature behavior |
+| `witness.stack` | artifact 声明 required witness stack items | unlocking data 是 spend validation 的一部分 |
+| `sighash.mode` | signature semantics 依赖显式 sighash flags | sighash choice 影响 signature commits to 的内容 |
+| `hashlock.preimage` | spending policy 依赖揭示 hash preimages | 常见 Bitcoin contract primitive |
+| `multisig.threshold` | spending policy 使用 threshold signatures 或 multisig structure | 不等同于 account-level authorization |
+| `psbt.flow` | validation 使用 PSBT creation、signing 和 finalization | 实际 Bitcoin workflows 依赖 transaction construction |
+| `policy.standardness` | artifact 检查 relay/mining standardness policy | consensus-valid scripts 可能仍然 non-standard |
+| `fee.weight` | artifact 记录 transaction weight、vbytes、fee 和 dust constraints | fee 和 relay viability 是实际正确性的一部分 |
+| `test.bitcoin_core` | validation 使用 Bitcoin Core regtest 或 RPC checks | target validation 依赖 Bitcoin Core behavior |
+
+Bitcoin 应在语义匹配时复用已有 UTXO candidate ids，包括 `storage.utxo`、`script.p2sh`、`script.unlocker`、`timelock.locktime`、`signature.checksig` 和 `tx.builder`。
+
+### Zcash Shielded
+
+参见 [Zcash Shielded 目标](targets/zcash-shielded.zh.md)。
+
+Zcash 与 Bitcoin-derived UTXO flows 有重叠，但它的 shielded pools 不是普通
+Bitcoin Script，也不是 generic ZK circuit target。Sapling/Orchard notes、
+nullifiers、commitment tree anchors、value-balance constraints、viewing-key
+disclosure 和 protocol-defined proofs 在添加 target profile 前需要显式表达。
+
+| 候选 id | 可移植含义 | 为什么需要单独表达 |
+|---|---|---|
+| `privacy.shielded` | target 使用 shielded value pool | privacy 是 transaction construction property，不只是 proof flag |
+| `privacy.transparent` | target 同时处理 transparent Zcash inputs 或 outputs | transparent 和 shielded pools 会泄漏不同信息 |
+| `pool.sapling` | target 使用 Sapling shielded semantics | Sapling 有独立 notes、keys 和 proof semantics |
+| `pool.orchard` | target 使用 Orchard shielded semantics | Orchard 有 action bundles 和 Halo 2 proof semantics |
+| `note.shielded` | state/value unit 是 shielded note | 不是 EVM storage、account state 或普通 UTXO script data |
+| `note.commitment` | artifact 记录 note commitment semantics | tree membership 和 output construction 需要它 |
+| `nullifier.reveal` | spend 公开 nullifier 作为 double-spend guard | public nullifiers 是 shielded spend validity 的核心 |
+| `anchor.commitment_tree` | spend 针对 commitment tree anchor 证明 membership | membership anchor 是 public proof statement 的一部分 |
+| `zk.zcash_proof` | transaction 携带 Zcash protocol proof | circuit 由协议定义，不是 arbitrary application code |
+| `zk.witness` | build 需要用于 proving 的 private witness data | witness data 必须留在链下，且边界可审计 |
+| `value.balance` | artifact 记录 shielded value-balance constraints | shielded pools 与 transparent turnstiles 间的守恒是目标专属语义 |
+| `key.viewing` | validation/disclosure 可以使用 viewing keys | 链下可观测性不是 contract state |
+| `address.unified` | target 处理 unified addresses 和 receiver selection | address semantics 影响 pool choice 和 recipient leakage |
+| `privacy.policy` | artifact 记录允许的信息泄漏 | zcashd 在 transaction construction 中暴露 privacy-policy 选择 |
+| `test.zcashd` | validation 使用 zcashd RPC 或兼容本地库 | target validation 依赖 Zcash tooling，不只是 Bitcoin Core |
+
+Zcash 在 transparent flows 中应在语义匹配时复用已有 UTXO candidate ids，包括
+`storage.utxo`、`tx.builder`、`signature.checksig` 和 `fee.weight`。现有
+`zk.circuit` capability 不是普通 Zcash shielded transfer 的第一抽象；它只适合
+未来在 Zcash 共识证明系统之外做辅助 proof-program work。
+
 ### Bitcoin Cash CashScript
 
 参见 [Bitcoin Cash CashScript 目标](targets/bitcoin-cash-cashscript.zh.md)。

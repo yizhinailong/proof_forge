@@ -218,6 +218,71 @@ actions need explicit representation before a target profile is added.
 | `gas.tvm` | TVM gas and fee model is explicit | Not generic EVM gas or host fee metering |
 | `asset.jetton` | Contract integrates TON jetton/token standards | Native token standards differ from `value.native` |
 
+### Bitcoin Script/Miniscript
+
+See [Bitcoin Script/Miniscript target](targets/bitcoin-script-miniscript.md).
+
+Bitcoin overlaps with UTXO script targets, but base-layer Script is best modeled
+as spending policy rather than general contract execution. Miniscript,
+descriptors, Taproot/Tapscript, PSBT flows, standardness, and weight/fee checks
+need explicit representation before a target profile is added.
+
+| Candidate id | Portable meaning | Why it is separate |
+|---|---|---|
+| `script.bitcoin` | Target emits Bitcoin Script or script fragments | Bitcoin Script has distinct consensus and standardness rules |
+| `script.miniscript` | Target emits analyzable Miniscript policy | Safer first artifact than raw Script for spending policies |
+| `descriptor.output` | Target emits Bitcoin Core output descriptors | Descriptors drive wallet/address/script workflows |
+| `script.segwit` | Target emits SegWit v0 script paths such as P2WPKH/P2WSH | SegWit witness semantics differ from legacy script paths |
+| `script.taproot` | Target emits Taproot key-path or script-path outputs | Taproot changes address, commitment, and spend semantics |
+| `script.tapscript` | Target emits or validates Tapscript semantics | Tapscript changes opcode and signature behavior |
+| `witness.stack` | Artifact declares required witness stack items | Unlocking data is part of spend validation |
+| `sighash.mode` | Signature semantics depend on explicit sighash flags | Sighash choice affects what the signature commits to |
+| `hashlock.preimage` | Spending policy depends on revealing hash preimages | Common Bitcoin contract primitive |
+| `multisig.threshold` | Spending policy uses threshold signatures or multisig structure | Not equivalent to account-level authorization |
+| `psbt.flow` | Validation uses PSBT creation, signing, and finalization | Practical Bitcoin workflows are transaction-construction heavy |
+| `policy.standardness` | Artifact checks relay/mining standardness policy | Consensus-valid scripts may still be non-standard |
+| `fee.weight` | Artifact records transaction weight, vbytes, fee, and dust constraints | Fee and relay viability are part of practical correctness |
+| `test.bitcoin_core` | Validation uses Bitcoin Core regtest or RPC checks | Target validation depends on Bitcoin Core behavior |
+
+Bitcoin should reuse existing UTXO candidate ids where the semantics match,
+including `storage.utxo`, `script.p2sh`, `script.unlocker`,
+`timelock.locktime`, `signature.checksig`, and `tx.builder`.
+
+### Zcash Shielded
+
+See [Zcash Shielded target](targets/zcash-shielded.md).
+
+Zcash overlaps with Bitcoin-derived UTXO flows, but its shielded pools are not
+ordinary Bitcoin Script or a generic ZK circuit target. Sapling/Orchard notes,
+nullifiers, commitment tree anchors, value-balance constraints, viewing-key
+disclosure, and protocol-defined proofs need explicit representation before a
+target profile is added.
+
+| Candidate id | Portable meaning | Why it is separate |
+|---|---|---|
+| `privacy.shielded` | Target uses a shielded value pool | Privacy is a transaction construction property, not only a proof flag |
+| `privacy.transparent` | Target also handles transparent Zcash inputs or outputs | Transparent and shielded pools leak different information |
+| `pool.sapling` | Target uses Sapling shielded semantics | Sapling has distinct notes, keys, and proof semantics |
+| `pool.orchard` | Target uses Orchard shielded semantics | Orchard has action bundles and Halo 2 proof semantics |
+| `note.shielded` | State/value unit is a shielded note | Not EVM storage, account state, or plain UTXO script data |
+| `note.commitment` | Artifact records note commitment semantics | Needed for tree membership and output construction |
+| `nullifier.reveal` | Spend reveals a nullifier as the double-spend guard | Public nullifiers are core to shielded spend validity |
+| `anchor.commitment_tree` | Spend proves membership against a commitment tree anchor | Membership anchor is part of the public proof statement |
+| `zk.zcash_proof` | Transaction carries a Zcash protocol proof | The circuit is protocol-defined, not arbitrary application code |
+| `zk.witness` | Build requires private witness data for proving | Witness data must stay off-chain and auditable as a boundary |
+| `value.balance` | Artifact records shielded value-balance constraints | Conservation across shielded pools and transparent turnstiles is target-specific |
+| `key.viewing` | Validation/disclosure can use viewing keys | Off-chain observability is not contract state |
+| `address.unified` | Target handles unified addresses and receiver selection | Address semantics affect pool choice and recipient leakage |
+| `privacy.policy` | Artifact records allowed information leakage | zcashd exposes privacy-policy choices during transaction construction |
+| `test.zcashd` | Validation uses zcashd RPC or a compatible local library | Target validation depends on Zcash tooling, not Bitcoin Core alone |
+
+Zcash should reuse existing UTXO candidate ids for transparent flows where the
+semantics match, including `storage.utxo`, `tx.builder`,
+`signature.checksig`, and `fee.weight`. The existing `zk.circuit` capability is
+not the right first abstraction for ordinary Zcash shielded transfers; it only
+fits future auxiliary proof-program work outside the Zcash consensus proof
+system.
+
 ### Bitcoin Cash CashScript
 
 See [Bitcoin Cash CashScript target](targets/bitcoin-cash-cashscript.md).

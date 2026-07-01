@@ -30,6 +30,8 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-018 | 2026-07-01 | Classify **`cardano-plutus-aiken`** as a docs-first eUTXO validator sourcegen Research candidate | Cardano contracts validate eUTXO spends through datum, redeemer, script context, Plutus/UPLC artifacts, execution units, Plutus blueprints, and off-chain transaction-building semantics; registry changes wait until an Aiken sourcegen spike path is chosen |
 | D-019 | 2026-07-01 | Classify **`tezos-michelson-ligo`** as a docs-first Michelson/LIGO sourcegen Research candidate | Tezos contracts target Michelson with typed storage, parameters, entrypoints, views/events, operation lists, `big_map`, tickets, Sapling, gas, and storage-burn semantics; registry changes wait until a LIGO sourcegen spike path is chosen |
 | D-020 | 2026-07-01 | Classify **`starknet-cairo`** as a docs-first Cairo/Sierra/CASM sourcegen Research candidate | Starknet contracts compile through Cairo into Sierra/CASM with ABI, class hashes, declaration/deployment metadata, Starknet storage/events, account abstraction, syscalls, and L1/L2 messaging semantics; registry changes wait until a Cairo package spike path is chosen |
+| D-021 | 2026-07-01 | Classify **`bitcoin-script-miniscript`** as a docs-first Bitcoin base-layer spending-policy Research candidate | Bitcoin Script is intentionally limited to UTXO locking/unlocking policy with signatures, hash locks, timelocks, descriptors, Miniscript, Taproot/Tapscript, PSBT flows, and standardness/fee constraints; registry changes wait until a Miniscript/descriptor spike path is chosen |
+| D-022 | 2026-07-01 | Classify **`zcash-shielded`** as a docs-first privacy UTXO/ZK payment Research candidate | Zcash is Bitcoin-derived but shielded support depends on Sapling/Orchard notes, nullifiers, anchors, value-balance constraints, viewing/disclosure policy, and protocol-defined ZK proofs; registry changes wait until shielded-note capabilities and a proving/validation boundary are reviewed |
 
 ## Target Family Classification
 
@@ -44,6 +46,8 @@ See also: [Review checklist (English)](review-checklist.md),
 | Michelson sourcegen research | `tezos-michelson-ligo` (candidate, docs only) | Portable IR → LIGO package → Michelson contract + parameter/storage schema + operation/view/event manifests |
 | Cairo sourcegen research | `starknet-cairo` (candidate, docs only) | Portable IR → Cairo/Scarb package → Sierra/CASM artifacts + ABI/class-hash/deployment metadata |
 | TVM sourcegen research | `ton-tvm` (candidate, docs only) | Portable IR → Tolk or lower-level TON source → TVM/BOC artifact + TL-B/message manifests |
+| Bitcoin script policy research | `bitcoin-script-miniscript` (candidate, docs only) | Portable IR → policy/Miniscript/descriptor package → Script/Tapscript output + PSBT/regtest validation metadata |
+| Privacy UTXO ZK payment research | `zcash-shielded` (candidate, docs only) | Portable IR → shielded transaction/proving manifest → Zcash transaction with Sapling/Orchard proof bundle + zcashd/library validation metadata |
 | UTXO script sourcegen research | `bch-cashscript` (candidate, docs only) | Portable IR → CashScript `.cash` source → cashc artifact JSON + BCH transaction-builder validation |
 | ZK circuit sourcegen | `psy-dpn` | Portable IR → `.psy` package → Dargo → DPN circuit JSON |
 | UTXO covenant research | `kaspa-toccata` (candidate, docs only) | Portable IR → covenant/Silverscript package + transaction v1 manifest + optional proof settlement metadata |
@@ -64,6 +68,8 @@ Research lane: Cardano Plutus/Aiken eUTXO target note before registry changes
 Research lane: Tezos Michelson/LIGO target note before registry changes
 Research lane: Starknet Cairo target note before registry changes
 Research lane: TON TVM/Tolk target note before registry changes
+Research lane: Bitcoin Script/Miniscript spending-policy target note before registry changes
+Research lane: Zcash shielded privacy payment target note before registry changes
 Research lane: Bitcoin Cash CashScript target note before registry changes
 Phase 4: Cross-target shared scenario hardening
 Phase 5: Cloud platform
@@ -88,6 +94,8 @@ Detailed tasks: [Implementation backlog](implementation-backlog.md).
 | Tezos Michelson/LIGO target candidate | [targets/tezos-michelson-ligo.md](targets/tezos-michelson-ligo.md) |
 | Starknet Cairo target candidate | [targets/starknet-cairo.md](targets/starknet-cairo.md) |
 | TON TVM target candidate | [targets/ton-tvm.md](targets/ton-tvm.md) |
+| Bitcoin Script/Miniscript target candidate | [targets/bitcoin-script-miniscript.md](targets/bitcoin-script-miniscript.md) |
+| Zcash Shielded target candidate | [targets/zcash-shielded.md](targets/zcash-shielded.md) |
 | Bitcoin Cash CashScript target candidate | [targets/bitcoin-cash-cashscript.md](targets/bitcoin-cash-cashscript.md) |
 | Psy/DPN ZK target | [targets/psy-dpn.md](targets/psy-dpn.md) |
 | Kaspa/Toccata target candidate | [targets/kaspa-toccata.md](targets/kaspa-toccata.md) |

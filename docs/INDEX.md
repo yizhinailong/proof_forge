@@ -72,6 +72,8 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
   - [Tezos Michelson/LIGO target](targets/tezos-michelson-ligo.md)
   - [Starknet Cairo target](targets/starknet-cairo.md)
   - [TON TVM target](targets/ton-tvm.md)
+  - [Bitcoin Script/Miniscript target](targets/bitcoin-script-miniscript.md)
+  - [Zcash Shielded target](targets/zcash-shielded.md)
   - [Bitcoin Cash CashScript target](targets/bitcoin-cash-cashscript.md)
   - [Psy DPN ZK target](targets/psy-dpn.md)
   - [Kaspa Toccata target](targets/kaspa-toccata.md)
