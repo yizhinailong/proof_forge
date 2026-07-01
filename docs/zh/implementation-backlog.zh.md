@@ -98,6 +98,7 @@
 - 已完成：加入 EVM IR `U64` 固定 storage array lowering，将其降为连续 storage slot 并带运行时 bounds check，并用 `EvmStorageArrayProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验，以及不支持 array element 类型的显式诊断。
 - 已完成：加入 EVM IR 单段 `index` storage path read/write/compound assignment，限定在 `U64` 固定 storage array 上，复用带 bounds check 的 array slot helper，并扩展 `EvmStorageArrayProbe` 验证。
 - 已完成：加入 EVM IR 不可变 local fixed-array value lowering，覆盖 `U64`、`U32`、`Bool` 和 `Hash` 元素、静态 literal index、直接 fixed-array literal indexing，并用 `EvmArrayValueProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证、metadata 能力校验，以及 mutable fixed-array local、动态 local index、静态越界 index 的显式诊断。
+- 已完成：加入 EVM IR 扁平不可变 local struct value lowering，覆盖 `U64`、`U32`、`Bool` 和 `Hash` 字段、直接 struct literal field access，并用 `EvmStructValueProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证、metadata 能力校验，以及 struct storage、mutable local struct、嵌套字段和 ABI-facing struct 的显式诊断。
 - 为简单示例添加黄金 Yul 输出。
 - 已完成：为 SDK 和 portable IR EVM bytecode build 在当前 `solc --strict-assembly` 流程周围添加 metadata 发射与校验。
 - 保留 Foundry 冒烟测试作为成熟的 EVM 冒烟测试。

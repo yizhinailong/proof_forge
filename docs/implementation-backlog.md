@@ -158,6 +158,11 @@ Tasks:
   bytecode, Foundry runtime validation, metadata capability validation, and
   explicit diagnostics for mutable fixed-array locals, dynamic local indexes,
   and static out-of-bounds indexes.
+- Done: add EVM IR flat immutable local struct value lowering for `U64`,
+  `U32`, `Bool`, and `Hash` fields, direct struct literal field access,
+  `EvmStructValueProbe` golden Yul, solc bytecode, Foundry runtime validation,
+  metadata capability validation, and explicit diagnostics for struct storage,
+  mutable local structs, nested fields, and ABI-facing structs.
 - Add golden Yul outputs for simple examples.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.

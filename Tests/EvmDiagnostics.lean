@@ -172,9 +172,68 @@ def pointStruct : StructDecl := {
   fields := #[{ id := "x", type := .u64 }]
 }
 
-def structModule : Module := {
-  name := "BadStruct"
+def structStorageModule : Module := {
+  name := "BadStructStorage"
   structs := #[pointStruct]
+  state := #[{
+    id := "current"
+    kind := .scalar
+    type := .structType "Point"
+  }]
+  entrypoints := #[selectedEntrypoint "bad"]
+}
+
+def mutableStructModule : Module := {
+  name := "BadMutableStruct"
+  structs := #[pointStruct]
+  state := #[markerState]
+  entrypoints := #[selectedEntrypoint "bad" #[
+    .letMutBind "p" (.structType "Point") (.structLit "Point" #[("x", .literal (.u64 1))])
+  ]]
+}
+
+def wrapperStruct : StructDecl := {
+  name := "Wrapper"
+  fields := #[{ id := "point", type := .structType "Point" }]
+}
+
+def nestedStructModule : Module := {
+  name := "BadNestedStruct"
+  structs := #[pointStruct, wrapperStruct]
+  state := #[markerState]
+  entrypoints := #[selectedEntrypoint "bad"]
+}
+
+def duplicateStructModule : Module := {
+  name := "BadDuplicateStruct"
+  structs := #[pointStruct, pointStruct]
+  state := #[markerState]
+  entrypoints := #[selectedEntrypoint "bad"]
+}
+
+def emptyStruct : StructDecl := {
+  name := "Empty"
+  fields := #[]
+}
+
+def emptyStructModule : Module := {
+  name := "BadEmptyStruct"
+  structs := #[emptyStruct]
+  state := #[markerState]
+  entrypoints := #[selectedEntrypoint "bad"]
+}
+
+def duplicateFieldStruct : StructDecl := {
+  name := "DuplicateField"
+  fields := #[
+    { id := "x", type := .u64 },
+    { id := "x", type := .u32 }
+  ]
+}
+
+def duplicateStructFieldModule : Module := {
+  name := "BadDuplicateStructField"
+  structs := #[duplicateFieldStruct]
   state := #[markerState]
   entrypoints := #[selectedEntrypoint "bad"]
 }
@@ -389,9 +448,34 @@ def cases : Array (String × Module × String) := #[
     "fixed array index 2 is out of bounds for length 2"
   ),
   (
-    "struct capability unsupported",
-    structModule,
-    "target `evm` does not support capability `data.struct`: capability is not present in the target profile"
+    "struct storage unsupported",
+    structStorageModule,
+    "state `current` has unsupported EVM IR v0 type `Point`"
+  ),
+  (
+    "mutable struct local unsupported",
+    mutableStructModule,
+    "mutable let binding `p` has unsupported EVM IR v0 type `Point`"
+  ),
+  (
+    "nested struct field unsupported",
+    nestedStructModule,
+    "field `point` in struct `Wrapper` has unsupported EVM IR v0 local struct field type `Point`; local structs support U32, U64, Bool, or Hash fields"
+  ),
+  (
+    "duplicate struct declaration unsupported",
+    duplicateStructModule,
+    "duplicate struct `Point`"
+  ),
+  (
+    "empty struct declaration unsupported",
+    emptyStructModule,
+    "struct `Empty` must declare at least one field"
+  ),
+  (
+    "duplicate struct field unsupported",
+    duplicateStructFieldModule,
+    "duplicate field `x` in struct `DuplicateField`"
   ),
   (
     "conditional branch return unsupported",
@@ -451,7 +535,7 @@ def cases : Array (String × Module × String) := #[
   (
     "storage path field unsupported",
     storagePathFieldModule,
-    "target `evm` does not support capability `data.struct`: capability is not present in the target profile"
+    "EVM IR v0 supports only single-segment mapKey storage paths"
   ),
   (
     "storage path index unsupported",

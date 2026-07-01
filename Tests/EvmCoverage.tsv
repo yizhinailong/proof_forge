@@ -5,7 +5,7 @@ ValueType	u32	lowered	U32 values and ABI parameters lower as EVM words with disp
 ValueType	u64	lowered	U64 values and ABI parameters lower as EVM words; Counter IR covers scalar U64 storage and return values.
 ValueType	hash	validated	EvmHashProbe validates Hash as a one-word EVM ABI/storage value, including Hash params, Hash returns, Hash locals, and scalar Hash storage.
 ValueType	fixedArray	validated	EvmStorageArrayProbe validates U64 fixed storage arrays; EvmArrayValueProbe validates immutable local fixed-array values over U64, U32, Bool, and Hash elements with static indexes; diagnostics reject mutable locals, dynamic local indexes, out-of-bounds literals, aggregate ABI arrays, and unsupported element shapes.
-ValueType	structType	unsupported	EVM target profile rejects data.struct until struct ABI, memory, and storage layout lowering are implemented.
+ValueType	structType	validated	EvmStructValueProbe validates flat immutable local struct values over U64, U32, Bool, and Hash fields; diagnostics reject struct storage, mutable local structs, nested fields, and ABI-facing structs until layout/ABI lowering is implemented.
 StateKind	scalar	lowered	EVM IR lowers scalar U32/U64/Hash state to direct slot-based sload/sstore and rejects other scalar types.
 StateKind	map	validated	EvmMapProbe validates Map<U64, U64, N> storage via Solidity-style keccak256(key, slot) mapping slots; diagnostics reject unsupported map key/value shapes.
 StateKind	array	validated	EvmStorageArrayProbe validates U64 fixed storage arrays as contiguous EVM storage slots with runtime bounds checks; diagnostics reject unsupported array element types.
@@ -30,8 +30,8 @@ Expr	literal	lowered	lowerExpr delegates U32/U64/Bool literals to Yul numeric ex
 Expr	local	lowered	lowerExpr emits local identifiers directly.
 Expr	arrayLit	validated	EvmArrayValueProbe validates fixed-array literals as immutable local fixed-array initializers and direct literal-index sources for U64, U32, Bool, and Hash values; standalone array values and ABI arrays remain explicit diagnostics.
 Expr	arrayGet	validated	EvmArrayValueProbe validates local fixed-array static index reads and direct fixed-array literal index reads; diagnostics reject dynamic local fixed-array indexes and static out-of-bounds indexes.
-Expr	structLit	unsupported	EVM target profile rejects data.struct and lowerExpr has an explicit struct literal diagnostic.
-Expr	field	unsupported	EVM target profile rejects data.struct and lowerExpr has an explicit struct field diagnostic.
+Expr	structLit	validated	EvmStructValueProbe validates struct literals as immutable local struct initializers and direct field-access sources; standalone struct values remain explicit diagnostics.
+Expr	field	validated	EvmStructValueProbe validates field access over immutable local struct values and direct struct literals; diagnostics reject non-struct bases and unsupported field shapes.
 Expr	add	lowered	lowerExpr emits Yul add.
 Expr	sub	lowered	lowerExpr emits Yul sub.
 Expr	mul	lowered	lowerExpr emits Yul mul.
@@ -68,19 +68,19 @@ Effect	storageMapInsert	validated	lowerEffectExpr emits __proof_forge_map_set_re
 Effect	storageMapSet	validated	lowerEffectExpr emits __proof_forge_map_set_return and statement position emits __proof_forge_map_write; EvmMapProbe validates previous-value returns, Unit set dispatch, and writes.
 Effect	storageArrayRead	validated	EvmStorageArrayProbe validates storage.array.read lowering to guarded sload(add(baseSlot,index)) over U64 storage arrays, including out-of-bounds reverts.
 Effect	storageArrayWrite	validated	EvmStorageArrayProbe validates storage.array.write lowering to guarded sstore(add(baseSlot,index),value) over U64 storage arrays and raw slot updates.
-Effect	storageArrayStructFieldRead	unsupported	EVM target profile rejects data.struct and lowerEffectExpr has an explicit struct-array read diagnostic.
-Effect	storageArrayStructFieldWrite	unsupported	EVM target profile rejects data.struct and lowerEffectStmt has an explicit struct-array write diagnostic.
-Effect	storageStructFieldRead	unsupported	EVM target profile rejects data.struct and lowerEffectExpr has an explicit struct storage read diagnostic.
-Effect	storageStructFieldWrite	unsupported	EVM target profile rejects data.struct and lowerEffectStmt has an explicit struct storage write diagnostic.
+Effect	storageArrayStructFieldRead	unsupported	EVM IR v0 supports local struct values only; lowerEffectExpr has an explicit struct-array read diagnostic until storage struct layout is implemented.
+Effect	storageArrayStructFieldWrite	unsupported	EVM IR v0 supports local struct values only; lowerEffectStmt has an explicit struct-array write diagnostic until storage struct layout is implemented.
+Effect	storageStructFieldRead	unsupported	EVM IR v0 supports local struct values only; lowerEffectExpr has an explicit struct storage read diagnostic until storage struct layout is implemented.
+Effect	storageStructFieldWrite	unsupported	EVM IR v0 supports local struct values only; lowerEffectStmt has an explicit struct storage write diagnostic until storage struct layout is implemented.
 Effect	storagePathRead	validated	EvmMapProbe validates single-segment mapKey path reads over Map<U64, U64, N>; EvmStorageArrayProbe validates single-segment index path reads over U64 storage arrays.
 Effect	storagePathWrite	validated	EvmMapProbe validates single-segment mapKey path writes over Map<U64, U64, N>; EvmStorageArrayProbe validates single-segment index path writes over U64 storage arrays.
 Effect	storagePathAssignOp	validated	EvmMapProbe validates single-segment mapKey path compound assignment over Map<U64, U64, N> for all AssignOp variants; EvmStorageArrayProbe validates index path compound assignment over U64 storage arrays.
 Effect	contextRead	validated	lowerEffectExpr emits EVM context opcodes for expression-position context reads; diagnostics still reject statement-position context reads.
 Effect	eventEmit	validated	EventProbe validates eventEmit lowering to Yul log1 with topic0 = keccak256(event name) and 32-byte word data fields; diagnostics reject expression-position events and malformed names.
-StoragePathSegment	field	unsupported	EVM target profile rejects the data.struct capability introduced by field storage path segments until struct layout is implemented.
+StoragePathSegment	field	unsupported	EVM IR v0 supports local struct field access only; storage path field segments remain explicit diagnostics until struct storage layout is implemented.
 StoragePathSegment	index	validated	EvmStorageArrayProbe validates index as the first and only storage-path segment for EVM U64 fixed storage-array reads, writes, and compound assignment.
 StoragePathSegment	mapKey	validated	EvmMapProbe validates mapKey as the first and only storage-path segment for EVM Map<U64, U64, N> reads, writes, and compound assignment.
-Statement	letBind	lowered	lowerStatement emits immutable Yul varDecl for U32/U64/Bool/Hash let bindings and rejects unsupported types.
+Statement	letBind	lowered	lowerStatement emits immutable Yul varDecl for U32/U64/Bool/Hash let bindings, expands fixed-array and flat struct local values into internal Yul locals, and rejects unsupported types.
 Statement	letMutBind	lowered	lowerStatement emits mutable scalar Yul let bindings; AssignmentProbe covers mutable U64 and Bool locals.
 Statement	assign	lowered	lowerStatement emits Yul assignment for local targets; AssignmentProbe covers local reassignment and diagnostics reject non-local targets.
 Statement	assignOp	validated	lowerStatement emits Yul assignments for mutable local U32/U64 compound assignment; EvmAssignOpProbe validates all AssignOp variants and diagnostics reject non-local targets, immutable locals, and non-numeric operands.

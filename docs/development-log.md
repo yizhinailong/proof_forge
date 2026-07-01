@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Local Struct Values
+
+Commit: feature commit for EVM IR local struct values
+
+Summary:
+
+- Added EVM portable IR lowering for flat immutable local struct values by
+  expanding each supported field into an internal Yul local.
+- Added direct field-access lowering for local struct values and struct
+  literals over `U64`, `U32`, `Bool`, and `Hash` fields.
+- Registered partial `data.struct` support in the EVM target profile and
+  metadata capability flow.
+- Added explicit diagnostics for struct storage, mutable local structs, nested
+  struct fields, ABI-facing structs, duplicate/empty struct declarations, and
+  unsupported field shapes.
+- Added `ProofForge.IR.Examples.EvmStructValueProbe`, CLI emission modes,
+  golden Yul, Foundry smoke coverage, artifact metadata validation, and CI.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/struct-value-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+git diff --check
+```
+
+Known limitations:
+
+- This feature supports flat immutable local struct values only. Mutable local
+  structs, nested structs, storage structs, struct arrays, ABI structs, and
+  struct assignment paths remain future work.
+
+Next step:
+
+- Continue EVM aggregate coverage toward ABI aggregate values or storage
+  struct layout once the target-specific EVM ABI/storage policy is specified.
+
 ### EVM IR Local Fixed-Array Values
 
 Commit: feature commit for EVM IR local fixed-array values

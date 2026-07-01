@@ -278,6 +278,9 @@ def ensureFixedArrayIndexInBounds (context : String) (index length : Nat) : Exce
 def arrayLocalElementName (name : String) (index : Nat) : String :=
   s!"__proof_forge_array_{name}_{index}"
 
+def structLocalFieldName (name fieldName : String) : String :=
+  s!"__proof_forge_struct_{name}_{fieldName}"
+
 def assignOpDiagnosticName : AssignOp → String
   | .add => "addition"
   | .sub => "subtraction"
@@ -354,6 +357,47 @@ def mapStateTypes (module : Module) (stateId : String) : Except LowerError (Valu
   | .scalar => .error { message := s!"state `{stateId}` is scalar storage, not a map" }
   | .array _ => .error { message := s!"state `{stateId}` is array storage, not a map" }
 
+def findStruct? (module : Module) (name : String) : Option StructDecl :=
+  module.structs.find? fun decl => decl.name == name
+
+def findStructField? (decl : StructDecl) (fieldName : String) : Option StructField :=
+  decl.fields.find? fun field => field.id == fieldName
+
+def ensureStructLocalFieldType (structName fieldName : String) (type : ValueType) : Except LowerError Unit :=
+  match type with
+  | .u32 | .u64 | .bool | .hash => .ok ()
+  | .unit | .fixedArray _ _ | .structType _ =>
+      .error {
+        message := s!"field `{fieldName}` in struct `{structName}` has unsupported EVM IR v0 local struct field type `{type.name}`; local structs support U32, U64, Bool, or Hash fields"
+      }
+
+def structFieldType (module : Module) (typeName fieldName : String) : Except LowerError ValueType := do
+  let some decl := findStruct? module typeName
+    | .error { message := s!"unknown struct `{typeName}`" }
+  let some field := findStructField? decl fieldName
+    | .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
+  .ok field.type
+
+def validateStructLiteralFields
+    (module : Module)
+    (typeName : String)
+    (fields : Array (String × ProofForge.IR.Expr))
+    (infer : ProofForge.IR.Expr → Except LowerError ValueType) : Except LowerError Unit := do
+  if fields.isEmpty then
+    .error { message := s!"struct literal `{typeName}` must have at least one field" }
+  let some decl := findStruct? module typeName
+    | .error { message := s!"unknown struct `{typeName}`" }
+  if decl.fields.size != fields.size then
+    .error { message := s!"struct literal `{typeName}` expected {decl.fields.size} field(s), got {fields.size}" }
+  for field in fields do
+    let expected ← structFieldType module typeName field.fst
+    ensureStructLocalFieldType typeName field.fst expected
+    let actual ← infer field.snd
+    ensureType s!"struct literal `{typeName}` field `{field.fst}`" expected actual
+  for expectedField in decl.fields do
+    if !(fields.any fun field => field.fst == expectedField.id) then
+      .error { message := s!"struct literal `{typeName}` is missing field `{expectedField.id}`" }
+
 mutual
   partial def inferExprType (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError ValueType
     | .literal (.u32 _) => .ok .u32
@@ -378,8 +422,16 @@ mutual
             | none => pure ()
             .ok elementType
         | other => .error { message := s!"fixed array indexing target expected `Array`, got `{other.name}`" }
-    | .structLit typeName _ => .ok (.structType typeName)
-    | .field _ _ => .error { message := "struct field access is not supported by IR EVM v0" }
+    | .structLit typeName fields => do
+        validateStructLiteralFields module typeName fields (inferExprType module env)
+        .ok (.structType typeName)
+    | .field base fieldName => do
+        match ← inferExprType module env base with
+        | .structType typeName => do
+            let fieldType ← structFieldType module typeName fieldName
+            ensureStructLocalFieldType typeName fieldName fieldType
+            .ok fieldType
+        | other => .error { message := s!"field `{fieldName}` requires struct value, got `{other.name}`" }
     | .add lhs rhs => do inferBinaryNumericType "addition" module env lhs rhs
     | .sub lhs rhs => do inferBinaryNumericType "subtraction" module env lhs rhs
     | .mul lhs rhs => do inferBinaryNumericType "multiplication" module env lhs rhs
@@ -701,6 +753,22 @@ mutual
           message := "fixed array indexing in IR EVM v0 supports local fixed-array values or array literals only"
         }
 
+  partial def lowerLocalStructFieldExpr
+      (module : Module)
+      (base : ProofForge.IR.Expr)
+      (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr :=
+    match base with
+    | .local name =>
+        .ok (Lean.Compiler.Yul.Expr.id (structLocalFieldName name fieldName))
+    | .structLit _ fields => do
+        let some field := fields.find? fun field => field.fst == fieldName
+          | .error { message := s!"struct literal has no field `{fieldName}`" }
+        lowerExpr module field.snd
+    | _ =>
+        .error {
+          message := "struct field access in IR EVM v0 supports local struct values or struct literals only"
+        }
+
   partial def lowerExpr (module : Module) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
     | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.u64 value) => .ok (Lean.Compiler.Yul.Expr.num value)
@@ -713,9 +781,9 @@ mutual
     | .arrayGet array index =>
         lowerLocalFixedArrayGetExpr module array index
     | .structLit _ _ =>
-        .error { message := "struct literals are not supported by IR EVM v0" }
-    | .field _ _ =>
-        .error { message := "struct field access is not supported by IR EVM v0" }
+        .error { message := "struct literals must be consumed by a struct local binding or field access in IR EVM v0" }
+    | .field base fieldName =>
+        lowerLocalStructFieldExpr module base fieldName
     | .add lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "add" #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .sub lhs rhs => do
@@ -978,6 +1046,32 @@ def lowerFixedArrayLetBinding
         message := s!"let binding `{name}` fixed array must be initialized from an array literal in IR EVM v0"
       }
 
+def lowerStructLetBinding
+    (module : Module)
+    (name : String)
+    (typeName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let some decl := findStruct? module typeName
+    | .error { message := s!"unknown struct `{typeName}`" }
+  match value with
+  | .structLit literalTypeName fields => do
+      if literalTypeName != typeName then
+        .error { message := s!"let binding `{name}` expected struct `{typeName}`, got `{literalTypeName}`" }
+      let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+      for fieldDecl in decl.fields do
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        let some field := fields.find? fun field => field.fst == fieldDecl.id
+          | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+        statements := statements.push <|
+          Lean.Compiler.Yul.Statement.varDecl
+            #[{ name := structLocalFieldName name fieldDecl.id }]
+            (some (← lowerExpr module field.snd))
+      .ok statements
+  | _ =>
+      .error {
+        message := s!"let binding `{name}` struct must be initialized from a struct literal in IR EVM v0"
+      }
+
 partial def hasNestedReturn (statements : Array Statement) : Bool :=
   statements.any fun stmt =>
     match stmt with
@@ -994,6 +1088,8 @@ mutual
   partial def lowerStatement (module : Module) : ProofForge.IR.Statement → Except LowerError (Array Lean.Compiler.Yul.Statement)
     | .letBind name (.fixedArray elementType length) value =>
         lowerFixedArrayLetBinding module name elementType length value
+    | .letBind name (.structType typeName) value =>
+        lowerStructLetBinding module name typeName value
     | .letBind name type value => do
         ensureLocalScalarType "let binding" name type
         .ok #[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value))]
@@ -1433,6 +1529,33 @@ def moduleStoragePathAssignOps (module : Module) : Array AssignOp :=
   module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
     mergeAssignOpSets acc (storagePathAssignOpsStatements entrypoint.body)
 
+def validateDistinctStructName (seen : Array String) (name : String) : Except LowerError (Array String) :=
+  if name.isEmpty then
+    .error { message := "struct name must be non-empty for IR EVM v0" }
+  else if seen.contains name then
+    .error { message := s!"duplicate struct `{name}`" }
+  else
+    .ok (seen.push name)
+
+def validateDistinctStructFieldName (structName : String) (seen : Array String) (fieldName : String) : Except LowerError (Array String) :=
+  if fieldName.isEmpty then
+    .error { message := s!"struct `{structName}` field name must be non-empty" }
+  else if seen.contains fieldName then
+    .error { message := s!"duplicate field `{fieldName}` in struct `{structName}`" }
+  else
+    .ok (seen.push fieldName)
+
+def validateStructs (module : Module) : Except LowerError Unit := do
+  let _ ← module.structs.foldlM (init := #[]) fun seen decl =>
+    validateDistinctStructName seen decl.name
+  for decl in module.structs do
+    if decl.fields.isEmpty then
+      .error { message := s!"struct `{decl.name}` must declare at least one field" }
+    let _ ← decl.fields.foldlM (init := #[]) fun seen field =>
+      validateDistinctStructFieldName decl.name seen field.id
+    for field in decl.fields do
+      ensureStructLocalFieldType decl.name field.id field.type
+
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
     match state.kind, state.type with
@@ -1457,6 +1580,7 @@ def validateCapabilities (module : Module) : Except LowerError Unit :=
 
 def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object := do
   validateCapabilities module
+  validateStructs module
   validateState module
   let functions ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
     .ok (acc.push (← lowerEntrypoint module entrypoint))

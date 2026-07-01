@@ -32,7 +32,7 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 | `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | P | N | N | N | N | N | P |
 | `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | N | N | N | P |
 | `data.fixed_array` | Fixed-size array value type, literals, and index expressions | P | N | N | N | N | N | P |
-| `data.struct` | Struct value type, literals, and field access | N | N | N | N | N | N | P |
+| `data.struct` | Struct value type, literals, and field access | P | N | N | N | N | N | P |
 | `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y | Y |
 | `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | N | N | N | N | N | P |
 | `account.explicit` | Named account/object/resource binding | P | N | N | Y | Y | Y | P |
