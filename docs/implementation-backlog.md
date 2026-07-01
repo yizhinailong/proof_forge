@@ -158,6 +158,12 @@ Tasks:
   solc bytecode, Foundry valid/invalid typed-return validation, metadata
   entrypoint validation, EVM aggregate-typed crosscall diagnostics, and explicit
   Psy unsupported diagnostics.
+- Done: add EVM IR `crosscallInvokeValueTyped` lowering for value-bearing typed
+  scalar crosscalls, forwarding an explicit U64 call-value expression through
+  value-specific Yul helpers, with `EvmCrosscallProbe` golden Yul, solc
+  bytecode, Foundry `msg.value`/callee-balance validation, metadata entrypoint
+  validation, EVM malformed value/return diagnostics, and explicit Psy
+  unsupported diagnostics.
 - Done: add EVM IR direct scalar expression validation for `U64`/`U32`
   arithmetic, `U64` exponentiation, `U64`/`U32` bitwise operations and shifts,
   predicates, boolean operators, literals, immutable locals, supported casts,

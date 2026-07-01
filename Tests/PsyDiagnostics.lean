@@ -569,6 +569,18 @@ def typedCrosscallModule : Module := {
   }]
 }
 
+def valueTypedCrosscallModule : Module := {
+  name := "BadValueTypedCrosscall"
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .u64
+    body := #[
+      .return (.crosscallInvokeValueTyped (.literal (.u64 1)) (.literal (.u64 2)) .nativeValue #[] .u64)
+    ]
+  }]
+}
+
 def indexedEventModule : Module := {
   name := "BadIndexedEvent"
   state := #[markerState]
@@ -827,6 +839,11 @@ def cases : Array (String × Module × String) := #[
     "typed crosscall unsupported",
     typedCrosscallModule,
     "typed crosscall return `Bool` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets"
+  ),
+  (
+    "value-bearing typed crosscall unsupported",
+    valueTypedCrosscallModule,
+    "value-bearing typed crosscall return `U64` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets"
   ),
   (
     "indexed event unsupported",

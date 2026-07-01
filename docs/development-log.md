@@ -1098,12 +1098,12 @@ Result:
 - EVM artifact metadata records and validates `crosscall.invoke`.
 - Diagnostics reject malformed crosscall target, method, and argument types.
 
-Known limitations:
+Known limitations at this slice:
 
-- Portable IR EVM crosscalls currently model only synchronous zero-value `call`.
-- `staticcall`, `delegatecall`, create/create2, value-bearing calls, typed
-  scalar returns beyond `U64`, aggregate arguments/returns, and variable-length
-  return data remain future IR work.
+- This first crosscall slice modeled only synchronous zero-value `call`.
+- Later slices below add typed scalar returns and value-bearing typed scalar
+  calls; `staticcall`, `delegatecall`, create/create2, aggregate
+  arguments/returns, and variable-length return data remain future IR work.
 
 Next step:
 
@@ -1163,14 +1163,73 @@ Result:
 
 Known limitations:
 
-- Portable IR EVM crosscalls still model only synchronous zero-value `call`.
+- Portable IR EVM crosscalls still model only synchronous `call`.
 - Aggregate arguments/returns, multi-word return data, `staticcall`,
-  `delegatecall`, create/create2, and value-bearing calls remain future IR work.
+  `delegatecall`, and create/create2 remain future IR work.
 
 Next step:
 
 - Continue closing EVM backend gaps around richer call semantics, ABI aggregate
   storage-backed surfaces, and unsupported-node diagnostics.
+
+### EVM IR Value-Bearing Typed Crosscalls
+
+Commit: feature commit for EVM IR value-bearing typed crosscalls
+
+Summary:
+
+- Added portable IR `crosscallInvokeValueTyped` for synchronous EVM calls that
+  forward an explicit `U64` call-value expression while returning a typed
+  scalar word.
+- Extended EVM lowering with value-specific Yul helpers named like
+  `__proof_forge_crosscall_value_0`; these helpers keep the same selector and
+  calldata packing as scalar crosscalls but pass `call_value` into the EVM
+  `call(gas(), target, call_value, ...)` value slot.
+- Extended `EvmCrosscallProbe` with `call_remote_value`, implemented using
+  `.nativeValue` so the entrypoint forwards the ETH received by the probe to a
+  payable callee.
+- Added Foundry coverage that calls the probe with value, asserts the payable
+  callee receives `msg.value`, checks the callee balance, and verifies the probe
+  does not retain the forwarded value.
+- Added explicit EVM diagnostics for malformed call-value type and unsupported
+  aggregate return type, plus an explicit Psy unsupported diagnostic for
+  value-bearing typed crosscalls.
+- Updated golden Yul, coverage manifests, validation gates, EVM target docs,
+  backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/crosscall-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/psy/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/psy/check-ir-coverage-manifest.py
+```
+
+Result:
+
+- `EvmCrosscallProbe` now has seven metadata-validated entrypoints, including
+  `call_remote_value:365f4a44`.
+- Generated Yul includes `__proof_forge_crosscall_value_0(target, selector,
+  call_value)` and passes the helper value parameter to the `call` opcode.
+- Foundry verifies 12 crosscall runtime paths, including ETH forwarding through
+  `probe.call{value: 1234}` to a payable callee.
+- EVM and Psy diagnostics cover the new portable IR node instead of relying on
+  missing-pattern or silent lowering behavior.
+
+Known limitations:
+
+- Value-bearing crosscalls are currently limited to synchronous EVM `call` and
+  single scalar-word return data.
+- `staticcall`, `delegatecall`, create/create2, aggregate arguments/returns,
+  and multi-word or variable-length return data remain future IR work.
+
+Next step:
+
+- Continue closing EVM cross-contract gaps around richer call kinds and richer
+  return-data encoding.
 
 ### EVM IR Events
 

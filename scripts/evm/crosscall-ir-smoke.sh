@@ -45,6 +45,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_bool:6a7b13b8 \
   --expect-entrypoint call_remote_u32:0f35944c \
   --expect-entrypoint call_remote_hash:6a5317aa \
+  --expect-entrypoint call_remote_value:365f4a44 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmCrosscallProbe.bin")"
@@ -70,6 +71,7 @@ pragma solidity ^0.8.20;
 
 interface Vm {
     function etch(address target, bytes calldata newRuntimeBytecode) external;
+    function deal(address target, uint256 newBalance) external;
 }
 
 contract CrosscallCallee {
@@ -95,6 +97,10 @@ contract CrosscallCallee {
 
     function echoHash(bytes32 value) external pure returns (bytes32) {
         return value;
+    }
+
+    function paid() external payable returns (uint256) {
+        return msg.value;
     }
 
     function invalidBool(bool) external pure returns (uint256) {
@@ -141,6 +147,12 @@ contract ProofForgeIRCrosscallSmokeTest {
 
     function callU256(address probe, bytes memory payload) internal returns (uint256) {
         (bool ok, bytes memory result) = probe.call(payload);
+        assertTrue(ok);
+        return abi.decode(result, (uint256));
+    }
+
+    function callU256Value(address probe, bytes memory payload, uint256 amount) internal returns (uint256) {
+        (bool ok, bytes memory result) = probe.call{value: amount}(payload);
         assertTrue(ok);
         return abi.decode(result, (uint256));
     }
@@ -277,6 +289,28 @@ contract ProofForgeIRCrosscallSmokeTest {
             ),
             value
         );
+    }
+
+    function testIRCrosscallForwardsNativeValue() public {
+        address probe = address(uint160(0xE14B));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+        vm.deal(address(this), 1 ether);
+
+        assertEq(
+            callU256Value(
+                probe,
+                abi.encodeWithSignature(
+                    "call_remote_value(uint256,uint256)",
+                    uint256(uint160(address(callee))),
+                    selector(CrosscallCallee.paid.selector)
+                ),
+                1234
+            ),
+            1234
+        );
+        assertEq(address(callee).balance, 1234);
+        assertEq(probe.balance, 0);
     }
 
     function testIRCrosscallRejectsInvalidBoolReturn() public {

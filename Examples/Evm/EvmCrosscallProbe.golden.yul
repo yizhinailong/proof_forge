@@ -55,6 +55,14 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x365f4a44 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r := f_EvmCrosscallProbe_call_remote_value(calldataload(4), calldataload(36))
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -75,6 +83,9 @@ object "EvmCrosscallProbe" {
     }
     function f_EvmCrosscallProbe_call_remote_hash(target, method, value) -> result {
       result := __proof_forge_crosscall_1_hash(target, method, value)
+    }
+    function f_EvmCrosscallProbe_call_remote_value(target, method) -> result {
+      result := __proof_forge_crosscall_value_0(target, method, callvalue())
     }
     function __proof_forge_crosscall_0(target, selector) -> result {
       mstore(0, shl(224, selector))
@@ -151,6 +162,18 @@ object "EvmCrosscallProbe" {
       mstore(0, shl(224, selector))
       mstore(4, arg0)
       let _success := call(gas(), target, 0, 0, 36, 0, 32)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 32) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 32)
+      result := mload(0)
+    }
+    function __proof_forge_crosscall_value_0(target, selector, call_value) -> result {
+      mstore(0, shl(224, selector))
+      let _success := call(gas(), target, call_value, 0, 4, 0, 32)
       if iszero(_success) {
         revert(0, 0)
       }

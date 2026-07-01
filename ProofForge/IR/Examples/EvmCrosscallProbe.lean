@@ -94,10 +94,23 @@ def callRemoteHash : Entrypoint := {
   ]
 }
 
+def callRemoteValue : Entrypoint := {
+  name := "call_remote_value"
+  selector? := some "365f4a44"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[] .u64)
+  ]
+}
+
 def module : Module := {
   name := "EvmCrosscallProbe"
   state := #[stateMarker]
-  entrypoints := #[callRemote, callRemote1, callRemote2, callRemoteBool, callRemoteU32, callRemoteHash]
+  entrypoints := #[callRemote, callRemote1, callRemote2, callRemoteBool, callRemoteU32, callRemoteHash, callRemoteValue]
 }
 
 end ProofForge.IR.Examples.EvmCrosscallProbe
