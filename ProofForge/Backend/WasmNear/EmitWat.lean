@@ -40,6 +40,7 @@ def CTX_BUF : Nat := 41000          -- 128-byte scratch for account-id → sha25
 def EVENT_BUF : Nat := 42000       -- 256-byte scratch for building event JSON
 def EVT_KEY_PTR : Nat := 42800     -- fixed "event" key string (5 bytes)
 def STRING_BASE : Nat := 43000     -- event/field name string pool base
+def INPUT_BUF : Nat := 44000       -- 1 KB scratch for Borsh input args
 
 -- Value type → Wasm
 def wasmTypeOf : ValueType → ValType
@@ -206,6 +207,7 @@ def hashPtrGlobal     : String := "hash_ptr"
 
 def sha256Import : Import := hostImport "sha256" #[.i64, .i64, .i64] #[]
 def logUtf8Import : Import := hostImport "log_utf8" #[.i64, .i64] #[]
+def inputImport : Import := hostImport "input" #[.i64] #[]
 def predecessorImport : Import := hostImport "predecessor_account_id" #[.i64] #[]
 def currentAcctImport : Import := hostImport "current_account_id" #[.i64] #[]
 def registerLenImport : Import := hostImport "register_len" #[.i64] #[.i64]
@@ -706,11 +708,31 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
   | .return e => lowerReturn ctx env returns e
   | _ => err "EmitWat: this statement form is not yet supported"
 
+/-- Build the Borsh input prologue: env.input → INPUT_BUF, then load each
+    param at its cumulative Borsh offset into a local. Entrypoint params have
+    no wasm-level params; they are decoded from input and held in locals. -/
+def loadParams (params : Array (String × ValueType))
+    : Except EmitError (Array Insn × Array Local) := do
+  let prologue : Array Insn :=
+    #[.i64Const 0, .call "input", .i64Const 0, .i64Const INPUT_BUF, .call "read_register"]
+  let result ← params.foldlM (init := (prologue, (#[] : Array Local), 0))
+    fun (insns, locals, offset) p =>
+      let (name, vt) := p
+      match vt with
+      | .u32 | .u64 | .bool =>
+        let loadInsns := #[.i32Const (INPUT_BUF + offset), .load (loadOpFor vt) 0, .localSet name]
+        .ok (insns ++ loadInsns, locals.push { name := name, type := wasmTypeOf vt }, offset + scalarWidth vt)
+      | _ => err s!"EmitWat: param `{name}` has unsupported Borsh type `{vt.name}`"
+  pure (result.fst, result.snd.fst)
+
 def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
-  let localsArr ← collectLocals ep.body
-  let locals := localsArr.map fun b => { name := b.name, type := wasmTypeOf b.vt : Local }
-  let insns ← ep.body.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx localsArr ep.returns s)
-  .ok { name := ep.name, locals := locals, body := { insns := insns }, exportName := ep.name }
+  let bodyLocals ← collectLocals ep.body
+  let (paramPrologue, paramLocals) ← loadParams ep.params
+  let allLocalTypes : LocalTypes :=
+    (ep.params.map (fun (n, t) => { name := n, vt := t : LBind })) ++ bodyLocals
+  let locals := paramLocals ++ bodyLocals.map (fun b => { name := b.name, type := wasmTypeOf b.vt : Local })
+  let bodyInsns ← ep.body.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx allLocalTypes ep.returns s)
+  .ok { name := ep.name, locals := locals, body := { insns := paramPrologue ++ bodyInsns }, exportName := ep.name }
 
 def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compiler.Wasm.Module := do
   let scalars := stateLayout mod
@@ -724,7 +746,7 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
     #[{ offset := TRUE_PTR, bytes := "true" }, { offset := FALSE_PTR, bytes := "false" }]
   let evtKeyData : DataSegment := { offset := EVT_KEY_PTR, bytes := "event" }
   let stringData := strs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
-  let baseImports := nearImports.push sha256Import |>.push logUtf8Import
+  let baseImports := nearImports.push sha256Import |>.push logUtf8Import |>.push inputImport
   let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport])
   let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ entryFuncs
   let globals := #[hashPtrGlobalDecl] ++ evtGlobals
