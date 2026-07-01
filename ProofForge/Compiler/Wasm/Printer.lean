@@ -31,6 +31,27 @@ def pad : Nat → String
 def line (indent : Nat) (s : String) : String :=
   pad indent ++ s ++ "\n"
 
+/-- One lowercase hex digit. -/
+def hexDigit (n : Nat) : Char :=
+  if n < 10 then Char.ofNat ('0'.toNat + n) else Char.ofNat ('a'.toNat + (n - 10))
+
+/-- A byte value as two lowercase hex digits (e.g. 5 -> "05", 255 -> "ff"). -/
+def toHexByte (n : Nat) : String :=
+  String.ofList [hexDigit (n / 16 % 16), hexDigit (n % 16)]
+
+/-! Escape the body of a WAT string literal. Printable ASCII passes through
+    (except `"` and `\`), control bytes become `\HH` hex escapes, and
+    multibyte UTF-8 passes through verbatim (valid in WAT). -/
+def escapeWatChar (c : Char) : String :=
+  let n := c.toNat
+  if c == '"' then "\\\""
+  else if c == '\\' then "\\\\"
+  else if n <= 0x1f || n == 0x7f then "\\" ++ toHexByte n
+  else toString c
+
+def escapeWatString (s : String) : String :=
+  s.toList.foldl (fun acc c => acc ++ escapeWatChar c) ""
+
 /-- Render a param/result type list as `(param i64 i32)` or `(result i64)`. -/
 def printTypeList (keyword : String) (types : Array ValType) : String :=
   if types.isEmpty then ""
@@ -59,12 +80,12 @@ def printImportSig (funcName : String) (type : FuncType) : String :=
 
 /-- Render an import. -/
 def printImport (indent : Nat) (i : Import) : String :=
-  line indent ("(import \"" ++ i.module_ ++ "\" \"" ++ i.name ++ "\" " ++ printImportSig i.funcName i.type ++ ")")
+  line indent ("(import \"" ++ escapeWatString i.module_ ++ "\" \"" ++ escapeWatString i.name ++ "\" " ++ printImportSig i.funcName i.type ++ ")")
 
 /-- Render the memory declaration. -/
 def printMemory (indent : Nat) (m : Memory) : String :=
   let exportPart := match m.exportName with
-    | some n => "(export \"" ++ n ++ "\") "
+    | some n => "(export \"" ++ escapeWatString n ++ "\") "
     | none => ""
   let limits := match m.max with
     | some max => toString m.min ++ " " ++ toString max
@@ -73,7 +94,7 @@ def printMemory (indent : Nat) (m : Memory) : String :=
 
 /-- Render a data segment. -/
 def printData (indent : Nat) (d : DataSegment) : String :=
-  line indent ("(data (i32.const " ++ toString d.offset ++ ") \"" ++ d.bytes ++ "\")")
+  line indent ("(data (i32.const " ++ toString d.offset ++ ") \"" ++ escapeWatString d.bytes ++ "\")")
 
 mutual
   /-- Render an instruction (possibly multiple lines). -/
@@ -116,7 +137,7 @@ end
 /-- Render a function. -/
 def printFunc (indent : Nat) (f : Func) : String :=
   let exportPart := match f.exportName with
-    | some n => " (export \"" ++ n ++ "\")"
+    | some n => " (export \"" ++ escapeWatString n ++ "\")"
     | none => ""
   let header :=
     pad indent ++ "(func $" ++ f.name ++ exportPart
