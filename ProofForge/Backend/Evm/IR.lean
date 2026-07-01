@@ -101,25 +101,43 @@ def hashPackExpr
     ]
   ]
 
-def eventNameWordAndLength (name : String) : Except LowerError (Nat × Nat) := do
-  let bytes := name.toUTF8
-  if bytes.size == 0 then
+def validateEventName (name : String) : Except LowerError Unit := do
+  if name.toUTF8.size == 0 then
     .error { message := "event name must be non-empty for IR EVM v0" }
-  if bytes.size > 32 then
-    .error { message := s!"event `{name}` name is {bytes.size} byte(s); IR EVM v0 supports event names up to 32 UTF-8 bytes" }
-  let mut wordVal := 0
-  for _h : j in [0:32] do
-    if j < bytes.size then
-      let b := (bytes.get! j).toNat
-      let shift := (31 - j) * 8
-      wordVal := wordVal + (b * (2 ^ shift))
-  .ok (wordVal, bytes.size)
 
-def ensureEventFieldType (eventName fieldName : String) (type : ValueType) : Except LowerError Unit :=
+def packedUtf8Words (value : String) : Array Nat × Nat := Id.run do
+  let bytes := value.toUTF8
+  let wordCount := (bytes.size + 31) / 32
+  let mut words := #[]
+  for _h : wordIdx in [0:wordCount] do
+    let mut wordVal := 0
+    for _h : byteIdx in [0:32] do
+      let pos := wordIdx * 32 + byteIdx
+      if pos < bytes.size then
+        let b := (bytes.get! pos).toNat
+        let shift := (31 - byteIdx) * 8
+        wordVal := wordVal + (b * (2 ^ shift))
+    words := words.push wordVal
+  pure (words, bytes.size)
+
+def eventSignatureFieldType (eventName fieldName : String) (type : ValueType) : Except LowerError String :=
   match type with
-  | .u32 | .u64 | .bool | .hash => .ok ()
+  | .u32 => .ok "uint32"
+  | .u64 => .ok "uint64"
+  | .bool => .ok "bool"
+  | .hash => .ok "bytes32"
   | .unit | .fixedArray _ _ | .structType _ =>
       .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `{type.name}`; event fields must be U32, U64, Bool, or Hash" }
+
+def eventSignatureTopicStatements (signature : String) : Array Lean.Compiler.Yul.Statement := Id.run do
+  let (words, length) := packedUtf8Words signature
+  let mut statements := #[]
+  for h : idx in [0:words.size] do
+    statements := statements.push <|
+      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), Lean.Compiler.Yul.Expr.num words[idx]])
+  pure <| statements.push <|
+    .varDecl #[{ name := "_topic0" }]
+      (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num length]))
 
 def validateEventFieldName (eventName fieldName : String) : Except LowerError Unit :=
   if fieldName.isEmpty then
@@ -824,6 +842,20 @@ mutual
         .error { message := "event.emit is a statement effect, not an expression" }
 end
 
+def eventSignature
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (fields : Array (String × ProofForge.IR.Expr)) : Except LowerError String := do
+  validateEventName name
+  let _ ← fields.foldlM (init := #[]) fun seen field =>
+    validateDistinctEventFieldName name seen field.fst
+  let mut typeNames := #[]
+  for field in fields do
+    let actual ← inferExprType module env field.snd
+    typeNames := typeNames.push (← eventSignatureFieldType name field.fst actual)
+  .ok (name ++ "(" ++ String.intercalate "," typeNames.toList ++ ")")
+
 def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Except LowerError Unit
   | .storageScalarRead _ =>
       .error { message := "storage.scalar.read must be used as an expression" }
@@ -869,12 +901,7 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
   | .eventEmit name fields => do
-      discard <| eventNameWordAndLength name
-      let _ ← fields.foldlM (init := #[]) fun seen field =>
-        validateDistinctEventFieldName name seen field.fst
-      for field in fields do
-        let actual ← inferExprType module env field.snd
-        ensureEventFieldType name field.fst actual
+      discard <| eventSignature module env name fields
 
 def requireMutableLocal (env : TypeEnv) (context name : String) : Except LowerError LocalBinding := do
   let some binding := findLocal? env name
@@ -1352,12 +1379,8 @@ def lowerEventEmitStmt
     (env : TypeEnv)
     (name : String)
     (fields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let (nameWord, nameLen) ← eventNameWordAndLength name
-  let mut statements : Array Lean.Compiler.Yul.Statement := #[
-    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num nameWord]),
-    .varDecl #[{ name := "_topic0" }]
-      (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num nameLen]))
-  ]
+  let signature ← eventSignature module env name fields
+  let mut statements := eventSignatureTopicStatements signature
   for h : idx in [0:fields.size] do
     let field := fields[idx]
     statements := statements.push <|

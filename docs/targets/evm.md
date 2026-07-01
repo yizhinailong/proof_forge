@@ -173,7 +173,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
 | `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts |
-| `events.emit` | `log0`, `log1`, `log2`; portable IR `eventEmit` lowers to `log1` with topic0 derived from the event name |
+| `events.emit` | `log0`, `log1`, `log2`; portable IR `eventEmit` lowers to `log1` with topic0 derived from a Solidity-style event signature |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
 | `control.bounded_loop` | Portable IR `boundedFor` lowers to Yul `for` loops with static bounds |
@@ -224,7 +224,7 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
   non-word or aggregate map shapes, nested arrays, nested local structs beyond
-  flat struct arrays, indexed/Solidity-signature event schemas,
+  flat struct arrays, indexed event schemas and richer event declarations,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call return
   data, and real creation-transaction or broadcast manifests.
 
@@ -341,13 +341,14 @@ Hash storage through `sload`/`sstore`, Foundry `vm.load` raw slots, and
 unknown-selector revert behavior.
 
 `EventProbe` validates portable IR event emission through Yul `log1`. EVM IR
-v0 uses a deliberately small event policy: `topic0 = keccak256(UTF-8 event
-name)` and the log data is the ABI-style sequence of 32-byte field words. The
-smoke checks golden Yul reproducibility, `solc --strict-assembly` bytecode
-generation, metadata capability `events.emit`, Foundry recorded logs
-(`emitter`, topic, and decoded data), ABI selector dispatch, and
-unknown-selector revert behavior. Indexed fields and Solidity event-signature
-topics wait for explicit event declarations in the portable IR.
+v0 derives topic0 from a Solidity-style event signature generated from the
+event name and scalar field types, for example `ValueEvent(uint64)`, and log
+data remains the ABI-style sequence of 32-byte field words. The smoke checks
+golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
+metadata capability `events.emit`, Foundry recorded logs (`emitter`, signature
+topic, and decoded data), ABI selector dispatch, and unknown-selector revert
+behavior. Indexed fields and richer event declarations remain future work for
+the portable IR.
 
 `EvmCrosscallProbe` validates portable IR `crosscallInvoke` lowering to
 arity-specific Yul helpers. EVM IR v0 interprets the target expression as an

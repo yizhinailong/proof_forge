@@ -116,7 +116,7 @@ contract ProofForgeIREventSmokeTest {
         assertEq(logs.length, 1);
         assertEq(logs[0].emitter, probe);
         assertEq(logs[0].topics.length, 1);
-        assertEq(logs[0].topics[0], keccak256(bytes("ValueEvent")));
+        assertEq(logs[0].topics[0], keccak256(bytes("ValueEvent(uint64)")));
         assertEq(abi.decode(logs[0].data, (uint256)), 42);
     }
 

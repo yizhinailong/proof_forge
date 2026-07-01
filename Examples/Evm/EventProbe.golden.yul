@@ -13,8 +13,8 @@ object "EventProbe" {
     }
     function f_EventProbe_emit_value_event(value) {
       {
-        mstore(0, 39071037697028742785112223803821455438864049692237600240117038234351465136128)
-        let _topic0 := keccak256(0, 10)
+        mstore(0, 39071037697028742785112238941195820511403663684262765307557390900479590924288)
+        let _topic0 := keccak256(0, 18)
         mstore(0, value)
         log1(0, 32, _topic0)
       }

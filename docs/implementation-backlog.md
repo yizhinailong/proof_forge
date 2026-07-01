@@ -130,9 +130,10 @@ Tasks:
   `ContextProbe` golden Yul, solc bytecode, Foundry value-bearing call
   validation, and `value.native` metadata capability validation.
 - Done: add EVM IR `eventEmit` lowering to Yul `log1` with
-  `keccak256(UTF-8 event name)` topic0 and 32-byte word data fields, with
-  `EventProbe` golden Yul, solc bytecode, Foundry recorded-log validation,
-  metadata capability validation, and explicit malformed event diagnostics.
+  `keccak256(Solidity-style event signature)` topic0 and 32-byte word data
+  fields, with `EventProbe` golden Yul, solc bytecode, Foundry recorded-log
+  validation, metadata capability validation, and explicit malformed event
+  diagnostics.
 - Done: add EVM IR `crosscallInvoke` lowering to synchronous EVM `call`
   helpers with selector packing, word arguments, one-word returns, failed-call
   and short-return reverts, with `EvmCrosscallProbe` golden Yul, solc bytecode,

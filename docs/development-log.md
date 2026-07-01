@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Solidity-Style Event Signatures
+
+Commit: feature commit for EVM IR event signature topics
+
+Summary:
+
+- Changed portable IR `eventEmit` topic0 derivation from the raw event-name
+  hash to `keccak256(Solidity-style event signature)`.
+- Added EVM ABI type names for supported event scalar fields:
+  `U32 -> uint32`, `U64 -> uint64`, `Bool -> bool`, and `Hash -> bytes32`.
+- Reworked the Yul event topic preimage writer to pack arbitrary-length UTF-8
+  signature strings into memory before hashing, removing the old 32-byte event
+  name packing limit.
+- Updated `EventProbe` golden Yul, Foundry recorded-log assertion, coverage
+  manifest, EVM target docs, validation gates, backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/event-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/i18n/check-sync.sh
+```
+
+Known limitations:
+
+- Portable IR event payload fields remain limited to scalar word values:
+  `U32`, `U64`, `Bool`, or `Hash`.
+- Indexed event fields and richer event declarations are still not represented
+  in the portable IR.
+
+Next step:
+
+- Continue shrinking event gaps around indexed fields or move to another EVM
+  surface such as richer cross-call return data or nested aggregate lowering.
+
 ### EVM IR Whole Storage Struct Read/Write
 
 Commit: feature commit for EVM IR whole storage struct read/write
@@ -993,11 +1031,11 @@ Summary:
 
 - Added EVM portable IR lowering for statement-position `eventEmit`.
 - Defined the EVM IR v0 event policy:
-  `topic0 = keccak256(UTF-8 event name)` and log data is the sequence of
-  32-byte field words.
-- Added event name and field validation: event names must be non-empty and at
-  most 32 UTF-8 bytes; event fields must be `U32`, `U64`, `Bool`, or `Hash`;
-  event emission remains statement-only.
+  `topic0 = keccak256(Solidity-style event signature)` and log data is the
+  sequence of 32-byte field words.
+- Added event name and field validation: event names must be non-empty; event
+  fields must be `U32`, `U64`, `Bool`, or `Hash`; event emission remains
+  statement-only.
 - Added `--emit-evm-event-ir-yul`, `--emit-evm-event-ir-bytecode`,
   `Examples/Evm/EventProbe.golden.yul`, and
   `scripts/evm/event-ir-smoke.sh`.
@@ -1018,7 +1056,7 @@ scripts/evm/check-ir-coverage-manifest.py
 Result:
 
 - Generated EventProbe Yul includes selector dispatch, calldata size guards,
-  event name hashing, field data writes, and `log1(0, 32, topic0)`.
+  event signature hashing, field data writes, and `log1(0, 32, topic0)`.
 - Foundry verifies recorded logs for emitter address, topic0, decoded data,
   and unknown-selector reverts.
 - EVM artifact metadata records and validates `events.emit`.
@@ -1026,8 +1064,8 @@ Result:
 
 Known limitations:
 
-- EVM IR v0 does not yet model indexed fields or Solidity event-signature
-  topics because portable IR has no event declarations.
+- EVM IR v0 does not yet model indexed fields because portable IR has no event
+  declarations.
 - Event data fields are limited to scalar word values.
 - Aggregate event payloads remain future work.
 
