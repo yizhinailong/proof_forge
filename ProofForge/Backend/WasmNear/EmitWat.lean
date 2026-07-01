@@ -116,9 +116,30 @@ def returnBoolFunc : Func :=
       .i32Const RET_BUF, .localGet "v", .store "i32.store8" 0,
       .i64Const 1, .i64Const RET_BUF, .call "value_return" ] } }
 
+def powName (vt : ValueType) : String := "__pf_pow_" ++ typeSuffix vt
+
+/-- `__pf_pow_<t>(base, exp)`: integer exponentiation by squaring (log2(exp) iterations). -/
+def powFunc (vt : ValueType) : Func :=
+  let w := widthOf vt
+  { name := powName vt,
+    params := #[{ name := "base", type := wasmTypeOf vt }, { name := "exp", type := wasmTypeOf vt }],
+    results := #[wasmTypeOf vt],
+    locals := #[{ name := "r", type := wasmTypeOf vt }],
+    body := { insns := #[
+      .const (wasmTypeOf vt) "1", .localSet "r",
+      .block_ { insns := #[ .loop_ { insns := #[
+        .localGet "exp", .const (wasmTypeOf vt) "0", .plain (w ++ ".eq"), .brIf 1,
+        .localGet "exp", .const (wasmTypeOf vt) "1", .plain (w ++ ".and"), .const (wasmTypeOf vt) "0", .plain (w ++ ".ne"),
+        .if_ { insns := #[ .localGet "r", .localGet "base", .plain (w ++ ".mul"), .localSet "r" ] } { insns := #[] },
+        .localGet "base", .localGet "base", .plain (w ++ ".mul"), .localSet "base",
+        .localGet "exp", .const (wasmTypeOf vt) "1", .plain (w ++ ".shr_u"), .localSet "exp",
+        .br 0 ] } ] },
+      .localGet "r" ] } }
+
 def helperFuncs : Array Func :=
   #[ readFunc .u32, writeFunc .u32, readFunc .u64, writeFunc .u64,
-     readFunc .bool, writeFunc .bool, returnU64Func, returnU32Func, returnBoolFunc ]
+     readFunc .bool, writeFunc .bool, returnU64Func, returnU32Func, returnBoolFunc,
+     powFunc .u32, powFunc .u64 ]
 
 -- Map helpers ----------------------------------------------------------
 -- Map<U64, T>: storage key = prefix(stateId ++ ":") ++ 8 key bytes.
@@ -601,7 +622,12 @@ mutual
     | .bitXor a b => lowerNumBin ctx env "xor" a b
     | .shiftLeft a b => lowerNumBin ctx env "shl" a b
     | .shiftRight a b => lowerNumBin ctx env "shr_u" a b
-    | .pow _ _ => err "EmitWat: pow is not yet supported"
+    | .pow a b => do
+      let (la, ta) ← lowerExpr ctx env a
+      let (lb, tb) ← lowerExpr ctx env b
+      if !(isNumeric ta && ta == tb) then
+        err s!"EmitWat: `pow` expected matching U32/U64 operands, got `{ta.name}`/`{tb.name}`"
+      else .ok (la ++ lb ++ #[.call (powName ta)], ta)
     | .eq a b => lowerCmp ctx env "eq" a b
     | .ne a b => lowerCmp ctx env "ne" a b
     | .lt a b => lowerCmp ctx env "lt_u" a b
