@@ -41,6 +41,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-capability events.emit \
   --expect-entrypoint emit_value_event:2ae8cae3 \
   --expect-entrypoint emit_indexed_event:bc07d04f \
+  --expect-entrypoint emit_two_indexed_event:2d00700c \
+  --expect-entrypoint emit_three_indexed_event:e7d142d1 \
   --expect-entrypoint emit_pair_event:35361bda \
   --expect-entrypoint emit_storage_pair_event:65123829 \
   --expect-entrypoint emit_storage_array_event:99eb21de \
@@ -150,6 +152,47 @@ contract ProofForgeIREventSmokeTest {
         assertEq(logs[0].topics[0], keccak256(bytes("IndexedValue(uint64,uint64)")));
         assertEq(logs[0].topics[1], bytes32(uint256(7)));
         assertEq(abi.decode(logs[0].data, (uint256)), 99);
+    }
+
+    function testIRTwoIndexedFieldsLowerToLog3() public {
+        address probe = address(uint160(0xE13F));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_two_indexed_event(uint256,uint256,uint256)", 3, 4, 5));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 3);
+        assertEq(logs[0].topics[0], keccak256(bytes("IndexedTwoValues(uint64,uint64,uint64)")));
+        assertEq(logs[0].topics[1], bytes32(uint256(3)));
+        assertEq(logs[0].topics[2], bytes32(uint256(4)));
+        assertEq(abi.decode(logs[0].data, (uint256)), 5);
+    }
+
+    function testIRThreeIndexedFieldsLowerToLog4() public {
+        address probe = address(uint160(0xE140));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_three_indexed_event(uint256,uint256,uint256,uint256)", 6, 7, 8, 9));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 4);
+        assertEq(logs[0].topics[0], keccak256(bytes("IndexedThreeValues(uint64,uint64,uint64,uint64)")));
+        assertEq(logs[0].topics[1], bytes32(uint256(6)));
+        assertEq(logs[0].topics[2], bytes32(uint256(7)));
+        assertEq(logs[0].topics[3], bytes32(uint256(8)));
+        assertEq(abi.decode(logs[0].data, (uint256)), 9);
     }
 
     function testIRIndexedStructEventHashesAggregateTopic() public {

@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Multi-Topic Indexed Events
+
+Commit: feature commit for EVM IR multi-topic indexed events
+
+Summary:
+
+- Extended `EventProbe` with two scalar indexed-event entrypoints:
+  `emit_two_indexed_event(uint256,uint256,uint256)` and
+  `emit_three_indexed_event(uint256,uint256,uint256,uint256)`.
+- Validated that `eventEmitIndexed` generates `log3` for two indexed fields and
+  `log4` for three indexed fields, with ordered scalar topics and one
+  non-indexed data word.
+- Refreshed `EventProbe` golden Yul, metadata selector checks, Foundry
+  recorded-log checks, coverage, English/Chinese EVM target docs, validation
+  gates, and implementation backlog notes.
+
+Validation run:
+
+```sh
+scripts/evm/event-ir-smoke.sh
+```
+
+Result:
+
+- `EventProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 17 EventProbe tests, including `log3` and `log4` scalar indexed
+  event coverage.
+
+Known limitations:
+
+- Indexed event fields remain limited to three fields after the signature topic.
+- Nested fixed arrays, non-flat structs, and unsupported aggregate leaves remain
+  explicit diagnostics for event fields.
+- First-class event declarations are still not represented in the portable IR.
+
+Next step:
+
+- Continue shrinking the EVM event gap around richer event declarations, or move
+  to another unsupported EVM capability surface.
+
 ### EVM IR Storage-Backed Event Fixed Arrays
 
 Commit: feature commit for EVM IR storage-backed event fixed arrays

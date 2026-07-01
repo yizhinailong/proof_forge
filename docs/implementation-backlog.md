@@ -143,6 +143,12 @@ Tasks:
   non-indexed 32-byte word data, `EventProbe` golden Yul, solc bytecode,
   Foundry recorded-log validation, metadata capability validation, and explicit
   indexed event diagnostics.
+- Done: close the EventProbe validation gap for multi-topic scalar indexed
+  events. `IndexedTwoValues(uint64,uint64,uint64)` and
+  `IndexedThreeValues(uint64,uint64,uint64,uint64)` now prove the generated Yul
+  emits `log3` and `log4`, preserves ordered scalar indexed topics, validates
+  metadata selectors, compiles with `solc`, and passes Foundry recorded-log
+  assertions.
 - Done: extend EVM IR event data lowering beyond scalar words so non-indexed
   flat struct fields, scalar fixed-array fields, and fixed arrays of flat
   structs emit ABI-style flattened data words, with canonical Solidity-style

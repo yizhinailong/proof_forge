@@ -85,6 +85,32 @@ def emitIndexedEvent : Entrypoint := {
   ]
 }
 
+def emitTwoIndexedEvent : Entrypoint := {
+  name := "emit_two_indexed_event"
+  selector? := some "2d00700c"
+  returns := .unit
+  params := #[("first", .u64), ("second", .u64), ("value", .u64)]
+  body := #[
+    .effect (.eventEmitIndexed
+      "IndexedTwoValues"
+      #[("first", .local "first"), ("second", .local "second")]
+      #[("value", .local "value")])
+  ]
+}
+
+def emitThreeIndexedEvent : Entrypoint := {
+  name := "emit_three_indexed_event"
+  selector? := some "e7d142d1"
+  returns := .unit
+  params := #[("first", .u64), ("second", .u64), ("third", .u64), ("value", .u64)]
+  body := #[
+    .effect (.eventEmitIndexed
+      "IndexedThreeValues"
+      #[("first", .local "first"), ("second", .local "second"), ("third", .local "third")]
+      #[("value", .local "value")])
+  ]
+}
+
 def emitPairEvent : Entrypoint := {
   name := "emit_pair_event"
   selector? := some "35361bda"
@@ -262,6 +288,8 @@ def evmModule : Module := {
   entrypoints := #[
     emitValueEvent,
     emitIndexedEvent,
+    emitTwoIndexedEvent,
+    emitThreeIndexedEvent,
     emitPairEvent,
     emitStoragePairEvent,
     emitStorageArrayEvent,

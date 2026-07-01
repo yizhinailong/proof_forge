@@ -15,6 +15,20 @@ object "EventProbe" {
       f_EventProbe_emit_indexed_event(calldataload(4), calldataload(36))
       return(0, 0)
     }
+    case 0x2d00700c {
+      if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_two_indexed_event(calldataload(4), calldataload(36), calldataload(68))
+      return(0, 0)
+    }
+    case 0xe7d142d1 {
+      if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_three_indexed_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
+      return(0, 0)
+    }
     case 0x35361bda {
       if lt(calldatasize(), 68) {
         revert(0, 0)
@@ -117,6 +131,29 @@ object "EventProbe" {
         let _indexed_topic0 := user
         mstore(0, value)
         log2(0, 32, _topic0, _indexed_topic0)
+      }
+    }
+    function f_EventProbe_emit_two_indexed_event(first, second, value) {
+      {
+        mstore(0, 33213884033972546280408919200171753220858272908402386486733397864180425698421)
+        mstore(32, 47688004342275046375464606958974035449868406404978144265184762184116216004608)
+        let _topic0 := keccak256(0, 38)
+        let _indexed_topic0 := first
+        let _indexed_topic1 := second
+        mstore(0, value)
+        log3(0, 32, _topic0, _indexed_topic0, _indexed_topic1)
+      }
+    }
+    function f_EventProbe_emit_three_indexed_event(first, second, third, value) {
+      {
+        mstore(0, 33213884033972546280041413231164102947689571766429842866628026777411188438580)
+        mstore(32, 20109214105441862435681744661945841593607557982736579915843921330113915912192)
+        let _topic0 := keccak256(0, 47)
+        let _indexed_topic0 := first
+        let _indexed_topic1 := second
+        let _indexed_topic2 := third
+        mstore(0, value)
+        log4(0, 32, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
       }
     }
     function f_EventProbe_emit_pair_event(left, right) {

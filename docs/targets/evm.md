@@ -401,12 +401,15 @@ name and field types, for example `ValueEvent(uint64)`,
 `StoragePairArrayEvent((uint64,uint64)[2])`,
 `IndexedPair((uint64,uint64),uint64)`,
 `IndexedStoragePair((uint64,uint64),uint64)`,
+`IndexedTwoValues(uint64,uint64,uint64)`,
+`IndexedThreeValues(uint64,uint64,uint64,uint64)`,
 `IndexedStorageArray(uint64[2],uint64)`,
 `IndexedArray(uint64[2],uint64)`,
 `IndexedStoragePairArray((uint64,uint64)[2],uint64)`, or
 `IndexedPairArray((uint64,uint64)[2],uint64)`. Plain `eventEmit` lowers to
 `log1`, while `eventEmitIndexed` snapshots up to three indexed fields into
-topics. Scalar indexed fields become direct topics. Flat structs, including
+topics, producing `log2`, `log3`, or `log4`. Scalar indexed fields become direct
+topics. Flat structs, including
 storage-backed scalar struct reads, scalar fixed arrays, and fixed arrays of flat
 structs flatten into ABI-style 32-byte words and use `keccak256` of those words
 as the indexed topic; storage-backed fixed arrays do the same from storage array
@@ -416,8 +419,9 @@ arrays, or fixed arrays of flat structs, and aggregate values flatten in ABI
 order before the Yul log call. The smoke checks golden Yul reproducibility,
 `solc --strict-assembly` bytecode generation, metadata capability
 `events.emit`, Foundry recorded logs (`emitter`, signature topic, scalar indexed
-topic, indexed aggregate topic hash, flat struct data from local values and
-storage reads, scalar fixed-array data from local values and storage array
+topics across one, two, and three indexed fields, indexed aggregate topic hash,
+flat struct data from local values and storage reads, scalar fixed-array data
+from local values and storage array
 reads, fixed-array-of-struct data from local literals and storage array struct
 field reads, and decoded scalar data), ABI selector dispatch, and unknown-selector revert
 behavior. Nested/unsupported aggregate indexed fields and richer event
