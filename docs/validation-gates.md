@@ -2,7 +2,8 @@
 
 This page documents the runnable gates that validate ProofForge today and
 separates them from gates that are planned but not yet implemented. It mirrors
-actual scripts and `.github/workflows/ci.yml`; it does not add or edit CI jobs.
+actual scripts, root `justfile` recipes, and `.github/workflows/ci.yml`; it
+does not add or edit CI jobs.
 
 ## Current gates
 
@@ -66,7 +67,7 @@ actual scripts and `.github/workflows/ci.yml`; it does not add or edit CI jobs.
 | Psy StorageNestedAggregateProbe IR smoke | `scripts/psy/storage-nested-aggregate-smoke.sh` | `dargo` on `PATH`; `python3`; `psyup install 0.1.0` is known-good on macOS arm64 | Psy IR lowers generic storage paths across scalar storage structs, nested `#[ref]` fields, storage arrays, scalar storage compound assignment, storage-path compound assignment, and native U32 storage struct field paths to `.psy`, matches the golden fixture, passes `dargo test --file`, produces non-empty DPN JSON and ABI JSON, returns `result_vm: [252]` through `dargo execute`, writes `proof-forge-deploy.json` and `proof-forge-artifact.json`, and validates deploy-manifest/metadata hashes/capabilities/results | Upstream compressed genesis deploy JSON, live Psy node/prover behavior |
 | Psy diagnostic smoke | `scripts/psy/diagnostic-smoke.sh` | Lean toolchain from `lean-toolchain` | Unsupported or malformed Psy IR shapes fail before source generation with explicit diagnostics for invalid Psy identifiers, duplicate declarations, reserved local names, empty contract state, Unit parameters, zero-length ABI arrays, unknown ABI structs, unsupported map shapes, unsupported Unit storage arrays, non-storage structs, empty structs, invalid bounded loops, effect expression/statement misuse, invalid assignment targets, invalid storage paths, expression/body type mismatches, immutable assignment, missing returns, malformed equality, malformed comparison, malformed Hash value construction, malformed arithmetic, unsupported casts, malformed bitwise/shift expressions, malformed compound assignment statements, malformed storage compound assignment effects, malformed boolean operators, malformed if conditions, and branch-local escape | Exhaustive unsupported-surface coverage, Dargo behavior, ProofForge deploy manifests, upstream compressed genesis deploy JSON |
 | Psy IR coverage manifest | `scripts/psy/check-ir-coverage-manifest.py` | `python3` | `Tests/PsyCoverage.tsv` has one status/evidence row for every portable IR constructor in `ProofForge/IR/Contract.lean`, so new IR nodes cannot be added without recording whether Psy lowers, validates, or rejects them | Behavioral correctness, Dargo behavior, artifact generation |
-| CI baseline | `.github/workflows/ci.yml` `build-test` job | GitHub Actions Ubuntu, elan, Foundry stable, `solc` 0.8.30 | Clean-environment `lake build`, documentation translation sync, Psy golden source snapshots for Counter/EventProbe/CrosscallProbe/ExpressionPredicateProbe/GenericEntrypointProbe/ArithmeticProbe/BitwiseProbe/ConditionalProbe/U32ArithmeticProbe/U32HashPackingProbe/U32StorageScalarProbe/BoolStorageScalarProbe/BoolStorageArrayProbe/U32StorageArrayProbe/ContextProbe/HashProbe/HashStorageProbe/MapProbe/AssertProbe/LoopProbe/ArrayProbe/StructProbe/StructArrayProbe/AbiAggregateProbe/NestedAggregateProbe/StorageNestedAggregateProbe, Psy diagnostic smoke, Psy IR coverage manifest, EVM diagnostic smoke, EVM IR coverage manifest, EVM ABI scalar IR smoke, EVM AssertProbe IR smoke, EVM AssignmentProbe IR smoke, EVM AssignOpProbe IR smoke, EVM ConditionalProbe IR smoke, EVM LoopProbe IR smoke, EVM ContextProbe IR smoke, EVM EventProbe IR smoke, EVM CrosscallProbe IR smoke, EVM ExpressionProbe IR smoke, EVM HashProbe IR smoke, EVM MapProbe IR smoke, EVM TypedMapProbe IR smoke, EVM StorageArrayProbe IR smoke, EVM StorageStructProbe IR smoke, EVM TypedStorageProbe IR smoke, EVM ArrayValueProbe IR smoke, EVM StructArrayValueProbe IR smoke, EVM StructValueProbe IR smoke, EVM AbiAggregateProbe IR smoke, EVM metadata/deploy-manifest validation, EVM compile, Foundry smoke, and Anvil deploy smoke | Optional Dargo target smokes, non-Ubuntu behavior |
+| CI baseline | `.github/workflows/ci.yml` `build-test` job | GitHub Actions Ubuntu, `just` 1.48.0, elan, Foundry stable, `solc` 0.8.30 | Clean-environment `just build`, `just target-registry`, `just docs-check`, `just psy-golden-sources`, Psy diagnostic smoke, Psy IR coverage manifest, EVM diagnostic smoke, EVM IR coverage manifest, EVM ABI scalar IR smoke, EVM AssertProbe IR smoke, EVM AssignmentProbe IR smoke, EVM AssignOpProbe IR smoke, EVM ConditionalProbe IR smoke, EVM LoopProbe IR smoke, EVM ContextProbe IR smoke, EVM EventProbe IR smoke, EVM CrosscallProbe IR smoke, EVM ExpressionProbe IR smoke, EVM HashProbe IR smoke, EVM MapProbe IR smoke, EVM TypedMapProbe IR smoke, EVM StorageArrayProbe IR smoke, EVM StorageStructProbe IR smoke, EVM TypedStorageProbe IR smoke, EVM ArrayValueProbe IR smoke, EVM StructArrayValueProbe IR smoke, EVM StructValueProbe IR smoke, EVM AbiAggregateProbe IR smoke, EVM metadata/deploy-manifest validation, EVM compile, Foundry smoke, and Anvil deploy smoke. CI keeps separate GitHub Actions steps for failure localization, but each common gate is invoked through the root `justfile` recipe. | Optional Dargo target smokes, non-Ubuntu behavior |
 
 ## Planned gates that are not runnable yet
 
@@ -98,11 +99,12 @@ If no runnable local command exists, the target remains `Research`.
 
 ## Optional external tools
 
-Current CI installs Foundry stable and `solc` 0.8.30. Local machines may not
-have `solc`, `cast`, `forge`, `psyup`, or `dargo`. Missing EVM tools block EVM
-toolchain gates but not `lake build`. Missing Psy tools block only the Psy
-smoke Dargo portions; source generation and golden diff still run before each
-script exits.
+Current CI installs `just` 1.48.0, Foundry stable, and `solc` 0.8.30. Local
+machines may not have `just`, `solc`, `cast`, `forge`, `psyup`, or `dargo`.
+Missing `just` blocks the local command catalog but not direct script
+execution. Missing EVM tools block EVM toolchain gates but not `lake build`.
+Missing Psy tools block only the Psy smoke Dargo portions; source generation
+and golden diff still run before each script exits.
 
 All Dargo-backed Psy smoke scripts also record the generated Dargo package
 source copy at `src/main.psy` and the generated `Dargo.toml` package manifest

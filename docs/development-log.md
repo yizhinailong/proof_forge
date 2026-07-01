@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-02
 
+### Just-Based CI Command Entry
+
+Commit: feature commit for just-based CI command entry
+
+Summary:
+
+- Kept target-specific implementation logic in `scripts/`, but made the root
+  `justfile` the shared developer and CI command entrypoint.
+- Installed pinned `just` 1.48.0 in GitHub Actions and replaced duplicated CI
+  command blocks with existing recipes such as `just build`,
+  `just target-registry`, `just docs-check`, `just psy-golden-sources`, and
+  `just evm-smoke <fixture>`.
+- Preserved separate GitHub Actions steps for EVM/Psy gates so CI failures stay
+  easy to locate.
+- Updated README, development standards, validation gates, and Chinese mirrors
+  to document the split between `just` orchestration and underlying scripts.
+
+Validation run:
+
+```sh
+ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci.yml"); puts "workflow yaml ok"'
+just --list
+just check
+just psy-golden-sources
+just --dry-run <each CI-tracked just recipe>
+git diff --check
+```
+
+Known limitations:
+
+- CI now requires `just` installation before invoking common gate recipes.
+- Direct scripts remain supported because they are still the target-specific
+  implementation surface.
+
+Next step:
+
+- Consider grouping future target recipes by imported `just` modules if the
+  root `justfile` becomes hard to scan.
+
 ### EVM Constructor Args Initcode Tail
 
 Commit: feature commit for EVM constructor args initcode tail

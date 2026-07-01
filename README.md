@@ -45,10 +45,11 @@ just evm-smoke abi-scalar
 just evm-all
 ```
 
-The root `justfile` is a developer-facing command catalog. The underlying
-validation logic remains in `scripts/`, so direct script calls stay supported
-for CI, debugging, and target-specific documentation. Install `just` from
-[casey/just](https://github.com/casey/just) if it is not already available.
+The root `justfile` is the developer-facing command catalog and CI entrypoint.
+The underlying validation logic remains in `scripts/`, so direct script calls
+stay supported for debugging and target-specific documentation. Install `just`
+from [casey/just](https://github.com/casey/just) if it is not already
+available.
 
 Build:
 

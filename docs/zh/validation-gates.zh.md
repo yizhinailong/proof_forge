@@ -1,6 +1,6 @@
 # 验证门禁
 
-本页面记录了当前验证 ProofForge 的可运行门禁，并将其与计划中但尚未实现的门禁区分开来。它反映了实际的脚本和 `.github/workflows/ci.yml`；它不会添加或编辑 CI 任务。
+本页面记录了当前验证 ProofForge 的可运行门禁，并将其与计划中但尚未实现的门禁区分开来。它反映了实际的脚本、根目录 `justfile` recipe 和 `.github/workflows/ci.yml`；它不会添加或编辑 CI 任务。
 
 ## 当前门禁
 
@@ -39,7 +39,7 @@
 | Psy Counter IR 冒烟测试 | `scripts/psy/counter-smoke.sh` | `PATH` 上的 `dargo`；`python3`；macOS arm64 上 `psyup install 0.1.0` 已知可用 | Counter portable IR 降级为 `.psy`，匹配 golden fixture，通过 `dargo test --file`，通过 `dargo compile` 生成非空 DPN JSON，通过 `dargo execute` 返回 `result_vm: [2]`，生成非空 ABI JSON，写出 `proof-forge-deploy.json`，并在 `proof-forge-artifact.json` 中记录和校验 metadata/deploy manifest 的 hash、能力和执行结果 | 上游压缩 genesis deploy JSON、真实 Psy node/prover 行为、更广泛 IR 覆盖 |
 | Psy ContextProbe IR 冒烟测试 | `scripts/psy/context-smoke.sh` | `PATH` 上的 `dargo`；`python3`；macOS arm64 上 `psyup install 0.1.0` 已知可用 | 非 Counter Psy IR 降级参数和 context reads，匹配 golden fixture，通过 `dargo test --file`，生成非空 DPN JSON 和 ABI JSON，通过 `dargo execute` 返回 `result_vm: [15]`，写出 `proof-forge-deploy.json`，并在 `proof-forge-artifact.json` 中记录和校验 metadata/deploy manifest | maps、arrays、hashes、上游压缩 genesis deploy JSON、真实 Psy node/prover 行为 |
 | Psy HashProbe IR 冒烟测试 | `scripts/psy/hash-smoke.sh` | `PATH` 上的 `dargo`；`python3`；macOS arm64 上 `psyup install 0.1.0` 已知可用 | Psy IR 将 `Hash`、typed hash let-bindings、`hash` 和 `hash_two_to_one` 降级为 `.psy`，匹配 golden fixture，通过 `dargo test --file`，生成非空 DPN JSON 和 ABI JSON，通过 `dargo execute` 返回预期四 Felt hash 输出，写出 `proof-forge-deploy.json`，并在 `proof-forge-artifact.json` 中记录和校验 metadata/deploy manifest | maps、storage maps、上游压缩 genesis deploy JSON、真实 Psy node/prover 行为 |
-| CI 基线 | `.github/workflows/ci.yml` `build-test` 任务 | GitHub Actions Ubuntu、elan、Foundry stable、`solc` 0.8.30 | 清洁环境下的 `lake build`、文档翻译同步检查、Psy golden source 快照、Psy 诊断、Psy IR 覆盖清单、EVM 诊断、EVM IR 覆盖清单、EVM ABI ScalarProbe/AssertProbe/AssignmentProbe/AssignOpProbe/ConditionalProbe/LoopProbe/ContextProbe/EventProbe/CrosscallProbe/ExpressionProbe/HashProbe/MapProbe/TypedMapProbe/StorageArrayProbe/StorageStructProbe/TypedStorageProbe/ArrayValueProbe/StructArrayValueProbe/StructValueProbe/AbiAggregateProbe IR 冒烟测试、EVM metadata/deploy-manifest 校验、EVM 编译、Foundry 冒烟测试和 Anvil deploy smoke | 可选 Dargo 目标冒烟测试、非 Ubuntu 行为 |
+| CI 基线 | `.github/workflows/ci.yml` `build-test` 任务 | GitHub Actions Ubuntu、`just` 1.48.0、elan、Foundry stable、`solc` 0.8.30 | 清洁环境下的 `just build`、`just target-registry`、`just docs-check`、`just psy-golden-sources`、Psy 诊断、Psy IR 覆盖清单、EVM 诊断、EVM IR 覆盖清单、EVM ABI ScalarProbe/AssertProbe/AssignmentProbe/AssignOpProbe/ConditionalProbe/LoopProbe/ContextProbe/EventProbe/CrosscallProbe/ExpressionProbe/HashProbe/MapProbe/TypedMapProbe/StorageArrayProbe/StorageStructProbe/TypedStorageProbe/ArrayValueProbe/StructArrayValueProbe/StructValueProbe/AbiAggregateProbe IR 冒烟测试、EVM metadata/deploy-manifest 校验、EVM 编译、Foundry 冒烟测试和 Anvil deploy smoke。CI 会保留独立的 GitHub Actions 步骤用于定位失败，但每个常见门禁都通过根目录 `justfile` recipe 调用。 | 可选 Dargo 目标冒烟测试、非 Ubuntu 行为 |
 
 ## 计划中但尚不可运行的门禁
 
@@ -68,4 +68,4 @@
 
 ## 可选外部工具
 
-当前的 CI 安装了 Foundry stable 和 `solc` 0.8.30。本地机器可能没有 `solc`、`cast`、`forge`、`psyup` 或 `dargo`。缺失 EVM 工具会阻塞 EVM 工具链门禁，但不会阻塞 `lake build`。缺失 Psy 工具只会阻塞 Psy smoke 的 Dargo 部分；source generation 和 golden diff 会在脚本退出前先运行。
+当前的 CI 安装了 `just` 1.48.0、Foundry stable 和 `solc` 0.8.30。本地机器可能没有 `just`、`solc`、`cast`、`forge`、`psyup` 或 `dargo`。缺失 `just` 会阻塞本地命令目录，但不会阻塞直接调用底层脚本。缺失 EVM 工具会阻塞 EVM 工具链门禁，但不会阻塞 `lake build`。缺失 Psy 工具只会阻塞 Psy smoke 的 Dargo 部分；source generation 和 golden diff 会在脚本退出前先运行。

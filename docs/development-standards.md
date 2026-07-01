@@ -48,6 +48,8 @@ source-of-truth docs and states when they must be updated.
 - Keep long target harnesses, generated test projects, validators, and
   target-specific shell logic in `scripts/`; `justfile` recipes should compose
   those scripts rather than inline their implementation.
+- CI should invoke the same `just` recipes used locally for common gates,
+  while keeping separate GitHub Actions steps where that helps locate failures.
 - When adding a user-facing or CI-tracked smoke script, add or update the
   matching `just` recipe/list entry in the same change.
 - Documentation may show `just` commands for common workflows, but target docs

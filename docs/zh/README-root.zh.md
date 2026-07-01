@@ -35,10 +35,9 @@ just evm-smoke abi-scalar
 just evm-all
 ```
 
-根目录 `justfile` 是面向开发者的命令目录。底层验证逻辑仍然保留在
-`scripts/` 中，因此直接调用脚本仍然适用于 CI、调试和特定目标文档。
-如果本机尚未安装 `just`，可以从
-[casey/just](https://github.com/casey/just) 安装。
+根目录 `justfile` 是面向开发者的命令目录和 CI 入口。底层验证逻辑仍然保留在
+`scripts/` 中，因此直接调用脚本仍然适用于调试和特定目标文档。如果本机尚未安装
+`just`，可以从 [casey/just](https://github.com/casey/just) 安装。
 
 构建：
 

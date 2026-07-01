@@ -40,6 +40,8 @@
 - 将较长的目标 harness、生成的测试工程、validator 和特定目标的 shell
   逻辑保留在 `scripts/` 中；`justfile` recipe 应组合这些脚本，而不是内联
   它们的实现。
+- CI 应调用与本地常见门禁相同的 `just` recipe，同时在有助于定位失败时保留独立
+  的 GitHub Actions 步骤。
 - 添加面向用户或 CI 覆盖的 smoke 脚本时，应在同一次更改中添加或更新匹配的
   `just` recipe/list 入口。
 - 文档可以用 `just` 命令展示常见工作流，但当某个脚本是验证门禁的权威实现时，
