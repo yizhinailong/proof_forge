@@ -4933,6 +4933,8 @@ mutual
         let loopEnv ← addLocal env indexName .u32 false
         let (bodyShapes, _) ← nestedLocalArrayGetShapesStatements module loopEnv body
         .ok (bodyShapes, env)
+    | .release _ =>
+        .ok (#[], env)
     | .return value =>
         .ok (nestedLocalArrayGetShapesExpr env value, env)
 
