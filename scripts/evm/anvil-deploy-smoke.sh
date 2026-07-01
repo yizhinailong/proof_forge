@@ -8,6 +8,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${EVM_OUT_DIR:-$ROOT/build/evm}"
 RUN_DIR="${EVM_ANVIL_RUN_DIR:-$ROOT/build/anvil-deploy-smoke}"
 CHAIN_ID="${EVM_ANVIL_CHAIN_ID:-31337}"
+if [[ -n "${EVM_ANVIL_CHAIN_PROFILE+x}" ]]; then
+  CHAIN_PROFILE="$EVM_ANVIL_CHAIN_PROFILE"
+elif [[ "$CHAIN_ID" == "31337" ]]; then
+  CHAIN_PROFILE="anvil-local"
+else
+  CHAIN_PROFILE=""
+fi
 MNEMONIC="${EVM_ANVIL_MNEMONIC:-test test test test test test test test test test test junk}"
 DEPLOYER_PRIVATE_KEY="${EVM_ANVIL_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
 DEPLOYER_ADDRESS="${EVM_ANVIL_DEPLOYER:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
@@ -77,6 +84,9 @@ if [[ -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
     --yul-output "$OUT_DIR/Counter.yul"
     --artifact-output "$OUT_DIR/Counter.proof-forge-artifact.json"
   )
+  if [[ -n "$CHAIN_PROFILE" ]]; then
+    proof_forge_args+=(--evm-chain-profile "$CHAIN_PROFILE")
+  fi
   if [[ -n "$CONSTRUCTOR_PARAM" ]]; then
     proof_forge_args+=(--evm-constructor-param "$CONSTRUCTOR_PARAM")
   fi
@@ -99,6 +109,9 @@ if [[ -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
       --expect-source-kind lean-sdk
       --require-method-signatures
     )
+    if [[ -n "$CHAIN_PROFILE" ]]; then
+      metadata_validator+=(--expect-chain-profile "$CHAIN_PROFILE" --expect-chain-id "$CHAIN_ID")
+    fi
     if [[ ( -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ) && -n "$CONSTRUCTOR_PARAM" ]]; then
       metadata_validator+=(--expect-constructor-param "$CONSTRUCTOR_PARAM")
     fi
@@ -297,6 +310,7 @@ run = {
     "deployManifest": file_entry(deploy_manifest_path),
     "runtimeBytecode": file_entry(runtime_path),
     "initCode": file_entry(init_path),
+    "chainProfile": deploy_manifest["chainProfile"],
     "constructorAbi": deploy_manifest["abi"]["constructor"],
     "constructorArgs": deploy_manifest["creation"]["constructorArgs"],
     "castSendReceipt": file_entry(deploy_receipt_path),
@@ -357,6 +371,9 @@ deploy_run_validator=(
   --expect-fixture Counter.lean \
   --expect-chain-id "$CHAIN_ID"
 )
+if [[ -n "$CHAIN_PROFILE" ]]; then
+  deploy_run_validator+=(--expect-chain-profile "$CHAIN_PROFILE")
+fi
 if [[ ( -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ) && -n "$CONSTRUCTOR_PARAM" ]]; then
   deploy_run_validator+=(--expect-constructor-param "$CONSTRUCTOR_PARAM")
 fi

@@ -41,12 +41,14 @@ EVM compiler backend。
 | Chain profile id | Compiler target | Chain id | Native gas | Rollup family | Public RPC | Explorer / verifier |
 |---|---|---:|---|---|---|---|
 | `robinhood-chain-testnet` | `evm` | `46630` | `ETH` | Arbitrum Orbit L2, Ethereum blobs DA | `https://rpc.testnet.chain.robinhood.com` | `https://explorer.testnet.chain.robinhood.com`, Blockscout API `https://explorer.testnet.chain.robinhood.com/api/` |
+| `anvil-local` | `evm` | `31337` | `ETH` | Local Foundry Anvil validation | `http://127.0.0.1:8545` | 无 |
 
 因此，Robinhood Chain 的普通合约编译已由 EVM backend 覆盖。EVM bytecode 模式可以通过
 `--evm-chain-profile` 选择 `robinhood-chain-testnet`，并把该 profile 写入 deploy manifest。
-本地 Anvil 部署已经可用于 smoke validation，但完整产品支持仍需要 live-network
-deployment command，把该 profile 的 RPC metadata 传给 wallet/broadcast tooling，
-并记录所选链上的已签名或已广播交易制品。
+本地 Anvil 部署在 smoke harness 中默认使用 `anvil-local` profile，证明同一套
+profile metadata 路径可以驱动本地部署验证。但完整产品支持仍需要 live-network
+deployment command，把所选 profile 的 RPC metadata 传给 wallet/broadcast tooling，
+并记录对应链上的已签名或已广播交易制品。
 
 ## 构建命令
 
@@ -226,7 +228,7 @@ EVM 不支持（设计上针对其他目标）：
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
 - 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、通过 Yul `leave` 实现的分支/loop 内早退、context read、scalar 和扁平 aggregate event data、`Hash` word 值与 hashing、带托管 key presence 的 word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态和动态 index 的不可变和可变 local fixed-array value、静态和动态嵌套 scalar/扁平 struct local fixed-array read 以及可变 leaf/whole-array 更新、标量/hash 字段上的扁平不可变和可变 local struct value、带静态/动态字段访问的扁平 struct local fixed array 和嵌套扁平 struct local fixed array、扁平静态聚合 ABI 参数/返回（包括 Hash/bytes32 聚合 leaf）、嵌套标量 fixed-array ABI 参数/返回、word array 和扁平 struct array 的 storage-backed fixed-array ABI return、同步返回一个 word 的 `crosscallInvoke`、支持 scalar word、扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array 参数/返回的 typed crosscall、normal/value/static/delegate typed call 的扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array entrypoint 直接返回、带 value 的 typed `crosscallInvokeValueTyped`、typed `crosscallInvokeStaticTyped`、typed `crosscallInvokeDelegateTyped`，以及固定 init-code 的 `crosscallCreate` 和 `crosscallCreate2`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
-- Portable IR EVM 目前仍缺少动态 ABI 值、leaf 为不支持 aggregate 或非扁平 struct 的嵌套 local array、leaf 为非扁平 struct 或其他不支持形态的嵌套 crosscall fixed array、非 word 或 aggregate map 形态、超出扁平 struct array 的 nested local struct、更完整的 event declaration、dynamic constructor ABI types、variable-length 跨调用返回数据，以及真实 creation transaction 或 broadcast manifest。
+- Portable IR EVM 目前仍缺少动态 ABI 值、leaf 为不支持 aggregate 或非扁平 struct 的嵌套 local array、leaf 为非扁平 struct 或其他不支持形态的嵌套 crosscall fixed array、非 word 或 aggregate map 形态、超出扁平 struct array 的 nested local struct、更完整的 event declaration、dynamic constructor ABI types、variable-length 跨调用返回数据，以及一等的签名交易或 public-RPC broadcast manifest。
 
 ## Portable IR 门禁
 
@@ -340,7 +342,10 @@ code 等于 `Counter.bin`，通过 JSON-RPC 跑 Counter lifecycle，并写出
 manifest 仍然是可复现的部署计划，并保持 `deployment.broadcast: not-generated`；
 deploy-run artifact 会记录这次使用的 constructor ABI schema 和 constructor args，
 以及一次已观察到的本地 Anvil 部署执行。它也会关联 `cast send` receipt 和
-`eth_getTransactionByHash` creation transaction JSON，并验证 transaction hash、
-sender、creation 的空 `to`、block metadata 和 input initcode 都与生成的部署制品一致。
+`eth_getTransactionByHash` creation transaction JSON，并验证 chain profile、
+deployment chain id、实际 Anvil chain id、transaction hash、sender、creation 的空
+`to`、block metadata 和 input initcode 都与生成的部署制品一致。默认情况下，当
+Anvil chain id 是 `31337` 时，它会使用 `anvil-local` chain profile；可以设置
+`EVM_ANVIL_CHAIN_PROFILE=` 关闭 profile 关联，或显式提供另一个 profile。
 
 在统一的目标清单发布（RFC 0002）之前，方法分派仍使用 `.evm-methods` sidecar 文件。

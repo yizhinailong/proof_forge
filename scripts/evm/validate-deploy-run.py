@@ -183,11 +183,46 @@ def unwrap_rpc_result(value: Any, name: str) -> dict:
     return obj
 
 
+def validate_chain_profile(manifest: dict, run: dict, expected_profile: str | None, expected_chain_id: int) -> None:
+    profile_value = manifest.get("chainProfile")
+    deployment = expect_object(manifest.get("deployment"), "deploy manifest deployment")
+    expect(run.get("chainProfile") == profile_value, "chainProfile must match deploy manifest")
+
+    if profile_value is None:
+        expect(expected_profile is None, "deploy manifest chainProfile is missing")
+        expect(deployment.get("profileId") is None, "deploy manifest deployment.profileId must be null without chain profile")
+        expect(deployment.get("chainId") is None, "deploy manifest deployment.chainId must be null without chain profile")
+        expect(deployment.get("networkName") is None, "deploy manifest deployment.networkName must be null without chain profile")
+        expect(expect_array(deployment.get("rpcUrls"), "deploy manifest deployment.rpcUrls") == [], "deploy manifest deployment.rpcUrls must be empty without chain profile")
+        return
+
+    profile = expect_object(profile_value, "deploy manifest chainProfile")
+    profile_id = expect_string(profile.get("id"), "deploy manifest chainProfile.id")
+    if expected_profile is not None:
+        expect(profile_id == expected_profile, "deploy manifest chainProfile.id mismatch")
+    expect(profile.get("targetId") == "evm", "deploy manifest chainProfile.targetId must be evm")
+    expect_string(profile.get("networkName"), "deploy manifest chainProfile.networkName")
+    chain_id = profile.get("chainId")
+    expect(isinstance(chain_id, int), "deploy manifest chainProfile.chainId must be an integer")
+    expect(chain_id == expected_chain_id, "deploy manifest chainProfile.chainId must match deploy-run chain id")
+    expect_string(profile.get("nativeCurrencySymbol"), "deploy manifest chainProfile.nativeCurrencySymbol")
+    for field_name in ("rpcUrls", "websocketUrls", "sequencerUrls", "notes"):
+        values = expect_array(profile.get(field_name), f"deploy manifest chainProfile.{field_name}")
+        for idx, value in enumerate(values):
+            expect_string(value, f"deploy manifest chainProfile.{field_name}[{idx}]")
+
+    expect(deployment.get("profileId") == profile_id, "deploy manifest deployment.profileId mismatch")
+    expect(deployment.get("chainId") == chain_id, "deploy manifest deployment.chainId mismatch")
+    expect(deployment.get("networkName") == profile.get("networkName"), "deploy manifest deployment.networkName mismatch")
+    expect(deployment.get("rpcUrls") == profile.get("rpcUrls"), "deploy manifest deployment.rpcUrls mismatch")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
     parser.add_argument("--expect-fixture", default="Counter.lean")
     parser.add_argument("--expect-chain-id", type=int, default=31337)
+    parser.add_argument("--expect-chain-profile")
     parser.add_argument("--expect-contract-name", default="Counter")
     parser.add_argument("--expect-constructor-args-source")
     parser.add_argument("--expect-constructor-param", action="append", default=[])
@@ -217,6 +252,7 @@ def main() -> int:
     expect(manifest.get("kind") == "proof-forge-evm-deploy-manifest", "deploy manifest kind mismatch")
     expect(manifest.get("fixture") == args.expect_fixture, "deploy manifest fixture mismatch")
     expect(manifest.get("contractName") == args.expect_contract_name, "deploy manifest contractName mismatch")
+    validate_chain_profile(manifest, run, args.expect_chain_profile, args.expect_chain_id)
     constructor_params = validate_constructor_abi(
         expect_object(manifest.get("abi"), "deploy manifest abi"),
         expected_constructor_params,

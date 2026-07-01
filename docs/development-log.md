@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Anvil Chain Profile Deploy-Run Validation
+
+Commit: `feat: validate Anvil chain profiles`
+
+Summary:
+
+- Added `anvil-local` as a lookup-only EVM chain profile for local Foundry
+  Anvil deployments on chain id `31337`.
+- `scripts/evm/anvil-deploy-smoke.sh` now regenerates Counter with
+  `--evm-chain-profile anvil-local` by default when using the default Anvil
+  chain id.
+- `proof-forge-deploy-run.json` now links the deploy manifest chain profile,
+  and `scripts/evm/validate-deploy-run.py` validates that the profile,
+  deployment chain id, actual Anvil chain id, and creation transaction evidence
+  agree.
+
+Validation run:
+
+```sh
+lake build ProofForge.Target.Registry
+lake env lean --run Tests/TargetRegistry.lean
+python3 -m py_compile scripts/evm/validate-deploy-run.py
+bash -n scripts/evm/anvil-deploy-smoke.sh
+scripts/evm/anvil-deploy-smoke.sh
+```
+
+Known limitations:
+
+- `anvil-local` is intentionally a local validation profile; it does not imply
+  public RPC broadcast support.
+
+Next step:
+
+- Promote profile-aware deploy-run generation into a first-class deploy command
+  that can consume any supported EVM chain profile.
+
 ### EVM Creation Transaction Deploy-Run Artifact
 
 Commit: `feat: record EVM creation transactions`

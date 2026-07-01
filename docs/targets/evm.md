@@ -46,14 +46,17 @@ Implemented chain profiles:
 | Chain profile id | Compiler target | Chain id | Native gas | Rollup family | Public RPC | Explorer / verifier |
 |---|---|---:|---|---|---|---|
 | `robinhood-chain-testnet` | `evm` | `46630` | `ETH` | Arbitrum Orbit L2, Ethereum blobs DA | `https://rpc.testnet.chain.robinhood.com` | `https://explorer.testnet.chain.robinhood.com`, Blockscout API `https://explorer.testnet.chain.robinhood.com/api/` |
+| `anvil-local` | `evm` | `31337` | `ETH` | Local Foundry Anvil validation | `http://127.0.0.1:8545` | none |
 
 Robinhood Chain is therefore already covered for ordinary contract compilation
 by the EVM backend. EVM bytecode modes can select
 `robinhood-chain-testnet` with `--evm-chain-profile` and record the profile in
-the deploy manifest. Local Anvil deployment is available for smoke validation,
-but full product support still needs live-network deployment commands that pass
-the profile's RPC metadata to wallet/broadcast tooling and record signed or
-broadcast transaction artifacts for the selected chain.
+the deploy manifest. Local Anvil deployment uses the `anvil-local` profile by
+default in the smoke harness, proving the same profile metadata path can drive
+local deployment validation. Full product support still needs live-network
+deployment commands that pass the profile's RPC metadata to wallet/broadcast
+tooling and record signed or broadcast transaction artifacts for the selected
+chain.
 
 ## Build Commands
 
@@ -296,7 +299,7 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   non-word or aggregate map shapes, nested
   local structs beyond flat struct arrays, richer event declarations,
   dynamic constructor ABI types, variable-length cross-call return data, and
-  real creation-transaction or broadcast manifests.
+  first-class signed transaction or public-RPC broadcast manifests.
 
 ## Portable IR Gates
 
@@ -707,8 +710,11 @@ original deploy manifest remains a reproducible plan with
 observed local Anvil deployment execution, including the constructor ABI schema
 and constructor args that were used. It also links the `cast send` receipt and
 the `eth_getTransactionByHash` creation transaction JSON, and validates that
-the transaction hash, sender, null creation `to`, block metadata, and input
-initcode match the generated deploy artifacts.
+the chain profile, deployment chain id, actual Anvil chain id, transaction hash,
+sender, null creation `to`, block metadata, and input initcode match the
+generated deploy artifacts. By default it uses the `anvil-local` chain profile
+when the Anvil chain id is `31337`; set `EVM_ANVIL_CHAIN_PROFILE=` to disable
+that profile link or provide a different profile explicitly.
 
 Method dispatch still uses `.evm-methods` sidecar files until a unified target
 manifest lands (RFC 0002).

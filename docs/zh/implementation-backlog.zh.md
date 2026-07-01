@@ -76,8 +76,8 @@
 - 已完成（EVM）：为每个 EVM bytecode build 生成与 artifact 关联的 `.init.bin` creation bytecode 文件，在 `proof-forge-artifact.json` 和 `proof-forge-deploy.json` 中记录它，并验证 initcode header 会复制并返回引用的 runtime bytecode。
 - 已完成（EVM）：添加 `--evm-chain-profile <id>`，让 bytecode build 可以在
   `proof-forge-deploy.json` 中记录已知 EVM chain profile，例如
-  `robinhood-chain-testnet`；validator 会检查 profile id、chain id、RPC URLs、
-  explorer、verifier 和 deployment block 的一致性，但不会广播交易。
+  `robinhood-chain-testnet` 或 `anvil-local`；validator 会检查 profile id、chain
+  id、RPC URLs、explorer、verifier 和 deployment block 的一致性，但不会广播交易。
 - 已完成（EVM）：添加 `--evm-constructor-args-hex <hex>`，让 bytecode build 可以把显式 ABI-encoded constructor arguments 追加到生成的 `.init.bin`，在 `proof-forge-deploy.json` 中记录规范化 hex、byte size 和 SHA-256，并校验 initcode tail 与 manifest 一致。
 - 已完成（EVM）：添加 `--evm-constructor-param <name:type>`，让 bytecode
   build 可以在 artifact metadata 和 deploy manifest 中记录静态 word
@@ -95,9 +95,9 @@
 - 已完成（EVM）：加入 Anvil deploy smoke，通过 `cast send --create` 发送生成的
   Counter `.init.bin`，记录 constructor ABI schema、typed constructor args
   和 `proof-forge-deploy-run.json` artifact，同时记录
-  `eth_getTransactionByHash` creation transaction JSON，校验 receipt、deployed
-  address、runtime-code match 和 transaction input initcode，并通过 JSON-RPC
-  运行 Counter lifecycle。
+  `eth_getTransactionByHash` creation transaction JSON，校验 `anvil-local` chain
+  profile、receipt、deployed address、runtime-code match 和 transaction input
+  initcode，并通过 JSON-RPC 运行 Counter lifecycle。
 - 从第一天起就保持 schema 的版本化。
 
 验收标准：
@@ -110,7 +110,8 @@
   deploy-run artifact，并证明即使 initcode 包含 typed 或 raw ABI-encoded
   constructor-argument tail 和记录的静态 constructor ABI schema，deployed
   runtime code 仍然与生成的 bytecode 一致；deploy-run artifact 也会关联已观察到的
-  creation transaction JSON，并验证其 input 等于生成的 initcode。
+  creation transaction JSON，并验证其 input 等于生成的 initcode，且 deployment
+  profile chain id 与实际本地链一致。
 - EVM metadata 可以将缺失的可选 version 数据表示为 `null`，而不是格式错误的 metadata。
 
 ## 工作流 3：EVM 基线加固
