@@ -45,6 +45,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint struct_lifecycle:93ddf147 \
   --expect-entrypoint path_lifecycle:84c21205 \
   --expect-entrypoint array_struct_lifecycle:2d84bb06 \
+  --expect-entrypoint return_points:d16ccd19 \
   --expect-entrypoint array_path_lifecycle:2991a157 \
   --expect-entrypoint typed_sum:2ec467be \
   --expect-entrypoint root_value:c42f8c06 \
@@ -84,6 +85,11 @@ contract ProofForgeIRStorageStructSmokeTest {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
     bytes32 constant ROOT_VALUE =
         hex"0000000000000001000000000000000200000000000000030000000000000004";
+
+    struct Point {
+        uint256 x;
+        uint256 y;
+    }
 
     function assertTrue(bool value) internal pure {
         require(value, "assertTrue failed");
@@ -131,6 +137,15 @@ contract ProofForgeIRStorageStructSmokeTest {
         return abi.decode(result, (uint256, uint256));
     }
 
+    function callPoints(address probe, bytes memory payload)
+        internal
+        returns (Point[2] memory points)
+    {
+        (bool ok, bytes memory result) = probe.call(payload);
+        assertTrue(ok);
+        points = abi.decode(result, (Point[2]));
+    }
+
     function testIRStorageStructScalarLifecycleUsesExpandedSlots() public {
         address probe = address(uint160(0xA320));
         deployRuntime(hex"$probe_hex", probe);
@@ -160,6 +175,21 @@ contract ProofForgeIRStorageStructSmokeTest {
         assertEq(readStorage(probe, 5), 5);
         assertEq(readStorage(probe, 6), 7);
         assertEq(readStorage(probe, 7), 11);
+    }
+
+    function testIRStorageStructArrayReturnEncodesStorageFields() public {
+        address probe = address(uint160(0xA32B));
+        deployRuntime(hex"$probe_hex", probe);
+
+        Point[2] memory points = callPoints(probe, abi.encodeWithSignature("return_points()"));
+        assertEq(points[0].x, 29);
+        assertEq(points[0].y, 31);
+        assertEq(points[1].x, 37);
+        assertEq(points[1].y, 41);
+        assertEq(readStorage(probe, 4), 29);
+        assertEq(readStorage(probe, 5), 31);
+        assertEq(readStorage(probe, 6), 37);
+        assertEq(readStorage(probe, 7), 41);
     }
 
     function testIRStorageStructArrayFieldPaths() public {

@@ -66,6 +66,22 @@ def writeValue : Entrypoint := {
   ]
 }
 
+def returnValues : Entrypoint := {
+  name := "return_values"
+  selector? := some "08b37751"
+  returns := .fixedArray .u64 3
+  body := #[
+    .effect (.storageArrayWrite "values" (u64 0) (u64 17)),
+    .effect (.storageArrayWrite "values" (u64 1) (u64 19)),
+    .effect (.storageArrayWrite "values" (u64 2) (u64 23)),
+    .return (.arrayLit .u64 #[
+      .effect (.storageArrayRead "values" (u64 0)),
+      .effect (.storageArrayRead "values" (u64 1)),
+      .effect (.storageArrayRead "values" (u64 2))
+    ])
+  ]
+}
+
 def pathLifecycle : Entrypoint := {
   name := "path_lifecycle"
   selector? := some "84c21205"
@@ -93,7 +109,7 @@ def pathAssignLifecycle : Entrypoint := {
 def module : Module := {
   name := "EvmStorageArrayProbe"
   state := #[stateBefore, stateValues, stateAfter]
-  entrypoints := #[storageLifecycle, readValue, writeValue, pathLifecycle, pathAssignLifecycle]
+  entrypoints := #[storageLifecycle, readValue, writeValue, returnValues, pathLifecycle, pathAssignLifecycle]
 }
 
 end ProofForge.IR.Examples.EvmStorageArrayProbe

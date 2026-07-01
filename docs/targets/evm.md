@@ -198,9 +198,9 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 |---|---|
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, flat scalar storage struct field read/write, and whole flat scalar storage struct read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
-| `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns, nested scalar fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, nested scalar fixed-array typed crosscall arguments/returns, scalar fixed-array non-indexed event data fields, and fixed-array event data fields whose elements are flat structs; zero-length ABI arrays, nested local arrays, nested crosscall fixed arrays with non-scalar leaves, and unsupported element shapes still reject explicitly |
-| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns, fixed arrays of flat structs in ABI-facing parameters/returns, flat non-indexed event data fields, flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
+| `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks; word and flat-struct storage arrays can feed fixed-array ABI returns through storage reads |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns, nested scalar fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, storage-backed fixed-array ABI returns from word arrays and fixed arrays of flat structs, nested scalar fixed-array typed crosscall arguments/returns, scalar fixed-array non-indexed event data fields, and fixed-array event data fields whose elements are flat structs; zero-length ABI arrays, nested local arrays, nested crosscall fixed arrays with non-scalar leaves, and unsupported element shapes still reject explicitly |
+| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns, fixed arrays of flat structs in ABI-facing parameters/returns, storage-backed fixed-array-of-flat-struct ABI returns, flat non-indexed event data fields, flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -252,7 +252,8 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   flat immutable and mutable local struct values over scalar/hash fields, local
   fixed arrays of flat structs with static and dynamic field access, flat static
   aggregate ABI parameters and returns, nested scalar fixed-array ABI
-  parameters and returns, synchronous word-returning
+  parameters and returns, storage-backed fixed-array ABI returns for word
+  arrays and fixed arrays of flat structs, synchronous word-returning
   `crosscallInvoke`, typed `crosscallInvokeTyped` over scalar words, flat
   aggregate arguments, and nested scalar fixed-array arguments/returns,
   direct entrypoint returns of flat struct, scalar fixed-array, fixed-array of
@@ -481,10 +482,12 @@ declared after an array starts after the full array span. Direct
 `storageArrayRead`/`storageArrayWrite` effects and single-segment `index`
 storage paths lower through `__proof_forge_array_slot(base, length, index)`,
 which reverts when the index is out of bounds before calling `sload` or
-`sstore`. The smoke checks golden Yul reproducibility, `solc --strict-assembly`
-bytecode generation, metadata capabilities (`storage.scalar`, `storage.array`,
-`data.fixed_array`), ABI read/write selectors, generic path read/write and
-compound assignment, Foundry raw slot layout, out-of-bounds reverts, and
+`sstore`. It also validates `return_values()`, which writes storage elements,
+reads them back, and encodes those reads as a fixed-array ABI return. The smoke
+checks golden Yul reproducibility, `solc --strict-assembly` bytecode
+generation, metadata capabilities (`storage.scalar`, `storage.array`,
+`data.fixed_array`), ABI read/write/return selectors, generic path read/write
+and compound assignment, Foundry raw slot layout, out-of-bounds reverts, and
 unknown-selector revert behavior.
 
 `EvmTypedStorageProbe` extends the storage-array gate beyond the original `U64`
@@ -509,14 +512,17 @@ snapshot RHS fields before writing target slots, so self-referential storage
 struct updates observe the original RHS values. Struct arrays use
 `__proof_forge_struct_array_slot(base, length, field_count, field_offset,
 index)`, which reverts on out-of-bounds indexes before deriving
-`base + index * field_count + field_offset`. The smoke checks golden Yul
-reproducibility, `solc --strict-assembly` bytecode generation, metadata
-capabilities (`storage.scalar`, `storage.array`, `data.fixed_array`,
-`data.struct`), scalar and array struct field reads/writes, field path
-compound assignment, whole scalar storage struct read/write, ABI struct return
-encoding from storage, `Bool`/`U32`/`Hash` fields, Foundry raw slot layout,
-out-of-bounds reverts, and unknown-selector revert behavior. Nested struct
-fields and non-flat struct storage remain explicit diagnostics.
+`base + index * field_count + field_offset`. It also validates
+`return_points()`, which reads fields from a fixed storage array of flat structs
+and encodes those reads as a fixed-array-of-struct ABI return. The smoke checks
+golden Yul reproducibility, `solc --strict-assembly` bytecode generation,
+metadata capabilities (`storage.scalar`, `storage.array`, `data.fixed_array`,
+`data.struct`), scalar and array struct field reads/writes, field path compound
+assignment, whole scalar storage struct read/write, ABI struct return encoding
+from storage, storage-backed fixed-array-of-struct returns,
+`Bool`/`U32`/`Hash` fields, Foundry raw slot layout, out-of-bounds reverts, and
+unknown-selector revert behavior. Nested struct fields and non-flat struct
+storage remain explicit diagnostics.
 
 `EvmArrayValueProbe` validates portable IR local fixed-array values. Immutable
 and mutable local fixed-array bindings expand into one Yul local per element.

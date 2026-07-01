@@ -69,6 +69,12 @@ def point (x y : Nat) : Expr :=
     ("y", u64 y)
   ]
 
+def storagePoint (index : Nat) : Expr :=
+  .structLit "Point" #[
+    ("x", .effect (.storageArrayStructFieldRead "points" (u64 index) "x")),
+    ("y", .effect (.storageArrayStructFieldRead "points" (u64 index) "y"))
+  ]
+
 def pathIndex (value : Nat) : StoragePathSegment :=
   .index (u64 value)
 
@@ -116,6 +122,22 @@ def arrayStructLifecycle : Entrypoint := {
     .return (.add
       (.effect (.storageArrayStructFieldRead "points" (u64 1) "x"))
       (.effect (.storageArrayStructFieldRead "points" (u64 0) "y")))
+  ]
+}
+
+def returnPoints : Entrypoint := {
+  name := "return_points"
+  selector? := some "d16ccd19"
+  returns := .fixedArray (.structType "Point") 2
+  body := #[
+    .effect (.storageArrayStructFieldWrite "points" (u64 0) "x" (u64 29)),
+    .effect (.storageArrayStructFieldWrite "points" (u64 0) "y" (u64 31)),
+    .effect (.storageArrayStructFieldWrite "points" (u64 1) "x" (u64 37)),
+    .effect (.storageArrayStructFieldWrite "points" (u64 1) "y" (u64 41)),
+    .return (.arrayLit (.structType "Point") #[
+      storagePoint 0,
+      storagePoint 1
+    ])
   ]
 }
 
@@ -213,6 +235,7 @@ def module : Module := {
     structLifecycle,
     pathLifecycle,
     arrayStructLifecycle,
+    returnPoints,
     arrayPathLifecycle,
     typedSum,
     rootValue,

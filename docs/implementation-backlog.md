@@ -318,6 +318,11 @@ Tasks:
   coverage, `EvmStorageStructProbe` golden Yul, solc bytecode, Foundry
   runtime/raw-slot validation, metadata capability validation, CI coverage, and
   explicit diagnostics for missing fields and non-flat storage structs.
+- Done: validate storage-backed aggregate ABI returns for EVM IR by extending
+  `EvmStorageArrayProbe` with `return_values()` over storage-array element
+  reads and `EvmStorageStructProbe` with `return_points()` over fixed
+  storage-array-of-struct field reads, including golden Yul, solc bytecode,
+  metadata selector validation, Foundry ABI decoding, and raw-slot checks.
 - Done: add EVM IR static aggregate ABI lowering for fixed-array and struct
   parameters/returns, including nested scalar fixed arrays and fixed arrays of
   flat structs, with calldata word flattening, `U32`/`Bool` aggregate word

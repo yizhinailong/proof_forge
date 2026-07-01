@@ -21,6 +21,13 @@ object "EvmStorageArrayProbe" {
       f_EvmStorageArrayProbe_write_value(calldataload(4), calldataload(36))
       return(0, 0)
     }
+    case 0x08b37751 {
+      let _r0, _r1, _r2 := f_EvmStorageArrayProbe_return_values()
+      mstore(0, _r0)
+      mstore(32, _r1)
+      mstore(64, _r2)
+      return(0, 96)
+    }
     case 0x84c21205 {
       let _r := f_EvmStorageArrayProbe_path_lifecycle()
       mstore(0, _r)
@@ -47,6 +54,14 @@ object "EvmStorageArrayProbe" {
     }
     function f_EvmStorageArrayProbe_write_value(index, value) {
       sstore(__proof_forge_array_slot(1, 3, index), value)
+    }
+    function f_EvmStorageArrayProbe_return_values() -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2 {
+      sstore(__proof_forge_array_slot(1, 3, 0), 17)
+      sstore(__proof_forge_array_slot(1, 3, 1), 19)
+      sstore(__proof_forge_array_slot(1, 3, 2), 23)
+      __proof_forge_return_0 := sload(__proof_forge_array_slot(1, 3, 0))
+      __proof_forge_return_1 := sload(__proof_forge_array_slot(1, 3, 1))
+      __proof_forge_return_2 := sload(__proof_forge_array_slot(1, 3, 2))
     }
     function f_EvmStorageArrayProbe_path_lifecycle() -> result {
       sstore(__proof_forge_array_slot(1, 3, 0), 21)

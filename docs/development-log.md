@@ -17,6 +17,55 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Storage-Backed Aggregate ABI Returns
+
+Commit: feature commit for EVM IR storage-backed aggregate ABI returns
+
+Summary:
+
+- Extended `EvmStorageArrayProbe` with `return_values()`, which writes U64
+  storage-array elements, reads them back through `storageArrayRead`, and
+  encodes those reads as a fixed-array ABI return.
+- Extended `EvmStorageStructProbe` with `return_points()`, which writes fields
+  in a fixed storage array of flat structs, reads them back through
+  `storageArrayStructFieldRead`, and encodes those reads as a
+  fixed-array-of-struct ABI return.
+- Refreshed both storage probe golden Yul snapshots and metadata selector
+  expectations.
+- Added Foundry ABI decoding checks for `uint256[3]` and `Point[2]` returns,
+  while still validating the raw storage slots with `vm.load`.
+
+Validation run:
+
+```sh
+lake build
+scripts/i18n/check-sync.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+git diff --check
+```
+
+Result:
+
+- `EvmStorageArrayProbe` generated reproducible Yul and runtime bytecode, and
+  Foundry ran 7 tests including the new storage-backed fixed-array return.
+- `EvmStorageStructProbe` generated reproducible Yul and runtime bytecode, and
+  Foundry ran 12 tests including the new storage-backed fixed-array-of-struct
+  return.
+
+Known limitations:
+
+- This covers fixed-size word arrays and fixed arrays of flat structs assembled
+  from storage reads. Dynamic ABI values, richer storage-backed aggregate
+  shapes, and variable-length return data remain future EVM IR work.
+
+Next step:
+
+- Continue shrinking the EVM ABI/storage gap around dynamic ABI data, richer
+  aggregate storage shapes, or return data that cannot be represented as a
+  static word sequence.
+
 ### EVM IR Nested Crosscall Fixed Arrays
 
 Commit: `fb0828b` (`feat: support nested EVM crosscall arrays`)

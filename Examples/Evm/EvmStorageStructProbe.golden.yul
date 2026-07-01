@@ -16,6 +16,14 @@ object "EvmStorageStructProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xd16ccd19 {
+      let _r0, _r1, _r2, _r3 := f_EvmStorageStructProbe_return_points()
+      mstore(0, _r0)
+      mstore(32, _r1)
+      mstore(64, _r2)
+      mstore(96, _r3)
+      return(0, 128)
+    }
     case 0x2991a157 {
       let _r := f_EvmStorageStructProbe_array_path_lifecycle()
       mstore(0, _r)
@@ -80,6 +88,16 @@ object "EvmStorageStructProbe" {
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 0, 1), 7)
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 1, 1), 11)
       result := add(sload(__proof_forge_struct_array_slot(4, 2, 2, 0, 1)), sload(__proof_forge_struct_array_slot(4, 2, 2, 1, 0)))
+    }
+    function f_EvmStorageStructProbe_return_points() -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
+      sstore(__proof_forge_struct_array_slot(4, 2, 2, 0, 0), 29)
+      sstore(__proof_forge_struct_array_slot(4, 2, 2, 1, 0), 31)
+      sstore(__proof_forge_struct_array_slot(4, 2, 2, 0, 1), 37)
+      sstore(__proof_forge_struct_array_slot(4, 2, 2, 1, 1), 41)
+      __proof_forge_return_0 := sload(__proof_forge_struct_array_slot(4, 2, 2, 0, 0))
+      __proof_forge_return_1 := sload(__proof_forge_struct_array_slot(4, 2, 2, 1, 0))
+      __proof_forge_return_2 := sload(__proof_forge_struct_array_slot(4, 2, 2, 0, 1))
+      __proof_forge_return_3 := sload(__proof_forge_struct_array_slot(4, 2, 2, 1, 1))
     }
     function f_EvmStorageStructProbe_array_path_lifecycle() -> result {
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 0, 1), 13)

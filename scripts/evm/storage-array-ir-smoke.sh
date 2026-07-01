@@ -44,6 +44,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint storage_lifecycle:e4684b67 \
   --expect-entrypoint read_value:ac35feee \
   --expect-entrypoint write_value:5a6fd3b0 \
+  --expect-entrypoint return_values:08b37751 \
   --expect-entrypoint path_lifecycle:84c21205 \
   --expect-entrypoint path_assign_lifecycle:bce9e77b \
   "$METADATA_FILE"
@@ -107,6 +108,15 @@ contract ProofForgeIRStorageArraySmokeTest {
         return abi.decode(result, (uint256));
     }
 
+    function callU256Array3(address probe, bytes memory payload)
+        internal
+        returns (uint256[3] memory values)
+    {
+        (bool ok, bytes memory result) = probe.call(payload);
+        assertTrue(ok);
+        values = abi.decode(result, (uint256[3]));
+    }
+
     function testIRStorageArrayLifecycleUsesContiguousSlots() public {
         address probe = address(uint160(0xA220));
         deployRuntime(hex"$probe_hex", probe);
@@ -130,6 +140,22 @@ contract ProofForgeIRStorageArraySmokeTest {
 
         assertEq(callU256(probe, abi.encodeWithSignature("read_value(uint256)", 1)), 44);
         assertEq(readStorage(probe, arraySlot(1)), 44);
+    }
+
+    function testIRStorageArrayReturnValuesEncodesStorageElements() public {
+        address probe = address(uint160(0xA226));
+        deployRuntime(hex"$probe_hex", probe);
+
+        uint256[3] memory values = callU256Array3(
+            probe,
+            abi.encodeWithSignature("return_values()")
+        );
+        assertEq(values[0], 17);
+        assertEq(values[1], 19);
+        assertEq(values[2], 23);
+        assertEq(readStorage(probe, arraySlot(0)), 17);
+        assertEq(readStorage(probe, arraySlot(1)), 19);
+        assertEq(readStorage(probe, arraySlot(2)), 23);
     }
 
     function testIRStorageArrayIndexStoragePath() public {
