@@ -37,6 +37,7 @@ def TRUE_PTR  : Nat := 12000
 def FALSE_PTR : Nat := 12006
 def MAPKEY_BUF : Nat := 12500    -- scratch for building map storage keys (prefix ++ key bytes)
 def HASH_HEAP : Nat := 30000       -- bump-allocator base for hash (32-byte) temporaries
+def ARR_HEAP : Nat := 60000       -- bump-allocator base for array-value temporaries
 def HASH_CONCAT_BUF : Nat := 40000 -- 64-byte scratch for hash_two_to_one
 def CTX_BUF : Nat := 41000          -- 128-byte scratch for account-id → sha256 → u64
 def EVENT_BUF : Nat := 42000       -- 256-byte scratch for building event JSON
@@ -355,6 +356,19 @@ def hashAllocFunc : Func :=
   { name := hashAllocName, results := #[.i32],
     body := { insns := #[ .globalGet hashPtrGlobal,
       .globalGet hashPtrGlobal, .i32Const 32, .plain "i32.add", .globalSet hashPtrGlobal ] } }
+
+-- Array-value bump allocator (for arrayLit temporaries). Returns current ptr and
+-- advances by the byte count; the caller stores elements into [ptr, ptr+n).
+def arrPtrGlobal     : String := "arr_ptr"
+def arrAllocName     : String := "__pf_arr_alloc"
+def arrayLitName (elemType : ValueType) (len : Nat) : String :=
+  "__pf_arr_lit_" ++ typeSuffix elemType ++ "_" ++ toString len
+def arrPtrGlobalDecl : Global :=
+  { name := arrPtrGlobal, type := .i32, init := toString ARR_HEAP, isMutable := true }
+def arrAllocFunc : Func :=
+  { name := arrAllocName, params := #[{ name := "n", type := .i64 }], results := #[.i32],
+    body := { insns := #[ .globalGet arrPtrGlobal,
+      .globalGet arrPtrGlobal, .localGet "n", .plain "i32.wrap_i64", .plain "i32.add", .globalSet arrPtrGlobal ] } }
 
 def hashMakeFunc : Func :=
   { name := hashMakeName,
@@ -693,6 +707,25 @@ mutual
         else do
           let kis ← lowerMapKeyU64 ctx env index
           .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ #[.call (mapReadName m.valueType)], m.valueType)
+    | .arrayLit elementType values => do
+      let lowered ← values.mapM fun v => do
+        let (is, t) ← lowerExpr ctx env v
+        if t != elementType then err s!"EmitWat: arrayLit element expected `{elementType.name}`, got `{t.name}`"
+        else .ok is
+      .ok (lowered.foldl (fun acc is => acc ++ is) #[] ++ #[.call (arrayLitName elementType values.size)],
+            .fixedArray elementType values.size)
+    | .arrayGet array index => do
+      let (pa, ta) ← lowerExpr ctx env array
+      let (pi, ti) ← lowerExpr ctx env index
+      match ta with
+      | .fixedArray elemType _ =>
+        if !(ti == .u32 || ti == .u64) then
+          err s!"EmitWat: arrayGet index must be U32/U64, got `{ti.name}`"
+        else do
+          let conv := if ti == .u64 then #[.plain "i32.wrap_i64"] else #[]
+          .ok (pa ++ pi ++ conv ++ #[.i32Const (scalarWidth elemType), .plain "i32.mul",
+                .plain "i32.add", .load (loadOpFor elemType) 0], elemType)
+      | _ => err s!"EmitWat: arrayGet expected an array value, got `{ta.name}`"
     | _ => err "EmitWat: this expression form is not yet supported"
 
   partial def lowerNumBin (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
@@ -781,14 +814,86 @@ mutual
       let (vis, vt) ← lowerExpr ctx env value
       if vt != m.valueType then err s!"EmitWat: map write `{id}` expected `{m.valueType.name}`, got `{vt.name}`"
       else .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ vis ++ writeCall, m.valueType)
+
+  partial def collectArrayLitsExpr (e : Expr) : Array (ValueType × Nat) :=
+    match e with
+    | .literal _ => #[]
+    | .local _ => #[]
+    | .arrayLit elementType values =>
+        #[(elementType, values.size)] ++ values.foldl (fun acc v => acc ++ collectArrayLitsExpr v) #[]
+    | .arrayGet array index => collectArrayLitsExpr array ++ collectArrayLitsExpr index
+    | .structLit _ fields => fields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) #[]
+    | .field base _ => collectArrayLitsExpr base
+    | .add a b | .sub a b | .mul a b | .div a b | .mod a b | .pow a b
+    | .bitAnd a b | .bitOr a b | .bitXor a b | .shiftLeft a b | .shiftRight a b
+    | .eq a b | .ne a b | .lt a b | .le a b | .gt a b | .ge a b
+    | .boolAnd a b | .boolOr a b => collectArrayLitsExpr a ++ collectArrayLitsExpr b
+    | .cast value _ => collectArrayLitsExpr value
+    | .boolNot value => collectArrayLitsExpr value
+    | .hashValue a b c d => collectArrayLitsExpr a ++ collectArrayLitsExpr b ++ collectArrayLitsExpr c ++ collectArrayLitsExpr d
+    | .hash preimage => collectArrayLitsExpr preimage
+    | .hashTwoToOne a b => collectArrayLitsExpr a ++ collectArrayLitsExpr b
+    | .nativeValue => #[]
+    | .crosscallInvoke t m args => collectArrayLitsExpr t ++ collectArrayLitsExpr m ++ args.foldl (fun acc a => acc ++ collectArrayLitsExpr a) #[]
+    | .effect eff => collectArrayLitsEffect eff
+  partial def collectArrayLitsEffect (eff : Effect) : Array (ValueType × Nat) :=
+    match eff with
+    | .storageScalarWrite _ v => collectArrayLitsExpr v
+    | .storageScalarAssignOp _ _ v => collectArrayLitsExpr v
+    | .storageMapContains _ k => collectArrayLitsExpr k
+    | .storageMapGet _ k => collectArrayLitsExpr k
+    | .storageMapInsert _ k v | .storageMapSet _ k v => collectArrayLitsExpr k ++ collectArrayLitsExpr v
+    | .storageArrayRead _ i => collectArrayLitsExpr i
+    | .storageArrayWrite _ i v => collectArrayLitsExpr i ++ collectArrayLitsExpr v
+    | .storageArrayStructFieldRead _ i _ => collectArrayLitsExpr i
+    | .storageArrayStructFieldWrite _ i _ v => collectArrayLitsExpr i ++ collectArrayLitsExpr v
+    | .storageStructFieldRead _ _ => #[]
+    | .storageStructFieldWrite _ _ v => collectArrayLitsExpr v
+    | .storagePathRead _ _ => #[]
+    | .storagePathWrite _ _ v => collectArrayLitsExpr v
+    | .storagePathAssignOp _ _ _ v => collectArrayLitsExpr v
+    | .contextRead _ => #[]
+    | .eventEmit _ fields => fields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) #[]
+    | .storageScalarRead _ => #[]
 end
 
 -- Statements
+partial def collectArrayLitsStmt (s : Statement) : Array (ValueType × Nat) :=
+  match s with
+  | .letBind _ _ v | .letMutBind _ _ v => collectArrayLitsExpr v
+  | .assign _ v | .assignOp _ _ v => collectArrayLitsExpr v
+  | .effect eff => collectArrayLitsEffect eff
+  | .assert c _ => collectArrayLitsExpr c
+  | .assertEq a b _ => collectArrayLitsExpr a ++ collectArrayLitsExpr b
+  | .ifElse c t e => collectArrayLitsExpr c ++ t.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[] ++ e.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[]
+  | .boundedFor _ _ _ body => body.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[]
+  | .return v => collectArrayLitsExpr v
+def dedupArrayLits (xs : Array (ValueType × Nat)) : Array (ValueType × Nat) :=
+  xs.foldl (fun acc x => if acc.any (fun y => y.1 == x.1 && y.2 == x.2) then acc else acc.push x) #[]
+def moduleArrayLits (mod : ProofForge.IR.Module) : Array (ValueType × Nat) :=
+  dedupArrayLits (mod.entrypoints.foldl (fun acc ep => acc ++ ep.body.foldl (fun a st => a ++ collectArrayLitsStmt st) #[]) #[])
+def arrLitFunc (elemType : ValueType) (len : Nat) : Func :=
+  let w := scalarWidth elemType
+  { name := arrayLitName elemType len,
+    params := (Array.range len).map (fun i => { name := s!"e{i}", type := wasmTypeOf elemType }),
+    results := #[.i32],
+    locals := #[{ name := "p", type := .i32 }],
+    body := { insns :=
+      #[.i64Const (len * w), .call arrAllocName, .localSet "p"] ++
+      ((Array.range len).map fun i => #[
+        .i32Const (w * i), .localGet "p", .plain "i32.add",
+        .localGet s!"e{i}", .store (storeOpFor elemType) 0
+      ]).flatten ++ #[.localGet "p"] } }
+def arrLitHelperFuncs (mod : ProofForge.IR.Module) : Array Func :=
+  moduleArrayLits mod |>.map (fun (e, n) => arrLitFunc e n)
+
 partial def collectLocalsFrom (acc : LocalTypes) (s : Statement) : Except EmitError LocalTypes := do
   match s with
   | .letBind name t _ | .letMutBind name t _ =>
     if isNumeric t || t == .bool || t == .hash then .ok (acc.push { name := name, vt := t })
-    else err s!"EmitWat: only U32/U64/Bool/Hash locals are supported (got `{t.name}`)"
+    else match t with
+      | .fixedArray _ _ => .ok (acc.push { name := name, vt := t })
+      | _ => err s!"EmitWat: only U32/U64/Bool/Hash/FixedArray locals are supported (got `{t.name}`)"
   | .ifElse _ thenBody elseBody =>
     let acc ← thenBody.foldlM (init := acc) collectLocalsFrom
     elseBody.foldlM (init := acc) collectLocalsFrom
@@ -955,8 +1060,9 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let stringData := strs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
   let baseImports := nearImports.push sha256Import |>.push logUtf8Import |>.push inputImport
   let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport])
-  let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ (if maps.any (fun m => m.keyType == .hash) then mapHashHelperFuncs else #[]) ++ entryFuncs
-  let globals := #[hashPtrGlobalDecl] ++ evtGlobals
+  let arrFuncs := arrLitHelperFuncs mod ++ #[arrAllocFunc]
+  let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ (if maps.any (fun m => m.keyType == .hash) then mapHashHelperFuncs else #[]) ++ arrFuncs ++ entryFuncs
+  let globals := #[hashPtrGlobalDecl] ++ evtGlobals ++ #[arrPtrGlobalDecl]
   .ok { imports := imports, globals := globals, funcs := funcs,
         memory := some { min := 1 },
         dataSegments := scalarData ++ mapData ++ boolData ++ #[evtKeyData] ++ stringData }

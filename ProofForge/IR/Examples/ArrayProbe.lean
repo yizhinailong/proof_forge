@@ -64,6 +64,15 @@ def emitWatStorageModule : Module := {
   entrypoints := #[storageLifecycle]
 }
 
+/-- EmitWat-compatible subset for 16b-1: only `sumLiteral` (arrayLit + arrayGet),
+    no storage or array-equality. -/
+def emitWatSumModule : Module := {
+  name := "ArrayProbe",
+  state := #[],
+  entrypoints := #[sumLiteral]
+}
+
+
 def module : Module := {
   name := "ArrayProbe"
   state := #[stateValues]
