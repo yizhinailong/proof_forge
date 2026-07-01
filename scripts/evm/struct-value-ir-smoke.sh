@@ -47,6 +47,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint hash_pick:211a2fc4 \
   --expect-entrypoint mutable_point_update:c7096012 \
   --expect-entrypoint mutable_mixed_fields:b18f76a4 \
+  --expect-entrypoint whole_struct_assign:b416b147 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmStructValueProbe.bin")"
@@ -152,8 +153,15 @@ contract ProofForgeIRStructValueSmokeTest {
         assertEq(callU256(probe, abi.encodeWithSignature("mutable_mixed_fields()")), 10);
     }
 
-    function testIRLocalStructRejectsUnknownSelector() public {
+    function testIRWholeLocalStructAssignmentSnapshotsRhs() public {
         address probe = address(uint160(0xA276));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("whole_struct_assign()")), 81);
+    }
+
+    function testIRLocalStructRejectsUnknownSelector() public {
+        address probe = address(uint160(0xA277));
         deployRuntime(hex"$probe_hex", probe);
 
         (bool ok,) = probe.call(hex"ffffffff");

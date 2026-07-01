@@ -126,10 +126,29 @@ def dynamicUpdate : Entrypoint := {
   ]
 }
 
+def wholeArrayAssign : Entrypoint := {
+  name := "whole_array_assign"
+  selector? := some "d59d3191"
+  returns := .u64
+  body := #[
+    .letMutBind "xs" (.fixedArray .u64 3) (.arrayLit .u64 #[u64 1, u64 2, u64 3]),
+    .letBind "ys" (.fixedArray .u64 3) (.arrayLit .u64 #[u64 7, u64 11, u64 13]),
+    .assign (.local "xs") (.local "ys"),
+    .assign (.local "xs") (.arrayLit .u64 #[
+      .arrayGet (.local "xs") (u64 1),
+      .arrayGet (.local "xs") (u64 0),
+      .arrayGet (.local "xs") (u64 2)
+    ]),
+    .return (.add
+      (.add (.arrayGet (.local "xs") (u64 0)) (.mul (.arrayGet (.local "xs") (u64 1)) (u64 10)))
+      (.arrayGet (.local "xs") (u64 2)))
+  ]
+}
+
 def module : Module := {
   name := "EvmArrayValueProbe"
   state := #[]
-  entrypoints := #[localSum, directLiteralIndex, boolGuard, u32Pick, hashPick, mutableUpdate, mutableMixed, dynamicPick, dynamicUpdate]
+  entrypoints := #[localSum, directLiteralIndex, boolGuard, u32Pick, hashPick, mutableUpdate, mutableMixed, dynamicPick, dynamicUpdate, wholeArrayAssign]
 }
 
 end ProofForge.IR.Examples.EvmArrayValueProbe

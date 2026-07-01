@@ -49,6 +49,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint mutable_mixed:70d82dc9 \
   --expect-entrypoint dynamic_pick:17e4f54c \
   --expect-entrypoint dynamic_update:f45e18ed \
+  --expect-entrypoint whole_array_assign:d59d3191 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmArrayValueProbe.bin")"
@@ -181,8 +182,15 @@ contract ProofForgeIRArrayValueSmokeTest {
         assertFalse(writeOk);
     }
 
-    function testIRLocalFixedArrayRejectsUnknownSelector() public {
+    function testIRWholeLocalFixedArrayAssignmentSnapshotsRhs() public {
         address probe = address(uint160(0xA269));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("whole_array_assign()")), 94);
+    }
+
+    function testIRLocalFixedArrayRejectsUnknownSelector() public {
+        address probe = address(uint160(0xA26A));
         deployRuntime(hex"$probe_hex", probe);
 
         (bool ok,) = probe.call(hex"ffffffff");

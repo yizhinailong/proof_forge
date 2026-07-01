@@ -152,11 +152,27 @@ def mutableMixedFields : Entrypoint := {
   ]
 }
 
+def wholeStructAssign : Entrypoint := {
+  name := "whole_struct_assign"
+  selector? := some "b416b147"
+  returns := .u64
+  body := #[
+    .letMutBind "p" (.structType "Point") (point 1 2),
+    .letBind "q" (.structType "Point") (point 7 11),
+    .assign (.local "p") (.local "q"),
+    .assign (.local "p") (.structLit "Point" #[
+      ("x", .field (.local "p") "y"),
+      ("y", .field (.local "p") "x")
+    ]),
+    .return (.add (.field (.local "p") "x") (.mul (.field (.local "p") "y") (u64 10)))
+  ]
+}
+
 def module : Module := {
   name := "EvmStructValueProbe"
   structs := #[pointStruct, flagsStruct, smallStruct, rootsStruct]
   state := #[]
-  entrypoints := #[localSum, directLiteralField, boolGuard, u32Pick, hashPick, mutablePointUpdate, mutableMixedFields]
+  entrypoints := #[localSum, directLiteralField, boolGuard, u32Pick, hashPick, mutablePointUpdate, mutableMixedFields, wholeStructAssign]
 }
 
 end ProofForge.IR.Examples.EvmStructValueProbe

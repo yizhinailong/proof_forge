@@ -165,12 +165,6 @@ def immutableFixedArrayElementAssignmentModule : Module :=
     .assign (.arrayGet (.local "xs") (.literal (.u64 0))) (.literal (.u64 3))
   ]
 
-def wholeFixedArrayAssignmentModule : Module :=
-  selectedModule "BadWholeFixedArrayAssignment" <| selectedEntrypoint "bad" #[
-    .letMutBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]),
-    .assign (.local "xs") (.arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)])
-  ]
-
 def fixedArrayOutOfBoundsModule : Module :=
   selectedModule "BadFixedArrayOutOfBounds" <| selectedReturnEntrypoint "bad" .u64 #[
     .letBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]),
@@ -215,16 +209,6 @@ def immutableStructFieldAssignmentModule : Module := {
   entrypoints := #[selectedEntrypoint "bad" #[
     .letBind "p" (.structType "Point") (.structLit "Point" #[("x", .literal (.u64 1))]),
     .assign (.field (.local "p") "x") (.literal (.u64 2))
-  ]]
-}
-
-def wholeStructAssignmentModule : Module := {
-  name := "BadWholeStructAssignment"
-  structs := #[pointStruct]
-  state := #[markerState]
-  entrypoints := #[selectedEntrypoint "bad" #[
-    .letMutBind "p" (.structType "Point") (.structLit "Point" #[("x", .literal (.u64 1))]),
-    .assign (.local "p") (.structLit "Point" #[("x", .literal (.u64 2))])
   ]]
 }
 
@@ -484,11 +468,6 @@ def cases : Array (String × Module × String) := #[
     "assignment target local `xs` is not mutable"
   ),
   (
-    "whole fixed array assignment unsupported",
-    wholeFixedArrayAssignmentModule,
-    "assignment target local `xs` has aggregate type `Array<U64,2>`; assign fixed-array elements or struct fields explicitly in IR EVM v0"
-  ),
-  (
     "fixed array literal out of bounds",
     fixedArrayOutOfBoundsModule,
     "fixed array index 2 is out of bounds for length 2"
@@ -507,11 +486,6 @@ def cases : Array (String × Module × String) := #[
     "immutable struct field assignment unsupported",
     immutableStructFieldAssignmentModule,
     "assignment target local `p` is not mutable"
-  ),
-  (
-    "whole struct assignment unsupported",
-    wholeStructAssignmentModule,
-    "assignment target local `p` has aggregate type `Point`; assign fixed-array elements or struct fields explicitly in IR EVM v0"
   ),
   (
     "nested struct field unsupported",

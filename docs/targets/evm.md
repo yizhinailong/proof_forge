@@ -165,8 +165,8 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, and flat scalar storage struct field read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`) |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, flat static fixed-array ABI parameters, and multi-word fixed-array returns; zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
-| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, struct literals, field access, static local field assignment/compound assignment, flat ABI-facing struct parameters, multi-word struct returns, flat scalar storage structs, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields, whole-struct storage reads/writes, and unsupported field shapes still reject explicitly |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, flat static fixed-array ABI parameters, and multi-word fixed-array returns; zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
+| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters, multi-word struct returns, flat scalar storage structs, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields, whole-struct storage reads/writes, and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -217,7 +217,7 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   `crosscallInvoke`, and static bounded loops. It rejects wider portable IR
   nodes with explicit diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
-  non-word or aggregate map shapes, nested arrays, whole local aggregate assignment, whole-struct
+  non-word or aggregate map shapes, nested arrays, whole-struct
   storage reads/writes, nested local structs, indexed/Solidity-signature event schemas,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
   return data, and real creation-transaction or broadcast manifests.
@@ -433,8 +433,11 @@ and mutable local fixed-array bindings expand into one Yul local per element.
 literal indexes and dynamic word indexes. Dynamic reads lower through
 length-specific Yul helpers with default revert cases; dynamic mutable local
 element assignment and numeric compound assignment lower to `switch` blocks over
-the expanded locals. The smoke covers `U64`, `U32`, `Bool`, and `Hash` element
-arrays, static and dynamic mutable element writes, golden Yul reproducibility,
+the expanded locals. Whole local fixed-array assignment from another local
+fixed-array or from a fixed-array literal snapshots RHS words into temporary
+locals before assigning elements back to the target. The smoke covers `U64`,
+`U32`, `Bool`, and `Hash` element arrays, static and dynamic mutable element
+writes, whole-local assignment, golden Yul reproducibility,
 `solc --strict-assembly`, artifact metadata, Foundry runtime calls, dynamic
 out-of-bounds reverts, and unknown-selector revert behavior. Nested arrays
 remain explicit diagnostics.
@@ -444,11 +447,13 @@ and mutable struct local bindings expand into one internal Yul local per
 supported field, and `field` access over a local struct or direct struct literal
 lowers to the corresponding scalar/hash word expression. Static local field
 assignment and numeric compound assignment lower to assignments to those
-expanded locals. The smoke covers `U64`, `U32`, `Bool`, and `Hash` fields,
-mutable field writes, golden Yul reproducibility, `solc --strict-assembly`,
-artifact metadata capability `data.struct`, Foundry runtime calls, and
-unknown-selector revert behavior. Nested struct fields remain explicit
-diagnostics.
+expanded locals. Whole local struct assignment from another local struct or from
+a struct literal snapshots RHS field words into temporary locals before assigning
+fields back to the target. The smoke covers `U64`, `U32`, `Bool`, and `Hash`
+fields, mutable field writes, whole-local assignment, golden Yul
+reproducibility, `solc --strict-assembly`, artifact metadata capability
+`data.struct`, Foundry runtime calls, and unknown-selector revert behavior.
+Nested struct fields remain explicit diagnostics.
 
 ## Metadata
 

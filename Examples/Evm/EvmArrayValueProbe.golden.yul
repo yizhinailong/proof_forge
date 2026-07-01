@@ -52,6 +52,11 @@ object "EvmArrayValueProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xd59d3191 {
+      let _r := f_EvmArrayValueProbe_whole_array_assign()
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -154,6 +159,31 @@ object "EvmArrayValueProbe" {
         }
       }
       result := __proof_forge_local_array_get_3(idx, __proof_forge_array_xs_0, __proof_forge_array_xs_1, __proof_forge_array_xs_2)
+    }
+    function f_EvmArrayValueProbe_whole_array_assign() -> result {
+      let __proof_forge_array_xs_0 := 1
+      let __proof_forge_array_xs_1 := 2
+      let __proof_forge_array_xs_2 := 3
+      let __proof_forge_array_ys_0 := 7
+      let __proof_forge_array_ys_1 := 11
+      let __proof_forge_array_ys_2 := 13
+      {
+        let __proof_forge_assign_array_xs_0 := __proof_forge_array_ys_0
+        let __proof_forge_assign_array_xs_1 := __proof_forge_array_ys_1
+        let __proof_forge_assign_array_xs_2 := __proof_forge_array_ys_2
+        __proof_forge_array_xs_0 := __proof_forge_assign_array_xs_0
+        __proof_forge_array_xs_1 := __proof_forge_assign_array_xs_1
+        __proof_forge_array_xs_2 := __proof_forge_assign_array_xs_2
+      }
+      {
+        let __proof_forge_assign_array_xs_0 := __proof_forge_array_xs_1
+        let __proof_forge_assign_array_xs_1 := __proof_forge_array_xs_0
+        let __proof_forge_assign_array_xs_2 := __proof_forge_array_xs_2
+        __proof_forge_array_xs_0 := __proof_forge_assign_array_xs_0
+        __proof_forge_array_xs_1 := __proof_forge_assign_array_xs_1
+        __proof_forge_array_xs_2 := __proof_forge_assign_array_xs_2
+      }
+      result := add(add(__proof_forge_array_xs_0, mul(__proof_forge_array_xs_1, 10)), __proof_forge_array_xs_2)
     }
     function __proof_forge_local_array_get_3(index, value_0, value_1, value_2) -> result {
       switch index

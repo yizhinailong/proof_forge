@@ -36,6 +36,11 @@ object "EvmStructValueProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xb416b147 {
+      let _r := f_EvmStructValueProbe_whole_struct_assign()
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -90,6 +95,25 @@ object "EvmStructValueProbe" {
         revert(0, 0)
       }
       result := add(__proof_forge_struct_flags_enabled, __proof_forge_struct_small_b)
+    }
+    function f_EvmStructValueProbe_whole_struct_assign() -> result {
+      let __proof_forge_struct_p_x := 1
+      let __proof_forge_struct_p_y := 2
+      let __proof_forge_struct_q_x := 7
+      let __proof_forge_struct_q_y := 11
+      {
+        let __proof_forge_assign_struct_p_x := __proof_forge_struct_q_x
+        let __proof_forge_assign_struct_p_y := __proof_forge_struct_q_y
+        __proof_forge_struct_p_x := __proof_forge_assign_struct_p_x
+        __proof_forge_struct_p_y := __proof_forge_assign_struct_p_y
+      }
+      {
+        let __proof_forge_assign_struct_p_x := __proof_forge_struct_p_y
+        let __proof_forge_assign_struct_p_y := __proof_forge_struct_p_x
+        __proof_forge_struct_p_x := __proof_forge_assign_struct_p_x
+        __proof_forge_struct_p_y := __proof_forge_assign_struct_p_y
+      }
+      result := add(__proof_forge_struct_p_x, mul(__proof_forge_struct_p_y, 10))
     }
   }
 }

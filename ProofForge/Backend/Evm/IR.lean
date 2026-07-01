@@ -854,8 +854,20 @@ def validateAssignTarget
   | .local name => do
       let binding ← requireMutableLocal env "assignment target" name
       match binding.type with
-      | .fixedArray _ _ | .structType _ =>
-          .error { message := s!"assignment target local `{name}` has aggregate type `{binding.type.name}`; assign fixed-array elements or struct fields explicitly in IR EVM v0" }
+      | .fixedArray elementType _ => do
+          match elementType with
+          | .u32 | .u64 | .bool | .hash => pure ()
+          | .unit | .fixedArray _ _ | .structType _ =>
+              .error {
+                message := s!"assignment target `{name}` has unsupported EVM IR v0 fixed-array element type `{elementType.name}`; local fixed arrays support U32, U64, Bool, or Hash elements"
+              }
+          ensureType "assignment value" binding.type (← inferExprType module env value)
+      | .structType typeName => do
+          let some decl := findStruct? module typeName
+            | .error { message := s!"unknown struct `{typeName}`" }
+          for field in decl.fields do
+            ensureStructLocalFieldType typeName field.id field.type
+          ensureType "assignment value" binding.type (← inferExprType module env value)
       | _ =>
           ensureType "assignment value" binding.type (← inferExprType module env value)
   | .arrayGet (.local name) index => do
@@ -1453,6 +1465,118 @@ def lowerAssignTargetName (context : String) : ProofForge.IR.Expr → Except Low
   | _ =>
       .error { message := s!"{context} must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0" }
 
+def aggregateAssignArrayTempName (name : String) (index : Nat) : String :=
+  s!"__proof_forge_assign_array_{name}_{index}"
+
+def aggregateAssignStructTempName (name fieldName : String) : String :=
+  s!"__proof_forge_assign_struct_{name}_{fieldName}"
+
+def lowerFixedArrayAssignmentSourceExprs
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (elementType : ValueType)
+    (length : Nat)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  match value with
+  | .local sourceName => do
+      let (sourceElementType, sourceLength) ← requireLocalFixedArray "assignment value" env sourceName
+      ensureType s!"assignment target `{name}` fixed-array element type" elementType sourceElementType
+      if sourceLength != length then
+        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {sourceLength}" }
+      let mut values : Array Lean.Compiler.Yul.Expr := #[]
+      for _h : idx in [0:length] do
+        values := values.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName sourceName idx))
+      .ok values
+  | .arrayLit literalElementType literalValues => do
+      ensureType s!"assignment target `{name}` fixed-array element type" elementType literalElementType
+      if literalValues.size != length then
+        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {literalValues.size}" }
+      let mut values : Array Lean.Compiler.Yul.Expr := #[]
+      for h : idx in [0:literalValues.size] do
+        values := values.push (← lowerExpr module env literalValues[idx])
+      .ok values
+  | _ =>
+      .error { message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0" }
+
+def lowerWholeFixedArrayAssignStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (elementType : ValueType)
+    (length : Nat)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let sourceExprs ← lowerFixedArrayAssignmentSourceExprs module env name elementType length value
+  if sourceExprs.size != length then
+    .error { message := s!"assignment target `{name}` lowering produced {sourceExprs.size} element(s), expected {length}" }
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  for h : idx in [0:sourceExprs.size] do
+    statements := statements.push <|
+      .varDecl #[{ name := aggregateAssignArrayTempName name idx }] (some sourceExprs[idx])
+  for _h : idx in [0:length] do
+    statements := statements.push <|
+      .assignment #[arrayLocalElementName name idx] (Lean.Compiler.Yul.Expr.id (aggregateAssignArrayTempName name idx))
+  .ok (.block { statements := statements })
+
+def lowerStructAssignmentSourceExprs
+    (module : Module)
+    (env : TypeEnv)
+    (name typeName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array (String × Lean.Compiler.Yul.Expr)) := do
+  let some decl := findStruct? module typeName
+    | .error { message := s!"unknown struct `{typeName}`" }
+  match value with
+  | .local sourceName => do
+      let some binding := findLocal? env sourceName
+        | .error { message := s!"unknown local `{sourceName}`" }
+      ensureType s!"assignment target `{name}` struct type" (.structType typeName) binding.type
+      let mut values : Array (String × Lean.Compiler.Yul.Expr) := #[]
+      for fieldDecl in decl.fields do
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        values := values.push (fieldDecl.id, Lean.Compiler.Yul.Expr.id (structLocalFieldName sourceName fieldDecl.id))
+      .ok values
+  | .structLit literalTypeName fields => do
+      if literalTypeName != typeName then
+        .error { message := s!"assignment target `{name}` expected struct `{typeName}`, got `{literalTypeName}`" }
+      let mut values : Array (String × Lean.Compiler.Yul.Expr) := #[]
+      for fieldDecl in decl.fields do
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        let some field := fields.find? fun field => field.fst == fieldDecl.id
+          | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+        values := values.push (fieldDecl.id, ← lowerExpr module env field.snd)
+      .ok values
+  | _ =>
+      .error { message := s!"assignment target `{name}` struct whole assignment supports local struct values or struct literals in IR EVM v0" }
+
+def lowerWholeStructAssignStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name typeName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let sourceExprs ← lowerStructAssignmentSourceExprs module env name typeName value
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  for field in sourceExprs do
+    statements := statements.push <|
+      .varDecl #[{ name := aggregateAssignStructTempName name field.fst }] (some field.snd)
+  for field in sourceExprs do
+    statements := statements.push <|
+      .assignment #[structLocalFieldName name field.fst] (Lean.Compiler.Yul.Expr.id (aggregateAssignStructTempName name field.fst))
+  .ok (.block { statements := statements })
+
+def lowerWholeLocalAssignStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (binding : LocalBinding)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement :=
+  match binding.type with
+  | .fixedArray elementType length =>
+      lowerWholeFixedArrayAssignStmt module env name elementType length value
+  | .structType typeName =>
+      lowerWholeStructAssignStmt module env name typeName value
+  | _ =>
+      .error { message := s!"assignment target local `{name}` is not an aggregate value" }
+
 def dynamicArrayIndexLocalName : String := "__proof_forge_array_index"
 def dynamicArrayValueLocalName : String := "__proof_forge_array_value"
 
@@ -1515,6 +1639,15 @@ def lowerAssignStmt
     (env : TypeEnv)
     (target value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   match target with
+  | .local name => do
+      let some binding := findLocal? env name
+        | .error { message := s!"unknown local `{name}`" }
+      match binding.type with
+      | .fixedArray _ _ | .structType _ =>
+          .ok #[← lowerWholeLocalAssignStmt module env name binding value]
+      | _ =>
+          let targetName ← lowerAssignTargetName "assignment target" target
+          .ok #[.assignment #[targetName] (← lowerExpr module env value)]
   | .arrayGet (.local name) index =>
       match literalArrayIndex? index with
       | some _ => do

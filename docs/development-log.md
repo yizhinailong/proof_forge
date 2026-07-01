@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Whole Local Aggregate Assignment
+
+Commit: feature commit for EVM IR whole local aggregate assignment
+
+Summary:
+
+- Allowed `assign (.local name) value` for mutable local fixed-array and flat
+  local struct values.
+- Lowered whole local fixed-array assignment from another local fixed-array or a
+  fixed-array literal by snapshotting RHS element words into temporary Yul
+  locals before assigning expanded target elements.
+- Lowered whole local struct assignment from another local struct or a struct
+  literal by snapshotting RHS field words into temporary Yul locals before
+  assigning expanded target fields.
+- Extended `EvmArrayValueProbe` with `whole_array_assign()` and
+  `EvmStructValueProbe` with `whole_struct_assign()` to validate local-source
+  assignment and self-referential literal RHS snapshot semantics.
+- Updated EVM diagnostics, coverage manifests, target docs, validation gates,
+  backlog, and Chinese docs to remove the stale whole-local-aggregate
+  assignment limitation.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR proof-forge
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/struct-value-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- Whole local aggregate assignment is limited to flat fixed-array and flat
+  struct locals whose elements/fields lower to EVM words.
+- Nested arrays, nested local structs, and whole-struct storage reads/writes
+  remain explicit diagnostics.
+- Dynamic or nested aggregate ABI values remain out of scope for the current
+  flat ABI lowering.
+
+Next step:
+
+- Continue shrinking the EVM aggregate unsupported surface around nested
+  aggregate locals, richer cross-call return data, or event schema fidelity.
+
 ### EVM IR Dynamic Local Fixed-Array Indexes
 
 Commit: feature commit for EVM IR dynamic local fixed-array indexing
@@ -50,8 +94,10 @@ Known limitations:
 
 - Dynamic fixed-array indexing is limited to local fixed-array values and
   fixed-array literals whose elements lower to EVM words.
-- Nested arrays, whole local aggregate assignment, nested local structs, and
-  whole-struct storage reads/writes remain explicit diagnostics.
+- Whole local aggregate assignment is handled by the later
+  "EVM IR Whole Local Aggregate Assignment" entry.
+- Nested arrays, nested local structs, and whole-struct storage reads/writes
+  remain explicit diagnostics.
 - Dynamic or nested aggregate ABI values remain out of scope for the current
   flat ABI lowering.
 
