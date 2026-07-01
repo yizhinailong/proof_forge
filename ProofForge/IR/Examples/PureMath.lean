@@ -4,8 +4,8 @@ namespace ProofForge.IR.Examples.PureMath
 
 open ProofForge.IR
 
-def add : Entrypoint := {
-  name := "add"
+def plus : Entrypoint := {
+  name := "plus"
   params := #[("a", .u64), ("b", .u64)]
   returns := .u64
   body := #[ .return (.add (.local "a") (.local "b")) ]
@@ -45,7 +45,7 @@ def isEven : Entrypoint := {
 def module : Module := {
   name := "PureMath"
   state := #[]
-  entrypoints := #[add, max, sumFirst10, isEven]
+  entrypoints := #[plus, max, sumFirst10, isEven]
 }
 
 end ProofForge.IR.Examples.PureMath

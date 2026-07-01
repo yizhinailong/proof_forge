@@ -138,12 +138,22 @@ mutual
     | .block b => printBlock indentLevel b
     | .conditional cond thenBranch elseBranch? => do
         let c ← printExpression cond
-        let t ← printBlock indentLevel thenBranch
+        let thenBodyLines ← thenBranch.statements.mapM (printStatement (indentLevel + 1))
+        let thenBody := String.intercalate "\n" thenBodyLines.toList
+        let header := indent indentLevel ("if " ++ c ++ " {")
+        let footer := indent indentLevel "}"
         match elseBranch? with
-        | none => .ok (indent indentLevel ("if " ++ c ++ " " ++ t))
+        | none =>
+            .ok (header ++ "\n" ++ thenBody ++ "\n" ++ footer)
+        | some (.block elseBranch) => do
+            let elseBodyLines ← elseBranch.statements.mapM (printStatement (indentLevel + 1))
+            let elseBody := String.intercalate "\n" elseBodyLines.toList
+            let elseHeader := indent indentLevel "} else {"
+            .ok (header ++ "\n" ++ thenBody ++ "\n" ++ elseHeader ++ "\n" ++ elseBody ++ "\n" ++ footer)
         | some elseSt => do
-            let e ← printStatement indentLevel elseSt
-            .ok (indent indentLevel ("if " ++ c ++ " " ++ t ++ " else " ++ e))
+            let e ← printStatement (indentLevel + 1) elseSt
+            let elseHeader := indent indentLevel "} else {"
+            .ok (header ++ "\n" ++ thenBody ++ "\n" ++ elseHeader ++ "\n" ++ e ++ "\n" ++ footer)
     | .constDecl name ty? value => do
         let val ← printExpression value
         let typeAnnot ← match ty? with
@@ -158,8 +168,11 @@ mutual
         let hi ← printExpression stop
         let range := if inclusive then s!"{lo}..={hi}" else s!"{lo}..{hi}"
         let tyStr ← match ty? with | some t => do let s ← printType t; .ok (": " ++ s) | none => .ok ""
-        let b ← printBlock indentLevel body
-        .ok (indent indentLevel ("for " ++ var ++ tyStr ++ " in " ++ range ++ " " ++ b))
+        let bodyLines ← body.statements.mapM (printStatement (indentLevel + 1))
+        let bodyStr := String.intercalate "\n" bodyLines.toList
+        let header := indent indentLevel ("for " ++ var ++ tyStr ++ " in " ++ range ++ " {")
+        let footer := indent indentLevel "}"
+        .ok (header ++ "\n" ++ bodyStr ++ "\n" ++ footer)
     | .returnSt none => .ok (indent indentLevel "return;")
     | .returnSt (some e) => do
         match e with
