@@ -104,6 +104,15 @@ def crosscallReturnWordTagsSuffix (wordTypes : Array ValueType) : Except LowerEr
 def crosscallAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
   .ok s!"__proof_forge_crosscall_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
 
+def crosscallValueAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
+  .ok s!"__proof_forge_crosscall_value_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
+
+def crosscallStaticAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
+  .ok s!"__proof_forge_crosscall_static_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
+
+def crosscallDelegateAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
+  .ok s!"__proof_forge_crosscall_delegate_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
+
 def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
 def maxU32 : Nat := 4294967295
@@ -867,21 +876,21 @@ mutual
         ensureType "value crosscall target contract id" .u64 (← inferExprType module env target)
         ensureType "value crosscall method id" .u64 (← inferExprType module env methodId)
         ensureType "value crosscall call value" .u64 (← inferExprType module env callValue)
-        ensureCrosscallWordType "value crosscall return" returnType
+        discard <| crosscallReturnWordTypes module "value crosscall return" returnType
         for arg in args do
           discard <| crosscallArgWordTypes module "value crosscall argument" (← inferExprType module env arg)
         .ok returnType
     | .crosscallInvokeStaticTyped target methodId args returnType => do
         ensureType "static crosscall target contract id" .u64 (← inferExprType module env target)
         ensureType "static crosscall method id" .u64 (← inferExprType module env methodId)
-        ensureCrosscallWordType "static crosscall return" returnType
+        discard <| crosscallReturnWordTypes module "static crosscall return" returnType
         for arg in args do
           discard <| crosscallArgWordTypes module "static crosscall argument" (← inferExprType module env arg)
         .ok returnType
     | .crosscallInvokeDelegateTyped target methodId args returnType => do
         ensureType "delegate crosscall target contract id" .u64 (← inferExprType module env target)
         ensureType "delegate crosscall method id" .u64 (← inferExprType module env methodId)
-        ensureCrosscallWordType "delegate crosscall return" returnType
+        discard <| crosscallReturnWordTypes module "delegate crosscall return" returnType
         for arg in args do
           discard <| crosscallArgWordTypes module "delegate crosscall argument" (← inferExprType module env arg)
         .ok returnType
@@ -1638,6 +1647,8 @@ mutual
         callArgs := callArgs ++ argWords
         .ok (Lean.Compiler.Yul.call (← crosscallFunctionName argWords.size returnType) callArgs)
     | .crosscallInvokeValueTyped target methodId callValue args returnType => do
+        if !isCrosscallWordType returnType then
+          .error { message := s!"value aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
         let argWords ← lowerCrosscallArgWordsMany module env "value crosscall argument" args
         let mut callArgs := #[
           ← lowerExpr module env target,
@@ -1647,6 +1658,8 @@ mutual
         callArgs := callArgs ++ argWords
         .ok (Lean.Compiler.Yul.call (← crosscallValueFunctionName argWords.size returnType) callArgs)
     | .crosscallInvokeStaticTyped target methodId args returnType => do
+        if !isCrosscallWordType returnType then
+          .error { message := s!"static aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
         let argWords ← lowerCrosscallArgWordsMany module env "static crosscall argument" args
         let mut callArgs := #[
           ← lowerExpr module env target,
@@ -1655,6 +1668,8 @@ mutual
         callArgs := callArgs ++ argWords
         .ok (Lean.Compiler.Yul.call (← crosscallStaticFunctionName argWords.size returnType) callArgs)
     | .crosscallInvokeDelegateTyped target methodId args returnType => do
+        if !isCrosscallWordType returnType then
+          .error { message := s!"delegate aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
         let argWords ← lowerCrosscallArgWordsMany module env "delegate crosscall argument" args
         let mut callArgs := #[
           ← lowerExpr module env target,
@@ -2788,6 +2803,46 @@ def lowerAggregateCrosscallReturnAssignment?
         .ok (some #[
           .assignment names (Lean.Compiler.Yul.call (← crosscallAggregateFunctionName argWords.size wordTypes) callArgs)
         ])
+    | .crosscallInvokeValueTyped target methodId callValue args callReturnType => do
+        ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
+        let names ← abiReturnNames module entrypointName returnType
+        let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
+        let argWords ← lowerCrosscallArgWordsMany module env "value crosscall argument" args
+        let mut callArgs := #[
+          ← lowerExpr module env target,
+          ← lowerExpr module env methodId,
+          ← lowerExpr module env callValue
+        ]
+        callArgs := callArgs ++ argWords
+        .ok (some #[
+          .assignment names (Lean.Compiler.Yul.call (← crosscallValueAggregateFunctionName argWords.size wordTypes) callArgs)
+        ])
+    | .crosscallInvokeStaticTyped target methodId args callReturnType => do
+        ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
+        let names ← abiReturnNames module entrypointName returnType
+        let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
+        let argWords ← lowerCrosscallArgWordsMany module env "static crosscall argument" args
+        let mut callArgs := #[
+          ← lowerExpr module env target,
+          ← lowerExpr module env methodId
+        ]
+        callArgs := callArgs ++ argWords
+        .ok (some #[
+          .assignment names (Lean.Compiler.Yul.call (← crosscallStaticAggregateFunctionName argWords.size wordTypes) callArgs)
+        ])
+    | .crosscallInvokeDelegateTyped target methodId args callReturnType => do
+        ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
+        let names ← abiReturnNames module entrypointName returnType
+        let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
+        let argWords ← lowerCrosscallArgWordsMany module env "delegate crosscall argument" args
+        let mut callArgs := #[
+          ← lowerExpr module env target,
+          ← lowerExpr module env methodId
+        ]
+        callArgs := callArgs ++ argWords
+        .ok (some #[
+          .assignment names (Lean.Compiler.Yul.call (← crosscallDelegateAggregateFunctionName argWords.size wordTypes) callArgs)
+        ])
     | _ => .ok none
 
 def lowerReturnAssignments
@@ -3295,19 +3350,17 @@ def crosscallHelperReturnNameStrings (wordCount : Nat) : Array String :=
   (crosscallHelperReturnNames wordCount).map fun name => name.name
 
 def crosscallHelperFunction (module : Module) (spec : CrosscallHelperSpec) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let wordTypes ←
-    match spec.mode with
-    | .call => crosscallReturnWordTypes module "typed crosscall return" spec.returnType
-    | .callValue | .staticcall | .delegatecall => do
-        ensureCrosscallWordType "typed crosscall return" spec.returnType
-        .ok #[spec.returnType]
+  let wordTypes ← crosscallReturnWordTypes module "typed crosscall return" spec.returnType
   let functionName ←
     match spec.mode, isCrosscallWordType spec.returnType with
     | .call, true => crosscallFunctionName spec.arity spec.returnType
     | .call, false => crosscallAggregateFunctionName spec.arity wordTypes
-    | .callValue, _ => crosscallValueFunctionName spec.arity spec.returnType
-    | .staticcall, _ => crosscallStaticFunctionName spec.arity spec.returnType
-    | .delegatecall, _ => crosscallDelegateFunctionName spec.arity spec.returnType
+    | .callValue, true => crosscallValueFunctionName spec.arity spec.returnType
+    | .callValue, false => crosscallValueAggregateFunctionName spec.arity wordTypes
+    | .staticcall, true => crosscallStaticFunctionName spec.arity spec.returnType
+    | .staticcall, false => crosscallStaticAggregateFunctionName spec.arity wordTypes
+    | .delegatecall, true => crosscallDelegateFunctionName spec.arity spec.returnType
+    | .delegatecall, false => crosscallDelegateAggregateFunctionName spec.arity wordTypes
   let outputSize := wordTypes.size * 32
   let callValue :=
     if spec.mode.forwardsValue then

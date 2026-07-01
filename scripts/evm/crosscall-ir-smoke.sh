@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Compile the hand-written portable EvmCrosscallProbe IR to EVM runtime
-# bytecode and validate synchronous scalar-word calls through Foundry.
+# bytecode and validate synchronous typed crosscalls through Foundry.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${IR_EVM_OUT_DIR:-$ROOT/build/ir}"
@@ -51,16 +51,22 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_array_arg:00746b10 \
   --expect-entrypoint call_remote_value:365f4a44 \
   --expect-entrypoint call_remote_value_pair_arg:885cf3f5 \
+  --expect-entrypoint call_remote_value_pair:01ff40fb \
+  --expect-entrypoint call_remote_value_array:2bedc30a \
   --expect-entrypoint call_remote_static:d13203a8 \
   --expect-entrypoint call_remote_static_bool:ae266f0a \
   --expect-entrypoint call_remote_static_u32:ec8c40f9 \
   --expect-entrypoint call_remote_static_hash:4e0edd3c \
   --expect-entrypoint call_remote_static_pair_arg:d1b1bf68 \
+  --expect-entrypoint call_remote_static_pair:2236e75b \
+  --expect-entrypoint call_remote_static_array:b1d5165b \
   --expect-entrypoint call_remote_delegate:427320b1 \
   --expect-entrypoint call_remote_delegate_bool:62e5114d \
   --expect-entrypoint call_remote_delegate_u32:e3abe276 \
   --expect-entrypoint call_remote_delegate_hash:6a2c2006 \
   --expect-entrypoint call_remote_delegate_pair_arg:8283d1d1 \
+  --expect-entrypoint call_remote_delegate_pair:41e8bd85 \
+  --expect-entrypoint call_remote_delegate_array:52579065 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmCrosscallProbe.bin")"
@@ -143,6 +149,23 @@ contract CrosscallCallee {
 
     function paid() external payable returns (uint256) {
         return msg.value;
+    }
+
+    function paidPairReturn() external payable returns (bool, uint32) {
+        return (msg.value == 1234, 42);
+    }
+
+    function paidValues2() external payable returns (uint64[2] memory values) {
+        values[0] = uint64(msg.value);
+        values[1] = 44;
+    }
+
+    function paidPairInvalidBool() external payable returns (uint256, uint256) {
+        return (2, 42);
+    }
+
+    function paidPairInvalidU32() external payable returns (uint256, uint256) {
+        return (1, uint256(type(uint32).max) + 1);
     }
 
     function paidPair(bool flag, uint32 small) external payable returns (uint256) {
@@ -243,6 +266,18 @@ contract ProofForgeIRCrosscallSmokeTest {
 
     function callU64Array2(address probe, bytes memory payload) internal returns (uint64[2] memory values) {
         (bool ok, bytes memory result) = probe.call(payload);
+        assertTrue(ok);
+        values = abi.decode(result, (uint64[2]));
+    }
+
+    function callPairValue(address probe, bytes memory payload, uint256 amount) internal returns (bool flag, uint32 small) {
+        (bool ok, bytes memory result) = probe.call{value: amount}(payload);
+        assertTrue(ok);
+        (flag, small) = abi.decode(result, (bool, uint32));
+    }
+
+    function callU64Array2Value(address probe, bytes memory payload, uint256 amount) internal returns (uint64[2] memory values) {
+        (bool ok, bytes memory result) = probe.call{value: amount}(payload);
         assertTrue(ok);
         values = abi.decode(result, (uint64[2]));
     }
@@ -482,6 +517,48 @@ contract ProofForgeIRCrosscallSmokeTest {
         assertEq(probe.balance, 0);
     }
 
+    function testIRCrosscallValueAggregateStructReturn() public {
+        address probe = address(uint160(0xE163));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+        vm.deal(address(this), 1 ether);
+
+        (bool flag, uint32 small) = callPairValue(
+            probe,
+            abi.encodeWithSignature(
+                "call_remote_value_pair(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.paidPairReturn.selector)
+            ),
+            1234
+        );
+        assertTrue(flag);
+        assertEq(uint256(small), 42);
+        assertEq(address(callee).balance, 1234);
+        assertEq(probe.balance, 0);
+    }
+
+    function testIRCrosscallValueAggregateArrayReturn() public {
+        address probe = address(uint160(0xE164));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+        vm.deal(address(this), 1 ether);
+
+        uint64[2] memory values = callU64Array2Value(
+            probe,
+            abi.encodeWithSignature(
+                "call_remote_value_array(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.paidValues2.selector)
+            ),
+            55
+        );
+        assertEq(uint256(values[0]), 55);
+        assertEq(uint256(values[1]), 44);
+        assertEq(address(callee).balance, 55);
+        assertEq(probe.balance, 0);
+    }
+
     function testIRCrosscallStaticReturn() public {
         address probe = address(uint160(0xE14C));
         CrosscallCallee callee = new CrosscallCallee();
@@ -581,6 +658,40 @@ contract ProofForgeIRCrosscallSmokeTest {
         );
     }
 
+    function testIRCrosscallStaticAggregateStructReturn() public {
+        address probe = address(uint160(0xE165));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool flag, uint32 small) = callPair(
+            probe,
+            abi.encodeWithSignature(
+                "call_remote_static_pair(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.pair.selector)
+            )
+        );
+        assertTrue(flag);
+        assertEq(uint256(small), 42);
+    }
+
+    function testIRCrosscallStaticAggregateArrayReturn() public {
+        address probe = address(uint160(0xE166));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        uint64[2] memory values = callU64Array2(
+            probe,
+            abi.encodeWithSignature(
+                "call_remote_static_array(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.values2.selector)
+            )
+        );
+        assertEq(uint256(values[0]), 33);
+        assertEq(uint256(values[1]), 44);
+    }
+
     function testIRCrosscallStaticRejectsStateWrite() public {
         address probe = address(uint160(0xE14D));
         CrosscallCallee callee = new CrosscallCallee();
@@ -652,6 +763,70 @@ contract ProofForgeIRCrosscallSmokeTest {
         (bool ok,) = probe.call(
             abi.encodeWithSignature(
                 "call_remote_pair(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.pairInvalidU32.selector)
+            )
+        );
+        assertFalse(ok);
+    }
+
+    function testIRCrosscallValueAggregateRejectsInvalidBoolReturn() public {
+        address probe = address(uint160(0xE167));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+        vm.deal(address(this), 1 ether);
+
+        (bool ok,) = probe.call{value: 1234}(
+            abi.encodeWithSignature(
+                "call_remote_value_pair(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.paidPairInvalidBool.selector)
+            )
+        );
+        assertFalse(ok);
+        assertEq(address(callee).balance, 0);
+    }
+
+    function testIRCrosscallValueAggregateRejectsInvalidU32Return() public {
+        address probe = address(uint160(0xE168));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+        vm.deal(address(this), 1 ether);
+
+        (bool ok,) = probe.call{value: 1234}(
+            abi.encodeWithSignature(
+                "call_remote_value_pair(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.paidPairInvalidU32.selector)
+            )
+        );
+        assertFalse(ok);
+        assertEq(address(callee).balance, 0);
+    }
+
+    function testIRCrosscallStaticAggregateRejectsInvalidBoolReturn() public {
+        address probe = address(uint160(0xE169));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok,) = probe.call(
+            abi.encodeWithSignature(
+                "call_remote_static_pair(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.pairInvalidBool.selector)
+            )
+        );
+        assertFalse(ok);
+    }
+
+    function testIRCrosscallStaticAggregateRejectsInvalidU32Return() public {
+        address probe = address(uint160(0xE16A));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok,) = probe.call(
+            abi.encodeWithSignature(
+                "call_remote_static_pair(uint256,uint256)",
                 uint256(uint160(address(callee))),
                 selector(CrosscallCallee.pairInvalidU32.selector)
             )
@@ -762,6 +937,40 @@ contract ProofForgeIRCrosscallSmokeTest {
         );
     }
 
+    function testIRCrosscallDelegateAggregateStructReturn() public {
+        address probe = address(uint160(0xE16B));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool flag, uint32 small) = callPair(
+            probe,
+            abi.encodeWithSignature(
+                "call_remote_delegate_pair(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.pair.selector)
+            )
+        );
+        assertTrue(flag);
+        assertEq(uint256(small), 42);
+    }
+
+    function testIRCrosscallDelegateAggregateArrayReturn() public {
+        address probe = address(uint160(0xE16C));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        uint64[2] memory values = callU64Array2(
+            probe,
+            abi.encodeWithSignature(
+                "call_remote_delegate_array(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.values2.selector)
+            )
+        );
+        assertEq(uint256(values[0]), 33);
+        assertEq(uint256(values[1]), 44);
+    }
+
     function testIRCrosscallDelegateBoolReturn() public {
         address probe = address(uint160(0xE155));
         CrosscallCallee callee = new CrosscallCallee();
@@ -832,6 +1041,36 @@ contract ProofForgeIRCrosscallSmokeTest {
                 uint256(uint160(address(callee))),
                 selector(CrosscallCallee.invalidBool.selector),
                 true
+            )
+        );
+        assertFalse(ok);
+    }
+
+    function testIRCrosscallDelegateAggregateRejectsInvalidBoolReturn() public {
+        address probe = address(uint160(0xE16D));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok,) = probe.call(
+            abi.encodeWithSignature(
+                "call_remote_delegate_pair(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.pairInvalidBool.selector)
+            )
+        );
+        assertFalse(ok);
+    }
+
+    function testIRCrosscallDelegateAggregateRejectsInvalidU32Return() public {
+        address probe = address(uint160(0xE16E));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok,) = probe.call(
+            abi.encodeWithSignature(
+                "call_remote_delegate_pair(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.pairInvalidU32.selector)
             )
         );
         assertFalse(ok);

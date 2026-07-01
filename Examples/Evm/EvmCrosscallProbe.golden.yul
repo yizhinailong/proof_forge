@@ -117,6 +117,24 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x01ff40fb {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1 := f_EvmCrosscallProbe_call_remote_value_pair(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      return(0, 64)
+    }
+    case 0x2bedc30a {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1 := f_EvmCrosscallProbe_call_remote_value_array(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      return(0, 64)
+    }
     case 0xd13203a8 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
@@ -168,6 +186,24 @@ object "EvmCrosscallProbe" {
       let _r := f_EvmCrosscallProbe_call_remote_static_pair_arg(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       mstore(0, _r)
       return(0, 32)
+    }
+    case 0x2236e75b {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1 := f_EvmCrosscallProbe_call_remote_static_pair(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      return(0, 64)
+    }
+    case 0xb1d5165b {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1 := f_EvmCrosscallProbe_call_remote_static_array(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      return(0, 64)
     }
     case 0x427320b1 {
       if lt(calldatasize(), 68) {
@@ -221,6 +257,24 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x41e8bd85 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1 := f_EvmCrosscallProbe_call_remote_delegate_pair(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      return(0, 64)
+    }
+    case 0x52579065 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1 := f_EvmCrosscallProbe_call_remote_delegate_array(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      return(0, 64)
+    }
     default {
       revert(0, 0)
     }
@@ -266,6 +320,12 @@ object "EvmCrosscallProbe" {
       let __proof_forge_struct_pair_small := small
       result := __proof_forge_crosscall_value_2(target, method, callvalue(), __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
     }
+    function f_EvmCrosscallProbe_call_remote_value_pair(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
+      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_value_0_abi_bool_u32(target, method, callvalue())
+    }
+    function f_EvmCrosscallProbe_call_remote_value_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
+      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_value_0_abi_u64_u64(target, method, callvalue())
+    }
     function f_EvmCrosscallProbe_call_remote_static(target, method) -> result {
       result := __proof_forge_crosscall_static_0(target, method)
     }
@@ -283,6 +343,12 @@ object "EvmCrosscallProbe" {
       let __proof_forge_struct_pair_small := small
       result := __proof_forge_crosscall_static_2_u32(target, method, __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
     }
+    function f_EvmCrosscallProbe_call_remote_static_pair(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
+      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_static_0_abi_bool_u32(target, method)
+    }
+    function f_EvmCrosscallProbe_call_remote_static_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
+      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_static_0_abi_u64_u64(target, method)
+    }
     function f_EvmCrosscallProbe_call_remote_delegate(target, method) -> result {
       result := __proof_forge_crosscall_delegate_0(target, method)
     }
@@ -299,6 +365,12 @@ object "EvmCrosscallProbe" {
       let __proof_forge_struct_pair_flag := flag
       let __proof_forge_struct_pair_small := small
       result := __proof_forge_crosscall_delegate_2_u32(target, method, __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
+    }
+    function f_EvmCrosscallProbe_call_remote_delegate_pair(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
+      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_delegate_0_abi_bool_u32(target, method)
+    }
+    function f_EvmCrosscallProbe_call_remote_delegate_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
+      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_delegate_0_abi_u64_u64(target, method)
     }
     function __proof_forge_crosscall_0(target, selector) -> result {
       mstore(0, shl(224, selector))
@@ -459,6 +531,38 @@ object "EvmCrosscallProbe" {
       returndatacopy(0, 0, 32)
       result := mload(0)
     }
+    function __proof_forge_crosscall_value_0_abi_bool_u32(target, selector, call_value) -> result0, result1 {
+      mstore(0, shl(224, selector))
+      let _success := call(gas(), target, call_value, 0, 4, 0, 64)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 64) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 64)
+      result0 := mload(0)
+      result1 := mload(32)
+      if gt(result0, 1) {
+        revert(0, 0)
+      }
+      if gt(result1, 4294967295) {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_crosscall_value_0_abi_u64_u64(target, selector, call_value) -> result0, result1 {
+      mstore(0, shl(224, selector))
+      let _success := call(gas(), target, call_value, 0, 4, 0, 64)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 64) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 64)
+      result0 := mload(0)
+      result1 := mload(32)
+    }
     function __proof_forge_crosscall_static_0(target, selector) -> result {
       mstore(0, shl(224, selector))
       let _success := staticcall(gas(), target, 0, 4, 0, 32)
@@ -533,6 +637,38 @@ object "EvmCrosscallProbe" {
         revert(0, 0)
       }
     }
+    function __proof_forge_crosscall_static_0_abi_bool_u32(target, selector) -> result0, result1 {
+      mstore(0, shl(224, selector))
+      let _success := staticcall(gas(), target, 0, 4, 0, 64)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 64) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 64)
+      result0 := mload(0)
+      result1 := mload(32)
+      if gt(result0, 1) {
+        revert(0, 0)
+      }
+      if gt(result1, 4294967295) {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_crosscall_static_0_abi_u64_u64(target, selector) -> result0, result1 {
+      mstore(0, shl(224, selector))
+      let _success := staticcall(gas(), target, 0, 4, 0, 64)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 64) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 64)
+      result0 := mload(0)
+      result1 := mload(32)
+    }
     function __proof_forge_crosscall_delegate_0(target, selector) -> result {
       mstore(0, shl(224, selector))
       let _success := delegatecall(gas(), target, 0, 4, 0, 32)
@@ -606,6 +742,38 @@ object "EvmCrosscallProbe" {
       if gt(result, 4294967295) {
         revert(0, 0)
       }
+    }
+    function __proof_forge_crosscall_delegate_0_abi_bool_u32(target, selector) -> result0, result1 {
+      mstore(0, shl(224, selector))
+      let _success := delegatecall(gas(), target, 0, 4, 0, 64)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 64) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 64)
+      result0 := mload(0)
+      result1 := mload(32)
+      if gt(result0, 1) {
+        revert(0, 0)
+      }
+      if gt(result1, 4294967295) {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_crosscall_delegate_0_abi_u64_u64(target, selector) -> result0, result1 {
+      mstore(0, shl(224, selector))
+      let _success := delegatecall(gas(), target, 0, 4, 0, 64)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 64) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 64)
+      result0 := mload(0)
+      result1 := mload(32)
     }
   }
 }
