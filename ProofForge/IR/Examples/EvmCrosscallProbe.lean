@@ -128,6 +128,41 @@ def callRemoteArray : Entrypoint := {
   ]
 }
 
+def callRemotePairArg : Entrypoint := {
+  name := "call_remote_pair_arg"
+  selector? := some "cabe3922"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag", .bool),
+    ("small", .u32)
+  ]
+  returns := .bool
+  body := #[
+    .letBind "pair" (.structType "RemotePair") (.structLit "RemotePair" #[
+      ("flag", .local "flag"),
+      ("small", .local "small")
+    ]),
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[.local "pair"] .bool)
+  ]
+}
+
+def callRemoteArrayArg : Entrypoint := {
+  name := "call_remote_array_arg"
+  selector? := some "00746b10"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("x", .u64),
+    ("y", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .letBind "values" (.fixedArray .u64 2) (.arrayLit .u64 #[.local "x", .local "y"]),
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[.local "values"] .u64)
+  ]
+}
+
 def callRemoteValue : Entrypoint := {
   name := "call_remote_value"
   selector? := some "365f4a44"
@@ -138,6 +173,25 @@ def callRemoteValue : Entrypoint := {
   returns := .u64
   body := #[
     .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[] .u64)
+  ]
+}
+
+def callRemoteValuePairArg : Entrypoint := {
+  name := "call_remote_value_pair_arg"
+  selector? := some "885cf3f5"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag", .bool),
+    ("small", .u32)
+  ]
+  returns := .u64
+  body := #[
+    .letBind "pair" (.structType "RemotePair") (.structLit "RemotePair" #[
+      ("flag", .local "flag"),
+      ("small", .local "small")
+    ]),
+    .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[.local "pair"] .u64)
   ]
 }
 
@@ -196,6 +250,25 @@ def callRemoteStaticHash : Entrypoint := {
   ]
 }
 
+def callRemoteStaticPairArg : Entrypoint := {
+  name := "call_remote_static_pair_arg"
+  selector? := some "d1b1bf68"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag", .bool),
+    ("small", .u32)
+  ]
+  returns := .u32
+  body := #[
+    .letBind "pair" (.structType "RemotePair") (.structLit "RemotePair" #[
+      ("flag", .local "flag"),
+      ("small", .local "small")
+    ]),
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[.local "pair"] .u32)
+  ]
+}
+
 def callRemoteDelegate : Entrypoint := {
   name := "call_remote_delegate"
   selector? := some "427320b1"
@@ -251,6 +324,25 @@ def callRemoteDelegateHash : Entrypoint := {
   ]
 }
 
+def callRemoteDelegatePairArg : Entrypoint := {
+  name := "call_remote_delegate_pair_arg"
+  selector? := some "8283d1d1"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag", .bool),
+    ("small", .u32)
+  ]
+  returns := .u32
+  body := #[
+    .letBind "pair" (.structType "RemotePair") (.structLit "RemotePair" #[
+      ("flag", .local "flag"),
+      ("small", .local "small")
+    ]),
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[.local "pair"] .u32)
+  ]
+}
+
 def module : Module := {
   name := "EvmCrosscallProbe"
   structs := #[remotePairStruct]
@@ -264,15 +356,20 @@ def module : Module := {
     callRemoteHash,
     callRemotePair,
     callRemoteArray,
+    callRemotePairArg,
+    callRemoteArrayArg,
     callRemoteValue,
+    callRemoteValuePairArg,
     callRemoteStatic,
     callRemoteStaticBool,
     callRemoteStaticU32,
     callRemoteStaticHash,
+    callRemoteStaticPairArg,
     callRemoteDelegate,
     callRemoteDelegateBool,
     callRemoteDelegateU32,
-    callRemoteDelegateHash
+    callRemoteDelegateHash,
+    callRemoteDelegatePairArg
   ]
 }
 

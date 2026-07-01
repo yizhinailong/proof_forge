@@ -344,6 +344,9 @@ def crosscallReturnWordTypes (module : Module) (context : String) (returnType : 
   else
     abiValueWordTypes module context returnType
 
+def crosscallArgWordTypes (module : Module) (context : String) (type : ValueType) : Except LowerError (Array ValueType) :=
+  abiValueWordTypes module context type
+
 def abiValueParamNames
     (module : Module)
     (context name : String) : ValueType → Except LowerError (Array String)
@@ -858,7 +861,7 @@ mutual
         ensureType "typed crosscall method id" .u64 (← inferExprType module env methodId)
         discard <| crosscallReturnWordTypes module "typed crosscall return" returnType
         for arg in args do
-          ensureCrosscallWordType "typed crosscall argument" (← inferExprType module env arg)
+          discard <| crosscallArgWordTypes module "typed crosscall argument" (← inferExprType module env arg)
         .ok returnType
     | .crosscallInvokeValueTyped target methodId callValue args returnType => do
         ensureType "value crosscall target contract id" .u64 (← inferExprType module env target)
@@ -866,21 +869,21 @@ mutual
         ensureType "value crosscall call value" .u64 (← inferExprType module env callValue)
         ensureCrosscallWordType "value crosscall return" returnType
         for arg in args do
-          ensureCrosscallWordType "value crosscall argument" (← inferExprType module env arg)
+          discard <| crosscallArgWordTypes module "value crosscall argument" (← inferExprType module env arg)
         .ok returnType
     | .crosscallInvokeStaticTyped target methodId args returnType => do
         ensureType "static crosscall target contract id" .u64 (← inferExprType module env target)
         ensureType "static crosscall method id" .u64 (← inferExprType module env methodId)
         ensureCrosscallWordType "static crosscall return" returnType
         for arg in args do
-          ensureCrosscallWordType "static crosscall argument" (← inferExprType module env arg)
+          discard <| crosscallArgWordTypes module "static crosscall argument" (← inferExprType module env arg)
         .ok returnType
     | .crosscallInvokeDelegateTyped target methodId args returnType => do
         ensureType "delegate crosscall target contract id" .u64 (← inferExprType module env target)
         ensureType "delegate crosscall method id" .u64 (← inferExprType module env methodId)
         ensureCrosscallWordType "delegate crosscall return" returnType
         for arg in args do
-          ensureCrosscallWordType "delegate crosscall argument" (← inferExprType module env arg)
+          discard <| crosscallArgWordTypes module "delegate crosscall argument" (← inferExprType module env arg)
         .ok returnType
     | .effect effect => inferEffectExprType module env effect
 
@@ -1406,6 +1409,151 @@ mutual
           message := "struct field access in IR EVM v0 supports local struct values or struct literals only"
         }
 
+  partial def lowerCrosscallStructArgWords
+      (module : Module)
+      (env : TypeEnv)
+      (context typeName : String)
+      (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+    discard <| crosscallArgWordTypes module context (.structType typeName)
+    let some decl := findStruct? module typeName
+      | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+    match value with
+    | .local name => do
+        let some binding := findLocal? env name
+          | .error { message := s!"unknown local `{name}`" }
+        ensureType context (.structType typeName) binding.type
+        let mut words : Array Lean.Compiler.Yul.Expr := #[]
+        for fieldDecl in decl.fields do
+          ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+          words := words.push (Lean.Compiler.Yul.Expr.id (structLocalFieldName name fieldDecl.id))
+        .ok words
+    | .structLit literalTypeName fields => do
+        if literalTypeName != typeName then
+          .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }
+        let mut words : Array Lean.Compiler.Yul.Expr := #[]
+        for fieldDecl in decl.fields do
+          ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+          let some field := fields.find? fun field => field.fst == fieldDecl.id
+            | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+          words := words.push (← lowerExpr module env field.snd)
+        .ok words
+    | .effect (.storageScalarRead stateId) => do
+        let fields ← lowerStructStorageReadFields module context typeName stateId
+        .ok (fields.map fun field => field.snd)
+    | _ =>
+        .error {
+          message := s!"{context} struct values in IR EVM v0 support local struct values, struct literals, or storage scalar struct reads only"
+        }
+
+  partial def lowerCrosscallStructArrayArgWords
+      (module : Module)
+      (env : TypeEnv)
+      (context typeName : String)
+      (length : Nat)
+      (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+    discard <| crosscallArgWordTypes module context (.fixedArray (.structType typeName) length)
+    let some decl := findStruct? module typeName
+      | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+    match value with
+    | .local name => do
+        let (sourceElementType, sourceLength) ← requireLocalFixedArray context env name
+        ensureType s!"{context} fixed-array element type" (.structType typeName) sourceElementType
+        if sourceLength != length then
+          .error { message := s!"{context} fixed-array expected length {length}, got {sourceLength}" }
+        let mut words : Array Lean.Compiler.Yul.Expr := #[]
+        for _h : idx in [0:length] do
+          for fieldDecl in decl.fields do
+            ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+            words := words.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName name idx fieldDecl.id))
+        .ok words
+    | .arrayLit literalElementType values => do
+        ensureType s!"{context} fixed-array element type" (.structType typeName) literalElementType
+        if values.size != length then
+          .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
+        let mut words : Array Lean.Compiler.Yul.Expr := #[]
+        for h : idx in [0:values.size] do
+          match values[idx] with
+          | .structLit literalTypeName fields => do
+              if literalTypeName != typeName then
+                .error { message := s!"{context} fixed-array element {idx} expected struct `{typeName}`, got `{literalTypeName}`" }
+              for fieldDecl in decl.fields do
+                ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+                let some field := fields.find? fun field => field.fst == fieldDecl.id
+                  | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+                words := words.push (← lowerExpr module env field.snd)
+          | other =>
+              let actualType ← inferExprType module env other
+              .error {
+                message := s!"{context} fixed-array element {idx} expected struct literal `{typeName}`, got `{actualType.name}`"
+              }
+        .ok words
+    | _ =>
+        .error {
+          message := s!"{context} fixed-array struct values in IR EVM v0 support local fixed-array values or array literals only"
+        }
+
+  partial def lowerCrosscallFixedArrayArgWords
+      (module : Module)
+      (env : TypeEnv)
+      (context : String)
+      (elementType : ValueType)
+      (length : Nat)
+      (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+    discard <| crosscallArgWordTypes module context (.fixedArray elementType length)
+    match elementType with
+    | .structType typeName =>
+        lowerCrosscallStructArrayArgWords module env context typeName length value
+    | _ => do
+        match value with
+        | .local name => do
+            let (sourceElementType, sourceLength) ← requireLocalFixedArray context env name
+            ensureType s!"{context} fixed-array element type" elementType sourceElementType
+            if sourceLength != length then
+              .error { message := s!"{context} fixed-array expected length {length}, got {sourceLength}" }
+            let mut words : Array Lean.Compiler.Yul.Expr := #[]
+            for _h : idx in [0:length] do
+              words := words.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
+            .ok words
+        | .arrayLit literalElementType values => do
+            ensureType s!"{context} fixed-array element type" elementType literalElementType
+            if values.size != length then
+              .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
+            let mut words : Array Lean.Compiler.Yul.Expr := #[]
+            for h : idx in [0:values.size] do
+              words := words.push (← lowerExpr module env values[idx])
+            .ok words
+        | _ =>
+            .error {
+              message := s!"{context} fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
+            }
+
+  partial def lowerCrosscallArgWords
+      (module : Module)
+      (env : TypeEnv)
+      (context : String)
+      (arg : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+    let type ← inferExprType module env arg
+    discard <| crosscallArgWordTypes module context type
+    match type with
+    | .u32 | .u64 | .bool | .hash =>
+        .ok #[← lowerExpr module env arg]
+    | .fixedArray elementType length =>
+        lowerCrosscallFixedArrayArgWords module env context elementType length arg
+    | .structType typeName =>
+        lowerCrosscallStructArgWords module env context typeName arg
+    | .unit =>
+        .error { message := s!"{context} uses Unit; IR EVM v0 crosscall arguments must use U32, U64, Bool, Hash, fixed arrays, or structs" }
+
+  partial def lowerCrosscallArgWordsMany
+      (module : Module)
+      (env : TypeEnv)
+      (context : String)
+      (args : Array ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+    let mut words : Array Lean.Compiler.Yul.Expr := #[]
+    for arg in args do
+      words := words ++ (← lowerCrosscallArgWords module env context arg)
+    .ok words
+
   partial def lowerExpr (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
     | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.u64 value) => .ok (Lean.Compiler.Yul.Expr.num value)
@@ -1482,38 +1630,38 @@ mutual
     | .crosscallInvokeTyped target methodId args returnType => do
         if !isCrosscallWordType returnType then
           .error { message := s!"typed aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
+        let argWords ← lowerCrosscallArgWordsMany module env "typed crosscall argument" args
         let mut callArgs := #[
           ← lowerExpr module env target,
           ← lowerExpr module env methodId
         ]
-        for arg in args do
-          callArgs := callArgs.push (← lowerExpr module env arg)
-        .ok (Lean.Compiler.Yul.call (← crosscallFunctionName args.size returnType) callArgs)
+        callArgs := callArgs ++ argWords
+        .ok (Lean.Compiler.Yul.call (← crosscallFunctionName argWords.size returnType) callArgs)
     | .crosscallInvokeValueTyped target methodId callValue args returnType => do
+        let argWords ← lowerCrosscallArgWordsMany module env "value crosscall argument" args
         let mut callArgs := #[
           ← lowerExpr module env target,
           ← lowerExpr module env methodId,
           ← lowerExpr module env callValue
         ]
-        for arg in args do
-          callArgs := callArgs.push (← lowerExpr module env arg)
-        .ok (Lean.Compiler.Yul.call (← crosscallValueFunctionName args.size returnType) callArgs)
+        callArgs := callArgs ++ argWords
+        .ok (Lean.Compiler.Yul.call (← crosscallValueFunctionName argWords.size returnType) callArgs)
     | .crosscallInvokeStaticTyped target methodId args returnType => do
+        let argWords ← lowerCrosscallArgWordsMany module env "static crosscall argument" args
         let mut callArgs := #[
           ← lowerExpr module env target,
           ← lowerExpr module env methodId
         ]
-        for arg in args do
-          callArgs := callArgs.push (← lowerExpr module env arg)
-        .ok (Lean.Compiler.Yul.call (← crosscallStaticFunctionName args.size returnType) callArgs)
+        callArgs := callArgs ++ argWords
+        .ok (Lean.Compiler.Yul.call (← crosscallStaticFunctionName argWords.size returnType) callArgs)
     | .crosscallInvokeDelegateTyped target methodId args returnType => do
+        let argWords ← lowerCrosscallArgWordsMany module env "delegate crosscall argument" args
         let mut callArgs := #[
           ← lowerExpr module env target,
           ← lowerExpr module env methodId
         ]
-        for arg in args do
-          callArgs := callArgs.push (← lowerExpr module env arg)
-        .ok (Lean.Compiler.Yul.call (← crosscallDelegateFunctionName args.size returnType) callArgs)
+        callArgs := callArgs ++ argWords
+        .ok (Lean.Compiler.Yul.call (← crosscallDelegateFunctionName argWords.size returnType) callArgs)
     | .effect effect => lowerEffectExpr module env effect
 
   partial def lowerEffectExpr (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Expr
@@ -2631,14 +2779,14 @@ def lowerAggregateCrosscallReturnAssignment?
         ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
         let names ← abiReturnNames module entrypointName returnType
         let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
+        let argWords ← lowerCrosscallArgWordsMany module env "typed crosscall argument" args
         let mut callArgs := #[
           ← lowerExpr module env target,
           ← lowerExpr module env methodId
         ]
-        for arg in args do
-          callArgs := callArgs.push (← lowerExpr module env arg)
+        callArgs := callArgs ++ argWords
         .ok (some #[
-          .assignment names (Lean.Compiler.Yul.call (← crosscallAggregateFunctionName args.size wordTypes) callArgs)
+          .assignment names (Lean.Compiler.Yul.call (← crosscallAggregateFunctionName argWords.size wordTypes) callArgs)
         ])
     | _ => .ok none
 
@@ -3253,132 +3401,212 @@ def pushCrosscallHelperSpecIfMissing (acc : Array CrosscallHelperSpec) (value : 
 def mergeCrosscallHelperSpecs (lhs rhs : Array CrosscallHelperSpec) : Array CrosscallHelperSpec :=
   rhs.foldl pushCrosscallHelperSpecIfMissing lhs
 
+def crosscallArgWordCountForExpr
+    (module : Module)
+    (env : TypeEnv)
+    (context : String)
+    (arg : ProofForge.IR.Expr) : Except LowerError Nat := do
+  let type ← inferExprType module env arg
+  let words ← crosscallArgWordTypes module context type
+  .ok words.size
+
+def crosscallArgWordCountForArgs
+    (module : Module)
+    (env : TypeEnv)
+    (context : String)
+    (args : Array ProofForge.IR.Expr) : Except LowerError Nat := do
+  let mut count := 0
+  for arg in args do
+    count := count + (← crosscallArgWordCountForExpr module env context arg)
+  .ok count
+
 mutual
-  partial def crosscallHelperSpecsExpr : ProofForge.IR.Expr → Array CrosscallHelperSpec
-    | .literal _ => #[]
-    | .local _ => #[]
+  partial def crosscallHelperSpecsExpr
+      (module : Module)
+      (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError (Array CrosscallHelperSpec)
+    | .literal _ => .ok #[]
+    | .local _ => .ok #[]
     | .arrayLit _ values =>
-        values.foldl (init := #[]) fun acc value => mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr value)
-    | .arrayGet array index =>
-        mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr array) (crosscallHelperSpecsExpr index)
+        values.foldlM (init := #[]) fun acc value => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsExpr module env value))
+    | .arrayGet array index => do
+        let arraySpecs ← crosscallHelperSpecsExpr module env array
+        let indexSpecs ← crosscallHelperSpecsExpr module env index
+        .ok (mergeCrosscallHelperSpecs arraySpecs indexSpecs)
     | .structLit _ fields =>
-        fields.foldl (init := #[]) fun acc field => mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr field.snd)
+        fields.foldlM (init := #[]) fun acc field => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsExpr module env field.snd))
     | .field base _ =>
-        crosscallHelperSpecsExpr base
+        crosscallHelperSpecsExpr module env base
     | .add lhs rhs | .sub lhs rhs | .mul lhs rhs | .div lhs rhs | .mod lhs rhs
     | .pow lhs rhs | .bitAnd lhs rhs | .bitOr lhs rhs | .bitXor lhs rhs
     | .shiftLeft lhs rhs | .shiftRight lhs rhs | .eq lhs rhs | .ne lhs rhs
     | .lt lhs rhs | .le lhs rhs | .gt lhs rhs | .ge lhs rhs
-    | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs =>
-        mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr lhs) (crosscallHelperSpecsExpr rhs)
+    | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs => do
+        let lhsSpecs ← crosscallHelperSpecsExpr module env lhs
+        let rhsSpecs ← crosscallHelperSpecsExpr module env rhs
+        .ok (mergeCrosscallHelperSpecs lhsSpecs rhsSpecs)
     | .cast value _ | .boolNot value | .hash value =>
-        crosscallHelperSpecsExpr value
-    | .hashValue a b c d =>
-        mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr a) (crosscallHelperSpecsExpr b))
-          (mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr c) (crosscallHelperSpecsExpr d))
-    | .nativeValue => #[]
-    | .crosscallInvoke target methodId args =>
-        let nested := mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr target) (crosscallHelperSpecsExpr methodId)
-        let nested := args.foldl (init := nested) fun acc arg =>
-          mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr arg)
-        pushCrosscallHelperSpecIfMissing nested { arity := args.size, returnType := .u64, mode := .call }
-    | .crosscallInvokeTyped target methodId args returnType =>
-        let nested := mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr target) (crosscallHelperSpecsExpr methodId)
-        let nested := args.foldl (init := nested) fun acc arg =>
-          mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr arg)
-        pushCrosscallHelperSpecIfMissing nested { arity := args.size, returnType := returnType, mode := .call }
-    | .crosscallInvokeValueTyped target methodId callValue args returnType =>
-        let nested := mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr target) (crosscallHelperSpecsExpr methodId)
-        let nested := mergeCrosscallHelperSpecs nested (crosscallHelperSpecsExpr callValue)
-        let nested := args.foldl (init := nested) fun acc arg =>
-          mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr arg)
-        pushCrosscallHelperSpecIfMissing nested { arity := args.size, returnType := returnType, mode := .callValue }
-    | .crosscallInvokeStaticTyped target methodId args returnType =>
-        let nested := mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr target) (crosscallHelperSpecsExpr methodId)
-        let nested := args.foldl (init := nested) fun acc arg =>
-          mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr arg)
-        pushCrosscallHelperSpecIfMissing nested { arity := args.size, returnType := returnType, mode := .staticcall }
-    | .crosscallInvokeDelegateTyped target methodId args returnType =>
-        let nested := mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr target) (crosscallHelperSpecsExpr methodId)
-        let nested := args.foldl (init := nested) fun acc arg =>
-          mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr arg)
-        pushCrosscallHelperSpecIfMissing nested { arity := args.size, returnType := returnType, mode := .delegatecall }
+        crosscallHelperSpecsExpr module env value
+    | .hashValue a b c d => do
+        let ab := mergeCrosscallHelperSpecs (← crosscallHelperSpecsExpr module env a) (← crosscallHelperSpecsExpr module env b)
+        let cd := mergeCrosscallHelperSpecs (← crosscallHelperSpecsExpr module env c) (← crosscallHelperSpecsExpr module env d)
+        .ok (mergeCrosscallHelperSpecs ab cd)
+    | .nativeValue => .ok #[]
+    | .crosscallInvoke target methodId args => do
+        let mut nested := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsExpr module env target)
+          (← crosscallHelperSpecsExpr module env methodId)
+        for arg in args do
+          nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsExpr module env arg)
+        .ok (pushCrosscallHelperSpecIfMissing nested { arity := args.size, returnType := .u64, mode := .call })
+    | .crosscallInvokeTyped target methodId args returnType => do
+        let mut nested := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsExpr module env target)
+          (← crosscallHelperSpecsExpr module env methodId)
+        for arg in args do
+          nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsExpr module env arg)
+        let argWordCount ← crosscallArgWordCountForArgs module env "typed crosscall argument" args
+        .ok (pushCrosscallHelperSpecIfMissing nested { arity := argWordCount, returnType := returnType, mode := .call })
+    | .crosscallInvokeValueTyped target methodId callValue args returnType => do
+        let mut nested := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsExpr module env target)
+          (← crosscallHelperSpecsExpr module env methodId)
+        nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsExpr module env callValue)
+        for arg in args do
+          nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsExpr module env arg)
+        let argWordCount ← crosscallArgWordCountForArgs module env "value crosscall argument" args
+        .ok (pushCrosscallHelperSpecIfMissing nested { arity := argWordCount, returnType := returnType, mode := .callValue })
+    | .crosscallInvokeStaticTyped target methodId args returnType => do
+        let mut nested := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsExpr module env target)
+          (← crosscallHelperSpecsExpr module env methodId)
+        for arg in args do
+          nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsExpr module env arg)
+        let argWordCount ← crosscallArgWordCountForArgs module env "static crosscall argument" args
+        .ok (pushCrosscallHelperSpecIfMissing nested { arity := argWordCount, returnType := returnType, mode := .staticcall })
+    | .crosscallInvokeDelegateTyped target methodId args returnType => do
+        let mut nested := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsExpr module env target)
+          (← crosscallHelperSpecsExpr module env methodId)
+        for arg in args do
+          nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsExpr module env arg)
+        let argWordCount ← crosscallArgWordCountForArgs module env "delegate crosscall argument" args
+        .ok (pushCrosscallHelperSpecIfMissing nested { arity := argWordCount, returnType := returnType, mode := .delegatecall })
     | .effect effect =>
-        crosscallHelperSpecsEffect effect
+        crosscallHelperSpecsEffect module env effect
 
-  partial def crosscallHelperSpecsEffect : Effect → Array CrosscallHelperSpec
-    | .storageScalarRead _ => #[]
+  partial def crosscallHelperSpecsEffect
+      (module : Module)
+      (env : TypeEnv) : Effect → Except LowerError (Array CrosscallHelperSpec)
+    | .storageScalarRead _ => .ok #[]
     | .storageScalarWrite _ value =>
-        crosscallHelperSpecsExpr value
+        crosscallHelperSpecsExpr module env value
     | .storageScalarAssignOp _ _ value =>
-        crosscallHelperSpecsExpr value
+        crosscallHelperSpecsExpr module env value
     | .storageMapContains _ key =>
-        crosscallHelperSpecsExpr key
+        crosscallHelperSpecsExpr module env key
     | .storageMapGet _ key =>
-        crosscallHelperSpecsExpr key
-    | .storageMapInsert _ key value | .storageMapSet _ key value =>
-        mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr key) (crosscallHelperSpecsExpr value)
+        crosscallHelperSpecsExpr module env key
+    | .storageMapInsert _ key value | .storageMapSet _ key value => do
+        let keySpecs ← crosscallHelperSpecsExpr module env key
+        let valueSpecs ← crosscallHelperSpecsExpr module env value
+        .ok (mergeCrosscallHelperSpecs keySpecs valueSpecs)
     | .storageArrayRead _ index =>
-        crosscallHelperSpecsExpr index
-    | .storageArrayWrite _ index value | .storageArrayStructFieldWrite _ index _ value =>
-        mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr index) (crosscallHelperSpecsExpr value)
+        crosscallHelperSpecsExpr module env index
+    | .storageArrayWrite _ index value | .storageArrayStructFieldWrite _ index _ value => do
+        let indexSpecs ← crosscallHelperSpecsExpr module env index
+        let valueSpecs ← crosscallHelperSpecsExpr module env value
+        .ok (mergeCrosscallHelperSpecs indexSpecs valueSpecs)
     | .storageArrayStructFieldRead _ index _ =>
-        crosscallHelperSpecsExpr index
-    | .storageStructFieldRead _ _ => #[]
+        crosscallHelperSpecsExpr module env index
+    | .storageStructFieldRead _ _ => .ok #[]
     | .storageStructFieldWrite _ _ value =>
-        crosscallHelperSpecsExpr value
+        crosscallHelperSpecsExpr module env value
     | .storagePathRead _ path =>
-        path.foldl (init := #[]) fun acc segment => mergeCrosscallHelperSpecs acc (crosscallHelperSpecsStoragePathSegment segment)
-    | .storagePathWrite _ path value =>
-        let pathSpecs := path.foldl (init := #[]) fun acc segment =>
-          mergeCrosscallHelperSpecs acc (crosscallHelperSpecsStoragePathSegment segment)
-        mergeCrosscallHelperSpecs pathSpecs (crosscallHelperSpecsExpr value)
-    | .storagePathAssignOp _ path _ value =>
-        let pathSpecs := path.foldl (init := #[]) fun acc segment =>
-          mergeCrosscallHelperSpecs acc (crosscallHelperSpecsStoragePathSegment segment)
-        mergeCrosscallHelperSpecs pathSpecs (crosscallHelperSpecsExpr value)
-    | .contextRead _ => #[]
+        path.foldlM (init := #[]) fun acc segment => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsStoragePathSegment module env segment))
+    | .storagePathWrite _ path value => do
+        let pathSpecs ← path.foldlM (init := #[]) fun acc segment => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsStoragePathSegment module env segment))
+        .ok (mergeCrosscallHelperSpecs pathSpecs (← crosscallHelperSpecsExpr module env value))
+    | .storagePathAssignOp _ path _ value => do
+        let pathSpecs ← path.foldlM (init := #[]) fun acc segment => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsStoragePathSegment module env segment))
+        .ok (mergeCrosscallHelperSpecs pathSpecs (← crosscallHelperSpecsExpr module env value))
+    | .contextRead _ => .ok #[]
     | .eventEmit _ fields =>
-        fields.foldl (init := #[]) fun acc field => mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr field.snd)
-    | .eventEmitIndexed _ indexedFields dataFields =>
-        let indexedSpecs := indexedFields.foldl (init := #[]) fun acc field =>
-          mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr field.snd)
-        dataFields.foldl (init := indexedSpecs) fun acc field =>
-          mergeCrosscallHelperSpecs acc (crosscallHelperSpecsExpr field.snd)
+        fields.foldlM (init := #[]) fun acc field => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsExpr module env field.snd))
+    | .eventEmitIndexed _ indexedFields dataFields => do
+        let indexedSpecs ← indexedFields.foldlM (init := #[]) fun acc field => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsExpr module env field.snd))
+        dataFields.foldlM (init := indexedSpecs) fun acc field => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsExpr module env field.snd))
 
-  partial def crosscallHelperSpecsStoragePathSegment : StoragePathSegment → Array CrosscallHelperSpec
-    | .field _ => #[]
-    | .index index => crosscallHelperSpecsExpr index
-    | .mapKey key => crosscallHelperSpecsExpr key
+  partial def crosscallHelperSpecsStoragePathSegment
+      (module : Module)
+      (env : TypeEnv) : StoragePathSegment → Except LowerError (Array CrosscallHelperSpec)
+    | .field _ => .ok #[]
+    | .index index => crosscallHelperSpecsExpr module env index
+    | .mapKey key => crosscallHelperSpecsExpr module env key
 
-  partial def crosscallHelperSpecsStatement : Statement → Array CrosscallHelperSpec
-    | .letBind _ _ value | .letMutBind _ _ value =>
-        crosscallHelperSpecsExpr value
-    | .assign target value =>
-        mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr target) (crosscallHelperSpecsExpr value)
-    | .assignOp target _ value =>
-        mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr target) (crosscallHelperSpecsExpr value)
-    | .effect effect =>
-        crosscallHelperSpecsEffect effect
-    | .assert condition _ =>
-        crosscallHelperSpecsExpr condition
-    | .assertEq lhs rhs _ =>
-        mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr lhs) (crosscallHelperSpecsExpr rhs)
-    | .ifElse condition thenBody elseBody =>
-        let bodySpecs := mergeCrosscallHelperSpecs (crosscallHelperSpecsStatements thenBody) (crosscallHelperSpecsStatements elseBody)
-        mergeCrosscallHelperSpecs (crosscallHelperSpecsExpr condition) bodySpecs
-    | .boundedFor _ _ _ body =>
-        crosscallHelperSpecsStatements body
-    | .return value =>
-        crosscallHelperSpecsExpr value
+  partial def crosscallHelperSpecsStatement
+      (module : Module)
+      (env : TypeEnv) : Statement → Except LowerError (Array CrosscallHelperSpec × TypeEnv)
+    | .letBind name type value => do
+        let specs ← crosscallHelperSpecsExpr module env value
+        let nextEnv ← addLocal env name type false
+        .ok (specs, nextEnv)
+    | .letMutBind name type value => do
+        let specs ← crosscallHelperSpecsExpr module env value
+        let nextEnv ← addLocal env name type true
+        .ok (specs, nextEnv)
+    | .assign target value => do
+        let targetSpecs ← crosscallHelperSpecsExpr module env target
+        let valueSpecs ← crosscallHelperSpecsExpr module env value
+        .ok (mergeCrosscallHelperSpecs targetSpecs valueSpecs, env)
+    | .assignOp target _ value => do
+        let targetSpecs ← crosscallHelperSpecsExpr module env target
+        let valueSpecs ← crosscallHelperSpecsExpr module env value
+        .ok (mergeCrosscallHelperSpecs targetSpecs valueSpecs, env)
+    | .effect effect => do
+        .ok (← crosscallHelperSpecsEffect module env effect, env)
+    | .assert condition _ => do
+        .ok (← crosscallHelperSpecsExpr module env condition, env)
+    | .assertEq lhs rhs _ => do
+        let lhsSpecs ← crosscallHelperSpecsExpr module env lhs
+        let rhsSpecs ← crosscallHelperSpecsExpr module env rhs
+        .ok (mergeCrosscallHelperSpecs lhsSpecs rhsSpecs, env)
+    | .ifElse condition thenBody elseBody => do
+        let (thenSpecs, _) ← crosscallHelperSpecsStatements module env thenBody
+        let (elseSpecs, _) ← crosscallHelperSpecsStatements module env elseBody
+        let bodySpecs := mergeCrosscallHelperSpecs thenSpecs elseSpecs
+        let conditionSpecs ← crosscallHelperSpecsExpr module env condition
+        .ok (mergeCrosscallHelperSpecs conditionSpecs bodySpecs, env)
+    | .boundedFor indexName _ _ body => do
+        let loopEnv ← addLocal env indexName .u32 false
+        let (bodySpecs, _) ← crosscallHelperSpecsStatements module loopEnv body
+        .ok (bodySpecs, env)
+    | .return value => do
+        .ok (← crosscallHelperSpecsExpr module env value, env)
 
-  partial def crosscallHelperSpecsStatements (statements : Array Statement) : Array CrosscallHelperSpec :=
-    statements.foldl (init := #[]) fun acc stmt => mergeCrosscallHelperSpecs acc (crosscallHelperSpecsStatement stmt)
+  partial def crosscallHelperSpecsStatements
+      (module : Module)
+      (env : TypeEnv)
+      (statements : Array Statement) : Except LowerError (Array CrosscallHelperSpec × TypeEnv) :=
+    statements.foldlM (init := (#[], env)) fun acc stmt => do
+      let (specs, currentEnv) := acc
+      let (stmtSpecs, nextEnv) ← crosscallHelperSpecsStatement module currentEnv stmt
+      .ok (mergeCrosscallHelperSpecs specs stmtSpecs, nextEnv)
 end
 
-def moduleCrosscallHelperSpecs (module : Module) : Array CrosscallHelperSpec :=
-  module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
-    mergeCrosscallHelperSpecs acc (crosscallHelperSpecsStatements entrypoint.body)
+def moduleCrosscallHelperSpecs (module : Module) : Except LowerError (Array CrosscallHelperSpec) := do
+  let mut specs : Array CrosscallHelperSpec := #[]
+  for entrypoint in module.entrypoints do
+    let (entrypointSpecs, _) ← crosscallHelperSpecsStatements module (entrypointTypeEnv entrypoint) entrypoint.body
+    specs := mergeCrosscallHelperSpecs specs entrypointSpecs
+  .ok specs
 
 def crosscallHelperFunctions (module : Module) (specs : Array CrosscallHelperSpec) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
   specs.mapM (crosscallHelperFunction module)
@@ -3647,7 +3875,7 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
   let helpers := helpers ++ (if moduleUsesSupportedArray module then arrayHelperFunctions else #[])
   let helpers := helpers ++ (if moduleUsesSupportedStructArray module then structArrayHelperFunctions else #[])
   let helpers := helpers ++ (if moduleUsesHash module then hashHelperFunctions else #[])
-  let helpers := helpers ++ (← crosscallHelperFunctions module (moduleCrosscallHelperSpecs module))
+  let helpers := helpers ++ (← crosscallHelperFunctions module (← moduleCrosscallHelperSpecs module))
   let helpers := helpers ++ localArrayGetHelperFunctions (← moduleLocalArrayGetLengths module)
   .ok {
     name := module.name

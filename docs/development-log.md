@@ -17,6 +17,54 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Aggregate Crosscall Arguments
+
+Commit: feature commit for EVM IR aggregate crosscall arguments
+
+Summary:
+
+- Extended typed crosscall argument lowering beyond scalar words for normal,
+  value-bearing, static, and delegate typed calls.
+- Reused the EVM ABI flattening rules for flat struct and scalar fixed-array
+  arguments, so helper arity now reflects the ABI word count rather than the
+  surface IR argument count.
+- Made crosscall helper discovery type-env aware, allowing let-bound local
+  structs and fixed arrays to request the correct generated helper.
+- Extended `EvmCrosscallProbe` with normal struct and fixed-array arguments,
+  value-bearing struct arguments, static struct arguments, and delegate struct
+  arguments.
+- Kept nested aggregate crosscall argument shapes as explicit unsupported
+  diagnostics.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/crosscall-ir-smoke.sh
+```
+
+Result:
+
+- `EvmCrosscallProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 35 CrosscallProbe tests, including aggregate argument calldata
+  packing for normal/value/static/delegate typed calls.
+- EVM diagnostics ran 55 cases, including nested aggregate argument rejection.
+
+Known limitations:
+
+- Aggregate crosscall arguments are limited to ABI-static flat structs and
+  scalar fixed arrays.
+- Value-bearing, static, and delegate typed crosscalls still return scalar
+  words only.
+- Contract creation and variable-length return data remain future work.
+
+Next step:
+
+- Continue closing EVM call-surface gaps around aggregate returns for
+  value/static/delegate calls or contract creation manifests.
+
 ### EVM IR Aggregate Crosscall Returns
 
 Commit: feature commit for EVM IR aggregate crosscall returns

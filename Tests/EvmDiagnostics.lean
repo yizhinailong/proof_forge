@@ -397,7 +397,10 @@ def typedCrosscallArgumentTypeModule : Module :=
     .return (.crosscallInvokeTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
-      #[.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]]
+      #[.arrayLit (.fixedArray .u64 2) #[
+        .arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)],
+        .arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)]
+      ]]
       .u64)
   ]
 
@@ -421,12 +424,28 @@ def valueCrosscallReturnTypeModule : Module :=
       (.fixedArray .u64 2))
   ]
 
+def valueCrosscallArgumentTypeModule : Module :=
+  selectedModule "BadValueCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.crosscallInvokeValueTyped
+      (.literal (.u64 1))
+      (.literal (.u64 2))
+      (.literal (.u64 3))
+      #[.arrayLit (.fixedArray .u64 2) #[
+        .arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)],
+        .arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)]
+      ]]
+      .u64)
+  ]
+
 def staticCrosscallArgumentTypeModule : Module :=
   selectedModule "BadStaticCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvokeStaticTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
-      #[.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]]
+      #[.arrayLit (.fixedArray .u64 2) #[
+        .arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)],
+        .arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)]
+      ]]
       .u64)
   ]
 
@@ -444,7 +463,10 @@ def delegateCrosscallArgumentTypeModule : Module :=
     .return (.crosscallInvokeDelegateTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
-      #[.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]]
+      #[.arrayLit (.fixedArray .u64 2) #[
+        .arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)],
+        .arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)]
+      ]]
       .u64)
   ]
 
@@ -713,7 +735,7 @@ def cases : Array (String × Module × String) := #[
   (
     "typed crosscall argument type unsupported",
     typedCrosscallArgumentTypeModule,
-    "typed crosscall argument has unsupported EVM IR v0 crosscall word type `Array<U64,2>`; crosscall scalar words support U32, U64, Bool, or Hash"
+    "typed crosscall argument fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "value crosscall call value type mismatch",
@@ -726,9 +748,14 @@ def cases : Array (String × Module × String) := #[
     "value crosscall return has unsupported EVM IR v0 crosscall word type `Array<U64,2>`; crosscall scalar words support U32, U64, Bool, or Hash"
   ),
   (
+    "value crosscall argument type unsupported",
+    valueCrosscallArgumentTypeModule,
+    "value crosscall argument fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
+  ),
+  (
     "static crosscall argument type unsupported",
     staticCrosscallArgumentTypeModule,
-    "static crosscall argument has unsupported EVM IR v0 crosscall word type `Array<U64,2>`; crosscall scalar words support U32, U64, Bool, or Hash"
+    "static crosscall argument fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "static crosscall return type unsupported",
@@ -738,7 +765,7 @@ def cases : Array (String × Module × String) := #[
   (
     "delegate crosscall argument type unsupported",
     delegateCrosscallArgumentTypeModule,
-    "delegate crosscall argument has unsupported EVM IR v0 crosscall word type `Array<U64,2>`; crosscall scalar words support U32, U64, Bool, or Hash"
+    "delegate crosscall argument fixed-array element has unsupported EVM IR v0 ABI aggregate type `Array<U64,2>`; ABI fixed arrays support U32, U64, Bool, Hash, or flat structs"
   ),
   (
     "delegate crosscall return type unsupported",

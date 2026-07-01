@@ -156,7 +156,7 @@ Tasks:
   crosscalls over `Bool`, `U32`, `U64`, and `Hash`, with return-type-specific
   Yul helpers, Bool/U32 return-data guards, `EvmCrosscallProbe` golden Yul,
   solc bytecode, Foundry valid/invalid typed-return validation, metadata
-  entrypoint validation, unsupported aggregate argument/nested-return
+  entrypoint validation, unsupported nested aggregate argument/return
   diagnostics, and explicit Psy unsupported diagnostics.
 - Done: extend EVM IR normal `crosscallInvokeTyped` return lowering beyond
   scalar words for direct entrypoint returns of flat structs and scalar fixed
@@ -165,6 +165,13 @@ Tasks:
   `EvmCrosscallProbe` golden Yul, solc bytecode, Foundry aggregate
   struct/array return validation, metadata selector validation, and explicit
   diagnostics for nested aggregate return shapes.
+- Done: extend EVM IR typed crosscall argument lowering beyond scalar words so
+  normal, value-bearing, static, and delegate typed calls can flatten flat
+  struct and scalar fixed-array arguments into ABI words. `EvmCrosscallProbe`
+  now covers normal struct and fixed-array arguments plus value/static/delegate
+  struct arguments through golden Yul, solc bytecode, Foundry runtime checks,
+  metadata selector validation, and explicit diagnostics for nested aggregate
+  argument shapes.
 - Done: add EVM IR `crosscallInvokeValueTyped` lowering for value-bearing typed
   scalar crosscalls, forwarding an explicit U64 call-value expression through
   value-specific Yul helpers, with `EvmCrosscallProbe` golden Yul, solc
@@ -177,7 +184,7 @@ Tasks:
   `EvmCrosscallProbe` golden Yul, solc bytecode, Foundry U64 read-only return,
   Bool/U32/Hash static typed return, invalid typed-return, and static-context
   state-write failure validation, metadata entrypoint validation, EVM malformed
-  aggregate argument/return diagnostics, and explicit Psy unsupported
+  nested aggregate argument and aggregate return diagnostics, and explicit Psy unsupported
   diagnostics.
 - Done: add EVM IR `crosscallInvokeDelegateTyped` lowering for typed scalar
   delegatecalls, using value-free Yul `delegatecall` helpers with the same
@@ -185,7 +192,7 @@ Tasks:
   `EvmCrosscallProbe` golden Yul, solc bytecode, Foundry caller-storage
   read/write validation, Bool/U32/Hash delegate typed return validation,
   invalid typed-return validation, metadata entrypoint validation, EVM
-  malformed aggregate argument/return diagnostics, and explicit Psy unsupported
+  malformed nested aggregate argument and aggregate return diagnostics, and explicit Psy unsupported
   diagnostics.
 - Done: add EVM IR direct scalar expression validation for `U64`/`U32`
   arithmetic, `U64` exponentiation, `U64`/`U32` bitwise operations and shifts,
