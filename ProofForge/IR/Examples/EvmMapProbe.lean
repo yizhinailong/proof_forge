@@ -28,6 +28,9 @@ def seedKey : Expr :=
 def pathKey : Expr :=
   .literal (.u64 2002)
 
+def pathAssignKey : Expr :=
+  .literal (.u64 3003)
+
 def mapLifecycle : Entrypoint := {
   name := "map_lifecycle"
   selector? := some "3bb39394"
@@ -99,6 +102,26 @@ def pathLifecycle : Entrypoint := {
   ]
 }
 
+def pathAssignLifecycle : Entrypoint := {
+  name := "path_assign_lifecycle"
+  selector? := some "bce9e77b"
+  returns := .u64
+  body := #[
+    .effect (.storagePathWrite "balances" #[.mapKey pathAssignKey] (.literal (.u64 11))),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathAssignKey] .add (.literal (.u64 5))),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathAssignKey] .sub (.literal (.u64 1))),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathAssignKey] .mul (.literal (.u64 2))),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathAssignKey] .div (.literal (.u64 3))),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathAssignKey] .mod (.literal (.u64 13))),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathAssignKey] .bitOr (.literal (.u64 16))),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathAssignKey] .bitAnd (.literal (.u64 31))),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathAssignKey] .bitXor (.literal (.u64 7))),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathAssignKey] .shiftLeft (.literal (.u64 2))),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathAssignKey] .shiftRight (.literal (.u64 1))),
+    .return (.effect (.storagePathRead "balances" #[.mapKey pathAssignKey]))
+  ]
+}
+
 def module : Module := {
   name := "EvmMapProbe"
   state := #[stateBefore, stateBalances, stateAfter]
@@ -108,7 +131,8 @@ def module : Module := {
     readBalance,
     upsertBalance,
     setBalance,
-    pathLifecycle
+    pathLifecycle,
+    pathAssignLifecycle
   ]
 }
 

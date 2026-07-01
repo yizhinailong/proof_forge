@@ -17,6 +17,65 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Map Path Compound Assignment
+
+Commit: feature commit for EVM IR map path compound assignment
+
+Summary:
+
+- Added EVM portable IR lowering for statement-position `storagePathAssignOp`
+  on single-segment `mapKey` paths over `Map<U64, U64, N>`.
+- Lowered map path compound assignment through generated Yul helpers named
+  `__proof_forge_map_assign_<op>`.
+- Kept mapping slot calculation inside the helper so the key expression is
+  evaluated once and the computed storage slot is reused for `sload` and
+  `sstore`.
+- Added type validation so storage path compound assignment requires matching
+  numeric path/value types.
+- Kept nested map paths, array paths, and struct paths explicitly rejected
+  until those storage layouts are implemented.
+- Extended `ProofForge.IR.Examples.EvmMapProbe` with
+  `path_assign_lifecycle()`, updated `Examples/Evm/EvmMapProbe.golden.yul`,
+  and extended `scripts/evm/map-ir-smoke.sh`.
+- Updated EVM diagnostics, coverage manifest, EVM target docs, validation
+  gates, backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-evm-map-ir-yul -o build/ir/EvmMapProbe.yul
+diff -u Examples/Evm/EvmMapProbe.golden.yul build/ir/EvmMapProbe.yul
+scripts/evm/map-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Result:
+
+- Generated EvmMapProbe Yul includes selector dispatch for
+  `path_assign_lifecycle()` and map assign helpers for all `AssignOp`
+  variants.
+- Foundry verifies `path_assign_lifecycle()` returns `58`, the raw mapping
+  slot for key `3003` is `58`, and existing map get/set/path behavior still
+  passes.
+- EVM artifact metadata records and validates `storage.scalar`, `storage.map`,
+  and `assertions.check`.
+- Diagnostics reject expression-position `storagePathAssignOp` and nested
+  storage-path compound assignment.
+
+Known limitations:
+
+- EVM IR storage path compound assignment currently supports only a single
+  `mapKey` over `Map<U64, U64, N>`.
+- Array index paths, struct field paths, nested paths, and non-`U64` map shapes
+  remain explicit diagnostics.
+
+Next step:
+
+- Continue EVM portable IR support toward storage arrays, structs, aggregate
+  ABI values, or checked arithmetic semantics.
+
 ### EVM IR Compound Assignment
 
 Commit: feature commit for EVM IR compound assignment
@@ -32,8 +91,9 @@ Summary:
   through `shl(shift, value)` and `shr(shift, value)`.
 - Added type validation so compound assignment requires matching `U32` or
   `U64` operands, mutable local targets, and scalar numeric storage targets.
-- Kept aggregate assignment targets and `storagePathAssignOp` explicitly
-  rejected until EVM map/array/struct path update layout is designed.
+- Kept aggregate assignment targets and storage path compound assignment
+  outside this local/scalar feature; the following map path entry closes the
+  single-segment `mapKey` subset.
 - Added `ProofForge.IR.Examples.EvmAssignOpProbe`,
   `--emit-evm-assign-op-ir-yul`, `--emit-evm-assign-op-ir-bytecode`,
   `Examples/Evm/EvmAssignOpProbe.golden.yul`, and
@@ -62,13 +122,13 @@ Result:
   revert.
 - EVM artifact metadata records and validates `storage.scalar`.
 - Diagnostics reject non-local compound assignment targets, non-numeric
-  compound operands, expression-position scalar storage compound assignment,
-  and unsupported `storagePathAssignOp`.
+  compound operands, and expression-position scalar storage compound
+  assignment.
 
 Known limitations:
 
-- EVM IR compound assignment currently supports only mutable local scalars and
-  scalar storage; aggregate locals and storage paths remain out of scope.
+- EVM IR compound assignment in this entry supports only mutable local scalars
+  and scalar storage; aggregate locals remain out of scope.
 - Operations use raw EVM word semantics and do not add checked-overflow
   behavior.
 

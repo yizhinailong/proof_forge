@@ -248,7 +248,7 @@ operand ordering through `shl(shift, value)` and `shr(shift, value)`. The
 smoke checks golden Yul reproducibility, `solc --strict-assembly` bytecode
 generation, metadata capability `storage.scalar`, Foundry return values, raw
 storage slot updates, and unknown-selector revert behavior. Aggregate targets
-and `storagePathAssignOp` remain explicit diagnostics.
+remain explicit diagnostics.
 
 `ConditionalProbe` validates portable IR statement-level `if/else` lowering to
 Yul `switch condition case 0 { else } default { then }` blocks. The smoke checks
@@ -307,8 +307,11 @@ Solidity-style slot layout used by the SDK: `keccak256(key || slot)` after
 writing `key` and `slot` as two 32-byte memory words. The smoke checks golden
 Yul reproducibility, `solc --strict-assembly` bytecode generation, metadata
 capabilities (`storage.scalar`, `storage.map`, `assertions.check`), ABI
-get/set/insert behavior, single-segment `mapKey` storage paths, raw Foundry
-`vm.load` storage slots, and unknown-selector revert behavior.
+get/set/insert behavior, single-segment `mapKey` storage path reads, writes,
+and compound assignment, raw Foundry `vm.load` storage slots, and
+unknown-selector revert behavior. EVM IR v0 keeps storage-path compound
+assignment scoped to `Map<U64, U64, N>` until array and struct storage layouts
+land.
 
 ## Metadata
 

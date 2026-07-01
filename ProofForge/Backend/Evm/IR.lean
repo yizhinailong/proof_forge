@@ -262,6 +262,9 @@ def assignOpBuiltinName : AssignOp → String
   | .shiftLeft => "shl"
   | .shiftRight => "shr"
 
+def mapAssignFunctionName (op : AssignOp) : String :=
+  s!"__proof_forge_map_assign_{assignOpBuiltinName op}"
+
 def ensureAssignOpTypes (op : AssignOp) (targetType valueType : ValueType) : Except LowerError Unit := do
   discard <| ensureNumericType s!"compound assignment {assignOpDiagnosticName op}" targetType valueType
 
@@ -466,7 +469,7 @@ mutual
     | .storagePathWrite _ _ _ =>
         .error { message := "storage.path.write is a statement effect, not an expression" }
     | .storagePathAssignOp _ _ _ _ =>
-        .error { message := "storage.path.assign_op is not supported by IR EVM v0" }
+        .error { message := "storage.path.assign_op is a statement effect, not an expression" }
     | .contextRead _ =>
         .ok .u64
     | .eventEmit _ _ =>
@@ -508,8 +511,8 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
       .error { message := "storage.path.read must be used as an expression" }
   | .storagePathWrite stateId path value => do
       ensureType s!"storage path `{stateId}` write" (← inferStoragePathType module env stateId path) (← inferExprType module env value)
-  | .storagePathAssignOp _ _ _ _ =>
-      .ok ()
+  | .storagePathAssignOp stateId path op value => do
+      ensureAssignOpTypes op (← inferStoragePathType module env stateId path) (← inferExprType module env value)
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
   | .eventEmit name fields => do
@@ -715,7 +718,7 @@ mutual
     | .storagePathWrite _ _ _ =>
         .error { message := "storage.path.write is a statement effect, not an expression" }
     | .storagePathAssignOp _ _ _ _ =>
-        .error { message := "storage.path.assign_op is not supported by IR EVM v0" }
+        .error { message := "storage.path.assign_op is a statement effect, not an expression" }
     | .contextRead field =>
         .ok (contextExpr field)
     | .eventEmit _ _ =>
@@ -758,6 +761,19 @@ def lowerStoragePathWriteStmt
   | [] => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
   | _ => .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
 
+def lowerStoragePathAssignOpStmt
+    (module : Module)
+    (stateId : String)
+    (path : Array StoragePathSegment)
+    (op : AssignOp)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement :=
+  match path.toList with
+  | [StoragePathSegment.mapKey key] => do
+      let slot ← requireU64MapState module stateId
+      .ok (.exprStmt (Lean.Compiler.Yul.call (mapAssignFunctionName op) #[slotExpr slot, ← lowerExpr module key, ← lowerExpr module value]))
+  | [] => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+  | _ => .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
+
 def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Statement
   | .storageScalarRead _ =>
       .error { message := "storage.scalar.read must be used as an expression" }
@@ -797,8 +813,8 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       .error { message := "storage.path.read must be used as an expression" }
   | .storagePathWrite stateId path value =>
       lowerStoragePathWriteStmt module stateId path value
-  | .storagePathAssignOp _ _ _ _ =>
-      .error { message := "storage.path.assign_op is not supported by IR EVM v0" }
+  | .storagePathAssignOp stateId path op value =>
+      lowerStoragePathAssignOpStmt module stateId path op value
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
   | .eventEmit name fields =>
@@ -980,7 +996,7 @@ def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
     }
 ]
 
-def mapHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
   .funcDef mapSlotFunctionName
     #[{ name := "slot" }, { name := "key" }]
     #[{ name := "result" }]
@@ -1011,6 +1027,23 @@ def mapHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
       ]
     }
 ]
+
+def mapAssignHelperFunction (op : AssignOp) : Lean.Compiler.Yul.Statement :=
+  .funcDef (mapAssignFunctionName op)
+    #[{ name := "slot" }, { name := "key" }, { name := "value" }]
+    #[]
+    {
+      statements := #[
+        .varDecl #[{ name := "_slot" }] (some (Lean.Compiler.Yul.call mapSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"])),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          Lean.Compiler.Yul.Expr.id "_slot",
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (Lean.Compiler.Yul.Expr.id "value")
+        ])
+      ]
+    }
+
+def mapHelperFunctions (assignOps : Array AssignOp) : Array Lean.Compiler.Yul.Statement :=
+  mapBaseHelperFunctions ++ assignOps.map mapAssignHelperFunction
 
 def crosscallArgName (idx : Nat) : String :=
   s!"arg{idx}"
@@ -1199,6 +1232,32 @@ def moduleCrosscallArities (module : Module) : Array Nat :=
 def crosscallHelperFunctions (arities : Array Nat) : Array Lean.Compiler.Yul.Statement :=
   arities.map crosscallHelperFunction
 
+def pushAssignOpIfMissing (acc : Array AssignOp) (value : AssignOp) : Array AssignOp :=
+  if acc.any (fun existing => existing == value) then acc else acc.push value
+
+def mergeAssignOpSets (lhs rhs : Array AssignOp) : Array AssignOp :=
+  rhs.foldl pushAssignOpIfMissing lhs
+
+mutual
+  partial def storagePathAssignOpsStatement : Statement → Array AssignOp
+    | .effect (.storagePathAssignOp _ _ op _) =>
+        #[op]
+    | .ifElse _ thenBody elseBody =>
+        mergeAssignOpSets (storagePathAssignOpsStatements thenBody) (storagePathAssignOpsStatements elseBody)
+    | .boundedFor _ _ _ body =>
+        storagePathAssignOpsStatements body
+    | _ =>
+        #[]
+
+  partial def storagePathAssignOpsStatements (statements : Array Statement) : Array AssignOp :=
+    statements.foldl (init := #[]) fun acc stmt =>
+      mergeAssignOpSets acc (storagePathAssignOpsStatement stmt)
+end
+
+def moduleStoragePathAssignOps (module : Module) : Array AssignOp :=
+  module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
+    mergeAssignOpSets acc (storagePathAssignOpsStatements entrypoint.body)
+
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
     match state.kind, state.type with
@@ -1224,7 +1283,7 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
   let functions ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
     .ok (acc.push (← lowerEntrypoint module entrypoint))
   let dispatch ← dispatchBlock module
-  let helpers := if moduleUsesSupportedMap module then mapHelperFunctions else #[]
+  let helpers := if moduleUsesSupportedMap module then mapHelperFunctions (moduleStoragePathAssignOps module) else #[]
   let helpers := helpers ++ (if moduleUsesHash module then hashHelperFunctions else #[])
   let helpers := helpers ++ crosscallHelperFunctions (moduleCrosscallArities module)
   .ok {

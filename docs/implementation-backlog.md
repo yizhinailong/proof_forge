@@ -138,6 +138,10 @@ Tasks:
   golden Yul, solc bytecode, Foundry runtime/raw-slot validation, metadata
   capability validation, and explicit diagnostics for unsupported map shapes
   and `contains`.
+- Done: add EVM IR single-segment `mapKey` storage path compound assignment
+  over `Map<U64, U64, N>`, with `EvmMapProbe` golden Yul, solc bytecode,
+  Foundry runtime/raw-slot validation, metadata capability validation, and
+  explicit diagnostics for expression-position and nested-path misuse.
 - Add golden Yul outputs for simple examples.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.

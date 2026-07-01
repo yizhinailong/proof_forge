@@ -47,6 +47,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint upsert_balance:e1de6ac8 \
   --expect-entrypoint set_balance:b41d1f5c \
   --expect-entrypoint path_lifecycle:84c21205 \
+  --expect-entrypoint path_assign_lifecycle:bce9e77b \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmMapProbe.bin")"
@@ -145,6 +146,14 @@ contract ProofForgeIRMapSmokeTest {
 
         assertEq(callU256(probe, abi.encodeWithSignature("path_lifecycle()")), 77);
         assertEq(readStorage(probe, mapSlot(2002)), 77);
+    }
+
+    function testIRMapStoragePathCompoundAssignment() public {
+        address probe = address(uint160(0xE114));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("path_assign_lifecycle()")), 58);
+        assertEq(readStorage(probe, mapSlot(3003)), 58);
     }
 
     function testIRMapRejectsUnknownSelector() public {

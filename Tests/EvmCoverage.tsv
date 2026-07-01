@@ -74,12 +74,12 @@ Effect	storageStructFieldRead	unsupported	EVM target profile rejects data.struct
 Effect	storageStructFieldWrite	unsupported	EVM target profile rejects data.struct and lowerEffectStmt has an explicit struct storage write diagnostic.
 Effect	storagePathRead	validated	EvmMapProbe validates single-segment mapKey storage path reads over Map<U64, U64, N>; diagnostics reject missing and nested map keys.
 Effect	storagePathWrite	validated	EvmMapProbe validates single-segment mapKey storage path writes over Map<U64, U64, N>; diagnostics reject missing and nested map keys.
-Effect	storagePathAssignOp	unsupported	lowerEffectExpr and lowerEffectStmt still reject storage.path.assign_op in EVM IR v0; storage path compound updates require separate map/array/struct layout support.
+Effect	storagePathAssignOp	validated	EvmMapProbe validates single-segment mapKey storage path compound assignment over Map<U64, U64, N> for all AssignOp variants; diagnostics reject expression-position and nested path use.
 Effect	contextRead	validated	lowerEffectExpr emits EVM context opcodes for expression-position context reads; diagnostics still reject statement-position context reads.
 Effect	eventEmit	validated	EventProbe validates eventEmit lowering to Yul log1 with topic0 = keccak256(event name) and 32-byte word data fields; diagnostics reject expression-position events and malformed names.
-StoragePathSegment	field	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
-StoragePathSegment	index	unsupported	Storage path effects reject before segment lowering because EVM IR v0 does not yet implement storage paths.
-StoragePathSegment	mapKey	validated	EvmMapProbe validates mapKey as the first and only storage-path segment for EVM Map<U64, U64, N> reads and writes.
+StoragePathSegment	field	unsupported	EVM target profile rejects the data.struct capability introduced by field storage path segments until struct layout is implemented.
+StoragePathSegment	index	unsupported	EVM target profile rejects the data.fixed_array capability introduced by index storage path segments until storage array layout is implemented.
+StoragePathSegment	mapKey	validated	EvmMapProbe validates mapKey as the first and only storage-path segment for EVM Map<U64, U64, N> reads, writes, and compound assignment.
 Statement	letBind	lowered	lowerStatement emits immutable Yul varDecl for U32/U64/Bool/Hash let bindings and rejects unsupported types.
 Statement	letMutBind	lowered	lowerStatement emits mutable scalar Yul let bindings; AssignmentProbe covers mutable U64 and Bool locals.
 Statement	assign	lowered	lowerStatement emits Yul assignment for local targets; AssignmentProbe covers local reassignment and diagnostics reject non-local targets.

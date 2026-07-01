@@ -202,6 +202,16 @@ def storagePathNestedMapModule : Module :=
     .return (.effect (.storagePathRead "balances" #[.mapKey (.literal (.u64 1)), .mapKey (.literal (.u64 2))]))
   ]
 
+def storagePathFieldModule : Module :=
+  selectedMapModule "BadStoragePathField" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.effect (.storagePathRead "balances" #[.field "amount"]))
+  ]
+
+def storagePathIndexModule : Module :=
+  selectedMapModule "BadStoragePathIndex" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.effect (.storagePathRead "balances" #[.index (.literal (.u64 0))]))
+  ]
+
 def contextReadStmtModule : Module :=
   selectedModule "BadContextReadStmt" <| selectedEntrypoint "bad" #[
     .effect (.contextRead .userId)
@@ -258,9 +268,14 @@ def immutableAssignmentModule : Module :=
     .assign (.local "x") (.literal (.u64 2))
   ]
 
-def storagePathAssignModule : Module :=
-  selectedMapModule "BadStoragePathAssign" <| selectedEntrypoint "bad" #[
-    .effect (.storagePathAssignOp "balances" #[.mapKey (.literal (.u64 1))] .add (.literal (.u64 2)))
+def storagePathAssignExprModule : Module :=
+  selectedMapModule "BadStoragePathAssignExpr" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.effect (.storagePathAssignOp "balances" #[.mapKey (.literal (.u64 1))] .add (.literal (.u64 2))))
+  ]
+
+def storagePathAssignNestedModule : Module :=
+  selectedMapModule "BadStoragePathAssignNested" <| selectedEntrypoint "bad" #[
+    .effect (.storagePathAssignOp "balances" #[.mapKey (.literal (.u64 1)), .mapKey (.literal (.u64 2))] .add (.literal (.u64 3)))
   ]
 
 def compoundAssignmentTargetModule : Module :=
@@ -371,9 +386,24 @@ def cases : Array (String × Module × String) := #[
     "EVM IR v0 supports only single-segment mapKey storage paths"
   ),
   (
-    "storage path assign_op unsupported",
-    storagePathAssignModule,
-    "storage.path.assign_op is not supported by IR EVM v0"
+    "storage path field unsupported",
+    storagePathFieldModule,
+    "target `evm` does not support capability `data.struct`: capability is not present in the target profile"
+  ),
+  (
+    "storage path index unsupported",
+    storagePathIndexModule,
+    "target `evm` does not support capability `data.fixed_array`: capability is not present in the target profile"
+  ),
+  (
+    "storage path assign_op used as expression",
+    storagePathAssignExprModule,
+    "storage.path.assign_op is a statement effect, not an expression"
+  ),
+  (
+    "storage path assign_op nested map unsupported",
+    storagePathAssignNestedModule,
+    "EVM IR v0 supports only single-segment mapKey storage paths"
   ),
   (
     "context read used as statement",
