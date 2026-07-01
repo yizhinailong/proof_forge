@@ -822,6 +822,47 @@ Acceptance criteria:
 - The docs distinguish Starknet from EVM, Wasm-host, Move, Solana, TVM, AVM,
   UTXO, and `psy-dpn`-style ZK circuit targets.
 
+## Workstream 22: Aleo Leo Research Target
+
+Goal: decide whether and how ProofForge should support Aleo programs without
+treating Aleo as only a generic ZK circuit target or confusing Aleo VM with
+Algorand AVM.
+
+Tasks:
+
+- Done: add a docs-first target note for candidate id `aleo-leo`.
+- Classify Aleo as a ZK application sourcegen candidate with Leo as the first
+  source boundary, Aleo Instructions as the lower-level compiler target, and
+  Aleo VM bytecode as the deployable execution artifact.
+- Review candidate capabilities for Leo source, Aleo Instructions, Aleo VM,
+  AVM bytecode, ABI, prover/verifier artifacts, transitions, finalization,
+  records, mappings, storage, public/private inputs and outputs, program
+  imports/upgrades, execute/deploy transactions, Credits fees, Leo tests, and
+  devnet validation.
+- Define a tiny Counter-like program with one entry `fn`, one public `mapping`,
+  and one `final { }` block.
+- Define a second private-record scenario that consumes one encrypted record,
+  creates a successor record, and records public/finalization effects only when
+  required.
+- Define artifact metadata for Leo source, program id/imports, record/mapping
+  schemas, finalization manifest, Aleo Instructions, Aleo VM bytecode, ABI,
+  prover/verifier artifacts, execute/deploy transaction metadata, toolchain
+  versions, and validation result.
+- Identify the local smoke command set: `leo build`, `leo test`, optional
+  `leo test --prove`, `leo execute --print`, and devnet/devnode-backed deploy
+  or execute validation.
+
+Acceptance criteria:
+
+- `docs/targets/aleo-leo.md` records the target classification and non-goals.
+- Capability candidates remain documented but are not added to
+  `ProofForge.Target.Capability` until reviewed.
+- The first spike has a reproducible local validation command or a documented
+  external-tool blocker.
+- The docs distinguish Aleo from `psy-dpn`, Zcash Shielded, Kaspa/Toccata
+  inline ZK, Starknet Cairo, Algorand AVM, and generic source-generation
+  targets.
+
 ## Workstream 20: Bitcoin Script/Miniscript Research Target
 
 Goal: decide whether and how ProofForge should support Bitcoin base-layer
@@ -927,13 +968,15 @@ Acceptance criteria:
     registry changes.
 15. Starknet Cairo research target review (Workstream 19) before any registry
     changes.
-16. TON TVM research target review (Workstream 14) before any registry changes.
-17. Bitcoin Script/Miniscript research target review (Workstream 20) before any
-    registry changes.
-18. Zcash Shielded research target review (Workstream 21) before any registry
+16. Aleo Leo research target review (Workstream 22) before any registry
     changes.
-19. Bitcoin Cash CashScript research target review (Workstream 15) before any
+17. TON TVM research target review (Workstream 14) before any registry changes.
+18. Bitcoin Script/Miniscript research target review (Workstream 20) before any
     registry changes.
-20. CI target matrix (Workstream 9).
-21. Cloud platform design refresh (prerequisite: two+ targets at Experimental
+19. Zcash Shielded research target review (Workstream 21) before any registry
+    changes.
+20. Bitcoin Cash CashScript research target review (Workstream 15) before any
+    registry changes.
+21. CI target matrix (Workstream 9).
+22. Cloud platform design refresh (prerequisite: two+ targets at Experimental
    stage; see [decisions.md](decisions.md)).

@@ -49,6 +49,7 @@ target registry and portable IR integration.
 | [Cardano Plutus/Aiken](cardano-plutus-aiken.md) | Research | Docs-first eUTXO validator sourcegen candidate through Aiken, UPLC, Plutus blueprints, datum/redeemer/script-context schemas, and transaction-building validation. |
 | [Tezos Michelson/LIGO](tezos-michelson-ligo.md) | Research | Docs-first Michelson sourcegen candidate through LIGO with typed storage, entrypoints, views/events, operation lists, and sandbox/test validation. |
 | [Starknet Cairo](starknet-cairo.md) | Research | Docs-first Cairo/Sierra/CASM sourcegen candidate with Scarb, ABI/class hash metadata, Starknet storage/events, and Starknet Foundry/devnet validation. |
+| [Aleo Leo](aleo-leo.md) | Research | Docs-first ZK application sourcegen candidate through Leo, Aleo Instructions, Aleo VM bytecode, private records, public finalization, prover/verifier artifacts, and Leo CLI/devnet validation. |
 | [TON TVM](ton-tvm.md) | Research | Docs-first TVM/Tolk sourcegen candidate with cells, messages, get methods, actions, and TVM gas. |
 | [Bitcoin Script/Miniscript](bitcoin-script-miniscript.md) | Research | Docs-first Bitcoin base-layer spending-policy candidate through Script, Miniscript, descriptors, PSBT, Taproot/Tapscript, and Bitcoin Core regtest validation. |
 | [Zcash Shielded](zcash-shielded.md) | Research | Docs-first privacy UTXO/ZK payment candidate through transparent Zcash flows, Sapling/Orchard shielded notes, nullifiers, anchors, value-balance constraints, and zcashd/library validation. |
@@ -68,6 +69,7 @@ target registry and portable IR integration.
 - [Cardano Plutus/Aiken target](cardano-plutus-aiken.md)
 - [Tezos Michelson/LIGO target](tezos-michelson-ligo.md)
 - [Starknet Cairo target](starknet-cairo.md)
+- [Aleo Leo target](aleo-leo.md)
 - [TON TVM target](ton-tvm.md)
 - [Bitcoin Script/Miniscript target](bitcoin-script-miniscript.md)
 - [Zcash Shielded target](zcash-shielded.md)

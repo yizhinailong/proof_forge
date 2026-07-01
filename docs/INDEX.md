@@ -71,6 +71,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
   - [Cardano Plutus/Aiken target](targets/cardano-plutus-aiken.md)
   - [Tezos Michelson/LIGO target](targets/tezos-michelson-ligo.md)
   - [Starknet Cairo target](targets/starknet-cairo.md)
+  - [Aleo Leo target](targets/aleo-leo.md)
   - [TON TVM target](targets/ton-tvm.md)
   - [Bitcoin Script/Miniscript target](targets/bitcoin-script-miniscript.md)
   - [Zcash Shielded target](targets/zcash-shielded.md)

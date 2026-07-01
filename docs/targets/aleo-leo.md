@@ -1,0 +1,224 @@
+# Aleo Leo Target
+
+Status: **Research (docs-first candidate)**
+
+Candidate target id: **`aleo-leo`**
+
+This note records the first ProofForge classification for Aleo. It does not add
+a Lean target profile yet. The purpose is to decide how Aleo's ZK application
+model fits the target system before changing the registry or compiler.
+
+Primary sources:
+
+- [Aleo getting started](https://docs.aleo.org/build/getting-started)
+- [Leo installation](https://docs.aleo.org/build/leo/documentation/getting_started/installation)
+- [Aleo Instructions overview](https://docs.aleo.org/build/aleo-instructions/overview)
+- [Public & Private State](https://docs.aleo.org/learn/core-concepts/public-and-private-state)
+- [Programs](https://docs.aleo.org/learn/core-concepts/programs)
+- [Transactions](https://docs.aleo.org/learn/core-concepts/transactions)
+- [Leo finalization model](https://docs.aleo.org/build/leo/documentation/guides/finalization)
+- [Leo CLI overview](https://docs.aleo.org/build/leo/documentation/cli/cli_overview)
+- [leo build](https://docs.aleo.org/build/leo/documentation/cli/cli_build)
+- [leo execute](https://docs.aleo.org/build/leo/documentation/cli/cli_execute)
+- [leo test](https://docs.aleo.org/build/leo/documentation/cli/cli_test)
+
+## Classification
+
+Aleo is a ZK-native smart-contract L1. It is not the same kind of target as
+Zcash, Psy/DPN, or Starknet.
+
+The better first classification is:
+
+```text
+Aleo ZK application sourcegen target
+  with Leo as the first source-generation boundary
+  with Aleo Instructions as the lower-level compiler target
+  with Aleo VM bytecode, prover/verifier artifacts, ABI, and transaction proofs
+```
+
+Aleo is "ZK" because program execution is split between:
+
+- proof context: private, off-chain execution that can consume/create records
+  and generate ZK proofs;
+- finalization context: public, on-chain execution that reads/writes mappings,
+  storage variables, and storage vectors.
+
+That means Aleo is closer to a privacy-aware contract chain than to a plain ZK
+circuit output target. ProofForge should model Aleo programs as deployable
+program packages, not just as circuits.
+
+## Why This Is Not The Same As Existing ZK Targets
+
+Existing ProofForge ZK-related notes cover different shapes:
+
+- `psy-dpn`: target source compiles to DPN circuit JSON artifacts.
+- `zcash-shielded`: ZK proves protocol-defined shielded payment statements.
+- `kaspa-toccata`: an L1 covenant may verify a proof inline or settle based-app
+  state.
+- `starknet-cairo`: Cairo contracts compile through Sierra/CASM; Starknet is
+  not modeled as a generic circuit target.
+
+Aleo needs its own family because:
+
+- Leo programs are smart contracts with program ids, imports, entry functions,
+  records, mappings, finalization logic, and deploy/execute transactions;
+- private state uses records, which are encrypted and UTXO-like;
+- public state uses mappings/storage updated by validators in `final` logic;
+- execute transactions contain transitions and ZK proofs;
+- build outputs include `.aleo` instructions, ABI, prover/verifier files, and
+  Aleo VM bytecode;
+- local validation can use `leo build`, `leo test`, `leo execute`, and devnet
+  deployment flows.
+
+## Candidate Target Family
+
+Do not add this to `ProofForge.Target.Registry` until the target model can
+express Aleo's proof/finalization split and record/mapping state split.
+
+Candidate family:
+
+```text
+zk-app-sourcegen
+```
+
+Candidate backend pattern:
+
+```text
+ProofForge portable IR subset
+  -> generated Leo package
+  -> leo build
+  -> Aleo Instructions (.aleo)
+  -> Aleo VM bytecode + ABI + prover/verifier artifacts
+  -> leo test / leo execute / leo devnet validation metadata
+```
+
+Direct Aleo Instructions generation is a later road. It is attractive for a
+compiler backend, but Leo is the safer first artifact because it is the
+recommended developer language and exposes program structure more clearly.
+
+Candidate artifact shape:
+
+```text
+aleo-leo-package
+  - generated Leo source
+  - program id and imports
+  - record / mapping / storage schema
+  - proof-context entry functions
+  - finalization manifest
+  - compiled Aleo Instructions
+  - AVM bytecode
+  - ABI JSON
+  - prover and verifier artifacts
+  - execute/deploy transaction metadata
+  - test/devnet validation result
+```
+
+## Candidate Capabilities
+
+These are research candidates, not canonical capability ids yet.
+
+| Candidate capability | Meaning |
+|---|---|
+| `lang.leo` | Target emits Leo source packages. |
+| `ir.aleo_instructions` | Build emits or consumes Aleo Instructions. |
+| `vm.aleo_avm` | Target runs on the Aleo VM, not Algorand AVM. |
+| `artifact.avm` | Build emits Aleo VM bytecode. |
+| `artifact.aleo_abi` | Build emits Aleo ABI metadata. |
+| `proof.prover_key` | Build or execute flow produces prover artifacts. |
+| `proof.verifier_key` | Build or deploy flow records verifier artifacts. |
+| `execution.transition` | Entry execution produces a transition and proof. |
+| `execution.finalize` | Program has public on-chain finalization logic. |
+| `state.record` | Private state is held in encrypted records. |
+| `state.mapping` | Public state is held in mappings. |
+| `state.storage` | Public state may use storage variables or storage vectors. |
+| `input.private` | Function input is private proof-context data. |
+| `input.public` | Function input is public data. |
+| `output.private` | Function output is private by default. |
+| `output.public` | Function output is public. |
+| `program.import` | Program imports and calls another Aleo program. |
+| `program.upgrade` | Deployment may support explicit program upgrades. |
+| `transaction.execute` | Validation can produce an execute transaction. |
+| `transaction.deploy` | Validation can produce or inspect a deploy transaction. |
+| `fee.credits` | Fees are paid in Aleo Credits, publicly or privately. |
+| `test.leo` | Validation uses Leo tests. |
+| `test.aleo_devnet` | Validation uses Leo devnet or devnode-backed flows. |
+
+`zk.circuit` alone is not sufficient for Aleo. It may describe the proof aspect,
+but Aleo also needs program, state, transaction, and finalization capabilities.
+
+## Implementation Roads
+
+### Road 1: Leo Sourcegen Package
+
+Use this road first.
+
+First spike:
+
+- choose a tiny Counter-like program;
+- generate Leo source with one entry `fn` and one `final { }` block;
+- use a public `mapping` for the counter;
+- run `leo build` and record `.aleo`, ABI, bytecode, and toolchain metadata;
+- run `leo test`, with `--prove` as an optional heavier gate.
+
+This validates the compiler boundary without taking responsibility for Aleo VM
+internals.
+
+### Road 2: Private Record Flow
+
+Use this road to validate Aleo's ZK-specific value proposition.
+
+First spike:
+
+- define a simple private record type;
+- consume one record and create one successor record in a proof-context entry
+  function;
+- keep record contents private while exposing only required public outputs or
+  finalize effects;
+- run `leo execute --print` or SDK-backed execution to inspect transaction and
+  proof metadata.
+
+This is the path that proves Aleo support is more than an account-chain source
+generator.
+
+### Road 3: Direct Aleo Instructions
+
+Use this road only after Leo sourcegen proves the semantics.
+
+First spike:
+
+- lower a tiny typed IR fixture directly to `.aleo` instructions;
+- preserve public/private input annotations;
+- generate or validate prover/verifier artifacts through the official toolchain;
+- compare output against Leo-generated Aleo Instructions for the same behavior.
+
+This road is useful for compiler precision, but it has a larger semantic
+surface than Leo sourcegen.
+
+## Non-Goals For The First Pass
+
+- Do not add `aleo-leo` to the code registry before candidate capabilities are
+  reviewed.
+- Do not classify Aleo as only a generic ZK circuit target.
+- Do not confuse Aleo VM with Algorand AVM.
+- Do not model records as EVM storage or as Zcash shielded notes.
+- Do not model `final` blocks as private execution; finalization is public and
+  on-chain.
+- Do not claim full Aleo support until there is a reproducible local build/test
+  command.
+- Do not start with direct Aleo Instructions if Leo sourcegen is enough to
+  validate the first spike.
+
+## Research Exit Criteria
+
+Aleo can leave Research only when we have:
+
+- a reviewed target profile proposal;
+- a committed capability proposal for Leo, Aleo Instructions, Aleo VM bytecode,
+  transitions, finalization, records, mappings, proofs, ABI, fees, and devnet
+  validation;
+- a minimal artifact manifest schema for Leo source, compiled outputs,
+  prover/verifier artifacts, ABI, and transaction/deploy metadata;
+- a toolchain decision for local validation using Leo CLI, SDK, devnet, or
+  devnode;
+- one reproducible local command or script that validates a tiny Leo program
+  package, even if proving-heavy gates are optional in CI.

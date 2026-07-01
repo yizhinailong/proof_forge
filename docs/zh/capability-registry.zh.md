@@ -182,6 +182,46 @@ Starknet 与 contract storage、events 和 calls 有部分重叠，但 Cairo/Sie
 | `fee.starknet` | artifact 记录 Starknet fee/resource constraints | fee/resource model 是目标特有语义 |
 | `test.snforge` | validation 使用 Starknet Foundry 或 devnet | local smoke tooling 是 target validation 的一部分 |
 
+### Aleo Leo
+
+参见 [Aleo Leo 目标](targets/aleo-leo.zh.md)。
+
+Aleo 与 source-generation 和 ZK 目标有重叠，但它的 contract model 有明确的
+proof/finalization split。private execution 生成 transitions 和 proofs；public
+finalization 在链上更新 mappings 或 storage。Records、program ids、imports、
+Aleo Instructions、Aleo VM bytecode、ABI、prover/verifier artifacts、fees 和
+devnet validation 在添加 target profile 前需要显式表达。
+
+| 候选 id | 可移植含义 | 为什么需要单独表达 |
+|---|---|---|
+| `lang.leo` | target 发射 Leo source packages | Leo 是第一版稳定 sourcegen boundary |
+| `ir.aleo_instructions` | build 发射或消费 Aleo Instructions | Aleo lower-level compiler target 不同于 Leo |
+| `vm.aleo_avm` | target 运行在 Aleo VM 上 | 避免与 Algorand AVM 混淆 |
+| `artifact.avm` | build 发射 Aleo VM bytecode | deployment artifact 是目标原生制品 |
+| `artifact.aleo_abi` | build 发射 Aleo ABI metadata | ABI shape 遵循 Aleo program interfaces |
+| `proof.prover_key` | build 或 execute flow 生成 prover artifacts | proof generation 有 target-owned artifacts |
+| `proof.verifier_key` | build 或 deploy flow 记录 verifier artifacts | verification keys 属于 deployment/execution metadata |
+| `execution.transition` | entry execution 生成 transition 和 proof | transition 是 Aleo function-call unit |
+| `execution.finalize` | program 有公开链上 finalization logic | finalization 是 public 且 validator-executed |
+| `state.record` | private state 位于 encrypted records | records 是 UTXO-like，不是 EVM storage |
+| `state.mapping` | public state 位于 mappings | mappings 是链上公开 key-value state |
+| `state.storage` | public state 可使用 storage variables 或 storage vectors | Aleo storage 不同于 mappings 和 private records |
+| `input.private` | function input 是 private proof-context data | privacy 是 function signature 的一部分 |
+| `input.public` | function input 是 public data | public inputs 在 transaction context 中可见 |
+| `output.private` | function output 默认 private | output visibility 是目标语义 |
+| `output.public` | function output 是 public | public outputs 需要显式 metadata |
+| `program.import` | program import 并调用另一个 Aleo program | cross-program calls 生成 composed transitions/finalization |
+| `program.upgrade` | deployment 可支持显式 program upgrades | upgrade rules 是 program/deploy metadata |
+| `transaction.execute` | validation 可生成 execute transaction | execute transactions 携带 transitions 和 proofs |
+| `transaction.deploy` | validation 可生成或检查 deploy transaction | deploy 发布 program code 和 verification metadata |
+| `fee.credits` | fees 以 Aleo Credits 支付，可 public 或 private | fee visibility 和来源会影响 privacy 与 validation |
+| `test.leo` | validation 使用 Leo tests | local validation 是目标工具链 |
+| `test.aleo_devnet` | validation 使用 Leo devnet 或 devnode-backed flows | network-backed smoke 不同于 local compile/test |
+
+现有 `zk.circuit` capability 不足以描述 Aleo。它可以描述 proof surface 的一部分，
+但 Aleo 还需要 program、transaction、state-record、finalization 和 artifact
+能力。
+
 ### TON TVM
 
 参见 [TON TVM 目标](targets/ton-tvm.zh.md)。

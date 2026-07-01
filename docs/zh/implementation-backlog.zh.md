@@ -472,6 +472,39 @@
 - 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
 - 文档明确区分 Starknet 与 EVM、Wasm-host、Move、Solana、TVM、AVM、UTXO 和 `psy-dpn` 风格 ZK circuit targets。
 
+## 工作流 22: Aleo Leo Research 目标
+
+目标：判断 ProofForge 是否以及如何支持 Aleo programs，同时避免把 Aleo 仅当成
+generic ZK circuit target，或把 Aleo VM 与 Algorand AVM 混淆。
+
+任务：
+
+- 已完成：为候选 id `aleo-leo` 添加文档优先的目标说明。
+- 将 Aleo 归类为 ZK application sourcegen candidate，以 Leo 作为第一版 source
+  boundary，Aleo Instructions 作为更低层 compiler target，Aleo VM bytecode 作为
+  deployable execution artifact。
+- 审查 Leo source、Aleo Instructions、Aleo VM、AVM bytecode、ABI、
+  prover/verifier artifacts、transitions、finalization、records、mappings、
+  storage、public/private inputs and outputs、program imports/upgrades、
+  execute/deploy transactions、Credits fees、Leo tests 和 devnet validation 的候选能力。
+- 定义一个极小 Counter-like program，包含一个 entry `fn`、一个 public
+  `mapping` 和一个 `final { }` block。
+- 定义第二个 private-record scenario，consume 一个 encrypted record、create 一个
+  successor record，并只在必要时记录 public/finalization effects。
+- 定义 Leo source、program id/imports、record/mapping schemas、finalization
+  manifest、Aleo Instructions、Aleo VM bytecode、ABI、prover/verifier artifacts、
+  execute/deploy transaction metadata、toolchain versions 和 validation result 的制品元数据。
+- 确定本地 smoke 命令集：`leo build`、`leo test`、可选 `leo test --prove`、
+  `leo execute --print`，以及 devnet/devnode-backed deploy 或 execute validation。
+
+验收标准：
+
+- `docs/targets/aleo-leo.md` 记录目标分类和非目标。
+- 候选能力保持在文档中，不在审查前加入 `ProofForge.Target.Capability`。
+- 第一版 spike 有可重复的本地验证命令，或记录清楚的外部工具 blocker。
+- 文档明确区分 Aleo 与 `psy-dpn`、Zcash Shielded、Kaspa/Toccata inline ZK、
+  Starknet Cairo、Algorand AVM 和 generic source-generation targets。
+
 ## 工作流 20: Bitcoin Script/Miniscript Research 目标
 
 目标：判断 ProofForge 是否以及如何支持 Bitcoin base-layer spending policies，同时避免把 Bitcoin Script 误建模为 general smart-contract runtime。
@@ -545,9 +578,10 @@ Zcash 当成 plain Bitcoin Script 或 generic ZK smart-contract chain。
 13. 在任何 registry 变更前进行 Cardano Plutus/Aiken research target review（工作流 17）。
 14. 在任何 registry 变更前进行 Tezos Michelson/LIGO research target review（工作流 18）。
 15. 在任何 registry 变更前进行 Starknet Cairo research target review（工作流 19）。
-16. 在任何 registry 变更前进行 TON TVM research target review（工作流 14）。
-17. 在任何 registry 变更前进行 Bitcoin Script/Miniscript research target review（工作流 20）。
-18. 在任何 registry 变更前进行 Zcash Shielded research target review（工作流 21）。
-19. 在任何 registry 变更前进行 Bitcoin Cash CashScript research target review（工作流 15）。
-20. CI 目标矩阵（工作流 9）。
-21. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。
+16. 在任何 registry 变更前进行 Aleo Leo research target review（工作流 22）。
+17. 在任何 registry 变更前进行 TON TVM research target review（工作流 14）。
+18. 在任何 registry 变更前进行 Bitcoin Script/Miniscript research target review（工作流 20）。
+19. 在任何 registry 变更前进行 Zcash Shielded research target review（工作流 21）。
+20. 在任何 registry 变更前进行 Bitcoin Cash CashScript research target review（工作流 15）。
+21. CI 目标矩阵（工作流 9）。
+22. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。

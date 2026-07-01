@@ -42,6 +42,7 @@
 | [Cardano Plutus/Aiken](targets/cardano-plutus-aiken.zh.md) | Research | 文档优先的 eUTXO validator sourcegen 候选，通过 Aiken、UPLC、Plutus blueprints、datum/redeemer/script-context schemas 和 transaction-building validation。 |
 | [Tezos Michelson/LIGO](targets/tezos-michelson-ligo.zh.md) | Research | 文档优先的 Michelson sourcegen 候选，通过 LIGO、typed storage、entrypoints、views/events、operation lists 和 sandbox/test validation。 |
 | [Starknet Cairo](targets/starknet-cairo.zh.md) | Research | 文档优先的 Cairo/Sierra/CASM sourcegen 候选，包含 Scarb、ABI/class hash metadata、Starknet storage/events 和 Starknet Foundry/devnet validation。 |
+| [Aleo Leo](targets/aleo-leo.zh.md) | Research | 文档优先的 ZK application sourcegen 候选，包含 Leo、Aleo Instructions、Aleo VM bytecode、private records、public finalization、prover/verifier artifacts 和 Leo CLI/devnet validation。 |
 | [TON TVM](targets/ton-tvm.zh.md) | Research | 文档优先的 TVM/Tolk sourcegen 候选，包含 cells、messages、get methods、actions 和 TVM gas。 |
 | [Bitcoin Script/Miniscript](targets/bitcoin-script-miniscript.zh.md) | Research | 文档优先的 Bitcoin base-layer spending-policy 候选，通过 Script、Miniscript、descriptors、PSBT、Taproot/Tapscript 和 Bitcoin Core regtest validation。 |
 | [Zcash Shielded](targets/zcash-shielded.zh.md) | Research | 文档优先的 privacy UTXO/ZK payment 候选，包含 transparent Zcash flows、Sapling/Orchard shielded notes、nullifiers、anchors、value-balance constraints 和 zcashd/library validation。 |
@@ -61,6 +62,7 @@
 - [Cardano Plutus/Aiken 目标](targets/cardano-plutus-aiken.zh.md)
 - [Tezos Michelson/LIGO 目标](targets/tezos-michelson-ligo.zh.md)
 - [Starknet Cairo 目标](targets/starknet-cairo.zh.md)
+- [Aleo Leo 目标](targets/aleo-leo.zh.md)
 - [TON TVM 目标](targets/ton-tvm.zh.md)
 - [Bitcoin Script/Miniscript 目标](targets/bitcoin-script-miniscript.zh.md)
 - [Zcash Shielded 目标](targets/zcash-shielded.zh.md)

@@ -71,6 +71,7 @@ python3 scripts/translate-docs.py --model glm-4.7
 - [Cardano Plutus/Aiken 目标说明](targets/cardano-plutus-aiken.zh.md)
 - [Tezos Michelson/LIGO 目标说明](targets/tezos-michelson-ligo.zh.md)
 - [Starknet Cairo 目标说明](targets/starknet-cairo.zh.md)
+- [Aleo Leo 目标说明](targets/aleo-leo.zh.md)
 - [TON TVM 目标说明](targets/ton-tvm.zh.md)
 - [Bitcoin Script/Miniscript 目标说明](targets/bitcoin-script-miniscript.zh.md)
 - [Zcash Shielded 目标说明](targets/zcash-shielded.zh.md)

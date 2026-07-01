@@ -32,6 +32,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-020 | 2026-07-01 | Classify **`starknet-cairo`** as a docs-first Cairo/Sierra/CASM sourcegen Research candidate | Starknet contracts compile through Cairo into Sierra/CASM with ABI, class hashes, declaration/deployment metadata, Starknet storage/events, account abstraction, syscalls, and L1/L2 messaging semantics; registry changes wait until a Cairo package spike path is chosen |
 | D-021 | 2026-07-01 | Classify **`bitcoin-script-miniscript`** as a docs-first Bitcoin base-layer spending-policy Research candidate | Bitcoin Script is intentionally limited to UTXO locking/unlocking policy with signatures, hash locks, timelocks, descriptors, Miniscript, Taproot/Tapscript, PSBT flows, and standardness/fee constraints; registry changes wait until a Miniscript/descriptor spike path is chosen |
 | D-022 | 2026-07-01 | Classify **`zcash-shielded`** as a docs-first privacy UTXO/ZK payment Research candidate | Zcash is Bitcoin-derived but shielded support depends on Sapling/Orchard notes, nullifiers, anchors, value-balance constraints, viewing/disclosure policy, and protocol-defined ZK proofs; registry changes wait until shielded-note capabilities and a proving/validation boundary are reviewed |
+| D-023 | 2026-07-01 | Classify **`aleo-leo`** as a docs-first Aleo ZK application sourcegen Research candidate | Aleo programs combine private off-chain proof execution, public on-chain finalization, encrypted records, public mappings/storage, Aleo Instructions, Aleo VM bytecode, ABI, prover/verifier artifacts, and execute/deploy transactions; registry changes wait until the proof/finalization split is reviewed |
 
 ## Target Family Classification
 
@@ -45,6 +46,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | eUTXO validator sourcegen research | `cardano-plutus-aiken` (candidate, docs only) | Portable IR → Aiken package → UPLC/Plutus validator artifacts + Plutus blueprint + transaction scenario metadata |
 | Michelson sourcegen research | `tezos-michelson-ligo` (candidate, docs only) | Portable IR → LIGO package → Michelson contract + parameter/storage schema + operation/view/event manifests |
 | Cairo sourcegen research | `starknet-cairo` (candidate, docs only) | Portable IR → Cairo/Scarb package → Sierra/CASM artifacts + ABI/class-hash/deployment metadata |
+| Aleo ZK app sourcegen research | `aleo-leo` (candidate, docs only) | Portable IR → Leo package → Aleo Instructions → Aleo VM bytecode + ABI/prover/verifier artifacts + execute/deploy metadata |
 | TVM sourcegen research | `ton-tvm` (candidate, docs only) | Portable IR → Tolk or lower-level TON source → TVM/BOC artifact + TL-B/message manifests |
 | Bitcoin script policy research | `bitcoin-script-miniscript` (candidate, docs only) | Portable IR → policy/Miniscript/descriptor package → Script/Tapscript output + PSBT/regtest validation metadata |
 | Privacy UTXO ZK payment research | `zcash-shielded` (candidate, docs only) | Portable IR → shielded transaction/proving manifest → Zcash transaction with Sapling/Orchard proof bundle + zcashd/library validation metadata |
@@ -67,6 +69,7 @@ Research lane: Algorand AVM/TEAL target note before registry changes
 Research lane: Cardano Plutus/Aiken eUTXO target note before registry changes
 Research lane: Tezos Michelson/LIGO target note before registry changes
 Research lane: Starknet Cairo target note before registry changes
+Research lane: Aleo Leo ZK app target note before registry changes
 Research lane: TON TVM/Tolk target note before registry changes
 Research lane: Bitcoin Script/Miniscript spending-policy target note before registry changes
 Research lane: Zcash shielded privacy payment target note before registry changes
@@ -93,6 +96,7 @@ Detailed tasks: [Implementation backlog](implementation-backlog.md).
 | Cardano Plutus/Aiken target candidate | [targets/cardano-plutus-aiken.md](targets/cardano-plutus-aiken.md) |
 | Tezos Michelson/LIGO target candidate | [targets/tezos-michelson-ligo.md](targets/tezos-michelson-ligo.md) |
 | Starknet Cairo target candidate | [targets/starknet-cairo.md](targets/starknet-cairo.md) |
+| Aleo Leo target candidate | [targets/aleo-leo.md](targets/aleo-leo.md) |
 | TON TVM target candidate | [targets/ton-tvm.md](targets/ton-tvm.md) |
 | Bitcoin Script/Miniscript target candidate | [targets/bitcoin-script-miniscript.md](targets/bitcoin-script-miniscript.md) |
 | Zcash Shielded target candidate | [targets/zcash-shielded.md](targets/zcash-shielded.md) |

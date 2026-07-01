@@ -30,6 +30,7 @@
 | D-020 | 2026-07-01 | 将 **`starknet-cairo`** 归类为文档优先的 Cairo/Sierra/CASM sourcegen Research 候选 | Starknet 合约通过 Cairo 编译为 Sierra/CASM，具有 ABI、class hashes、declaration/deployment metadata、Starknet storage/events、account abstraction、syscalls 和 L1/L2 messaging 语义；registry 修改需等待 Cairo package spike 路径确定 |
 | D-021 | 2026-07-01 | 将 **`bitcoin-script-miniscript`** 归类为文档优先的 Bitcoin base-layer spending-policy Research 候选 | Bitcoin Script 仅适合 UTXO locking/unlocking policy，包含 signatures、hash locks、timelocks、descriptors、Miniscript、Taproot/Tapscript、PSBT flows 和 standardness/fee constraints；registry 修改需等待 Miniscript/descriptor spike 路径确定 |
 | D-022 | 2026-07-01 | 将 **`zcash-shielded`** 归类为文档优先的 privacy UTXO/ZK payment Research 候选 | Zcash 源自 Bitcoin，但 shielded 支持依赖 Sapling/Orchard notes、nullifiers、anchors、value-balance constraints、viewing/disclosure policy 和协议定义的 ZK proofs；registry 修改需等待 shielded-note 能力和 proving/validation boundary 审查 |
+| D-023 | 2026-07-01 | 将 **`aleo-leo`** 归类为文档优先的 Aleo ZK application sourcegen Research 候选 | Aleo programs 结合 private off-chain proof execution、public on-chain finalization、encrypted records、public mappings/storage、Aleo Instructions、Aleo VM bytecode、ABI、prover/verifier artifacts 和 execute/deploy transactions；registry 修改需等待 proof/finalization split 审查 |
 
 ## 目标家族分类
 
@@ -43,6 +44,7 @@
 | eUTXO validator sourcegen research | `cardano-plutus-aiken`（候选，仅文档） | 可移植 IR → Aiken package → UPLC/Plutus validator artifacts + Plutus blueprint + transaction scenario metadata |
 | Michelson sourcegen research | `tezos-michelson-ligo`（候选，仅文档） | 可移植 IR → LIGO package → Michelson contract + parameter/storage schema + operation/view/event manifests |
 | Cairo sourcegen research | `starknet-cairo`（候选，仅文档） | 可移植 IR → Cairo/Scarb package → Sierra/CASM artifacts + ABI/class-hash/deployment metadata |
+| Aleo ZK app sourcegen research | `aleo-leo`（候选，仅文档） | 可移植 IR → Leo package → Aleo Instructions → Aleo VM bytecode + ABI/prover/verifier artifacts + execute/deploy metadata |
 | TVM sourcegen research | `ton-tvm`（候选，仅文档） | 可移植 IR → Tolk 或更底层 TON source → TVM/BOC artifact + TL-B/message manifests |
 | Bitcoin script policy research | `bitcoin-script-miniscript`（候选，仅文档） | 可移植 IR → policy/Miniscript/descriptor package → Script/Tapscript output + PSBT/regtest validation metadata |
 | Privacy UTXO ZK payment research | `zcash-shielded`（候选，仅文档） | 可移植 IR → shielded transaction/proving manifest → Zcash transaction with Sapling/Orchard proof bundle + zcashd/library validation metadata |
@@ -65,6 +67,7 @@ Research lane: Algorand AVM/TEAL target note before registry changes
 Research lane: Cardano Plutus/Aiken eUTXO target note before registry changes
 Research lane: Tezos Michelson/LIGO target note before registry changes
 Research lane: Starknet Cairo target note before registry changes
+Research lane: Aleo Leo ZK app target note before registry changes
 Research lane: TON TVM/Tolk target note before registry changes
 Research lane: Bitcoin Script/Miniscript spending-policy target note before registry changes
 Research lane: Zcash shielded privacy payment target note before registry changes
@@ -91,6 +94,7 @@ Phase 5: Cloud platform
 | Cardano Plutus/Aiken 目标候选 | [targets/cardano-plutus-aiken.md](targets/cardano-plutus-aiken.md) |
 | Tezos Michelson/LIGO 目标候选 | [targets/tezos-michelson-ligo.md](targets/tezos-michelson-ligo.md) |
 | Starknet Cairo 目标候选 | [targets/starknet-cairo.md](targets/starknet-cairo.md) |
+| Aleo Leo 目标候选 | [targets/aleo-leo.md](targets/aleo-leo.md) |
 | TON TVM 目标候选 | [targets/ton-tvm.md](targets/ton-tvm.md) |
 | Bitcoin Script/Miniscript 目标候选 | [targets/bitcoin-script-miniscript.md](targets/bitcoin-script-miniscript.md) |
 | Zcash Shielded 目标候选 | [targets/zcash-shielded.md](targets/zcash-shielded.md) |
