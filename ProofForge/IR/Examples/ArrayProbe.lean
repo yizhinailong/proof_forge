@@ -84,10 +84,19 @@ def emitWatSumExternalModule : Module := {
   entrypoints := #[sumLiteral],
   allocator := { strategy := .external }
 }
-/-- A reuse-capable strategy: host must provide jemalloc-backed pf_alloc/pf_dealloc.
-    Same lowering surface as `external`; the strategy records which host
-    implementation is expected. Not chain-deployable (NEAR runtime exports
-    neither pf_alloc nor pf_dealloc). -/
+/-- Direct-WAT wasm-internal allocator: allocator code is emitted into the WAT
+    module and returns wasm linear-memory offsets. -/
+def emitWatSumMinimalMallocModule : Module := {
+  name := "ArrayProbe",
+  state := #[],
+  entrypoints := #[sumLiteral],
+  allocator := { strategy := .minimalMalloc }
+}
+/-- A reuse-capable strategy: same lowering surface as `external` (`pf_alloc` /
+    `pf_dealloc` imports). The imported allocator must return offsets in wasm
+    linear memory. The offline host currently simulates this with bump allocation;
+    a true jemalloc path requires jemalloc compiled/linkable as wasm. Not
+    chain-deployable on NEAR, which exports neither import. -/
 def emitWatSumJemallocModule : Module := {
   name := "ArrayProbe",
   state := #[],

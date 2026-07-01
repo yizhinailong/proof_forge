@@ -361,6 +361,7 @@ def hashAllocFunc : Func :=
 -- Array-value bump allocator (for arrayLit temporaries). Returns current ptr and
 -- advances by the byte count; the caller stores elements into [ptr, ptr+n).
 def arrPtrGlobal     : String := "arr_ptr"
+def arrFreeGlobal    : String := "arr_free"
 def arrAllocName     : String := "__pf_arr_alloc"
 def allocImportName   : String := "pf_alloc"
 def deallocImportName : String := "pf_dealloc"
@@ -387,22 +388,71 @@ def structLitName (typeName : String) : String := "__pf_struct_lit_" ++ typeName
     `bump`/`bumpReset` strategies (`external` has no frontier). -/
 def arrPtrGlobalDecl (heapBase : Nat) : Global :=
   { name := arrPtrGlobal, type := .i32, init := toString heapBase, isMutable := true }
+def arrFreeGlobalDecl : Global :=
+  { name := arrFreeGlobal, type := .i32, init := "0", isMutable := true }
 /-- `__pf_arr_alloc(n) -> i32` lowered per strategy: `bump`/`bumpReset` advance the
-    frontier; `external` forwards to the host-provided `pf_alloc` import. -/
+    frontier; `minimalMalloc` emits a wasm-internal first-fit allocator;
+    `external` forwards to the host-provided `pf_alloc` import. -/
 def arrAllocFunc (cfg : ProofForge.IR.AllocatorConfig) : Func :=
-  { name := arrAllocName, params := #[{ name := "n", type := .i64 }], results := #[.i32],
-    body := { insns :=
-      if cfg.requiresHost then #[.localGet "n", .call allocImportName]
-      else #[ .globalGet arrPtrGlobal,
-        .globalGet arrPtrGlobal, .localGet "n", .plain "i32.wrap_i64", .plain "i32.add", .globalSet arrPtrGlobal ] } }
+  if cfg.strategy == ProofForge.IR.AllocatorStrategy.minimalMalloc then
+    { name := arrAllocName, params := #[{ name := "n", type := .i64 }], results := #[.i32],
+      locals := #[{ name := "need", type := .i32 }, { name := "prev", type := .i32 },
+                  { name := "curr", type := .i32 }, { name := "next", type := .i32 },
+                  { name := "block", type := .i32 }, { name := "end", type := .i32 }],
+      body := { insns := #[
+        -- total block size = align8(payload bytes + 8-byte header)
+        .localGet "n", .i64Const 15, .plain "i64.add", .const .i64 "-8", .plain "i64.and",
+        .plain "i32.wrap_i64", .localSet "need",
+        .i32Const 0, .localSet "prev",
+        .globalGet arrFreeGlobal, .localSet "curr",
+        .block_ { insns := #[ .loop_ { insns := #[
+          .localGet "curr", .plain "i32.eqz", .brIf 1,
+          .localGet "curr", .load "i32.load" 0, .localGet "need", .plain "i32.ge_u",
+          .if_ { insns := #[
+            .localGet "curr", .load "i32.load" 4, .localSet "next",
+            .localGet "prev", .plain "i32.eqz",
+            .if_ { insns := #[ .localGet "next", .globalSet arrFreeGlobal ] }
+                 { insns := #[ .localGet "prev", .localGet "next", .store "i32.store" 4 ] },
+            .localGet "curr", .i32Const 8, .plain "i32.add", .return_ ] } { insns := #[] },
+          .localGet "curr", .localSet "prev",
+          .localGet "curr", .load "i32.load" 4, .localSet "curr",
+          .br 0 ] } ] },
+        .globalGet arrPtrGlobal, .localSet "block",
+        .localGet "block", .localGet "need", .plain "i32.add", .localSet "end",
+        .localGet "end", .plain "memory.size", .i32Const 65536, .plain "i32.mul", .plain "i32.gt_u",
+        .if_ { insns := #[
+          .localGet "end", .plain "memory.size", .i32Const 65536, .plain "i32.mul", .plain "i32.sub",
+          .i32Const 65535, .plain "i32.add", .i32Const 16, .plain "i32.shr_u",
+          .plain "memory.grow", .const .i32 "-1", .plain "i32.eq",
+          .if_ { insns := #[.unreachable] } { insns := #[] } ] } { insns := #[] },
+        .localGet "end", .globalSet arrPtrGlobal,
+        .localGet "block", .localGet "need", .store "i32.store" 0,
+        .localGet "block", .i32Const 0, .store "i32.store" 4,
+        .localGet "block", .i32Const 8, .plain "i32.add" ] } }
+  else
+    { name := arrAllocName, params := #[{ name := "n", type := .i64 }], results := #[.i32],
+      body := { insns :=
+        if cfg.requiresHost then #[.localGet "n", .call allocImportName]
+        else #[ .globalGet arrPtrGlobal,
+          .globalGet arrPtrGlobal, .localGet "n", .plain "i32.wrap_i64", .plain "i32.add", .globalSet arrPtrGlobal ] } }
 /-- `__pf_arr_dealloc(ptr, n)`: no-op for bump strategies; forwards to the host
     `pf_dealloc` for reuse-capable strategies. The IR has no release/scope
     semantics yet, so no lowering currently emits a call to this helper — it is
     emitted so the import is wired and ready once free semantics land. -/
 def arrDeallocFunc (cfg : ProofForge.IR.AllocatorConfig) : Func :=
-  { name := "__pf_arr_dealloc", params := #[{ name := "p", type := .i32 }, { name := "n", type := .i64 }],
-    results := #[],
-    body := { insns := if cfg.requiresHost then #[.localGet "p", .localGet "n", .call deallocImportName] else #[] } }
+  if cfg.strategy == ProofForge.IR.AllocatorStrategy.minimalMalloc then
+    { name := "__pf_arr_dealloc", params := #[{ name := "p", type := .i32 }, { name := "n", type := .i64 }],
+      results := #[], locals := #[{ name := "block", type := .i32 }],
+      body := { insns := #[
+        .localGet "p", .plain "i32.eqz",
+        .if_ { insns := #[.return_] } { insns := #[] },
+        .localGet "p", .i32Const 8, .plain "i32.sub", .localSet "block",
+        .localGet "block", .globalGet arrFreeGlobal, .store "i32.store" 4,
+        .localGet "block", .globalSet arrFreeGlobal ] } }
+  else
+    { name := "__pf_arr_dealloc", params := #[{ name := "p", type := .i32 }, { name := "n", type := .i64 }],
+      results := #[],
+      body := { insns := if cfg.requiresHost then #[.localGet "p", .localGet "n", .call deallocImportName] else #[] } }
 /-- Host imports for reuse-capable strategies: `pf_alloc` + `pf_dealloc`.
     `(import "env" "pf_alloc"   (func (param i64) (result i32)))`
     `(import "env" "pf_dealloc" (func (param i32 i64)))` -/
@@ -1278,10 +1328,15 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let isHost := mod.allocator.requiresHost
   let extraImports := if isHost then #[allocImport, deallocImport] else #[]
   let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport]) ++ extraImports
+  let usesInternalDealloc := mod.allocator.strategy == ProofForge.IR.AllocatorStrategy.minimalMalloc
   let arrFuncs := arrLitHelperFuncs mod ++ arrEqHelperFuncs mod ++ structLitHelperFuncs mod
-    ++ #[arrAllocFunc mod.allocator] ++ (if isHost then #[arrDeallocFunc mod.allocator] else #[])
+    ++ #[arrAllocFunc mod.allocator] ++ (if isHost || usesInternalDealloc then #[arrDeallocFunc mod.allocator] else #[])
   let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ (if maps.any (fun m => m.keyType == .hash) then mapHashHelperFuncs else #[]) ++ arrFuncs ++ entryFuncs
-  let arrPtrDecls := if isHost then #[] else #[arrPtrGlobalDecl mod.allocator.heapBase]
+  let arrPtrDecls :=
+    if isHost then #[]
+    else if mod.allocator.strategy == ProofForge.IR.AllocatorStrategy.minimalMalloc then
+      #[arrPtrGlobalDecl mod.allocator.heapBase, arrFreeGlobalDecl]
+    else #[arrPtrGlobalDecl mod.allocator.heapBase]
   let globals := #[hashPtrGlobalDecl] ++ evtGlobals ++ arrPtrDecls
   .ok { imports := imports, globals := globals, funcs := funcs,
         memory := some { min := 1 },
