@@ -160,22 +160,22 @@ Tasks:
   crosscalls over `Bool`, `U32`, `U64`, and `Hash`, with return-type-specific
   Yul helpers, Bool/U32 return-data guards, `EvmCrosscallProbe` golden Yul,
   solc bytecode, Foundry valid/invalid typed-return validation, metadata
-  entrypoint validation, unsupported nested aggregate argument/return
-  diagnostics, and explicit Psy unsupported diagnostics.
+  entrypoint validation, diagnostics for aggregate argument/return shapes not
+  covered at that stage, and explicit Psy unsupported diagnostics.
 - Done: extend EVM IR normal `crosscallInvokeTyped` return lowering beyond
   scalar words for direct entrypoint returns of flat structs and scalar fixed
   arrays, with ABI-word-shape-specific Yul helpers, multi-word return-data
   size checks, Bool/U32 range guards across aggregate return words,
   `EvmCrosscallProbe` golden Yul, solc bytecode, Foundry aggregate
   struct/array return validation, metadata selector validation, and explicit
-  diagnostics for nested aggregate return shapes.
+  diagnostics for aggregate return shapes not covered at that stage.
 - Done: extend EVM IR typed crosscall argument lowering beyond scalar words so
   normal, value-bearing, static, and delegate typed calls can flatten flat
   struct and scalar fixed-array arguments into ABI words. `EvmCrosscallProbe`
   now covers normal struct and fixed-array arguments plus value/static/delegate
   struct arguments through golden Yul, solc bytecode, Foundry runtime checks,
-  metadata selector validation, and explicit diagnostics for nested aggregate
-  argument shapes.
+  metadata selector validation, and explicit diagnostics for aggregate argument
+  shapes not covered at that stage.
 - Done: add EVM IR `crosscallInvokeValueTyped` lowering for value-bearing typed
   crosscalls, forwarding an explicit U64 call-value expression through
   value-specific Yul helpers for scalar returns plus flat struct and scalar
@@ -207,6 +207,13 @@ Tasks:
   `RemotePair[2]` ABI-word flattening, Bool/U32 field return guards, golden
   Yul, solc bytecode, Foundry runtime behavior, and metadata selectors across
   all four call modes.
+- Done: extend EVM IR typed crosscall aggregate coverage to nested scalar fixed
+  arrays across normal, value-bearing, static, and delegate typed call
+  arguments and direct entrypoint returns. `EvmCrosscallProbe` now validates
+  `uint64[2][2]` ABI-word flattening, golden Yul, solc bytecode, metadata
+  selectors, Foundry runtime behavior, value forwarding, staticcall behavior,
+  and delegatecall behavior across all four call modes, while diagnostics still
+  reject nested fixed-array leaves that are structs or other non-scalar shapes.
 - Done: add EVM IR `crosscallCreate` and `crosscallCreate2` lowering for fixed
   init-code hex. Creation helpers write init code to memory, call Yul
   `create`/`create2`, revert on zero-address failure, return the deployed
@@ -317,8 +324,8 @@ Tasks:
   guards, multi-word return-data encoding, `EvmAbiAggregateProbe` golden Yul,
   solc bytecode, Foundry runtime/malformed calldata validation, metadata
   capability validation, CI coverage, and explicit diagnostics for Unit,
-  zero-length arrays, non-flat struct fields, and nested crosscall aggregate
-  arrays.
+  zero-length arrays, non-flat struct fields, and crosscall-only unsupported
+  nested fixed-array leaf shapes.
 - Add golden Yul outputs for simple examples.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.

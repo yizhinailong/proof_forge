@@ -199,12 +199,12 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, flat scalar storage struct field read/write, and whole flat scalar storage struct read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns, nested scalar fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, scalar fixed-array non-indexed event data fields, and fixed-array event data fields whose elements are flat structs; zero-length ABI arrays, nested local arrays, nested crosscall aggregate arrays, and unsupported element shapes still reject explicitly |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns, nested scalar fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, nested scalar fixed-array typed crosscall arguments/returns, scalar fixed-array non-indexed event data fields, and fixed-array event data fields whose elements are flat structs; zero-length ABI arrays, nested local arrays, nested crosscall fixed arrays with non-scalar leaves, and unsupported element shapes still reject explicitly |
 | `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns, fixed arrays of flat structs in ABI-facing parameters/returns, flat non-indexed event data fields, flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
-| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct, scalar fixed-array, and fixed-array-of-flat-struct arguments flattened to ABI words; typed normal/value/static/delegate calls return Bool/U32/U64/Hash scalar words with Bool/U32 return guards and support direct entrypoint returns of flat struct, scalar fixed-array, and fixed-array-of-flat-struct return data; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot; `crosscallInvokeStaticTyped` preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` preserves caller-storage context; `crosscallCreate` and `crosscallCreate2` deploy fixed init-code hex through Yul `create`/`create2`, revert on zero-address failure, and return the deployed address word |
+| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested scalar fixed-array arguments flattened to ABI words; typed normal/value/static/delegate calls return Bool/U32/U64/Hash scalar words with Bool/U32 return guards and support direct entrypoint returns of flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested scalar fixed-array return data; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot; `crosscallInvokeStaticTyped` preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` preserves caller-storage context; `crosscallCreate` and `crosscallCreate2` deploy fixed init-code hex through Yul `create`/`create2`, revert on zero-address failure, and return the deployed address word |
 | `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, and non-indexed data fields can be scalar words, flat structs, scalar fixed arrays, or fixed arrays of flat structs |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
@@ -253,17 +253,19 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   fixed arrays of flat structs with static and dynamic field access, flat static
   aggregate ABI parameters and returns, nested scalar fixed-array ABI
   parameters and returns, synchronous word-returning
-  `crosscallInvoke`, typed `crosscallInvokeTyped` over scalar words and flat
-  aggregate arguments, direct entrypoint returns of flat struct and scalar
-  fixed-array typed normal-call return data, value-bearing typed scalar and
-  direct aggregate-return `crosscallInvokeValueTyped`, typed scalar and direct
-  aggregate-return `crosscallInvokeStaticTyped`, typed scalar and direct
-  aggregate-return `crosscallInvokeDelegateTyped`, fixed init-code
+  `crosscallInvoke`, typed `crosscallInvokeTyped` over scalar words, flat
+  aggregate arguments, and nested scalar fixed-array arguments/returns,
+  direct entrypoint returns of flat struct, scalar fixed-array, fixed-array of
+  flat structs, and nested scalar fixed-array typed normal-call return data,
+  value-bearing typed scalar and direct aggregate-return
+  `crosscallInvokeValueTyped`, typed scalar and direct aggregate-return
+  `crosscallInvokeStaticTyped`, typed scalar and direct aggregate-return
+  `crosscallInvokeDelegateTyped`, fixed init-code
   `crosscallCreate` and `crosscallCreate2`, static bounded loops, and
   branch/loop-local early returns through Yul `leave`. It rejects wider
   portable IR nodes with explicit diagnostics.
 - Portable IR EVM currently lacks dynamic ABI values, nested local arrays,
-  nested crosscall aggregate arrays, non-word or aggregate map shapes, nested
+  nested crosscall fixed arrays with non-scalar leaves, non-word or aggregate map shapes, nested
   local structs beyond flat struct arrays, richer event declarations, dynamic constructor
   arguments, artifact-linked init code, variable-length cross-call return
   data, and real creation-transaction or broadcast manifests.
@@ -405,21 +407,25 @@ surfaces for the portable IR.
 arity-, return-type-, value-mode-, static-mode-, and delegate-mode-specific Yul
 helpers. EVM IR v0 interprets the target expression as an address word, the
 method expression as a low-32-bit selector, scalar arguments as 32-byte ABI
-words, flat struct, scalar fixed-array, and fixed-array-of-flat-struct
-arguments as ABI-flattened word sequences, and value-bearing call value as a U64 word. The helper packs calldata,
+words, flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested
+scalar fixed-array arguments as ABI-flattened word sequences, and
+value-bearing call value as a U64 word. The helper packs calldata,
 executes either `call(gas(), target, 0, ...)`,
 `call(gas(), target, call_value, ...)`, `staticcall(gas(), target, ...)`, or
 `delegatecall(gas(), target, ...)`, reverts on call failure or returns shorter
 than the expected return-data size, and decodes one or more 32-byte return
 words. Typed helpers cover `Bool`, `U32`, `U64`, `Hash`, direct entrypoint
-returns of flat structs, scalar fixed arrays, and fixed arrays of flat structs
+returns of flat structs, scalar fixed arrays, fixed arrays of flat structs, and
+nested scalar fixed arrays
 across normal, value-bearing, static, and delegate modes; Bool and U32 helpers reject out-of-range return
 words before returning to the dispatcher. The smoke checks golden Yul reproducibility,
 `solc --strict-assembly` bytecode generation, metadata capability
 `crosscall.invoke`, metadata entrypoints, Foundry U64 calls with zero/one/two
-arguments, typed Bool/U32/Hash calls, flat struct, scalar fixed-array, and
-fixed-array-of-flat-struct aggregate typed returns in normal/value/static/delegate modes, flat struct,
-scalar fixed-array, and fixed-array-of-flat-struct typed-call arguments, aggregate Bool/U32 malformed-return
+arguments, typed Bool/U32/Hash calls, flat struct, scalar fixed-array,
+fixed-array-of-flat-struct, and nested scalar fixed-array aggregate typed
+returns in normal/value/static/delegate modes, flat struct, scalar fixed-array,
+fixed-array-of-flat-struct, and nested scalar fixed-array typed-call arguments,
+aggregate Bool/U32 malformed-return
 guards in normal/value/static/delegate modes, native-value forwarding to a
 payable callee, value-bearing flat struct arguments, U64 read-only staticcall
 return behavior, Bool/U32/Hash static typed returns, static flat struct

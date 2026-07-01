@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Nested Crosscall Fixed Arrays
+
+Commit: `fb0828b` (`feat: support nested EVM crosscall arrays`)
+
+Summary:
+
+- Extended typed crosscall aggregate lowering so nested scalar fixed arrays such
+  as `Array<Array<U64,2>,2>` flatten to ABI words for normal, value-bearing,
+  static, and delegate typed calls.
+- Added `EvmCrosscallProbe` entrypoints for nested scalar fixed-array arguments
+  and direct entrypoint returns across all four call modes.
+- Kept nested fixed arrays with struct or other non-scalar leaves as explicit
+  unsupported diagnostics.
+- Refreshed `EvmCrosscallProbe.golden.yul`, metadata selector expectations, and
+  the Foundry smoke harness with `uint64[2][2]` callee helpers.
+
+Validation run:
+
+```sh
+lake build
+lake env lean --run Tests/TargetRegistry.lean
+scripts/i18n/check-sync.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/crosscall-ir-smoke.sh
+git diff --check
+```
+
+Result:
+
+- `EvmCrosscallProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 65 CrosscallProbe tests, including nested scalar fixed-array
+  arguments and returns in normal, value-bearing, static, and delegate modes.
+- GitHub Actions run `28514575022` passed on `main`.
+
+Known limitations:
+
+- Dynamic ABI values, nested local fixed-array mutation beyond the current
+  local-array surface, nested crosscall fixed arrays with non-scalar leaves, and
+  variable-length return data remain future EVM IR work.
+
+Next step:
+
+- Continue shrinking the EVM aggregate gap around dynamic ABI data, storage
+  backed aggregate ABI surfaces, or richer cross-call return data.
+
 ### EVM IR Nested Fixed-Array ABI
 
 Commit: feature commit for EVM IR nested fixed-array ABI
