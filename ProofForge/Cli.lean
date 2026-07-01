@@ -5,6 +5,7 @@ import Lean.Util.Path
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Psy.IR
 import ProofForge.Backend.WasmNear
+import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -132,6 +133,10 @@ inductive EmitMode where
   | contextIrWasmNear
   | hashIrWasmNear
   | mapIrWasmNear
+  | counterEmitWat
+  | contextEmitWat
+  | hashEmitWat
+  | mapEmitWat
   deriving BEq, Inhabited
 
 structure CliOptions where
@@ -222,6 +227,7 @@ def usage : String :=
     "  proof-forge --emit-u32-storage-scalar-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-storage-array-ir-psy [-o output.psy]",
     "  proof-forge --emit-counter-ir-wasm-near -o output-dir",
+    "  proof-forge --emit-counter-emitwat -o output-dir        (canonical: IR → WAT → wasm)",
     "  proof-forge --emit-context-ir-wasm-near -o output-dir",
     "  proof-forge --emit-hash-ir-wasm-near -o output-dir",
     "  proof-forge --emit-map-ir-wasm-near -o output-dir",
@@ -654,7 +660,7 @@ def writeEvmSdkArtifactMetadata
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy || opts.mode == .counterIrWasmNear || opts.mode == .contextIrWasmNear || opts.mode == .hashIrWasmNear || opts.mode == .mapIrWasmNear then
+      if opts.input?.isSome || (opts.mode != .yul && opts.mode != .evmBytecode) then
         .ok opts
       else
         .error usage
@@ -827,6 +833,14 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .hashIrWasmNear }
   | "--emit-map-ir-wasm-near" :: rest, opts =>
       parseArgs rest { opts with mode := .mapIrWasmNear }
+  | "--emit-counter-emitwat" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterEmitWat }
+  | "--emit-context-emitwat" :: rest, opts =>
+      parseArgs rest { opts with mode := .contextEmitWat }
+  | "--emit-hash-emitwat" :: rest, opts =>
+      parseArgs rest { opts with mode := .hashEmitWat }
+  | "--emit-map-emitwat" :: rest, opts =>
+      parseArgs rest { opts with mode := .mapEmitWat }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -859,6 +873,37 @@ def writeNearPackage (outputDir : FilePath) (pkg : ProofForge.Backend.WasmNear.I
     if let some parent := path.parent then
       IO.FS.createDirAll parent
     IO.FS.writeFile path file.content
+
+/-! ### EmitWat output (canonical IR → WAT → wasm) -/
+
+def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO Unit := do
+  IO.FS.createDirAll outputDir
+  let watPath := outputDir / s!"{name}.wat"
+  IO.FS.writeFile watPath wat
+  let wasmPath := outputDir / s!"{name}.wasm"
+  try
+    let r ← IO.Process.output { cmd := "wat2wasm", args := #[watPath.toString, "-o", wasmPath.toString] }
+    if r.exitCode == 0 then
+      IO.println s!"wrote EmitWat {name}.wat + {name}.wasm to {outputDir}"
+    else
+      IO.eprintln s!"wat2wasm exit {r.exitCode}: {r.stderr.trim} (WAT at {watPath})"
+  catch _ =>
+    IO.println s!"wrote EmitWat {name}.wat to {watPath} (wat2wasm unavailable; install wabt to build wasm)"
+
+def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Module) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "emitwat mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule mod with
+  | .ok wat =>
+      writeWatPackage output name wat
+      return 0
+  | .error e =>
+      throw <| IO.userError e.message
+
+def compileCounterEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "counter" ProofForge.IR.Examples.Counter.module
+def compileContextEmitWat  (opts : CliOptions) : IO UInt32 := compileEmitWat opts "context" ProofForge.IR.Examples.ContextProbe.module
+def compileHashEmitWat     (opts : CliOptions) : IO UInt32 := compileEmitWat opts "hash" ProofForge.IR.Examples.HashProbe.module
+def compileMapEmitWat      (opts : CliOptions) : IO UInt32 := compileEmitWat opts "map" ProofForge.IR.Examples.MapProbe.emitWatModule
 
 unsafe def emitYulFile (opts : CliOptions) (input output : FilePath) (methods : Array MethodSpec) : IO Unit := do
   enableInitializersExecution
@@ -1846,6 +1891,10 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .contextIrWasmNear => compileContextIrWasmNear opts
   | .hashIrWasmNear => compileHashIrWasmNear opts
   | .mapIrWasmNear => compileMapIrWasmNear opts
+  | .counterEmitWat => compileCounterEmitWat opts
+  | .contextEmitWat => compileContextEmitWat opts
+  | .hashEmitWat => compileHashEmitWat opts
+  | .mapEmitWat => compileMapEmitWat opts
 
 end ProofForge.Cli
 

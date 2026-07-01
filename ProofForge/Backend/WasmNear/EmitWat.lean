@@ -41,6 +41,8 @@ def EVENT_BUF : Nat := 42000       -- 256-byte scratch for building event JSON
 def EVT_KEY_PTR : Nat := 42800     -- fixed "event" key string (5 bytes)
 def STRING_BASE : Nat := 43000     -- event/field name string pool base
 def INPUT_BUF : Nat := 44000       -- 1 KB scratch for Borsh input args
+def PARAM_HASH_BUF : Nat := 46000  -- 32-byte slots for decoded hash params (one per hash param)
+def ZERO_HASH_BUF : Nat := 50000  -- 32 zero bytes returned for missing hash-valued map entries
 
 -- Value type → Wasm
 def wasmTypeOf : ValueType → ValType
@@ -125,8 +127,9 @@ def mapReadName  (vt : ValueType) : String := "__pf_map_read_"  ++ typeSuffix vt
 def mapWriteName (vt : ValueType) : String := "__pf_map_write_" ++ typeSuffix vt
 def mapContainsName : String := "__pf_map_contains"
 def mapBuildkeyName  : String := "__pf_map_buildkey"
+def memcpyName        : String := "__pf_memcpy"
 
-/-- `__pf_map_buildkey(pp, pl, k)`: write prefix[pp..pp+pl] then 8 key bytes to MAPKEY_BUF. -/
+/- `__pf_map_buildkey(pp, pl, k)`: write prefix[pp..pp+pl] then 8 key bytes to MAPKEY_BUF. -/
 def mapBuildkeyFunc : Func :=
   { name := mapBuildkeyName,
     params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "k", type := .i64 }],
@@ -184,6 +187,92 @@ def mapHelperFuncs : Array Func :=
   #[ mapBuildkeyFunc, mapReadFunc .u32, mapWriteFunc .u32, mapReadFunc .u64, mapWriteFunc .u64,
      mapReadFunc .bool, mapWriteFunc .bool, mapContainsFunc ]
 
+-- Map<Hash, T>: storage key = prefix ++ 32 key bytes (key is a hash pointer).
+
+def mapBuildkeyHashName  : String := "__pf_map_buildkey_hash"
+def mapReadHashName  (vt : ValueType) : String := "__pf_map_read_hash_"  ++ typeSuffix vt
+def mapWriteHashName (vt : ValueType) : String := "__pf_map_write_hash_" ++ typeSuffix vt
+def mapContainsHashName : String := "__pf_map_contains_hash"
+
+def mapBuildkeyHashFunc : Func :=
+  { name := mapBuildkeyHashName,
+    params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
+    locals := #[{ name := "i", type := .i32 }],
+    body := { insns := #[
+      .i32Const 0, .localSet "i",
+      .block_ { insns := #[ .loop_ { insns := #[
+        .localGet "i", .localGet "pl", .plain "i32.ge_u", .brIf 1,
+        .localGet "i", .i32Const MAPKEY_BUF, .plain "i32.add",
+        .localGet "i", .localGet "pp", .plain "i32.add", .load "i32.load8_u" 0,
+        .store "i32.store8" 0,
+        .localGet "i", .i32Const 1, .plain "i32.add", .localSet "i", .br 0 ] } ] } ,
+      .i32Const MAPKEY_BUF, .localGet "pl", .plain "i32.add", .localGet "kp", .i32Const 32, .call memcpyName ] } }
+
+def mapReadHashFunc (vt : ValueType) : Func :=
+  if vt == .hash then
+    { name := mapReadHashName vt,
+      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
+      results := #[.i32],
+      locals := #[{ name := "found", type := .i64 }, { name := "r", type := .i32 }],
+      body := { insns := #[
+        .i32Const ZERO_HASH_BUF, .localSet "r",
+        .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
+        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
+        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
+        .localGet "found", .i64Const 0, .plain "i64.ne",
+        .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
+                          .i32Const KEY_BUF, .localSet "r" ] } { insns := #[] },
+        .localGet "r" ] } }
+  else
+    { name := mapReadHashName vt,
+      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
+      results := #[wasmTypeOf vt],
+      locals := #[{ name := "found", type := .i64 }, { name := "r", type := wasmTypeOf vt }],
+      body := { insns := #[
+        .const (wasmTypeOf vt) "0", .localSet "r",
+        .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
+        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
+        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
+        .localGet "found", .i64Const 0, .plain "i64.ne",
+        .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
+                          .i32Const KEY_BUF, .load (loadOpFor vt) 0, .localSet "r" ] } { insns := #[] },
+        .localGet "r" ] } }
+
+def mapWriteHashFunc (vt : ValueType) : Func :=
+  if vt == .hash then
+    { name := mapWriteHashName vt,
+      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
+                  { name := "kp", type := .i32 }, { name := "v", type := .i32 }],
+      body := { insns := #[
+        .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
+        .i32Const KEY_BUF, .localGet "v", .i32Const 32, .call memcpyName,
+        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
+        .i64Const MAPKEY_BUF, .i64Const 32, .i64Const KEY_BUF, .i64Const 0,
+        .call "storage_write", .drop ] } }
+  else
+    { name := mapWriteHashName vt,
+      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
+                  { name := "kp", type := .i32 }, { name := "v", type := wasmTypeOf vt }],
+      body := { insns := #[
+        .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
+        .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0,
+        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
+        .i64Const MAPKEY_BUF, .i64Const (scalarWidth vt), .i64Const KEY_BUF, .i64Const 0,
+        .call "storage_write", .drop ] } }
+
+def mapContainsHashFunc : Func :=
+  { name := mapContainsHashName,
+    params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
+    results := #[.i64],
+    body := { insns := #[
+      .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
+      .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
+      .i64Const MAPKEY_BUF, .call "storage_has_key" ] } }
+
+def mapHashHelperFuncs : Array Func :=
+  #[ mapBuildkeyHashFunc, mapReadHashFunc .u32, mapWriteHashFunc .u32, mapReadHashFunc .u64, mapWriteHashFunc .u64,
+     mapReadHashFunc .bool, mapWriteHashFunc .bool, mapReadHashFunc .hash, mapWriteHashFunc .hash, mapContainsHashFunc ]
+
 -- Hash helpers ---------------------------------------------------------
 -- Hash = 32-byte memory region (4×u64), referenced by an i32 pointer. A
 -- mutable global `hash_ptr` bump-allocates a fresh 32-byte slot per temp
@@ -192,7 +281,6 @@ def mapHelperFuncs : Array Func :=
 def hashAllocName    : String := "__pf_hash_alloc"
 def hashMakeName      : String := "__pf_hash_make"
 def hashSName         : String := "__pf_hash"
-def memcpyName        : String := "__pf_memcpy"
 def hashTwoName       : String := "__pf_hash_two_to_one"
 def hashEqName        : String := "__pf_hash_eq"
 def readHashName      : String := "__pf_read_hash"
@@ -584,25 +672,35 @@ mutual
     if t != .u64 then err s!"EmitWat: map key expected U64, got `{t.name}`"
     else .ok is
 
+  partial def lowerMapKeyHash (ctx : Ctx) (env : LocalTypes) (key : Expr)
+      : Except EmitError (Array Insn) := do
+    let (is, t) ← lowerExpr ctx env key
+    if t != .hash then err s!"EmitWat: map key expected Hash, got `{t.name}`"
+    else .ok is
+
   partial def lowerMapGet (ctx : Ctx) (env : LocalTypes) (id : String) (key : Expr)
       : Except EmitError (Array Insn × ValueType) := do
     match findMapState? ctx.maps id with
     | none => err s!"EmitWat: unknown map state `{id}`"
     | some m =>
-      if m.keyType != .u64 then err s!"EmitWat: only Map<U64, T> is supported (`{id}` has key `{m.keyType.name}`)"
-      else do
-        let kis ← lowerMapKeyU64 ctx env key
-        .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ #[.call (mapReadName m.valueType)], m.valueType)
+      let readCall ← match m.keyType with
+        | .u64 => do pure #[.call (mapReadName m.valueType)]
+        | .hash => do pure #[.call (mapReadHashName m.valueType)]
+        | _ => err s!"EmitWat: only Map<U64|Hash, T> is supported (`{id}` has key `{m.keyType.name}`)"
+      let kis ← if m.keyType == .hash then lowerMapKeyHash ctx env key else lowerMapKeyU64 ctx env key
+      .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ readCall, m.valueType)
 
   partial def lowerMapContains (ctx : Ctx) (env : LocalTypes) (id : String) (key : Expr)
       : Except EmitError (Array Insn × ValueType) := do
     match findMapState? ctx.maps id with
     | none => err s!"EmitWat: unknown map state `{id}`"
     | some m =>
-      if m.keyType != .u64 then err s!"EmitWat: only Map<U64, T> is supported"
-      else do
-        let kis ← lowerMapKeyU64 ctx env key
-        .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ #[.call mapContainsName, .plain "i32.wrap_i64"], .bool)
+      let containsCall ← match m.keyType with
+        | .u64 => do pure #[.call mapContainsName]
+        | .hash => do pure #[.call mapContainsHashName]
+        | _ => err s!"EmitWat: only Map<U64|Hash, T> is supported"
+      let kis ← if m.keyType == .hash then lowerMapKeyHash ctx env key else lowerMapKeyU64 ctx env key
+      .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ containsCall ++ #[.plain "i32.wrap_i64"], .bool)
 end
 
 -- Statements
@@ -651,12 +749,14 @@ partial def lowerMapWrite (ctx : Ctx) (env : LocalTypes) (id : String) (key valu
   match findMapState? ctx.maps id with
   | none => err s!"EmitWat: unknown map state `{id}`"
   | some m =>
-    if m.keyType != .u64 then err s!"EmitWat: only Map<U64, T> is supported"
-    else do
-      let kis ← lowerMapKeyU64 ctx env key
-      let (vis, vt) ← lowerExpr ctx env value
-      if vt != m.valueType then err s!"EmitWat: map write `{id}` expected `{m.valueType.name}`, got `{vt.name}`"
-      else .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ vis ++ #[.call (mapWriteName m.valueType)])
+    let writeCall ← match m.keyType with
+      | .u64 => pure #[.call (mapWriteName m.valueType)]
+      | .hash => pure #[.call (mapWriteHashName m.valueType)]
+      | _ => err s!"EmitWat: only Map<U64|Hash, T> is supported"
+    let kis ← if m.keyType == .hash then lowerMapKeyHash ctx env key else lowerMapKeyU64 ctx env key
+    let (vis, vt) ← lowerExpr ctx env value
+    if vt != m.valueType then err s!"EmitWat: map write `{id}` expected `{m.valueType.name}`, got `{vt.name}`"
+    else .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ vis ++ writeCall)
 
 partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     (s : Statement) : Except EmitError (Array Insn) :=
@@ -710,13 +810,18 @@ def loadParams (params : Array (String × ValueType))
     : Except EmitError (Array Insn × Array Local) := do
   let prologue : Array Insn :=
     #[.i64Const 0, .call "input", .i64Const 0, .i64Const INPUT_BUF, .call "read_register"]
-  let result ← params.foldlM (init := (prologue, (#[] : Array Local), 0))
-    fun (insns, locals, offset) p =>
+  let result ← params.foldlM (init := (prologue, (#[] : Array Local), 0, 0))
+    fun (insns, locals, offset, hslot) p =>
       let (name, vt) := p
       match vt with
       | .u32 | .u64 | .bool =>
         let loadInsns := #[.i32Const (INPUT_BUF + offset), .load (loadOpFor vt) 0, .localSet name]
-        .ok (insns ++ loadInsns, locals.push { name := name, type := wasmTypeOf vt }, offset + scalarWidth vt)
+        .ok (insns ++ loadInsns, locals.push { name := name, type := wasmTypeOf vt }, offset + scalarWidth vt, hslot)
+      | .hash =>
+        let slot := PARAM_HASH_BUF + hslot * 32
+        let loadInsns := #[.i32Const slot, .i32Const (INPUT_BUF + offset), .i32Const 32, .call memcpyName,
+                           .i32Const slot, .localSet name]
+        .ok (insns ++ loadInsns, locals.push { name := name, type := wasmTypeOf vt }, offset + 32, hslot + 1)
       | _ => err s!"EmitWat: param `{name}` has unsupported Borsh type `{vt.name}`"
   pure (result.fst, result.snd.fst)
 
@@ -743,7 +848,7 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let stringData := strs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
   let baseImports := nearImports.push sha256Import |>.push logUtf8Import |>.push inputImport
   let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport])
-  let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ entryFuncs
+  let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ (if maps.any (fun m => m.keyType == .hash) then mapHashHelperFuncs else #[]) ++ entryFuncs
   let globals := #[hashPtrGlobalDecl] ++ evtGlobals
   .ok { imports := imports, globals := globals, funcs := funcs,
         memory := some { min := 1 },

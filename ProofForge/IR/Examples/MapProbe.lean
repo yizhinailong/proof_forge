@@ -182,4 +182,31 @@ def module : Module := {
   ]
 }
 
+/-! EmitWat-compatible subset: hash-key Map<Hash, Hash> using only storageMapGet /
+    storageMapContains / storageMapSet (as a statement). The full `module` uses
+    `storageMapInsert` (return-old-value semantics) and `pathLifecycle` (struct/path
+    storage), which EmitWat does not lower — those belong to the Rust-v0 borrow-heavy
+    surface and are out of scope for the minimal EmitWat backend. -/
+
+def ewGetBalance : Entrypoint := {
+  name := "getBalance", params := #[("key", .hash)], returns := .hash,
+  body := #[.return (.effect (.storageMapGet "balances" (.local "key")))] }
+
+def ewHasBalance : Entrypoint := {
+  name := "hasBalance", params := #[("key", .hash)], returns := .bool,
+  body := #[.return (.effect (.storageMapContains "balances" (.local "key")))] }
+
+def ewSetBalance : Entrypoint := {
+  name := "setBalanceReturn", params := #[("key", .hash), ("value", .hash)], returns := .hash,
+  body := #[
+    .effect (.storageMapSet "balances" (.local "key") (.local "value")),
+    .return (.effect (.storageMapGet "balances" (.local "key")))
+  ] }
+
+def emitWatModule : Module := {
+  name := "MapProbe",
+  state := #[stateBefore, stateBalances, stateAfter],
+  entrypoints := #[ewGetBalance, ewHasBalance, ewSetBalance]
+}
+
 end ProofForge.IR.Examples.MapProbe
