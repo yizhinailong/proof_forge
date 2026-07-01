@@ -38,13 +38,13 @@ Each target adapter maps the same logical scenario to native mechanics:
 |---|---|---|
 | `evm` | contract storage slot | Foundry + `vm.etch` |
 | `wasm-cosmwasm` | string-key `"count"` in host KV | `cosmwasm-check` + instantiate/execute/query |
-| `solana-sbpf-linker` | account data field | Mollusk or `solana-test-validator` |
+| `solana-sbpf-asm` | account data field | `sbpf test` (Mollusk) or `solana-test-validator` |
 | `move-aptos` | `Counter` resource under signer account | `aptos move test` |
 | `psy-dpn` | Psy storage field, likely `Felt`/`U32` in v0 | `dargo compile` + in-memory smoke |
 
 Target-specific account schemas and manifests are adapter concerns — not hidden
-inside portable Lean logic. See [solana-sbf.md](targets/solana-sbf.md) for
-instruction manifest format.
+inside portable Lean logic. See [solana-sbpf-asm.md](targets/solana-sbpf-asm.md)
+for instruction manifest format and the direct-assembly route (D-026).
 
 ## Phase 2 Acceptance Criteria
 
@@ -57,12 +57,14 @@ Phase 2 is complete when **both** parallel spikes pass independently:
 - [ ] instantiate → increment → query returns expected count.
 - [ ] Artifact metadata records `target: wasm-cosmwasm` and capabilities used.
 
-### Solana (`solana-sbpf-linker`)
+### Solana (`solana-sbpf-asm`)
 
-- [ ] Minimal `entrypoint.bc` from stock Zig.
-- [ ] `sbpf-linker` produces loadable `.so`.
-- [ ] initialize → increment → read counter in Mollusk or validator.
-- [ ] Instruction manifest documents account layout.
+- [ ] `--emit-sbpf-asm` produces valid `.s` accepted by `sbpf build`.
+- [ ] `sbpf build` produces a loadable eBPF ELF (`.so`).
+- [ ] initialize → increment → read counter in `sbpf test` (Mollusk) or
+      `solana-test-validator`.
+- [ ] Instruction manifest (`manifest.toml`) documents account layout.
+- [ ] Capability checker rejects unsupported capabilities with target-id diagnostic.
 
 ### Joint (after both spikes)
 
@@ -87,7 +89,7 @@ scenario through generated `.psy` source and Dargo validation.
 |---|---|---|
 | EVM | `Examples/Evm/Contracts/Counter.lean` | **In repo** |
 | CosmWasm | `Examples/CosmWasm/Counter.lean` | Planned, not in repo |
-| Solana | `Examples/Solana/Counter.lean` | Planned, not in repo |
+| Solana | `Examples/Solana/Counter.lean` + manifest | Planned, not in repo (Workstream 7) |
 | Aptos | `Examples/Move/Aptos/Counter/` | Planned, not in repo |
 | Psy DPN | `Examples/Psy/*.golden.psy`, `scripts/psy/*-smoke.sh` | **In repo** |
 

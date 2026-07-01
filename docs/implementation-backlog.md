@@ -25,8 +25,8 @@ Goal: make target selection explicit before adding more backends.
 Tasks:
 
 - Add target ids: `evm`, `wasm-near`, `wasm-cosmwasm`,
-  `solana-sbpf-linker`, `solana-zig-fork`, `move-sui`, `move-aptos`,
-  `psy-dpn`.
+  `solana-sbpf-asm`, `solana-sbpf-linker` (superseded), `solana-zig-fork`,
+  `move-sui`, `move-aptos`, `psy-dpn`.
 - Define target family, artifact kind, required tools, and capability set
   (see [capability-registry.md](capability-registry.md)).
 - Add a target lookup function for CLI and scripts.
@@ -393,50 +393,68 @@ Acceptance criteria:
 - `instantiate`, `execute`, and `query` are present in exports.
 - The smoke test can increment and query counter state.
 
-## Workstream 6: Solana sBPF-Linker Spike
+## Workstream 6: Solana sBPF Assembly Toolchain Integration (Phase 0)
 
-Goal: validate the no-fork Solana pipeline before adopting a forked compiler.
+Goal: validate the direct-assembly route end to end — a canned `.s` file
+round-trips through the blueshift-gg/sbpf toolchain into a loadable ELF.
+Supersedes the old sbpf-linker spike (D-026).
 
 Tasks:
 
-- Add `zigc-solana-sbpf` wrapper around `zig build-lib
-  -target bpfel-freestanding -femit-llvm-bc`.
-- Call `sbpf-linker --cpu v2 --export entrypoint`.
-- Add `solana_contract_root.zig` with one exported `entrypoint`.
-- Add minimal syscall/log bridge.
-- Add explicit instruction manifest format (see [solana-sbf.md](targets/solana-sbf.md)).
-- Add Counter account example.
+- Install `sbpf` via `cargo install --git https://github.com/blueshift-gg/sbpf.git`.
+- Add `--emit-sbpf-asm` CLI mode to `proof-forge` that writes a canned
+  `entrypoint.s` (returns success, no account parsing).
+- Run `sbpf build` on the canned `.s`; verify a valid eBPF ELF is produced.
+- Verify `sbpf disassemble` round-trips the ELF.
+- Record toolchain version in artifact metadata.
 
 Acceptance criteria:
 
-- A minimal generated `entrypoint.bc` is produced by stock Zig.
-- `sbpf-linker` produces a `.so`.
-- The `.so` runs in either Mollusk or `solana-test-validator`.
-- The spike records whether the Lean Zig runtime can link under sBPF
-  constraints.
+- `sbpf build` produces a `.so` recognized as `ELF 64-bit LSB ... eBPF`.
+- `sbpf disassemble` produces assembly matching the input.
+- `--emit-sbpf-asm` writes valid `.s` without assembly errors.
+- `proof-forge-artifact.json` records `target: "solana-sbpf-asm"`.
 
-## Workstream 7: Solana Runtime Decision
+Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md),
+[RFC 0004](rfcs/0004-solana-sbpf-assembly-backend.md).
 
-Goal: decide whether ProofForge can use full Lean runtime on Solana or needs a
-restricted runtime subset. **Runs after Workstream 6 produces spike data.**
+## Workstream 7: Solana sBPF Assembly Counter Codegen (Phase 1)
 
-Questions:
+Goal: lower the portable IR Counter module to sBPF assembly and pass `sbpf test`.
+This is the first real codegen backend for the assembly route.
 
-- Does the full Lean Zig runtime link under `bpfel-freestanding`?
-- Does the resulting ELF pass Solana loader constraints?
-- Is the artifact size acceptable?
-- Is 4KB stack pressure manageable?
-- Are heap allocation and reference counting feasible inside Solana compute
-  budgets?
+Tasks:
 
-Decision outcomes:
+- Implement `ProofForge.Backend.Solana.StateLayout` — compute per-account field
+  offsets from the instruction manifest; emit `.equ` constants.
+- Implement `ProofForge.Backend.Solana.SbpfAsm` — lower `IR.Module` to `.s`:
+  - Entrypoint adapter: parse serialized accounts, dispatch on instruction
+    discriminant.
+  - Account validation: signer, writable, owner checks per manifest.
+  - Expression lowering: literals, locals, add/sub, comparisons, casts.
+  - Statement lowering: letBind, assign, assignOp, ifElse, return, assert.
+  - Effect lowering: storageScalar read/write at account-data offsets.
+- Add `--solana-elf` CLI mode: emit `.s` then invoke `sbpf build`.
+- Generate instruction manifest (`manifest.toml`) alongside the `.s`.
+- Create `Examples/Solana/Counter.lean` + manifest.
+- Run `sbpf test` (Mollusk) and optionally `solana-test-validator --bpf-program`.
 
-- Use full Lean Zig runtime for Solana.
-- Use restricted Lean runtime subset for Solana.
-- Generate direct Zig for a portable IR subset without the full Lean runtime.
-- Fall back to the `solana-zig` fork while keeping `sbpf-linker` open.
+Acceptance criteria:
 
-Record the outcome in [decisions.md](decisions.md).
+- Counter scenario (initialize, increment, get) passes `sbpf test`.
+- `solana-test-validator` smoke passes (optional, gated on tool availability).
+- Capability checker rejects IR modules using unsupported capabilities with a
+  clear diagnostic citing target id and capability id.
+- Same portable IR Counter module lowers to both EVM and Solana.
+- Artifact metadata records `target: "solana-sbpf-asm"`, `irVersion`,
+  entrypoints, and capabilities used.
+
+Out of scope (Phase 2+): CPI, PDA, maps, struct types, events, bounded loops,
+Borsh serialization, SPL Token. CPI and PDA effects stay Solana-specific (D-027)
+in `ProofForge.Backend.Solana.Effect`, not the portable IR.
+
+Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md) § Phased
+Implementation Plan.
 
 ## Workstream 8: Move Source Generation POC (Aptos first)
 
@@ -997,9 +1015,10 @@ Acceptance criteria:
 2. Portable IR + shared Counter scenario (Workstream 1.5).
 3. EVM artifact metadata and deploy manifest (Workstreams 2–3).
 4. Wasm runtime split (Workstream 4).
-5. **Parallel:** CosmWasm spike (Workstream 5) and Solana sbpf-linker spike
-   (Workstream 6).
-6. Solana runtime decision (Workstream 7 — after spike data).
+5. **Parallel:** CosmWasm spike (Workstream 5) and Solana sBPF assembly
+   toolchain integration (Workstream 6 — D-026 supersedes the old sbpf-linker
+   spike).
+6. Solana sBPF assembly Counter codegen (Workstream 7 — D-026).
 7. Move Aptos POC (Workstream 8).
 8. Psy DPN sourcegen spike (Workstream 10) once the IR fixture exists.
 9. Kaspa Toccata research target review (Workstream 11) before any registry

@@ -77,7 +77,25 @@ The following gates are `Planned` and do not exist in CI or as scripts:
   schema validation for targets that do not yet write metadata.
 - Golden Yul/output snapshots — regression detection via snapshot diffing.
 - CosmWasm smoke — `cosmwasm-check` or `cw-multi-test` validation.
-- Solana smoke — Mollusk or `solana-test-validator` validation.
+- Solana sBPF assembly gates (target `solana-sbpf-asm`, D-026). These become
+  runnable as Workstreams 6–7 land; the `sbpf` toolchain is validated locally
+  (build + disassemble round-trip + `sbpf test` on the counter example):
+  - **V-GATE-SOLANA-01** — `--emit-sbpf-asm` produces valid `.s` accepted by
+    `sbpf build` (no assembly errors). Script: `scripts/solana/emit-asm-smoke.sh` (planned).
+  - **V-GATE-SOLANA-02** — `sbpf build` produces a valid ELF that
+    `sbpf disassemble` round-trips. Script: `scripts/solana/build-roundtrip-smoke.sh` (planned).
+  - **V-GATE-SOLANA-03** — Counter scenario (initialize, increment, get) passes
+    `sbpf test` (Mollusk). Script: `scripts/solana/counter-smoke.sh` (planned).
+  - **V-GATE-SOLANA-04** — Counter scenario passes
+    `solana-test-validator --bpf-program` smoke (optional, gated on
+    `solana-test-validator` availability).
+  - **V-GATE-SOLANA-05** — Capability checker rejects IR modules using
+    unsupported capabilities with a clear diagnostic citing target id and
+    capability id.
+  - **V-GATE-SOLANA-06** — `proof-forge-artifact.json` includes
+    `target: "solana-sbpf-asm"`, `irVersion`, and entrypoint list.
+  - **V-GATE-SOLANA-07** — `sbpf debug --elf --input` works interactively
+    (developer ergonomics gate — not CI).
 - Move smoke — `aptos move compile/test` or Sui Move validation.
 - Cross-target capability rejection matrix — compile-time diagnostics for
   unsupported capability/target combinations beyond the target-specific Psy and
@@ -98,8 +116,9 @@ If no runnable local command exists, the target remains `Research`.
 ## Optional external tools
 
 Current CI installs Foundry stable and `solc` 0.8.30. Local machines may not
-have `solc`, `cast`, `forge`, `psyup`, or `dargo`. Missing EVM tools block EVM
-toolchain gates but not `lake build`. Missing Psy tools block only the Psy
+have `solc`, `cast`, `forge`, `psyup`, `dargo`, `sbpf`, or
+`solana-test-validator`. Missing EVM tools block EVM toolchain gates but not
+`lake build`. Missing Psy tools block only the Psy
 smoke Dargo portions; source generation and golden diff still run before each
 script exits.
 

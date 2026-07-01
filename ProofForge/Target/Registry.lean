@@ -120,6 +120,7 @@ def wasmCosmWasm : TargetProfile := {
 }
 
 def solanaSbpfLinker : TargetProfile := {
+  -- Superseded by solanaSbpfAsm (D-026). Kept as historical reference.
   id := "solana-sbpf-linker"
   family := .solana
   artifactKind := .solanaElf
@@ -137,6 +138,34 @@ def solanaSbpfLinker : TargetProfile := {
     .crosscallCpi
   ]
   requiredTools := #["zig", "sbpf-linker"]
+}
+
+def solanaSbpfAsm : TargetProfile := {
+  -- Canonical Solana route (D-026). Direct sBPF assembly codegen via the
+  -- blueshift-gg/sbpf toolchain. CPI and PDA effects stay Solana-specific
+  -- (D-027): crosscall.cpi and storage.pda, not crosscall.invoke.
+  id := "solana-sbpf-asm"
+  family := .solana
+  artifactKind := .solanaElf
+  capabilities := #[
+    .storageScalar,
+    .storageMap,
+    .storageArray,
+    .callerSender,
+    .valueNative,
+    .eventsEmit,
+    .envBlock,
+    .controlConditional,
+    .controlBoundedLoop,
+    .dataFixedArray,
+    .dataStruct,
+    .cryptoHash,
+    .assertions,
+    .accountExplicit,
+    .storagePda,
+    .crosscallCpi
+  ]
+  requiredTools := #["sbpf"]
 }
 
 def solanaZigFork : TargetProfile := {
@@ -213,6 +242,7 @@ def all : Array TargetProfile := #[
   evm,
   wasmNear,
   wasmCosmWasm,
+  solanaSbpfAsm,
   solanaSbpfLinker,
   solanaZigFork,
   moveAptos,
