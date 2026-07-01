@@ -7,7 +7,7 @@ open ProofForge.Backend.WasmNear.EmitWat
 
 /-! Render ConditionalProbe (if/else) and LoopProbe (boundedFor) via EmitWat. -/
 
-def write (name mod : String) : IO UInt32 := do
+def write (name : String) : IO UInt32 := do
   match renderModule (match name with | "cond" => (ConditionalProbe.module) | _ => (LoopProbe.module)) with
   | .ok wat =>
       let path := s!"build/wasm-near/emitwat-{name}.wat"
@@ -18,6 +18,6 @@ def write (name mod : String) : IO UInt32 := do
   | .error e => IO.eprintln e.message *> pure 1
 
 def main : IO UInt32 := do
-  let _ ← write "cond" "cond"
-  let _ ← write "loop" "loop"
+  let _ ← write "cond"
+  let _ ← write "loop"
   pure 0

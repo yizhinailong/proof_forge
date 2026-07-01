@@ -54,6 +54,9 @@ jobs:
       - name: Check Wasm-NEAR IR coverage manifest
         run: scripts/near/check-ir-coverage-manifest.py
 
+      - name: Check EmitWat IR coverage manifest
+        run: scripts/near/check-ir-coverage-manifest.py --manifest Tests/EmitWatCoverage.tsv --label emitwat-ir-coverage
+
       - name: Check IR ownership rules
         run: lake env lean --run Tests/IROwnership.lean
 

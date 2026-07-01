@@ -43,6 +43,7 @@ def hashModule : Module := {
 def main : IO UInt32 := do
   match renderModule hashModule with
   | .ok wat =>
+    IO.FS.createDirAll "build/wasm-near"
     IO.FS.writeFile "build/wasm-near/emitwat-hash.wat" wat
     IO.println s!"wrote build/wasm-near/emitwat-hash.wat ({wat.length} bytes)"
     pure 0

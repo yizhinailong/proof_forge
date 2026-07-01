@@ -29,6 +29,7 @@ def contextModule : Module := {
 def main : IO UInt32 := do
   match renderModule contextModule with
   | .ok wat =>
+    IO.FS.createDirAll "build/wasm-near"
     IO.FS.writeFile "build/wasm-near/emitwat-context.wat" wat
     IO.println s!"wrote build/wasm-near/emitwat-context.wat ({wat.length} bytes)"
     pure 0

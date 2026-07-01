@@ -99,6 +99,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ir", default="ProofForge/IR/Contract.lean")
     parser.add_argument("--manifest", default="Tests/WasmNearCoverage.tsv")
+    parser.add_argument("--label", default="wasm-near-ir-coverage")
     args = parser.parse_args()
 
     ir_path = Path(args.ir)
@@ -116,10 +117,10 @@ def main() -> int:
 
     if errors:
         for error in errors:
-            print(f"wasm-near-ir-coverage: {error}", file=sys.stderr)
+            print(f"{args.label}: {error}", file=sys.stderr)
         return 1
 
-    print(f"wasm-near-ir-coverage: {len(manifest)} constructor entries match {ir_path}")
+    print(f"{args.label}: {len(manifest)} constructor entries match {ir_path}")
     return 0
 
 

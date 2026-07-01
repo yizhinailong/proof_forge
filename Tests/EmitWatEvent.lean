@@ -14,6 +14,7 @@ def eventModule : Module := { name := "EventProbe", state := #[], entrypoints :=
 def main : IO UInt32 := do
   match renderModule eventModule with
   | .ok wat =>
+    IO.FS.createDirAll "build/wasm-near"
     IO.FS.writeFile "build/wasm-near/emitwat-event.wat" wat
     IO.println s!"wrote build/wasm-near/emitwat-event.wat ({wat.length} bytes)"
     pure 0

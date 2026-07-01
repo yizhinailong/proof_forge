@@ -42,6 +42,7 @@ def featuresModule : Module := {
 def main : IO UInt32 := do
   match renderModule featuresModule with
   | .ok wat =>
+    IO.FS.createDirAll "build/wasm-near"
     IO.FS.writeFile "build/wasm-near/emitwat-features.wat" wat
     IO.println s!"wrote build/wasm-near/emitwat-features.wat ({wat.length} bytes)"
     pure 0

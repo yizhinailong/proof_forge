@@ -9,6 +9,7 @@ open ProofForge.Backend.WasmNear.EmitWat
 def main : IO UInt32 := do
   match renderModule ProofForge.IR.Examples.Counter.module with
   | .ok wat =>
+    IO.FS.createDirAll "build/wasm-near"
     IO.FS.writeFile "build/wasm-near/emitwat-counter.wat" wat
     IO.println s!"wrote build/wasm-near/emitwat-counter.wat ({wat.length} bytes)"
     pure 0

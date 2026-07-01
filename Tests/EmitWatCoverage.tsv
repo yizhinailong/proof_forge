@@ -1,0 +1,100 @@
+# inductive	constructor	status	evidence
+ValueType	unit	validated	EmitWat supports Unit entrypoint returns by omitting value_return and rejects Unit ABI parameters in loadParams.
+ValueType	bool	lowered	EmitWat lowers Bool literals, locals, returns, event fields, storage scalars, and map values using i32/i32.load8_u helpers.
+ValueType	u32	lowered	EmitWat lowers U32 literals, params, locals, returns, arithmetic, casts, storage scalars, and map values.
+ValueType	u64	lowered	EmitWat lowers U64 literals, params, locals, returns, arithmetic, storage scalars, map keys, map values, and array indices.
+ValueType	hash	lowered	EmitWat lowers Hash literals as four limbs, hash helpers, hash params/returns, hash scalars, and hash map keys/values.
+ValueType	fixedArray	lowered	EmitWat lowers fixed array literals, indexing, equality, local storage in linear memory, and release deallocation.
+ValueType	structType	lowered	EmitWat lowers struct literals, field access, scalar struct storage field read/write, equality through field values, and release deallocation.
+StateKind	scalar	lowered	EmitWat stateLayout maps scalar state ids to storage keys and lowers scalar read/write helpers for U32/U64/Bool/Hash and struct-valued scalar state.
+StateKind	map	lowered	EmitWat mapLayout maps map state to storage prefixes and lowers contains/get/set/insert for U64 and Hash keys with scalar or hash values.
+StateKind	array	lowered	EmitWat mapLayout represents array state as U64-keyed storage prefixes and lowers storageArrayRead/storageArrayWrite.
+Literal	u32	lowered	EmitWat emits i32.const for U32 literals.
+Literal	u64	lowered	EmitWat emits i64.const for U64 literals.
+Literal	bool	lowered	EmitWat emits i32.const 1/0 for Bool literals.
+Literal	hash4	lowered	EmitWat emits four U64 limbs and calls the hash constructor helper.
+ContextField	userId	lowered	EmitWat lowers userId to predecessor_account_id hashing through the context helper.
+ContextField	contractId	lowered	EmitWat lowers contractId to current_account_id hashing through the context helper.
+ContextField	checkpointId	lowered	EmitWat lowers checkpointId to block_index.
+AssignOp	add	lowered	EmitWat lowers local and scalar-storage compound add with the numeric wasm add operator.
+AssignOp	sub	lowered	EmitWat lowers local and scalar-storage compound subtract with the numeric wasm sub operator.
+AssignOp	mul	lowered	EmitWat lowers local and scalar-storage compound multiply with the numeric wasm mul operator.
+AssignOp	div	lowered	EmitWat lowers local and scalar-storage compound division with the unsigned wasm div operator.
+AssignOp	mod	lowered	EmitWat lowers local and scalar-storage compound modulo with the unsigned wasm rem operator.
+AssignOp	bitAnd	lowered	EmitWat lowers local and scalar-storage bitwise and.
+AssignOp	bitOr	lowered	EmitWat lowers local and scalar-storage bitwise or.
+AssignOp	bitXor	lowered	EmitWat lowers local and scalar-storage bitwise xor.
+AssignOp	shiftLeft	lowered	EmitWat lowers local and scalar-storage shift left.
+AssignOp	shiftRight	lowered	EmitWat lowers local and scalar-storage unsigned shift right.
+Expr	literal	lowered	EmitWat lowerExpr handles all Literal constructors directly.
+Expr	local	lowered	EmitWat lowers locals to local.get after local collection and parameter decoding.
+Expr	arrayLit	lowered	EmitWat lowers array literals to generated __pf_arr_lit helpers backed by the configured allocator.
+Expr	arrayGet	lowered	EmitWat lowers fixed array indexing with scalar-width pointer arithmetic and typed loads.
+Expr	structLit	lowered	EmitWat lowers struct literals to generated __pf_struct_lit helpers.
+Expr	field	lowered	EmitWat lowers struct field access with field offsets and typed loads.
+Expr	add	lowered	EmitWat lowers numeric add for matching U32/U64 operands.
+Expr	sub	lowered	EmitWat lowers numeric subtract for matching U32/U64 operands.
+Expr	mul	lowered	EmitWat lowers numeric multiply for matching U32/U64 operands.
+Expr	div	lowered	EmitWat lowers unsigned numeric division for matching U32/U64 operands.
+Expr	mod	lowered	EmitWat lowers unsigned numeric remainder for matching U32/U64 operands.
+Expr	pow	lowered	EmitWat lowers pow through generated U32/U64 exponentiation helpers.
+Expr	bitAnd	lowered	EmitWat lowers bitwise and for matching U32/U64 operands.
+Expr	bitOr	lowered	EmitWat lowers bitwise or for matching U32/U64 operands.
+Expr	bitXor	lowered	EmitWat lowers bitwise xor for matching U32/U64 operands.
+Expr	shiftLeft	lowered	EmitWat lowers shift left for matching U32/U64 operands.
+Expr	shiftRight	lowered	EmitWat lowers unsigned shift right for matching U32/U64 operands.
+Expr	cast	lowered	EmitWat lowers U32/U64/Bool casts that preserve the supported wasm scalar surface and rejects unsupported casts.
+Expr	eq	lowered	EmitWat lowers scalar/hash/fixed-array equality with wasm comparisons or helper calls.
+Expr	ne	lowered	EmitWat lowers scalar/hash/fixed-array inequality with wasm comparisons or helper calls.
+Expr	lt	lowered	EmitWat lowers scalar less-than comparisons for matching operands.
+Expr	le	lowered	EmitWat lowers scalar less-or-equal comparisons for matching operands.
+Expr	gt	lowered	EmitWat lowers scalar greater-than comparisons for matching operands.
+Expr	ge	lowered	EmitWat lowers scalar greater-or-equal comparisons for matching operands.
+Expr	boolAnd	lowered	EmitWat lowers boolean and with i32.and after Bool validation.
+Expr	boolOr	lowered	EmitWat lowers boolean or with i32.or after Bool validation.
+Expr	boolNot	lowered	EmitWat lowers boolean not with i32.eqz.
+Expr	hashValue	lowered	EmitWat lowers four U64 limbs into a hash value helper.
+Expr	hash	lowered	EmitWat lowers hash preimage hashing through the sha256-backed helper.
+Expr	hashTwoToOne	lowered	EmitWat lowers two-to-one hash through the hash concat helper.
+Expr	nativeValue	unsupported	EmitWat does not lower native attached value inspection; lowerExpr falls through to the unsupported expression diagnostic.
+Expr	crosscallInvoke	unsupported	EmitWat capability checking rejects crosscall.invoke before lowering.
+Expr	crosscallInvokeTyped	unsupported	EmitWat capability checking rejects typed cross-contract calls before lowering.
+Expr	crosscallInvokeValueTyped	unsupported	EmitWat capability checking rejects value-bearing typed cross-contract calls before lowering.
+Expr	crosscallInvokeStaticTyped	unsupported	EmitWat capability checking rejects static typed cross-contract calls before lowering.
+Expr	crosscallInvokeDelegateTyped	unsupported	EmitWat capability checking rejects delegate typed cross-contract calls before lowering.
+Expr	crosscallCreate	unsupported	EmitWat capability checking rejects contract creation through the crosscall capability.
+Expr	crosscallCreate2	unsupported	EmitWat capability checking rejects create2 contract creation through the crosscall capability.
+Expr	effect	lowered	EmitWat lowerExpr delegates expression-position effects to storage/context/map/array/struct effect lowering.
+Effect	storageScalarRead	lowered	EmitWat lowers scalar reads through typed storage_read helpers.
+Effect	storageScalarWrite	lowered	EmitWat lowers scalar writes through typed storage_write helpers, including struct-valued scalar writes.
+Effect	storageScalarAssignOp	lowered	EmitWat lowers scalar assignOp for non-hash scalar state by reading, applying the numeric/bitwise op, and writing back.
+Effect	storageMapContains	lowered	EmitWat lowers map contains through storage_has_key with U64 or Hash keys.
+Effect	storageMapGet	lowered	EmitWat lowers map get through typed map read helpers with default-on-missing behavior.
+Effect	storageMapInsert	lowered	EmitWat lowers map insert through the same map write helper surface as set, returning the previous value.
+Effect	storageMapSet	lowered	EmitWat lowers map set through map write helpers, returning the previous value when used as an expression.
+Effect	storageArrayRead	lowered	EmitWat lowers array state reads as U64-keyed map reads.
+Effect	storageArrayWrite	lowered	EmitWat lowers array state writes as U64-keyed map writes.
+Effect	storageArrayStructFieldRead	unsupported	EmitWat does not yet lower field reads inside struct-valued storage arrays.
+Effect	storageArrayStructFieldWrite	unsupported	EmitWat does not yet lower field writes inside struct-valued storage arrays.
+Effect	storageStructFieldRead	lowered	EmitWat lowers scalar struct storage field reads by reading the struct blob and loading the field offset.
+Effect	storageStructFieldWrite	lowered	EmitWat lowers scalar struct storage field writes by reading the struct blob, patching a field, and writing the blob back.
+Effect	storagePathRead	lowered	EmitWat lowers single mapKey storage paths to map get; multi-segment field/index paths are rejected.
+Effect	storagePathWrite	lowered	EmitWat lowers single mapKey storage paths to map write; multi-segment field/index paths are rejected.
+Effect	storagePathAssignOp	lowered	EmitWat lowers storagePathAssignOp for single mapKey paths with U32/U64 map values; field/index and effectful key paths remain rejected.
+Effect	contextRead	lowered	EmitWat lowers userId, contractId, and checkpointId context reads through NEAR host helpers.
+Effect	eventEmit	lowered	EmitWat lowers non-indexed events to JSON assembled in guest memory and emitted with log_utf8.
+Effect	eventEmitIndexed	unsupported	EmitWat does not yet lower indexed events.
+StoragePathSegment	field	unsupported	EmitWat only supports single mapKey storage paths; field path segments are not lowered yet.
+StoragePathSegment	index	unsupported	EmitWat only supports single mapKey storage paths; index path segments are not lowered yet.
+StoragePathSegment	mapKey	lowered	EmitWat lowers single mapKey path segments through map helpers.
+Statement	letBind	lowered	EmitWat lowers immutable let bindings to local.set after expression lowering.
+Statement	letMutBind	lowered	EmitWat lowers mutable let bindings to local.set after expression lowering.
+Statement	assign	lowered	EmitWat lowers assignment to local.set for local targets.
+Statement	assignOp	lowered	EmitWat lowers local compound assignment for numeric locals.
+Statement	effect	lowered	EmitWat lowers statement-position storage, map, array, struct, event, and assertion-compatible effects.
+Statement	assert	lowered	EmitWat lowers assert by trapping with unreachable when the Bool condition is false.
+Statement	assertEq	lowered	EmitWat lowers assertEq with scalar/hash/fixed-array equality checks followed by a trap on mismatch.
+Statement	release	lowered	EmitWat lowers release of owned fixed-array and struct locals to __pf_arr_dealloc after IR ownership checking.
+Statement	ifElse	lowered	EmitWat lowers if/else to wasm if with lowered branch bodies.
+Statement	boundedFor	lowered	EmitWat lowers boundedFor to wasm block/loop/br_if control flow.
+Statement	return	lowered	EmitWat lowers returns to value_return helpers for U32/U64/Bool/Hash values.

@@ -30,6 +30,7 @@ def mapModule : Module := {
 def main : IO UInt32 := do
   match renderModule mapModule with
   | .ok wat =>
+    IO.FS.createDirAll "build/wasm-near"
     IO.FS.writeFile "build/wasm-near/emitwat-map.wat" wat
     IO.println s!"wrote build/wasm-near/emitwat-map.wat ({wat.length} bytes)"
     pure 0
