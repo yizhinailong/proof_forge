@@ -14,6 +14,7 @@ Process: proposals start as Draft, move to **Accepted** when recorded in
 | [0001](0001-multichain-platform.md) | Accepted | Lean-first multi-chain contract platform architecture |
 | [0002](0002-target-implementation-design.md) | Accepted | Target profiles, build pipelines, and backend implementation design |
 | [0003](0003-portable-ir-and-runtime.md) | Draft | Portable IR, capability lowering, runtime profiles |
+| [0004](0004-solana-sbpf-assembly-backend.md) | Accepted | Solana sBPF assembly backend — direct codegen route bypassing the Zig runtime |
 
 ## Related
 
