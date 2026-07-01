@@ -29,6 +29,21 @@ def sumLiteral : Entrypoint := {
   ]
 }
 
+def releaseThenSum : Entrypoint := {
+  name := "release_then_sum"
+  returns := .u64
+  body := #[
+    .letBind "tmp" (.fixedArray .u64 3) (.arrayLit .u64 #[felt 1, felt 2, felt 3]),
+    .release "tmp",
+    .letBind "xs" (.fixedArray .u64 3) (.arrayLit .u64 #[felt 10, felt 20, felt 30]),
+    .return (.add
+      (.add
+        (.arrayGet (.local "xs") (ix 0))
+        (.arrayGet (.local "xs") (ix 1)))
+      (.arrayGet (.local "xs") (ix 2)))
+  ]
+}
+
 def storageLifecycle : Entrypoint := {
   name := "storage_lifecycle"
   returns := .u64
@@ -76,13 +91,13 @@ def emitWatSumResetModule : Module := {
   name := "ArrayProbe",
   state := #[],
   entrypoints := #[sumLiteral],
-  allocator := { strategy := .bumpReset }
+  allocator := { mode := .chainDeployment .bumpReset }
 }
 def emitWatSumExternalModule : Module := {
   name := "ArrayProbe",
   state := #[],
   entrypoints := #[sumLiteral],
-  allocator := { strategy := .external }
+  allocator := { mode := .offlineExperiment .hostBump }
 }
 /-- Direct-WAT wasm-internal allocator: allocator code is emitted into the WAT
     module and returns wasm linear-memory offsets. -/
@@ -90,7 +105,21 @@ def emitWatSumMinimalMallocModule : Module := {
   name := "ArrayProbe",
   state := #[],
   entrypoints := #[sumLiteral],
-  allocator := { strategy := .minimalMalloc }
+  allocator := { mode := .chainDeployment .minimalMalloc }
+}
+/-- NEAR deployment allocator profile: conceptually matches near-sdk's wasm
+    allocator placement model and lowers to the direct-WAT internal allocator. -/
+def emitWatSumNearAllocatorModule : Module := {
+  name := "ArrayProbe",
+  state := #[],
+  entrypoints := #[sumLiteral],
+  allocator := { mode := .chainDeployment .nearWeeModel }
+}
+def emitWatReleaseMinimalMallocModule : Module := {
+  name := "ArrayProbe",
+  state := #[],
+  entrypoints := #[releaseThenSum],
+  allocator := { mode := .chainDeployment .minimalMalloc }
 }
 /-- A reuse-capable strategy: same lowering surface as `external` (`pf_alloc` /
     `pf_dealloc` imports). The imported allocator must return offsets in wasm
@@ -101,7 +130,7 @@ def emitWatSumJemallocModule : Module := {
   name := "ArrayProbe",
   state := #[],
   entrypoints := #[sumLiteral],
-  allocator := { strategy := .jemalloc }
+  allocator := { mode := .offlineExperiment .hostJemallocShape }
 }
 
 

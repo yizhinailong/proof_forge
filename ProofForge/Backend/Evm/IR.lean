@@ -1423,6 +1423,8 @@ mutual
         ensureType "assert_eq right operand" lhsType rhsType
         ensureEqType "assert_eq" lhsType
         .ok env
+    | .release _ =>
+        .error { message := "release statements are not supported by IR EVM v0" }
     | .ifElse condition thenBody elseBody => do
         ensureType "if condition" .bool (← inferExprType module env condition)
         discard <| validateStatements module entrypoint env thenBody
@@ -3300,6 +3302,8 @@ mutual
     | .assertEq lhs rhs _ => do
         let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]
         .ok (#[lowerAssertStmt condition], env)
+    | .release _ =>
+        .error { message := "release statements are not supported by IR EVM v0" }
     | .ifElse condition thenBody elseBody => do
         let thenStatements ← lowerStatements module entrypointName returnType env true thenBody
         let elseStatements ← lowerStatements module entrypointName returnType env true elseBody
@@ -3999,6 +4003,8 @@ mutual
         let lhsSpecs ← crosscallHelperSpecsExpr module env lhs
         let rhsSpecs ← crosscallHelperSpecsExpr module env rhs
         .ok (mergeCrosscallHelperSpecs lhsSpecs rhsSpecs, env)
+    | .release _ =>
+        .ok (#[], env)
     | .ifElse condition thenBody elseBody => do
         let (thenSpecs, _) ← crosscallHelperSpecsStatements module env thenBody
         let (elseSpecs, _) ← crosscallHelperSpecsStatements module env elseBody
@@ -4150,6 +4156,8 @@ mutual
         createHelperSpecsExpr condition
     | .assertEq lhs rhs _ =>
         mergeCreateHelperSpecs (createHelperSpecsExpr lhs) (createHelperSpecsExpr rhs)
+    | .release _ =>
+        #[]
     | .ifElse condition thenBody elseBody =>
         mergeCreateHelperSpecs
           (createHelperSpecsExpr condition)
@@ -4304,6 +4312,8 @@ mutual
         .ok (localArrayGetLengthsExpr env condition, env)
     | .assertEq lhs rhs _ =>
         .ok (mergeNatSets (localArrayGetLengthsExpr env lhs) (localArrayGetLengthsExpr env rhs), env)
+    | .release _ =>
+        .ok (#[], env)
     | .ifElse condition thenBody elseBody => do
         let (thenLengths, _) ← localArrayGetLengthsStatements module env thenBody
         let (elseLengths, _) ← localArrayGetLengthsStatements module env elseBody

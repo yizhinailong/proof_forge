@@ -1,97 +1,139 @@
 /-! Allocator abstraction for the ProofForge IR.
 
 The IR is target-agnostic; how composite values (arrays, structs, path
-temporaries) are allocated in the target's address space is a *strategy* chosen
+temporaries) are allocated in the target's address space is a mode chosen
 per-module, not a hardcoded runtime detail. Every backend (EmitWat, Psy, …)
 reads `Module.allocator` and lowers the matching allocator helpers.
 
 ## Strategy families
 
-* **No-free** (`bump`, `bumpReset`): `dealloc` is a no-op. These match the
-  current IR, which has no explicit release/scope semantics — allocated
-  temporaries are never freed, so any reuse-capable allocator would degrade to
-  a slower bump (metadata overhead with nowhere to reclaim).
+* **No-free deployment** (`bump`, `bumpReset`): `dealloc` is a no-op. These are
+  useful when a module has no explicit `release` statements, because allocated
+  temporaries are never freed and any reuse-capable allocator would degrade to
+  a slower bump.
   - `bump`      — linear frontier, no reset. Cheapest; can accumulate across calls.
   - `bumpReset` — bump + reset the frontier to `heapBase` at each entrypoint
                   boundary. Zero-cost leak prevention for long-lived instances.
 
-* **Wasm-internal reuse** (`minimalMalloc`): EmitWat generates allocator code
-  inside the wasm module, matching the NEAR/Rust model where the allocator runs
-  in wasm linear memory and grows memory with `memory.grow`. This is not the
-  Rust `wee_alloc` crate; it is ProofForge's direct-WAT allocator with the same
-  placement model. `dealloc` can reuse blocks once the IR grows release/scope
-  semantics.
+* **Chain deployment reuse** (`nearWeeModel`, `minimalMalloc`,
+  `cosmWasmRegion`): the allocator is part of the final chain artifact. NEAR's
+  Rust SDK path links `wee_alloc` into the final wasm; EmitWat's direct-WAT
+  equivalent is generated wasm allocator code that returns linear-memory
+  offsets and grows memory with `memory.grow`. `cosmWasmRegion` is the
+  chain-specific allocate/deallocate export ABI used by CosmWasm adapters.
+  Backends that support `Statement.release` lower it to the matching
+  deallocator; unsupported backends reject release explicitly.
 
-* **Imported reuse** (`external`, `jemalloc`, `mimalloc`): `alloc` + `dealloc`
-  are paired through an allocator ABI. These require the IR to have
-  release/scope semantics (a future addition) for `dealloc` to have call sites;
-  without it they degrade to bump. The lowering uses an allocator ABI:
+* **Offline experiments** (`hostBump`, `hostJemallocShape`,
+  `hostMimallocShape`): `alloc` + `dealloc` are paired through an imported
+  allocator ABI and are not chain-deployable on NEAR. These are for local
+  simulation or wasm-link experiments only.
   - EmitWat (wasm) imports `pf_alloc` + `pf_dealloc`. `pf_alloc` must return an
     offset in the module's wasm linear memory, never a native host pointer. The
-    offline host can manage that linear memory directly for simulation, but a
-    real C allocator such as jemalloc must be compiled into wasm and linked into
-    the same address space. The NEAR runtime does NOT export these imports, so
-    imported reuse strategies are NOT chain-deployable there.
+    offline host can manage that linear memory directly for simulation.
+  - A real C allocator such as jemalloc must be compiled into wasm and linked
+    into the same address space before it can be used by guest wasm.
   - Psy (C++) can link the real library (jemalloc / mimalloc / …) directly.
-  - A chain-only backend must reject these (or fall back to an internal
-    free-list once the IR has free semantics).
 
-`AllocatorConfig.requiresHost` distinguishes the host-provided strategies so
+`AllocatorConfig.requiresHost` distinguishes offline imported allocators so
 backends can decide import-vs-internal and chain-deployability in one place. -/
 
 namespace ProofForge.IR
 
-inductive AllocatorStrategy where
+inductive ChainAllocator where
   /-- No-free: linear frontier, no reset. -/
   | bump
   /-- No-free: linear frontier, reset to `heapBase` at each entrypoint boundary. -/
   | bumpReset
-  /-- Reuse-capable: generic host-provided alloc+dealloc (implementation chosen
-      by an offline harness; `alloc` returns a wasm linear-memory offset). -/
-  | external
-  /-- Reuse-capable: intended for a wasm-linked jemalloc implementation. Until
-      that exists, offline hosts may simulate the ABI with a linear-memory bump
-      allocator. -/
-  | jemalloc
-  /-- Wasm-internal first-fit allocator for direct WAT output. This follows the
-      same placement model as NEAR's Rust/wee_alloc setup: allocator code lives
-      in the wasm module and returns linear-memory offsets. -/
+  /-- NEAR deployment model: allocator lives in the final wasm artifact. In Rust
+      sourcegen this maps to near-sdk's default `wee_alloc`; in direct WAT it
+      lowers to ProofForge's wasm-internal allocator shape. -/
+  | nearWeeModel
+  /-- Wasm-internal first-fit allocator for direct WAT output. -/
   | minimalMalloc
-  /-- Reuse-capable: host should provide a mimalloc-backed implementation. -/
-  | mimalloc
+  /-- CosmWasm deployment ABI: exported `allocate`/`deallocate` region allocator. -/
+  | cosmWasmRegion
   deriving Repr, BEq
 
-/-- Human-readable id for diagnostics / config output. -/
-def AllocatorStrategy.id : AllocatorStrategy → String
+/-- Offline-only allocator experiments. These are not chain deployment
+    strategies unless the allocator is linked into the final artifact. -/
+inductive ExperimentAllocator where
+  | hostBump
+  | hostJemallocShape
+  | hostMimallocShape
+  deriving Repr, BEq
+
+inductive AllocatorMode where
+  | chainDeployment (allocator : ChainAllocator)
+  | offlineExperiment (allocator : ExperimentAllocator)
+  deriving Repr, BEq
+
+def ChainAllocator.id : ChainAllocator → String
   | .bump => "alloc.bump"
   | .bumpReset => "alloc.bump_reset"
-  | .external => "alloc.external"
-  | .jemalloc => "alloc.jemalloc"
+  | .nearWeeModel => "alloc.near_wee_model"
   | .minimalMalloc => "alloc.minimal_malloc"
-  | .mimalloc => "alloc.mimalloc"
+  | .cosmWasmRegion => "alloc.cosmwasm_region"
 
-/-- Per-module allocator configuration. Backends read `strategy` to emit the
+def ExperimentAllocator.id : ExperimentAllocator → String
+  | .hostBump => "alloc.offline.host_bump"
+  | .hostJemallocShape => "alloc.offline.host_jemalloc_shape"
+  | .hostMimallocShape => "alloc.offline.host_mimalloc_shape"
+
+/-- Human-readable id for diagnostics / config output. -/
+def AllocatorMode.id : AllocatorMode → String
+  | .chainDeployment allocator => allocator.id
+  | .offlineExperiment allocator => allocator.id
+
+/-- Per-module allocator configuration. Backends read `mode` to emit the
     matching alloc/dealloc helpers and `heapBase` as the linear-memory base for
     the bump region (ignored by host-provided strategies). -/
 structure AllocatorConfig where
-  strategy : AllocatorStrategy := .bump
+  mode : AllocatorMode := .chainDeployment .bump
   heapBase : Nat := 60000
   deriving Repr
 
 /-- Default configuration: a plain bump allocator at offset 60000. -/
 def defaultAllocator : AllocatorConfig := {  }
 
-/-- True for host-provided (reuse-capable) strategies: the backend must supply
-    alloc/dealloc via import (EmitWat) or linking (Psy), and the result is not
-    chain-deployable on NEAR. -/
+/-- Backward-compatible shorthand for diagnostics and metadata. -/
+def AllocatorConfig.id (cfg : AllocatorConfig) : String :=
+  cfg.mode.id
+
+/-- True for offline imported allocator experiments: the backend must supply
+    alloc/dealloc via imports. These are not chain-deployable on NEAR. -/
 def AllocatorConfig.requiresHost : AllocatorConfig → Bool :=
-  fun cfg => match cfg.strategy with
-  | .external | .jemalloc | .mimalloc => true
-  | _ => false
+  fun cfg => match cfg.mode with
+  | .offlineExperiment _ => true
+  | .chainDeployment _ => false
 
 /-- True for strategies whose allocator is emitted inside the wasm module and
     therefore need no host allocator import. These are chain-deployable on NEAR. -/
 def AllocatorConfig.isWasmInternal : AllocatorConfig → Bool :=
   fun cfg => !cfg.requiresHost
+
+def AllocatorConfig.chainAllocator? (cfg : AllocatorConfig) : Option ChainAllocator :=
+  match cfg.mode with
+  | .chainDeployment allocator => some allocator
+  | .offlineExperiment _ => none
+
+def AllocatorConfig.experimentAllocator? (cfg : AllocatorConfig) : Option ExperimentAllocator :=
+  match cfg.mode with
+  | .offlineExperiment allocator => some allocator
+  | .chainDeployment _ => none
+
+def AllocatorConfig.usesEntryReset (cfg : AllocatorConfig) : Bool :=
+  cfg.chainAllocator? == some .bumpReset
+
+def AllocatorConfig.usesMinimalMallocShape (cfg : AllocatorConfig) : Bool :=
+  match cfg.chainAllocator? with
+  | some .nearWeeModel | some .minimalMalloc => true
+  | _ => false
+
+def AllocatorConfig.isCosmWasmRegion (cfg : AllocatorConfig) : Bool :=
+  cfg.chainAllocator? == some .cosmWasmRegion
+
+def AllocatorConfig.isOfflineJemallocShape (cfg : AllocatorConfig) : Bool :=
+  cfg.experimentAllocator? == some .hostJemallocShape
 
 end ProofForge.IR

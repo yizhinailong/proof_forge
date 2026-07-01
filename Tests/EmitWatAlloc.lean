@@ -3,9 +3,10 @@ import ProofForge.IR.Examples.ArrayProbe
 open ProofForge.IR.Examples ArrayProbe ProofForge.Backend.WasmNear.EmitWat
 
 /-! Render allocator-strategy variants of ArrayProbe.sumLiteral:
-    bumpReset (entrypoint-boundary reset), minimalMalloc (wasm-internal),
-    external, and jemalloc-shaped host-import ABI variants. Imported allocators
-    return wasm linear-memory offsets, not native host pointers. -/
+    bumpReset (entrypoint-boundary reset), minimalMalloc/NEAR deployment
+    (wasm-internal), external, and jemalloc-shaped host-import ABI variants.
+    Imported allocators return wasm linear-memory offsets, not native host
+    pointers. -/
 
 def main : IO UInt32 := do
   let render (m : ProofForge.IR.Module) (fname : String) : IO UInt32 := do
@@ -21,4 +22,6 @@ def main : IO UInt32 := do
   let r2 ← render emitWatSumExternalModule "emitwat-alloc-external.wat"
   let r3 ← render emitWatSumJemallocModule "emitwat-alloc-jemalloc.wat"
   let r4 ← render emitWatSumMinimalMallocModule "emitwat-alloc-minimal.wat"
-  if r1 == 0 && r2 == 0 && r3 == 0 && r4 == 0 then pure 0 else pure 1
+  let r5 ← render emitWatSumNearAllocatorModule "emitwat-alloc-near.wat"
+  let r6 ← render emitWatReleaseMinimalMallocModule "emitwat-release-minimal.wat"
+  if r1 == 0 && r2 == 0 && r3 == 0 && r4 == 0 && r5 == 0 && r6 == 0 then pure 0 else pure 1

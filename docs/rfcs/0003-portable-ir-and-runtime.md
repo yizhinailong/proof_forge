@@ -321,17 +321,23 @@ inductive HostBridgeKind where
   | module (id : String)   -- "near" | "cosmwasm" | "solana"
   | none             -- source generation targets
 
-inductive AllocatorStrategy where
-  | evmFreeMemPtr    -- Solidity free-memory-pointer at 0x40
-  | bump
-  | wasmSafe
-  | cosmwasmAbi
-  | none             -- source generation
+inductive ChainAllocator where
+  | bump             -- linear frontier in the final chain artifact
+  | bumpReset        -- bump + reset at each entrypoint boundary
+  | nearWeeModel     -- NEAR deployment profile; Rust SDK uses wee_alloc
+  | minimalMalloc    -- direct-WAT internal free-list allocator
+  | cosmWasmRegion   -- CosmWasm allocate/deallocate region ABI
+
+inductive ExperimentAllocator where
+  | hostBump
+  | hostJemallocShape
+  | hostMimallocShape
 
 structure RuntimeProfile where
   mode              : RuntimeMode
   hostBridge        : HostBridgeKind
-  allocator         : AllocatorStrategy
+  deploymentAllocator? : Option ChainAllocator
+  offlineAllocators : Array ExperimentAllocator
   supportsClosures  : Bool
   supportsBignum    : Bool
   supportsHeapObjects : Bool
@@ -467,9 +473,6 @@ This RFC is implemented when:
 - For Move source generation, where do resource abilities and `acquires`
   clauses live — in the IR, in the target manifest, or derived from capability
   usage? RFC 0002's Move notes lean toward IR; this RFC defers it.
-- Does the Wasm family share a generic allocator layer across NEAR and
-  CosmWasm, or does each bridge own its allocator? The runtime profile lists
-  per-target allocators, implying the latter; this should be confirmed.
 - Should the portable IR be a Lean data structure consumed by Lean-implemented
   backends, or a serialized format consumable by external (Zig/Rust) backends?
   The answer affects whether backends can be non-Lean per RFC 0001's open

@@ -10,13 +10,14 @@ the guest wasm linear memory. It never returns a native host pointer. The curren
 host implementation manages that linear memory with a bump allocator plus a
 reserved free-list path for future `pf_dealloc` call sites.
 
-`alloc.jemalloc` currently selects the same `pf_alloc` / `pf_dealloc` import ABI
-as `alloc.external`. A real jemalloc experiment must compile/link jemalloc into
-wasm so it allocates from the same linear memory; host-process jemalloc cannot be
-used directly by guest wasm.
+`alloc.offline.host_jemalloc_shape` uses the same `pf_alloc` / `pf_dealloc`
+import ABI as `alloc.offline.host_bump`. A real jemalloc experiment must
+compile/link jemalloc into wasm so it allocates from the same linear memory;
+host-process jemalloc cannot be used directly by guest wasm.
 
-`alloc.minimal_malloc` is different: `EmitWat` emits allocator code into the
-module itself. The offline host does not provide `pf_alloc` for that path; it
+Chain deployment allocators such as `alloc.near_wee_model` and
+`alloc.minimal_malloc` are different: `EmitWat` emits allocator code into the
+module itself. The offline host does not provide `pf_alloc` for those paths; it
 only provides the NEAR-style environment imports. See
 `docs/targets/wasm-allocators.md` for the strategy split.
 
@@ -40,6 +41,21 @@ Run the wasm-internal `minimalMalloc` fixture:
 ```sh
 cargo run --manifest-path runtime/offline-host/Cargo.toml -- \
   run build/wasm-near/emitwat-alloc-minimal.wat sum_literal --repeat 2
+```
+
+Run the NEAR deployment allocator fixture:
+
+```sh
+cargo run --manifest-path runtime/offline-host/Cargo.toml -- \
+  run build/wasm-near/emitwat-alloc-near.wat sum_literal --repeat 2
+```
+
+Run a fixture that explicitly releases one fixed-array local before allocating
+the next:
+
+```sh
+cargo run --manifest-path runtime/offline-host/Cargo.toml -- \
+  run build/wasm-near/emitwat-release-minimal.wat release_then_sum --repeat 2
 ```
 
 Compile WAT to wasm with wabt and run the binary path:

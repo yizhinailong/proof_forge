@@ -212,17 +212,23 @@ inductive HostBridgeKind where
   | module (id : String)   -- "near" | "cosmwasm" | "solana"
   | none             -- source generation targets
 
-inductive AllocatorStrategy where
-  | evmFreeMemPtr    -- Solidity free-memory-pointer at 0x40
-  | bump
-  | wasmSafe
-  | cosmwasmAbi
-  | none             -- source generation
+inductive ChainAllocator where
+  | bump             -- final chain artifact 中的线性 frontier
+  | bumpReset        -- bump + 每个入口边界重置
+  | nearWeeModel     -- NEAR 部署 profile；Rust SDK 使用 wee_alloc
+  | minimalMalloc    -- direct-WAT 内部 free-list allocator
+  | cosmWasmRegion   -- CosmWasm allocate/deallocate region ABI
+
+inductive ExperimentAllocator where
+  | hostBump
+  | hostJemallocShape
+  | hostMimallocShape
 
 structure RuntimeProfile where
   mode              : RuntimeMode
   hostBridge        : HostBridgeKind
-  allocator         : AllocatorStrategy
+  deploymentAllocator? : Option ChainAllocator
+  offlineAllocators : Array ExperimentAllocator
   supportsClosures  : Bool
   supportsBignum    : Bool
   supportsHeapObjects : Bool

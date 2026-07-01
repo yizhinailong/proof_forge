@@ -175,6 +175,10 @@ inductive Statement where
   | effect (effect : Effect)
   | assert (condition : Expr) (message : String)
   | assertEq (lhs rhs : Expr) (message : String)
+  /-- Release an owned heap-backed local. This is intentionally name-based
+      rather than pointer-based so later IR checkers can prove no use-after-free
+      and no double-release properties over local ownership. -/
+  | release (name : String)
   | ifElse (condition : Expr) (thenBody elseBody : Array Statement)
   | boundedFor (indexName : String) (start stopExclusive : Nat) (body : Array Statement)
   | return (value : Expr)
@@ -336,6 +340,7 @@ def Statement.capabilities : Statement → Array ProofForge.Target.Capability
   | Statement.effect eff => #[eff.capability] ++ eff.capabilities
   | .assert condition _ => #[.assertions] ++ condition.capabilities
   | .assertEq lhs rhs _ => #[.assertions] ++ lhs.capabilities ++ rhs.capabilities
+  | .release _ => #[]
   | .ifElse condition thenBody elseBody =>
       #[.controlConditional] ++ condition.capabilities ++
         thenBody.foldl (fun acc stmt => acc ++ stmt.capabilities) #[] ++

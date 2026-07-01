@@ -288,7 +288,7 @@ mutual
     | .boundedFor indexName _ _ body => do
         validateRustIdentifier s!"loop index in entrypoint `{entrypointName}`" indexName
         validateBodyIdentifiers entrypointName body
-    | .assign _ _ | .assignOp _ _ _ | .effect _ | .assert _ _ | .assertEq _ _ _ | .return _ =>
+    | .assign _ _ | .assignOp _ _ _ | .effect _ | .assert _ _ | .assertEq _ _ _ | .release _ | .return _ =>
         pure ()
 
   partial def validateBodyIdentifiers (entrypointName : String) (body : Array Statement) : Except LowerError Unit := do
@@ -402,6 +402,12 @@ mutual
         .ok .hash
     | .nativeValue => .ok .u64
     | .crosscallInvoke _ _ _ => .ok .u64
+    | .crosscallInvokeTyped _ _ _ returnType => .ok returnType
+    | .crosscallInvokeValueTyped _ _ _ _ returnType => .ok returnType
+    | .crosscallInvokeStaticTyped _ _ _ returnType => .ok returnType
+    | .crosscallInvokeDelegateTyped _ _ _ returnType => .ok returnType
+    | .crosscallCreate _ _ => .ok .u64
+    | .crosscallCreate2 _ _ _ => .ok .u64
     | .effect effect => inferEffectExprType module env effect
 
   partial def inferEffectExprType (module : Module) (env : TypeEnv) : Effect → Except LowerError ValueType
@@ -449,6 +455,8 @@ mutual
     | .contextRead _ => .ok .u64
     | .eventEmit _ _ =>
         .error { message := "event.emit is a statement effect, not an expression" }
+    | .eventEmitIndexed _ _ _ =>
+        .error { message := "event.emit.indexed is a statement effect, not an expression" }
 
   partial def inferStoragePathType (module : Module) (env : TypeEnv) (stateId : String) (path : Array StoragePathSegment) : Except LowerError ValueType := do
     let state ← stateDeclOf module stateId "storage path"
@@ -508,6 +516,8 @@ mutual
         ensureType "assert_eq right operand" lhsType rhsType
         ensureEqType "assert_eq" lhsType
         .ok env
+    | .release _ =>
+        .error { message := "release statements are not supported by wasm-near Rust sourcegen v0" }
     | .ifElse _ _ _ =>
         .error { message := "conditional branches are not supported by wasm-near IR v0" }
     | .boundedFor _ _ _ _ =>
@@ -572,6 +582,8 @@ mutual
           | .u32 | .u64 | .bool | .hash => pure ()
           | .unit | .fixedArray _ _ | .structType _ =>
               .error { message := s!"event `{name}` field `{field.fst}` has unsupported wasm-near IR v0 type `{actual.name}`; event fields must be U32, U64, Bool, or Hash" }
+    | .eventEmitIndexed _ _ _ =>
+        .error { message := "indexed events are not supported by wasm-near Rust sourcegen v0" }
   partial def validateStatements (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) (statements : Array Statement) : Except LowerError TypeEnv :=
     statements.foldlM (init := env) fun acc stmt =>
       validateStatementTypes module entrypoint acc stmt
@@ -707,6 +719,13 @@ mutual
         .error { message := "native value inspection is not supported by wasm-near IR v0; add a dedicated attached-deposit IR context field first" }
     | .crosscallInvoke _ _ _ =>
         .error { message := "cross-contract calls are not supported by wasm-near Rust sourcegen v0" }
+    | .crosscallInvokeTyped _ _ _ _
+    | .crosscallInvokeValueTyped _ _ _ _ _
+    | .crosscallInvokeStaticTyped _ _ _ _
+    | .crosscallInvokeDelegateTyped _ _ _ _
+    | .crosscallCreate _ _
+    | .crosscallCreate2 _ _ _ =>
+        .error { message := "cross-contract calls are not supported by wasm-near Rust sourcegen v0" }
     | .effect effect => lowerEffectExpr module effect
 
   partial def lowerEffectExpr (module : Module) : Effect → Except LowerError String
@@ -757,6 +776,8 @@ mutual
         .ok "env::block_height()"
     | .eventEmit _ _ =>
         .error { message := "event.emit is a statement effect, not an expression" }
+    | .eventEmitIndexed _ _ _ =>
+        .error { message := "event.emit.indexed is a statement effect, not an expression" }
 
   partial def mapValueSuffix (valueType : ValueType) : String :=
     match valueType with
@@ -853,6 +874,8 @@ mutual
         let jsonParts := #[s!"\"event\":\"{name}\""] ++ fieldJson
         let logLine := "near_sdk::log!(\"{" ++ String.intercalate "," jsonParts.toList ++ "}\");"
         .ok #[logLine]
+    | .eventEmitIndexed _ _ _ =>
+        .error { message := "indexed events are not supported by wasm-near Rust sourcegen v0" }
 
   partial def lowerStoragePathWrite (module : Module) (stateId : String) (path : Array StoragePathSegment) (value : Expr) : Except LowerError (Array String) := do
     let state ← stateDeclOf module stateId "storage path"
@@ -886,6 +909,8 @@ mutual
         .ok #[s!"assert!({← lowerExpr module condition}, {stringLiteral message});"]
     | .assertEq lhs rhs message => do
         .ok #[s!"assert_eq!({← lowerExpr module lhs}, {← lowerExpr module rhs}, {stringLiteral message});"]
+    | .release _ =>
+        .error { message := "release statements are not supported by wasm-near Rust sourcegen v0" }
     | .ifElse _ _ _ =>
         .error { message := "if/else statements are not supported by wasm-near IR v0" }
     | .boundedFor _ _ _ _ =>

@@ -384,17 +384,17 @@ def structFieldOffset? (s : ProofForge.IR.StructDecl) (fieldName : String) : Opt
 def structFieldType? (s : ProofForge.IR.StructDecl) (fieldName : String) : Option ValueType :=
   (s.fields.find? (fun f => f.id == fieldName)).map (fun f => f.type)
 def structLitName (typeName : String) : String := "__pf_struct_lit_" ++ typeName
-/-- The `arr_ptr` mutable global holds the bump frontier; only emitted for the
-    `bump`/`bumpReset` strategies (`external` has no frontier). -/
+/-- The `arr_ptr` mutable global holds the bump frontier; only emitted for
+    chain-deployment allocators (offline imported allocators have no frontier). -/
 def arrPtrGlobalDecl (heapBase : Nat) : Global :=
   { name := arrPtrGlobal, type := .i32, init := toString heapBase, isMutable := true }
 def arrFreeGlobalDecl : Global :=
   { name := arrFreeGlobal, type := .i32, init := "0", isMutable := true }
-/-- `__pf_arr_alloc(n) -> i32` lowered per strategy: `bump`/`bumpReset` advance the
-    frontier; `minimalMalloc` emits a wasm-internal first-fit allocator;
-    `external` forwards to the host-provided `pf_alloc` import. -/
+/-- `__pf_arr_alloc(n) -> i32` lowered per allocator mode: no-free deployment
+    advances the frontier; NEAR/minimal deployment emits a wasm-internal
+    first-fit allocator; offline experiments forward to `pf_alloc`. -/
 def arrAllocFunc (cfg : ProofForge.IR.AllocatorConfig) : Func :=
-  if cfg.strategy == ProofForge.IR.AllocatorStrategy.minimalMalloc then
+  if cfg.usesMinimalMallocShape then
     { name := arrAllocName, params := #[{ name := "n", type := .i64 }], results := #[.i32],
       locals := #[{ name := "need", type := .i32 }, { name := "prev", type := .i32 },
                   { name := "curr", type := .i32 }, { name := "next", type := .i32 },
@@ -435,12 +435,12 @@ def arrAllocFunc (cfg : ProofForge.IR.AllocatorConfig) : Func :=
         if cfg.requiresHost then #[.localGet "n", .call allocImportName]
         else #[ .globalGet arrPtrGlobal,
           .globalGet arrPtrGlobal, .localGet "n", .plain "i32.wrap_i64", .plain "i32.add", .globalSet arrPtrGlobal ] } }
-/-- `__pf_arr_dealloc(ptr, n)`: no-op for bump strategies; forwards to the host
-    `pf_dealloc` for reuse-capable strategies. The IR has no release/scope
-    semantics yet, so no lowering currently emits a call to this helper — it is
-    emitted so the import is wired and ready once free semantics land. -/
+/-- `__pf_arr_dealloc(ptr, n)`: no-op for no-free deployment strategies, host
+    forwarder for offline experiments, and wasm-internal free-list update for
+    chain deployment allocators with reuse. `Statement.release` lowers to this
+    helper for heap-backed locals. -/
 def arrDeallocFunc (cfg : ProofForge.IR.AllocatorConfig) : Func :=
-  if cfg.strategy == ProofForge.IR.AllocatorStrategy.minimalMalloc then
+  if cfg.usesMinimalMallocShape then
     { name := "__pf_arr_dealloc", params := #[{ name := "p", type := .i32 }, { name := "n", type := .i64 }],
       results := #[], locals := #[{ name := "block", type := .i32 }],
       body := { insns := #[
@@ -977,6 +977,14 @@ mutual
     | .hashTwoToOne a b => collectArrayLitsExpr a ++ collectArrayLitsExpr b
     | .nativeValue => #[]
     | .crosscallInvoke t m args => collectArrayLitsExpr t ++ collectArrayLitsExpr m ++ args.foldl (fun acc a => acc ++ collectArrayLitsExpr a) #[]
+    | .crosscallInvokeTyped t m args _
+    | .crosscallInvokeStaticTyped t m args _
+    | .crosscallInvokeDelegateTyped t m args _ =>
+        collectArrayLitsExpr t ++ collectArrayLitsExpr m ++ args.foldl (fun acc a => acc ++ collectArrayLitsExpr a) #[]
+    | .crosscallInvokeValueTyped t m v args _ =>
+        collectArrayLitsExpr t ++ collectArrayLitsExpr m ++ collectArrayLitsExpr v ++ args.foldl (fun acc a => acc ++ collectArrayLitsExpr a) #[]
+    | .crosscallCreate value _ => collectArrayLitsExpr value
+    | .crosscallCreate2 value salt _ => collectArrayLitsExpr value ++ collectArrayLitsExpr salt
     | .effect eff => collectArrayLitsEffect eff
   partial def collectArrayLitsEffect (eff : Effect) : Array (ValueType × Nat) :=
     match eff with
@@ -996,6 +1004,9 @@ mutual
     | .storagePathAssignOp _ _ _ v => collectArrayLitsExpr v
     | .contextRead _ => #[]
     | .eventEmit _ fields => fields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) #[]
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexed := indexedFields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) #[]
+        dataFields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) indexed
     | .storageScalarRead _ => #[]
   partial def collectStructLitsExpr (e : Expr) : Array String :=
     match e with
@@ -1013,6 +1024,14 @@ mutual
     | .hashValue a b c d => collectStructLitsExpr a ++ collectStructLitsExpr b ++ collectStructLitsExpr c ++ collectStructLitsExpr d
     | .hashTwoToOne a b => collectStructLitsExpr a ++ collectStructLitsExpr b
     | .crosscallInvoke t m args => collectStructLitsExpr t ++ collectStructLitsExpr m ++ args.foldl (fun acc a => acc ++ collectStructLitsExpr a) #[]
+    | .crosscallInvokeTyped t m args _
+    | .crosscallInvokeStaticTyped t m args _
+    | .crosscallInvokeDelegateTyped t m args _ =>
+        collectStructLitsExpr t ++ collectStructLitsExpr m ++ args.foldl (fun acc a => acc ++ collectStructLitsExpr a) #[]
+    | .crosscallInvokeValueTyped t m v args _ =>
+        collectStructLitsExpr t ++ collectStructLitsExpr m ++ collectStructLitsExpr v ++ args.foldl (fun acc a => acc ++ collectStructLitsExpr a) #[]
+    | .crosscallCreate value _ => collectStructLitsExpr value
+    | .crosscallCreate2 value salt _ => collectStructLitsExpr value ++ collectStructLitsExpr salt
     | .effect eff => collectStructLitsEffect eff
   partial def collectStructLitsEffect (eff : Effect) : Array String :=
     match eff with
@@ -1030,6 +1049,9 @@ mutual
     | .storagePathAssignOp _ _ _ v => collectStructLitsExpr v
     | .contextRead _ => #[]
     | .eventEmit _ fields => fields.foldl (fun acc f => acc ++ collectStructLitsExpr f.snd) #[]
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexed := indexedFields.foldl (fun acc f => acc ++ collectStructLitsExpr f.snd) #[]
+        dataFields.foldl (fun acc f => acc ++ collectStructLitsExpr f.snd) indexed
     | .storageScalarRead _ => #[]
 end
 
@@ -1043,6 +1065,7 @@ partial def collectArrayLitsStmt (s : Statement) : Array (ValueType × Nat) :=
   | .assertEq a b _ => collectArrayLitsExpr a ++ collectArrayLitsExpr b
   | .ifElse c t e => collectArrayLitsExpr c ++ t.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[] ++ e.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[]
   | .boundedFor _ _ _ body => body.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[]
+  | .release _ => #[]
   | .return v => collectArrayLitsExpr v
 def dedupArrayLits (xs : Array (ValueType × Nat)) : Array (ValueType × Nat) :=
   xs.foldl (fun acc x => if acc.any (fun y => y.1 == x.1 && y.2 == x.2) then acc else acc.push x) #[]
@@ -1109,6 +1132,7 @@ partial def collectStructLitsStmt (s : Statement) : Array String :=
   | .assertEq a b _ => collectStructLitsExpr a ++ collectStructLitsExpr b
   | .ifElse c t e => collectStructLitsExpr c ++ t.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[] ++ e.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[]
   | .boundedFor _ _ _ body => body.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[]
+  | .release _ => #[]
   | .return v => collectStructLitsExpr v
 def dedupStrings (xs : Array String) : Array String :=
   xs.foldl (fun acc x => if acc.any (fun y => y == x) then acc else acc.push x) #[]
@@ -1130,6 +1154,7 @@ partial def collectLocalsFrom (acc : LocalTypes) (s : Statement) : Except EmitEr
   | .boundedFor indexName _ _ body =>
     let acc := acc.push { name := indexName, vt := .u64 }
     body.foldlM (init := acc) collectLocalsFrom
+  | .release _ => .ok acc
   | _ => .ok acc
 
 def collectLocals (body : Array Statement) : Except EmitError LocalTypes :=
@@ -1261,6 +1286,16 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
         | _ => #[.plain (widthOf ta ++ ".eq")]
       .ok (la ++ lb ++ eqInsn ++ #[.plain "i32.eqz",
                             .if_ { insns := #[.unreachable] } { insns := #[] }])
+  | .release name => do
+    let some vt ← pure (lookupLocal? env name) | err s!"EmitWat: release of unknown local `{name}`"
+    match vt with
+    | .fixedArray elemType len =>
+      .ok #[.localGet name, .i64Const (len * scalarWidth elemType), .call "__pf_arr_dealloc"]
+    | .structType typeName =>
+      match findStruct? ctx.structs typeName with
+      | none => err s!"EmitWat: release refers to unknown struct `{typeName}`"
+      | some sd => .ok #[.localGet name, .i64Const (structTotalSize sd), .call "__pf_arr_dealloc"]
+    | _ => err s!"EmitWat: release expects a heap-backed FixedArray/Struct local, got `{vt.name}`"
   | .return e => lowerReturn ctx env returns e
   | .ifElse cond thenBody elseBody => do
     let (cis, ct) ← lowerExpr ctx env cond
@@ -1307,12 +1342,14 @@ def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
   let locals := paramLocals ++ bodyLocals.map (fun b => { name := b.name, type := wasmTypeOf b.vt : Local })
   let bodyInsns ← ep.body.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx allLocalTypes ep.returns s)
   let resetPrefix : Array Insn :=
-    if ctx.allocator.strategy == ProofForge.IR.AllocatorStrategy.bumpReset then
+    if ctx.allocator.usesEntryReset then
       #[.i32Const ctx.allocator.heapBase, .globalSet arrPtrGlobal]
     else #[]
   .ok { name := ep.name, locals := locals, body := { insns := resetPrefix ++ paramPrologue ++ bodyInsns }, exportName := ep.name }
 
 def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compiler.Wasm.Module := do
+  if mod.allocator.isCosmWasmRegion then
+    err "EmitWat: alloc.cosmwasm_region is for the CosmWasm adapter, not wasm-near EmitWat"
   let scalars := stateLayout mod
   let maps := mapLayout mod
   let strs := stringPool mod
@@ -1328,13 +1365,12 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let isHost := mod.allocator.requiresHost
   let extraImports := if isHost then #[allocImport, deallocImport] else #[]
   let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport]) ++ extraImports
-  let usesInternalDealloc := mod.allocator.strategy == ProofForge.IR.AllocatorStrategy.minimalMalloc
   let arrFuncs := arrLitHelperFuncs mod ++ arrEqHelperFuncs mod ++ structLitHelperFuncs mod
-    ++ #[arrAllocFunc mod.allocator] ++ (if isHost || usesInternalDealloc then #[arrDeallocFunc mod.allocator] else #[])
+    ++ #[arrAllocFunc mod.allocator, arrDeallocFunc mod.allocator]
   let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ (if maps.any (fun m => m.keyType == .hash) then mapHashHelperFuncs else #[]) ++ arrFuncs ++ entryFuncs
   let arrPtrDecls :=
     if isHost then #[]
-    else if mod.allocator.strategy == ProofForge.IR.AllocatorStrategy.minimalMalloc then
+    else if mod.allocator.usesMinimalMallocShape then
       #[arrPtrGlobalDecl mod.allocator.heapBase, arrFreeGlobalDecl]
     else #[arrPtrGlobalDecl mod.allocator.heapBase]
   let globals := #[hashPtrGlobalDecl] ++ evtGlobals ++ arrPtrDecls
