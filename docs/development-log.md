@@ -15,6 +15,50 @@ Each entry should include:
 - known limitations
 - next step
 
+## 2026-07-02
+
+### EVM IR Hash Aggregate ABI Leaves
+
+Commit: `test: cover EVM hash aggregate ABI leaves`
+
+Summary:
+
+- Extended `EvmAbiAggregateProbe` with `HashPair` and `Hash` fixed-array ABI
+  entrypoints:
+  `echo_hash_pair((bytes32,bytes32))`,
+  `make_hash_pair(bytes32,bytes32)`, `pick_hash(bytes32[2])`, and
+  `make_hash_array(bytes32,bytes32)`.
+- Validated that `Hash` leaves flatten as Solidity `bytes32` words inside flat
+  structs and fixed arrays for ABI-facing calldata and return data.
+- Refreshed the `EvmAbiAggregateProbe` golden Yul, selector metadata checks,
+  Foundry ABI decode checks, coverage table, English/Chinese EVM target docs,
+  validation gates, and backlog notes.
+
+Validation run:
+
+```sh
+scripts/evm/abi-aggregate-ir-smoke.sh
+```
+
+Result:
+
+- `EvmAbiAggregateProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 3 ABI aggregate tests, including `HashPair` calldata/return-data,
+  `bytes32[2]` calldata/return-data, and short `bytes32[2]` calldata rejection.
+
+Known limitations:
+
+- Dynamic ABI values remain outside the portable IR EVM v0 surface.
+- Rich ABI tuples beyond flat word aggregates remain explicit future work.
+- Storage-backed aggregate ABI returns stay covered only by the fixed word-array
+  and flat struct-array cases in the dedicated storage probes.
+
+Next step:
+
+- Continue shrinking aggregate ABI/crosscall gaps, or decide whether richer
+  dynamic ABI values require a portable IR extension first.
+
 ## 2026-07-01
 
 ### EVM IR Typed Scalar Event Fields

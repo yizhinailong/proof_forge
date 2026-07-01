@@ -398,6 +398,12 @@ Tasks:
   capability validation, CI coverage, and explicit diagnostics for Unit,
   zero-length arrays, non-flat struct fields, and crosscall-only unsupported
   nested fixed-array leaf shapes.
+- Done: close the EVM aggregate ABI validation gap for `Hash` leaves.
+  `HashPair(bytes32,bytes32)`, `pick_hash(bytes32[2])`, and
+  `make_hash_array(bytes32,bytes32)` now prove `Hash`/`bytes32` fields and
+  fixed arrays flatten through calldata and return-data encoding, with golden
+  Yul, metadata selector checks, `solc`, Foundry ABI decoding, and short
+  `bytes32[2]` calldata rejection.
 - Done: add golden Yul outputs for SDK EVM examples (`Counter`,
   `ArrayExample`, `SimpleToken`, `ERC20`, `Ownable`, `Pausable`, and
   `VerifiedVault`) and make `scripts/evm/build-examples.sh` diff generated Yul
