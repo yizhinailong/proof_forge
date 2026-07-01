@@ -231,10 +231,11 @@ Tasks:
 - Done: add EVM IR flat storage struct lowering for scalar storage structs and
   fixed storage arrays of flat structs, including direct struct field effects,
   scalar `field` storage paths, array `index`+`field` storage paths, numeric
-  field compound assignment, `Bool`/`U32`/`Hash` field coverage,
-  `EvmStorageStructProbe` golden Yul, solc bytecode, Foundry runtime/raw-slot
-  validation, metadata capability validation, CI coverage, and explicit
-  diagnostics for whole-struct reads/writes and missing fields.
+  field compound assignment, whole scalar storage struct read/write with RHS
+  snapshotting, storage-backed ABI struct returns, `Bool`/`U32`/`Hash` field
+  coverage, `EvmStorageStructProbe` golden Yul, solc bytecode, Foundry
+  runtime/raw-slot validation, metadata capability validation, CI coverage, and
+  explicit diagnostics for missing fields and non-flat storage structs.
 - Done: add EVM IR flat static aggregate ABI lowering for fixed-array and
   struct parameters/returns, including fixed arrays of flat structs, with
   calldata word flattening, `U32`/`Bool` aggregate word guards, multi-word

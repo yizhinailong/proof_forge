@@ -463,11 +463,7 @@ def stateDeclOf (module : Module) (stateId kind : String) : Except LowerError St
 def scalarStateType (module : Module) (stateId : String) : Except LowerError ValueType := do
   let state ← stateDeclOf module stateId "scalar"
   match state.kind with
-  | .scalar =>
-      match state.type with
-      | .structType _ =>
-          .error { message := s!"state `{stateId}` is struct storage; use storage.struct.field.read/write" }
-      | _ => .ok state.type
+  | .scalar => .ok state.type
   | .map _ _ => .error { message := s!"state `{stateId}` is a map, not scalar storage" }
   | .array _ => .error { message := s!"state `{stateId}` is an array, not scalar storage" }
 
@@ -532,9 +528,9 @@ def requireLocalFixedStructArrayField
   | other =>
       .error { message := s!"{context} local `{name}` expected fixed-array struct element, got `{other.name}`" }
 
-def requireStructStateField
+def requireStructState
     (module : Module)
-    (stateId fieldName : String) : Except LowerError (Nat × StructField) := do
+    (stateId : String) : Except LowerError (Nat × String × StructDecl) := do
   match stateInfo? module stateId with
   | none => .error { message := s!"unknown struct state `{stateId}`" }
   | some (slot, state) =>
@@ -542,16 +538,26 @@ def requireStructStateField
       | .scalar, .structType typeName => do
           let some decl := findStruct? module typeName
             | .error { message := s!"state `{stateId}` uses unknown struct `{typeName}`" }
-          let some (offset, field) := findStructFieldWithOffset? decl fieldName
-            | .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
-          ensureStructLocalFieldType typeName field.id field.type
-          .ok (slot + offset, field)
+          if decl.fields.isEmpty then
+            .error { message := s!"state `{stateId}` uses empty struct `{typeName}`; EVM IR v0 storage structs must have at least one field" }
+          for field in decl.fields do
+            ensureStructLocalFieldType typeName field.id field.type
+          .ok (slot, typeName, decl)
       | .scalar, other =>
           .error { message := s!"state `{stateId}` has unsupported EVM IR v0 struct storage type `{other.name}`; expected struct storage" }
       | .array _, _ =>
           .error { message := s!"state `{stateId}` is array storage, not scalar struct storage" }
       | .map _ _, _ =>
           .error { message := s!"state `{stateId}` is map storage, not scalar struct storage" }
+
+def requireStructStateField
+    (module : Module)
+    (stateId fieldName : String) : Except LowerError (Nat × StructField) := do
+  let (slot, typeName, decl) ← requireStructState module stateId
+  let some (offset, field) := findStructFieldWithOffset? decl fieldName
+    | .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
+  ensureStructLocalFieldType typeName field.id field.type
+  .ok (slot + offset, field)
 
 def requireStructArrayStateField
     (module : Module)
@@ -575,6 +581,18 @@ def requireStructArrayStateField
           .error { message := s!"state `{stateId}` is scalar storage, not a struct array" }
       | .map _ _, _ =>
           .error { message := s!"state `{stateId}` is map storage, not a struct array" }
+
+def lowerStructStorageReadFields
+    (module : Module)
+    (context typeName stateId : String) : Except LowerError (Array (String × Lean.Compiler.Yul.Expr)) := do
+  let (slot, stateTypeName, decl) ← requireStructState module stateId
+  ensureType context (.structType typeName) (.structType stateTypeName)
+  let mut fields : Array (String × Lean.Compiler.Yul.Expr) := #[]
+  for h : idx in [0:decl.fields.size] do
+    let field := decl.fields[idx]
+    ensureStructLocalFieldType typeName field.id field.type
+    fields := fields.push (field.id, Lean.Compiler.Yul.builtin "sload" #[slotExpr (slot + idx)])
+  .ok fields
 
 def validateStructLiteralFields
     (module : Module)
@@ -1185,6 +1203,8 @@ mutual
     match base with
     | .local name =>
         .ok (Lean.Compiler.Yul.Expr.id (structLocalFieldName name fieldName))
+    | .effect (.storageScalarRead stateId) =>
+        lowerStructFieldReadExpr module stateId fieldName
     | .arrayGet (.local name) index => do
         let (_, length, _) ← requireLocalFixedStructArrayField module env "struct field access" name fieldName
         match literalArrayIndex? index with
@@ -1282,7 +1302,12 @@ mutual
 
   partial def lowerEffectExpr (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Expr
     | .storageScalarRead stateId => do
-        discard <| scalarStateType module stateId
+        match ← scalarStateType module stateId with
+        | .structType _ =>
+            .error {
+              message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
+            }
+        | _ => pure ()
         let some slot := stateSlot? module stateId
           | .error { message := s!"unknown scalar state `{stateId}`" }
         .ok (Lean.Compiler.Yul.builtin "sload" #[slotExpr slot])
@@ -1368,6 +1393,71 @@ def lowerStructFieldWriteStmt
   let (slot, _) ← requireStructStateField module stateId fieldName
   .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module env value]))
 
+def storageStructAssignTempName (stateId fieldName : String) : String :=
+  s!"__proof_forge_assign_storage_struct_{stateId}_{fieldName}"
+
+def lowerStorageStructWriteSourceExprs
+    (module : Module)
+    (env : TypeEnv)
+    (stateId typeName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array (Nat × String × Lean.Compiler.Yul.Expr)) := do
+  let some decl := findStruct? module typeName
+    | .error { message := s!"storage scalar struct write `{stateId}` uses unknown struct `{typeName}`" }
+  match value with
+  | .local sourceName => do
+      let some binding := findLocal? env sourceName
+        | .error { message := s!"unknown local `{sourceName}`" }
+      ensureType s!"storage scalar struct write `{stateId}` source type" (.structType typeName) binding.type
+      let mut values : Array (Nat × String × Lean.Compiler.Yul.Expr) := #[]
+      for h : idx in [0:decl.fields.size] do
+        let fieldDecl := decl.fields[idx]
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        values := values.push (idx, fieldDecl.id, Lean.Compiler.Yul.Expr.id (structLocalFieldName sourceName fieldDecl.id))
+      .ok values
+  | .structLit literalTypeName fields => do
+      if literalTypeName != typeName then
+        .error { message := s!"storage scalar struct write `{stateId}` expected struct `{typeName}`, got `{literalTypeName}`" }
+      let mut values : Array (Nat × String × Lean.Compiler.Yul.Expr) := #[]
+      for h : idx in [0:decl.fields.size] do
+        let fieldDecl := decl.fields[idx]
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        let some field := fields.find? fun field => field.fst == fieldDecl.id
+          | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+        values := values.push (idx, fieldDecl.id, ← lowerExpr module env field.snd)
+      .ok values
+  | .effect (.storageScalarRead sourceStateId) => do
+      let fields ← lowerStructStorageReadFields module s!"storage scalar struct write `{stateId}` source type" typeName sourceStateId
+      let mut values : Array (Nat × String × Lean.Compiler.Yul.Expr) := #[]
+      for h : idx in [0:fields.size] do
+        let field := fields[idx]
+        values := values.push (idx, field.fst, field.snd)
+      .ok values
+  | _ =>
+      .error {
+        message := s!"storage scalar struct write `{stateId}` supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0"
+      }
+
+def lowerStorageStructWriteStmt
+    (module : Module)
+    (env : TypeEnv)
+    (stateId : String)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let (slot, typeName, _) ← requireStructState module stateId
+  let sourceExprs ← lowerStorageStructWriteSourceExprs module env stateId typeName value
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  for source in sourceExprs do
+    let (_, fieldName, expr) := source
+    statements := statements.push <|
+      .varDecl #[{ name := storageStructAssignTempName stateId fieldName }] (some expr)
+  for source in sourceExprs do
+    let (idx, fieldName, _) := source
+    statements := statements.push <|
+      .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+        slotExpr (slot + idx),
+        Lean.Compiler.Yul.Expr.id (storageStructAssignTempName stateId fieldName)
+      ])
+  .ok (.block { statements := statements })
+
 partial def lowerStructArrayFieldWriteStmt
     (module : Module)
     (env : TypeEnv)
@@ -1450,12 +1540,18 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
   | .storageScalarRead _ =>
       .error { message := "storage.scalar.read must be used as an expression" }
   | .storageScalarWrite stateId value => do
-      discard <| scalarStateType module stateId
-      let some slot := stateSlot? module stateId
-        | .error { message := s!"unknown scalar state `{stateId}`" }
-      .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module env value]))
+      match ← scalarStateType module stateId with
+      | .structType _ =>
+          lowerStorageStructWriteStmt module env stateId value
+      | _ => do
+          let some slot := stateSlot? module stateId
+            | .error { message := s!"unknown scalar state `{stateId}`" }
+          .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module env value]))
   | .storageScalarAssignOp stateId op value => do
-      discard <| scalarStateType module stateId
+      match ← scalarStateType module stateId with
+      | .structType _ =>
+          .error { message := s!"storage.scalar.assign_op does not support struct state `{stateId}` in IR EVM v0" }
+      | _ => pure ()
       let some slot := stateSlot? module stateId
         | .error { message := s!"unknown scalar state `{stateId}`" }
       let storageSlot := slotExpr slot
@@ -1602,9 +1698,18 @@ def lowerStructLetBinding
             #[{ name := structLocalFieldName name fieldDecl.id }]
             (some (← lowerExpr module env field.snd))
       .ok statements
+  | .effect (.storageScalarRead stateId) => do
+      let fields ← lowerStructStorageReadFields module s!"let binding `{name}` struct type" typeName stateId
+      let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+      for field in fields do
+        statements := statements.push <|
+          Lean.Compiler.Yul.Statement.varDecl
+            #[{ name := structLocalFieldName name field.fst }]
+            (some field.snd)
+      .ok statements
   | _ =>
       .error {
-        message := s!"let binding `{name}` struct must be initialized from a struct literal in IR EVM v0"
+        message := s!"let binding `{name}` struct must be initialized from a struct literal or storage scalar struct read in IR EVM v0"
       }
 
 def lowerAssignTargetName (context : String) : ProofForge.IR.Expr → Except LowerError String
@@ -1767,8 +1872,10 @@ def lowerStructAssignmentSourceExprs
           | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
         values := values.push (fieldDecl.id, ← lowerExpr module env field.snd)
       .ok values
+  | .effect (.storageScalarRead stateId) =>
+      lowerStructStorageReadFields module s!"assignment target `{name}` struct type" typeName stateId
   | _ =>
-      .error { message := s!"assignment target `{name}` struct whole assignment supports local struct values or struct literals in IR EVM v0" }
+      .error { message := s!"assignment target `{name}` struct whole assignment supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0" }
 
 def lowerWholeStructAssignStmt
     (module : Module)
@@ -2104,9 +2211,12 @@ def lowerStructReturnWords
           | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
         words := words.push (← lowerExpr module env field.snd)
       .ok words
+  | .effect (.storageScalarRead stateId) => do
+      let fields ← lowerStructStorageReadFields module s!"entrypoint `{entrypointName}` struct return type" typeName stateId
+      .ok (fields.map fun field => field.snd)
   | _ =>
       .error {
-        message := s!"entrypoint `{entrypointName}` struct returns in IR EVM v0 support local struct values or struct literals only"
+        message := s!"entrypoint `{entrypointName}` struct returns in IR EVM v0 support local struct values, struct literals, or storage scalar struct reads only"
       }
 
 def lowerReturnWords

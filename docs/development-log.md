@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Whole Storage Struct Read/Write
+
+Commit: feature commit for EVM IR whole storage struct read/write
+
+Summary:
+
+- Allowed `storageScalarRead` and `storageScalarWrite` to operate on flat
+  scalar storage structs by expanding the struct into declaration-ordered EVM
+  field slots.
+- Added aggregate-only lowering for struct storage reads: struct local
+  bindings, struct field access, whole local struct assignment, and struct
+  returns can consume `storageScalarRead` without treating the struct as a
+  single EVM word.
+- Lowered whole scalar storage struct writes from local structs, struct
+  literals, and storage struct reads with RHS field snapshotting before writing
+  target slots.
+- Extended `EvmStorageStructProbe` with whole write/read-into-local, direct
+  ABI struct return from storage, and self-referential storage write snapshot
+  coverage.
+- Refreshed golden Yul, artifact metadata entrypoint checks, Foundry smoke
+  tests, diagnostics, coverage manifest, target docs, validation gates, backlog,
+  and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- Whole storage struct operations are limited to flat scalar storage structs
+  whose fields lower to EVM words (`U32`, `U64`, `Bool`, or `Hash`).
+- Nested struct fields, non-flat struct storage, nested arrays, and dynamic or
+  nested aggregate ABI values remain explicit diagnostics or documented gaps.
+
+Next step:
+
+- Continue shrinking the EVM aggregate unsupported surface around nested local
+  aggregate shapes, broader storage-backed aggregate ABI values, richer
+  cross-call return data, or event schema fidelity.
+
 ### EVM IR Struct Array Whole Local Assignment
 
 Commit: feature commit for EVM IR struct-array whole local assignment

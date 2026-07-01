@@ -48,6 +48,9 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint array_path_lifecycle:2991a157 \
   --expect-entrypoint typed_sum:2ec467be \
   --expect-entrypoint root_value:c42f8c06 \
+  --expect-entrypoint whole_struct_write_sum:c1e31e63 \
+  --expect-entrypoint whole_struct_return:cd13529b \
+  --expect-entrypoint self_struct_storage_write:696ddaa7 \
   --expect-entrypoint read_point_x:db006782 \
   "$METADATA_FILE"
 
@@ -122,6 +125,12 @@ contract ProofForgeIRStorageStructSmokeTest {
         return abi.decode(result, (bytes32));
     }
 
+    function callPair(address probe, bytes memory payload) internal returns (uint256, uint256) {
+        (bool ok, bytes memory result) = probe.call(payload);
+        assertTrue(ok);
+        return abi.decode(result, (uint256, uint256));
+    }
+
     function testIRStorageStructScalarLifecycleUsesExpandedSlots() public {
         address probe = address(uint160(0xA320));
         deployRuntime(hex"$probe_hex", probe);
@@ -179,8 +188,35 @@ contract ProofForgeIRStorageStructSmokeTest {
         assertEqBytes32(readStorageBytes32(probe, 10), ROOT_VALUE);
     }
 
-    function testIRStorageStructArrayParameterizedReadAndBounds() public {
+    function testIRStorageStructWholeWriteAndReadIntoLocal() public {
         address probe = address(uint160(0xA326));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("whole_struct_write_sum()")), 70);
+        assertEq(readStorage(probe, 1), 30);
+        assertEq(readStorage(probe, 2), 40);
+    }
+
+    function testIRStorageStructWholeReturnEncodesFields() public {
+        address probe = address(uint160(0xA327));
+        deployRuntime(hex"$probe_hex", probe);
+
+        (uint256 x, uint256 y) = callPair(probe, abi.encodeWithSignature("whole_struct_return()"));
+        assertEq(x, 8);
+        assertEq(y, 13);
+    }
+
+    function testIRStorageStructWholeWriteSnapshotsRHS() public {
+        address probe = address(uint160(0xA328));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("self_struct_storage_write()")), 705);
+        assertEq(readStorage(probe, 1), 7);
+        assertEq(readStorage(probe, 2), 5);
+    }
+
+    function testIRStorageStructArrayParameterizedReadAndBounds() public {
+        address probe = address(uint160(0xA329));
         deployRuntime(hex"$probe_hex", probe);
 
         assertEq(callU256(probe, abi.encodeWithSignature("array_struct_lifecycle()")), 12);
@@ -191,7 +227,7 @@ contract ProofForgeIRStorageStructSmokeTest {
     }
 
     function testIRStorageStructRejectsUnknownSelector() public {
-        address probe = address(uint160(0xA327));
+        address probe = address(uint160(0xA32A));
         deployRuntime(hex"$probe_hex", probe);
 
         (bool ok,) = probe.call(hex"ffffffff");

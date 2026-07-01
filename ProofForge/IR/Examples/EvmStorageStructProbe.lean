@@ -63,6 +63,12 @@ def bool (value : Bool) : Expr :=
 def hash (a b c d : Nat) : Expr :=
   .literal (.hash4 a b c d)
 
+def point (x y : Nat) : Expr :=
+  .structLit "Point" #[
+    ("x", u64 x),
+    ("y", u64 y)
+  ]
+
 def pathIndex (value : Nat) : StoragePathSegment :=
   .index (u64 value)
 
@@ -150,6 +156,45 @@ def rootValue : Entrypoint := {
   ]
 }
 
+def wholeStructWriteSum : Entrypoint := {
+  name := "whole_struct_write_sum"
+  selector? := some "c1e31e63"
+  returns := .u64
+  body := #[
+    .effect (.storageScalarWrite "current" (point 30 40)),
+    .letBind "snapshot" (.structType "Point") (.effect (.storageScalarRead "current")),
+    .return (.add
+      (.field (.local "snapshot") "x")
+      (.field (.local "snapshot") "y"))
+  ]
+}
+
+def wholeStructReturn : Entrypoint := {
+  name := "whole_struct_return"
+  selector? := some "cd13529b"
+  returns := .structType "Point"
+  body := #[
+    .effect (.storageScalarWrite "current" (point 8 13)),
+    .return (.effect (.storageScalarRead "current"))
+  ]
+}
+
+def selfStructStorageWrite : Entrypoint := {
+  name := "self_struct_storage_write"
+  selector? := some "696ddaa7"
+  returns := .u64
+  body := #[
+    .effect (.storageScalarWrite "current" (point 5 7)),
+    .effect (.storageScalarWrite "current" (.structLit "Point" #[
+      ("x", .field (.effect (.storageScalarRead "current")) "y"),
+      ("y", .field (.effect (.storageScalarRead "current")) "x")
+    ])),
+    .return (.add
+      (.mul (.effect (.storageStructFieldRead "current" "x")) (u64 100))
+      (.effect (.storageStructFieldRead "current" "y")))
+  ]
+}
+
 def readPointX : Entrypoint := {
   name := "read_point_x"
   selector? := some "db006782"
@@ -171,6 +216,9 @@ def module : Module := {
     arrayPathLifecycle,
     typedSum,
     rootValue,
+    wholeStructWriteSum,
+    wholeStructReturn,
+    selfStructStorageWrite,
     readPointX
   ]
 }

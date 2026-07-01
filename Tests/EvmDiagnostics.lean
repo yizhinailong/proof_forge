@@ -176,19 +176,6 @@ def pointStruct : StructDecl := {
   fields := #[{ id := "x", type := .u64 }]
 }
 
-def structStorageModule : Module := {
-  name := "BadStructStorage"
-  structs := #[pointStruct]
-  state := #[{
-    id := "current"
-    kind := .scalar
-    type := .structType "Point"
-  }]
-  entrypoints := #[selectedReturnEntrypoint "bad" (.structType "Point") #[
-    .return (.effect (.storageScalarRead "current"))
-  ]]
-}
-
 def structStorageMissingFieldModule : Module := {
   name := "BadStructStorageMissingField"
   structs := #[pointStruct]
@@ -471,11 +458,6 @@ def cases : Array (String × Module × String) := #[
     "fixed array literal out of bounds",
     fixedArrayOutOfBoundsModule,
     "fixed array index 2 is out of bounds for length 2"
-  ),
-  (
-    "whole struct scalar read unsupported",
-    structStorageModule,
-    "state `current` is struct storage; use storage.struct.field.read/write"
   ),
   (
     "struct storage missing field unsupported",
