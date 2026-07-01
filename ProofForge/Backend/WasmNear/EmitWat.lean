@@ -47,6 +47,7 @@ def INPUT_BUF : Nat := 44000       -- 1 KB scratch for Borsh input args
 def PARAM_HASH_BUF : Nat := 46000  -- 32-byte slots for decoded hash params (one per hash param)
 def ZERO_HASH_BUF : Nat := 50000  -- 32 zero bytes returned for missing hash-valued map entries
 def OLD_HASH_BUF   : Nat := 50500  -- 32-byte slot holding the previous value for hash-valued map set/insert
+def STRUCT_BUF      : Nat := 52000  -- buffer for reading/writing struct-valued scalar state
 
 -- Value type → Wasm
 def wasmTypeOf : ValueType → ValType
@@ -55,7 +56,7 @@ def widthOf : ValueType → String
   | .u32 => "i32" | .u64 => "i64" | .bool => "i32" | .hash => "i32" | _ => "i32"
 def isNumeric (t : ValueType) : Bool := match t with | .u32 | .u64 => true | _ => false
 def scalarWidth : ValueType → Nat
-  | .u32 => 4 | .u64 => 8 | .bool => 1 | _ => 8
+  | .u32 => 4 | .u64 => 8 | .bool => 1 | .hash => 32 | _ => 8
 def loadOpFor : ValueType → String
   | .u32 => "i32.load" | .u64 => "i64.load" | .bool => "i32.load8_u" | _ => "i64.load"
 def storeOpFor : ValueType → String
@@ -365,6 +366,21 @@ def arrayLitName (elemType : ValueType) (len : Nat) : String :=
   "__pf_arr_lit_" ++ typeSuffix elemType ++ "_" ++ toString len
 def arrEqName (elemType : ValueType) (len : Nat) : String :=
   "__pf_arr_eq_" ++ typeSuffix elemType ++ "_" ++ toString len
+def findStruct? (structs : Array ProofForge.IR.StructDecl) (name : String) : Option ProofForge.IR.StructDecl :=
+  structs.find? (fun s => s.name == name)
+/-- Field offset = prefix sum of `scalarWidth` of preceding fields; total size = sum all. -/
+def structTotalSize (s : ProofForge.IR.StructDecl) : Nat :=
+  s.fields.foldl (fun acc f => acc + scalarWidth f.type) 0
+def structFieldOffset? (s : ProofForge.IR.StructDecl) (fieldName : String) : Option Nat :=
+  let rec go (i acc : Nat) : Option Nat :=
+    if h : i < s.fields.size then
+      let f := s.fields[i]
+      if f.id == fieldName then some acc else go (i+1) (acc + scalarWidth f.type)
+    else none
+  go 0 0
+def structFieldType? (s : ProofForge.IR.StructDecl) (fieldName : String) : Option ValueType :=
+  (s.fields.find? (fun f => f.id == fieldName)).map (fun f => f.type)
+def structLitName (typeName : String) : String := "__pf_struct_lit_" ++ typeName
 def arrPtrGlobalDecl : Global :=
   { name := arrPtrGlobal, type := .i32, init := toString ARR_HEAP, isMutable := true }
 def arrAllocFunc : Func :=
@@ -615,6 +631,7 @@ structure Ctx where
   scalars : Array StateInfo
   maps    : Array MapInfo
   strings : Array StringInfo
+  structs : Array ProofForge.IR.StructDecl
 
 structure LBind where
   name : String
@@ -709,6 +726,20 @@ mutual
         else do
           let kis ← lowerMapKeyU64 ctx env index
           .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ #[.call (mapReadName m.valueType)], m.valueType)
+    | .effect (.storageStructFieldRead id fieldName) =>
+      match findScalarState? ctx.scalars id with
+      | none => err s!"EmitWat: unknown scalar state `{id}`"
+      | some s => match s.type with
+        | .structType typeName =>
+          match findStruct? ctx.structs typeName with
+          | none => err s!"EmitWat: unknown struct `{typeName}`"
+          | some sd => match structFieldOffset? sd fieldName, structFieldType? sd fieldName with
+            | some off, some ft =>
+              .ok (#[.i64Const s.keyLen, .i64Const s.keyPtr, .i64Const 0, .call "storage_read", .drop,
+                     .i64Const 0, .i64Const STRUCT_BUF, .call "read_register",
+                     .i32Const off, .i32Const STRUCT_BUF, .plain "i32.add", .load (loadOpFor ft) 0], ft)
+            | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
+        | _ => err s!"EmitWat: storageStructFieldRead expects a struct state, got `{s.type.name}`"
     | .arrayLit elementType values => do
       let lowered ← values.mapM fun v => do
         let (is, t) ← lowerExpr ctx env v
@@ -728,6 +759,32 @@ mutual
           .ok (pa ++ pi ++ conv ++ #[.i32Const (scalarWidth elemType), .plain "i32.mul",
                 .plain "i32.add", .load (loadOpFor elemType) 0], elemType)
       | _ => err s!"EmitWat: arrayGet expected an array value, got `{ta.name}`"
+    | .structLit typeName fields => do
+      match findStruct? ctx.structs typeName with
+      | none => err s!"EmitWat: unknown struct `{typeName}`"
+      | some s =>
+        let argInsns ← s.fields.mapM fun f =>
+          match fields.find? (fun (n, _) => n == f.id) with
+          | none => err s!"EmitWat: structLit `{typeName}` missing field `{f.id}`"
+          | some (_, vexpr) => do
+            let (vis, vt) ← lowerExpr ctx env vexpr
+            if vt != f.type then
+              err s!"EmitWat: struct field `{typeName}.{f.id}` expected `{f.type.name}`, got `{vt.name}`"
+            else .ok vis
+        .ok (argInsns.foldl (fun acc is => acc ++ is) #[] ++ #[.call (structLitName typeName)],
+              .structType typeName)
+    | .field base fieldName => do
+      let (pb, tb) ← lowerExpr ctx env base
+      match tb with
+      | .structType typeName =>
+        match findStruct? ctx.structs typeName with
+        | none => err s!"EmitWat: unknown struct `{typeName}`"
+        | some s =>
+          match structFieldOffset? s fieldName, structFieldType? s fieldName with
+          | some off, some ft =>
+            .ok (pb ++ #[.i32Const off, .plain "i32.add", .load (loadOpFor ft) 0], ft)
+          | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
+      | _ => err s!"EmitWat: field access expects a struct value, got `{tb.name}`"
     | _ => err "EmitWat: this expression form is not yet supported"
 
   partial def lowerNumBin (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
@@ -862,6 +919,40 @@ mutual
     | .contextRead _ => #[]
     | .eventEmit _ fields => fields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) #[]
     | .storageScalarRead _ => #[]
+  partial def collectStructLitsExpr (e : Expr) : Array String :=
+    match e with
+    | .literal _ | .local _ | .nativeValue => #[]
+    | .arrayLit _ values => values.foldl (fun acc v => acc ++ collectStructLitsExpr v) #[]
+    | .arrayGet a i => collectStructLitsExpr a ++ collectStructLitsExpr i
+    | .structLit typeName fields => #[typeName] ++ fields.foldl (fun acc f => acc ++ collectStructLitsExpr f.snd) #[]
+    | .field base _ => collectStructLitsExpr base
+    | .add a b | .sub a b | .mul a b | .div a b | .mod a b | .pow a b
+    | .bitAnd a b | .bitOr a b | .bitXor a b | .shiftLeft a b | .shiftRight a b
+    | .eq a b | .ne a b | .lt a b | .le a b | .gt a b | .ge a b
+    | .boolAnd a b | .boolOr a b => collectStructLitsExpr a ++ collectStructLitsExpr b
+    | .cast value _ | .boolNot value => collectStructLitsExpr value
+    | .hash preimage => collectStructLitsExpr preimage
+    | .hashValue a b c d => collectStructLitsExpr a ++ collectStructLitsExpr b ++ collectStructLitsExpr c ++ collectStructLitsExpr d
+    | .hashTwoToOne a b => collectStructLitsExpr a ++ collectStructLitsExpr b
+    | .crosscallInvoke t m args => collectStructLitsExpr t ++ collectStructLitsExpr m ++ args.foldl (fun acc a => acc ++ collectStructLitsExpr a) #[]
+    | .effect eff => collectStructLitsEffect eff
+  partial def collectStructLitsEffect (eff : Effect) : Array String :=
+    match eff with
+    | .storageScalarWrite _ v | .storageScalarAssignOp _ _ v => collectStructLitsExpr v
+    | .storageMapContains _ k | .storageMapGet _ k => collectStructLitsExpr k
+    | .storageMapInsert _ k v | .storageMapSet _ k v => collectStructLitsExpr k ++ collectStructLitsExpr v
+    | .storageArrayRead _ i => collectStructLitsExpr i
+    | .storageArrayWrite _ i v => collectStructLitsExpr i ++ collectStructLitsExpr v
+    | .storageArrayStructFieldRead _ i _ => collectStructLitsExpr i
+    | .storageArrayStructFieldWrite _ i _ v => collectStructLitsExpr i ++ collectStructLitsExpr v
+    | .storageStructFieldRead _ _ => #[]
+    | .storageStructFieldWrite _ _ v => collectStructLitsExpr v
+    | .storagePathRead _ _ => #[]
+    | .storagePathWrite _ _ v => collectStructLitsExpr v
+    | .storagePathAssignOp _ _ _ v => collectStructLitsExpr v
+    | .contextRead _ => #[]
+    | .eventEmit _ fields => fields.foldl (fun acc f => acc ++ collectStructLitsExpr f.snd) #[]
+    | .storageScalarRead _ => #[]
 end
 
 -- Statements
@@ -915,14 +1006,46 @@ def arrEqFunc (elemType : ValueType) (len : Nat) : Func :=
       .localGet "eq"] } }
 def arrEqHelperFuncs (mod : ProofForge.IR.Module) : Array Func :=
   moduleArrayLits mod |>.map (fun (e, n) => arrEqFunc e n)
+/-- `__pf_struct_lit_<name>(f0,f1,..) -> i32`: alloc totalSize bytes, store each
+    field at its cumulative offset, return the base pointer. -/
+def structLitFunc (s : ProofForge.IR.StructDecl) : Func :=
+  let total := structTotalSize s
+  let stores : Array Insn :=
+    (s.fields.foldl (fun st f =>
+        (st.1 + scalarWidth f.type,
+         st.2 ++ #[.i32Const st.1, .localGet "p", .plain "i32.add",
+                   .localGet f.id, .store (storeOpFor f.type) 0]))
+      (0, (#[] : Array Insn))).2
+  { name := structLitName s.name,
+    params := s.fields.map (fun f => { name := f.id, type := wasmTypeOf f.type }),
+    results := #[.i32],
+    locals := #[{ name := "p", type := .i32 }],
+    body := { insns :=
+      #[.i64Const total, .call arrAllocName, .localSet "p"] ++ stores ++ #[.localGet "p"] } }
+partial def collectStructLitsStmt (s : Statement) : Array String :=
+  match s with
+  | .letBind _ _ v | .letMutBind _ _ v => collectStructLitsExpr v
+  | .assign _ v | .assignOp _ _ v => collectStructLitsExpr v
+  | .effect eff => collectStructLitsEffect eff
+  | .assert c _ => collectStructLitsExpr c
+  | .assertEq a b _ => collectStructLitsExpr a ++ collectStructLitsExpr b
+  | .ifElse c t e => collectStructLitsExpr c ++ t.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[] ++ e.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[]
+  | .boundedFor _ _ _ body => body.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[]
+  | .return v => collectStructLitsExpr v
+def dedupStrings (xs : Array String) : Array String :=
+  xs.foldl (fun acc x => if acc.any (fun y => y == x) then acc else acc.push x) #[]
+def moduleStructLitNames (mod : ProofForge.IR.Module) : Array String :=
+  dedupStrings (mod.entrypoints.foldl (fun acc ep => acc ++ ep.body.foldl (fun a st => a ++ collectStructLitsStmt st) #[]) #[])
+def structLitHelperFuncs (mod : ProofForge.IR.Module) : Array Func :=
+  moduleStructLitNames mod |>.filterMap (fun name => (mod.structs.find? (fun s => s.name == name)).map structLitFunc)
 
 partial def collectLocalsFrom (acc : LocalTypes) (s : Statement) : Except EmitError LocalTypes := do
   match s with
   | .letBind name t _ | .letMutBind name t _ =>
     if isNumeric t || t == .bool || t == .hash then .ok (acc.push { name := name, vt := t })
     else match t with
-      | .fixedArray _ _ => .ok (acc.push { name := name, vt := t })
-      | _ => err s!"EmitWat: only U32/U64/Bool/Hash/FixedArray locals are supported (got `{t.name}`)"
+      | .fixedArray _ _ | .structType _ => .ok (acc.push { name := name, vt := t })
+      | _ => err s!"EmitWat: only U32/U64/Bool/Hash/FixedArray/Struct locals are supported (got `{t.name}`)"
   | .ifElse _ thenBody elseBody =>
     let acc ← thenBody.foldlM (init := acc) collectLocalsFrom
     elseBody.foldlM (init := acc) collectLocalsFrom
@@ -990,9 +1113,32 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     let some s ← pure (findScalarState? ctx.scalars id) | err s!"EmitWat: unknown scalar state `{id}`"
     let (is, t) ← lowerExpr ctx env e
     if t != s.type then err s!"EmitWat: scalar write `{id}` expected `{s.type.name}`, got `{t.name}`"
-    else
-      let callName := if s.type == .hash then writeHashName else writeName s.type
-      .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen] ++ is ++ #[.call callName])
+    else match s.type with
+      | .structType typeName =>
+        match findStruct? ctx.structs typeName with
+        | none => err s!"EmitWat: unknown struct `{typeName}`"
+        | some sd => .ok (#[.i64Const s.keyLen, .i64Const s.keyPtr, .i64Const (structTotalSize sd)]
+                          ++ is ++ #[.plain "i64.extend_i32_u", .i64Const 0, .call "storage_write", .drop])
+      | _ =>
+        let callName := if s.type == .hash then writeHashName else writeName s.type
+        .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen] ++ is ++ #[.call callName])
+  | .effect (.storageStructFieldWrite id fieldName value) => do
+    match findScalarState? ctx.scalars id with
+    | none => err s!"EmitWat: unknown scalar state `{id}`"
+    | some s => match s.type with
+      | .structType typeName =>
+        match findStruct? ctx.structs typeName with
+        | none => err s!"EmitWat: unknown struct `{typeName}`"
+        | some sd => match structFieldOffset? sd fieldName, structFieldType? sd fieldName with
+          | some off, some ft =>
+            let (vis, vt) ← lowerExpr ctx env value
+            if vt != ft then err s!"EmitWat: struct field write `{id}.{fieldName}` expected `{ft.name}`, got `{vt.name}`"
+            else .ok (#[.i64Const s.keyLen, .i64Const s.keyPtr, .i64Const 0, .call "storage_read", .drop,
+                       .i64Const 0, .i64Const STRUCT_BUF, .call "read_register",
+                       .i32Const off, .i32Const STRUCT_BUF, .plain "i32.add"] ++ vis ++ #[.store (storeOpFor ft) 0,
+                       .i64Const s.keyLen, .i64Const s.keyPtr, .i64Const (structTotalSize sd), .i64Const STRUCT_BUF, .i64Const 0, .call "storage_write", .drop])
+          | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
+      | _ => err s!"EmitWat: storageStructFieldWrite expects a struct state, got `{s.type.name}`"
   | .effect (.storageScalarAssignOp id op value) => do
     let some s ← pure (findScalarState? ctx.scalars id) | err s!"EmitWat: unknown scalar state `{id}`"
     if s.type == .hash then err s!"EmitWat: storageScalarAssignOp not supported on Hash scalars (`{id}`)"
@@ -1082,7 +1228,7 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let scalars := stateLayout mod
   let maps := mapLayout mod
   let strs := stringPool mod
-  let ctx := { scalars := scalars, maps := maps, strings := strs : Ctx }
+  let ctx := { scalars := scalars, maps := maps, strings := strs, structs := mod.structs : Ctx }
   let entryFuncs ← mod.entrypoints.mapM (lowerEntrypoint ctx)
   let scalarData := scalars.map fun s => { offset := s.keyPtr, bytes := s.id : DataSegment }
   let mapData := maps.map fun m => { offset := m.prefixPtr, bytes := m.id ++ ":" : DataSegment }
@@ -1092,7 +1238,7 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let stringData := strs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
   let baseImports := nearImports.push sha256Import |>.push logUtf8Import |>.push inputImport
   let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport])
-  let arrFuncs := arrLitHelperFuncs mod ++ arrEqHelperFuncs mod ++ #[arrAllocFunc]
+  let arrFuncs := arrLitHelperFuncs mod ++ arrEqHelperFuncs mod ++ structLitHelperFuncs mod ++ #[arrAllocFunc]
   let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ (if maps.any (fun m => m.keyType == .hash) then mapHashHelperFuncs else #[]) ++ arrFuncs ++ entryFuncs
   let globals := #[hashPtrGlobalDecl] ++ evtGlobals ++ #[arrPtrGlobalDecl]
   .ok { imports := imports, globals := globals, funcs := funcs,
@@ -1108,7 +1254,7 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
     and `controlBoundedLoop` (if/else + boundedFor are lowered natively in WAT).
     Arrays / structs / fixed arrays / crosscall stay rejected. -/
 def emitWatCapabilities : ProofForge.Target.CapabilitySet :=
-  ProofForge.Target.wasmNear.capabilities ++ #[.controlConditional, .controlBoundedLoop, .storageArray, .dataFixedArray]
+  ProofForge.Target.wasmNear.capabilities ++ #[.controlConditional, .controlBoundedLoop, .storageArray, .dataFixedArray, .dataStruct]
 
 def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
   mod.capabilities.foldlM (fun _ c =>

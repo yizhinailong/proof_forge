@@ -58,4 +58,14 @@ def module : Module := {
   entrypoints := #[localSum, storageLifecycle]
 }
 
+/-- EmitWat-compatible subset for 16c-1: only `localSum` (structLit + field),
+    no storage. -/
+def emitWatLocalSumModule : Module := {
+  name := "StructProbe"
+  structs := #[pointStruct]
+  state := #[]
+  entrypoints := #[localSum]
+}
+
+
 end ProofForge.IR.Examples.StructProbe
