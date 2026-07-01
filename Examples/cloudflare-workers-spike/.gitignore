@@ -1,0 +1,11 @@
+# Build artifacts
+build/
+*.wasm
+
+# Wrangler local state
+.wrangler/
+node_modules/
+
+# OS / editor
+.DS_Store
+*.log
