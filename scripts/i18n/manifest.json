@@ -1,6 +1,6 @@
 {
   "README.md": {
-    "sha256": "85361e20f1d35e10f61964603b8a9214e2f32ee26835553c22cad8562ba1bb6d",
+    "sha256": "c4080914b37ab4231a36e5b564271465257b9b019aa2d384099804151eb6e00c",
     "zh": "docs/zh/README-root.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -45,7 +45,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/development-standards.md": {
-    "sha256": "2ff208c90bc4af3952e5e4a2a9f5c2212568e1f89b73591a7b756bc8ccaef890",
+    "sha256": "f74bc3e8b5398b03a32158a0b73d0bbb88881e07189e16f0079daa5bbc8e52f5",
     "zh": "docs/zh/development-standards.zh.md",
     "model": "gemini-3-flash-preview"
   },

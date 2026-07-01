@@ -40,6 +40,20 @@ source-of-truth docs and states when they must be updated.
 4. Run the narrow gate from `docs/validation-gates.md` that matches the touched
    boundary.
 
+## Command runner conventions
+
+- The root `justfile` is the developer-facing command catalog for common local
+  workflows such as `just build`, `just check`, `just evm-smoke abi-scalar`,
+  and `just evm-all`.
+- Keep long target harnesses, generated test projects, validators, and
+  target-specific shell logic in `scripts/`; `justfile` recipes should compose
+  those scripts rather than inline their implementation.
+- When adding a user-facing or CI-tracked smoke script, add or update the
+  matching `just` recipe/list entry in the same change.
+- Documentation may show `just` commands for common workflows, but target docs
+  should still name the underlying script when that script is the authoritative
+  implementation of a validation gate.
+
 ## Lean package conventions
 
 - Lean toolchain is `leanprover/lean4:v4.31.0` from `lean-toolchain`.

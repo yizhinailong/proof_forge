@@ -32,6 +32,19 @@
 3. 如果更改涉及公共 CLI 标志、目标 id、能力 id、制品字段、验证命令、目标生命周期阶段或示例合约行为，请在同一次更改中更新最近的真值来源文档。
 4. 运行 `docs/validation-gates.md` 中与所触及边界匹配的窄门。
 
+## 命令运行器规范
+
+- 根目录 `justfile` 是面向开发者的命令目录，用于常见本地工作流，例如
+  `just build`、`just check`、`just evm-smoke abi-scalar` 和
+  `just evm-all`。
+- 将较长的目标 harness、生成的测试工程、validator 和特定目标的 shell
+  逻辑保留在 `scripts/` 中；`justfile` recipe 应组合这些脚本，而不是内联
+  它们的实现。
+- 添加面向用户或 CI 覆盖的 smoke 脚本时，应在同一次更改中添加或更新匹配的
+  `just` recipe/list 入口。
+- 文档可以用 `just` 命令展示常见工作流，但当某个脚本是验证门禁的权威实现时，
+  目标文档仍应命名底层脚本。
+
 ## Lean 包规范
 
 - Lean 工具链是来自 `lean-toolchain` 的 `leanprover/lean4:v4.31.0`。
