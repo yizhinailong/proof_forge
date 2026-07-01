@@ -25,6 +25,18 @@ def lit : IR.Literal → AST.Literal
   | .bool value => .boolean value
   | .hash4 _ _ _ _ => .none
 
+def assignOpToBinary : AssignOp → BinaryOperation
+  | .add => .add
+  | .sub => .sub
+  | .mul => .mul
+  | .div => .div
+  | .mod => .mod
+  | .bitAnd => .bitwiseAnd
+  | .bitOr => .bitwiseOr
+  | .bitXor => .xor
+  | .shiftLeft => .shl
+  | .shiftRight => .shr
+
 mutual
   /-- Map a portable IR expression to a Leo expression. -/
   partial def expr : Expr → Except AST.LowerError Expression
@@ -65,11 +77,40 @@ mutual
         .ok #[.expression (.call ⟨#["Mapping", "set"], #[], #[.identifier stateId, .literal (.integer .u64 0), v]⟩)]
     | .effect ef =>
         .error { message := s!"Leo emitter does not support effect statement: {repr ef}" }
+    | .assert cond _ => do
+        let c ← expr cond
+        .ok #[.assert c none]
+    | .ifElse cond thenBody elseBody => do
+        let c ← expr cond
+        let thenStmts ← statements thenBody
+        let elseStmts ← statements elseBody
+        .ok #[.conditional c { statements := thenStmts } (some (.block { statements := elseStmts }))]
+    | .boundedFor name start stop body => do
+        let bodyStmts ← statements body
+        .ok #[.iteration name (some (.integer .u64)) (.literal (.integer .u64 start)) (.literal (.integer .u64 stop)) false { statements := bodyStmts }]
+    | .assign (.local name) value => do
+        let v ← expr value
+        .ok #[.assign (.identifier name) v]
+    | .assign target _ =>
+        .error { message := s!"Leo emitter only supports assignment to locals, got {repr target}" }
+    | .assignOp (.local name) op value => do
+        let v ← expr value
+        let lhs := Expression.identifier name
+        .ok #[.assign lhs (.binary ⟨assignOpToBinary op, lhs, v⟩)]
+    | .assignOp target _ _ =>
+        .error { message := s!"Leo emitter only supports assign-op on locals, got {repr target}" }
     | .«return» value => do
         let v ← expr value
         .ok #[.returnSt (some v)]
     | other =>
         .error { message := s!"Leo emitter does not support statement: {repr other}" }
+
+  partial def statements (body : Array IR.Statement) : Except AST.LowerError (Array AST.Statement) := do
+    let mut result := #[]
+    for stmt in body do
+      let ss ← statement stmt
+      result := result ++ ss
+    .ok result
 end
 
 partial def hasEffectExpr : Expr → Bool
@@ -127,13 +168,6 @@ mutual
     | .boundedFor _ _ _ body => hasEffect body
     | .return v => hasEffectExpr v
 end
-
-def statements (body : Array IR.Statement) : Except AST.LowerError (Array AST.Statement) := do
-  let mut result := #[]
-  for stmt in body do
-    let ss ← statement stmt
-    result := result ++ ss
-  .ok result
 
 /-- Build a Leo mapping from a scalar U64 state declaration. -/
 def stateMapping (state : StateDecl) : Except AST.LowerError Mapping :=
