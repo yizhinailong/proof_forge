@@ -19,27 +19,27 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 
 ## Core Capabilities
 
-| Capability id | Portable meaning | EVM | NEAR | CosmWasm | Solana | Aptos | Sui | Psy DPN |
-|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| `storage.scalar` | Single persistent scalar | Y | Y | Y | Y | Y | Y | Y |
-| `storage.map` | Key-value or mapping storage | Y | Y | Y | P | P | P | P |
-| `storage.array` | Fixed-size indexed storage array | P | N | N | N | N | N | P |
-| `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | Y | P |
-| `value.native` | Native token attached to call | Y | Y | Y | Y | Y | Y | P |
-| `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | Y |
-| `crosscall.invoke` | Call another contract/program | Y | Y | Y | Y | Y | Y | P |
-| `env.block` | Block height/time/chain id reads | Y | P | P | P | P | P | P |
-| `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | P | N | N | N | N | N | P |
-| `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | N | N | N | P |
-| `data.fixed_array` | Fixed-size array value type, literals, and index expressions | P | N | N | N | N | N | P |
-| `data.struct` | Struct value type, literals, and field access | P | N | N | N | N | N | P |
-| `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y | Y |
-| `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | N | N | N | N | N | P |
-| `account.explicit` | Named account/object/resource binding | P | N | N | Y | Y | Y | P |
-| `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N |
-| `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N | N |
-| `zk.circuit` | Compile entrypoints into target circuit definitions | N | N | N | N | N | N | Y |
-| `zk.proof` | Target proof generation or verification flow | N | N | N | N | N | N | P |
+| Capability id | Portable meaning | EVM | NEAR | CosmWasm | Solana | Aptos | Sui | Psy DPN | Cloudflare Workers |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `storage.scalar` | Single persistent scalar | Y | Y | Y | Y | Y | Y | Y | Y |
+| `storage.map` | Key-value or mapping storage | Y | Y | Y | P | P | P | P | Y |
+| `storage.array` | Fixed-size indexed storage array | P | N | N | N | N | N | P | P |
+| `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | Y | P | Y |
+| `value.native` | Native token attached to call | Y | Y | Y | Y | Y | Y | P | N |
+| `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | Y | Y |
+| `crosscall.invoke` | Call another contract/program | Y | Y | Y | Y | Y | Y | P | Y |
+| `env.block` | Block height/time/chain id reads | Y | P | P | P | P | P | P | P |
+| `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | P | N | N | N | N | N | P | Y |
+| `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | N | N | N | P | Y |
+| `data.fixed_array` | Fixed-size array value type, literals, and index expressions | P | N | N | N | N | N | P | Y |
+| `data.struct` | Struct value type, literals, and field access | P | N | N | N | N | N | P | Y |
+| `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y | Y | Y |
+| `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | N | N | N | N | N | P | Y |
+| `account.explicit` | Named account/object/resource binding | P | N | N | Y | Y | Y | P | P |
+| `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N | N |
+| `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N | N | N |
+| `zk.circuit` | Compile entrypoints into target circuit definitions | N | N | N | N | N | N | Y | N |
+| `zk.proof` | Target proof generation or verification flow | N | N | N | N | N | N | P | N |
 
 ## Id Naming Rules
 

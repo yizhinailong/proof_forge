@@ -34,6 +34,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-022 | 2026-07-01 | Classify **`zcash-shielded`** as a docs-first privacy UTXO/ZK payment Research candidate | Zcash is Bitcoin-derived but shielded support depends on Sapling/Orchard notes, nullifiers, anchors, value-balance constraints, viewing/disclosure policy, and protocol-defined ZK proofs; registry changes wait until shielded-note capabilities and a proving/validation boundary are reviewed |
 | D-023 | 2026-07-01 | Classify **`aleo-leo`** as a docs-first Aleo ZK application sourcegen Research candidate | Aleo programs combine private off-chain proof execution, public on-chain finalization, encrypted records, public mappings/storage, Aleo Instructions, Aleo VM bytecode, ABI, prover/verifier artifacts, and execute/deploy transactions; registry changes wait until the proof/finalization split is reviewed |
 | D-024 | 2026-07-01 | Model Robinhood Chain as **`robinhood-chain-testnet`**, an EVM-compatible chain profile under `evm`, not a new compiler target | Robinhood Chain executes EVM-compatible Arbitrum Orbit L2 contracts; ProofForge's EVM backend covers bytecode generation, while the chain profile records chain id, RPC, explorer, verifier, rollup, and deployment metadata |
+| D-025 | 2026-07-01 | Add **`wasm-cloudflare-workers`** as a Research Wasm-host target | Cloudflare Workers is not a blockchain, but it shares the Wasm-host backend pattern with NEAR/CosmWasm; it validates the portable-core model by running the same verified business logic off-chain with reinterpreted capabilities |
 
 ## Target Family Classification
 
@@ -41,7 +42,7 @@ See also: [Review checklist (English)](review-checklist.md),
 |---|---|---|
 | Direct compiler | `evm` | Lean → LCNF → Yul → solc |
 | EVM-compatible chain profiles | `robinhood-chain-testnet` | Reuse `evm` bytecode/ABI output; add chain id, RPC, explorer, verifier, rollup, and deployment metadata |
-| Wasm host | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban` (candidate, docs only), `wasm-icp-canister` (candidate, docs only) | Lean → EmitZig → Wasm + chain host bridge, or first-pass target-native source package when that validates semantics faster |
+| Wasm host | `wasm-near`, `wasm-cosmwasm`, `wasm-cloudflare-workers`, `wasm-stellar-soroban` (candidate, docs only), `wasm-icp-canister` (candidate, docs only) | Lean → EmitZig → Wasm + chain host bridge, or first-pass target-native source package when that validates semantics faster |
 | Binary toolchain | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
 | Source codegen | `move-aptos`, `move-sui` | Portable IR → Move package source |
 | AVM sourcegen research | `algorand-avm` (candidate, docs only) | Portable IR → Algorand Python, Algorand TypeScript, or TEAL package → AVM approval/clear-state or LogicSig bytecode + ARC-4/app metadata |
@@ -91,6 +92,7 @@ Detailed tasks: [Implementation backlog](implementation-backlog.md).
 | Counter shared scenario | [shared-scenario.md](shared-scenario.md) |
 | Target engineering shape | [RFC 0002](rfcs/0002-target-implementation-design.md) |
 | CosmWasm SDK spike sketch | [targets/wasm-family.md](targets/wasm-family.md) |
+| Cloudflare Workers target | [targets/cloudflare-workers.md](targets/cloudflare-workers.md) |
 | Stellar/Soroban target candidate | [targets/stellar-soroban.md](targets/stellar-soroban.md) |
 | Internet Computer target candidate | [targets/internet-computer.md](targets/internet-computer.md) |
 | Algorand AVM target candidate | [targets/algorand-avm.md](targets/algorand-avm.md) |

@@ -1,9 +1,12 @@
 # Wasm Family Targets
 
 The Wasm family includes NEAR, CosmWasm, Stellar/Soroban, Internet Computer
-canisters, and later Polkadot/ink-style contracts. They share an executable
-format, but not a contract ABI. ProofForge should share only the parts that are
-genuinely common.
+canisters, later Polkadot/ink-style contracts, and Cloudflare Workers. They
+share an executable format, but not a contract ABI. Cloudflare Workers is not a
+blockchain, but it uses the same Wasm-host backend pattern: a generated Wasm
+module plus a target-specific host bridge. ProofForge should share only the
+parts that are genuinely common. See [Cloudflare Workers target](cloudflare-workers.md)
+for the off-chain reinterpretation of capabilities.
 
 ## Common Shape
 
@@ -169,12 +172,12 @@ The Wasm runtime profile should avoid:
 
 Runtime options should be selected by target:
 
-| Option | NEAR | CosmWasm | Stellar/Soroban | ICP canister |
-|---|---|---|---|---|
-| Allocator | bump or Wasm-safe allocator | CosmWasm allocator ABI | Soroban-compatible Wasm allocation path | Canister-compatible Wasm allocation path |
-| MPZ | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic |
-| Host bridge | `near` | `cosmwasm` | `stellar-soroban` | `icp-canister` |
-| Validation | NEAR VM/MVP checks | `cosmwasm-check` | Stellar CLI or sandbox | Local replica, PocketIC, or ICP CLI |
+|| Option | NEAR | CosmWasm | Stellar/Soroban | ICP canister | Cloudflare Workers |
+|---|---|---|---|---|---|---|
+|| Allocator | bump or Wasm-safe allocator | CosmWasm allocator ABI | Soroban-compatible Wasm allocation path | Canister-compatible Wasm allocation path | bump or Wasm-safe allocator |
+|| MPZ | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic | Zig bigint or restricted arithmetic |
+|| Host bridge | `near` | `cosmwasm` | `stellar-soroban` | `icp-canister` | `cloudflare-workers` |
+|| Validation | NEAR VM/MVP checks | `cosmwasm-check` | Stellar CLI or sandbox | Local replica, PocketIC, or ICP CLI | `wrangler dev` / Miniflare |
 
 ## CosmWasm Counter Spike
 

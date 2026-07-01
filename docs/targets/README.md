@@ -39,6 +39,7 @@ target registry and portable IR integration.
 | [EVM](evm.md) | Experimental | Baseline through Yul, `solc`, Foundry smoke; includes EVM-compatible chain profile `robinhood-chain-testnet`. |
 | NEAR | Research | Reference in local Lean fork; not yet ported into this repo. |
 | CosmWasm | Research | Strong Wasm spike candidate; reuses NEAR lessons. |
+| [Cloudflare Workers](cloudflare-workers.md) | Research | Wasm-host target for off-chain edge workers; non-blockchain capability reinterpretation. |
 | [Stellar Soroban](stellar-soroban.md) | Research | Docs-first Wasm-host candidate through Soroban/Stellar CLI tooling; not yet in the code registry. |
 | [Internet Computer](internet-computer.md) | Research | Docs-first Wasm canister candidate with Candid, cycles, stable memory, and canister lifecycle; not yet in the code registry. |
 | [Algorand AVM](algorand-avm.md) | Research | Docs-first AVM/TEAL source/package-generation candidate with app programs, LogicSig, ARC-4 ABI, storage, resource references, and transaction-group semantics; not yet in the code registry. |
@@ -61,6 +62,7 @@ target registry and portable IR integration.
 
 - [EVM](evm.md)
 - [Wasm family](wasm-family.md)
+- [Cloudflare Workers target](cloudflare-workers.md)
 - [Stellar Soroban target](stellar-soroban.md)
 - [Internet Computer target](internet-computer.md)
 - [Algorand AVM target](algorand-avm.md)

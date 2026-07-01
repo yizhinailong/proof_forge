@@ -63,6 +63,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Target notes](targets/README.md): per-family research and spike plans.
   - [EVM](targets/evm.md)
   - [Wasm family](targets/wasm-family.md)
+  - [Cloudflare Workers target](targets/cloudflare-workers.md)
   - [Stellar Soroban target](targets/stellar-soroban.md)
   - [Internet Computer target](targets/internet-computer.md)
   - [Algorand AVM target](targets/algorand-avm.md)

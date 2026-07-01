@@ -119,6 +119,27 @@ def wasmCosmWasm : TargetProfile := {
   requiredTools := #["zig", "cosmwasm-check"]
 }
 
+def wasmCloudflareWorkers : TargetProfile := {
+  id := "wasm-cloudflare-workers"
+  family := .wasmHost
+  artifactKind := .wasm
+  capabilities := #[
+    .storageScalar,
+    .storageMap,
+    .callerSender,
+    .eventsEmit,
+    .crosscallInvoke,
+    .envBlock,
+    .cryptoHash,
+    .controlConditional,
+    .controlBoundedLoop,
+    .dataFixedArray,
+    .dataStruct,
+    .assertions
+  ]
+  requiredTools := #["zig", "wrangler"]
+}
+
 def solanaSbpfLinker : TargetProfile := {
   id := "solana-sbpf-linker"
   family := .solana
@@ -213,6 +234,7 @@ def all : Array TargetProfile := #[
   evm,
   wasmNear,
   wasmCosmWasm,
+  wasmCloudflareWorkers,
   solanaSbpfLinker,
   solanaZigFork,
   moveAptos,
