@@ -435,25 +435,45 @@ def isCrosscallWordType : ValueType → Bool
   | .u32 | .u64 | .bool | .hash => true
   | .unit | .fixedArray _ _ | .structType _ => false
 
-partial def abiNestedScalarFixedArrayWordTypes (context : String) : ValueType → Except LowerError (Array ValueType)
+def abiStructWordTypes (module : Module) (context typeName : String) : Except LowerError (Array ValueType) := do
+  let some decl := module.structs.find? fun decl => decl.name == typeName
+    | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+  if decl.fields.isEmpty then
+    .error { message := s!"{context} uses empty struct `{typeName}`; IR EVM v0 ABI structs must have at least one field" }
+  let mut words : Array ValueType := #[]
+  for field in decl.fields do
+    ensureAbiWordType s!"{context} struct `{typeName}` field `{field.id}`" field.type
+    words := words.push field.type
+  .ok words
+
+def crosscallStructWordTypes (module : Module) (context typeName : String) : Except LowerError (Array ValueType) := do
+  let some decl := module.structs.find? fun decl => decl.name == typeName
+    | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+  if decl.fields.isEmpty then
+    .error { message := s!"{context} uses empty struct `{typeName}`; IR EVM v0 crosscall structs must have at least one field" }
+  let mut words : Array ValueType := #[]
+  for field in decl.fields do
+    ensureCrosscallWordType s!"{context} struct `{typeName}` field `{field.id}`" field.type
+    words := words.push field.type
+  .ok words
+
+partial def abiNestedFixedArrayWordTypes (module : Module) (context : String) : ValueType → Except LowerError (Array ValueType)
   | .u32 => .ok #[.u32]
   | .u64 => .ok #[.u64]
   | .bool => .ok #[.bool]
   | .hash => .ok #[.hash]
   | .unit =>
-      .error { message := s!"{context} uses Unit; IR EVM v0 ABI nested fixed arrays must have scalar U32, U64, Bool, or Hash leaves" }
+      .error { message := s!"{context} uses Unit; IR EVM v0 ABI nested fixed arrays must have U32, U64, Bool, Hash, or flat struct leaves" }
   | .fixedArray elementType length => do
       if length == 0 then
         .error { message := s!"{context} uses Array<{elementType.name},0>; IR EVM v0 ABI fixed arrays must have non-zero length" }
-      let elementWords ← abiNestedScalarFixedArrayWordTypes s!"{context} fixed-array element" elementType
+      let elementWords ← abiNestedFixedArrayWordTypes module s!"{context} fixed-array element" elementType
       let mut words : Array ValueType := #[]
       for _h : _idx in [0:length] do
         words := words ++ elementWords
       .ok words
   | .structType typeName =>
-      .error {
-        message := s!"{context} has unsupported EVM IR v0 nested ABI fixed-array leaf `{typeName}`; nested ABI fixed arrays support U32, U64, Bool, or Hash leaves"
-      }
+      abiStructWordTypes module context typeName
 
 partial def abiValueWordTypes (module : Module) (context : String) : ValueType → Except LowerError (Array ValueType)
   | .u32 => .ok #[.u32]
@@ -468,7 +488,7 @@ partial def abiValueWordTypes (module : Module) (context : String) : ValueType �
       let elementWords ←
         match elementType with
         | .fixedArray _ _ =>
-            abiNestedScalarFixedArrayWordTypes s!"{context} fixed-array element" elementType
+            abiNestedFixedArrayWordTypes module s!"{context} fixed-array element" elementType
         | .structType _ =>
             abiValueWordTypes module s!"{context} fixed-array element" elementType
         | _ => do
@@ -478,36 +498,26 @@ partial def abiValueWordTypes (module : Module) (context : String) : ValueType �
       for _h : _idx in [0:length] do
         words := words ++ elementWords
       .ok words
-  | .structType typeName => do
-      let some decl := module.structs.find? fun decl => decl.name == typeName
-        | .error { message := s!"{context} uses unknown struct `{typeName}`" }
-      if decl.fields.isEmpty then
-        .error { message := s!"{context} uses empty struct `{typeName}`; IR EVM v0 ABI structs must have at least one field" }
-      let mut words : Array ValueType := #[]
-      for field in decl.fields do
-        ensureAbiWordType s!"{context} struct `{typeName}` field `{field.id}`" field.type
-        words := words.push field.type
-      .ok words
+  | .structType typeName =>
+      abiStructWordTypes module context typeName
 
-partial def crosscallNestedScalarFixedArrayWordTypes (context : String) : ValueType → Except LowerError (Array ValueType)
+partial def crosscallNestedFixedArrayWordTypes (module : Module) (context : String) : ValueType → Except LowerError (Array ValueType)
   | .u32 => .ok #[.u32]
   | .u64 => .ok #[.u64]
   | .bool => .ok #[.bool]
   | .hash => .ok #[.hash]
   | .unit =>
-      .error { message := s!"{context} uses Unit; IR EVM v0 crosscall nested fixed arrays must have scalar U32, U64, Bool, or Hash leaves" }
+      .error { message := s!"{context} uses Unit; IR EVM v0 crosscall nested fixed arrays must have U32, U64, Bool, Hash, or flat struct leaves" }
   | .fixedArray elementType length => do
       if length == 0 then
         .error { message := s!"{context} uses Array<{elementType.name},0>; IR EVM v0 crosscall fixed arrays must have non-zero length" }
-      let elementWords ← crosscallNestedScalarFixedArrayWordTypes s!"{context} fixed-array element" elementType
+      let elementWords ← crosscallNestedFixedArrayWordTypes module s!"{context} fixed-array element" elementType
       let mut words : Array ValueType := #[]
       for _h : _idx in [0:length] do
         words := words ++ elementWords
       .ok words
   | .structType typeName =>
-      .error {
-        message := s!"{context} has unsupported EVM IR v0 nested crosscall fixed-array leaf `{typeName}`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
-      }
+      crosscallStructWordTypes module context typeName
 
 partial def crosscallValueWordTypes (module : Module) (context : String) : ValueType → Except LowerError (Array ValueType)
   | .u32 => .ok #[.u32]
@@ -522,7 +532,7 @@ partial def crosscallValueWordTypes (module : Module) (context : String) : Value
       let elementWords ←
         match elementType with
         | .fixedArray _ _ =>
-            crosscallNestedScalarFixedArrayWordTypes s!"{context} fixed-array element" elementType
+            crosscallNestedFixedArrayWordTypes module s!"{context} fixed-array element" elementType
         | .structType _ =>
             crosscallValueWordTypes module s!"{context} fixed-array element" elementType
         | _ => do
@@ -532,16 +542,8 @@ partial def crosscallValueWordTypes (module : Module) (context : String) : Value
       for _h : _idx in [0:length] do
         words := words ++ elementWords
       .ok words
-  | .structType typeName => do
-      let some decl := module.structs.find? fun decl => decl.name == typeName
-        | .error { message := s!"{context} uses unknown struct `{typeName}`" }
-      if decl.fields.isEmpty then
-        .error { message := s!"{context} uses empty struct `{typeName}`; IR EVM v0 crosscall structs must have at least one field" }
-      let mut words : Array ValueType := #[]
-      for field in decl.fields do
-        ensureCrosscallWordType s!"{context} struct `{typeName}` field `{field.id}`" field.type
-        words := words.push field.type
-      .ok words
+  | .structType typeName =>
+      crosscallStructWordTypes module context typeName
 
 def crosscallReturnWordTypes (module : Module) (context : String) (returnType : ValueType) : Except LowerError (Array ValueType) := do
   if isCrosscallWordType returnType then

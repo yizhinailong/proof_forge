@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Nested Struct Crosscall Fixed Arrays
+
+Commit: feature commit for EVM IR nested struct crosscall arrays
+
+Summary:
+
+- Extended typed crosscall aggregate word-shape validation so nested fixed
+  arrays can use flat struct leaves such as `RemotePair[2][2]`, while non-flat
+  struct leaves still fail with explicit diagnostics.
+- Added `EvmCrosscallProbe` entrypoints for `RemotePair[2][2]` arguments and
+  direct entrypoint returns across normal, value-bearing, static, and delegate
+  typed calls.
+- Refreshed `EvmCrosscallProbe.golden.yul`, metadata selector expectations, and
+  the Foundry smoke harness with `Pair[2][2]` callee helpers.
+- Updated the EVM coverage manifest and target/validation docs to distinguish
+  supported flat struct leaves from unsupported non-flat struct leaves.
+
+Validation run:
+
+```sh
+lake build
+scripts/i18n/check-sync.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/crosscall-ir-smoke.sh
+git diff --check
+```
+
+Result:
+
+- `EvmCrosscallProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 73 CrosscallProbe tests, including nested fixed-array
+  flat-struct arguments and returns in normal, value-bearing, static, and
+  delegate modes.
+
+Known limitations:
+
+- Dynamic ABI values, nested local fixed-array mutation beyond the current
+  local-array surface, nested crosscall fixed arrays with non-flat or
+  unsupported leaves, and variable-length return data remain future EVM IR work.
+
+Next step:
+
+- Continue shrinking the EVM aggregate gap around dynamic ABI data, richer
+  cross-call return data, or unsupported nested aggregate leaves.
+
 ### EVM IR Storage-Backed Aggregate ABI Returns
 
 Commit: feature commit for EVM IR storage-backed aggregate ABI returns
@@ -105,8 +152,8 @@ Result:
 Known limitations:
 
 - Dynamic ABI values, nested local fixed-array mutation beyond the current
-  local-array surface, nested crosscall fixed arrays with non-scalar leaves, and
-  variable-length return data remain future EVM IR work.
+  local-array surface, nested crosscall fixed arrays with non-flat or
+  unsupported leaves, and variable-length return data remain future EVM IR work.
 
 Next step:
 

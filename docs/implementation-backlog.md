@@ -212,8 +212,17 @@ Tasks:
   arguments and direct entrypoint returns. `EvmCrosscallProbe` now validates
   `uint64[2][2]` ABI-word flattening, golden Yul, solc bytecode, metadata
   selectors, Foundry runtime behavior, value forwarding, staticcall behavior,
-  and delegatecall behavior across all four call modes, while diagnostics still
-  reject nested fixed-array leaves that are structs or other non-scalar shapes.
+  and delegatecall behavior across all four call modes. At that milestone,
+  diagnostics still rejected struct and other non-scalar nested fixed-array
+  leaves; flat struct leaves are now covered by the follow-up item below.
+- Done: extend EVM IR typed crosscall aggregate coverage to nested fixed arrays
+  whose leaves are flat structs. `EvmCrosscallProbe` now validates
+  `RemotePair[2][2]` arguments and direct entrypoint returns across normal,
+  value-bearing, static, and delegate typed calls, including ABI word
+  flattening, Bool/U32 field guards, golden Yul, solc bytecode, metadata
+  selectors, Foundry runtime behavior, value forwarding, staticcall behavior,
+  and delegatecall behavior. Diagnostics still reject nested fixed-array leaves
+  whose structs are non-flat or otherwise unsupported.
 - Done: add EVM IR `crosscallCreate` and `crosscallCreate2` lowering for fixed
   init-code hex. Creation helpers write init code to memory, call Yul
   `create`/`create2`, revert on zero-address failure, return the deployed
