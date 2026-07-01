@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Chain Profile Deploy Metadata
+
+Commit: `feat: record EVM chain profile deploy metadata`
+
+Summary:
+
+- Added `--evm-chain-profile <id>` for EVM bytecode modes.
+- Resolved EVM chain profiles from the target registry and recorded the selected
+  profile in `proof-forge-deploy.json`, including profile id, chain id, RPC
+  URLs, native gas symbol, explorer, verifier, and notes.
+- Extended the deploy `deployment` block with profile id, chain id, network
+  name, RPC URLs, explorer/verifier metadata, and explicit
+  `broadcastArtifact: null`.
+- Strengthened EVM metadata/deploy validators so selected profiles must match
+  deployment fields and unselected profiles remain explicit `null`/empty
+  fields.
+- Updated `AbiScalarProbe` EVM smoke to validate
+  `robinhood-chain-testnet` and chain id `46630`.
+
+Validation run:
+
+```sh
+lake build
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py
+scripts/evm/abi-scalar-ir-smoke.sh
+python3 scripts/evm/validate-deploy-manifest.py --root . --expect-fixture AbiScalarProbe --expect-source-kind portable-ir --expect-chain-profile robinhood-chain-testnet --expect-chain-id 46630 build/ir/AbiScalarProbe.proof-forge-deploy.json
+```
+
+Result:
+
+- `AbiScalarProbe.proof-forge-deploy.json` records
+  `chainProfile.id: robinhood-chain-testnet`, `deployment.profileId:
+  robinhood-chain-testnet`, and `deployment.chainId: 46630`.
+- Foundry ABI scalar smoke still ran 2 runtime tests successfully.
+
+Known limitations:
+
+- The manifest is still a deployment plan only.
+- Transaction signing, Foundry/Anvil broadcast JSON, deployed address recording,
+  and explorer verification remain future work.
+
+Next step:
+
+- Generate a Foundry script or broadcast-oriented artifact from the deploy
+  manifest, then validate it against Anvil without relying on live RPC.
+
 ### EVM Deploy Initcode Artifacts
 
 Commit: `feat: emit EVM deploy initcode artifacts`

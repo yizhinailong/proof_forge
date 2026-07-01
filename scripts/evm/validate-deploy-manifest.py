@@ -3,7 +3,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 def fail(message: str) -> None:
@@ -28,6 +28,10 @@ def expect_array(value: Any, name: str) -> list:
 def expect_string(value: Any, name: str) -> str:
     expect(isinstance(value, str) and value, f"{name} must be a non-empty string")
     return value
+
+
+def expect_optional_string(value: Any, name: str) -> None:
+    expect(value is None or (isinstance(value, str) and value), f"{name} must be null or a non-empty string")
 
 
 def resolve_path(root: Path, path_text: str) -> Path:
@@ -101,11 +105,64 @@ def validate_abi(abi: dict) -> None:
         expect(isinstance(method.get("returnsValue"), bool), f"abi.methods[{idx}].returnsValue must be a boolean")
 
 
+def validate_chain_profile(manifest: dict, expected_profile: Optional[str], expected_chain_id: Optional[int]) -> None:
+    profile_value = manifest.get("chainProfile")
+    deployment = expect_object(manifest.get("deployment"), "deployment")
+
+    if profile_value is None:
+        expect(expected_profile is None, "chainProfile is missing")
+        expect(expected_chain_id is None, "chainProfile.chainId is missing")
+        expect(deployment.get("profileId") is None, "deployment.profileId must be null without chain profile")
+        expect(deployment.get("chainId") is None, "deployment.chainId must be null without chain profile")
+        expect(deployment.get("networkName") is None, "deployment.networkName must be null without chain profile")
+        expect(expect_array(deployment.get("rpcUrls"), "deployment.rpcUrls") == [], "deployment.rpcUrls must be empty without chain profile")
+        expect(deployment.get("blockExplorerUrl") is None, "deployment.blockExplorerUrl must be null without chain profile")
+        expect(deployment.get("verifier") is None, "deployment.verifier must be null without chain profile")
+        expect(deployment.get("verifierUrl") is None, "deployment.verifierUrl must be null without chain profile")
+    else:
+        profile = expect_object(profile_value, "chainProfile")
+        profile_id = expect_string(profile.get("id"), "chainProfile.id")
+        if expected_profile is not None:
+            expect(profile_id == expected_profile, "chainProfile.id mismatch")
+        expect(profile.get("targetId") == "evm", "chainProfile.targetId must be evm")
+        expect_string(profile.get("networkName"), "chainProfile.networkName")
+        chain_id = profile.get("chainId")
+        expect(isinstance(chain_id, int), "chainProfile.chainId must be an integer")
+        if expected_chain_id is not None:
+            expect(chain_id == expected_chain_id, "chainProfile.chainId mismatch")
+        expect_string(profile.get("nativeCurrencySymbol"), "chainProfile.nativeCurrencySymbol")
+        expect_optional_string(profile.get("rollupFamily"), "chainProfile.rollupFamily")
+        expect_optional_string(profile.get("dataAvailability"), "chainProfile.dataAvailability")
+        for field_name in ("rpcUrls", "websocketUrls", "sequencerUrls", "notes"):
+            values = expect_array(profile.get(field_name), f"chainProfile.{field_name}")
+            for idx, value in enumerate(values):
+                expect_string(value, f"chainProfile.{field_name}[{idx}]")
+        expect_optional_string(profile.get("blockExplorerUrl"), "chainProfile.blockExplorerUrl")
+        expect_optional_string(profile.get("verifier"), "chainProfile.verifier")
+        expect_optional_string(profile.get("verifierUrl"), "chainProfile.verifierUrl")
+
+        expect(deployment.get("profileId") == profile_id, "deployment.profileId mismatch")
+        expect(deployment.get("chainId") == chain_id, "deployment.chainId mismatch")
+        expect(deployment.get("networkName") == profile.get("networkName"), "deployment.networkName mismatch")
+        expect(deployment.get("rpcUrls") == profile.get("rpcUrls"), "deployment.rpcUrls mismatch")
+        expect(deployment.get("blockExplorerUrl") == profile.get("blockExplorerUrl"), "deployment.blockExplorerUrl mismatch")
+        expect(deployment.get("verifier") == profile.get("verifier"), "deployment.verifier mismatch")
+        expect(deployment.get("verifierUrl") == profile.get("verifierUrl"), "deployment.verifierUrl mismatch")
+
+    expect(deployment.get("address") is None, "deployment.address must be null before broadcast")
+    expect(deployment.get("broadcast") == "not-generated", "deployment.broadcast mismatch")
+    expect(deployment.get("broadcastArtifact") is None, "deployment.broadcastArtifact must be null before broadcast")
+    expect_string(deployment.get("reason"), "deployment.reason")
+    expect_string(deployment.get("reference"), "deployment.reference")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
     parser.add_argument("--expect-fixture")
     parser.add_argument("--expect-source-kind")
+    parser.add_argument("--expect-chain-profile")
+    parser.add_argument("--expect-chain-id", type=int)
     parser.add_argument("manifest")
     args = parser.parse_args()
 
@@ -128,6 +185,7 @@ def main() -> int:
     expect_string(manifest.get("contractName"), "contractName")
     expect_string(manifest.get("sourceModule"), "sourceModule")
     expect(manifest.get("irVersion") is None or isinstance(manifest.get("irVersion"), str), "irVersion must be null or string")
+    validate_chain_profile(manifest, args.expect_chain_profile, args.expect_chain_id)
 
     capabilities = expect_array(manifest.get("capabilities"), "capabilities")
     for idx, capability in enumerate(capabilities):
@@ -155,12 +213,6 @@ def main() -> int:
     expect(runtime_path.resolve() == bytecode_path.resolve(), "creation.runtimeBytecode path must match inputs.bytecode")
     validate_deployment_init_code(creation_init_code_path, runtime_path, "creation")
 
-    deployment = expect_object(manifest.get("deployment"), "deployment")
-    expect(deployment.get("chainId") is None, "deployment.chainId must be null before broadcast")
-    expect(deployment.get("address") is None, "deployment.address must be null before broadcast")
-    expect(deployment.get("broadcast") == "not-generated", "deployment.broadcast mismatch")
-    expect_string(deployment.get("reason"), "deployment.reason")
-    expect_string(deployment.get("reference"), "deployment.reference")
     return 0
 
 

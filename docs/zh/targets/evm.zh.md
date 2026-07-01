@@ -42,9 +42,10 @@ EVM compiler backend。
 |---|---|---:|---|---|---|---|
 | `robinhood-chain-testnet` | `evm` | `46630` | `ETH` | Arbitrum Orbit L2, Ethereum blobs DA | `https://rpc.testnet.chain.robinhood.com` | `https://explorer.testnet.chain.robinhood.com`, Blockscout API `https://explorer.testnet.chain.robinhood.com/api/` |
 
-因此，Robinhood Chain 的普通合约编译已由 EVM backend 覆盖。完整产品支持仍需要部署命令或
-manifest 能够选择 `robinhood-chain-testnet`，把该 profile 的 RPC metadata 传给
-wallet/broadcast tooling，并在 deployment artifacts 中记录 chain profile data。
+因此，Robinhood Chain 的普通合约编译已由 EVM backend 覆盖。EVM bytecode 模式可以通过
+`--evm-chain-profile` 选择 `robinhood-chain-testnet`，并把该 profile 写入 deploy manifest。
+完整产品支持仍需要部署命令把该 profile 的 RPC metadata 传给 wallet/broadcast tooling，
+并记录已签名或已广播的交易制品。
 
 ## 构建命令
 
@@ -89,7 +90,7 @@ proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:
 EVM 字节码模式：
 
 ```sh
-proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [-o output.bin] input.lean
+proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [-o output.bin] input.lean
 ```
 
 Portable IR EVM fixture 模式：
@@ -139,7 +140,7 @@ proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output out
 
 `--bytecode` 是 `--evm-bytecode` 的别名。
 
-`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`，并在 metadata 文件旁写入 `proof-forge-deploy.json`。当 smoke 脚本传入类似 `Counter.proof-forge-artifact.json` 的 fixture 专属 metadata 路径时，deploy manifest 会写成 `Counter.proof-forge-deploy.json`。
+`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--evm-chain-profile <id>` 会把已知 EVM chain profile（例如 `robinhood-chain-testnet`）记录到生成的 deploy manifest 中，但不会签名或广播交易。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`，并在 metadata 文件旁写入 `proof-forge-deploy.json`。当 smoke 脚本传入类似 `Counter.proof-forge-artifact.json` 的 fixture 专属 metadata 路径时，deploy manifest 会写成 `Counter.proof-forge-deploy.json`。
 
 ## .evm-methods sidecar 格式
 
@@ -313,10 +314,16 @@ EVM deploy manifest 会记录：
 
 - `kind: proof-forge-evm-deploy-manifest`
 - source kind/module、`irVersion`、capabilities 和 ABI entrypoints/methods
+- 当传入 `--evm-chain-profile` 时，从 EVM target registry 复制的可选
+  `chainProfile` metadata，包括 profile id、chain id、RPC URLs、native gas
+  symbol、explorer、verifier 和 notes
 - Yul/source 输入，以及 runtime bytecode 和 initcode 的 hash/size
 - `creation.mode: init-code`，constructor args 仍为空，但 manifest 已记录 artifact-linked initcode 文件和它引用的 runtime bytecode
-- `deployment.broadcast: not-generated`，因为交易签名、chain profile 选择和 broadcast JSON 还没有生成
+- 选择 chain profile 时的 `deployment.profileId`、`deployment.chainId`、
+  `deployment.rpcUrls`、`deployment.blockExplorerUrl` 和 verifier 字段
+- `deployment.broadcast: not-generated`，因为交易签名、broadcast JSON、deployed
+  address 记录和 explorer verification 还没有生成
 
-`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
+`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact。选择 chain profile 时，validator 还会检查 `chainProfile` 和 `deployment` 中的 profile id、chain id、RPC URLs、explorer 和 verifier metadata 是否一致。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
 
 在统一的目标清单发布（RFC 0002）之前，方法分派仍使用 `.evm-methods` sidecar 文件。

@@ -48,10 +48,11 @@ Implemented chain profiles:
 | `robinhood-chain-testnet` | `evm` | `46630` | `ETH` | Arbitrum Orbit L2, Ethereum blobs DA | `https://rpc.testnet.chain.robinhood.com` | `https://explorer.testnet.chain.robinhood.com`, Blockscout API `https://explorer.testnet.chain.robinhood.com/api/` |
 
 Robinhood Chain is therefore already covered for ordinary contract compilation
-by the EVM backend. Full product support still needs deployment commands or
-manifests that can select `robinhood-chain-testnet`, pass the profile's RPC
-metadata to wallet/broadcast tooling, and record chain profile data in
-deployment artifacts.
+by the EVM backend. EVM bytecode modes can select
+`robinhood-chain-testnet` with `--evm-chain-profile` and record the profile in
+the deploy manifest. Full product support still needs deployment commands that
+pass the profile's RPC metadata to wallet/broadcast tooling and record signed
+or broadcast transaction artifacts.
 
 ## Build Commands
 
@@ -95,7 +96,7 @@ proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:
 EVM bytecode mode:
 
 ```sh
-proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [-o output.bin] input.lean
+proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [-o output.bin] input.lean
 ```
 
 Portable IR EVM fixture modes:
@@ -146,6 +147,9 @@ proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output out
 `--bytecode` is an alias for `--evm-bytecode`.
 
 `--solc <path>` and `--cast <path>` override external tool paths.
+`--evm-chain-profile <id>` records a known EVM chain profile, such as
+`robinhood-chain-testnet`, in the generated deploy manifest without signing or
+broadcasting a transaction.
 `--artifact-output <path>` overrides the default EVM metadata path. Without an
 override, bytecode modes write `proof-forge-artifact.json` next to the bytecode
 output and `proof-forge-deploy.json` next to the metadata file. When smoke
@@ -636,18 +640,27 @@ The EVM deploy manifest records:
 
 - `kind: proof-forge-evm-deploy-manifest`
 - source kind/module, `irVersion`, capabilities, and ABI entrypoints/methods
+- optional `chainProfile` metadata copied from the EVM target registry when
+  `--evm-chain-profile` is provided, including profile id, chain id, RPC URLs,
+  native gas symbol, explorer, verifier, and notes
 - Yul/source inputs plus runtime bytecode and initcode hash/size
 - `creation.mode: init-code`, with empty constructor args, an artifact-linked
   initcode file, and the referenced runtime bytecode
+- `deployment.profileId`, `deployment.chainId`, `deployment.rpcUrls`,
+  `deployment.blockExplorerUrl`, and verifier fields when a chain profile is
+  selected
 - `deployment.broadcast: not-generated`, because transaction signing,
-  chain-profile selection, and broadcast JSON are not generated yet
+  broadcast JSON, deployed address recording, and explorer verification are not
+  generated yet
 
 `scripts/evm/validate-artifact-metadata.py` validates these metadata files and
 their referenced deploy manifests in the EVM IR smoke scripts and in
 `scripts/evm/build-examples.sh`. The validators parse the initcode header and
-check that it copies and returns the exact runtime bytecode artifact.
-`scripts/evm/validate-deploy-manifest.py` can validate a deploy manifest
-directly.
+check that it copies and returns the exact runtime bytecode artifact. When a
+chain profile is selected, they also verify that `chainProfile` and
+`deployment` agree on profile id, chain id, RPC URLs, explorer, and verifier
+metadata. `scripts/evm/validate-deploy-manifest.py` can validate a deploy
+manifest directly.
 
 Method dispatch still uses `.evm-methods` sidecar files until a unified target
 manifest lands (RFC 0002).

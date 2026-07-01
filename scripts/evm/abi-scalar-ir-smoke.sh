@@ -28,6 +28,7 @@ lake build proof-forge >/dev/null
 "$ROOT/.lake/build/bin/proof-forge" --emit-abi-scalar-ir-bytecode \
   --yul-output "$OUT_DIR/AbiScalarProbe.yul" \
   --artifact-output "$METADATA_FILE" \
+  --evm-chain-profile robinhood-chain-testnet \
   -o "$OUT_DIR/AbiScalarProbe.bin"
 
 if [[ -f "$GOLDEN_FILE" ]]; then
@@ -38,6 +39,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --root "$ROOT" \
   --expect-fixture AbiScalarProbe \
   --expect-source-kind portable-ir \
+  --expect-chain-profile robinhood-chain-testnet \
+  --expect-chain-id 46630 \
   --expect-entrypoint mix:7f97495c \
   --expect-entrypoint same:c32c70b1 \
   "$METADATA_FILE"
