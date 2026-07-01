@@ -204,7 +204,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
-| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct, scalar fixed-array, and fixed-array-of-flat-struct arguments flattened to ABI words; typed normal/value/static/delegate calls return Bool/U32/U64/Hash scalar words with Bool/U32 return guards and support direct entrypoint returns of flat struct, scalar fixed-array, and fixed-array-of-flat-struct return data; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot; `crosscallInvokeStaticTyped` preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` preserves caller-storage context |
+| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct, scalar fixed-array, and fixed-array-of-flat-struct arguments flattened to ABI words; typed normal/value/static/delegate calls return Bool/U32/U64/Hash scalar words with Bool/U32 return guards and support direct entrypoint returns of flat struct, scalar fixed-array, and fixed-array-of-flat-struct return data; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot; `crosscallInvokeStaticTyped` preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` preserves caller-storage context; `crosscallCreate` and `crosscallCreate2` deploy fixed init-code hex through Yul `create`/`create2`, revert on zero-address failure, and return the deployed address word |
 | `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, and non-indexed data fields can be scalar words, flat structs, scalar fixed arrays, or fixed arrays of flat structs |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
@@ -257,14 +257,15 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   fixed-array typed normal-call return data, value-bearing typed scalar and
   direct aggregate-return `crosscallInvokeValueTyped`, typed scalar and direct
   aggregate-return `crosscallInvokeStaticTyped`, typed scalar and direct
-  aggregate-return `crosscallInvokeDelegateTyped`, static bounded loops, and
+  aggregate-return `crosscallInvokeDelegateTyped`, fixed init-code
+  `crosscallCreate` and `crosscallCreate2`, static bounded loops, and
   branch/loop-local early returns through Yul `leave`. It rejects wider
   portable IR nodes with explicit diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
   non-word or aggregate map shapes, nested arrays, nested local structs beyond
-  flat struct arrays, richer event declarations, contract-creation IR nodes,
-  variable-length cross-call return data, and real creation-transaction or
-  broadcast manifests.
+  flat struct arrays, richer event declarations, dynamic constructor
+  arguments, artifact-linked init code, variable-length cross-call return
+  data, and real creation-transaction or broadcast manifests.
 
 ## Portable IR Gates
 
@@ -397,7 +398,8 @@ surfaces for the portable IR.
 
 `EvmCrosscallProbe` validates portable IR `crosscallInvoke`,
 `crosscallInvokeTyped`, `crosscallInvokeValueTyped`,
-`crosscallInvokeStaticTyped`, and `crosscallInvokeDelegateTyped` lowering to
+`crosscallInvokeStaticTyped`, `crosscallInvokeDelegateTyped`,
+`crosscallCreate`, and `crosscallCreate2`. Call-like expressions lower to
 arity-, return-type-, value-mode-, static-mode-, and delegate-mode-specific Yul
 helpers. EVM IR v0 interprets the target expression as an address word, the
 method expression as a low-32-bit selector, scalar arguments as 32-byte ABI
@@ -422,8 +424,9 @@ return behavior, Bool/U32/Hash static typed returns, static flat struct
 arguments, invalid static Bool/U32 return guards, static-context state-write
 failure, caller-storage delegatecall read/write behavior, Bool/U32/Hash delegate
 typed returns, delegate flat struct arguments, invalid delegate Bool/U32 return
-guards, callee reverts, short-return reverts, invalid typed return reverts, and
-unknown-selector reverts.
+guards, fixed init-code `create` deployment, deterministic `create2` address
+validation, calls into the deployed runtime, callee reverts, short-return
+reverts, invalid typed return reverts, and unknown-selector reverts.
 
 `EvmExpressionProbe` validates scalar expression lowering directly rather than
 through storage or assignment side effects. It covers `U64` and `U32`

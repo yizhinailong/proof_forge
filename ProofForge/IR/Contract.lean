@@ -132,6 +132,8 @@ mutual
     | crosscallInvokeValueTyped (targetContractId : Expr) (methodId callValue : Expr) (args : Array Expr) (returnType : ValueType)
     | crosscallInvokeStaticTyped (targetContractId : Expr) (methodId : Expr) (args : Array Expr) (returnType : ValueType)
     | crosscallInvokeDelegateTyped (targetContractId : Expr) (methodId : Expr) (args : Array Expr) (returnType : ValueType)
+    | crosscallCreate (callValue : Expr) (initCodeHex : String)
+    | crosscallCreate2 (callValue salt : Expr) (initCodeHex : String)
     | effect (effect : Effect)
     deriving Repr
 
@@ -277,6 +279,10 @@ mutual
     | .crosscallInvokeDelegateTyped target methodId args returnType =>
         #[.crosscallInvoke] ++ target.capabilities ++ methodId.capabilities ++ returnType.capabilities ++
           args.foldl (fun acc arg => acc ++ arg.capabilities) #[]
+    | .crosscallCreate callValue _ =>
+        #[.crosscallInvoke] ++ callValue.capabilities
+    | .crosscallCreate2 callValue salt _ =>
+        #[.crosscallInvoke] ++ callValue.capabilities ++ salt.capabilities
     | .effect effect => #[effect.capability] ++ effect.capabilities
 
   partial def Effect.capabilities : Effect → Array ProofForge.Target.Capability

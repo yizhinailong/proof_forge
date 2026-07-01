@@ -17,6 +17,57 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Contract Creation
+
+Commit: feature commit for EVM IR contract creation
+
+Summary:
+
+- Added portable IR `crosscallCreate` and `crosscallCreate2` expressions for
+  EVM contract creation from fixed init-code hex.
+- Lowered creation expressions to deterministic Yul helpers that write init
+  code into memory, call `create(value, offset, length)` or
+  `create2(value, offset, length, salt)`, revert on zero-address failure, and
+  return the deployed address word.
+- Extended `EvmCrosscallProbe` with `deploy_create` and `deploy_create2`
+  entrypoints using tiny init code that deploys a runtime returning U256 `42`.
+- Kept non-EVM target behavior explicit by adding Psy unsupported diagnostics
+  for both creation expressions.
+
+Validation run:
+
+```sh
+lake build ProofForge.IR.Examples.EvmCrosscallProbe
+scripts/evm/diagnostic-smoke.sh
+scripts/psy/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/psy/check-ir-coverage-manifest.py
+scripts/evm/crosscall-ir-smoke.sh
+```
+
+Result:
+
+- `EvmCrosscallProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 57 CrosscallProbe tests, including `create` deployment,
+  deterministic `create2` address validation, and calls into the deployed
+  runtime.
+- EVM diagnostics now cover bad creation value type, malformed init-code hex,
+  and bad `create2` salt type; Psy diagnostics cover unsupported creation
+  nodes.
+
+Known limitations:
+
+- Creation init code is currently embedded as fixed hex in the IR expression.
+- Dynamic constructor arguments, artifact-linked init code, creation manifests,
+  live transaction broadcasting, and variable-length cross-call return data
+  remain future EVM IR work.
+
+Next step:
+
+- Continue closing EVM call-surface gaps around artifact-linked creation or
+  variable-length ABI data.
+
 ### EVM IR Struct-Array Crosscall Aggregates
 
 Commit: feature commit for EVM IR struct-array crosscall aggregates
@@ -52,13 +103,13 @@ Known limitations:
 
 - Aggregate crosscall arguments and returns remain limited to ABI-static flat
   shapes.
-- Nested dynamic arrays, variable-length return data, `create`, and `create2`
-  remain future EVM IR work.
+- Nested dynamic arrays, variable-length return data, and artifact-linked
+  creation remain future EVM IR work.
 
 Next step:
 
-- Continue closing the remaining EVM call-surface gaps around contract creation
-  or variable-length ABI data.
+- Continue closing the remaining EVM call-surface gaps around artifact-linked
+  creation or variable-length ABI data.
 
 ### EVM IR Aggregate Crosscall Arguments
 

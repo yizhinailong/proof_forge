@@ -113,6 +113,114 @@ def crosscallStaticAggregateFunctionName (arity : Nat) (wordTypes : Array ValueT
 def crosscallDelegateAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
   .ok s!"__proof_forge_crosscall_delegate_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
 
+inductive CreateMode where
+  | create
+  | create2
+  deriving BEq, Repr
+
+def CreateMode.functionPrefix : CreateMode → String
+  | .create => "__proof_forge_create_"
+  | .create2 => "__proof_forge_create2_"
+
+def CreateMode.opcode : CreateMode → String
+  | .create => "create"
+  | .create2 => "create2"
+
+structure CreateHelperSpec where
+  mode : CreateMode
+  initCodeHex : String
+  deriving BEq, Repr
+
+def isHexChar (c : Char) : Bool :=
+  ('0' <= c && c <= '9') ||
+  ('a' <= c && c <= 'f') ||
+  ('A' <= c && c <= 'F')
+
+def stripHexPrefix (s : String) : String :=
+  if s.startsWith "0x" || s.startsWith "0X" then
+    (s.drop 2).toString
+  else
+    s
+
+def normalizeInitCodeHex (context initCodeHex : String) : Except LowerError String := do
+  let raw := stripHexPrefix initCodeHex
+  if raw.isEmpty then
+    .error { message := s!"{context} init code must be non-empty hex" }
+  else if raw.length % 2 != 0 then
+    .error { message := s!"{context} init code hex must have an even number of digits" }
+  else if !(raw.all isHexChar) then
+    .error { message := s!"{context} init code must contain only hex digits" }
+  else
+    .ok raw
+
+def repeatString : Nat → String → String
+  | 0, _ => ""
+  | n+1, s => s ++ repeatString n s
+
+def rightPadHex64 (chunk : String) : String :=
+  chunk ++ repeatString (64 - chunk.length) "0"
+
+partial def hexChunks64 (hex : String) : Array String :=
+  if hex.isEmpty then
+    #[]
+  else
+    let chunk := (hex.take 64).toString
+    let rest := (hex.drop 64).toString
+    #[chunk] ++ hexChunks64 rest
+
+def createHelperFunctionName (mode : CreateMode) (initCodeHex : String) : Except LowerError String := do
+  let hex ← normalizeInitCodeHex "contract creation" initCodeHex
+  .ok s!"{mode.functionPrefix}{hex}"
+
+def createCallValueParamName : String := "call_value"
+def createSaltParamName : String := "salt"
+
+def createHelperParams : CreateMode → Array Lean.Compiler.Yul.TypedName
+  | .create => #[{ name := createCallValueParamName }]
+  | .create2 => #[{ name := createCallValueParamName }, { name := createSaltParamName }]
+
+def createInitCodeStoreStatements (initCodeHex : String) : Except LowerError (Array Lean.Compiler.Yul.Statement × Nat) := do
+  let hex ← normalizeInitCodeHex "contract creation" initCodeHex
+  let chunks := hexChunks64 hex
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  for h : idx in [0:chunks.size] do
+    let chunk := chunks[idx]
+    statements := statements.push <| .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[
+      Lean.Compiler.Yul.Expr.num (idx * 32),
+      Lean.Compiler.Yul.Expr.lit (Lean.Compiler.Yul.Literal.hex ("0x" ++ rightPadHex64 chunk))
+    ])
+  .ok (statements, hex.length / 2)
+
+def createHelperFunction (spec : CreateHelperSpec) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let functionName ← createHelperFunctionName spec.mode spec.initCodeHex
+  let (storeStatements, byteLength) ← createInitCodeStoreStatements spec.initCodeHex
+  let createArgs :=
+    match spec.mode with
+    | .create =>
+        #[
+          Lean.Compiler.Yul.Expr.id createCallValueParamName,
+          Lean.Compiler.Yul.Expr.num 0,
+          Lean.Compiler.Yul.Expr.num byteLength
+        ]
+    | .create2 =>
+        #[
+          Lean.Compiler.Yul.Expr.id createCallValueParamName,
+          Lean.Compiler.Yul.Expr.num 0,
+          Lean.Compiler.Yul.Expr.num byteLength,
+          Lean.Compiler.Yul.Expr.id createSaltParamName
+        ]
+  .ok <| .funcDef functionName
+    (createHelperParams spec.mode)
+    #[{ name := "result" }]
+    {
+      statements := storeStatements ++ #[
+        .assignment #["result"] (Lean.Compiler.Yul.builtin spec.mode.opcode createArgs),
+        .ifStmt
+          (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "result"])
+          { statements := #[.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])] }
+      ]
+    }
+
 def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
 def maxU32 : Nat := 4294967295
@@ -894,6 +1002,15 @@ mutual
         for arg in args do
           discard <| crosscallArgWordTypes module "delegate crosscall argument" (← inferExprType module env arg)
         .ok returnType
+    | .crosscallCreate callValue initCodeHex => do
+        ensureType "contract creation call value" .u64 (← inferExprType module env callValue)
+        discard <| normalizeInitCodeHex "contract creation" initCodeHex
+        .ok .u64
+    | .crosscallCreate2 callValue salt initCodeHex => do
+        ensureType "contract creation call value" .u64 (← inferExprType module env callValue)
+        ensureType "contract creation salt" .hash (← inferExprType module env salt)
+        discard <| normalizeInitCodeHex "contract creation" initCodeHex
+        .ok .u64
     | .effect effect => inferEffectExprType module env effect
 
   partial def inferBinaryNumericType
@@ -1677,6 +1794,15 @@ mutual
         ]
         callArgs := callArgs ++ argWords
         .ok (Lean.Compiler.Yul.call (← crosscallDelegateFunctionName argWords.size returnType) callArgs)
+    | .crosscallCreate callValue initCodeHex => do
+        .ok (Lean.Compiler.Yul.call (← createHelperFunctionName .create initCodeHex) #[
+          ← lowerExpr module env callValue
+        ])
+    | .crosscallCreate2 callValue salt initCodeHex => do
+        .ok (Lean.Compiler.Yul.call (← createHelperFunctionName .create2 initCodeHex) #[
+          ← lowerExpr module env callValue,
+          ← lowerExpr module env salt
+        ])
     | .effect effect => lowerEffectExpr module env effect
 
   partial def lowerEffectExpr (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Expr
@@ -3546,6 +3672,12 @@ mutual
           nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsExpr module env arg)
         let argWordCount ← crosscallArgWordCountForArgs module env "delegate crosscall argument" args
         .ok (pushCrosscallHelperSpecIfMissing nested { arity := argWordCount, returnType := returnType, mode := .delegatecall })
+    | .crosscallCreate callValue _ =>
+        crosscallHelperSpecsExpr module env callValue
+    | .crosscallCreate2 callValue salt _ => do
+        .ok (mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsExpr module env callValue)
+          (← crosscallHelperSpecsExpr module env salt))
     | .effect effect =>
         crosscallHelperSpecsEffect module env effect
 
@@ -3664,6 +3796,145 @@ def moduleCrosscallHelperSpecs (module : Module) : Except LowerError (Array Cros
 def crosscallHelperFunctions (module : Module) (specs : Array CrosscallHelperSpec) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
   specs.mapM (crosscallHelperFunction module)
 
+def pushCreateHelperSpecIfMissing (acc : Array CreateHelperSpec) (value : CreateHelperSpec) : Array CreateHelperSpec :=
+  if acc.any (fun existing => existing == value) then acc else acc.push value
+
+def mergeCreateHelperSpecs (lhs rhs : Array CreateHelperSpec) : Array CreateHelperSpec :=
+  rhs.foldl pushCreateHelperSpecIfMissing lhs
+
+mutual
+  partial def createHelperSpecsExpr : ProofForge.IR.Expr → Array CreateHelperSpec
+    | .literal _ => #[]
+    | .local _ => #[]
+    | .arrayLit _ values =>
+        values.foldl (init := #[]) fun acc value =>
+          mergeCreateHelperSpecs acc (createHelperSpecsExpr value)
+    | .arrayGet array index =>
+        mergeCreateHelperSpecs (createHelperSpecsExpr array) (createHelperSpecsExpr index)
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsExpr field.snd)
+    | .field base _ =>
+        createHelperSpecsExpr base
+    | .add lhs rhs | .sub lhs rhs | .mul lhs rhs | .div lhs rhs | .mod lhs rhs
+    | .pow lhs rhs | .bitAnd lhs rhs | .bitOr lhs rhs | .bitXor lhs rhs
+    | .shiftLeft lhs rhs | .shiftRight lhs rhs | .eq lhs rhs | .ne lhs rhs
+    | .lt lhs rhs | .le lhs rhs | .gt lhs rhs | .ge lhs rhs
+    | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs =>
+        mergeCreateHelperSpecs (createHelperSpecsExpr lhs) (createHelperSpecsExpr rhs)
+    | .cast value _ | .boolNot value | .hash value =>
+        createHelperSpecsExpr value
+    | .hashValue a b c d =>
+        mergeCreateHelperSpecs
+          (mergeCreateHelperSpecs (createHelperSpecsExpr a) (createHelperSpecsExpr b))
+          (mergeCreateHelperSpecs (createHelperSpecsExpr c) (createHelperSpecsExpr d))
+    | .nativeValue => #[]
+    | .crosscallInvoke target methodId args =>
+        let nested := mergeCreateHelperSpecs (createHelperSpecsExpr target) (createHelperSpecsExpr methodId)
+        args.foldl (init := nested) fun acc arg =>
+          mergeCreateHelperSpecs acc (createHelperSpecsExpr arg)
+    | .crosscallInvokeTyped target methodId args _ =>
+        let nested := mergeCreateHelperSpecs (createHelperSpecsExpr target) (createHelperSpecsExpr methodId)
+        args.foldl (init := nested) fun acc arg =>
+          mergeCreateHelperSpecs acc (createHelperSpecsExpr arg)
+    | .crosscallInvokeValueTyped target methodId callValue args _ =>
+        let nested := mergeCreateHelperSpecs (createHelperSpecsExpr target) (createHelperSpecsExpr methodId)
+        let nested := mergeCreateHelperSpecs nested (createHelperSpecsExpr callValue)
+        args.foldl (init := nested) fun acc arg =>
+          mergeCreateHelperSpecs acc (createHelperSpecsExpr arg)
+    | .crosscallInvokeStaticTyped target methodId args _ =>
+        let nested := mergeCreateHelperSpecs (createHelperSpecsExpr target) (createHelperSpecsExpr methodId)
+        args.foldl (init := nested) fun acc arg =>
+          mergeCreateHelperSpecs acc (createHelperSpecsExpr arg)
+    | .crosscallInvokeDelegateTyped target methodId args _ =>
+        let nested := mergeCreateHelperSpecs (createHelperSpecsExpr target) (createHelperSpecsExpr methodId)
+        args.foldl (init := nested) fun acc arg =>
+          mergeCreateHelperSpecs acc (createHelperSpecsExpr arg)
+    | .crosscallCreate callValue initCodeHex =>
+        pushCreateHelperSpecIfMissing (createHelperSpecsExpr callValue) { mode := .create, initCodeHex }
+    | .crosscallCreate2 callValue salt initCodeHex =>
+        let nested := mergeCreateHelperSpecs (createHelperSpecsExpr callValue) (createHelperSpecsExpr salt)
+        pushCreateHelperSpecIfMissing nested { mode := .create2, initCodeHex }
+    | .effect effect =>
+        createHelperSpecsEffect effect
+
+  partial def createHelperSpecsEffect : Effect → Array CreateHelperSpec
+    | .storageScalarRead _ => #[]
+    | .storageScalarWrite _ value | .storageScalarAssignOp _ _ value =>
+        createHelperSpecsExpr value
+    | .storageMapContains _ key | .storageMapGet _ key =>
+        createHelperSpecsExpr key
+    | .storageMapInsert _ key value | .storageMapSet _ key value =>
+        mergeCreateHelperSpecs (createHelperSpecsExpr key) (createHelperSpecsExpr value)
+    | .storageArrayRead _ index =>
+        createHelperSpecsExpr index
+    | .storageArrayWrite _ index value | .storageArrayStructFieldWrite _ index _ value =>
+        mergeCreateHelperSpecs (createHelperSpecsExpr index) (createHelperSpecsExpr value)
+    | .storageArrayStructFieldRead _ index _ =>
+        createHelperSpecsExpr index
+    | .storageStructFieldRead _ _ => #[]
+    | .storageStructFieldWrite _ _ value =>
+        createHelperSpecsExpr value
+    | .storagePathRead _ path =>
+        path.foldl (init := #[]) fun acc segment =>
+          mergeCreateHelperSpecs acc (createHelperSpecsStoragePathSegment segment)
+    | .storagePathWrite _ path value =>
+        let pathSpecs := path.foldl (init := #[]) fun acc segment =>
+          mergeCreateHelperSpecs acc (createHelperSpecsStoragePathSegment segment)
+        mergeCreateHelperSpecs pathSpecs (createHelperSpecsExpr value)
+    | .storagePathAssignOp _ path _ value =>
+        let pathSpecs := path.foldl (init := #[]) fun acc segment =>
+          mergeCreateHelperSpecs acc (createHelperSpecsStoragePathSegment segment)
+        mergeCreateHelperSpecs pathSpecs (createHelperSpecsExpr value)
+    | .contextRead _ => #[]
+    | .eventEmit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsExpr field.snd)
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexedSpecs := indexedFields.foldl (init := #[]) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsExpr field.snd)
+        dataFields.foldl (init := indexedSpecs) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsExpr field.snd)
+
+  partial def createHelperSpecsStoragePathSegment : StoragePathSegment → Array CreateHelperSpec
+    | .field _ => #[]
+    | .index index => createHelperSpecsExpr index
+    | .mapKey key => createHelperSpecsExpr key
+
+  partial def createHelperSpecsStatement : Statement → Array CreateHelperSpec
+    | .letBind _ _ value | .letMutBind _ _ value =>
+        createHelperSpecsExpr value
+    | .assign target value =>
+        mergeCreateHelperSpecs (createHelperSpecsExpr target) (createHelperSpecsExpr value)
+    | .assignOp target _ value =>
+        mergeCreateHelperSpecs (createHelperSpecsExpr target) (createHelperSpecsExpr value)
+    | .effect effect =>
+        createHelperSpecsEffect effect
+    | .assert condition _ =>
+        createHelperSpecsExpr condition
+    | .assertEq lhs rhs _ =>
+        mergeCreateHelperSpecs (createHelperSpecsExpr lhs) (createHelperSpecsExpr rhs)
+    | .ifElse condition thenBody elseBody =>
+        mergeCreateHelperSpecs
+          (createHelperSpecsExpr condition)
+          (mergeCreateHelperSpecs (createHelperSpecsStatements thenBody) (createHelperSpecsStatements elseBody))
+    | .boundedFor _ _ _ body =>
+        createHelperSpecsStatements body
+    | .return value =>
+        createHelperSpecsExpr value
+
+  partial def createHelperSpecsStatements (statements : Array Statement) : Array CreateHelperSpec :=
+    statements.foldl (init := #[]) fun acc stmt =>
+      mergeCreateHelperSpecs acc (createHelperSpecsStatement stmt)
+end
+
+def moduleCreateHelperSpecs (module : Module) : Array CreateHelperSpec :=
+  module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
+    mergeCreateHelperSpecs acc (createHelperSpecsStatements entrypoint.body)
+
+def createHelperFunctions (specs : Array CreateHelperSpec) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
+  specs.mapM createHelperFunction
+
 def localArrayGetLengthsForDynamicExprTarget
     (env : TypeEnv)
     (array index : ProofForge.IR.Expr) : Array Nat :=
@@ -3724,6 +3995,10 @@ mutual
         let nested := mergeNatSets (localArrayGetLengthsExpr env target) (localArrayGetLengthsExpr env methodId)
         args.foldl (init := nested) fun acc arg =>
           mergeNatSets acc (localArrayGetLengthsExpr env arg)
+    | .crosscallCreate callValue _ =>
+        localArrayGetLengthsExpr env callValue
+    | .crosscallCreate2 callValue salt _ =>
+        mergeNatSets (localArrayGetLengthsExpr env callValue) (localArrayGetLengthsExpr env salt)
     | .effect effect =>
         localArrayGetLengthsEffect env effect
 
@@ -3929,6 +4204,7 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
   let helpers := helpers ++ (if moduleUsesSupportedStructArray module then structArrayHelperFunctions else #[])
   let helpers := helpers ++ (if moduleUsesHash module then hashHelperFunctions else #[])
   let helpers := helpers ++ (← crosscallHelperFunctions module (← moduleCrosscallHelperSpecs module))
+  let helpers := helpers ++ (← createHelperFunctions (moduleCreateHelperSpecs module))
   let helpers := helpers ++ localArrayGetHelperFunctions (← moduleLocalArrayGetLengths module)
   .ok {
     name := module.name

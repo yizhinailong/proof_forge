@@ -685,6 +685,10 @@ mutual
         .error { message := s!"static typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
     | .crosscallInvokeDelegateTyped _ _ _ returnType =>
         .error { message := s!"delegate typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
+    | .crosscallCreate _ _ =>
+        .error { message := "EVM contract creation is not supported by Psy IR v0" }
+    | .crosscallCreate2 _ _ _ =>
+        .error { message := "EVM deterministic contract creation is not supported by Psy IR v0" }
     | .effect effect =>
         inferEffectExprType module env effect
 
@@ -1036,6 +1040,10 @@ mutual
         .error { message := s!"static typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
     | .crosscallInvokeDelegateTyped _ _ _ returnType =>
         .error { message := s!"delegate typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
+    | .crosscallCreate _ _ =>
+        .error { message := "EVM contract creation is not supported by Psy IR v0" }
+    | .crosscallCreate2 _ _ _ =>
+        .error { message := "EVM deterministic contract creation is not supported by Psy IR v0" }
     | .effect effect => lowerEffectExpr module effect
 
   partial def lowerExprOperand (module : Module) : Expr → Except LowerError String

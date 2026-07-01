@@ -18,6 +18,11 @@ def remotePairStruct : StructDecl := {
   ]
 }
 
+-- Init code that deploys runtime `602a60005260206000f3`, a tiny contract that
+-- returns U256 42 for any call.
+def returnFortyTwoInitCodeHex : String :=
+  "69602a60005260206000f3600052600a6016f3"
+
 def callRemote : Entrypoint := {
   name := "call_remote"
   selector? := some "0de1d044"
@@ -581,6 +586,31 @@ def callRemoteDelegatePairArrayArg : Entrypoint := {
   ]
 }
 
+def deployCreate : Entrypoint := {
+  name := "deploy_create"
+  selector? := some "c9bc2909"
+  params := #[
+    ("value", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallCreate (.local "value") returnFortyTwoInitCodeHex)
+  ]
+}
+
+def deployCreate2 : Entrypoint := {
+  name := "deploy_create2"
+  selector? := some "70b22efb"
+  params := #[
+    ("value", .u64),
+    ("salt", .hash)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallCreate2 (.local "value") (.local "salt") returnFortyTwoInitCodeHex)
+  ]
+}
+
 def module : Module := {
   name := "EvmCrosscallProbe"
   structs := #[remotePairStruct]
@@ -621,7 +651,9 @@ def module : Module := {
     callRemoteDelegatePair,
     callRemoteDelegateArray,
     callRemoteDelegatePairArray,
-    callRemoteDelegatePairArrayArg
+    callRemoteDelegatePairArrayArg,
+    deployCreate,
+    deployCreate2
   ]
 }
 

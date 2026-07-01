@@ -75,6 +75,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_delegate_array:52579065 \
   --expect-entrypoint call_remote_delegate_pair_array:a26d8a3c \
   --expect-entrypoint call_remote_delegate_pair_array_arg:73049a39 \
+  --expect-entrypoint deploy_create:c9bc2909 \
+  --expect-entrypoint deploy_create2:70b22efb \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmCrosscallProbe.bin")"
@@ -329,6 +331,20 @@ contract ProofForgeIRCrosscallSmokeTest {
         pairs = abi.decode(result, (CrosscallCallee.Pair[2]));
     }
 
+    function deployedAddress(uint256 raw) internal pure returns (address) {
+        return address(uint160(raw));
+    }
+
+    function expectedCreate2Address(address deployer, bytes32 salt, bytes32 initCodeHash) internal pure returns (address) {
+        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
+    }
+
+    function callRuntime42(address deployed) internal returns (uint256) {
+        (bool ok, bytes memory result) = deployed.call("");
+        assertTrue(ok);
+        return abi.decode(result, (uint256));
+    }
+
     function testIRCrosscallNoArgs() public {
         address probe = address(uint160(0xE140));
         CrosscallCallee callee = new CrosscallCallee();
@@ -443,6 +459,40 @@ contract ProofForgeIRCrosscallSmokeTest {
             ),
             value
         );
+    }
+
+    function testIRCrosscallCreateDeploysRuntime() public {
+        address probe = address(uint160(0xE171));
+        deployRuntime(hex"$probe_hex", probe);
+
+        address deployed = deployedAddress(
+            callU256(
+                probe,
+                abi.encodeWithSignature("deploy_create(uint256)", uint256(0))
+            )
+        );
+
+        assertTrue(deployed.code.length > 0);
+        assertEq(callRuntime42(deployed), 42);
+    }
+
+    function testIRCrosscallCreate2DeploysDeterministicRuntime() public {
+        address probe = address(uint160(0xE172));
+        deployRuntime(hex"$probe_hex", probe);
+        bytes memory initCode = hex"69602a60005260206000f3600052600a6016f3";
+        bytes32 salt = keccak256("proof-forge-create2-salt");
+        address expected = expectedCreate2Address(probe, salt, keccak256(initCode));
+
+        address deployed = deployedAddress(
+            callU256(
+                probe,
+                abi.encodeWithSignature("deploy_create2(uint256,bytes32)", uint256(0), salt)
+            )
+        );
+
+        assertEq(uint256(uint160(deployed)), uint256(uint160(expected)));
+        assertTrue(deployed.code.length > 0);
+        assertEq(callRuntime42(deployed), 42);
     }
 
     function testIRCrosscallAggregateStructReturn() public {

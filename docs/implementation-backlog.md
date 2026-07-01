@@ -207,6 +207,12 @@ Tasks:
   `RemotePair[2]` ABI-word flattening, Bool/U32 field return guards, golden
   Yul, solc bytecode, Foundry runtime behavior, and metadata selectors across
   all four call modes.
+- Done: add EVM IR `crosscallCreate` and `crosscallCreate2` lowering for fixed
+  init-code hex. Creation helpers write init code to memory, call Yul
+  `create`/`create2`, revert on zero-address failure, return the deployed
+  address word, and validate golden Yul, solc bytecode, metadata selectors,
+  Foundry deployed runtime calls, deterministic CREATE2 address derivation,
+  EVM malformed creation diagnostics, and Psy unsupported diagnostics.
 - Done: add EVM IR direct scalar expression validation for `U64`/`U32`
   arithmetic, `U64` exponentiation, `U64`/`U32` bitwise operations and shifts,
   predicates, boolean operators, literals, immutable locals, supported casts,

@@ -399,6 +399,22 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xc9bc2909 {
+      if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      let _r := f_EvmCrosscallProbe_deploy_create(calldataload(4))
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x70b22efb {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r := f_EvmCrosscallProbe_deploy_create2(calldataload(4), calldataload(36))
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -535,6 +551,12 @@ object "EvmCrosscallProbe" {
       let __proof_forge_array_struct_pairs_1_flag := flag1
       let __proof_forge_array_struct_pairs_1_small := small1
       result := __proof_forge_crosscall_delegate_4(target, method, __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
+    }
+    function f_EvmCrosscallProbe_deploy_create(value) -> result {
+      result := __proof_forge_create_69602a60005260206000f3600052600a6016f3(value)
+    }
+    function f_EvmCrosscallProbe_deploy_create2(value, salt) -> result {
+      result := __proof_forge_create2_69602a60005260206000f3600052600a6016f3(value, salt)
     }
     function __proof_forge_crosscall_0(target, selector) -> result {
       mstore(0, shl(224, selector))
@@ -1110,6 +1132,20 @@ object "EvmCrosscallProbe" {
       }
       returndatacopy(0, 0, 32)
       result := mload(0)
+    }
+    function __proof_forge_create_69602a60005260206000f3600052600a6016f3(call_value) -> result {
+      mstore(0, 0x69602a60005260206000f3600052600a6016f300000000000000000000000000)
+      result := create(call_value, 0, 19)
+      if iszero(result) {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_create2_69602a60005260206000f3600052600a6016f3(call_value, salt) -> result {
+      mstore(0, 0x69602a60005260206000f3600052600a6016f300000000000000000000000000)
+      result := create2(call_value, 0, 19, salt)
+      if iszero(result) {
+        revert(0, 0)
+      }
     }
   }
 }
