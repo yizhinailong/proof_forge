@@ -201,6 +201,12 @@ Tasks:
   validation, aggregate return validation, invalid typed-return validation,
   metadata entrypoint validation, EVM malformed nested aggregate diagnostics,
   and explicit Psy unsupported diagnostics.
+- Done: extend EVM IR typed crosscall aggregate coverage to fixed arrays of
+  flat structs across normal, value-bearing, static, and delegate typed call
+  arguments and direct entrypoint returns. `EvmCrosscallProbe` now validates
+  `RemotePair[2]` ABI-word flattening, Bool/U32 field return guards, golden
+  Yul, solc bytecode, Foundry runtime behavior, and metadata selectors across
+  all four call modes.
 - Done: add EVM IR direct scalar expression validation for `U64`/`U32`
   arithmetic, `U64` exponentiation, `U64`/`U32` bitwise operations and shifts,
   predicates, boolean operators, literals, immutable locals, supported casts,

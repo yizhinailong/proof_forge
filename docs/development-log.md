@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Struct-Array Crosscall Aggregates
+
+Commit: feature commit for EVM IR struct-array crosscall aggregates
+
+Summary:
+
+- Extended the existing typed crosscall aggregate path to fixed arrays of flat
+  structs.
+- Added `EvmCrosscallProbe` entrypoints for fixed-array-of-flat-struct typed
+  arguments and direct aggregate returns across normal, value-bearing, static,
+  and delegate call modes.
+- Reused the ABI-static flattening policy: `RemotePair[2]` lowers to four ABI
+  words, preserving Bool and U32 return guards for every decoded element field.
+- Refreshed golden Yul, artifact metadata entrypoint expectations, Foundry
+  callee fixtures, and coverage/target validation docs.
+
+Validation run:
+
+```sh
+lake build ProofForge.IR.Examples.EvmCrosscallProbe
+scripts/evm/crosscall-ir-smoke.sh
+```
+
+Result:
+
+- `EvmCrosscallProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 55 CrosscallProbe tests, including fixed-array-of-flat-struct
+  arguments and returns in normal/value/static/delegate modes.
+- Metadata validation now checks all new struct-array crosscall selectors.
+
+Known limitations:
+
+- Aggregate crosscall arguments and returns remain limited to ABI-static flat
+  shapes.
+- Nested dynamic arrays, variable-length return data, `create`, and `create2`
+  remain future EVM IR work.
+
+Next step:
+
+- Continue closing the remaining EVM call-surface gaps around contract creation
+  or variable-length ABI data.
+
 ### EVM IR Aggregate Crosscall Arguments
 
 Commit: feature commit for EVM IR aggregate crosscall arguments

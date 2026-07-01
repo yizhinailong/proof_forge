@@ -204,7 +204,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
-| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct and scalar fixed-array arguments flattened to ABI words; `crosscallInvokeTyped` returns Bool/U32/U64/Hash scalar words with Bool/U32 return guards and supports direct entrypoint returns of flat struct and scalar fixed-array normal-call return data; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot and supports the same scalar and direct aggregate entrypoint returns; `crosscallInvokeStaticTyped` lowers typed calls through EVM `staticcall` with scalar and direct aggregate entrypoint returns and preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` lowers typed calls through EVM `delegatecall` with scalar and direct aggregate entrypoint returns and preserves caller-storage context |
+| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct, scalar fixed-array, and fixed-array-of-flat-struct arguments flattened to ABI words; typed normal/value/static/delegate calls return Bool/U32/U64/Hash scalar words with Bool/U32 return guards and support direct entrypoint returns of flat struct, scalar fixed-array, and fixed-array-of-flat-struct return data; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot; `crosscallInvokeStaticTyped` preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` preserves caller-storage context |
 | `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, and non-indexed data fields can be scalar words, flat structs, scalar fixed arrays, or fixed arrays of flat structs |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
@@ -401,21 +401,21 @@ surfaces for the portable IR.
 arity-, return-type-, value-mode-, static-mode-, and delegate-mode-specific Yul
 helpers. EVM IR v0 interprets the target expression as an address word, the
 method expression as a low-32-bit selector, scalar arguments as 32-byte ABI
-words, flat struct and scalar fixed-array arguments as ABI-flattened word
-sequences, and value-bearing call value as a U64 word. The helper packs calldata,
+words, flat struct, scalar fixed-array, and fixed-array-of-flat-struct
+arguments as ABI-flattened word sequences, and value-bearing call value as a U64 word. The helper packs calldata,
 executes either `call(gas(), target, 0, ...)`,
 `call(gas(), target, call_value, ...)`, `staticcall(gas(), target, ...)`, or
 `delegatecall(gas(), target, ...)`, reverts on call failure or returns shorter
 than the expected return-data size, and decodes one or more 32-byte return
 words. Typed helpers cover `Bool`, `U32`, `U64`, `Hash`, direct entrypoint
-returns of flat structs, and scalar fixed arrays across normal, value-bearing,
-static, and delegate modes; Bool and U32 helpers reject out-of-range return
+returns of flat structs, scalar fixed arrays, and fixed arrays of flat structs
+across normal, value-bearing, static, and delegate modes; Bool and U32 helpers reject out-of-range return
 words before returning to the dispatcher. The smoke checks golden Yul reproducibility,
 `solc --strict-assembly` bytecode generation, metadata capability
 `crosscall.invoke`, metadata entrypoints, Foundry U64 calls with zero/one/two
-arguments, typed Bool/U32/Hash calls, flat struct and scalar fixed-array
-aggregate typed returns in normal/value/static/delegate modes, flat struct and
-scalar fixed-array typed-call arguments, aggregate Bool/U32 malformed-return
+arguments, typed Bool/U32/Hash calls, flat struct, scalar fixed-array, and
+fixed-array-of-flat-struct aggregate typed returns in normal/value/static/delegate modes, flat struct,
+scalar fixed-array, and fixed-array-of-flat-struct typed-call arguments, aggregate Bool/U32 malformed-return
 guards in normal/value/static/delegate modes, native-value forwarding to a
 payable callee, value-bearing flat struct arguments, U64 read-only staticcall
 return behavior, Bool/U32/Hash static typed returns, static flat struct

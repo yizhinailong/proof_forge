@@ -163,6 +163,46 @@ def callRemoteArrayArg : Entrypoint := {
   ]
 }
 
+def callRemotePairArray : Entrypoint := {
+  name := "call_remote_pair_array"
+  selector? := some "031396d6"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.structType "RemotePair") 2
+  body := #[
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[] (.fixedArray (.structType "RemotePair") 2))
+  ]
+}
+
+def callRemotePairArrayArg : Entrypoint := {
+  name := "call_remote_pair_array_arg"
+  selector? := some "7a45fdce"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag0", .bool),
+    ("small0", .u32),
+    ("flag1", .bool),
+    ("small1", .u32)
+  ]
+  returns := .u64
+  body := #[
+    .letBind "pairs" (.fixedArray (.structType "RemotePair") 2) (.arrayLit (.structType "RemotePair") #[
+      .structLit "RemotePair" #[
+        ("flag", .local "flag0"),
+        ("small", .local "small0")
+      ],
+      .structLit "RemotePair" #[
+        ("flag", .local "flag1"),
+        ("small", .local "small1")
+      ]
+    ]),
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[.local "pairs"] .u64)
+  ]
+}
+
 def callRemoteValue : Entrypoint := {
   name := "call_remote_value"
   selector? := some "365f4a44"
@@ -218,6 +258,46 @@ def callRemoteValueArray : Entrypoint := {
   returns := .fixedArray .u64 2
   body := #[
     .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[] (.fixedArray .u64 2))
+  ]
+}
+
+def callRemoteValuePairArray : Entrypoint := {
+  name := "call_remote_value_pair_array"
+  selector? := some "63ec1609"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.structType "RemotePair") 2
+  body := #[
+    .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[] (.fixedArray (.structType "RemotePair") 2))
+  ]
+}
+
+def callRemoteValuePairArrayArg : Entrypoint := {
+  name := "call_remote_value_pair_array_arg"
+  selector? := some "27c33745"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag0", .bool),
+    ("small0", .u32),
+    ("flag1", .bool),
+    ("small1", .u32)
+  ]
+  returns := .u64
+  body := #[
+    .letBind "pairs" (.fixedArray (.structType "RemotePair") 2) (.arrayLit (.structType "RemotePair") #[
+      .structLit "RemotePair" #[
+        ("flag", .local "flag0"),
+        ("small", .local "small0")
+      ],
+      .structLit "RemotePair" #[
+        ("flag", .local "flag1"),
+        ("small", .local "small1")
+      ]
+    ]),
+    .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[.local "pairs"] .u64)
   ]
 }
 
@@ -321,6 +401,46 @@ def callRemoteStaticArray : Entrypoint := {
   ]
 }
 
+def callRemoteStaticPairArray : Entrypoint := {
+  name := "call_remote_static_pair_array"
+  selector? := some "e0315e4e"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.structType "RemotePair") 2
+  body := #[
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[] (.fixedArray (.structType "RemotePair") 2))
+  ]
+}
+
+def callRemoteStaticPairArrayArg : Entrypoint := {
+  name := "call_remote_static_pair_array_arg"
+  selector? := some "1b46265d"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag0", .bool),
+    ("small0", .u32),
+    ("flag1", .bool),
+    ("small1", .u32)
+  ]
+  returns := .u64
+  body := #[
+    .letBind "pairs" (.fixedArray (.structType "RemotePair") 2) (.arrayLit (.structType "RemotePair") #[
+      .structLit "RemotePair" #[
+        ("flag", .local "flag0"),
+        ("small", .local "small0")
+      ],
+      .structLit "RemotePair" #[
+        ("flag", .local "flag1"),
+        ("small", .local "small1")
+      ]
+    ]),
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[.local "pairs"] .u64)
+  ]
+}
+
 def callRemoteDelegate : Entrypoint := {
   name := "call_remote_delegate"
   selector? := some "427320b1"
@@ -421,6 +541,46 @@ def callRemoteDelegateArray : Entrypoint := {
   ]
 }
 
+def callRemoteDelegatePairArray : Entrypoint := {
+  name := "call_remote_delegate_pair_array"
+  selector? := some "a26d8a3c"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.structType "RemotePair") 2
+  body := #[
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[] (.fixedArray (.structType "RemotePair") 2))
+  ]
+}
+
+def callRemoteDelegatePairArrayArg : Entrypoint := {
+  name := "call_remote_delegate_pair_array_arg"
+  selector? := some "73049a39"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag0", .bool),
+    ("small0", .u32),
+    ("flag1", .bool),
+    ("small1", .u32)
+  ]
+  returns := .u64
+  body := #[
+    .letBind "pairs" (.fixedArray (.structType "RemotePair") 2) (.arrayLit (.structType "RemotePair") #[
+      .structLit "RemotePair" #[
+        ("flag", .local "flag0"),
+        ("small", .local "small0")
+      ],
+      .structLit "RemotePair" #[
+        ("flag", .local "flag1"),
+        ("small", .local "small1")
+      ]
+    ]),
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[.local "pairs"] .u64)
+  ]
+}
+
 def module : Module := {
   name := "EvmCrosscallProbe"
   structs := #[remotePairStruct]
@@ -436,10 +596,14 @@ def module : Module := {
     callRemoteArray,
     callRemotePairArg,
     callRemoteArrayArg,
+    callRemotePairArray,
+    callRemotePairArrayArg,
     callRemoteValue,
     callRemoteValuePairArg,
     callRemoteValuePair,
     callRemoteValueArray,
+    callRemoteValuePairArray,
+    callRemoteValuePairArrayArg,
     callRemoteStatic,
     callRemoteStaticBool,
     callRemoteStaticU32,
@@ -447,13 +611,17 @@ def module : Module := {
     callRemoteStaticPairArg,
     callRemoteStaticPair,
     callRemoteStaticArray,
+    callRemoteStaticPairArray,
+    callRemoteStaticPairArrayArg,
     callRemoteDelegate,
     callRemoteDelegateBool,
     callRemoteDelegateU32,
     callRemoteDelegateHash,
     callRemoteDelegatePairArg,
     callRemoteDelegatePair,
-    callRemoteDelegateArray
+    callRemoteDelegateArray,
+    callRemoteDelegatePairArray,
+    callRemoteDelegatePairArrayArg
   ]
 }
 
