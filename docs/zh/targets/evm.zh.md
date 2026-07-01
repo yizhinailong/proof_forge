@@ -87,6 +87,8 @@ proof-forge --emit-evm-event-ir-yul [-o output.yul]
 proof-forge --emit-evm-event-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-crosscall-ir-yul [-o output.yul]
 proof-forge --emit-evm-crosscall-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-expression-ir-yul [-o output.yul]
+proof-forge --emit-evm-expression-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-hash-ir-yul [-o output.yul]
 proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-map-ir-yul [-o output.yul]
@@ -209,6 +211,7 @@ scripts/evm/loop-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
 scripts/evm/event-ir-smoke.sh
 scripts/evm/crosscall-ir-smoke.sh
+scripts/evm/expression-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 scripts/evm/typed-map-ir-smoke.sh
@@ -242,6 +245,8 @@ scripts/evm/ir-counter-smoke.sh
 `EventProbe` 验证 portable IR event emission 通过 Yul `log1` 降级。EVM IR v0 使用刻意较小的事件策略：`topic0 = keccak256(UTF-8 event name)`，log data 是按 32-byte word 连续编码的字段值。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力 `events.emit`、Foundry recorded logs（`emitter`、topic 和 decoded data）、ABI selector dispatch，以及未知 selector revert。indexed fields 和 Solidity event-signature topics 需要等 portable IR 里有显式 event declaration 后再实现。
 
 `EvmCrosscallProbe` 验证 portable IR `crosscallInvoke` 会降为按 arity 生成的 Yul helper。EVM IR v0 把 target 表达式解释为地址 word，把 method 表达式解释为低 32 位 selector，把参数解释为 32-byte word。helper 会打包 calldata，执行 `call(gas(), target, 0, ...)`，在调用失败或返回不足一个 word 时 revert，并解码单个 32-byte 返回 word。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力 `crosscall.invoke`、Foundry 零/一/二参数调用、callee revert、短返回 revert，以及未知 selector revert。
+
+`EvmExpressionProbe` 直接验证 scalar expression lowering，而不是借由 storage 或 assignment side effect 间接覆盖。它覆盖 `U64` 和 `U32` arithmetic（`add`、`sub`、`mul`、`div`、`mod`）、通过 Yul `exp` 实现的 `U64` exponentiation、`U64`/`U32` bitwise operator 和符合 EVM 参数顺序的 shift、predicate expression（`eq`、`ne`、`lt`、`le`、`gt`、`ge`）、boolean `and`/`or`/`not`、scalar literal、不可变 local read、支持的 `U32`/`U64`/`Bool` cast、单 word scalar return、`U32`/`Bool` calldata dispatcher guard，以及 assertion guard。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力 `assertions.check`、Foundry 运行时结果、malformed calldata revert，以及未知 selector revert。
 
 `EvmMapProbe` 验证 portable IR `Map<U64, U64, N>` storage 使用与 SDK 一致的 Solidity-style slot layout：先把 `key` 和 `slot` 作为两个 32-byte word 写入内存，再计算 `keccak256(key || slot)`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.map`、`assertions.check`）、ABI get/set/insert 行为、单段 `mapKey` storage path 的 read、write 和复合赋值、Foundry `vm.load` 原始 storage slot，以及未知 selector revert。EVM IR v0 仍把 map path 限制为单段 `mapKey`；嵌套 map/aggregate storage path 保持显式诊断。
 

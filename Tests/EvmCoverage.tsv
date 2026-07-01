@@ -2,16 +2,16 @@
 ValueType	unit	validated	EVM IR permits Unit entrypoint returns and rejects Unit let bindings through lowerStatement diagnostics.
 ValueType	bool	validated	Bool literals, predicates, ABI parameters, return values, scalar storage, storage-map keys/values, and storage-array values lower to Yul 0/1 words; EvmTypedStorageProbe validates Bool scalar storage and Bool fixed storage arrays, and EvmTypedMapProbe validates Bool storage maps plus calldata guards.
 ValueType	u32	validated	U32 values and ABI parameters lower as EVM words with dispatcher range guards; scalar U32 storage is accepted by validateState, EvmTypedStorageProbe validates U32 fixed storage arrays, and EvmTypedMapProbe validates U32 storage maps plus U32 calldata range guards.
-ValueType	u64	lowered	U64 values and ABI parameters lower as EVM words; Counter IR covers scalar U64 storage and return values.
+ValueType	u64	validated	U64 values and ABI parameters lower as EVM words; Counter IR covers scalar U64 storage and return values, and EvmExpressionProbe validates U64 arithmetic, bitwise, predicate, local, literal, and return expressions.
 ValueType	hash	validated	EvmHashProbe validates Hash as a one-word EVM ABI/storage value, including Hash params, Hash returns, Hash locals, and scalar Hash storage; EvmTypedMapProbe validates Hash storage map keys and values.
 ValueType	fixedArray	validated	EvmStorageArrayProbe validates U64 fixed storage arrays; EvmTypedStorageProbe validates U32, Bool, and Hash fixed storage arrays; EvmArrayValueProbe validates immutable local fixed-array values over U64, U32, Bool, and Hash elements with static indexes; EvmAbiAggregateProbe validates flat static fixed-array ABI parameters and multi-word fixed-array returns; diagnostics reject mutable locals, dynamic local indexes, out-of-bounds literals, zero-length ABI arrays, nested ABI arrays, and unsupported element shapes.
 ValueType	structType	validated	EvmStructValueProbe validates flat immutable local struct values over U64, U32, Bool, and Hash fields; EvmAbiAggregateProbe validates flat ABI-facing struct parameters and multi-word struct returns; EvmStorageStructProbe validates flat scalar storage structs and fixed storage arrays of flat structs; diagnostics reject whole-struct scalar reads, mutable local structs, nested fields, and unsupported struct field shapes.
 StateKind	scalar	validated	EVM IR lowers scalar Bool/U32/U64/Hash state to direct slot-based sload/sstore and lowers flat scalar storage structs as one slot per field; EvmTypedStorageProbe validates Bool scalar storage; diagnostics reject unsupported scalar types and whole-struct scalar reads.
 StateKind	map	validated	EvmMapProbe validates Map<U64, U64, N> storage via Solidity-style keccak256(key, slot) mapping slots; EvmTypedMapProbe validates word key/value maps over U32, Bool, and Hash; diagnostics reject non-word map key/value shapes.
 StateKind	array	validated	EvmStorageArrayProbe validates U64 fixed storage arrays as contiguous EVM storage slots with runtime bounds checks; EvmTypedStorageProbe validates U32, Bool, and Hash fixed storage arrays as contiguous EVM storage slots with runtime bounds checks; EvmStorageStructProbe validates fixed storage arrays of flat structs as contiguous field-expanded slots with runtime bounds checks; diagnostics reject unsupported array element types.
-Literal	u32	lowered	lowerExpr emits U32 literals as Yul numeric expressions.
-Literal	u64	lowered	lowerExpr emits U64 literals as Yul numeric expressions.
-Literal	bool	lowered	lowerExpr emits Bool literals as Yul 1 or 0.
+Literal	u32	validated	EvmExpressionProbe validates U32 literals in arithmetic, bitwise, cast, and assertion expressions.
+Literal	u64	validated	EvmExpressionProbe validates U64 literals in arithmetic, bitwise, predicate, and assertion expressions.
+Literal	bool	validated	EvmExpressionProbe validates Bool literals in predicate equality/inequality and assertion expressions.
 Literal	hash4	validated	EvmHashProbe validates four-limb Hash literals packed into one EVM bytes32 word.
 ContextField	userId	validated	ContextProbe lowers userId context reads to Yul caller() and Foundry verifies a vm.prank sender.
 ContextField	contractId	validated	ContextProbe lowers contractId context reads to Yul address() and Foundry verifies the etched runtime address.
@@ -26,33 +26,33 @@ AssignOp	bitOr	validated	EvmAssignOpProbe validates local and scalar-storage bit
 AssignOp	bitXor	validated	EvmAssignOpProbe validates local and scalar-storage bitwise-xor compound assignment; diagnostics reject non-numeric operands.
 AssignOp	shiftLeft	validated	EvmAssignOpProbe validates local and scalar-storage shift-left compound assignment with EVM shl operand ordering; diagnostics reject non-numeric operands.
 AssignOp	shiftRight	validated	EvmAssignOpProbe validates local and scalar-storage shift-right compound assignment with EVM shr operand ordering; diagnostics reject non-numeric operands.
-Expr	literal	lowered	lowerExpr delegates U32/U64/Bool literals to Yul numeric expressions and packs Hash literals into one EVM word.
-Expr	local	lowered	lowerExpr emits local identifiers directly.
+Expr	literal	validated	EvmExpressionProbe validates U32/U64/Bool literal lowering through arithmetic, bitwise, predicate, cast, and assertion expressions; EvmHashProbe validates Hash literal packing.
+Expr	local	validated	EvmExpressionProbe validates local identifier lowering through immutable local bindings consumed by arithmetic, bitwise, predicate, cast, and return expressions.
 Expr	arrayLit	validated	EvmArrayValueProbe validates fixed-array literals as immutable local fixed-array initializers and direct literal-index sources for U64, U32, Bool, and Hash values; EvmAbiAggregateProbe validates fixed-array return data from local aggregate values; standalone array values remain explicit diagnostics.
 Expr	arrayGet	validated	EvmArrayValueProbe validates local fixed-array static index reads and direct fixed-array literal index reads; diagnostics reject dynamic local fixed-array indexes and static out-of-bounds indexes.
 Expr	structLit	validated	EvmStructValueProbe validates struct literals as immutable local struct initializers and direct field-access sources; EvmAbiAggregateProbe validates struct return data from struct literals; standalone struct values remain explicit diagnostics.
 Expr	field	validated	EvmStructValueProbe validates field access over immutable local struct values and direct struct literals; diagnostics reject non-struct bases and unsupported field shapes.
-Expr	add	lowered	lowerExpr emits Yul add.
-Expr	sub	lowered	lowerExpr emits Yul sub.
-Expr	mul	lowered	lowerExpr emits Yul mul.
-Expr	div	lowered	lowerExpr emits Yul div.
-Expr	mod	lowered	lowerExpr emits Yul mod.
-Expr	pow	lowered	lowerExpr emits Yul exp.
-Expr	bitAnd	lowered	lowerExpr emits Yul and.
-Expr	bitOr	lowered	lowerExpr emits Yul or.
-Expr	bitXor	lowered	lowerExpr emits Yul xor.
-Expr	shiftLeft	lowered	lowerExpr emits Yul shl with EVM shift-argument ordering.
-Expr	shiftRight	lowered	lowerExpr emits Yul shr with EVM shift-argument ordering.
-Expr	cast	lowered	lowerExpr currently lowers casts as pass-through word expressions.
-Expr	eq	lowered	lowerExpr emits Yul eq.
-Expr	ne	lowered	lowerExpr emits iszero(eq(...)).
-Expr	lt	lowered	lowerExpr emits Yul lt.
-Expr	le	lowered	lowerExpr emits iszero(gt(...)).
-Expr	gt	lowered	lowerExpr emits Yul gt.
-Expr	ge	lowered	lowerExpr emits iszero(lt(...)).
-Expr	boolAnd	lowered	lowerExpr emits Yul and for word-level boolean conjunction.
-Expr	boolOr	lowered	lowerExpr emits Yul or for word-level boolean disjunction.
-Expr	boolNot	lowered	lowerExpr emits Yul iszero.
+Expr	add	validated	EvmExpressionProbe validates direct U64 and U32 addition expressions through golden Yul and Foundry runtime results.
+Expr	sub	validated	EvmExpressionProbe validates direct U64 and U32 subtraction expressions through golden Yul and Foundry runtime results.
+Expr	mul	validated	EvmExpressionProbe validates direct U64 and U32 multiplication expressions through golden Yul and Foundry runtime results.
+Expr	div	validated	EvmExpressionProbe validates direct U64 and U32 division expressions through golden Yul and Foundry runtime results.
+Expr	mod	validated	EvmExpressionProbe validates direct U64 and U32 modulo expressions through golden Yul and Foundry runtime results.
+Expr	pow	validated	EvmExpressionProbe validates direct U64 exponentiation lowering to Yul exp through golden Yul and Foundry runtime results.
+Expr	bitAnd	validated	EvmExpressionProbe validates direct U64 and U32 bitwise-and expressions through golden Yul and Foundry runtime results.
+Expr	bitOr	validated	EvmExpressionProbe validates direct U64 and U32 bitwise-or expressions through golden Yul and Foundry runtime results.
+Expr	bitXor	validated	EvmExpressionProbe validates direct U64 and U32 bitwise-xor expressions through golden Yul and Foundry runtime results.
+Expr	shiftLeft	validated	EvmExpressionProbe validates direct U64 and U32 shift-left expressions with EVM shl operand ordering through golden Yul and Foundry runtime results.
+Expr	shiftRight	validated	EvmExpressionProbe validates direct U64 and U32 shift-right expressions with EVM shr operand ordering through golden Yul and Foundry runtime results.
+Expr	cast	validated	EvmExpressionProbe validates supported U32/U64/Bool casts as pass-through word expressions, including U32/Bool calldata guards before cast use.
+Expr	eq	validated	EvmExpressionProbe validates U64 and Bool equality predicates through golden Yul and Foundry runtime results.
+Expr	ne	validated	EvmExpressionProbe validates U64 and Bool inequality predicates through golden Yul and Foundry runtime results.
+Expr	lt	validated	EvmExpressionProbe validates U64 less-than predicates through golden Yul and Foundry runtime results.
+Expr	le	validated	EvmExpressionProbe validates U64 less-or-equal predicates through golden Yul and Foundry runtime results.
+Expr	gt	validated	EvmExpressionProbe validates U64 greater-than predicates through golden Yul and Foundry runtime results.
+Expr	ge	validated	EvmExpressionProbe validates U64 greater-or-equal predicates through golden Yul and Foundry runtime results.
+Expr	boolAnd	validated	EvmExpressionProbe validates boolean conjunction expressions through golden Yul and Foundry runtime results.
+Expr	boolOr	validated	EvmExpressionProbe validates boolean disjunction expressions through golden Yul and Foundry runtime results.
+Expr	boolNot	validated	EvmExpressionProbe validates boolean negation expressions through golden Yul and Foundry runtime results.
 Expr	hashValue	validated	EvmHashProbe validates dynamic four-limb Hash construction with Yul shl/or packing.
 Expr	hash	validated	EvmHashProbe validates crypto.hash as keccak256 over one 32-byte Hash word.
 Expr	hashTwoToOne	validated	EvmHashProbe validates crypto.hash_two_to_one as keccak256 over two contiguous 32-byte Hash words.
@@ -80,13 +80,13 @@ Effect	eventEmit	validated	EventProbe validates eventEmit lowering to Yul log1 w
 StoragePathSegment	field	validated	EvmStorageStructProbe validates field as a scalar storage-struct path segment and as the second segment after index for fixed storage arrays of structs.
 StoragePathSegment	index	validated	EvmStorageArrayProbe validates index as the first and only storage-path segment for EVM U64 fixed storage-array reads, writes, and compound assignment; EvmTypedStorageProbe validates index paths over U32, Bool, and Hash fixed storage arrays; EvmStorageStructProbe validates index as the first segment before field for fixed storage arrays of structs.
 StoragePathSegment	mapKey	validated	EvmMapProbe validates mapKey as the first and only storage-path segment for EVM Map<U64, U64, N> reads, writes, and compound assignment; EvmTypedMapProbe validates mapKey over U32, Bool, and Hash word maps.
-Statement	letBind	lowered	lowerStatement emits immutable Yul varDecl for U32/U64/Bool/Hash let bindings, expands fixed-array and flat struct local values into internal Yul locals, and rejects unsupported types.
-Statement	letMutBind	lowered	lowerStatement emits mutable scalar Yul let bindings; AssignmentProbe covers mutable U64 and Bool locals.
-Statement	assign	lowered	lowerStatement emits Yul assignment for local targets; AssignmentProbe covers local reassignment and diagnostics reject non-local targets.
+Statement	letBind	validated	EvmExpressionProbe validates immutable scalar U32/U64/Bool let bindings; EvmHashProbe validates Hash let bindings; EvmArrayValueProbe and EvmStructValueProbe validate aggregate let binding expansion; diagnostics reject unsupported types.
+Statement	letMutBind	validated	AssignmentProbe validates mutable scalar Yul let bindings for U64 and Bool locals, and EvmAssignOpProbe validates mutable U32/U64 locals consumed by compound assignments.
+Statement	assign	validated	AssignmentProbe validates Yul assignment for local targets and diagnostics reject non-local assignment targets.
 Statement	assignOp	validated	lowerStatement emits Yul assignments for mutable local U32/U64 compound assignment; EvmAssignOpProbe validates all AssignOp variants and diagnostics reject non-local targets, immutable locals, and non-numeric operands.
 Statement	effect	structural	lowerStatement delegates effects to lowerEffectStmt; scalar writes lower and unsupported effects reject.
-Statement	assert	lowered	lowerStatement emits a Yul if iszero(condition) revert guard; AssertProbe covers the passing path and Foundry revert behavior.
-Statement	assertEq	lowered	lowerStatement emits a Yul if iszero(eq(lhs, rhs)) revert guard; AssertProbe covers the passing path and Foundry revert behavior.
-Statement	ifElse	lowered	lowerStatement emits Yul switch/case/default for if/else; ConditionalProbe covers then/else storage updates and diagnostics reject nested branch returns.
+Statement	assert	validated	AssertProbe and EvmExpressionProbe validate Yul if iszero(condition) revert guards through passing paths and Foundry revert behavior.
+Statement	assertEq	validated	AssertProbe and EvmExpressionProbe validate Yul if iszero(eq(lhs, rhs)) revert guards through passing paths and Foundry revert behavior.
+Statement	ifElse	validated	ConditionalProbe validates Yul switch/case/default lowering for if/else through then/else storage updates and diagnostics reject nested branch returns.
 Statement	boundedFor	validated	EvmLoopProbe validates boundedFor lowering to Yul for loops with scalar storage updates; diagnostics reject invalid loop ranges and loop-local returns.
-Statement	return	lowered	lowerStatement assigns scalar returns to result, expands flat struct/fixed-array returns into multiple Yul return variables, and dispatch encodes one-word or multi-word ABI return data.
+Statement	return	validated	EvmExpressionProbe validates one-word scalar return assignment and dispatch encoding; EvmAbiAggregateProbe validates multi-word flat struct/fixed-array returns.

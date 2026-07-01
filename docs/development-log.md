@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Scalar Expression Probe
+
+Commit: feature commit for EVM IR scalar expression validation
+
+Summary:
+
+- Added `ProofForge.IR.Examples.EvmExpressionProbe` to validate scalar
+  expression lowering directly, separate from storage or assignment side
+  effects.
+- Covered `U64` and `U32` arithmetic (`add`, `sub`, `mul`, `div`, `mod`),
+  `U64` exponentiation, `U64`/`U32` bitwise operators and shifts, predicates,
+  boolean `and`/`or`/`not`, scalar literals, immutable local reads, supported
+  `U32`/`U64`/`Bool` casts, one-word scalar returns, and assertion guards.
+- Added CLI emission modes, golden Yul, Foundry smoke coverage, artifact
+  metadata validation, and CI.
+- Updated EVM coverage, target docs, validation gates, backlog, and Chinese
+  docs so the scalar expression family now has runtime validation evidence
+  instead of only structural lowering notes.
+
+Validation run:
+
+```sh
+lake build ProofForge.IR.Examples.EvmExpressionProbe proof-forge
+scripts/evm/expression-ir-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Known limitations:
+
+- EVM arithmetic still follows raw EVM word semantics; checked overflow,
+  signed arithmetic, and target-specific numeric policies remain future
+  design work.
+- Aggregate expression behavior remains covered by the array, struct, and ABI
+  probes rather than this scalar expression probe.
+
+Next step:
+
+- Continue converting remaining `lowered` coverage rows into validated probes
+  or explicit diagnostics, especially around target-specific artifact/deploy
+  surfaces and any residual statement/effect validation gaps.
+
 ### EVM IR Typed Storage Maps
 
 Commit: feature commit for EVM IR typed storage maps

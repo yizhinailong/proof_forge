@@ -89,6 +89,8 @@ proof-forge --emit-evm-event-ir-yul [-o output.yul]
 proof-forge --emit-evm-event-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-crosscall-ir-yul [-o output.yul]
 proof-forge --emit-evm-crosscall-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-expression-ir-yul [-o output.yul]
+proof-forge --emit-evm-expression-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-hash-ir-yul [-o output.yul]
 proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-map-ir-yul [-o output.yul]
@@ -237,6 +239,7 @@ scripts/evm/loop-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
 scripts/evm/event-ir-smoke.sh
 scripts/evm/crosscall-ir-smoke.sh
+scripts/evm/expression-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 scripts/evm/typed-map-ir-smoke.sh
@@ -345,6 +348,18 @@ single 32-byte return word. The smoke checks golden Yul reproducibility,
 `solc --strict-assembly` bytecode generation, metadata capability
 `crosscall.invoke`, Foundry calls with zero/one/two arguments, callee reverts,
 short-return reverts, and unknown-selector reverts.
+
+`EvmExpressionProbe` validates scalar expression lowering directly rather than
+through storage or assignment side effects. It covers `U64` and `U32`
+arithmetic (`add`, `sub`, `mul`, `div`, `mod`), `U64` exponentiation through
+Yul `exp`, `U64`/`U32` bitwise operators and shifts with EVM operand ordering,
+predicate expressions (`eq`, `ne`, `lt`, `le`, `gt`, `ge`), boolean
+`and`/`or`/`not`, scalar literals, immutable local reads, supported
+`U32`/`U64`/`Bool` casts, one-word scalar returns, dispatcher guards for
+`U32`/`Bool` calldata, and assertion guards. The smoke checks golden Yul
+reproducibility, `solc --strict-assembly` bytecode generation, metadata
+capability `assertions.check`, Foundry runtime results, malformed calldata
+reverts, and unknown-selector reverts.
 
 `EvmMapProbe` validates portable IR `Map<U64, U64, N>` storage through the same
 Solidity-style slot layout used by the SDK: `keccak256(key || slot)` after
