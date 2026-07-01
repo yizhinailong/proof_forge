@@ -16,6 +16,8 @@ import Init.Data.String.Basic
 import ProofForge.IR.Contract
 import ProofForge.Compiler.Wasm.AST
 import ProofForge.Compiler.Wasm.Printer
+import ProofForge.Target.Check
+import ProofForge.Target.Registry
 
 namespace ProofForge.Backend.WasmNear.EmitWat
 
@@ -919,9 +921,20 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
         memory := some { min := 1 },
         dataSegments := scalarData ++ mapData ++ boolData ++ #[evtKeyData] ++ stringData }
 
-def renderModule (mod : ProofForge.IR.Module) : Except EmitError String :=
-  match lowerModule mod with
-  | .ok m => .ok (Printer.render m)
-  | .error e => .error e
+/-- EmitWat supports the same capability surface as the Rust-v0 `wasmNear` profile:
+    scalars, maps, caller, events, block, hash, assertions, account. Anything the
+    profile rejects (arrays, structs, control flow, crosscall, …) EmitWat also
+    cannot lower — fail fast with a capability error instead of reaching the
+    lowering and reporting an opaque "not yet supported". -/
+def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
+  match ProofForge.Target.requireCapabilities ProofForge.Target.wasmNear mod.capabilities with
+  | .ok () => .ok ()
+  | .error e => .error { message := s!"EmitWat: capability `{e.capability.id}` is not supported by the EmitWat backend (rejected by wasm-near profile)" }
+
+def renderModule (mod : ProofForge.IR.Module) : Except EmitError String := do
+  checkCapabilities mod
+  let m ← lowerModule mod
+  .ok (Printer.render m)
+
 
 end ProofForge.Backend.WasmNear.EmitWat
