@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-01
 
+### CI ContextProbe Target Split
+
+Commit: bugfix commit for CI fixture isolation
+
+Summary:
+
+- Split `ContextProbe` target usage so the shared Psy fixture keeps only
+  target-portable context reads.
+- Added `ProofForge.IR.Examples.EvmContextProbe` for EVM-only `nativeValue`
+  coverage while preserving the existing `ContextProbe` Yul object name,
+  selectors, golden Yul, and Foundry smoke behavior.
+- Updated EVM context CLI emission to use the EVM-specific fixture, while
+  `--emit-context-ir-psy` continues to use the Psy-compatible fixture.
+- Fixed the GitHub Actions failure where the Psy golden source step attempted
+  to lower `nativeValue`, which Psy IR v0 intentionally rejects.
+
+Validation run:
+
+```sh
+lake build
+# Full Check Psy golden sources block from .github/workflows/ci.yml
+scripts/evm/context-ir-smoke.sh
+scripts/psy/diagnostic-smoke.sh
+scripts/psy/check-ir-coverage-manifest.py
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+git diff --check
+```
+
+Known limitations:
+
+- Psy still rejects `nativeValue` by design; EVM owns the current
+  `callvalue()` lowering and runtime validation.
+
+Next step:
+
+- Re-run GitHub Actions on `main` and continue the EVM aggregate ABI work after
+  CI is green.
+
 ### EVM IR Local Struct Values
 
 Commit: feature commit for EVM IR local struct values

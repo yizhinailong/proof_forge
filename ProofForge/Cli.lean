@@ -22,6 +22,7 @@ import ProofForge.IR.Examples.EventProbe
 import ProofForge.IR.Examples.EvmArrayValueProbe
 import ProofForge.IR.Examples.EvmAssignOpProbe
 import ProofForge.IR.Examples.EvmCrosscallProbe
+import ProofForge.IR.Examples.EvmContextProbe
 import ProofForge.IR.Examples.EvmHashProbe
 import ProofForge.IR.Examples.EvmLoopProbe
 import ProofForge.IR.Examples.EvmMapProbe
@@ -888,7 +889,7 @@ def compileConditionalIrBytecode (opts : CliOptions) : IO UInt32 := do
 
 def compileContextIrYul (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/ir/ContextProbe.yul")
-  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.ContextProbe.module with
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.EvmContextProbe.module with
   | .ok yul =>
       writeTextFile output yul
       IO.println s!"wrote {output}"
@@ -897,7 +898,7 @@ def compileContextIrYul (opts : CliOptions) : IO UInt32 := do
       throw <| IO.userError err.render
 
 def renderContextIrYul : IO String := do
-  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.ContextProbe.module with
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.EvmContextProbe.module with
   | .ok yul => return yul
   | .error err => throw <| IO.userError err.render
 
@@ -908,7 +909,7 @@ def compileContextIrBytecode (opts : CliOptions) : IO UInt32 := do
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (FilePath.mk "build/ir/ContextProbe.bin")
   writeTextFile output (bytecode ++ "\n")
-  writeEvmIrArtifactMetadata opts "ContextProbe" "ProofForge.IR.Examples.ContextProbe" ProofForge.IR.Examples.ContextProbe.module yulOutput output
+  writeEvmIrArtifactMetadata opts "ContextProbe" "ProofForge.IR.Examples.EvmContextProbe" ProofForge.IR.Examples.EvmContextProbe.module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
