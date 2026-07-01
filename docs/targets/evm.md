@@ -98,7 +98,7 @@ proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:
 EVM bytecode mode:
 
 ```sh
-proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [-o output.bin] input.lean
+proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
 ```
 
 Portable IR EVM fixture modes:
@@ -152,6 +152,9 @@ proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output out
 `--evm-chain-profile <id>` records a known EVM chain profile, such as
 `robinhood-chain-testnet`, in the generated deploy manifest without signing or
 broadcasting a transaction.
+`--evm-constructor-args-hex <hex>` appends an ABI-encoded constructor argument
+blob to generated `.init.bin` creation bytecode and records the normalized hex,
+byte length, and SHA-256 in `proof-forge-deploy.json`.
 `--artifact-output <path>` overrides the default EVM metadata path. Without an
 override, bytecode modes write `proof-forge-artifact.json` next to the bytecode
 output and `proof-forge-deploy.json` next to the metadata file. When smoke
@@ -282,9 +285,10 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   unsupported aggregate or non-flat leaves, nested crosscall fixed
   arrays with non-flat struct or unsupported leaves,
   non-word or aggregate map shapes, nested
-  local structs beyond flat struct arrays, richer event declarations, dynamic
-  constructor arguments, variable-length cross-call return data, and real
-  creation-transaction or broadcast manifests.
+  local structs beyond flat struct arrays, richer event declarations,
+  constructor ABI schema generation beyond explicit ABI-encoded hex,
+  variable-length cross-call return data, and real creation-transaction or
+  broadcast manifests.
 
 ## Portable IR Gates
 
@@ -646,8 +650,9 @@ The EVM deploy manifest records:
   `--evm-chain-profile` is provided, including profile id, chain id, RPC URLs,
   native gas symbol, explorer, verifier, and notes
 - Yul/source inputs plus runtime bytecode and initcode hash/size
-- `creation.mode: init-code`, with empty constructor args, an artifact-linked
-  initcode file, and the referenced runtime bytecode
+- `creation.mode: init-code`, optional ABI-encoded constructor args from
+  `--evm-constructor-args-hex`, an artifact-linked initcode file, and the
+  referenced runtime bytecode
 - `deployment.profileId`, `deployment.chainId`, `deployment.rpcUrls`,
   `deployment.blockExplorerUrl`, and verifier fields when a chain profile is
   selected
@@ -658,17 +663,20 @@ The EVM deploy manifest records:
 `scripts/evm/validate-artifact-metadata.py` validates these metadata files and
 their referenced deploy manifests in the EVM IR smoke scripts and in
 `scripts/evm/build-examples.sh`. The validators parse the initcode header and
-check that it copies and returns the exact runtime bytecode artifact. When a
-chain profile is selected, they also verify that `chainProfile` and
-`deployment` agree on profile id, chain id, RPC URLs, explorer, and verifier
-metadata. `scripts/evm/validate-deploy-manifest.py` can validate a deploy
-manifest directly.
+check that it copies and returns the exact runtime bytecode artifact, and that
+any constructor-argument tail matches the deploy manifest. When a chain profile
+is selected, they also verify that `chainProfile` and `deployment` agree on
+profile id, chain id, RPC URLs, explorer, and verifier metadata.
+`scripts/evm/validate-deploy-manifest.py` can validate a deploy manifest
+directly.
 
 `scripts/evm/anvil-deploy-smoke.sh` consumes the generated Counter deploy
-manifest and `.init.bin`, starts a local Anvil chain, sends the initcode with
-`cast send --create`, checks the receipt, verifies that the deployed runtime
-code equals `Counter.bin`, runs the Counter lifecycle through JSON-RPC calls,
-and writes `build/anvil-deploy-smoke/Counter.proof-forge-deploy-run.json`.
+manifest and `.init.bin`, regenerates Counter with a deterministic non-empty
+constructor-argument blob by default, starts a local Anvil chain, sends the
+initcode with `cast send --create`, checks the receipt, verifies that the
+deployed runtime code equals `Counter.bin`, runs the Counter lifecycle through
+JSON-RPC calls, and writes
+`build/anvil-deploy-smoke/Counter.proof-forge-deploy-run.json`.
 `scripts/evm/validate-deploy-run.py` validates that deploy-run artifact. The
 original deploy manifest remains a reproducible plan with
 `deployment.broadcast: not-generated`; the deploy-run artifact records one

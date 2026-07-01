@@ -167,6 +167,7 @@ structure CliOptions where
   solc : String := "solc"
   cast : String := "cast"
   evmChainProfile? : Option String := none
+  evmConstructorArgsHex : String := ""
   mode : EmitMode := .yul
   deriving Inhabited
 
@@ -174,7 +175,7 @@ def usage : String :=
   String.intercalate "\n" [
     "Usage:",
     "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
-    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [-o output.bin] input.lean",
+    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-abi-scalar-ir-yul [-o output.yul]",
@@ -246,6 +247,7 @@ def usage : String :=
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
+    "`--evm-constructor-args-hex <hex>` appends ABI-encoded constructor arguments to generated EVM initcode.",
     "IR fixture modes render hand-written portable IR fixtures to target source or bytecode."
   ]
 
@@ -260,7 +262,18 @@ def dropEndString (s : String) (n : Nat) : String :=
   (s.dropEnd n).toString
 
 def stripHexPrefix (s : String) : String :=
-  if s.startsWith "0x" then (s.drop 2).toString else s
+  if s.startsWith "0x" || s.startsWith "0X" then (s.drop 2).toString else s
+
+def lowerHexString (s : String) : String :=
+  String.intercalate "" <| s.toList.map fun ch =>
+    match ch with
+    | 'A' => "a"
+    | 'B' => "b"
+    | 'C' => "c"
+    | 'D' => "d"
+    | 'E' => "e"
+    | 'F' => "f"
+    | _ => ch.toString
 
 def parseReturnsValue (s : String) : Except String Bool :=
   match s with
@@ -364,6 +377,17 @@ def isHexChar (c : Char) : Bool :=
 def isHexString (s : String) : Bool :=
   !s.isEmpty && s.all isHexChar
 
+def normalizeConstructorArgsHex (value : String) : Except String String :=
+  let hex := stripHexPrefix (trimAsciiString value)
+  if hex.isEmpty then
+    .ok ""
+  else if hex.length % 2 != 0 then
+    .error "--evm-constructor-args-hex must have an even number of hex digits"
+  else if !hex.all isHexChar then
+    .error "--evm-constructor-args-hex must contain only hex digits"
+  else
+    .ok (lowerHexString hex)
+
 def runProcess (cmd : String) (args : Array String) (cwd? : Option FilePath := none) : IO String := do
   let output ← IO.Process.output { cmd := cmd, args := args, cwd := cwd? }
   if output.exitCode != 0 then
@@ -423,6 +447,14 @@ def fileDigestAndBytes (path : FilePath) : IO (String × Nat) := do
       return (digest, bytes)
   | _ =>
       throw <| IO.userError s!"python3 returned invalid digest output for {path}: {trimAsciiString stdout}"
+
+def sha256HexBytes (hex : String) : IO String := do
+  let script := "import hashlib, sys; print(hashlib.sha256(bytes.fromhex(sys.argv[1])).hexdigest())"
+  let digest := trimAsciiString (← runProcess "python3" #["-c", script, hex])
+  if digest.length == 64 && digest.all isHexChar then
+    return digest
+  else
+    throw <| IO.userError s!"python3 returned invalid SHA-256 digest for constructor args: {digest}"
 
 def jsonString (value : String) : String :=
   let escapeChar : Char → String
@@ -553,8 +585,9 @@ partial def initCodeOffsetWidth (sizePushWidth offsetWidth : Nat) : Except Strin
   else
     initCodeOffsetWidth sizePushWidth requiredWidth
 
-def deploymentInitCodeHex (runtimeBytecode : String) : Except String String := do
+def deploymentInitCodeHex (runtimeBytecode constructorArgsHex : String) : Except String String := do
   let runtime := stripHexPrefix (trimAsciiString runtimeBytecode)
+  let constructorArgs ← normalizeConstructorArgsHex constructorArgsHex
   if runtime.isEmpty then
     .error "EVM runtime bytecode must be non-empty before initcode generation"
   else if runtime.length % 2 != 0 then
@@ -569,12 +602,12 @@ def deploymentInitCodeHex (runtimeBytecode : String) : Except String String := d
     let headerBytes := 9 + 2 * sizePushWidth + offsetWidth
     let sizePush ← pushDataHex runtimeBytes
     let offsetPush ← pushDataHex headerBytes
-    .ok (sizePush ++ offsetPush ++ "600039" ++ sizePush ++ "6000f3" ++ runtime)
+    .ok (sizePush ++ offsetPush ++ "600039" ++ sizePush ++ "6000f3" ++ runtime ++ constructorArgs)
 
-def writeEvmInitCode (bytecodeOutput : FilePath) : IO FilePath := do
+def writeEvmInitCode (bytecodeOutput : FilePath) (constructorArgsHex : String) : IO FilePath := do
   let runtimeBytecode ← IO.FS.readFile bytecodeOutput
   let initCode ←
-    match deploymentInitCodeHex runtimeBytecode with
+    match deploymentInitCodeHex runtimeBytecode constructorArgsHex with
     | .ok initCode => pure initCode
     | .error msg => throw <| IO.userError msg
   let initCodeOutput := defaultInitCodeOutput bytecodeOutput
@@ -654,6 +687,25 @@ def evmChainProfileFieldJson (profile? : Option ProofForge.Target.EvmChainProfil
   | some profile => evmChainProfileJson profile
   | none => "null"
 
+def constructorArgsJson (constructorArgsHex : String) : IO String := do
+  let normalized ←
+    match normalizeConstructorArgsHex constructorArgsHex with
+    | .ok hex => pure hex
+    | .error msg => throw <| IO.userError msg
+  if normalized.isEmpty then
+    return jsonArray #[]
+  else
+    let digest ← sha256HexBytes normalized
+    return jsonArray #[
+      jsonObject #[
+        ("encoding", jsonString "abi-encoded"),
+        ("hex", jsonString s!"0x{normalized}"),
+        ("bytes", toString (normalized.length / 2)),
+        ("sha256", jsonString digest),
+        ("source", jsonString "--evm-constructor-args-hex")
+      ]
+    ]
+
 def evmDeploymentJson (profile? : Option ProofForge.Target.EvmChainProfile) : String :=
   let (profileId, chainId, networkName, rpcUrls, blockExplorerUrl, verifier, verifierUrl, reason) :=
     match profile? with
@@ -698,7 +750,7 @@ def writeEvmDeployManifest
     (methods : Array String)
     (chainProfile? : Option ProofForge.Target.EvmChainProfile)
     (sourceArtifact? : Option String)
-    (yulArtifact bytecodeArtifact initCodeArtifact : String) : IO Unit := do
+    (yulArtifact bytecodeArtifact initCodeArtifact constructorArgs : String) : IO Unit := do
   let mut inputFields : Array (String × String) := #[
     ("yul", yulArtifact),
     ("bytecode", bytecodeArtifact),
@@ -725,7 +777,7 @@ def writeEvmDeployManifest
     ]),
     ("creation", jsonObject #[
       ("mode", jsonString "init-code"),
-      ("constructorArgs", jsonArray #[]),
+      ("constructorArgs", constructorArgs),
       ("initCode", initCodeArtifact),
       ("runtimeBytecode", bytecodeArtifact)
     ]),
@@ -747,7 +799,8 @@ def writeEvmArtifactMetadata
   let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput bytecodeOutput)
   let deployOutput := defaultDeployManifestOutput metadataOutput
   let chainProfile? ← resolveEvmChainProfile? opts.evmChainProfile?
-  let initCodeOutput ← writeEvmInitCode bytecodeOutput
+  let constructorArgs ← constructorArgsJson opts.evmConstructorArgsHex
+  let initCodeOutput ← writeEvmInitCode bytecodeOutput opts.evmConstructorArgsHex
   let yulArtifact ← artifactEntryJson yulOutput
   let bytecodeArtifact ← artifactEntryJson bytecodeOutput
   let initCodeArtifact ← artifactEntryJson initCodeOutput
@@ -765,6 +818,7 @@ def writeEvmArtifactMetadata
     yulArtifact
     bytecodeArtifact
     initCodeArtifact
+    constructorArgs
   let mut artifactFields : Array (String × String) := #[
     ("yul", yulArtifact),
     ("bytecode", bytecodeArtifact),
@@ -848,6 +902,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
       if opts.evmChainProfile?.isSome && !opts.mode.emitsEvmDeployManifest then
         .error "--evm-chain-profile only applies to EVM bytecode modes that emit proof-forge-deploy.json"
+      else if !opts.evmConstructorArgsHex.isEmpty && !opts.mode.emitsEvmDeployManifest then
+        .error "--evm-constructor-args-hex only applies to EVM bytecode modes that emit proof-forge-deploy.json"
       else if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy then
         .ok opts
       else
@@ -871,6 +927,9 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with artifactOutput? := some (FilePath.mk path) }
   | "--evm-chain-profile" :: profile :: rest, opts =>
       parseArgs rest { opts with evmChainProfile? := some profile }
+  | "--evm-constructor-args-hex" :: hex :: rest, opts => do
+      let normalized ← normalizeConstructorArgsHex hex
+      parseArgs rest { opts with evmConstructorArgsHex := normalized }
   | "--solc" :: path :: rest, opts =>
       parseArgs rest { opts with solc := path }
   | "--cast" :: path :: rest, opts =>

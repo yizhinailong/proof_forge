@@ -34,6 +34,13 @@ def expect_optional_string(value: Any, name: str) -> None:
     expect(value is None or (isinstance(value, str) and value), f"{name} must be null or a non-empty string")
 
 
+def normalize_hex(value: str, name: str) -> str:
+    text = value[2:] if value.startswith(("0x", "0X")) else value
+    expect(all(ch in "0123456789abcdefABCDEF" for ch in text), f"{name} must contain only hex digits")
+    expect(len(text) % 2 == 0, f"{name} must have an even number of hex digits")
+    return text.lower()
+
+
 def resolve_path(root: Path, path_text: str) -> Path:
     path = Path(path_text)
     if path.is_absolute():
@@ -68,7 +75,28 @@ def read_push_value(init_hex: str, offset: int, name: str) -> tuple[int, int]:
     return int(init_hex[data_start:data_end], 16), data_end
 
 
-def validate_deployment_init_code(init_path: Path, runtime_path: Path, prefix: str) -> None:
+def validate_constructor_args(constructor_args: list, expected_hex: Optional[str]) -> str:
+    if expected_hex is not None:
+        expected_hex = normalize_hex(expected_hex, "--expect-constructor-args-hex")
+
+    if constructor_args == []:
+        actual_hex = ""
+    else:
+        expect(len(constructor_args) == 1, "creation.constructorArgs supports one ABI-encoded argument blob")
+        arg = expect_object(constructor_args[0], "creation.constructorArgs[0]")
+        expect(arg.get("encoding") == "abi-encoded", "creation.constructorArgs[0].encoding mismatch")
+        actual_hex = normalize_hex(expect_string(arg.get("hex"), "creation.constructorArgs[0].hex"), "creation.constructorArgs[0].hex")
+        arg_bytes = bytes.fromhex(actual_hex)
+        expect(arg.get("bytes") == len(arg_bytes), "creation.constructorArgs[0].bytes mismatch")
+        expect(arg.get("sha256") == hashlib.sha256(arg_bytes).hexdigest(), "creation.constructorArgs[0].sha256 mismatch")
+        expect(arg.get("source") == "--evm-constructor-args-hex", "creation.constructorArgs[0].source mismatch")
+
+    if expected_hex is not None:
+        expect(actual_hex == expected_hex, "creation.constructorArgs hex mismatch")
+    return actual_hex
+
+
+def validate_deployment_init_code(init_path: Path, runtime_path: Path, constructor_args_hex: str, prefix: str) -> None:
     init_hex = expect_hex_text(init_path, f"{prefix}.initCode")
     runtime_hex = expect_hex_text(runtime_path, f"{prefix}.runtimeBytecode")
     runtime_size = len(runtime_hex) // 2
@@ -84,7 +112,9 @@ def validate_deployment_init_code(init_path: Path, runtime_path: Path, prefix: s
     expect(size == runtime_size, f"{prefix}.initCode runtime size mismatch")
     expect(return_size == runtime_size, f"{prefix}.initCode return size mismatch")
     expect(code_offset == offset // 2, f"{prefix}.initCode code offset mismatch")
-    expect(init_hex[offset:].lower() == runtime_hex.lower(), f"{prefix}.initCode runtime suffix mismatch")
+    runtime_end = offset + len(runtime_hex)
+    expect(init_hex[offset:runtime_end].lower() == runtime_hex.lower(), f"{prefix}.initCode runtime segment mismatch")
+    expect(init_hex[runtime_end:].lower() == constructor_args_hex, f"{prefix}.initCode constructor args suffix mismatch")
 
 
 def validate_abi(abi: dict) -> None:
@@ -163,6 +193,7 @@ def main() -> int:
     parser.add_argument("--expect-source-kind")
     parser.add_argument("--expect-chain-profile")
     parser.add_argument("--expect-chain-id", type=int)
+    parser.add_argument("--expect-constructor-args-hex")
     parser.add_argument("manifest")
     args = parser.parse_args()
 
@@ -202,7 +233,10 @@ def main() -> int:
 
     creation = expect_object(manifest.get("creation"), "creation")
     expect(creation.get("mode") == "init-code", "creation.mode mismatch")
-    expect(expect_array(creation.get("constructorArgs"), "creation.constructorArgs") == [], "creation.constructorArgs must be empty")
+    constructor_args_hex = validate_constructor_args(
+        expect_array(creation.get("constructorArgs"), "creation.constructorArgs"),
+        args.expect_constructor_args_hex,
+    )
     init_code_entry = expect_object(creation.get("initCode"), "creation.initCode")
     creation_init_code_path = file_entry(root, init_code_entry, "creation.initCode")
     expect(init_code_entry == inputs["initCode"], "creation.initCode must match inputs.initCode")
@@ -211,7 +245,7 @@ def main() -> int:
     runtime_path = file_entry(root, runtime_entry, "creation.runtimeBytecode")
     expect(runtime_entry == inputs["bytecode"], "creation.runtimeBytecode must match inputs.bytecode")
     expect(runtime_path.resolve() == bytecode_path.resolve(), "creation.runtimeBytecode path must match inputs.bytecode")
-    validate_deployment_init_code(creation_init_code_path, runtime_path, "creation")
+    validate_deployment_init_code(creation_init_code_path, runtime_path, constructor_args_hex, "creation")
 
     return 0
 

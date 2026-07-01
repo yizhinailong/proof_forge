@@ -12,6 +12,7 @@ MNEMONIC="${EVM_ANVIL_MNEMONIC:-test test test test test test test test test tes
 DEPLOYER_PRIVATE_KEY="${EVM_ANVIL_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
 DEPLOYER_ADDRESS="${EVM_ANVIL_DEPLOYER:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
 SET_VALUE="${EVM_ANVIL_SET_VALUE:-99}"
+CONSTRUCTOR_ARGS_HEX="${EVM_ANVIL_CONSTRUCTOR_ARGS_HEX-000000000000000000000000000000000000000000000000000000000000007b}"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
@@ -42,6 +43,34 @@ DEPLOY_RUN="$RUN_DIR/Counter.proof-forge-deploy-run.json"
 RUNTIME_FILE="$OUT_DIR/Counter.bin"
 INIT_FILE="$OUT_DIR/Counter.init.bin"
 DEPLOY_MANIFEST="$OUT_DIR/Counter.proof-forge-deploy.json"
+
+if [[ -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
+  if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then
+    proof_forge=("$PROOF_FORGE_BIN")
+  else
+    proof_forge=(lake env proof-forge)
+  fi
+
+  (
+    cd "$ROOT"
+    "${proof_forge[@]}" \
+      --evm-bytecode \
+      --root . \
+      --module contract \
+      --yul-output "$OUT_DIR/Counter.yul" \
+      --artifact-output "$OUT_DIR/Counter.proof-forge-artifact.json" \
+      --evm-constructor-args-hex "$CONSTRUCTOR_ARGS_HEX" \
+      -o "$RUNTIME_FILE" \
+      Examples/Evm/Contracts/Counter.lean
+    diff -u Examples/Evm/Contracts/Counter.golden.yul "$OUT_DIR/Counter.yul"
+    python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
+      --root "$ROOT" \
+      --expect-fixture Counter.lean \
+      --expect-source-kind lean-sdk \
+      --expect-constructor-args-hex "$CONSTRUCTOR_ARGS_HEX" \
+      "$OUT_DIR/Counter.proof-forge-artifact.json"
+  )
+fi
 
 if [[ -n "${EVM_ANVIL_PORT:-}" ]]; then
   PORT="$EVM_ANVIL_PORT"
@@ -181,6 +210,7 @@ from pathlib import Path
 
 root_path = Path(root)
 deploy_receipt = json.loads(Path(deploy_receipt_path).read_text())
+deploy_manifest = json.loads(Path(deploy_manifest_path).read_text())
 runtime_hex = Path(runtime_path).read_text().strip()
 
 
@@ -212,6 +242,7 @@ run = {
     "deployManifest": file_entry(deploy_manifest_path),
     "runtimeBytecode": file_entry(runtime_path),
     "initCode": file_entry(init_path),
+    "constructorArgs": deploy_manifest["creation"]["constructorArgs"],
     "castSendReceipt": file_entry(deploy_receipt_path),
     "setReceipt": file_entry(set_receipt_path),
     "network": {

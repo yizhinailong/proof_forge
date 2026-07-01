@@ -17,6 +17,56 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Constructor Args Initcode Tail
+
+Commit: feature commit for EVM constructor args initcode tail
+
+Summary:
+
+- Added `--evm-constructor-args-hex <hex>` to EVM bytecode modes.
+- The CLI now normalizes ABI-encoded constructor args, appends them to
+  generated `.init.bin` creation bytecode, and records the argument blob in
+  `proof-forge-deploy.json` with hex, byte size, SHA-256, and source metadata.
+- Updated EVM metadata, deploy-manifest, and deploy-run validators so they
+  parse the initcode header as `header + runtime + constructorArgs` instead of
+  assuming the initcode ends at the runtime bytecode.
+- Extended `scripts/evm/anvil-deploy-smoke.sh` so CI deploys Counter initcode
+  with a deterministic non-empty constructor-argument tail by default and
+  records those args in `Counter.proof-forge-deploy-run.json`.
+
+Validation run:
+
+```sh
+lake build
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py scripts/evm/validate-deploy-run.py
+scripts/evm/build-examples.sh
+scripts/evm/anvil-deploy-smoke.sh
+```
+
+Result:
+
+- No-argument SDK example builds still emit valid metadata and deploy
+  manifests.
+- Counter Anvil deploy smoke regenerated `Counter.init.bin` with a 32-byte
+  constructor argument blob (`0x...007b`), deployed it with `cast send
+  --create`, and validated that the deployed runtime code still matches
+  `Counter.bin`.
+- The deploy-run artifact records the constructor args and the Counter
+  lifecycle still returned `0`, then `99`, `100`, and `99`.
+
+Known limitations:
+
+- Constructor args are accepted as an explicit ABI-encoded hex blob; ProofForge
+  does not yet generate constructor ABI schemas or encode named constructor
+  parameters from IR.
+- This still validates on local Anvil, not a live public RPC broadcast.
+
+Next step:
+
+- Add a first-class deployment command or broadcast artifact that consumes the
+  deploy manifest, selected chain profile, private-key/wallet configuration,
+  and constructor args without shell-script-specific glue.
+
 ### EVM Anvil Deploy-Run Smoke
 
 Commit: `feat: validate EVM initcode deployment on Anvil`

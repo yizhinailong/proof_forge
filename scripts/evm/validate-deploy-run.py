@@ -35,6 +35,13 @@ def expect_array(value: Any, name: str) -> list:
     return value
 
 
+def normalize_hex(value: str, name: str) -> str:
+    text = value[2:] if value.startswith(("0x", "0X")) else value
+    expect(all(ch in "0123456789abcdefABCDEF" for ch in text), f"{name} must contain only hex digits")
+    expect(len(text) % 2 == 0, f"{name} must have an even number of hex digits")
+    return text.lower()
+
+
 def resolve_path(root: Path, path_text: str) -> Path:
     path = Path(path_text)
     if path.is_absolute():
@@ -57,6 +64,48 @@ def expect_hex_file(path: Path, name: str) -> str:
     expect(all(ch in "0123456789abcdefABCDEF" for ch in value), f"{name} must contain hex")
     expect(len(value) % 2 == 0, f"{name} must have an even number of hex digits")
     return value.lower()
+
+
+def read_push_value(init_hex: str, offset: int, name: str) -> tuple[int, int]:
+    expect(offset + 2 <= len(init_hex), f"{name} is missing PUSH opcode")
+    opcode = int(init_hex[offset : offset + 2], 16)
+    expect(0x60 <= opcode <= 0x7F, f"{name} must use PUSH1..PUSH32")
+    width = opcode - 0x5F
+    data_start = offset + 2
+    data_end = data_start + width * 2
+    expect(data_end <= len(init_hex), f"{name} PUSH data is truncated")
+    return int(init_hex[data_start:data_end], 16), data_end
+
+
+def validate_constructor_args(constructor_args: list, name: str) -> str:
+    if constructor_args == []:
+        return ""
+    expect(len(constructor_args) == 1, f"{name} supports one ABI-encoded argument blob")
+    arg = expect_object(constructor_args[0], f"{name}[0]")
+    expect(arg.get("encoding") == "abi-encoded", f"{name}[0].encoding mismatch")
+    actual_hex = normalize_hex(expect_string(arg.get("hex"), f"{name}[0].hex"), f"{name}[0].hex")
+    arg_bytes = bytes.fromhex(actual_hex)
+    expect(arg.get("bytes") == len(arg_bytes), f"{name}[0].bytes mismatch")
+    expect(arg.get("sha256") == hashlib.sha256(arg_bytes).hexdigest(), f"{name}[0].sha256 mismatch")
+    expect(arg.get("source") == "--evm-constructor-args-hex", f"{name}[0].source mismatch")
+    return actual_hex
+
+
+def validate_deployment_init_code(init_hex: str, runtime_hex: str, constructor_args_hex: str, prefix: str) -> None:
+    runtime_size = len(runtime_hex) // 2
+    size, offset = read_push_value(init_hex, 0, f"{prefix}.runtimeSize")
+    code_offset, offset = read_push_value(init_hex, offset, f"{prefix}.codeOffset")
+    expect(init_hex[offset : offset + 6].lower() == "600039", f"{prefix} must copy runtime to memory")
+    offset += 6
+    return_size, offset = read_push_value(init_hex, offset, f"{prefix}.returnSize")
+    expect(init_hex[offset : offset + 6].lower() == "6000f3", f"{prefix} must return copied runtime")
+    offset += 6
+    expect(size == runtime_size, f"{prefix} runtime size mismatch")
+    expect(return_size == runtime_size, f"{prefix} return size mismatch")
+    expect(code_offset == offset // 2, f"{prefix} code offset mismatch")
+    runtime_end = offset + len(runtime_hex)
+    expect(init_hex[offset:runtime_end].lower() == runtime_hex, f"{prefix} runtime segment mismatch")
+    expect(init_hex[runtime_end:].lower() == constructor_args_hex, f"{prefix} constructor args suffix mismatch")
 
 
 def expect_address(value: Any, name: str) -> str:
@@ -130,7 +179,11 @@ def main() -> int:
 
     runtime_hex = expect_hex_file(runtime_path, "runtimeBytecode").lower()
     init_hex = expect_hex_file(init_code_path, "initCode").lower()
-    expect(init_hex.endswith(runtime_hex), "initCode must contain runtime bytecode suffix")
+    creation = expect_object(manifest.get("creation"), "deploy manifest creation")
+    constructor_args = expect_array(creation.get("constructorArgs"), "deploy manifest creation.constructorArgs")
+    constructor_args_hex = validate_constructor_args(constructor_args, "deploy manifest creation.constructorArgs")
+    expect(run.get("constructorArgs") == constructor_args, "constructorArgs must match deploy manifest")
+    validate_deployment_init_code(init_hex, runtime_hex, constructor_args_hex, "initCode")
 
     network = expect_object(run.get("network"), "network")
     expect(network.get("kind") == "anvil", "network.kind must be anvil")
