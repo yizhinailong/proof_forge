@@ -19,6 +19,7 @@ import ProofForge.IR.Examples.ContextProbe
 import ProofForge.IR.Examples.ConditionalProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.CrosscallProbe
+import ProofForge.IR.Examples.PureMath
 import ProofForge.IR.Examples.EventProbe
 import ProofForge.IR.Examples.EvmAbiAggregateProbe
 import ProofForge.IR.Examples.EvmArrayValueProbe
@@ -129,6 +130,7 @@ inductive EmitMode where
   | u32StorageScalarIrPsy
   | u32StorageArrayIrPsy
   | counterIrLeo
+  | pureMathIrLeo
   deriving BEq, Inhabited
 
 structure CliOptions where
@@ -815,6 +817,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .u32StorageArrayIrPsy }
   | "--emit-counter-ir-leo" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrLeo }
+  | "--emit-pure-math-ir-leo" :: rest, opts =>
+      parseArgs rest { opts with mode := .pureMathIrLeo }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -1698,6 +1702,16 @@ def compileCounterIrLeo (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compilePureMathIrLeo (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/aleo/PureMath.leo")
+  match ProofForge.Backend.Aleo.IR.renderModule ProofForge.IR.Examples.PureMath.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
@@ -1791,6 +1805,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .u32StorageScalarIrPsy => compileU32StorageScalarIrPsy opts
   | .u32StorageArrayIrPsy => compileU32StorageArrayIrPsy opts
   | .counterIrLeo => compileCounterIrLeo opts
+  | .pureMathIrLeo => compilePureMathIrLeo opts
 
 end ProofForge.Cli
 
