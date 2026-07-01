@@ -18,7 +18,7 @@
 scripts/evm/build-examples.sh
 ```
 
-这通过 `proof-forge --evm-bytecode` (Lean -> EmitYul -> Yul -> `solc --strict-assembly` -> 字节码) 将每个 `.lean` 合约编译为 EVM 字节码。它需要在 `PATH` 上安装 Foundry (`cast`/`forge`) 和 `solc`。
+这通过 `proof-forge --evm-bytecode` (Lean -> EmitYul -> Yul -> `solc --strict-assembly` -> 字节码) 将每个 `.lean` 合约编译为 EVM 字节码。它还会把生成的 Yul 与同级 `.golden.yul` fixture 做 diff，并校验 ProofForge artifact/deploy metadata。它需要在 `PATH` 上安装 Foundry (`cast`/`forge`) 和 `solc`。
 
 ## 运行 Foundry 冒烟测试
 

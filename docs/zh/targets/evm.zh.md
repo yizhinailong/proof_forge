@@ -169,8 +169,9 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 
 1. 在 `Examples/Evm/Contracts/` 下添加或更新 Lean 合约。
 2. 添加或更新同级的 `.evm-methods` 文件。
-3. 如果该示例是基线的一部分，请在 `scripts/evm/foundry-smoke.sh` 中添加或更新一个用例。
-4. 运行 `scripts/evm/build-examples.sh`；当 Foundry 和 `solc` 可用时，运行 `scripts/evm/foundry-smoke.sh`。
+3. 添加或更新同级的 `.golden.yul` 文件；`scripts/evm/build-examples.sh` 会把生成的 SDK Yul 与这个 fixture 做 diff。
+4. 如果该示例是基线的一部分，请在 `scripts/evm/foundry-smoke.sh` 中添加或更新一个用例。
+5. 运行 `scripts/evm/build-examples.sh`；当 Foundry 和 `solc` 可用时，运行 `scripts/evm/foundry-smoke.sh`。
 
 ## 已实现的能力
 

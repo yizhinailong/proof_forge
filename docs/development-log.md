@@ -4257,7 +4257,7 @@ Next step:
 
 ### Psy MapProbe Storage Map Coverage
 
-Commit: pending
+Commit: `427a0ec feat: support dynamic nested EVM local arrays`
 
 Summary:
 
@@ -4314,7 +4314,7 @@ Next step:
 
 ### Psy HashProbe And Experimental Target Slice
 
-Commit: pending
+Commit: test commit for EVM SDK example golden Yul fixtures
 
 Summary:
 
@@ -4807,3 +4807,35 @@ Known limitations:
 
 - Nested local arrays with non-scalar leaves remain explicit unsupported
   surfaces.
+
+### EVM SDK Example Golden Yul
+
+Commit: pending
+
+Summary:
+
+- Added tracked golden Yul fixtures for SDK EVM examples:
+  `ArrayExample`, `Counter`, `SimpleToken`, `ERC20`, `Ownable`, `Pausable`,
+  and `VerifiedVault`.
+- Updated `scripts/evm/build-examples.sh` to emit generated SDK Yul into
+  `build/evm`, diff it against each sibling `.golden.yul`, compile bytecode,
+  and validate ProofForge artifact metadata.
+- Updated EVM validation docs and example README files so changing an SDK
+  example now includes updating its golden Yul fixture.
+
+Validation run:
+
+```sh
+scripts/evm/build-examples.sh
+```
+
+Result:
+
+- All seven SDK examples produced reproducible Yul matching the new golden
+  fixtures.
+- All seven SDK examples compiled with `solc --strict-assembly` and validated
+  EVM artifact/deploy metadata.
+
+Known limitations:
+
+- Runtime behavior remains covered by `scripts/evm/foundry-smoke.sh`.

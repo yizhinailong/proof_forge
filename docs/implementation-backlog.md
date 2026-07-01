@@ -350,7 +350,10 @@ Tasks:
   capability validation, CI coverage, and explicit diagnostics for Unit,
   zero-length arrays, non-flat struct fields, and crosscall-only unsupported
   nested fixed-array leaf shapes.
-- Add golden Yul outputs for simple examples.
+- Done: add golden Yul outputs for SDK EVM examples (`Counter`,
+  `ArrayExample`, `SimpleToken`, `ERC20`, `Ownable`, `Pausable`, and
+  `VerifiedVault`) and make `scripts/evm/build-examples.sh` diff generated Yul
+  against those fixtures before validating metadata.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.
 - Keep Foundry smoke as the mature EVM smoke test.

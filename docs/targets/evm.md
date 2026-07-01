@@ -185,9 +185,11 @@ Parser rules (from `ProofForge/Cli.lean`):
 
 1. Add or update the Lean contract under `Examples/Evm/Contracts/`.
 2. Add or update the sibling `.evm-methods` file.
-3. If the example is part of the baseline, add or update a case in
+3. Add or update the sibling `.golden.yul` file; `scripts/evm/build-examples.sh`
+   diffs generated SDK Yul against this fixture.
+4. If the example is part of the baseline, add or update a case in
    `scripts/evm/foundry-smoke.sh`.
-4. Run `scripts/evm/build-examples.sh`; run `scripts/evm/foundry-smoke.sh` when
+5. Run `scripts/evm/build-examples.sh`; run `scripts/evm/foundry-smoke.sh` when
    Foundry and `solc` are available.
 
 ## Implemented Capabilities
