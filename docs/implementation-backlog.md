@@ -161,8 +161,15 @@ Tasks:
 - Done: add EVM IR flat immutable local struct value lowering for `U64`,
   `U32`, `Bool`, and `Hash` fields, direct struct literal field access,
   `EvmStructValueProbe` golden Yul, solc bytecode, Foundry runtime validation,
-  metadata capability validation, and explicit diagnostics for struct storage,
-  mutable local structs, and nested fields.
+  metadata capability validation, and explicit diagnostics for whole-struct
+  storage misuse, mutable local structs, and nested fields.
+- Done: add EVM IR flat storage struct lowering for scalar storage structs and
+  fixed storage arrays of flat structs, including direct struct field effects,
+  scalar `field` storage paths, array `index`+`field` storage paths, numeric
+  field compound assignment, `Bool`/`U32`/`Hash` field coverage,
+  `EvmStorageStructProbe` golden Yul, solc bytecode, Foundry runtime/raw-slot
+  validation, metadata capability validation, CI coverage, and explicit
+  diagnostics for whole-struct reads/writes and missing fields.
 - Done: add EVM IR flat static aggregate ABI lowering for fixed-array and
   struct parameters/returns, with calldata word flattening, `U32`/`Bool`
   aggregate word guards, multi-word return-data encoding,

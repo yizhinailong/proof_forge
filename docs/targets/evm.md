@@ -94,6 +94,8 @@ proof-forge --emit-evm-map-ir-yul [-o output.yul]
 proof-forge --emit-evm-map-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-storage-array-ir-yul [-o output.yul]
 proof-forge --emit-evm-storage-array-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge --emit-evm-storage-struct-ir-yul [-o output.yul]
+proof-forge --emit-evm-storage-struct-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-array-value-ir-yul [-o output.yul]
 proof-forge --emit-evm-array-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 proof-forge --emit-evm-struct-value-ir-yul [-o output.yul]
@@ -152,11 +154,11 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 
 | Capability id | SDK / IR surface |
 |---|---|
-| `storage.scalar` | `Storage.load`, `Storage.store`; portable IR scalar storage read/write and scalar storage compound assignment |
+| `storage.scalar` | `Storage.load`, `Storage.store`; portable IR scalar storage read/write, scalar storage compound assignment, and flat scalar storage struct field read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<U64, U64, N>` get/set/insert and single-segment map storage paths |
-| `storage.array` | Partial: portable IR `U64` fixed storage arrays lower to contiguous EVM storage slots with runtime index bounds checks |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths, immutable local fixed-array values, fixed-array literals, static local/literal index reads, flat static fixed-array ABI parameters, and multi-word fixed-array returns; mutable local arrays, dynamic local indexes, zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
-| `data.struct` | Partial: portable IR flat immutable local struct values, struct literals, field access, flat ABI-facing struct parameters, and multi-word struct returns lower by expanding supported fields to EVM words; mutable locals, nested fields, storage structs, and unsupported field shapes still reject explicitly |
+| `storage.array` | Partial: portable IR `U64` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths, index+field storage paths over struct arrays, immutable local fixed-array values, fixed-array literals, static local/literal index reads, flat static fixed-array ABI parameters, and multi-word fixed-array returns; mutable local arrays, dynamic local indexes, zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
+| `data.struct` | Partial: portable IR flat immutable local struct values, struct literals, field access, flat ABI-facing struct parameters, multi-word struct returns, flat scalar storage structs, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; mutable locals, nested fields, whole-struct storage reads/writes, and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
@@ -199,16 +201,17 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   IR EVM backend currently supports scalar storage/ABI, assertions, local
   assignment, local compound assignment, scalar storage compound assignment,
   conditionals, context reads, events, `Hash` word values and hashing,
-  `Map<U64, U64, N>` storage, `U64` fixed storage arrays, immutable local
-  fixed-array values with static indexes, flat immutable local struct values
-  over scalar/hash fields, flat static aggregate ABI parameters and returns,
+  `Map<U64, U64, N>` storage, `U64` fixed storage arrays, flat scalar storage
+  structs, fixed storage arrays of flat structs, immutable local fixed-array
+  values with static indexes, flat immutable local struct values over
+  scalar/hash fields, flat static aggregate ABI parameters and returns,
   synchronous
   word-returning `crosscallInvoke`, and static bounded loops. It rejects wider
   portable IR nodes with explicit diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
   non-`U64` map shapes, non-`U64` storage arrays, dynamic local fixed-array
-  indexes, mutable local fixed arrays, nested arrays, storage structs, mutable
-  or nested local structs, indexed/Solidity-signature event schemas,
+  indexes, mutable local fixed arrays, nested arrays, whole-struct storage
+  reads/writes, mutable or nested local structs, indexed/Solidity-signature event schemas,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
   return data, and target-specific deploy manifests.
 - `storage.map.contains` remains explicitly unsupported because EVM mappings do
@@ -234,6 +237,7 @@ scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
 scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
 scripts/evm/array-value-ir-smoke.sh
 scripts/evm/struct-value-ir-smoke.sh
 scripts/evm/abi-aggregate-ir-smoke.sh
@@ -344,9 +348,9 @@ Yul reproducibility, `solc --strict-assembly` bytecode generation, metadata
 capabilities (`storage.scalar`, `storage.map`, `assertions.check`), ABI
 get/set/insert behavior, single-segment `mapKey` storage path reads, writes,
 and compound assignment, raw Foundry `vm.load` storage slots, and
-unknown-selector revert behavior. EVM IR v0 keeps storage-path compound
-assignment scoped to `Map<U64, U64, N>` until array and struct storage layouts
-land.
+unknown-selector revert behavior. EVM IR v0 still keeps map paths scoped to a
+single `mapKey`; nested map/aggregate storage paths remain explicit
+diagnostics.
 
 `EvmStorageArrayProbe` validates portable IR `U64` fixed storage arrays through
 contiguous EVM storage slots. Array state occupies `length` slots, so state
@@ -359,6 +363,24 @@ bytecode generation, metadata capabilities (`storage.scalar`, `storage.array`,
 `data.fixed_array`), ABI read/write selectors, generic path read/write and
 compound assignment, Foundry raw slot layout, out-of-bounds reverts, and
 unknown-selector revert behavior.
+
+`EvmStorageStructProbe` validates portable IR flat storage structs. Scalar
+storage structs reserve one EVM storage slot per supported field in declaration
+order, and fixed storage arrays of structs reserve `length * field_count` slots.
+Direct `storageStructFieldRead`/`storageStructFieldWrite`,
+`storageArrayStructFieldRead`/`storageArrayStructFieldWrite`, scalar `field`
+storage paths, and `index`+`field` storage paths lower to deterministic
+`sload`/`sstore` expressions. Struct arrays use
+`__proof_forge_struct_array_slot(base, length, field_count, field_offset,
+index)`, which reverts on out-of-bounds indexes before deriving
+`base + index * field_count + field_offset`. The smoke checks golden Yul
+reproducibility, `solc --strict-assembly` bytecode generation, metadata
+capabilities (`storage.scalar`, `storage.array`, `data.fixed_array`,
+`data.struct`), scalar and array struct field reads/writes, field path
+compound assignment, `Bool`/`U32`/`Hash` fields, Foundry raw slot layout,
+out-of-bounds reverts, and unknown-selector revert behavior. Whole-struct
+storage reads/writes, nested struct fields, and non-flat struct storage remain
+explicit diagnostics.
 
 `EvmArrayValueProbe` validates portable IR local fixed-array values. Immutable
 local fixed-array bindings expand into one Yul local per element, and
@@ -373,9 +395,8 @@ and `field` access over a local struct or direct struct literal lowers to the
 corresponding scalar/hash word expression. The smoke covers `U64`, `U32`,
 `Bool`, and `Hash` fields, golden Yul reproducibility,
 `solc --strict-assembly`, artifact metadata capability `data.struct`, Foundry
-runtime calls, and unknown-selector revert behavior. Mutable local structs,
-nested struct fields, and storage structs remain explicit diagnostics until
-EVM layout support is specified.
+runtime calls, and unknown-selector revert behavior. Mutable local structs and
+nested struct fields remain explicit diagnostics.
 
 ## Metadata
 

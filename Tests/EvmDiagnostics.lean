@@ -198,7 +198,22 @@ def structStorageModule : Module := {
     kind := .scalar
     type := .structType "Point"
   }]
-  entrypoints := #[selectedEntrypoint "bad"]
+  entrypoints := #[selectedReturnEntrypoint "bad" (.structType "Point") #[
+    .return (.effect (.storageScalarRead "current"))
+  ]]
+}
+
+def structStorageMissingFieldModule : Module := {
+  name := "BadStructStorageMissingField"
+  structs := #[pointStruct]
+  state := #[{
+    id := "current"
+    kind := .scalar
+    type := .structType "Point"
+  }]
+  entrypoints := #[selectedReturnEntrypoint "bad" .u64 #[
+    .return (.effect (.storageStructFieldRead "current" "y"))
+  ]]
 }
 
 def mutableStructModule : Module := {
@@ -458,7 +473,7 @@ def cases : Array (String × Module × String) := #[
   (
     "storage array element type unsupported",
     storageArrayModule,
-    "array state `flags` has unsupported EVM IR v0 element type `Bool`; only U64 storage arrays are supported"
+    "array state `flags` has unsupported EVM IR v0 element type `Bool`; only U64 storage arrays or flat struct arrays are supported"
   ),
   (
     "mutable fixed array local unsupported",
@@ -476,9 +491,14 @@ def cases : Array (String × Module × String) := #[
     "fixed array index 2 is out of bounds for length 2"
   ),
   (
-    "struct storage unsupported",
+    "whole struct scalar read unsupported",
     structStorageModule,
-    "state `current` has unsupported EVM IR v0 type `Point`"
+    "state `current` is struct storage; use storage.struct.field.read/write"
+  ),
+  (
+    "struct storage missing field unsupported",
+    structStorageMissingFieldModule,
+    "struct `Point` has no field `y`"
   ),
   (
     "mutable struct local unsupported",

@@ -26,9 +26,17 @@ def stateInfo? (module : Module) (stateId : String) : Option (Nat × StateDecl) 
   go 0 0 module.state
 where
   stateSlotSpan (state : StateDecl) : Nat :=
-    match state.kind with
-    | .array length => length
-    | .scalar | .map _ _ => 1
+    match state.kind, state.type with
+    | .scalar, .structType typeName =>
+        match module.structs.find? (fun decl => decl.name == typeName) with
+        | some decl => decl.fields.size
+        | none => 1
+    | .array length, .structType typeName =>
+        match module.structs.find? (fun decl => decl.name == typeName) with
+        | some decl => length * decl.fields.size
+        | none => length
+    | .array length, _ => length
+    | .scalar, _ | .map _ _, _ => 1
 
   go (idx slot : Nat) (states : Array StateDecl) : Option (Nat × StateDecl) :=
     if h : idx < states.size then
@@ -55,6 +63,7 @@ def mapSlotFunctionName : String := "__proof_forge_map_slot"
 def mapWriteFunctionName : String := "__proof_forge_map_write"
 def mapSetReturnFunctionName : String := "__proof_forge_map_set_return"
 def arraySlotFunctionName : String := "__proof_forge_array_slot"
+def structArraySlotFunctionName : String := "__proof_forge_struct_array_slot"
 def hashWordFunctionName : String := "__proof_forge_hash_word"
 def hashPairFunctionName : String := "__proof_forge_hash_pair"
 def crosscallFunctionName (arity : Nat) : String := s!"__proof_forge_crosscall_{arity}"
@@ -396,7 +405,11 @@ def stateDeclOf (module : Module) (stateId kind : String) : Except LowerError St
 def scalarStateType (module : Module) (stateId : String) : Except LowerError ValueType := do
   let state ← stateDeclOf module stateId "scalar"
   match state.kind with
-  | .scalar => .ok state.type
+  | .scalar =>
+      match state.type with
+      | .structType _ =>
+          .error { message := s!"state `{stateId}` is struct storage; use storage.struct.field.read/write" }
+      | _ => .ok state.type
   | .map _ _ => .error { message := s!"state `{stateId}` is a map, not scalar storage" }
   | .array _ => .error { message := s!"state `{stateId}` is an array, not scalar storage" }
 
@@ -413,6 +426,16 @@ def findStruct? (module : Module) (name : String) : Option StructDecl :=
 def findStructField? (decl : StructDecl) (fieldName : String) : Option StructField :=
   decl.fields.find? fun field => field.id == fieldName
 
+def findStructFieldWithOffset? (decl : StructDecl) (fieldName : String) : Option (Nat × StructField) :=
+  Id.run do
+    let mut found : Option (Nat × StructField) := none
+    for h : idx in [0:decl.fields.size] do
+      if found.isNone then
+        let field := decl.fields[idx]
+        if field.id == fieldName then
+          found := some (idx, field)
+    found
+
 def ensureStructLocalFieldType (structName fieldName : String) (type : ValueType) : Except LowerError Unit :=
   match type with
   | .u32 | .u64 | .bool | .hash => .ok ()
@@ -427,6 +450,50 @@ def structFieldType (module : Module) (typeName fieldName : String) : Except Low
   let some field := findStructField? decl fieldName
     | .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
   .ok field.type
+
+def requireStructStateField
+    (module : Module)
+    (stateId fieldName : String) : Except LowerError (Nat × StructField) := do
+  match stateInfo? module stateId with
+  | none => .error { message := s!"unknown struct state `{stateId}`" }
+  | some (slot, state) =>
+      match state.kind, state.type with
+      | .scalar, .structType typeName => do
+          let some decl := findStruct? module typeName
+            | .error { message := s!"state `{stateId}` uses unknown struct `{typeName}`" }
+          let some (offset, field) := findStructFieldWithOffset? decl fieldName
+            | .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
+          ensureStructLocalFieldType typeName field.id field.type
+          .ok (slot + offset, field)
+      | .scalar, other =>
+          .error { message := s!"state `{stateId}` has unsupported EVM IR v0 struct storage type `{other.name}`; expected struct storage" }
+      | .array _, _ =>
+          .error { message := s!"state `{stateId}` is array storage, not scalar struct storage" }
+      | .map _ _, _ =>
+          .error { message := s!"state `{stateId}` is map storage, not scalar struct storage" }
+
+def requireStructArrayStateField
+    (module : Module)
+    (stateId fieldName : String) : Except LowerError (Nat × Nat × Nat × Nat × StructField) := do
+  match stateInfo? module stateId with
+  | none => .error { message := s!"unknown struct array state `{stateId}`" }
+  | some (slot, state) =>
+      match state.kind, state.type with
+      | .array length, .structType typeName => do
+          if length == 0 then
+            .error { message := s!"array state `{stateId}` must have non-zero length" }
+          let some decl := findStruct? module typeName
+            | .error { message := s!"array state `{stateId}` uses unknown struct `{typeName}`" }
+          let some (offset, field) := findStructFieldWithOffset? decl fieldName
+            | .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
+          ensureStructLocalFieldType typeName field.id field.type
+          .ok (slot, length, decl.fields.size, offset, field)
+      | .array _, other =>
+          .error { message := s!"array state `{stateId}` has unsupported EVM IR v0 struct element type `{other.name}`; expected struct storage array" }
+      | .scalar, _ =>
+          .error { message := s!"state `{stateId}` is scalar storage, not a struct array" }
+      | .map _ _, _ =>
+          .error { message := s!"state `{stateId}` is map storage, not a struct array" }
 
 def validateStructLiteralFields
     (module : Module)
@@ -566,25 +633,42 @@ mutual
       (stateId : String)
       (path : Array StoragePathSegment) : Except LowerError ValueType := do
     let state ← stateDeclOf module stateId "storage path"
-    match state.kind, path.toList with
-    | .map keyType _, [StoragePathSegment.mapKey key] => do
+    match state.kind, state.type, path.toList with
+    | .map keyType _, _, [StoragePathSegment.mapKey key] => do
         ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
         .ok state.type
-    | .map _ _, [] =>
+    | .map _ _, _, [] =>
         .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
-    | .map _ _, _ =>
+    | .map _ _, _, _ =>
         .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
-    | .scalar, [] =>
+    | .scalar, .structType _, [StoragePathSegment.field fieldName] => do
+        let (_, field) ← requireStructStateField module stateId fieldName
+        .ok field.type
+    | .scalar, .structType _, [] =>
+        .error { message := s!"storage path state `{stateId}` is struct storage; first segment must be a field" }
+    | .scalar, .structType _, _ =>
+        .error { message := "EVM IR v0 supports struct scalar storage paths only as a single field segment" }
+    | .scalar, _, [] =>
         .ok state.type
-    | .scalar, _ =>
+    | .scalar, _, [StoragePathSegment.field fieldName] =>
+        .error { message := s!"state `{stateId}` has unsupported EVM IR v0 struct storage type `{state.type.name}`; expected struct storage for field `{fieldName}`" }
+    | .scalar, _, _ =>
         .error { message := "EVM IR v0 supports storage paths only for single-segment mapKey map access" }
-    | .array _, [StoragePathSegment.index index] => do
+    | .array _, .u64, [StoragePathSegment.index index] => do
         let _ ← requireU64ArrayState module stateId
         ensureArrayIndexType s!"array state `{stateId}` index" (← inferExprType module env index)
         .ok .u64
-    | .array _, [] =>
+    | .array _, .structType _, [StoragePathSegment.index index, StoragePathSegment.field fieldName] => do
+        let (_, _, _, _, field) ← requireStructArrayStateField module stateId fieldName
+        ensureArrayIndexType s!"struct array state `{stateId}` index" (← inferExprType module env index)
+        .ok field.type
+    | .array _, .structType _, [StoragePathSegment.index _] =>
+        .error { message := s!"storage path state `{stateId}` is struct array storage; a field segment must follow the index" }
+    | .array _, _, [] =>
         .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
-    | .array _, _ =>
+    | .array _, .structType _, _ =>
+        .error { message := "EVM IR v0 supports struct-array storage paths only as index followed by field" }
+    | .array _, _, _ =>
         .error { message := "EVM IR v0 supports only single-segment index storage paths for arrays" }
 
   partial def inferEffectExprType (module : Module) (env : TypeEnv) : Effect → Except LowerError ValueType
@@ -618,14 +702,17 @@ mutual
         .ok .u64
     | .storageArrayWrite _ _ _ =>
         .error { message := "storage.array.write is a statement effect, not an expression" }
-    | .storageArrayStructFieldRead _ _ _ =>
-        .error { message := "storage.array.struct.field.read is not supported by IR EVM v0" }
+    | .storageArrayStructFieldRead stateId index fieldName => do
+        let (_, _, _, _, field) ← requireStructArrayStateField module stateId fieldName
+        ensureArrayIndexType s!"struct array state `{stateId}` index" (← inferExprType module env index)
+        .ok field.type
     | .storageArrayStructFieldWrite _ _ _ _ =>
-        .error { message := "storage.array.struct.field.write is not supported by IR EVM v0" }
-    | .storageStructFieldRead _ _ =>
-        .error { message := "storage.struct.field.read is not supported by IR EVM v0" }
+        .error { message := "storage.array.struct.field.write is a statement effect, not an expression" }
+    | .storageStructFieldRead stateId fieldName => do
+        let (_, field) ← requireStructStateField module stateId fieldName
+        .ok field.type
     | .storageStructFieldWrite _ _ _ =>
-        .error { message := "storage.struct.field.write is not supported by IR EVM v0" }
+        .error { message := "storage.struct.field.write is a statement effect, not an expression" }
     | .storagePathRead stateId path =>
         inferStoragePathType module env stateId path
     | .storagePathWrite _ _ _ =>
@@ -664,13 +751,16 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
       ensureArrayIndexType s!"array state `{stateId}` index" (← inferExprType module env index)
       ensureType s!"array state `{stateId}` write" .u64 (← inferExprType module env value)
   | .storageArrayStructFieldRead _ _ _ =>
-      .ok ()
-  | .storageArrayStructFieldWrite _ _ _ _ =>
-      .ok ()
+      .error { message := "storage.array.struct.field.read must be used as an expression" }
+  | .storageArrayStructFieldWrite stateId index fieldName value => do
+      let (_, _, _, _, field) ← requireStructArrayStateField module stateId fieldName
+      ensureArrayIndexType s!"struct array state `{stateId}` index" (← inferExprType module env index)
+      ensureType s!"struct array state `{stateId}` field `{fieldName}` write" field.type (← inferExprType module env value)
   | .storageStructFieldRead _ _ =>
-      .ok ()
-  | .storageStructFieldWrite _ _ _ =>
-      .ok ()
+      .error { message := "storage.struct.field.read must be used as an expression" }
+  | .storageStructFieldWrite stateId fieldName value => do
+      let (_, field) ← requireStructStateField module stateId fieldName
+      ensureType s!"struct state `{stateId}` field `{fieldName}` write" field.type (← inferExprType module env value)
   | .storagePathRead _ _ =>
       .error { message := "storage.path.read must be used as an expression" }
   | .storagePathWrite stateId path value => do
@@ -774,17 +864,52 @@ mutual
   partial def lowerArrayReadExpr (module : Module) (stateId : String) (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerArraySlotExpr module stateId index])
 
+  partial def lowerStructFieldSlotExpr
+      (module : Module)
+      (stateId fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let (slot, _) ← requireStructStateField module stateId fieldName
+    .ok (slotExpr slot)
+
+  partial def lowerStructFieldReadExpr
+      (module : Module)
+      (stateId fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
+    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerStructFieldSlotExpr module stateId fieldName])
+
+  partial def lowerStructArrayFieldSlotExpr
+      (module : Module)
+      (stateId : String)
+      (index : ProofForge.IR.Expr)
+      (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
+    .ok (Lean.Compiler.Yul.call structArraySlotFunctionName #[
+      slotExpr slot,
+      Lean.Compiler.Yul.Expr.num length,
+      Lean.Compiler.Yul.Expr.num fieldCount,
+      Lean.Compiler.Yul.Expr.num fieldOffset,
+      ← lowerExpr module index
+    ])
+
+  partial def lowerStructArrayFieldReadExpr
+      (module : Module)
+      (stateId : String)
+      (index : ProofForge.IR.Expr)
+      (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
+    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerStructArrayFieldSlotExpr module stateId index fieldName])
+
   partial def lowerStoragePathReadExpr (module : Module) (stateId : String) (path : Array StoragePathSegment) : Except LowerError Lean.Compiler.Yul.Expr :=
     match path.toList with
     | [StoragePathSegment.mapKey key] => lowerMapGetExpr module stateId key
     | [StoragePathSegment.index index] => lowerArrayReadExpr module stateId index
+    | [StoragePathSegment.field fieldName] => lowerStructFieldReadExpr module stateId fieldName
+    | [StoragePathSegment.index index, StoragePathSegment.field fieldName] =>
+        lowerStructArrayFieldReadExpr module stateId index fieldName
     | [] => do
         let state ← stateDeclOf module stateId "storage path"
         match state.kind with
         | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
         | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
         | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.read" }
-    | _ => .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
+    | _ => .error { message := "EVM IR v0 supports storage paths as mapKey, index, field, or index followed by field" }
 
   partial def lowerLocalFixedArrayGetExpr
       (module : Module)
@@ -896,6 +1021,7 @@ mutual
 
   partial def lowerEffectExpr (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Expr
     | .storageScalarRead stateId => do
+        discard <| scalarStateType module stateId
         let some slot := stateSlot? module stateId
           | .error { message := s!"unknown scalar state `{stateId}`" }
         .ok (Lean.Compiler.Yul.builtin "sload" #[slotExpr slot])
@@ -915,14 +1041,14 @@ mutual
         lowerArrayReadExpr module stateId index
     | .storageArrayWrite _ _ _ =>
         .error { message := "storage.array.write is a statement effect, not an expression" }
-    | .storageArrayStructFieldRead _ _ _ =>
-        .error { message := "storage.array.struct.field.read is not supported by IR EVM v0" }
+    | .storageArrayStructFieldRead stateId index fieldName =>
+        lowerStructArrayFieldReadExpr module stateId index fieldName
     | .storageArrayStructFieldWrite _ _ _ _ =>
-        .error { message := "storage.array.struct.field.write is not supported by IR EVM v0" }
-    | .storageStructFieldRead _ _ =>
-        .error { message := "storage.struct.field.read is not supported by IR EVM v0" }
+        .error { message := "storage.array.struct.field.write is a statement effect, not an expression" }
+    | .storageStructFieldRead stateId fieldName =>
+        lowerStructFieldReadExpr module stateId fieldName
     | .storageStructFieldWrite _ _ _ =>
-        .error { message := "storage.struct.field.write is not supported by IR EVM v0" }
+        .error { message := "storage.struct.field.write is a statement effect, not an expression" }
     | .storagePathRead stateId path =>
         lowerStoragePathReadExpr module stateId path
     | .storagePathWrite _ _ _ =>
@@ -964,6 +1090,24 @@ def lowerMapWriteStmt (module : Module) (stateId : String) (key value : ProofFor
 def lowerArrayWriteStmt (module : Module) (stateId : String) (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[← lowerArraySlotExpr module stateId index, ← lowerExpr module value]))
 
+def lowerStructFieldWriteStmt
+    (module : Module)
+    (stateId fieldName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let (slot, _) ← requireStructStateField module stateId fieldName
+  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module value]))
+
+partial def lowerStructArrayFieldWriteStmt
+    (module : Module)
+    (stateId : String)
+    (index : ProofForge.IR.Expr)
+    (fieldName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+    ← lowerStructArrayFieldSlotExpr module stateId index fieldName,
+    ← lowerExpr module value
+  ]))
+
 def lowerStoragePathWriteStmt
     (module : Module)
     (stateId : String)
@@ -972,13 +1116,16 @@ def lowerStoragePathWriteStmt
   match path.toList with
   | [StoragePathSegment.mapKey key] => lowerMapWriteStmt module stateId key value
   | [StoragePathSegment.index index] => lowerArrayWriteStmt module stateId index value
+  | [StoragePathSegment.field fieldName] => lowerStructFieldWriteStmt module stateId fieldName value
+  | [StoragePathSegment.index index, StoragePathSegment.field fieldName] =>
+      lowerStructArrayFieldWriteStmt module stateId index fieldName value
   | [] => do
       let state ← stateDeclOf module stateId "storage path"
       match state.kind with
       | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
       | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
       | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.write" }
-  | _ => .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
+  | _ => .error { message := "EVM IR v0 supports storage paths as mapKey, index, field, or index followed by field" }
 
 def lowerStoragePathAssignOpStmt
     (module : Module)
@@ -999,22 +1146,42 @@ def lowerStoragePathAssignOpStmt
           lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module value)
         ])
       ]})
+  | [StoragePathSegment.field fieldName] => do
+      let storageSlot ← lowerStructFieldSlotExpr module stateId fieldName
+      .ok (.block { statements := #[
+        .varDecl #[{ name := "_slot" }] (some storageSlot),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          Lean.Compiler.Yul.Expr.id "_slot",
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module value)
+        ])
+      ]})
+  | [StoragePathSegment.index index, StoragePathSegment.field fieldName] => do
+      let storageSlot ← lowerStructArrayFieldSlotExpr module stateId index fieldName
+      .ok (.block { statements := #[
+        .varDecl #[{ name := "_slot" }] (some storageSlot),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          Lean.Compiler.Yul.Expr.id "_slot",
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module value)
+        ])
+      ]})
   | [] => do
       let state ← stateDeclOf module stateId "storage path"
       match state.kind with
       | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
       | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
       | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.assign_op" }
-  | _ => .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
+  | _ => .error { message := "EVM IR v0 supports storage paths as mapKey, index, field, or index followed by field" }
 
 def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Statement
   | .storageScalarRead _ =>
       .error { message := "storage.scalar.read must be used as an expression" }
   | .storageScalarWrite stateId value => do
+      discard <| scalarStateType module stateId
       let some slot := stateSlot? module stateId
         | .error { message := s!"unknown scalar state `{stateId}`" }
       .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module value]))
   | .storageScalarAssignOp stateId op value => do
+      discard <| scalarStateType module stateId
       let some slot := stateSlot? module stateId
         | .error { message := s!"unknown scalar state `{stateId}`" }
       let storageSlot := slotExpr slot
@@ -1035,13 +1202,13 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
   | .storageArrayWrite stateId index value =>
       lowerArrayWriteStmt module stateId index value
   | .storageArrayStructFieldRead _ _ _ =>
-      .error { message := "storage.array.struct.field.read must be used as an expression, but IR EVM v0 does not support struct array storage" }
-  | .storageArrayStructFieldWrite _ _ _ _ =>
-      .error { message := "storage.array.struct.field.write is not supported by IR EVM v0" }
+      .error { message := "storage.array.struct.field.read must be used as an expression" }
+  | .storageArrayStructFieldWrite stateId index fieldName value =>
+      lowerStructArrayFieldWriteStmt module stateId index fieldName value
   | .storageStructFieldRead _ _ =>
-      .error { message := "storage.struct.field.read must be used as an expression, but IR EVM v0 does not support struct storage" }
-  | .storageStructFieldWrite _ _ _ =>
-      .error { message := "storage.struct.field.write is not supported by IR EVM v0" }
+      .error { message := "storage.struct.field.read must be used as an expression" }
+  | .storageStructFieldWrite stateId fieldName value =>
+      lowerStructFieldWriteStmt module stateId fieldName value
   | .storagePathRead _ _ =>
       .error { message := "storage.path.read must be used as an expression" }
   | .storagePathWrite stateId path value =>
@@ -1410,6 +1577,13 @@ def isSupportedArrayState (state : StateDecl) : Bool :=
 def moduleUsesSupportedArray (module : Module) : Bool :=
   module.state.any isSupportedArrayState
 
+def moduleUsesSupportedStructArray (module : Module) : Bool :=
+  module.state.any fun state =>
+    match state.kind, state.type with
+    | .array length, .structType typeName =>
+        length > 0 && (findStruct? module typeName).isSome
+    | _, _ => false
+
 def moduleUsesHash (module : Module) : Bool :=
   module.capabilities.contains .cryptoHash
 
@@ -1494,6 +1668,32 @@ def arrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
           (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.Expr.id "index", Lean.Compiler.Yul.Expr.id "length"]])
           { statements := #[revertStmt] },
         .assignment #["result"] (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "index"])
+      ]
+    }
+]
+
+def structArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+  .funcDef structArraySlotFunctionName
+    #[
+      { name := "slot" },
+      { name := "length" },
+      { name := "field_count" },
+      { name := "field_offset" },
+      { name := "index" }
+    ]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .ifStmt
+          (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.Expr.id "index", Lean.Compiler.Yul.Expr.id "length"]])
+          { statements := #[revertStmt] },
+        .assignment #["result"] (Lean.Compiler.Yul.builtin "add" #[
+          Lean.Compiler.Yul.builtin "add" #[
+            Lean.Compiler.Yul.Expr.id "slot",
+            Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "index", Lean.Compiler.Yul.Expr.id "field_count"]
+          ],
+          Lean.Compiler.Yul.Expr.id "field_offset"
+        ])
       ]
     }
 ]
@@ -1738,12 +1938,22 @@ def validateStructs (module : Module) : Except LowerError Unit := do
     for field in decl.fields do
       ensureStructLocalFieldType decl.name field.id field.type
 
+def validateStorageStructState (context typeName : String) (module : Module) : Except LowerError Unit := do
+  let some decl := findStruct? module typeName
+    | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+  if decl.fields.isEmpty then
+    .error { message := s!"{context} uses empty struct `{typeName}`; EVM IR v0 storage structs must have at least one field" }
+  for field in decl.fields do
+    ensureStructLocalFieldType decl.name field.id field.type
+
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
     match state.kind, state.type with
     | .scalar, .u32 => pure ()
     | .scalar, .u64 => pure ()
     | .scalar, .hash => pure ()
+    | .scalar, .structType typeName =>
+        validateStorageStructState s!"state `{state.id}`" typeName module
     | .scalar, other =>
         .error { message := s!"state `{state.id}` has unsupported EVM IR v0 type `{other.name}`" }
     | .map .u64 _, .u64 => pure ()
@@ -1752,8 +1962,10 @@ def validateState (module : Module) : Except LowerError Unit := do
     | .array 0, _ =>
         .error { message := s!"array state `{state.id}` must have non-zero length" }
     | .array _, .u64 => pure ()
+    | .array _, .structType typeName =>
+        validateStorageStructState s!"array state `{state.id}`" typeName module
     | .array _, other =>
-        .error { message := s!"array state `{state.id}` has unsupported EVM IR v0 element type `{other.name}`; only U64 storage arrays are supported" }
+        .error { message := s!"array state `{state.id}` has unsupported EVM IR v0 element type `{other.name}`; only U64 storage arrays or flat struct arrays are supported" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
   match requireCapabilities Target.evm module.capabilities with
@@ -1769,6 +1981,7 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
   let dispatch ← dispatchBlock module
   let helpers := if moduleUsesSupportedMap module then mapHelperFunctions (moduleStoragePathAssignOps module) else #[]
   let helpers := helpers ++ (if moduleUsesSupportedArray module then arrayHelperFunctions else #[])
+  let helpers := helpers ++ (if moduleUsesSupportedStructArray module then structArrayHelperFunctions else #[])
   let helpers := helpers ++ (if moduleUsesHash module then hashHelperFunctions else #[])
   let helpers := helpers ++ crosscallHelperFunctions (moduleCrosscallArities module)
   .ok {

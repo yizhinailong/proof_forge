@@ -98,7 +98,8 @@
 - 已完成：加入 EVM IR `U64` 固定 storage array lowering，将其降为连续 storage slot 并带运行时 bounds check，并用 `EvmStorageArrayProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验，以及不支持 array element 类型的显式诊断。
 - 已完成：加入 EVM IR 单段 `index` storage path read/write/compound assignment，限定在 `U64` 固定 storage array 上，复用带 bounds check 的 array slot helper，并扩展 `EvmStorageArrayProbe` 验证。
 - 已完成：加入 EVM IR 不可变 local fixed-array value lowering，覆盖 `U64`、`U32`、`Bool` 和 `Hash` 元素、静态 literal index、直接 fixed-array literal indexing，并用 `EvmArrayValueProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证、metadata 能力校验，以及 mutable fixed-array local、动态 local index、静态越界 index 的显式诊断。
-- 已完成：加入 EVM IR 扁平不可变 local struct value lowering，覆盖 `U64`、`U32`、`Bool` 和 `Hash` 字段、直接 struct literal field access，并用 `EvmStructValueProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证、metadata 能力校验，以及 struct storage、mutable local struct 和嵌套字段的显式诊断。
+- 已完成：加入 EVM IR 扁平不可变 local struct value lowering，覆盖 `U64`、`U32`、`Bool` 和 `Hash` 字段、直接 struct literal field access，并用 `EvmStructValueProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证、metadata 能力校验，以及 whole-struct storage 误用、mutable local struct 和嵌套字段的显式诊断。
+- 已完成：加入 EVM IR 扁平 storage struct lowering，覆盖 scalar storage struct、扁平 struct 固定 storage array、直接 struct field effect、scalar `field` storage path、array `index`+`field` storage path、数字字段复合赋值、`Bool`/`U32`/`Hash` 字段，并用 `EvmStorageStructProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验、CI 覆盖，以及 whole-struct read/write 和缺失字段的显式诊断。
 - 已完成：加入 EVM IR 扁平静态聚合 ABI lowering，覆盖 fixed-array 和 struct 参数/返回、calldata word flattening、`U32`/`Bool` 聚合 word guard、多 word return-data encoding，并用 `EvmAbiAggregateProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/malformed calldata 验证、metadata 能力校验、CI 覆盖，以及 Unit、零长度和嵌套聚合 ABI 值的显式诊断。
 - 为简单示例添加黄金 Yul 输出。
 - 已完成：为 SDK 和 portable IR EVM bytecode build 在当前 `solc --strict-assembly` 流程周围添加 metadata 发射与校验。

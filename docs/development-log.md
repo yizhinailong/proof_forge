@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Flat Storage Structs
+
+Commit: feature commit for EVM IR flat storage struct lowering
+
+Summary:
+
+- Added EVM portable IR lowering for flat scalar storage structs and fixed
+  storage arrays of flat structs. Scalar storage structs reserve one slot per
+  field; struct arrays reserve `length * field_count` slots.
+- Added direct lowering for `storageStructFieldRead`/`Write` and
+  `storageArrayStructFieldRead`/`Write`, plus generic storage paths using
+  scalar `field` and array `index`+`field` segments.
+- Added the `__proof_forge_struct_array_slot` Yul helper with runtime
+  out-of-bounds checks and deterministic
+  `base + index * field_count + field_offset` slot derivation.
+- Added `ProofForge.IR.Examples.EvmStorageStructProbe`, CLI emission modes,
+  golden Yul, Foundry smoke coverage, artifact metadata validation, and CI.
+- Updated EVM diagnostics and coverage so whole-struct storage reads/writes and
+  missing fields fail explicitly before Yul generation.
+
+Validation run:
+
+```sh
+lake build proof-forge
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Known limitations:
+
+- Storage struct support is flat and field-based only. Whole-struct storage
+  reads/writes, nested struct fields, map values shaped as structs, and dynamic
+  storage arrays remain explicit future work.
+
+Next step:
+
+- Continue EVM portable IR support toward richer storage element types or the
+  next unsupported ABI/control surface, keeping the same golden Yul, metadata,
+  Foundry, diagnostics, and CI pattern.
+
 ### EVM IR Flat Aggregate ABI
 
 Commit: feature commit for EVM IR flat aggregate ABI lowering
