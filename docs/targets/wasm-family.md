@@ -8,67 +8,73 @@ genuinely common.
 ## Common Shape
 
 The canonical Wasm-family backend is **`EmitWat`**, modeled on the in-repo
-`EmitYul` EVM backend. `EmitYul` already proves that Lean's LCNF can be
-lowered to a target while intercepting `lean_evm_*` externs, using a minimal
-in-target object model (boxed scalars, bump allocator, refcount elided, no GC)
-that is safe because EVM calls are atomic with per-call memory. Wasm contract
-calls share exactly those properties (state persists via host storage; linear
-memory is fresh per invocation), so the same trick applies — and crucially it
-**avoids porting the full Lean runtime to Wasm**, which is the documented
-blocker for the older `EmitZig` plan ([D-027](../decisions.md)).
+**portable-IR → Yul** renderer `ProofForge/Backend/Evm/IR.lean` (the path used
+by every `--emit-*-ir-yul` CLI mode), *not* on the separate LCNF-based
+`Compiler/LCNF/EmitYul.lean`. `Backend/Evm/IR.lean` lowers the portable IR
+(`Module`/`Entrypoint`/`Statement`/`Expr`) to a `Yul.AST` which a `Printer`
+renders to Yul text, then `solc` compiles. `EmitWat` does the same but targets
+WAT: portable IR → `Wasm.AST` → WAT text → `wat2wasm`.
+
+Because the portable IR already abstracts over Lean objects (it has only
+`u32`/`u64`/`bool`/`hash` scalars, storage maps, and effects — no closures,
+no arbitrary recursion, no Lean runtime objects), `EmitWat` needs **no Lean
+runtime port, no object-model boxing, and no GC**. This is the key advantage
+over both the Rust sourcegen (which couples to `near-sdk` macros) and the
+prior `EmitZig` plan (which requires porting the full Lean runtime to Wasm)
+([D-027](../decisions.md)).
 
 ```text
-Lean contract (ProofForge.<Chain> externs)
-  -> Lean compiler LCNF
-  -> EmitWat            (shared: LCNF -> WAT text, object model, extern interception)
-  -> WAT module
-  -> wat2wasm / wabt    (shared toolchain)
-  -> Wasm artifact
-  -> per-chain host bridge (the ONLY chain-specific runtime code)
+Portable IR (Module)
+  -> EmitWat              (shared: portable IR -> Wasm AST, mirroring Backend/Evm/IR.lean)
+  -> Wasm AST             (shared: Compiler/Wasm/AST.lean, like Compiler/Yul/AST.lean)
+  -> WAT text             (shared: Compiler/Wasm/Printer.lean, like Yul/Printer.lean)
+  -> wat2wasm / wabt      (shared toolchain)
+  -> Wasm artifact        (imports the per-chain host functions)
   -> target-specific validation
 ```
 
 **Shared layer (write once for the whole family):**
 
-- `EmitWat`: LCNF → WAT text lowering, mirroring `ProofForge/Compiler/LCNF/EmitYul.lean`.
-- Lean object model in linear memory: boxing convention, bump allocator,
-  refcount elision — ported from the `EmitYul` design.
-- WAT module scaffolding: memory, type section, function/import/export tables,
-  and the `wat2wasm` invocation + artifact metadata.
+- `Compiler/Wasm/AST.lean` + `Compiler/Wasm/Printer.lean` — a Wasm/WAT AST and
+  printer, parallel to `Compiler/Yul/AST.lean` + `Yul/Printer.lean`.
+- The portable-IR → Wasm-AST lowering skeleton (capabilities, type inference,
+  statement/expression lowering), reusing the validation logic already proven
+  in `Backend/WasmNear/IR.lean` (Rust v0) and `Backend/Evm/IR.lean`.
+- WAT module scaffolding: memory, type/import/export sections, and the
+  `wat2wasm` invocation + artifact metadata.
 
 **Per-chain layer (the only thing that differs between NEAR / CosmWasm / Soroban / ICP):**
 
-- `ProofForge.<Chain>` extern module: `@[extern "lean_<chain>_*"]`
-  declarations for that chain's on-chain operations (storage, crypto, context,
-  logs, cross-calls).
-- Host-import mapping: which Wasm imports those externs lower to
-  (NEAR `env.storage_*`, CosmWasm `db.read`/`db.write`, Soroban host functions, …).
+- Host-import table: which Wasm imports the IR storage/crypto/context effects
+  lower to (NEAR `env.storage_*`, CosmWasm `db.read`/`db.write`, Soroban host
+  functions, …).
 - **ABI serialization** of arguments and return values (NEAR JSON/Borsh,
   CosmWasm JSON, …) — the messiest per-chain concern and the main spike risk.
 - Exported entrypoint names + deployment packaging.
 
-The shared/per-chain split is the whole point: tooling is identical across the
-family, only the host bridge and ABI differ.
+The shared/per-chain split is the whole point: the Wasm AST + lowering +
+`wat2wasm` are identical across the family; only the host imports and ABI
+differ.
 
 ## Legacy paths
 
 - **`EmitZig`** (prior canonical plan): `Lean → EmitZig → Zig → host bridge →
   Wasm`. Superseded by `EmitWat` because it requires porting the full Lean
-  runtime to Wasm (libuv/threads/GC), which is the documented blocker. The
-  useful lessons — `@[extern]` chain surface, host-bridge object conversion,
-  method-export metadata, WASI stripping — carry over to `EmitWat`.
+  runtime to Wasm (libuv/threads/GC), which is the documented blocker.
 - **Rust / CDK sourcegen** (e.g. NEAR `near-sdk-rs`): `Portable IR → Rust
   package → cargo wasm32`. Retained only as a **frozen v0 stopgap** to validate
   chain semantics; not to be expanded. See [Wasm-NEAR target](wasm-near.md).
+  Its IR-lowering/validation logic is reusable by `EmitWat`; only the emission
+  target (Rust strings) is discarded.
 
 ## NEAR
 
 See [Wasm-NEAR target](wasm-near.md) for the full implementation design.
 
-- **Canonical path:** `ProofForge.Near (@[extern lean_near_*]) → LCNF →
-  EmitWat → WAT → wat2wasm → Wasm`, with a NEAR host bridge lowering
-  `lean_near_*` to `env.storage_*` / `env.sha256` / `env.predecessor_account_id`
-  / `env.block_height` / `env.log` imports.
+- **Canonical path:** `Portable IR → EmitWat → Wasm AST → WAT → wat2wasm →
+  Wasm`, with a NEAR host bridge lowering portable IR effects to
+  `env.storage_*` / `env.sha256` / `env.predecessor_account_id` /
+  `env.block_height` / `env.log` imports.
 - **Frozen v0 stopgap (in-repo, compiles):** Rust `near-sdk-rs` sourcegen via
   `ProofForge/Backend/WasmNear/IR.lean`. Validates NEAR semantics now; not
   expanded. Key risk for the canonical path: NEAR argument (de)serialization
@@ -175,22 +181,20 @@ canister before attempting a direct Lean-to-Wasm host bridge. See
 
 ## Runtime Profile
 
-Under `EmitWat` the Lean runtime is **not** ported wholesale; instead
-`EmitWat` lowers only the object-model primitives needed (alloc, tag,
-refcount-as-no-op) into Wasm linear memory, exactly as `EmitYul` does for EVM.
-The remaining target concerns are still real and selected per target:
+Because `EmitWat` lowers the **portable IR** (not Lean LCNF), there is no Lean
+runtime to port at all — the IR has only `u32`/`u64`/`bool`/`hash` scalars and
+storage effects, which map directly to Wasm `i32`/`i64` values and host-import
+calls. The remaining target concerns are real and selected per target:
 
 - threads — none (single-threaded, atomic per call)
-- POSIX filesystem — none
-- process environment — none
-- libuv — none
-- native GMP — none (bignum handled by the lowering/object model)
+- POSIX filesystem / process environment / libuv — none
+- native GMP — none (hash is a fixed 4×u64 limb tuple, lowered directly)
 - chain-agnostic force-linking of host bridges — none
 
 | Option | NEAR | CosmWasm | Stellar/Soroban | ICP canister |
 |---|---|---|---|---|
-| Object allocator | shared `EmitWat` bump allocator (per-call linear memory) | shared | shared | shared |
-| Bignum / Hash | shared `EmitWat` lowering (multi-limb in linear memory) | shared | shared | shared |
+| Scalar lowering | shared `EmitWat` (IR u32/u64/bool/hash → Wasm i32/i64) | shared | shared | shared |
+| Hash lowering | shared `EmitWat` (4×u64 tuple in linear memory) | shared | shared | shared |
 | Host bridge | `near` (`env.*`) | `cosmwasm` (`db.*`) | `stellar-soroban` | `icp-canister` |
 | Args ABI | JSON / Borsh | JSON | Soroban XDR / native | Candid |
 | Validation | NEAR VM/MVP checks | `cosmwasm-check` | Stellar CLI or sandbox | Local replica, PocketIC, or ICP CLI |
@@ -242,10 +246,10 @@ Acceptance criteria:
   lowered cleanly under `EmitWat`? This is the highest-risk unknown and must be
   de-risked before scaling the lowering.
 - Should `EmitWat` emit WAT text (→ `wat2wasm`) or Wasm binary directly? WAT
-  text is the default (mirrors `EmitYul` → Yul text → `solc`); binary is a
-  later optimization to drop the `wabt` dependency.
-- How much of the `EmitYul` object model (boxing, allocator, closure dispatch)
-  can be lifted verbatim into a shared `EmitWat` object model?
+  text is the default (mirrors `Backend/Evm/IR.lean` → Yul text → `solc`);
+  binary is a later optimization to drop the `wabt` dependency.
+- How much of the IR-lowering / validation logic in `Backend/WasmNear/IR.lean`
+  (Rust v0) and `Backend/Evm/IR.lean` can be shared by `EmitWat`?
 - Should CosmWasm compile through `wasm32-freestanding` or a WASI route with
   import stripping?
 - Should schema generation (CosmWasm JSON schema, Soroban spec, ICP `.did`)

@@ -5,8 +5,9 @@
 
 Two backends coexist:
 
-- **Canonical (target state):** `EmitWat` — Lean LCNF → WAT → `wat2wasm`,
-  mirroring the in-repo `EmitYul` EVM backend. See [D-027](../decisions.md) and
+- **Canonical (target state):** `EmitWat` — Portable IR → Wasm AST → WAT →
+  `wat2wasm`, mirroring the in-repo portable-IR → Yul EVM backend. See
+  [D-027](../decisions.md) and
   [Wasm family common shape](wasm-family.md).
 - **Frozen v0 stopgap (in-repo, compiles):** Rust `near-sdk-rs` sourcegen —
   `Portable IR → near-sdk-rs package → cargo wasm32`. Validates NEAR semantics
@@ -16,39 +17,42 @@ Two backends coexist:
 ## Canonical architecture (`EmitWat`)
 
 ```text
-ProofForge.Near (@[extern "lean_near_*"])
-  -> Lean compiler LCNF
-  -> EmitWat                       (shared Wasm-family lowering)
-  -> WAT module                    (host imports declared for env.*)
+Portable IR (Module)
+  -> EmitWat                       (portable IR -> Wasm AST; mirrors Backend/Evm/IR.lean)
+  -> Wasm AST -> WAT text          (Compiler/Wasm/AST.lean + Printer.lean)
   -> wat2wasm                      (shared toolchain)
-  -> NEAR-compatible Wasm
+  -> NEAR-compatible Wasm          (imports env.* host functions)
 ```
 
-`ProofForge.Near` mirrors `ProofForge.Evm`: chain operations are opaque
-`@[extern]` functions that `EmitWat` recognizes and lowers to NEAR host
-imports. The Lean object model (boxed scalars, bump allocator, refcount
-elided, no GC) is ported from `EmitYul` — safe because NEAR calls are atomic
-with fresh linear memory per invocation, exactly like EVM.
+`EmitWat` mirrors `ProofForge/Backend/Evm/IR.lean` (portable IR → Yul AST),
+but targets WAT instead of Yul. Because the portable IR already abstracts over
+Lean objects (only `u32`/`u64`/`bool`/`hash` scalars + storage effects), there
+is **no Lean runtime to port and no object-model boxing/GC** — scalars map
+directly to Wasm `i32`/`i64`, and storage/crypto/context effects lower to NEAR
+host imports. The IR-lowering and validation logic is reusable from the frozen
+Rust v0 (`Backend/WasmNear/IR.lean`) and from `Backend/Evm/IR.lean`; only the
+emission target changes (Rust/Yul strings → Wasm AST → WAT).
 
-Planned NEAR host surface (lowered from externs to wasm imports):
+Storage/crypto/context effects lower to these NEAR host imports:
 
-| Extern | NEAR host import |
+| IR effect | NEAR host import |
 |---|---|
-| `lean_near_storage_read` | `env.storage_read` |
-| `lean_near_storage_write` | `env.storage_write` |
-| `lean_near_storage_has_key` | `env.storage_has_key` |
-| `lean_near_sha256` | `env.sha256` |
-| `lean_near_predecessor_account_id` | `env.predecessor_account_id` |
-| `lean_near_current_account_id` | `env.current_account_id` |
-| `lean_near_block_height` | `env.block_height` |
-| `lean_near_log` | `env.log` |
+| `storageScalarRead` / `storageMapGet` | `env.storage_read` |
+| `storageScalarWrite` / `storageMapSet` | `env.storage_write` |
+| `storageMapContains` | `env.storage_has_key` |
+| `hash` / `hashTwoToOne` | `env.sha256` |
+| `contextRead userId` | `env.predecessor_account_id` |
+| `contextRead contractId` | `env.current_account_id` |
+| `contextRead checkpointId` | `env.block_height` |
+| `eventEmit` | `env.log` |
 
 ### Why not `EmitZig`
 
 The earlier plan (`Lean → EmitZig → Zig → host bridge → Wasm`) is superseded
 because it requires porting the full Lean runtime to Wasm (libuv / threads /
-GC) — the documented blocker. `EmitWat` reuses the `EmitYul` object-model
-trick and avoids that port entirely.
+GC) — the documented blocker. `EmitWat` lowers the portable IR directly and
+avoids that port entirely; it also avoids coupling to `near-sdk` macros (the
+source of the E0119 / missing-`&self` bugs in the Rust v0).
 
 ### Spike gate (highest risk)
 
