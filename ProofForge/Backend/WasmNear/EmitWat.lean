@@ -94,35 +94,29 @@ def writeFunc (vt : ValueType) : Func :=
       .localGet "kl", .plain "i64.extend_i32_u", .localGet "kp", .plain "i64.extend_i32_u",
       .i64Const (scalarWidth vt), .i64Const KEY_BUF, .i64Const 0, .call "storage_write", .drop ] } }
 
+def returnU32Name  : String := "__pf_return_u32"
+
 def returnU64Func : Func :=
-  { name := returnU64Name,
-    params := #[{ name := "v", type := .i64 }],
-    locals := #[{ name := "tmp", type := .i64 }, { name := "p", type := .i32 }, { name := "d", type := .i32 }],
+  { name := returnU64Name, params := #[{ name := "v", type := .i64 }],
     body := { insns := #[
-      .localGet "v", .localSet "tmp",
-      .i32Const (RET_BUF + 20), .localSet "p",
-      .localGet "tmp", .plain "i64.eqz",
-      .if_ { insns := #[ .i32Const (RET_BUF + 19), .i32Const 48, .store "i32.store8" 0,
-                        .i32Const (RET_BUF + 19), .localSet "p" ] }
-         { insns := #[ .block_ { insns := #[ .loop_ { insns := #[
-            .localGet "tmp", .plain "i64.eqz", .brIf 1,
-            .localGet "tmp", .i64Const 10, .plain "i64.rem_u", .plain "i32.wrap_i64", .localSet "d",
-            .localGet "tmp", .i64Const 10, .plain "i64.div_u", .localSet "tmp",
-            .localGet "p", .i32Const 1, .plain "i32.sub", .localTee "p",
-            .i32Const 48, .localGet "d", .plain "i32.add", .store "i32.store8" 0, .br 0 ] } ] } ] },
-      .i32Const (RET_BUF + 20), .localGet "p", .plain "i32.sub", .plain "i64.extend_i32_u",
-      .localGet "p", .plain "i64.extend_i32_u", .call "value_return" ] } }
+      .i32Const RET_BUF, .localGet "v", .store "i64.store" 0,
+      .i64Const 8, .i64Const RET_BUF, .call "value_return" ] } }
+
+def returnU32Func : Func :=
+  { name := returnU32Name, params := #[{ name := "v", type := .i32 }],
+    body := { insns := #[
+      .i32Const RET_BUF, .localGet "v", .store "i32.store" 0,
+      .i64Const 4, .i64Const RET_BUF, .call "value_return" ] } }
 
 def returnBoolFunc : Func :=
   { name := returnBoolName, params := #[{ name := "v", type := .i32 }],
     body := { insns := #[
-      .localGet "v", .plain "i32.eqz",
-      .if_ { insns := #[ .i64Const 5, .i64Const FALSE_PTR, .call "value_return" ] }
-         { insns := #[ .i64Const 4, .i64Const TRUE_PTR, .call "value_return" ] } ] } }
+      .i32Const RET_BUF, .localGet "v", .store "i32.store8" 0,
+      .i64Const 1, .i64Const RET_BUF, .call "value_return" ] } }
 
 def helperFuncs : Array Func :=
   #[ readFunc .u32, writeFunc .u32, readFunc .u64, writeFunc .u64,
-     readFunc .bool, writeFunc .bool, returnU64Func, returnBoolFunc ]
+     readFunc .bool, writeFunc .bool, returnU64Func, returnU32Func, returnBoolFunc ]
 
 -- Map helpers ----------------------------------------------------------
 -- Map<U64, T>: storage key = prefix(stateId ++ ":") ++ 8 key bytes.
@@ -626,8 +620,9 @@ def lowerReturn (ctx : Ctx) (env : LocalTypes) (expected : ValueType) (e : Expr)
   if t != expected then err s!"EmitWat: return expected `{expected.name}`, got `{t.name}`"
   else match t with
     | .u64 => .ok (is ++ #[.call returnU64Name])
-    | .u32 => .ok (is ++ #[.plain "i64.extend_i32_u", .call returnU64Name])
+    | .u32 => .ok (is ++ #[.call returnU32Name])
     | .bool => .ok (is ++ #[.call returnBoolName])
+    | .hash => .ok (#[.i64Const 32] ++ is ++ #[.plain "i64.extend_i32_u", .call "value_return"])
     | _ => err s!"EmitWat: return type `{t.name}` is not supported"
 
 partial def lowerEventEmit (ctx : Ctx) (env : LocalTypes) (name : String) (fields : Array (String × Expr))
