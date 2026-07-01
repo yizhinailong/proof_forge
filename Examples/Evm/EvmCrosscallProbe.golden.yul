@@ -145,6 +145,53 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x3652f87d {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1, _r2, _r3, _r4, _r5, _r6, _r7 := f_EvmCrosscallProbe_call_remote_pair_matrix(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      mstore(64, _r2)
+      mstore(96, _r3)
+      mstore(128, _r4)
+      mstore(160, _r5)
+      mstore(192, _r6)
+      mstore(224, _r7)
+      return(0, 256)
+    }
+    case 0x48fc8f80 {
+      if lt(calldatasize(), 324) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(132), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(164), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(196), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(228), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(260), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(292), 4294967295) {
+        revert(0, 0)
+      }
+      let _r := f_EvmCrosscallProbe_call_remote_pair_matrix_arg(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132), calldataload(164), calldataload(196), calldataload(228), calldataload(260), calldataload(292))
+      mstore(0, _r)
+      return(0, 32)
+    }
     case 0x365f4a44 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
@@ -224,6 +271,53 @@ object "EvmCrosscallProbe" {
         revert(0, 0)
       }
       let _r := f_EvmCrosscallProbe_call_remote_value_pair_array_arg(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132), calldataload(164))
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xfa3cf7ed {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1, _r2, _r3, _r4, _r5, _r6, _r7 := f_EvmCrosscallProbe_call_remote_value_pair_matrix(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      mstore(64, _r2)
+      mstore(96, _r3)
+      mstore(128, _r4)
+      mstore(160, _r5)
+      mstore(192, _r6)
+      mstore(224, _r7)
+      return(0, 256)
+    }
+    case 0x4f1e8d96 {
+      if lt(calldatasize(), 324) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(132), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(164), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(196), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(228), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(260), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(292), 4294967295) {
+        revert(0, 0)
+      }
+      let _r := f_EvmCrosscallProbe_call_remote_value_pair_matrix_arg(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132), calldataload(164), calldataload(196), calldataload(228), calldataload(260), calldataload(292))
       mstore(0, _r)
       return(0, 32)
     }
@@ -347,6 +441,53 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x9893a8f6 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1, _r2, _r3, _r4, _r5, _r6, _r7 := f_EvmCrosscallProbe_call_remote_static_pair_matrix(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      mstore(64, _r2)
+      mstore(96, _r3)
+      mstore(128, _r4)
+      mstore(160, _r5)
+      mstore(192, _r6)
+      mstore(224, _r7)
+      return(0, 256)
+    }
+    case 0xdb5109a1 {
+      if lt(calldatasize(), 324) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(132), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(164), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(196), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(228), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(260), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(292), 4294967295) {
+        revert(0, 0)
+      }
+      let _r := f_EvmCrosscallProbe_call_remote_static_pair_matrix_arg(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132), calldataload(164), calldataload(196), calldataload(228), calldataload(260), calldataload(292))
+      mstore(0, _r)
+      return(0, 32)
+    }
     case 0x5ef5b6fb {
       if lt(calldatasize(), 196) {
         revert(0, 0)
@@ -467,6 +608,53 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x26db7add {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r0, _r1, _r2, _r3, _r4, _r5, _r6, _r7 := f_EvmCrosscallProbe_call_remote_delegate_pair_matrix(calldataload(4), calldataload(36))
+      mstore(0, _r0)
+      mstore(32, _r1)
+      mstore(64, _r2)
+      mstore(96, _r3)
+      mstore(128, _r4)
+      mstore(160, _r5)
+      mstore(192, _r6)
+      mstore(224, _r7)
+      return(0, 256)
+    }
+    case 0x667806e6 {
+      if lt(calldatasize(), 324) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(132), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(164), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(196), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(228), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(260), 1) {
+        revert(0, 0)
+      }
+      if gt(calldataload(292), 4294967295) {
+        revert(0, 0)
+      }
+      let _r := f_EvmCrosscallProbe_call_remote_delegate_pair_matrix_arg(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132), calldataload(164), calldataload(196), calldataload(228), calldataload(260), calldataload(292))
+      mstore(0, _r)
+      return(0, 32)
+    }
     case 0x08edf8ea {
       if lt(calldatasize(), 196) {
         revert(0, 0)
@@ -544,6 +732,12 @@ object "EvmCrosscallProbe" {
       let __proof_forge_array_struct_pairs_1_small := small1
       result := __proof_forge_crosscall_4(target, method, __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
     }
+    function f_EvmCrosscallProbe_call_remote_pair_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 {
+      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 := __proof_forge_crosscall_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method)
+    }
+    function f_EvmCrosscallProbe_call_remote_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> result {
+      result := __proof_forge_crosscall_8(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11)
+    }
     function f_EvmCrosscallProbe_call_remote_value(target, method) -> result {
       result := __proof_forge_crosscall_value_0(target, method, callvalue())
     }
@@ -570,6 +764,12 @@ object "EvmCrosscallProbe" {
       let __proof_forge_array_struct_pairs_1_flag := flag1
       let __proof_forge_array_struct_pairs_1_small := small1
       result := __proof_forge_crosscall_value_4(target, method, callvalue(), __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
+    }
+    function f_EvmCrosscallProbe_call_remote_value_pair_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 {
+      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 := __proof_forge_crosscall_value_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method, callvalue())
+    }
+    function f_EvmCrosscallProbe_call_remote_value_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> result {
+      result := __proof_forge_crosscall_value_8(target, method, callvalue(), flag00, small00, flag01, small01, flag10, small10, flag11, small11)
     }
     function f_EvmCrosscallProbe_call_remote_value_matrix_arg(target, method, a, b, c, d) -> result {
       result := __proof_forge_crosscall_value_4(target, method, callvalue(), a, b, c, d)
@@ -610,6 +810,12 @@ object "EvmCrosscallProbe" {
       let __proof_forge_array_struct_pairs_1_small := small1
       result := __proof_forge_crosscall_static_4(target, method, __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
     }
+    function f_EvmCrosscallProbe_call_remote_static_pair_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 {
+      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 := __proof_forge_crosscall_static_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method)
+    }
+    function f_EvmCrosscallProbe_call_remote_static_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> result {
+      result := __proof_forge_crosscall_static_8(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11)
+    }
     function f_EvmCrosscallProbe_call_remote_static_matrix_arg(target, method, a, b, c, d) -> result {
       result := __proof_forge_crosscall_static_4(target, method, a, b, c, d)
     }
@@ -648,6 +854,12 @@ object "EvmCrosscallProbe" {
       let __proof_forge_array_struct_pairs_1_flag := flag1
       let __proof_forge_array_struct_pairs_1_small := small1
       result := __proof_forge_crosscall_delegate_4(target, method, __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
+    }
+    function f_EvmCrosscallProbe_call_remote_delegate_pair_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 {
+      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 := __proof_forge_crosscall_delegate_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method)
+    }
+    function f_EvmCrosscallProbe_call_remote_delegate_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> result {
+      result := __proof_forge_crosscall_delegate_8(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11)
     }
     function f_EvmCrosscallProbe_call_remote_delegate_matrix_arg(target, method, a, b, c, d) -> result {
       result := __proof_forge_crosscall_delegate_4(target, method, a, b, c, d)
@@ -849,6 +1061,69 @@ object "EvmCrosscallProbe" {
         revert(0, 0)
       }
     }
+    function __proof_forge_crosscall_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, selector) -> result0, result1, result2, result3, result4, result5, result6, result7 {
+      mstore(0, shl(224, selector))
+      let _success := call(gas(), target, 0, 0, 4, 0, 256)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 256) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 256)
+      result0 := mload(0)
+      result1 := mload(32)
+      result2 := mload(64)
+      result3 := mload(96)
+      result4 := mload(128)
+      result5 := mload(160)
+      result6 := mload(192)
+      result7 := mload(224)
+      if gt(result0, 1) {
+        revert(0, 0)
+      }
+      if gt(result1, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result2, 1) {
+        revert(0, 0)
+      }
+      if gt(result3, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result4, 1) {
+        revert(0, 0)
+      }
+      if gt(result5, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result6, 1) {
+        revert(0, 0)
+      }
+      if gt(result7, 4294967295) {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_crosscall_8(target, selector, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7) -> result {
+      mstore(0, shl(224, selector))
+      mstore(4, arg0)
+      mstore(36, arg1)
+      mstore(68, arg2)
+      mstore(100, arg3)
+      mstore(132, arg4)
+      mstore(164, arg5)
+      mstore(196, arg6)
+      mstore(228, arg7)
+      let _success := call(gas(), target, 0, 0, 260, 0, 32)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 32) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 32)
+      result := mload(0)
+    }
     function __proof_forge_crosscall_value_0(target, selector, call_value) -> result {
       mstore(0, shl(224, selector))
       let _success := call(gas(), target, call_value, 0, 4, 0, 32)
@@ -956,6 +1231,69 @@ object "EvmCrosscallProbe" {
       mstore(68, arg2)
       mstore(100, arg3)
       let _success := call(gas(), target, call_value, 0, 132, 0, 32)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 32) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 32)
+      result := mload(0)
+    }
+    function __proof_forge_crosscall_value_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, selector, call_value) -> result0, result1, result2, result3, result4, result5, result6, result7 {
+      mstore(0, shl(224, selector))
+      let _success := call(gas(), target, call_value, 0, 4, 0, 256)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 256) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 256)
+      result0 := mload(0)
+      result1 := mload(32)
+      result2 := mload(64)
+      result3 := mload(96)
+      result4 := mload(128)
+      result5 := mload(160)
+      result6 := mload(192)
+      result7 := mload(224)
+      if gt(result0, 1) {
+        revert(0, 0)
+      }
+      if gt(result1, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result2, 1) {
+        revert(0, 0)
+      }
+      if gt(result3, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result4, 1) {
+        revert(0, 0)
+      }
+      if gt(result5, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result6, 1) {
+        revert(0, 0)
+      }
+      if gt(result7, 4294967295) {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_crosscall_value_8(target, selector, call_value, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7) -> result {
+      mstore(0, shl(224, selector))
+      mstore(4, arg0)
+      mstore(36, arg1)
+      mstore(68, arg2)
+      mstore(100, arg3)
+      mstore(132, arg4)
+      mstore(164, arg5)
+      mstore(196, arg6)
+      mstore(228, arg7)
+      let _success := call(gas(), target, call_value, 0, 260, 0, 32)
       if iszero(_success) {
         revert(0, 0)
       }
@@ -1129,6 +1467,69 @@ object "EvmCrosscallProbe" {
       returndatacopy(0, 0, 32)
       result := mload(0)
     }
+    function __proof_forge_crosscall_static_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, selector) -> result0, result1, result2, result3, result4, result5, result6, result7 {
+      mstore(0, shl(224, selector))
+      let _success := staticcall(gas(), target, 0, 4, 0, 256)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 256) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 256)
+      result0 := mload(0)
+      result1 := mload(32)
+      result2 := mload(64)
+      result3 := mload(96)
+      result4 := mload(128)
+      result5 := mload(160)
+      result6 := mload(192)
+      result7 := mload(224)
+      if gt(result0, 1) {
+        revert(0, 0)
+      }
+      if gt(result1, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result2, 1) {
+        revert(0, 0)
+      }
+      if gt(result3, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result4, 1) {
+        revert(0, 0)
+      }
+      if gt(result5, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result6, 1) {
+        revert(0, 0)
+      }
+      if gt(result7, 4294967295) {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_crosscall_static_8(target, selector, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7) -> result {
+      mstore(0, shl(224, selector))
+      mstore(4, arg0)
+      mstore(36, arg1)
+      mstore(68, arg2)
+      mstore(100, arg3)
+      mstore(132, arg4)
+      mstore(164, arg5)
+      mstore(196, arg6)
+      mstore(228, arg7)
+      let _success := staticcall(gas(), target, 0, 260, 0, 32)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 32) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 32)
+      result := mload(0)
+    }
     function __proof_forge_crosscall_delegate_0(target, selector) -> result {
       mstore(0, shl(224, selector))
       let _success := delegatecall(gas(), target, 0, 4, 0, 32)
@@ -1284,6 +1685,69 @@ object "EvmCrosscallProbe" {
       mstore(68, arg2)
       mstore(100, arg3)
       let _success := delegatecall(gas(), target, 0, 132, 0, 32)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 32) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 32)
+      result := mload(0)
+    }
+    function __proof_forge_crosscall_delegate_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, selector) -> result0, result1, result2, result3, result4, result5, result6, result7 {
+      mstore(0, shl(224, selector))
+      let _success := delegatecall(gas(), target, 0, 4, 0, 256)
+      if iszero(_success) {
+        revert(0, 0)
+      }
+      if lt(returndatasize(), 256) {
+        revert(0, 0)
+      }
+      returndatacopy(0, 0, 256)
+      result0 := mload(0)
+      result1 := mload(32)
+      result2 := mload(64)
+      result3 := mload(96)
+      result4 := mload(128)
+      result5 := mload(160)
+      result6 := mload(192)
+      result7 := mload(224)
+      if gt(result0, 1) {
+        revert(0, 0)
+      }
+      if gt(result1, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result2, 1) {
+        revert(0, 0)
+      }
+      if gt(result3, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result4, 1) {
+        revert(0, 0)
+      }
+      if gt(result5, 4294967295) {
+        revert(0, 0)
+      }
+      if gt(result6, 1) {
+        revert(0, 0)
+      }
+      if gt(result7, 4294967295) {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_crosscall_delegate_8(target, selector, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7) -> result {
+      mstore(0, shl(224, selector))
+      mstore(4, arg0)
+      mstore(36, arg1)
+      mstore(68, arg2)
+      mstore(100, arg3)
+      mstore(132, arg4)
+      mstore(164, arg5)
+      mstore(196, arg6)
+      mstore(228, arg7)
+      let _success := delegatecall(gas(), target, 0, 260, 0, 32)
       if iszero(_success) {
         revert(0, 0)
       }

@@ -26,7 +26,9 @@ scripts/evm/build-examples.sh
 This compiles each `.lean` contract to EVM bytecode via
 `proof-forge --evm-bytecode`
 (Lean -> EmitYul -> Yul -> `solc --strict-assembly` -> bytecode).
-It expects Foundry (`cast`/`forge`) and `solc` on `PATH`.
+It also diffs generated Yul against the sibling `.golden.yul` fixtures and
+validates ProofForge artifact/deploy metadata. It expects Foundry
+(`cast`/`forge`) and `solc` on `PATH`.
 
 ## Run Foundry smoke tests
 

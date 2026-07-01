@@ -393,26 +393,29 @@ def crosscallArgumentTypeModule : Module :=
   ]
 
 def unsupportedNestedCrosscallType : ValueType :=
-  .fixedArray (.fixedArray (.structType "Point") 2) 2
+  .fixedArray (.fixedArray (.structType "Wrapper") 2) 2
 
 def pointLiteral (value : Nat) : Expr :=
   .structLit "Point" #[("x", .literal (.u64 value))]
 
-def pointMatrixLiteral : Expr :=
-  .arrayLit (.fixedArray (.structType "Point") 2) #[
-    .arrayLit (.structType "Point") #[pointLiteral 1, pointLiteral 2],
-    .arrayLit (.structType "Point") #[pointLiteral 3, pointLiteral 4]
+def wrapperLiteral (value : Nat) : Expr :=
+  .structLit "Wrapper" #[("point", pointLiteral value)]
+
+def wrapperMatrixLiteral : Expr :=
+  .arrayLit (.fixedArray (.structType "Wrapper") 2) #[
+    .arrayLit (.structType "Wrapper") #[wrapperLiteral 1, wrapperLiteral 2],
+    .arrayLit (.structType "Wrapper") #[wrapperLiteral 3, wrapperLiteral 4]
   ]
 
-def selectedPointModule (name : String) (entrypoint : Entrypoint) : Module := {
+def selectedNestedCrosscallModule (name : String) (entrypoint : Entrypoint) : Module := {
   name := name
-  structs := #[pointStruct]
+  structs := #[pointStruct, wrapperStruct]
   state := #[markerState]
   entrypoints := #[entrypoint]
 }
 
 def typedCrosscallReturnTypeModule : Module :=
-  selectedPointModule "BadTypedCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
+  selectedNestedCrosscallModule "BadTypedCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
     .return (.crosscallInvokeTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
@@ -421,11 +424,11 @@ def typedCrosscallReturnTypeModule : Module :=
   ]
 
 def typedCrosscallArgumentTypeModule : Module :=
-  selectedPointModule "BadTypedCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+  selectedNestedCrosscallModule "BadTypedCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvokeTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
-      #[pointMatrixLiteral]
+      #[wrapperMatrixLiteral]
       .u64)
   ]
 
@@ -440,7 +443,7 @@ def valueCrosscallValueTypeModule : Module :=
   ]
 
 def valueCrosscallReturnTypeModule : Module :=
-  selectedPointModule "BadValueCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
+  selectedNestedCrosscallModule "BadValueCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
     .return (.crosscallInvokeValueTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
@@ -450,26 +453,26 @@ def valueCrosscallReturnTypeModule : Module :=
   ]
 
 def valueCrosscallArgumentTypeModule : Module :=
-  selectedPointModule "BadValueCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+  selectedNestedCrosscallModule "BadValueCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvokeValueTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
       (.literal (.u64 3))
-      #[pointMatrixLiteral]
+      #[wrapperMatrixLiteral]
       .u64)
   ]
 
 def staticCrosscallArgumentTypeModule : Module :=
-  selectedPointModule "BadStaticCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+  selectedNestedCrosscallModule "BadStaticCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvokeStaticTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
-      #[pointMatrixLiteral]
+      #[wrapperMatrixLiteral]
       .u64)
   ]
 
 def staticCrosscallReturnTypeModule : Module :=
-  selectedPointModule "BadStaticCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
+  selectedNestedCrosscallModule "BadStaticCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
     .return (.crosscallInvokeStaticTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
@@ -478,16 +481,16 @@ def staticCrosscallReturnTypeModule : Module :=
   ]
 
 def delegateCrosscallArgumentTypeModule : Module :=
-  selectedPointModule "BadDelegateCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+  selectedNestedCrosscallModule "BadDelegateCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvokeDelegateTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
-      #[pointMatrixLiteral]
+      #[wrapperMatrixLiteral]
       .u64)
   ]
 
 def delegateCrosscallReturnTypeModule : Module :=
-  selectedPointModule "BadDelegateCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
+  selectedNestedCrosscallModule "BadDelegateCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
     .return (.crosscallInvokeDelegateTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
@@ -761,12 +764,12 @@ def cases : Array (String × Module × String) := #[
   (
     "typed crosscall return type unsupported",
     typedCrosscallReturnTypeModule,
-    "typed crosscall return fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
+    "field `point` in struct `Wrapper` has unsupported EVM IR v0 local struct field type `Point`; local structs support U32, U64, Bool, or Hash fields"
   ),
   (
     "typed crosscall argument type unsupported",
     typedCrosscallArgumentTypeModule,
-    "typed crosscall argument fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
+    "field `point` in struct `Wrapper` has unsupported EVM IR v0 local struct field type `Point`; local structs support U32, U64, Bool, or Hash fields"
   ),
   (
     "value crosscall call value type mismatch",
@@ -776,32 +779,32 @@ def cases : Array (String × Module × String) := #[
   (
     "value crosscall return type unsupported",
     valueCrosscallReturnTypeModule,
-    "value crosscall return fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
+    "field `point` in struct `Wrapper` has unsupported EVM IR v0 local struct field type `Point`; local structs support U32, U64, Bool, or Hash fields"
   ),
   (
     "value crosscall argument type unsupported",
     valueCrosscallArgumentTypeModule,
-    "value crosscall argument fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
+    "field `point` in struct `Wrapper` has unsupported EVM IR v0 local struct field type `Point`; local structs support U32, U64, Bool, or Hash fields"
   ),
   (
     "static crosscall argument type unsupported",
     staticCrosscallArgumentTypeModule,
-    "static crosscall argument fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
+    "field `point` in struct `Wrapper` has unsupported EVM IR v0 local struct field type `Point`; local structs support U32, U64, Bool, or Hash fields"
   ),
   (
     "static crosscall return type unsupported",
     staticCrosscallReturnTypeModule,
-    "static crosscall return fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
+    "field `point` in struct `Wrapper` has unsupported EVM IR v0 local struct field type `Point`; local structs support U32, U64, Bool, or Hash fields"
   ),
   (
     "delegate crosscall argument type unsupported",
     delegateCrosscallArgumentTypeModule,
-    "delegate crosscall argument fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
+    "field `point` in struct `Wrapper` has unsupported EVM IR v0 local struct field type `Point`; local structs support U32, U64, Bool, or Hash fields"
   ),
   (
     "delegate crosscall return type unsupported",
     delegateCrosscallReturnTypeModule,
-    "delegate crosscall return fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
+    "field `point` in struct `Wrapper` has unsupported EVM IR v0 local struct field type `Point`; local structs support U32, U64, Bool, or Hash fields"
   ),
   (
     "create call value type mismatch",

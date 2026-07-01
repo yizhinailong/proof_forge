@@ -57,6 +57,53 @@ object "EvmArrayValueProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xc54814ec {
+      let _r := f_EvmArrayValueProbe_nested_local_sum()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x69c5b925 {
+      let _r := f_EvmArrayValueProbe_nested_mutable_update()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x1c21ce7e {
+      let _r := f_EvmArrayValueProbe_nested_whole_array_assign()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xdeb5ba01 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r := f_EvmArrayValueProbe_nested_dynamic_pick(calldataload(4), calldataload(36))
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x731f5daf {
+      if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      let _r := f_EvmArrayValueProbe_nested_dynamic_row_pick(calldataload(4))
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xbd33c419 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r := f_EvmArrayValueProbe_nested_dynamic_update(calldataload(4), calldataload(36))
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x69437a57 {
+      if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      let _r := f_EvmArrayValueProbe_nested_dynamic_row_update(calldataload(4))
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -185,6 +232,193 @@ object "EvmArrayValueProbe" {
       }
       result := add(add(__proof_forge_array_xs_0, mul(__proof_forge_array_xs_1, 10)), __proof_forge_array_xs_2)
     }
+    function f_EvmArrayValueProbe_nested_local_sum() -> result {
+      let __proof_forge_array_matrix_0_0 := 2
+      let __proof_forge_array_matrix_0_1 := 3
+      let __proof_forge_array_matrix_1_0 := 5
+      let __proof_forge_array_matrix_1_1 := 7
+      result := add(__proof_forge_array_matrix_0_1, __proof_forge_array_matrix_1_0)
+    }
+    function f_EvmArrayValueProbe_nested_mutable_update() -> result {
+      let __proof_forge_array_matrix_0_0 := 2
+      let __proof_forge_array_matrix_0_1 := 3
+      let __proof_forge_array_matrix_1_0 := 5
+      let __proof_forge_array_matrix_1_1 := 7
+      __proof_forge_array_matrix_1_0 := 17
+      __proof_forge_array_matrix_0_1 := add(__proof_forge_array_matrix_0_1, 4)
+      result := add(__proof_forge_array_matrix_1_0, __proof_forge_array_matrix_0_1)
+    }
+    function f_EvmArrayValueProbe_nested_whole_array_assign() -> result {
+      let __proof_forge_array_matrix_0_0 := 1
+      let __proof_forge_array_matrix_0_1 := 2
+      let __proof_forge_array_matrix_1_0 := 3
+      let __proof_forge_array_matrix_1_1 := 4
+      let __proof_forge_array_other_0_0 := 5
+      let __proof_forge_array_other_0_1 := 7
+      let __proof_forge_array_other_1_0 := 11
+      let __proof_forge_array_other_1_1 := 13
+      {
+        let __proof_forge_assign_array_matrix_0_0 := __proof_forge_array_other_0_0
+        let __proof_forge_assign_array_matrix_0_1 := __proof_forge_array_other_0_1
+        let __proof_forge_assign_array_matrix_1_0 := __proof_forge_array_other_1_0
+        let __proof_forge_assign_array_matrix_1_1 := __proof_forge_array_other_1_1
+        __proof_forge_array_matrix_0_0 := __proof_forge_assign_array_matrix_0_0
+        __proof_forge_array_matrix_0_1 := __proof_forge_assign_array_matrix_0_1
+        __proof_forge_array_matrix_1_0 := __proof_forge_assign_array_matrix_1_0
+        __proof_forge_array_matrix_1_1 := __proof_forge_assign_array_matrix_1_1
+      }
+      {
+        let __proof_forge_assign_array_matrix_0_0 := __proof_forge_array_matrix_1_0
+        let __proof_forge_assign_array_matrix_0_1 := __proof_forge_array_matrix_0_1
+        let __proof_forge_assign_array_matrix_1_0 := __proof_forge_array_matrix_0_0
+        let __proof_forge_assign_array_matrix_1_1 := __proof_forge_array_matrix_1_1
+        __proof_forge_array_matrix_0_0 := __proof_forge_assign_array_matrix_0_0
+        __proof_forge_array_matrix_0_1 := __proof_forge_assign_array_matrix_0_1
+        __proof_forge_array_matrix_1_0 := __proof_forge_assign_array_matrix_1_0
+        __proof_forge_array_matrix_1_1 := __proof_forge_assign_array_matrix_1_1
+      }
+      result := add(add(__proof_forge_array_matrix_0_0, mul(__proof_forge_array_matrix_0_1, 10)), add(mul(__proof_forge_array_matrix_1_0, 100), mul(__proof_forge_array_matrix_1_1, 1000)))
+    }
+    function f_EvmArrayValueProbe_nested_dynamic_pick(row, col) -> result {
+      let __proof_forge_array_matrix_0_0 := 2
+      let __proof_forge_array_matrix_0_1 := 3
+      let __proof_forge_array_matrix_1_0 := 5
+      let __proof_forge_array_matrix_1_1 := 7
+      result := __proof_forge_local_array_get_nested_2_2(row, col, __proof_forge_array_matrix_0_0, __proof_forge_array_matrix_0_1, __proof_forge_array_matrix_1_0, __proof_forge_array_matrix_1_1)
+    }
+    function f_EvmArrayValueProbe_nested_dynamic_row_pick(row) -> result {
+      let __proof_forge_array_matrix_0_0 := 2
+      let __proof_forge_array_matrix_0_1 := 3
+      let __proof_forge_array_matrix_1_0 := 5
+      let __proof_forge_array_matrix_1_1 := 7
+      result := __proof_forge_local_array_get_nested_2_2(row, 1, __proof_forge_array_matrix_0_0, __proof_forge_array_matrix_0_1, __proof_forge_array_matrix_1_0, __proof_forge_array_matrix_1_1)
+    }
+    function f_EvmArrayValueProbe_nested_dynamic_update(row, col) -> result {
+      let __proof_forge_array_matrix_0_0 := 2
+      let __proof_forge_array_matrix_0_1 := 3
+      let __proof_forge_array_matrix_1_0 := 5
+      let __proof_forge_array_matrix_1_1 := 7
+      {
+        let __proof_forge_array_value := 20
+        {
+          let __proof_forge_array_index_0 := row
+          switch __proof_forge_array_index_0
+          case 0 {
+            {
+              let __proof_forge_array_index_1 := col
+              switch __proof_forge_array_index_1
+              case 0 {
+                __proof_forge_array_matrix_0_0 := __proof_forge_array_value
+              }
+              case 1 {
+                __proof_forge_array_matrix_0_1 := __proof_forge_array_value
+              }
+              default {
+                revert(0, 0)
+              }
+            }
+          }
+          case 1 {
+            {
+              let __proof_forge_array_index_1 := col
+              switch __proof_forge_array_index_1
+              case 0 {
+                __proof_forge_array_matrix_1_0 := __proof_forge_array_value
+              }
+              case 1 {
+                __proof_forge_array_matrix_1_1 := __proof_forge_array_value
+              }
+              default {
+                revert(0, 0)
+              }
+            }
+          }
+          default {
+            revert(0, 0)
+          }
+        }
+      }
+      {
+        let __proof_forge_array_value := 3
+        {
+          let __proof_forge_array_index_0 := row
+          switch __proof_forge_array_index_0
+          case 0 {
+            {
+              let __proof_forge_array_index_1 := col
+              switch __proof_forge_array_index_1
+              case 0 {
+                __proof_forge_array_matrix_0_0 := add(__proof_forge_array_matrix_0_0, __proof_forge_array_value)
+              }
+              case 1 {
+                __proof_forge_array_matrix_0_1 := add(__proof_forge_array_matrix_0_1, __proof_forge_array_value)
+              }
+              default {
+                revert(0, 0)
+              }
+            }
+          }
+          case 1 {
+            {
+              let __proof_forge_array_index_1 := col
+              switch __proof_forge_array_index_1
+              case 0 {
+                __proof_forge_array_matrix_1_0 := add(__proof_forge_array_matrix_1_0, __proof_forge_array_value)
+              }
+              case 1 {
+                __proof_forge_array_matrix_1_1 := add(__proof_forge_array_matrix_1_1, __proof_forge_array_value)
+              }
+              default {
+                revert(0, 0)
+              }
+            }
+          }
+          default {
+            revert(0, 0)
+          }
+        }
+      }
+      result := __proof_forge_local_array_get_nested_2_2(row, col, __proof_forge_array_matrix_0_0, __proof_forge_array_matrix_0_1, __proof_forge_array_matrix_1_0, __proof_forge_array_matrix_1_1)
+    }
+    function f_EvmArrayValueProbe_nested_dynamic_row_update(row) -> result {
+      let __proof_forge_array_matrix_0_0 := 2
+      let __proof_forge_array_matrix_0_1 := 3
+      let __proof_forge_array_matrix_1_0 := 5
+      let __proof_forge_array_matrix_1_1 := 7
+      {
+        let __proof_forge_array_value := 20
+        {
+          let __proof_forge_array_index_0 := row
+          switch __proof_forge_array_index_0
+          case 0 {
+            __proof_forge_array_matrix_0_1 := __proof_forge_array_value
+          }
+          case 1 {
+            __proof_forge_array_matrix_1_1 := __proof_forge_array_value
+          }
+          default {
+            revert(0, 0)
+          }
+        }
+      }
+      {
+        let __proof_forge_array_value := 3
+        {
+          let __proof_forge_array_index_0 := row
+          switch __proof_forge_array_index_0
+          case 0 {
+            __proof_forge_array_matrix_0_1 := add(__proof_forge_array_matrix_0_1, __proof_forge_array_value)
+          }
+          case 1 {
+            __proof_forge_array_matrix_1_1 := add(__proof_forge_array_matrix_1_1, __proof_forge_array_value)
+          }
+          default {
+            revert(0, 0)
+          }
+        }
+      }
+      result := __proof_forge_local_array_get_nested_2_2(row, 1, __proof_forge_array_matrix_0_0, __proof_forge_array_matrix_0_1, __proof_forge_array_matrix_1_0, __proof_forge_array_matrix_1_1)
+    }
     function __proof_forge_local_array_get_3(index, value_0, value_1, value_2) -> result {
       switch index
       case 0 {
@@ -195,6 +429,48 @@ object "EvmArrayValueProbe" {
       }
       case 2 {
         result := value_2
+      }
+      default {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_local_array_get_2(index, value_0, value_1) -> result {
+      switch index
+      case 0 {
+        result := value_0
+      }
+      case 1 {
+        result := value_1
+      }
+      default {
+        revert(0, 0)
+      }
+    }
+    function __proof_forge_local_array_get_nested_2_2(index_0, index_1, value_0_0, value_0_1, value_1_0, value_1_1) -> result {
+      switch index_0
+      case 0 {
+        switch index_1
+        case 0 {
+          result := value_0_0
+        }
+        case 1 {
+          result := value_0_1
+        }
+        default {
+          revert(0, 0)
+        }
+      }
+      case 1 {
+        switch index_1
+        case 0 {
+          result := value_1_0
+        }
+        case 1 {
+          result := value_1_1
+        }
+        default {
+          revert(0, 0)
+        }
       }
       default {
         revert(0, 0)

@@ -212,8 +212,17 @@ Tasks:
   arguments and direct entrypoint returns. `EvmCrosscallProbe` now validates
   `uint64[2][2]` ABI-word flattening, golden Yul, solc bytecode, metadata
   selectors, Foundry runtime behavior, value forwarding, staticcall behavior,
-  and delegatecall behavior across all four call modes, while diagnostics still
-  reject nested fixed-array leaves that are structs or other non-scalar shapes.
+  and delegatecall behavior across all four call modes. At that milestone,
+  diagnostics still rejected struct and other non-scalar nested fixed-array
+  leaves; flat struct leaves are now covered by the follow-up item below.
+- Done: extend EVM IR typed crosscall aggregate coverage to nested fixed arrays
+  whose leaves are flat structs. `EvmCrosscallProbe` now validates
+  `RemotePair[2][2]` arguments and direct entrypoint returns across normal,
+  value-bearing, static, and delegate typed calls, including ABI word
+  flattening, Bool/U32 field guards, golden Yul, solc bytecode, metadata
+  selectors, Foundry runtime behavior, value forwarding, staticcall behavior,
+  and delegatecall behavior. Diagnostics still reject nested fixed-array leaves
+  whose structs are non-flat or otherwise unsupported.
 - Done: add EVM IR `crosscallCreate` and `crosscallCreate2` lowering for fixed
   init-code hex. Creation helpers write init code to memory, call Yul
   `create`/`create2`, revert on zero-address failure, return the deployed
@@ -286,6 +295,16 @@ Tasks:
   target elements, and validating local-source and self-referential literal RHS
   behavior through `EvmArrayValueProbe` golden Yul, metadata entrypoints, solc
   bytecode, and Foundry runtime checks.
+- Done: extend EVM IR local fixed-array lowering to static nested scalar arrays,
+  including immutable reads, mutable leaf assignment, numeric leaf compound
+  assignment, nested whole-local assignment, and RHS snapshotting, with
+  `EvmArrayValueProbe` golden Yul, metadata entrypoints, solc bytecode, and
+  Foundry runtime checks. Non-scalar nested leaves remain explicit diagnostics.
+- Done: extend EVM IR local fixed-array lowering to dynamic nested scalar array
+  indexes, including nested getter helpers for reads, nested `switch` lowering
+  for mutable leaf assignment and compound assignment, mixed static/dynamic
+  path coverage, runtime out-of-bounds reverts, `EvmArrayValueProbe` golden
+  Yul, metadata entrypoints, solc bytecode, and Foundry runtime checks.
 - Done: add EVM IR flat immutable local struct value lowering for `U64`,
   `U32`, `Bool`, and `Hash` fields, direct struct literal field access,
   `EvmStructValueProbe` golden Yul, solc bytecode, Foundry runtime validation,
@@ -331,7 +350,10 @@ Tasks:
   capability validation, CI coverage, and explicit diagnostics for Unit,
   zero-length arrays, non-flat struct fields, and crosscall-only unsupported
   nested fixed-array leaf shapes.
-- Add golden Yul outputs for simple examples.
+- Done: add golden Yul outputs for SDK EVM examples (`Counter`,
+  `ArrayExample`, `SimpleToken`, `ERC20`, `Ownable`, `Pausable`, and
+  `VerifiedVault`) and make `scripts/evm/build-examples.sh` diff generated Yul
+  against those fixtures before validating metadata.
 - Done: add metadata emission and validation around the current
   `solc --strict-assembly` flow for SDK and portable IR EVM bytecode builds.
 - Keep Foundry smoke as the mature EVM smoke test.

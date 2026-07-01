@@ -4,4 +4,5 @@ target/
 *.bin
 *.yul
 !Examples/Evm/*.golden.yul
+!Examples/Evm/Contracts/**/*.golden.yul
 scripts/__pycache__/

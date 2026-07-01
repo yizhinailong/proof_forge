@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Nested Struct Crosscall Fixed Arrays
+
+Commit: feature commit for EVM IR nested struct crosscall arrays
+
+Summary:
+
+- Extended typed crosscall aggregate word-shape validation so nested fixed
+  arrays can use flat struct leaves such as `RemotePair[2][2]`, while non-flat
+  struct leaves still fail with explicit diagnostics.
+- Added `EvmCrosscallProbe` entrypoints for `RemotePair[2][2]` arguments and
+  direct entrypoint returns across normal, value-bearing, static, and delegate
+  typed calls.
+- Refreshed `EvmCrosscallProbe.golden.yul`, metadata selector expectations, and
+  the Foundry smoke harness with `Pair[2][2]` callee helpers.
+- Updated the EVM coverage manifest and target/validation docs to distinguish
+  supported flat struct leaves from unsupported non-flat struct leaves.
+
+Validation run:
+
+```sh
+lake build
+scripts/i18n/check-sync.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/evm/crosscall-ir-smoke.sh
+git diff --check
+```
+
+Result:
+
+- `EvmCrosscallProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 73 CrosscallProbe tests, including nested fixed-array
+  flat-struct arguments and returns in normal, value-bearing, static, and
+  delegate modes.
+
+Known limitations:
+
+- Dynamic ABI values, nested local fixed-array mutation beyond the current
+  local-array surface, nested crosscall fixed arrays with non-flat or
+  unsupported leaves, and variable-length return data remain future EVM IR work.
+
+Next step:
+
+- Continue shrinking the EVM aggregate gap around dynamic ABI data, richer
+  cross-call return data, or unsupported nested aggregate leaves.
+
 ### EVM IR Storage-Backed Aggregate ABI Returns
 
 Commit: feature commit for EVM IR storage-backed aggregate ABI returns
@@ -105,8 +152,8 @@ Result:
 Known limitations:
 
 - Dynamic ABI values, nested local fixed-array mutation beyond the current
-  local-array surface, nested crosscall fixed arrays with non-scalar leaves, and
-  variable-length return data remain future EVM IR work.
+  local-array surface, nested crosscall fixed arrays with non-flat or
+  unsupported leaves, and variable-length return data remain future EVM IR work.
 
 Next step:
 
@@ -4155,7 +4202,7 @@ Next step:
 
 ### Psy AssertProbe IR Assertions
 
-Commit: pending
+Commit: feature commit for dynamic nested EVM local arrays
 
 Summary:
 
@@ -4210,7 +4257,7 @@ Next step:
 
 ### Psy MapProbe Storage Map Coverage
 
-Commit: pending
+Commit: `427a0ec feat: support dynamic nested EVM local arrays`
 
 Summary:
 
@@ -4267,7 +4314,7 @@ Next step:
 
 ### Psy HashProbe And Experimental Target Slice
 
-Commit: pending
+Commit: test commit for EVM SDK example golden Yul fixtures
 
 Summary:
 
@@ -4724,3 +4771,71 @@ Current role:
 - EVM remains the first working target.
 - New IR work should use EVM as the first executable backend to validate
   semantics before adding more chains.
+
+### EVM Nested Local Fixed Arrays
+
+Commit: pending
+
+Summary:
+
+- Extended portable IR EVM local fixed-array lowering to static nested scalar
+  arrays.
+- Added deterministic Yul locals for nested leaves such as `matrix[1][0]`.
+- Covered static nested reads, mutable leaf assignment, numeric leaf compound
+  assignment, nested whole-local assignment, and RHS snapshotting.
+- Extended nested local scalar fixed arrays to dynamic index paths, including
+  nested getter helpers for reads and nested `switch` blocks for mutable leaf
+  assignment and compound assignment.
+- Added `nested_dynamic_pick`, `nested_dynamic_row_pick`,
+  `nested_dynamic_update`, and `nested_dynamic_row_update` coverage to
+  `EvmArrayValueProbe`.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/array-value-ir-smoke.sh
+```
+
+Result:
+
+- Lean build passed.
+- Array value smoke produced reproducible golden Yul, compiled bytecode with
+  `solc --strict-assembly`, validated metadata, and passed 17 Foundry tests.
+
+Known limitations:
+
+- Nested local arrays with non-scalar leaves remain explicit unsupported
+  surfaces.
+
+### EVM SDK Example Golden Yul
+
+Commit: pending
+
+Summary:
+
+- Added tracked golden Yul fixtures for SDK EVM examples:
+  `ArrayExample`, `Counter`, `SimpleToken`, `ERC20`, `Ownable`, `Pausable`,
+  and `VerifiedVault`.
+- Updated `scripts/evm/build-examples.sh` to emit generated SDK Yul into
+  `build/evm`, diff it against each sibling `.golden.yul`, compile bytecode,
+  and validate ProofForge artifact metadata.
+- Updated EVM validation docs and example README files so changing an SDK
+  example now includes updating its golden Yul fixture.
+
+Validation run:
+
+```sh
+scripts/evm/build-examples.sh
+```
+
+Result:
+
+- All seven SDK examples produced reproducible Yul matching the new golden
+  fixtures.
+- All seven SDK examples compiled with `solc --strict-assembly` and validated
+  EVM artifact/deploy metadata.
+
+Known limitations:
+
+- Runtime behavior remains covered by `scripts/evm/foundry-smoke.sh`.

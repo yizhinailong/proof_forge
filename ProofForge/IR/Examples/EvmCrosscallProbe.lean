@@ -29,6 +29,25 @@ def matrix2x2 (a b c d : Expr) : Expr :=
     .arrayLit .u64 #[c, d]
   ]
 
+def pair (flag small : Expr) : Expr :=
+  .structLit "RemotePair" #[
+    ("flag", flag),
+    ("small", small)
+  ]
+
+def pairMatrix2x2
+    (flag00 small00 flag01 small01 flag10 small10 flag11 small11 : Expr) : Expr :=
+  .arrayLit (.fixedArray (.structType "RemotePair") 2) #[
+    .arrayLit (.structType "RemotePair") #[
+      pair flag00 small00,
+      pair flag01 small01
+    ],
+    .arrayLit (.structType "RemotePair") #[
+      pair flag10 small10,
+      pair flag11 small11
+    ]
+  ]
+
 def callRemote : Entrypoint := {
   name := "call_remote"
   selector? := some "0de1d044"
@@ -244,6 +263,46 @@ def callRemotePairArrayArg : Entrypoint := {
   ]
 }
 
+def callRemotePairMatrix : Entrypoint := {
+  name := "call_remote_pair_matrix"
+  selector? := some "3652f87d"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.fixedArray (.structType "RemotePair") 2) 2
+  body := #[
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[] (.fixedArray (.fixedArray (.structType "RemotePair") 2) 2))
+  ]
+}
+
+def callRemotePairMatrixArg : Entrypoint := {
+  name := "call_remote_pair_matrix_arg"
+  selector? := some "48fc8f80"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag00", .bool),
+    ("small00", .u32),
+    ("flag01", .bool),
+    ("small01", .u32),
+    ("flag10", .bool),
+    ("small10", .u32),
+    ("flag11", .bool),
+    ("small11", .u32)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[
+      pairMatrix2x2
+        (.local "flag00") (.local "small00")
+        (.local "flag01") (.local "small01")
+        (.local "flag10") (.local "small10")
+        (.local "flag11") (.local "small11")
+    ] .u64)
+  ]
+}
+
 def callRemoteValue : Entrypoint := {
   name := "call_remote_value"
   selector? := some "365f4a44"
@@ -352,6 +411,46 @@ def callRemoteValuePairArrayArg : Entrypoint := {
       ]
     ]),
     .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[.local "pairs"] .u64)
+  ]
+}
+
+def callRemoteValuePairMatrix : Entrypoint := {
+  name := "call_remote_value_pair_matrix"
+  selector? := some "fa3cf7ed"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.fixedArray (.structType "RemotePair") 2) 2
+  body := #[
+    .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[] (.fixedArray (.fixedArray (.structType "RemotePair") 2) 2))
+  ]
+}
+
+def callRemoteValuePairMatrixArg : Entrypoint := {
+  name := "call_remote_value_pair_matrix_arg"
+  selector? := some "4f1e8d96"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag00", .bool),
+    ("small00", .u32),
+    ("flag01", .bool),
+    ("small01", .u32),
+    ("flag10", .bool),
+    ("small10", .u32),
+    ("flag11", .bool),
+    ("small11", .u32)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[
+      pairMatrix2x2
+        (.local "flag00") (.local "small00")
+        (.local "flag01") (.local "small01")
+        (.local "flag10") (.local "small10")
+        (.local "flag11") (.local "small11")
+    ] .u64)
   ]
 }
 
@@ -525,6 +624,46 @@ def callRemoteStaticPairArrayArg : Entrypoint := {
   ]
 }
 
+def callRemoteStaticPairMatrix : Entrypoint := {
+  name := "call_remote_static_pair_matrix"
+  selector? := some "9893a8f6"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.fixedArray (.structType "RemotePair") 2) 2
+  body := #[
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[] (.fixedArray (.fixedArray (.structType "RemotePair") 2) 2))
+  ]
+}
+
+def callRemoteStaticPairMatrixArg : Entrypoint := {
+  name := "call_remote_static_pair_matrix_arg"
+  selector? := some "db5109a1"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag00", .bool),
+    ("small00", .u32),
+    ("flag01", .bool),
+    ("small01", .u32),
+    ("flag10", .bool),
+    ("small10", .u32),
+    ("flag11", .bool),
+    ("small11", .u32)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[
+      pairMatrix2x2
+        (.local "flag00") (.local "small00")
+        (.local "flag01") (.local "small01")
+        (.local "flag10") (.local "small10")
+        (.local "flag11") (.local "small11")
+    ] .u64)
+  ]
+}
+
 def callRemoteStaticMatrixArg : Entrypoint := {
   name := "call_remote_static_matrix_arg"
   selector? := some "5ef5b6fb"
@@ -695,6 +834,46 @@ def callRemoteDelegatePairArrayArg : Entrypoint := {
   ]
 }
 
+def callRemoteDelegatePairMatrix : Entrypoint := {
+  name := "call_remote_delegate_pair_matrix"
+  selector? := some "26db7add"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.fixedArray (.structType "RemotePair") 2) 2
+  body := #[
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[] (.fixedArray (.fixedArray (.structType "RemotePair") 2) 2))
+  ]
+}
+
+def callRemoteDelegatePairMatrixArg : Entrypoint := {
+  name := "call_remote_delegate_pair_matrix_arg"
+  selector? := some "667806e6"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag00", .bool),
+    ("small00", .u32),
+    ("flag01", .bool),
+    ("small01", .u32),
+    ("flag10", .bool),
+    ("small10", .u32),
+    ("flag11", .bool),
+    ("small11", .u32)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[
+      pairMatrix2x2
+        (.local "flag00") (.local "small00")
+        (.local "flag01") (.local "small01")
+        (.local "flag10") (.local "small10")
+        (.local "flag11") (.local "small11")
+    ] .u64)
+  ]
+}
+
 def callRemoteDelegateMatrixArg : Entrypoint := {
   name := "call_remote_delegate_matrix_arg"
   selector? := some "08edf8ea"
@@ -756,6 +935,8 @@ def module : Module := {
     callRemoteMatrixArg,
     callRemotePairArray,
     callRemotePairArrayArg,
+    callRemotePairMatrix,
+    callRemotePairMatrixArg,
     callRemoteValue,
     callRemoteValuePairArg,
     callRemoteValuePair,
@@ -763,6 +944,8 @@ def module : Module := {
     callRemoteValueMatrix,
     callRemoteValuePairArray,
     callRemoteValuePairArrayArg,
+    callRemoteValuePairMatrix,
+    callRemoteValuePairMatrixArg,
     callRemoteValueMatrixArg,
     callRemoteStatic,
     callRemoteStaticBool,
@@ -774,6 +957,8 @@ def module : Module := {
     callRemoteStaticMatrix,
     callRemoteStaticPairArray,
     callRemoteStaticPairArrayArg,
+    callRemoteStaticPairMatrix,
+    callRemoteStaticPairMatrixArg,
     callRemoteStaticMatrixArg,
     callRemoteDelegate,
     callRemoteDelegateBool,
@@ -785,6 +970,8 @@ def module : Module := {
     callRemoteDelegateMatrix,
     callRemoteDelegatePairArray,
     callRemoteDelegatePairArrayArg,
+    callRemoteDelegatePairMatrix,
+    callRemoteDelegatePairMatrixArg,
     callRemoteDelegateMatrixArg,
     deployCreate,
     deployCreate2
