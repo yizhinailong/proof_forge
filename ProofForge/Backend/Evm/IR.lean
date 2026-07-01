@@ -261,20 +261,24 @@ def contextExpr : ContextField → Lean.Compiler.Yul.Expr
 def mapShapeName (keyType valueType : ValueType) (capacity : Nat) : String :=
   s!"Map<{keyType.name}, {valueType.name}, {capacity}>"
 
-def requireU64MapState (module : Module) (stateId : String) : Except LowerError Nat :=
+def isStorageWordType : ValueType → Bool
+  | .u32 | .u64 | .bool | .hash => true
+  | .unit | .fixedArray _ _ | .structType _ => false
+
+def requireStorageMapState (module : Module) (stateId : String) : Except LowerError (Nat × ValueType × ValueType) :=
   match stateInfo? module stateId with
   | none => .error { message := s!"unknown map state `{stateId}`" }
   | some (slot, state) =>
       match state.kind, state.type with
-      | .map .u64 _, .u64 => .ok slot
       | .map keyType capacity, valueType =>
-          .error { message := s!"map state `{stateId}` has unsupported EVM IR v0 type `{mapShapeName keyType valueType capacity}`; only Map<U64, U64, N> is supported" }
+          if isStorageWordType keyType && isStorageWordType valueType then
+            .ok (slot, keyType, valueType)
+          else
+            .error {
+              message := s!"map state `{stateId}` has unsupported EVM IR v0 type `{mapShapeName keyType valueType capacity}`; storage maps support key/value word types U32, U64, Bool, or Hash"
+            }
       | .scalar, _ => .error { message := s!"state `{stateId}` is scalar storage, not a map" }
       | .array _, _ => .error { message := s!"state `{stateId}` is array storage, not a map" }
-
-def isStorageWordType : ValueType → Bool
-  | .u32 | .u64 | .bool | .hash => true
-  | .unit | .fixedArray _ _ | .structType _ => false
 
 def requireStorageArrayState (module : Module) (stateId : String) : Except LowerError (Nat × Nat × ValueType) :=
   match stateInfo? module stateId with
@@ -855,14 +859,14 @@ def validateEntrypointTypes (module : Module) (entrypoint : Entrypoint) : Except
 
 mutual
   partial def lowerMapSlotExpr (module : Module) (stateId : String) (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let slot ← requireU64MapState module stateId
+    let (slot, _, _) ← requireStorageMapState module stateId
     .ok (Lean.Compiler.Yul.call mapSlotFunctionName #[slotExpr slot, ← lowerExpr module key])
 
   partial def lowerMapGetExpr (module : Module) (stateId : String) (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerMapSlotExpr module stateId key])
 
   partial def lowerMapSetReturnExpr (module : Module) (stateId : String) (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let slot ← requireU64MapState module stateId
+    let (slot, _, _) ← requireStorageMapState module stateId
     .ok (Lean.Compiler.Yul.call mapSetReturnFunctionName #[slotExpr slot, ← lowerExpr module key, ← lowerExpr module value])
 
   partial def lowerArraySlotExpr (module : Module) (stateId : String) (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
@@ -1092,7 +1096,7 @@ def lowerEventEmitStmt
   .ok (.block { statements := statements })
 
 def lowerMapWriteStmt (module : Module) (stateId : String) (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let slot ← requireU64MapState module stateId
+  let (slot, _, _) ← requireStorageMapState module stateId
   .ok (.exprStmt (Lean.Compiler.Yul.call mapWriteFunctionName #[slotExpr slot, ← lowerExpr module key, ← lowerExpr module value]))
 
 def lowerArrayWriteStmt (module : Module) (stateId : String) (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
@@ -1143,7 +1147,7 @@ def lowerStoragePathAssignOpStmt
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement :=
   match path.toList with
   | [StoragePathSegment.mapKey key] => do
-      let slot ← requireU64MapState module stateId
+      let (slot, _, _) ← requireStorageMapState module stateId
       .ok (.exprStmt (Lean.Compiler.Yul.call (mapAssignFunctionName op) #[slotExpr slot, ← lowerExpr module key, ← lowerExpr module value]))
   | [StoragePathSegment.index index] => do
       let storageSlot ← lowerArraySlotExpr module stateId index
@@ -1571,7 +1575,7 @@ def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statem
 
 def isSupportedMapState (state : StateDecl) : Bool :=
   match state.kind, state.type with
-  | .map .u64 _, .u64 => true
+  | .map keyType _, valueType => isStorageWordType keyType && isStorageWordType valueType
   | _, _ => false
 
 def moduleUsesSupportedMap (module : Module) : Bool :=
@@ -1965,9 +1969,13 @@ def validateState (module : Module) : Except LowerError Unit := do
         validateStorageStructState s!"state `{state.id}`" typeName module
     | .scalar, other =>
         .error { message := s!"state `{state.id}` has unsupported EVM IR v0 type `{other.name}`" }
-    | .map .u64 _, .u64 => pure ()
     | .map keyType capacity, valueType =>
-        .error { message := s!"map state `{state.id}` has unsupported EVM IR v0 type `{mapShapeName keyType valueType capacity}`; only Map<U64, U64, N> is supported" }
+        if isStorageWordType keyType && isStorageWordType valueType then
+          pure ()
+        else
+          .error {
+            message := s!"map state `{state.id}` has unsupported EVM IR v0 type `{mapShapeName keyType valueType capacity}`; storage maps support key/value word types U32, U64, Bool, or Hash"
+          }
     | .array 0, _ =>
         .error { message := s!"array state `{state.id}` must have non-zero length" }
     | .array _, .u32 => pure ()

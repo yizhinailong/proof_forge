@@ -158,7 +158,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | Capability id | SDK / IR surface |
 |---|---|
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, and flat scalar storage struct field read/write |
-| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<U64, U64, N>` get/set/insert and single-segment map storage paths |
+| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`) |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks |
 | `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable local fixed-array values, fixed-array literals, static local/literal index reads, flat static fixed-array ABI parameters, and multi-word fixed-array returns; mutable local arrays, dynamic local indexes, zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
 | `data.struct` | Partial: portable IR flat immutable local struct values, struct literals, field access, flat ABI-facing struct parameters, multi-word struct returns, flat scalar storage structs, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; mutable locals, nested fields, whole-struct storage reads/writes, and unsupported field shapes still reject explicitly |
@@ -204,7 +204,7 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   IR EVM backend currently supports scalar storage/ABI, assertions, local
   assignment, local compound assignment, scalar storage compound assignment,
   conditionals, context reads, events, `Hash` word values and hashing,
-  `Map<U64, U64, N>` storage, `Bool`/`U32`/`U64`/`Hash` fixed storage arrays,
+  word key/value `Map<K, V, N>` storage, `Bool`/`U32`/`U64`/`Hash` fixed storage arrays,
   flat scalar storage structs, fixed storage arrays of flat structs, immutable local fixed-array
   values with static indexes, flat immutable local struct values over
   scalar/hash fields, flat static aggregate ABI parameters and returns,
@@ -212,7 +212,7 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   word-returning `crosscallInvoke`, and static bounded loops. It rejects wider
   portable IR nodes with explicit diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
-  non-`U64` map shapes, dynamic local fixed-array
+  non-word or aggregate map shapes, dynamic local fixed-array
   indexes, mutable local fixed arrays, nested arrays, whole-struct storage
   reads/writes, mutable or nested local structs, indexed/Solidity-signature event schemas,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
@@ -239,6 +239,7 @@ scripts/evm/event-ir-smoke.sh
 scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
+scripts/evm/typed-map-ir-smoke.sh
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/storage-struct-ir-smoke.sh
 scripts/evm/typed-storage-ir-smoke.sh
@@ -355,6 +356,18 @@ and compound assignment, raw Foundry `vm.load` storage slots, and
 unknown-selector revert behavior. EVM IR v0 still keeps map paths scoped to a
 single `mapKey`; nested map/aggregate storage paths remain explicit
 diagnostics.
+
+`EvmTypedMapProbe` extends the same mapping slot layout to word key/value maps.
+It validates `U32`, `Bool`, and `Hash` map keys and values using the same
+`keccak256(key || slot)` helper, with one declared mapping slot per state. The
+smoke checks golden Yul reproducibility, `solc --strict-assembly` bytecode
+generation, metadata capabilities (`storage.scalar`, `storage.map`,
+`assertions.check`), ABI dispatcher guards for `U32` and `Bool` map parameters,
+statement and expression map writes, previous-value returns, `Hash`/`bytes32`
+map values, single-segment `mapKey` path reads/writes, numeric `U32` map-path
+compound assignment, raw Foundry `vm.load` storage slots, and unknown-selector
+revert behavior. `storage.map.contains`, nested map paths, and aggregate or
+non-word key/value shapes remain explicit diagnostics.
 
 `EvmStorageArrayProbe` validates portable IR `U64` fixed storage arrays through
 contiguous EVM storage slots. Array state occupies `length` slots, so state

@@ -147,7 +147,7 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 | 能力 id | SDK / IR 表面 |
 |---|---|
 | `storage.scalar` | `Storage.load`, `Storage.store`；portable IR `Bool`/`U32`/`U64`/`Hash` 标量 storage read/write、numeric word 的标量 storage 复合赋值，以及扁平 scalar storage struct 字段 read/write |
-| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`；portable IR `Map<U64, U64, N>` get/set/insert 和单段 map storage path |
+| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`；portable IR `Map<K, V, N>` get/set/insert 和单段 map storage path，其中 `K` 和 `V` 是 word 类型（`Bool`、`U32`、`U64` 或 `Hash`） |
 | `storage.array` | 部分支持：portable IR `Bool`/`U32`/`U64`/`Hash` 固定 storage array 和扁平 struct 固定 storage array 降为连续 EVM storage slot，并带运行时 index bounds check |
 | `data.fixed_array` | 部分支持：用于 portable IR 固定 storage array、word array 的单段 index storage path、struct array 上的 index+field storage path、不可变 local fixed-array value、fixed-array literal、静态 local/literal index read、扁平静态 fixed-array ABI 参数，以及多 word fixed-array 返回；mutable local array、动态 local index、零长度 ABI array、嵌套 array 和不支持的元素形态仍会显式拒绝 |
 | `data.struct` | 部分支持：portable IR 扁平不可变 local struct value、struct literal、field access、扁平 ABI-facing struct 参数、多 word struct 返回、扁平 scalar storage struct，以及扁平 struct 固定 storage array 会把支持字段展开为 EVM word；mutable local、嵌套字段、whole-struct storage read/write 和不支持的字段形态仍会显式拒绝 |
@@ -189,8 +189,8 @@ EVM 不支持（设计上针对其他目标）：
 
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
-- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、context read、event、`Hash` word 值与 hashing、`Map<U64, U64, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态 index 的不可变 local fixed-array value、标量/hash 字段上的扁平不可变 local struct value、扁平静态聚合 ABI 参数/返回，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
-- Portable IR EVM 目前仍缺少动态或嵌套聚合 ABI 值、非 `U64` map 形态、动态 local fixed-array index、mutable local fixed array、嵌套 array、whole-struct storage read/write、mutable 或 nested local struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据和目标专属 deploy manifest。
+- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、context read、event、`Hash` word 值与 hashing、word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态 index 的不可变 local fixed-array value、标量/hash 字段上的扁平不可变 local struct value、扁平静态聚合 ABI 参数/返回，以及同步返回一个 word 的 `crosscallInvoke`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
+- Portable IR EVM 目前仍缺少动态或嵌套聚合 ABI 值、非 word 或 aggregate map 形态、动态 local fixed-array index、mutable local fixed array、嵌套 array、whole-struct storage read/write、mutable 或 nested local struct、indexed/Solidity-signature event schema、`staticcall`/`delegatecall`/合约创建 IR 节点、更丰富的跨调用返回数据和目标专属 deploy manifest。
 - `storage.map.contains` 仍被显式拒绝，因为 EVM mapping 在没有辅助 bitmap 的情况下不跟踪 key presence。
 
 ## Portable IR 门禁
@@ -211,6 +211,7 @@ scripts/evm/event-ir-smoke.sh
 scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/map-ir-smoke.sh
+scripts/evm/typed-map-ir-smoke.sh
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/storage-struct-ir-smoke.sh
 scripts/evm/typed-storage-ir-smoke.sh
@@ -243,6 +244,8 @@ scripts/evm/ir-counter-smoke.sh
 `EvmCrosscallProbe` 验证 portable IR `crosscallInvoke` 会降为按 arity 生成的 Yul helper。EVM IR v0 把 target 表达式解释为地址 word，把 method 表达式解释为低 32 位 selector，把参数解释为 32-byte word。helper 会打包 calldata，执行 `call(gas(), target, 0, ...)`，在调用失败或返回不足一个 word 时 revert，并解码单个 32-byte 返回 word。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力 `crosscall.invoke`、Foundry 零/一/二参数调用、callee revert、短返回 revert，以及未知 selector revert。
 
 `EvmMapProbe` 验证 portable IR `Map<U64, U64, N>` storage 使用与 SDK 一致的 Solidity-style slot layout：先把 `key` 和 `slot` 作为两个 32-byte word 写入内存，再计算 `keccak256(key || slot)`。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.map`、`assertions.check`）、ABI get/set/insert 行为、单段 `mapKey` storage path 的 read、write 和复合赋值、Foundry `vm.load` 原始 storage slot，以及未知 selector revert。EVM IR v0 仍把 map path 限制为单段 `mapKey`；嵌套 map/aggregate storage path 保持显式诊断。
+
+`EvmTypedMapProbe` 将同一套 mapping slot layout 扩展到 word key/value map。它验证 `U32`、`Bool` 和 `Hash` map key/value，仍然使用 `keccak256(key || slot)` helper，并且每个 map state 只占一个声明 slot。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.map`、`assertions.check`）、`U32` 和 `Bool` map 参数的 ABI dispatcher guard、statement 和 expression 位置的 map write、previous-value return、`Hash`/`bytes32` map value、单段 `mapKey` path read/write、numeric `U32` map-path 复合赋值、Foundry `vm.load` 原始 storage slot，以及未知 selector revert。`storage.map.contains`、嵌套 map path、aggregate 或非 word key/value 形态仍保持显式诊断。
 
 `EvmStorageArrayProbe` 验证 portable IR `U64` 固定 storage array 会降为连续的 EVM storage slot。Array state 会占用 `length` 个 slot，因此定义在 array 后面的 state 会从整个 array span 之后开始。直接 `storageArrayRead`/`storageArrayWrite` effect 和单段 `index` storage path 都会通过 `__proof_forge_array_slot(base, length, index)`，在 `sload` 或 `sstore` 前对越界 index revert。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、metadata 能力（`storage.scalar`、`storage.array`、`data.fixed_array`）、ABI read/write selector、generic path read/write 和复合赋值、Foundry 原始 slot layout、越界 revert，以及未知 selector revert。
 

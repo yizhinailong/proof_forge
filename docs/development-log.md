@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Typed Storage Maps
+
+Commit: feature commit for EVM IR typed storage maps
+
+Summary:
+
+- Generalized portable EVM storage maps from `Map<U64, U64, N>` to word
+  key/value maps over `U32`, `U64`, `Bool`, and `Hash`.
+- Reused the existing Solidity-style `keccak256(key, slot)` mapping slot helper
+  for all supported word map shapes, preserving one declared storage slot per
+  map state.
+- Added `ProofForge.IR.Examples.EvmTypedMapProbe`, CLI emission modes, golden
+  Yul, Foundry smoke coverage, artifact metadata validation, and CI.
+- Covered ABI dispatcher guards for `U32` and `Bool` map parameters,
+  expression-position previous-value returns, statement-position writes,
+  `Hash`/`bytes32` map values, raw mapping slots, and single-segment `mapKey`
+  storage-path read/write/compound assignment.
+- Updated EVM diagnostics, coverage, target docs, validation gates, and Chinese
+  docs so unsupported map diagnostics now target non-word map shapes while
+  `storage.map.contains` remains explicitly unsupported.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR ProofForge.IR.Examples.EvmTypedMapProbe proof-forge
+scripts/evm/typed-map-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+```
+
+Known limitations:
+
+- EVM storage maps still support only single-word key/value shapes. Aggregate,
+  nested, dynamic, or non-word map key/value shapes remain explicit diagnostics.
+- `storage.map.contains` remains unsupported because EVM mappings do not track
+  key presence without an auxiliary bitmap.
+- Nested map storage paths remain unsupported; `mapKey` paths are currently
+  single-segment only.
+
+Next step:
+
+- Continue reducing the remaining EVM IR unsupported surface, likely around
+  richer ABI/cross-call surfaces or target-specific deployment artifacts, with
+  the same golden Yul, metadata, Foundry, diagnostics, and CI pattern.
+
 ### EVM IR Typed Storage Words
 
 Commit: feature commit for EVM IR typed storage word arrays
@@ -46,8 +91,7 @@ scripts/evm/typed-storage-ir-smoke.sh
 Known limitations:
 
 - Typed storage arrays are still fixed-size word arrays. Nested arrays, dynamic
-  storage arrays, non-word storage elements, and map key/value shapes beyond
-  `Map<U64, U64, N>` remain future work.
+  storage arrays, and non-word storage elements remain future work.
 
 Next step:
 
@@ -420,12 +464,12 @@ Result:
 - Diagnostics reject expression-position `storagePathAssignOp` and nested
   storage-path compound assignment.
 
-Known limitations:
+Known limitations at the time of this entry:
 
-- EVM IR storage path compound assignment currently supports only a single
-  `mapKey` over `Map<U64, U64, N>`.
+- EVM IR storage path compound assignment supported only a single `mapKey` over
+  `Map<U64, U64, N>`.
 - Array index paths, struct field paths, nested paths, and non-`U64` map shapes
-  remain explicit diagnostics.
+  remained explicit diagnostics.
 
 Next step:
 

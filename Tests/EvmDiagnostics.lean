@@ -119,8 +119,8 @@ def mapStateModule : Module := {
   name := "BadMapState"
   state := #[{
     id := "balances"
-    kind := .map .hash 16
-    type := .hash
+    kind := .map .unit 16
+    type := .u64
   }]
   entrypoints := #[selectedEntrypoint "bad"]
 }
@@ -468,7 +468,7 @@ def cases : Array (String × Module × String) := #[
   (
     "map state shape unsupported",
     mapStateModule,
-    "map state `balances` has unsupported EVM IR v0 type `Map<Hash, Hash, 16>`; only Map<U64, U64, N> is supported"
+    "map state `balances` has unsupported EVM IR v0 type `Map<Unit, U64, 16>`; storage maps support key/value word types U32, U64, Bool, or Hash"
   ),
   (
     "storage array element type unsupported",

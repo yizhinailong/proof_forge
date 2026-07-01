@@ -145,6 +145,12 @@ Tasks:
   over `Map<U64, U64, N>`, with `EvmMapProbe` golden Yul, solc bytecode,
   Foundry runtime/raw-slot validation, metadata capability validation, and
   explicit diagnostics for expression-position and nested-path misuse.
+- Done: generalize EVM IR storage maps to word key/value shapes over `U32`,
+  `U64`, `Bool`, and `Hash`, reusing Solidity-style `keccak256(key, slot)`
+  mapping slots, with `EvmTypedMapProbe` golden Yul, solc bytecode, Foundry
+  runtime/raw-slot validation, `U32`/`Bool` calldata guards, metadata
+  capability validation, CI coverage, and explicit diagnostics for non-word map
+  shapes and `contains`.
 - Done: add EVM IR `U64` fixed storage array lowering as contiguous storage
   slots with runtime bounds checks, with `EvmStorageArrayProbe` golden Yul,
   solc bytecode, Foundry runtime/raw-slot validation, metadata capability
