@@ -1101,13 +1101,76 @@ Result:
 Known limitations:
 
 - Portable IR EVM crosscalls currently model only synchronous zero-value `call`.
-- `staticcall`, `delegatecall`, create/create2, value-bearing calls, aggregate
-  arguments/returns, and variable-length return data remain future IR work.
+- `staticcall`, `delegatecall`, create/create2, value-bearing calls, typed
+  scalar returns beyond `U64`, aggregate arguments/returns, and variable-length
+  return data remain future IR work.
 
 Next step:
 
-- Continue expanding the EVM portable IR surface toward aggregate ABI values,
-  arrays, structs, or richer call semantics.
+- Continue expanding the EVM portable IR surface toward typed scalar returns,
+  aggregate ABI values, arrays, structs, or richer call semantics.
+
+### EVM IR Typed Scalar Crosscalls
+
+Commit: feature commit for EVM IR typed scalar crosscalls
+
+Summary:
+
+- Added portable IR `crosscallInvokeTyped` as a typed scalar-word crosscall
+  expression while preserving the existing `crosscallInvoke` U64 behavior and
+  helper names.
+- Extended EVM lowering so typed crosscalls accept `Bool`, `U32`, `U64`, and
+  `Hash` word arguments and return `Bool`, `U32`, `U64`, or `Hash`.
+- Generated return-type-specific Yul helpers such as
+  `__proof_forge_crosscall_1_bool`, `__proof_forge_crosscall_1_u32`, and
+  `__proof_forge_crosscall_1_hash`; Bool and U32 helpers reject out-of-range
+  return words after `returndatacopy`.
+- Extended `EvmCrosscallProbe` with `call_remote_bool`, `call_remote_u32`, and
+  `call_remote_hash`, plus Foundry callee methods for valid typed returns and
+  malformed Bool/U32 return words.
+- Added explicit EVM diagnostics for unsupported typed crosscall aggregate
+  arguments/returns and an explicit Psy diagnostic because Psy IR v0 still only
+  supports untyped Felt-returning `crosscallInvoke`.
+- Updated golden Yul, EVM/Psy coverage manifests, validation gates, EVM target
+  docs, backlog, and Chinese docs.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-evm-crosscall-ir-yul -o build/ir/EvmCrosscallProbe.yul
+diff -u Examples/Evm/EvmCrosscallProbe.golden.yul build/ir/EvmCrosscallProbe.yul
+scripts/evm/crosscall-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/psy/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+scripts/psy/check-ir-coverage-manifest.py
+```
+
+Result:
+
+- Generated EvmCrosscallProbe Yul includes selector dispatch for the typed
+  entrypoints, Bool/U32 calldata guards, typed crosscall helper names, and
+  Bool/U32 return-data guards.
+- Foundry verifies U64 zero/one/two-argument calls, Bool/U32/Hash typed return
+  calls, callee reverts, short returns, invalid Bool/U32 return words, and
+  unknown-selector reverts.
+- EVM artifact metadata validates all six CrosscallProbe entrypoints and
+  records `crosscall.invoke`.
+- Diagnostics reject unsupported typed crosscall aggregate arguments/returns,
+  while Psy rejects typed crosscalls explicitly instead of silently lowering
+  them as Felt calls.
+
+Known limitations:
+
+- Portable IR EVM crosscalls still model only synchronous zero-value `call`.
+- Aggregate arguments/returns, multi-word return data, `staticcall`,
+  `delegatecall`, create/create2, and value-bearing calls remain future IR work.
+
+Next step:
+
+- Continue closing EVM backend gaps around richer call semantics, ABI aggregate
+  storage-backed surfaces, and unsupported-node diagnostics.
 
 ### EVM IR Events
 

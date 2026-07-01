@@ -128,6 +128,7 @@ mutual
     | hashTwoToOne (lhs rhs : Expr)
     | nativeValue
     | crosscallInvoke (targetContractId : Expr) (methodId : Expr) (args : Array Expr)
+    | crosscallInvokeTyped (targetContractId : Expr) (methodId : Expr) (args : Array Expr) (returnType : ValueType)
     | effect (effect : Effect)
     deriving Repr
 
@@ -260,6 +261,9 @@ mutual
     | .nativeValue => #[.valueNative]
     | .crosscallInvoke target methodId args =>
         #[.crosscallInvoke] ++ target.capabilities ++ methodId.capabilities ++
+          args.foldl (fun acc arg => acc ++ arg.capabilities) #[]
+    | .crosscallInvokeTyped target methodId args returnType =>
+        #[.crosscallInvoke] ++ target.capabilities ++ methodId.capabilities ++ returnType.capabilities ++
           args.foldl (fun acc arg => acc ++ arg.capabilities) #[]
     | .effect effect => #[effect.capability] ++ effect.capabilities
 

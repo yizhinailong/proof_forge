@@ -383,6 +383,24 @@ def crosscallArgumentTypeModule : Module :=
     .return (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[.literal (.bool true)])
   ]
 
+def typedCrosscallReturnTypeModule : Module := {
+  name := "BadTypedCrosscallReturnType"
+  structs := #[pointStruct]
+  state := #[markerState]
+  entrypoints := #[selectedReturnEntrypoint "bad" (.structType "Point") #[
+    .return (.crosscallInvokeTyped (.literal (.u64 1)) (.literal (.u64 2)) #[] (.structType "Point"))
+  ]]
+}
+
+def typedCrosscallArgumentTypeModule : Module :=
+  selectedModule "BadTypedCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+    .return (.crosscallInvokeTyped
+      (.literal (.u64 1))
+      (.literal (.u64 2))
+      #[.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]]
+      .u64)
+  ]
+
 def hashLiteralModule : Module :=
   selectedModule "BadHashLiteral" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.literal (.hash4 1 2 3 4))
@@ -630,6 +648,16 @@ def cases : Array (String × Module × String) := #[
     "crosscall argument type mismatch",
     crosscallArgumentTypeModule,
     "crosscall argument expected `U64`, got `Bool`"
+  ),
+  (
+    "typed crosscall return type unsupported",
+    typedCrosscallReturnTypeModule,
+    "typed crosscall return has unsupported EVM IR v0 crosscall word type `Point`; crosscall scalar words support U32, U64, Bool, or Hash"
+  ),
+  (
+    "typed crosscall argument type unsupported",
+    typedCrosscallArgumentTypeModule,
+    "typed crosscall argument has unsupported EVM IR v0 crosscall word type `Array<U64,2>`; crosscall scalar words support U32, U64, Bool, or Hash"
   ),
   (
     "hash literal return type mismatch",

@@ -557,6 +557,18 @@ def nativeValueExprModule : Module := {
   }]
 }
 
+def typedCrosscallModule : Module := {
+  name := "BadTypedCrosscall"
+  state := #[markerState]
+  entrypoints := #[{
+    name := "bad"
+    returns := .bool
+    body := #[
+      .return (.crosscallInvokeTyped (.literal (.u64 1)) (.literal (.u64 2)) #[] .bool)
+    ]
+  }]
+}
+
 def indexedEventModule : Module := {
   name := "BadIndexedEvent"
   state := #[markerState]
@@ -810,6 +822,11 @@ def cases : Array (String × Module × String) := #[
     "native value not supported",
     nativeValueExprModule,
     "native value inspection is not supported by Psy IR v0"
+  ),
+  (
+    "typed crosscall unsupported",
+    typedCrosscallModule,
+    "typed crosscall return `Bool` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets"
   ),
   (
     "indexed event unsupported",

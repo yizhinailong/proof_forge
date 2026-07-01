@@ -152,6 +152,12 @@ Tasks:
   and short-return reverts, with `EvmCrosscallProbe` golden Yul, solc bytecode,
   Foundry runtime validation, metadata capability validation, and explicit
   malformed crosscall type diagnostics.
+- Done: add EVM IR `crosscallInvokeTyped` lowering for typed scalar-word
+  crosscalls over `Bool`, `U32`, `U64`, and `Hash`, with return-type-specific
+  Yul helpers, Bool/U32 return-data guards, `EvmCrosscallProbe` golden Yul,
+  solc bytecode, Foundry valid/invalid typed-return validation, metadata
+  entrypoint validation, EVM aggregate-typed crosscall diagnostics, and explicit
+  Psy unsupported diagnostics.
 - Done: add EVM IR direct scalar expression validation for `U64`/`U32`
   arithmetic, `U64` exponentiation, `U64`/`U32` bitwise operations and shifts,
   predicates, boolean operators, literals, immutable locals, supported casts,

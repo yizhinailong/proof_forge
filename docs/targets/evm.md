@@ -172,7 +172,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
-| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts |
+| `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; `crosscallInvokeTyped` adds Bool/U32/U64/Hash scalar-word arguments and returns with Bool/U32 return guards |
 | `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, and non-indexed data fields can be scalar words, flat structs, scalar fixed arrays, or fixed arrays of flat structs |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
@@ -220,14 +220,16 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   flat immutable and mutable local struct values over scalar/hash fields, local
   fixed arrays of flat structs with static and dynamic field access, flat static
   aggregate ABI parameters and returns, synchronous word-returning
-  `crosscallInvoke`, static bounded loops, and branch/loop-local early returns
-  through Yul `leave`. It rejects wider portable IR nodes with explicit
+  `crosscallInvoke`, typed scalar-word `crosscallInvokeTyped` over
+  `Bool`/`U32`/`U64`/`Hash`, static bounded loops, and branch/loop-local early
+  returns through Yul `leave`. It rejects wider portable IR nodes with explicit
   diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
   non-word or aggregate map shapes, nested arrays, nested local structs beyond
   flat struct arrays, richer event declarations,
-  `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call return
-  data, and real creation-transaction or broadcast manifests.
+  `staticcall`/`delegatecall`/contract-creation IR nodes, aggregate or
+  variable-length cross-call return data, value-bearing calls, and real
+  creation-transaction or broadcast manifests.
 
 ## Portable IR Gates
 
@@ -358,15 +360,19 @@ data), ABI selector dispatch, and unknown-selector revert behavior. Aggregate
 indexed fields and richer event declarations remain explicit unsupported
 surfaces for the portable IR.
 
-`EvmCrosscallProbe` validates portable IR `crosscallInvoke` lowering to
-arity-specific Yul helpers. EVM IR v0 interprets the target expression as an
-address word, the method expression as a low-32-bit selector, and arguments as
-32-byte words. The helper packs calldata, executes `call(gas(), target, 0,
-...)`, reverts on call failure or returns shorter than one word, and decodes a
-single 32-byte return word. The smoke checks golden Yul reproducibility,
-`solc --strict-assembly` bytecode generation, metadata capability
-`crosscall.invoke`, Foundry calls with zero/one/two arguments, callee reverts,
-short-return reverts, and unknown-selector reverts.
+`EvmCrosscallProbe` validates portable IR `crosscallInvoke` and
+`crosscallInvokeTyped` lowering to arity- and return-type-specific Yul helpers.
+EVM IR v0 interprets the target expression as an address word, the method
+expression as a low-32-bit selector, and scalar arguments as 32-byte ABI words.
+The helper packs calldata, executes `call(gas(), target, 0, ...)`, reverts on
+call failure or returns shorter than one word, and decodes a single 32-byte
+return word. Typed helpers cover `Bool`, `U32`, `U64`, and `Hash`; Bool and U32
+helpers reject out-of-range return words before returning to the dispatcher. The
+smoke checks golden Yul reproducibility, `solc --strict-assembly` bytecode
+generation, metadata capability `crosscall.invoke`, metadata entrypoints,
+Foundry U64 calls with zero/one/two arguments, typed Bool/U32/Hash calls, callee
+reverts, short-return reverts, invalid typed return reverts, and
+unknown-selector reverts.
 
 `EvmExpressionProbe` validates scalar expression lowering directly rather than
 through storage or assignment side effects. It covers `U64` and `U32`

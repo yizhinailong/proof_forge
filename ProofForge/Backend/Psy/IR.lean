@@ -677,6 +677,8 @@ mutual
         for argType in argTypes do
           ensureType "crosscall argument" .u64 argType
         .ok .u64
+    | .crosscallInvokeTyped _ _ _ returnType =>
+        .error { message := s!"typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
     | .effect effect =>
         inferEffectExprType module env effect
 
@@ -1020,6 +1022,8 @@ mutual
         let methodIdStr ← lowerExpr module methodId
         let argStrs ← args.mapM (lowerExpr module)
         .ok s!"__invoke_sync#<Felt>({targetStr}, {methodIdStr}, [{String.intercalate ", " argStrs.toList}])"
+    | .crosscallInvokeTyped _ _ _ returnType =>
+        .error { message := s!"typed crosscall return `{returnType.name}` is not supported by Psy IR v0; use untyped U64 crosscallInvoke for Psy targets" }
     | .effect effect => lowerEffectExpr module effect
 
   partial def lowerExprOperand (module : Module) : Expr → Except LowerError String

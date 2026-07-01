@@ -52,10 +52,52 @@ def callRemote2 : Entrypoint := {
   ]
 }
 
+def callRemoteBool : Entrypoint := {
+  name := "call_remote_bool"
+  selector? := some "6a7b13b8"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("flag", .bool)
+  ]
+  returns := .bool
+  body := #[
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[.local "flag"] .bool)
+  ]
+}
+
+def callRemoteU32 : Entrypoint := {
+  name := "call_remote_u32"
+  selector? := some "0f35944c"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("x", .u32)
+  ]
+  returns := .u32
+  body := #[
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[.local "x"] .u32)
+  ]
+}
+
+def callRemoteHash : Entrypoint := {
+  name := "call_remote_hash"
+  selector? := some "6a5317aa"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("value", .hash)
+  ]
+  returns := .hash
+  body := #[
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[.local "value"] .hash)
+  ]
+}
+
 def module : Module := {
   name := "EvmCrosscallProbe"
   state := #[stateMarker]
-  entrypoints := #[callRemote, callRemote1, callRemote2]
+  entrypoints := #[callRemote, callRemote1, callRemote2, callRemoteBool, callRemoteU32, callRemoteHash]
 }
 
 end ProofForge.IR.Examples.EvmCrosscallProbe
