@@ -56,7 +56,7 @@ Expr	boolNot	lowered	lowerExpr emits Yul iszero.
 Expr	hashValue	validated	EvmHashProbe validates dynamic four-limb Hash construction with Yul shl/or packing.
 Expr	hash	validated	EvmHashProbe validates crypto.hash as keccak256 over one 32-byte Hash word.
 Expr	hashTwoToOne	validated	EvmHashProbe validates crypto.hash_two_to_one as keccak256 over two contiguous 32-byte Hash words.
-Expr	nativeValue	unsupported	lowerExpr rejects native value inspection with an explicit EVM IR v0 diagnostic.
+Expr	nativeValue	validated	ContextProbe validates nativeValue lowering to Yul callvalue(), metadata capability value.native, and Foundry value-bearing calls.
 Expr	crosscallInvoke	validated	EvmCrosscallProbe validates crosscallInvoke lowering to arity-specific Yul call helpers with selector packing, word arguments, call failure reverts, short-return reverts, and one-word return decoding.
 Expr	effect	structural	lowerExpr delegates effects to lowerEffectExpr; scalar reads lower and statement-only or unsupported effects reject.
 Effect	storageScalarRead	lowered	lowerEffectExpr emits sload(slot); Counter and EvmHashProbe cover U64 and Hash scalar reads, and diagnostics cover statement misuse.

@@ -120,6 +120,9 @@ Tasks:
   `checkpointId` as Yul `caller()`, `address()`, and `number()`, with
   `ContextProbe` golden Yul, solc bytecode, Foundry runtime validation, and
   metadata capability validation.
+- Done: add EVM IR `nativeValue` lowering as Yul `callvalue()`, with
+  `ContextProbe` golden Yul, solc bytecode, Foundry value-bearing call
+  validation, and `value.native` metadata capability validation.
 - Done: add EVM IR `eventEmit` lowering to Yul `log1` with
   `keccak256(UTF-8 event name)` topic0 and 32-byte word data fields, with
   `EventProbe` golden Yul, solc bytecode, Foundry recorded-log validation,

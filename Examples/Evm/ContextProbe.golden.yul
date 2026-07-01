@@ -9,11 +9,19 @@ object "ContextProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xf0eba40f {
+      let _r := f_ContextProbe_native_value()
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
     function f_ContextProbe_sum_context(a, b) -> result {
       result := add(add(a, b), add(caller(), add(address(), number())))
+    }
+    function f_ContextProbe_native_value() -> result {
+      result := callvalue()
     }
   }
 }

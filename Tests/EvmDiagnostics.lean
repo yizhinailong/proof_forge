@@ -227,11 +227,6 @@ def eventEmptyNameModule : Module :=
     .effect (.eventEmit "" #[("value", .literal (.u64 1))])
   ]
 
-def nativeValueModule : Module :=
-  selectedModule "BadNativeValue" <| selectedReturnEntrypoint "bad" .u64 #[
-    .return .nativeValue
-  ]
-
 def crosscallTargetTypeModule : Module :=
   selectedModule "BadCrosscallTargetType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvoke (.literal (.bool true)) (.literal (.u64 2)) #[])
@@ -419,11 +414,6 @@ def cases : Array (String × Module × String) := #[
     "event empty name unsupported",
     eventEmptyNameModule,
     "event name must be non-empty for IR EVM v0"
-  ),
-  (
-    "native value unsupported",
-    nativeValueModule,
-    "native value inspection is not supported by IR EVM v0"
   ),
   (
     "crosscall target type mismatch",

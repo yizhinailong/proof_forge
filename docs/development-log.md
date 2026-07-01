@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Native Value
+
+Commit: feature commit for EVM IR native value lowering
+
+Summary:
+
+- Added EVM portable IR lowering for expression-position `nativeValue` as Yul
+  `callvalue()`.
+- Extended `ProofForge.IR.Examples.ContextProbe` with `native_value()` and
+  selector `0xf0eba40f`.
+- Extended `scripts/evm/context-ir-smoke.sh` so Foundry calls
+  `native_value()` with attached value and verifies the returned word.
+- Updated EVM artifact metadata validation to require `value.native` and the
+  `native_value:f0eba40f` entrypoint.
+- Moved `Expr.nativeValue` in `Tests/EvmCoverage.tsv` from unsupported to
+  validated and removed the old unsupported diagnostic case.
+
+Validation run:
+
+```sh
+lake build
+lake env proof-forge --emit-context-ir-yul -o build/ir/ContextProbe.yul
+diff -u Examples/Evm/ContextProbe.golden.yul build/ir/ContextProbe.yul
+scripts/evm/context-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+scripts/evm/check-ir-coverage-manifest.py
+git diff --check
+```
+
+Known limitations:
+
+- `nativeValue` is exposed as the raw EVM call value word. Higher-level native
+  asset accounting remains a target/runtime policy layer above this IR node.
+
+Next step:
+
+- Continue expanding EVM portable IR coverage one small capability at a time,
+  with fixture, smoke, coverage, docs, commit, and push for each feature.
+
 ### EVM IR Map Path Compound Assignment
 
 Commit: feature commit for EVM IR map path compound assignment

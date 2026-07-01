@@ -673,7 +673,7 @@ mutual
     | .hashTwoToOne lhs rhs => do
         .ok (Lean.Compiler.Yul.call hashPairFunctionName #[← lowerExpr module lhs, ← lowerExpr module rhs])
     | .nativeValue =>
-        .error { message := "native value inspection is not supported by IR EVM v0" }
+        .ok (Lean.Compiler.Yul.builtin "callvalue" #[])
     | .crosscallInvoke target methodId args => do
         let mut callArgs := #[
           ← lowerExpr module target,

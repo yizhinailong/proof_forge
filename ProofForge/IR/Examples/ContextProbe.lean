@@ -30,10 +30,19 @@ def sumContext : Entrypoint := {
   ]
 }
 
+def nativeValue : Entrypoint := {
+  name := "native_value"
+  selector? := some "f0eba40f"
+  returns := .u64
+  body := #[
+    .return .nativeValue
+  ]
+}
+
 def module : Module := {
   name := "ContextProbe"
   state := #[stateMarker]
-  entrypoints := #[sumContext]
+  entrypoints := #[sumContext, nativeValue]
 }
 
 end ProofForge.IR.Examples.ContextProbe

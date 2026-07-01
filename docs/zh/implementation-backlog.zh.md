@@ -89,6 +89,7 @@
 - 已完成：加入 EVM IR 语句级 `if/else` lowering，将其降为 Yul `switch` block，并用 `ConditionalProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证和分支内 return 显式诊断。
 - 已完成：加入 EVM IR `boundedFor` lowering，将其降为带静态边界的 Yul `for` loop，并用 `EvmLoopProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 storage 验证、metadata 能力校验，以及无效范围/loop 内 return 显式诊断。
 - 已完成：加入 EVM IR context read lowering，将 `userId`、`contractId` 和 `checkpointId` 降为 Yul `caller()`、`address()` 和 `number()`，并用 `ContextProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证和 metadata 能力校验。
+- 已完成：加入 EVM IR `nativeValue` lowering，将其降为 Yul `callvalue()`，并用 `ContextProbe` 跑通 golden Yul、solc bytecode、Foundry 带 value 调用验证和 `value.native` metadata 能力校验。
 - 已完成：加入 EVM IR `eventEmit` lowering，将其降为 Yul `log1`，topic0 为 `keccak256(UTF-8 event name)`，data 为 32-byte word 字段序列，并用 `EventProbe` 跑通 golden Yul、solc bytecode、Foundry recorded-log 验证、metadata 能力校验，以及 malformed event 显式诊断。
 - 已完成：加入 EVM IR `crosscallInvoke` lowering，将其降为同步 EVM `call` helper，覆盖 selector 打包、word 参数、单 word 返回、调用失败和短返回 revert，并用 `EvmCrosscallProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证、metadata 能力校验，以及 malformed crosscall 类型显式诊断。
 - 已完成：加入 EVM IR `Hash` word lowering、`hash4`/`hashValue` 打包，以及通过 Yul `keccak256` helper 实现的 `hash`/`hash_two_to_one` lowering，并用 `EvmHashProbe` 跑通 golden Yul、solc bytecode、Foundry ABI/storage 验证、metadata 能力校验，以及 Hash/U64 类型错配显式诊断。

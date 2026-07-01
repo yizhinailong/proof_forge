@@ -41,7 +41,9 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-capability caller.sender \
   --expect-capability account.explicit \
   --expect-capability env.block \
+  --expect-capability value.native \
   --expect-entrypoint sum_context:14a70e97 \
+  --expect-entrypoint native_value:f0eba40f \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/ContextProbe.bin")"
@@ -103,6 +105,17 @@ contract ProofForgeIRContextSmokeTest {
         assertTrue(ok);
         uint256 expected = 2 + 3 + uint256(uint160(sender)) + uint256(uint160(probe)) + 77;
         assertEq(abi.decode(result, (uint256)), expected);
+    }
+
+    function testIRNativeValueReadsCallValue() public {
+        address probe = address(uint160(0xC0780));
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok, bytes memory result) =
+            probe.call{value: 1234}(abi.encodeWithSignature("native_value()"));
+
+        assertTrue(ok);
+        assertEq(abi.decode(result, (uint256)), 1234);
     }
 
     function testIRContextRejectsUnknownSelector() public {
