@@ -83,6 +83,10 @@
   `address` ABI-encode typed constructor values，记录 constructor args 来自
   typed values 还是 raw hex，拒绝缺失、重复和越界的值，并校验生成的 initcode
   tail 与 metadata 和 deploy manifest 一致。
+- 已完成（EVM）：扩展 `scripts/evm/diagnostic-smoke.sh`，固定 constructor
+  CLI 诊断，包括不支持的 dynamic constructor ABI type、缺失或重复的 typed
+  value、typed/raw constructor argument source 混用、整数溢出，以及 address
+  过短等格式错误的 static-word value。
 - 已完成（EVM）：加入 Anvil deploy smoke，通过 `cast send --create` 发送生成的
   Counter `.init.bin`，记录 constructor ABI schema、typed constructor args
   和 `proof-forge-deploy-run.json` artifact，校验 receipt、deployed address、

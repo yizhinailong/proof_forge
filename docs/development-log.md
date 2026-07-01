@@ -17,6 +17,38 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Constructor Diagnostic Coverage
+
+Commit: `test: cover EVM constructor CLI diagnostics`
+
+Summary:
+
+- Extended `scripts/evm/diagnostic-smoke.sh` beyond portable IR diagnostics to
+  cover EVM constructor artifact-boundary CLI diagnostics.
+- The gate now locks unsupported dynamic constructor ABI types, missing
+  constructor values, duplicate typed values, mixed typed/raw constructor
+  sources, integer overflow, and malformed address-width inputs.
+- This turns the constructor value negative cases from one-off manual checks
+  into CI-tracked `just evm-diagnostics` coverage.
+
+Validation run:
+
+```sh
+bash -n scripts/evm/diagnostic-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- Constructor value encoding is still intentionally limited to static one-word
+  ABI types; dynamic constructor ABI values remain unsupported with explicit
+  diagnostics.
+
+Next step:
+
+- Continue closing the remaining EVM ABI/backend gaps, especially dynamic ABI
+  surfaces and deploy/broadcast artifacts.
+
 ### EVM Typed Constructor Value Encoding
 
 Commit: `feat: encode EVM constructor values`

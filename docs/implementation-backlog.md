@@ -102,6 +102,10 @@ Tasks:
   `bool`, `bytes32`, and `address`, record whether constructor args came from
   typed values or raw hex, reject missing/duplicate/out-of-range values, and
   validate the generated initcode tail against metadata and deploy manifests.
+- Done for EVM: extend `scripts/evm/diagnostic-smoke.sh` to lock constructor
+  CLI diagnostics for unsupported dynamic constructor ABI types, missing or
+  duplicate typed values, mixed typed/raw constructor argument sources,
+  overflow, and malformed static-word values such as short addresses.
 - Done for EVM: add an Anvil deploy smoke that sends generated Counter
   `.init.bin` with `cast send --create`, records constructor ABI schema and
   typed constructor args plus a `proof-forge-deploy-run.json` artifact,

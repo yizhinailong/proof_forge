@@ -261,6 +261,8 @@ scripts/evm/ir-counter-smoke.sh
 
 `Tests/EvmDiagnostics.lean` 固定当前 unsupported surface 的行为，确保不支持的 EVM IR 形态在 Yul 生成前失败，而不是静默遗漏行为。
 
+`scripts/evm/diagnostic-smoke.sh` 也会固定 EVM constructor CLI 在 artifact 边界上的诊断，包括不支持的 dynamic constructor ABI type、缺失或重复的 typed value、typed/raw constructor argument source 混用、整数溢出，以及 address 过短等格式错误的 static-word value。
+
 `AssignmentProbe` 验证 portable IR 可变标量局部绑定和 local assignment 会降为 Yul `let` 声明与 `:=` 赋值。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly` 字节码生成、Foundry 成功执行，以及赋值后的 bool guard 为 false 时的 revert 路径。
 
 `EvmAbiAggregateProbe` 验证 portable IR 静态聚合 ABI lowering。struct 参数、fixed-array 参数、类似 `Array<Array<U64,2>,2>` 的嵌套标量 fixed array，以及元素为扁平 struct 的 fixed array 都会展开为连续 calldata word。`U32` 和 `Bool` 聚合 word 会保留 dispatcher range guard，`Hash` leaf 会在扁平 struct 与 fixed array 内降为 Solidity `bytes32` ABI word，扁平 struct/fixed-array 返回、嵌套标量 fixed-array 返回，以及扁平 struct fixed array 返回会编码为多 word ABI return data。对应 smoke 会检查 golden Yul 可复现、`solc --strict-assembly`、artifact metadata 能力 `data.struct` 和 `data.fixed_array`、Foundry 对 struct、hash-struct、array、hash-array、nested-array、tuple-array 参数与返回的调用、malformed calldata revert，以及未知 selector revert。

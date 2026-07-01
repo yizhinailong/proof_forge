@@ -336,6 +336,11 @@ update this manifest before CI passes.
 unsupported EVM IR shapes fail before Yul generation instead of silently
 omitting behavior.
 
+`scripts/evm/diagnostic-smoke.sh` also locks EVM constructor CLI diagnostics at
+the artifact boundary, including unsupported dynamic constructor ABI types,
+missing or duplicate typed values, mixed typed/raw constructor argument sources,
+integer overflow, and malformed static-word values such as short addresses.
+
 `AbiScalarProbe` is the first portable IR EVM ABI fixture beyond Counter. It
 validates dispatcher calldata decoding for `U64`, `U32`, and `Bool` parameters,
 one-word return data for `U64` and `Bool`, golden Yul reproducibility, solc
