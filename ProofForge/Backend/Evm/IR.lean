@@ -489,6 +489,26 @@ partial def abiValueWordTypes (module : Module) (context : String) : ValueType �
         words := words.push field.type
       .ok words
 
+partial def crosscallNestedScalarFixedArrayWordTypes (context : String) : ValueType → Except LowerError (Array ValueType)
+  | .u32 => .ok #[.u32]
+  | .u64 => .ok #[.u64]
+  | .bool => .ok #[.bool]
+  | .hash => .ok #[.hash]
+  | .unit =>
+      .error { message := s!"{context} uses Unit; IR EVM v0 crosscall nested fixed arrays must have scalar U32, U64, Bool, or Hash leaves" }
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error { message := s!"{context} uses Array<{elementType.name},0>; IR EVM v0 crosscall fixed arrays must have non-zero length" }
+      let elementWords ← crosscallNestedScalarFixedArrayWordTypes s!"{context} fixed-array element" elementType
+      let mut words : Array ValueType := #[]
+      for _h : _idx in [0:length] do
+        words := words ++ elementWords
+      .ok words
+  | .structType typeName =>
+      .error {
+        message := s!"{context} has unsupported EVM IR v0 nested crosscall fixed-array leaf `{typeName}`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
+      }
+
 partial def crosscallValueWordTypes (module : Module) (context : String) : ValueType → Except LowerError (Array ValueType)
   | .u32 => .ok #[.u32]
   | .u64 => .ok #[.u64]
@@ -499,14 +519,10 @@ partial def crosscallValueWordTypes (module : Module) (context : String) : Value
   | .fixedArray elementType length => do
       if length == 0 then
         .error { message := s!"{context} uses Array<{elementType.name},0>; IR EVM v0 crosscall fixed arrays must have non-zero length" }
-      match elementType with
-      | .fixedArray _ _ =>
-          .error {
-            message := s!"{context} fixed-array element has unsupported EVM IR v0 crosscall aggregate type `{elementType.name}`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
-          }
-      | _ => pure ()
       let elementWords ←
         match elementType with
+        | .fixedArray _ _ =>
+            crosscallNestedScalarFixedArrayWordTypes s!"{context} fixed-array element" elementType
         | .structType _ =>
             crosscallValueWordTypes module s!"{context} fixed-array element" elementType
         | _ => do
@@ -1695,6 +1711,48 @@ mutual
     ensureType context expectedType binding.type
     lowerLocalAbiWordsAt module context name #[] expectedType
 
+  partial def lowerLocalCrosscallWordsAt
+      (module : Module)
+      (context name : String)
+      (path : Array Nat) : ValueType → Except LowerError (Array Lean.Compiler.Yul.Expr)
+    | .u32 | .u64 | .bool | .hash =>
+        if path.isEmpty then
+          .ok #[Lean.Compiler.Yul.Expr.id name]
+        else
+          .ok #[Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path)]
+    | .unit =>
+        .error { message := s!"{context} uses Unit; IR EVM v0 crosscall values must use U32, U64, Bool, Hash, fixed arrays, or structs" }
+    | .fixedArray elementType length => do
+        discard <| crosscallValueWordTypes module context (.fixedArray elementType length)
+        let mut words : Array Lean.Compiler.Yul.Expr := #[]
+        for _h : idx in [0:length] do
+          words := words ++ (← lowerLocalCrosscallWordsAt module context name (path.push idx) elementType)
+        .ok words
+    | .structType typeName => do
+        discard <| crosscallValueWordTypes module context (.structType typeName)
+        let some decl := findStruct? module typeName
+          | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+        let mut words : Array Lean.Compiler.Yul.Expr := #[]
+        for fieldDecl in decl.fields do
+          ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+          let fieldName :=
+            if path.isEmpty then
+              structLocalFieldName name fieldDecl.id
+            else
+              arrayStructLocalPathFieldName name path fieldDecl.id
+          words := words.push (Lean.Compiler.Yul.Expr.id fieldName)
+        .ok words
+
+  partial def lowerLocalCrosscallWords
+      (module : Module)
+      (env : TypeEnv)
+      (context name : String)
+      (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+    let some binding := findLocal? env name
+      | .error { message := s!"unknown local `{name}`" }
+    ensureType context expectedType binding.type
+    lowerLocalCrosscallWordsAt module context name #[] expectedType
+
   partial def lowerCrosscallStructArgWords
       (module : Module)
       (env : TypeEnv)
@@ -1789,17 +1847,26 @@ mutual
     match elementType with
     | .structType typeName =>
         lowerCrosscallStructArrayArgWords module env context typeName length value
+    | .fixedArray nestedElementType nestedLength =>
+        match value with
+        | .local name =>
+            lowerLocalCrosscallWords module env context name (.fixedArray elementType length)
+        | .arrayLit literalElementType values => do
+            ensureType s!"{context} fixed-array element type" elementType literalElementType
+            if values.size != length then
+              .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
+            let mut words : Array Lean.Compiler.Yul.Expr := #[]
+            for h : idx in [0:values.size] do
+              words := words ++ (← lowerCrosscallFixedArrayArgWords module env context nestedElementType nestedLength values[idx])
+            .ok words
+        | _ =>
+            .error {
+              message := s!"{context} nested fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
+            }
     | _ => do
         match value with
         | .local name => do
-            let (sourceElementType, sourceLength) ← requireLocalFixedArray context env name
-            ensureType s!"{context} fixed-array element type" elementType sourceElementType
-            if sourceLength != length then
-              .error { message := s!"{context} fixed-array expected length {length}, got {sourceLength}" }
-            let mut words : Array Lean.Compiler.Yul.Expr := #[]
-            for _h : idx in [0:length] do
-              words := words.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
-            .ok words
+            lowerLocalCrosscallWords module env context name (.fixedArray elementType length)
         | .arrayLit literalElementType values => do
             ensureType s!"{context} fixed-array element type" elementType literalElementType
             if values.size != length then

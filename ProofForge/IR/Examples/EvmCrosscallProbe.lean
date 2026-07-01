@@ -23,6 +23,12 @@ def remotePairStruct : StructDecl := {
 def returnFortyTwoInitCodeHex : String :=
   "69602a60005260206000f3600052600a6016f3"
 
+def matrix2x2 (a b c d : Expr) : Expr :=
+  .arrayLit (.fixedArray .u64 2) #[
+    .arrayLit .u64 #[a, b],
+    .arrayLit .u64 #[c, d]
+  ]
+
 def callRemote : Entrypoint := {
   name := "call_remote"
   selector? := some "0de1d044"
@@ -133,6 +139,19 @@ def callRemoteArray : Entrypoint := {
   ]
 }
 
+def callRemoteMatrix : Entrypoint := {
+  name := "call_remote_matrix"
+  selector? := some "d49690a6"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.fixedArray .u64 2) 2
+  body := #[
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[] (.fixedArray (.fixedArray .u64 2) 2))
+  ]
+}
+
 def callRemotePairArg : Entrypoint := {
   name := "call_remote_pair_arg"
   selector? := some "cabe3922"
@@ -165,6 +184,23 @@ def callRemoteArrayArg : Entrypoint := {
   body := #[
     .letBind "values" (.fixedArray .u64 2) (.arrayLit .u64 #[.local "x", .local "y"]),
     .return (.crosscallInvokeTyped (.local "target") (.local "method") #[.local "values"] .u64)
+  ]
+}
+
+def callRemoteMatrixArg : Entrypoint := {
+  name := "call_remote_matrix_arg"
+  selector? := some "25c0a43d"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("a", .u64),
+    ("b", .u64),
+    ("c", .u64),
+    ("d", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeTyped (.local "target") (.local "method") #[matrix2x2 (.local "a") (.local "b") (.local "c") (.local "d")] .u64)
   ]
 }
 
@@ -266,6 +302,19 @@ def callRemoteValueArray : Entrypoint := {
   ]
 }
 
+def callRemoteValueMatrix : Entrypoint := {
+  name := "call_remote_value_matrix"
+  selector? := some "4b634dd4"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.fixedArray .u64 2) 2
+  body := #[
+    .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[] (.fixedArray (.fixedArray .u64 2) 2))
+  ]
+}
+
 def callRemoteValuePairArray : Entrypoint := {
   name := "call_remote_value_pair_array"
   selector? := some "63ec1609"
@@ -303,6 +352,23 @@ def callRemoteValuePairArrayArg : Entrypoint := {
       ]
     ]),
     .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[.local "pairs"] .u64)
+  ]
+}
+
+def callRemoteValueMatrixArg : Entrypoint := {
+  name := "call_remote_value_matrix_arg"
+  selector? := some "635d3715"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("a", .u64),
+    ("b", .u64),
+    ("c", .u64),
+    ("d", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeValueTyped (.local "target") (.local "method") .nativeValue #[matrix2x2 (.local "a") (.local "b") (.local "c") (.local "d")] .u64)
   ]
 }
 
@@ -406,6 +472,19 @@ def callRemoteStaticArray : Entrypoint := {
   ]
 }
 
+def callRemoteStaticMatrix : Entrypoint := {
+  name := "call_remote_static_matrix"
+  selector? := some "202850f3"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.fixedArray .u64 2) 2
+  body := #[
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[] (.fixedArray (.fixedArray .u64 2) 2))
+  ]
+}
+
 def callRemoteStaticPairArray : Entrypoint := {
   name := "call_remote_static_pair_array"
   selector? := some "e0315e4e"
@@ -443,6 +522,23 @@ def callRemoteStaticPairArrayArg : Entrypoint := {
       ]
     ]),
     .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[.local "pairs"] .u64)
+  ]
+}
+
+def callRemoteStaticMatrixArg : Entrypoint := {
+  name := "call_remote_static_matrix_arg"
+  selector? := some "5ef5b6fb"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("a", .u64),
+    ("b", .u64),
+    ("c", .u64),
+    ("d", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeStaticTyped (.local "target") (.local "method") #[matrix2x2 (.local "a") (.local "b") (.local "c") (.local "d")] .u64)
   ]
 }
 
@@ -546,6 +642,19 @@ def callRemoteDelegateArray : Entrypoint := {
   ]
 }
 
+def callRemoteDelegateMatrix : Entrypoint := {
+  name := "call_remote_delegate_matrix"
+  selector? := some "b8c58c92"
+  params := #[
+    ("target", .u64),
+    ("method", .u64)
+  ]
+  returns := .fixedArray (.fixedArray .u64 2) 2
+  body := #[
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[] (.fixedArray (.fixedArray .u64 2) 2))
+  ]
+}
+
 def callRemoteDelegatePairArray : Entrypoint := {
   name := "call_remote_delegate_pair_array"
   selector? := some "a26d8a3c"
@@ -583,6 +692,23 @@ def callRemoteDelegatePairArrayArg : Entrypoint := {
       ]
     ]),
     .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[.local "pairs"] .u64)
+  ]
+}
+
+def callRemoteDelegateMatrixArg : Entrypoint := {
+  name := "call_remote_delegate_matrix_arg"
+  selector? := some "08edf8ea"
+  params := #[
+    ("target", .u64),
+    ("method", .u64),
+    ("a", .u64),
+    ("b", .u64),
+    ("c", .u64),
+    ("d", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .return (.crosscallInvokeDelegateTyped (.local "target") (.local "method") #[matrix2x2 (.local "a") (.local "b") (.local "c") (.local "d")] .u64)
   ]
 }
 
@@ -624,16 +750,20 @@ def module : Module := {
     callRemoteHash,
     callRemotePair,
     callRemoteArray,
+    callRemoteMatrix,
     callRemotePairArg,
     callRemoteArrayArg,
+    callRemoteMatrixArg,
     callRemotePairArray,
     callRemotePairArrayArg,
     callRemoteValue,
     callRemoteValuePairArg,
     callRemoteValuePair,
     callRemoteValueArray,
+    callRemoteValueMatrix,
     callRemoteValuePairArray,
     callRemoteValuePairArrayArg,
+    callRemoteValueMatrixArg,
     callRemoteStatic,
     callRemoteStaticBool,
     callRemoteStaticU32,
@@ -641,8 +771,10 @@ def module : Module := {
     callRemoteStaticPairArg,
     callRemoteStaticPair,
     callRemoteStaticArray,
+    callRemoteStaticMatrix,
     callRemoteStaticPairArray,
     callRemoteStaticPairArrayArg,
+    callRemoteStaticMatrixArg,
     callRemoteDelegate,
     callRemoteDelegateBool,
     callRemoteDelegateU32,
@@ -650,8 +782,10 @@ def module : Module := {
     callRemoteDelegatePairArg,
     callRemoteDelegatePair,
     callRemoteDelegateArray,
+    callRemoteDelegateMatrix,
     callRemoteDelegatePairArray,
     callRemoteDelegatePairArrayArg,
+    callRemoteDelegateMatrixArg,
     deployCreate,
     deployCreate2
   ]

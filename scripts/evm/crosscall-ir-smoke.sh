@@ -47,16 +47,20 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_hash:6a5317aa \
   --expect-entrypoint call_remote_pair:47c6c9b7 \
   --expect-entrypoint call_remote_array:717d6851 \
+  --expect-entrypoint call_remote_matrix:d49690a6 \
   --expect-entrypoint call_remote_pair_arg:cabe3922 \
   --expect-entrypoint call_remote_array_arg:00746b10 \
+  --expect-entrypoint call_remote_matrix_arg:25c0a43d \
   --expect-entrypoint call_remote_pair_array:031396d6 \
   --expect-entrypoint call_remote_pair_array_arg:7a45fdce \
   --expect-entrypoint call_remote_value:365f4a44 \
   --expect-entrypoint call_remote_value_pair_arg:885cf3f5 \
   --expect-entrypoint call_remote_value_pair:01ff40fb \
   --expect-entrypoint call_remote_value_array:2bedc30a \
+  --expect-entrypoint call_remote_value_matrix:4b634dd4 \
   --expect-entrypoint call_remote_value_pair_array:63ec1609 \
   --expect-entrypoint call_remote_value_pair_array_arg:27c33745 \
+  --expect-entrypoint call_remote_value_matrix_arg:635d3715 \
   --expect-entrypoint call_remote_static:d13203a8 \
   --expect-entrypoint call_remote_static_bool:ae266f0a \
   --expect-entrypoint call_remote_static_u32:ec8c40f9 \
@@ -64,8 +68,10 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_static_pair_arg:d1b1bf68 \
   --expect-entrypoint call_remote_static_pair:2236e75b \
   --expect-entrypoint call_remote_static_array:b1d5165b \
+  --expect-entrypoint call_remote_static_matrix:202850f3 \
   --expect-entrypoint call_remote_static_pair_array:e0315e4e \
   --expect-entrypoint call_remote_static_pair_array_arg:1b46265d \
+  --expect-entrypoint call_remote_static_matrix_arg:5ef5b6fb \
   --expect-entrypoint call_remote_delegate:427320b1 \
   --expect-entrypoint call_remote_delegate_bool:62e5114d \
   --expect-entrypoint call_remote_delegate_u32:e3abe276 \
@@ -73,8 +79,10 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_delegate_pair_arg:8283d1d1 \
   --expect-entrypoint call_remote_delegate_pair:41e8bd85 \
   --expect-entrypoint call_remote_delegate_array:52579065 \
+  --expect-entrypoint call_remote_delegate_matrix:b8c58c92 \
   --expect-entrypoint call_remote_delegate_pair_array:a26d8a3c \
   --expect-entrypoint call_remote_delegate_pair_array_arg:73049a39 \
+  --expect-entrypoint call_remote_delegate_matrix_arg:08edf8ea \
   --expect-entrypoint deploy_create:c9bc2909 \
   --expect-entrypoint deploy_create2:70b22efb \
   "$METADATA_FILE"
@@ -154,6 +162,13 @@ contract CrosscallCallee {
         values[1] = 44;
     }
 
+    function valuesMatrix() external pure returns (uint64[2][2] memory values) {
+        values[0][0] = 11;
+        values[0][1] = 22;
+        values[1][0] = 33;
+        values[1][1] = 44;
+    }
+
     function pairArray() external pure returns (Pair[2] memory pairs) {
         pairs[0] = Pair({flag: true, small: 40});
         pairs[1] = Pair({flag: false, small: 2});
@@ -165,6 +180,10 @@ contract CrosscallCallee {
 
     function sumValues(uint64[2] memory values) external pure returns (uint256) {
         return uint256(values[0]) + uint256(values[1]);
+    }
+
+    function sumMatrix(uint64[2][2] memory values) external pure returns (uint256) {
+        return uint256(values[0][0]) + uint256(values[0][1]) + uint256(values[1][0]) + uint256(values[1][1]);
     }
 
     function pairArrayScore(Pair[2] memory pairs) external pure returns (uint256) {
@@ -184,6 +203,13 @@ contract CrosscallCallee {
     function paidValues2() external payable returns (uint64[2] memory values) {
         values[0] = uint64(msg.value);
         values[1] = 44;
+    }
+
+    function paidValuesMatrix() external payable returns (uint64[2][2] memory values) {
+        values[0][0] = uint64(msg.value);
+        values[0][1] = 22;
+        values[1][0] = 33;
+        values[1][1] = 44;
     }
 
     function paidPairArray() external payable returns (Pair[2] memory pairs) {
@@ -208,6 +234,10 @@ contract CrosscallCallee {
         require(pairs[0].flag, "first flag");
         require(!pairs[1].flag, "second flag");
         return msg.value + uint256(pairs[0].small) + uint256(pairs[1].small);
+    }
+
+    function paidMatrixScore(uint64[2][2] memory values) external payable returns (uint256) {
+        return msg.value + uint256(values[0][0]) + uint256(values[0][1]) + uint256(values[1][0]) + uint256(values[1][1]);
     }
 
     function readStored() external view returns (uint256) {
@@ -307,6 +337,12 @@ contract ProofForgeIRCrosscallSmokeTest {
         values = abi.decode(result, (uint64[2]));
     }
 
+    function callU64Matrix2(address probe, bytes memory payload) internal returns (uint64[2][2] memory values) {
+        (bool ok, bytes memory result) = probe.call(payload);
+        assertTrue(ok);
+        values = abi.decode(result, (uint64[2][2]));
+    }
+
     function callPairArray(address probe, bytes memory payload) internal returns (CrosscallCallee.Pair[2] memory pairs) {
         (bool ok, bytes memory result) = probe.call(payload);
         assertTrue(ok);
@@ -323,6 +359,12 @@ contract ProofForgeIRCrosscallSmokeTest {
         (bool ok, bytes memory result) = probe.call{value: amount}(payload);
         assertTrue(ok);
         values = abi.decode(result, (uint64[2]));
+    }
+
+    function callU64Matrix2Value(address probe, bytes memory payload, uint256 amount) internal returns (uint64[2][2] memory values) {
+        (bool ok, bytes memory result) = probe.call{value: amount}(payload);
+        assertTrue(ok);
+        values = abi.decode(result, (uint64[2][2]));
     }
 
     function callPairArrayValue(address probe, bytes memory payload, uint256 amount) internal returns (CrosscallCallee.Pair[2] memory pairs) {
@@ -529,6 +571,25 @@ contract ProofForgeIRCrosscallSmokeTest {
         assertEq(uint256(values[1]), 44);
     }
 
+    function testIRCrosscallAggregateMatrixReturn() public {
+        address probe = address(uint160(0xE180));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        uint64[2][2] memory values = callU64Matrix2(
+            probe,
+            abi.encodeWithSignature(
+                "call_remote_matrix(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.valuesMatrix.selector)
+            )
+        );
+        assertEq(uint256(values[0][0]), 11);
+        assertEq(uint256(values[0][1]), 22);
+        assertEq(uint256(values[1][0]), 33);
+        assertEq(uint256(values[1][1]), 44);
+    }
+
     function testIRCrosscallAggregateStructArrayReturn() public {
         address probe = address(uint160(0xE16F));
         CrosscallCallee callee = new CrosscallCallee();
@@ -581,6 +642,28 @@ contract ProofForgeIRCrosscallSmokeTest {
                     selector(CrosscallCallee.sumValues.selector),
                     uint64(15),
                     uint64(27)
+                )
+            ),
+            42
+        );
+    }
+
+    function testIRCrosscallAggregateMatrixArgument() public {
+        address probe = address(uint160(0xE181));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(
+            callU256(
+                probe,
+                abi.encodeWithSignature(
+                    "call_remote_matrix_arg(uint256,uint256,uint64,uint64,uint64,uint64)",
+                    uint256(uint160(address(callee))),
+                    selector(CrosscallCallee.sumMatrix.selector),
+                    uint64(1),
+                    uint64(2),
+                    uint64(3),
+                    uint64(36)
                 )
             ),
             42
@@ -697,6 +780,29 @@ contract ProofForgeIRCrosscallSmokeTest {
         assertEq(probe.balance, 0);
     }
 
+    function testIRCrosscallValueAggregateMatrixReturn() public {
+        address probe = address(uint160(0xE182));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+        vm.deal(address(this), 1 ether);
+
+        uint64[2][2] memory values = callU64Matrix2Value(
+            probe,
+            abi.encodeWithSignature(
+                "call_remote_value_matrix(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.paidValuesMatrix.selector)
+            ),
+            55
+        );
+        assertEq(uint256(values[0][0]), 55);
+        assertEq(uint256(values[0][1]), 22);
+        assertEq(uint256(values[1][0]), 33);
+        assertEq(uint256(values[1][1]), 44);
+        assertEq(address(callee).balance, 55);
+        assertEq(probe.balance, 0);
+    }
+
     function testIRCrosscallValueAggregateStructArrayReturn() public {
         address probe = address(uint160(0xE171));
         CrosscallCallee callee = new CrosscallCallee();
@@ -737,6 +843,32 @@ contract ProofForgeIRCrosscallSmokeTest {
                     uint32(20),
                     false,
                     uint32(22)
+                ),
+                1000
+            ),
+            1042
+        );
+        assertEq(address(callee).balance, 1000);
+        assertEq(probe.balance, 0);
+    }
+
+    function testIRCrosscallValueAggregateMatrixArgument() public {
+        address probe = address(uint160(0xE183));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+        vm.deal(address(this), 1 ether);
+
+        assertEq(
+            callU256Value(
+                probe,
+                abi.encodeWithSignature(
+                    "call_remote_value_matrix_arg(uint256,uint256,uint64,uint64,uint64,uint64)",
+                    uint256(uint160(address(callee))),
+                    selector(CrosscallCallee.paidMatrixScore.selector),
+                    uint64(1),
+                    uint64(2),
+                    uint64(3),
+                    uint64(36)
                 ),
                 1000
             ),
@@ -879,6 +1011,25 @@ contract ProofForgeIRCrosscallSmokeTest {
         assertEq(uint256(values[1]), 44);
     }
 
+    function testIRCrosscallStaticAggregateMatrixReturn() public {
+        address probe = address(uint160(0xE184));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        uint64[2][2] memory values = callU64Matrix2(
+            probe,
+            abi.encodeWithSignature(
+                "call_remote_static_matrix(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.valuesMatrix.selector)
+            )
+        );
+        assertEq(uint256(values[0][0]), 11);
+        assertEq(uint256(values[0][1]), 22);
+        assertEq(uint256(values[1][0]), 33);
+        assertEq(uint256(values[1][1]), 44);
+    }
+
     function testIRCrosscallStaticAggregateStructArrayReturn() public {
         address probe = address(uint160(0xE173));
         CrosscallCallee callee = new CrosscallCallee();
@@ -914,6 +1065,28 @@ contract ProofForgeIRCrosscallSmokeTest {
                     uint32(20),
                     false,
                     uint32(22)
+                )
+            ),
+            42
+        );
+    }
+
+    function testIRCrosscallStaticAggregateMatrixArgument() public {
+        address probe = address(uint160(0xE185));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(
+            callU256(
+                probe,
+                abi.encodeWithSignature(
+                    "call_remote_static_matrix_arg(uint256,uint256,uint64,uint64,uint64,uint64)",
+                    uint256(uint160(address(callee))),
+                    selector(CrosscallCallee.sumMatrix.selector),
+                    uint64(1),
+                    uint64(2),
+                    uint64(3),
+                    uint64(36)
                 )
             ),
             42
@@ -1199,6 +1372,25 @@ contract ProofForgeIRCrosscallSmokeTest {
         assertEq(uint256(values[1]), 44);
     }
 
+    function testIRCrosscallDelegateAggregateMatrixReturn() public {
+        address probe = address(uint160(0xE186));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        uint64[2][2] memory values = callU64Matrix2(
+            probe,
+            abi.encodeWithSignature(
+                "call_remote_delegate_matrix(uint256,uint256)",
+                uint256(uint160(address(callee))),
+                selector(CrosscallCallee.valuesMatrix.selector)
+            )
+        );
+        assertEq(uint256(values[0][0]), 11);
+        assertEq(uint256(values[0][1]), 22);
+        assertEq(uint256(values[1][0]), 33);
+        assertEq(uint256(values[1][1]), 44);
+    }
+
     function testIRCrosscallDelegateAggregateStructArrayReturn() public {
         address probe = address(uint160(0xE175));
         CrosscallCallee callee = new CrosscallCallee();
@@ -1234,6 +1426,28 @@ contract ProofForgeIRCrosscallSmokeTest {
                     uint32(20),
                     false,
                     uint32(22)
+                )
+            ),
+            42
+        );
+    }
+
+    function testIRCrosscallDelegateAggregateMatrixArgument() public {
+        address probe = address(uint160(0xE187));
+        CrosscallCallee callee = new CrosscallCallee();
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(
+            callU256(
+                probe,
+                abi.encodeWithSignature(
+                    "call_remote_delegate_matrix_arg(uint256,uint256,uint64,uint64,uint64,uint64)",
+                    uint256(uint160(address(callee))),
+                    selector(CrosscallCallee.sumMatrix.selector),
+                    uint64(1),
+                    uint64(2),
+                    uint64(3),
+                    uint64(36)
                 )
             ),
             42

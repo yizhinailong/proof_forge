@@ -392,24 +392,40 @@ def crosscallArgumentTypeModule : Module :=
     .return (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[.literal (.bool true)])
   ]
 
+def unsupportedNestedCrosscallType : ValueType :=
+  .fixedArray (.fixedArray (.structType "Point") 2) 2
+
+def pointLiteral (value : Nat) : Expr :=
+  .structLit "Point" #[("x", .literal (.u64 value))]
+
+def pointMatrixLiteral : Expr :=
+  .arrayLit (.fixedArray (.structType "Point") 2) #[
+    .arrayLit (.structType "Point") #[pointLiteral 1, pointLiteral 2],
+    .arrayLit (.structType "Point") #[pointLiteral 3, pointLiteral 4]
+  ]
+
+def selectedPointModule (name : String) (entrypoint : Entrypoint) : Module := {
+  name := name
+  structs := #[pointStruct]
+  state := #[markerState]
+  entrypoints := #[entrypoint]
+}
+
 def typedCrosscallReturnTypeModule : Module :=
-  selectedModule "BadTypedCrosscallReturnType" <| selectedReturnEntrypoint "bad" (.fixedArray (.fixedArray .u64 2) 2) #[
+  selectedPointModule "BadTypedCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
     .return (.crosscallInvokeTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
       #[]
-      (.fixedArray (.fixedArray .u64 2) 2))
+      unsupportedNestedCrosscallType)
   ]
 
 def typedCrosscallArgumentTypeModule : Module :=
-  selectedModule "BadTypedCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+  selectedPointModule "BadTypedCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvokeTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
-      #[.arrayLit (.fixedArray .u64 2) #[
-        .arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)],
-        .arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)]
-      ]]
+      #[pointMatrixLiteral]
       .u64)
   ]
 
@@ -424,68 +440,59 @@ def valueCrosscallValueTypeModule : Module :=
   ]
 
 def valueCrosscallReturnTypeModule : Module :=
-  selectedModule "BadValueCrosscallReturnType" <| selectedReturnEntrypoint "bad" (.fixedArray (.fixedArray .u64 2) 2) #[
+  selectedPointModule "BadValueCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
     .return (.crosscallInvokeValueTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
       (.literal (.u64 3))
       #[]
-      (.fixedArray (.fixedArray .u64 2) 2))
+      unsupportedNestedCrosscallType)
   ]
 
 def valueCrosscallArgumentTypeModule : Module :=
-  selectedModule "BadValueCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+  selectedPointModule "BadValueCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvokeValueTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
       (.literal (.u64 3))
-      #[.arrayLit (.fixedArray .u64 2) #[
-        .arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)],
-        .arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)]
-      ]]
+      #[pointMatrixLiteral]
       .u64)
   ]
 
 def staticCrosscallArgumentTypeModule : Module :=
-  selectedModule "BadStaticCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+  selectedPointModule "BadStaticCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvokeStaticTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
-      #[.arrayLit (.fixedArray .u64 2) #[
-        .arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)],
-        .arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)]
-      ]]
+      #[pointMatrixLiteral]
       .u64)
   ]
 
 def staticCrosscallReturnTypeModule : Module :=
-  selectedModule "BadStaticCrosscallReturnType" <| selectedReturnEntrypoint "bad" (.fixedArray (.fixedArray .u64 2) 2) #[
+  selectedPointModule "BadStaticCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
     .return (.crosscallInvokeStaticTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
       #[]
-      (.fixedArray (.fixedArray .u64 2) 2))
+      unsupportedNestedCrosscallType)
   ]
 
 def delegateCrosscallArgumentTypeModule : Module :=
-  selectedModule "BadDelegateCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
+  selectedPointModule "BadDelegateCrosscallArgumentType" <| selectedReturnEntrypoint "bad" .u64 #[
     .return (.crosscallInvokeDelegateTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
-      #[.arrayLit (.fixedArray .u64 2) #[
-        .arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)],
-        .arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)]
-      ]]
+      #[pointMatrixLiteral]
       .u64)
   ]
 
 def delegateCrosscallReturnTypeModule : Module :=
-  selectedModule "BadDelegateCrosscallReturnType" <| selectedReturnEntrypoint "bad" (.fixedArray (.fixedArray .u64 2) 2) #[
+  selectedPointModule "BadDelegateCrosscallReturnType" <| selectedReturnEntrypoint "bad" unsupportedNestedCrosscallType #[
     .return (.crosscallInvokeDelegateTyped
       (.literal (.u64 1))
       (.literal (.u64 2))
       #[]
-      (.fixedArray (.fixedArray .u64 2) 2))
+      unsupportedNestedCrosscallType)
   ]
 
 def createCallValueTypeModule : Module :=
@@ -754,12 +761,12 @@ def cases : Array (String × Module × String) := #[
   (
     "typed crosscall return type unsupported",
     typedCrosscallReturnTypeModule,
-    "typed crosscall return fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "typed crosscall return fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
   ),
   (
     "typed crosscall argument type unsupported",
     typedCrosscallArgumentTypeModule,
-    "typed crosscall argument fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "typed crosscall argument fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
   ),
   (
     "value crosscall call value type mismatch",
@@ -769,32 +776,32 @@ def cases : Array (String × Module × String) := #[
   (
     "value crosscall return type unsupported",
     valueCrosscallReturnTypeModule,
-    "value crosscall return fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "value crosscall return fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
   ),
   (
     "value crosscall argument type unsupported",
     valueCrosscallArgumentTypeModule,
-    "value crosscall argument fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "value crosscall argument fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
   ),
   (
     "static crosscall argument type unsupported",
     staticCrosscallArgumentTypeModule,
-    "static crosscall argument fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "static crosscall argument fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
   ),
   (
     "static crosscall return type unsupported",
     staticCrosscallReturnTypeModule,
-    "static crosscall return fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "static crosscall return fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
   ),
   (
     "delegate crosscall argument type unsupported",
     delegateCrosscallArgumentTypeModule,
-    "delegate crosscall argument fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "delegate crosscall argument fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
   ),
   (
     "delegate crosscall return type unsupported",
     delegateCrosscallReturnTypeModule,
-    "delegate crosscall return fixed-array element has unsupported EVM IR v0 crosscall aggregate type `Array<U64,2>`; crosscall fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "delegate crosscall return fixed-array element fixed-array element has unsupported EVM IR v0 nested crosscall fixed-array leaf `Point`; nested crosscall fixed arrays support U32, U64, Bool, or Hash leaves"
   ),
   (
     "create call value type mismatch",
