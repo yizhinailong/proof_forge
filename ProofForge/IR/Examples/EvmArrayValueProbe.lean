@@ -96,10 +96,40 @@ def mutableMixed : Entrypoint := {
   ]
 }
 
+def dynamicPick : Entrypoint := {
+  name := "dynamic_pick"
+  selector? := some "17e4f54c"
+  params := #[
+    ("idx", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .letBind "xs" (.fixedArray .u64 3) (.arrayLit .u64 #[u64 7, u64 11, u64 13]),
+    .return (.add
+      (.arrayGet (.local "xs") (.local "idx"))
+      (.arrayGet (.arrayLit .u64 #[u64 4, u64 6, u64 8]) (.local "idx")))
+  ]
+}
+
+def dynamicUpdate : Entrypoint := {
+  name := "dynamic_update"
+  selector? := some "f45e18ed"
+  params := #[
+    ("idx", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .letMutBind "xs" (.fixedArray .u64 3) (.arrayLit .u64 #[u64 7, u64 11, u64 13]),
+    .assign (.arrayGet (.local "xs") (.local "idx")) (u64 20),
+    .assignOp (.arrayGet (.local "xs") (.local "idx")) .add (u64 3),
+    .return (.arrayGet (.local "xs") (.local "idx"))
+  ]
+}
+
 def module : Module := {
   name := "EvmArrayValueProbe"
   state := #[]
-  entrypoints := #[localSum, directLiteralIndex, boolGuard, u32Pick, hashPick, mutableUpdate, mutableMixed]
+  entrypoints := #[localSum, directLiteralIndex, boolGuard, u32Pick, hashPick, mutableUpdate, mutableMixed, dynamicPick, dynamicUpdate]
 }
 
 end ProofForge.IR.Examples.EvmArrayValueProbe

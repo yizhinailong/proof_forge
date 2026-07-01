@@ -47,6 +47,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint hash_pick:211a2fc4 \
   --expect-entrypoint mutable_update:0cde63a1 \
   --expect-entrypoint mutable_mixed:70d82dc9 \
+  --expect-entrypoint dynamic_pick:17e4f54c \
+  --expect-entrypoint dynamic_update:f45e18ed \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmArrayValueProbe.bin")"
@@ -152,8 +154,35 @@ contract ProofForgeIRArrayValueSmokeTest {
         assertEq(callU256(probe, abi.encodeWithSignature("mutable_mixed()")), 10);
     }
 
-    function testIRLocalFixedArrayRejectsUnknownSelector() public {
+    function testIRLocalFixedArrayDynamicIndexReads() public {
         address probe = address(uint160(0xA266));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("dynamic_pick(uint256)", 1)), 17);
+        assertEq(callU256(probe, abi.encodeWithSignature("dynamic_pick(uint256)", 2)), 21);
+    }
+
+    function testIRMutableLocalFixedArrayDynamicUpdates() public {
+        address probe = address(uint160(0xA267));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("dynamic_update(uint256)", 1)), 23);
+        assertEq(callU256(probe, abi.encodeWithSignature("dynamic_update(uint256)", 2)), 23);
+    }
+
+    function testIRLocalFixedArrayDynamicIndexesRejectOutOfBounds() public {
+        address probe = address(uint160(0xA268));
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool readOk,) = probe.call(abi.encodeWithSignature("dynamic_pick(uint256)", 3));
+        assertFalse(readOk);
+
+        (bool writeOk,) = probe.call(abi.encodeWithSignature("dynamic_update(uint256)", 3));
+        assertFalse(writeOk);
+    }
+
+    function testIRLocalFixedArrayRejectsUnknownSelector() public {
+        address probe = address(uint160(0xA269));
         deployRuntime(hex"$probe_hex", probe);
 
         (bool ok,) = probe.call(hex"ffffffff");

@@ -36,6 +36,22 @@ object "EvmArrayValueProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x17e4f54c {
+      if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      let _r := f_EvmArrayValueProbe_dynamic_pick(calldataload(4))
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xf45e18ed {
+      if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      let _r := f_EvmArrayValueProbe_dynamic_update(calldataload(4))
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -92,6 +108,67 @@ object "EvmArrayValueProbe" {
         revert(0, 0)
       }
       result := add(__proof_forge_array_flags_0, __proof_forge_array_smalls_1)
+    }
+    function f_EvmArrayValueProbe_dynamic_pick(idx) -> result {
+      let __proof_forge_array_xs_0 := 7
+      let __proof_forge_array_xs_1 := 11
+      let __proof_forge_array_xs_2 := 13
+      result := add(__proof_forge_local_array_get_3(idx, __proof_forge_array_xs_0, __proof_forge_array_xs_1, __proof_forge_array_xs_2), __proof_forge_local_array_get_3(idx, 4, 6, 8))
+    }
+    function f_EvmArrayValueProbe_dynamic_update(idx) -> result {
+      let __proof_forge_array_xs_0 := 7
+      let __proof_forge_array_xs_1 := 11
+      let __proof_forge_array_xs_2 := 13
+      {
+        let __proof_forge_array_index := idx
+        let __proof_forge_array_value := 20
+        switch __proof_forge_array_index
+        case 0 {
+          __proof_forge_array_xs_0 := __proof_forge_array_value
+        }
+        case 1 {
+          __proof_forge_array_xs_1 := __proof_forge_array_value
+        }
+        case 2 {
+          __proof_forge_array_xs_2 := __proof_forge_array_value
+        }
+        default {
+          revert(0, 0)
+        }
+      }
+      {
+        let __proof_forge_array_index := idx
+        let __proof_forge_array_value := 3
+        switch __proof_forge_array_index
+        case 0 {
+          __proof_forge_array_xs_0 := add(__proof_forge_array_xs_0, __proof_forge_array_value)
+        }
+        case 1 {
+          __proof_forge_array_xs_1 := add(__proof_forge_array_xs_1, __proof_forge_array_value)
+        }
+        case 2 {
+          __proof_forge_array_xs_2 := add(__proof_forge_array_xs_2, __proof_forge_array_value)
+        }
+        default {
+          revert(0, 0)
+        }
+      }
+      result := __proof_forge_local_array_get_3(idx, __proof_forge_array_xs_0, __proof_forge_array_xs_1, __proof_forge_array_xs_2)
+    }
+    function __proof_forge_local_array_get_3(index, value_0, value_1, value_2) -> result {
+      switch index
+      case 0 {
+        result := value_0
+      }
+      case 1 {
+        result := value_1
+      }
+      case 2 {
+        result := value_2
+      }
+      default {
+        revert(0, 0)
+      }
     }
   }
 }

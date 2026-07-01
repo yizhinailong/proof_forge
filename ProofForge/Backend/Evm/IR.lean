@@ -140,6 +140,12 @@ def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
 def arrayLocalElementName (name : String) (index : Nat) : String :=
   s!"__proof_forge_array_{name}_{index}"
 
+def localArrayGetFunctionName (length : Nat) : String :=
+  s!"__proof_forge_local_array_get_{length}"
+
+def localArrayGetValueParamName (index : Nat) : String :=
+  s!"value_{index}"
+
 def structLocalFieldName (name fieldName : String) : String :=
   s!"__proof_forge_struct_{name}_{fieldName}"
 
@@ -345,6 +351,17 @@ def requireStaticArrayIndex (context : String) (index : ProofForge.IR.Expr) : Ex
       .error {
         message := s!"{context} in IR EVM v0 requires a U32/U64 literal index for local fixed-array values"
       }
+
+def requireLocalFixedArray
+    (context : String)
+    (env : TypeEnv)
+    (name : String) : Except LowerError (ValueType × Nat) :=
+  match findLocal? env name with
+  | none => .error { message := s!"unknown local `{name}`" }
+  | some binding =>
+      match binding.type with
+      | .fixedArray elementType length => .ok (elementType, length)
+      | other => .error { message := s!"{context} local `{name}` expected fixed-array value, got `{other.name}`" }
 
 def ensureFixedArrayIndexInBounds (context : String) (index length : Nat) : Except LowerError Unit :=
   if index < length then
@@ -805,8 +822,10 @@ def validateLocalFixedArrayTarget
   match binding.type with
   | .fixedArray elementType length => do
       ensureArrayIndexType s!"{context} fixed-array index" (← inferExprType module env index)
-      let indexValue ← requireStaticArrayIndex s!"{context} fixed-array index" index
-      ensureFixedArrayIndexInBounds s!"{context} fixed-array index" indexValue length
+      match literalArrayIndex? index with
+      | some indexValue =>
+          ensureFixedArrayIndexInBounds s!"{context} fixed-array index" indexValue length
+      | none => pure ()
       ensureType s!"{context} value" elementType (← inferExprType module env value)
       .ok elementType
   | other =>
@@ -922,23 +941,43 @@ def validateEntrypointTypes (module : Module) (entrypoint : Entrypoint) : Except
   discard <| validateStatements module entrypoint (entrypointTypeEnv entrypoint) entrypoint.body
 
 mutual
-  partial def lowerMapSlotExpr (module : Module) (stateId : String) (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+  partial def lowerMapSlotExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     let (slot, _, _) ← requireStorageMapState module stateId
-    .ok (Lean.Compiler.Yul.call mapSlotFunctionName #[slotExpr slot, ← lowerExpr module key])
+    .ok (Lean.Compiler.Yul.call mapSlotFunctionName #[slotExpr slot, ← lowerExpr module env key])
 
-  partial def lowerMapGetExpr (module : Module) (stateId : String) (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerMapSlotExpr module stateId key])
+  partial def lowerMapGetExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerMapSlotExpr module env stateId key])
 
-  partial def lowerMapSetReturnExpr (module : Module) (stateId : String) (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+  partial def lowerMapSetReturnExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     let (slot, _, _) ← requireStorageMapState module stateId
-    .ok (Lean.Compiler.Yul.call mapSetReturnFunctionName #[slotExpr slot, ← lowerExpr module key, ← lowerExpr module value])
+    .ok (Lean.Compiler.Yul.call mapSetReturnFunctionName #[slotExpr slot, ← lowerExpr module env key, ← lowerExpr module env value])
 
-  partial def lowerArraySlotExpr (module : Module) (stateId : String) (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+  partial def lowerArraySlotExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     let (slot, length, _) ← requireStorageArrayState module stateId
-    .ok (Lean.Compiler.Yul.call arraySlotFunctionName #[slotExpr slot, Lean.Compiler.Yul.Expr.num length, ← lowerExpr module index])
+    .ok (Lean.Compiler.Yul.call arraySlotFunctionName #[slotExpr slot, Lean.Compiler.Yul.Expr.num length, ← lowerExpr module env index])
 
-  partial def lowerArrayReadExpr (module : Module) (stateId : String) (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerArraySlotExpr module stateId index])
+  partial def lowerArrayReadExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerArraySlotExpr module env stateId index])
 
   partial def lowerStructFieldSlotExpr
       (module : Module)
@@ -953,6 +992,7 @@ mutual
 
   partial def lowerStructArrayFieldSlotExpr
       (module : Module)
+      (env : TypeEnv)
       (stateId : String)
       (index : ProofForge.IR.Expr)
       (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
@@ -962,23 +1002,28 @@ mutual
       Lean.Compiler.Yul.Expr.num length,
       Lean.Compiler.Yul.Expr.num fieldCount,
       Lean.Compiler.Yul.Expr.num fieldOffset,
-      ← lowerExpr module index
+      ← lowerExpr module env index
     ])
 
   partial def lowerStructArrayFieldReadExpr
       (module : Module)
+      (env : TypeEnv)
       (stateId : String)
       (index : ProofForge.IR.Expr)
       (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
-    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerStructArrayFieldSlotExpr module stateId index fieldName])
+    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerStructArrayFieldSlotExpr module env stateId index fieldName])
 
-  partial def lowerStoragePathReadExpr (module : Module) (stateId : String) (path : Array StoragePathSegment) : Except LowerError Lean.Compiler.Yul.Expr :=
+  partial def lowerStoragePathReadExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (path : Array StoragePathSegment) : Except LowerError Lean.Compiler.Yul.Expr :=
     match path.toList with
-    | [StoragePathSegment.mapKey key] => lowerMapGetExpr module stateId key
-    | [StoragePathSegment.index index] => lowerArrayReadExpr module stateId index
+    | [StoragePathSegment.mapKey key] => lowerMapGetExpr module env stateId key
+    | [StoragePathSegment.index index] => lowerArrayReadExpr module env stateId index
     | [StoragePathSegment.field fieldName] => lowerStructFieldReadExpr module stateId fieldName
     | [StoragePathSegment.index index, StoragePathSegment.field fieldName] =>
-        lowerStructArrayFieldReadExpr module stateId index fieldName
+        lowerStructArrayFieldReadExpr module env stateId index fieldName
     | [] => do
         let state ← stateDeclOf module stateId "storage path"
         match state.kind with
@@ -989,16 +1034,32 @@ mutual
 
   partial def lowerLocalFixedArrayGetExpr
       (module : Module)
+      (env : TypeEnv)
       (array index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let indexValue ← requireStaticArrayIndex "fixed array indexing" index
     match array with
-    | .local name =>
-        .ok (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name indexValue))
+    | .local name => do
+        let (_, length) ← requireLocalFixedArray "fixed array indexing" env name
+        match literalArrayIndex? index with
+        | some indexValue => do
+            ensureFixedArrayIndexInBounds "fixed array index" indexValue length
+            .ok (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name indexValue))
+        | none => do
+            let mut values : Array Lean.Compiler.Yul.Expr := #[]
+            for h : idx in [0:length] do
+              values := values.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
+            .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName length) (#[← lowerExpr module env index] ++ values))
     | .arrayLit _ values =>
-        if h : indexValue < values.size then
-          lowerExpr module values[indexValue]
-        else
-          .error { message := s!"fixed array literal index {indexValue} is out of bounds for length {values.size}" }
+        match literalArrayIndex? index with
+        | some indexValue =>
+            if h : indexValue < values.size then
+              lowerExpr module env values[indexValue]
+            else
+              .error { message := s!"fixed array literal index {indexValue} is out of bounds for length {values.size}" }
+        | none => do
+            let mut loweredValues : Array Lean.Compiler.Yul.Expr := #[]
+            for h : idx in [0:values.size] do
+              loweredValues := loweredValues.push (← lowerExpr module env values[idx])
+            .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName values.size) (#[← lowerExpr module env index] ++ loweredValues))
     | _ =>
         .error {
           message := "fixed array indexing in IR EVM v0 supports local fixed-array values or array literals only"
@@ -1006,6 +1067,7 @@ mutual
 
   partial def lowerLocalStructFieldExpr
       (module : Module)
+      (env : TypeEnv)
       (base : ProofForge.IR.Expr)
       (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr :=
     match base with
@@ -1014,13 +1076,13 @@ mutual
     | .structLit _ fields => do
         let some field := fields.find? fun field => field.fst == fieldName
           | .error { message := s!"struct literal has no field `{fieldName}`" }
-        lowerExpr module field.snd
+        lowerExpr module env field.snd
     | _ =>
         .error {
           message := "struct field access in IR EVM v0 supports local struct values or struct literals only"
         }
 
-  partial def lowerExpr (module : Module) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
+  partial def lowerExpr (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
     | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.u64 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.bool value) => .ok (if value then Lean.Compiler.Yul.Expr.num 1 else Lean.Compiler.Yul.Expr.num 0)
@@ -1030,72 +1092,72 @@ mutual
     | .arrayLit _ _ =>
         .error { message := "fixed array literals must be consumed by a fixed array local binding or literal index in IR EVM v0" }
     | .arrayGet array index =>
-        lowerLocalFixedArrayGetExpr module array index
+        lowerLocalFixedArrayGetExpr module env array index
     | .structLit _ _ =>
         .error { message := "struct literals must be consumed by a struct local binding or field access in IR EVM v0" }
     | .field base fieldName =>
-        lowerLocalStructFieldExpr module base fieldName
+        lowerLocalStructFieldExpr module env base fieldName
     | .add lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "add" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "add" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .sub lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "sub" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "sub" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .mul lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "mul" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "mul" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .div lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "div" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "div" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .mod lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "mod" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "mod" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .pow lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "exp" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "exp" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .bitAnd lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "and" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "and" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .bitOr lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "or" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "or" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .bitXor lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "xor" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "xor" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .shiftLeft lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "shl" #[← lowerExpr module rhs, ← lowerExpr module lhs])
+        .ok (Lean.Compiler.Yul.builtin "shl" #[← lowerExpr module env rhs, ← lowerExpr module env lhs])
     | .shiftRight lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "shr" #[← lowerExpr module rhs, ← lowerExpr module lhs])
+        .ok (Lean.Compiler.Yul.builtin "shr" #[← lowerExpr module env rhs, ← lowerExpr module env lhs])
     | .cast value _ => do
-        lowerExpr module value
+        lowerExpr module env value
     | .eq lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .ne lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs]])
+        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]])
     | .lt lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "lt" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "lt" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .le lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "gt" #[← lowerExpr module lhs, ← lowerExpr module rhs]])
+        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "gt" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]])
     | .gt lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "gt" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "gt" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .ge lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "lt" #[← lowerExpr module lhs, ← lowerExpr module rhs]])
+        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "lt" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]])
     | .boolAnd lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "and" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "and" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .boolOr lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "or" #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.builtin "or" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .boolNot value => do
-        .ok (Lean.Compiler.Yul.builtin "iszero" #[← lowerExpr module value])
+        .ok (Lean.Compiler.Yul.builtin "iszero" #[← lowerExpr module env value])
     | .hashValue a b c d => do
-        .ok (hashPackExpr (← lowerExpr module a) (← lowerExpr module b) (← lowerExpr module c) (← lowerExpr module d))
+        .ok (hashPackExpr (← lowerExpr module env a) (← lowerExpr module env b) (← lowerExpr module env c) (← lowerExpr module env d))
     | .hash preimage => do
-        .ok (Lean.Compiler.Yul.call hashWordFunctionName #[← lowerExpr module preimage])
+        .ok (Lean.Compiler.Yul.call hashWordFunctionName #[← lowerExpr module env preimage])
     | .hashTwoToOne lhs rhs => do
-        .ok (Lean.Compiler.Yul.call hashPairFunctionName #[← lowerExpr module lhs, ← lowerExpr module rhs])
+        .ok (Lean.Compiler.Yul.call hashPairFunctionName #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .nativeValue =>
         .ok (Lean.Compiler.Yul.builtin "callvalue" #[])
     | .crosscallInvoke target methodId args => do
         let mut callArgs := #[
-          ← lowerExpr module target,
-          ← lowerExpr module methodId
+          ← lowerExpr module env target,
+          ← lowerExpr module env methodId
         ]
         for arg in args do
-          callArgs := callArgs.push (← lowerExpr module arg)
+          callArgs := callArgs.push (← lowerExpr module env arg)
         .ok (Lean.Compiler.Yul.call (crosscallFunctionName args.size) callArgs)
-    | .effect effect => lowerEffectExpr module effect
+    | .effect effect => lowerEffectExpr module env effect
 
-  partial def lowerEffectExpr (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Expr
+  partial def lowerEffectExpr (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Expr
     | .storageScalarRead stateId => do
         discard <| scalarStateType module stateId
         let some slot := stateSlot? module stateId
@@ -1108,17 +1170,17 @@ mutual
     | .storageMapContains _ _ =>
         .error { message := "storage.map.contains is not supported by IR EVM v0 because EVM mappings do not track key presence" }
     | .storageMapGet stateId key =>
-        lowerMapGetExpr module stateId key
+        lowerMapGetExpr module env stateId key
     | .storageMapInsert stateId key value =>
-        lowerMapSetReturnExpr module stateId key value
+        lowerMapSetReturnExpr module env stateId key value
     | .storageMapSet stateId key value =>
-        lowerMapSetReturnExpr module stateId key value
+        lowerMapSetReturnExpr module env stateId key value
     | .storageArrayRead stateId index =>
-        lowerArrayReadExpr module stateId index
+        lowerArrayReadExpr module env stateId index
     | .storageArrayWrite _ _ _ =>
         .error { message := "storage.array.write is a statement effect, not an expression" }
     | .storageArrayStructFieldRead stateId index fieldName =>
-        lowerStructArrayFieldReadExpr module stateId index fieldName
+        lowerStructArrayFieldReadExpr module env stateId index fieldName
     | .storageArrayStructFieldWrite _ _ _ _ =>
         .error { message := "storage.array.struct.field.write is a statement effect, not an expression" }
     | .storageStructFieldRead stateId fieldName =>
@@ -1126,7 +1188,7 @@ mutual
     | .storageStructFieldWrite _ _ _ =>
         .error { message := "storage.struct.field.write is a statement effect, not an expression" }
     | .storagePathRead stateId path =>
-        lowerStoragePathReadExpr module stateId path
+        lowerStoragePathReadExpr module env stateId path
     | .storagePathWrite _ _ _ =>
         .error { message := "storage.path.write is a statement effect, not an expression" }
     | .storagePathAssignOp _ _ _ _ =>
@@ -1139,6 +1201,7 @@ end
 
 def lowerEventEmitStmt
     (module : Module)
+    (env : TypeEnv)
     (name : String)
     (fields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement := do
   let (nameWord, nameLen) ← eventNameWordAndLength name
@@ -1150,7 +1213,7 @@ def lowerEventEmitStmt
   for h : idx in [0:fields.size] do
     let field := fields[idx]
     statements := statements.push <|
-      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), ← lowerExpr module field.snd])
+      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), ← lowerExpr module env field.snd])
   statements := statements.push <|
     .exprStmt (Lean.Compiler.Yul.builtin "log1" #[
       Lean.Compiler.Yul.Expr.num 0,
@@ -1159,42 +1222,53 @@ def lowerEventEmitStmt
     ])
   .ok (.block { statements := statements })
 
-def lowerMapWriteStmt (module : Module) (stateId : String) (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+def lowerMapWriteStmt
+    (module : Module)
+    (env : TypeEnv)
+    (stateId : String)
+    (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   let (slot, _, _) ← requireStorageMapState module stateId
-  .ok (.exprStmt (Lean.Compiler.Yul.call mapWriteFunctionName #[slotExpr slot, ← lowerExpr module key, ← lowerExpr module value]))
+  .ok (.exprStmt (Lean.Compiler.Yul.call mapWriteFunctionName #[slotExpr slot, ← lowerExpr module env key, ← lowerExpr module env value]))
 
-def lowerArrayWriteStmt (module : Module) (stateId : String) (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[← lowerArraySlotExpr module stateId index, ← lowerExpr module value]))
+def lowerArrayWriteStmt
+    (module : Module)
+    (env : TypeEnv)
+    (stateId : String)
+    (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[← lowerArraySlotExpr module env stateId index, ← lowerExpr module env value]))
 
 def lowerStructFieldWriteStmt
     (module : Module)
+    (env : TypeEnv)
     (stateId fieldName : String)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   let (slot, _) ← requireStructStateField module stateId fieldName
-  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module value]))
+  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module env value]))
 
 partial def lowerStructArrayFieldWriteStmt
     (module : Module)
+    (env : TypeEnv)
     (stateId : String)
     (index : ProofForge.IR.Expr)
     (fieldName : String)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-    ← lowerStructArrayFieldSlotExpr module stateId index fieldName,
-    ← lowerExpr module value
+    ← lowerStructArrayFieldSlotExpr module env stateId index fieldName,
+    ← lowerExpr module env value
   ]))
 
 def lowerStoragePathWriteStmt
     (module : Module)
+    (env : TypeEnv)
     (stateId : String)
     (path : Array StoragePathSegment)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement :=
   match path.toList with
-  | [StoragePathSegment.mapKey key] => lowerMapWriteStmt module stateId key value
-  | [StoragePathSegment.index index] => lowerArrayWriteStmt module stateId index value
-  | [StoragePathSegment.field fieldName] => lowerStructFieldWriteStmt module stateId fieldName value
+  | [StoragePathSegment.mapKey key] => lowerMapWriteStmt module env stateId key value
+  | [StoragePathSegment.index index] => lowerArrayWriteStmt module env stateId index value
+  | [StoragePathSegment.field fieldName] => lowerStructFieldWriteStmt module env stateId fieldName value
   | [StoragePathSegment.index index, StoragePathSegment.field fieldName] =>
-      lowerStructArrayFieldWriteStmt module stateId index fieldName value
+      lowerStructArrayFieldWriteStmt module env stateId index fieldName value
   | [] => do
       let state ← stateDeclOf module stateId "storage path"
       match state.kind with
@@ -1205,6 +1279,7 @@ def lowerStoragePathWriteStmt
 
 def lowerStoragePathAssignOpStmt
     (module : Module)
+    (env : TypeEnv)
     (stateId : String)
     (path : Array StoragePathSegment)
     (op : AssignOp)
@@ -1212,14 +1287,14 @@ def lowerStoragePathAssignOpStmt
   match path.toList with
   | [StoragePathSegment.mapKey key] => do
       let (slot, _, _) ← requireStorageMapState module stateId
-      .ok (.exprStmt (Lean.Compiler.Yul.call (mapAssignFunctionName op) #[slotExpr slot, ← lowerExpr module key, ← lowerExpr module value]))
+      .ok (.exprStmt (Lean.Compiler.Yul.call (mapAssignFunctionName op) #[slotExpr slot, ← lowerExpr module env key, ← lowerExpr module env value]))
   | [StoragePathSegment.index index] => do
-      let storageSlot ← lowerArraySlotExpr module stateId index
+      let storageSlot ← lowerArraySlotExpr module env stateId index
       .ok (.block { statements := #[
         .varDecl #[{ name := "_slot" }] (some storageSlot),
         .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
           Lean.Compiler.Yul.Expr.id "_slot",
-          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module value)
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module env value)
         ])
       ]})
   | [StoragePathSegment.field fieldName] => do
@@ -1228,16 +1303,16 @@ def lowerStoragePathAssignOpStmt
         .varDecl #[{ name := "_slot" }] (some storageSlot),
         .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
           Lean.Compiler.Yul.Expr.id "_slot",
-          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module value)
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module env value)
         ])
       ]})
   | [StoragePathSegment.index index, StoragePathSegment.field fieldName] => do
-      let storageSlot ← lowerStructArrayFieldSlotExpr module stateId index fieldName
+      let storageSlot ← lowerStructArrayFieldSlotExpr module env stateId index fieldName
       .ok (.block { statements := #[
         .varDecl #[{ name := "_slot" }] (some storageSlot),
         .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
           Lean.Compiler.Yul.Expr.id "_slot",
-          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module value)
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module env value)
         ])
       ]})
   | [] => do
@@ -1248,14 +1323,14 @@ def lowerStoragePathAssignOpStmt
       | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.assign_op" }
   | _ => .error { message := "EVM IR v0 supports storage paths as mapKey, index, field, or index followed by field" }
 
-def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compiler.Yul.Statement
+def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Statement
   | .storageScalarRead _ =>
       .error { message := "storage.scalar.read must be used as an expression" }
   | .storageScalarWrite stateId value => do
       discard <| scalarStateType module stateId
       let some slot := stateSlot? module stateId
         | .error { message := s!"unknown scalar state `{stateId}`" }
-      .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module value]))
+      .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module env value]))
   | .storageScalarAssignOp stateId op value => do
       discard <| scalarStateType module stateId
       let some slot := stateSlot? module stateId
@@ -1263,38 +1338,38 @@ def lowerEffectStmt (module : Module) : Effect → Except LowerError Lean.Compil
       let storageSlot := slotExpr slot
       .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
         storageSlot,
-        lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[storageSlot]) (← lowerExpr module value)
+        lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[storageSlot]) (← lowerExpr module env value)
       ]))
   | .storageMapContains _ _ =>
       .error { message := "storage.map.contains must be used as an expression, but EVM mappings do not track key presence" }
   | .storageMapGet _ _ =>
       .error { message := "storage.map.get must be used as an expression" }
   | .storageMapInsert stateId key value =>
-      lowerMapWriteStmt module stateId key value
+      lowerMapWriteStmt module env stateId key value
   | .storageMapSet stateId key value =>
-      lowerMapWriteStmt module stateId key value
+      lowerMapWriteStmt module env stateId key value
   | .storageArrayRead _ _ =>
       .error { message := "storage.array.read must be used as an expression" }
   | .storageArrayWrite stateId index value =>
-      lowerArrayWriteStmt module stateId index value
+      lowerArrayWriteStmt module env stateId index value
   | .storageArrayStructFieldRead _ _ _ =>
       .error { message := "storage.array.struct.field.read must be used as an expression" }
   | .storageArrayStructFieldWrite stateId index fieldName value =>
-      lowerStructArrayFieldWriteStmt module stateId index fieldName value
+      lowerStructArrayFieldWriteStmt module env stateId index fieldName value
   | .storageStructFieldRead _ _ =>
       .error { message := "storage.struct.field.read must be used as an expression" }
   | .storageStructFieldWrite stateId fieldName value =>
-      lowerStructFieldWriteStmt module stateId fieldName value
+      lowerStructFieldWriteStmt module env stateId fieldName value
   | .storagePathRead _ _ =>
       .error { message := "storage.path.read must be used as an expression" }
   | .storagePathWrite stateId path value =>
-      lowerStoragePathWriteStmt module stateId path value
+      lowerStoragePathWriteStmt module env stateId path value
   | .storagePathAssignOp stateId path op value =>
-      lowerStoragePathAssignOpStmt module stateId path op value
+      lowerStoragePathAssignOpStmt module env stateId path op value
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
   | .eventEmit name fields =>
-      lowerEventEmitStmt module name fields
+      lowerEventEmitStmt module env name fields
 
 def ensureLocalScalarType (context name : String) (type : ValueType) : Except LowerError Unit :=
   match type with
@@ -1313,6 +1388,7 @@ def ensureLocalFixedArrayElementType (context name : String) (type : ValueType) 
 
 def lowerFixedArrayLetBinding
     (module : Module)
+    (env : TypeEnv)
     (name : String)
     (elementType : ValueType)
     (length : Nat)
@@ -1332,7 +1408,7 @@ def lowerFixedArrayLetBinding
         statements := statements.push <|
           Lean.Compiler.Yul.Statement.varDecl
             #[{ name := arrayLocalElementName name index }]
-            (some (← lowerExpr module values[index]))
+            (some (← lowerExpr module env values[index]))
       .ok statements
   | _ =>
       .error {
@@ -1341,6 +1417,7 @@ def lowerFixedArrayLetBinding
 
 def lowerStructLetBinding
     (module : Module)
+    (env : TypeEnv)
     (name : String)
     (typeName : String)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
@@ -1358,7 +1435,7 @@ def lowerStructLetBinding
         statements := statements.push <|
           Lean.Compiler.Yul.Statement.varDecl
             #[{ name := structLocalFieldName name fieldDecl.id }]
-            (some (← lowerExpr module field.snd))
+            (some (← lowerExpr module env field.snd))
       .ok statements
   | _ =>
       .error {
@@ -1375,6 +1452,99 @@ def lowerAssignTargetName (context : String) : ProofForge.IR.Expr → Except Low
       .ok (structLocalFieldName name fieldName)
   | _ =>
       .error { message := s!"{context} must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0" }
+
+def dynamicArrayIndexLocalName : String := "__proof_forge_array_index"
+def dynamicArrayValueLocalName : String := "__proof_forge_array_value"
+
+def dynamicLocalFixedArraySwitchCases
+    (length : Nat)
+    (bodyForIndex : Nat → Array Lean.Compiler.Yul.Statement) : Array Lean.Compiler.Yul.Case :=
+  Id.run do
+    let mut cases : Array Lean.Compiler.Yul.Case := #[]
+    for _h : idx in [0:length] do
+      cases := cases.push {
+        value := some (Lean.Compiler.Yul.Literal.natLit idx)
+        body := { statements := bodyForIndex idx }
+      }
+    cases.push {
+      value := none
+      body := { statements := #[revertStmt] }
+    }
+
+def lowerDynamicLocalFixedArrayAssignStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (length : Nat)
+    (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let valueExpr ← lowerExpr module env value
+  let indexExpr ← lowerExpr module env index
+  let cases := dynamicLocalFixedArraySwitchCases length fun idx =>
+    #[.assignment #[arrayLocalElementName name idx] (Lean.Compiler.Yul.Expr.id dynamicArrayValueLocalName)]
+  .ok (.block {
+    statements := #[
+      .varDecl #[{ name := dynamicArrayIndexLocalName }] (some indexExpr),
+      .varDecl #[{ name := dynamicArrayValueLocalName }] (some valueExpr),
+      .switchStmt (Lean.Compiler.Yul.Expr.id dynamicArrayIndexLocalName) cases
+    ]
+  })
+
+def lowerDynamicLocalFixedArrayAssignOpStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (length : Nat)
+    (index : ProofForge.IR.Expr)
+    (op : AssignOp)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let valueExpr ← lowerExpr module env value
+  let indexExpr ← lowerExpr module env index
+  let cases := dynamicLocalFixedArraySwitchCases length fun idx =>
+    let elementName := arrayLocalElementName name idx
+    #[.assignment #[elementName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id elementName) (Lean.Compiler.Yul.Expr.id dynamicArrayValueLocalName))]
+  .ok (.block {
+    statements := #[
+      .varDecl #[{ name := dynamicArrayIndexLocalName }] (some indexExpr),
+      .varDecl #[{ name := dynamicArrayValueLocalName }] (some valueExpr),
+      .switchStmt (Lean.Compiler.Yul.Expr.id dynamicArrayIndexLocalName) cases
+    ]
+  })
+
+def lowerAssignStmt
+    (module : Module)
+    (env : TypeEnv)
+    (target value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  match target with
+  | .arrayGet (.local name) index =>
+      match literalArrayIndex? index with
+      | some _ => do
+          let targetName ← lowerAssignTargetName "assignment target" target
+          .ok #[.assignment #[targetName] (← lowerExpr module env value)]
+      | none => do
+          let (_, length) ← requireLocalFixedArray "assignment target" env name
+          .ok #[← lowerDynamicLocalFixedArrayAssignStmt module env name length index value]
+  | _ => do
+      let targetName ← lowerAssignTargetName "assignment target" target
+      .ok #[.assignment #[targetName] (← lowerExpr module env value)]
+
+def lowerAssignOpStmt
+    (module : Module)
+    (env : TypeEnv)
+    (target : ProofForge.IR.Expr)
+    (op : AssignOp)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  match target with
+  | .arrayGet (.local name) index =>
+      match literalArrayIndex? index with
+      | some _ => do
+          let targetName ← lowerAssignTargetName "compound assignment target" target
+          .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
+      | none => do
+          let (_, length) ← requireLocalFixedArray "compound assignment target" env name
+          .ok #[← lowerDynamicLocalFixedArrayAssignOpStmt module env name length index op value]
+  | _ => do
+      let targetName ← lowerAssignTargetName "compound assignment target" target
+      .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
 
 partial def hasNestedReturn (statements : Array Statement) : Bool :=
   statements.any fun stmt =>
@@ -1406,6 +1576,7 @@ def abiReturnTypedNames (module : Module) (entrypoint : Entrypoint) : Except Low
 
 def lowerFixedArrayReturnWords
     (module : Module)
+    (env : TypeEnv)
     (entrypointName : String)
     (elementType : ValueType)
     (length : Nat)
@@ -1425,7 +1596,7 @@ def lowerFixedArrayReturnWords
         }
       let mut words : Array Lean.Compiler.Yul.Expr := #[]
       for h : idx in [0:values.size] do
-        words := words.push (← lowerExpr module values[idx])
+        words := words.push (← lowerExpr module env values[idx])
       .ok words
   | _ =>
       .error {
@@ -1434,6 +1605,7 @@ def lowerFixedArrayReturnWords
 
 def lowerStructReturnWords
     (module : Module)
+    (env : TypeEnv)
     (entrypointName typeName : String)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
   discard <| abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.structType typeName)
@@ -1454,7 +1626,7 @@ def lowerStructReturnWords
         ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
         let some field := fields.find? fun field => field.fst == fieldDecl.id
           | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-        words := words.push (← lowerExpr module field.snd)
+        words := words.push (← lowerExpr module env field.snd)
       .ok words
   | _ =>
       .error {
@@ -1463,6 +1635,7 @@ def lowerStructReturnWords
 
 def lowerReturnWords
     (module : Module)
+    (env : TypeEnv)
     (entrypointName : String)
     (returnType : ValueType)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
@@ -1470,19 +1643,20 @@ def lowerReturnWords
   | .unit =>
       .error { message := s!"entrypoint `{entrypointName}` has Unit return type and cannot return a value" }
   | .u32 | .u64 | .bool | .hash => do
-      .ok #[← lowerExpr module value]
+      .ok #[← lowerExpr module env value]
   | .fixedArray elementType length =>
-      lowerFixedArrayReturnWords module entrypointName elementType length value
+      lowerFixedArrayReturnWords module env entrypointName elementType length value
   | .structType typeName =>
-      lowerStructReturnWords module entrypointName typeName value
+      lowerStructReturnWords module env entrypointName typeName value
 
 def lowerReturnAssignments
     (module : Module)
+    (env : TypeEnv)
     (entrypointName : String)
     (returnType : ValueType)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   let names ← abiReturnNames module entrypointName returnType
-  let words ← lowerReturnWords module entrypointName returnType value
+  let words ← lowerReturnWords module env entrypointName returnType value
   if names.size != words.size then
     .error { message := s!"entrypoint `{entrypointName}` return lowering produced {words.size} word(s), expected {names.size}" }
   let mut statements : Array Lean.Compiler.Yul.Statement := #[]
@@ -1497,47 +1671,59 @@ mutual
       (module : Module)
       (entrypointName : String)
       (returnType : ValueType)
+      (env : TypeEnv)
       (statements : Array Statement) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
-    statements.foldlM (init := #[]) fun acc stmt => do
-      .ok (acc ++ (← lowerStatement module entrypointName returnType stmt))
+    statements.foldlM (init := (#[], env)) (fun acc stmt => do
+      let (statementsAcc, currentEnv) := acc
+      let (lowered, nextEnv) ← lowerStatement module entrypointName returnType currentEnv stmt
+      .ok (statementsAcc ++ lowered, nextEnv)) |>.map Prod.fst
 
   partial def lowerStatement
       (module : Module)
       (entrypointName : String)
-      (returnType : ValueType) : ProofForge.IR.Statement → Except LowerError (Array Lean.Compiler.Yul.Statement)
-    | .letBind name (.fixedArray elementType length) value =>
-        lowerFixedArrayLetBinding module name elementType length value
-    | .letBind name (.structType typeName) value =>
-        lowerStructLetBinding module name typeName value
+      (returnType : ValueType)
+      (env : TypeEnv) : ProofForge.IR.Statement → Except LowerError (Array Lean.Compiler.Yul.Statement × TypeEnv)
+    | .letBind name (.fixedArray elementType length) value => do
+        let lowered ← lowerFixedArrayLetBinding module env name elementType length value
+        let nextEnv ← addLocal env name (.fixedArray elementType length) false
+        .ok (lowered, nextEnv)
+    | .letBind name (.structType typeName) value => do
+        let lowered ← lowerStructLetBinding module env name typeName value
+        let nextEnv ← addLocal env name (.structType typeName) false
+        .ok (lowered, nextEnv)
     | .letBind name type value => do
         ensureLocalScalarType "let binding" name type
-        .ok #[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value))]
-    | .letMutBind name (.fixedArray elementType length) value =>
-        lowerFixedArrayLetBinding module name elementType length value
-    | .letMutBind name (.structType typeName) value =>
-        lowerStructLetBinding module name typeName value
+        let nextEnv ← addLocal env name type false
+        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module env value))], nextEnv)
+    | .letMutBind name (.fixedArray elementType length) value => do
+        let lowered ← lowerFixedArrayLetBinding module env name elementType length value
+        let nextEnv ← addLocal env name (.fixedArray elementType length) true
+        .ok (lowered, nextEnv)
+    | .letMutBind name (.structType typeName) value => do
+        let lowered ← lowerStructLetBinding module env name typeName value
+        let nextEnv ← addLocal env name (.structType typeName) true
+        .ok (lowered, nextEnv)
     | .letMutBind name type value => do
         ensureLocalScalarType "mutable let binding" name type
-        .ok #[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module value))]
+        let nextEnv ← addLocal env name type true
+        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module env value))], nextEnv)
     | .assign target value => do
-        let name ← lowerAssignTargetName "assignment target" target
-        .ok #[.assignment #[name] (← lowerExpr module value)]
+        .ok (← lowerAssignStmt module env target value, env)
     | .assignOp target op value => do
-        let name ← lowerAssignTargetName "compound assignment target" target
-        .ok #[.assignment #[name] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id name) (← lowerExpr module value))]
+        .ok (← lowerAssignOpStmt module env target op value, env)
     | .effect effect => do
-        .ok #[← lowerEffectStmt module effect]
+        .ok (#[← lowerEffectStmt module env effect], env)
     | .assert condition _ => do
-        .ok #[lowerAssertStmt (← lowerExpr module condition)]
+        .ok (#[lowerAssertStmt (← lowerExpr module env condition)], env)
     | .assertEq lhs rhs _ => do
-        let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module lhs, ← lowerExpr module rhs]
-        .ok #[lowerAssertStmt condition]
+        let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]
+        .ok (#[lowerAssertStmt condition], env)
     | .ifElse condition thenBody elseBody => do
         if hasNestedReturn thenBody || hasNestedReturn elseBody then
           .error { message := "return statements inside if/else branches are not supported by IR EVM v0; return must be the final entrypoint statement" }
-        let thenStatements ← lowerStatements module entrypointName returnType thenBody
-        let elseStatements ← lowerStatements module entrypointName returnType elseBody
-        .ok #[.switchStmt (← lowerExpr module condition) #[
+        let thenStatements ← lowerStatements module entrypointName returnType env thenBody
+        let elseStatements ← lowerStatements module entrypointName returnType env elseBody
+        .ok (#[.switchStmt (← lowerExpr module env condition) #[
           {
             value := some (Lean.Compiler.Yul.Literal.natLit 0)
             body := { statements := elseStatements }
@@ -1546,14 +1732,15 @@ mutual
             value := none
             body := { statements := thenStatements }
           }
-        ]]
+        ]], env)
     | .boundedFor indexName start stopExclusive body => do
         if stopExclusive <= start then
           .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
         if hasNestedReturn body then
           .error { message := "return statements inside bounded for loops are not supported by IR EVM v0; return must be the final entrypoint statement" }
-        let bodyStatements ← lowerStatements module entrypointName returnType body
-        .ok #[.forLoop
+        let loopEnv ← addLocal env indexName .u32 false
+        let bodyStatements ← lowerStatements module entrypointName returnType loopEnv body
+        .ok (#[.forLoop
           { statements := #[
             .varDecl #[{ name := indexName }] (some (Lean.Compiler.Yul.Expr.num start))
           ] }
@@ -1561,9 +1748,9 @@ mutual
           { statements := #[
             .assignment #[indexName] (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id indexName, Lean.Compiler.Yul.Expr.num 1])
           ] }
-          { statements := bodyStatements }]
+          { statements := bodyStatements }], env)
     | .return value => do
-        lowerReturnAssignments module entrypointName returnType value
+        .ok (← lowerReturnAssignments module env entrypointName returnType value, env)
 end
 
 def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do
@@ -1576,7 +1763,7 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
       | _ =>
           .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not end with a return statement" }
   validateEntrypointTypes module entrypoint
-  let body ← lowerStatements module entrypoint.name entrypoint.returns entrypoint.body
+  let body ← lowerStatements module entrypoint.name entrypoint.returns (entrypointTypeEnv entrypoint) entrypoint.body
   let returns ← abiReturnTypedNames module entrypoint
   .ok (.funcDef (yulFunctionName module.name entrypoint.name) params returns { statements := body })
 
@@ -1760,6 +1947,43 @@ def arrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
       ]
     }
 ]
+
+def localArrayGetFunctionParams (length : Nat) : Array Lean.Compiler.Yul.TypedName :=
+  Id.run do
+    let mut params : Array Lean.Compiler.Yul.TypedName := #[{ name := "index" }]
+    for _h : idx in [0:length] do
+      params := params.push { name := localArrayGetValueParamName idx }
+    params
+
+def localArrayGetSwitchCases (length : Nat) : Array Lean.Compiler.Yul.Case :=
+  Id.run do
+    let mut cases : Array Lean.Compiler.Yul.Case := #[]
+    for _h : idx in [0:length] do
+      cases := cases.push {
+        value := some (Lean.Compiler.Yul.Literal.natLit idx)
+        body := {
+          statements := #[
+            .assignment #["result"] (Lean.Compiler.Yul.Expr.id (localArrayGetValueParamName idx))
+          ]
+        }
+      }
+    cases.push {
+      value := none
+      body := { statements := #[revertStmt] }
+    }
+
+def localArrayGetHelperFunction (length : Nat) : Lean.Compiler.Yul.Statement :=
+  .funcDef (localArrayGetFunctionName length)
+    (localArrayGetFunctionParams length)
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .switchStmt (Lean.Compiler.Yul.Expr.id "index") (localArrayGetSwitchCases length)
+      ]
+    }
+
+def localArrayGetHelperFunctions (lengths : Array Nat) : Array Lean.Compiler.Yul.Statement :=
+  lengths.map localArrayGetHelperFunction
 
 def structArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
   .funcDef structArraySlotFunctionName
@@ -1974,6 +2198,142 @@ def moduleCrosscallArities (module : Module) : Array Nat :=
 def crosscallHelperFunctions (arities : Array Nat) : Array Lean.Compiler.Yul.Statement :=
   arities.map crosscallHelperFunction
 
+def localArrayGetLengthsForDynamicExprTarget
+    (env : TypeEnv)
+    (array index : ProofForge.IR.Expr) : Array Nat :=
+  match literalArrayIndex? index with
+  | some _ => #[]
+  | none =>
+      match array with
+      | .local name =>
+          match findLocal? env name with
+          | some { type := .fixedArray _ length, .. } => #[length]
+          | _ => #[]
+      | .arrayLit _ values => #[values.size]
+      | _ => #[]
+
+mutual
+  partial def localArrayGetLengthsExpr (env : TypeEnv) : ProofForge.IR.Expr → Array Nat
+    | .literal _ => #[]
+    | .local _ => #[]
+    | .arrayLit _ values =>
+        values.foldl (init := #[]) fun acc value => mergeNatSets acc (localArrayGetLengthsExpr env value)
+    | .arrayGet array index =>
+        let nested := mergeNatSets (localArrayGetLengthsExpr env array) (localArrayGetLengthsExpr env index)
+        mergeNatSets nested (localArrayGetLengthsForDynamicExprTarget env array index)
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field => mergeNatSets acc (localArrayGetLengthsExpr env field.snd)
+    | .field base _ =>
+        localArrayGetLengthsExpr env base
+    | .add lhs rhs | .sub lhs rhs | .mul lhs rhs | .div lhs rhs | .mod lhs rhs
+    | .pow lhs rhs | .bitAnd lhs rhs | .bitOr lhs rhs | .bitXor lhs rhs
+    | .shiftLeft lhs rhs | .shiftRight lhs rhs | .eq lhs rhs | .ne lhs rhs
+    | .lt lhs rhs | .le lhs rhs | .gt lhs rhs | .ge lhs rhs
+    | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs =>
+        mergeNatSets (localArrayGetLengthsExpr env lhs) (localArrayGetLengthsExpr env rhs)
+    | .cast value _ | .boolNot value | .hash value =>
+        localArrayGetLengthsExpr env value
+    | .hashValue a b c d =>
+        mergeNatSets (mergeNatSets (localArrayGetLengthsExpr env a) (localArrayGetLengthsExpr env b))
+          (mergeNatSets (localArrayGetLengthsExpr env c) (localArrayGetLengthsExpr env d))
+    | .nativeValue => #[]
+    | .crosscallInvoke target methodId args =>
+        let nested := mergeNatSets (localArrayGetLengthsExpr env target) (localArrayGetLengthsExpr env methodId)
+        args.foldl (init := nested) fun acc arg =>
+          mergeNatSets acc (localArrayGetLengthsExpr env arg)
+    | .effect effect =>
+        localArrayGetLengthsEffect env effect
+
+  partial def localArrayGetLengthsEffect (env : TypeEnv) : Effect → Array Nat
+    | .storageScalarRead _ => #[]
+    | .storageScalarWrite _ value | .storageScalarAssignOp _ _ value =>
+        localArrayGetLengthsExpr env value
+    | .storageMapContains _ key | .storageMapGet _ key =>
+        localArrayGetLengthsExpr env key
+    | .storageMapInsert _ key value | .storageMapSet _ key value =>
+        mergeNatSets (localArrayGetLengthsExpr env key) (localArrayGetLengthsExpr env value)
+    | .storageArrayRead _ index | .storageArrayStructFieldRead _ index _ =>
+        localArrayGetLengthsExpr env index
+    | .storageArrayWrite _ index value | .storageArrayStructFieldWrite _ index _ value =>
+        mergeNatSets (localArrayGetLengthsExpr env index) (localArrayGetLengthsExpr env value)
+    | .storageStructFieldRead _ _ => #[]
+    | .storageStructFieldWrite _ _ value =>
+        localArrayGetLengthsExpr env value
+    | .storagePathRead _ path =>
+        path.foldl (init := #[]) fun acc segment => mergeNatSets acc (localArrayGetLengthsStoragePathSegment env segment)
+    | .storagePathWrite _ path value =>
+        let pathLengths := path.foldl (init := #[]) fun acc segment =>
+          mergeNatSets acc (localArrayGetLengthsStoragePathSegment env segment)
+        mergeNatSets pathLengths (localArrayGetLengthsExpr env value)
+    | .storagePathAssignOp _ path _ value =>
+        let pathLengths := path.foldl (init := #[]) fun acc segment =>
+          mergeNatSets acc (localArrayGetLengthsStoragePathSegment env segment)
+        mergeNatSets pathLengths (localArrayGetLengthsExpr env value)
+    | .contextRead _ => #[]
+    | .eventEmit _ fields =>
+        fields.foldl (init := #[]) fun acc field => mergeNatSets acc (localArrayGetLengthsExpr env field.snd)
+
+  partial def localArrayGetLengthsStoragePathSegment (env : TypeEnv) : StoragePathSegment → Array Nat
+    | .field _ => #[]
+    | .index index => localArrayGetLengthsExpr env index
+    | .mapKey key => localArrayGetLengthsExpr env key
+
+  partial def localArrayGetLengthsAssignTarget (env : TypeEnv) : ProofForge.IR.Expr → Array Nat
+    | .arrayGet (.local _) index =>
+        localArrayGetLengthsExpr env index
+    | .field (.local _) _ =>
+        #[]
+    | target =>
+        localArrayGetLengthsExpr env target
+
+  partial def localArrayGetLengthsStatement
+      (module : Module)
+      (env : TypeEnv) : Statement → Except LowerError (Array Nat × TypeEnv)
+    | .letBind name type value => do
+        let nextEnv ← addLocal env name type false
+        .ok (localArrayGetLengthsExpr env value, nextEnv)
+    | .letMutBind name type value => do
+        let nextEnv ← addLocal env name type true
+        .ok (localArrayGetLengthsExpr env value, nextEnv)
+    | .assign target value =>
+        .ok (mergeNatSets (localArrayGetLengthsAssignTarget env target) (localArrayGetLengthsExpr env value), env)
+    | .assignOp target _ value =>
+        .ok (mergeNatSets (localArrayGetLengthsAssignTarget env target) (localArrayGetLengthsExpr env value), env)
+    | .effect effect =>
+        .ok (localArrayGetLengthsEffect env effect, env)
+    | .assert condition _ =>
+        .ok (localArrayGetLengthsExpr env condition, env)
+    | .assertEq lhs rhs _ =>
+        .ok (mergeNatSets (localArrayGetLengthsExpr env lhs) (localArrayGetLengthsExpr env rhs), env)
+    | .ifElse condition thenBody elseBody => do
+        let (thenLengths, _) ← localArrayGetLengthsStatements module env thenBody
+        let (elseLengths, _) ← localArrayGetLengthsStatements module env elseBody
+        let bodyLengths := mergeNatSets thenLengths elseLengths
+        .ok (mergeNatSets (localArrayGetLengthsExpr env condition) bodyLengths, env)
+    | .boundedFor indexName _ _ body => do
+        let loopEnv ← addLocal env indexName .u32 false
+        let (bodyLengths, _) ← localArrayGetLengthsStatements module loopEnv body
+        .ok (bodyLengths, env)
+    | .return value =>
+        .ok (localArrayGetLengthsExpr env value, env)
+
+  partial def localArrayGetLengthsStatements
+      (module : Module)
+      (env : TypeEnv)
+      (statements : Array Statement) : Except LowerError (Array Nat × TypeEnv) :=
+    statements.foldlM (init := (#[], env)) fun acc stmt => do
+      let (lengths, currentEnv) := acc
+      let (stmtLengths, nextEnv) ← localArrayGetLengthsStatement module currentEnv stmt
+      .ok (mergeNatSets lengths stmtLengths, nextEnv)
+end
+
+def moduleLocalArrayGetLengths (module : Module) : Except LowerError (Array Nat) := do
+  let mut lengths : Array Nat := #[]
+  for entrypoint in module.entrypoints do
+    let (entrypointLengths, _) ← localArrayGetLengthsStatements module (entrypointTypeEnv entrypoint) entrypoint.body
+    lengths := mergeNatSets lengths entrypointLengths
+  .ok lengths
+
 def pushAssignOpIfMissing (acc : Array AssignOp) (value : AssignOp) : Array AssignOp :=
   if acc.any (fun existing => existing == value) then acc else acc.push value
 
@@ -2081,6 +2441,7 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
   let helpers := helpers ++ (if moduleUsesSupportedStructArray module then structArrayHelperFunctions else #[])
   let helpers := helpers ++ (if moduleUsesHash module then hashHelperFunctions else #[])
   let helpers := helpers ++ crosscallHelperFunctions (moduleCrosscallArities module)
+  let helpers := helpers ++ localArrayGetHelperFunctions (← moduleLocalArrayGetLengths module)
   .ok {
     name := module.name
     code := { statements := #[dispatch] ++ functions ++ helpers }

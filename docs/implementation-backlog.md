@@ -178,13 +178,19 @@ Tasks:
   `U32`, `Bool`, and `Hash` elements with static literal indexes, direct
   fixed-array literal indexing, `EvmArrayValueProbe` golden Yul, solc
   bytecode, Foundry runtime validation, metadata capability validation, and
-  explicit diagnostics for dynamic local indexes and static out-of-bounds
-  indexes.
+  explicit diagnostics for static out-of-bounds indexes.
 - Done: extend EVM IR local fixed-array lowering to mutable aggregate locals,
   including static element assignment, numeric element compound assignment, and
   `U32`/`Bool`/`Hash` element writes, with `EvmArrayValueProbe` golden Yul,
   solc bytecode, Foundry runtime validation, metadata entrypoint validation,
   CI coverage, and explicit diagnostics for immutable element assignment.
+- Done: extend EVM IR local fixed-array lowering to dynamic local/literal
+  indexes by threading a lowering environment through expressions, generating
+  length-specific Yul getter helpers for dynamic reads, lowering dynamic local
+  element assignment and numeric compound assignment to `switch` blocks, and
+  validating dynamic in-bounds/out-of-bounds behavior through
+  `EvmArrayValueProbe` golden Yul, metadata entrypoints, solc bytecode, and
+  Foundry runtime checks.
 - Done: add EVM IR flat immutable local struct value lowering for `U64`,
   `U32`, `Bool`, and `Hash` fields, direct struct literal field access,
   `EvmStructValueProbe` golden Yul, solc bytecode, Foundry runtime validation,

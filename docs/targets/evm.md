@@ -165,7 +165,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, and flat scalar storage struct field read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`) |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static local/literal index reads, static local element assignment/compound assignment, flat static fixed-array ABI parameters, and multi-word fixed-array returns; dynamic local indexes, zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, flat static fixed-array ABI parameters, and multi-word fixed-array returns; zero-length ABI arrays, nested arrays, and unsupported element shapes still reject explicitly |
 | `data.struct` | Partial: portable IR flat immutable and mutable local struct values, struct literals, field access, static local field assignment/compound assignment, flat ABI-facing struct parameters, multi-word struct returns, flat scalar storage structs, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields, whole-struct storage reads/writes, and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
@@ -217,8 +217,7 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   `crosscallInvoke`, and static bounded loops. It rejects wider portable IR
   nodes with explicit diagnostics.
 - Portable IR EVM currently lacks dynamic or nested aggregate ABI values,
-  non-word or aggregate map shapes, dynamic local fixed-array
-  indexes, nested arrays, whole local aggregate assignment, whole-struct
+  non-word or aggregate map shapes, nested arrays, whole local aggregate assignment, whole-struct
   storage reads/writes, nested local structs, indexed/Solidity-signature event schemas,
   `staticcall`/`delegatecall`/contract-creation IR nodes, richer cross-call
   return data, and real creation-transaction or broadcast manifests.
@@ -430,13 +429,15 @@ explicit diagnostics.
 
 `EvmArrayValueProbe` validates portable IR local fixed-array values. Immutable
 and mutable local fixed-array bindings expand into one Yul local per element.
-`arrayGet` over local arrays or array literals currently requires a static
-`U32`/`U64` literal index; the same static index form is supported as a mutable
-local element assignment or numeric compound-assignment target. The smoke covers
-`U64`, `U32`, `Bool`, and `Hash` element arrays, mutable element writes, golden
-Yul reproducibility, `solc --strict-assembly`, artifact metadata, Foundry
-runtime calls, and unknown-selector revert behavior. Dynamic local indexes and
-nested arrays remain explicit diagnostics.
+`arrayGet` over local arrays or array literals supports static `U32`/`U64`
+literal indexes and dynamic word indexes. Dynamic reads lower through
+length-specific Yul helpers with default revert cases; dynamic mutable local
+element assignment and numeric compound assignment lower to `switch` blocks over
+the expanded locals. The smoke covers `U64`, `U32`, `Bool`, and `Hash` element
+arrays, static and dynamic mutable element writes, golden Yul reproducibility,
+`solc --strict-assembly`, artifact metadata, Foundry runtime calls, dynamic
+out-of-bounds reverts, and unknown-selector revert behavior. Nested arrays
+remain explicit diagnostics.
 
 `EvmStructValueProbe` validates portable IR flat local struct values. Immutable
 and mutable struct local bindings expand into one internal Yul local per

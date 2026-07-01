@@ -171,21 +171,6 @@ def wholeFixedArrayAssignmentModule : Module :=
     .assign (.local "xs") (.arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)])
   ]
 
-def fixedArrayDynamicIndexModule : Module := {
-  name := "BadFixedArrayDynamicIndex"
-  state := #[markerState]
-  entrypoints := #[{
-    name := "bad"
-    selector? := some "deadbeef"
-    params := #[("index", .u64)]
-    returns := .u64
-    body := #[
-      .letBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]),
-      .return (.arrayGet (.local "xs") (.local "index"))
-    ]
-  }]
-}
-
 def fixedArrayOutOfBoundsModule : Module :=
   selectedModule "BadFixedArrayOutOfBounds" <| selectedReturnEntrypoint "bad" .u64 #[
     .letBind "xs" (.fixedArray .u64 2) (.arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)]),
@@ -502,11 +487,6 @@ def cases : Array (String × Module × String) := #[
     "whole fixed array assignment unsupported",
     wholeFixedArrayAssignmentModule,
     "assignment target local `xs` has aggregate type `Array<U64,2>`; assign fixed-array elements or struct fields explicitly in IR EVM v0"
-  ),
-  (
-    "fixed array dynamic local index unsupported",
-    fixedArrayDynamicIndexModule,
-    "fixed array indexing in IR EVM v0 requires a U32/U64 literal index for local fixed-array values"
   ),
   (
     "fixed array literal out of bounds",

@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Dynamic Local Fixed-Array Indexes
+
+Commit: feature commit for EVM IR dynamic local fixed-array indexing
+
+Summary:
+
+- Threaded the EVM IR lowering environment through expression, effect,
+  aggregate binding, return, and statement lowering so local aggregate shape is
+  available during code generation.
+- Added dynamic `arrayGet` lowering for local fixed-array values and fixed-array
+  literals using length-specific Yul getter helpers with default revert cases.
+- Added dynamic mutable local fixed-array element assignment and numeric
+  compound assignment lowering with Yul `switch` blocks over expanded local
+  elements.
+- Extended `EvmArrayValueProbe` with `dynamic_pick(uint256)` and
+  `dynamic_update(uint256)`, refreshed golden Yul, metadata entrypoint
+  validation, and Foundry assertions for in-bounds values and out-of-bounds
+  reverts.
+- Updated EVM diagnostics, coverage manifests, target docs, validation gates,
+  backlog, and Chinese docs to remove the stale dynamic-local-index limitation.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR proof-forge
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- Dynamic fixed-array indexing is limited to local fixed-array values and
+  fixed-array literals whose elements lower to EVM words.
+- Nested arrays, whole local aggregate assignment, nested local structs, and
+  whole-struct storage reads/writes remain explicit diagnostics.
+- Dynamic or nested aggregate ABI values remain out of scope for the current
+  flat ABI lowering.
+
+Next step:
+
+- Continue shrinking the EVM aggregate unsupported surface, most likely around
+  nested aggregate locals or richer cross-call return data.
+
 ### EVM Deploy Manifest Metadata
 
 Commit: feature commit for EVM deploy manifest metadata
@@ -92,7 +135,8 @@ scripts/evm/diagnostic-smoke.sh
 
 Known limitations:
 
-- Local fixed-array indexes still require static `U32`/`U64` literal indexes.
+- Dynamic local fixed-array indexing is handled by the later
+  "EVM IR Dynamic Local Fixed-Array Indexes" entry.
 - Whole local aggregate assignment remains an explicit diagnostic; update
   elements or fields directly for now.
 - Nested arrays, nested local structs, and whole-struct storage reads/writes
@@ -100,9 +144,8 @@ Known limitations:
 
 Next step:
 
-- Decide whether the next EVM aggregate increment should be dynamic local
-  fixed-array indexing, nested aggregate locals, or target-specific deployment
-  manifests.
+- Continue shrinking the EVM aggregate unsupported surface around nested
+  aggregate locals or richer cross-call return data.
 
 ### EVM IR Scalar Expression Probe
 
