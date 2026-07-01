@@ -54,20 +54,32 @@ GC) — the documented blocker. `EmitWat` lowers the portable IR directly and
 avoids that port entirely; it also avoids coupling to `near-sdk` macros (the
 source of the E0119 / missing-`&self` bugs in the Rust v0).
 
-### Spike gate (highest risk) — FOUNDATIONALLY DE-RISKED
+### Spike gate (highest risk) — RESOLVED (EmitWat end-to-end)
 
-NEAR passes entrypoint arguments as serialized JSON/Borsh and expects
-serialized returns; contract methods export as `() -> ()` dispatchers that
-read args via `env.input()`/`env.read_register` and return via
-`env.value_return` (not wasm function returns).
+NEAR passes entrypoint arguments as serialized Borsh and expects serialized
+returns; contract methods export as `() -> ()` dispatchers that read args via
+`env.input()`/`env.read_register` and return via `env.value_return` (not wasm
+function returns).
 
-A hand-written reference counter (`examples/near/spike/handwritten-counter.wat`,
-~40 lines, no Lean runtime / no WASI / no `near-sdk`) deploys to `near-sandbox`
-and passes the counter scenario (`init`→`get`==0→`increment`→`get`==1). This
-proves the register-based host ABI and JSON-ish returns are tractable at the
-WAT level. Remaining work is the IR→WAT lowering itself plus multi-argument /
-structured JSON (de)serialization for non-trivial entrypoint signatures; the
-foundational risk is resolved.
+The risk is fully de-risked, not just by the hand-written reference counter
+(`examples/near/spike/handwritten-counter.wat`, ~40 lines) but by the complete
+`EmitWat` backend lowering real IR modules end-to-end. The ABI is **symmetric
+Borsh**: params decode from `env.input` (u32/u64/bool/hash, packed LE at
+their cumulative Borsh offset) and returns encode via `value_return` of LE bytes
+(u32/u64/bool) or the 32-byte hash directly — matching `near-sdk-rs`'s Borsh
+convention, no JSON.
+
+7 IR example probes deploy to `near-sandbox` and pass their scenarios via
+`viewRaw` + Borsh decode (Counter / Features / Map / Hash / Context / Params /
+Event), plus a `Map<Hash,Hash>` smoke (hash-keyed map) and a u32 arithmetic
+smoke that exercises `.pow` (17^2=289 asserted). The four CLI emit modes
+(`--emit-{counter,context,hash,map}-emitwat -o <dir>`) lower the built-in IR
+examples and write `<name>.wat` + `<name>.wasm` (via `wat2wasm`) — a
+deploy-ready package with no `cargo` step.
+
+The foundational risk is resolved: the register-based host ABI and Borsh
+(de)serialization are tractable at the WAT level for real IR, not just a
+hand-written counter.
 
 ## Frozen v0 reference (Rust sourcegen)
 
@@ -197,6 +209,19 @@ proof-forge --emit-map-ir-wasm-near -o build/wasm-near/MapProbe
 directory (not a single file). Existing EVM/Psy `-o` behavior is unchanged.
 
 ## Implementation Files
+
+**Canonical (EmitWat):**
+
+| File | Purpose |
+|---|---|
+| `ProofForge/Backend/WasmNear/EmitWat.lean` | Core EmitWat lowering: IR → Wasm AST (scalars, maps incl. `Map<Hash,T>`, hash, context, events, params, returns, `.pow`) |
+| `ProofForge/Backend/WasmNear/IR.lean` | Wasm AST → WAT text + printer wiring |
+| `ProofForge/Compiler/Wasm/AST.lean` / `Printer.lean` | Wasm AST + WAT printer |
+| `Tests/EmitWat{Smoke,Features,Map,Hash,Context,Params,Event,Hashmap,Arith}.lean` | Per-probe renderers |
+| `Examples/near/spike/emitwat-{regression,hashmap-smoke,arith-smoke}.cjs` | Deploy + Borsh-decode smoke tests |
+| `ProofForge/Cli.lean` | `--emit-{counter,context,hash,map}-emitwat` modes, `writeWatPackage`, `compileEmitWat` |
+
+**Frozen v0 reference (Rust sourcegen):**
 
 | File | Purpose |
 |---|---|
