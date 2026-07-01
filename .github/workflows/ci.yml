@@ -42,6 +42,9 @@ jobs:
       - name: Build Lean package
         run: lake build
 
+      - name: Check documentation translations
+        run: scripts/i18n/check-sync.sh
+
       - name: Check Psy golden sources
         run: |
           lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy

@@ -1,6 +1,6 @@
 {
   "README.md": {
-    "sha256": "4dc0d20ef2e3279867eff61ce092e131eba85a5e8d9d1b5a788371aa30e6ccd0",
+    "sha256": "85361e20f1d35e10f61964603b8a9214e2f32ee26835553c22cad8562ba1bb6d",
     "zh": "docs/zh/README-root.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -20,17 +20,17 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/capability-registry.md": {
-    "sha256": "4a0b7fd7b8f84f09361230368dd567fc3fd55ee39cbf0d633af5ec7fbcbb62d0",
+    "sha256": "300594ee9da30e135cd24daf20835950367293937a2fb0f1d905cb4135122603",
     "zh": "docs/zh/capability-registry.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/portable-ir.md": {
-    "sha256": "976e4b704d14f45f5bb342f30df3805499bf139d71ff9fa298930787080ec516",
+    "sha256": "c0838feaa1445db6405a0222bd989ed6944408d9853d65dc7dcec1c1d94ce527",
     "zh": "docs/zh/portable-ir.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/shared-scenario.md": {
-    "sha256": "c830db8cdb85b0f64285a4e0ae587c0af8a5177833e56978b9819311ebc2ea86",
+    "sha256": "6bfb9d94ea09331cd733f611de51f813d4c543e2df8ee1669afba9cf6ae6ee08",
     "zh": "docs/zh/shared-scenario.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -40,12 +40,12 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/review-checklist.md": {
-    "sha256": "174da3b61be44290f3b818b839c53bd359eea9bdfa2b3574acbfaa59163900b2",
+    "sha256": "ff8faffc195d72e1d47fbd6c3a12fd90b284c591131c0a0031ab5841e26dc707",
     "zh": "docs/zh/review-checklist.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/development-standards.md": {
-    "sha256": "37a514ca9638c60830ea0a0fd5c085ab5d6b82900ae41f3156cd22cf91fd99b2",
+    "sha256": "2ff208c90bc4af3952e5e4a2a9f5c2212568e1f89b73591a7b756bc8ccaef890",
     "zh": "docs/zh/development-standards.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -60,12 +60,12 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/0001-multichain-platform.md": {
-    "sha256": "0eb52f6c10d87eafd5d856af94c24df728a811876ea59aa68ebe831f9dc90755",
+    "sha256": "924a9cb230975c574566527e183bd2b145534cbba78dcecb0ce33fe1fd1e3da8",
     "zh": "docs/zh/rfcs/0001-multichain-platform.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/0002-target-implementation-design.md": {
-    "sha256": "305d6a35cbe5293f992f216342bff5878ab3fc4135a2f0b001f1fac146ab8d0f",
+    "sha256": "323c7532d221a117e9dfd00846cab9447b58933da953c18998b47c2018c744b5",
     "zh": "docs/zh/rfcs/0002-target-implementation-design.zh.md",
     "model": "gemini-3-flash-preview"
   },
