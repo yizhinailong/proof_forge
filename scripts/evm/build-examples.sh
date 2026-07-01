@@ -26,6 +26,11 @@ fi
 
 mkdir -p "$OUT_DIR"
 
+# SDK examples import ProofForge.Evm directly. The default CI `lake build`
+# builds the CLI executable, but a clean checkout may not have this module's
+# .olean unless the library module is requested explicitly.
+(cd "$ROOT" && lake build ProofForge.Evm >/dev/null)
+
 failures=0
 while IFS= read -r -d '' lean_file; do
   name="$(basename "$lean_file" .lean)"

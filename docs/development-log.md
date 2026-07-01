@@ -32,6 +32,9 @@ Summary:
   `--emit-context-ir-psy` continues to use the Psy-compatible fixture.
 - Fixed the GitHub Actions failure where the Psy golden source step attempted
   to lower `nativeValue`, which Psy IR v0 intentionally rejects.
+- Made `scripts/evm/build-examples.sh` explicitly build `ProofForge.Evm` before
+  compiling SDK examples so clean CI environments have the SDK `.olean` needed
+  by the Lean frontend.
 
 Validation run:
 
@@ -39,6 +42,7 @@ Validation run:
 lake build
 # Full Check Psy golden sources block from .github/workflows/ci.yml
 scripts/evm/context-ir-smoke.sh
+scripts/evm/build-examples.sh
 scripts/psy/diagnostic-smoke.sh
 scripts/psy/check-ir-coverage-manifest.py
 scripts/evm/diagnostic-smoke.sh
