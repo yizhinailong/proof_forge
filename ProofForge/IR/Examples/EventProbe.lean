@@ -10,6 +10,12 @@ def stateMarker : StateDecl := {
   type := .u64
 }
 
+def storedPairState : StateDecl := {
+  id := "storedPair"
+  kind := .scalar
+  type := .structType "Pair"
+}
+
 def pairStruct : StructDecl := {
   name := "Pair"
   fields := #[
@@ -58,6 +64,17 @@ def emitPairEvent : Entrypoint := {
   ]
 }
 
+def emitStoragePairEvent : Entrypoint := {
+  name := "emit_storage_pair_event"
+  selector? := some "65123829"
+  returns := .unit
+  params := #[("left", .u64), ("right", .u64)]
+  body := #[
+    .effect (.storageScalarWrite "storedPair" (pair (.local "left") (.local "right"))),
+    .effect (.eventEmit "StoragePairEvent" #[("pair", .effect (.storageScalarRead "storedPair"))])
+  ]
+}
+
 def emitArrayEvent : Entrypoint := {
   name := "emit_array_event"
   selector? := some "393f7138"
@@ -93,6 +110,20 @@ def emitIndexedPairEvent : Entrypoint := {
     .effect (.eventEmitIndexed
       "IndexedPair"
       #[("pair", .local "pair")]
+      #[("value", .local "value")])
+  ]
+}
+
+def emitIndexedStoragePairEvent : Entrypoint := {
+  name := "emit_indexed_storage_pair_event"
+  selector? := some "f4a27402"
+  returns := .unit
+  params := #[("left", .u64), ("right", .u64), ("value", .u64)]
+  body := #[
+    .effect (.storageScalarWrite "storedPair" (pair (.local "left") (.local "right"))),
+    .effect (.eventEmitIndexed
+      "IndexedStoragePair"
+      #[("pair", .effect (.storageScalarRead "storedPair"))]
       #[("value", .local "value")])
   ]
 }
@@ -137,14 +168,16 @@ def module : Module := {
 def evmModule : Module := {
   name := "EventProbe"
   structs := #[pairStruct]
-  state := #[stateMarker]
+  state := #[stateMarker, storedPairState]
   entrypoints := #[
     emitValueEvent,
     emitIndexedEvent,
     emitPairEvent,
+    emitStoragePairEvent,
     emitArrayEvent,
     emitPairArrayEvent,
     emitIndexedPairEvent,
+    emitIndexedStoragePairEvent,
     emitIndexedArrayEvent,
     emitIndexedPairArrayEvent
   ]

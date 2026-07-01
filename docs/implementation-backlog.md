@@ -162,6 +162,13 @@ Tasks:
   topics by adding `IndexedArray(uint64[2],uint64)` golden Yul, metadata selector
   validation, solc bytecode generation, and Foundry recorded-log topic-hash
   checks.
+- Done: add EventProbe coverage for storage-backed flat struct event data and
+  indexed aggregate topics. `StoragePairEvent((uint64,uint64))` and
+  `IndexedStoragePair((uint64,uint64),uint64)` now prove that a whole scalar
+  storage struct write can be read back through `storageScalarRead`, flattened
+  into event data words, hashed into indexed topics, validated in golden Yul,
+  checked in metadata selectors, compiled by `solc`, and decoded by Foundry
+  recorded logs.
 - Done: add EVM IR `crosscallInvoke` lowering to synchronous EVM `call`
   helpers with selector packing, word arguments, one-word returns, failed-call
   and short-return reverts, with `EvmCrosscallProbe` golden Yul, solc bytecode,

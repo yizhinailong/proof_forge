@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Storage-Backed Event Aggregates
+
+Commit: feature commit for EVM IR storage-backed aggregate events
+
+Summary:
+
+- Extended `EventProbe` with a flat scalar storage struct state and two
+  entrypoints:
+  `emit_storage_pair_event(uint256,uint256)` and
+  `emit_indexed_storage_pair_event(uint256,uint256,uint256)`.
+- Validated the existing storage-backed event lowering path where a whole flat
+  struct is written with `storageScalarWrite`, read with `storageScalarRead`,
+  flattened into non-indexed event data words, or flattened and hashed into an
+  indexed aggregate topic.
+- Refreshed `EventProbe` golden Yul, metadata selector checks, Foundry
+  recorded-log checks, coverage, English target docs, Chinese target docs,
+  validation gates, and implementation backlog notes.
+
+Validation run:
+
+```sh
+scripts/evm/event-ir-smoke.sh
+```
+
+Result:
+
+- `EventProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 11 EventProbe tests, including `StoragePairEvent` data flattening
+  from storage reads and `IndexedStoragePair` topic hashing from storage reads.
+
+Known limitations:
+
+- Indexed event fields remain limited to three fields after the signature topic.
+- Nested fixed arrays, non-flat structs, and unsupported aggregate leaves remain
+  explicit diagnostics for event fields.
+- First-class event declarations are still not represented in the portable IR.
+
+Next step:
+
+- Continue shrinking the EVM event gap around richer event declarations, or move
+  to another unsupported EVM capability surface.
+
 ### EVM IR Indexed Aggregate Event Topics
 
 Commit: feature commit for EVM IR indexed aggregate event topics

@@ -42,9 +42,11 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint emit_value_event:2ae8cae3 \
   --expect-entrypoint emit_indexed_event:bc07d04f \
   --expect-entrypoint emit_pair_event:35361bda \
+  --expect-entrypoint emit_storage_pair_event:65123829 \
   --expect-entrypoint emit_array_event:393f7138 \
   --expect-entrypoint emit_pair_array_event:85611e74 \
   --expect-entrypoint emit_indexed_pair_event:e027f054 \
+  --expect-entrypoint emit_indexed_storage_pair_event:f4a27402 \
   --expect-entrypoint emit_indexed_array_event:b7de5dd7 \
   --expect-entrypoint emit_indexed_pair_array_event:c1375f82 \
   "$METADATA_FILE"
@@ -165,6 +167,25 @@ contract ProofForgeIREventSmokeTest {
         assertEq(abi.decode(logs[0].data, (uint256)), 99);
     }
 
+    function testIRIndexedStorageStructEventHashesAggregateTopic() public {
+        address probe = address(uint160(0xE139));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_indexed_storage_pair_event(uint256,uint256,uint256)", 66, 77, 88));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 2);
+        assertEq(logs[0].topics[0], keccak256(bytes("IndexedStoragePair((uint64,uint64),uint64)")));
+        assertEq(logs[0].topics[1], keccak256(abi.encode(uint256(66), uint256(77))));
+        assertEq(abi.decode(logs[0].data, (uint256)), 88);
+    }
+
     function testIRIndexedFixedArrayEventHashesAggregateTopic() public {
         address probe = address(uint160(0xE138));
         deployRuntime(hex"$probe_hex", probe);
@@ -221,6 +242,26 @@ contract ProofForgeIREventSmokeTest {
         (uint256 left, uint256 right) = abi.decode(logs[0].data, (uint256, uint256));
         assertEq(left, 11);
         assertEq(right, 22);
+    }
+
+    function testIRStorageStructEventFlattensDataWords() public {
+        address probe = address(uint160(0xE13A));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_storage_pair_event(uint256,uint256)", 66, 77));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 1);
+        assertEq(logs[0].topics[0], keccak256(bytes("StoragePairEvent((uint64,uint64))")));
+        (uint256 left, uint256 right) = abi.decode(logs[0].data, (uint256, uint256));
+        assertEq(left, 66);
+        assertEq(right, 77);
     }
 
     function testIRFixedArrayEventFlattensDataWords() public {

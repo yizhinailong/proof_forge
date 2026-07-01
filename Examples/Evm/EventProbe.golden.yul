@@ -22,6 +22,13 @@ object "EventProbe" {
       f_EventProbe_emit_pair_event(calldataload(4), calldataload(36))
       return(0, 0)
     }
+    case 0x65123829 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_storage_pair_event(calldataload(4), calldataload(36))
+      return(0, 0)
+    }
     case 0x393f7138 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
@@ -41,6 +48,13 @@ object "EventProbe" {
         revert(0, 0)
       }
       f_EventProbe_emit_indexed_pair_event(calldataload(4), calldataload(36), calldataload(68))
+      return(0, 0)
+    }
+    case 0xf4a27402 {
+      if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_indexed_storage_pair_event(calldataload(4), calldataload(36), calldataload(68))
       return(0, 0)
     }
     case 0xb7de5dd7 {
@@ -88,6 +102,22 @@ object "EventProbe" {
         log1(0, 64, _topic0)
       }
     }
+    function f_EventProbe_emit_storage_pair_event(left, right) {
+      {
+        let __proof_forge_assign_storage_struct_storedPair_left := left
+        let __proof_forge_assign_storage_struct_storedPair_right := right
+        sstore(1, __proof_forge_assign_storage_struct_storedPair_left)
+        sstore(2, __proof_forge_assign_storage_struct_storedPair_right)
+      }
+      {
+        mstore(0, 37747689869461643464471119645442085481810897222302362980564207035825813599273)
+        mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
+        let _topic0 := keccak256(0, 33)
+        mstore(0, sload(1))
+        mstore(32, sload(2))
+        log1(0, 64, _topic0)
+      }
+    }
     function f_EventProbe_emit_array_event(left, right) {
       let __proof_forge_array_values_0 := left
       let __proof_forge_array_values_1 := right
@@ -124,6 +154,24 @@ object "EventProbe" {
         let _topic0 := keccak256(0, 35)
         mstore(0, __proof_forge_struct_pair_left)
         mstore(32, __proof_forge_struct_pair_right)
+        let _indexed_topic0 := keccak256(0, 64)
+        mstore(0, value)
+        log2(0, 32, _topic0, _indexed_topic0)
+      }
+    }
+    function f_EventProbe_emit_indexed_storage_pair_event(left, right, value) {
+      {
+        let __proof_forge_assign_storage_struct_storedPair_left := left
+        let __proof_forge_assign_storage_struct_storedPair_right := right
+        sstore(1, __proof_forge_assign_storage_struct_storedPair_left)
+        sstore(2, __proof_forge_assign_storage_struct_storedPair_right)
+      }
+      {
+        mstore(0, 33213884033972546274058268154838342578559400571704103657156312403158764516406)
+        mstore(32, 23593015698242013539937703465736163356655840090613832088544081947677448732672)
+        let _topic0 := keccak256(0, 42)
+        mstore(0, sload(1))
+        mstore(32, sload(2))
         let _indexed_topic0 := keccak256(0, 64)
         mstore(0, value)
         log2(0, 32, _topic0, _indexed_topic0)
