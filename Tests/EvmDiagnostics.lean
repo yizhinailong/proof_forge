@@ -630,7 +630,7 @@ def cases : Array (String × Module × String) := #[
   (
     "invalid assignment target unsupported",
     invalidAssignmentTargetModule,
-    "assignment target must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0"
+    "assignment target must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0"
   ),
   (
     "immutable assignment unsupported",
@@ -640,7 +640,7 @@ def cases : Array (String × Module × String) := #[
   (
     "compound assignment target unsupported",
     compoundAssignmentTargetModule,
-    "compound assignment target must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0"
+    "compound assignment target must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0"
   ),
   (
     "compound assignment type mismatch",

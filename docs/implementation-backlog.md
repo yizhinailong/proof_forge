@@ -217,6 +217,13 @@ Tasks:
   fields, and validating local-source and self-referential literal RHS behavior
   through `EvmStructValueProbe` golden Yul, metadata entrypoints, solc bytecode,
   and Foundry runtime checks.
+- Done: add EVM IR local fixed arrays of flat structs, expanding each element
+  field into deterministic Yul locals, supporting static and dynamic
+  `field(arrayGet(localArray, index), name)` reads, mutable field assignment,
+  numeric field compound assignment, `U64`/`U32`/`Bool`/`Hash` field coverage,
+  dynamic out-of-bounds reverts, `EvmStructArrayValueProbe` golden Yul, metadata
+  entrypoint/capability validation, solc bytecode generation, Foundry runtime
+  checks, and CI coverage.
 - Done: add EVM IR flat storage struct lowering for scalar storage structs and
   fixed storage arrays of flat structs, including direct struct field effects,
   scalar `field` storage paths, array `index`+`field` storage paths, numeric

@@ -144,6 +144,9 @@ def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
 def arrayLocalElementName (name : String) (index : Nat) : String :=
   s!"__proof_forge_array_{name}_{index}"
 
+def arrayStructLocalFieldName (name : String) (index : Nat) (fieldName : String) : String :=
+  s!"__proof_forge_array_struct_{name}_{index}_{fieldName}"
+
 def localArrayGetFunctionName (length : Nat) : String :=
   s!"__proof_forge_local_array_get_{length}"
 
@@ -477,12 +480,35 @@ def ensureStructLocalFieldType (structName fieldName : String) (type : ValueType
         message := s!"field `{fieldName}` in struct `{structName}` has unsupported EVM IR v0 local struct field type `{type.name}`; local structs support U32, U64, Bool, or Hash fields"
       }
 
+def ensureLocalFlatStructType (module : Module) (context typeName : String) : Except LowerError StructDecl := do
+  let some decl := findStruct? module typeName
+    | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+  if decl.fields.isEmpty then
+    .error { message := s!"{context} uses empty struct `{typeName}`; local fixed arrays of structs require at least one field" }
+  for field in decl.fields do
+    ensureStructLocalFieldType typeName field.id field.type
+  .ok decl
+
 def structFieldType (module : Module) (typeName fieldName : String) : Except LowerError ValueType := do
   let some decl := findStruct? module typeName
     | .error { message := s!"unknown struct `{typeName}`" }
   let some field := findStructField? decl fieldName
     | .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
   .ok field.type
+
+def requireLocalFixedStructArrayField
+    (module : Module)
+    (env : TypeEnv)
+    (context name fieldName : String) : Except LowerError (String × Nat × ValueType) := do
+  let (elementType, length) ← requireLocalFixedArray context env name
+  match elementType with
+  | .structType typeName => do
+      discard <| ensureLocalFlatStructType module s!"{context} local `{name}` element" typeName
+      let fieldType ← structFieldType module typeName fieldName
+      ensureStructLocalFieldType typeName fieldName fieldType
+      .ok (typeName, length, fieldType)
+  | other =>
+      .error { message := s!"{context} local `{name}` expected fixed-array struct element, got `{other.name}`" }
 
 def requireStructStateField
     (module : Module)
@@ -850,6 +876,23 @@ def validateLocalStructTarget
   | other =>
       .error { message := s!"{context} local `{name}` expected struct target, got `{other.name}`" }
 
+def validateLocalStructArrayFieldTarget
+    (module : Module)
+    (env : TypeEnv)
+    (context name : String)
+    (index : ProofForge.IR.Expr)
+    (fieldName : String)
+    (value : ProofForge.IR.Expr) : Except LowerError ValueType := do
+  discard <| requireMutableLocal env context name
+  let (_, length, fieldType) ← requireLocalFixedStructArrayField module env context name fieldName
+  ensureArrayIndexType s!"{context} fixed-array index" (← inferExprType module env index)
+  match literalArrayIndex? index with
+  | some indexValue =>
+      ensureFixedArrayIndexInBounds s!"{context} fixed-array index" indexValue length
+  | none => pure ()
+  ensureType s!"{context} value" fieldType (← inferExprType module env value)
+  .ok fieldType
+
 def validateAssignTarget
     (module : Module)
     (env : TypeEnv)
@@ -876,10 +919,12 @@ def validateAssignTarget
           ensureType "assignment value" binding.type (← inferExprType module env value)
   | .arrayGet (.local name) index => do
       discard <| validateLocalFixedArrayTarget module env "assignment target" name index value
+  | .field (.arrayGet (.local name) index) fieldName => do
+      discard <| validateLocalStructArrayFieldTarget module env "assignment target" name index fieldName value
   | .field (.local name) fieldName => do
       discard <| validateLocalStructTarget module env "assignment target" name fieldName value
   | _ =>
-      .error { message := "assignment target must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0" }
+      .error { message := "assignment target must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0" }
 
 def validateAssignOpTarget
     (module : Module)
@@ -894,11 +939,14 @@ def validateAssignOpTarget
   | .arrayGet (.local name) index => do
       let targetType ← validateLocalFixedArrayTarget module env "compound assignment target" name index value
       ensureAssignOpTypes op targetType (← inferExprType module env value)
+  | .field (.arrayGet (.local name) index) fieldName => do
+      let targetType ← validateLocalStructArrayFieldTarget module env "compound assignment target" name index fieldName value
+      ensureAssignOpTypes op targetType (← inferExprType module env value)
   | .field (.local name) fieldName => do
       let targetType ← validateLocalStructTarget module env "compound assignment target" name fieldName value
       ensureAssignOpTypes op targetType (← inferExprType module env value)
   | _ =>
-      .error { message := "compound assignment target must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0" }
+      .error { message := "compound assignment target must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0" }
 
 mutual
   partial def validateStatements (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) (statements : Array Statement) : Except LowerError TypeEnv :=
@@ -1068,7 +1116,17 @@ mutual
       (array index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     match array with
     | .local name => do
-        let (_, length) ← requireLocalFixedArray "fixed array indexing" env name
+        let (elementType, length) ← requireLocalFixedArray "fixed array indexing" env name
+        match elementType with
+        | .structType _ =>
+            .error {
+              message := s!"fixed array indexing local `{name}` returns struct values; IR EVM v0 requires field access such as array[index].field"
+            }
+        | .unit | .fixedArray _ _ =>
+            .error {
+              message := s!"fixed array indexing local `{name}` has unsupported EVM IR v0 element type `{elementType.name}`"
+            }
+        | .u32 | .u64 | .bool | .hash => pure ()
         match literalArrayIndex? index with
         | some indexValue => do
             ensureFixedArrayIndexInBounds "fixed array index" indexValue length
@@ -1103,6 +1161,17 @@ mutual
     match base with
     | .local name =>
         .ok (Lean.Compiler.Yul.Expr.id (structLocalFieldName name fieldName))
+    | .arrayGet (.local name) index => do
+        let (_, length, _) ← requireLocalFixedStructArrayField module env "struct field access" name fieldName
+        match literalArrayIndex? index with
+        | some indexValue => do
+            ensureFixedArrayIndexInBounds "struct field fixed-array index" indexValue length
+            .ok (Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName name indexValue fieldName))
+        | none => do
+            let mut values : Array Lean.Compiler.Yul.Expr := #[]
+            for _h : idx in [0:length] do
+              values := values.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName name idx fieldName))
+            .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName length) (#[← lowerExpr module env index] ++ values))
     | .structLit _ fields => do
         let some field := fields.find? fun field => field.fst == fieldName
           | .error { message := s!"struct literal has no field `{fieldName}`" }
@@ -1416,6 +1485,44 @@ def ensureLocalFixedArrayElementType (context name : String) (type : ValueType) 
         message := s!"{context} `{name}` has unsupported EVM IR v0 fixed-array element type `{type.name}`; local fixed arrays support U32, U64, Bool, or Hash elements"
       }
 
+def lowerStructArrayLetBinding
+    (module : Module)
+    (env : TypeEnv)
+    (name typeName : String)
+    (length : Nat)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let decl ← ensureLocalFlatStructType module s!"let binding `{name}` fixed-array element" typeName
+  match value with
+  | .arrayLit literalElementType values => do
+      ensureType s!"let binding `{name}` fixed-array element type" (.structType typeName) literalElementType
+      if values.size != length then
+        .error {
+          message := s!"let binding `{name}` expected fixed array length {length}, got {values.size}"
+        }
+      let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+      for h : index in [0:values.size] do
+        match values[index] with
+        | .structLit literalTypeName fields => do
+            if literalTypeName != typeName then
+              .error { message := s!"let binding `{name}` expected struct `{typeName}`, got `{literalTypeName}`" }
+            for fieldDecl in decl.fields do
+              let some field := fields.find? fun field => field.fst == fieldDecl.id
+                | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+              statements := statements.push <|
+                Lean.Compiler.Yul.Statement.varDecl
+                  #[{ name := arrayStructLocalFieldName name index fieldDecl.id }]
+                  (some (← lowerExpr module env field.snd))
+        | other =>
+            let actualType ← inferExprType module env other
+            .error {
+              message := s!"let binding `{name}` fixed-array element {index} expected struct literal `{typeName}`, got `{actualType.name}`"
+            }
+      .ok statements
+  | _ =>
+      .error {
+        message := s!"let binding `{name}` fixed array of structs must be initialized from an array literal in IR EVM v0"
+      }
+
 def lowerFixedArrayLetBinding
     (module : Module)
     (env : TypeEnv)
@@ -1425,25 +1532,29 @@ def lowerFixedArrayLetBinding
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   if length == 0 then
     .error { message := s!"let binding `{name}` fixed array must have non-zero length in IR EVM v0" }
-  ensureLocalFixedArrayElementType "let binding" name elementType
-  match value with
-  | .arrayLit literalElementType values => do
-      ensureType s!"let binding `{name}` fixed-array element type" elementType literalElementType
-      if values.size != length then
-        .error {
-          message := s!"let binding `{name}` expected fixed array length {length}, got {values.size}"
-        }
-      let mut statements : Array Lean.Compiler.Yul.Statement := #[]
-      for h : index in [0:values.size] do
-        statements := statements.push <|
-          Lean.Compiler.Yul.Statement.varDecl
-            #[{ name := arrayLocalElementName name index }]
-            (some (← lowerExpr module env values[index]))
-      .ok statements
-  | _ =>
-      .error {
-        message := s!"let binding `{name}` fixed array must be initialized from an array literal in IR EVM v0"
-      }
+  match elementType with
+  | .structType typeName =>
+      lowerStructArrayLetBinding module env name typeName length value
+  | _ => do
+      ensureLocalFixedArrayElementType "let binding" name elementType
+      match value with
+      | .arrayLit literalElementType values => do
+          ensureType s!"let binding `{name}` fixed-array element type" elementType literalElementType
+          if values.size != length then
+            .error {
+              message := s!"let binding `{name}` expected fixed array length {length}, got {values.size}"
+            }
+          let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+          for h : index in [0:values.size] do
+            statements := statements.push <|
+              Lean.Compiler.Yul.Statement.varDecl
+                #[{ name := arrayLocalElementName name index }]
+                (some (← lowerExpr module env values[index]))
+          .ok statements
+      | _ =>
+          .error {
+            message := s!"let binding `{name}` fixed array must be initialized from an array literal in IR EVM v0"
+          }
 
 def lowerStructLetBinding
     (module : Module)
@@ -1478,10 +1589,13 @@ def lowerAssignTargetName (context : String) : ProofForge.IR.Expr → Except Low
   | .arrayGet (.local name) index => do
       let indexValue ← requireStaticArrayIndex s!"{context} fixed-array index" index
       .ok (arrayLocalElementName name indexValue)
+  | .field (.arrayGet (.local name) index) fieldName => do
+      let indexValue ← requireStaticArrayIndex s!"{context} fixed-array index" index
+      .ok (arrayStructLocalFieldName name indexValue fieldName)
   | .field (.local name) fieldName =>
       .ok (structLocalFieldName name fieldName)
   | _ =>
-      .error { message := s!"{context} must be a mutable local, mutable local fixed-array element, or mutable local struct field in IR EVM v0" }
+      .error { message := s!"{context} must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0" }
 
 def aggregateAssignArrayTempName (name : String) (index : Nat) : String :=
   s!"__proof_forge_assign_array_{name}_{index}"
@@ -1652,6 +1766,45 @@ def lowerDynamicLocalFixedArrayAssignOpStmt
     ]
   })
 
+def lowerDynamicLocalStructArrayFieldAssignStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name fieldName : String)
+    (length : Nat)
+    (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let valueExpr ← lowerExpr module env value
+  let indexExpr ← lowerExpr module env index
+  let cases := dynamicLocalFixedArraySwitchCases length fun idx =>
+    #[.assignment #[arrayStructLocalFieldName name idx fieldName] (Lean.Compiler.Yul.Expr.id dynamicArrayValueLocalName)]
+  .ok (.block {
+    statements := #[
+      .varDecl #[{ name := dynamicArrayIndexLocalName }] (some indexExpr),
+      .varDecl #[{ name := dynamicArrayValueLocalName }] (some valueExpr),
+      .switchStmt (Lean.Compiler.Yul.Expr.id dynamicArrayIndexLocalName) cases
+    ]
+  })
+
+def lowerDynamicLocalStructArrayFieldAssignOpStmt
+    (module : Module)
+    (env : TypeEnv)
+    (name fieldName : String)
+    (length : Nat)
+    (index : ProofForge.IR.Expr)
+    (op : AssignOp)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let valueExpr ← lowerExpr module env value
+  let indexExpr ← lowerExpr module env index
+  let cases := dynamicLocalFixedArraySwitchCases length fun idx =>
+    let fieldLocalName := arrayStructLocalFieldName name idx fieldName
+    #[.assignment #[fieldLocalName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id fieldLocalName) (Lean.Compiler.Yul.Expr.id dynamicArrayValueLocalName))]
+  .ok (.block {
+    statements := #[
+      .varDecl #[{ name := dynamicArrayIndexLocalName }] (some indexExpr),
+      .varDecl #[{ name := dynamicArrayValueLocalName }] (some valueExpr),
+      .switchStmt (Lean.Compiler.Yul.Expr.id dynamicArrayIndexLocalName) cases
+    ]
+  })
+
 def lowerAssignStmt
     (module : Module)
     (env : TypeEnv)
@@ -1674,6 +1827,14 @@ def lowerAssignStmt
       | none => do
           let (_, length) ← requireLocalFixedArray "assignment target" env name
           .ok #[← lowerDynamicLocalFixedArrayAssignStmt module env name length index value]
+  | .field (.arrayGet (.local name) index) fieldName =>
+      match literalArrayIndex? index with
+      | some _ => do
+          let targetName ← lowerAssignTargetName "assignment target" target
+          .ok #[.assignment #[targetName] (← lowerExpr module env value)]
+      | none => do
+          let (_, length, _) ← requireLocalFixedStructArrayField module env "assignment target" name fieldName
+          .ok #[← lowerDynamicLocalStructArrayFieldAssignStmt module env name fieldName length index value]
   | _ => do
       let targetName ← lowerAssignTargetName "assignment target" target
       .ok #[.assignment #[targetName] (← lowerExpr module env value)]
@@ -1693,6 +1854,14 @@ def lowerAssignOpStmt
       | none => do
           let (_, length) ← requireLocalFixedArray "compound assignment target" env name
           .ok #[← lowerDynamicLocalFixedArrayAssignOpStmt module env name length index op value]
+  | .field (.arrayGet (.local name) index) fieldName =>
+      match literalArrayIndex? index with
+      | some _ => do
+          let targetName ← lowerAssignTargetName "compound assignment target" target
+          .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
+      | none => do
+          let (_, length, _) ← requireLocalFixedStructArrayField module env "compound assignment target" name fieldName
+          .ok #[← lowerDynamicLocalStructArrayFieldAssignOpStmt module env name fieldName length index op value]
   | _ => do
       let targetName ← lowerAssignTargetName "compound assignment target" target
       .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]

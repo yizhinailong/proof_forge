@@ -163,6 +163,9 @@ jobs:
       - name: Run EVM ArrayValueProbe IR smoke
         run: scripts/evm/array-value-ir-smoke.sh
 
+      - name: Run EVM StructArrayValueProbe IR smoke
+        run: scripts/evm/struct-array-value-ir-smoke.sh
+
       - name: Run EVM StructValueProbe IR smoke
         run: scripts/evm/struct-value-ir-smoke.sh
 
