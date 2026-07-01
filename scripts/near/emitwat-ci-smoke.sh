@@ -55,6 +55,10 @@ out="$("${HOST[@]}" build/wasm-near/emitwat-path-assign.wat path_assign_lifecycl
 echo "$out"
 assert_contains "$out" "call 1:path_assign_lifecycle: return_hex=1e00000000000000 return_u64=30" "path assign"
 
+out="$("${HOST[@]}" build/wasm-near/emitwat-array-struct.wat array_struct_lifecycle)"
+echo "$out"
+assert_contains "$out" "call 1:array_struct_lifecycle: return_hex=1e00000000000000 return_u64=30" "array struct fields"
+
 for fixture in emitwat-alloc-reset emitwat-alloc-minimal emitwat-alloc-near; do
   out="$("${HOST[@]}" "build/wasm-near/${fixture}.wat" sum_literal --repeat 2)"
   echo "$out"

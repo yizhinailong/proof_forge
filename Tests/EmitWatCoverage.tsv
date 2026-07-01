@@ -74,8 +74,8 @@ Effect	storageMapInsert	lowered	EmitWat lowers map insert through the same map w
 Effect	storageMapSet	lowered	EmitWat lowers map set through map write helpers, returning the previous value when used as an expression.
 Effect	storageArrayRead	lowered	EmitWat lowers array state reads as U64-keyed map reads.
 Effect	storageArrayWrite	lowered	EmitWat lowers array state writes as U64-keyed map writes.
-Effect	storageArrayStructFieldRead	unsupported	EmitWat does not yet lower field reads inside struct-valued storage arrays.
-Effect	storageArrayStructFieldWrite	unsupported	EmitWat does not yet lower field writes inside struct-valued storage arrays.
+Effect	storageArrayStructFieldRead	lowered	EmitWat lowers field reads inside struct-valued storage arrays by reading the U64-indexed storage blob into STRUCT_BUF and loading the field offset.
+Effect	storageArrayStructFieldWrite	lowered	EmitWat lowers field writes inside struct-valued storage arrays by reading the U64-indexed storage blob, patching the field offset, and writing the blob back.
 Effect	storageStructFieldRead	lowered	EmitWat lowers scalar struct storage field reads by reading the struct blob and loading the field offset.
 Effect	storageStructFieldWrite	lowered	EmitWat lowers scalar struct storage field writes by reading the struct blob, patching a field, and writing the blob back.
 Effect	storagePathRead	lowered	EmitWat lowers single mapKey storage paths to map get; multi-segment field/index paths are rejected.
