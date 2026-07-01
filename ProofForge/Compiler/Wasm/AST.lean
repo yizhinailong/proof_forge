@@ -66,6 +66,13 @@ structure DataSegment where
   offset : Nat
   bytes  : String
 
+/-- A global variable: `(global $name (mut i32) (i32.const init))`. -/
+structure Global where
+  name      : String
+  type      : ValType
+  init      : String
+  isMutable : Bool := true
+
 /-! A Wasm instruction. Stack inputs/outputs are implicit (stack machine);
     only immediate operands are stored. -/
 mutual
@@ -110,6 +117,7 @@ structure Func where
 /-- A Wasm module. -/
 structure Module where
   imports      : Array Import := #[]
+  globals      : Array Global := #[]
   funcs        : Array Func := #[]
   memory       : Option Memory := some { min := 1 }
   dataSegments : Array DataSegment := #[]

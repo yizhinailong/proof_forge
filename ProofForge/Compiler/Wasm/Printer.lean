@@ -96,6 +96,11 @@ def printMemory (indent : Nat) (m : Memory) : String :=
 def printData (indent : Nat) (d : DataSegment) : String :=
   line indent ("(data (i32.const " ++ toString d.offset ++ ") \"" ++ escapeWatString d.bytes ++ "\")")
 
+/-- Render a global declaration. -/
+def printGlobal (indent : Nat) (g : Global) : String :=
+  let mutKind := if g.isMutable then "(mut " ++ g.type.wat ++ ")" else g.type.wat
+  line indent ("(global $" ++ g.name ++ " " ++ mutKind ++ " (" ++ g.type.wat ++ ".const " ++ g.init ++ "))")
+
 mutual
   /-- Render an instruction (possibly multiple lines). -/
   partial def printInsn (indent : Nat) : Insn → String
@@ -151,11 +156,12 @@ def printFunc (indent : Nat) (f : Func) : String :=
 /-- Render a module to WAT source text. -/
 def render (m : Module) : String :=
   let imports := m.imports.foldl (fun acc i => acc ++ printImport 1 i) ""
+  let globals := m.globals.foldl (fun acc g => acc ++ printGlobal 1 g) ""
   let funcs := m.funcs.foldl (fun acc f => acc ++ printFunc 1 f) ""
   let mem := match m.memory with
     | some mm => printMemory 1 mm
     | none => ""
   let datas := m.dataSegments.foldl (fun acc d => acc ++ printData 1 d) ""
-  "(module\n" ++ imports ++ funcs ++ mem ++ datas ++ ")\n"
+  "(module\n" ++ imports ++ globals ++ funcs ++ mem ++ datas ++ ")\n"
 
 end ProofForge.Compiler.Wasm.Printer

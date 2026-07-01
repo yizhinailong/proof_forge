@@ -34,12 +34,14 @@ def RET_BUF   : Nat := 8192
 def TRUE_PTR  : Nat := 12000
 def FALSE_PTR : Nat := 12006
 def MAPKEY_BUF : Nat := 12500    -- scratch for building map storage keys (prefix ++ key bytes)
+def HASH_HEAP : Nat := 30000       -- bump-allocator base for hash (32-byte) temporaries
+def HASH_CONCAT_BUF : Nat := 40000 -- 64-byte scratch for hash_two_to_one
 
 -- Value type → Wasm
 def wasmTypeOf : ValueType → ValType
-  | .u32 => .i32 | .u64 => .i64 | .bool => .i32 | _ => .i32
+  | .u32 => .i32 | .u64 => .i64 | .bool => .i32 | .hash => .i32 | _ => .i32
 def widthOf : ValueType → String
-  | .u32 => "i32" | .u64 => "i64" | .bool => "i32" | _ => "i32"
+  | .u32 => "i32" | .u64 => "i64" | .bool => "i32" | .hash => "i32" | _ => "i32"
 def isNumeric (t : ValueType) : Bool := match t with | .u32 | .u64 => true | _ => false
 def scalarWidth : ValueType → Nat
   | .u32 => 4 | .u64 => 8 | .bool => 1 | _ => 8
@@ -183,6 +185,110 @@ def mapHelperFuncs : Array Func :=
   #[ mapBuildkeyFunc, mapReadFunc .u32, mapWriteFunc .u32, mapReadFunc .u64, mapWriteFunc .u64,
      mapReadFunc .bool, mapWriteFunc .bool, mapContainsFunc ]
 
+-- Hash helpers ---------------------------------------------------------
+-- Hash = 32-byte memory region (4×u64), referenced by an i32 pointer. A
+-- mutable global `hash_ptr` bump-allocates a fresh 32-byte slot per temp
+-- (reset each NEAR call since the instance is fresh).
+
+def hashAllocName    : String := "__pf_hash_alloc"
+def hashMakeName      : String := "__pf_hash_make"
+def hashSName         : String := "__pf_hash"
+def memcpyName        : String := "__pf_memcpy"
+def hashTwoName       : String := "__pf_hash_two_to_one"
+def hashEqName        : String := "__pf_hash_eq"
+def readHashName      : String := "__pf_read_hash"
+def writeHashName     : String := "__pf_write_hash"
+def hashPtrGlobal     : String := "hash_ptr"
+
+def sha256Import : Import := hostImport "sha256" #[.i64, .i64, .i64] #[]
+
+def hashPtrGlobalDecl : Global :=
+  { name := hashPtrGlobal, type := .i32, init := toString HASH_HEAP, isMutable := true }
+
+def hashAllocFunc : Func :=
+  { name := hashAllocName, results := #[.i32],
+    body := { insns := #[ .globalGet hashPtrGlobal,
+      .globalGet hashPtrGlobal, .i32Const 32, .plain "i32.add", .globalSet hashPtrGlobal ] } }
+
+def hashMakeFunc : Func :=
+  { name := hashMakeName,
+    params := #[{ name := "a", type := .i64 }, { name := "b", type := .i64 },
+                { name := "c", type := .i64 }, { name := "d", type := .i64 }],
+    results := #[.i32], locals := #[{ name := "p", type := .i32 }],
+    body := { insns := #[
+      .call hashAllocName, .localSet "p",
+      .localGet "p", .localGet "a", .store "i64.store" 0,
+      .localGet "p", .localGet "b", .store "i64.store" 8,
+      .localGet "p", .localGet "c", .store "i64.store" 16,
+      .localGet "p", .localGet "d", .store "i64.store" 24,
+      .localGet "p" ] } }
+
+def hashSFunc : Func :=
+  { name := hashSName, params := #[{ name := "preimage", type := .i32 }], results := #[.i32],
+    locals := #[{ name := "p", type := .i32 }],
+    body := { insns := #[
+      .i64Const 32, .localGet "preimage", .plain "i64.extend_i32_u", .i64Const 0, .call "sha256",
+      .call hashAllocName, .localSet "p",
+      .i64Const 0, .localGet "p", .plain "i64.extend_i32_u", .call "read_register",
+      .localGet "p" ] } }
+
+def memcpyFunc : Func :=
+  { name := memcpyName,
+    params := #[{ name := "dst", type := .i32 }, { name := "src", type := .i32 }, { name := "n", type := .i32 }],
+    locals := #[{ name := "i", type := .i32 }],
+    body := { insns := #[
+      .i32Const 0, .localSet "i",
+      .block_ { insns := #[ .loop_ { insns := #[
+        .localGet "i", .localGet "n", .plain "i32.ge_u", .brIf 1,
+        .localGet "i", .localGet "dst", .plain "i32.add",
+        .localGet "i", .localGet "src", .plain "i32.add", .load "i32.load8_u" 0,
+        .store "i32.store8" 0,
+        .localGet "i", .i32Const 1, .plain "i32.add", .localSet "i", .br 0 ] } ] } ] } }
+
+def hashTwoFunc : Func :=
+  { name := hashTwoName,
+    params := #[{ name := "l", type := .i32 }, { name := "r", type := .i32 }], results := #[.i32],
+    locals := #[{ name := "p", type := .i32 }],
+    body := { insns := #[
+      .i32Const HASH_CONCAT_BUF, .localGet "l", .i32Const 32, .call memcpyName,
+      .i32Const (HASH_CONCAT_BUF + 32), .localGet "r", .i32Const 32, .call memcpyName,
+      .i64Const 64, .i64Const HASH_CONCAT_BUF, .i64Const 0, .call "sha256",
+      .call hashAllocName, .localSet "p",
+      .i64Const 0, .localGet "p", .plain "i64.extend_i32_u", .call "read_register",
+      .localGet "p" ] } }
+
+def hashEqFunc : Func :=
+  { name := hashEqName,
+    params := #[{ name := "a", type := .i32 }, { name := "b", type := .i32 }], results := #[.i32],
+    body := { insns := #[
+      .localGet "a", .load "i64.load" 0, .localGet "b", .load "i64.load" 0, .plain "i64.eq",
+      .localGet "a", .load "i64.load" 8, .localGet "b", .load "i64.load" 8, .plain "i64.eq", .plain "i32.and",
+      .localGet "a", .load "i64.load" 16, .localGet "b", .load "i64.load" 16, .plain "i64.eq", .plain "i32.and",
+      .localGet "a", .load "i64.load" 24, .localGet "b", .load "i64.load" 24, .plain "i64.eq", .plain "i32.and" ] } }
+
+def readHashFunc : Func :=
+  { name := readHashName,
+    params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }], results := #[.i32],
+    locals := #[{ name := "found", type := .i64 }, { name := "p", type := .i32 }],
+    body := { insns := #[
+      .call hashAllocName, .localSet "p",
+      .localGet "kl", .plain "i64.extend_i32_u", .localGet "kp", .plain "i64.extend_i32_u",
+      .i64Const 0, .call "storage_read", .localSet "found",
+      .localGet "found", .i64Const 0, .plain "i64.ne",
+      .if_ { insns := #[ .i64Const 0, .localGet "p", .plain "i64.extend_i32_u", .call "read_register" ] } { insns := #[] },
+      .localGet "p" ] } }
+
+def writeHashFunc : Func :=
+  { name := writeHashName,
+    params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }, { name := "v", type := .i32 }],
+    body := { insns := #[
+      .localGet "kl", .plain "i64.extend_i32_u", .localGet "kp", .plain "i64.extend_i32_u",
+      .i64Const 32, .localGet "v", .plain "i64.extend_i32_u", .i64Const 0, .call "storage_write", .drop ] } }
+
+def hashHelperFuncs : Array Func :=
+  #[ hashAllocFunc, hashMakeFunc, hashSFunc, memcpyFunc, hashTwoFunc, hashEqFunc,
+     readHashFunc, writeHashFunc ]
+
 -- State layout
 structure StateInfo where
   id : String
@@ -248,6 +354,23 @@ mutual
     | .literal (.u32 n) => .ok (#[.const .i32 (toString n)], .u32)
     | .literal (.u64 n) => .ok (#[.const .i64 (toString n)], .u64)
     | .literal (.bool b) => .ok (#[.const .i32 (if b then "1" else "0")], .bool)
+    | .literal (.hash4 a b c d) => .ok (#[.i64Const a, .i64Const b, .i64Const c, .i64Const d, .call hashMakeName], .hash)
+    | .hashValue a b c d => do
+      let (ia, ta) ← lowerExpr ctx env a
+      let (ib, tb) ← lowerExpr ctx env b
+      let (ic, tc) ← lowerExpr ctx env c
+      let (id_, td) ← lowerExpr ctx env d
+      if !(ta == .u64 && tb == .u64 && tc == .u64 && td == .u64) then err "EmitWat: hashValue expects four U64 limbs"
+      else .ok (ia ++ ib ++ ic ++ id_ ++ #[.call hashMakeName], .hash)
+    | .hash preimage => do
+      let (is, t) ← lowerExpr ctx env preimage
+      if t != .hash then err s!"EmitWat: hash preimage expected Hash, got `{t.name}`"
+      else .ok (is ++ #[.call hashSName], .hash)
+    | .hashTwoToOne l r => do
+      let (la, ta) ← lowerExpr ctx env l
+      let (lb, tb) ← lowerExpr ctx env r
+      if !(ta == .hash && tb == .hash) then err "EmitWat: hash_two_to_one expects two Hash operands"
+      else .ok (la ++ lb ++ #[.call hashTwoName], .hash)
     | .local name =>
       match lookupLocal? env name with
       | some t => .ok (#[.localGet name], t)
@@ -278,7 +401,9 @@ mutual
     | .cast value target => lowerCast ctx env value target
     | .effect (.storageScalarRead id) =>
       match findScalarState? ctx.scalars id with
-      | some s => .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen, .call (readName s.type)], s.type)
+      | some s =>
+        let callName := if s.type == .hash then readHashName else readName s.type
+        .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen, .call callName], s.type)
       | none => err s!"EmitWat: unknown scalar state `{id}`"
     | .effect (.storageMapGet id key) => lowerMapGet ctx env id key
     | .effect (.storageMapContains id key) => lowerMapContains ctx env id key
@@ -297,6 +422,8 @@ mutual
     let (la, ta) ← lowerExpr ctx env a
     let (lb, tb) ← lowerExpr ctx env b
     if ta != tb then err s!"EmitWat: `{op}` expected matching operand types, got `{ta.name}`/`{tb.name}`"
+    else if ta == .hash && op == "eq" then .ok (la ++ lb ++ #[.call hashEqName], .bool)
+    else if ta == .hash && op == "ne" then .ok (la ++ lb ++ #[.call hashEqName, .plain "i32.eqz"], .bool)
     else .ok (la ++ lb ++ #[.plain (widthOf ta ++ "." ++ op)], .bool)
 
   partial def lowerBoolBin (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
@@ -352,7 +479,7 @@ def collectLocals (body : Array Statement) : Except EmitError LocalTypes :=
   body.foldlM (init := #[]) fun acc s =>
     match s with
     | .letBind name t _ | .letMutBind name t _ =>
-      if isNumeric t || t == .bool then .ok (acc.push { name := name, vt := t })
+      if isNumeric t || t == .bool || t == .hash then .ok (acc.push { name := name, vt := t })
       else err s!"EmitWat: only U32/U64/Bool locals are supported (got `{t.name}`)"
     | _ => .ok acc
 
@@ -402,7 +529,9 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     let some s ← pure (findScalarState? ctx.scalars id) | err s!"EmitWat: unknown scalar state `{id}`"
     let (is, t) ← lowerExpr ctx env e
     if t != s.type then err s!"EmitWat: scalar write `{id}` expected `{s.type.name}`, got `{t.name}`"
-    else .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen] ++ is ++ #[.call (writeName s.type)])
+    else
+      let callName := if s.type == .hash then writeHashName else writeName s.type
+      .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen] ++ is ++ #[.call callName])
   | .effect (.storageMapSet id key value) | .effect (.storageMapInsert id key value) =>
     lowerMapWrite ctx env id key value
   | .assert cond _ => do
@@ -413,7 +542,9 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     let (la, ta) ← lowerExpr ctx env a
     let (lb, tb) ← lowerExpr ctx env b
     if ta != tb then err "EmitWat: assertEq operands must share a type"
-    else .ok (la ++ lb ++ #[.plain (widthOf ta ++ ".eq"), .plain "i32.eqz",
+    else
+      let eqInsn := if ta == .hash then #[.call hashEqName] else #[.plain (widthOf ta ++ ".eq")]
+      .ok (la ++ lb ++ eqInsn ++ #[.plain "i32.eqz",
                             .if_ { insns := #[.unreachable] } { insns := #[] }])
   | .return e => lowerReturn ctx env returns e
   | _ => err "EmitWat: this statement form is not yet supported"
@@ -433,9 +564,9 @@ def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compi
   let mapData := maps.map fun m => { offset := m.prefixPtr, bytes := m.id ++ ":" : DataSegment }
   let boolData : Array DataSegment :=
     #[{ offset := TRUE_PTR, bytes := "true" }, { offset := FALSE_PTR, bytes := "false" }]
-  let imports := if maps.isEmpty then nearImports else nearImports.push storageHasKeyImport
-  let funcs := helperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ entryFuncs
-  .ok { imports := imports, funcs := funcs,
+  let imports := if maps.isEmpty then nearImports.push sha256Import else nearImports.push storageHasKeyImport |>.push sha256Import
+  let funcs := helperFuncs ++ hashHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ entryFuncs
+  .ok { imports := imports, globals := #[hashPtrGlobalDecl], funcs := funcs,
         memory := some { min := 1 }, dataSegments := scalarData ++ mapData ++ boolData }
 
 def renderModule (mod : ProofForge.IR.Module) : Except EmitError String :=
