@@ -323,13 +323,11 @@ partial def eventSignatureFieldType (module : Module) (eventName fieldName : Str
   | .unit =>
       .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays" }
 
-def ensureIndexedEventFieldType (eventName fieldName : String) (type : ValueType) : Except LowerError Unit :=
-  match type with
-  | .u32 | .u64 | .bool | .hash => .ok ()
-  | .unit | .fixedArray _ _ | .structType _ =>
-      .error {
-        message := s!"event `{eventName}` indexed field `{fieldName}` has unsupported EVM IR v0 type `{type.name}`; indexed event fields must be U32, U64, Bool, or Hash"
-      }
+def ensureIndexedEventFieldType
+    (module : Module)
+    (eventName fieldName : String)
+    (type : ValueType) : Except LowerError Unit := do
+  discard <| eventSignatureFieldType module eventName fieldName type
 
 def eventSignatureTopicStatements (signature : String) : Array Lean.Compiler.Yul.Statement := Id.run do
   let (words, length) := packedUtf8Words signature
@@ -1373,7 +1371,7 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
   | .eventEmitIndexed name indexedFields dataFields => do
       validateIndexedEventFieldCount name indexedFields.size
       for field in indexedFields do
-        ensureIndexedEventFieldType name field.fst (← inferExprType module env field.snd)
+        ensureIndexedEventFieldType module name field.fst (← inferExprType module env field.snd)
       discard <| eventSignature module env name (indexedFields ++ dataFields)
 
 def requireMutableLocal (env : TypeEnv) (context name : String) : Except LowerError LocalBinding := do
@@ -2502,6 +2500,34 @@ partial def lowerEventDataWords
         message := s!"event `{eventName}` data field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event data fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays"
       }
 
+def eventDataStoreStatements (words : Array Lean.Compiler.Yul.Expr) : Array Lean.Compiler.Yul.Statement := Id.run do
+  let mut statements := #[]
+  for h : idx in [0:words.size] do
+    statements := statements.push <|
+      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), words[idx]])
+  pure statements
+
+partial def lowerIndexedEventTopicStatements
+    (module : Module)
+    (env : TypeEnv)
+    (eventName fieldName : String)
+    (index : Nat)
+    (type : ValueType)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let topicName := eventIndexedTopicName index
+  match type with
+  | .u32 | .u64 | .bool | .hash =>
+      .ok #[.varDecl #[{ name := topicName }] (some (← lowerExpr module env value))]
+  | .fixedArray _ _ | .structType _ => do
+      let words ← lowerEventDataWords module env eventName fieldName type value
+      .ok <| eventDataStoreStatements words |>.push
+        (.varDecl #[{ name := topicName }]
+          (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num (words.size * 32)])))
+  | .unit =>
+      .error {
+        message := s!"event `{eventName}` indexed field `{fieldName}` has unsupported EVM IR v0 type `Unit`; indexed event fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays"
+      }
+
 def lowerEventEmitCoreStmt
     (module : Module)
     (env : TypeEnv)
@@ -2509,20 +2535,18 @@ def lowerEventEmitCoreStmt
     (indexedFields dataFields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement := do
   validateIndexedEventFieldCount name indexedFields.size
   for field in indexedFields do
-    ensureIndexedEventFieldType name field.fst (← inferExprType module env field.snd)
+    ensureIndexedEventFieldType module name field.fst (← inferExprType module env field.snd)
   let signature ← eventSignature module env name (indexedFields ++ dataFields)
   let mut statements := eventSignatureTopicStatements signature
   for h : idx in [0:indexedFields.size] do
     let field := indexedFields[idx]
-    statements := statements.push <|
-      .varDecl #[{ name := eventIndexedTopicName idx }] (some (← lowerExpr module env field.snd))
+    let type ← inferExprType module env field.snd
+    statements := statements ++ (← lowerIndexedEventTopicStatements module env name field.fst idx type field.snd)
   let mut dataWords : Array Lean.Compiler.Yul.Expr := #[]
   for field in dataFields do
     let type ← inferExprType module env field.snd
     dataWords := dataWords ++ (← lowerEventDataWords module env name field.fst type field.snd)
-  for h : idx in [0:dataWords.size] do
-    statements := statements.push <|
-      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), dataWords[idx]])
+  statements := statements ++ eventDataStoreStatements dataWords
   let mut logArgs : Array Lean.Compiler.Yul.Expr := #[
     Lean.Compiler.Yul.Expr.num 0,
     Lean.Compiler.Yul.Expr.num (dataWords.size * 32),

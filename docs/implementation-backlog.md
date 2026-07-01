@@ -150,7 +150,14 @@ Tasks:
   `ArrayEvent(uint64[2])`, and `PairArrayEvent((uint64,uint64)[2])`,
   `EventProbe`
   golden Yul, solc bytecode, Foundry recorded-log validation, metadata selector
-  validation, and explicit diagnostics for aggregate indexed fields.
+  validation, and explicit diagnostics for unsupported aggregate indexed fields.
+- Done: extend EVM IR `eventEmitIndexed` lowering so flat struct indexed fields
+  and fixed-array indexed fields whose elements are flat structs hash their
+  ABI-style flattened words into indexed topics. `EventProbe` now covers
+  `IndexedPair((uint64,uint64),uint64)` and
+  `IndexedPairArray((uint64,uint64)[2],uint64)` with golden Yul, solc bytecode,
+  metadata selector validation, Foundry recorded-log topic-hash checks, and a
+  diagnostic for nested/unsupported aggregate indexed shapes.
 - Done: add EVM IR `crosscallInvoke` lowering to synchronous EVM `call`
   helpers with selector packing, word arguments, one-word returns, failed-call
   and short-return reverts, with `EvmCrosscallProbe` golden Yul, solc bytecode,

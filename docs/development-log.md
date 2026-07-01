@@ -17,6 +17,57 @@ Each entry should include:
 
 ## 2026-07-01
 
+### EVM IR Indexed Aggregate Event Topics
+
+Commit: feature commit for EVM IR indexed aggregate event topics
+
+Summary:
+
+- Extended `eventEmitIndexed` lowering so supported aggregate indexed fields no
+  longer pretend to be scalar topics. Flat structs and fixed arrays whose
+  elements are flat structs now flatten to ABI-style 32-byte words and use
+  `keccak256` over those words as the indexed topic.
+- Preserved direct scalar indexed topics for `U32`, `U64`, `Bool`, and `Hash`.
+- Extended `EventProbe` with `emit_indexed_pair_event` and
+  `emit_indexed_pair_array_event`, covering
+  `IndexedPair((uint64,uint64),uint64)` and
+  `IndexedPairArray((uint64,uint64)[2],uint64)`.
+- Replaced the old flat-aggregate indexed diagnostic with a nested aggregate
+  indexed diagnostic, so unsupported event shapes still fail explicitly instead
+  of lowering partially.
+- Refreshed golden Yul, artifact metadata selector checks, Foundry recorded-log
+  checks, EVM diagnostics, coverage, English target docs, Chinese target docs,
+  and implementation backlog notes.
+
+Validation run:
+
+```sh
+lake build
+scripts/evm/event-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Result:
+
+- `EventProbe` generated reproducible Yul and runtime bytecode through
+  `solc --strict-assembly`.
+- Foundry ran 8 EventProbe tests, including scalar indexed topics, flat struct
+  indexed topic hashes, fixed-array-of-flat-struct indexed topic hashes,
+  aggregate data flattening, selector dispatch, and unknown-selector revert
+  behavior.
+
+Known limitations:
+
+- Indexed event fields remain limited to three fields after the signature topic.
+- Nested fixed arrays, non-flat structs, and unsupported aggregate leaves remain
+  explicit diagnostics for event fields.
+- First-class event declarations are still not represented in the portable IR.
+
+Next step:
+
+- Continue shrinking the EVM event gap around richer event declarations, or move
+  to the next uncovered EVM capability surface.
+
 ### EVM IR Nested Local Struct Arrays
 
 Commit: feature commit for EVM IR nested local struct arrays
@@ -543,9 +594,9 @@ Summary:
   `ArrayEvent(uint64[2])`, and `PairArrayEvent((uint64,uint64)[2])`.
 - Flattened aggregate event data into ABI-style 32-byte words before `log1`
   through `log4`, preserving scalar indexed topics for `eventEmitIndexed`.
-- Kept aggregate indexed fields explicit: they now fail with a diagnostic
-  rather than pretending EVM's indexed aggregate topic-hash semantics are
-  direct scalar topics.
+- At the time of this entry, aggregate indexed fields still failed with a
+  diagnostic instead of lowering. That limitation is resolved by the later
+  "EVM IR Indexed Aggregate Event Topics" entry for flat supported aggregates.
 - Extended `EventProbe` with `emit_pair_event`, `emit_array_event`, and
   `emit_pair_array_event`, refreshed golden Yul, Foundry recorded-log checks,
   metadata selector checks, EVM diagnostics, coverage, target docs, validation
@@ -561,8 +612,10 @@ scripts/evm/diagnostic-smoke.sh
 
 Known limitations:
 
-- Indexed event fields remain scalar-only (`U32`, `U64`, `Bool`, or `Hash`) and
-  limited to three indexed fields after the signature topic.
+- At the time of this entry, indexed event fields were scalar-only (`U32`,
+  `U64`, `Bool`, or `Hash`) and limited to three indexed fields after the
+  signature topic. Flat supported aggregate indexed fields are covered by the
+  later "EVM IR Indexed Aggregate Event Topics" entry.
 - Richer first-class event declarations are still not represented in the
   portable IR.
 

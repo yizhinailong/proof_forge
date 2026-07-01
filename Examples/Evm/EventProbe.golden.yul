@@ -36,6 +36,20 @@ object "EventProbe" {
       f_EventProbe_emit_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       return(0, 0)
     }
+    case 0xe027f054 {
+      if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_indexed_pair_event(calldataload(4), calldataload(36), calldataload(68))
+      return(0, 0)
+    }
+    case 0xc1375f82 {
+      if lt(calldatasize(), 164) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_indexed_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132))
+      return(0, 0)
+    }
     default {
       revert(0, 0)
     }
@@ -92,6 +106,38 @@ object "EventProbe" {
         mstore(64, __proof_forge_array_struct_pairs_1_left)
         mstore(96, __proof_forge_array_struct_pairs_1_right)
         log1(0, 128, _topic0)
+      }
+    }
+    function f_EventProbe_emit_indexed_pair_event(left, right, value) {
+      let __proof_forge_struct_pair_left := left
+      let __proof_forge_struct_pair_right := right
+      {
+        mstore(0, 33213884033972546254760509534762344613534147965852086162890939770421711040116)
+        mstore(32, 24517052842465079370413120945299090683665717048513947648744169312629567782912)
+        let _topic0 := keccak256(0, 35)
+        mstore(0, __proof_forge_struct_pair_left)
+        mstore(32, __proof_forge_struct_pair_right)
+        let _indexed_topic0 := keccak256(0, 64)
+        mstore(0, value)
+        log2(0, 32, _topic0, _indexed_topic0)
+      }
+    }
+    function f_EventProbe_emit_indexed_pair_array_event(a, b, c, d, value) {
+      let __proof_forge_array_struct_pairs_0_left := a
+      let __proof_forge_array_struct_pairs_0_right := b
+      let __proof_forge_array_struct_pairs_1_left := c
+      let __proof_forge_array_struct_pairs_1_right := d
+      {
+        mstore(0, 33213884033972546254760509571722283268355815339268100639988835399448156058665)
+        mstore(32, 41249454635328975548020660243773414201120874226841181152181438624278037659648)
+        let _topic0 := keccak256(0, 43)
+        mstore(0, __proof_forge_array_struct_pairs_0_left)
+        mstore(32, __proof_forge_array_struct_pairs_0_right)
+        mstore(64, __proof_forge_array_struct_pairs_1_left)
+        mstore(96, __proof_forge_array_struct_pairs_1_right)
+        let _indexed_topic0 := keccak256(0, 128)
+        mstore(0, value)
+        log2(0, 32, _topic0, _indexed_topic0)
       }
     }
   }
