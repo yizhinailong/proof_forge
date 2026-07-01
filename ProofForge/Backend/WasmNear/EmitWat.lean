@@ -37,6 +37,9 @@ def MAPKEY_BUF : Nat := 12500    -- scratch for building map storage keys (prefi
 def HASH_HEAP : Nat := 30000       -- bump-allocator base for hash (32-byte) temporaries
 def HASH_CONCAT_BUF : Nat := 40000 -- 64-byte scratch for hash_two_to_one
 def CTX_BUF : Nat := 41000          -- 128-byte scratch for account-id → sha256 → u64
+def EVENT_BUF : Nat := 42000       -- 256-byte scratch for building event JSON
+def EVT_KEY_PTR : Nat := 42800     -- fixed "event" key string (5 bytes)
+def STRING_BASE : Nat := 43000     -- event/field name string pool base
 
 -- Value type → Wasm
 def wasmTypeOf : ValueType → ValType
@@ -202,6 +205,7 @@ def writeHashName     : String := "__pf_write_hash"
 def hashPtrGlobal     : String := "hash_ptr"
 
 def sha256Import : Import := hostImport "sha256" #[.i64, .i64, .i64] #[]
+def logUtf8Import : Import := hostImport "log_utf8" #[.i64, .i64] #[]
 def predecessorImport : Import := hostImport "predecessor_account_id" #[.i64] #[]
 def currentAcctImport : Import := hostImport "current_account_id" #[.i64] #[]
 def registerLenImport : Import := hostImport "register_len" #[.i64] #[.i64]
@@ -322,6 +326,79 @@ def ctxContractIdFunc : Func :=
 def ctxHelperFuncs : Array Func := #[ ctxUserIdFunc, ctxContractIdFunc ]
 def ctxImports : Array Import := #[ predecessorImport, currentAcctImport, registerLenImport, blockHeightImport ]
 
+-- Event helpers --------------------------------------------------------
+-- Build a JSON event string in EVENT_BUF via an append pointer, then log_utf8.
+
+def fmtU64Name    : String := "__pf_fmt_u64"
+def evtPtrGlobal   : String := "evt_ptr"
+def evtStartName   : String := "__pf_evt_start"
+def evtPutcName    : String := "__pf_evt_putc"
+def evtPutstrName  : String := "__pf_evt_putstr"
+def evtPutu64Name  : String := "__pf_evt_putu64"
+def evtPutboolName : String := "__pf_evt_putbool"
+def evtLogName     : String := "__pf_evt_log"
+
+def evtPtrGlobalDecl : Global :=
+  { name := evtPtrGlobal, type := .i32, init := toString EVENT_BUF, isMutable := true }
+
+def fmtU64Func : Func :=
+  { name := fmtU64Name, params := #[{ name := "v", type := .i64 }], results := #[.i32],
+    locals := #[{ name := "tmp", type := .i64 }, { name := "p", type := .i32 }, { name := "d", type := .i32 }],
+    body := { insns := #[
+      .localGet "v", .localSet "tmp",
+      .i32Const (RET_BUF + 20), .localSet "p",
+      .localGet "tmp", .plain "i64.eqz",
+      .if_ { insns := #[ .i32Const (RET_BUF + 19), .i32Const 48, .store "i32.store8" 0,
+                        .i32Const (RET_BUF + 19), .localSet "p" ] }
+         { insns := #[ .block_ { insns := #[ .loop_ { insns := #[
+            .localGet "tmp", .plain "i64.eqz", .brIf 1,
+            .localGet "tmp", .i64Const 10, .plain "i64.rem_u", .plain "i32.wrap_i64", .localSet "d",
+            .localGet "tmp", .i64Const 10, .plain "i64.div_u", .localSet "tmp",
+            .localGet "p", .i32Const 1, .plain "i32.sub", .localTee "p",
+            .i32Const 48, .localGet "d", .plain "i32.add", .store "i32.store8" 0, .br 0 ] } ] } ] },
+      .localGet "p" ] } }
+
+def evtStartFunc : Func :=
+  { name := evtStartName, body := { insns := #[ .i32Const EVENT_BUF, .globalSet evtPtrGlobal ] } }
+
+def evtPutcFunc : Func :=
+  { name := evtPutcName, params := #[{ name := "c", type := .i32 }],
+    body := { insns := #[
+      .globalGet evtPtrGlobal, .localGet "c", .store "i32.store8" 0,
+      .globalGet evtPtrGlobal, .i32Const 1, .plain "i32.add", .globalSet evtPtrGlobal ] } }
+
+def evtPutstrFunc : Func :=
+  { name := evtPutstrName, params := #[{ name := "ptr", type := .i32 }, { name := "len", type := .i32 }],
+    body := { insns := #[
+      .globalGet evtPtrGlobal, .localGet "ptr", .localGet "len", .call memcpyName,
+      .globalGet evtPtrGlobal, .localGet "len", .plain "i32.add", .globalSet evtPtrGlobal ] } }
+
+def evtPutu64Func : Func :=
+  { name := evtPutu64Name, params := #[{ name := "v", type := .i64 }],
+    locals := #[{ name := "p", type := .i32 }, { name := "len", type := .i32 }],
+    body := { insns := #[
+      .localGet "v", .call fmtU64Name, .localSet "p",
+      .i32Const (RET_BUF + 20), .localGet "p", .plain "i32.sub", .localSet "len",
+      .globalGet evtPtrGlobal, .localGet "p", .localGet "len", .call memcpyName,
+      .globalGet evtPtrGlobal, .localGet "len", .plain "i32.add", .globalSet evtPtrGlobal ] } }
+
+def evtPutboolFunc : Func :=
+  { name := evtPutboolName, params := #[{ name := "b", type := .i32 }],
+    body := { insns := #[
+      .localGet "b", .plain "i32.eqz",
+      .if_ { insns := #[ .i32Const FALSE_PTR, .i32Const 5, .call evtPutstrName ] }
+         { insns := #[ .i32Const TRUE_PTR, .i32Const 4, .call evtPutstrName ] } ] } }
+
+def evtLogFunc : Func :=
+  { name := evtLogName,
+    body := { insns := #[
+      .globalGet evtPtrGlobal, .i32Const EVENT_BUF, .plain "i32.sub", .plain "i64.extend_i32_u",
+      .i64Const EVENT_BUF, .call "log_utf8" ] } }
+
+def evtHelperFuncs : Array Func :=
+  #[ fmtU64Func, evtStartFunc, evtPutcFunc, evtPutstrFunc, evtPutu64Func, evtPutboolFunc, evtLogFunc ]
+def evtGlobals : Array Global := #[ evtPtrGlobalDecl ]
+
 -- State layout
 structure StateInfo where
   id : String
@@ -360,10 +437,32 @@ def mapLayout (mod : ProofForge.IR.Module) : Array MapInfo :=
 def findMapState? (layout : Array MapInfo) (id : String) : Option MapInfo :=
   layout.find? (fun m => m.id == id)
 
+structure StringInfo where
+  str : String
+  ptr : Nat
+  len : Nat
+
+/-- Collect event-name + field-name strings into a deduped pool at STRING_BASE. -/
+def stringPool (mod : ProofForge.IR.Module) : Array StringInfo :=
+  let raw : Array String := mod.entrypoints.foldl (init := #[]) fun acc ep =>
+    ep.body.foldl (init := acc) fun acc' s =>
+      match s with
+      | .effect (.eventEmit name fields) => acc' ++ #[name] ++ fields.map (fun (n, _) => n)
+      | _ => acc'
+  let unique : Array String := raw.foldl (init := #[]) fun acc s => if acc.contains s then acc else acc.push s
+  let result : Array StringInfo × Nat :=
+    unique.foldl (init := (#[], STRING_BASE)) fun (acc, offset) s =>
+      (acc.push { str := s, ptr := offset, len := s.length }, offset + s.length + 1)
+  result.fst
+
+def findString? (pool : Array StringInfo) (s : String) : Option StringInfo :=
+  pool.find? (fun si => si.str == s)
+
 -- Type-directed expression lowering (mutually recursive)
 structure Ctx where
   scalars : Array StateInfo
   maps    : Array MapInfo
+  strings : Array StringInfo
 
 structure LBind where
   name : String
@@ -529,6 +628,27 @@ def lowerReturn (ctx : Ctx) (env : LocalTypes) (expected : ValueType) (e : Expr)
     | .bool => .ok (is ++ #[.call returnBoolName])
     | _ => err s!"EmitWat: return type `{t.name}` is not supported"
 
+partial def lowerEventEmit (ctx : Ctx) (env : LocalTypes) (name : String) (fields : Array (String × Expr))
+    : Except EmitError (Array Insn) := do
+  let some nameSi ← pure (findString? ctx.strings name) | err s!"EmitWat: event name `{name}` not in string pool"
+  let putc (c : Nat) : Array Insn := #[.i32Const c, .call evtPutcName]
+  let header : Array Insn := #[.call evtStartName] ++ putc 0x7B ++ putc 0x22
+    ++ #[.i32Const EVT_KEY_PTR, .i32Const 5, .call evtPutstrName] ++ putc 0x22 ++ putc 0x3A ++ putc 0x22
+    ++ #[.i32Const nameSi.ptr, .i32Const nameSi.len, .call evtPutstrName] ++ putc 0x22
+  let fieldInsns ← fields.foldlM (init := #[]) fun acc f => do
+    let (fname, vexpr) := f
+    let some fsi ← pure (findString? ctx.strings fname) | err s!"EmitWat: field name `{fname}` not in string pool"
+    let (vis, vt) ← lowerExpr ctx env vexpr
+    let valInsn ←
+      match vt with
+      | .u64 => .ok #[.call evtPutu64Name]
+      | .u32 => .ok #[.plain "i64.extend_i32_u", .call evtPutu64Name]
+      | .bool => .ok #[.call evtPutboolName]
+      | _ => err s!"EmitWat: event field `{fname}` has unsupported type `{vt.name}`"
+    .ok (acc ++ putc 0x2C ++ putc 0x22 ++ #[.i32Const fsi.ptr, .i32Const fsi.len, .call evtPutstrName]
+            ++ putc 0x22 ++ putc 0x3A ++ vis ++ valInsn)
+  .ok (header ++ fieldInsns ++ putc 0x7D ++ #[.call evtLogName])
+
 partial def lowerMapWrite (ctx : Ctx) (env : LocalTypes) (id : String) (key value : Expr)
     : Except EmitError (Array Insn) := do
   match findMapState? ctx.maps id with
@@ -570,6 +690,7 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
       .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen] ++ is ++ #[.call callName])
   | .effect (.storageMapSet id key value) | .effect (.storageMapInsert id key value) =>
     lowerMapWrite ctx env id key value
+  | .effect (.eventEmit name fields) => lowerEventEmit ctx env name fields
   | .assert cond _ => do
     let (is, t) ← lowerExpr ctx env cond
     if t != .bool then err "EmitWat: assert condition must be Bool"
@@ -594,17 +715,22 @@ def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
 def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compiler.Wasm.Module := do
   let scalars := stateLayout mod
   let maps := mapLayout mod
-  let ctx := { scalars := scalars, maps := maps : Ctx }
+  let strs := stringPool mod
+  let ctx := { scalars := scalars, maps := maps, strings := strs : Ctx }
   let entryFuncs ← mod.entrypoints.mapM (lowerEntrypoint ctx)
   let scalarData := scalars.map fun s => { offset := s.keyPtr, bytes := s.id : DataSegment }
   let mapData := maps.map fun m => { offset := m.prefixPtr, bytes := m.id ++ ":" : DataSegment }
   let boolData : Array DataSegment :=
     #[{ offset := TRUE_PTR, bytes := "true" }, { offset := FALSE_PTR, bytes := "false" }]
-  let baseImports := nearImports.push sha256Import
+  let evtKeyData : DataSegment := { offset := EVT_KEY_PTR, bytes := "event" }
+  let stringData := strs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
+  let baseImports := nearImports.push sha256Import |>.push logUtf8Import
   let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport])
-  let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ entryFuncs
-  .ok { imports := imports, globals := #[hashPtrGlobalDecl], funcs := funcs,
-        memory := some { min := 1 }, dataSegments := scalarData ++ mapData ++ boolData }
+  let funcs := helperFuncs ++ hashHelperFuncs ++ ctxHelperFuncs ++ evtHelperFuncs ++ (if maps.isEmpty then #[] else mapHelperFuncs) ++ entryFuncs
+  let globals := #[hashPtrGlobalDecl] ++ evtGlobals
+  .ok { imports := imports, globals := globals, funcs := funcs,
+        memory := some { min := 1 },
+        dataSegments := scalarData ++ mapData ++ boolData ++ #[evtKeyData] ++ stringData }
 
 def renderModule (mod : ProofForge.IR.Module) : Except EmitError String :=
   match lowerModule mod with
