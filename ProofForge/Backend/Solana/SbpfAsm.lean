@@ -1,6 +1,8 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.IR.Contract
+import ProofForge.Target.Check
+import ProofForge.Target.Registry
 
 /-!
 # Solana sBPF Assembly Backend
@@ -208,6 +210,21 @@ structure LowerError where
 
 def LowerError.render (err : LowerError) : String := err.message
 
+/-- Wrap a target capability error as an sBPF lowering error so the
+unsupported-capability diagnostic flows through `renderModule`. -/
+def capabilityError (err : ProofForge.Target.CapabilityError) : LowerError := {
+  message := err.render
+}
+
+/-- Reject IR modules whose portable capabilities are not in the
+`solana-sbpf-asm` target profile (V-GATE-SOLANA-05). For Solana this mainly
+rules out the generic `.crosscallInvoke` (Solana uses `.crosscallCpi`,
+D-027) and the ZK capabilities. -/
+def validateCapabilities (module : IR.Module) : Except LowerError Unit := do
+  match ProofForge.Target.requireCapabilities ProofForge.Target.solanaSbpfAsm module.capabilities with
+  | .ok () => .ok ()
+  | .error err => .error (capabilityError err)
+
 -- ============================================================================
 -- Serialized input layout
 -- ============================================================================
@@ -264,9 +281,14 @@ def LowerCtx.stateAbsOff? (ctx : LowerCtx) (id : String) : Option Nat :=
 
 /-- Mint a fresh local label name and a context with the label counter bumped.
 Used by nested control flow and boolean expressions so labels stay unique
-across an entire entrypoint lowering. -/
+across an entire module lowering. -/
 def LowerCtx.freshLabel (ctx : LowerCtx) : String × LowerCtx :=
   (s!"sol_lbl_{ctx.nextLabel}", { ctx with nextLabel := ctx.nextLabel + 1 })
+
+/-- Reset local allocation state so each entrypoint gets its own scratch/local
+frame. The label counter and state-field offsets are preserved by the caller. -/
+def LowerCtx.resetLocals (ctx : LowerCtx) : LowerCtx :=
+  { ctx with locals := #[], nextLocalOffset := 8, scratchOffset := 8 }
 
 def buildCtx (module : Module) : Except LowerError LowerCtx := do
   let dataSize := moduleDataSize module
@@ -532,11 +554,44 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
 def entrypointHasReturn (ep : IR.Entrypoint) : Bool :=
   ep.body.any fun stmt => match stmt with | .return _ => true | _ => false
 
-partial def lowerEntrypoint (ctx : LowerCtx) (ep : IR.Entrypoint) : Except LowerError (Array AstNode) := do
+/-- Phase 1 default account-validation prologue.
+Every entrypoint expects a single account at index 0 that is writable and
+owned by the program (signer=false is recorded in the manifest but not
+enforced at runtime). The owner check computes the program_id address from
+the dynamic instruction_data_len so it remains correct even as the
+discriminant payload grows. -/
+def lowerAccountValidation (instrDataOff : Nat) : Array AstNode :=
+  let instrDataLenOff := instrDataOff - 8
+  #[
+  .comment "account.validation: writable=true",
+  .instruction { opcode := .ldxb, dst := some .r2, src := some .r1, off := some (.num 10) },
+  .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "error_not_writable") },
+  .comment "account.validation: owner=program",
+  .instruction { opcode := .mov64, dst := some .r4, src := some .r1 },
+  .instruction { opcode := .add64, dst := some .r4, imm := some (.num instrDataLenOff) },
+  .instruction { opcode := .ldxdw, dst := some .r2, src := some .r4, off := some (.num 0) },
+  .instruction { opcode := .add64, dst := some .r4, imm := some (.num 8) },
+  .instruction { opcode := .add64, dst := some .r4, src := some .r2 },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 48) },
+  .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 0) },
+  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 56) },
+  .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 8) },
+  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 64) },
+  .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 16) },
+  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 72) },
+  .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 24) },
+  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") }
+]
+
+partial def lowerEntrypoint (ctx : LowerCtx) (instrDataOff : Nat) (ep : IR.Entrypoint) : Except LowerError (LowerCtx × Array AstNode) := do
   let mut nodes := #[
     .label s!"sol_{ep.name}",
     .blankLine
   ]
+  nodes := nodes ++ lowerAccountValidation instrDataOff
   let mut ctx := ctx
   for stmt in ep.body do
     let (sn, ctx') ← lowerStmt ctx stmt
@@ -547,13 +602,45 @@ partial def lowerEntrypoint (ctx : LowerCtx) (ep : IR.Entrypoint) : Except Lower
       .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
       .instruction { opcode := .exit }
     ]
-  .ok nodes
+  .ok (ctx, nodes)
+
+-- ============================================================================
+-- Module → instruction manifest.toml (target metadata, not embedded in IR)
+-- ============================================================================
+
+/-- Generate a Solana instruction manifest.toml describing dispatch tags and the
+single default account used by Phase 1 fixtures. Multi-account schemas and
+signer/writable/owner constraints will move into the IR/source layer in
+Phase 2+. -/
+def renderManifest (module : IR.Module) : String :=
+  let programName := module.name.toLower
+  let defaultAccountName := match module.state[0]? with | some s => s.id | none => "data"
+  let accountLine :=
+    "  { name = \"" ++ defaultAccountName ++ "\", index = 0, signer = false, writable = true, owner = \"program\" }"
+  let instructionBlocks := module.entrypoints.mapIdx fun idx ep =>
+    "[[instruction]]\n" ++
+    "name = \"" ++ ep.name ++ "\"\n" ++
+    "tag = " ++ toString idx ++ "\n" ++
+    "handler = \"sol_" ++ ep.name ++ "\"\n" ++
+    "accounts = [\n" ++
+    accountLine ++ "\n" ++
+    "]\n"
+  String.intercalate "\n" #[
+    "# ProofForge generated Solana instruction manifest",
+    "target = \"solana-sbpf-asm\"",
+    "",
+    "[program]",
+    "id = \"REPLACE_WITH_PROGRAM_ID\"",
+    "name = \"" ++ programName ++ "\"",
+    ""
+  ].toList ++ "\n" ++ String.intercalate "\n" instructionBlocks.toList ++ "\n"
 
 -- ============================================================================
 -- Module → AST nodes
 -- ============================================================================
 
 partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode) := do
+  validateCapabilities module
   let ctx ← buildCtx module
   let dataSize := moduleDataSize module
   let (_, instrDataOff) := computeSingleAccountLayout dataSize
@@ -562,6 +649,7 @@ partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode)
     .comment s!"ProofForge generated sBPF — {module.name} (Phase 1)",
     .comment "Target: solana-sbpf-asm (D-026)",
     .blankLine,
+    .equDecl "INSTRUCTION_DATA_LEN" (instrDataOff - 8),
     .equDecl "INSTRUCTION_DATA" instrDataOff
   ]
   for (stateId, absOff) in ctx.stateFieldOffsets do
@@ -585,9 +673,12 @@ partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode)
     .instruction { opcode := .exit }
   ]
 
+  let mut ctx := ctx
   for ep in module.entrypoints do
     nodes := nodes.push .blankLine
-    let block ← lowerEntrypoint ctx ep
+    let epCtx := ctx.resetLocals
+    let (ctx', block) ← lowerEntrypoint epCtx instrDataOff ep
+    ctx := { ctx with nextLabel := ctx'.nextLabel }
     nodes := nodes ++ block
 
   nodes := nodes ++ #[
@@ -598,6 +689,18 @@ partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode)
     .blankLine,
     .label "assert_eq_fail",
     .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 3) },
+    .instruction { opcode := .exit },
+    .blankLine,
+    .label "error_not_writable",
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 4) },
+    .instruction { opcode := .exit },
+    .blankLine,
+    .label "error_signer",
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 5) },
+    .instruction { opcode := .exit },
+    .blankLine,
+    .label "error_owner",
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 6) },
     .instruction { opcode := .exit }
   ]
   .ok nodes

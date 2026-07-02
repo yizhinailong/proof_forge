@@ -552,13 +552,29 @@ partial progress is visible before the full acceptance criteria close:
       runtime gate `scripts/solana/control-smoke.sh` (six checks: lifecycle
       x2, guarded_increment success + assert revert, equality_guard success
       + assertEq revert) (V-GATE-SOLANA-08).
-- [ ] Instruction manifest (`manifest.toml`) generation alongside the `.s`.
-- [ ] `--solana-elf` CLI mode: emit `.s` then invoke `sbpf build`.
-- [ ] Account validation: signer / writable / owner checks per manifest.
-- [ ] `Examples/Solana/Counter.lean` + manifest as a self-contained example.
-- [ ] Capability checker rejects unsupported capability/target combinations
-      with a clear diagnostic citing target id and capability id (basis for
-      V-GATE-SOLANA-05).
+- [x] Instruction manifest (`manifest.toml`) generation alongside the `.s`.
+      `ProofForge.Backend.Solana.SbpfAsm.renderManifest` emits a TOML with
+      target, program placeholder id, and per-entrypoint instruction tables
+      using the Phase 1 default account convention (writable, signer=false,
+      owner=program). `--emit-counter-ir-sbpf` and `--emit-control-ir-sbpf`
+      write `manifest.toml` next to the `.s` and include it as an artifact.
+- [x] `--solana-elf` CLI mode: emits `.s`, writes `manifest.toml`, scaffolds an
+      `sbpf` project, invokes `sbpf build`, copies the resulting `.so` to the
+      requested output, and records `sbpfBuild: passed` in artifact metadata.
+- [x] Account validation: signer / writable / owner checks per manifest. Each
+      entrypoint emits a prologue that checks `is_writable` at account-header
+      offset 10 and verifies the account owner equals the serialized program
+      id. Failure exits are 4 (`error_not_writable`), 5 (`error_signer`), and
+      6 (`error_owner`). Phase 1 Mollusk runtime gates disable the
+      direct-account-mapping ABI so the legacy embedded account-data layout
+      is exercised.
+- [x] `Examples/Solana/Counter.lean` + manifest as a self-contained example.
+      Includes a tracked `Counter.golden.s` and `Counter.manifest.toml` and a
+      CI-runnable `scripts/solana/build-examples.sh` that emits and diffs.
+- [x] Capability checker rejects unsupported capability/target combinations
+      with a clear diagnostic citing target id and capability id. Basis for
+      V-GATE-SOLANA-05; exercised by `Tests/SolanaDiagnostics.lean` and
+      `scripts/solana/diagnostic-smoke.sh`.
 - [ ] Optional `solana-test-validator --bpf-program` smoke (V-GATE-SOLANA-04,
       gated on tool availability).
 

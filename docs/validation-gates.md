@@ -87,12 +87,20 @@ The following gates are `Planned` and do not exist in CI or as scripts:
   - **V-GATE-SOLANA-03** — Counter scenario (initialize, increment, get) passes
     `sbpf test` (Mollusk). Script: `scripts/solana/counter-smoke.sh` (Phase 1 complete;
     4 Mollusk assertions: initialize→0, increment 0→1, increment 5→6, get→return_data).
+    The emitted `.s` now includes the account-validation prologue
+    (writable + owner checks) and is accompanied by `manifest.toml`; the
+    tracked `Examples/Solana/Counter.golden.s` / `Counter.manifest.toml` are
+    kept in sync by `scripts/solana/build-examples.sh`.
   - **V-GATE-SOLANA-04** — Counter scenario passes
     `solana-test-validator --bpf-program` smoke (optional, gated on
     `solana-test-validator` availability).
   - **V-GATE-SOLANA-05** — Capability checker rejects IR modules using
     unsupported capabilities with a clear diagnostic citing target id and
-    capability id.
+    capability id. Script: `scripts/solana/diagnostic-smoke.sh` runs
+    `Tests/SolanaDiagnostics.lean` and asserts 8 crosscall rejection cases
+    (the generic `crosscall.invoke` family) all produce the expected message
+    `target \`solana-sbpf-asm\` does not support capability \`crosscall.invoke\`: ...`.
+    (Phase 1 complete.)
   - **V-GATE-SOLANA-06** — `proof-forge-artifact.json` includes
     `target: "solana-sbpf-asm"`, `irVersion`, and entrypoint list.
   - **V-GATE-SOLANA-07** — `sbpf debug --elf --input` works interactively
@@ -119,8 +127,11 @@ The following gates are `Planned` and do not exist in CI or as scripts:
         and return 10), `guarded_increment` from 3 (assert passes, count→4)
         and from 9 (assert reverts via `assert_fail` exit 2), and
         `equality_guard` from 7 (assertEq passes, count→7 and return 7) and
-        from 42 (assertEq reverts via `assert_eq_fail` exit 3).
-        (Runtime half pending toolchain availability; Phase 1 stable.)
+        from 42 (assertEq reverts via `assert_eq_fail` exit 3). The Mollusk
+        fixtures disable `account_data_direct_mapping` /
+        `direct_account_pointers_in_program_input` /
+        `virtual_address_space_adjustments` so the Phase 1 lowering's legacy
+        embedded account-data layout is exercised. (Phase 1 complete.)
 - Move smoke — `aptos move compile/test` or Sui Move validation.
 - Cross-target capability rejection matrix — compile-time diagnostics for
   unsupported capability/target combinations beyond the target-specific Psy and

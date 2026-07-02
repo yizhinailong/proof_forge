@@ -249,11 +249,12 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] IR → sBPF AST → text pipeline；entrypoint adapter 按第一条 instruction-data byte 分派（V-GATE-SOLANA-01/02；Phase 0 基线）。
 - [x] Counter codegen（literal、local、`add`、标量 storage 读/写/`assignOp`、`letBind`/`letMutBind`、`assign`、`return`）；Mollusk 冒烟覆盖 initialize / increment 0→1 / increment 5→6 / get→return_data（V-GATE-SOLANA-03）。
 - [x] 控制流 + 断言覆盖：比较表达式（`.eq`/`.ne`/`.lt`/`.le`/`.gt`/`.ge`），布尔表达式（`.boolAnd`/`.boolOr`/`.boolNot`），语句级 `.ifElse` then/else 降级（使用 fresh 命名 label），以及 `.assert` 和 `.assertEq` 降级到共享的 `assert_fail`（exit 2）/ `assert_eq_fail`（exit 3）label。Fixture：`ProofForge.IR.Examples.ControlFlowAssertProbe`（三个 entrypoint：`lifecycle`、`guarded_increment`、`equality_guard`）；CLI 模式 `--emit-control-ir-sbpf`；确定性发射门禁 `scripts/solana/emit-control-smoke.sh`（不需要 `sbpf`）；Mollusk 运行时门禁 `scripts/solana/control-smoke.sh`（6 项断言：lifecycle x2、guarded_increment 成功 + assert revert、equality_guard 成功 + assertEq revert）（V-GATE-SOLANA-08）。
-- [ ] instruction manifest（`manifest.toml`）与 `.s` 一起生成。
-- [ ] `--solana-elf` CLI 模式：发射 `.s` 后调用 `sbpf build`。
-- [ ] account validation：按 manifest 检查 signer / writable / owner。
-- [ ] `Examples/Solana/Counter.lean` + manifest 作为自包含示例。
-- [ ] 能力检查器以清晰诊断拒绝不支持的能力/目标组合，诊断含 target id 和 capability id（V-GATE-SOLANA-05 的基础）。
+- [x] instruction manifest（`manifest.toml`）与 `.s` 一起生成。
+      `ProofForge.Backend.Solana.SbpfAsm.renderManifest` 按 Phase 1 默认账户约定（writable=true、signer=false、owner=program）输出 target、program 占位 id 和每条 instruction 的 TOML 表。`--emit-counter-ir-sbpf` 与 `--emit-control-ir-sbpf` 在 `.s` 旁生成 `manifest.toml` 并作为 artifact 入元数据。
+- [x] `--solana-elf` CLI 模式：发射 `.s`、写 `manifest.toml`、搭建 `sbpf` 项目、调用 `sbpf build`、将产物 `.so` 复制到指定输出，并在 artifact 元数据中记录 `sbpfBuild: passed`。
+- [x] account validation：按 manifest 检查 signer / writable / owner。每个 entrypoint 开头注入 prologue，检查账户头 offset 10 的 `is_writable` 并将 offset 48 起的 owner 与序列化 program id 比对。失败出口为 4（`error_not_writable`）、5（`error_signer`）、6（`error_owner`）。Phase 1 Mollusk 运行时门禁关闭 direct-account-mapping ABI，以使用 legacy 嵌入式账户数据布局。
+- [x] `Examples/Solana/Counter.lean` + manifest 作为自包含示例。包含跟踪的 `Counter.golden.s`、`Counter.manifest.toml`，以及 CI 可运行的 `scripts/solana/build-examples.sh` 负责发射并做 diff。
+- [x] 能力检查器以清晰诊断拒绝不支持的能力/目标组合，诊断含 target id 和 capability id。`Tests/SolanaDiagnostics.lean` 与 `scripts/solana/diagnostic-smoke.sh` 覆盖 8 个 `crosscall.invoke` 家族用例，作为 V-GATE-SOLANA-05 的基础。
 - [ ] 可选 `solana-test-validator --bpf-program` 冒烟（V-GATE-SOLANA-04，取决于工具是否可用）。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）

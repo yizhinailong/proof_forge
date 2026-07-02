@@ -27,7 +27,14 @@ mod tests {
 
     fn mollusk() -> Mollusk {
         let pid = program_id();
-        Mollusk::new(&pid, "deploy/__PROGRAM_NAME__")
+        let mut mollusk = Mollusk::new(&pid, "deploy/__PROGRAM_NAME__");
+        // Phase 1 lowering uses the legacy embedded account-data layout, not
+        // the direct-mapping ABI. Disable the features that change the input
+        // serialization and account pointer layout.
+        mollusk.feature_set.account_data_direct_mapping = false;
+        mollusk.feature_set.direct_account_pointers_in_program_input = false;
+        mollusk.feature_set.virtual_address_space_adjustments = false;
+        mollusk
     }
 
     /// Instruction discriminant bytes:

@@ -17,6 +17,101 @@ Each entry should include:
 
 ## 2026-07-02
 
+### Solana sBPF Phase 1 Closure: Manifest, Account Validation, `--solana-elf`, and Counter Example
+
+Commit: `feat: close Workstream 7 Phase 1 Solana sBPF items`
+
+Summary:
+
+- Added `ProofForge.Backend.Solana.SbpfAsm.renderManifest` to emit a
+  `manifest.toml` sidecar alongside the generated `.s`, describing the
+  target, program placeholder id, and per-entrypoint instruction tables with
+  the Phase 1 default account convention (writable, signer=false,
+  owner=program). `--emit-counter-ir-sbpf` and `--emit-control-ir-sbpf` now
+  write the manifest and record it in `proof-forge-artifact.json`.
+- Added a runtime account-validation prologue to every entrypoint:
+  - `is_writable` check at serialized account-header offset 10;
+  - dynamic owner check that computes the `program_id` address from
+    `instruction_data_len` and compares it to the account owner at offsets
+    48–79;
+  - failure exits 4 (`error_not_writable`), 5 (`error_signer`), and 6
+    (`error_owner`).
+- Added `--solana-elf` CLI mode. It emits `.s`, writes `manifest.toml`,
+  scaffolds an sbpf project (`src/<name>/<name>.s`, `Cargo.toml`, empty
+  `src/lib.rs`), invokes `sbpf build`, copies the resulting `.so` to the
+  requested output, and records `sbpfBuild: passed` in artifact metadata.
+- Created the self-contained example `Examples/Solana/Counter.lean` in
+  portable IR, plus `README.md`, tracked `Counter.golden.s`, and
+  `Counter.manifest.toml`. Added `scripts/solana/build-examples.sh` to emit
+  the example and diff against the golden fixtures without requiring `sbpf`.
+- Wired `ProofForge.Target.requireCapabilities` into `SbpfAsm.lowerModule`
+  and added `Tests/SolanaDiagnostics.lean` with 8 crosscall-rejection cases,
+  exercised by `scripts/solana/diagnostic-smoke.sh` (basis for
+  V-GATE-SOLANA-05).
+- Fixed two latent sBPF lowering bugs discovered by running the Mollusk
+  runtime gates with `sbpf` installed:
+  - `INSTRUCTION_DATA_LEN` / `INSTRUCTION_DATA` equ offsets were off by one
+    u64 slot, so the dispatch byte and owner-check program-id computation
+    read garbage;
+  - labels minted by `LowerCtx.freshLabel` reset per entrypoint, producing
+    duplicate `sol_lbl_N` labels in multi-entrypoint modules;
+  - locals also leaked across entrypoints, so `.local` lookups found stale
+    offsets. `lowerModule` now resets the local frame per entrypoint while
+    keeping the label counter module-wide.
+- Updated Mollusk test templates (`Tests/solana/counter_mollusk.rs.tpl` and
+  `control_mollusk.rs.tpl`) to disable
+  `account_data_direct_mapping` / `direct_account_pointers_in_program_input`
+  / `virtual_address_space_adjustments`, so Phase 1's legacy embedded
+  account-data layout is exercised.
+- Updated `docs/validation-gates.md`, `docs/zh/validation-gates.zh.md`,
+  `docs/implementation-backlog.md`, and `docs/zh/implementation-backlog.zh.md`
+  to mark the new items complete.
+
+Validation run:
+
+```sh
+lake build
+scripts/solana/build-examples.sh
+scripts/solana/diagnostic-smoke.sh
+scripts/solana/counter-smoke.sh      # requires sbpf, cargo, solana-keygen
+scripts/solana/control-smoke.sh      # requires sbpf, cargo, solana-keygen
+scripts/solana/emit-control-smoke.sh
+lake env proof-forge --solana-elf -o build/solana/Counter.so
+scripts/i18n/check-sync.sh
+```
+
+Result:
+
+- `lake build` (112 jobs) succeeded.
+- `build-examples.sh` emitted `Counter.s` and `manifest.toml`, both matching
+  the tracked golden fixtures.
+- `diagnostic-smoke.sh` reported all 8 Solana capability-rejection cases pass.
+- `counter-smoke.sh` passed 4/4 Mollusk assertions (initialize→0,
+  increment 0→1, increment 5→6, get→return_data).
+- `control-smoke.sh` passed 6/6 Mollusk assertions (`lifecycle` from 0 and
+  from 12345; `guarded_increment` success from 3 and assert-revert from 9;
+  `equality_guard` success from 7 and assertEq-revert from 42).
+- `emit-control-smoke.sh` remained bit-for-bit reproducible.
+- `--solana-elf` produced `Counter.so` and recorded `sbpfBuild: passed`.
+- `i18n/check-sync.sh` reported translations up to date.
+
+Known limitations:
+
+- Phase 1 uses the legacy embedded account-data layout. The Mollusk fixtures
+  explicitly disable the direct-account-mapping ABI; adapting to the
+  direct-mapping ABI is future work.
+- `sub`/`div`/`mod` lowering in `lowerBinaryCombine` still computes
+  `rhs op lhs` rather than `lhs op rhs` — unexercised by current sBPF smokes
+  and left for a future fix.
+- `solana-test-validator` deployment (V-GATE-SOLANA-04) remains optional and
+  unimplemented.
+
+Next step:
+
+- Either move Workstream 7 into Phase 2 (multi-account instruction manifests,
+  PDA/storage-map lowering, CPI dispatch) or pick up the next high-value
+  target surface.
+
 ### Solana sBPF Control-Flow + Assertion IR Coverage
 
 Commit: `feat: lower control-flow + assertions to sBPF (V-GATE-SOLANA-08)`

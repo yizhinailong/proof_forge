@@ -131,6 +131,7 @@ inductive EmitMode where
   | u32StorageArrayIrPsy
   | counterIrSbpf
   | controlIrSbpf
+  | solanaElf
   | sbpfAsm
   deriving BEq, Inhabited
 
@@ -223,6 +224,7 @@ def usage : String :=
     "  proof-forge --emit-u32-storage-array-ir-psy [-o output.psy]",
     "  proof-forge --emit-counter-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-control-ir-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --solana-elf [-o output.so] [--artifact-output file]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -755,7 +757,7 @@ def writeEvmSdkArtifactMetadata
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy || opts.mode == .counterIrSbpf || opts.mode == .controlIrSbpf || opts.mode == .sbpfAsm then
+      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy || opts.mode == .counterIrSbpf || opts.mode == .controlIrSbpf || opts.mode == .solanaElf || opts.mode == .sbpfAsm then
         .ok opts
       else
         .error usage
@@ -924,6 +926,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .counterIrSbpf }
   | "--emit-control-ir-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .controlIrSbpf }
+  | "--solana-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaElf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
@@ -1799,6 +1803,16 @@ def compileU32StorageArrayIrPsy (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+/-- Write the Solana instruction manifest.toml alongside the emitted .s file.
+Returns the path that was written. -/
+def writeSbpfManifest (output : FilePath) (module : ProofForge.IR.Module) : IO FilePath := do
+  let manifestOutput := match output.parent with
+    | some parent => parent / "manifest.toml"
+    | none => FilePath.mk "manifest.toml"
+  let manifest := ProofForge.Backend.Solana.SbpfAsm.renderManifest module
+  IO.FS.writeFile manifestOutput (manifest ++ "\n")
+  return manifestOutput
+
 def compileCounterIrSbpf (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/Counter.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderModule ProofForge.IR.Examples.Counter.module with
@@ -1807,10 +1821,13 @@ def compileCounterIrSbpf (opts : CliOptions) : IO UInt32 := do
         IO.FS.createDirAll parent
       writeTextFile output source
       IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifest output ProofForge.IR.Examples.Counter.module
+      IO.println s!"wrote {manifestOutput}"
       let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
       if let some parent := metadataOutput.parent then
         IO.FS.createDirAll parent
       let sourceArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
       let metadata := jsonObject #[
         ("schemaVersion", "1"),
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
@@ -1828,11 +1845,13 @@ def compileCounterIrSbpf (opts : CliOptions) : IO UInt32 := do
           ])
         ]),
         ("artifacts", jsonObject #[
-          ("sbpfAsm", sourceArtifact)
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact)
         ]),
         ("validation", jsonObject #[
           ("sbpfBuild", jsonString "pending"),
-          ("sbpfDisassembleRoundtrip", jsonString "pending")
+          ("sbpfDisassembleRoundtrip", jsonString "pending"),
+          ("manifestGeneration", jsonString "passed")
         ])
       ]
       IO.FS.writeFile metadataOutput (metadata ++ "\n")
@@ -1849,10 +1868,13 @@ def compileControlIrSbpf (opts : CliOptions) : IO UInt32 := do
         IO.FS.createDirAll parent
       writeTextFile output source
       IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifest output ProofForge.IR.Examples.ControlFlowAssertProbe.module
+      IO.println s!"wrote {manifestOutput}"
       let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
       if let some parent := metadataOutput.parent then
         IO.FS.createDirAll parent
       let sourceArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
       let metadata := jsonObject #[
         ("schemaVersion", "1"),
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
@@ -1870,11 +1892,13 @@ def compileControlIrSbpf (opts : CliOptions) : IO UInt32 := do
           ])
         ]),
         ("artifacts", jsonObject #[
-          ("sbpfAsm", sourceArtifact)
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact)
         ]),
         ("validation", jsonObject #[
           ("sbpfBuild", jsonString "pending"),
           ("sbpfDisassembleRoundtrip", jsonString "pending"),
+          ("manifestGeneration", jsonString "passed"),
           ("molluskRuntime", jsonObject #[
             ("lifecycle", jsonString "pending"),
             ("guardedIncrementSuccess", jsonString "pending"),
@@ -1882,6 +1906,88 @@ def compileControlIrSbpf (opts : CliOptions) : IO UInt32 := do
             ("equalityGuardSuccess", jsonString "pending"),
             ("equalityGuardRevert", jsonString "pending")
           ])
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/Counter.so")
+  let projectName := match output.fileName with
+    | some n => (n.splitOn ".").headD "counter"
+    | none => "counter"
+  let projectDir := match output.parent with
+    | some parent => parent / s!"{projectName}-sbpf-project"
+    | none => FilePath.mk s!"{projectName}-sbpf-project"
+
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule ProofForge.IR.Examples.Counter.module with
+  | .ok source =>
+      -- Scaffold the sbpf project layout expected by `sbpf build`.
+      let asmSrcDir := projectDir / "src" / projectName
+      IO.FS.createDirAll asmSrcDir
+      let asmSrc := asmSrcDir / s!"{projectName}.s"
+      IO.FS.writeFile asmSrc source
+      IO.println s!"wrote {asmSrc}"
+
+      let manifest := ProofForge.Backend.Solana.SbpfAsm.renderManifest ProofForge.IR.Examples.Counter.module
+      let manifestOutput := projectDir / "manifest.toml"
+      IO.FS.writeFile manifestOutput (manifest ++ "\n")
+      IO.println s!"wrote {manifestOutput}"
+
+      let cargoToml := projectDir / "Cargo.toml"
+      IO.FS.writeFile cargoToml s!"[package]\nname = \"{projectName}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
+      IO.println s!"wrote {cargoToml}"
+
+      let libRs := projectDir / "src" / "lib.rs"
+      IO.FS.writeFile libRs ""
+
+      -- Invoke the sbpf toolchain to assemble and link the ELF.
+      let _ ← runProcess "sbpf" #["build"] (cwd? := some projectDir)
+
+      let builtElf := projectDir / "deploy" / s!"{projectName}.so"
+      if ! (← builtElf.pathExists) then
+        throw <| IO.userError s!"sbpf build did not produce {builtElf}"
+
+      let elfBytes ← IO.FS.readBinFile builtElf
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      IO.FS.writeBinFile output elfBytes
+      IO.println s!"wrote {output}"
+
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson asmSrc
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let elfArtifact ← artifactEntryJson output
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "counter-elf"),
+        ("sourceKind", jsonString "portable-ir"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString "Counter"),
+        ("capabilities", jsonStringArray #["storage.scalar", "account.explicit", "control.conditional"]),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact),
+          ("solanaElf", elfArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("sbpfBuild", jsonString "passed"),
+          ("sbpfDisassembleRoundtrip", jsonString "pending"),
+          ("manifestGeneration", jsonString "passed")
         ])
       ]
       IO.FS.writeFile metadataOutput (metadata ++ "\n")
@@ -2025,6 +2131,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .u32StorageArrayIrPsy => compileU32StorageArrayIrPsy opts
   | .counterIrSbpf => compileCounterIrSbpf opts
   | .controlIrSbpf => compileControlIrSbpf opts
+  | .solanaElf => compileSolanaElf opts
   | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli

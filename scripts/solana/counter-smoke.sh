@@ -67,6 +67,11 @@ lake env proof-forge --emit-counter-ir-sbpf -o "$ASM_OUTPUT" \
 [ -f "$ASM_OUTPUT" ] || fail "assembly file not written: $ASM_OUTPUT"
 echo "  emitted: $ASM_OUTPUT"
 
+GOLDEN_S="$REPO_ROOT/Examples/Solana/Counter.golden.s"
+[ -f "$GOLDEN_S" ] || fail "golden sBPF assembly not found: $GOLDEN_S"
+diff -u "$GOLDEN_S" "$ASM_OUTPUT" || fail "emitted .s differs from golden fixture"
+echo "  golden diff: ok"
+
 # --- 2. Scaffold sbpf test project ---------------------------------------
 
 echo "=== V-GATE-SOLANA-03 step 2: scaffold sbpf test project ==="
