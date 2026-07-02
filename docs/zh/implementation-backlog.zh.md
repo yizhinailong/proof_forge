@@ -138,6 +138,30 @@
 任务：
 
 - 保持 `proof-forge --evm-bytecode` 正常工作。
+- EVM 语义计划迁移 TODO：
+  - 已完成：将 `ModulePlan` 改成 target-driven，让 helper planning 在生成
+    Yul 前由 `Target.resolveModule/resolveSpec Target.evm` 推导出来。
+  - 将 `ProofForge.Backend.Evm.IR` 拆成 `Validate`、`Lower`、`ToYul` 和
+    `Metadata` 模块；在调用方全部迁移完成前，保留 `IR.lean` 作为兼容 facade。
+  - 已完成：将 scalar 和 map storage slot 的 Yul 构造迁移到
+    `StorageSlotPlan -> ToYul`，先覆盖 storage path 使用的 map value/presence slot。
+  - 将 `StorageSlotPlan -> ToYul` 扩展到 array slot 和 struct-array field
+    slot，然后删除 `IR.lean` 里的旧 direct slot-expression builder。
+  - 加入 `ExprPlan` 和 `StmtPlan`，让表达式和语句的验证、helper discovery
+    以及 target-specific lowering 都发生在 Yul AST assembly 之前。
+  - 加入 `EntrypointPlan`，覆盖 selector dispatch、calldata guard、ABI word
+    flattening、return-data encoding 和 metadata selector layout。
+  - 加入 `EventPlan`，覆盖 event signature topic、indexed-topic hashing、
+    non-indexed data flattening 和 metadata event layout。
+  - 加入 `CrosscallPlan`，覆盖 typed `call`、带 value 的 `call`、`staticcall`、
+    `delegatecall`、`create` 和 `create2` helper。
+  - 加入 `MetadataPlan` 和 deploy-artifact planning，让 bytecode metadata、
+    initcode、deployment manifest 和 chain profile reference 都来自同一份语义计划。
+  - 只有在对应 capability 已经有 plan-level diagnostic、golden Yul、solc
+    bytecode generation、Foundry smoke、artifact metadata validation 和 EVM IR
+    coverage manifest 覆盖后，才删除旧的自定义语义 `IR.lean -> Yul` lowering。
+  - 保留 `ProofForge.Compiler.Yul.AST` 和 `ProofForge.Compiler.Yul.Printer`；
+    这次迁移替换的是 backend semantic lowering，不是目标 AST/printer 边界。
 - 已完成：加入 EVM IR 诊断冒烟测试，让不支持的 portable IR 形态在 Yul 生成前给出稳定错误。
 - 已完成：加入 EVM IR 覆盖清单 gate，要求每个 portable IR constructor 都被标记为 lowered、validated、unsupported 或 structural。
 - 已完成：加入 `AbiScalarProbe`，覆盖 portable IR EVM 的 `U64`、`U32` 和 `Bool` 标量 ABI 参数 decoding，并通过 golden Yul、solc bytecode 和 Foundry malformed-calldata 验证。

@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM StorageSlotPlan ToYul Slice
+
+Commit: feature commit for `StorageSlotPlan -> ToYul`
+
+Summary:
+
+- Added `ProofForge.Backend.Evm.ToYul` as the first plan-to-Yul module in the
+  EVM semantic-plan migration.
+- Moved scalar storage slot expressions and map value/presence slot expressions
+  through `StorageSlotPlan -> ToYul` while keeping the existing `IR.lean`
+  facade and generated Yul behavior stable.
+- Recorded the remaining EVM semantic-plan migration TODO in the implementation
+  backlog, including `Validate`, `Lower`, `ToYul`, `Metadata`,
+  `EntrypointPlan`, `EventPlan`, `CrosscallPlan`, and `MetadataPlan` stages.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-plan
+just evm-smoke map
+just evm-smoke typed-map
+just evm-smoke typed-storage
+just check
+just diff-check
+```
+
+Known limitations:
+
+- Array slots, struct-array field slots, expression plans, statement plans,
+  entrypoint planning, events, crosscalls, and artifact metadata still need to
+  move behind semantic plan boundaries.
+- `ProofForge.Backend.Evm.IR` remains the public compatibility facade until the
+  migrated plan paths have complete validation coverage.
+
+Next step:
+
+- Extend `StorageSlotPlan -> ToYul` to array and struct-array slot plans, then
+  begin extracting expression and statement planning out of `IR.lean`.
+
 ### Target-Driven EVM Module Plan
 
 Commit: feature commit for EVM capability-aware module planning

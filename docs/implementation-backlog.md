@@ -163,6 +163,37 @@ Goal: keep EVM stable while the target model is introduced.
 Tasks:
 
 - Keep `proof-forge --evm-bytecode` working.
+- EVM semantic plan migration TODO:
+  - Done: make `ModulePlan` target-driven so helper planning is derived from
+    `Target.resolveModule/resolveSpec Target.evm` before Yul generation.
+  - Split `ProofForge.Backend.Evm.IR` into `Validate`, `Lower`, `ToYul`, and
+    `Metadata` modules while keeping `IR.lean` as a compatibility facade until
+    callers have moved.
+  - Done: move scalar and map storage slot Yul construction to
+    `StorageSlotPlan -> ToYul`, starting with map value/presence slots used by
+    storage paths.
+  - Extend `StorageSlotPlan -> ToYul` to array slots and struct-array field
+    slots, then remove the old direct slot-expression builders from
+    `IR.lean`.
+  - Add `ExprPlan` and `StmtPlan` so expression and statement validation,
+    helper discovery, and target-specific lowering happen before Yul AST
+    assembly.
+  - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
+    flattening, return-data encoding, and metadata selector layout.
+  - Add `EventPlan` for event signature topics, indexed-topic hashing,
+    non-indexed data flattening, and metadata event layout.
+  - Add `CrosscallPlan` for typed `call`, value-bearing `call`, `staticcall`,
+    `delegatecall`, `create`, and `create2` helpers.
+  - Add `MetadataPlan` and deploy-artifact planning so bytecode metadata,
+    initcode, deployment manifests, and chain profile references are produced
+    from the same semantic plan.
+  - Delete the old custom semantic `IR.lean -> Yul` lowering only after each
+    migrated capability is covered by plan-level diagnostics, golden Yul, solc
+    bytecode generation, Foundry smokes, artifact metadata validation, and the
+    EVM IR coverage manifest.
+  - Keep `ProofForge.Compiler.Yul.AST` and
+    `ProofForge.Compiler.Yul.Printer`; the migration replaces backend semantic
+    lowering, not the target AST/printer boundary.
 - Done: add EVM IR diagnostic smoke so unsupported portable IR shapes fail
   before Yul generation with stable messages.
 - Done: add an EVM IR coverage manifest gate so every portable IR constructor

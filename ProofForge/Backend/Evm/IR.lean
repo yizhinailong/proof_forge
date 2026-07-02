@@ -1,6 +1,7 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Backend.Evm.Plan
+import ProofForge.Backend.Evm.ToYul
 import ProofForge.IR.Contract
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
@@ -26,6 +27,17 @@ def diagnosticError (err : Diagnostic) : LowerError := {
 def planError (err : ProofForge.Backend.Evm.Plan.PlanError) : LowerError := {
   message := err.render
 }
+
+def toYulError (message : String) : LowerError := {
+  message
+}
+
+def lowerPlan
+    {α : Type}
+    (result : Except ProofForge.Backend.Evm.Plan.PlanError α) : Except LowerError α :=
+  match result with
+  | .ok value => .ok value
+  | .error err => .error (planError err)
 
 def stateInfo? (module : Module) (stateId : String) : Option (Nat × StateDecl) :=
   go 0 0 module.state
@@ -1714,13 +1726,31 @@ def validateEntrypointTypes (module : Module) (entrypoint : Entrypoint) : Except
   discard <| validateStatements module entrypoint (entrypointTypeEnv entrypoint) entrypoint.body
 
 mutual
+  partial def lowerStorageSlotPlanExpr
+      (module : Module)
+      (env : TypeEnv)
+      (plan : ProofForge.Backend.Evm.Plan.StorageSlotPlan) :
+      Except LowerError Lean.Compiler.Yul.Expr :=
+    ProofForge.Backend.Evm.ToYul.storageSlotExpr
+      toYulError
+      (fun expr => lowerExpr module env expr)
+      plan
+
+  partial def lowerScalarStorageSlotExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.scalarSlotPlan module stateId
+    lowerStorageSlotPlanExpr module env plan
+
   partial def lowerMapSlotExpr
       (module : Module)
       (env : TypeEnv)
       (stateId : String)
       (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let (slot, _, _) ← requireStorageMapState module stateId
-    .ok (Lean.Compiler.Yul.call mapSlotFunctionName #[slotExpr slot, ← lowerExpr module env key])
+    discard <| requireStorageMapState module stateId
+    let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.mapValueSlotPlan module stateId #[key]
+    lowerStorageSlotPlanExpr module env plan
 
   partial def lowerMapGetExpr
       (module : Module)
@@ -1734,11 +1764,12 @@ mutual
       (env : TypeEnv)
       (stateId : String)
       (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let (slot, _, _) ← requireStorageMapState module stateId
+    discard <| requireStorageMapState module stateId
+    let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.mapPresenceSlotPlan module stateId #[key]
     .ok (Lean.Compiler.Yul.builtin "iszero" #[
       Lean.Compiler.Yul.builtin "iszero" #[
         Lean.Compiler.Yul.builtin "sload" #[
-          Lean.Compiler.Yul.call mapPresenceSlotFunctionName #[slotExpr slot, ← lowerExpr module env key]
+          ← lowerStorageSlotPlanExpr module env plan
         ]
       ]
     ])
@@ -1756,29 +1787,22 @@ mutual
       (env : TypeEnv)
       (stateId : String)
       (keys : Array ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let (slot, _, _) ← requireStorageMapState module stateId
+    discard <| requireStorageMapState module stateId
     if keys.isEmpty then
       .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
-    let mut current := slotExpr slot
-    for key in keys do
-      current := Lean.Compiler.Yul.call mapSlotFunctionName #[current, ← lowerExpr module env key]
-    .ok current
+    let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.mapValueSlotPlan module stateId keys
+    lowerStorageSlotPlanExpr module env plan
 
   partial def lowerMapPathPresenceSlotExpr
       (module : Module)
       (env : TypeEnv)
       (stateId : String)
       (keys : Array ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let (slot, _, _) ← requireStorageMapState module stateId
+    discard <| requireStorageMapState module stateId
     if keys.isEmpty then
       .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
-    match keys.toList.reverse with
-    | [] => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
-    | last :: parentKeysReversed =>
-        let mut parent := slotExpr slot
-        for key in parentKeysReversed.reverse do
-          parent := Lean.Compiler.Yul.call mapSlotFunctionName #[parent, ← lowerExpr module env key]
-        .ok (Lean.Compiler.Yul.call mapPresenceSlotFunctionName #[parent, ← lowerExpr module env last])
+    let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.mapPresenceSlotPlan module stateId keys
+    lowerStorageSlotPlanExpr module env plan
 
   partial def lowerMapPathReadExpr
       (module : Module)
@@ -2423,9 +2447,8 @@ mutual
               message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
             }
         | _ => pure ()
-        let some slot := stateSlot? module stateId
-          | .error { message := s!"unknown scalar state `{stateId}`" }
-        .ok (Lean.Compiler.Yul.builtin "sload" #[slotExpr slot])
+        let storageSlot ← lowerScalarStorageSlotExpr module env stateId
+        .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
     | .storageScalarAssignOp _ _ _ =>
@@ -2914,17 +2937,14 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
       | .structType _ =>
           lowerStorageStructWriteStmt module env stateId value
       | _ => do
-          let some slot := stateSlot? module stateId
-            | .error { message := s!"unknown scalar state `{stateId}`" }
-          .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module env value]))
+          let storageSlot ← lowerScalarStorageSlotExpr module env stateId
+          .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, ← lowerExpr module env value]))
   | .storageScalarAssignOp stateId op value => do
       match ← scalarStateType module stateId with
       | .structType _ =>
           .error { message := s!"storage.scalar.assign_op does not support struct state `{stateId}` in IR EVM v0" }
       | _ => pure ()
-      let some slot := stateSlot? module stateId
-        | .error { message := s!"unknown scalar state `{stateId}`" }
-      let storageSlot := slotExpr slot
+      let storageSlot ← lowerScalarStorageSlotExpr module env stateId
       .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
         storageSlot,
         lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[storageSlot]) (← lowerExpr module env value)
