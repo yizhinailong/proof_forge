@@ -46,7 +46,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint typed_array_lifecycle:9f3c504b \
   --expect-entrypoint path_assign_u32:5ab2cb77 \
   --expect-entrypoint read_flag:afbe1175 \
-  --expect-entrypoint write_limb:89580c4d \
+  --expect-entrypoint write_limb:6a088e19 \
   --expect-entrypoint read_root:4994f441 \
   "$METADATA_FILE"
 
@@ -177,17 +177,17 @@ contract ProofForgeIRTypedStorageSmokeTest {
         deployRuntime(hex"$probe_hex", probe);
 
         (bool writeOk, bytes memory result) =
-            probe.call(abi.encodeWithSignature("write_limb(uint256,uint256)", 1, uint256(type(uint32).max)));
+            probe.call(abi.encodeWithSignature("write_limb(uint256,uint32)", 1, uint256(type(uint32).max)));
         assertTrue(writeOk);
         assertEq(result.length, 0);
         assertEq(readStorage(probe, 2), uint256(type(uint32).max));
 
         (bool rangeOk,) =
-            probe.call(abi.encodeWithSignature("write_limb(uint256,uint256)", 1, uint256(type(uint32).max) + 1));
+            probe.call(abi.encodeWithSignature("write_limb(uint256,uint32)", 1, uint256(type(uint32).max) + 1));
         assertFalse(rangeOk);
 
         (bool boundsOk,) =
-            probe.call(abi.encodeWithSignature("write_limb(uint256,uint256)", 3, 99));
+            probe.call(abi.encodeWithSignature("write_limb(uint256,uint32)", 3, 99));
         assertFalse(boundsOk);
     }
 

@@ -73,6 +73,7 @@ DOC_MAP: dict[str, str] = {
     "docs/rfcs/0001-multichain-platform.md": "docs/zh/rfcs/0001-multichain-platform.zh.md",
     "docs/rfcs/0002-target-implementation-design.md": "docs/zh/rfcs/0002-target-implementation-design.zh.md",
     "docs/rfcs/0003-portable-ir-and-runtime.md": "docs/zh/rfcs/0003-portable-ir-and-runtime.zh.md",
+    "docs/rfcs/0004-evm-semantic-plan.md": "docs/zh/rfcs/0004-evm-semantic-plan.zh.md",
     "docs/targets/README.md": "docs/zh/targets-README.zh.md",
     "docs/targets/evm.md": "docs/zh/targets/evm.zh.md",
     "docs/targets/wasm-family.md": "docs/zh/targets/wasm-family.zh.md",

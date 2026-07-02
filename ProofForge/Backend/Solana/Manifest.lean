@@ -52,7 +52,7 @@ def InstructionEntry.render (ie : InstructionEntry) : String :=
   "name = \"" ++ ie.name ++ "\"\n" ++
   "tag = " ++ toString ie.tag ++ "\n" ++
   "handler = \"" ++ ie.handler ++ "\"\n" ++
-  accountsBlock ++ "\n"
+  accountsBlock
 
 def defaultStateAccountName (module : Module) : String :=
   match module.state[0]? with
@@ -315,7 +315,7 @@ def renderManifestWithInstructions (module : Module) (instructions : Array Instr
     "id = \"REPLACE_WITH_PROGRAM_ID\"",
     "name = \"" ++ programName ++ "\"",
     ""
-  ].toList ++ "\n" ++ String.intercalate "\n" instructionBlocks.toList ++ "\n"
+  ].toList ++ "\n" ++ String.intercalate "\n\n" instructionBlocks.toList
 
 /-- Render the full manifest.toml contents. -/
 def renderManifest (module : Module) : String :=

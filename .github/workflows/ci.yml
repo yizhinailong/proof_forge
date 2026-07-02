@@ -10,7 +10,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just@1.48.0
 
       - name: Install Lean
         run: |
@@ -38,145 +43,103 @@ jobs:
           forge --version
           cast --version
           solc --version
+          just --version
 
       - name: Build Lean package
-        run: lake build
+        run: just build
 
       - name: Check target registry
-        run: lake env lean --run Tests/TargetRegistry.lean
+        run: just target-registry
+
+      - name: Check EVM semantic plan
+        run: just evm-plan
+
+      - name: Check Solana light gates
+        run: just solana-light
 
       - name: Check documentation translations
-        run: scripts/i18n/check-sync.sh
+        run: just docs-check
 
       - name: Check Psy golden sources
-        run: |
-          lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
-          diff -u Examples/Psy/Counter.golden.psy build/psy/Counter.psy
-          lake env proof-forge --emit-event-ir-psy -o build/psy/EventProbe.psy
-          diff -u Examples/Psy/EventProbe.golden.psy build/psy/EventProbe.psy
-          lake env proof-forge --emit-crosscall-ir-psy -o build/psy/CrosscallProbe.psy
-          diff -u Examples/Psy/CrosscallProbe.golden.psy build/psy/CrosscallProbe.psy
-          lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionPredicateProbe.psy
-          diff -u Examples/Psy/ExpressionPredicateProbe.golden.psy build/psy/ExpressionPredicateProbe.psy
-          lake env proof-forge --emit-generic-entrypoint-ir-psy -o build/psy/GenericEntrypointProbe.psy
-          diff -u Examples/Psy/GenericEntrypointProbe.golden.psy build/psy/GenericEntrypointProbe.psy
-          lake env proof-forge --emit-arithmetic-ir-psy -o build/psy/ArithmeticProbe.psy
-          diff -u Examples/Psy/ArithmeticProbe.golden.psy build/psy/ArithmeticProbe.psy
-          lake env proof-forge --emit-bitwise-ir-psy -o build/psy/BitwiseProbe.psy
-          diff -u Examples/Psy/BitwiseProbe.golden.psy build/psy/BitwiseProbe.psy
-          lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
-          diff -u Examples/Psy/ConditionalProbe.golden.psy build/psy/ConditionalProbe.psy
-          lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProbe.psy
-          diff -u Examples/Psy/U32ArithmeticProbe.golden.psy build/psy/U32ArithmeticProbe.psy
-          lake env proof-forge --emit-u32-hash-packing-ir-psy -o build/psy/U32HashPackingProbe.psy
-          diff -u Examples/Psy/U32HashPackingProbe.golden.psy build/psy/U32HashPackingProbe.psy
-          lake env proof-forge --emit-u32-storage-scalar-ir-psy -o build/psy/U32StorageScalarProbe.psy
-          diff -u Examples/Psy/U32StorageScalarProbe.golden.psy build/psy/U32StorageScalarProbe.psy
-          lake env proof-forge --emit-bool-storage-scalar-ir-psy -o build/psy/BoolStorageScalarProbe.psy
-          diff -u Examples/Psy/BoolStorageScalarProbe.golden.psy build/psy/BoolStorageScalarProbe.psy
-          lake env proof-forge --emit-bool-storage-array-ir-psy -o build/psy/BoolStorageArrayProbe.psy
-          diff -u Examples/Psy/BoolStorageArrayProbe.golden.psy build/psy/BoolStorageArrayProbe.psy
-          lake env proof-forge --emit-u32-storage-array-ir-psy -o build/psy/U32StorageArrayProbe.psy
-          diff -u Examples/Psy/U32StorageArrayProbe.golden.psy build/psy/U32StorageArrayProbe.psy
-          lake env proof-forge --emit-context-ir-psy -o build/psy/ContextProbe.psy
-          diff -u Examples/Psy/ContextProbe.golden.psy build/psy/ContextProbe.psy
-          lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
-          diff -u Examples/Psy/HashProbe.golden.psy build/psy/HashProbe.psy
-          lake env proof-forge --emit-hash-storage-ir-psy -o build/psy/HashStorageProbe.psy
-          diff -u Examples/Psy/HashStorageProbe.golden.psy build/psy/HashStorageProbe.psy
-          lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
-          diff -u Examples/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
-          lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
-          diff -u Examples/Psy/AssertProbe.golden.psy build/psy/AssertProbe.psy
-          lake env proof-forge --emit-loop-ir-psy -o build/psy/LoopProbe.psy
-          diff -u Examples/Psy/LoopProbe.golden.psy build/psy/LoopProbe.psy
-          lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
-          diff -u Examples/Psy/ArrayProbe.golden.psy build/psy/ArrayProbe.psy
-          lake env proof-forge --emit-struct-ir-psy -o build/psy/StructProbe.psy
-          diff -u Examples/Psy/StructProbe.golden.psy build/psy/StructProbe.psy
-          lake env proof-forge --emit-struct-array-ir-psy -o build/psy/StructArrayProbe.psy
-          diff -u Examples/Psy/StructArrayProbe.golden.psy build/psy/StructArrayProbe.psy
-          lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.psy
-          diff -u Examples/Psy/AbiAggregateProbe.golden.psy build/psy/AbiAggregateProbe.psy
-          lake env proof-forge --emit-nested-aggregate-ir-psy -o build/psy/NestedAggregateProbe.psy
-          diff -u Examples/Psy/NestedAggregateProbe.golden.psy build/psy/NestedAggregateProbe.psy
-          lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
-          diff -u Examples/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
+        run: just psy-golden-sources
 
       - name: Check Psy diagnostics
-        run: scripts/psy/diagnostic-smoke.sh
+        run: just psy-diagnostics
 
       - name: Check Psy IR coverage manifest
-        run: scripts/psy/check-ir-coverage-manifest.py
+        run: just psy-coverage
 
       - name: Check EVM diagnostics
-        run: scripts/evm/diagnostic-smoke.sh
+        run: just evm-diagnostics
 
       - name: Check EVM IR coverage manifest
-        run: scripts/evm/check-ir-coverage-manifest.py
+        run: just evm-coverage
 
       - name: Run EVM ABI scalar IR smoke
-        run: scripts/evm/abi-scalar-ir-smoke.sh
+        run: just evm-smoke abi-scalar
 
       - name: Run EVM AssertProbe IR smoke
-        run: scripts/evm/assert-ir-smoke.sh
+        run: just evm-smoke assert
 
       - name: Run EVM AssignmentProbe IR smoke
-        run: scripts/evm/assignment-ir-smoke.sh
+        run: just evm-smoke assignment
 
       - name: Run EVM AssignOpProbe IR smoke
-        run: scripts/evm/assign-op-ir-smoke.sh
+        run: just evm-smoke assign-op
 
       - name: Run EVM ConditionalProbe IR smoke
-        run: scripts/evm/conditional-ir-smoke.sh
+        run: just evm-smoke conditional
 
       - name: Run EVM LoopProbe IR smoke
-        run: scripts/evm/loop-ir-smoke.sh
+        run: just evm-smoke loop
 
       - name: Run EVM ContextProbe IR smoke
-        run: scripts/evm/context-ir-smoke.sh
+        run: just evm-smoke context
 
       - name: Run EVM EventProbe IR smoke
-        run: scripts/evm/event-ir-smoke.sh
+        run: just evm-smoke event
 
       - name: Run EVM CrosscallProbe IR smoke
-        run: scripts/evm/crosscall-ir-smoke.sh
+        run: just evm-smoke crosscall
 
       - name: Run EVM ExpressionProbe IR smoke
-        run: scripts/evm/expression-ir-smoke.sh
+        run: just evm-smoke expression
 
       - name: Run EVM HashProbe IR smoke
-        run: scripts/evm/hash-ir-smoke.sh
+        run: just evm-smoke hash
 
       - name: Run EVM MapProbe IR smoke
-        run: scripts/evm/map-ir-smoke.sh
+        run: just evm-smoke map
 
       - name: Run EVM TypedMapProbe IR smoke
-        run: scripts/evm/typed-map-ir-smoke.sh
+        run: just evm-smoke typed-map
 
       - name: Run EVM StorageArrayProbe IR smoke
-        run: scripts/evm/storage-array-ir-smoke.sh
+        run: just evm-smoke storage-array
 
       - name: Run EVM StorageStructProbe IR smoke
-        run: scripts/evm/storage-struct-ir-smoke.sh
+        run: just evm-smoke storage-struct
 
       - name: Run EVM TypedStorageProbe IR smoke
-        run: scripts/evm/typed-storage-ir-smoke.sh
+        run: just evm-smoke typed-storage
 
       - name: Run EVM ArrayValueProbe IR smoke
-        run: scripts/evm/array-value-ir-smoke.sh
+        run: just evm-smoke array-value
 
       - name: Run EVM StructArrayValueProbe IR smoke
-        run: scripts/evm/struct-array-value-ir-smoke.sh
+        run: just evm-smoke struct-array-value
 
       - name: Run EVM StructValueProbe IR smoke
-        run: scripts/evm/struct-value-ir-smoke.sh
+        run: just evm-smoke struct-value
 
       - name: Run EVM AbiAggregateProbe IR smoke
-        run: scripts/evm/abi-aggregate-ir-smoke.sh
+        run: just evm-smoke abi-aggregate
 
       - name: Build EVM examples
-        run: scripts/evm/build-examples.sh
+        run: just evm-build-examples
 
       - name: Run Foundry smoke tests
-        run: scripts/evm/foundry-smoke.sh
+        run: just evm-foundry
+
+      - name: Run Anvil deploy smoke
+        run: just evm-anvil-deploy

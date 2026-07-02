@@ -35,6 +35,22 @@ It adds:
 The implemented target today is EVM. Solana/sBPF, Wasm-family, and Move-family
 targets are design goals, not current compiler outputs.
 
+Recommended local command runner:
+
+```sh
+just --list
+just build
+just check
+just evm-smoke abi-scalar
+just evm-all
+```
+
+The root `justfile` is the developer-facing command catalog and CI entrypoint.
+The underlying validation logic remains in `scripts/`, so direct script calls
+stay supported for debugging and target-specific documentation. Install `just`
+from [casey/just](https://github.com/casey/just) if it is not already
+available.
+
 Build:
 
 ```sh

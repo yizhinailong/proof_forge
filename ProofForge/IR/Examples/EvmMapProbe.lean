@@ -31,6 +31,12 @@ def pathKey : Expr :=
 def pathAssignKey : Expr :=
   .literal (.u64 3003)
 
+def nestedOuterKey : Expr :=
+  .literal (.u64 4004)
+
+def nestedInnerKey : Expr :=
+  .literal (.u64 5005)
+
 def mapLifecycle : Entrypoint := {
   name := "map_lifecycle"
   selector? := some "3bb39394"
@@ -148,6 +154,36 @@ def pathAssignLifecycle : Entrypoint := {
   ]
 }
 
+def nestedPathLifecycle : Entrypoint := {
+  name := "nested_path_lifecycle"
+  selector? := some "13a524e0"
+  returns := .u64
+  body := #[
+    .effect (.storagePathWrite "balances" #[.mapKey nestedOuterKey, .mapKey nestedInnerKey] (.literal (.u64 88))),
+    .assertEq
+      (.effect (.storagePathRead "balances" #[.mapKey nestedOuterKey, .mapKey nestedInnerKey]))
+      (.literal (.u64 88))
+      "nested map path write can be read back",
+    .effect (.storagePathAssignOp "balances" #[.mapKey nestedOuterKey, .mapKey nestedInnerKey] .add (.literal (.u64 7))),
+    .return (.effect (.storagePathRead "balances" #[.mapKey nestedOuterKey, .mapKey nestedInnerKey]))
+  ]
+}
+
+def nestedPathDynamic : Entrypoint := {
+  name := "nested_path_dynamic"
+  selector? := some "ce6fd7c0"
+  params := #[
+    ("outer", .u64),
+    ("inner", .u64),
+    ("value", .u64)
+  ]
+  returns := .u64
+  body := #[
+    .effect (.storagePathWrite "balances" #[.mapKey (.local "outer"), .mapKey (.local "inner")] (.local "value")),
+    .return (.effect (.storagePathRead "balances" #[.mapKey (.local "outer"), .mapKey (.local "inner")]))
+  ]
+}
+
 def module : Module := {
   name := "EvmMapProbe"
   state := #[stateBefore, stateBalances, stateAfter]
@@ -160,7 +196,9 @@ def module : Module := {
     containsLifecycle,
     containsBalance,
     pathLifecycle,
-    pathAssignLifecycle
+    pathAssignLifecycle,
+    nestedPathLifecycle,
+    nestedPathDynamic
   ]
 }
 

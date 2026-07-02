@@ -43,6 +43,9 @@ def hashLit (a b c d : Nat) : Expr :=
 def mapPath (key : Expr) : Array StoragePathSegment :=
   #[.mapKey key]
 
+def nestedMapPath (outer inner : Expr) : Array StoragePathSegment :=
+  #[.mapKey outer, .mapKey inner]
+
 def rootA : Expr :=
   hashLit 1 2 3 4
 
@@ -79,7 +82,7 @@ def typedMapLifecycle : Entrypoint := {
 
 def readScore : Entrypoint := {
   name := "read_score"
-  selector? := some "da367450"
+  selector? := some "04395342"
   params := #[("key", .u32)]
   returns := .u32
   body := #[
@@ -89,7 +92,7 @@ def readScore : Entrypoint := {
 
 def writeScore : Entrypoint := {
   name := "write_score"
-  selector? := some "d00c2a34"
+  selector? := some "9dfe7834"
   params := #[
     ("key", .u32),
     ("value", .u32)
@@ -102,7 +105,7 @@ def writeScore : Entrypoint := {
 
 def containsScore : Entrypoint := {
   name := "contains_score"
-  selector? := some "40bbd11a"
+  selector? := some "79b9741a"
   params := #[("key", .u32)]
   returns := .bool
   body := #[
@@ -188,6 +191,22 @@ def pathAssignScore : Entrypoint := {
   ]
 }
 
+def nestedPathScore : Entrypoint := {
+  name := "nested_path_score"
+  selector? := some "cb239774"
+  params := #[
+    ("outer", .u32),
+    ("inner", .u32),
+    ("value", .u32)
+  ]
+  returns := .u32
+  body := #[
+    .effect (.storagePathWrite "scores" (nestedMapPath (.local "outer") (.local "inner")) (.local "value")),
+    .effect (.storagePathAssignOp "scores" (nestedMapPath (.local "outer") (.local "inner")) .add (u32 5)),
+    .return (.effect (.storagePathRead "scores" (nestedMapPath (.local "outer") (.local "inner"))))
+  ]
+}
+
 def module : Module := {
   name := "EvmTypedMapProbe"
   state := #[stateScores, stateFlags, stateRoots, stateAfter]
@@ -202,7 +221,8 @@ def module : Module := {
     readRoot,
     setRoot,
     containsRoot,
-    pathAssignScore
+    pathAssignScore,
+    nestedPathScore
   ]
 }
 

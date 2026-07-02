@@ -53,6 +53,7 @@ import ProofForge.IR.Examples.U32ArithmeticProbe
 import ProofForge.IR.Examples.U32HashPackingProbe
 import ProofForge.IR.Examples.U32StorageArrayProbe
 import ProofForge.IR.Examples.U32StorageScalarProbe
+import ProofForge.Target
 import ProofForge.Solana.Examples.Vault
 
 open Lean
@@ -61,6 +62,16 @@ open System
 namespace ProofForge.Cli
 
 abbrev MethodSpec := Lean.Compiler.LCNF.EmitYul.MethodSpec
+
+structure ConstructorParamSpec where
+  name : String
+  abiType : String
+  deriving Repr
+
+structure ConstructorValueSpec where
+  name : String
+  value : String
+  deriving Repr
 
 inductive EmitMode where
   | yul
@@ -140,6 +151,107 @@ inductive EmitMode where
   | sbpfAsm
   deriving BEq, Inhabited
 
+def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
+  | .evmBytecode
+  | .counterIrBytecode
+  | .abiScalarIrBytecode
+  | .assertIrBytecode
+  | .assignmentIrBytecode
+  | .evmAssignOpIrBytecode
+  | .conditionalIrBytecode
+  | .contextIrBytecode
+  | .evmEventIrBytecode
+  | .evmCrosscallIrBytecode
+  | .evmExpressionIrBytecode
+  | .evmHashIrBytecode
+  | .evmLoopIrBytecode
+  | .evmMapIrBytecode
+  | .evmStorageArrayIrBytecode
+  | .evmStorageStructIrBytecode
+  | .evmTypedMapIrBytecode
+  | .evmTypedStorageIrBytecode
+  | .evmArrayValueIrBytecode
+  | .evmStructArrayValueIrBytecode
+  | .evmStructValueIrBytecode
+  | .evmAbiAggregateIrBytecode => true
+  | _ => false
+
+def EmitMode.hasBuiltInFixture : EmitMode → Bool
+  | .counterIrYul
+  | .counterIrBytecode
+  | .abiScalarIrYul
+  | .abiScalarIrBytecode
+  | .assertIrYul
+  | .assertIrBytecode
+  | .assignmentIrYul
+  | .assignmentIrBytecode
+  | .evmAssignOpIrYul
+  | .evmAssignOpIrBytecode
+  | .conditionalIrYul
+  | .conditionalIrBytecode
+  | .contextIrYul
+  | .contextIrBytecode
+  | .evmEventIrYul
+  | .evmEventIrBytecode
+  | .evmCrosscallIrYul
+  | .evmCrosscallIrBytecode
+  | .evmExpressionIrYul
+  | .evmExpressionIrBytecode
+  | .evmHashIrYul
+  | .evmHashIrBytecode
+  | .evmLoopIrYul
+  | .evmLoopIrBytecode
+  | .evmMapIrYul
+  | .evmMapIrBytecode
+  | .evmStorageArrayIrYul
+  | .evmStorageArrayIrBytecode
+  | .evmStorageStructIrYul
+  | .evmStorageStructIrBytecode
+  | .evmTypedMapIrYul
+  | .evmTypedMapIrBytecode
+  | .evmTypedStorageIrYul
+  | .evmTypedStorageIrBytecode
+  | .evmArrayValueIrYul
+  | .evmArrayValueIrBytecode
+  | .evmStructArrayValueIrYul
+  | .evmStructArrayValueIrBytecode
+  | .evmStructValueIrYul
+  | .evmStructValueIrBytecode
+  | .evmAbiAggregateIrYul
+  | .evmAbiAggregateIrBytecode
+  | .counterIrPsy
+  | .eventIrPsy
+  | .crosscallIrPsy
+  | .expressionPredicateIrPsy
+  | .genericEntrypointIrPsy
+  | .arithmeticIrPsy
+  | .bitwiseIrPsy
+  | .boolStorageArrayIrPsy
+  | .boolStorageScalarIrPsy
+  | .conditionalIrPsy
+  | .contextIrPsy
+  | .hashIrPsy
+  | .hashStorageIrPsy
+  | .mapIrPsy
+  | .assertIrPsy
+  | .loopIrPsy
+  | .arrayIrPsy
+  | .structIrPsy
+  | .structArrayIrPsy
+  | .abiAggregateIrPsy
+  | .nestedAggregateIrPsy
+  | .storageNestedAggregateIrPsy
+  | .u32ArithmeticIrPsy
+  | .u32HashPackingIrPsy
+  | .u32StorageScalarIrPsy
+  | .u32StorageArrayIrPsy
+  | .counterIrSbpf
+  | .controlIrSbpf
+  | .solanaSdkSbpf
+  | .solanaElf
+  | .sbpfAsm => true
+  | _ => false
+
 structure CliOptions where
   input? : Option FilePath := none
   output? : Option FilePath := none
@@ -151,6 +263,11 @@ structure CliOptions where
   artifactOutput? : Option FilePath := none
   solc : String := "solc"
   cast : String := "cast"
+  evmChainProfile? : Option String := none
+  evmConstructorArgsHex : String := ""
+  evmConstructorArgsSource : String := "--evm-constructor-args-hex"
+  evmConstructorParams : Array ConstructorParamSpec := #[]
+  evmConstructorValues : Array ConstructorValueSpec := #[]
   solanaSbpfArch : String := "v3"
   mode : EmitMode := .yul
   deriving Inhabited
@@ -159,7 +276,7 @@ def usage : String :=
   String.intercalate "\n" [
     "Usage:",
     "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
-    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [-o output.bin] input.lean",
+    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-abi-scalar-ir-yul [-o output.yul]",
@@ -235,6 +352,10 @@ def usage : String :=
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
+    "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
+    "`--evm-constructor-param name:type` records static-word constructor ABI schema metadata for an ABI-encoded constructor args blob.",
+    "`--evm-constructor-arg name=value` ABI-encodes one typed constructor value using the declared constructor schema.",
+    "`--evm-constructor-args-hex <hex>` appends ABI-encoded constructor arguments to generated EVM initcode.",
     "IR fixture modes render hand-written portable IR fixtures to target source or bytecode."
   ]
 
@@ -249,7 +370,18 @@ def dropEndString (s : String) (n : Nat) : String :=
   (s.dropEnd n).toString
 
 def stripHexPrefix (s : String) : String :=
-  if s.startsWith "0x" then (s.drop 2).toString else s
+  if s.startsWith "0x" || s.startsWith "0X" then (s.drop 2).toString else s
+
+def lowerHexString (s : String) : String :=
+  String.intercalate "" <| s.toList.map fun ch =>
+    match ch with
+    | 'A' => "a"
+    | 'B' => "b"
+    | 'C' => "c"
+    | 'D' => "d"
+    | 'E' => "e"
+    | 'F' => "f"
+    | _ => ch.toString
 
 def parseReturnsValue (s : String) : Except String Bool :=
   match s with
@@ -353,6 +485,231 @@ def isHexChar (c : Char) : Bool :=
 def isHexString (s : String) : Bool :=
   !s.isEmpty && s.all isHexChar
 
+def repeatString : Nat → String → String
+  | 0, _ => ""
+  | n+1, s => s ++ repeatString n s
+
+def hexDigit (value : Nat) : String :=
+  match value with
+  | 0 => "0"
+  | 1 => "1"
+  | 2 => "2"
+  | 3 => "3"
+  | 4 => "4"
+  | 5 => "5"
+  | 6 => "6"
+  | 7 => "7"
+  | 8 => "8"
+  | 9 => "9"
+  | 10 => "a"
+  | 11 => "b"
+  | 12 => "c"
+  | 13 => "d"
+  | 14 => "e"
+  | _ => "f"
+
+partial def natToHex (value : Nat) : String :=
+  if value < 16 then
+    hexDigit value
+  else
+    natToHex (value / 16) ++ hexDigit (value % 16)
+
+def byteLimit : Nat → Nat
+  | 0 => 1
+  | n+1 => 256 * byteLimit n
+
+def fixedHexBytes (byteCount value : Nat) : String :=
+  let raw := natToHex value
+  repeatString (byteCount * 2 - raw.length) "0" ++ raw
+
+def normalizeConstructorArgsHex (value : String) : Except String String :=
+  let hex := stripHexPrefix (trimAsciiString value)
+  if hex.isEmpty then
+    .ok ""
+  else if hex.length % 2 != 0 then
+    .error "--evm-constructor-args-hex must have an even number of hex digits"
+  else if !hex.all isHexChar then
+    .error "--evm-constructor-args-hex must contain only hex digits"
+  else
+    .ok (lowerHexString hex)
+
+def supportedConstructorAbiTypes : Array String :=
+  #["uint256", "uint64", "uint32", "bool", "bytes32", "address"]
+
+def constructorAbiTypeSupported (abiType : String) : Bool :=
+  supportedConstructorAbiTypes.contains abiType
+
+def parseConstructorParamSpec (s : String) : Except String ConstructorParamSpec := do
+  match s.splitOn ":" with
+  | [name, abiType] =>
+      let name := trimAsciiString name
+      let abiType := trimAsciiString abiType
+      if name.isEmpty then
+        .error s!"invalid constructor parameter spec '{s}': name is empty"
+      else if abiType.isEmpty then
+        .error s!"invalid constructor parameter spec '{s}': type is empty"
+      else if !constructorAbiTypeSupported abiType then
+        let supported := String.intercalate ", " supportedConstructorAbiTypes.toList
+        .error s!"unsupported constructor ABI type '{abiType}'; supported static-word types: {supported}"
+      else
+        .ok { name := name, abiType := abiType }
+  | _ =>
+      .error s!"invalid constructor parameter spec '{s}', expected name:type"
+
+def parseConstructorValueSpec (s : String) : Except String ConstructorValueSpec := do
+  match s.splitOn "=" with
+  | [name, value] =>
+      let name := trimAsciiString name
+      let value := trimAsciiString value
+      if name.isEmpty then
+        .error s!"invalid constructor argument spec '{s}': name is empty"
+      else if value.isEmpty then
+        .error s!"invalid constructor argument spec '{s}': value is empty"
+      else
+        .ok { name := name, value := value }
+  | _ =>
+      .error s!"invalid constructor argument spec '{s}', expected name=value"
+
+def hexCharValue! : Char → Nat
+  | '0' => 0
+  | '1' => 1
+  | '2' => 2
+  | '3' => 3
+  | '4' => 4
+  | '5' => 5
+  | '6' => 6
+  | '7' => 7
+  | '8' => 8
+  | '9' => 9
+  | 'a' | 'A' => 10
+  | 'b' | 'B' => 11
+  | 'c' | 'C' => 12
+  | 'd' | 'D' => 13
+  | 'e' | 'E' => 14
+  | _ => 15
+
+def parseHexNat (value name : String) : Except String Nat :=
+  let hex := stripHexPrefix (trimAsciiString value)
+  if hex.isEmpty then
+    .error s!"{name} must not be empty"
+  else if !hex.all isHexChar then
+    .error s!"{name} must contain only hex digits"
+  else
+    .ok (hex.toList.foldl (fun acc ch => acc * 16 + hexCharValue! ch) 0)
+
+def parseUnsignedNat (value name : String) : Except String Nat :=
+  let value := trimAsciiString value
+  if value.startsWith "0x" || value.startsWith "0X" then
+    parseHexNat value name
+  else
+    match value.toNat? with
+    | some n => .ok n
+    | none => .error s!"{name} must be an unsigned decimal integer or 0x-prefixed hex integer"
+
+def normalizeExactHexBytes (value name : String) (bytes : Nat) : Except String String :=
+  let hex := stripHexPrefix (trimAsciiString value)
+  if hex.length != bytes * 2 then
+    .error s!"{name} must be exactly {bytes} byte(s)"
+  else if !hex.all isHexChar then
+    .error s!"{name} must contain only hex digits"
+  else
+    .ok (lowerHexString hex)
+
+def encodeUintConstructorArg (name value : String) (bytes : Nat) : Except String String := do
+  let n ← parseUnsignedNat value s!"constructor argument `{name}`"
+  if n < byteLimit bytes then
+    .ok (fixedHexBytes 32 n)
+  else
+    .error s!"constructor argument `{name}` does not fit in uint{bytes * 8}"
+
+def encodeBoolConstructorArg (name value : String) : Except String String :=
+  match trimAsciiString value with
+  | "true" | "True" | "TRUE" | "1" => .ok (fixedHexBytes 32 1)
+  | "false" | "False" | "FALSE" | "0" => .ok (fixedHexBytes 32 0)
+  | _ => .error s!"constructor argument `{name}` must be true, false, 1, or 0"
+
+def encodeConstructorValue (param : ConstructorParamSpec) (value : String) : Except String String := do
+  match param.abiType with
+  | "uint256" => encodeUintConstructorArg param.name value 32
+  | "uint64" => encodeUintConstructorArg param.name value 8
+  | "uint32" => encodeUintConstructorArg param.name value 4
+  | "bool" => encodeBoolConstructorArg param.name value
+  | "bytes32" => normalizeExactHexBytes value s!"constructor argument `{param.name}`" 32
+  | "address" =>
+      let address ← normalizeExactHexBytes value s!"constructor argument `{param.name}`" 20
+      .ok (repeatString 24 "0" ++ address)
+  | abiType => .error s!"unsupported constructor ABI type '{abiType}'"
+
+def constructorParamExists (params : Array ConstructorParamSpec) (name : String) : Bool :=
+  params.any (fun param => param.name == name)
+
+def constructorValueCount (values : Array ConstructorValueSpec) (name : String) : Nat :=
+  values.foldl (fun count value => if value.name == name then count + 1 else count) 0
+
+def findConstructorValue? (values : Array ConstructorValueSpec) (name : String) : Option String :=
+  values.foldl
+    (fun found value =>
+      match found with
+      | some _ => found
+      | none => if value.name == name then some value.value else none)
+    none
+
+def validateConstructorValues (params : Array ConstructorParamSpec) (values : Array ConstructorValueSpec) : Except String Unit := do
+  for value in values do
+    if constructorValueCount values value.name > 1 then
+      .error s!"duplicate --evm-constructor-arg for `{value.name}`"
+    else if !constructorParamExists params value.name then
+      .error s!"--evm-constructor-arg `{value.name}` has no matching --evm-constructor-param"
+    else
+      pure ()
+
+def encodeConstructorValues (params : Array ConstructorParamSpec) (values : Array ConstructorValueSpec) : Except String String := do
+  if params.isEmpty then
+    .error "--evm-constructor-arg requires at least one --evm-constructor-param"
+  validateConstructorValues params values
+  let mut words : Array String := #[]
+  for param in params do
+    match findConstructorValue? values param.name with
+    | some value =>
+        let word ← encodeConstructorValue param value
+        words := words.push word
+    | none =>
+        .error s!"missing --evm-constructor-arg for constructor parameter `{param.name}`"
+  .ok (String.intercalate "" words.toList)
+
+def validateConstructorSchemaAndArgs (params : Array ConstructorParamSpec) (constructorArgsHex : String) : Except String Unit := do
+  let argsHex ← normalizeConstructorArgsHex constructorArgsHex
+  if params.isEmpty then
+    .ok ()
+  else if argsHex.isEmpty then
+    .error "--evm-constructor-param requires --evm-constructor-args-hex or matching --evm-constructor-arg values"
+  else
+    let expectedBytes := params.size * 32
+    let actualBytes := argsHex.length / 2
+    if actualBytes == expectedBytes then
+      .ok ()
+    else
+      .error s!"constructor ABI schema expects {expectedBytes} bytes ({params.size} static-word parameter(s)), but --evm-constructor-args-hex has {actualBytes} byte(s)"
+
+def finalizeConstructorOptions (opts : CliOptions) : Except String CliOptions := do
+  let argsHex ← normalizeConstructorArgsHex opts.evmConstructorArgsHex
+  if !opts.evmConstructorValues.isEmpty then
+    if !argsHex.isEmpty then
+      .error "--evm-constructor-arg cannot be combined with --evm-constructor-args-hex"
+    else
+      let encoded ← encodeConstructorValues opts.evmConstructorParams opts.evmConstructorValues
+      validateConstructorSchemaAndArgs opts.evmConstructorParams encoded
+      .ok { opts with
+        evmConstructorArgsHex := encoded,
+        evmConstructorArgsSource := "--evm-constructor-arg"
+      }
+  else
+    validateConstructorSchemaAndArgs opts.evmConstructorParams argsHex
+    .ok { opts with
+      evmConstructorArgsHex := argsHex,
+      evmConstructorArgsSource := "--evm-constructor-args-hex"
+    }
+
 def runProcess (cmd : String) (args : Array String) (cwd? : Option FilePath := none) : IO String := do
   let output ← IO.Process.output { cmd := cmd, args := args, cwd := cwd? }
   if output.exitCode != 0 then
@@ -382,6 +739,7 @@ def readMethodsFile (cast : String) (path : FilePath) : IO (Array MethodSpec) :=
           selector := selector
           fnName := fnName
           argCount := argCount
+          signature? := some sig
           returnsValue := returnsValue
         }
     | .error msg =>
@@ -413,6 +771,14 @@ def fileDigestAndBytes (path : FilePath) : IO (String × Nat) := do
   | _ =>
       throw <| IO.userError s!"python3 returned invalid digest output for {path}: {trimAsciiString stdout}"
 
+def sha256HexBytes (hex : String) : IO String := do
+  let script := "import hashlib, sys; print(hashlib.sha256(bytes.fromhex(sys.argv[1])).hexdigest())"
+  let digest := trimAsciiString (← runProcess "python3" #["-c", script, hex])
+  if digest.length == 64 && digest.all isHexChar then
+    return digest
+  else
+    throw <| IO.userError s!"python3 returned invalid SHA-256 digest for constructor args: {digest}"
+
 def jsonString (value : String) : String :=
   let escapeChar : Char → String
     | '"' => "\\\""
@@ -434,6 +800,10 @@ def jsonArray (values : Array String) : String :=
 
 def jsonStringArray (values : Array String) : String :=
   jsonArray (values.map jsonString)
+
+def jsonStringOption : Option String → String
+  | some value => jsonString value
+  | none => "null"
 
 def defaultArtifactOutput (bytecodeOutput : FilePath) : FilePath :=
   let fileName := FilePath.mk "proof-forge-artifact.json"
@@ -476,39 +846,6 @@ def dedupStrings (values : Array String) : Array String :=
   values.foldl (init := #[]) fun acc value =>
     if acc.contains value then acc else acc.push value
 
-def repeatString : Nat → String → String
-  | 0, _ => ""
-  | n+1, s => s ++ repeatString n s
-
-def hexDigit (value : Nat) : String :=
-  match value with
-  | 0 => "0"
-  | 1 => "1"
-  | 2 => "2"
-  | 3 => "3"
-  | 4 => "4"
-  | 5 => "5"
-  | 6 => "6"
-  | 7 => "7"
-  | 8 => "8"
-  | 9 => "9"
-  | 10 => "a"
-  | 11 => "b"
-  | 12 => "c"
-  | 13 => "d"
-  | 14 => "e"
-  | _ => "f"
-
-partial def natToHex (value : Nat) : String :=
-  if value < 16 then
-    hexDigit value
-  else
-    natToHex (value / 16) ++ hexDigit (value % 16)
-
-def byteLimit : Nat → Nat
-  | 0 => 1
-  | n+1 => 256 * byteLimit n
-
 partial def pushByteWidthFrom (value width : Nat) : Option Nat :=
   if width > 32 then
     none
@@ -519,10 +856,6 @@ partial def pushByteWidthFrom (value width : Nat) : Option Nat :=
 
 def pushByteWidth (value : Nat) : Option Nat :=
   pushByteWidthFrom value 1
-
-def fixedHexBytes (byteCount value : Nat) : String :=
-  let raw := natToHex value
-  repeatString (byteCount * 2 - raw.length) "0" ++ raw
 
 def pushDataHex (value : Nat) : Except String String := do
   let some width := pushByteWidth value
@@ -538,8 +871,9 @@ partial def initCodeOffsetWidth (sizePushWidth offsetWidth : Nat) : Except Strin
   else
     initCodeOffsetWidth sizePushWidth requiredWidth
 
-def deploymentInitCodeHex (runtimeBytecode : String) : Except String String := do
+def deploymentInitCodeHex (runtimeBytecode constructorArgsHex : String) : Except String String := do
   let runtime := stripHexPrefix (trimAsciiString runtimeBytecode)
+  let constructorArgs ← normalizeConstructorArgsHex constructorArgsHex
   if runtime.isEmpty then
     .error "EVM runtime bytecode must be non-empty before initcode generation"
   else if runtime.length % 2 != 0 then
@@ -554,12 +888,12 @@ def deploymentInitCodeHex (runtimeBytecode : String) : Except String String := d
     let headerBytes := 9 + 2 * sizePushWidth + offsetWidth
     let sizePush ← pushDataHex runtimeBytes
     let offsetPush ← pushDataHex headerBytes
-    .ok (sizePush ++ offsetPush ++ "600039" ++ sizePush ++ "6000f3" ++ runtime)
+    .ok (sizePush ++ offsetPush ++ "600039" ++ sizePush ++ "6000f3" ++ runtime ++ constructorArgs)
 
-def writeEvmInitCode (bytecodeOutput : FilePath) : IO FilePath := do
+def writeEvmInitCode (bytecodeOutput : FilePath) (constructorArgsHex : String) : IO FilePath := do
   let runtimeBytecode ← IO.FS.readFile bytecodeOutput
   let initCode ←
-    match deploymentInitCodeHex runtimeBytecode with
+    match deploymentInitCodeHex runtimeBytecode constructorArgsHex with
     | .ok initCode => pure initCode
     | .error msg => throw <| IO.userError msg
   let initCodeOutput := defaultInitCodeOutput bytecodeOutput
@@ -575,29 +909,342 @@ def moduleCapabilityIds (module : ProofForge.IR.Module) : Array String :=
 def valueTypeJson (type : ProofForge.IR.ValueType) : String :=
   jsonString type.name
 
-def entrypointJson (entrypoint : ProofForge.IR.Entrypoint) : String :=
-  let params := entrypoint.params.map fun param =>
-    jsonObject #[
-      ("name", jsonString param.fst),
-      ("type", valueTypeJson param.snd)
-    ]
+def entrypointAbiScalarTypeName
+    (context : String)
+    (type : ProofForge.IR.ValueType) : Except String String :=
+  match type with
+  | .u32 => .ok "uint32"
+  | .u64 => .ok "uint256"
+  | .bool => .ok "bool"
+  | .hash => .ok "bytes32"
+  | .unit | .fixedArray _ _ | .structType _ =>
+      .error s!"{context} has unsupported EVM ABI word type `{type.name}`; entrypoint ABI words support U32, U64, Bool, or Hash"
+
+partial def entrypointAbiType
+    (module : ProofForge.IR.Module)
+    (context : String)
+    (type : ProofForge.IR.ValueType) : Except String String := do
+  match type with
+  | .u32 | .u64 | .bool | .hash =>
+      entrypointAbiScalarTypeName context type
+  | .unit =>
+      .error s!"{context} uses Unit; EVM entrypoint parameters and non-Unit returns must use U32, U64, Bool, Hash, fixed arrays, or flat structs"
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error s!"{context} uses Array<{elementType.name},0>; EVM entrypoint ABI fixed arrays must have non-zero length"
+      let elementAbiType ← entrypointAbiType module s!"{context} fixed-array element" elementType
+      .ok s!"{elementAbiType}[{length}]"
+  | .structType typeName => do
+      let some decl := module.structs.find? fun decl => decl.name == typeName
+        | .error s!"{context} uses unknown struct `{typeName}`"
+      if decl.fields.isEmpty then
+        .error s!"{context} uses empty struct `{typeName}`; EVM entrypoint ABI structs must have at least one field"
+      let mut parts := #[]
+      for field in decl.fields do
+        parts := parts.push (← entrypointAbiScalarTypeName s!"{context} struct `{typeName}` field `{field.id}`" field.type)
+      .ok ("(" ++ String.intercalate "," parts.toList ++ ")")
+
+partial def entrypointAbiWordTypes
+    (module : ProofForge.IR.Module)
+    (context : String)
+    (type : ProofForge.IR.ValueType) : Except String (Array String) := do
+  match type with
+  | .u32 | .u64 | .bool | .hash =>
+      .ok #[← entrypointAbiScalarTypeName context type]
+  | .unit =>
+      .error s!"{context} uses Unit; EVM entrypoint ABI values must use U32, U64, Bool, Hash, fixed arrays, or flat structs"
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error s!"{context} uses Array<{elementType.name},0>; EVM entrypoint ABI fixed arrays must have non-zero length"
+      let elementWords ← entrypointAbiWordTypes module s!"{context} fixed-array element" elementType
+      let mut words : Array String := #[]
+      for _h : _idx in [0:length] do
+        words := words ++ elementWords
+      .ok words
+  | .structType typeName => do
+      let some decl := module.structs.find? fun decl => decl.name == typeName
+        | .error s!"{context} uses unknown struct `{typeName}`"
+      if decl.fields.isEmpty then
+        .error s!"{context} uses empty struct `{typeName}`; EVM entrypoint ABI structs must have at least one field"
+      let mut words : Array String := #[]
+      for field in decl.fields do
+        words := words.push (← entrypointAbiScalarTypeName s!"{context} struct `{typeName}` field `{field.id}`" field.type)
+      .ok words
+
+def entrypointAbiValueJson
+    (name? : Option String)
+    (type : ProofForge.IR.ValueType)
+    (abiType : String)
+    (wordTypes : Array String) : String :=
+  let encoding :=
+    if type == .unit then "none" else "abi-static-words"
+  let nameFields :=
+    match name? with
+    | some name => #[("name", jsonString name)]
+    | none => #[]
+  jsonObject (nameFields ++ #[
+    ("type", valueTypeJson type),
+    ("irType", valueTypeJson type),
+    ("abiType", jsonString abiType),
+    ("encoding", jsonString encoding),
+    ("wordTypes", jsonStringArray wordTypes),
+    ("wordCount", toString wordTypes.size)
+  ])
+
+def entrypointParamJson
+    (module : ProofForge.IR.Module)
+    (entrypointName : String)
+    (param : String × ProofForge.IR.ValueType) : Except String (String × Nat × String) := do
+  let abiType ← entrypointAbiType module s!"entrypoint `{entrypointName}` parameter `{param.fst}`" param.snd
+  let wordTypes ← entrypointAbiWordTypes module s!"entrypoint `{entrypointName}` parameter `{param.fst}`" param.snd
+  .ok (abiType, wordTypes.size, entrypointAbiValueJson (some param.fst) param.snd abiType wordTypes)
+
+def entrypointReturnJson
+    (module : ProofForge.IR.Module)
+    (entrypointName : String)
+    (type : ProofForge.IR.ValueType) : Except String (Nat × String) := do
+  match type with
+  | .unit =>
+      .ok (0, entrypointAbiValueJson none type "void" #[])
+  | _ => do
+      let abiType ← entrypointAbiType module s!"entrypoint `{entrypointName}` return" type
+      let wordTypes ← entrypointAbiWordTypes module s!"entrypoint `{entrypointName}` return" type
+      .ok (wordTypes.size, entrypointAbiValueJson none type abiType wordTypes)
+
+def entrypointJson (module : ProofForge.IR.Module) (entrypoint : ProofForge.IR.Entrypoint) : Except String String := do
+  let mut params := #[]
+  let mut paramAbiTypes := #[]
+  let mut calldataWords := 0
+  for param in entrypoint.params do
+    let (abiType, wordCount, paramJson) ← entrypointParamJson module entrypoint.name param
+    params := params.push paramJson
+    paramAbiTypes := paramAbiTypes.push abiType
+    calldataWords := calldataWords + wordCount
+  let (returnWords, returnValue) ← entrypointReturnJson module entrypoint.name entrypoint.returns
+  let signature := s!"{entrypoint.name}({String.intercalate "," paramAbiTypes.toList})"
   let selectorValue :=
     match entrypoint.selector? with
     | some selector => jsonString selector
     | none => "null"
-  jsonObject #[
+  .ok <| jsonObject #[
     ("name", jsonString entrypoint.name),
     ("selector", selectorValue),
+    ("signature", jsonString signature),
     ("params", jsonArray params),
-    ("returns", valueTypeJson entrypoint.returns)
+    ("returns", valueTypeJson entrypoint.returns),
+    ("returnValue", returnValue),
+    ("calldataWords", toString calldataWords),
+    ("returnWords", toString returnWords)
   ]
+
+structure EventAbiField where
+  name : String
+  irType : ProofForge.IR.ValueType
+  abiType : String
+  indexed : Bool
+  wordTypes : Array String
+  deriving BEq, Repr
+
+structure EventAbi where
+  name : String
+  signature : String
+  topic0 : String
+  indexedFields : Array EventAbiField
+  dataFields : Array EventAbiField
+  deriving BEq, Repr
+
+def lowerExceptString (result : Except ProofForge.Backend.Evm.IR.LowerError α) : Except String α :=
+  match result with
+  | .ok value => .ok value
+  | .error err => .error err.render
+
+def liftExceptString (result : Except String α) : IO α :=
+  match result with
+  | .ok value => pure value
+  | .error msg => throw <| IO.userError msg
+
+def eventAbiWordTypeName : ProofForge.IR.ValueType → Except String String
+  | .u32 => .ok "uint32"
+  | .u64 => .ok "uint64"
+  | .bool => .ok "bool"
+  | .hash => .ok "bytes32"
+  | type => .error s!"event ABI word type must be scalar, got `{type.name}`"
+
+def eventAbiField
+    (module : ProofForge.IR.Module)
+    (env : ProofForge.Backend.Evm.IR.TypeEnv)
+    (eventName : String)
+    (indexed : Bool)
+    (field : String × ProofForge.IR.Expr) : Except String EventAbiField := do
+  let irType ← lowerExceptString <|
+    ProofForge.Backend.Evm.IR.inferExprType module env field.snd
+  let abiType ← lowerExceptString <|
+    ProofForge.Backend.Evm.IR.eventSignatureFieldType module eventName field.fst irType
+  let wordTypes ← lowerExceptString <|
+    ProofForge.Backend.Evm.IR.abiValueWordTypes module s!"event `{eventName}` field `{field.fst}`" irType
+  let mut wordTypeNames : Array String := #[]
+  for wordType in wordTypes do
+    wordTypeNames := wordTypeNames.push (← eventAbiWordTypeName wordType)
+  .ok {
+    name := field.fst,
+    irType := irType,
+    abiType := abiType,
+    indexed := indexed,
+    wordTypes := wordTypeNames
+  }
+
+def eventAbiFieldJson (field : EventAbiField) : String :=
+  let encoding :=
+    if field.indexed then
+      if field.wordTypes.size == 1 then
+        "indexed-word"
+      else
+        "indexed-keccak256"
+    else
+      "abi-static-words"
+  jsonObject #[
+    ("name", jsonString field.name),
+    ("type", jsonString field.abiType),
+    ("irType", valueTypeJson field.irType),
+    ("indexed", jsonBool field.indexed),
+    ("encoding", jsonString encoding),
+    ("wordTypes", jsonStringArray field.wordTypes),
+    ("wordCount", toString field.wordTypes.size)
+  ]
+
+def eventFieldsWordCount (fields : Array EventAbiField) : Nat :=
+  fields.foldl (fun count field => count + field.wordTypes.size) 0
+
+def eventTopic0For (cast signature : String) : IO String := do
+  let stdout ← runProcess cast #["keccak", signature]
+  let topic := stripHexPrefix (trimAsciiString stdout)
+  if topic.length == 64 && isHexString topic then
+    return "0x" ++ lowerHexString topic
+  else
+    throw <| IO.userError s!"cast returned invalid event topic for {signature}: {trimAsciiString stdout}"
+
+def eventAbi
+    (cast : String)
+    (module : ProofForge.IR.Module)
+    (env : ProofForge.Backend.Evm.IR.TypeEnv)
+    (name : String)
+    (indexedFields dataFields : Array (String × ProofForge.IR.Expr)) : IO EventAbi := do
+  let signature ← liftExceptString <| lowerExceptString <|
+    ProofForge.Backend.Evm.IR.eventSignature module env name (indexedFields ++ dataFields)
+  let topic0 ← eventTopic0For cast signature
+  let indexed ← liftExceptString <| indexedFields.foldlM (init := #[]) fun acc field => do
+    .ok (acc.push (← eventAbiField module env name true field))
+  let data ← liftExceptString <| dataFields.foldlM (init := #[]) fun acc field => do
+    .ok (acc.push (← eventAbiField module env name false field))
+  return {
+    name := name,
+    signature := signature,
+    topic0 := topic0,
+    indexedFields := indexed,
+    dataFields := data
+  }
+
+def eventAbiJson (event : EventAbi) : String :=
+  jsonObject #[
+    ("name", jsonString event.name),
+    ("signature", jsonString event.signature),
+    ("topic0", jsonString event.topic0),
+    ("anonymous", "false"),
+    ("indexedFields", jsonArray (event.indexedFields.map eventAbiFieldJson)),
+    ("dataFields", jsonArray (event.dataFields.map eventAbiFieldJson)),
+    ("topics", toString (event.indexedFields.size + 1)),
+    ("dataWords", toString (eventFieldsWordCount event.dataFields))
+  ]
+
+def mergeEventAbis (left right : Array EventAbi) : Except String (Array EventAbi) :=
+  right.foldlM (init := left) fun acc event => do
+    match acc.find? (fun existing => existing.signature == event.signature) with
+    | none => .ok (acc.push event)
+    | some existing =>
+        if existing == event then
+          .ok acc
+        else
+          .error s!"conflicting EVM event ABI metadata for signature `{event.signature}`"
+
+mutual
+  partial def eventAbisInStatements
+      (cast : String)
+      (module : ProofForge.IR.Module)
+      (env : ProofForge.Backend.Evm.IR.TypeEnv)
+      (statements : Array ProofForge.IR.Statement) :
+      IO (Array EventAbi × ProofForge.Backend.Evm.IR.TypeEnv) := do
+    let mut events : Array EventAbi := #[]
+    let mut currentEnv := env
+    for statement in statements do
+      let (statementEvents, nextEnv) ← eventAbisInStatement cast module currentEnv statement
+      events ← liftExceptString <| mergeEventAbis events statementEvents
+      currentEnv := nextEnv
+    return (events, currentEnv)
+
+  partial def eventAbisInStatement
+      (cast : String)
+      (module : ProofForge.IR.Module)
+      (env : ProofForge.Backend.Evm.IR.TypeEnv) :
+      ProofForge.IR.Statement → IO (Array EventAbi × ProofForge.Backend.Evm.IR.TypeEnv)
+    | .letBind name type _ => do
+        let nextEnv ← liftExceptString <| lowerExceptString <|
+          ProofForge.Backend.Evm.IR.addLocal env name type false
+        return (#[], nextEnv)
+    | .letMutBind name type _ => do
+        let nextEnv ← liftExceptString <| lowerExceptString <|
+          ProofForge.Backend.Evm.IR.addLocal env name type true
+        return (#[], nextEnv)
+    | .assign _ _ | .assignOp _ _ _ | .assert _ _ | .assertEq _ _ _ | .return _ =>
+        return (#[], env)
+    | .effect (.eventEmit name fields) => do
+        let event ← eventAbi cast module env name #[] fields
+        return (#[event], env)
+    | .effect (.eventEmitIndexed name indexedFields dataFields) => do
+        let event ← eventAbi cast module env name indexedFields dataFields
+        return (#[event], env)
+    | .effect _ =>
+        return (#[], env)
+    | .ifElse _ thenBody elseBody => do
+        let (thenEvents, _) ← eventAbisInStatements cast module env thenBody
+        let (elseEvents, _) ← eventAbisInStatements cast module env elseBody
+        let events ← liftExceptString <| mergeEventAbis thenEvents elseEvents
+        return (events, env)
+    | .boundedFor indexName _ _ body => do
+        let loopEnv ← liftExceptString <| lowerExceptString <|
+          ProofForge.Backend.Evm.IR.addLocal env indexName .u32 false
+        let (events, _) ← eventAbisInStatements cast module loopEnv body
+        return (events, env)
+end
+
+def eventAbisForModule (cast : String) (module : ProofForge.IR.Module) : IO (Array EventAbi) := do
+  let mut events : Array EventAbi := #[]
+  for entrypoint in module.entrypoints do
+    let (entrypointEvents, _) ←
+      eventAbisInStatements cast module (ProofForge.Backend.Evm.IR.entrypointTypeEnv entrypoint) entrypoint.body
+    events ← liftExceptString <| mergeEventAbis events entrypointEvents
+  return events
 
 def methodSpecJson (method : MethodSpec) : String :=
   jsonObject #[
     ("selector", jsonString method.selector),
+    ("signature", jsonStringOption method.signature?),
     ("fnName", jsonString method.fnName),
     ("argCount", toString method.argCount),
     ("returnsValue", jsonBool method.returnsValue)
+  ]
+
+def constructorParamJson (param : ConstructorParamSpec) : String :=
+  jsonObject #[
+    ("name", jsonString param.name),
+    ("type", jsonString param.abiType),
+    ("encoding", jsonString "abi-static-word"),
+    ("slotBytes", "32")
+  ]
+
+def constructorAbiJson (params : Array ConstructorParamSpec) : String :=
+  jsonObject #[
+    ("params", jsonArray (params.map constructorParamJson)),
+    ("encoding", jsonString "abi")
   ]
 
 def targetMetadataJson (metadata : ProofForge.Target.TargetMetadata) : String :=
@@ -712,14 +1359,105 @@ def contractNameForFixture (fixture : String) : String :=
   else
     fixture
 
+def resolveEvmChainProfile? (profileId? : Option String) : IO (Option ProofForge.Target.EvmChainProfile) := do
+  match profileId? with
+  | none => return none
+  | some profileId =>
+      match ProofForge.Target.findEvmChainProfile? profileId with
+      | some profile => return some profile
+      | none =>
+          let known := String.intercalate ", " ProofForge.Target.knownEvmChainProfileIds.toList
+          throw <| IO.userError s!"unknown EVM chain profile `{profileId}`; known profiles: {known}"
+
+def evmChainProfileJson (profile : ProofForge.Target.EvmChainProfile) : String :=
+  jsonObject #[
+    ("id", jsonString profile.id),
+    ("targetId", jsonString profile.targetId),
+    ("networkName", jsonString profile.networkName),
+    ("chainId", toString profile.chainId),
+    ("nativeCurrencySymbol", jsonString profile.nativeCurrencySymbol),
+    ("rollupFamily", jsonStringOption profile.rollupFamily),
+    ("dataAvailability", jsonStringOption profile.dataAvailability),
+    ("rpcUrls", jsonStringArray profile.rpcUrls),
+    ("websocketUrls", jsonStringArray profile.websocketUrls),
+    ("sequencerUrls", jsonStringArray profile.sequencerUrls),
+    ("blockExplorerUrl", jsonStringOption profile.blockExplorerUrl),
+    ("verifier", jsonStringOption profile.verifier),
+    ("verifierUrl", jsonStringOption profile.verifierUrl),
+    ("notes", jsonStringArray profile.notes)
+  ]
+
+def evmChainProfileFieldJson (profile? : Option ProofForge.Target.EvmChainProfile) : String :=
+  match profile? with
+  | some profile => evmChainProfileJson profile
+  | none => "null"
+
+def constructorArgsJson (constructorArgsHex source : String) : IO String := do
+  let normalized ←
+    match normalizeConstructorArgsHex constructorArgsHex with
+    | .ok hex => pure hex
+    | .error msg => throw <| IO.userError msg
+  if normalized.isEmpty then
+    return jsonArray #[]
+  else
+    let digest ← sha256HexBytes normalized
+    return jsonArray #[
+      jsonObject #[
+        ("encoding", jsonString "abi-encoded"),
+        ("hex", jsonString s!"0x{normalized}"),
+        ("bytes", toString (normalized.length / 2)),
+        ("sha256", jsonString digest),
+        ("source", jsonString source)
+      ]
+    ]
+
+def evmDeploymentJson (profile? : Option ProofForge.Target.EvmChainProfile) : String :=
+  let (profileId, chainId, networkName, rpcUrls, blockExplorerUrl, verifier, verifierUrl, reason) :=
+    match profile? with
+    | some profile =>
+        (jsonString profile.id,
+          toString profile.chainId,
+          jsonString profile.networkName,
+          jsonStringArray profile.rpcUrls,
+          jsonStringOption profile.blockExplorerUrl,
+          jsonStringOption profile.verifier,
+          jsonStringOption profile.verifierUrl,
+          jsonString "ProofForge emitted a chain-profile-aware deployment plan, but transaction signing and broadcast artifacts are not generated yet.")
+    | none =>
+        ("null",
+          "null",
+          "null",
+          jsonArray #[],
+          "null",
+          "null",
+          "null",
+          jsonString "ProofForge EVM bytecode modes emit deployable initcode and runtime bytecode artifacts, but no EVM chain profile was selected and transaction broadcasting is not generated yet.")
+  jsonObject #[
+    ("profileId", profileId),
+    ("chainId", chainId),
+    ("networkName", networkName),
+    ("rpcUrls", rpcUrls),
+    ("blockExplorerUrl", blockExplorerUrl),
+    ("verifier", verifier),
+    ("verifierUrl", verifierUrl),
+    ("address", "null"),
+    ("broadcast", jsonString "not-generated"),
+    ("broadcastArtifact", "null"),
+    ("reason", reason),
+    ("reference", jsonString "scripts/evm/foundry-smoke.sh")
+  ]
+
 def writeEvmDeployManifest
     (deployOutput : FilePath)
     (fixture sourceKind sourceModule : String)
     (capabilities : Array String)
     (entrypoints : Array String)
+    (events : Array String)
     (methods : Array String)
+    (chainProfile? : Option ProofForge.Target.EvmChainProfile)
+    (constructorParams : Array ConstructorParamSpec)
     (sourceArtifact? : Option String)
-    (yulArtifact bytecodeArtifact initCodeArtifact : String) : IO Unit := do
+    (yulArtifact bytecodeArtifact initCodeArtifact constructorArgs : String) : IO Unit := do
   let mut inputFields : Array (String × String) := #[
     ("yul", yulArtifact),
     ("bytecode", bytecodeArtifact),
@@ -738,25 +1476,22 @@ def writeEvmDeployManifest
     ("sourceKind", jsonString sourceKind),
     ("irVersion", if sourceKind == "portable-ir" then jsonString "portable-ir-v0" else "null"),
     ("sourceModule", jsonString sourceModule),
+    ("chainProfile", evmChainProfileFieldJson chainProfile?),
     ("capabilities", jsonStringArray (dedupStrings capabilities)),
     ("abi", jsonObject #[
+      ("constructor", constructorAbiJson constructorParams),
       ("entrypoints", jsonArray entrypoints),
+      ("events", jsonArray events),
       ("methods", jsonArray methods)
     ]),
     ("creation", jsonObject #[
       ("mode", jsonString "init-code"),
-      ("constructorArgs", jsonArray #[]),
+      ("constructorArgs", constructorArgs),
       ("initCode", initCodeArtifact),
       ("runtimeBytecode", bytecodeArtifact)
     ]),
     ("inputs", jsonObject inputFields),
-    ("deployment", jsonObject #[
-      ("chainId", "null"),
-      ("address", "null"),
-      ("broadcast", jsonString "not-generated"),
-      ("reason", jsonString "ProofForge EVM bytecode modes emit deployable initcode and runtime bytecode artifacts, but chain-specific transaction broadcasting is not generated yet."),
-      ("reference", jsonString "scripts/evm/foundry-smoke.sh")
-    ])
+    ("deployment", evmDeploymentJson chainProfile?)
   ]
   if let some parent := deployOutput.parent then
     IO.FS.createDirAll parent
@@ -767,12 +1502,15 @@ def writeEvmArtifactMetadata
     (fixture sourceKind sourceModule : String)
     (capabilities : Array String)
     (entrypoints : Array String)
+    (events : Array String)
     (methods : Array String)
     (source? : Option FilePath)
     (yulOutput bytecodeOutput : FilePath) : IO Unit := do
   let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput bytecodeOutput)
   let deployOutput := defaultDeployManifestOutput metadataOutput
-  let initCodeOutput ← writeEvmInitCode bytecodeOutput
+  let chainProfile? ← resolveEvmChainProfile? opts.evmChainProfile?
+  let constructorArgs ← constructorArgsJson opts.evmConstructorArgsHex opts.evmConstructorArgsSource
+  let initCodeOutput ← writeEvmInitCode bytecodeOutput opts.evmConstructorArgsHex
   let yulArtifact ← artifactEntryJson yulOutput
   let bytecodeArtifact ← artifactEntryJson bytecodeOutput
   let initCodeArtifact ← artifactEntryJson initCodeOutput
@@ -784,11 +1522,15 @@ def writeEvmArtifactMetadata
     sourceModule
     capabilities
     entrypoints
+    events
     methods
+    chainProfile?
+    opts.evmConstructorParams
     sourceArtifact?
     yulArtifact
     bytecodeArtifact
     initCodeArtifact
+    constructorArgs
   let mut artifactFields : Array (String × String) := #[
     ("yul", yulArtifact),
     ("bytecode", bytecodeArtifact),
@@ -818,7 +1560,9 @@ def writeEvmArtifactMetadata
       ])
     ]),
     ("abi", jsonObject #[
+      ("constructor", constructorAbiJson opts.evmConstructorParams),
       ("entrypoints", jsonArray entrypoints),
+      ("events", jsonArray events),
       ("methods", jsonArray methods)
     ]),
     ("artifacts", jsonObject artifactFields),
@@ -838,14 +1582,19 @@ def writeEvmIrArtifactMetadata
     (opts : CliOptions)
     (fixture sourceModule : String)
     (module : ProofForge.IR.Module)
-    (yulOutput bytecodeOutput : FilePath) : IO Unit :=
+    (yulOutput bytecodeOutput : FilePath) : IO Unit := do
+  let events ← eventAbisForModule opts.cast module
+  let mut entrypoints := #[]
+  for entrypoint in module.entrypoints do
+    entrypoints := entrypoints.push (← liftExceptString (entrypointJson module entrypoint))
   writeEvmArtifactMetadata
     opts
     fixture
     "portable-ir"
     sourceModule
     (moduleCapabilityIds module)
-    (module.entrypoints.map entrypointJson)
+    entrypoints
+    (events.map eventAbiJson)
     #[]
     none
     yulOutput
@@ -863,6 +1612,7 @@ def writeEvmSdkArtifactMetadata
     sourceModule
     #[]
     #[]
+    #[]
     (methods.map methodSpecJson)
     (some input)
     yulOutput
@@ -870,10 +1620,19 @@ def writeEvmSdkArtifactMetadata
 
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
-      if opts.input?.isSome || opts.mode == .counterIrYul || opts.mode == .counterIrBytecode || opts.mode == .abiScalarIrYul || opts.mode == .abiScalarIrBytecode || opts.mode == .assertIrYul || opts.mode == .assertIrBytecode || opts.mode == .assignmentIrYul || opts.mode == .assignmentIrBytecode || opts.mode == .evmAssignOpIrYul || opts.mode == .evmAssignOpIrBytecode || opts.mode == .conditionalIrYul || opts.mode == .conditionalIrBytecode || opts.mode == .contextIrYul || opts.mode == .contextIrBytecode || opts.mode == .evmEventIrYul || opts.mode == .evmEventIrBytecode || opts.mode == .evmCrosscallIrYul || opts.mode == .evmCrosscallIrBytecode || opts.mode == .evmExpressionIrYul || opts.mode == .evmExpressionIrBytecode || opts.mode == .evmHashIrYul || opts.mode == .evmHashIrBytecode || opts.mode == .evmLoopIrYul || opts.mode == .evmLoopIrBytecode || opts.mode == .evmMapIrYul || opts.mode == .evmMapIrBytecode || opts.mode == .evmStorageArrayIrYul || opts.mode == .evmStorageArrayIrBytecode || opts.mode == .evmStorageStructIrYul || opts.mode == .evmStorageStructIrBytecode || opts.mode == .evmTypedMapIrYul || opts.mode == .evmTypedMapIrBytecode || opts.mode == .evmTypedStorageIrYul || opts.mode == .evmTypedStorageIrBytecode || opts.mode == .evmArrayValueIrYul || opts.mode == .evmArrayValueIrBytecode || opts.mode == .evmStructArrayValueIrYul || opts.mode == .evmStructArrayValueIrBytecode || opts.mode == .evmStructValueIrYul || opts.mode == .evmStructValueIrBytecode || opts.mode == .evmAbiAggregateIrYul || opts.mode == .evmAbiAggregateIrBytecode || opts.mode == .counterIrPsy || opts.mode == .eventIrPsy || opts.mode == .crosscallIrPsy || opts.mode == .expressionPredicateIrPsy || opts.mode == .genericEntrypointIrPsy || opts.mode == .arithmeticIrPsy || opts.mode == .bitwiseIrPsy || opts.mode == .boolStorageArrayIrPsy || opts.mode == .boolStorageScalarIrPsy || opts.mode == .conditionalIrPsy || opts.mode == .contextIrPsy || opts.mode == .hashIrPsy || opts.mode == .hashStorageIrPsy || opts.mode == .mapIrPsy || opts.mode == .assertIrPsy || opts.mode == .loopIrPsy || opts.mode == .arrayIrPsy || opts.mode == .structIrPsy || opts.mode == .structArrayIrPsy || opts.mode == .abiAggregateIrPsy || opts.mode == .nestedAggregateIrPsy || opts.mode == .storageNestedAggregateIrPsy || opts.mode == .u32ArithmeticIrPsy || opts.mode == .u32HashPackingIrPsy || opts.mode == .u32StorageScalarIrPsy || opts.mode == .u32StorageArrayIrPsy || opts.mode == .counterIrSbpf || opts.mode == .controlIrSbpf || opts.mode == .solanaSdkSbpf || opts.mode == .solanaElf || opts.mode == .sbpfAsm then
-        .ok opts
+      let hasRunnableInput := opts.input?.isSome || opts.mode.hasBuiltInFixture
+      if opts.evmChainProfile?.isSome && !opts.mode.emitsEvmDeployManifest then
+        .error "--evm-chain-profile only applies to EVM bytecode modes that emit proof-forge-deploy.json"
+      else if !opts.evmConstructorArgsHex.isEmpty && !opts.mode.emitsEvmDeployManifest then
+        .error "--evm-constructor-args-hex only applies to EVM bytecode modes that emit proof-forge-deploy.json"
+      else if !opts.evmConstructorParams.isEmpty && !opts.mode.emitsEvmDeployManifest then
+        .error "--evm-constructor-param only applies to EVM bytecode modes that emit proof-forge-deploy.json"
+      else if !opts.evmConstructorValues.isEmpty && !opts.mode.emitsEvmDeployManifest then
+        .error "--evm-constructor-arg only applies to EVM bytecode modes that emit proof-forge-deploy.json"
       else
-        .error usage
+        match finalizeConstructorOptions opts with
+        | .ok opts => if hasRunnableInput then .ok opts else .error usage
+        | .error msg => .error msg
   | "-o" :: out :: rest, opts =>
       parseArgs rest { opts with output? := some (FilePath.mk out) }
   | "--output" :: out :: rest, opts =>
@@ -891,6 +1650,17 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with yulOutput? := some (FilePath.mk path) }
   | "--artifact-output" :: path :: rest, opts =>
       parseArgs rest { opts with artifactOutput? := some (FilePath.mk path) }
+  | "--evm-chain-profile" :: profile :: rest, opts =>
+      parseArgs rest { opts with evmChainProfile? := some profile }
+  | "--evm-constructor-args-hex" :: hex :: rest, opts => do
+      let normalized ← normalizeConstructorArgsHex hex
+      parseArgs rest { opts with evmConstructorArgsHex := normalized }
+  | "--evm-constructor-param" :: param :: rest, opts => do
+      let spec ← parseConstructorParamSpec param
+      parseArgs rest { opts with evmConstructorParams := opts.evmConstructorParams.push spec }
+  | "--evm-constructor-arg" :: value :: rest, opts => do
+      let spec ← parseConstructorValueSpec value
+      parseArgs rest { opts with evmConstructorValues := opts.evmConstructorValues.push spec }
   | "--solana-sbpf-arch" :: arch :: rest, opts =>
       if arch == "v0" || arch == "v3" then
         parseArgs rest { opts with solanaSbpfArch := arch }
@@ -2321,7 +3091,10 @@ end ProofForge.Cli
 
 unsafe def main (args : List String) : IO UInt32 := do
   match ProofForge.Cli.parseArgs args {} with
-  | .ok opts => ProofForge.Cli.compileFile opts
+  | .ok opts => do
+      if opts.evmChainProfile?.isSome then
+        discard <| ProofForge.Cli.resolveEvmChainProfile? opts.evmChainProfile?
+      ProofForge.Cli.compileFile opts
   | .error msg =>
       IO.eprintln msg
       return 1

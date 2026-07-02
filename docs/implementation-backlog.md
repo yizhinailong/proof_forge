@@ -76,7 +76,12 @@ Tasks:
 - Done for EVM: emit metadata for `--evm-bytecode` and portable IR EVM bytecode
   fixture builds.
 - Done for EVM: include source module, target id, artifact paths, SHA-256, byte
-  sizes, solc path/version, selector metadata, and validation status.
+  sizes, solc path/version, selector/signature metadata, and validation status.
+- Done for EVM: preserve SDK `.evm-methods` Solidity signatures in
+  `abi.methods[].signature` for both `proof-forge-artifact.json` and
+  `proof-forge-deploy.json`; validators check selector shape, duplicate method
+  selectors/functions/signatures, generated Yul function names, and
+  signature/arg-count consistency, and SDK example gates require signatures.
 - Done for EVM: emit and validate a ProofForge deploy manifest for every EVM
   bytecode build, recording runtime bytecode inputs, ABI selectors, deployable
   initcode, and the current `not-generated` transaction-broadcast status.
@@ -84,6 +89,46 @@ Tasks:
   for each EVM bytecode build, record it in both `proof-forge-artifact.json`
   and `proof-forge-deploy.json`, and validate that the initcode header copies
   and returns the referenced runtime bytecode.
+- Done for EVM: add `--evm-chain-profile <id>` so bytecode builds can record a
+  known EVM chain profile such as `robinhood-chain-testnet` or `anvil-local` in
+  `proof-forge-deploy.json`; validators check profile id, chain id, RPC URLs,
+  explorer, verifier, and deployment-block consistency without broadcasting.
+- Done for EVM: add `--evm-constructor-args-hex <hex>` so bytecode builds can
+  append explicit ABI-encoded constructor arguments to generated `.init.bin`,
+  record normalized hex/byte-size/SHA-256 constructor metadata in
+  `proof-forge-deploy.json`, and validate that the initcode tail matches the
+  manifest.
+- Done for EVM: add `--evm-constructor-param <name:type>` so bytecode builds
+  can record static-word constructor ABI schema in artifact metadata and deploy
+  manifests, validate supported schema types, and verify that an explicit
+  ABI-encoded constructor-argument blob has the expected 32-byte word length.
+- Done for EVM: add `--evm-constructor-arg <name=value>` so bytecode builds can
+  ABI-encode typed constructor values for `uint256`, `uint64`, `uint32`,
+  `bool`, `bytes32`, and `address`, record whether constructor args came from
+  typed values or raw hex, reject missing/duplicate/out-of-range values, and
+  validate the generated initcode tail against metadata and deploy manifests.
+- Done for EVM: record structured portable IR selector-facing entrypoint ABI
+  metadata in `abi.entrypoints`, including Solidity-style selector signatures,
+  IR type names, ABI parameter/return types, flattened calldata word
+  types/counts, and flattened return word types/counts; validators check
+  selector/signature consistency with `cast sig` and
+  `EvmAbiAggregateProbe` locks aggregate word layouts with
+  `--expect-entrypoint-abi`.
+- Done for EVM: record portable IR event ABI metadata in `abi.events`, including
+  Solidity-style event signatures, `topic0`, indexed/data fields, flattened ABI
+  word types, and topic/data encodings; EventProbe validates every emitted event
+  with `--expect-event` and `cast keccak`.
+- Done for EVM: extend `scripts/evm/diagnostic-smoke.sh` to lock constructor
+  CLI diagnostics for unsupported dynamic constructor ABI types, missing or
+  duplicate typed values, mixed typed/raw constructor argument sources,
+  overflow, and malformed static-word values such as short addresses.
+- Done for EVM: add an Anvil deploy smoke that sends generated Counter
+  `.init.bin` with `cast send --create`, records constructor ABI schema and
+  typed constructor args plus a `proof-forge-deploy-run.json` artifact,
+  records the `eth_getTransactionByHash` creation transaction JSON, validates
+  the `anvil-local` chain profile, receipt/deployed address/runtime-code match
+  and transaction input initcode, and exercises the Counter lifecycle over
+  JSON-RPC.
 - Keep schema versioned from day one.
 
 Acceptance criteria:
@@ -91,6 +136,21 @@ Acceptance criteria:
 - EVM bytecode build writes runtime bytecode, deployable initcode, metadata,
   and deploy manifest next to each other.
 - Metadata and deploy manifests can be parsed independently by CI scripts.
+- Portable IR bytecode metadata and deploy manifests can describe ABI-facing
+  entrypoints, including selector signatures, flattened calldata word layout,
+  and flattened return-data word layout.
+- Portable IR bytecode metadata and deploy manifests can describe ABI-facing
+  events, including indexed topic encoding and non-indexed data-word encoding.
+- Deploy manifests can carry optional EVM chain profile metadata from the
+  target registry while keeping transaction broadcast artifacts explicitly
+  `not-generated`.
+- Local Anvil deployment can consume the generated deploy manifest and initcode,
+  produce a validated deploy-run artifact, and prove the deployed runtime code
+  matches the generated bytecode even when the initcode includes a typed or raw
+  ABI-encoded constructor-argument tail with a recorded static constructor ABI
+  schema; the deploy-run artifact also links the observed creation transaction
+  JSON and validates that its input equals the generated initcode and that the
+  deployment profile chain id matches the actual local chain.
 - EVM metadata can represent missing optional version data as `null`, not
   malformed metadata.
 
@@ -178,6 +238,16 @@ Tasks:
   topics by adding `IndexedArray(uint64[2],uint64)` golden Yul, metadata selector
   validation, solc bytecode generation, and Foundry recorded-log topic-hash
   checks.
+- Done: extend EventProbe nested fixed-array event aggregate coverage.
+  `MatrixEvent(uint64[2][2])` and
+  `PairMatrixEvent((uint64,uint64)[2][2])` prove recursive non-indexed data
+  flattening for scalar and flat-struct leaves, while
+  `IndexedMatrix(uint64[2][2],uint64)` and
+  `IndexedPairMatrix((uint64,uint64)[2][2],uint64)` prove indexed aggregate
+  topic hashing over recursively flattened ABI-style words. The smoke now locks
+  the new selectors, event ABI metadata, golden Yul, `solc` bytecode, and
+  Foundry recorded-log assertions; nested arrays with unsupported or non-flat
+  leaves remain explicit diagnostics.
 - Done: add EventProbe coverage for storage-backed flat struct event data and
   indexed aggregate topics. `StoragePairEvent((uint64,uint64))` and
   `IndexedStoragePair((uint64,uint64),uint64)` now prove that a whole scalar
@@ -302,6 +372,12 @@ Tasks:
   value/presence-slot validation for U64/U32/Bool/Hash maps, zero-valued
   present-key coverage, metadata validation, and explicit diagnostics for
   statement-position misuse.
+- Done: add EVM IR nested map storage paths over consecutive `mapKey`
+  segments, folding Solidity-style mapping slots for value storage and
+  ProofForge-managed presence slots for final keys, with `EvmMapProbe` and
+  `EvmTypedMapProbe` golden Yul, solc bytecode, Foundry raw-slot validation,
+  U32 dispatcher guard coverage, metadata validation, and explicit diagnostics
+  for mixed map/aggregate storage paths.
 - Done: add EVM IR `U64` fixed storage array lowering as contiguous storage
   slots with runtime bounds checks, with `EvmStorageArrayProbe` golden Yul,
   solc bytecode, Foundry runtime/raw-slot validation, metadata capability
@@ -399,7 +475,8 @@ Tasks:
   flat structs, with calldata word flattening, `U32`/`Bool` aggregate word
   guards, multi-word return-data encoding, `EvmAbiAggregateProbe` golden Yul,
   solc bytecode, Foundry runtime/malformed calldata validation, metadata
-  capability validation, CI coverage, and explicit diagnostics for Unit,
+  capability validation, structured `abi.entrypoints` selector/calldata/return
+  word-layout validation, CI coverage, and explicit diagnostics for Unit,
   zero-length arrays, non-flat struct fields, and crosscall-only unsupported
   nested fixed-array leaf shapes.
 - Done: close the EVM aggregate ABI validation gap for `Hash` leaves.
@@ -488,7 +565,7 @@ Acceptance criteria:
 - [ ] `sbpf` installed to PATH via `cargo install` (currently built from source).
 
 Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md),
-[RFC 0004](rfcs/0004-solana-sbpf-assembly-backend.md).
+[RFC 0005](rfcs/0005-solana-sbpf-assembly-backend.md).
 
 ## Workstream 7: Solana sBPF Assembly Counter Codegen (Phase 1)
 
@@ -1221,7 +1298,7 @@ Solana without exposing chain-specific code at the user-facing SDK layer.
 
 Tasks:
 
-- Done: add RFC 0005, `ProofForge.Contract.Token.TokenSpec`, target token
+- Done: add RFC 0006, `ProofForge.Contract.Token.TokenSpec`, target token
   plans, and `Tests/TokenSpec.lean`.
 - Implement EVM ERC-20 lowering: ABI/selectors, balance/allowance storage,
   total supply, transfer/approve/transferFrom, mint/burn options, events, and

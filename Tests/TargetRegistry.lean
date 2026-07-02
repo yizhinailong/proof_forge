@@ -36,6 +36,17 @@ def main : IO UInt32 := do
   require (knownEvmChainProfileIds.contains "robinhood-chain-testnet")
     "Robinhood Chain profile id missing from known ids"
 
+  let anvil ← requireSome (findEvmChainProfile? "anvil-local")
+    "missing Anvil local profile"
+  require (anvil.targetId == evm.id)
+    "Anvil local profile must reuse the evm compiler target"
+  require (anvil.chainId == 31337)
+    "Anvil local chain id mismatch"
+  require (findEvmChainProfileByChainId? 31337 |>.isSome)
+    "Anvil local chain id lookup failed"
+  require (knownEvmChainProfileIds.contains "anvil-local")
+    "Anvil local profile id missing from known ids"
+
   IO.println "target-registry: ok"
   return 0
 

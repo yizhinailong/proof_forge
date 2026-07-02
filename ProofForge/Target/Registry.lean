@@ -289,8 +289,22 @@ def robinhoodChainTestnet : EvmChainProfile := {
   ]
 }
 
+def anvilLocal : EvmChainProfile := {
+  id := "anvil-local"
+  targetId := evm.id
+  networkName := "Anvil Local"
+  chainId := 31337
+  nativeCurrencySymbol := "ETH"
+  rpcUrls := #["http://127.0.0.1:8545"]
+  notes := #[
+    "Local Foundry Anvil chain used by ProofForge EVM deploy smokes.",
+    "This profile is for reproducible local validation, not public RPC deployment."
+  ]
+}
+
 def evmChainProfiles : Array EvmChainProfile := #[
-  robinhoodChainTestnet
+  robinhoodChainTestnet,
+  anvilLocal
 ]
 
 def findEvmChainProfile? (id : String) : Option EvmChainProfile :=

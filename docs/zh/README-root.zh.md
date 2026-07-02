@@ -25,6 +25,20 @@ ProofForge 的长期目标是建立一个经过验证的 Lean 合约代码库，
 
 目前已实现的目标是 EVM。Solana/sBPF、Wasm 家族和 Move 家族目标是设计目标，而非当前的编译器输出。
 
+推荐的本地命令运行器：
+
+```sh
+just --list
+just build
+just check
+just evm-smoke abi-scalar
+just evm-all
+```
+
+根目录 `justfile` 是面向开发者的命令目录和 CI 入口。底层验证逻辑仍然保留在
+`scripts/` 中，因此直接调用脚本仍然适用于调试和特定目标文档。如果本机尚未安装
+`just`，可以从 [casey/just](https://github.com/casey/just) 安装。
+
 构建：
 
 ```sh

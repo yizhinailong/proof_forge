@@ -43,7 +43,7 @@ target registry and portable IR integration.
 | [Internet Computer](internet-computer.md) | Research | Docs-first Wasm canister candidate with Candid, cycles, stable memory, and canister lifecycle; not yet in the code registry. |
 | [Algorand AVM](algorand-avm.md) | Research | Docs-first AVM/TEAL source/package-generation candidate with app programs, LogicSig, ARC-4 ABI, storage, resource references, and transaction-group semantics; not yet in the code registry. |
 | Solana sBPF-linker | Research (superseded) | Historical reference Solana path (`solana-sbpf-linker` id); superseded by `solana-sbpf-asm` (D-026). |
-| Solana sBPF Asm | Research | Direct-assembly route (`solana-sbpf-asm` id), Lean → IR → sbpf asm → sbpf toolchain → ELF. See [design doc](solana-sbpf-asm.md), [RFC 0004](../rfcs/0004-solana-sbpf-assembly-backend.md). |
+| Solana sBPF Asm | Research | Direct-assembly route (`solana-sbpf-asm` id), Lean → IR → sbpf asm → sbpf toolchain → ELF. See [design doc](solana-sbpf-asm.md), [RFC 0005](../rfcs/0005-solana-sbpf-assembly-backend.md). |
 | Solana Zig fork | Research | Fallback reference from `solana-sdk-mono`. |
 | Sui Move | Research | Source-generation; follows Aptos POC. |
 | Aptos Move | Research | First Move POC target. |

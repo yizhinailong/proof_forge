@@ -57,6 +57,19 @@ object "EvmMapProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x13a524e0 {
+      let _r := f_EvmMapProbe_nested_path_lifecycle()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xce6fd7c0 {
+      if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      let _r := f_EvmMapProbe_nested_path_dynamic(calldataload(4), calldataload(36), calldataload(68))
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -128,6 +141,33 @@ object "EvmMapProbe" {
       __proof_forge_map_assign_shl(1, 3003, 2)
       __proof_forge_map_assign_shr(1, 3003, 1)
       result := sload(__proof_forge_map_slot(1, 3003))
+    }
+    function f_EvmMapProbe_nested_path_lifecycle() -> result {
+      {
+        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(1, 4004), 5005)
+        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(1, 4004), 5005)
+        sstore(_slot, 88)
+        sstore(_presence_slot, 1)
+      }
+      if iszero(eq(sload(__proof_forge_map_slot(__proof_forge_map_slot(1, 4004), 5005)), 88)) {
+        revert(0, 0)
+      }
+      {
+        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(1, 4004), 5005)
+        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(1, 4004), 5005)
+        sstore(_slot, add(sload(_slot), 7))
+        sstore(_presence_slot, 1)
+      }
+      result := sload(__proof_forge_map_slot(__proof_forge_map_slot(1, 4004), 5005))
+    }
+    function f_EvmMapProbe_nested_path_dynamic(outer, inner, value) -> result {
+      {
+        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(1, outer), inner)
+        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(1, outer), inner)
+        sstore(_slot, value)
+        sstore(_presence_slot, 1)
+      }
+      result := sload(__proof_forge_map_slot(__proof_forge_map_slot(1, outer), inner))
     }
     function __proof_forge_map_slot(slot, key) -> result {
       mstore(0, key)

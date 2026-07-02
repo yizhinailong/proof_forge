@@ -1,6 +1,6 @@
-# RFC 0005: Multi-Chain Token SDK
+# RFC 0006: Multi-Chain Token SDK
 
-Status: **Draft**  
+Status: **Draft**
 Date: 2026-07-02
 
 ## Summary

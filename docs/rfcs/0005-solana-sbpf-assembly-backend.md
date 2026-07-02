@@ -1,4 +1,4 @@
-# RFC 0004: Solana sBPF Assembly Backend (Direct Codegen)
+# RFC 0005: Solana sBPF Assembly Backend (Direct Codegen)
 
 Status: **Accepted**
 

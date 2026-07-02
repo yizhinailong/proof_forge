@@ -36,7 +36,7 @@
 | [Internet Computer](targets/internet-computer.zh.md) | Research | 文档优先的 Wasm canister 候选，包含 Candid、cycles、stable memory 和 canister lifecycle；尚未进入代码 registry。 |
 | [Algorand AVM](targets/algorand-avm.zh.md) | Research | 文档优先的 AVM/TEAL source/package-generation 候选，包含 app programs、LogicSig、ARC-4 ABI、storage、resource references 和 transaction-group 语义；尚未进入代码 registry。 |
 | Solana sBPF-linker | Research（已取代） | Solana 历史参考路径（`solana-sbpf-linker` id）；已被 `solana-sbpf-asm` (D-026) 取代。 |
-| Solana sBPF Asm | Research | direct-assembly 路线（`solana-sbpf-asm` id），Lean → IR → sbpf asm → sbpf toolchain → ELF。见 [设计文档](solana-sbpf-asm.md)、[RFC 0004](../rfcs/0004-solana-sbpf-assembly-backend.md)。 |
+| Solana sBPF Asm | Research | direct-assembly 路线（`solana-sbpf-asm` id），Lean → IR → sbpf asm → sbpf toolchain → ELF。见 [设计文档](solana-sbpf-asm.md)、[RFC 0005](../rfcs/0005-solana-sbpf-assembly-backend.md)。 |
 | Solana Zig fork | Research | 来自 `solana-sdk-mono` 的备选参考。 |
 | Sui Move | Research | 源代码生成；遵循 Aptos POC。 |
 | Aptos Move | Research | 首个 Move POC 目标。 |

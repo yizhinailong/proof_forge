@@ -28,5 +28,3 @@ handler = "sol_get"
 accounts = [
   { name = "count", index = 0, signer = false, writable = true, owner = "program" }
 ]
-
-

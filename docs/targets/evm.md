@@ -7,7 +7,8 @@ diagnostic/coverage gates, and EVM artifact metadata validation are wired.
 
 Related: [Capability registry](../capability-registry.md),
 [Shared scenario](../shared-scenario.md),
-[RFC 0002](../rfcs/0002-target-implementation-design.md).
+[RFC 0002](../rfcs/0002-target-implementation-design.md),
+[RFC 0004](../rfcs/0004-evm-semantic-plan.md).
 
 ## Pipeline
 
@@ -20,6 +21,12 @@ Lean contract (ProofForge.Evm / Lean.Evm)
   -> EVM runtime bytecode
   -> Foundry smoke (vm.etch)
 ```
+
+The portable IR EVM backend already lowers to the shared Yul syntax AST before
+rendering. RFC 0004 defines the next internal architecture step: insert an EVM
+semantic plan layer between portable IR and the low-level Yul AST so storage
+layout, ABI dispatch, helper discovery, events, cross-calls, and metadata are
+planned before syntax generation.
 
 ## EVM-Compatible Chain Profiles
 
@@ -46,12 +53,17 @@ Implemented chain profiles:
 | Chain profile id | Compiler target | Chain id | Native gas | Rollup family | Public RPC | Explorer / verifier |
 |---|---|---:|---|---|---|---|
 | `robinhood-chain-testnet` | `evm` | `46630` | `ETH` | Arbitrum Orbit L2, Ethereum blobs DA | `https://rpc.testnet.chain.robinhood.com` | `https://explorer.testnet.chain.robinhood.com`, Blockscout API `https://explorer.testnet.chain.robinhood.com/api/` |
+| `anvil-local` | `evm` | `31337` | `ETH` | Local Foundry Anvil validation | `http://127.0.0.1:8545` | none |
 
 Robinhood Chain is therefore already covered for ordinary contract compilation
-by the EVM backend. Full product support still needs deployment commands or
-manifests that can select `robinhood-chain-testnet`, pass the profile's RPC
-metadata to wallet/broadcast tooling, and record chain profile data in
-deployment artifacts.
+by the EVM backend. EVM bytecode modes can select
+`robinhood-chain-testnet` with `--evm-chain-profile` and record the profile in
+the deploy manifest. Local Anvil deployment uses the `anvil-local` profile by
+default in the smoke harness, proving the same profile metadata path can drive
+local deployment validation. Full product support still needs live-network
+deployment commands that pass the profile's RPC metadata to wallet/broadcast
+tooling and record signed or broadcast transaction artifacts for the selected
+chain.
 
 ## Build Commands
 
@@ -64,6 +76,7 @@ lake env proof-forge --evm-bytecode --root . --module contract \
 
 scripts/evm/build-examples.sh
 scripts/evm/foundry-smoke.sh
+scripts/evm/anvil-deploy-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
 scripts/evm/abi-scalar-ir-smoke.sh
@@ -95,7 +108,7 @@ proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:
 EVM bytecode mode:
 
 ```sh
-proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [-o output.bin] input.lean
+proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
 ```
 
 Portable IR EVM fixture modes:
@@ -146,6 +159,21 @@ proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output out
 `--bytecode` is an alias for `--evm-bytecode`.
 
 `--solc <path>` and `--cast <path>` override external tool paths.
+`--evm-chain-profile <id>` records a known EVM chain profile, such as
+`robinhood-chain-testnet`, in the generated deploy manifest without signing or
+broadcasting a transaction.
+`--evm-constructor-param <name:type>` records static-word constructor ABI
+schema metadata in `abi.constructor.params`. Supported schema types are
+`uint256`, `uint64`, `uint32`, `bool`, `bytes32`, and `address`.
+`--evm-constructor-arg <name=value>` ABI-encodes one typed constructor value
+using the declared schema. Unsigned integer values may be decimal or
+`0x`-prefixed hex; `bool` accepts `true`, `false`, `1`, or `0`; `bytes32`
+expects exactly 32 hex bytes; `address` expects exactly 20 hex bytes and is
+left-padded to one ABI word. Typed constructor args cannot be combined with
+`--evm-constructor-args-hex`.
+`--evm-constructor-args-hex <hex>` appends an ABI-encoded constructor argument
+blob to generated `.init.bin` creation bytecode and records the normalized hex,
+byte length, SHA-256, and source flag in `proof-forge-deploy.json`.
 `--artifact-output <path>` overrides the default EVM metadata path. Without an
 override, bytecode modes write `proof-forge-artifact.json` next to the bytecode
 output and `proof-forge-deploy.json` next to the metadata file. When smoke
@@ -199,15 +227,15 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | Capability id | SDK / IR surface |
 |---|---|
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, flat scalar storage struct field read/write, and whole flat scalar storage struct read/write |
-| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
+| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and one-or-more-segment consecutive `mapKey` storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks; word and flat-struct storage arrays can feed fixed-array ABI returns and event aggregate fields through storage reads |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, static and dynamic nested scalar local fixed-array reads, static and dynamic nested scalar local leaf assignment/compound assignment, nested whole local fixed-array assignment with RHS snapshotting, local fixed arrays and nested local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns over U64/U32/Hash leaves, nested scalar fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, storage-backed fixed-array ABI returns from word arrays and fixed arrays of flat structs, nested fixed-array typed crosscall arguments/returns whose leaves are scalar words or flat structs, scalar fixed-array event data fields, and fixed-array event fields whose elements are flat structs, including non-indexed data flattening and indexed topic hashing from local values, storage array reads, and storage array struct field reads; zero-length ABI arrays, nested local arrays with unsupported aggregate/non-flat leaves, nested crosscall fixed arrays with non-flat struct or unsupported leaves, and unsupported element shapes still reject explicitly |
-| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns including Hash/bytes32 fields, fixed arrays of flat structs in ABI-facing parameters/returns, storage-backed fixed-array-of-flat-struct ABI returns, flat event data fields and indexed event topic hashing from local values, storage scalar struct reads, and storage array struct field reads inside fixed arrays, flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, static and dynamic nested scalar local fixed-array reads, static and dynamic nested scalar local leaf assignment/compound assignment, nested whole local fixed-array assignment with RHS snapshotting, local fixed arrays and nested local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns over U64/U32/Hash leaves, nested scalar fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, storage-backed fixed-array ABI returns from word arrays and fixed arrays of flat structs, nested fixed-array typed crosscall arguments/returns whose leaves are scalar words or flat structs, scalar fixed-array event data fields, fixed-array event fields whose elements are flat structs, and nested fixed-array event fields whose leaves are scalar words or flat structs, including non-indexed data flattening and indexed topic hashing from local values, storage array reads, and storage array struct field reads; zero-length ABI arrays, nested local arrays with unsupported aggregate/non-flat leaves, nested crosscall fixed arrays with non-flat struct or unsupported leaves, and unsupported element shapes still reject explicitly |
+| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns including Hash/bytes32 fields, fixed arrays of flat structs in ABI-facing parameters/returns, storage-backed fixed-array-of-flat-struct ABI returns, flat event data fields and indexed event topic hashing from local values, storage scalar struct reads, storage array struct field reads inside fixed arrays, and nested fixed-array event fields whose leaves are flat structs; flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
 | `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested fixed-array arguments whose leaves are scalar words or flat structs, flattened to ABI words; typed normal/value/static/delegate calls return Bool/U32/U64/Hash scalar words with Bool/U32 return guards and support direct entrypoint returns of flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested fixed-array return data whose leaves are scalar words or flat structs; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot; `crosscallInvokeStaticTyped` preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` preserves caller-storage context; `crosscallCreate` and `crosscallCreate2` deploy fixed init-code hex through Yul `create`/`create2`, revert on zero-address failure, and return the deployed address word |
-| `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, non-indexed data fields can be U64/Bool/U32/Hash scalar words, flat structs from local values or storage scalar struct reads, scalar fixed arrays from local values or storage array reads, or fixed arrays of flat structs from local literals or storage array struct field reads, scalar indexed topics can be U64/Bool/U32/Hash words, and indexed aggregate fields use `keccak256` over flattened ABI-style words |
+| `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, non-indexed data fields can be U64/Bool/U32/Hash scalar words, flat structs from local values or storage scalar struct reads, scalar fixed arrays from local values or storage array reads, fixed arrays of flat structs from local literals or storage array struct field reads, or nested fixed arrays whose leaves are scalar words or flat structs, scalar indexed topics can be U64/Bool/U32/Hash words, indexed aggregate fields use `keccak256` over flattened ABI-style words including nested fixed arrays with scalar or flat-struct leaves, and portable IR artifacts record event ABI metadata in `abi.events` |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
 | `control.bounded_loop` | Portable IR `boundedFor` lowers to Yul `for` loops with static bounds |
@@ -276,9 +304,9 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   unsupported aggregate or non-flat leaves, nested crosscall fixed
   arrays with non-flat struct or unsupported leaves,
   non-word or aggregate map shapes, nested
-  local structs beyond flat struct arrays, richer event declarations, dynamic
-  constructor arguments, variable-length cross-call return data, and real
-  creation-transaction or broadcast manifests.
+  local structs beyond flat struct arrays, richer event declarations,
+  dynamic constructor ABI types, variable-length cross-call return data, and
+  first-class signed transaction or public-RPC broadcast manifests.
 
 ## Portable IR Gates
 
@@ -318,6 +346,11 @@ update this manifest before CI passes.
 unsupported EVM IR shapes fail before Yul generation instead of silently
 omitting behavior.
 
+`scripts/evm/diagnostic-smoke.sh` also locks EVM constructor CLI diagnostics at
+the artifact boundary, including unsupported dynamic constructor ABI types,
+missing or duplicate typed values, mixed typed/raw constructor argument sources,
+integer overflow, and malformed static-word values such as short addresses.
+
 `AbiScalarProbe` is the first portable IR EVM ABI fixture beyond Counter. It
 validates dispatcher calldata decoding for `U64`, `U32`, and `Bool` parameters,
 one-word return data for `U64` and `Bool`, golden Yul reproducibility, solc
@@ -333,9 +366,10 @@ flat structs and fixed arrays, and flat struct/fixed-array returns, nested
 scalar fixed-array returns, and fixed arrays of flat structs encode as
 multi-word ABI return data. The smoke checks golden Yul reproducibility,
 `solc --strict-assembly`, artifact metadata capabilities `data.struct` and
-`data.fixed_array`, Foundry calls for struct, hash-struct, array, hash-array,
-nested-array, and tuple-array parameters/returns, malformed calldata reverts,
-and unknown-selector reverts.
+`data.fixed_array`, structured `abi.entrypoints` selector signatures,
+flattened calldata word counts, and return-data word counts, Foundry calls for
+struct, hash-struct, array, hash-array, nested-array, and tuple-array
+parameters/returns, malformed calldata reverts, and unknown-selector reverts.
 
 `AssertProbe` validates portable IR `assert` and `assert_eq` lowering to Yul
 `if iszero(...) { revert(0, 0) }` guards, including Foundry coverage for the
@@ -402,6 +436,8 @@ name and field types, for example `ValueEvent(uint64)`,
 `PairEvent((uint64,uint64))`, `StoragePairEvent((uint64,uint64))`,
 `StorageArrayEvent(uint64[2])`, `ArrayEvent(uint64[2])`,
 `PairArrayEvent((uint64,uint64)[2])`,
+`MatrixEvent(uint64[2][2])`,
+`PairMatrixEvent((uint64,uint64)[2][2])`,
 `StoragePairArrayEvent((uint64,uint64)[2])`,
 `IndexedPair((uint64,uint64),uint64)`,
 `IndexedStoragePair((uint64,uint64),uint64)`,
@@ -411,27 +447,36 @@ name and field types, for example `ValueEvent(uint64)`,
 `IndexedStorageArray(uint64[2],uint64)`,
 `IndexedArray(uint64[2],uint64)`,
 `IndexedStoragePairArray((uint64,uint64)[2],uint64)`, or
-`IndexedPairArray((uint64,uint64)[2],uint64)`. Plain `eventEmit` lowers to
+`IndexedPairArray((uint64,uint64)[2],uint64)`,
+`IndexedMatrix(uint64[2][2],uint64)`, or
+`IndexedPairMatrix((uint64,uint64)[2][2],uint64)`. Plain `eventEmit` lowers to
 `log1`, while `eventEmitIndexed` snapshots up to three indexed fields into
 topics, producing `log2`, `log3`, or `log4`. Scalar indexed fields become direct
 topics for U64, Bool, U32, and Hash values. Flat structs, including
 storage-backed scalar struct reads, scalar fixed arrays, and fixed arrays of flat
-structs flatten into ABI-style 32-byte words and use `keccak256` of those words
-as the indexed topic; storage-backed fixed arrays do the same from storage array
-reads and storage array struct field reads. Non-indexed data fields can be
-scalar words, flat structs from local values or storage reads, scalar fixed
-arrays, or fixed arrays of flat structs, and aggregate values flatten in ABI
-order before the Yul log call. The smoke checks golden Yul reproducibility,
-`solc --strict-assembly` bytecode generation, metadata capability
-`events.emit`, Foundry recorded logs (`emitter`, signature topic, scalar indexed
+structs, and nested fixed arrays with scalar or flat-struct leaves flatten into
+ABI-style 32-byte words and use `keccak256` of those words as the indexed
+topic; storage-backed fixed arrays do the same from storage array reads and
+storage array struct field reads. Non-indexed data fields can be scalar words,
+flat structs from local values or storage reads, scalar fixed arrays, fixed
+arrays of flat structs, or nested fixed arrays whose leaves are scalar words or
+flat structs, and aggregate values flatten in ABI order before the Yul log call.
+Portable IR EVM artifacts and deploy manifests also record `abi.events` entries
+with the Solidity-style signature, `topic0`, indexed/data fields, flattened ABI
+word types, and topic/data encoding. The
+smoke checks golden Yul reproducibility, `solc --strict-assembly` bytecode
+generation, metadata capability `events.emit`, `abi.events` signatures and
+`topic0` values using `cast keccak`, Foundry recorded logs (`emitter`,
+signature topic, scalar indexed
 topics across U64/Bool/U32/Hash values and one, two, or three indexed fields,
 indexed aggregate topic hash, Bool/U32/Hash scalar event data with dispatcher
 range guards, flat struct data from local values and storage reads, scalar
 fixed-array data from local values and storage array
 reads, fixed-array-of-struct data from local literals and storage array struct
-field reads, and decoded scalar data), ABI selector dispatch, and unknown-selector revert
-behavior. Nested/unsupported aggregate indexed fields and richer event
-declarations remain explicit unsupported surfaces for the portable IR.
+field reads, nested fixed-array data from scalar and flat-struct leaves, and
+decoded scalar data), ABI selector dispatch, and unknown-selector revert
+behavior. Aggregate event fields with unsupported or non-flat leaves and richer
+event declarations remain explicit unsupported surfaces for the portable IR.
 
 `EvmCrosscallProbe` validates portable IR `crosscallInvoke`,
 `crosscallInvokeTyped`, `crosscallInvokeValueTyped`,
@@ -491,11 +536,13 @@ uses a ProofForge-managed presence mapping rooted at
 present even when their stored value is zero. The smoke checks golden Yul
 reproducibility, `solc --strict-assembly` bytecode generation, metadata
 capabilities (`storage.scalar`, `storage.map`, `assertions.check`), ABI
-get/set/insert/contains behavior, single-segment `mapKey` storage path reads,
-writes, and compound assignment, raw Foundry `vm.load` value and presence
-storage slots, and unknown-selector revert behavior. EVM IR v0 still keeps map
-paths scoped to a single `mapKey`; nested map/aggregate storage paths remain
-explicit diagnostics.
+get/set/insert/contains behavior, single-segment and nested consecutive
+`mapKey` storage path reads, writes, and compound assignment, raw Foundry
+`vm.load` value and presence storage slots, and unknown-selector revert
+behavior. Nested map value slots fold the same Solidity-style mapping helper,
+for example `keccak256(inner || keccak256(outer || slot))`; nested presence
+slots use the parent value slot as the presence root before hashing the final
+key. Mixed map/aggregate storage paths remain explicit diagnostics.
 
 `EvmTypedMapProbe` extends the same mapping slot layout to word key/value maps.
 It validates `U32`, `Bool`, and `Hash` map keys and values using the same
@@ -506,9 +553,11 @@ capabilities (`storage.scalar`, `storage.map`, `assertions.check`), ABI
 dispatcher guards for `U32` and `Bool` map parameters, statement and expression
 map writes, previous-value returns, `Hash`/`bytes32` map values,
 single-segment `mapKey` path reads/writes, numeric `U32` map-path compound
-assignment, typed `contains`, raw Foundry `vm.load` value and presence storage
-slots, and unknown-selector revert behavior. Nested map paths and aggregate or
-non-word key/value shapes remain explicit diagnostics.
+assignment, nested `U32` mapKey path read/write/compound assignment with
+dispatcher range guards, typed `contains`, raw Foundry `vm.load` value and
+presence storage slots, and unknown-selector revert behavior. Aggregate or
+non-word key/value shapes and mixed map/aggregate storage paths remain explicit
+diagnostics.
 
 `EvmStorageArrayProbe` validates portable IR `U64` fixed storage arrays through
 contiguous EVM storage slots. Array state occupies `length` slots, so state
@@ -625,7 +674,12 @@ The current EVM metadata schema records:
 - source kind (`lean-sdk` or `portable-ir`), source module, and `irVersion`
   (`portable-ir-v0` for portable IR fixtures)
 - portable IR capability ids when available
-- selector-facing ABI entrypoints or SDK method specs
+- constructor ABI schema, structured selector-facing portable IR entrypoint ABI
+  metadata in `abi.entrypoints` with Solidity-style signatures, selector
+  values, IR type names, ABI parameter/return types, flattened calldata
+  word types/counts, and flattened return-data word types/counts, portable IR
+  event ABI metadata in `abi.events`, or SDK method specs, including Solidity
+  signatures for methods loaded from `.evm-methods`
 - `solc` path/version
 - Yul, runtime bytecode, deployable initcode, source when available, and
   deploy-manifest artifact paths, byte sizes, and SHA-256 hashes
@@ -635,19 +689,61 @@ The current EVM metadata schema records:
 The EVM deploy manifest records:
 
 - `kind: proof-forge-evm-deploy-manifest`
-- source kind/module, `irVersion`, capabilities, and ABI entrypoints/methods
+- source kind/module, `irVersion`, capabilities, constructor ABI schema, and
+  ABI entrypoints/events/methods, including portable IR entrypoint
+  calldata/return word layouts and SDK method signatures when available
+- optional `chainProfile` metadata copied from the EVM target registry when
+  `--evm-chain-profile` is provided, including profile id, chain id, RPC URLs,
+  native gas symbol, explorer, verifier, and notes
 - Yul/source inputs plus runtime bytecode and initcode hash/size
-- `creation.mode: init-code`, with empty constructor args, an artifact-linked
-  initcode file, and the referenced runtime bytecode
+- `creation.mode: init-code`, optional static-word constructor ABI schema from
+  `--evm-constructor-param`, optional ABI-encoded constructor args from typed
+  `--evm-constructor-arg` values or raw `--evm-constructor-args-hex`, an
+  artifact-linked initcode file, and the referenced runtime bytecode
+- `deployment.profileId`, `deployment.chainId`, `deployment.rpcUrls`,
+  `deployment.blockExplorerUrl`, and verifier fields when a chain profile is
+  selected
 - `deployment.broadcast: not-generated`, because transaction signing,
-  chain-profile selection, and broadcast JSON are not generated yet
+  broadcast JSON, deployed address recording, and explorer verification are not
+  generated yet
 
 `scripts/evm/validate-artifact-metadata.py` validates these metadata files and
 their referenced deploy manifests in the EVM IR smoke scripts and in
 `scripts/evm/build-examples.sh`. The validators parse the initcode header and
-check that it copies and returns the exact runtime bytecode artifact.
+check that it copies and returns the exact runtime bytecode artifact, and that
+any constructor-argument tail matches the deploy manifest. When constructor ABI
+schema metadata is present, they also verify each static-word parameter and
+check that the ABI-encoded constructor blob has the expected 32-byte word
+length. They also accept and can assert whether constructor args came from raw
+hex or typed constructor values. When a chain profile is selected, they also
+verify that `chainProfile` and `deployment` agree on profile id, chain id, RPC
+URLs, explorer, and verifier metadata. ABI validation also checks 4-byte
+selector shape, duplicate selectors, generated Yul function names, optional
+method signatures, signature/argument-count consistency, event signatures,
+`topic0` hashes, and event indexed/data field encodings; SDK example and Anvil
+gates require signatures for `.evm-methods`-derived methods.
 `scripts/evm/validate-deploy-manifest.py` can validate a deploy manifest
 directly.
+
+`scripts/evm/anvil-deploy-smoke.sh` consumes the generated Counter deploy
+manifest and `.init.bin`, regenerates Counter with a deterministic non-empty
+typed `initial=123` constructor argument plus a static `initial:uint256`
+constructor schema by default, starts a local Anvil chain, sends the initcode with
+`cast send --create`, checks the receipt, verifies that the deployed runtime
+code equals `Counter.bin`, runs the Counter lifecycle through JSON-RPC calls,
+and writes
+`build/anvil-deploy-smoke/Counter.proof-forge-deploy-run.json`.
+`scripts/evm/validate-deploy-run.py` validates that deploy-run artifact. The
+original deploy manifest remains a reproducible plan with
+`deployment.broadcast: not-generated`; the deploy-run artifact records one
+observed local Anvil deployment execution, including the constructor ABI schema
+and constructor args that were used. It also links the `cast send` receipt and
+the `eth_getTransactionByHash` creation transaction JSON, and validates that
+the chain profile, deployment chain id, actual Anvil chain id, transaction hash,
+sender, null creation `to`, block metadata, and input initcode match the
+generated deploy artifacts. By default it uses the `anvil-local` chain profile
+when the Anvil chain id is `31337`; set `EVM_ANVIL_CHAIN_PROFILE=` to disable
+that profile link or provide a different profile explicitly.
 
 Method dispatch still uses `.evm-methods` sidecar files until a unified target
 manifest lands (RFC 0002).

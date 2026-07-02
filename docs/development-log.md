@@ -17,199 +17,639 @@ Each entry should include:
 
 ## 2026-07-02
 
-### Solana sBPF Phase 1 Closure: Manifest, Account Validation, `--solana-elf`, and Counter Example
+### Solana sBPF And SDK PR Merge
 
-Commit: `feat: close Workstream 7 Phase 1 Solana sBPF items`
+Commit: merge commit for PR #2 (`Solana supprot`)
 
 Summary:
 
-- Added `ProofForge.Backend.Solana.SbpfAsm.renderManifest` to emit a
-  `manifest.toml` sidecar alongside the generated `.s`, describing the
-  target, program placeholder id, and per-entrypoint instruction tables with
-  the Phase 1 default account convention (writable, signer=false,
-  owner=program). `--emit-counter-ir-sbpf` and `--emit-control-ir-sbpf` now
-  write the manifest and record it in `proof-forge-artifact.json`.
-- Added a runtime account-validation prologue to every entrypoint:
-  - `is_writable` check at serialized account-header offset 10;
-  - dynamic owner check that computes the `program_id` address from
-    `instruction_data_len` and compares it to the account owner at offsets
-    48–79;
-  - failure exits 4 (`error_not_writable`), 5 (`error_signer`), and 6
-    (`error_owner`).
-- Added `--solana-elf` CLI mode. It emits `.s`, writes `manifest.toml`,
-  scaffolds an sbpf project (`src/<name>/<name>.s`, `Cargo.toml`, empty
-  `src/lib.rs`), invokes `sbpf build`, copies the resulting `.so` to the
-  requested output, and records `sbpfBuild: passed` in artifact metadata.
-- Created the self-contained example `Examples/Solana/Counter.lean` in
-  portable IR, plus `README.md`, tracked `Counter.golden.s`, and
-  `Counter.manifest.toml`. Added `scripts/solana/build-examples.sh` to emit
-  the example and diff against the golden fixtures without requiring `sbpf`.
-- Wired `ProofForge.Target.requireCapabilities` into `SbpfAsm.lowerModule`
-  and added `Tests/SolanaDiagnostics.lean` with 8 crosscall-rejection cases,
-  exercised by `scripts/solana/diagnostic-smoke.sh` (basis for
-  V-GATE-SOLANA-05).
-- Fixed two latent sBPF lowering bugs discovered by running the Mollusk
-  runtime gates with `sbpf` installed:
-  - `INSTRUCTION_DATA_LEN` / `INSTRUCTION_DATA` equ offsets were off by one
-    u64 slot, so the dispatch byte and owner-check program-id computation
-    read garbage;
-  - labels minted by `LowerCtx.freshLabel` reset per entrypoint, producing
-    duplicate `sol_lbl_N` labels in multi-entrypoint modules;
-  - locals also leaked across entrypoints, so `.local` lookups found stale
-    offsets. `lowerModule` now resets the local frame per entrypoint while
-    keeping the label counter module-wide.
-- Updated Mollusk test templates (`Tests/solana/counter_mollusk.rs.tpl` and
-  `control_mollusk.rs.tpl`) to disable
-  `account_data_direct_mapping` / `direct_account_pointers_in_program_input`
-  / `virtual_address_space_adjustments`, so Phase 1's legacy embedded
-  account-data layout is exercised.
-- Updated `docs/validation-gates.md`, `docs/zh/validation-gates.zh.md`,
-  `docs/implementation-backlog.md`, and `docs/zh/implementation-backlog.zh.md`
-  to mark the new items complete.
+- Merged the Solana sBPF assembly backend work into the current EVM-focused
+  mainline.
+- Added Solana backend modules for sBPF assembly AST/printer, state layout,
+  register allocation, syscalls, manifests, packages, and SDK extension
+  artifacts.
+- Added CLI modes for emitting Solana sBPF assembly, Solana ELF artifacts,
+  Solana SDK assembly, and Solana-focused fixture artifacts.
+- Added Solana examples, diagnostics, SDK tests, target-routing tests, and
+  Solana smoke scripts.
+- Resolved RFC numbering against the existing EVM semantic plan RFC: EVM keeps
+  RFC 0004, Solana sBPF is RFC 0005, and the multi-chain Token SDK is RFC 0006.
+
+Validation run:
+
+```sh
+just solana-light
+just docs-check
+just check
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Solana Mollusk/Surfpool runtime smoke scripts remain gated on local external
+  tools such as Mollusk, Surfpool, Node, and npm.
+- The merge preserves EVM semantic-plan work; deeper integration between the
+  new Solana SDK route and the portable multi-chain planning layer remains
+  follow-up work.
+
+Next step:
+
+- Run the available Solana smoke scripts on a machine with the Solana/sBPF
+  toolchain installed, then decide which Solana surface should be promoted from
+  research to CI-tracked baseline.
+
+### EVM Semantic Plan Storage Slice
+
+Commit: feature commit for the first EVM semantic plan slice
+
+Summary:
+
+- Added `ProofForge.Backend.Evm.Plan` as the first explicit semantic planning
+  layer between portable IR and target-specific Yul lowering.
+- Modeled storage layout entries, scalar storage slot plans, map value slot
+  plans, nested map value slot plans, map presence slot plans, and helper
+  requirements without changing generated Yul output.
+- Added `Tests/EvmPlan.lean` to lock scalar/map/nested-map slot planning
+  against the existing `EvmMapProbe` and `EvmTypedMapProbe` fixtures.
+- Added `just evm-plan` and a GitHub Actions step so the plan slice is checked
+  independently before broader EVM smokes.
+
+Validation run:
+
+```sh
+just evm-plan
+```
+
+Known limitations:
+
+- The existing Yul generator still owns actual rendering; this slice creates
+  the semantic structures and tests that later lowering can migrate onto.
+- The first plan slice covers scalar slots and consecutive `mapKey` paths only.
+  Arrays, structs, ABI dispatch, event/crosscall helpers, and artifact metadata
+  planning remain follow-up work.
+
+Next step:
+
+- Refactor the current EVM storage path lowering to consume plan nodes while
+  preserving golden Yul output, then broaden the plan to arrays and flat
+  storage structs.
+
+### EVM Nested Map Storage Paths
+
+Commit: feature commit for EVM nested map storage paths
+
+Summary:
+
+- Extended EVM portable IR storage-path type checking so map-backed state
+  accepts one or more consecutive `mapKey` segments when every key expression
+  matches the map key type.
+- Lowered nested map value slots by folding the existing Solidity-style
+  mapping helper, for example `keccak256(inner || keccak256(outer || slot))`.
+- Lowered nested map write and compound assignment paths so the final key's
+  ProofForge-managed presence slot is marked alongside the value slot.
+- Extended `EvmMapProbe` with U64 nested map path lifecycle and dynamic-key
+  coverage, and extended `EvmTypedMapProbe` with U32 nested map path coverage
+  plus dispatcher range-guard checks.
+- Kept mixed map/aggregate storage paths as explicit diagnostics rather than
+  silently lowering partial paths.
+
+Validation run:
+
+```sh
+lake build proof-forge
+just evm-smoke map
+just evm-smoke typed-map
+just evm-diagnostics
+just evm-coverage
+just docs-check
+just diff-check
+```
+
+Known limitations:
+
+- Nested map paths currently model EVM nested mapping slots over a single
+  declared `Map<K, V, N>` state by using consecutive keys of the same key type.
+- Mixed map/array/struct aggregate paths and non-word or aggregate map
+  key/value shapes remain explicit unsupported surfaces.
+
+Next step:
+
+- Continue shrinking the remaining EVM storage surface around aggregate storage
+  paths and broader ABI-facing storage-backed values.
+
+### EVM Nested Fixed-Array Event Aggregates
+
+Commit: feature commit for EVM nested fixed-array event aggregates
+
+Summary:
+
+- Extended portable IR EVM event signature generation so nested fixed arrays are
+  rendered recursively as Solidity-style event types such as `uint64[2][2]` and
+  `(uint64,uint64)[2][2]`.
+- Extended event data-word lowering so nested fixed-array event fields flatten
+  recursively into ABI-style words when their leaves are scalar words or flat
+  structs.
+- Added `EventProbe` entrypoints for `MatrixEvent(uint64[2][2])`,
+  `PairMatrixEvent((uint64,uint64)[2][2])`,
+  `IndexedMatrix(uint64[2][2],uint64)`, and
+  `IndexedPairMatrix((uint64,uint64)[2][2],uint64)`.
+- Tightened diagnostics so nested fixed arrays whose leaves are unsupported or
+  non-flat still fail before Yul generation with explicit errors.
+
+Validation run:
+
+```sh
+just evm-smoke event
+```
+
+- Generated reproducible EventProbe Yul and runtime bytecode with
+  `solc --strict-assembly`.
+- Validated new selector/event ABI metadata through
+  `scripts/evm/validate-artifact-metadata.py`.
+- Foundry ran 24 EventProbe recorded-log tests, including nested scalar and
+  nested flat-struct fixed-array data flattening plus indexed aggregate topic
+  hashing.
+
+Known limitations:
+
+- Aggregate event fields with unsupported leaves, non-flat struct leaves, or
+  richer first-class event declarations remain explicit unsupported surfaces for
+  portable IR EVM.
+
+Next step:
+
+- Continue shrinking the EVM aggregate surface around remaining storage and ABI
+  edge cases while keeping unsupported shapes diagnostic-first.
+
+### EVM Entrypoint ABI Artifact Metadata
+
+Commit: `feat: record EVM entrypoint ABI metadata`
+
+Summary:
+
+- Portable IR EVM bytecode artifacts and deploy manifests now include
+  structured `abi.entrypoints` metadata for selector-facing entrypoints.
+- Entrypoint metadata records the Solidity-style selector signature, parameter
+  ABI types, flattened calldata word types/counts, return ABI type, flattened
+  return word types/counts, and preserves the original IR type names.
+- `scripts/evm/validate-artifact-metadata.py` now validates entrypoint
+  selectors with `cast sig`, while `scripts/evm/abi-aggregate-ir-smoke.sh`
+  locks aggregate calldata/return word layouts through
+  `--expect-entrypoint-abi`.
+
+Validation run:
+
+```sh
+lake build proof-forge
+scripts/evm/abi-aggregate-ir-smoke.sh
+```
+
+Known limitations:
+
+- The metadata describes the current static ABI-word surface. Dynamic ABI
+  values remain an explicit unsupported surface for portable IR EVM.
+
+Next step:
+
+- Continue tightening metadata validation around deployment-facing manifests
+  and expand first-class ABI schema coverage as the portable IR grows.
+
+### EVM Event ABI Artifact Metadata
+
+Commit: `feat: record EVM event ABI metadata`
+
+Summary:
+
+- Portable IR EVM bytecode artifacts and deploy manifests now include
+  `abi.events` entries for emitted events.
+- Event metadata records the Solidity-style event signature, `topic0`, indexed
+  fields, non-indexed data fields, flattened ABI word types, and per-field
+  topic/data encoding.
+- `scripts/evm/validate-artifact-metadata.py` validates event topics with
+  `cast keccak`, and `scripts/evm/event-ir-smoke.sh` now locks all EventProbe
+  event signatures through `--expect-event`.
+
+Validation run:
+
+```sh
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py
+```
+
+Known limitations:
+
+- Event metadata is emitted for portable IR modules; richer first-class event
+  declarations remain an explicit unsupported surface.
+
+Next step:
+
+- Continue promoting ABI-facing metadata from smoke fixtures into a stable
+  target manifest schema shared by EVM deployment tooling.
+
+### EVM Anvil Chain Profile Deploy-Run Validation
+
+Commit: `feat: validate Anvil chain profiles`
+
+Summary:
+
+- Added `anvil-local` as a lookup-only EVM chain profile for local Foundry
+  Anvil deployments on chain id `31337`.
+- `scripts/evm/anvil-deploy-smoke.sh` now regenerates Counter with
+  `--evm-chain-profile anvil-local` by default when using the default Anvil
+  chain id.
+- `proof-forge-deploy-run.json` now links the deploy manifest chain profile,
+  and `scripts/evm/validate-deploy-run.py` validates that the profile,
+  deployment chain id, actual Anvil chain id, and creation transaction evidence
+  agree.
+
+Validation run:
+
+```sh
+lake build ProofForge.Target.Registry
+lake env lean --run Tests/TargetRegistry.lean
+python3 -m py_compile scripts/evm/validate-deploy-run.py
+bash -n scripts/evm/anvil-deploy-smoke.sh
+scripts/evm/anvil-deploy-smoke.sh
+```
+
+Known limitations:
+
+- `anvil-local` is intentionally a local validation profile; it does not imply
+  public RPC broadcast support.
+
+Next step:
+
+- Promote profile-aware deploy-run generation into a first-class deploy command
+  that can consume any supported EVM chain profile.
+
+### EVM Creation Transaction Deploy-Run Artifact
+
+Commit: `feat: record EVM creation transactions`
+
+Summary:
+
+- Anvil deploy smoke now records the `eth_getTransactionByHash` creation
+  transaction JSON alongside the `cast send --create` receipt.
+- `proof-forge-deploy-run.json` links that creation transaction artifact with
+  path, byte size, and SHA-256 metadata.
+- `scripts/evm/validate-deploy-run.py` now validates that the creation
+  transaction hash, sender, null `to`, block metadata, and initcode `input`
+  match the deploy receipt and generated `.init.bin`.
+
+Validation run:
+
+```sh
+python3 -m py_compile scripts/evm/validate-deploy-run.py
+bash -n scripts/evm/anvil-deploy-smoke.sh
+scripts/evm/anvil-deploy-smoke.sh
+just evm-all
+```
+
+Known limitations:
+
+- This records a local Anvil creation transaction and receipt, not a signed raw
+  transaction artifact or public RPC broadcast workflow.
+
+Next step:
+
+- Promote the deploy-run artifact shape into a first-class deploy/broadcast
+  command that consumes `proof-forge-deploy.json`.
+
+### EVM ABI Method Signature Metadata
+
+Commit: `feat: record EVM method signatures`
+
+Summary:
+
+- SDK `.evm-methods` sidecars now preserve the original Solidity method
+  signature in `abi.methods[].signature` for EVM artifact metadata and deploy
+  manifests.
+- Manual `--method selector:fn:argc:view|update` specs remain supported; those
+  method entries use `null` signature metadata.
+- EVM metadata validators now check selector shape, duplicate method and
+  entrypoint selectors, generated Yul function names, signature syntax, and
+  signature/arg-count consistency.
+- SDK example builds and the Anvil deploy smoke now require method signatures
+  in metadata validation.
+
+Validation run:
+
+```sh
+lake build proof-forge
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py
+bash -n scripts/evm/build-examples.sh
+bash -n scripts/evm/anvil-deploy-smoke.sh
+scripts/evm/build-examples.sh
+scripts/evm/anvil-deploy-smoke.sh
+```
+
+Known limitations:
+
+- The validators check selector format and method signature metadata, while the
+  selector derivation itself still comes from Foundry `cast sig` during
+  compilation.
+
+Next step:
+
+- Continue strengthening ABI-facing artifact checks and close remaining
+  deploy/broadcast metadata gaps.
+
+### EVM Constructor Diagnostic Coverage
+
+Commit: `test: cover EVM constructor CLI diagnostics`
+
+Summary:
+
+- Extended `scripts/evm/diagnostic-smoke.sh` beyond portable IR diagnostics to
+  cover EVM constructor artifact-boundary CLI diagnostics.
+- The gate now locks unsupported dynamic constructor ABI types, missing
+  constructor values, duplicate typed values, mixed typed/raw constructor
+  sources, integer overflow, and malformed address-width inputs.
+- This turns the constructor value negative cases from one-off manual checks
+  into CI-tracked `just evm-diagnostics` coverage.
+
+Validation run:
+
+```sh
+bash -n scripts/evm/diagnostic-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- Constructor value encoding is still intentionally limited to static one-word
+  ABI types; dynamic constructor ABI values remain unsupported with explicit
+  diagnostics.
+
+Next step:
+
+- Continue closing the remaining EVM ABI/backend gaps, especially dynamic ABI
+  surfaces and deploy/broadcast artifacts.
+
+### EVM Typed Constructor Value Encoding
+
+Commit: `feat: encode EVM constructor values`
+
+Summary:
+
+- Added `--evm-constructor-arg <name=value>` for EVM bytecode modes.
+- Typed constructor args are ABI-encoded from the declared
+  `--evm-constructor-param <name:type>` schema and support `uint256`, `uint64`,
+  `uint32`, `bool`, `bytes32`, and `address`.
+- Constructor arg metadata now records whether the ABI blob came from typed CLI
+  args or raw `--evm-constructor-args-hex`.
+- Validators accept and can assert constructor arg source, and Anvil deploy
+  smoke now defaults to typed `initial=123` input for Counter.
+- CLI validation rejects missing typed values, duplicate typed values,
+  out-of-range integer values, and mixing typed values with raw constructor hex.
+
+Validation run:
+
+```sh
+lake build proof-forge
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py scripts/evm/validate-deploy-run.py
+bash -n scripts/evm/anvil-deploy-smoke.sh
+lake env proof-forge --evm-bytecode --root . --module contract --evm-constructor-param initial:uint256 --evm-constructor-arg initial=123 ...
+python3 scripts/evm/validate-artifact-metadata.py --expect-constructor-args-source=--evm-constructor-arg ...
+python3 scripts/evm/validate-deploy-manifest.py --expect-constructor-args-source=--evm-constructor-arg ...
+```
+
+Known limitations:
+
+- Constructor value encoding is limited to static one-word ABI types; dynamic
+  constructor ABI types are still unsupported.
+- This still emits deployable initcode and local Anvil deploy-run artifacts,
+  not signed transaction/broadcast artifacts for public RPC networks.
+
+Next step:
+
+- Add first-class EVM deploy/broadcast commands that consume the deploy
+  manifest, or continue closing remaining non-dynamic EVM backend gaps.
+
+### EVM Constructor ABI Schema Metadata
+
+Commit: `feat: record EVM constructor ABI schema`
+
+Summary:
+
+- Added `--evm-constructor-param <name:type>` for EVM bytecode modes.
+- Constructor params are recorded under `abi.constructor.params` in both
+  `proof-forge-artifact.json` and `proof-forge-deploy.json` using static
+  32-byte ABI-word metadata.
+- Validators now check constructor ABI schema shape, supported static-word
+  types, expected parameters, and constructor-argument byte length.
+- The Anvil deploy smoke now regenerates Counter with
+  `--evm-constructor-param initial:uint256`, records `constructorAbi` in
+  `Counter.proof-forge-deploy-run.json`, and validates it against the deploy
+  manifest.
 
 Validation run:
 
 ```sh
 lake build
-scripts/solana/build-examples.sh
-scripts/solana/diagnostic-smoke.sh
-scripts/solana/counter-smoke.sh      # requires sbpf, cargo, solana-keygen
-scripts/solana/control-smoke.sh      # requires sbpf, cargo, solana-keygen
-scripts/solana/emit-control-smoke.sh
-lake env proof-forge --solana-elf -o build/solana/Counter.so
-scripts/i18n/check-sync.sh
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py scripts/evm/validate-deploy-run.py
+bash -n scripts/evm/anvil-deploy-smoke.sh
+lake env proof-forge --evm-bytecode --root . --module contract --evm-constructor-param initial:uint256 --evm-constructor-args-hex 0x000000000000000000000000000000000000000000000000000000000000007b ...
+scripts/evm/anvil-deploy-smoke.sh
+just check
+just evm-all
+just psy-golden-sources
+git diff --check
 ```
-
-Result:
-
-- `lake build` (112 jobs) succeeded.
-- `build-examples.sh` emitted `Counter.s` and `manifest.toml`, both matching
-  the tracked golden fixtures.
-- `diagnostic-smoke.sh` reported all 8 Solana capability-rejection cases pass.
-- `counter-smoke.sh` passed 4/4 Mollusk assertions (initialize→0,
-  increment 0→1, increment 5→6, get→return_data).
-- `control-smoke.sh` passed 6/6 Mollusk assertions (`lifecycle` from 0 and
-  from 12345; `guarded_increment` success from 3 and assert-revert from 9;
-  `equality_guard` success from 7 and assertEq-revert from 42).
-- `emit-control-smoke.sh` remained bit-for-bit reproducible.
-- `--solana-elf` produced `Counter.so` and recorded `sbpfBuild: passed`.
-- `i18n/check-sync.sh` reported translations up to date.
 
 Known limitations:
 
-- Phase 1 uses the legacy embedded account-data layout. The Mollusk fixtures
-  explicitly disable the direct-account-mapping ABI; adapting to the
-  direct-mapping ABI is future work.
-- `sub`/`div`/`mod` lowering in `lowerBinaryCombine` still computes
-  `rhs op lhs` rather than `lhs op rhs` — unexercised by current sBPF smokes
-  and left for a future fix.
-- `solana-test-validator` deployment (V-GATE-SOLANA-04) remains optional and
-  unimplemented.
+- ProofForge records and validates static constructor ABI schema, but does not
+  yet parse typed constructor values or ABI-encode them from CLI inputs.
+- Dynamic constructor ABI types remain out of scope for the current EVM schema
+  slice.
 
 Next step:
 
-- Either move Workstream 7 into Phase 2 (multi-account instruction manifests,
-  PDA/storage-map lowering, CPI dispatch) or pick up the next high-value
-  target surface.
+- Add typed constructor value parsing/encoding or move to a first-class EVM
+  deploy/broadcast command that consumes the deploy manifest.
 
-### Solana sBPF Control-Flow + Assertion IR Coverage
+### Just-Based CI Command Entry
 
-Commit: `feat: lower control-flow + assertions to sBPF (V-GATE-SOLANA-08)`
+Commit: feature commit for just-based CI command entry
 
 Summary:
 
-- Extended `ProofForge.Backend.Solana.SbpfAsm` with the control-flow and
-  assertion statement shapes that close out Workstream 7's Phase 1 statement
-  lowering list:
-  - comparison expressions (`.eq`/`.ne`/`.lt`/`.le`/`.gt`/`.ge`) lowering to a
-    `mov64 r4, 0` + conditional jump + `mov64 r4, 1` boolean sequence ending
-    in `r2`;
-  - boolean expressions (`.boolAnd`/`.boolOr`/`.boolNot`) — the first two reuse
-    the existing `lowerBinaryCombine` with `and64`/`or64`, the last uses
-    `xor64 r2, 1` over a strict 0/1 bool;
-  - statement-level `.ifElse` then/else lowering with a fresh named
-    `elseLabel`/`endLabel` pair minted by an added `LowerCtx.freshLabel`
-    counter;
-  - `.assert cond` lowering to `jeq r2, 0, assert_fail` and `.assertEq lhs rhs`
-    lowering to stash/reload/lhsv-vs-rhs `jne r3, r2, assert_eq_fail`, exercising
-    the shared `assert_fail` (exit 2) / `assert_eq_fail` (exit 3) labels that the
-    module-level epilogue already emits.
-- `lowerExpr` now threads `LowerCtx` in and out so it can mint fresh labels for
-  nested comparisons, fixing a latent double-`addLocal`/linter warning in
-  `.letBind` along the way.
-- Added the chain-neutral fixture `ProofForge.IR.Examples.ControlFlowAssertProbe`
-  with three entrypoints — `lifecycle`, `guarded_increment`, `equality_guard` —
-  that exercise all of the above against `storageScalar` state and that
-  simultaneously lower to EVM/Yul unchanged.
-- Added a `--emit-control-ir-sbpf` CLI mode (mirroring
-  `--emit-counter-ir-sbpf`) that emits the fixture `.s` plus a
-  `proof-forge-artifact.json` recording `fixture: "control-ir-sbpf"`, the
-  `storage.scalar` / `control.conditional` / `assertions.check` /
-  `account.explicit` capabilities, and a `validation.molluskRuntime` block
-  tracking the five runtime scenarios.
-- Added two validation scripts:
-  - `scripts/solana/emit-control-smoke.sh` — the emission half of the new
-    gate V-GATE-SOLANA-08. It runs purely on a Lean toolchain: emits the `.s`,
-    greps for the `control.conditional` / `control.assert` / `control.assert_eq`
-    markers, the dispatch lines, the `jeq`/`jlt` comparison drivers, and the
-    `assert_fail`/`assert_eq_fail` labels, asserts bit-for-bit reproducibility
-    across re-emissions, and validates the artifact metadata shape.
-  - `scripts/solana/control-smoke.sh` — the runtime half, mirroring
-    `scripts/solana/counter-smoke.sh`: emits `.s`, scaffolds an sbpf project
-    from `Tests/solana/control_mollusk.rs.tpl`, builds the ELF, and runs six
-    Mollusk checks (`lifecycle` from 0 and from 12345; `guarded_increment`
-    success from 3 and assert-revert from 9; `equality_guard` success from 7
-    and assertEq-revert from 42). Skips with exit 2 when `sbpf`, `cargo`, or
-    `solana-keygen` are missing.
-- Synced documentation: `docs/validation-gates.md` (EN) and
-  `docs/zh/validation-gates.zh.md` (zh) register V-GATE-SOLANA-08 and refresh
-  V-GATE-SOLANA-03's status to “Phase 1 complete”, and
-  `docs/implementation-backlog.md` enumerates Workstream 7 Phase 1 sub-items.
+- Kept target-specific implementation logic in `scripts/`, but made the root
+  `justfile` the shared developer and CI command entrypoint.
+- Installed pinned `just` 1.48.0 in GitHub Actions and replaced duplicated CI
+  command blocks with existing recipes such as `just build`,
+  `just target-registry`, `just docs-check`, `just psy-golden-sources`, and
+  `just evm-smoke <fixture>`.
+- Preserved separate GitHub Actions steps for EVM/Psy gates so CI failures stay
+  easy to locate.
+- Updated README, development standards, validation gates, and Chinese mirrors
+  to document the split between `just` orchestration and underlying scripts.
+
+Validation run:
+
+```sh
+ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci.yml"); puts "workflow yaml ok"'
+just --list
+just check
+just psy-golden-sources
+just --dry-run <each CI-tracked just recipe>
+git diff --check
+```
+
+Known limitations:
+
+- CI now requires `just` installation before invoking common gate recipes.
+- Direct scripts remain supported because they are still the target-specific
+  implementation surface.
+
+Next step:
+
+- Consider grouping future target recipes by imported `just` modules if the
+  root `justfile` becomes hard to scan.
+
+### EVM Constructor Args Initcode Tail
+
+Commit: feature commit for EVM constructor args initcode tail
+
+Summary:
+
+- Added `--evm-constructor-args-hex <hex>` to EVM bytecode modes.
+- The CLI now normalizes ABI-encoded constructor args, appends them to
+  generated `.init.bin` creation bytecode, and records the argument blob in
+  `proof-forge-deploy.json` with hex, byte size, SHA-256, and source metadata.
+- Updated EVM metadata, deploy-manifest, and deploy-run validators so they
+  parse the initcode header as `header + runtime + constructorArgs` instead of
+  assuming the initcode ends at the runtime bytecode.
+- Extended `scripts/evm/anvil-deploy-smoke.sh` so CI deploys Counter initcode
+  with a deterministic non-empty constructor-argument tail by default and
+  records those args in `Counter.proof-forge-deploy-run.json`.
 
 Validation run:
 
 ```sh
 lake build
-scripts/solana/emit-control-smoke.sh
-# Skips locally (no sbpf on PATH) but scripts/solana/control-smoke.sh
-# mirrors counter-smoke.sh's toolchain-availability gating.
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py scripts/evm/validate-deploy-run.py
+scripts/evm/build-examples.sh
+scripts/evm/anvil-deploy-smoke.sh
 ```
 
 Result:
 
-- `lake build` (112 jobs) succeeded; the `proof-forge --emit-control-ir-sbpf`
-  mode emitted `build/solana/ControlFlowAssertProbe.s` carrying dispatch,
-  `control.conditional`/`control.assert`/`control.assert_eq` markers,
-  comparison-driven boolean sequences over `r3`/`r2`, and the
-  `assert_fail`/`assert_eq_fail` epilogue labels.
-- The emission gate asserted the asm is bit-for-bit reproducible across
-  re-emissions (`sha256
-  c3aa119278c6c0294572c794568288ec9f4479a74b2171d6d4f1c41f6d45efcd`) and
-  that the artifact metadata lists `target: "solana-sbpf-asm"`, `fixture:
-  "control-ir-sbpf"`, `sourceModule: "ControlFlowAssertProbe"`, and the four
-  capabilities.
-- Existing `--emit-counter-ir-sbpf` and `scripts/solana/emit-asm-smoke.sh`
-  keep working unchanged (Counter `.s` ends with the same `assert_fail` /
-  `assert_eq_fail` epilogue labels).
+- No-argument SDK example builds still emit valid metadata and deploy
+  manifests.
+- Counter Anvil deploy smoke regenerated `Counter.init.bin` with a 32-byte
+  constructor argument blob (`0x...007b`), deployed it with `cast send
+  --create`, and validated that the deployed runtime code still matches
+  `Counter.bin`.
+- The deploy-run artifact records the constructor args and the Counter
+  lifecycle still returned `0`, then `99`, `100`, and `99`.
 
 Known limitations:
 
-- The runtime half of V-GATE-SOLANA-08 is gated on the `sbpf` toolchain, so it
-  skips with exit 2 wherever `sbpf` is not on PATH (every CI run today; outside
-  Workstream 6's local-only mandate).
-- `sub`/`div`/`mod` lowering in `lowerBinaryCombine` computes `rhs op lhs`
-  rather than `lhs op rhs` — same latent behavior as before this change and
-  unexercised by any current sBPF smoke; leaves only the commutative ops (`add`,
-  `mul`, `and`, `or`) lowering in operator-correct order.
-- Account validation (signer / writable / owner checks), the `manifest.toml`
-  sidecar, and `--solana-elf` “emit + assemble” CLI mode remain open Workstream 7
-  Phase 1 sub-items (see backlog).
+- Constructor args are accepted as an explicit ABI-encoded hex blob; ProofForge
+  does not yet generate constructor ABI schemas or encode named constructor
+  parameters from IR.
+- This still validates on local Anvil, not a live public RPC broadcast.
 
 Next step:
 
-- Land the next Workstream 7 sub-item (e.g. `--solana-elf`, `manifest.toml`,
-  or account validation), or install `sbpf` locally so the runtime half of
-  V-GATE-SOLANA-08 closes byte-for-byte against the emission half.
+- Add a first-class deployment command or broadcast artifact that consumes the
+  deploy manifest, selected chain profile, private-key/wallet configuration,
+  and constructor args without shell-script-specific glue.
+
+### EVM Anvil Deploy-Run Smoke
+
+Commit: `feat: validate EVM initcode deployment on Anvil`
+
+Summary:
+
+- Added `scripts/evm/anvil-deploy-smoke.sh`, which starts a local Anvil chain
+  and deploys generated `Counter.init.bin` with `cast send --create`.
+- The smoke records the creation transaction receipt, deployed address, local
+  Anvil network id, referenced deploy manifest, initcode, runtime bytecode, and
+  Counter lifecycle call results in
+  `build/anvil-deploy-smoke/Counter.proof-forge-deploy-run.json`.
+- Added `scripts/evm/validate-deploy-run.py` to validate deploy-run artifacts,
+  including receipt status, transaction/deployer consistency, deployed runtime
+  code hash/size, and `get`/`set`/`increment`/`decrement` JSON-RPC behavior.
+- Wired the new smoke into `just evm-anvil-deploy`, `just evm-all`, and CI.
+
+Validation run:
+
+```sh
+python3 -m py_compile scripts/evm/validate-deploy-run.py
+scripts/evm/anvil-deploy-smoke.sh
+```
+
+Result:
+
+- Anvil chain id `31337` started locally.
+- `Counter.init.bin` deployed to
+  `0x5fbdb2315678afecb367f032d93f642f64180aa3` with a successful creation
+  receipt.
+- The on-chain deployed code matched `build/evm/Counter.bin`.
+- Counter JSON-RPC lifecycle returned `0`, then `99`, `100`, and `99`.
+
+Known limitations:
+
+- This is a local Anvil deploy-run artifact, not a live public RPC broadcast.
+- Constructor arguments remain empty.
+- Explorer verification and wallet UX are still future work.
+
+Next step:
+
+- Extend deploy-run generation toward chain-profile-aware live RPC deployment
+  and constructor argument encoding, while keeping Anvil as the deterministic
+  CI smoke.
+
+### EVM Chain Profile Deploy Metadata
+
+Commit: `feat: record EVM chain profile deploy metadata`
+
+Summary:
+
+- Added `--evm-chain-profile <id>` for EVM bytecode modes.
+- Resolved EVM chain profiles from the target registry and recorded the selected
+  profile in `proof-forge-deploy.json`, including profile id, chain id, RPC
+  URLs, native gas symbol, explorer, verifier, and notes.
+- Extended the deploy `deployment` block with profile id, chain id, network
+  name, RPC URLs, explorer/verifier metadata, and explicit
+  `broadcastArtifact: null`.
+- Strengthened EVM metadata/deploy validators so selected profiles must match
+  deployment fields and unselected profiles remain explicit `null`/empty
+  fields.
+- Updated `AbiScalarProbe` EVM smoke to validate
+  `robinhood-chain-testnet` and chain id `46630`.
+
+Validation run:
+
+```sh
+lake build
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py
+scripts/evm/abi-scalar-ir-smoke.sh
+python3 scripts/evm/validate-deploy-manifest.py --root . --expect-fixture AbiScalarProbe --expect-source-kind portable-ir --expect-chain-profile robinhood-chain-testnet --expect-chain-id 46630 build/ir/AbiScalarProbe.proof-forge-deploy.json
+```
+
+Result:
+
+- `AbiScalarProbe.proof-forge-deploy.json` records
+  `chainProfile.id: robinhood-chain-testnet`, `deployment.profileId:
+  robinhood-chain-testnet`, and `deployment.chainId: 46630`.
+- Foundry ABI scalar smoke still ran 2 runtime tests successfully.
+
+Known limitations:
+
+- The manifest is still a deployment plan only.
+- Transaction signing, Foundry/Anvil broadcast JSON, deployed address recording,
+  and explorer verification remain future work.
+
+Next step:
+
+- Generate a Foundry script or broadcast-oriented artifact from the deploy
+  manifest, then validate it against Anvil without relying on live RPC.
 
 ### EVM Deploy Initcode Artifacts
 

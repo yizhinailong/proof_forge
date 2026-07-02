@@ -55,6 +55,21 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint make_hash_pair:d3a9b1bd \
   --expect-entrypoint pick_hash:44d9885a \
   --expect-entrypoint make_hash_array:3fcd733b \
+  --expect-entrypoint-abi 'sum_pair:sum_pair((uint256,uint256)):2:1' \
+  --expect-entrypoint-abi 'sum_array:sum_array(uint256[3]):3:1' \
+  --expect-entrypoint-abi 'sum_matrix:sum_matrix(uint256[2][2]):4:1' \
+  --expect-entrypoint-abi 'sum_pair_array:sum_pair_array((uint256,uint256)[2]):4:1' \
+  --expect-entrypoint-abi 'make_pair:make_pair(uint256,uint256):2:2' \
+  --expect-entrypoint-abi 'make_pair_array:make_pair_array(uint256,uint256,uint256,uint256):4:4' \
+  --expect-entrypoint-abi 'make_matrix:make_matrix(uint256,uint256,uint256,uint256):4:4' \
+  --expect-entrypoint-abi 'make_array:make_array(uint256,uint256,uint256):3:3' \
+  --expect-entrypoint-abi 'sum_small:sum_small(uint32[2]):2:1' \
+  --expect-entrypoint-abi 'sum_small_matrix:sum_small_matrix(uint32[2][2]):4:1' \
+  --expect-entrypoint-abi 'and_flags:and_flags((bool,bool)):2:1' \
+  --expect-entrypoint-abi 'echo_hash_pair:echo_hash_pair((bytes32,bytes32)):2:1' \
+  --expect-entrypoint-abi 'make_hash_pair:make_hash_pair(bytes32,bytes32):2:2' \
+  --expect-entrypoint-abi 'pick_hash:pick_hash(bytes32[2]):2:1' \
+  --expect-entrypoint-abi 'make_hash_array:make_hash_array(bytes32,bytes32):2:2' \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmAbiAggregateProbe.bin")"

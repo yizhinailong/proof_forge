@@ -66,15 +66,67 @@
 
 - 已完成（EVM）：为 EVM bytecode build 添加 `proof-forge-artifact.json` schema。
 - 已完成（EVM）：为 `--evm-bytecode` 和 portable IR EVM bytecode fixture build 发射 metadata。
-- 已完成（EVM）：包含 source module、target id、artifact path、SHA-256、byte size、solc path/version、selector metadata 和 validation status。
+- 已完成（EVM）：包含 source module、target id、artifact path、SHA-256、byte size、solc path/version、selector/signature metadata 和 validation status。
+- 已完成（EVM）：在 `proof-forge-artifact.json` 和
+  `proof-forge-deploy.json` 的 `abi.methods[].signature` 中保留 SDK
+  `.evm-methods` 的 Solidity signature；validator 会检查 selector 形态、重复的
+  method selector/function/signature、生成的 Yul function name，以及
+  signature/arg-count 一致性，SDK 示例门禁会要求 signature 存在。
 - 已完成（EVM）：为每个 EVM bytecode build 发射并校验 ProofForge deploy manifest，记录 runtime bytecode 输入、ABI selector、可部署 initcode，以及当前 `not-generated` 的交易广播状态。
 - 已完成（EVM）：为每个 EVM bytecode build 生成与 artifact 关联的 `.init.bin` creation bytecode 文件，在 `proof-forge-artifact.json` 和 `proof-forge-deploy.json` 中记录它，并验证 initcode header 会复制并返回引用的 runtime bytecode。
+- 已完成（EVM）：添加 `--evm-chain-profile <id>`，让 bytecode build 可以在
+  `proof-forge-deploy.json` 中记录已知 EVM chain profile，例如
+  `robinhood-chain-testnet` 或 `anvil-local`；validator 会检查 profile id、chain
+  id、RPC URLs、explorer、verifier 和 deployment block 的一致性，但不会广播交易。
+- 已完成（EVM）：添加 `--evm-constructor-args-hex <hex>`，让 bytecode build 可以把显式 ABI-encoded constructor arguments 追加到生成的 `.init.bin`，在 `proof-forge-deploy.json` 中记录规范化 hex、byte size 和 SHA-256，并校验 initcode tail 与 manifest 一致。
+- 已完成（EVM）：添加 `--evm-constructor-param <name:type>`，让 bytecode
+  build 可以在 artifact metadata 和 deploy manifest 中记录静态 word
+  constructor ABI schema，校验受支持的 schema 类型，并确认显式
+  ABI-encoded constructor-argument blob 具有预期的 32-byte word 长度。
+- 已完成（EVM）：添加 `--evm-constructor-arg <name=value>`，让 bytecode
+  build 可以为 `uint256`、`uint64`、`uint32`、`bool`、`bytes32` 和
+  `address` ABI-encode typed constructor values，记录 constructor args 来自
+  typed values 还是 raw hex，拒绝缺失、重复和越界的值，并校验生成的 initcode
+  tail 与 metadata 和 deploy manifest 一致。
+- 已完成（EVM）：在 `abi.entrypoints` 中记录结构化的 portable IR
+  selector-facing entrypoint ABI metadata，包括 Solidity-style selector
+  signature、IR type name、ABI parameter/return type、展开后的 calldata word
+  type/count，以及展开后的 return word type/count；validator 会用
+  `cast sig` 校验 selector/signature 一致性，`EvmAbiAggregateProbe` 会通过
+  `--expect-entrypoint-abi` 固定聚合 ABI word layout。
+- 已完成（EVM）：在 `abi.events` 中记录 portable IR event ABI metadata，包括
+  Solidity-style event signature、`topic0`、indexed/data field、展开后的 ABI
+  word type，以及 topic/data encoding；EventProbe 通过 `--expect-event` 和
+  `cast keccak` 校验每个已发射 event。
+- 已完成（EVM）：扩展 `scripts/evm/diagnostic-smoke.sh`，固定 constructor
+  CLI 诊断，包括不支持的 dynamic constructor ABI type、缺失或重复的 typed
+  value、typed/raw constructor argument source 混用、整数溢出，以及 address
+  过短等格式错误的 static-word value。
+- 已完成（EVM）：加入 Anvil deploy smoke，通过 `cast send --create` 发送生成的
+  Counter `.init.bin`，记录 constructor ABI schema、typed constructor args
+  和 `proof-forge-deploy-run.json` artifact，同时记录
+  `eth_getTransactionByHash` creation transaction JSON，校验 `anvil-local` chain
+  profile、receipt、deployed address、runtime-code match 和 transaction input
+  initcode，并通过 JSON-RPC 运行 Counter lifecycle。
 - 从第一天起就保持 schema 的版本化。
 
 验收标准：
 
 - EVM 字节码构建将 runtime bytecode、可部署 initcode、元数据和 deploy manifest 并排写入。
 - 元数据和 deploy manifest 可以由 CI 脚本独立解析。
+- Portable IR bytecode metadata 和 deploy manifest 可以描述 ABI-facing
+  entrypoint，包括 selector signature、展开后的 calldata word layout，以及展开后的
+  return-data word layout。
+- Portable IR bytecode metadata 和 deploy manifest 可以描述 ABI-facing
+  events，包括 indexed topic encoding 和非 indexed data-word encoding。
+- Deploy manifest 可以携带来自 target registry 的可选 EVM chain profile
+  metadata，同时让 transaction broadcast artifacts 明确保持 `not-generated`。
+- 本地 Anvil 部署可以消费生成的 deploy manifest 和 initcode，产出经过校验的
+  deploy-run artifact，并证明即使 initcode 包含 typed 或 raw ABI-encoded
+  constructor-argument tail 和记录的静态 constructor ABI schema，deployed
+  runtime code 仍然与生成的 bytecode 一致；deploy-run artifact 也会关联已观察到的
+  creation transaction JSON，并验证其 input 等于生成的 initcode，且 deployment
+  profile chain id 与实际本地链一致。
 - EVM metadata 可以将缺失的可选 version 数据表示为 `null`，而不是格式错误的 metadata。
 
 ## 工作流 3：EVM 基线加固
@@ -103,6 +155,7 @@
 - 已完成：将 EVM IR event data lowering 从 scalar word 扩展到非 indexed 的扁平 struct field、scalar fixed-array field，以及元素为扁平 struct 的 fixed-array field，按 ABI-style 展开为连续 data word，并支持 `PairEvent((uint64,uint64))`、`ArrayEvent(uint64[2])`、`PairArrayEvent((uint64,uint64)[2])` 这类 canonical Solidity-style event signature；用 `EventProbe` 跑通 golden Yul、solc bytecode、Foundry recorded-log 验证、metadata selector 校验，并为不支持形态的 aggregate indexed field 保留显式诊断。
 - 已完成：扩展 EVM IR `eventEmitIndexed` lowering，使扁平 struct indexed field，以及元素为扁平 struct 的 fixed-array indexed field，会先展开为 ABI-style word，再把这些 word 的 `keccak256` 作为 indexed topic。`EventProbe` 现在用 `IndexedPair((uint64,uint64),uint64)` 和 `IndexedPairArray((uint64,uint64)[2],uint64)` 跑通 golden Yul、solc bytecode、metadata selector 校验、Foundry recorded-log topic-hash 验证，并为嵌套或不支持形态的 aggregate indexed field 保留显式诊断。
 - 已完成：补齐 EventProbe 对 scalar fixed-array indexed topic 的验证缺口，加入 `IndexedArray(uint64[2],uint64)` 的 golden Yul、metadata selector 校验、solc bytecode 生成和 Foundry recorded-log topic-hash 验证。
+- 已完成：扩展 EventProbe 对嵌套 fixed-array event aggregate 的覆盖。`MatrixEvent(uint64[2][2])` 和 `PairMatrixEvent((uint64,uint64)[2][2])` 证明 scalar leaf 与扁平 struct leaf 的非 indexed data 会递归展开；`IndexedMatrix(uint64[2][2],uint64)` 和 `IndexedPairMatrix((uint64,uint64)[2][2],uint64)` 证明 indexed aggregate topic 会对递归展开后的 ABI-style word 做 hash。该 smoke 现在锁定新 selector、event ABI metadata、golden Yul、`solc` bytecode 和 Foundry recorded-log 断言；leaf 为不支持形态或非扁平 struct 的嵌套 array 仍保持显式诊断。
 - 已完成：补齐 EventProbe 对 storage-backed 扁平 struct event data 和 indexed aggregate topic 的验证缺口。`StoragePairEvent((uint64,uint64))` 与 `IndexedStoragePair((uint64,uint64),uint64)` 现在证明 whole scalar storage struct write 可以通过 `storageScalarRead` 读回，展开为 event data word，作为 indexed topic hash 输入，并通过 golden Yul、metadata selector、`solc` 和 Foundry recorded logs 验证。
 - 已完成：补齐 EventProbe 对 storage-backed fixed-array event aggregate 的验证缺口。`StorageArrayEvent(uint64[2])`、`StoragePairArrayEvent((uint64,uint64)[2])`、`IndexedStorageArray(uint64[2],uint64)` 与 `IndexedStoragePairArray((uint64,uint64)[2],uint64)` 现在证明 storage array read 和 storage array struct field read 可以作为非 indexed event data flattening 与 indexed aggregate topic hashing 的输入，并通过 golden Yul、metadata selector、`solc` 和 Foundry recorded logs 验证。
 - 已完成：加入 EVM IR `crosscallInvoke` lowering，将其降为同步 EVM `call` helper，覆盖 selector 打包、word 参数、单 word 返回、调用失败和短返回 revert，并用 `EvmCrosscallProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时验证、metadata 能力校验，以及 malformed crosscall 类型显式诊断。
@@ -122,6 +175,7 @@
 - 已完成：加入 EVM IR 单段 `mapKey` storage path 复合赋值，限定在 `Map<U64, U64, N>` 上，并用 `EvmMapProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验，以及表达式位置/嵌套路径误用的显式诊断。
 - 已完成：泛化 EVM IR storage map 到 `U32`、`U64`、`Bool`、`Hash` word key/value 形态，继续复用 Solidity-style `keccak256(key, slot)` mapping slot，并用 `EvmTypedMapProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、`U32`/`Bool` calldata guard、metadata 能力校验、CI 覆盖，以及非 word map 形态的显式诊断。
 - 已完成：加入 EVM IR `storage.map.contains` lowering，通过根为 `keccak256(slot || PROOF_FORGE_MAP_PRESENCE)` 的 ProofForge-managed presence slot 表示 key presence，并用 `EvmMapProbe` 和 `EvmTypedMapProbe` 跑通 golden Yul、solc bytecode、U64/U32/Bool/Hash map 的 Foundry value/presence slot 验证、zero-valued present-key 覆盖、metadata 校验，以及 statement-position 误用的显式诊断。
+- 已完成：加入 EVM IR 连续 `mapKey` segment 组成的嵌套 map storage path。value storage 会折叠 Solidity-style mapping slot，最终 key 的 presence 会继续使用 ProofForge-managed presence slot；`EvmMapProbe` 和 `EvmTypedMapProbe` 覆盖 golden Yul、solc bytecode、Foundry 原始 slot 验证、U32 dispatcher guard、metadata 校验，以及混合 map/aggregate storage path 的显式诊断。
 - 已完成：加入 EVM IR `U64` 固定 storage array lowering，将其降为连续 storage slot 并带运行时 bounds check，并用 `EvmStorageArrayProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验，以及不支持 array element 类型的显式诊断。
 - 已完成：加入 EVM IR 单段 `index` storage path read/write/compound assignment，限定在 `U64` 固定 storage array 上，复用带 bounds check 的 array slot helper，并扩展 `EvmStorageArrayProbe` 验证。
 - 已完成：泛化 EVM IR word storage，支持 `Bool` scalar storage，以及 `U32`/`Bool`/`Hash` 固定 storage array，继续复用带 bounds check 的 array slot helper，并用 `EvmTypedStorageProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、`U32` calldata range guard、metadata 能力校验、CI 覆盖，以及不支持非 word storage element 的显式诊断。
@@ -138,7 +192,7 @@
 - 已完成：扩展 EVM IR 嵌套 local fixed-array 到扁平 struct leaf，按 nested element field 展开为确定性 Yul local，支持静态/动态嵌套字段读取、嵌套可变字段赋值、数字字段复合赋值、从 local array 或自引用嵌套 array literal 做带 RHS 快照的 whole nested local assignment、动态越界 revert，并用 `EvmStructArrayValueProbe` 跑通 golden Yul、metadata entrypoint、solc bytecode、Foundry 运行时验证和 coverage manifest 更新。
 - 已完成：加入 EVM IR 扁平 storage struct lowering，覆盖 scalar storage struct、扁平 struct 固定 storage array、直接 struct field effect、scalar `field` storage path、array `index`+`field` storage path、数字字段复合赋值、带 RHS 快照的 whole scalar storage struct read/write、storage-backed ABI struct return、`Bool`/`U32`/`Hash` 字段，并用 `EvmStorageStructProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验、CI 覆盖，以及缺失字段和非扁平 storage struct 的显式诊断。
 - 已完成：验证 EVM IR storage-backed aggregate ABI return：扩展 `EvmStorageArrayProbe` 的 `return_values()`，从 storage-array element read 组装 fixed-array return；扩展 `EvmStorageStructProbe` 的 `return_points()`，从扁平 struct 固定 storage array 的字段 read 组装 fixed-array-of-struct return；覆盖 golden Yul、solc bytecode、metadata selector 校验、Foundry ABI 解码和原始 slot 检查。
-- 已完成：加入 EVM IR 静态聚合 ABI lowering，覆盖 fixed-array 和 struct 参数/返回、嵌套标量 fixed array，以及元素为扁平 struct 的 fixed array、calldata word flattening、`U32`/`Bool` 聚合 word guard、多 word return-data encoding，并用 `EvmAbiAggregateProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/malformed calldata 验证、metadata 能力校验、CI 覆盖，以及 Unit、零长度 array、非扁平 struct field 和嵌套 crosscall aggregate array 的显式诊断。
+- 已完成：加入 EVM IR 静态聚合 ABI lowering，覆盖 fixed-array 和 struct 参数/返回、嵌套标量 fixed array，以及元素为扁平 struct 的 fixed array、calldata word flattening、`U32`/`Bool` 聚合 word guard、多 word return-data encoding，并用 `EvmAbiAggregateProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/malformed calldata 验证、metadata 能力校验、结构化 `abi.entrypoints` selector/calldata/return word-layout 校验、CI 覆盖，以及 Unit、零长度 array、非扁平 struct field 和嵌套 crosscall aggregate array 的显式诊断。
 - 已完成：补齐 EVM aggregate ABI 对 `Hash` leaf 的验证缺口。`HashPair(bytes32,bytes32)`、`pick_hash(bytes32[2])` 和 `make_hash_array(bytes32,bytes32)` 现在证明 `Hash`/`bytes32` 字段与 fixed array 能通过 calldata 和 return-data encoding 展开，并覆盖 golden Yul、metadata selector、`solc`、Foundry ABI 解码，以及短 `bytes32[2]` calldata 拒绝。
 - 已完成：为 SDK EVM 示例（`Counter`、`ArrayExample`、`SimpleToken`、`ERC20`、`Ownable`、`Pausable` 和 `VerifiedVault`）添加 golden Yul 输出，并让 `scripts/evm/build-examples.sh` 在校验 metadata 前先 diff 生成的 Yul 与这些 fixture。
 - 已完成：为 SDK 和 portable IR EVM bytecode build 在当前 `solc --strict-assembly` 流程周围添加 metadata 发射与校验。
@@ -209,7 +263,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [ ] `sbpf` 通过 `cargo install` 安装到 PATH（当前从源码构建）。
 
 参考：[solana-sbpf-asm 设计文档](targets/solana-sbpf-asm.md),
-[RFC 0004](rfcs/0004-solana-sbpf-assembly-backend.md)。
+[RFC 0005](rfcs/0005-solana-sbpf-assembly-backend.md)。
 
 ## 工作流 7: Solana sBPF Assembly Counter Codegen（Phase 1）
 
@@ -637,7 +691,7 @@ EVM 上生成 ERC-20 合约，还是在 Solana 上生成 SPL Token / Token-2022
 
 任务：
 
-- 已完成：增加 RFC 0005、`ProofForge.Contract.Token.TokenSpec`、target
+- 已完成：增加 RFC 0006、`ProofForge.Contract.Token.TokenSpec`、target
   token plan，以及 `Tests/TokenSpec.lean`。
 - 实现 EVM ERC-20 降级：ABI/selectors、balance/allowance storage、total
   supply、transfer/approve/transferFrom、mint/burn 选项、events，以及

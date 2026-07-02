@@ -50,6 +50,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint emit_storage_array_event:99eb21de \
   --expect-entrypoint emit_array_event:393f7138 \
   --expect-entrypoint emit_pair_array_event:85611e74 \
+  --expect-entrypoint emit_matrix_event:765f1e45 \
+  --expect-entrypoint emit_pair_matrix_event:315aac0a \
   --expect-entrypoint emit_storage_pair_array_event:f31d3375 \
   --expect-entrypoint emit_indexed_pair_event:e027f054 \
   --expect-entrypoint emit_indexed_storage_pair_event:f4a27402 \
@@ -57,6 +59,30 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint emit_indexed_array_event:b7de5dd7 \
   --expect-entrypoint emit_indexed_storage_pair_array_event:45440e6c \
   --expect-entrypoint emit_indexed_pair_array_event:c1375f82 \
+  --expect-entrypoint emit_indexed_matrix_event:6a843f41 \
+  --expect-entrypoint emit_indexed_pair_matrix_event:d1b4d456 \
+  --expect-event 'ValueEvent:ValueEvent(uint64)' \
+  --expect-event 'TypedScalarEvent:TypedScalarEvent(bool,uint32,bytes32)' \
+  --expect-event 'IndexedValue:IndexedValue(uint64,uint64)' \
+  --expect-event 'IndexedTypedScalar:IndexedTypedScalar(bool,uint32,bytes32,uint64)' \
+  --expect-event 'IndexedTwoValues:IndexedTwoValues(uint64,uint64,uint64)' \
+  --expect-event 'IndexedThreeValues:IndexedThreeValues(uint64,uint64,uint64,uint64)' \
+  --expect-event 'PairEvent:PairEvent((uint64,uint64))' \
+  --expect-event 'StoragePairEvent:StoragePairEvent((uint64,uint64))' \
+  --expect-event 'StorageArrayEvent:StorageArrayEvent(uint64[2])' \
+  --expect-event 'ArrayEvent:ArrayEvent(uint64[2])' \
+  --expect-event 'PairArrayEvent:PairArrayEvent((uint64,uint64)[2])' \
+  --expect-event 'MatrixEvent:MatrixEvent(uint64[2][2])' \
+  --expect-event 'PairMatrixEvent:PairMatrixEvent((uint64,uint64)[2][2])' \
+  --expect-event 'StoragePairArrayEvent:StoragePairArrayEvent((uint64,uint64)[2])' \
+  --expect-event 'IndexedPair:IndexedPair((uint64,uint64),uint64)' \
+  --expect-event 'IndexedStoragePair:IndexedStoragePair((uint64,uint64),uint64)' \
+  --expect-event 'IndexedStorageArray:IndexedStorageArray(uint64[2],uint64)' \
+  --expect-event 'IndexedArray:IndexedArray(uint64[2],uint64)' \
+  --expect-event 'IndexedStoragePairArray:IndexedStoragePairArray((uint64,uint64)[2],uint64)' \
+  --expect-event 'IndexedPairArray:IndexedPairArray((uint64,uint64)[2],uint64)' \
+  --expect-event 'IndexedMatrix:IndexedMatrix(uint64[2][2],uint64)' \
+  --expect-event 'IndexedPairMatrix:IndexedPairMatrix((uint64,uint64)[2][2],uint64)' \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EventProbe.bin")"
@@ -339,6 +365,44 @@ contract ProofForgeIREventSmokeTest {
         assertEq(abi.decode(logs[0].data, (uint256)), 55);
     }
 
+    function testIRIndexedNestedFixedArrayEventHashesAggregateTopic() public {
+        address probe = address(uint160(0xE145));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_indexed_matrix_event(uint256,uint256,uint256,uint256,uint256)", 31, 32, 33, 34, 35));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 2);
+        assertEq(logs[0].topics[0], keccak256(bytes("IndexedMatrix(uint64[2][2],uint64)")));
+        assertEq(logs[0].topics[1], keccak256(abi.encode(uint256(31), uint256(32), uint256(33), uint256(34))));
+        assertEq(abi.decode(logs[0].data, (uint256)), 35);
+    }
+
+    function testIRIndexedNestedStructArrayEventHashesAggregateTopic() public {
+        address probe = address(uint160(0xE148));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_indexed_pair_matrix_event(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)", 1, 2, 3, 4, 5, 6, 7, 8, 90));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 2);
+        assertEq(logs[0].topics[0], keccak256(bytes("IndexedPairMatrix((uint64,uint64)[2][2],uint64)")));
+        assertEq(logs[0].topics[1], keccak256(abi.encode(uint256(1), uint256(2), uint256(3), uint256(4), uint256(5), uint256(6), uint256(7), uint256(8))));
+        assertEq(abi.decode(logs[0].data, (uint256)), 90);
+    }
+
     function testIRIndexedStructArrayEventHashesAggregateTopic() public {
         address probe = address(uint160(0xE137));
         deployRuntime(hex"$probe_hex", probe);
@@ -457,6 +521,28 @@ contract ProofForgeIREventSmokeTest {
         assertEq(right, 44);
     }
 
+    function testIRNestedFixedArrayEventFlattensDataWords() public {
+        address probe = address(uint160(0xE146));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_matrix_event(uint256,uint256,uint256,uint256)", 21, 22, 23, 24));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 1);
+        assertEq(logs[0].topics[0], keccak256(bytes("MatrixEvent(uint64[2][2])")));
+        (uint256 a, uint256 b, uint256 c, uint256 d) = abi.decode(logs[0].data, (uint256, uint256, uint256, uint256));
+        assertEq(a, 21);
+        assertEq(b, 22);
+        assertEq(c, 23);
+        assertEq(d, 24);
+    }
+
     function testIRStructArrayEventFlattensDataWords() public {
         address probe = address(uint160(0xE135));
         deployRuntime(hex"$probe_hex", probe);
@@ -477,6 +563,33 @@ contract ProofForgeIREventSmokeTest {
         assertEq(b, 2);
         assertEq(c, 3);
         assertEq(d, 4);
+    }
+
+    function testIRNestedStructArrayEventFlattensDataWords() public {
+        address probe = address(uint160(0xE147));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.recordLogs();
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("emit_pair_matrix_event(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)", 1, 2, 3, 4, 5, 6, 7, 8));
+        assertTrue(ok);
+        assertEq(result.length, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, probe);
+        assertEq(logs[0].topics.length, 1);
+        assertEq(logs[0].topics[0], keccak256(bytes("PairMatrixEvent((uint64,uint64)[2][2])")));
+        (uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f, uint256 g, uint256 h) =
+            abi.decode(logs[0].data, (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256));
+        assertEq(a, 1);
+        assertEq(b, 2);
+        assertEq(c, 3);
+        assertEq(d, 4);
+        assertEq(e, 5);
+        assertEq(f, 6);
+        assertEq(g, 7);
+        assertEq(h, 8);
     }
 
     function testIRStorageStructArrayEventFlattensDataWords() public {
