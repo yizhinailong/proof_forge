@@ -229,6 +229,12 @@ structure PubkeyLogAction where
   account : String
   deriving Repr
 
+structure DataLogAction where
+  name : String
+  sourceState : String
+  bytes : Nat
+  deriving Repr
+
 def kv (key value : String) : TargetMetadata := {
   key := key
   value := value
@@ -440,6 +446,15 @@ def PubkeyLogAction.metadata (action : PubkeyLogAction) : Array TargetMetadata :
     kv "solana.log.name" action.name,
     kv "solana.log.op" "pubkey",
     kv "solana.log.account" action.account
+  ]
+
+def DataLogAction.metadata (action : DataLogAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "log",
+    kv "solana.log.name" action.name,
+    kv "solana.log.op" "data",
+    kv "solana.log.source_state" action.sourceState,
+    natKv "solana.log.bytes" action.bytes
   ]
 
 def systemProgram : String :=
@@ -1005,6 +1020,25 @@ def logAccountPubkey (name account : String) :
   pubkeyLogEntry {
     name := name
     account := account
+  }
+
+def dataLogEntry (action : DataLogAction) :
+    ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .storageScalar
+    "solana.log.data.source_state"
+    (source? := some action.sourceState)
+    (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .eventsEmit
+    "solana.log.data"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def logStateData (name sourceState : String) (bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  dataLogEntry {
+    name := name
+    sourceState := sourceState
+    bytes := bytes
   }
 
 def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do

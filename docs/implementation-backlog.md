@@ -798,12 +798,13 @@ create-account CPI validation, live SPL Token `transfer_checked` CPI
 validation, and live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
 validation, plus live scalar `events.emit` log validation through
 `sol_log_64_`, live account-pubkey log validation through `sol_log_pubkey`,
-and live `Clock.slot` sysvar validation for `contextRead
-checkpointId`, plus live `runtime.memory` validation through `sol_memcpy_`,
-`sol_memmove_`, `sol_memcmp_`, and `sol_memset_`, plus live Solana-only
-`crypto.hash` validation through `sol_sha256`, `sol_keccak256`, and
-feature-gated `sol_blake3`, plus live `Rent.lamports_per_byte_year` sysvar
-validation through `sol_get_rent_sysvar`.
+live state-backed data-log validation through `sol_log_data`, and live
+`Clock.slot` sysvar validation for `contextRead checkpointId`, plus live
+`runtime.memory` validation through `sol_memcpy_`, `sol_memmove_`,
+`sol_memcmp_`, and `sol_memset_`, plus live Solana-only `crypto.hash`
+validation through `sol_sha256`, `sol_keccak256`, and feature-gated
+`sol_blake3`, plus live `Rent.lamports_per_byte_year` sysvar validation
+through `sol_get_rent_sysvar`.
 It also covers live validation for all current RPC-exposed `EpochSchedule`
 fields through `sol_get_epoch_schedule_sysvar`: `slots_per_epoch`,
 `leader_schedule_slot_offset`, `warmup`, `first_normal_epoch`, and
@@ -864,14 +865,16 @@ Completed alpha slices:
   test accounts with `@solana/spl-token`, invokes all four generated
   entrypoints through Web3.js, and proves supply/balance/delegate changes plus
   state writes.
-- Live scalar event and pubkey log fixture: `scripts/solana/log-event-web3-smoke.sh`
+- Live scalar event, pubkey log, and data log fixture: `scripts/solana/log-event-web3-smoke.sh`
   builds and deploys a generated `events.emit` program on Surfpool, invokes it
   through Web3.js, verifies the generated `sol_log_64_` transaction log
   contains the stable `AmountEvent` tag and scalar `amount` field, and proves
   the program-owned state account recorded the same value. The same fixture now
   validates Solana-only `logAccountPubkey` metadata, invokes the generated
   `log_state_pubkey` entrypoint, and proves `sol_log_pubkey` logs the state
-  account's base58 pubkey.
+  account's base58 pubkey. It also validates Solana-only `logStateData`
+  metadata, invokes `log_state_data`, and proves `sol_log_data` emits a base64
+  `Program data:` payload for the state-backed `amount` bytes.
 - Live Clock sysvar fixture: `scripts/solana/clock-sysvar-web3-smoke.sh`
   builds and deploys a generated `contextRead checkpointId` program on
   Surfpool, lowers it to `sol_get_clock_sysvar`, invokes it through Web3.js,
@@ -956,8 +959,9 @@ Remaining priority slices:
    account order, signer/writable checks, CPI instruction data, and observable
    state changes.
 2. Richer return data, sysvars, crypto, logs, and memory helpers (3-5 days):
-   extend the current scalar `sol_log_64_` event path to string/base64/
-   Anchor-style and indexed event forms plus `sol_log_data`; add CPI return-value handling and
+   extend the current scalar `sol_log_64_`/`sol_log_data` event path to
+   string logs, Anchor-style discriminator/Borsh payloads, and indexed event
+   forms; add CPI return-value handling and
    validation for `sol_get_return_data`, typed return payload helpers beyond `u64`,
    additional Clock/Rent fields and generic account-passed sysvar reads,
    portable `Expr.hash` routing where the hash semantics match the target, and

@@ -100,6 +100,7 @@ The sBPF assembly grammar (from the blueshift `sbpf.pest` PEG grammar):
 | `sol_log_` | (r1: ptr, r2: len) | Logging / events |
 | `sol_log_64_` | (r1: u64, r2: u64, r3: u64, r4: u64, r5: u64) | Logging structured data |
 | `sol_log_pubkey` | (r1: ptr) | Logging pubkeys |
+| `sol_log_data` | (r1: slices_ptr, r2: slice_count) | Base64 data logs used by Anchor-style event payloads |
 | `sol_log_compute_units_` | () → r0 | Compute budget tracking |
 | `sol_memcpy_` / `sol_memmove_` / `sol_memset_` / `sol_memcmp_` | copy/fill/compare pointers and byte lengths | Memory operations |
 | `sol_create_program_address` | (seeds_ptr, seeds_len, program_id_ptr, result_ptr) → r0 | PDA derivation |
@@ -131,7 +132,7 @@ test when the syscall changes observable chain behavior.
 | Sysvars (`sol_get_clock_sysvar`, `sol_get_rent_sysvar`, `sol_get_epoch_schedule_sysvar`, `sol_get_epoch_rewards_sysvar`, `sol_get_sysvar`) | Clock.slot, Rent.lamports_per_byte_year, EpochSchedule's five RPC-exposed fields, EpochRewards' scalar/word-view fields, and feature-gated LastRestartSlot.last_restart_slot are exposed as Solana-only SDK target-extension helpers, route through capability metadata, render manifest/artifact action metadata, build to ELF, and have Surfpool/Web3.js smoke scripts | Add generic account-passed sysvar reads, plus Rust/Pinocchio reference comparisons |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
-| Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Phase 1 scalar `events.emit` lowers to `sol_log_64_`; Solana-only `logAccountPubkey` entrypoint actions lower account pubkey pointers to `sol_log_pubkey`; Surfpool/Web3.js verifies transaction logs contain a stable event tag, scalar field value, and base58 account pubkey | Extend to `sol_log_` string/base64 payloads, Anchor-style events, indexed fields, and `sol_log_data` |
+| Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`, `sol_log_data`) | Phase 1 scalar `events.emit` lowers to `sol_log_64_`; Solana-only `logAccountPubkey` entrypoint actions lower account pubkey pointers to `sol_log_pubkey`; Solana-only `logStateData` actions pack a `SolBytes` slice table and lower state-backed payloads through `sol_log_data`; Surfpool/Web3.js verifies transaction logs contain a stable event tag, scalar field value, base58 account pubkey, and base64 `Program data:` payload | Extend to `sol_log_` string payloads, Anchor-style discriminator/Borsh events, and indexed fields |
 | Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | `runtime.memory` target extension lowers entrypoint actions to `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`; Surfpool/Web3.js verifies account byte effects | Use memory helpers for broader account/data packing and compare against Rust/Pinocchio fixtures |
 | Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, epoch rewards, restart slot) | `contextRead checkpointId` lowers to `sol_get_clock_sysvar` and reads `Clock.slot`; Solana-only `sysvar` target-extension actions lower `Rent.lamports_per_byte_year` to `sol_get_rent_sysvar`, all current RPC-exposed `EpochSchedule` fields to `sol_get_epoch_schedule_sysvar`, all current `EpochRewards` fields through scalar/word-view states to `sol_get_epoch_rewards_sysvar`, and feature-gated `LastRestartSlot.last_restart_slot` to `sol_get_sysvar`; Surfpool/Web3.js verifies recorded values against transaction metadata, sysvar account data, or RPC `getEpochSchedule()` | Expose typed SDK accessors for additional Clock/Rent fields and generic account-passed sysvars |
 | Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | SHA-256, Keccak-256, and feature-gated Blake3 target-extension actions lower to `sol_sha256`/`sol_keccak256`/`sol_blake3` and have Surfpool/Web3.js reference hash gates | Add portable `Expr.hash` lowering where target semantics match, plus additional crypto syscall families |
@@ -546,15 +547,19 @@ PDA helper lowering:
 Solana has no chain-level event log like EVM. Options:
 
 1. `sol_log_` / `sol_log_64_` — simple but unstructured.
-2. Anchor-style event serialization into a special account.
+2. `sol_log_data` — base64 data logs used as the Anchor-style event payload carrier.
 3. `sol_set_return_data` as a quasi-event mechanism.
 
 Phase 1 emits scalar `eventEmit` fields through `sol_log_64_` as
 `[eventTag, fieldIndex, value, 0, 0]`. The event tag is a stable 32-bit
 compile-time tag derived from the event name so generated Web3.js harnesses can
 assert the transaction log without baking in Solana-specific syntax at the
-portable SDK layer. Future work should add string/base64 `sol_log_` payloads,
-Anchor-compatible serialization, pubkey logs, and indexed event forms.
+portable SDK layer. Solana-only `logAccountPubkey` lowers account keys through
+`sol_log_pubkey`, and `logStateData` lowers fixed state-backed byte payloads
+through `sol_log_data` as the base layer for future Anchor-compatible
+discriminator/Borsh event serialization. Future work should add string
+`sol_log_` payloads, complete Anchor-compatible serialization, and indexed
+event forms.
 
 ### Capability mapping
 
@@ -853,7 +858,7 @@ Phase 3 is split into verifiable SDK completeness levels rather than one large
 
 | Level | Estimated effort | Scope |
 |---|---:|---|
-| SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. PDA/System/SPL live gates, instruction ABI bounds/schema metadata, typed PDA seed lowering, return-data `get`, and scalar `sol_log_64_` event logging are already in place. |
+| SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. PDA/System/SPL live gates, instruction ABI bounds/schema metadata, typed PDA seed lowering, return-data `get`, scalar `sol_log_64_` event logging, pubkey logging, and state-backed `sol_log_data` payload logging are already in place. |
 | SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. Clock.slot, Rent.lamports_per_byte_year, all current RPC-exposed EpochSchedule fields, all current EpochRewards fields through scalar/word-view states, SHA-256, Keccak-256, and feature-gated Blake3 are already covered through their target-extension syscall paths. |
 | Anchor/Pinocchio-class surface | 4-6 focused weeks after beta | Add account constraints, typed account/data wrappers, IDL/client generation, richer SPL/Token-2022 helper coverage, and SDK-facing diagnostics. |
 

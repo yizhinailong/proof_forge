@@ -31,6 +31,16 @@ function writeLogPubkeyData() {
   return Buffer.from([1]);
 }
 
+function writeLogDataInstructionData() {
+  return Buffer.from([2]);
+}
+
+function amountDataBase64(amount) {
+  const data = Buffer.alloc(8);
+  data.writeBigUInt64LE(amount, 0);
+  return data.toString("base64");
+}
+
 function stableEventTag(name) {
   let acc = 5381n;
   const modulus = 4294967296n;
@@ -169,18 +179,37 @@ async function main() {
     throw new Error(`logs missing state pubkey ${expectedPubkey}: ${JSON.stringify(pubkeyLogs)}`);
   }
 
+  const dataIx = new TransactionInstruction({
+    programId,
+    keys: [{ pubkey: state.publicKey, isSigner: false, isWritable: true }],
+    data: writeLogDataInstructionData(),
+  });
+  const dataSignature = await sendAndPollTransaction(
+    connection,
+    new Transaction().add(dataIx),
+    [payer]
+  );
+  const dataLogs = await pollTransactionLogs(connection, dataSignature);
+  const expectedData = amountDataBase64(amount);
+  if (!dataLogs.some((line) => line.includes("Program data:") && line.includes(expectedData))) {
+    throw new Error(`logs missing Program data payload ${expectedData}: ${JSON.stringify(dataLogs)}`);
+  }
+
   console.log(JSON.stringify({
     programId: programId.toBase58(),
     state: state.publicKey.toBase58(),
     payer: payer.publicKey.toBase58(),
     signature,
     pubkeySignature,
+    dataSignature,
     event: "AmountEvent",
     eventTag: eventTag.toString(),
     amount: amount.toString(),
+    dataPayloadBase64: expectedData,
     recordedAmount: recordedAmount.toString(),
     logs,
     pubkeyLogs,
+    dataLogs,
   }));
 }
 

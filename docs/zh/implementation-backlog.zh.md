@@ -357,12 +357,13 @@ typed PDA seed lowering、live System Program transfer/create-account CPI
 validation、live SPL Token `transfer_checked` CPI validation，以及 live SPL
 Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
 `sol_log_64_` 验证的 live scalar `events.emit` 日志路径、通过
-`sol_log_pubkey` 验证的 live account-pubkey log 路径，以及
-`contextRead checkpointId` 的 live `Clock.slot` sysvar validation，加上通过
-`sol_memcpy_`、`sol_memmove_`、`sol_memcmp_` 和 `sol_memset_` 验证的 live `runtime.memory`
-路径，以及通过 `sol_sha256`、`sol_keccak256` 和 feature-gated
-`sol_blake3` 验证的 Solana-only live `crypto.hash` 路径，以及通过
-`sol_get_rent_sysvar` 验证的 live `Rent.lamports_per_byte_year` sysvar 路径，以及通过
+`sol_log_pubkey` 验证的 live account-pubkey log 路径、通过 `sol_log_data`
+验证的 live state-backed data-log 路径，以及 `contextRead checkpointId`
+的 live `Clock.slot` sysvar validation，加上通过 `sol_memcpy_`、
+`sol_memmove_`、`sol_memcmp_` 和 `sol_memset_` 验证的 live `runtime.memory`
+路径，以及通过 `sol_sha256`、`sol_keccak256` 和 feature-gated `sol_blake3`
+验证的 Solana-only live `crypto.hash` 路径，以及通过 `sol_get_rent_sysvar`
+验证的 live `Rent.lamports_per_byte_year` sysvar 路径，以及通过
 `sol_get_epoch_schedule_sysvar` 验证的、当前 RPC 暴露的全部
 `EpochSchedule` 字段：`slots_per_epoch`、`leader_schedule_slot_offset`、
 `warmup`、`first_normal_epoch` 和 `first_normal_slot`，加上通过
@@ -414,13 +415,15 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   CPI 程序，校验生成的四 entrypoint artifact schema，用
   `@solana/spl-token` 创建 SPL Token 测试账户，通过 Web3.js 调用全部四个
   entrypoint，并证明 supply/balance/delegate 变化与 state write 都成立。
-- Live scalar event 与 pubkey log fixture：`scripts/solana/log-event-web3-smoke.sh`
+- Live scalar event、pubkey log 与 data log fixture：`scripts/solana/log-event-web3-smoke.sh`
   会在 Surfpool 上构建并部署生成的 `events.emit` 程序，通过 Web3.js 调用，
   验证生成的 `sol_log_64_` transaction log 包含稳定的 `AmountEvent` tag 与
   scalar `amount` 字段，并证明 program-owned state account 记录了同一个值。同一
   fixture 现在还会校验 Solana-only `logAccountPubkey` metadata，调用生成的
   `log_state_pubkey` entrypoint，并证明 `sol_log_pubkey` 会记录 state account 的
-  base58 pubkey。
+  base58 pubkey。它也会校验 Solana-only `logStateData` metadata，调用
+  `log_state_data`，并证明 `sol_log_data` 会为 state-backed `amount` bytes
+  产出 base64 `Program data:` payload。
 - Live Clock sysvar fixture：`scripts/solana/clock-sysvar-web3-smoke.sh`
   会在 Surfpool 上构建并部署生成的 `contextRead checkpointId` 程序，把它降级到
   `sol_get_clock_sysvar`，通过 Web3.js 调用，并证明记录的 `Clock.slot`
@@ -500,8 +503,8 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
    reference program。关键比较点是 account order、signer/writable check、
    CPI instruction data 和可观察 state change。
 2. 更丰富的 return data、sysvars、crypto、logs 与 memory helpers（3-5 天）：
-   将当前 scalar `sol_log_64_` event 路径扩展到 string/base64/Anchor-style
-   与 indexed event 形态以及 `sol_log_data`；为 `sol_get_return_data` 增加 CPI return-value 处理与验证、
+   将当前 scalar `sol_log_64_`/`sol_log_data` event 路径扩展到 string log、
+   Anchor-style discriminator/Borsh payload 与 indexed event 形态；为 `sol_get_return_data` 增加 CPI return-value 处理与验证、
    `u64` 之外的 typed return payload helper、更多 Clock/Rent 字段、
    generic account-passed sysvar 读取、语义匹配时的 portable `Expr.hash`
    路由，以及复用新 memory syscall 路径的更广 account/data packing helper，

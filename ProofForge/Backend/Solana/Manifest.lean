@@ -489,6 +489,14 @@ def renderPubkeyLogAction (action : PubkeyLogAction) : String :=
   "op = \"pubkey\"\n" ++
   "account = " ++ tomlString action.account ++ "\n"
 
+def renderDataLogAction (action : DataLogAction) : String :=
+  "[[solana.entrypoint_log]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "log = " ++ tomlString action.name ++ "\n" ++
+  "op = \"data\"\n" ++
+  "source_state = " ++ tomlString action.sourceState ++ "\n" ++
+  "bytes = " ++ toString action.bytes ++ "\n"
+
 def renderActions (extensions : ProgramExtensions) : String :=
   if !hasEntrypointActions extensions then
     ""
@@ -503,7 +511,8 @@ def renderActions (extensions : ProgramExtensions) : String :=
       extensions.returnDataReadActions.map renderReturnDataReadAction ++
       extensions.computeUnitsActions.map renderComputeUnitsAction ++
       extensions.computeUnitsLogActions.map renderComputeUnitsLogAction ++
-      extensions.pubkeyLogActions.map renderPubkeyLogAction
+      extensions.pubkeyLogActions.map renderPubkeyLogAction ++
+      extensions.dataLogActions.map renderDataLogAction
     "\n# Solana SDK entrypoint actions\n" ++
     String.intercalate "\n" actionBlocks.toList
 

@@ -1487,6 +1487,16 @@ def solanaPubkeyLogActionJson
     ("account", jsonString action.account)
   ]
 
+def solanaDataLogActionJson
+    (action : ProofForge.Backend.Solana.Extension.DataLogAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("log", jsonString action.name),
+    ("op", jsonString "data"),
+    ("sourceState", jsonString action.sourceState),
+    ("bytes", toString action.bytes)
+  ]
+
 def solanaInstructionAccountJson (account : ProofForge.Backend.Solana.Manifest.AccountEntry) : String :=
   jsonObject #[
     ("name", jsonString account.name),
@@ -1535,7 +1545,8 @@ def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
     ("returnDataReadActions", jsonArray (extensions.returnDataReadActions.map solanaReturnDataReadActionJson)),
     ("computeUnitsActions", jsonArray (extensions.computeUnitsActions.map solanaComputeUnitsActionJson)),
     ("computeUnitsLogActions", jsonArray (extensions.computeUnitsLogActions.map solanaComputeUnitsLogActionJson)),
-    ("pubkeyLogActions", jsonArray (extensions.pubkeyLogActions.map solanaPubkeyLogActionJson))
+    ("pubkeyLogActions", jsonArray (extensions.pubkeyLogActions.map solanaPubkeyLogActionJson)),
+    ("dataLogActions", jsonArray (extensions.dataLogActions.map solanaDataLogActionJson))
   ]
 
 def contractNameForFixture (fixture : String) : String :=

@@ -17,6 +17,9 @@ def spec : ProofForge.Contract.ContractSpec :=
     entrySelector "log_state_pubkey" "09" do
       logAccountPubkey "log_state_account" "last_logged_amount"
 
+    entrySelector "log_state_data" "0a" do
+      logStateData "log_amount_data" "last_logged_amount" 8
+
 def module : ProofForge.IR.Module :=
   spec.module
 

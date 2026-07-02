@@ -2,8 +2,8 @@
 # ProofForge Solana log/event live smoke on Surfpool.
 #
 # Builds the generated event-log ELF, starts Surfpool, deploys with Solana CLI,
-# invokes the program through @solana/web3.js, and verifies both state and
-# transaction log output from sol_log_64_.
+# invokes the program through @solana/web3.js, and verifies state plus
+# transaction log output from sol_log_64_, sol_log_pubkey, and sol_log_data.
 #
 # Exit codes:
 #   0 - all gates passed
@@ -86,7 +86,7 @@ if "events.emit" not in capabilities:
     raise SystemExit(f"artifact missing events.emit capability: {capabilities}")
 instructions = artifact.get("solanaInstructions", [])
 instruction_names = [instruction.get("name") for instruction in instructions]
-if instruction_names != ["emit", "log_state_pubkey"]:
+if instruction_names != ["emit", "log_state_pubkey", "log_state_data"]:
     raise SystemExit(f"instruction schema mismatch: {instructions}")
 for instruction in instructions:
     accounts = [account.get("name") for account in instruction.get("accounts", [])]
@@ -100,6 +100,8 @@ if params != expected_params:
     raise SystemExit(f"parameter schema mismatch: {params}")
 if instructions[1].get("params", []) != []:
     raise SystemExit(f"log_state_pubkey should not have params: {instructions[1].get('params')}")
+if instructions[2].get("params", []) != []:
+    raise SystemExit(f"log_state_data should not have params: {instructions[2].get('params')}")
 extensions = artifact.get("solanaExtensions", {})
 pubkey_actions = extensions.get("pubkeyLogActions", [])
 expected_pubkey_actions = [
@@ -112,6 +114,18 @@ expected_pubkey_actions = [
 ]
 if pubkey_actions != expected_pubkey_actions:
     raise SystemExit(f"pubkey log action schema mismatch: {pubkey_actions}")
+data_actions = extensions.get("dataLogActions", [])
+expected_data_actions = [
+    {
+        "entrypoint": "log_state_data",
+        "log": "log_amount_data",
+        "op": "data",
+        "sourceState": "last_logged_amount",
+        "bytes": 8,
+    }
+]
+if data_actions != expected_data_actions:
+    raise SystemExit(f"data log action schema mismatch: {data_actions}")
 print("artifact validation: ok")
 PY
 

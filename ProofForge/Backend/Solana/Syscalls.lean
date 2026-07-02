@@ -16,6 +16,7 @@ namespace ProofForge.Backend.Solana.Syscalls
 def sol_log_                : String := "sol_log_"
 def sol_log_64_             : String := "sol_log_64_"
 def sol_log_pubkey          : String := "sol_log_pubkey"
+def sol_log_data            : String := "sol_log_data"
 def sol_log_compute_units_  : String := "sol_log_compute_units_"
 def sol_memcpy_             : String := "sol_memcpy_"
 def sol_memmove_            : String := "sol_memmove_"

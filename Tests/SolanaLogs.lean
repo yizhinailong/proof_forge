@@ -39,6 +39,13 @@ def scopedPubkeyLogCall? (plan : CapabilityPlan) (name entrypoint : String) :
     metadataValue? call "solana.log.name" == some name &&
     metadataValue? call "proof_forge.entrypoint" == some entrypoint
 
+def scopedDataLogCall? (plan : CapabilityPlan) (name entrypoint : String) :
+    Option CapabilityCall :=
+  plan.calls.find? fun call =>
+    call.capability == .eventsEmit &&
+    metadataValue? call "solana.log.name" == some name &&
+    metadataValue? call "proof_forge.entrypoint" == some entrypoint
+
 def requireMetadata (call : CapabilityCall) (key expected : String) : IO Unit :=
   require (metadataValue? call key == some expected)
     s!"metadata `{key}` mismatch for operation `{call.operation}`"
@@ -67,9 +74,20 @@ def main : IO UInt32 := do
   requireMetadata pubkeyLogCall "solana.log.op" "pubkey"
   requireMetadata pubkeyLogCall "solana.log.account" "last_logged_amount"
 
+  let dataLogCall ←
+    match scopedDataLogCall? plan "log_amount_data" "log_state_data" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana log event plan missing log_amount_data data action"
+  require (dataLogCall.operation == "solana.log.data")
+    "log_amount_data should lower through solana.log.data"
+  requireMetadata dataLogCall "solana.extension" "log"
+  requireMetadata dataLogCall "solana.log.op" "data"
+  requireMetadata dataLogCall "solana.log.source_state" "last_logged_amount"
+  requireMetadata dataLogCall "solana.log.bytes" "8"
+
   match resolveSpec evm spec with
   | .ok _ =>
-      throw <| IO.userError "EVM target should reject Solana pubkey-log extension metadata"
+      throw <| IO.userError "EVM target should reject Solana log extension metadata"
   | .error err =>
       require (contains err.render "cannot use Solana target extension metadata")
         "EVM rejection should mention Solana target extension metadata"
@@ -87,6 +105,8 @@ def main : IO UInt32 := do
         "log event manifest missing emit entrypoint"
       require (contains manifest "name = \"log_state_pubkey\"")
         "log event manifest missing log_state_pubkey entrypoint"
+      require (contains manifest "name = \"log_state_data\"")
+        "log event manifest missing log_state_data entrypoint"
       require (contains manifest "min_data_len = 9")
         "log event manifest missing parameter payload length"
       require (contains manifest "min_data_len = 1")
@@ -101,6 +121,14 @@ def main : IO UInt32 := do
         "log event manifest missing pubkey log op"
       require (contains manifest "account = \"last_logged_amount\"")
         "log event manifest missing pubkey log account"
+      require (contains manifest "log = \"log_amount_data\"")
+        "log event manifest missing data log action"
+      require (contains manifest "op = \"data\"")
+        "log event manifest missing data log op"
+      require (contains manifest "source_state = \"last_logged_amount\"")
+        "log event manifest missing data log source state"
+      require (contains manifest "bytes = 8")
+        "log event manifest missing data log byte length"
       require (contains asm "solana.event.emit AmountEvent: sol_log_64_ scalar fields")
         "assembly missing event emission marker"
       require (contains asm s!"solana.event.field AmountEvent.amount: tag={tag} index=0")
@@ -123,6 +151,16 @@ def main : IO UInt32 := do
         "assembly missing pubkey log account pointer marker"
       require (contains asm "call sol_log_pubkey")
         "assembly missing sol_log_pubkey syscall"
+      require (contains asm "solana.log.data_action log_amount_data")
+        "assembly missing data log entrypoint action"
+      require (contains asm "sol_log_data_log_amount_data:")
+        "assembly missing data log helper label"
+      require (contains asm "solana.log.data log_amount_data: source=last_logged_amount bytes=8")
+        "assembly missing data log helper marker"
+      require (contains asm "solana.log.data.ptr log_amount_data state=last_logged_amount")
+        "assembly missing data log source pointer marker"
+      require (contains asm "call sol_log_data")
+        "assembly missing sol_log_data syscall"
   | .error err =>
       throw <| IO.userError s!"Solana log event package render failed: {err.render}"
 
