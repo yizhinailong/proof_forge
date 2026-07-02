@@ -21,8 +21,8 @@
 任务：
 
 - 添加目标 id：`evm`, `wasm-near`, `wasm-cosmwasm`,
-  `solana-sbpf-linker`, `solana-zig-fork`, `move-sui`, `move-aptos`,
-  `psy-dpn`。
+  `solana-sbpf-asm`, `solana-sbpf-linker`（已取代）, `solana-zig-fork`,
+  `move-sui`, `move-aptos`, `psy-dpn`。
 - 定义目标家族、制品种类、所需工具和能力集
   （参见 [capability-registry.md](capability-registry.md)）。
 - 为 CLI 和脚本添加目标查找函数。
@@ -241,46 +241,88 @@
 - `instantiate`、`execute` 和 `query` 存在于导出中。
 - 冒烟测试可以增加并查询计数器状态。
 
-## 工作流 6: Solana sBPF-Linker spike
+## 工作流 6: Solana sBPF Assembly 工具链集成（Phase 0）
 
-目标：在采用分叉编译器之前验证无分叉的 Solana 流水线。
+目标：端到端验证 direct-assembly 路线，即一个固定 `.s` 文件可以通过
+blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-linker spike（D-026）。
 
 任务：
 
-- 围绕 `zig build-lib -target bpfel-freestanding -femit-llvm-bc` 添加 `zigc-solana-sbpf` 包装器。
-- 调用 `sbpf-linker --cpu v2 --export entrypoint`。
-- 添加具有一个导出 `entrypoint` 的 `solana_contract_root.zig`。
-- 添加最小的 syscall/log 桥接。
-- 添加显式指令清单格式（参见 [solana-sbf.md](targets/solana-sbf.md)）。
-- 添加 Counter 账户示例。
+- 通过 `cargo install --git https://github.com/blueshift-gg/sbpf.git` 安装 `sbpf`。
+- 添加 `--emit-sbpf-asm` CLI 模式，写出固定 `entrypoint.s`（返回成功，不解析账户）。
+- 对固定 `.s` 运行 `sbpf build`，验证生成有效 eBPF ELF。
+- 验证 `sbpf disassemble` 可以 round-trip 该 ELF。
+- 在制品元数据中记录工具链版本。
 
 验收标准：
 
-- 由原生 Zig 生成一个最小的 `entrypoint.bc`。
-- `sbpf-linker` 产生一个 `.so`。
-- `.so` 在 Mollusk 或 `solana-test-validator` 中运行。
-- 该 spike 记录 Lean Zig 运行时是否可以在 sBPF 约束下链接。
+- [x] `sbpf build` 产生被识别为 `ELF 64-bit LSB ... eBPF` 的 `.so`。
+- [x] `sbpf disassemble` 产生与输入匹配的 assembly。
+- [x] `--emit-sbpf-asm` 写出无 assembly 错误的有效 `.s`。
+- [x] `proof-forge-artifact.json` 记录 `target: "solana-sbpf-asm"`。
+- [ ] `sbpf` 通过 `cargo install` 安装到 PATH（当前从源码构建）。
 
-## 工作流 7: Solana 运行时决策
+参考：[solana-sbpf-asm 设计文档](targets/solana-sbpf-asm.md),
+[RFC 0005](rfcs/0005-solana-sbpf-assembly-backend.md)。
 
-目标：决定 ProofForge 在 Solana 上是可以使用完整的 Lean 运行时，还是需要受限的运行时子集。**在工作流 6 产生 spike 数据后运行。**
+## 工作流 7: Solana sBPF Assembly Counter Codegen（Phase 1）
 
-问题：
+目标：将 portable IR Counter 模块降级为 sBPF assembly 并通过 `sbpf test`。
+这是 assembly 路线的第一个真实 codegen 后端。
 
-- 完整的 Lean Zig 运行时是否可以在 `bpfel-freestanding` 下链接？
-- 生成的 ELF 是否通过 Solana 加载器约束？
-- 制品大小是否可以接受？
-- 4KB 栈压力是否可控？
-- 在 Solana 计算预算内，堆分配和引用计数是否可行？
+任务：
 
-决策结果：
+- 实现 `ProofForge.Backend.Solana.StateLayout`：根据 instruction manifest 计算账户字段 offset，并发射 `.equ` 常量。
+- 实现 `ProofForge.Backend.Solana.SbpfAsm`：将 `IR.Module` 降为 `.s`：
+  - entrypoint adapter：解析序列化账户，根据 instruction discriminant 分派。
+  - account validation：根据 manifest 检查 signer、writable、owner。
+  - expression lowering：literal、local、add/sub、comparison、cast。
+  - statement lowering：letBind、assign、assignOp、ifElse、return、assert。
+  - effect lowering：按 account-data offset 读写 storageScalar。
+- 添加 `--solana-elf` CLI 模式：发射 `.s` 后调用 `sbpf build`。
+- 与 `.s` 一起生成 instruction manifest (`manifest.toml`)。
+- 创建 `Examples/Solana/Counter.lean` + manifest。
+- 运行 `sbpf test` (Mollusk)，并运行 Surfpool/Web3.js live deployment 冒烟。
 
-- 在 Solana 上使用完整的 Lean Zig 运行时。
-- 在 Solana 上使用受限的 Lean 运行时子集。
-- 为不带完整 Lean 运行时的可移植 IR 子集生成直接的 Zig 代码。
-- 回退到 `solana-zig` 分叉，同时保持 `sbpf-linker` 开放。
+验收标准：
 
-在 [decisions.md](decisions.md) 中记录结果。
+- Counter 场景（initialize、increment、get）通过 `sbpf test`。
+- Surfpool/Web3.js live smoke 通过（可选，取决于工具是否可用）。
+- 能力检查器用清晰诊断拒绝使用不支持能力的 IR 模块，诊断包含 target id 和 capability id。
+- 同一个 portable IR Counter 模块可以降级到 EVM 和 Solana。
+- 制品元数据记录 `target: "solana-sbpf-asm"`、`irVersion`、entrypoints 和使用的 capabilities。
+
+范围外（Phase 2+）：maps、struct types、events、bounded loops、Borsh serialization、完整 SPL Token 数据布局，以及真实运行时 CPI 验证。CPI 和 PDA 仍按 D-027 留在 Solana 特定层：SDK 现在通过 target capability call 和 sBPF helper action 路由它们，而不是把它们加入 portable IR。
+
+参考：[solana-sbpf-asm 设计文档](targets/solana-sbpf-asm.md) 的 Phased Implementation Plan。
+
+### Phase 1 进度（增量子项）
+
+工作流 7 的 Phase 1 后端（`ProofForge.Backend.Solana.SbpfAsm`）以增量方式落地。每个子项都自带可运行的验证门禁，以便在全部验收标准闭合前可以看到部分进展：
+
+- [x] IR → sBPF AST → text pipeline；entrypoint adapter 按第一条 instruction-data byte 分派（V-GATE-SOLANA-01/02；Phase 0 基线）。
+- [x] Counter codegen（literal、local、`add`、标量 storage 读/写/`assignOp`、`letBind`/`letMutBind`、`assign`、`return`）；Mollusk 冒烟覆盖 initialize / increment 0→1 / increment 5→6 / get→return_data（V-GATE-SOLANA-03）。
+- [x] 控制流 + 断言覆盖：比较表达式（`.eq`/`.ne`/`.lt`/`.le`/`.gt`/`.ge`），布尔表达式（`.boolAnd`/`.boolOr`/`.boolNot`），语句级 `.ifElse` then/else 降级（使用 fresh 命名 label），以及 `.assert` 和 `.assertEq` 降级到共享的 `assert_fail`（exit 2）/ `assert_eq_fail`（exit 3）label。Fixture：`ProofForge.IR.Examples.ControlFlowAssertProbe`（三个 entrypoint：`lifecycle`、`guarded_increment`、`equality_guard`）；CLI 模式 `--emit-control-ir-sbpf`；确定性发射门禁 `scripts/solana/emit-control-smoke.sh`（不需要 `sbpf`）；Mollusk 运行时门禁 `scripts/solana/control-smoke.sh`（6 项断言：lifecycle x2、guarded_increment 成功 + assert revert、equality_guard 成功 + assertEq revert）（V-GATE-SOLANA-08）。
+- [x] instruction manifest（`manifest.toml`）与 `.s` 一起生成。
+      `ProofForge.Backend.Solana.SbpfAsm.renderManifest` 按 Phase 1 默认账户约定（writable=true、signer=false、owner=program）输出 target、program 占位 id 和每条 instruction 的 TOML 表。`--emit-counter-ir-sbpf` 与 `--emit-control-ir-sbpf` 在 `.s` 旁生成 `manifest.toml` 并作为 artifact 入元数据。
+- [x] `--solana-elf` CLI 模式：发射 `.s`、写 `manifest.toml`、搭建 `sbpf` 项目、调用 `sbpf build`、将产物 `.so` 复制到指定输出，并在 artifact 元数据中记录 `sbpfBuild: passed`。
+- [x] account validation：按 manifest 检查 signer / writable / owner。每个 entrypoint 开头注入 prologue，检查账户头 offset 10 的 `is_writable` 并将 offset 48 起的 owner 与序列化 program id 比对。失败出口为 4（`error_not_writable`）、5（`error_signer`）、6（`error_owner`）。Phase 1 Mollusk 运行时门禁关闭 direct-account-mapping ABI，以使用 legacy 嵌入式账户数据布局。
+- [x] `Examples/Solana/Counter.lean` + manifest 作为自包含示例。包含跟踪的 `Counter.golden.s`、`Counter.manifest.toml`，以及 CI 可运行的 `scripts/solana/build-examples.sh` 负责发射并做 diff。
+- [x] 能力检查器以清晰诊断拒绝不支持的能力/目标组合，诊断含 target id 和 capability id。`Tests/SolanaDiagnostics.lean` 与 `scripts/solana/diagnostic-smoke.sh` 覆盖 8 个 `crosscall.invoke` 家族用例，作为 V-GATE-SOLANA-05 的基础。
+- [x] Solana SDK target extension 将 `ProofForge.Solana` 的 PDA/CPI API 路由到 capability plan metadata，生成 `manifest.toml` 的 extension definition 与 entrypoint action section，并在 handler 中、IR body 之前注入 helper call（`sol_pda_derive_<name>`、`sol_cpi_<name>`），同时保存/恢复 Solana input 指针 `r1`。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`（可用时执行 `sbpf build`）。
+- [x] Surfpool/Web3.js live deployment 冒烟（V-GATE-SOLANA-04）。可选门禁 `scripts/solana/surfpool-web3-smoke.sh` 会构建 Counter ELF、启动 Surfpool、用 Solana CLI 部署、通过 `@solana/web3.js` 创建 program-owned counter account、调用 initialize/increment/get、检查 account data 0→1→2，并验证 `get` return data。该脚本通过 `--solana-sbpf-arch v0` 直接产出兼容 Solana CLI 部署的 ELF，并对 Surfpool 使用 `--use-rpc`。
+- [x] `--solana-elf` 暴露 `--solana-sbpf-arch v0|v3`，并在 `proof-forge-artifact.json` 记录选定架构。默认保持 `v3`；Surfpool live deployment 在当前 CLI/runtime 组合完整接受新版 sbpf feature set 之前使用 `v0`。
+- [x] PDA helper runtime packing 现在会在调用 `sol_create_program_address` 前生成静态 ASCII seed byte buffer、Solana `Slice { ptr, len }` seed table、动态 program-id 指针计算，以及 32-byte PDA result buffer。覆盖：`Tests/SolanaSdkManifest.lean` 与 `scripts/solana/sdk-smoke.sh`。
+
+后续 Solana SDK 补齐项：
+
+- PDA typed seed 补齐：区分 literal/UTF-8 bytes、account pubkey、bump/instruction-data seed；将结果 PDA 与 account pubkey 校验；增加 Web3.js fixture，与 `PublicKey.findProgramAddressSync` 对比派生地址。
+- System Program CPI：把 transfer/create-account 类 SDK 调用降级到 `sol_invoke_signed`，在 `manifest.toml` 表达 account metas，并用 Web3.js 验证余额和 owner。
+- SPL Token CPI：补 mint/account/authority manifest、token instruction packing，并对标准 token program 做行为检查。
+- logs/events 与 return data：暴露 `sol_log*` / `sol_set_return_data` / `sol_get_return_data` helper，并用 Web3.js 检查日志和 simulation return data。
+- sysvars、crypto 与 memory helpers：覆盖 clock/rent sysvar、hash syscall、memcpy/memcmp/memset，并与 JavaScript reference output 对比。
+- 为同一套 account schema 增加 Rust/Pinocchio reference fixture，并通过同一个 Web3.js harness 对比 ProofForge 生成程序与参考程序的行为。
+- 从 Phase 1 单账户 manifest 推进到生成 multi-account schema，并为每个 entrypoint 表达 signer/writable/owner 约束。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）
 
@@ -636,14 +678,47 @@ Zcash 当成 plain Bitcoin Script 或 generic ZK smart-contract chain。
   Kaspa/Toccata inline ZK、`psy-dpn` circuit sourcegen 和 generic smart
   contracts。
 
+## 工作流 23: Multi-Chain Token SDK
+
+目标：用户只描述一次 fungible token intent，然后由 `--target` 决定是在
+EVM 上生成 ERC-20 合约，还是在 Solana 上生成 SPL Token / Token-2022
+计划；用户层 SDK 不暴露链专属代码。
+
+任务：
+
+- 已完成：增加 RFC 0006、`ProofForge.Contract.Token.TokenSpec`、target
+  token plan，以及 `Tests/TokenSpec.lean`。
+- 实现 EVM ERC-20 降级：ABI/selectors、balance/allowance storage、total
+  supply、transfer/approve/transferFrom、mint/burn 选项、events，以及
+  Foundry/Web3 行为测试。
+- 实现 Solana SPL Token plan 渲染：mint 创建、associated token account
+  创建、mint_to、transfer_checked、approve、burn、authority 变更，并通过
+  `@solana/spl-token` 做 Web3.js 验证。
+- 将 transfer fee、non-transferable、confidential transfer、transfer hook
+  等 Token-2022 功能路由到 Token-2022 extension 初始化，而不是默认生成
+  custom per-token program。
+- 为 capped supply 或 custom transfer restriction 等自定义策略增加可选的
+  Solana wrapper/authority/transfer-hook program 生成。
+- 输出 token-specific artifact metadata，记录 standard、target、operations、
+  extension set、deployment accounts、tool versions 和 validation results。
+
+验收标准：
+
+- 同一个 `TokenSpec` 能生成确定性的 EVM 与 Solana token plans。
+- EVM 输出通过标准 Web3/Foundry ERC-20 行为测试。
+- Solana 输出能在 Surfpool 上创建 mint 和 token accounts、mint 初始供应、
+  transfer tokens，并用 `@solana/spl-token` 验证 balances。
+- 文档明确说明 Solana 默认不是 per-token SPL 合约，而是通过 plan 和 CPI
+  使用 SPL Token / Token-2022 programs。
+
 ## 建议顺序
 
 1. 目标注册表（工作流 1）。
 2. 可移植 IR + 共享 Counter 场景（工作流 1.5）。
 3. EVM 制品元数据和 deploy manifest（工作流 2–3）。
 4. Wasm 运行时拆分（工作流 4）。
-5. **并行：** CosmWasm spike（工作流 5）和 Solana sbpf-linker spike（工作流 6）。
-6. Solana 运行时决策（工作流 7 —— 在 spike 数据之后）。
+5. **并行：** CosmWasm spike（工作流 5）和 Solana sBPF assembly 工具链集成（工作流 6，D-026 取代旧 sbpf-linker spike）。
+6. Solana sBPF assembly Counter codegen（工作流 7，D-026）。
 7. Move Aptos POC（工作流 8）。
 8. 一旦 IR fixture 存在，进行 Psy DPN 源代码生成 spike（工作流 10）。
 9. 在任何 registry 变更前进行 Kaspa Toccata research target review（工作流 11）。
@@ -658,5 +733,6 @@ Zcash 当成 plain Bitcoin Script 或 generic ZK smart-contract chain。
 18. 在任何 registry 变更前进行 Bitcoin Script/Miniscript research target review（工作流 20）。
 19. 在任何 registry 变更前进行 Zcash Shielded research target review（工作流 21）。
 20. 在任何 registry 变更前进行 Bitcoin Cash CashScript research target review（工作流 15）。
-21. CI 目标矩阵（工作流 9）。
-22. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。
+21. EVM 与 Solana 本地验证路径都可运行后，推进 Multi-chain Token SDK（工作流 23）。
+22. CI 目标矩阵（工作流 9）。
+23. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。

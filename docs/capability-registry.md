@@ -16,25 +16,40 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 - This registry owns capability ids, not target lifecycle stages.
 - Docs must not invent alternate ids for the same semantics.
 
+## Relationship to Contract Intent and Target Extensions
+
+Capability ids are the lower-level protocol used after target selection, not
+the default user-facing SDK. Portable contracts should normally call the
+chain-neutral Contract Intent API. The selected target adapter resolves those
+intents into a capability plan, then checks this registry before lowering.
+
+Target Extension SDKs may expose target-specific operations such as Solana
+PDA/CPI, Move resources, or UTXO covenant primitives. Those extensions still
+route through capability ids and target metadata so diagnostics, artifact
+metadata, and cross-target support checks remain uniform.
 
 ## Core Capabilities
+
+> The **Solana** column reflects the canonical `solana-sbpf-asm` route (D-026):
+> direct sBPF assembly codegen. Solana uses `crosscall.cpi` (not
+> `crosscall.invoke`) and `storage.pda` — these are Solana-specific per D-027.
 
 | Capability id | Portable meaning | EVM | NEAR | CosmWasm | Solana | Aptos | Sui | Psy DPN |
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | `storage.scalar` | Single persistent scalar | Y | Y | Y | Y | Y | Y | Y |
 | `storage.map` | Key-value or mapping storage | Y | Y | Y | P | P | P | P |
-| `storage.array` | Fixed-size indexed storage array | P | N | N | N | N | N | P |
+| `storage.array` | Fixed-size indexed storage array | P | N | N | Y | N | N | P |
 | `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | Y | P |
 | `value.native` | Native token attached to call | Y | Y | Y | Y | Y | Y | P |
 | `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | Y |
-| `crosscall.invoke` | Call another contract/program | Y | Y | Y | Y | Y | Y | P |
+| `crosscall.invoke` | Call another contract/program | Y | Y | Y | N | Y | Y | P |
 | `env.block` | Block height/time/chain id reads | Y | P | P | P | P | P | P |
-| `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | P | N | N | N | N | N | P |
-| `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | N | N | N | P |
-| `data.fixed_array` | Fixed-size array value type, literals, and index expressions | P | N | N | N | N | N | P |
-| `data.struct` | Struct value type, literals, and field access | P | N | N | N | N | N | P |
+| `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | P | N | N | Y | N | N | P |
+| `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | P | N | N | P |
+| `data.fixed_array` | Fixed-size array value type, literals, and index expressions | P | N | N | Y | N | N | P |
+| `data.struct` | Struct value type, literals, and field access | P | N | N | Y | N | N | P |
 | `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y | Y |
-| `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | N | N | N | N | N | P |
+| `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | N | N | Y | N | N | P |
 | `account.explicit` | Named account/object/resource binding | P | N | N | Y | Y | Y | P |
 | `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N |
 | `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N | N |

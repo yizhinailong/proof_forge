@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-02
 
+### Solana sBPF And SDK PR Merge
+
+Commit: merge commit for PR #2 (`Solana supprot`)
+
+Summary:
+
+- Merged the Solana sBPF assembly backend work into the current EVM-focused
+  mainline.
+- Added Solana backend modules for sBPF assembly AST/printer, state layout,
+  register allocation, syscalls, manifests, packages, and SDK extension
+  artifacts.
+- Added CLI modes for emitting Solana sBPF assembly, Solana ELF artifacts,
+  Solana SDK assembly, and Solana-focused fixture artifacts.
+- Added Solana examples, diagnostics, SDK tests, target-routing tests, and
+  Solana smoke scripts.
+- Resolved RFC numbering against the existing EVM semantic plan RFC: EVM keeps
+  RFC 0004, Solana sBPF is RFC 0005, and the multi-chain Token SDK is RFC 0006.
+
+Validation run:
+
+```sh
+just solana-light
+just docs-check
+just check
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Solana Mollusk/Surfpool runtime smoke scripts remain gated on local external
+  tools such as Mollusk, Surfpool, Node, and npm.
+- The merge preserves EVM semantic-plan work; deeper integration between the
+  new Solana SDK route and the portable multi-chain planning layer remains
+  follow-up work.
+
+Next step:
+
+- Run the available Solana smoke scripts on a machine with the Solana/sBPF
+  toolchain installed, then decide which Solana surface should be promoted from
+  research to CI-tracked baseline.
+
 ### EVM Semantic Plan Storage Slice
 
 Commit: feature commit for the first EVM semantic plan slice

@@ -4,6 +4,10 @@ import Lean.Elab.Frontend
 import Lean.Util.Path
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Psy.IR
+import ProofForge.Backend.Solana.SbpfAsm
+import ProofForge.Backend.Solana.Manifest
+import ProofForge.Backend.Solana.Package
+import ProofForge.Backend.Solana.Extension
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -16,6 +20,7 @@ import ProofForge.IR.Examples.BoolStorageArrayProbe
 import ProofForge.IR.Examples.BoolStorageScalarProbe
 import ProofForge.IR.Examples.ContextProbe
 import ProofForge.IR.Examples.ConditionalProbe
+import ProofForge.IR.Examples.ControlFlowAssertProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.CrosscallProbe
 import ProofForge.IR.Examples.EventProbe
@@ -49,6 +54,7 @@ import ProofForge.IR.Examples.U32HashPackingProbe
 import ProofForge.IR.Examples.U32StorageArrayProbe
 import ProofForge.IR.Examples.U32StorageScalarProbe
 import ProofForge.Target
+import ProofForge.Solana.Examples.Vault
 
 open Lean
 open System
@@ -138,6 +144,11 @@ inductive EmitMode where
   | u32HashPackingIrPsy
   | u32StorageScalarIrPsy
   | u32StorageArrayIrPsy
+  | counterIrSbpf
+  | controlIrSbpf
+  | solanaSdkSbpf
+  | solanaElf
+  | sbpfAsm
   deriving BEq, Inhabited
 
 def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
@@ -233,7 +244,12 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .u32ArithmeticIrPsy
   | .u32HashPackingIrPsy
   | .u32StorageScalarIrPsy
-  | .u32StorageArrayIrPsy => true
+  | .u32StorageArrayIrPsy
+  | .counterIrSbpf
+  | .controlIrSbpf
+  | .solanaSdkSbpf
+  | .solanaElf
+  | .sbpfAsm => true
   | _ => false
 
 structure CliOptions where
@@ -252,6 +268,7 @@ structure CliOptions where
   evmConstructorArgsSource : String := "--evm-constructor-args-hex"
   evmConstructorParams : Array ConstructorParamSpec := #[]
   evmConstructorValues : Array ConstructorValueSpec := #[]
+  solanaSbpfArch : String := "v3"
   mode : EmitMode := .yul
   deriving Inhabited
 
@@ -328,6 +345,11 @@ def usage : String :=
     "  proof-forge --emit-u32-hash-packing-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-storage-scalar-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-storage-array-ir-psy [-o output.psy]",
+    "  proof-forge --emit-counter-ir-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-control-ir-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-solana-sdk-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
@@ -1225,6 +1247,80 @@ def constructorAbiJson (params : Array ConstructorParamSpec) : String :=
     ("encoding", jsonString "abi")
   ]
 
+def targetMetadataJson (metadata : ProofForge.Target.TargetMetadata) : String :=
+  jsonObject #[
+    ("key", jsonString metadata.key),
+    ("value", jsonString metadata.value)
+  ]
+
+def capabilityCallJson (call : ProofForge.Target.CapabilityCall) : String :=
+  let sourceValue :=
+    match call.source? with
+    | some source => jsonString source
+    | none => "null"
+  jsonObject #[
+    ("capability", jsonString call.capability.id),
+    ("operation", jsonString call.operation),
+    ("source", sourceValue),
+    ("metadata", jsonArray (call.metadata.map targetMetadataJson))
+  ]
+
+def capabilityPlanJson (plan : ProofForge.Target.CapabilityPlan) : String :=
+  jsonObject #[
+    ("targetId", jsonString plan.targetId),
+    ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+    ("calls", jsonArray (plan.calls.map capabilityCallJson)),
+    ("metadata", jsonArray (plan.metadata.map targetMetadataJson))
+  ]
+
+def solanaExtensionAccountJson (account : ProofForge.Backend.Solana.Extension.AccountMeta) : String :=
+  jsonObject #[
+    ("name", jsonString account.name),
+    ("access", jsonString account.access),
+    ("signer", jsonString account.signer)
+  ]
+
+def solanaPdaJson (pda : ProofForge.Backend.Solana.Extension.PdaDerive) : String :=
+  jsonObject #[
+    ("name", jsonString pda.name),
+    ("seeds", jsonStringArray pda.seeds),
+    ("bump", match pda.bump? with | some bump => jsonString bump | none => "null"),
+    ("account", match pda.account? with | some account => jsonString account | none => "null"),
+    ("signer", jsonBool pda.signer)
+  ]
+
+def solanaCpiJson (cpi : ProofForge.Backend.Solana.Extension.CpiInvoke) : String :=
+  jsonObject #[
+    ("name", jsonString cpi.name),
+    ("program", jsonString cpi.program),
+    ("instruction", jsonString cpi.instruction),
+    ("accounts", jsonArray (cpi.accounts.map solanaExtensionAccountJson)),
+    ("signerSeeds", jsonStringArray cpi.signerSeeds),
+    ("dataLayout", match cpi.dataLayout? with | some layout => jsonString layout | none => "null"),
+    ("signed", jsonBool cpi.signed)
+  ]
+
+def solanaPdaActionJson (action : ProofForge.Backend.Solana.Extension.PdaAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("pda", jsonString action.name)
+  ]
+
+def solanaCpiActionJson (action : ProofForge.Backend.Solana.Extension.CpiAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("cpi", jsonString action.name)
+  ]
+
+def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
+  let extensions := ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan
+  jsonObject #[
+    ("pdas", jsonArray (extensions.pdas.map solanaPdaJson)),
+    ("cpis", jsonArray (extensions.cpis.map solanaCpiJson)),
+    ("pdaActions", jsonArray (extensions.pdaActions.map solanaPdaActionJson)),
+    ("cpiActions", jsonArray (extensions.cpiActions.map solanaCpiActionJson))
+  ]
+
 def contractNameForFixture (fixture : String) : String :=
   if fixture.endsWith ".lean" then
     dropEndString fixture ".lean".length
@@ -1533,6 +1629,13 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
   | "--evm-constructor-arg" :: value :: rest, opts => do
       let spec ← parseConstructorValueSpec value
       parseArgs rest { opts with evmConstructorValues := opts.evmConstructorValues.push spec }
+  | "--solana-sbpf-arch" :: arch :: rest, opts =>
+      if arch == "v0" || arch == "v3" then
+        parseArgs rest { opts with solanaSbpfArch := arch }
+      else
+        .error s!"invalid --solana-sbpf-arch '{arch}', expected v0 or v3"
+  | "--solana-sbpf-arch" :: [], _ =>
+      .error "missing value for --solana-sbpf-arch, expected v0 or v3"
   | "--solc" :: path :: rest, opts =>
       parseArgs rest { opts with solc := path }
   | "--cast" :: path :: rest, opts =>
@@ -1677,6 +1780,16 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .u32StorageScalarIrPsy }
   | "--emit-u32-storage-array-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .u32StorageArrayIrPsy }
+  | "--emit-counter-ir-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrSbpf }
+  | "--emit-control-ir-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .controlIrSbpf }
+  | "--emit-solana-sdk-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSdkSbpf }
+  | "--solana-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaElf }
+  | "--emit-sbpf-asm" :: rest, opts =>
+      parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -2550,6 +2663,299 @@ def compileU32StorageArrayIrPsy (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+/-- Write the Solana instruction manifest.toml alongside the emitted .s file.
+Returns the path that was written. -/
+def writeSbpfManifest (output : FilePath) (module : ProofForge.IR.Module) : IO FilePath := do
+  let manifestOutput := match output.parent with
+    | some parent => parent / "manifest.toml"
+    | none => FilePath.mk "manifest.toml"
+  let manifest := ProofForge.Backend.Solana.Manifest.renderManifest module
+  IO.FS.writeFile manifestOutput (manifest ++ "\n")
+  return manifestOutput
+
+def writeSbpfManifestWithPlan (output : FilePath) (module : ProofForge.IR.Module)
+    (plan : ProofForge.Target.CapabilityPlan) : IO FilePath := do
+  let manifestOutput := match output.parent with
+    | some parent => parent / "manifest.toml"
+    | none => FilePath.mk "manifest.toml"
+  let manifest := ProofForge.Backend.Solana.Manifest.renderManifestWithPlan module plan
+  IO.FS.writeFile manifestOutput (manifest ++ "\n")
+  return manifestOutput
+
+def packagePath (root : FilePath) (rel : String) : FilePath :=
+  rel.splitOn "/" |>.foldl (init := root) fun acc part =>
+    if part.isEmpty then acc else acc / part
+
+def compileCounterIrSbpf (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/Counter.s")
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule ProofForge.IR.Examples.Counter.module with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifest output ProofForge.IR.Examples.Counter.module
+      IO.println s!"wrote {manifestOutput}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "counter-ir-sbpf"),
+        ("sourceKind", jsonString "portable-ir"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString "Counter"),
+        ("capabilities", jsonStringArray #["storage.scalar", "account.explicit", "control.conditional"]),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("sbpfBuild", jsonString "pending"),
+          ("sbpfDisassembleRoundtrip", jsonString "pending"),
+          ("manifestGeneration", jsonString "passed")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileControlIrSbpf (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/ControlFlowAssertProbe.s")
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule ProofForge.IR.Examples.ControlFlowAssertProbe.module with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifest output ProofForge.IR.Examples.ControlFlowAssertProbe.module
+      IO.println s!"wrote {manifestOutput}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "control-ir-sbpf"),
+        ("sourceKind", jsonString "portable-ir"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString "ControlFlowAssertProbe"),
+        ("capabilities", jsonStringArray #["storage.scalar", "account.explicit", "control.conditional", "assertions.check"]),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("sbpfBuild", jsonString "pending"),
+          ("sbpfDisassembleRoundtrip", jsonString "pending"),
+          ("manifestGeneration", jsonString "passed"),
+          ("molluskRuntime", jsonObject #[
+            ("lifecycle", jsonString "pending"),
+            ("guardedIncrementSuccess", jsonString "pending"),
+            ("guardedIncrementRevert", jsonString "pending"),
+            ("equalityGuardSuccess", jsonString "pending"),
+            ("equalityGuardRevert", jsonString "pending")
+          ])
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/SolanaVault.s")
+  let spec := ProofForge.Solana.Examples.Vault.spec
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.render
+  match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan spec.module plan with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
+      IO.println s!"wrote {manifestOutput}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "solana-sdk-vault-sbpf"),
+        ("sourceKind", jsonString "contract-sdk"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString spec.name),
+        ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+        ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaExtensions", solanaExtensionsJson plan),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("targetRouting", jsonString "passed"),
+          ("manifestGeneration", jsonString "passed"),
+          ("sbpfBuild", jsonString "pending"),
+          ("cpiLowering", jsonString "helper-emitted"),
+          ("pdaLowering", jsonString "helper-emitted")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/Counter.so")
+  let projectName := match output.fileName with
+    | some n => (n.splitOn ".").headD "counter"
+    | none => "counter"
+  let projectDir := match output.parent with
+    | some parent => parent / s!"{projectName}-sbpf-project"
+    | none => FilePath.mk s!"{projectName}-sbpf-project"
+
+  match ProofForge.Backend.Solana.Package.renderPackage projectName ProofForge.IR.Examples.Counter.module with
+  | .ok pkg =>
+      for file in pkg.files do
+        let path := packagePath projectDir file.path
+        writeTextFile path file.contents
+        IO.println s!"wrote {path}"
+
+      let asmSrc := packagePath projectDir pkg.asmPath
+      let manifestOutput := packagePath projectDir pkg.manifestPath
+
+      -- Invoke the sbpf toolchain to assemble and link the ELF.
+      let _ ← runProcess "sbpf" #["build", "--arch", opts.solanaSbpfArch] (cwd? := some projectDir)
+
+      let builtElf := projectDir / "deploy" / s!"{projectName}.so"
+      if ! (← builtElf.pathExists) then
+        throw <| IO.userError s!"sbpf build did not produce {builtElf}"
+
+      let elfBytes ← IO.FS.readBinFile builtElf
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      IO.FS.writeBinFile output elfBytes
+      IO.println s!"wrote {output}"
+
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson asmSrc
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let elfArtifact ← artifactEntryJson output
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "counter-elf"),
+        ("sourceKind", jsonString "portable-ir"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString "Counter"),
+        ("capabilities", jsonStringArray #["storage.scalar", "account.explicit", "control.conditional"]),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null"),
+            ("arch", jsonString opts.solanaSbpfArch)
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact),
+          ("solanaElf", elfArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("sbpfBuild", jsonString "passed"),
+          ("sbpfDisassembleRoundtrip", jsonString "pending"),
+          ("manifestGeneration", jsonString "passed")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/entrypoint.s")
+  match ProofForge.Backend.Solana.SbpfAsm.renderCannedEntrypoint with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson output
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "sbpf-asm-phase0-canned-entrypoint"),
+        ("sourceKind", jsonString "portable-ir"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("capabilities", jsonStringArray #[]),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("sbpfBuild", jsonString "pending"),
+          ("sbpfDisassembleRoundtrip", jsonString "pending")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
@@ -2642,6 +3048,11 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .u32HashPackingIrPsy => compileU32HashPackingIrPsy opts
   | .u32StorageScalarIrPsy => compileU32StorageScalarIrPsy opts
   | .u32StorageArrayIrPsy => compileU32StorageArrayIrPsy opts
+  | .counterIrSbpf => compileCounterIrSbpf opts
+  | .controlIrSbpf => compileControlIrSbpf opts
+  | .solanaSdkSbpf => compileSolanaSdkSbpf opts
+  | .solanaElf => compileSolanaElf opts
+  | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli
 

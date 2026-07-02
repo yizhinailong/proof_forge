@@ -13,7 +13,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-001 | 2026-06-30 | RFC 0001 and RFC 0002 are **Accepted** as the engineering direction | Detailed target and backlog docs exist; Draft status was misleading |
 | D-002 | 2026-06-30 | Phase 1 (target registry + portable IR + artifact metadata) must complete before non-EVM spikes | Spikes need capability checks and shared scenario definitions |
 | D-003 | 2026-06-30 | CosmWasm and Solana spikes run **in parallel** after Phase 1 | No fixed order between the two; both validate different backend families |
-| D-004 | 2026-06-30 | Canonical Solana target id is **`solana-sbpf-linker`** | Stock Zig + sbpf-linker fits platform tooling; `solana-sbf` is a filename alias only |
+| D-004 | 2026-06-30 | ~~Canonical Solana target id is `solana-sbpf-linker`~~ **Superseded by D-026** | Stock Zig + sbpf-linker fitted platform tooling; `solana-sbf` is a filename alias only. D-026 supersedes this with `solana-sbpf-asm` as the preferred direct-assembly route. |
 | D-005 | 2026-06-30 | Keep **`solana-zig-fork`** as fallback/reference track | Mature SDK reference from solana-sdk-mono; not the primary product path |
 | D-006 | 2026-06-30 | NEAR is the Wasm-host **reference**; CosmWasm is the first new Wasm spike in-repo | Fork lessons inform structure; CosmWasm validates host adapter generality |
 | D-007 | 2026-06-30 | Move POC starts with **Aptos only**; Sui follows | Aptos account resources are simpler; Sui object model tests abstraction harder |
@@ -34,6 +34,10 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-022 | 2026-07-01 | Classify **`zcash-shielded`** as a docs-first privacy UTXO/ZK payment Research candidate | Zcash is Bitcoin-derived but shielded support depends on Sapling/Orchard notes, nullifiers, anchors, value-balance constraints, viewing/disclosure policy, and protocol-defined ZK proofs; registry changes wait until shielded-note capabilities and a proving/validation boundary are reviewed |
 | D-023 | 2026-07-01 | Classify **`aleo-leo`** as a docs-first Aleo ZK application sourcegen Research candidate | Aleo programs combine private off-chain proof execution, public on-chain finalization, encrypted records, public mappings/storage, Aleo Instructions, Aleo VM bytecode, ABI, prover/verifier artifacts, and execute/deploy transactions; registry changes wait until the proof/finalization split is reviewed |
 | D-024 | 2026-07-01 | Model Robinhood Chain as **`robinhood-chain-testnet`**, an EVM-compatible chain profile under `evm`, not a new compiler target | Robinhood Chain executes EVM-compatible Arbitrum Orbit L2 contracts; ProofForge's EVM backend covers bytecode generation, while the chain profile records chain id, RPC, explorer, verifier, rollup, and deployment metadata |
+| D-025 | 2026-07-01 | Add **`solana-sbpf-asm`** as a new Solana route (direct sBPF assembly codegen) under exploration; keep `solana-sbpf-linker` as fallback | Generating sBPF assembly directly from the portable IR avoids the full Lean Zig runtime linking risk; the blueshift-gg/sbpf toolchain handles assembly and linking. See [RFC 0005](rfcs/0005-solana-sbpf-assembly-backend.md) and [design doc](targets/solana-sbpf-asm.md). |
+| D-026 | 2026-07-01 | **Adopt `solana-sbpf-asm` as the canonical Solana route; supersede `solana-sbpf-linker`** | The direct-assembly route avoids Lean runtime linking risk, gives full control over compute units and stack, and mirrors the EVM/Yul pattern. `solana-sbpf-linker` is kept as historical reference only — codegen should target the assembly route. |
+| D-027 | 2026-07-01 | **CPI and PDA effects stay in a Solana‑specific layer, not the portable IR** | `cpiInvoke`, `cpiInvokeSigned`, and `pdaDerive` are Solana‑only concepts (Solana's account‑passing CPI + PDA derivation have no analog on EVM, Wasm, or Move). They belong in `ProofForge.Backend.Solana.Effects` or the Solana SDK module, gated by the `crosscall.cpi` and `storage.pda` capabilities. The portable IR (`ProofForge.IR.Contract.Effect`) remains chain‑neutral — new constructors only when ≥2 target families share the same semantic shape. |
+| D-028 | 2026-07-02 | **User contracts target a chain-neutral Contract Intent API; the selected target resolves intents into capability plans** | The default SDK surface should not reveal the destination chain. Users write portable contract intents, then `--target` selects the target adapter, which routes those intents to lower-level capability implementations, checks support/runtime constraints, and emits target artifacts. Capability ids remain the internal protocol used by target adapters and Target Extension SDKs; they are not the primary user-facing API. |
 
 ## Target Family Classification
 
@@ -42,7 +46,8 @@ See also: [Review checklist (English)](review-checklist.md),
 | Direct compiler | `evm` | Lean → LCNF → Yul → solc |
 | EVM-compatible chain profiles | `robinhood-chain-testnet` | Reuse `evm` bytecode/ABI output; add chain id, RPC, explorer, verifier, rollup, and deployment metadata |
 | Wasm host | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban` (candidate, docs only), `wasm-icp-canister` (candidate, docs only) | Lean → EmitZig → Wasm + chain host bridge, or first-pass target-native source package when that validates semantics faster |
-| Binary toolchain | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker |
+| Binary toolchain | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker (historical reference; superseded by D-026) |
+| sBPF direct codegen | `solana-sbpf-asm` | Lean → IR → sBPF assembly (.s) → sbpf toolchain → ELF (canonical D-026) |
 | Source codegen | `move-aptos`, `move-sui` | Portable IR → Move package source |
 | AVM sourcegen research | `algorand-avm` (candidate, docs only) | Portable IR → Algorand Python, Algorand TypeScript, or TEAL package → AVM approval/clear-state or LogicSig bytecode + ARC-4/app metadata |
 | eUTXO validator sourcegen research | `cardano-plutus-aiken` (candidate, docs only) | Portable IR → Aiken package → UPLC/Plutus validator artifacts + Plutus blueprint + transaction scenario metadata |
@@ -112,5 +117,5 @@ These earlier doc positions are no longer authoritative:
 
 - RFC 0001 Phase 2 = Solana only, Phase 3 = Wasm only — replaced by parallel Phase 2 spikes (D-003).
 - Milestone 3 = Solana as the single second target — replaced by parallel CosmWasm + Solana (D-003).
-- CLI id `solana-sbf` — use `solana-sbpf-linker` (D-004).
+- CLI id `solana-sbf` — use `solana-sbpf-asm` (D-026).
 - Move POC generates both Sui and Aptos packages at once — Aptos first (D-007).

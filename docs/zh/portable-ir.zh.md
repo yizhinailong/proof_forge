@@ -2,7 +2,7 @@
 
 状态：**草案规范 (Phase 1)**
 
-可移植合约 IR 位于 Lean 源码/LCNF 与目标后端之间。它表达了与链无关的业务逻辑和类型化的能力效应。
+可移植合约 IR 位于链中立的 Contract Intent API 与目标后端之间。它表达与链无关的业务逻辑，以及所选目标适配器将要降级的 target-resolved capability effect。
 
 相关：[RFC 0001](rfcs/0001-multichain-platform.md),
 [RFC 0002](rfcs/0002-target-implementation-design.md),
@@ -12,15 +12,30 @@
 
 ## 目标
 
+- 保留面向用户的模型：合约源码声明 portable intent，`--target` 在编译期选择具体链路线。
 - 表示导出的入口、状态和转换，且不包含 EVM/Solana/Move ABI 细节。
-- 将能力调用记录为类型化效应，以便目标在降级前拒绝不支持的操作。
+- 将 target-resolved capability call 记录为类型化效应，以便目标在降级前拒绝不支持的操作。
 - 携带足够的元数据用于制品发射和跨目标场景测试。
 
 ## 非目标 (v0)
 
 - 完整保留 Lean/LCNF —— 仅保留与合约相关的子集。
 - 为 Solana 或 Move 自动推断账户/对象。
+- 在 target 无法安全路由某个 intent 时隐式模拟目标特定语义。
 - 将运行时证明传输到目标链 —— 证明在代码生成前已在 Lean 中检查。
+
+## 分层
+
+```text
+Lean contract source
+  -> Contract Intent API
+  -> target intent resolution (`--target`)
+  -> CapabilityPlan
+  -> Portable Contract IR + target metadata
+  -> Target AST / assembler / package printer
+```
+
+默认 SDK 表面是 Contract Intent API。它不应暴露 EVM storage slot、Solana account meta、Move resource 或 Wasm host ABI。所选 target adapter 会在降级前把这些 intent 解析为 `CapabilityPlan`。Target Extension SDK 可以暴露 Solana PDA/CPI 或 Move resource primitive 等链特定操作，但这些 extension 仍通过 capability id 和 target metadata 降级，而不是向 portable IR 添加链专属 constructor。
 
 ## IR 单元 (v0 草图)
 
@@ -35,8 +50,8 @@
 
 - `name`：逻辑方法名（例如 `increment`, `get`）
 - `tag`：非 EVM 目标的可选分发标签
-- `params`：可移植值 + 必要时的目标特定账户/资源绑定
-- `effects`：有序的能力调用
+- `params`：可移植值，以及所选适配器需要显式元数据时的 target-resolved account/resource binding
+- `effects`：有序的 target-resolved capability call
 - `returns`：可移植返回类型或 unit
 
 ### 状态
@@ -45,7 +60,7 @@
 - `kind`：`scalar` | `map` | `account_owned` | `object`（目标降级提示）
 - `type`：可移植类型引用
 
-### 效应（能力调用）
+### 效应（target-resolved capability call）
 
 - `capability`：来自 [capability-registry.md](capability-registry.md) 的 id
 - `args`：可移植操作数

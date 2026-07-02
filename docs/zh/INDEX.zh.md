@@ -65,7 +65,8 @@ flowchart TB
   - [Stellar Soroban 目标](targets/stellar-soroban.zh.md)
   - [Internet Computer 目标](targets/internet-computer.zh.md)
   - [Algorand AVM 目标](targets/algorand-avm.zh.md)
-  - [Solana sBPF](targets/solana-sbf.md) (`solana-sbpf-linker`)
+  - [Solana sBPF Asm](targets/solana-sbpf-asm.md)（规范 direct-assembly 路线）
+  - [Solana sBPF](targets/solana-sbf.md)（已被取代的 Zig/sbpf-linker 路线）
   - [Move 家族](targets/move-family.md)
   - [Cardano Plutus/Aiken 目标](targets/cardano-plutus-aiken.zh.md)
   - [Tezos Michelson/LIGO 目标](targets/tezos-michelson-ligo.zh.md)

@@ -1,7 +1,11 @@
-# Solana sBPF Target
+# Solana sBPF Target (Superseded)
 
-Canonical target id: **`solana-sbpf-linker`**. This filename (`solana-sbf.md`) is
-a short alias for navigation only.
+> **Superseded by [`solana-sbpf-asm`](solana-sbpf-asm.md)** (D-026).
+> The direct sBPF assembly route (`solana-sbpf-asm`) is the canonical Solana
+> backend. This Zig/sbpf-linker route remains as historical reference only.
+
+Canonical target id: **`solana-sbpf-linker`** (superseded). This filename
+(`solana-sbf.md`) is a short alias for navigation only.
 
 Solana is the most important non-EVM target for proving that ProofForge's
 portable core is not secretly EVM-shaped. The state model is explicit accounts,

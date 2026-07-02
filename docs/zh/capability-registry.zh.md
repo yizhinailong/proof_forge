@@ -12,25 +12,34 @@
 - 此注册表拥有能力 id，而非目标生命周期阶段。
 - 文档不得为相同的语义发明替代 id。
 
+## 与 Contract Intent 和 Target Extension 的关系
+
+capability id 是 target selection 之后使用的下层协议，不是默认面向用户的 SDK。portable contract 通常应调用链中立的 Contract Intent API。所选 target adapter 会把这些 intent 解析为 capability plan，然后在降级前检查本注册表。
+
+Target Extension SDK 可以暴露 Solana PDA/CPI、Move resource 或 UTXO covenant primitive 等目标特定操作。这些 extension 仍通过 capability id 和 target metadata 路由，使诊断、制品元数据和跨 target 支持检查保持统一。
 
 ## 核心能力
+
+> **Solana** 列反映规范的 `solana-sbpf-asm` 路线（D-026）：直接生成
+> sBPF assembly。Solana 使用 `crosscall.cpi`（不是 `crosscall.invoke`）和
+> `storage.pda`，这些按 D-027 保持为 Solana 特定能力。
 
 | 能力 id | 可移植含义 | EVM | NEAR | CosmWasm | Solana | Aptos | Sui | Psy DPN |
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | `storage.scalar` | 单个持久化标量 | Y | Y | Y | Y | Y | Y | Y |
 | `storage.map` | 键值对或映射存储 | Y | Y | Y | P | P | P | P |
-| `storage.array` | 固定大小的索引存储数组 | P | N | N | N | N | N | P |
+| `storage.array` | 固定大小的索引存储数组 | P | N | N | Y | N | N | P |
 | `caller.sender` | 交易签名者/调用者 | Y | Y | Y | Y | Y | Y | P |
 | `value.native` | 调用附带的原生代币 | Y | Y | Y | Y | Y | Y | P |
 | `events.emit` | 结构化日志/事件输出 | Y | Y | Y | Y | Y | Y | Y |
-| `crosscall.invoke` | 调用另一个合约/程序 | Y | Y | Y | Y | Y | Y | P |
+| `crosscall.invoke` | 调用另一个合约/程序 | Y | Y | Y | N | Y | Y | P |
 | `env.block` | 区块高度/时间/链 id 读取 | Y | P | P | P | P | P | P |
-| `control.conditional` | 使用目标支持的布尔谓词进行语句级条件分支 | P | N | N | N | N | N | P |
-| `control.bounded_loop` | 目标可展开或静态处理的有界循环 | N | N | N | N | N | N | P |
-| `data.fixed_array` | 固定大小数组值类型、字面量和索引表达式 | P | N | N | N | N | N | P |
-| `data.struct` | 结构体值类型、字面量和字段访问 | P | N | N | N | N | N | P |
+| `control.conditional` | 使用目标支持的布尔谓词进行语句级条件分支 | P | N | N | Y | N | N | P |
+| `control.bounded_loop` | 目标可展开或静态处理的有界循环 | N | N | N | P | N | N | P |
+| `data.fixed_array` | 固定大小数组值类型、字面量和索引表达式 | P | N | N | Y | N | N | P |
+| `data.struct` | 结构体值类型、字面量和字段访问 | P | N | N | Y | N | N | P |
 | `crypto.hash` | 宿主或库哈希 | Y | Y | Y | Y | Y | Y | Y |
-| `assertions.check` | 从 portable IR 语句发射运行时或电路断言 | Y | N | N | N | N | N | P |
+| `assertions.check` | 从 portable IR 语句发射运行时或电路断言 | Y | N | N | Y | N | N | P |
 | `account.explicit` | 具名账户/对象/资源绑定 | P | N | N | Y | Y | Y | P |
 | `storage.pda` | 程序派生地址状态 | N | N | N | Y | N | N | N |
 | `crosscall.cpi` | 带有账户元数据的 Solana CPI | N | N | N | Y | N | N | N |

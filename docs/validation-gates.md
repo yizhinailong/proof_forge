@@ -12,6 +12,7 @@ does not add or edit CI jobs.
 | Lean package build | `lake build` | Lean toolchain from `lean-toolchain` | Library roots typecheck and `proof-forge` links | Generated Yul/bytecode validity, external tools, runtime behavior |
 | Target registry smoke | `lake env lean --run Tests/TargetRegistry.lean` | Lean toolchain from `lean-toolchain` | The target registry exposes `evm` as a compiler target while EVM-compatible chain profiles such as `robinhood-chain-testnet` and `anvil-local` stay lookup-only deployment profiles | Deployment broadcast, live RPC or explorer reachability, wallet integration |
 | EVM semantic plan smoke | `just evm-plan` | Lean toolchain from `lean-toolchain` | The first EVM semantic plan slice builds and validates storage layout, scalar storage slots, map value slots, nested map value slots, map presence slots, and helper requirements before Yul generation | Yul rendering, `solc` acceptance, bytecode, runtime behavior, broader aggregate storage planning |
+| Solana light gates | `just solana-light` | Lean toolchain from `lean-toolchain`; `python3`; optional `sbpf` and `solana-keygen` for the SDK script's build branch | Solana target diagnostics, SDK metadata, SDK manifest, target routing, token spec, Counter sBPF golden assembly/manifest diff, control-flow/assertion assembly emission, SDK extension artifact metadata, and canned sBPF emission when `sbpf` is available | Full Mollusk runtime coverage, Surfpool/Web3 deployment smoke, public validator deployment, Solana transaction UX |
 | Yul generation smoke | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | Built `proof-forge` | Lean frontend/LCNF lowers a simple contract to Yul | `solc` acceptance, ABI dispatch, EVM runtime behavior |
 | Yul-to-bytecode smoke | `solc --strict-assembly build/counter.yul --bin` | `solc` on `PATH` | Generated Yul is accepted by `solc` | Runtime semantics or method dispatch |
 | Single EVM bytecode compile | `lake env proof-forge --evm-bytecode --root . --module contract --artifact-output build/evm/Counter.proof-forge-artifact.json -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean` | `solc`, `cast`, `python3`, and `Examples/Evm/Contracts/Counter.evm-methods` | Lean -> Yul -> `solc` -> runtime bytecode with selector generation, deployable `.init.bin` creation bytecode, `proof-forge-artifact.json` metadata, and a `proof-forge-deploy.json` initcode manifest whose header copies and returns the referenced runtime bytecode; `--evm-chain-profile <id>` additionally records a known EVM chain profile in the deploy manifest without broadcasting; `--evm-constructor-param <name:type>` records static-word constructor ABI schema; `--evm-constructor-arg <name=value>` ABI-encodes supported static-word typed values; `--evm-constructor-args-hex <hex>` records and appends an ABI-encoded constructor-argument tail | Runtime behavior, gas, exhaustive ABI correctness, dynamic constructor ABI types, signed/raw transaction generation, real transaction broadcast |
@@ -68,7 +69,7 @@ does not add or edit CI jobs.
 | Psy StorageNestedAggregateProbe IR smoke | `scripts/psy/storage-nested-aggregate-smoke.sh` | `dargo` on `PATH`; `python3`; `psyup install 0.1.0` is known-good on macOS arm64 | Psy IR lowers generic storage paths across scalar storage structs, nested `#[ref]` fields, storage arrays, scalar storage compound assignment, storage-path compound assignment, and native U32 storage struct field paths to `.psy`, matches the golden fixture, passes `dargo test --file`, produces non-empty DPN JSON and ABI JSON, returns `result_vm: [252]` through `dargo execute`, writes `proof-forge-deploy.json` and `proof-forge-artifact.json`, and validates deploy-manifest/metadata hashes/capabilities/results | Upstream compressed genesis deploy JSON, live Psy node/prover behavior |
 | Psy diagnostic smoke | `scripts/psy/diagnostic-smoke.sh` | Lean toolchain from `lean-toolchain` | Unsupported or malformed Psy IR shapes fail before source generation with explicit diagnostics for invalid Psy identifiers, duplicate declarations, reserved local names, empty contract state, Unit parameters, zero-length ABI arrays, unknown ABI structs, unsupported map shapes, unsupported Unit storage arrays, non-storage structs, empty structs, invalid bounded loops, effect expression/statement misuse, invalid assignment targets, invalid storage paths, expression/body type mismatches, immutable assignment, missing returns, malformed equality, malformed comparison, malformed Hash value construction, malformed arithmetic, unsupported casts, malformed bitwise/shift expressions, malformed compound assignment statements, malformed storage compound assignment effects, malformed boolean operators, malformed if conditions, and branch-local escape | Exhaustive unsupported-surface coverage, Dargo behavior, ProofForge deploy manifests, upstream compressed genesis deploy JSON |
 | Psy IR coverage manifest | `scripts/psy/check-ir-coverage-manifest.py` | `python3` | `Tests/PsyCoverage.tsv` has one status/evidence row for every portable IR constructor in `ProofForge/IR/Contract.lean`, so new IR nodes cannot be added without recording whether Psy lowers, validates, or rejects them | Behavioral correctness, Dargo behavior, artifact generation |
-| CI baseline | `.github/workflows/ci.yml` `build-test` job | GitHub Actions Ubuntu, `just` 1.48.0, elan, Foundry stable, `solc` 0.8.30 | Clean-environment `just build`, `just target-registry`, `just evm-plan`, `just docs-check`, `just psy-golden-sources`, Psy diagnostic smoke, Psy IR coverage manifest, EVM diagnostic smoke, EVM IR coverage manifest, EVM ABI scalar IR smoke, EVM AssertProbe IR smoke, EVM AssignmentProbe IR smoke, EVM AssignOpProbe IR smoke, EVM ConditionalProbe IR smoke, EVM LoopProbe IR smoke, EVM ContextProbe IR smoke, EVM EventProbe IR smoke, EVM CrosscallProbe IR smoke, EVM ExpressionProbe IR smoke, EVM HashProbe IR smoke, EVM MapProbe IR smoke, EVM TypedMapProbe IR smoke, EVM StorageArrayProbe IR smoke, EVM StorageStructProbe IR smoke, EVM TypedStorageProbe IR smoke, EVM ArrayValueProbe IR smoke, EVM StructArrayValueProbe IR smoke, EVM StructValueProbe IR smoke, EVM AbiAggregateProbe IR smoke, EVM metadata/deploy-manifest validation, EVM compile, Foundry smoke, and Anvil deploy smoke. CI keeps separate GitHub Actions steps for failure localization, but each common gate is invoked through the root `justfile` recipe. | Optional Dargo target smokes, non-Ubuntu behavior |
+| CI baseline | `.github/workflows/ci.yml` `build-test` job | GitHub Actions Ubuntu, `just` 1.48.0, elan, Foundry stable, `solc` 0.8.30 | Clean-environment `just build`, `just target-registry`, `just evm-plan`, `just solana-light`, `just docs-check`, `just psy-golden-sources`, Psy diagnostic smoke, Psy IR coverage manifest, EVM diagnostic smoke, EVM IR coverage manifest, EVM ABI scalar IR smoke, EVM AssertProbe IR smoke, EVM AssignmentProbe IR smoke, EVM AssignOpProbe IR smoke, EVM ConditionalProbe IR smoke, EVM LoopProbe IR smoke, EVM ContextProbe IR smoke, EVM EventProbe IR smoke, EVM CrosscallProbe IR smoke, EVM ExpressionProbe IR smoke, EVM HashProbe IR smoke, EVM MapProbe IR smoke, EVM TypedMapProbe IR smoke, EVM StorageArrayProbe IR smoke, EVM StorageStructProbe IR smoke, EVM TypedStorageProbe IR smoke, EVM ArrayValueProbe IR smoke, EVM StructArrayValueProbe IR smoke, EVM StructValueProbe IR smoke, EVM AbiAggregateProbe IR smoke, EVM metadata/deploy-manifest validation, EVM compile, Foundry smoke, and Anvil deploy smoke. CI keeps separate GitHub Actions steps for failure localization, but each common gate is invoked through the root `justfile` recipe. | Optional Dargo target smokes, non-Ubuntu behavior |
 
 ## Planned gates that are not runnable yet
 
@@ -80,7 +81,66 @@ The following gates are `Planned` and do not exist in CI or as scripts:
   schema validation for targets that do not yet write metadata.
 - Golden Yul/output snapshots — regression detection via snapshot diffing.
 - CosmWasm smoke — `cosmwasm-check` or `cw-multi-test` validation.
-- Solana smoke — Mollusk or `solana-test-validator` validation.
+- Solana sBPF assembly gates (target `solana-sbpf-asm`, D-026). These become
+  runnable as Workstreams 6–7 land; the `sbpf` toolchain is validated locally
+  (build + disassemble round-trip + `sbpf test` on the counter example):
+  - **V-GATE-SOLANA-01** — `--emit-sbpf-asm` produces valid `.s` accepted by
+    `sbpf build` (no assembly errors). Script: `scripts/solana/emit-asm-smoke.sh` (runnable, Phase 0 complete).
+  - **V-GATE-SOLANA-02** — `sbpf build` produces a valid ELF that
+    `sbpf disassemble` round-trips. Script: `scripts/solana/emit-asm-smoke.sh` (runnable, Phase 0 complete).
+  - **V-GATE-SOLANA-03** — Counter scenario (initialize, increment, get) passes
+    `sbpf test` (Mollusk). Script: `scripts/solana/counter-smoke.sh` (Phase 1 complete;
+    4 Mollusk assertions: initialize→0, increment 0→1, increment 5→6, get→return_data).
+    The emitted `.s` now includes the account-validation prologue
+    (writable + owner checks) and is accompanied by `manifest.toml`; the
+    tracked `Examples/Solana/Counter.golden.s` / `Counter.manifest.toml` are
+    kept in sync by `scripts/solana/build-examples.sh`.
+  - **V-GATE-SOLANA-04** — Counter scenario passes
+    a Surfpool local simnet deployment and Web3.js behavior smoke. Script:
+    `scripts/solana/surfpool-web3-smoke.sh` (optional, gated on `surfpool`,
+    Solana CLI, `sbpf`, Node, and npm). The script builds the Counter ELF,
+    starts Surfpool, deploys with `solana program deploy --use-rpc`, creates a
+    program-owned counter account through `@solana/web3.js`, invokes
+    initialize/increment/get, validates account data 0→1→2, and checks
+    `get` return data.
+  - **V-GATE-SOLANA-05** — Capability checker rejects IR modules using
+    unsupported capabilities with a clear diagnostic citing target id and
+    capability id. Script: `scripts/solana/diagnostic-smoke.sh` runs
+    `Tests/SolanaDiagnostics.lean` and asserts 8 crosscall rejection cases
+    (the generic `crosscall.invoke` family) all produce the expected message
+    `target \`solana-sbpf-asm\` does not support capability \`crosscall.invoke\`: ...`.
+    (Phase 1 complete.)
+  - **V-GATE-SOLANA-06** — `proof-forge-artifact.json` includes
+    `target: "solana-sbpf-asm"`, `irVersion`, and entrypoint list.
+  - **V-GATE-SOLANA-07** — `sbpf debug --elf --input` works interactively
+    (developer ergonomics gate — not CI).
+  - **V-GATE-SOLANA-08** — Control-flow + assertion IR coverage.
+    Two halves:
+      * Emission half (runnable, no `sbpf` required) —
+        `scripts/solana/emit-control-smoke.sh` runs `--emit-control-ir-sbpf`,
+        greps the emitted `.s` for the `control.conditional` / `control.assert`
+        / `control.assert_eq` markers, the `assert_fail` (exit 2) and
+        `assert_eq_fail` (exit 3) global labels, the dispatch lines for the
+        three entrypoints, the comparison instructions `jeq`/`jlt` driving
+        `r3` vs `r2`, asserts the asm is bit-for-bit reproducible across
+        re-emissions, and validates the artifact metadata records
+        `target: "solana-sbpf-asm"`, `fixture: "control-ir-sbpf"`,
+        `sourceModule: "ControlFlowAssertProbe"`, and the `storage.scalar` /
+        `control.conditional` / `assertions.check` / `account.explicit`
+        capabilities. (Emission half complete.)
+      * Runtime half (gated on `sbpf` + `cargo` + `solana-keygen`) —
+        `scripts/solana/control-smoke.sh` assembles the emitted `.s` via
+        `sbpf build` and runs the Mollusk test crate rendered from
+        `Tests/solana/control_mollusk.rs.tpl`. Six Mollusk checks cover
+        `lifecycle` from a zero and from a large pre-state (both land on 10u64
+        and return 10), `guarded_increment` from 3 (assert passes, count→4)
+        and from 9 (assert reverts via `assert_fail` exit 2), and
+        `equality_guard` from 7 (assertEq passes, count→7 and return 7) and
+        from 42 (assertEq reverts via `assert_eq_fail` exit 3). The Mollusk
+        fixtures disable `account_data_direct_mapping` /
+        `direct_account_pointers_in_program_input` /
+        `virtual_address_space_adjustments` so the Phase 1 lowering's legacy
+        embedded account-data layout is exercised. (Phase 1 complete.)
 - Move smoke — `aptos move compile/test` or Sui Move validation.
 - Cross-target capability rejection matrix — compile-time diagnostics for
   unsupported capability/target combinations beyond the target-specific Psy and
@@ -101,11 +161,13 @@ If no runnable local command exists, the target remains `Research`.
 ## Optional external tools
 
 Current CI installs `just` 1.48.0, Foundry stable, and `solc` 0.8.30. Local
-machines may not have `just`, `solc`, `cast`, `forge`, `psyup`, or `dargo`.
-Missing `just` blocks the local command catalog but not direct script
-execution. Missing EVM tools block EVM toolchain gates but not `lake build`.
-Missing Psy tools block only the Psy smoke Dargo portions; source generation
-and golden diff still run before each script exits.
+machines may not have `just`, `solc`, `cast`, `forge`, `psyup`, `dargo`,
+`sbpf`, `surfpool`, Solana CLI, Node, or npm. Missing `just` blocks the local
+command catalog but not direct script execution. Missing EVM tools block EVM
+toolchain gates but not `lake build`. Missing Psy tools block only the Psy
+smoke Dargo portions; source generation and golden diff still run before each
+script exits. Missing Solana tools block Solana assembly/runtime smokes but not
+Lean builds or target-registry checks.
 
 All Dargo-backed Psy smoke scripts also record the generated Dargo package
 source copy at `src/main.psy` and the generated `Dargo.toml` package manifest

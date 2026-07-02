@@ -154,7 +154,7 @@ interface:
 
 ```sh
 proof-forge build --target evm --out build/evm
-proof-forge build --target solana-sbpf-linker --out build/solana
+proof-forge build --target solana-sbpf-asm --out build/solana
 proof-forge build --target wasm-near --out build/near
 proof-forge build --target wasm-cosmwasm --out build/cosmwasm
 proof-forge build --target move-sui --out build/sui

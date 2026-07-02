@@ -35,7 +35,8 @@
 | [Stellar Soroban](targets/stellar-soroban.zh.md) | Research | 文档优先的 Wasm-host 候选，使用 Soroban/Stellar CLI 工具链；尚未进入代码 registry。 |
 | [Internet Computer](targets/internet-computer.zh.md) | Research | 文档优先的 Wasm canister 候选，包含 Candid、cycles、stable memory 和 canister lifecycle；尚未进入代码 registry。 |
 | [Algorand AVM](targets/algorand-avm.zh.md) | Research | 文档优先的 AVM/TEAL source/package-generation 候选，包含 app programs、LogicSig、ARC-4 ABI、storage、resource references 和 transaction-group 语义；尚未进入代码 registry。 |
-| Solana sBPF-linker | Research | 首选的 Solana 路径（`solana-sbpf-linker` id）。 |
+| Solana sBPF-linker | Research（已取代） | Solana 历史参考路径（`solana-sbpf-linker` id）；已被 `solana-sbpf-asm` (D-026) 取代。 |
+| Solana sBPF Asm | Research | direct-assembly 路线（`solana-sbpf-asm` id），Lean → IR → sbpf asm → sbpf toolchain → ELF。见 [设计文档](solana-sbpf-asm.md)、[RFC 0005](../rfcs/0005-solana-sbpf-assembly-backend.md)。 |
 | Solana Zig fork | Research | 来自 `solana-sdk-mono` 的备选参考。 |
 | Sui Move | Research | 源代码生成；遵循 Aptos POC。 |
 | Aptos Move | Research | 首个 Move POC 目标。 |
@@ -57,7 +58,8 @@
 - [Stellar Soroban 目标](targets/stellar-soroban.zh.md)
 - [Internet Computer 目标](targets/internet-computer.zh.md)
 - [Algorand AVM 目标](targets/algorand-avm.zh.md)
-- [Solana sBPF](solana-sbf.md) —— 目标 id `solana-sbpf-linker` 的说明
+- [Solana sBPF Asm](solana-sbpf-asm.md) —— 规范 direct-assembly 路线（`solana-sbpf-asm` 目标 id，D-026）
+- [Solana sBPF](solana-sbf.md) —— 已被取代的 Zig/sbpf-linker 路线（`solana-sbpf-linker` 目标 id）
 - [Move 家族](move-family.md)
 - [Cardano Plutus/Aiken 目标](targets/cardano-plutus-aiken.zh.md)
 - [Tezos Michelson/LIGO 目标](targets/tezos-michelson-ligo.zh.md)

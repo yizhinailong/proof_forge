@@ -284,14 +284,21 @@ until a rename is scheduled.
 
 ## Platform Direction
 
-ProofForge uses a portable core plus capabilities model:
+ProofForge uses a chain-neutral Contract Intent API over a portable core plus
+target-routed capabilities model:
 
+- Contract Intent API: the default user-facing SDK for declaring state,
+  entrypoints, events, caller/value access, assertions, and proofs without
+  importing a destination-chain module.
 - Portable core: business logic, state-machine transitions, math, and proofs.
-- Capabilities: explicit chain-facing operations such as storage, caller,
-  value transfer, events, cross-contract calls, account/object/resource access,
-  and chain environment reads.
+- Target-routed capabilities: lower-level semantic operations such as storage,
+  caller, value transfer, events, cross-contract calls, account/object/resource
+  access, and chain environment reads. A selected target resolves portable
+  intents into a capability plan; capability ids are the adapter/extension
+  protocol and diagnostic surface, not the primary SDK surface.
 - Target adapters: ABI, packaging, test runner, and deployment logic for each
-  chain family.
+  chain family. `--target` chooses the adapter; unsupported intents or
+  capabilities are rejected before artifact generation.
 
 Planned target families:
 
@@ -308,7 +315,7 @@ Future CLI direction:
 proof-forge build --target evm
 proof-forge build --target wasm-near        # planned reference target
 proof-forge build --target wasm-cosmwasm    # planned first new Wasm spike
-proof-forge build --target solana-sbpf-linker
+proof-forge build --target solana-sbpf-asm
 proof-forge build --target move-aptos       # planned first Move POC
 proof-forge build --target move-sui         # planned follow-up Move target
 ```

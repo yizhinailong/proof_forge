@@ -25,8 +25,8 @@ Goal: make target selection explicit before adding more backends.
 Tasks:
 
 - Add target ids: `evm`, `wasm-near`, `wasm-cosmwasm`,
-  `solana-sbpf-linker`, `solana-zig-fork`, `move-sui`, `move-aptos`,
-  `psy-dpn`.
+  `solana-sbpf-asm`, `solana-sbpf-linker` (superseded), `solana-zig-fork`,
+  `move-sui`, `move-aptos`, `psy-dpn`.
 - Define target family, artifact kind, required tools, and capability set
   (see [capability-registry.md](capability-registry.md)).
 - Add a target lookup function for CLI and scripts.
@@ -541,50 +541,163 @@ Acceptance criteria:
 - `instantiate`, `execute`, and `query` are present in exports.
 - The smoke test can increment and query counter state.
 
-## Workstream 6: Solana sBPF-Linker Spike
+## Workstream 6: Solana sBPF Assembly Toolchain Integration (Phase 0)
 
-Goal: validate the no-fork Solana pipeline before adopting a forked compiler.
+Goal: validate the direct-assembly route end to end — a canned `.s` file
+round-trips through the blueshift-gg/sbpf toolchain into a loadable ELF.
+Supersedes the old sbpf-linker spike (D-026).
 
 Tasks:
 
-- Add `zigc-solana-sbpf` wrapper around `zig build-lib
-  -target bpfel-freestanding -femit-llvm-bc`.
-- Call `sbpf-linker --cpu v2 --export entrypoint`.
-- Add `solana_contract_root.zig` with one exported `entrypoint`.
-- Add minimal syscall/log bridge.
-- Add explicit instruction manifest format (see [solana-sbf.md](targets/solana-sbf.md)).
-- Add Counter account example.
+- Install `sbpf` via `cargo install --git https://github.com/blueshift-gg/sbpf.git`.
+- Add `--emit-sbpf-asm` CLI mode to `proof-forge` that writes a canned
+  `entrypoint.s` (returns success, no account parsing).
+- Run `sbpf build` on the canned `.s`; verify a valid eBPF ELF is produced.
+- Verify `sbpf disassemble` round-trips the ELF.
+- Record toolchain version in artifact metadata.
 
 Acceptance criteria:
 
-- A minimal generated `entrypoint.bc` is produced by stock Zig.
-- `sbpf-linker` produces a `.so`.
-- The `.so` runs in either Mollusk or `solana-test-validator`.
-- The spike records whether the Lean Zig runtime can link under sBPF
-  constraints.
+- [x] `sbpf build` produces a `.so` recognized as `ELF 64-bit LSB ... eBPF`.
+- [x] `sbpf disassemble` produces assembly matching the input.
+- [x] `--emit-sbpf-asm` writes valid `.s` without assembly errors.
+- [x] `proof-forge-artifact.json` records `target: "solana-sbpf-asm"`.
+- [ ] `sbpf` installed to PATH via `cargo install` (currently built from source).
 
-## Workstream 7: Solana Runtime Decision
+Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md),
+[RFC 0005](rfcs/0005-solana-sbpf-assembly-backend.md).
 
-Goal: decide whether ProofForge can use full Lean runtime on Solana or needs a
-restricted runtime subset. **Runs after Workstream 6 produces spike data.**
+## Workstream 7: Solana sBPF Assembly Counter Codegen (Phase 1)
 
-Questions:
+Goal: lower the portable IR Counter module to sBPF assembly and pass `sbpf test`.
+This is the first real codegen backend for the assembly route.
 
-- Does the full Lean Zig runtime link under `bpfel-freestanding`?
-- Does the resulting ELF pass Solana loader constraints?
-- Is the artifact size acceptable?
-- Is 4KB stack pressure manageable?
-- Are heap allocation and reference counting feasible inside Solana compute
-  budgets?
+Tasks:
 
-Decision outcomes:
+- Implement `ProofForge.Backend.Solana.StateLayout` — compute per-account field
+  offsets from the instruction manifest; emit `.equ` constants.
+- Implement `ProofForge.Backend.Solana.SbpfAsm` — lower `IR.Module` to `.s`:
+  - Entrypoint adapter: parse serialized accounts, dispatch on instruction
+    discriminant.
+  - Account validation: signer, writable, owner checks per manifest.
+  - Expression lowering: literals, locals, add/sub, comparisons, casts.
+  - Statement lowering: letBind, assign, assignOp, ifElse, return, assert.
+  - Effect lowering: storageScalar read/write at account-data offsets.
+- Add `--solana-elf` CLI mode: emit `.s` then invoke `sbpf build`.
+- Generate instruction manifest (`manifest.toml`) alongside the `.s`.
+- Create `Examples/Solana/Counter.lean` + manifest.
+- Run `sbpf test` (Mollusk) and a Surfpool/Web3.js live deployment smoke.
 
-- Use full Lean Zig runtime for Solana.
-- Use restricted Lean runtime subset for Solana.
-- Generate direct Zig for a portable IR subset without the full Lean runtime.
-- Fall back to the `solana-zig` fork while keeping `sbpf-linker` open.
+Acceptance criteria:
 
-Record the outcome in [decisions.md](decisions.md).
+- Counter scenario (initialize, increment, get) passes `sbpf test`.
+- Surfpool/Web3.js live smoke passes (optional, gated on tool availability).
+- Capability checker rejects IR modules using unsupported capabilities with a
+  clear diagnostic citing target id and capability id.
+- Same portable IR Counter module lowers to both EVM and Solana.
+- Artifact metadata records `target: "solana-sbpf-asm"`, `irVersion`,
+  entrypoints, and capabilities used.
+
+Out of scope (Phase 2+): maps, struct types, events, bounded loops, Borsh
+serialization, full SPL Token data layouts, and runtime CPI validation. CPI and
+PDA stay Solana-specific (D-027): the SDK now routes them through target
+capability calls and sBPF helper actions instead of adding them to the portable
+IR.
+
+Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md) § Phased
+Implementation Plan.
+
+### Phase 1 progress (incremental sub-items)
+
+The Workstream 7 Phase 1 backend (`ProofForge.Backend.Solana.SbpfAsm`) lands
+incrementally. Each sub-item carries its own runnable validation gate so
+partial progress is visible before the full acceptance criteria close:
+
+- [x] IR → sBPF AST → text pipeline; entrypoint adapter dispatches on the
+      first instruction-data byte (V-GATE-SOLANA-01/02; Phase 0 baseline).
+- [x] Counter codegen (literals, locals, `add`, scalar storage
+      read/write/`assignOp`, `letBind`/`letMutBind`, `assign`, `return`);
+      Mollusk smoke covers initialize / increment 0→1 / increment 5→6 /
+      get→return_data (V-GATE-SOLANA-03).
+- [x] Control-flow + assertion coverage: comparison expressions
+      (`.eq`/`.ne`/`.lt`/`.le`/`.gt`/`.ge`), boolean expressions
+      (`.boolAnd`/`.boolOr`/`.boolNot`), statement-level `.ifElse` then/else
+      lowering with fresh named labels, `.assert` and `.assertEq` lowering to
+      the shared `assert_fail` (exit 2) / `assert_eq_fail` (exit 3) labels.
+      Fixture: `ProofForge.IR.Examples.ControlFlowAssertProbe` (three
+      entrypoints: `lifecycle`, `guarded_increment`, `equality_guard`);
+      CLI mode `--emit-control-ir-sbpf`; deterministic emission gate
+      `scripts/solana/emit-control-smoke.sh` (no `sbpf` required); Mollusk
+      runtime gate `scripts/solana/control-smoke.sh` (six checks: lifecycle
+      x2, guarded_increment success + assert revert, equality_guard success
+      + assertEq revert) (V-GATE-SOLANA-08).
+- [x] Instruction manifest (`manifest.toml`) generation alongside the `.s`.
+      `ProofForge.Backend.Solana.SbpfAsm.renderManifest` emits a TOML with
+      target, program placeholder id, and per-entrypoint instruction tables
+      using the Phase 1 default account convention (writable, signer=false,
+      owner=program). `--emit-counter-ir-sbpf` and `--emit-control-ir-sbpf`
+      write `manifest.toml` next to the `.s` and include it as an artifact.
+- [x] `--solana-elf` CLI mode: emits `.s`, writes `manifest.toml`, scaffolds an
+      `sbpf` project, invokes `sbpf build`, copies the resulting `.so` to the
+      requested output, and records `sbpfBuild: passed` in artifact metadata.
+- [x] Account validation: signer / writable / owner checks per manifest. Each
+      entrypoint emits a prologue that checks `is_writable` at account-header
+      offset 10 and verifies the account owner equals the serialized program
+      id. Failure exits are 4 (`error_not_writable`), 5 (`error_signer`), and
+      6 (`error_owner`). Phase 1 Mollusk runtime gates disable the
+      direct-account-mapping ABI so the legacy embedded account-data layout
+      is exercised.
+- [x] `Examples/Solana/Counter.lean` + manifest as a self-contained example.
+      Includes a tracked `Counter.golden.s` and `Counter.manifest.toml` and a
+      CI-runnable `scripts/solana/build-examples.sh` that emits and diffs.
+- [x] Capability checker rejects unsupported capability/target combinations
+      with a clear diagnostic citing target id and capability id. Basis for
+      V-GATE-SOLANA-05; exercised by `Tests/SolanaDiagnostics.lean` and
+      `scripts/solana/diagnostic-smoke.sh`.
+- [x] Solana SDK target extensions route `ProofForge.Solana` PDA/CPI APIs
+      through capability plan metadata, emit `manifest.toml` extension
+      definitions plus entrypoint action sections, and inject handler-level
+      helper calls (`sol_pda_derive_<name>`, `sol_cpi_<name>`) before the IR
+      body while preserving the Solana input pointer in `r1`. Covered by
+      `Tests/SolanaSdk.lean`, `Tests/SolanaSdkManifest.lean`, and
+      `scripts/solana/sdk-smoke.sh` with `sbpf build` when available.
+- [x] Surfpool/Web3.js live deployment smoke (V-GATE-SOLANA-04). The optional
+      `scripts/solana/surfpool-web3-smoke.sh` gate builds the Counter ELF,
+      starts Surfpool, deploys with the Solana CLI, creates a program-owned
+      counter account via `@solana/web3.js`, invokes initialize/increment/get,
+      checks account data 0→1→2, and validates `get` return data. The script
+      passes `--solana-sbpf-arch v0` to produce a Solana CLI deploy-compatible
+      ELF directly and uses `--use-rpc` for Surfpool.
+- [x] `--solana-elf` exposes `--solana-sbpf-arch v0|v3` and records the chosen
+      architecture in `proof-forge-artifact.json`. Default stays `v3`; Surfpool
+      live deployment uses `v0` until the deployed CLI/runtime stack accepts
+      the newer sbpf feature set without `--skip-feature-verify`.
+- [x] PDA helper runtime packing now emits static ASCII seed byte buffers, Solana
+      `Slice { ptr, len }` seed tables, dynamic program-id pointer calculation,
+      and a 32-byte PDA result buffer before calling `sol_create_program_address`.
+      Covered by `Tests/SolanaSdkManifest.lean` and
+      `scripts/solana/sdk-smoke.sh`.
+
+Next Solana SDK completion items:
+
+- PDA typed seed completion: distinguish literal/UTF-8 bytes, account pubkeys, and
+  bump/instruction-data seeds; validate the resulting PDA against account
+  pubkeys; add Web3.js fixtures that compare derived addresses with
+  `PublicKey.findProgramAddressSync`.
+- System Program CPI: lower transfer/create-account style SDK calls to
+  `sol_invoke_signed`, express account metas in `manifest.toml`, and validate
+  balances/owners through Web3.js.
+- SPL Token CPI: add mint/account/authority manifests, token instruction
+  packing, and behavior checks against the standard token program.
+- Logs/events and return data: expose `sol_log*` / `sol_set_return_data` /
+  `sol_get_return_data` helpers with Web3.js log and simulation assertions.
+- Sysvars, crypto, and memory helpers: cover clock/rent sysvars, hash syscalls,
+  memcpy/memcmp/memset, and compare outputs with JavaScript reference code.
+- Add Rust/Pinocchio reference fixtures for the same account schema and compare
+  ProofForge-generated behavior against those reference programs through the
+  same Web3.js harness.
+- Move from Phase 1 single-account manifests to generated multi-account schemas
+  with signer/writable/owner constraints per entrypoint.
 
 ## Workstream 8: Move Source Generation POC (Aptos first)
 
@@ -1139,15 +1252,50 @@ Acceptance criteria:
   Kaspa/Toccata inline ZK, `psy-dpn` circuit sourcegen, and generic smart
   contracts.
 
+## Workstream 23: Multi-Chain Token SDK
+
+Goal: let users describe fungible token intent once, then let `--target`
+choose ERC-20 contract generation on EVM or SPL Token / Token-2022 plans on
+Solana without exposing chain-specific code at the user-facing SDK layer.
+
+Tasks:
+
+- Done: add RFC 0006, `ProofForge.Contract.Token.TokenSpec`, target token
+  plans, and `Tests/TokenSpec.lean`.
+- Implement EVM ERC-20 lowering: ABI/selectors, balance/allowance storage,
+  total supply, transfer/approve/transferFrom, mint/burn options, events, and
+  Foundry/Web3 behavior tests.
+- Implement Solana SPL Token plan rendering: mint creation, associated token
+  account creation, mint_to, transfer_checked, approve, burn, authority changes,
+  and Web3.js validation through `@solana/spl-token`.
+- Route Token-2022 features such as transfer fees, non-transferable tokens,
+  confidential transfer, and transfer hooks to Token-2022 extension
+  initialization rather than custom per-token programs.
+- Add optional Solana wrapper/authority/transfer-hook program generation for
+  custom policies such as capped supply or custom transfer restrictions.
+- Emit token-specific artifact metadata that records standard, target,
+  operations, extension set, deployment accounts, tool versions, and validation
+  results.
+
+Acceptance criteria:
+
+- A single `TokenSpec` has deterministic EVM and Solana token plans.
+- EVM output passes ERC-20 behavior tests using standard Web3/Foundry calls.
+- Solana output creates a mint and token accounts, mints supply, transfers
+  tokens, and validates balances with `@solana/spl-token` on Surfpool.
+- Documentation clearly says Solana does not default to a per-token SPL
+  contract; it uses SPL Token / Token-2022 programs by plan and CPI.
+
 ## Suggested Order
 
 1. Target registry (Workstream 1).
 2. Portable IR + shared Counter scenario (Workstream 1.5).
 3. EVM artifact metadata and deploy manifest (Workstreams 2–3).
 4. Wasm runtime split (Workstream 4).
-5. **Parallel:** CosmWasm spike (Workstream 5) and Solana sbpf-linker spike
-   (Workstream 6).
-6. Solana runtime decision (Workstream 7 — after spike data).
+5. **Parallel:** CosmWasm spike (Workstream 5) and Solana sBPF assembly
+   toolchain integration (Workstream 6 — D-026 supersedes the old sbpf-linker
+   spike).
+6. Solana sBPF assembly Counter codegen (Workstream 7 — D-026).
 7. Move Aptos POC (Workstream 8).
 8. Psy DPN sourcegen spike (Workstream 10) once the IR fixture exists.
 9. Kaspa Toccata research target review (Workstream 11) before any registry
@@ -1173,6 +1321,8 @@ Acceptance criteria:
     changes.
 20. Bitcoin Cash CashScript research target review (Workstream 15) before any
     registry changes.
-21. CI target matrix (Workstream 9).
-22. Cloud platform design refresh (prerequisite: two+ targets at Experimental
+21. Multi-chain Token SDK (Workstream 23) after the EVM and Solana validation
+    paths can both run locally.
+22. CI target matrix (Workstream 9).
+23. Cloud platform design refresh (prerequisite: two+ targets at Experimental
    stage; see [decisions.md](decisions.md)).

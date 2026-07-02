@@ -1,6 +1,6 @@
 {
   "README.md": {
-    "sha256": "3c56c5cc4665e6aaa6d1d2c704f6bbb0b55a439ad802290d59db310ff6ce8363",
+    "sha256": "7572bb3c0c17d747ab629c778e483a31ce599b445abd578c774a269786b419f6",
     "zh": "docs/zh/README-root.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -10,32 +10,32 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "edc4e6753bb6db4a02f85370a776ecbc2082caac158257b8ce9039833732cd49",
+    "sha256": "444c171689fdf941f8191ba9ee9e1caa21631a7e76f820a270510cd1c95d9d60",
     "zh": "docs/zh/INDEX.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/decisions.md": {
-    "sha256": "eafc03c535dbb18620d6abb907b9ec1bd602e7e6295b76eaa0e1259cdec44143",
+    "sha256": "824ddb010838099e8eb18e5ff7fc89a715783fe848ab2c26d6efa9c3ad05992e",
     "zh": "docs/zh/decisions.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/capability-registry.md": {
-    "sha256": "9be4c9fcb2134ce79836d1f64da04263fa2cdd2b74930196f48b92f49d05ac2b",
+    "sha256": "592c59340edf5e05e2cc87e24e9096da8fc6c919248f15412e38e40c9812c228",
     "zh": "docs/zh/capability-registry.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/portable-ir.md": {
-    "sha256": "c0838feaa1445db6405a0222bd989ed6944408d9853d65dc7dcec1c1d94ce527",
+    "sha256": "df2375f131d624d62ec1acd66f0c1deb15130ce5a0778370d3b809beb9cf78e8",
     "zh": "docs/zh/portable-ir.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/shared-scenario.md": {
-    "sha256": "6bfb9d94ea09331cd733f611de51f813d4c543e2df8ee1669afba9cf6ae6ee08",
+    "sha256": "897e13e7b0103011132ebe427e2623048a21a0a5765d6f4831f2a632df2c5838",
     "zh": "docs/zh/shared-scenario.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/implementation-backlog.md": {
-    "sha256": "cfab6278ebbdff343b92bd3896dc7fad5edf44828c96933b36aaca93bfb84339",
+    "sha256": "7bbb24f6eeec3183f4d4c9bca04ae5fcc9799378eeb4c7e028bd52e0c4970afa",
     "zh": "docs/zh/implementation-backlog.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -50,27 +50,27 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/validation-gates.md": {
-    "sha256": "d524bb9b240e5ed560281ff28bd57c97d142d79c8356c057e8ba38b85060dc56",
+    "sha256": "7a94b3f4d0995689c63aadf350fd34442c478df493f988f1f65d091f3758248a",
     "zh": "docs/zh/validation-gates.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/README.md": {
-    "sha256": "e150d41d5226f905c144b634fd837d6b0544e9080ebe034cb739cc60351a256e",
+    "sha256": "797f0b76a4fa0288ffac9c798cc9c37052b4a2e0133a13da42b1193c3f680333",
     "zh": "docs/zh/rfcs-README.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/0001-multichain-platform.md": {
-    "sha256": "924a9cb230975c574566527e183bd2b145534cbba78dcecb0ce33fe1fd1e3da8",
+    "sha256": "6f53a449e69daf520b2da5eb28113eddd434584cdaef2cf0fa8514c6a6fae818",
     "zh": "docs/zh/rfcs/0001-multichain-platform.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/0002-target-implementation-design.md": {
-    "sha256": "323c7532d221a117e9dfd00846cab9447b58933da953c18998b47c2018c744b5",
+    "sha256": "aa2cf6eb05287f02a159a18cd15544a357266443d683547da4e539145487f498",
     "zh": "docs/zh/rfcs/0002-target-implementation-design.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/0003-portable-ir-and-runtime.md": {
-    "sha256": "69b25d20fbef3b159eff46bb2af1a9423a5e047781d9e35fc123d0ed0512a3dd",
+    "sha256": "192924710e0643333c537c1c465299d9b0df20ddd7e07ed6f9fc2ba7d9811e3a",
     "zh": "docs/zh/rfcs/0003-portable-ir-and-runtime.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -80,7 +80,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/README.md": {
-    "sha256": "e3f2fec20d8ac0d8f76666da92a4d14914301e97855b9e90bc97f30f9a6e55ce",
+    "sha256": "2519256f752bdf9a887e4eb4f171c53615fbe6ad23c7cf7141a00be3790f1a36",
     "zh": "docs/zh/targets-README.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -95,7 +95,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/solana-sbf.md": {
-    "sha256": "85fef3ba16f8f82d5dfa792c22bf7ffb3421f893130ed147aa1eef81ffd5c5b0",
+    "sha256": "98fa9fcada4a214df7291553e65891c7a2c3b66a1d163d96a2eb280db3fffbfa",
     "zh": "docs/zh/targets/solana-sbf.zh.md",
     "model": "gemini-3-flash-preview"
   },
