@@ -61,7 +61,9 @@ def main : IO UInt32 := do
         "assembly missing instruction-parameter bump seed packing"
       require (!contains asm "bump vault_bump missing placeholder=255")
         "vault_bump should bind to instruction parameter, not placeholder"
-      require (contains asm "ldxb r3, [r1+")
+      require (contains asm "mov64 r7, r9")
+        "assembly missing saved instruction-data pointer use for bump seed"
+      require (contains asm "ldxb r3, [r7+")
         "assembly missing byte load for instruction-parameter bump seed"
       require (contains asm "stxb [r5+0], r3")
         "assembly missing bump byte copy into PDA seed buffer"

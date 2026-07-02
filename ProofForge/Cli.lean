@@ -55,6 +55,7 @@ import ProofForge.IR.Examples.U32StorageArrayProbe
 import ProofForge.IR.Examples.U32StorageScalarProbe
 import ProofForge.Target
 import ProofForge.Solana.Examples.Vault
+import ProofForge.Solana.Examples.SystemCpi
 
 open Lean
 open System
@@ -148,6 +149,7 @@ inductive EmitMode where
   | controlIrSbpf
   | solanaSdkSbpf
   | solanaElf
+  | solanaSystemCpiElf
   | sbpfAsm
   deriving BEq, Inhabited
 
@@ -249,6 +251,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .controlIrSbpf
   | .solanaSdkSbpf
   | .solanaElf
+  | .solanaSystemCpiElf
   | .sbpfAsm => true
   | _ => false
 
@@ -349,6 +352,7 @@ def usage : String :=
     "  proof-forge --emit-control-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-sdk-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-system-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -1859,6 +1863,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaSdkSbpf }
   | "--solana-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaElf }
+  | "--solana-system-cpi-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSystemCpiElf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
@@ -2987,6 +2993,85 @@ def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileSolanaSystemCpiElf (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/SystemCpi.so")
+  let projectName := match output.fileName with
+    | some n => (n.splitOn ".").headD "system-cpi"
+    | none => "system-cpi"
+  let projectDir := match output.parent with
+    | some parent => parent / s!"{projectName}-sbpf-project"
+    | none => FilePath.mk s!"{projectName}-sbpf-project"
+  let spec := ProofForge.Solana.Examples.SystemCpi.spec
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.render
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec projectName spec with
+  | .ok pkg =>
+      for file in pkg.files do
+        let path := packagePath projectDir file.path
+        writeTextFile path file.contents
+        IO.println s!"wrote {path}"
+
+      let asmSrc := packagePath projectDir pkg.asmPath
+      let manifestOutput := packagePath projectDir pkg.manifestPath
+      let _ ← runProcess "sbpf" #["build", "--arch", opts.solanaSbpfArch] (cwd? := some projectDir)
+
+      let builtElf := projectDir / "deploy" / s!"{projectName}.so"
+      if ! (← builtElf.pathExists) then
+        throw <| IO.userError s!"sbpf build did not produce {builtElf}"
+
+      let elfBytes ← IO.FS.readBinFile builtElf
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      IO.FS.writeBinFile output elfBytes
+      IO.println s!"wrote {output}"
+
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson asmSrc
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let elfArtifact ← artifactEntryJson output
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "solana-system-cpi-elf"),
+        ("sourceKind", jsonString "contract-sdk"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString spec.name),
+        ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+        ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaInstructions", solanaInstructionsJson spec.module plan),
+        ("solanaExtensions", solanaExtensionsJson plan),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null"),
+            ("arch", jsonString opts.solanaSbpfArch)
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact),
+          ("solanaElf", elfArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("targetRouting", jsonString "passed"),
+          ("manifestGeneration", jsonString "passed"),
+          ("sbpfBuild", jsonString "passed"),
+          ("liveCpi", jsonString "pending")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/entrypoint.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderCannedEntrypoint with
@@ -3124,6 +3209,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .controlIrSbpf => compileControlIrSbpf opts
   | .solanaSdkSbpf => compileSolanaSdkSbpf opts
   | .solanaElf => compileSolanaElf opts
+  | .solanaSystemCpiElf => compileSolanaSystemCpiElf opts
   | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli

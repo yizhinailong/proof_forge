@@ -51,7 +51,8 @@ structure InputLayout where
   instructionDataOff : Nat
   deriving Repr, Inhabited
 
-def computeAccountLayoutAt (index accountStart dataSize : Nat) : AccountInputLayout :=
+def computeAccountLayoutAt (index accountStart dataSize : Nat) (reserveRealloc : Bool := true) :
+    AccountInputLayout :=
   let signerOff := accountStart + 1
   let writableOff := accountStart + 2
   let executableOff := accountStart + 3
@@ -60,7 +61,8 @@ def computeAccountLayoutAt (index accountStart dataSize : Nat) : AccountInputLay
   let lamportsOff := ownerOff + PUBKEY_SIZE
   let dataLenOff := lamportsOff + U64_SIZE
   let dataStart := dataLenOff + U64_SIZE
-  let afterPadding := dataStart + dataSize + MAX_PERMITTED_DATA_INCREASE
+  let reallocPadding := if reserveRealloc then MAX_PERMITTED_DATA_INCREASE else 0
+  let afterPadding := dataStart + dataSize + reallocPadding
   let rentEpochOff := afterPadding + alignTo8 afterPadding
   {
     index
@@ -83,6 +85,21 @@ def computeInputLayout (accountDataSizes : Array Nat) : InputLayout := Id.run do
   let mut idx := 0
   for dataSize in accountDataSizes do
     let layout := computeAccountLayoutAt idx accountStart dataSize
+    accounts := accounts.push layout
+    accountStart := layout.nextAccountStart
+    idx := idx + 1
+  return {
+    accounts
+    instructionDataLenOff := accountStart
+    instructionDataOff := accountStart + U64_SIZE
+  }
+
+def computeInputLayoutWithReallocFlags (accountSpecs : Array (Nat × Bool)) : InputLayout := Id.run do
+  let mut accounts := #[]
+  let mut accountStart := U64_SIZE
+  let mut idx := 0
+  for (dataSize, reserveRealloc) in accountSpecs do
+    let layout := computeAccountLayoutAt idx accountStart dataSize reserveRealloc
     accounts := accounts.push layout
     accountStart := layout.nextAccountStart
     idx := idx + 1

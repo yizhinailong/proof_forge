@@ -95,6 +95,7 @@ structure CpiValueBinding where
   absOff : Nat
   byteSize : Nat := 8
   sourceKind : String := "state"
+  relativeToInstructionData : Bool := false
   deriving Repr, Inhabited
 
 def metadataValue? (metadata : Array TargetMetadata) (key : String) : Option String :=
@@ -309,7 +310,23 @@ def stackPtr (dst : Reg) (offset : Nat) : Array AstNode := #[
   .instruction { opcode := .sub64, dst := some dst, imm := some (.num offset) }
 ]
 
-def entryInputSaveOffset : Nat := 1024
+def entryInputSaveOffset : Nat := 3520
+def entryInstructionDataSaveOffset : Nat := 3584
+def entryInstructionDataReg : Reg := .r9
+
+def loadSavedInstructionDataPtr (dst : Reg) : Array AstNode :=
+  if dst == entryInstructionDataReg then
+    #[]
+  else
+    #[.instruction { opcode := .mov64, dst := some dst, src := some entryInstructionDataReg }]
+
+def loadCurrentProgramIdPtr (dst scratch : Reg) : Array AstNode :=
+  loadSavedInstructionDataPtr dst ++ #[
+    .instruction { opcode := .mov64, dst := some scratch, src := some dst },
+    .instruction { opcode := .sub64, dst := some scratch, imm := some (.num 8) },
+    .instruction { opcode := .ldxdw, dst := some scratch, src := some scratch, off := some (.num 0) },
+    .instruction { opcode := .add64, dst := some dst, src := some scratch }
+  ]
 
 def pdaResultOffset : Nat := 64
 def pdaSeedTableOffset : Nat := 128
@@ -381,11 +398,17 @@ def lowerPdaSeedTableEntry (idx len : Nat) : Array AstNode :=
     .instruction { opcode := .stxdw, dst := some .r6, off := some (.num 8), src := some .r3 }
   ]
 
-def lowerInputBytesToPdaSeed (absOff byteSize : Nat) : Array AstNode :=
+def lowerInputBytesToPdaSeed (binding : CpiValueBinding) (byteSize : Nat) : Array AstNode :=
+  let base :=
+    if binding.relativeToInstructionData then
+      loadSavedInstructionDataPtr .r7
+    else
+      #[.instruction { opcode := .mov64, dst := some .r7, src := some .r1 }]
+  base ++
   (List.range byteSize).foldl
     (fun acc idx =>
       acc ++ #[
-        .instruction { opcode := .ldxb, dst := some .r3, src := some .r1, off := some (.num (absOff + idx)) },
+        .instruction { opcode := .ldxb, dst := some .r3, src := some .r7, off := some (.num (binding.absOff + idx)) },
         .instruction { opcode := .stxb, dst := some .r5, off := some (.num idx), src := some .r3 }
       ])
     #[]
@@ -433,7 +456,7 @@ def lowerPdaValueSeed (pdaName : String) (idx : Nat) (kind source : String)
     .comment s!"solana.pda.seed {pdaName}[{idx}] {kind} {source} from {binding.sourceKind}"
   ] ++
   lowerPdaStackSeedPtr idx ++
-  lowerInputBytesToPdaSeed binding.absOff byteSize ++
+  lowerInputBytesToPdaSeed binding byteSize ++
   lowerPdaSeedTableEntry idx byteSize
 
 def lowerPdaBumpSeed (bindings : Array CpiValueBinding) (pdaName : String)
@@ -540,12 +563,8 @@ def lowerPdaDerive (accountBindings : Array CpiAccountBinding) (valueBindings : 
   lowerPdaSeeds accountBindings valueBindings pda ++
   stackPtr .r1 pdaSeedTableOffset ++ #[
     .instruction { opcode := .mov64, dst := some .r2, imm := some (.num pda.effectiveSeeds.size) },
-    .instruction { opcode := .mov64, dst := some .r3, src := some .r7 },
-    .instruction { opcode := .add64, dst := some .r3, imm := some (.sym "INSTRUCTION_DATA_LEN") },
-    .instruction { opcode := .ldxdw, dst := some .r5, src := some .r3, off := some (.num 0) },
-    .instruction { opcode := .add64, dst := some .r3, imm := some (.num 8) },
-    .instruction { opcode := .add64, dst := some .r3, src := some .r5 }
   ] ++
+  loadCurrentProgramIdPtr .r3 .r5 ++
   stackPtr .r4 pdaResultOffset ++ #[
     .comment "r1=seeds_ptr r2=seeds_len r3=program_id_ptr r4=result_ptr",
     callSyscall ProofForge.Backend.Solana.Syscalls.sol_create_program_address,
@@ -773,9 +792,18 @@ def lowerCpiU64Field (bindings : Array CpiValueBinding) (cpi : CpiInvoke)
       | none =>
           match cpiValueBinding? bindings source with
           | some binding =>
+              let loadValue :=
+                if binding.relativeToInstructionData then
+                  loadSavedInstructionDataPtr .r7 ++ #[
+                    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num binding.absOff) }
+                  ]
+                else
+                  #[
+                    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num binding.absOff) }
+                  ]
               #[
                 .comment s!"solana.cpi.value {fieldName} from {binding.sourceKind} {source}",
-                .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num binding.absOff) },
+              ] ++ loadValue ++ #[
                 storeReg .stxdw .r8 fieldOff .r3
               ]
           | none =>
@@ -793,11 +821,7 @@ def lowerCpiU64Field (bindings : Array CpiValueBinding) (cpi : CpiInvoke)
 
 def lowerCurrentProgramIdToData (fieldOff : Nat) : Array AstNode := #[
   .comment "solana.cpi.value owner=current_program_id",
-  .instruction { opcode := .mov64, dst := some .r7, src := some .r1 },
-  .instruction { opcode := .add64, dst := some .r7, imm := some (.sym "INSTRUCTION_DATA_LEN") },
-  .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
-  .instruction { opcode := .add64, dst := some .r7, imm := some (.num 8) },
-  .instruction { opcode := .add64, dst := some .r7, src := some .r3 },
+] ++ loadCurrentProgramIdPtr .r7 .r3 ++ #[
   .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
   storeReg .stxdw .r8 fieldOff .r3,
   .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 8) },

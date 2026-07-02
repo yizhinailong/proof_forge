@@ -45,6 +45,10 @@ solana-sdk-smoke:
 solana-pda-web3:
     scripts/solana/pda-web3-smoke.sh
 
+# Run a live System Program transfer CPI smoke on Surfpool with Web3.js.
+solana-system-cpi-web3:
+    scripts/solana/system-cpi-web3-smoke.sh
+
 # Run the canned Solana sBPF smoke. Skips when sbpf is unavailable.
 solana-emit-asm:
     scripts/solana/emit-asm-smoke.sh

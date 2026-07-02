@@ -8,10 +8,32 @@
 .globl entrypoint
 
 entrypoint:
+  ; save instruction_data pointer from generated Solana input layout
+  mov64 r3, r1
+  add64 r3, 88
+  ldxdw r4, [r3+0]
+  mov64 r3, r1
+  add64 r3, 96
+  add64 r3, r4
+  mov64 r5, r4
+  and64 r5, 7
+  jeq r5, 0, entrypoint_instruction_data_aligned
+  mov64 r6, 8
+  sub64 r6, r5
+  add64 r3, r6
+entrypoint_instruction_data_aligned:
+  add64 r3, 10240
+  add64 r3, 8
+  add64 r3, 8
+  mov64 r9, r3
+  stxdw [r10-3584], r3
   ; instruction_data.length >= 1
-  ldxdw r2, [r1+INSTRUCTION_DATA_LEN]
+  ldxdw r3, [r10-3584]
+  sub64 r3, 8
+  ldxdw r2, [r3+0]
   jlt r2, 1, error_instruction_data
-  ldxb r2, [r1+INSTRUCTION_DATA]
+  ldxdw r3, [r10-3584]
+  ldxb r2, [r3+0]
   jeq r2, 0, sol_initialize
   jeq r2, 1, sol_increment
   jeq r2, 2, sol_get
@@ -25,10 +47,10 @@ sol_initialize:
   ldxb r2, [r1+10]
   jeq r2, 0, error_not_writable
   ; account.validation[0:count]: owner=program
-  mov64 r4, r1
-  add64 r4, 10352
-  ldxdw r2, [r4+0]
-  add64 r4, 8
+  mov64 r4, r9
+  mov64 r2, r4
+  sub64 r2, 8
+  ldxdw r2, [r2+0]
   add64 r4, r2
   ldxdw r5, [r1+48]
   ldxdw r6, [r4+0]
@@ -54,10 +76,10 @@ sol_increment:
   ldxb r2, [r1+10]
   jeq r2, 0, error_not_writable
   ; account.validation[0:count]: owner=program
-  mov64 r4, r1
-  add64 r4, 10352
-  ldxdw r2, [r4+0]
-  add64 r4, 8
+  mov64 r4, r9
+  mov64 r2, r4
+  sub64 r2, 8
+  ldxdw r2, [r2+0]
   add64 r4, r2
   ldxdw r5, [r1+48]
   ldxdw r6, [r4+0]
@@ -89,10 +111,10 @@ sol_get:
   ldxb r2, [r1+10]
   jeq r2, 0, error_not_writable
   ; account.validation[0:count]: owner=program
-  mov64 r4, r1
-  add64 r4, 10352
-  ldxdw r2, [r4+0]
-  add64 r4, 8
+  mov64 r4, r9
+  mov64 r2, r4
+  sub64 r2, 8
+  ldxdw r2, [r2+0]
   add64 r4, r2
   ldxdw r5, [r1+48]
   ldxdw r6, [r4+0]

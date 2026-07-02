@@ -292,7 +292,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - 同一个 portable IR Counter 模块可以降级到 EVM 和 Solana。
 - 制品元数据记录 `target: "solana-sbpf-asm"`、`irVersion`、entrypoints 和使用的 capabilities。
 
-范围外（Phase 2+）：maps、struct types、events、bounded loops、Borsh serialization、完整 SPL Token 数据布局，以及真实运行时 CPI 验证。CPI 和 PDA 仍按 D-027 留在 Solana 特定层：SDK 现在通过 target capability call 和 sBPF helper action 路由它们，而不是把它们加入 portable IR。
+范围外（Phase 2+）：maps、struct types、events、bounded loops、Borsh serialization、完整 SPL Token 数据布局、完整 live CPI 矩阵覆盖，以及 Rust/Pinocchio 等价性。CPI 和 PDA 仍按 D-027 留在 Solana 特定层：SDK 通过 target capability call 和 sBPF helper action 路由它们，而不是把它们加入 portable IR。
 
 参考：[solana-sbpf-asm 设计文档](targets/solana-sbpf-asm.md) 的 Phased Implementation Plan。
 
@@ -325,6 +325,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] Runtime allocator target extension 现在建模 Solana 默认 downward-bump allocator（`heap_start = "0x300000000"`、`heap_bytes = 32768`），并提供与 Pinocchio no-heap entrypoint 对齐的 `noAllocator`/deny-dynamic 选项。选中的 allocator 会通过 `runtime.allocator` capability metadata 路由，并进入 `manifest.toml`、`proof-forge-artifact.json` 和 assembly metadata。覆盖：`Tests/SolanaAllocator.lean`、`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] 生成的 Solana SDK instruction schema 现在使用 module-wide multi-account account list，取代旧的单账户 manifest。schema 包含 state account、PDA account、CPI account 和 executable CPI program account；sBPF backend 会从同一份 schema 计算 `INSTRUCTION_DATA` offset，并在 prologue 中按 schema 校验 signer/writable 约束和 program-owned account。账户列表会进入 `manifest.toml` 与 `proof-forge-artifact.json`。覆盖：`Tests/SolanaSdkManifest.lean`、`Tests/SolanaCpiPacking.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] System Program transfer/create-account 与 SPL Token CPI instruction-data packing 现在会把标准 instruction bytes 写入 C `SolInstruction` payload。System transfer/create-account 使用 bincode-style `u32` discriminator，加 `u64` lamports/space 和 owner pubkey 字段；SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke` 使用标准 token instruction tag 和 amount/decimals layout。value source 可以绑定到生成的 scalar state offset、数字 literal 或已解码的 scalar entrypoint parameter。CPI helper 也会打包 program id bytes、C `SolAccountMeta[]`、绑定到生成的 multi-account input layout 的 `SolAccountInfo[]`、signer seed table，以及 syscall register setup。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] System Program transfer CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SystemCpi` 会构建生成的 `--solana-system-cpi-elf` fixture；entrypoint 读取 scalar `lamports` instruction parameter，执行 System Program transfer CPI，并把转账数写入 program-owned state account。`scripts/solana/system-cpi-web3-smoke.sh` 会校验 artifact schema，用 Solana CLI 在 Surfpool 部署 ELF，通过 `@solana/web3.js` 调用，并同时检查 recipient lamport delta 和 state data。sBPF lowering 会在 direct account mapping 下从序列化账户布局计算 instruction-data pointer，并保存在 `r9`，避免 internal helper call 跨 callee stack frame 时丢失该指针。覆盖：`just solana-system-cpi-web3` / V-GATE-SOLANA-10。
 - [x] Entry instruction-data decoding 现在把第 0 字节作为 entrypoint tag，从 `instruction_data+1` 起按 packed scalar parameter 解码到 stack local。初始 scalar ABI 支持 `U64`、`U32` 和 `Bool`，在 `manifest.toml`/`proof-forge-artifact.json` 中发射 per-entrypoint parameter schema 和 minimum instruction-data length，对过短 payload 返回 `error_instruction_data`，并把同一组固定 input offset 暴露给 CPI value binding，因此 SPL Token `transfer_checked` 这类 SDK 调用可以从用户 instruction parameter 读取 `amount`，不再落到 placeholder。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean` 和 `scripts/solana/sdk-smoke.sh`。
 
 ### Solana SDK 补齐路线图
@@ -332,8 +333,8 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 基线：截至 2026-07-02，Solana 路线已经具备 direct sBPF assembly emission、
 通过 Surfpool/Web3.js 部署 Counter、SDK capability metadata、生成
 manifest/artifact、module-wide multi-account schema、标准 System/SPL Token CPI
-data packing、bump-allocator metadata、scalar entrypoint parameter decoding，
-以及 typed PDA seed lowering。下面估算默认一名工程师持续在这个分支推进，
+data packing、bump-allocator metadata、scalar entrypoint parameter decoding、
+typed PDA seed lowering，以及 live System Program transfer CPI validation。下面估算默认一名工程师持续在这个分支推进，
 当前 direct-assembly 架构保持稳定，并且本地 `sbpf`/Surfpool/Solana CLI
 工具链可用。
 
@@ -356,12 +357,15 @@ data packing、bump-allocator metadata、scalar entrypoint parameter decoding，
   SDK Vault `typedSeeds` artifact data，并用 `PublicKey.findProgramAddressSync`
   和 `PublicKey.createProgramAddressSync` 校验 literal/account/bump descriptor
   语义；harness 也覆盖 UTF-8 与 instruction-parameter resolver 行为。
+- Live System Program transfer CPI fixture：`scripts/solana/system-cpi-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 transfer CPI 程序，通过 Web3.js 调用，并证明
+  lamport movement 与 state write 都成立。
 
 剩余优先切片：
 
-1. Live CPI validation（2-3 天）：在 Surfpool/Web3.js 上实际跑 System Program
-   transfer/create-account 和 SPL Token transfer_checked/mint_to/burn/approve/
-   revoke，再与 Rust/Pinocchio reference fixture 对比行为。
+1. Live CPI validation（2-3 天）：把已经跑通的 System Program transfer smoke
+   扩展到 System Program create-account 和 SPL Token transfer_checked/mint_to/
+   burn/approve/revoke，再与 Rust/Pinocchio reference fixture 对比行为。
 2. Logs、return data、sysvars、crypto 与 memory helpers（3-5 天）：暴露
    `sol_log*`、`sol_set_return_data`、`sol_get_return_data`、clock/rent sysvar
    reads、`sol_sha256`/`sol_keccak256`/`sol_blake3`，以及

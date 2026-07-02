@@ -140,7 +140,9 @@ def main : IO UInt32 := do
         "package assembly missing PDA seed slice ptr store"
       require (contains asmFile.contents "stxdw [r6+8], r3")
         "package assembly missing PDA seed slice length store"
-      require (contains asmFile.contents "add64 r3, INSTRUCTION_DATA_LEN")
+      require (contains asmFile.contents "mov64 r9, r3")
+        "package assembly missing entry instruction-data pointer register save"
+      require (contains asmFile.contents "mov64 r3, r9")
         "package assembly missing dynamic program id pointer calculation"
       require (contains asmFile.contents "call sol_create_program_address")
         "package assembly missing PDA syscall"

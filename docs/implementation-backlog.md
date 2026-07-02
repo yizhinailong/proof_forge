@@ -599,10 +599,10 @@ Acceptance criteria:
   entrypoints, and capabilities used.
 
 Out of scope (Phase 2+): maps, struct types, events, bounded loops, Borsh
-serialization, full SPL Token data layouts, and runtime CPI validation. CPI and
-PDA stay Solana-specific (D-027): the SDK now routes them through target
-capability calls and sBPF helper actions instead of adding them to the portable
-IR.
+serialization, full SPL Token data layouts, complete live CPI matrix coverage,
+and Rust/Pinocchio equivalence. CPI and PDA stay Solana-specific (D-027): the
+SDK routes them through target capability calls and sBPF helper actions instead
+of adding them to the portable IR.
 
 Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md) § Phased
 Implementation Plan.
@@ -724,6 +724,18 @@ partial progress is visible before the full acceptance criteria close:
       layout, signer seed tables, and syscall register setup. Covered by
       `Tests/SolanaCpiPacking.lean`, `Tests/SolanaSdkManifest.lean`, and
       `scripts/solana/sdk-smoke.sh`.
+- [x] System Program transfer CPI now has a live Surfpool/Web3.js behavior
+      gate. `ProofForge.Solana.Examples.SystemCpi` builds a generated
+      `--solana-system-cpi-elf` fixture whose entrypoint reads a scalar
+      `lamports` instruction parameter, performs a System Program transfer CPI,
+      and records the transferred amount in a program-owned state account.
+      `scripts/solana/system-cpi-web3-smoke.sh` validates the artifact schema,
+      deploys the ELF on Surfpool with Solana CLI, invokes it through
+      `@solana/web3.js`, and checks both recipient lamport delta and state data.
+      The sBPF lowering computes the instruction-data pointer from the
+      serialized account layout under direct account mapping and keeps it in
+      `r9` so internal helper calls do not lose it across callee stack frames.
+      Coverage: `just solana-system-cpi-web3` / V-GATE-SOLANA-10.
 - [x] Entry instruction-data decoding now treats byte 0 as the entrypoint tag
       and decodes packed scalar parameters from `instruction_data+1` into
       stack locals. The initial scalar ABI supports `U64`, `U32`, and `Bool`,
@@ -741,10 +753,10 @@ Baseline: as of 2026-07-02, the Solana path has direct sBPF assembly emission,
 Counter deployment through Surfpool/Web3.js, SDK capability metadata, generated
 manifest/artifact output, module-wide multi-account schemas, standard
 System/SPL Token CPI data packing, bump-allocator metadata, scalar entrypoint
-parameter decoding, and typed PDA seed lowering. The estimates below assume one
-engineer working on this branch, the current direct-assembly architecture
-staying stable, and local `sbpf`/Surfpool/Solana CLI tooling remaining
-available.
+parameter decoding, typed PDA seed lowering, and live System Program transfer
+CPI validation. The estimates below assume one engineer working on this branch,
+the current direct-assembly architecture staying stable, and local
+`sbpf`/Surfpool/Solana CLI tooling remaining available.
 
 | Level | Estimated effort | Done when |
 |---|---:|---|
@@ -767,13 +779,17 @@ Completed alpha slices:
   bump descriptor semantics against `PublicKey.findProgramAddressSync` and
   `PublicKey.createProgramAddressSync`; the harness also covers UTF-8 and
   instruction-parameter resolver behavior.
+- Live System Program transfer CPI fixture:
+  `scripts/solana/system-cpi-web3-smoke.sh` builds and deploys a generated
+  transfer CPI program on Surfpool, invokes it through Web3.js, and proves both
+  the lamport movement and state write.
 
 Remaining priority slices:
 
-1. Live CPI validation (2-3 days): exercise System Program transfer/
-   create-account and SPL Token transfer_checked/mint_to/burn/approve/revoke
-   against Surfpool/Web3.js, then compare behavior with Rust/Pinocchio
-   reference fixtures.
+1. Live CPI validation (2-3 days): extend the proven System Program transfer
+   smoke to System Program create-account and SPL Token transfer_checked/
+   mint_to/burn/approve/revoke against Surfpool/Web3.js, then compare behavior
+   with Rust/Pinocchio reference fixtures.
 2. Logs, return data, sysvars, crypto, and memory helpers (3-5 days): expose
    `sol_log*`, `sol_set_return_data`, `sol_get_return_data`, clock/rent sysvar
    reads, `sol_sha256`/`sol_keccak256`/`sol_blake3`, and
