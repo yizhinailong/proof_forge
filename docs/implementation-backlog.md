@@ -2084,48 +2084,69 @@ Acceptance criteria:
 - Capability gating via `runtime.allocator` cites `alloc.*` ids in
   diagnostics for unsupported release/strategy demands.
 
+## Workstream 28: Target Portfolio Sequencing
+
+Goal: execute the tiered portfolio in
+[target-roadmap.md](target-roadmap.md) (D-034). Gates, not dates; one
+milestone per implementing branch.
+
+Tasks:
+
+- Gate G0 (Tier-0 exit): testkit M3 (Workstream 26) plus shared-scenario
+  parity on `evm`, `solana-sbpf-asm`, `wasm-near`.
+- Tier 1a `wasm-cosmwasm`: M1 CosmWasm host imports + region-allocator ABI
+  in EmitWat (the `cosmWasmRegion` binding from RFC 0008); M2 Counter
+  artifact passes `cosmwasm-check`; M3 testkit `harness-cosmwasm` scenario
+  green with cross-target equivalence vs `wasm-near`; M4 registry stage →
+  Experimental.
+- Tier 1b `move-aptos` (parallel to 1a): M1 IR → Move module printer for
+  the Counter subset; M2 `aptos move test` gate + golden fixture; M3
+  testkit CLI-wrapped executor; M4 capability rows validated; `move-sui`
+  only after M4.
+- Tier 2 (each behind its enabler, see roadmap): `wasm-stellar-soroban`
+  after CosmWasm M4; `wasm-icp-canister` additionally requires an
+  async/inter-canister design note before any code; `starknet-cairo` is
+  the first sourcegen-lane pick after Aptos M4; `ton-tvm`,
+  `algorand-avm`, `cardano-plutus-aiken`, `tezos-michelson-ligo` follow
+  the one-active-sourcegen-spike rule.
+- Tier 3 Bitcoin policy family (opens at Gate G2 = both Tier-1 exits):
+  M1 policy IR (predicate tree) + `policy.*` capability ids in the
+  registry docs; M2 rust-miniscript/descriptor emission for the 2-of-3 +
+  timelock-recovery shared policy scenario; M3 PSBT/regtest testkit gate;
+  M4 Lean policy-property checks (path reachability, participant
+  non-omission) as decide-checked theorems. `bch-cashscript`,
+  `zcash-shielded`, and `kaspa-toccata` stay parked behind M4.
+
+Acceptance criteria:
+
+- No Tier-1 code lands before Gate G0; no Tier-2 target starts before its
+  listed enabler; at most one sourcegen spike is active at any time.
+- Policy-family targets never appear in contract-family capability rows;
+  they get a separate `policy.*` section in the capability registry when
+  Tier 3 opens.
+
 ## Suggested Order
 
-0. Architecture convergence follow-ups (Workstream 24) and FV-1/FV-2 from the
-   formal verification roadmap (Workstream 25); then the unified testkit
-   (Workstream 26) and allocator unification (Workstream 27), which are
-   parallelizable — testkit M1/M2 has no dependency on allocator M1/M2,
-   and allocator M4 lands after testkit M3.
-1. Target registry (Workstream 1).
-2. Portable IR + shared Counter scenario (Workstream 1.5).
-3. EVM artifact metadata and deploy manifest (Workstreams 2–3).
-4. Wasm runtime split (Workstream 4).
-5. **Parallel:** CosmWasm spike (Workstream 5) and Solana sBPF assembly
-   toolchain integration (Workstream 6 — D-026 supersedes the old sbpf-linker
-   spike).
-6. Solana sBPF assembly Counter codegen (Workstream 7 — D-026).
-7. Move Aptos POC (Workstream 8).
-8. Psy DPN sourcegen spike (Workstream 10) once the IR fixture exists.
-9. Kaspa Toccata research target review (Workstream 11) before any registry
-   changes.
-10. Stellar Soroban research target review (Workstream 12) before any registry
-    changes.
-11. Internet Computer research target review (Workstream 13) before any registry
-    changes.
-12. Algorand AVM research target review (Workstream 16) before any registry
-    changes.
-13. Cardano Plutus/Aiken research target review (Workstream 17) before any
-    registry changes.
-14. Tezos Michelson/LIGO research target review (Workstream 18) before any
-    registry changes.
-15. Starknet Cairo research target review (Workstream 19) before any registry
-    changes.
-16. Aleo Leo research target review (Workstream 22) before any registry
-    changes.
-17. TON TVM research target review (Workstream 14) before any registry changes.
-18. Bitcoin Script/Miniscript research target review (Workstream 20) before any
-    registry changes.
-19. Zcash Shielded research target review (Workstream 21) before any registry
-    changes.
-20. Bitcoin Cash CashScript research target review (Workstream 15) before any
-    registry changes.
-21. Multi-chain Token SDK (Workstream 23) after the EVM and Solana validation
-    paths can both run locally.
-22. CI target matrix (Workstream 9).
-23. Cloud platform design refresh (prerequisite: two+ targets at Experimental
-   stage; see [decisions.md](decisions.md)).
+Workstreams 1, 1.5, 2–3, 6–7 (registry, portable IR, EVM metadata, Solana
+asm) are substantially complete; remaining per-target detail lives in each
+workstream. The forward order follows the tier gates of
+[target-roadmap.md](target-roadmap.md) (D-034):
+
+0. Architecture convergence follow-ups (Workstream 24) and FV-1/FV-2 from
+   the formal verification roadmap (Workstream 25).
+1. **Parallel:** unified testkit (Workstream 26) and allocator unification
+   (Workstream 27) — testkit M1/M2 has no dependency on allocator M1/M2;
+   allocator M4 lands after testkit M3.
+2. Gate G0: shared-scenario parity on `evm` + `solana-sbpf-asm` +
+   `wasm-near` through testkit (closes the current phase; D-034).
+3. **Parallel Tier 1:** `wasm-cosmwasm` (Workstreams 5/28) and `move-aptos`
+   (Workstreams 8/28).
+4. Tier 2 per enabler: Soroban after CosmWasm; Sui and the sourcegen lane
+   (Starknet first pick) after Aptos; ICP additionally behind an async
+   design note; one sourcegen spike at a time (Workstreams 12–19/22, 28).
+5. Bitcoin policy family at Gate G2 (Workstreams 11/15/20/21, 28) —
+   miniscript first, then CashScript/Zcash/Kaspa behind it.
+6. Multi-chain Token SDK follow-ups (Workstream 23) continue alongside, and
+   the remaining live-gate CI matrix (Workstream 9) grows with each target.
+7. Cloud platform design refresh (prerequisite: two+ targets at Experimental
+   with shared-scenario parity; D-010).
