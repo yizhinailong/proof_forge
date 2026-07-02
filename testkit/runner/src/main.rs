@@ -6,6 +6,7 @@ use anyhow::{bail, Context, Result};
 use proof_forge_testkit_core::{
     assert_expectations, discover_scenarios, ChainHarness, ScenarioCase,
 };
+use proof_forge_testkit_harness_evm::EvmHarness;
 use proof_forge_testkit_harness_near::NearHarness;
 
 fn main() -> Result<()> {
@@ -155,6 +156,8 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
 
 fn harnesses() -> HashMap<&'static str, Box<dyn ChainHarness>> {
     let mut harnesses: HashMap<&'static str, Box<dyn ChainHarness>> = HashMap::new();
+    let evm = EvmHarness::new();
+    harnesses.insert(evm.target_id(), Box::new(evm));
     let near = NearHarness::new();
     harnesses.insert(near.target_id(), Box::new(near));
     harnesses

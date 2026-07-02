@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit M2 EVM Harness
+
+Commit: feature commit for unified testkit EVM harness
+
+Summary:
+
+- Added `testkit/harness-evm`, backed by `revm`, as the second target harness
+  for RFC 0007.
+- Extended `testkit/scenarios/counter.toml` so the same portable Counter
+  scenario runs against both `wasm-near` and `evm`.
+- The EVM harness emits portable IR Counter runtime bytecode and artifact
+  metadata, loads selectors from metadata, installs the runtime bytecode into
+  an in-memory EVM account, and executes each scenario call as a committed EVM
+  transaction with sequential nonces.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all
+cargo check --manifest-path testkit/Cargo.toml
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --target evm
+just testkit
+```
+
+Known limitations:
+
+- The EVM harness currently covers the portable IR Counter fixture only.
+- It validates scenario-level behavior through `revm`; Foundry and Anvil remain
+  the mature EVM runtime/deploy gates for broader contracts and live local
+  chain behavior.
+- Cross-target comparison is still implicit through shared expectations; an
+  explicit trace-diff layer should be added next.
+
+Next step:
+
+- Add a target trace comparison report so `wasm-near` and `evm` outcomes are
+  compared directly for the shared scenario, then wire the first Solana/Mollusk
+  or sBPF runner into the same testkit interface.
+
 ### Unified Testkit M1 Skeleton
 
 Commit: feature commit for unified testkit M1 skeleton
