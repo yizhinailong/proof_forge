@@ -3,7 +3,7 @@
 #
 # Builds the generated memory syscall ELF, starts Surfpool, deploys with
 # Solana CLI, invokes it through @solana/web3.js, and verifies account bytes
-# after sol_memcpy_, sol_memcmp_, and sol_memset_ execute on chain.
+# after sol_memcpy_, sol_memmove_, sol_memcmp_, and sol_memset_ execute on chain.
 #
 # Exit codes:
 #   0 - all gates passed
@@ -97,6 +97,7 @@ memory_actions = extensions.get("memoryActions", [])
 ops = sorted((action.get("memory"), action.get("op")) for action in memory_actions)
 expected = sorted([
     ("copy_source", "memcpy"),
+    ("move_source", "memmove"),
     ("compare_copy", "memcmp"),
     ("fill_bytes", "memset"),
 ])

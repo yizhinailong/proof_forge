@@ -83,7 +83,7 @@ async function main() {
   });
   const payer = readKeypair(payerPath);
   const programId = new PublicKey(programIdValue);
-  const state = await createProgramState(connection, payer, programId, 32);
+  const state = await createProgramState(connection, payer, programId, 40);
   const sourceValue = 0x1122334455667788n;
 
   const setSourceIx = new TransactionInstruction({
@@ -117,11 +117,15 @@ async function main() {
   const copied = readU64LE(account.data, 8);
   const filled = account.data.subarray(16, 24);
   const cmpResult = readU64LE(account.data, 24);
+  const moved = readU64LE(account.data, 32);
   if (source !== sourceValue) {
     throw new Error(`source mismatch: expected ${sourceValue}, got ${source}`);
   }
   if (copied !== sourceValue) {
     throw new Error(`copied mismatch: expected ${sourceValue}, got ${copied}`);
+  }
+  if (moved !== sourceValue) {
+    throw new Error(`moved mismatch: expected ${sourceValue}, got ${moved}`);
   }
   if (cmpResult !== 0n) {
     throw new Error(`memcmp result mismatch: expected 0, got ${cmpResult}`);
@@ -140,6 +144,7 @@ async function main() {
     memorySignature,
     source: source.toString(),
     copied: copied.toString(),
+    moved: moved.toString(),
     cmpResult: cmpResult.toString(),
     filledHex: Buffer.from(filled).toString("hex"),
   }));

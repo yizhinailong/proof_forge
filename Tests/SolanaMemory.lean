@@ -66,6 +66,17 @@ def main : IO UInt32 := do
   requireMetadata copyCall "solana.memory.src_state" "source"
   requireMetadata copyCall "solana.memory.bytes" "8"
 
+  let moveCall ←
+    match scopedMemoryCall? plan "move_source" "copy_compare_fill" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana memory plan missing move_source action"
+  require (moveCall.operation == "solana.memory.memmove")
+    "move_source should lower through solana.memory.memmove"
+  requireMetadata moveCall "solana.memory.op" "memmove"
+  requireMetadata moveCall "solana.memory.dst_state" "moved"
+  requireMetadata moveCall "solana.memory.src_state" "source"
+  requireMetadata moveCall "solana.memory.bytes" "8"
+
   let cmpCall ←
     match scopedMemoryCall? plan "compare_copy" "copy_compare_fill" with
     | some call => pure call
@@ -109,6 +120,14 @@ def main : IO UInt32 := do
         "assembly missing memcpy marker"
       require (contains asm "call sol_memcpy_")
         "assembly missing sol_memcpy_ syscall"
+      require (contains manifest "memory = \"move_source\"")
+        "memory manifest missing move_source action"
+      require (contains manifest "op = \"memmove\"")
+        "memory manifest missing memmove op"
+      require (contains asm "sol_memory_memmove_move_source:")
+        "assembly missing memmove helper label"
+      require (contains asm "call sol_memmove_")
+        "assembly missing sol_memmove_ syscall"
       require (contains asm "sol_memory_memcmp_compare_copy:")
         "assembly missing memcmp helper label"
       require (contains asm "call sol_memcmp_")

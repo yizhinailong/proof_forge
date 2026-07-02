@@ -68,12 +68,14 @@ structure AllocatorConfig where
 
 inductive MemoryOp where
   | memcpy
+  | memmove
   | memcmp
   | memset
   deriving BEq, DecidableEq, Repr
 
 def MemoryOp.id : MemoryOp -> String
   | .memcpy => "memcpy"
+  | .memmove => "memmove"
   | .memcmp => "memcmp"
   | .memset => "memset"
 
@@ -479,6 +481,16 @@ def memcpyState (name dstState srcState : String) (bytes : Nat) :
   memoryEntry {
     name := name
     op := .memcpy
+    dstState? := some dstState
+    srcState? := some srcState
+    bytes := bytes
+  }
+
+def memmoveState (name dstState srcState : String) (bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  memoryEntry {
+    name := name
+    op := .memmove
     dstState? := some dstState
     srcState? := some srcState
     bytes := bytes

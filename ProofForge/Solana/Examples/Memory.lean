@@ -12,15 +12,18 @@ def spec : ProofForge.Contract.ContractSpec :=
     scalarState "copied" .u64
     scalarState "filled" .u64
     scalarState "cmp_result" .u64
+    scalarState "moved" .u64
 
     entrySelectorWithParams "set_source" "0a" #[("value", .u64)] .unit do
       effect (storageScalarWrite "source" (localVar "value"))
       effect (storageScalarWrite "copied" (u64 0))
       effect (storageScalarWrite "filled" (u64 0))
       effect (storageScalarWrite "cmp_result" (u64 999))
+      effect (storageScalarWrite "moved" (u64 0))
 
     entrySelector "copy_compare_fill" "0b" do
       memcpyState "copy_source" "copied" "source" 8
+      memmoveState "move_source" "moved" "source" 8
       memcmpState "compare_copy" "source" "copied" "cmp_result" 8
       memsetState "fill_bytes" "filled" 170 8
 

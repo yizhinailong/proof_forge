@@ -788,7 +788,7 @@ validation, and live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
 validation, plus live scalar `events.emit` log validation through
 `sol_log_64_`, and live `Clock.slot` sysvar validation for `contextRead
 checkpointId`, plus live `runtime.memory` validation through `sol_memcpy_`,
-`sol_memcmp_`, and `sol_memset_`, plus live Solana-only `crypto.hash`
+`sol_memmove_`, `sol_memcmp_`, and `sol_memset_`, plus live Solana-only `crypto.hash`
 validation through `sol_sha256`. The estimates below assume one engineer working on this branch,
 the current direct-assembly architecture staying stable, and local
 `sbpf`/Surfpool/Solana CLI tooling remaining available.
@@ -845,8 +845,9 @@ Completed alpha slices:
   and proves the recorded `Clock.slot` matches the observed transaction slot.
 - Live memory syscall fixture: `scripts/solana/memory-web3-smoke.sh` builds and
   deploys a generated `runtime.memory` program on Surfpool, invokes it through
-  Web3.js, and proves `sol_memcpy_`, `sol_memcmp_`, and `sol_memset_` effects by
-  reading copied value, compare result, and fill bytes from program-owned state.
+  Web3.js, and proves `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and
+  `sol_memset_` effects by reading copied value, moved value, compare result,
+  and fill bytes from program-owned state.
 - Live SHA-256 syscall fixture:
   `scripts/solana/crypto-hash-web3-smoke.sh` builds and deploys a generated
   Solana-only `crypto.hash` program on Surfpool, invokes `set_preimage` plus
@@ -865,9 +866,8 @@ Remaining priority slices:
    Anchor-style and indexed event forms; expose `sol_get_return_data`,
    typed return payload helpers beyond `u64`, rent/epoch sysvar reads,
    `sol_keccak256`/`sol_blake3`, portable `Expr.hash` routing where the hash
-   semantics match the target, `sol_memmove_`, and broader account/data packing
-   helpers that reuse the new memory syscall path, with JavaScript reference
-   checks.
+   semantics match the target, and broader account/data packing helpers that
+   reuse the new memory syscall path, with JavaScript reference checks.
 3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures
    through `runtime.allocator`, emit actual downward bump-pointer allocation
    code when needed, and reject allocation-using structures under

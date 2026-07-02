@@ -60,12 +60,14 @@ structure CpiInvoke where
 
 inductive MemoryOp where
   | memcpy
+  | memmove
   | memcmp
   | memset
   deriving BEq, DecidableEq, Repr, Inhabited
 
 def MemoryOp.id : MemoryOp -> String
   | .memcpy => "memcpy"
+  | .memmove => "memmove"
   | .memcmp => "memcmp"
   | .memset => "memset"
 
@@ -210,6 +212,7 @@ def entrypoint? (call : CapabilityCall) : Option String :=
 
 def memoryOpFromString? : String -> Option MemoryOp
   | "memcpy" => some .memcpy
+  | "memmove" => some .memmove
   | "memcmp" => some .memcmp
   | "memset" => some .memset
   | _ => none
@@ -1341,6 +1344,20 @@ def lowerMemoryMemcpy (valueBindings : Array CpiValueBinding)
     callSyscall ProofForge.Backend.Solana.Syscalls.sol_memcpy_
   ]
 
+def lowerMemoryMemmove (valueBindings : Array CpiValueBinding)
+    (action : MemoryAction) : Array AstNode :=
+  let dstState := memoryStateName action.dstState? "dst"
+  let srcState := memoryStateName action.srcState? "src"
+  #[
+    .comment s!"solana.memory.memmove {action.name}: dst={dstState} src={srcState} bytes={action.bytes}"
+  ] ++
+  lowerMemoryStatePtr valueBindings dstState "dst" .r1 .r7 ++
+  lowerMemoryStatePtr valueBindings srcState "src" .r2 .r7 ++ #[
+    loadImm .r3 action.bytes,
+    .comment "r1=dst_ptr r2=src_ptr r3=n",
+    callSyscall ProofForge.Backend.Solana.Syscalls.sol_memmove_
+  ]
+
 def lowerMemoryMemset (valueBindings : Array CpiValueBinding)
     (action : MemoryAction) : Array AstNode :=
   let dstState := memoryStateName action.dstState? "dst"
@@ -1384,6 +1401,7 @@ def lowerMemoryHelper (valueBindings : Array CpiValueBinding)
   let body :=
     match action.op with
     | .memcpy => lowerMemoryMemcpy valueBindings action
+    | .memmove => lowerMemoryMemmove valueBindings action
     | .memcmp => lowerMemoryMemcmp valueBindings action
     | .memset => lowerMemoryMemset valueBindings action
   #[
