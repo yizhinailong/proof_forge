@@ -488,6 +488,12 @@ helpers emit `solana.cpi.protocol`, `solana.cpi.data_layout`, account metas,
 signer seeds, and instruction-data sources into the capability plan, manifest,
 and artifact metadata.
 
+The source-facing layer exposes first-class `contract_source` forms for System
+Program transfer, System Program `create_account`, and SPL Token
+`transfer_checked`. These forms are still a v1 embedded macro frontend rather
+than the final standalone Learn parser, but they prevent new examples from
+dropping back to raw `ContractSpec`/builder strings for the core CPI paths.
+
 System and SPL Token helpers now emit the C ABI packing skeleton for
 `sol_invoke_signed_c`: program id bytes, C `SolAccountMeta[]`, standard
 instruction-data bytes, C `SolInstruction`, bound `SolAccountInfo[]`, optional

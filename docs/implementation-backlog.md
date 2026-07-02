@@ -993,6 +993,13 @@ Completed developer-surface slices:
   emits declared account constraints into `manifest.toml`,
   `proof-forge-artifact.json` (`solanaExtensions.accounts`), and the generated
   account-validation schema.
+- System create-account source syntax:
+  `ProofForge.Contract.Source` now exposes source-level
+  `cpi ... system_create_account(...) owner ...` and
+  `invoke ... system_create_account(...) owner ...` forms.
+  `ProofForge.Solana.Examples.SystemCreateAccountCpi` uses those forms instead
+  of the lower-level builder API while preserving the existing generated
+  assembly, manifest, artifact, and Surfpool/Web3.js behavior gate.
 - Target-stage ABI selector hydration:
   the ValueVault CLI emit path derives EVM selectors from each entrypoint's
   Solidity ABI signature with `cast sig` immediately before EVM Yul/bytecode
@@ -1018,14 +1025,14 @@ Current boundary:
   entry/query bodies, events, arithmetic, and first Solana account/PDA/CPI
   declarations. `ProofForge.Solana.Examples.SystemCpi` now also uses
   source-level `cpi ... system_transfer(...)` / `invoke ... system_transfer(...)`
-  forms while retaining the existing Pinocchio reference-equivalence artifact
-  contract. The next source-syntax gap is to broaden the Solana forms beyond
-  System transfer and SPL Token transfer-checked to create-account, additional
-  SPL Token ops, sysvars, logs, memory, crypto, and richer Pinocchio-style
-  account validation ergonomics while the target extension layer derives
-  chain-specific
-  selectors, instruction tags, IDL/client metadata, and package artifacts during
-  compilation.
+  forms and `ProofForge.Solana.Examples.SystemCreateAccountCpi` uses
+  source-level System `create_account` forms while retaining the existing
+  Pinocchio/Web3.js artifact contract. The next source-syntax gap is to broaden
+  the Solana forms beyond System transfer/create-account and SPL Token
+  transfer-checked to additional SPL Token ops, sysvars, logs, memory, crypto,
+  and richer Pinocchio-style account validation ergonomics while the target
+  extension layer derives chain-specific selectors, instruction tags,
+  IDL/client metadata, and package artifacts during compilation.
 
 Remaining priority slices:
 

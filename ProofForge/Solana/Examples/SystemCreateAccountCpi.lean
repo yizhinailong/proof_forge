@@ -1,36 +1,28 @@
-import ProofForge.Contract.Builder
-import ProofForge.Solana
+import ProofForge.Contract.Source
 
 namespace ProofForge.Solana.Examples.SystemCreateAccountCpi
 
-open ProofForge.Contract.Builder
-open ProofForge.Solana
+open ProofForge.Contract.Source
 
-def spec : ProofForge.Contract.ContractSpec :=
-  build "SolanaSystemCreateAccountCpi" do
-    scalarState "last_created_lamports" .u64
-    scalarState "last_created_space" .u64
+contract_source SolanaSystemCreateAccountCpi do
+  state last_created_lamports : .u64
+  state last_created_space : .u64
 
-    systemCreateAccount
-      "create_program_account"
-      "payer"
-      "new_account"
-      "lamports"
-      "space"
-      "program"
+  cpi create_program_account system_create_account(
+    payer,
+    new_account,
+    lamports,
+    space
+  ) owner "program"
 
-    entrySelectorWithParams "create" "02" #[("lamports", .u64), ("space", .u64)] .unit do
-      invokeSystemCreateAccount
-        "create_program_account"
-        "payer"
-        "new_account"
-        "lamports"
-        "space"
-        "program"
-      effect (storageScalarWrite "last_created_lamports" (localVar "lamports"))
-      effect (storageScalarWrite "last_created_space" (localVar "space"))
-
-def module : ProofForge.IR.Module :=
-  spec.module
+  entry create(lamports : .u64, space : .u64) do
+    invoke create_program_account system_create_account(
+      payer,
+      new_account,
+      lamports,
+      space
+    ) owner "program";
+    last_created_lamports := lamports;
+    last_created_space := space;
 
 end ProofForge.Solana.Examples.SystemCreateAccountCpi

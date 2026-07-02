@@ -56,6 +56,7 @@ flowchart TB
 
 - [开发标准](development-standards.md)：贡献者规则和单一真值源映射。
 - [开发日志](development-log.md)：带有验证说明和后续步骤的里程碑日志。
+- [Authoring model](authoring-model.zh.md)：Learn source、`contract_source` 与内部 `ContractSpec` 边界。
 - [验证门禁](validation-gates.md)：可运行的门禁和工具先决条件。
 - [实现待办事项](implementation-backlog.md)：分阶段任务和验收标准。
 - [评审清单 (英文)](review-checklist.md)

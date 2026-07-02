@@ -539,6 +539,13 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   target extension 会把声明式 account constraint 发射到 `manifest.toml`、
   `proof-forge-artifact.json`（`solanaExtensions.accounts`）以及生成的
   account-validation schema。
+- System create-account source syntax：
+  `ProofForge.Contract.Source` 现在提供 source-level
+  `cpi ... system_create_account(...) owner ...` 和
+  `invoke ... system_create_account(...) owner ...` 形式。
+  `ProofForge.Solana.Examples.SystemCreateAccountCpi` 已经改用这些形式，不再使用
+  低层 builder API，同时保留已有 generated assembly、manifest、artifact 与
+  Surfpool/Web3.js behavior gate。
 - Target-stage ABI selector hydration：
   ValueVault CLI emit path 会在 EVM Yul/bytecode 发射前，根据每个
   entrypoint 的 Solidity ABI signature 通过 `cast sig` 派生 EVM selector，
@@ -562,13 +569,14 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   parser。它目前覆盖 portable scalar state、entry/query body、event 和
   arithmetic，也覆盖了第一批 Solana account/PDA/CPI declaration。
   `ProofForge.Solana.Examples.SystemCpi` 现在也使用 source-level
-  `cpi ... system_transfer(...)` / `invoke ... system_transfer(...)` 形式，同时
-  保持现有 Pinocchio reference-equivalence artifact contract。下一步
-  source-syntax 缺口是把 Solana 形式从 System transfer 和 SPL Token
-  transfer-checked 扩展到 create-account、更多 SPL Token ops、sysvar、log、
-  memory、crypto，以及更接近 Pinocchio 的 account validation ergonomics；
-  同时由 target extension 层在编译阶段派生 selector、instruction tag、
-  IDL/client metadata 和 package artifact。
+  `cpi ... system_transfer(...)` / `invoke ... system_transfer(...)` 形式，
+  `ProofForge.Solana.Examples.SystemCreateAccountCpi` 也使用 source-level
+  System `create_account` 形式，同时保持现有 Pinocchio/Web3.js artifact
+  contract。下一步 source-syntax 缺口是把 Solana 形式从 System
+  transfer/create-account 和 SPL Token transfer-checked 扩展到更多 SPL Token
+  ops、sysvar、log、memory、crypto，以及更接近 Pinocchio 的 account
+  validation ergonomics；同时由 target extension 层在编译阶段派生 selector、
+  instruction tag、IDL/client metadata 和 package artifact。
 
 剩余优先切片：
 
