@@ -72,9 +72,11 @@ state/account 引用，因此剩余带字符串的 identifier 属于被检查过
 用户面对 spec plumbing。
 `ProofForge.Contract.Token.Learn` 会单独解析
 `Examples/Learn/ProofToken.learn` 与 `Examples/Learn/FeeToken.learn` 这样的
-Learn token intent source。`--learn-token --target evm` 会发射 ERC-20 token
-plan；`--learn-token --target solana-sbpf-asm` 会发射 SPL Token plan，并在
-`transfer_fee` 这类功能需要 Token Extensions 时自动切到 Token-2022。
+Learn token intent source。`--learn-token --target evm` 现在会发射 ERC-20
+Yul、bytecode 和 artifact metadata，并使用标准 ERC-20 selector 以及
+Transfer/Approval topic；`--learn-token --target solana-sbpf-asm` 会发射 SPL
+Token plan，并在 `transfer_fee` 这类功能需要 Token Extensions 时自动切到
+Token-2022。
 `ProofForge.Contract.Source` 仍是可执行的 embedded syntax layer，覆盖：
 
 - portable scalar state；

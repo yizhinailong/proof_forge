@@ -12,6 +12,7 @@ import ProofForge.Backend.Solana.Idl
 import ProofForge.Backend.Solana.Client
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Learn
+import ProofForge.Contract.Token.Evm
 import ProofForge.Contract.Token.Learn
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
@@ -353,7 +354,8 @@ def usage : String :=
     "  proof-forge --learn --target evm [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
     "  proof-forge --learn --target solana-sbpf-asm [-o output.s] [--artifact-output file] input.learn",
     "  proof-forge --learn-target <target-id> [target options] input.learn",
-    "  proof-forge --learn-token --target <target-id> [-o token-plan.json] input.learn",
+    "  proof-forge --learn-token --target evm [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
+    "  proof-forge --learn-token --target solana-sbpf-asm [-o token-plan.json] input.learn",
     "  proof-forge --learn-yul [-o output.yul] input.learn",
     "  proof-forge --learn-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
     "  proof-forge --learn-sbpf [-o output.s] [--artifact-output file] input.learn",
@@ -2355,6 +2357,20 @@ def defaultLearnTokenPlanOutput (decl : ProofForge.Contract.Token.Learn.TokenDec
     (profile : ProofForge.Target.TargetProfile) : FilePath :=
   FilePath.mk s!"build/learn/token/{decl.id}.{profile.id}.token-plan.json"
 
+def defaultLearnTokenEvmYulOutput (decl : ProofForge.Contract.Token.Learn.TokenDecl) :
+    FilePath :=
+  FilePath.mk s!"build/learn/token/{decl.id}.erc20.yul"
+
+def defaultLearnTokenEvmBytecodeOutput (decl : ProofForge.Contract.Token.Learn.TokenDecl) :
+    FilePath :=
+  FilePath.mk s!"build/learn/token/{decl.id}.erc20.bin"
+
+def defaultLearnTokenArtifactOutput (bytecodeOutput : FilePath) : FilePath :=
+  let fileName := FilePath.mk "proof-forge-token-artifact.json"
+  match bytecodeOutput.parent with
+  | some parent => parent / fileName
+  | none => fileName
+
 def targetProfileForMode (opts : CliOptions) (modeName : String) :
     IO ProofForge.Target.TargetProfile := do
   let some targetId := opts.targetId?
@@ -2406,6 +2422,113 @@ def tokenPlanJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
       ("learnTokenParsing", jsonString "passed"),
       ("targetRouting", jsonString "passed"),
       ("planGeneration", jsonString "passed")
+    ])
+  ]
+
+def tokenEvmEntrypointsJson (spec : ProofForge.Contract.Token.TokenSpec) : String := Id.run do
+  let mut entries := #[
+    jsonObject #[
+      ("name", jsonString "totalSupply"),
+      ("selector", jsonString "18160ddd"),
+      ("signature", jsonString "totalSupply()"),
+      ("returns", jsonString "uint256")
+    ],
+    jsonObject #[
+      ("name", jsonString "balanceOf"),
+      ("selector", jsonString "70a08231"),
+      ("signature", jsonString "balanceOf(address)"),
+      ("returns", jsonString "uint256")
+    ],
+    jsonObject #[
+      ("name", jsonString "transfer"),
+      ("selector", jsonString "a9059cbb"),
+      ("signature", jsonString "transfer(address,uint256)"),
+      ("returns", jsonString "bool")
+    ],
+    jsonObject #[
+      ("name", jsonString "approve"),
+      ("selector", jsonString "095ea7b3"),
+      ("signature", jsonString "approve(address,uint256)"),
+      ("returns", jsonString "bool")
+    ],
+    jsonObject #[
+      ("name", jsonString "allowance"),
+      ("selector", jsonString "dd62ed3e"),
+      ("signature", jsonString "allowance(address,address)"),
+      ("returns", jsonString "uint256")
+    ],
+    jsonObject #[
+      ("name", jsonString "transferFrom"),
+      ("selector", jsonString "23b872dd"),
+      ("signature", jsonString "transferFrom(address,address,uint256)"),
+      ("returns", jsonString "bool")
+    ],
+    jsonObject #[
+      ("name", jsonString "decimals"),
+      ("selector", jsonString "313ce567"),
+      ("signature", jsonString "decimals()"),
+      ("returns", jsonString "uint8")
+    ]
+  ]
+  if spec.hasFeature ProofForge.Contract.Token.TokenFeature.mintable then
+    entries := entries.push <| jsonObject #[
+      ("name", jsonString "mint"),
+      ("selector", jsonString "40c10f19"),
+      ("signature", jsonString "mint(address,uint256)"),
+      ("returns", jsonString "bool")
+    ]
+  if spec.hasFeature ProofForge.Contract.Token.TokenFeature.burnable then
+    entries := entries.push <| jsonObject #[
+      ("name", jsonString "burn"),
+      ("selector", jsonString "42966c68"),
+      ("signature", jsonString "burn(uint256)"),
+      ("returns", jsonString "bool")
+    ]
+  pure (jsonArray entries)
+
+def tokenEvmEventsJson : String :=
+  jsonArray #[
+    jsonObject #[
+      ("name", jsonString "Transfer"),
+      ("topic0", jsonString ProofForge.Contract.Token.Evm.transferTopic0),
+      ("signature", jsonString "Transfer(address,address,uint256)")
+    ],
+    jsonObject #[
+      ("name", jsonString "Approval"),
+      ("topic0", jsonString ProofForge.Contract.Token.Evm.approvalTopic0),
+      ("signature", jsonString "Approval(address,address,uint256)")
+    ]
+  ]
+
+def tokenEvmArtifactJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
+    (profile : ProofForge.Target.TargetProfile)
+    (plan : ProofForge.Contract.Token.TokenPlan)
+    (sourceArtifact yulArtifact bytecodeArtifact : String) : String :=
+  jsonObject #[
+    ("format", jsonString "proof-forge-token-artifact-v0"),
+    ("sourceKind", jsonString "learn-token-source"),
+    ("token", tokenSpecJson decl),
+    ("target", jsonString profile.id),
+    ("targetFamily", jsonString profile.family.id),
+    ("standard", jsonString plan.standard.id),
+    ("artifactKind", jsonString plan.artifactKind.id),
+    ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+    ("operations", jsonStringArray plan.operations),
+    ("notes", jsonStringArray plan.notes),
+    ("abi", jsonObject #[
+      ("entrypoints", tokenEvmEntrypointsJson decl.spec),
+      ("events", tokenEvmEventsJson)
+    ]),
+    ("artifacts", jsonObject #[
+      ("source", sourceArtifact),
+      ("yul", yulArtifact),
+      ("bytecode", bytecodeArtifact)
+    ]),
+    ("validation", jsonObject #[
+      ("learnTokenParsing", jsonString "passed"),
+      ("targetRouting", jsonString "passed"),
+      ("erc20YulGeneration", jsonString "passed"),
+      ("solcStrictAssembly", jsonString "passed")
     ])
   ]
 
@@ -3566,6 +3689,37 @@ def compileLearnTarget (opts : CliOptions) : IO UInt32 := do
     throw <| IO.userError
       s!"Learn target emission for `{profile.id}` is not implemented yet; currently implemented targets: evm, solana-sbpf-asm"
 
+def compileLearnTokenEvm (opts : CliOptions)
+    (profile : ProofForge.Target.TargetProfile)
+    (input : FilePath)
+    (decl : ProofForge.Contract.Token.Learn.TokenDecl)
+    (plan : ProofForge.Contract.Token.TokenPlan) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (defaultLearnTokenEvmYulOutput decl)
+  writeTextFile yulOutput (ProofForge.Contract.Token.Evm.renderErc20Yul decl)
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (defaultLearnTokenEvmBytecodeOutput decl)
+  writeTextFile output (bytecode ++ "\n")
+  let metadataOutput := opts.artifactOutput?.getD (defaultLearnTokenArtifactOutput output)
+  let sourceArtifact ← artifactEntryJson input
+  let yulArtifact ← artifactEntryJson yulOutput
+  let bytecodeArtifact ← artifactEntryJson output
+  writeTextFile metadataOutput (tokenEvmArtifactJson decl profile plan sourceArtifact yulArtifact bytecodeArtifact ++ "\n")
+  IO.println s!"wrote {yulOutput}"
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  IO.println s!"wrote {metadataOutput}"
+  return 0
+
+def compileLearnTokenPlan (opts : CliOptions)
+    (profile : ProofForge.Target.TargetProfile)
+    (input : FilePath)
+    (decl : ProofForge.Contract.Token.Learn.TokenDecl)
+    (plan : ProofForge.Contract.Token.TokenPlan) : IO UInt32 := do
+  let output := opts.output?.getD (defaultLearnTokenPlanOutput decl profile)
+  let sourceArtifact ← artifactEntryJson input
+  writeTextFile output (tokenPlanJson decl profile plan sourceArtifact ++ "\n")
+  IO.println s!"wrote {output}"
+  return 0
+
 def compileLearnTokenTarget (opts : CliOptions) : IO UInt32 := do
   let profile ← learnTokenTargetProfile opts
   let (input, decl) ← parseLearnTokenInput opts "--learn-token"
@@ -3573,11 +3727,10 @@ def compileLearnTokenTarget (opts : CliOptions) : IO UInt32 := do
     match ProofForge.Contract.Token.planForTarget profile decl.spec with
     | .ok plan => pure plan
     | .error err => throw <| IO.userError err
-  let output := opts.output?.getD (defaultLearnTokenPlanOutput decl profile)
-  let sourceArtifact ← artifactEntryJson input
-  writeTextFile output (tokenPlanJson decl profile plan sourceArtifact ++ "\n")
-  IO.println s!"wrote {output}"
-  return 0
+  if profile.id == ProofForge.Target.evm.id then
+    compileLearnTokenEvm opts profile input decl plan
+  else
+    compileLearnTokenPlan opts profile input decl plan
 
 def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/Counter.so")

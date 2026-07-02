@@ -60,7 +60,8 @@ Token SDK examples use a separate Learn intent form rather than a hand-written
 Lean `TokenSpec`:
 
 - `ProofToken.learn` describes one fungible token once and can be routed with
-  `proof-forge --learn-token --target evm` to an ERC-20 token plan.
+  `proof-forge --learn-token --target evm` to ERC-20 Yul, bytecode, and
+  artifact metadata.
 - `FeeToken.learn` adds `transfer_fee`; routing the same source shape with
   `--target solana-sbpf-asm` selects a Token-2022 plan instead of a legacy SPL
   Token plan.

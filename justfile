@@ -38,6 +38,7 @@ solana-lean:
     lake env lean --run Tests/ValueVaultExample.lean
     lake env lean --run Tests/TokenSpec.lean
     lake env lean --run Tests/TokenLearn.lean
+    lake env lean --run Tests/TokenEvm.lean
 
 # Emit and diff tracked Solana sBPF example artifacts.
 solana-build-examples:
@@ -54,6 +55,10 @@ solana-sdk-smoke:
 # Run the portable ValueVault SDK smoke across EVM Yul and Solana sBPF outputs.
 portable-value-vault:
     scripts/portable/value-vault-smoke.sh
+
+# Run the Learn token SDK smoke across EVM ERC-20 and Solana Token-2022 outputs.
+learn-token-smoke:
+    scripts/portable/learn-token-smoke.sh
 
 # Run Solana PDA typed-seed Web3.js derivation smoke. Skips when Node/npm are unavailable.
 solana-pda-web3:

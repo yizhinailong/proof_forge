@@ -1715,6 +1715,13 @@ Tasks:
   `Examples/Learn/ProofToken.learn`, `Examples/Learn/FeeToken.learn`,
   `Tests/TokenLearn.lean`, and `proof-forge --learn-token --target <id>` plan
   emission so application authors do not hand-write `TokenSpec`.
+- Done: add the first EVM ERC-20 artifact emitter for Learn token sources:
+  `ProofForge.Contract.Token.Evm`, `Tests/TokenEvm.lean`, standard ERC-20
+  selectors/events in metadata, Yul generation, and `solc --strict-assembly`
+  bytecode validation through `--learn-token --target evm`.
+- Done: add `scripts/portable/learn-token-smoke.sh` / `just
+  learn-token-smoke` to validate the EVM ERC-20 token artifact path and the
+  Solana Token-2022 plan path from Learn source.
 - Implement EVM ERC-20 lowering: ABI/selectors, balance/allowance storage,
   total supply, transfer/approve/transferFrom, mint/burn options, events, and
   Foundry/Web3 behavior tests.
@@ -1734,7 +1741,8 @@ Acceptance criteria:
 
 - A single Learn token source lowers to a deterministic `TokenSpec` and has
   deterministic EVM and Solana token plans.
-- EVM output passes ERC-20 behavior tests using standard Web3/Foundry calls.
+- EVM output emits ERC-20 Yul/bytecode and passes ERC-20 behavior tests using
+  standard Web3/Foundry calls.
 - Solana output creates a mint and token accounts, mints supply, transfers
   tokens, and validates balances with `@solana/spl-token` on Surfpool.
 - Documentation clearly says Solana does not default to a per-token SPL

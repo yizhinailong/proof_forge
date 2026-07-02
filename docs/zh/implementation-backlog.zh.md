@@ -1051,6 +1051,13 @@ EVM 上生成 ERC-20 合约，还是在 Solana 上生成 SPL Token / Token-2022
   `Examples/Learn/FeeToken.learn`、`Tests/TokenLearn.lean`，以及
   `proof-forge --learn-token --target <id>` plan emission，让应用开发者不需要
   手写 `TokenSpec`。
+- 已完成：为 Learn token source 增加第一版 EVM ERC-20 artifact emitter：
+  `ProofForge.Contract.Token.Evm`、`Tests/TokenEvm.lean`、metadata 中的标准
+  ERC-20 selector/event、Yul generation，以及通过 `--learn-token --target evm`
+  执行的 `solc --strict-assembly` bytecode validation。
+- 已完成：增加 `scripts/portable/learn-token-smoke.sh` / `just
+  learn-token-smoke`，从 Learn source 同时验证 EVM ERC-20 token artifact 路径
+  和 Solana Token-2022 plan 路径。
 - 实现 EVM ERC-20 降级：ABI/selectors、balance/allowance storage、total
   supply、transfer/approve/transferFrom、mint/burn 选项、events，以及
   Foundry/Web3 行为测试。
@@ -1069,7 +1076,7 @@ EVM 上生成 ERC-20 合约，还是在 Solana 上生成 SPL Token / Token-2022
 
 - 同一个 Learn token source 会降低到确定性的 `TokenSpec`，并生成确定性的
   EVM 与 Solana token plans。
-- EVM 输出通过标准 Web3/Foundry ERC-20 行为测试。
+- EVM 输出会发射 ERC-20 Yul/bytecode，并通过标准 Web3/Foundry ERC-20 行为测试。
 - Solana 输出能在 Surfpool 上创建 mint 和 token accounts、mint 初始供应、
   transfer tokens，并用 `@solana/spl-token` 验证 balances。
 - 文档明确说明 Solana 默认不是 per-token SPL 合约，而是通过 plan 和 CPI

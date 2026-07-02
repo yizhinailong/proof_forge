@@ -81,9 +81,10 @@ string-bearing identifiers are checked compiler data instead of unchecked
 user-facing spec plumbing.
 `ProofForge.Contract.Token.Learn` separately parses Learn token intent sources
 such as `Examples/Learn/ProofToken.learn` and `Examples/Learn/FeeToken.learn`.
-`--learn-token --target evm` emits an ERC-20 token plan, while
-`--learn-token --target solana-sbpf-asm` emits an SPL Token plan or switches to
-Token-2022 when features such as `transfer_fee` require Token Extensions.
+`--learn-token --target evm` now emits ERC-20 Yul, bytecode, and artifact
+metadata with standard ERC-20 selectors and Transfer/Approval topics, while
+`--learn-token --target solana-sbpf-asm` emits an SPL Token plan or switches
+to Token-2022 when features such as `transfer_fee` require Token Extensions.
 `ProofForge.Contract.Source` remains the executable embedded syntax layer and
 covers:
 

@@ -62,7 +62,9 @@ token ProofToken {
 ```
 
 `proof-forge --learn-token --target <id> input.learn` parses this source form,
-then lowers it to `TokenSpec` and routes the plan by target.
+then lowers it to `TokenSpec` and routes by target. The `evm` route emits
+ERC-20 Yul, bytecode, and artifact metadata; the Solana route currently emits
+the SPL Token / Token-2022 plan.
 
 `planForTarget` maps the same `TokenSpec` to target-specific plans:
 
@@ -130,7 +132,9 @@ Solana uses existing capabilities such as `account.explicit`, `crosscall.cpi`,
    chain-neutral planning layer.
 2. **Done:** add Learn token source parsing and token-plan artifact metadata
    through `proof-forge --learn-token --target <id>`.
-3. Add EVM ERC-20 source/Yul lowering and Foundry/Web3 tests.
+3. **Partially done:** add EVM ERC-20 Yul/bytecode emission with standard core
+   selectors and Transfer/Approval event topics. Remaining work: Foundry/Web3
+   behavior tests and stronger access-control policies for optional minting.
 4. Add Solana SPL Token plan rendering and Web3.js `@solana/spl-token`
    validation.
 5. Add Token-2022 feature routing.
