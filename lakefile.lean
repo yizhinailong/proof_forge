@@ -14,7 +14,10 @@ lean_lib ProofForge where
     `ProofForge.Backend,
     `ProofForge.Compiler.Yul.AST,
     `ProofForge.Compiler.Yul.Printer,
-    `ProofForge.Compiler.LCNF.EmitYul
+    `ProofForge.Compiler.LCNF.EmitYul,
+    `ProofForge.Compiler.TS.AST,
+    `ProofForge.Compiler.TS.Printer,
+    `ProofForge.Compiler.TS.Emit
   ]
 
 @[default_target]
