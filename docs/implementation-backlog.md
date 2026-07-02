@@ -521,9 +521,11 @@ Acceptance criteria:
 - Artifact metadata records `target: "solana-sbpf-asm"`, `irVersion`,
   entrypoints, and capabilities used.
 
-Out of scope (Phase 2+): CPI, PDA, maps, struct types, events, bounded loops,
-Borsh serialization, SPL Token. CPI and PDA effects stay Solana-specific (D-027)
-in `ProofForge.Backend.Solana.Effect`, not the portable IR.
+Out of scope (Phase 2+): maps, struct types, events, bounded loops, Borsh
+serialization, full SPL Token data layouts, and runtime CPI validation. CPI and
+PDA stay Solana-specific (D-027): the SDK now routes them through target
+capability calls and sBPF helper actions instead of adding them to the portable
+IR.
 
 Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md) § Phased
 Implementation Plan.
@@ -575,6 +577,13 @@ partial progress is visible before the full acceptance criteria close:
       with a clear diagnostic citing target id and capability id. Basis for
       V-GATE-SOLANA-05; exercised by `Tests/SolanaDiagnostics.lean` and
       `scripts/solana/diagnostic-smoke.sh`.
+- [x] Solana SDK target extensions route `ProofForge.Solana` PDA/CPI APIs
+      through capability plan metadata, emit `manifest.toml` extension
+      definitions plus entrypoint action sections, and inject handler-level
+      helper calls (`sol_pda_derive_<name>`, `sol_cpi_<name>`) before the IR
+      body while preserving the Solana input pointer in `r1`. Covered by
+      `Tests/SolanaSdk.lean`, `Tests/SolanaSdkManifest.lean`, and
+      `scripts/solana/sdk-smoke.sh` with `sbpf build` when available.
 - [ ] Optional `solana-test-validator --bpf-program` smoke (V-GATE-SOLANA-04,
       gated on tool availability).
 

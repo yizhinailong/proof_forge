@@ -31,6 +31,21 @@ def spec : ProofForge.Contract.ContractSpec :=
       effect (storageScalarWrite "nonce" (u64 0))
 
     entrySelector "touch" "62de7396" do
+      derivePda "vault" #["vault", "authority"]
+        (bump? := some "vault_bump")
+        (account? := some "vault_account")
+        (isSigner := true)
+      invokeSignedCpi
+        "token_transfer"
+        "spl_token"
+        "transfer_checked"
+        #[
+          writableAccount "source",
+          writableAccount "destination",
+          signerAccount "authority"
+        ]
+        #["vault", "vault_bump"]
+        (dataLayout? := some "spl-token.transfer_checked")
       letBind "n" .u64 (storageScalarRead "nonce")
       effect (storageScalarWrite "nonce" (add (localVar "n") (u64 1)))
 

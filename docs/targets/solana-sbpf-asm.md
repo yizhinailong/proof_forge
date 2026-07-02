@@ -346,42 +346,47 @@ Storage layout is deterministic and computed at codegen time:
    the data region, packing fields (u64 aligned).
 3. Emit `.equ` constants for every field offset so the assembly is readable.
 
-### Effect lowering: CPI (Solana‑specific, Phase 2+)
+### Effect lowering: CPI/PDA (Solana-specific SDK extension)
 
 CPI and PDA derivation are Solana‑only concepts (D-027). They do **not** enter
-the portable IR. Instead, Solana‑specific effects live in
-`ProofForge.Backend.Solana.Effect`, gated by the existing `crosscall.cpi` and
-`storage.pda` capability IDs in `Target/Capability.lean`:
+the portable IR. Instead, Solana-specific SDK calls are routed through
+`ProofForge.Solana` into target capability calls, gated by the existing
+`crosscall.cpi` and `storage.pda` capability IDs in `Target/Capability.lean`:
 
 ```lean
--- ProofForge/Backend/Solana/Effect.lean
-namespace ProofForge.Backend.Solana
-
-inductive Effect where
-  | cpiInvoke (programId : SolanaExpr) (discriminant : SolanaExpr) (accounts : Array SolanaExpr) (data : SolanaExpr)
-  | cpiInvokeSigned (programId : SolanaExpr) (discriminant : SolanaExpr) (accounts : Array SolanaExpr) (data : SolanaExpr) (signerSeeds : Array SolanaExpr)
-
-end ProofForge.Backend.Solana
+entrySelector "touch" "62de7396" do
+  derivePda "vault" #["vault", "authority"]
+    (bump? := some "vault_bump")
+    (account? := some "vault_account")
+    (isSigner := true)
+  invokeSignedCpi "token_transfer" "spl_token" "transfer_checked"
+    #[writableAccount "source", writableAccount "destination", signerAccount "authority"]
+    #["vault", "vault_bump"]
+    (dataLayout? := some "spl-token.transfer_checked")
 ```
 
 The portable IR never knows about these — it operates at the capability level
-via `crosscall.cpi` and `storage.pda`. The Solana SDK layer (`ProofForge.Solana`)
-exposes Lean types that lower to these backend effects.
+via `crosscall.cpi` and `storage.pda`. The generic builder records entrypoint
+scope as `proof_forge.entrypoint`; the Solana backend resolves that metadata
+into entrypoint actions and injects helper calls after account validation and
+before the portable IR body. The generated assembly preserves `r1` around
+helper calls so subsequent storage lowering still sees the original Solana
+input pointer.
 
-CPI lowering pattern (when Phase 2 lands):
+Current CPI/PDA lowering pattern:
 1. Allocate stack space for `SolInstruction` + `SolAccountInfo[]` + seeds.
-2. Populate account infos from the current execution context.
-3. Populate instruction data from discriminant + encoded args.
-4. `call sol_invoke_signed_c` or `sol_invoke_signed_rust`.
-5. Read return data via `sol_get_return_data`.
+2. Emit one helper per declared PDA/CPI intent (`sol_pda_derive_<name>`,
+   `sol_cpi_<name>`).
+3. In entrypoint handlers with scoped SDK actions, call the helper and branch
+   to `error_pda` / `error_cpi` when `r0 != 0`.
+4. Build `manifest.toml` and artifact metadata with both extension definitions
+   and entrypoint action lists.
 
-**Phase 1 scope excludes CPI.** The Counter scenario needs no cross-program calls.
+Remaining work: full runtime packing of seed byte slices, instruction data,
+account infos, SPL Token layouts, return-data decoding, and runtime tests that
+exercise a live CPI path.
 
-### Effect: PDA derivation (Solana‑specific)
-
-PDA derivation lives in the same `ProofForge.Backend.Solana.Effect` layer.
-
-Lowers to:
+PDA helper lowering:
 1. Allocate stack space for seed data + result buffer (32 byte).
 2. Pack seeds (each seed requires ptr+len pair).
 3. `call sol_create_program_address`.
@@ -414,7 +419,7 @@ The target profile must accept or reject each IR capability. The proposed
 | `value.native` | ✗ (Phase 3) | Read lamports, SOL transfers |
 | `events.emit` | Partial | `sol_log_` / `sol_log_64_` |
 | `crosscall.invoke` | ✗ | EVM‑specific; Solana uses CPI |
-| `crosscall.cpi` | Phase 2+ | `sol_invoke_signed_c/rust` |
+| `crosscall.cpi` | Partial | SDK entry actions emit `sol_invoke_signed_c` helpers; full account/data packing remains |
 | `env.block` | Phase 2 | Sysvar clock reads |
 | `control.conditional` | ✓ | Conditional jumps |
 | `control.bounded_loop` | Phase 2 | Counted loop or unrolling |

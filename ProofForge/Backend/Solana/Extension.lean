@@ -21,6 +21,7 @@ structure PdaDerive where
   bump? : Option String := none
   account? : Option String := none
   signer : Bool := false
+  entrypoint? : Option String := none
   deriving Repr, Inhabited
 
 structure CpiInvoke where
@@ -31,11 +32,24 @@ structure CpiInvoke where
   signerSeeds : Array String := #[]
   dataLayout? : Option String := none
   signed : Bool := false
+  entrypoint? : Option String := none
+  deriving Repr, Inhabited
+
+structure PdaAction where
+  name : String
+  entrypoint : String
+  deriving Repr, Inhabited
+
+structure CpiAction where
+  name : String
+  entrypoint : String
   deriving Repr, Inhabited
 
 structure ProgramExtensions where
   pdas : Array PdaDerive := #[]
   cpis : Array CpiInvoke := #[]
+  pdaActions : Array PdaAction := #[]
+  cpiActions : Array CpiAction := #[]
   deriving Repr, Inhabited
 
 def metadataValue? (metadata : Array TargetMetadata) (key : String) : Option String :=
@@ -64,6 +78,51 @@ def parseAccountMetas (encoded : String) : Array AccountMeta :=
 def boolFromString (value : String) : Bool :=
   value == "true"
 
+def entrypoint? (call : CapabilityCall) : Option String :=
+  metadataValue? call.metadata "proof_forge.entrypoint"
+
+def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=
+  { pda with entrypoint? := none }
+
+def CpiInvoke.definition (cpi : CpiInvoke) : CpiInvoke :=
+  { cpi with entrypoint? := none }
+
+def ProgramExtensions.pushPdaDefinition (acc : ProgramExtensions) (pda : PdaDerive) : ProgramExtensions :=
+  if acc.pdas.any (fun existing => existing.name == pda.name) then
+    acc
+  else
+    { acc with pdas := acc.pdas.push pda.definition }
+
+def ProgramExtensions.pushCpiDefinition (acc : ProgramExtensions) (cpi : CpiInvoke) : ProgramExtensions :=
+  if acc.cpis.any (fun existing => existing.name == cpi.name) then
+    acc
+  else
+    { acc with cpis := acc.cpis.push cpi.definition }
+
+def ProgramExtensions.pushPdaAction (acc : ProgramExtensions) (action : PdaAction) : ProgramExtensions :=
+  if acc.pdaActions.any (fun existing => existing.name == action.name && existing.entrypoint == action.entrypoint) then
+    acc
+  else
+    { acc with pdaActions := acc.pdaActions.push action }
+
+def ProgramExtensions.pushCpiAction (acc : ProgramExtensions) (action : CpiAction) : ProgramExtensions :=
+  if acc.cpiActions.any (fun existing => existing.name == action.name && existing.entrypoint == action.entrypoint) then
+    acc
+  else
+    { acc with cpiActions := acc.cpiActions.push action }
+
+def ProgramExtensions.addPda (acc : ProgramExtensions) (pda : PdaDerive) : ProgramExtensions :=
+  let acc := acc.pushPdaDefinition pda
+  match pda.entrypoint? with
+  | some entrypoint => acc.pushPdaAction { name := pda.name, entrypoint := entrypoint }
+  | none => acc
+
+def ProgramExtensions.addCpi (acc : ProgramExtensions) (cpi : CpiInvoke) : ProgramExtensions :=
+  let acc := acc.pushCpiDefinition cpi
+  match cpi.entrypoint? with
+  | some entrypoint => acc.pushCpiAction { name := cpi.name, entrypoint := entrypoint }
+  | none => acc
+
 def pdaFromCall? (call : CapabilityCall) : Option PdaDerive :=
   if call.operation == "solana.pda.derive" then
     let name := metadataValue? call.metadata "solana.pda.name" |>.getD call.operation
@@ -73,6 +132,7 @@ def pdaFromCall? (call : CapabilityCall) : Option PdaDerive :=
       bump? := metadataValue? call.metadata "solana.pda.bump"
       account? := metadataValue? call.metadata "solana.pda.account"
       signer := metadataValue? call.metadata "solana.pda.signer" |>.map boolFromString |>.getD false
+      entrypoint? := entrypoint? call
     }
   else
     none
@@ -90,6 +150,7 @@ def cpiFromCall? (call : CapabilityCall) : Option CpiInvoke :=
       signerSeeds := metadataValue? call.metadata "solana.cpi.signer_seeds" |>.map splitComma |>.getD #[]
       dataLayout? := metadataValue? call.metadata "solana.cpi.data_layout"
       signed := call.operation == "solana.cpi.invoke_signed"
+      entrypoint? := entrypoint? call
     }
   else
     none
@@ -99,15 +160,18 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
     (fun acc call =>
       let acc :=
         match pdaFromCall? call with
-        | some pda => { acc with pdas := acc.pdas.push pda }
+        | some pda => acc.addPda pda
         | none => acc
       match cpiFromCall? call with
-      | some cpi => { acc with cpis := acc.cpis.push cpi }
+      | some cpi => acc.addCpi cpi
       | none => acc)
     {}
 
 def hasExtensions (extensions : ProgramExtensions) : Bool :=
   extensions.pdas.size > 0 || extensions.cpis.size > 0
+
+def hasEntrypointActions (extensions : ProgramExtensions) : Bool :=
+  extensions.pdaActions.size > 0 || extensions.cpiActions.size > 0
 
 def labelPart (name : String) : String :=
   let chars := name.toList.map fun ch =>
@@ -123,9 +187,21 @@ def CpiInvoke.label (cpi : CpiInvoke) : String :=
 def callSyscall (name : String) : AstNode :=
   .instruction { opcode := .call, imm := some (.sym name) }
 
+def callHelper (name : String) : AstNode :=
+  .instruction { opcode := .call, imm := some (.sym name) }
+
 def stackPtr (dst : Reg) (offset : Nat) : Array AstNode := #[
   .instruction { opcode := .mov64, dst := some dst, src := some .r10 },
   .instruction { opcode := .sub64, dst := some dst, imm := some (.num offset) }
+]
+
+def entryInputSaveOffset : Nat := 1024
+
+def callHelperPreservingInput (helperName errorLabel : String) : Array AstNode := #[
+  .instruction { opcode := .stxdw, dst := some .r10, off := some (.num entryInputSaveOffset), src := some .r1 },
+  callHelper helperName,
+  .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num entryInputSaveOffset) },
+  .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym errorLabel) }
 ]
 
 def lowerPdaDerive (pda : PdaDerive) : Array AstNode :=
@@ -164,6 +240,30 @@ def lowerCpiInvoke (cpi : CpiInvoke) : Array AstNode :=
     .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
     .instruction { opcode := .exit }
   ]
+
+def lowerPdaAction (action : PdaAction) : Array AstNode :=
+  #[
+    .comment s!"solana.pda.action {action.name}"
+  ] ++ callHelperPreservingInput (PdaDerive.label { name := action.name }) "error_pda"
+
+def lowerCpiAction (action : CpiAction) : Array AstNode :=
+  #[
+    .comment s!"solana.cpi.action {action.name}"
+  ] ++ callHelperPreservingInput (CpiInvoke.label {
+    name := action.name
+    program := ""
+    instruction := ""
+  }) "error_cpi"
+
+def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String) : Array AstNode :=
+  let pdaActions := extensions.pdaActions.filter (fun action => action.entrypoint == entrypoint)
+  let cpiActions := extensions.cpiActions.filter (fun action => action.entrypoint == entrypoint)
+  if pdaActions.isEmpty && cpiActions.isEmpty then
+    #[]
+  else
+    #[.comment s!"Solana SDK target extension actions for {entrypoint}"] ++
+    pdaActions.foldl (fun acc action => acc ++ lowerPdaAction action) #[] ++
+    cpiActions.foldl (fun acc action => acc ++ lowerCpiAction action) #[]
 
 def lowerExtensionErrors : Array AstNode := #[
   .blankLine,

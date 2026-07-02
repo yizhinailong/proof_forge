@@ -62,23 +62,37 @@ if missing:
 
 pdas = artifact.get("solanaExtensions", {}).get("pdas", [])
 cpis = artifact.get("solanaExtensions", {}).get("cpis", [])
+pda_actions = artifact.get("solanaExtensions", {}).get("pdaActions", [])
+cpi_actions = artifact.get("solanaExtensions", {}).get("cpiActions", [])
 if not pdas or pdas[0].get("name") != "vault":
     raise SystemExit("artifact missing vault PDA extension")
 if not cpis or cpis[0].get("name") != "token_transfer":
     raise SystemExit("artifact missing token_transfer CPI extension")
+if not pda_actions or pda_actions[0].get("entrypoint") != "touch" or pda_actions[0].get("pda") != "vault":
+    raise SystemExit("artifact missing touch PDA action")
+if not cpi_actions or cpi_actions[0].get("entrypoint") != "touch" or cpi_actions[0].get("cpi") != "token_transfer":
+    raise SystemExit("artifact missing touch CPI action")
 
 manifest_pdas = manifest.get("solana", {}).get("pda", [])
 manifest_cpis = manifest.get("solana", {}).get("cpi", [])
+manifest_pda_actions = manifest.get("solana", {}).get("entrypoint_pda", [])
+manifest_cpi_actions = manifest.get("solana", {}).get("entrypoint_cpi", [])
 if not manifest_pdas or manifest_pdas[0].get("name") != "vault":
     raise SystemExit("manifest missing vault PDA extension")
 if not manifest_cpis or manifest_cpis[0].get("program") != "spl_token":
     raise SystemExit("manifest missing spl_token CPI extension")
+if not manifest_pda_actions or manifest_pda_actions[0].get("entrypoint") != "touch":
+    raise SystemExit("manifest missing touch PDA action")
+if not manifest_cpi_actions or manifest_cpi_actions[0].get("entrypoint") != "touch":
+    raise SystemExit("manifest missing touch CPI action")
 
 for needle in [
     "sol_pda_derive_vault:",
     "call sol_create_program_address",
+    "call sol_pda_derive_vault",
     "sol_cpi_token_transfer:",
     "call sol_invoke_signed_c",
+    "call sol_cpi_token_transfer",
 ]:
     if needle not in asm:
         raise SystemExit(f"assembly missing {needle!r}")

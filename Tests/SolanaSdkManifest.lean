@@ -40,6 +40,16 @@ def main : IO UInt32 := do
     "manifest missing comma after non-final CPI account"
   require (contains manifest "signer_seeds = [\"vault\", \"vault_bump\"]")
     "manifest missing CPI signer seeds"
+  require (contains manifest "[[solana.entrypoint_pda]]")
+    "manifest missing entrypoint PDA action section"
+  require (contains manifest "entrypoint = \"touch\"")
+    "manifest missing touch entrypoint action"
+  require (contains manifest "pda = \"vault\"")
+    "manifest missing touch PDA action"
+  require (contains manifest "[[solana.entrypoint_cpi]]")
+    "manifest missing entrypoint CPI action section"
+  require (contains manifest "cpi = \"token_transfer\"")
+    "manifest missing touch CPI action"
 
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "solana-vault" spec with
   | .ok pkg =>
@@ -55,10 +65,14 @@ def main : IO UInt32 := do
         "package assembly missing PDA helper label"
       require (contains asmFile.contents "call sol_create_program_address")
         "package assembly missing PDA syscall"
+      require (contains asmFile.contents "call sol_pda_derive_vault")
+        "package assembly missing entrypoint PDA helper call"
       require (contains asmFile.contents "sol_cpi_token_transfer:")
         "package assembly missing CPI helper label"
       require (contains asmFile.contents "call sol_invoke_signed_c")
         "package assembly missing CPI syscall"
+      require (contains asmFile.contents "call sol_cpi_token_transfer")
+        "package assembly missing entrypoint CPI helper call"
   | .error err =>
       throw <| IO.userError s!"Solana SDK package render failed: {err.render}"
 

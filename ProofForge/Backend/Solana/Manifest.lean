@@ -109,6 +109,25 @@ def renderCpi (cpi : CpiInvoke) : String :=
   "signer_seeds = " ++ tomlStringArray cpi.signerSeeds ++ "\n" ++
   optionalFields
 
+def renderPdaAction (action : PdaAction) : String :=
+  "[[solana.entrypoint_pda]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "pda = " ++ tomlString action.name ++ "\n"
+
+def renderCpiAction (action : CpiAction) : String :=
+  "[[solana.entrypoint_cpi]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "cpi = " ++ tomlString action.name ++ "\n"
+
+def renderActions (extensions : ProgramExtensions) : String :=
+  if !hasEntrypointActions extensions then
+    ""
+  else
+    "\n# Solana SDK entrypoint actions\n" ++
+    String.intercalate "\n" (extensions.pdaActions.map renderPdaAction).toList ++
+    (if extensions.pdaActions.size > 0 && extensions.cpiActions.size > 0 then "\n" else "") ++
+    String.intercalate "\n" (extensions.cpiActions.map renderCpiAction).toList
+
 def renderExtensions (extensions : ProgramExtensions) : String :=
   if !hasExtensions extensions then
     ""
@@ -116,7 +135,8 @@ def renderExtensions (extensions : ProgramExtensions) : String :=
     "\n# Solana SDK target extension metadata\n" ++
     String.intercalate "\n" (extensions.pdas.map renderPda).toList ++
     (if extensions.pdas.size > 0 && extensions.cpis.size > 0 then "\n" else "") ++
-    String.intercalate "\n" (extensions.cpis.map renderCpi).toList
+    String.intercalate "\n" (extensions.cpis.map renderCpi).toList ++
+    renderActions extensions
 
 /-- Phase 1 default: every instruction uses a single writable account owned by
  the program, with signer=false. Multi-account schemas will move into the

@@ -122,9 +122,25 @@ def pda (binding : PdaBinding) : ProofForge.Contract.Builder.ModuleM Unit := do
   ProofForge.Contract.Builder.capability .storagePda "solana.pda.derive" (source? := some binding.name)
     (metadata := binding.metadata)
 
+def pdaEntry (binding : PdaBinding) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .accountExplicit "solana.account.pda" (source? := some binding.name)
+    (metadata := binding.metadata)
+  ProofForge.Contract.Builder.entryCapability .storagePda "solana.pda.derive" (source? := some binding.name)
+    (metadata := binding.metadata)
+
 def pdaAccount (name : String) (seeds : Array String) (bump? : Option String := none)
     (account? : Option String := none) (isSigner : Bool := false) : ProofForge.Contract.Builder.ModuleM Unit :=
   pda {
+    name := name
+    seeds := seeds
+    bump? := bump?
+    account? := account?
+    isSigner := isSigner
+  }
+
+def derivePda (name : String) (seeds : Array String) (bump? : Option String := none)
+    (account? : Option String := none) (isSigner : Bool := false) : ProofForge.Contract.Builder.EntryM Unit :=
+  pdaEntry {
     name := name
     seeds := seeds
     bump? := bump?
@@ -144,6 +160,18 @@ def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do
   ProofForge.Contract.Builder.capability .crosscallCpi operation (source? := some call.name)
     (metadata := call.metadata)
 
+def cpiEntry (call : CpiCall) : ProofForge.Contract.Builder.EntryM Unit := do
+  if call.accounts.size > 0 then
+    ProofForge.Contract.Builder.entryCapability .accountExplicit "solana.cpi.accounts" (source? := some call.name)
+      (metadata := call.metadata)
+  let operation :=
+    if call.signerSeeds.size == 0 then
+      "solana.cpi.invoke"
+    else
+      "solana.cpi.invoke_signed"
+  ProofForge.Contract.Builder.entryCapability .crosscallCpi operation (source? := some call.name)
+    (metadata := call.metadata)
+
 def cpiInvoke (name program instruction : String) (accounts : Array AccountMeta := #[])
     (dataLayout? : Option String := none) : ProofForge.Contract.Builder.ModuleM Unit :=
   cpi {
@@ -157,6 +185,27 @@ def cpiInvoke (name program instruction : String) (accounts : Array AccountMeta 
 def cpiInvokeSigned (name program instruction : String) (accounts : Array AccountMeta)
     (signerSeeds : Array String) (dataLayout? : Option String := none) : ProofForge.Contract.Builder.ModuleM Unit :=
   cpi {
+    name := name
+    program := program
+    instruction := instruction
+    accounts := accounts
+    signerSeeds := signerSeeds
+    dataLayout? := dataLayout?
+  }
+
+def invokeCpi (name program instruction : String) (accounts : Array AccountMeta := #[])
+    (dataLayout? : Option String := none) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry {
+    name := name
+    program := program
+    instruction := instruction
+    accounts := accounts
+    dataLayout? := dataLayout?
+  }
+
+def invokeSignedCpi (name program instruction : String) (accounts : Array AccountMeta)
+    (signerSeeds : Array String) (dataLayout? : Option String := none) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry {
     name := name
     program := program
     instruction := instruction

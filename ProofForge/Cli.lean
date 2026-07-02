@@ -652,11 +652,25 @@ def solanaCpiJson (cpi : ProofForge.Backend.Solana.Extension.CpiInvoke) : String
     ("signed", jsonBool cpi.signed)
   ]
 
+def solanaPdaActionJson (action : ProofForge.Backend.Solana.Extension.PdaAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("pda", jsonString action.name)
+  ]
+
+def solanaCpiActionJson (action : ProofForge.Backend.Solana.Extension.CpiAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("cpi", jsonString action.name)
+  ]
+
 def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
   let extensions := ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan
   jsonObject #[
     ("pdas", jsonArray (extensions.pdas.map solanaPdaJson)),
-    ("cpis", jsonArray (extensions.cpis.map solanaCpiJson))
+    ("cpis", jsonArray (extensions.cpis.map solanaCpiJson)),
+    ("pdaActions", jsonArray (extensions.pdaActions.map solanaPdaActionJson)),
+    ("cpiActions", jsonArray (extensions.cpiActions.map solanaCpiActionJson))
   ]
 
 def contractNameForFixture (fixture : String) : String :=

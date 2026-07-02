@@ -238,7 +238,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - 同一个 portable IR Counter 模块可以降级到 EVM 和 Solana。
 - 制品元数据记录 `target: "solana-sbpf-asm"`、`irVersion`、entrypoints 和使用的 capabilities。
 
-范围外（Phase 2+）：CPI、PDA、maps、struct types、events、bounded loops、Borsh serialization、SPL Token。CPI 和 PDA effect 按 D-027 留在 `ProofForge.Backend.Solana.Effect` 的 Solana 特定层，而不是 portable IR。
+范围外（Phase 2+）：maps、struct types、events、bounded loops、Borsh serialization、完整 SPL Token 数据布局，以及真实运行时 CPI 验证。CPI 和 PDA 仍按 D-027 留在 Solana 特定层：SDK 现在通过 target capability call 和 sBPF helper action 路由它们，而不是把它们加入 portable IR。
 
 参考：[solana-sbpf-asm 设计文档](targets/solana-sbpf-asm.md) 的 Phased Implementation Plan。
 
@@ -255,6 +255,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] account validation：按 manifest 检查 signer / writable / owner。每个 entrypoint 开头注入 prologue，检查账户头 offset 10 的 `is_writable` 并将 offset 48 起的 owner 与序列化 program id 比对。失败出口为 4（`error_not_writable`）、5（`error_signer`）、6（`error_owner`）。Phase 1 Mollusk 运行时门禁关闭 direct-account-mapping ABI，以使用 legacy 嵌入式账户数据布局。
 - [x] `Examples/Solana/Counter.lean` + manifest 作为自包含示例。包含跟踪的 `Counter.golden.s`、`Counter.manifest.toml`，以及 CI 可运行的 `scripts/solana/build-examples.sh` 负责发射并做 diff。
 - [x] 能力检查器以清晰诊断拒绝不支持的能力/目标组合，诊断含 target id 和 capability id。`Tests/SolanaDiagnostics.lean` 与 `scripts/solana/diagnostic-smoke.sh` 覆盖 8 个 `crosscall.invoke` 家族用例，作为 V-GATE-SOLANA-05 的基础。
+- [x] Solana SDK target extension 将 `ProofForge.Solana` 的 PDA/CPI API 路由到 capability plan metadata，生成 `manifest.toml` 的 extension definition 与 entrypoint action section，并在 handler 中、IR body 之前注入 helper call（`sol_pda_derive_<name>`、`sol_cpi_<name>`），同时保存/恢复 Solana input 指针 `r1`。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`（可用时执行 `sbpf build`）。
 - [ ] 可选 `solana-test-validator --bpf-program` 冒烟（V-GATE-SOLANA-04，取决于工具是否可用）。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）

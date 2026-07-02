@@ -26,6 +26,7 @@ namespace ProofForge.Backend.Solana.SbpfAsm
 
 open ProofForge.IR
 open ProofForge.Backend.Solana.Asm
+open ProofForge.Backend.Solana.Extension
 open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.Manifest
 open ProofForge.Backend.Solana.Register
@@ -447,12 +448,14 @@ def lowerAccountValidation (instrDataOff : Nat) : Array AstNode :=
   .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") }
 ]
 
-partial def lowerEntrypoint (ctx : LowerCtx) (instrDataOff : Nat) (ep : IR.Entrypoint) : Except LowerError (LowerCtx × Array AstNode) := do
+partial def lowerEntrypoint (ctx : LowerCtx) (instrDataOff : Nat) (extensions : ProgramExtensions)
+    (ep : IR.Entrypoint) : Except LowerError (LowerCtx × Array AstNode) := do
   let mut nodes := #[
     .label s!"sol_{ep.name}",
     .blankLine
   ]
   nodes := nodes ++ lowerAccountValidation instrDataOff
+  nodes := nodes ++ lowerEntrypointActions extensions ep.name
   let mut ctx := ctx
   for stmt in ep.body do
     let (sn, ctx') ← lowerStmt ctx stmt
@@ -469,7 +472,8 @@ partial def lowerEntrypoint (ctx : LowerCtx) (instrDataOff : Nat) (ep : IR.Entry
 -- Module → AST nodes
 -- ============================================================================
 
-partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode) := do
+partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
+    Except LowerError (Array AstNode) := do
   validateCapabilities module
   let ctx ← buildCtx module
   let dataSize := moduleDataSize module
@@ -507,7 +511,7 @@ partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode)
   for ep in module.entrypoints do
     nodes := nodes.push .blankLine
     let epCtx := ctx.resetLocals
-    let (ctx', block) ← lowerEntrypoint epCtx instrDataOff ep
+    let (ctx', block) ← lowerEntrypoint epCtx instrDataOff extensions ep
     ctx := { ctx with nextLabel := ctx'.nextLabel }
     nodes := nodes ++ block
 
@@ -535,6 +539,9 @@ partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode)
   ]
   .ok nodes
 
+partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode) :=
+  lowerModuleCore module {}
+
 -- ============================================================================
 -- Module rendering (IR → AST → text pipeline)
 -- ============================================================================
@@ -545,8 +552,9 @@ def renderModule (module : IR.Module) : Except LowerError String := do
 
 def lowerModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.CapabilityPlan) :
     Except LowerError (Array AstNode) := do
-  let nodes ← lowerModule module
-  .ok (nodes ++ ProofForge.Backend.Solana.Extension.lowerPlan plan)
+  let extensions := ProgramExtensions.fromPlan plan
+  let nodes ← lowerModuleCore module extensions
+  .ok (nodes ++ ProofForge.Backend.Solana.Extension.lowerProgramExtensions extensions)
 
 def renderModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.CapabilityPlan) :
     Except LowerError String := do

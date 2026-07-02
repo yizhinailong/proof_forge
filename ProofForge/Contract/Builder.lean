@@ -17,6 +17,7 @@ structure ModuleBuilder where
 
 structure EntryBuilder where
   body : Array Statement := #[]
+  intents : Array Intent := #[]
   deriving Repr
 
 abbrev ModuleM := StateM ModuleBuilder
@@ -52,6 +53,24 @@ def capability (capability : Capability) (operation : String := capability.id)
     (source? : Option String := none) (metadata : Array TargetMetadata := #[]) : ModuleM Unit :=
   intent (Intent.capability capability operation source? metadata)
 
+def entryIntent (intent : Intent) : EntryM Unit := do
+  modify fun builder => { builder with intents := builder.intents.push intent }
+
+def entryCapability (capability : Capability) (operation : String := capability.id)
+    (source? : Option String := none) (metadata : Array TargetMetadata := #[]) : EntryM Unit :=
+  entryIntent (Intent.capability capability operation source? metadata)
+
+def entrypointMetadata (name : String) : TargetMetadata := {
+  key := "proof_forge.entrypoint"
+  value := name
+}
+
+def scopeEntryIntent (entrypointName : String) (intent : Intent) : Intent := {
+  intent with
+  kind := .entrypoint
+  metadata := intent.metadata.push (entrypointMetadata entrypointName)
+}
+
 def struct (decl : StructDecl) : ModuleM Unit := do
   modify fun builder => { builder with structs := builder.structs.push decl }
 
@@ -80,7 +99,12 @@ def entryFull (name : String) (selector? : Option String) (returns : ValueType)
     returns := returns
     body := entryBuilder.body
   }
-  modify fun builder => { builder with entrypoints := builder.entrypoints.push entrypoint }
+  let entryIntents := entryBuilder.intents.map (scopeEntryIntent name)
+  modify fun builder => {
+    builder with
+    entrypoints := builder.entrypoints.push entrypoint
+    intents := builder.intents ++ entryIntents
+  }
 
 def entry (name : String) (body : EntryM Unit) : ModuleM Unit :=
   entryFull name none .unit #[] body

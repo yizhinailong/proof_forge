@@ -37,6 +37,10 @@ def requireMetadata (call : CapabilityCall) (key expected : String) : IO Unit :=
   require (metadataValue? call key == some expected)
     s!"metadata `{key}` mismatch for operation `{call.operation}`"
 
+def scopedCall? (plan : CapabilityPlan) (operation entrypoint : String) : Option CapabilityCall :=
+  plan.calls.find? fun call =>
+    call.operation == operation && metadataValue? call "proof_forge.entrypoint" == some entrypoint
+
 def extensionSpec : ProofForge.Contract.ContractSpec :=
   build "SolanaVault" do
     pdaAccount "vault" #["vault", "authority"]
@@ -55,6 +59,23 @@ def extensionSpec : ProofForge.Contract.ContractSpec :=
       ]
       #["vault", "vault_bump"]
       (dataLayout? := some "spl-token.transfer_checked")
+
+    entry "touch" do
+      derivePda "vault" #["vault", "authority"]
+        (bump? := some "vault_bump")
+        (account? := some "vault_account")
+        (isSigner := true)
+      invokeSignedCpi
+        "token_transfer"
+        "spl_token"
+        "transfer_checked"
+        #[
+          writableAccount "source",
+          writableAccount "destination",
+          signerAccount "authority"
+        ]
+        #["vault", "vault_bump"]
+        (dataLayout? := some "spl-token.transfer_checked")
 
 def requireSolanaPlan (plan : CapabilityPlan) : IO Unit := do
   require (plan.targetId == solanaSbpfAsm.id) "Solana SDK plan target id mismatch"
@@ -84,6 +105,20 @@ def requireSolanaPlan (plan : CapabilityPlan) : IO Unit := do
   requireMetadata cpiCall "solana.cpi.accounts" "source:writable:none,destination:writable:none,authority:readonly:signer"
   requireMetadata cpiCall "solana.cpi.signer_seeds" "vault,vault_bump"
   requireMetadata cpiCall "solana.cpi.data_layout" "spl-token.transfer_checked"
+
+  let pdaAction ←
+    match scopedCall? plan "solana.pda.derive" "touch" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana SDK plan missing touch-scoped PDA action"
+  requireMetadata pdaAction "solana.pda.name" "vault"
+  requireMetadata pdaAction "proof_forge.entrypoint" "touch"
+
+  let cpiAction ←
+    match scopedCall? plan "solana.cpi.invoke_signed" "touch" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana SDK plan missing touch-scoped CPI action"
+  requireMetadata cpiAction "solana.cpi.name" "token_transfer"
+  requireMetadata cpiAction "proof_forge.entrypoint" "touch"
 
 def main : IO UInt32 := do
   let plan ←
