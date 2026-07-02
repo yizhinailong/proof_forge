@@ -57,6 +57,10 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [RFC 0002: Target implementation design](rfcs/0002-target-implementation-design.md)
 - [RFC 0003: Portable IR and runtime profiles](rfcs/0003-portable-ir-and-runtime.md) (Draft — extends 0001/0002)
 - [RFC 0004: EVM semantic plan and Yul AST boundary](rfcs/0004-evm-semantic-plan.md) (Draft — EVM backend internal architecture)
+- [RFC 0005: Solana sBPF assembly backend](rfcs/0005-solana-sbpf-assembly-backend.md) (Accepted — canonical Solana route, D-026)
+- [RFC 0006: Multi-chain Token SDK](rfcs/0006-multichain-token-sdk.md) (Draft)
+- [RFC 0007: Unified Rust test framework](rfcs/0007-unified-rust-test-framework.md) (Draft — testkit scenarios over revm/Mollusk/wasmtime)
+- [RFC 0008: Chain-decoupled allocator abstraction](rfcs/0008-allocator-abstraction.md) (Draft — one allocator model bound per target)
 
 ## Engineering
 

@@ -2016,10 +2016,81 @@ Acceptance criteria:
 - A backend cannot move from Experimental to Supported without its FV-4
   trace obligation and shared-scenario differential gate.
 
+## Workstream 26: Unified Rust Test Framework (testkit)
+
+Goal: replace per-chain shell/Node harness sprawl with one declarative
+scenario format and Rust in-process executors, per
+[RFC 0007](rfcs/0007-unified-rust-test-framework.md).
+
+Tasks (one milestone per implementing branch):
+
+- M1: create the `testkit/` Cargo workspace (`core` + scenario TOML model,
+  discovery, reporting); port `runtime/offline-host` into `harness-near`
+  (wasmtime + NEAR host shim, allocator counters preserved); Counter
+  scenario green on `wasm-near`; add `just testkit` and one CI step.
+- M2: `harness-evm` on revm — load emitted runtime bytecode, dispatch via
+  `.evm-methods` selectors, decode return words; Counter green on `evm`;
+  first cross-target equivalence assertion (evm ↔ wasm-near observable
+  traces).
+- M3: `harness-solana` on mollusk-svm — absorb the
+  `Tests/solana/*_mollusk.rs.tpl` logic as library code; Counter green on
+  all three targets; ValueVault scenario added.
+- M4: migrate golden-file comparisons and per-fixture behavior scripts into
+  scenario steps; retire duplicated shell scripts; collapse the per-fixture
+  CI steps into the testkit run. Live/chain-authentic gates (Foundry, Anvil
+  deploy, Surfpool, near-sandbox, dargo, leo) remain separate scheduled or
+  labeled jobs.
+
+Acceptance criteria:
+
+- One scenario file drives all three priority targets; adding a covered
+  feature requires no new script, recipe, or CI step.
+- A scenario using an unsupported capability asserts compile-time rejection
+  with a diagnostic (never silently skips a target).
+- Runner is deterministic and network-free by default; `revm`,
+  `mollusk-svm`, and `wasmtime` versions are pinned.
+- Lean-side compiler tests (diagnostics, coverage manifests, formal anchors)
+  remain in `Tests/*.lean` and are not moved.
+
+## Workstream 27: Allocator Abstraction Unification
+
+Goal: one chain-neutral allocator model bound per target, per
+[RFC 0008](rfcs/0008-allocator-abstraction.md); resolves the Workstream 24
+allocator-unification decision.
+
+Tasks:
+
+- M1: generalize `ProofForge/IR/Allocator.lean` to the
+  strategy/region/release triple (existing constructors map onto it; EmitWat
+  behavior unchanged); record the decision in `decisions.md`.
+- M2: fold Solana's `RuntimeAllocator` (`Backend/Solana/Extension.lean`)
+  into the shared model — `solana.allocator.*` metadata keys stay as the
+  Solana configuration syntax but populate the shared type; IDL renders from
+  it; `Tests/SolanaAllocator.lean` updated.
+- M3: add the explicit EVM binding (bump over call-scratch memory; documents
+  what EmitYul/EVM plan already do); define the criteria for moving EVM
+  `release` from rejection to checked no-op (blocked on FV-3 ownership
+  soundness).
+- M4: allocator behavior scenario in testkit (Workstream 26) across the
+  three harnesses; NEAR asserts allocator counters, EVM/Solana assert
+  observable-trace equality with `release` as no-op.
+
+Acceptance criteria:
+
+- One `AllocatorModel` type is consumed by EmitWat, the Solana backend, and
+  the EVM binding; no parallel allocator records remain.
+- Persistent-state models (EVM storage, Solana accounts, NEAR storage) are
+  explicitly out of scope and unchanged.
+- Capability gating via `runtime.allocator` cites `alloc.*` ids in
+  diagnostics for unsupported release/strategy demands.
+
 ## Suggested Order
 
 0. Architecture convergence follow-ups (Workstream 24) and FV-1/FV-2 from the
-   formal verification roadmap (Workstream 25).
+   formal verification roadmap (Workstream 25); then the unified testkit
+   (Workstream 26) and allocator unification (Workstream 27), which are
+   parallelizable — testkit M1/M2 has no dependency on allocator M1/M2,
+   and allocator M4 lands after testkit M3.
 1. Target registry (Workstream 1).
 2. Portable IR + shared Counter scenario (Workstream 1.5).
 3. EVM artifact metadata and deploy manifest (Workstreams 2–3).
