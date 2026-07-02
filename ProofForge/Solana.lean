@@ -82,11 +82,17 @@ def MemoryOp.id : MemoryOp -> String
 inductive CryptoHashOp where
   | sha256
   | keccak256
+  | blake3
   deriving BEq, DecidableEq, Repr
 
 def CryptoHashOp.id : CryptoHashOp -> String
   | .sha256 => "sha256"
   | .keccak256 => "keccak256"
+  | .blake3 => "blake3"
+
+def CryptoHashOp.featureGated : CryptoHashOp -> Bool
+  | .blake3 => true
+  | _ => false
 
 inductive SysvarKind where
   | rent
@@ -140,6 +146,7 @@ structure CryptoHashAction where
   inputState : String
   bytes : Nat
   outputStates : Array String
+  featureGated : Bool := false
   deriving Repr
 
 structure SysvarReadAction where
@@ -328,7 +335,8 @@ def CryptoHashAction.metadata (action : CryptoHashAction) : Array TargetMetadata
     kv "solana.crypto.op" action.op.id,
     kv "solana.crypto.input_state" action.inputState,
     natKv "solana.crypto.bytes" action.bytes,
-    kv "solana.crypto.output_states" (joinWith "," action.outputStates)
+    kv "solana.crypto.output_states" (joinWith "," action.outputStates),
+    kv "solana.crypto.feature_gated" (boolValue action.featureGated)
   ]
 
 def SysvarReadAction.metadata (action : SysvarReadAction) : Array TargetMetadata :=
@@ -643,6 +651,7 @@ def sha256StateToStates (name inputState : String) (bytes : Nat)
     inputState := inputState
     bytes := bytes
     outputStates := outputStates
+    featureGated := CryptoHashOp.featureGated .sha256
   }
 
 def keccak256StateToStates (name inputState : String) (bytes : Nat)
@@ -653,6 +662,18 @@ def keccak256StateToStates (name inputState : String) (bytes : Nat)
     inputState := inputState
     bytes := bytes
     outputStates := outputStates
+    featureGated := CryptoHashOp.featureGated .keccak256
+  }
+
+def blake3StateToStates (name inputState : String) (bytes : Nat)
+    (outputStates : Array String) : ProofForge.Contract.Builder.EntryM Unit :=
+  cryptoHashEntry {
+    name := name
+    op := .blake3
+    inputState := inputState
+    bytes := bytes
+    outputStates := outputStates
+    featureGated := CryptoHashOp.featureGated .blake3
   }
 
 def sysvarEntry (action : SysvarReadAction) : ProofForge.Contract.Builder.EntryM Unit := do

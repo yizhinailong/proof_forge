@@ -65,6 +65,7 @@ def main : IO UInt32 := do
   requireMetadata hashCall "solana.crypto.input_state" "preimage"
   requireMetadata hashCall "solana.crypto.bytes" "8"
   requireMetadata hashCall "solana.crypto.output_states" "hash0,hash1,hash2,hash3"
+  requireMetadata hashCall "solana.crypto.feature_gated" "false"
 
   let keccakCall ←
     match scopedCryptoCall? plan "keccak_preimage" "keccak_preimage" with
@@ -77,6 +78,20 @@ def main : IO UInt32 := do
   requireMetadata keccakCall "solana.crypto.input_state" "preimage"
   requireMetadata keccakCall "solana.crypto.bytes" "8"
   requireMetadata keccakCall "solana.crypto.output_states" "keccak0,keccak1,keccak2,keccak3"
+  requireMetadata keccakCall "solana.crypto.feature_gated" "false"
+
+  let blake3Call ←
+    match scopedCryptoCall? plan "blake3_preimage" "blake3_preimage" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana crypto plan missing blake3_preimage action"
+  require (blake3Call.operation == "solana.crypto.blake3")
+    "blake3_preimage should lower through solana.crypto.blake3"
+  requireMetadata blake3Call "solana.extension" "crypto"
+  requireMetadata blake3Call "solana.crypto.op" "blake3"
+  requireMetadata blake3Call "solana.crypto.input_state" "preimage"
+  requireMetadata blake3Call "solana.crypto.bytes" "8"
+  requireMetadata blake3Call "solana.crypto.output_states" "blake0,blake1,blake2,blake3"
+  requireMetadata blake3Call "solana.crypto.feature_gated" "true"
 
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "solana-crypto-hash" spec with
   | .ok pkg =>
@@ -96,12 +111,22 @@ def main : IO UInt32 := do
         "crypto manifest missing input state"
       require (contains manifest "output_states = [\"hash0\", \"hash1\", \"hash2\", \"hash3\"]")
         "crypto manifest missing output states"
+      require (contains manifest "feature_gated = false")
+        "crypto manifest missing non-feature-gated hash markers"
       require (contains manifest "crypto = \"keccak_preimage\"")
         "crypto manifest missing keccak_preimage action"
       require (contains manifest "op = \"keccak256\"")
         "crypto manifest missing keccak256 op"
       require (contains manifest "output_states = [\"keccak0\", \"keccak1\", \"keccak2\", \"keccak3\"]")
         "crypto manifest missing keccak output states"
+      require (contains manifest "crypto = \"blake3_preimage\"")
+        "crypto manifest missing blake3_preimage action"
+      require (contains manifest "op = \"blake3\"")
+        "crypto manifest missing blake3 op"
+      require (contains manifest "output_states = [\"blake0\", \"blake1\", \"blake2\", \"blake3\"]")
+        "crypto manifest missing blake3 output states"
+      require (contains manifest "feature_gated = true")
+        "crypto manifest missing blake3 feature gate"
       require (contains asm "solana.crypto.action hash_preimage")
         "assembly missing crypto action"
       require (contains asm "sol_crypto_sha256_hash_preimage:")
@@ -118,10 +143,20 @@ def main : IO UInt32 := do
         "assembly missing keccak hash marker"
       require (contains asm "call sol_keccak256")
         "assembly missing sol_keccak256 syscall"
+      require (contains asm "solana.crypto.action blake3_preimage")
+        "assembly missing blake3 crypto action"
+      require (contains asm "sol_crypto_blake3_blake3_preimage:")
+        "assembly missing blake3 helper label"
+      require (contains asm "solana.crypto.hash blake3_preimage: op=blake3 input=preimage bytes=8 feature_gated=true")
+        "assembly missing blake3 hash marker"
+      require (contains asm "call sol_blake3")
+        "assembly missing sol_blake3 syscall"
       require (contains asm "solana.crypto.output hash_preimage[3] state=hash3")
         "assembly missing fourth hash output copy"
       require (contains asm "solana.crypto.output keccak_preimage[3] state=keccak3")
         "assembly missing fourth keccak output copy"
+      require (contains asm "solana.crypto.output blake3_preimage[3] state=blake3")
+        "assembly missing fourth blake3 output copy"
       require (contains asm "add64 r5, 24")
         "assembly should read the fourth digest word from result_ptr + 24"
   | .error err =>

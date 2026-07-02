@@ -411,7 +411,8 @@ def renderCryptoHashAction (action : CryptoHashAction) : String :=
   "op = " ++ tomlString action.op.id ++ "\n" ++
   "input_state = " ++ tomlString action.inputState ++ "\n" ++
   "bytes = " ++ toString action.bytes ++ "\n" ++
-  "output_states = " ++ tomlStringArray action.outputStates ++ "\n"
+  "output_states = " ++ tomlStringArray action.outputStates ++ "\n" ++
+  "feature_gated = " ++ tomlBool action.featureGated ++ "\n"
 
 def renderSysvarAction (action : SysvarReadAction) : String :=
   "[[solana.entrypoint_sysvar]]\n" ++

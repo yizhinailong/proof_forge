@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# ProofForge Solana SHA-256/Keccak-256 syscall live smoke on Surfpool.
+# ProofForge Solana SHA-256/Keccak-256/Blake3 syscall live smoke on Surfpool.
 #
 # Builds the generated crypto.hash ELF, starts Surfpool, deploys with Solana
 # CLI, invokes it through @solana/web3.js, and compares the state digests
-# against Node SHA-256 and @noble/hashes Keccak-256 references.
+# against Node SHA-256 and @noble/hashes Keccak-256/Blake3 references.
 #
 # Exit codes:
 #   0 - all gates passed
@@ -87,21 +87,22 @@ for capability in ["crypto.hash", "storage.scalar"]:
         raise SystemExit(f"artifact missing {capability} capability: {capabilities}")
 instructions = artifact.get("solanaInstructions", [])
 names = [instruction.get("name") for instruction in instructions]
-if names != ["set_preimage", "hash_preimage", "keccak_preimage"]:
+if names != ["set_preimage", "hash_preimage", "keccak_preimage", "blake3_preimage"]:
     raise SystemExit(f"instruction schema mismatch: {names}")
 params = instructions[0].get("params", [])
 if len(params) != 1 or params[0].get("name") != "value" or params[0].get("offset") != 1:
     raise SystemExit(f"set_preimage parameter schema mismatch: {params}")
 extensions = artifact.get("solanaExtensions", {})
 crypto_actions = extensions.get("cryptoHashActions", [])
-if len(crypto_actions) != 2:
-    raise SystemExit(f"expected two crypto hash actions: {crypto_actions}")
+if len(crypto_actions) != 3:
+    raise SystemExit(f"expected three crypto hash actions: {crypto_actions}")
 actions = {(action.get("crypto"), action.get("op")): action for action in crypto_actions}
 expected_actions = {
-    ("hash_preimage", "sha256"): ["hash0", "hash1", "hash2", "hash3"],
-    ("keccak_preimage", "keccak256"): ["keccak0", "keccak1", "keccak2", "keccak3"],
+    ("hash_preimage", "sha256"): (["hash0", "hash1", "hash2", "hash3"], False),
+    ("keccak_preimage", "keccak256"): (["keccak0", "keccak1", "keccak2", "keccak3"], False),
+    ("blake3_preimage", "blake3"): (["blake0", "blake1", "blake2", "blake3"], True),
 }
-for key, output_states in expected_actions.items():
+for key, (output_states, feature_gated) in expected_actions.items():
     action = actions.get(key)
     if action is None:
         raise SystemExit(f"missing crypto action {key}: {crypto_actions}")
@@ -109,6 +110,8 @@ for key, output_states in expected_actions.items():
         raise SystemExit(f"crypto action input mismatch: {action}")
     if action.get("outputStates") != output_states:
         raise SystemExit(f"crypto action output mismatch: {action}")
+    if action.get("featureGated") is not feature_gated:
+        raise SystemExit(f"crypto action feature gate mismatch: {action}")
 print("artifact validation: ok")
 PY
 

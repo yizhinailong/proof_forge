@@ -109,7 +109,7 @@ The sBPF assembly grammar (from the blueshift `sbpf.pest` PEG grammar):
 | `sol_get_clock_sysvar` / `sol_get_rent_sysvar` / `sol_get_epoch_schedule_sysvar` / `sol_get_last_restart_slot_sysvar` | (ptr) → r0 | Sysvar reads |
 | `sol_get_return_data` | (buffer, len, program_id_ptr) → r0 | Cross-call return data |
 | `sol_set_return_data` | (buffer, len) | Return data / results |
-| `sol_sha256` / `sol_keccak256` / `sol_blake3` | (dst, src, len) | Cryptographic hashing |
+| `sol_sha256` / `sol_keccak256` / `sol_blake3` | (vals: slice table ptr, val_len: slice count, hash_result: ptr) → u64 | Cryptographic hashing |
 | `sol_panic_` | () → ! | Abort |
 | `sol_remaining_compute_units` | () → u64 | Compute unit budget query |
 
@@ -131,7 +131,7 @@ test when the syscall changes observable chain behavior.
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Phase 1 scalar `events.emit` lowers to `sol_log_64_`; Surfpool/Web3.js verifies transaction logs contain a stable event tag and scalar field value | Extend to `sol_log_` string/base64 payloads, Anchor-style events, indexed fields, and pubkey logs |
 | Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | `runtime.memory` target extension lowers entrypoint actions to `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`; Surfpool/Web3.js verifies account byte effects | Use memory helpers for broader account/data packing and compare against Rust/Pinocchio fixtures |
 | Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | `contextRead checkpointId` lowers to `sol_get_clock_sysvar` and reads `Clock.slot`; Solana-only `sysvar` target-extension actions lower `Rent.lamports_per_byte_year` to `sol_get_rent_sysvar` and all current RPC-exposed `EpochSchedule` fields to `sol_get_epoch_schedule_sysvar`; Surfpool/Web3.js verifies recorded values against transaction metadata, sysvar account data, or RPC `getEpochSchedule()` | Add restart-slot reads; expose typed SDK accessors for additional Clock/Rent fields and other sysvars |
-| Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | SHA-256 and Keccak-256 target-extension actions lower to `sol_sha256`/`sol_keccak256` and have Surfpool/Web3.js reference hash gates | Add `sol_blake3` variant and portable `Expr.hash` lowering |
+| Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | SHA-256, Keccak-256, and feature-gated Blake3 target-extension actions lower to `sol_sha256`/`sol_keccak256`/`sol_blake3` and have Surfpool/Web3.js reference hash gates | Add portable `Expr.hash` lowering where target semantics match, plus additional crypto syscall families |
 | Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | `runtime.compute_units` SDK entrypoint actions lower the feature-gated `sol_remaining_compute_units` syscall and store the result in state; profiling actions lower `sol_log_compute_units_`; panic helpers remain documented only | Add live feature-gate-aware tests and explicit panic failure tests |
 
 Implementation note: `sol_get_epoch_schedule_sysvar` returns the runtime struct
@@ -568,7 +568,7 @@ The target profile must accept or reject each IR capability. The proposed
 | `control.bounded_loop` | Phase 2 | Counted loop or unrolling |
 | `data.fixed_array` | ✓ | Fixed‑size local arrays, stack‑allocated |
 | `data.struct` | ✓ | Struct access at known offsets |
-| `crypto.hash` | Partial | Solana-only SHA-256 and Keccak-256 entrypoint actions lower to `sol_sha256`/`sol_keccak256`; Blake3 and portable `Expr.hash` lowering remain |
+| `crypto.hash` | Partial | Solana-only SHA-256, Keccak-256, and feature-gated Blake3 entrypoint actions lower to `sol_sha256`/`sol_keccak256`/`sol_blake3`; portable `Expr.hash` lowering remains target-semantics-dependent |
 | `assertions.check` | ✓ | Assert with error codes |
 | `account.explicit` | ✓ | The core abstraction |
 | `runtime.allocator` | ✓ | Bump allocator or no-allocator contract recorded as target-extension metadata |
@@ -717,7 +717,7 @@ and Node tooling) following the same pattern as others (`solc`, `foundry`,
 | V-GATE-SOLANA-06 | `proof-forge-artifact.json` includes `target: "solana-sbpf-asm"`, `irVersion`, and entrypoint list. |
 | V-GATE-SOLANA-07 | `sbpf debug --elf --input` works interactively (developer ergonomics gate — not CI). |
 | V-GATE-SOLANA-16 | `just solana-memory-web3` deploys a generated memory syscall program on Surfpool and verifies `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_` effects through Web3.js account reads. |
-| V-GATE-SOLANA-17 | `just solana-crypto-hash-web3` deploys a generated SHA-256/Keccak-256 syscall program on Surfpool and verifies account-stored digests against Node `crypto.createHash("sha256")` and `@noble/hashes` Keccak-256. |
+| V-GATE-SOLANA-17 | `just solana-crypto-hash-web3` deploys a generated SHA-256/Keccak-256/Blake3 syscall program on Surfpool and verifies account-stored digests against Node `crypto.createHash("sha256")` plus `@noble/hashes` Keccak-256 and Blake3 references. |
 | V-GATE-SOLANA-18 | `just solana-rent-sysvar-web3` deploys a generated Rent sysvar program on Surfpool and verifies `sol_get_rent_sysvar` records `Rent.lamports_per_byte_year` matching the Rent sysvar account data. |
 | V-GATE-SOLANA-19 | `just solana-epoch-schedule-sysvar-web3` deploys a generated EpochSchedule sysvar program on Surfpool and verifies `sol_get_epoch_schedule_sysvar` records all five current RPC-exposed `EpochSchedule` fields matching RPC `getEpochSchedule()` fields. |
 | V-GATE-SOLANA-10R | `just solana-pinocchio-system-transfer-equivalence` emits the generated System transfer CPI artifact and compares its ABI/account/CPI/state-write contract against a checked-in Pinocchio reference manifest/source. |
@@ -842,7 +842,7 @@ Phase 3 is split into verifiable SDK completeness levels rather than one large
 | Level | Estimated effort | Scope |
 |---|---:|---|
 | SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. PDA/System/SPL live gates, instruction ABI bounds/schema metadata, typed PDA seed lowering, return-data `get`, and scalar `sol_log_64_` event logging are already in place. |
-| SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. Clock.slot, Rent.lamports_per_byte_year, and all current RPC-exposed EpochSchedule fields are already covered through `sol_get_clock_sysvar`, `sol_get_rent_sysvar`, and `sol_get_epoch_schedule_sysvar`. |
+| SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. Clock.slot, Rent.lamports_per_byte_year, all current RPC-exposed EpochSchedule fields, SHA-256, Keccak-256, and feature-gated Blake3 are already covered through their target-extension syscall paths. |
 | Anchor/Pinocchio-class surface | 4-6 focused weeks after beta | Add account constraints, typed account/data wrappers, IDL/client generation, richer SPL/Token-2022 helper coverage, and SDK-facing diagnostics. |
 
 The alpha line is the point where a developer should be able to write and

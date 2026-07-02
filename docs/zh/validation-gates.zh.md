@@ -22,7 +22,7 @@
 | Solana Rent sysvar Surfpool/Web3.js smoke | `just solana-rent-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_rent_sysvar` 将 `Rent.lamports_per_byte_year` 记录进 program-owned state，并与 Rent sysvar account data 对比 | Epoch schedule/restart-slot sysvars、更多 Rent fields、公共 validator 部署 |
 | Solana EpochSchedule sysvar Surfpool/Web3.js smoke | `just solana-epoch-schedule-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_epoch_schedule_sysvar` 将当前 RPC 暴露的 5 个 `EpochSchedule` 字段记录进 program-owned state，并与 RPC `getEpochSchedule()` 对比 | Restart-slot sysvar、其他非 EpochSchedule sysvar 字段、公共 validator 部署 |
 | Solana memory syscall Surfpool/Web3.js smoke | `just solana-memory-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `runtime.memory` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_source` 和 `copy_compare_fill`，并验证 program-owned account bytes 证明 `sol_memcpy_`、`sol_memmove_`、`sol_memcmp_` 和 `sol_memset_` 已执行 | 更广泛的 account/data packing helper、Rust/Pinocchio 等价性 |
-| Solana SHA-256/Keccak-256 syscall Surfpool/Web3.js smoke | `just solana-crypto-hash-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `crypto.hash` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_preimage`、`hash_preimage` 和 `keccak_preimage`，并验证 account 中保存的 digest 与同一 preimage bytes 的 Node SHA-256 和 `@noble/hashes` Keccak-256 一致 | `sol_blake3`、portable `Expr.hash` 路由、Rust/Pinocchio 等价性 |
+| Solana SHA-256/Keccak-256/Blake3 syscall Surfpool/Web3.js smoke | `just solana-crypto-hash-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `crypto.hash` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_preimage`、`hash_preimage`、`keccak_preimage` 和 `blake3_preimage`，并验证 account 中保存的 digest 与同一 preimage bytes 的 Node SHA-256 和 `@noble/hashes` Keccak-256/Blake3 一致 | portable `Expr.hash` 路由、Rust/Pinocchio 等价性 |
 | Yul 生成冒烟测试 | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | 已构建 `proof-forge` | Lean 前端/LCNF 将简单合约降级为 Yul | `solc` 验收、ABI 调度、EVM 运行时行为 |
 | Yul 到字节码冒烟测试 | `solc --strict-assembly build/counter.yul --bin` | `PATH` 上的 `solc` | 生成的 Yul 被 `solc` 接受 | 运行时语义或方法调度 |
 | 单个 EVM 字节码编译 | `lake env proof-forge --evm-bytecode --root . --module contract --artifact-output build/evm/Counter.proof-forge-artifact.json -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean` | `solc`、`cast`、`python3` 和 `Examples/Evm/Contracts/Counter.evm-methods` | Lean -> Yul -> `solc` -> 带有选择器生成的 runtime bytecode、可部署 `.init.bin` creation bytecode、`proof-forge-artifact.json` metadata，以及 `proof-forge-deploy.json` initcode manifest；manifest 中的 initcode header 会复制并返回引用的 runtime bytecode；`--evm-chain-profile <id>` 还会把已知 EVM chain profile 写入 deploy manifest，但不广播交易；`--evm-constructor-param <name:type>` 会记录静态 word constructor ABI schema；`--evm-constructor-arg <name=value>` 会 ABI-encode 支持的静态 word typed value；`--evm-constructor-args-hex <hex>` 会记录并追加一段 ABI-encoded constructor-argument tail | 运行时行为、gas、详尽的 ABI 正确性、dynamic constructor ABI types、签名/原始交易生成、真实交易广播 |
@@ -156,13 +156,14 @@
     部署 ELF，依次调用 `set_source` 和 `copy_compare_fill`，并检查
     program-owned state account 中的 copied value、moved value、memcmp result
     和 memset byte pattern。
-  - **V-GATE-SOLANA-17** — Solana SHA-256/Keccak-256 syscall 通过 Surfpool 和 Web3.js
+  - **V-GATE-SOLANA-17** — Solana SHA-256/Keccak-256/Blake3 syscall 通过 Surfpool 和 Web3.js
     进行 live 行为验证。脚本：`scripts/solana/crypto-hash-web3-smoke.sh`
     构建生成的 `--solana-crypto-hash-elf` fixture，校验 `crypto.hash`
     artifact metadata，启动 Surfpool，用 `solana program deploy --use-rpc`
-    部署 ELF，依次调用 `set_preimage`、`hash_preimage` 和 `keccak_preimage`，
-    并将 program-owned account 中的 32-byte digest 与同一 preimage bytes 的
-    Node `crypto.createHash("sha256")` 和 `@noble/hashes` Keccak-256 对比。
+    部署 ELF，依次调用 `set_preimage`、`hash_preimage`、`keccak_preimage` 和
+    `blake3_preimage`，并将 program-owned account 中的 32-byte digest 与同一
+    preimage bytes 的 Node `crypto.createHash("sha256")` 和 `@noble/hashes`
+    Keccak-256/Blake3 对比。
   - **V-GATE-SOLANA-18** — Solana Rent sysvar 通过 Surfpool 和 Web3.js
     进行 live 行为验证。脚本：`scripts/solana/rent-sysvar-web3-smoke.sh`
     构建生成的 `--solana-rent-sysvar-elf` fixture，校验 `sysvar` target

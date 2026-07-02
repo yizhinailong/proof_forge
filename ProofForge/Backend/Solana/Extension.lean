@@ -74,15 +74,22 @@ def MemoryOp.id : MemoryOp -> String
 inductive CryptoHashOp where
   | sha256
   | keccak256
+  | blake3
   deriving BEq, DecidableEq, Repr, Inhabited
 
 def CryptoHashOp.id : CryptoHashOp -> String
   | .sha256 => "sha256"
   | .keccak256 => "keccak256"
+  | .blake3 => "blake3"
 
 def CryptoHashOp.syscall : CryptoHashOp -> String
   | .sha256 => ProofForge.Backend.Solana.Syscalls.sol_sha256
   | .keccak256 => ProofForge.Backend.Solana.Syscalls.sol_keccak256
+  | .blake3 => ProofForge.Backend.Solana.Syscalls.sol_blake3
+
+def CryptoHashOp.featureGated : CryptoHashOp -> Bool
+  | .blake3 => true
+  | _ => false
 
 inductive SysvarKind where
   | rent
@@ -141,6 +148,7 @@ structure CryptoHashAction where
   inputState : String
   bytes : Nat
   outputStates : Array String := #[]
+  featureGated : Bool := false
   entrypoint : String
   deriving Repr, Inhabited
 
@@ -302,6 +310,7 @@ def memoryOpFromString? : String -> Option MemoryOp
 def cryptoHashOpFromString? : String -> Option CryptoHashOp
   | "sha256" => some .sha256
   | "keccak256" => some .keccak256
+  | "blake3" => some .blake3
   | _ => none
 
 def sysvarKindFromString? : String -> Option SysvarKind
@@ -549,6 +558,8 @@ def cryptoHashFromCall? (call : CapabilityCall) : Option CryptoHashAction :=
           inputState := metadataValue? call.metadata "solana.crypto.input_state" |>.getD ""
           bytes := natFromMetadata? call.metadata "solana.crypto.bytes" |>.getD 0
           outputStates := metadataValue? call.metadata "solana.crypto.output_states" |>.map splitComma |>.getD #[]
+          featureGated := metadataValue? call.metadata "solana.crypto.feature_gated"
+            |>.map boolFromString |>.getD op.featureGated
           entrypoint := entrypoint
         }
     | _, _ => none
@@ -1767,14 +1778,14 @@ def lowerCryptoHashOutputs (valueBindings : Array CpiValueBinding)
     if idx < 4 then
       lowerCryptoHashOutputWord valueBindings action idx state
     else
-      #[.comment s!"solana.crypto.output {action.name}[{idx}] state={state} ignored: sha256 has four u64 words"])
+      #[.comment s!"solana.crypto.output {action.name}[{idx}] state={state} ignored: hash result has four u64 words"])
     |>.foldl (fun acc nodes => acc ++ nodes) #[]
 
 def lowerCryptoHashHelper (valueBindings : Array CpiValueBinding)
     (action : CryptoHashAction) : Array AstNode :=
   #[
     .blankLine,
-    .comment s!"solana.crypto.hash {action.name}: op={action.op.id} input={action.inputState} bytes={action.bytes}",
+    .comment s!"solana.crypto.hash {action.name}: op={action.op.id} input={action.inputState} bytes={action.bytes} feature_gated={action.featureGated}",
     .label action.label,
     .instruction { opcode := .mov64, dst := some .r7, src := some .r1 },
     .comment "pack SolBytes slice array for hash input"

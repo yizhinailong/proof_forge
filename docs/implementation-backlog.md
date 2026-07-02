@@ -800,8 +800,9 @@ validation, plus live scalar `events.emit` log validation through
 `sol_log_64_`, and live `Clock.slot` sysvar validation for `contextRead
 checkpointId`, plus live `runtime.memory` validation through `sol_memcpy_`,
 `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`, plus live Solana-only
-`crypto.hash` validation through `sol_sha256` and `sol_keccak256`, plus live
-`Rent.lamports_per_byte_year` sysvar validation through `sol_get_rent_sysvar`.
+`crypto.hash` validation through `sol_sha256`, `sol_keccak256`, and
+feature-gated `sol_blake3`, plus live `Rent.lamports_per_byte_year` sysvar
+validation through `sol_get_rent_sysvar`.
 It also covers live validation for all current RPC-exposed `EpochSchedule`
 fields through `sol_get_epoch_schedule_sysvar`: `slots_per_epoch`,
 `leader_schedule_slot_offset`, `warmup`, `first_normal_epoch`, and
@@ -875,12 +876,14 @@ Completed alpha slices:
   on EVM, and render manifest sections plus sBPF helper calls for
   `sol_set_return_data`, `sol_get_return_data`, feature-gated
   `sol_remaining_compute_units`, and `sol_log_compute_units_`.
-- Live SHA-256/Keccak-256 syscall fixture:
+- Live SHA-256/Keccak-256/Blake3 syscall fixture:
   `scripts/solana/crypto-hash-web3-smoke.sh` builds and deploys a generated
   Solana-only `crypto.hash` program on Surfpool, invokes `set_preimage`,
-  `hash_preimage`, and `keccak_preimage` through Web3.js, and proves the
-  account-stored 32-byte digests match Node SHA-256 and `@noble/hashes`
-  Keccak-256 references for the same little-endian preimage.
+  `hash_preimage`, `keccak_preimage`, and `blake3_preimage` through Web3.js, and
+  proves the account-stored 32-byte digests match Node SHA-256 and
+  `@noble/hashes` Keccak-256/Blake3 references for the same little-endian
+  preimage. The Blake3 action is recorded as feature-gated in manifest and
+  artifact metadata.
 - Live Rent sysvar fixture: `scripts/solana/rent-sysvar-web3-smoke.sh` builds
   and deploys a generated Solana-only `sysvar` target-extension program on
   Surfpool, invokes `record_rent` through Web3.js, and proves the recorded
@@ -925,9 +928,9 @@ Remaining priority slices:
    Anchor-style and indexed event forms; add live/CPI validation for
    `sol_get_return_data`, typed return payload helpers beyond `u64`,
    restart-slot sysvar reads, additional non-EpochSchedule sysvar fields,
-   `sol_blake3`, portable `Expr.hash` routing where the hash
-   semantics match the target, and broader account/data packing helpers that
-   reuse the new memory syscall path, with JavaScript reference checks.
+   portable `Expr.hash` routing where the hash semantics match the target, and
+   broader account/data packing helpers that reuse the new memory syscall path,
+   with JavaScript reference checks.
 3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures
    through `runtime.allocator`, emit actual downward bump-pointer allocation
    code when needed, and reject allocation-using structures under

@@ -1411,7 +1411,8 @@ def solanaCryptoHashActionJson
     ("op", jsonString action.op.id),
     ("inputState", jsonString action.inputState),
     ("bytes", toString action.bytes),
-    ("outputStates", jsonArray (action.outputStates.map jsonString))
+    ("outputStates", jsonArray (action.outputStates.map jsonString)),
+    ("featureGated", jsonBool action.featureGated)
   ]
 
 def solanaSysvarActionJson

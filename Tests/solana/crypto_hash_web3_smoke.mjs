@@ -6,6 +6,7 @@ import {
   Transaction,
   TransactionInstruction,
 } from "@solana/web3.js";
+import { blake3 } from "@noble/hashes/blake3";
 import { keccak_256 } from "@noble/hashes/sha3";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -84,7 +85,7 @@ async function main() {
   });
   const payer = readKeypair(payerPath);
   const programId = new PublicKey(programIdValue);
-  const state = await createProgramState(connection, payer, programId, 72);
+  const state = await createProgramState(connection, payer, programId, 104);
   const preimageValue = 0x1122334455667788n;
   const preimageBytes = writeU64LE(preimageValue);
 
@@ -121,6 +122,17 @@ async function main() {
     [payer]
   );
 
+  const blake3Ix = new TransactionInstruction({
+    programId,
+    keys: [{ pubkey: state.publicKey, isSigner: false, isWritable: true }],
+    data: Buffer.from([3]),
+  });
+  const blake3Signature = await sendAndPollTransaction(
+    connection,
+    new Transaction().add(blake3Ix),
+    [payer]
+  );
+
   const account = await connection.getAccountInfo(state.publicKey, "confirmed");
   if (account === null) {
     throw new Error(`state account not found: ${state.publicKey.toBase58()}`);
@@ -133,6 +145,9 @@ async function main() {
   const actualKeccakDigest = account.data.subarray(40, 72);
   const expectedKeccakDigest = Buffer.from(keccak_256(preimageBytes));
   requireBufferEqual(actualKeccakDigest, expectedKeccakDigest, "keccak256 digest");
+  const actualBlake3Digest = account.data.subarray(72, 104);
+  const expectedBlake3Digest = Buffer.from(blake3(preimageBytes));
+  requireBufferEqual(actualBlake3Digest, expectedBlake3Digest, "blake3 digest");
 
   console.log(JSON.stringify({
     programId: programId.toBase58(),
@@ -141,9 +156,11 @@ async function main() {
     setPreimageSignature,
     hashSignature,
     keccakSignature,
+    blake3Signature,
     preimageHex: preimageBytes.toString("hex"),
     digestHex: Buffer.from(actualDigest).toString("hex"),
     keccakDigestHex: Buffer.from(actualKeccakDigest).toString("hex"),
+    blake3DigestHex: Buffer.from(actualBlake3Digest).toString("hex"),
   }));
 }
 
