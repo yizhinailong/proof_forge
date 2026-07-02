@@ -1,7 +1,7 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.IR.Contract
-import ProofForge.Target.Check
+import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
 import ProofForge.Compiler.Yul.AST
 import ProofForge.Compiler.Yul.Printer
@@ -18,7 +18,7 @@ structure LowerError where
 def LowerError.render (err : LowerError) : String :=
   err.message
 
-def capabilityError (err : CapabilityError) : LowerError := {
+def diagnosticError (err : Diagnostic) : LowerError := {
   message := err.render
 }
 
@@ -5318,9 +5318,9 @@ def validateState (module : Module) : Except LowerError Unit := do
         .error { message := s!"array state `{state.id}` has unsupported EVM IR v0 element type `{other.name}`; storage arrays support U32, U64, Bool, Hash, or flat struct arrays" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
-  match requireCapabilities Target.evm module.capabilities with
-  | .ok () => .ok ()
-  | .error err => .error (capabilityError err)
+  match resolveModule Target.evm module with
+  | .ok _ => .ok ()
+  | .error err => .error (diagnosticError err)
 
 def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object := do
   validateCapabilities module

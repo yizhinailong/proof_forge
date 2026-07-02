@@ -14,7 +14,7 @@ See `docs/targets/solana-sbpf-asm.md` (D-026).
 -/
 
 import ProofForge.IR.Contract
-import ProofForge.Target.Check
+import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
 import ProofForge.Backend.Solana.Asm
 import ProofForge.Backend.Solana.StateLayout
@@ -47,9 +47,7 @@ structure LowerError where
 
 def LowerError.render (err : LowerError) : String := err.message
 
-/-- Wrap a target capability error as an sBPF lowering error so the
-unsupported-capability diagnostic flows through `renderModule`. -/
-def capabilityError (err : ProofForge.Target.CapabilityError) : LowerError := {
+def diagnosticError (err : ProofForge.Target.Diagnostic) : LowerError := {
   message := err.render
 }
 
@@ -58,9 +56,9 @@ def capabilityError (err : ProofForge.Target.CapabilityError) : LowerError := {
 rules out the generic `.crosscallInvoke` (Solana uses `.crosscallCpi`,
 D-027) and the ZK capabilities. -/
 def validateCapabilities (module : IR.Module) : Except LowerError Unit := do
-  match ProofForge.Target.requireCapabilities ProofForge.Target.solanaSbpfAsm module.capabilities with
-  | .ok () => .ok ()
-  | .error err => .error (capabilityError err)
+  match ProofForge.Target.resolveModule ProofForge.Target.solanaSbpfAsm module with
+  | .ok _ => .ok ()
+  | .error err => .error (diagnosticError err)
 
 -- ============================================================================
 -- Lowering context

@@ -1,7 +1,7 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.IR.Contract
-import ProofForge.Target.Check
+import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
 
 namespace ProofForge.Backend.Psy.IR
@@ -16,7 +16,7 @@ structure LowerError where
 def LowerError.render (err : LowerError) : String :=
   err.message
 
-def capabilityError (err : CapabilityError) : LowerError := {
+def diagnosticError (err : Diagnostic) : LowerError := {
   message := err.render
 }
 
@@ -1462,9 +1462,9 @@ def validateState (module : Module) : Except LowerError Unit := do
         .error { message := s!"array state `{state.id}` has unsupported Psy IR v0 element type `{valueType.name}`; only Felt, Bool, U32, Hash, and deriveStorage structs are supported" }
 
 def validateCapabilities (module : Module) : Except LowerError Unit :=
-  match requireCapabilities Target.psyDpn module.capabilities with
-  | .ok () => .ok ()
-  | .error err => .error (capabilityError err)
+  match resolveModule Target.psyDpn module with
+  | .ok _ => .ok ()
+  | .error err => .error (diagnosticError err)
 
 def testBody (module : Module) : Except LowerError (Array String) := do
   let refName := capitalizedRefName module
