@@ -1641,9 +1641,10 @@ def lowerCurrentProgramIdToData (fieldOff : Nat) : Array AstNode := #[
   storeReg .stxdw .r8 (fieldOff + 24) .r3
 ]
 
-def lowerAccountKeyToData (source : String) (layout : AccountInputLayout) (fieldOff : Nat) : Array AstNode :=
+def lowerAccountKeyToDataField (fieldName source : String)
+    (layout : AccountInputLayout) (fieldOff : Nat) : Array AstNode :=
   #[
-    .comment s!"solana.cpi.value owner from account {source}",
+    .comment s!"solana.cpi.value {fieldName} from account {source}",
   ] ++
   inputAccountFieldPtr .r7 layout layout.keyOff ++ #[
     .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
@@ -1655,6 +1656,9 @@ def lowerAccountKeyToData (source : String) (layout : AccountInputLayout) (field
     .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 24) },
     storeReg .stxdw .r8 (fieldOff + 24) .r3
   ]
+
+def lowerAccountKeyToData (source : String) (layout : AccountInputLayout) (fieldOff : Nat) : Array AstNode :=
+  lowerAccountKeyToDataField "owner" source layout fieldOff
 
 def lowerCpiOwnerField (accountBindings : Array CpiAccountBinding) (cpi : CpiInvoke)
     (fieldOff : Nat) : Array AstNode :=
@@ -1767,6 +1771,44 @@ def lowerSplTokenRevokeData : Array AstNode :=
     storeImm .stb .r8 0 5
   ]
 
+def splTokenAuthorityType (cpi : CpiInvoke) : Nat :=
+  match cpiMetadataValue? cpi "solana.cpi.authority_type" with
+  | some "mint_tokens" => 0
+  | some "freeze_account" => 1
+  | some "account_owner" => 2
+  | some "close_account" => 3
+  | some value => value.toNat?.getD 0
+  | none => 0
+
+def lowerSplTokenSetAuthorityNewAuthority
+    (accountBindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
+  match cpiMetadataValue? cpi "solana.cpi.new_authority" with
+  | some source =>
+      match cpiAccountBinding? accountBindings source with
+      | some binding => lowerAccountKeyToDataField "new_authority" source binding.layout 3
+      | none =>
+          #[
+            .comment s!"solana.cpi.value new_authority source={source} placeholder=zero",
+          ] ++ lowerZero32At .r8 3
+  | none =>
+      #[
+        .comment "solana.cpi.value new_authority missing placeholder=zero",
+      ] ++ lowerZero32At .r8 3
+
+def lowerSplTokenSetAuthorityData
+    (accountBindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
+  let authorityType := splTokenAuthorityType cpi
+  let authorityTypeLabel := cpiMetadataValue? cpi "solana.cpi.authority_type" |>.getD (toString authorityType)
+  #[
+    .comment s!"solana.cpi.data spl-token.set_authority: u8 instruction=6, u8 authority_type={authorityTypeLabel}, option=some, pubkey new_authority"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 6,
+    storeImm .stb .r8 1 authorityType,
+    storeImm .stb .r8 2 1
+  ] ++
+  lowerSplTokenSetAuthorityNewAuthority accountBindings cpi
+
 def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
     (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode × Nat :=
   match cpi.dataLayout? with
@@ -1784,6 +1826,8 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
       (lowerSplTokenAmountData valueBindings cpi "spl-token.approve" 4 9, 9)
   | some "spl-token.revoke" =>
       (lowerSplTokenRevokeData, 1)
+  | some "spl-token.set_authority" =>
+      (lowerSplTokenSetAuthorityData accountBindings cpi, 35)
   | _ =>
       (#[
         .comment "generic CPI instruction data empty; protocol-specific ABI packing pending"

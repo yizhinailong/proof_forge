@@ -1,6 +1,7 @@
 import ProofForge.Backend.Solana.Package
 import ProofForge.Contract.Builder
 import ProofForge.Solana
+import ProofForge.Solana.Examples.SplTokenAuthorityCpi
 import ProofForge.Solana.Examples.SplTokenOpsCpi
 
 namespace ProofForge.Tests.SolanaCpiPacking
@@ -268,6 +269,54 @@ def main : IO UInt32 := do
         "assembly missing revoke entrypoint CPI helper call"
   | .error err =>
       throw <| IO.userError s!"Solana token-ops CPI packing render failed: {err.render}"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec
+      "token-authority-cpi" ProofForge.Solana.Examples.SplTokenAuthorityCpi.spec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "token-authority package missing sBPF assembly"
+      let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
+        | throw <| IO.userError "token-authority package missing manifest.toml"
+      let asm := asmFile.contents
+      let manifest := manifestFile.contents
+      require (contains manifest "name = \"set_authority\"")
+        "token authority manifest missing set_authority entrypoint"
+      require (contains manifest "{ name = \"last_authority_marker\", index = 0, signer = false, writable = true, owner = \"program\" },")
+        "token authority manifest missing state account schema"
+      require (contains manifest "{ name = \"mint\", index = 1, signer = false, writable = true, owner = \"any\" },")
+        "token authority manifest missing mint account schema"
+      require (contains manifest "{ name = \"authority\", index = 2, signer = true, writable = false, owner = \"any\" },")
+        "token authority manifest missing authority account schema"
+      require (contains manifest "{ name = \"spl_token\", index = 3, signer = false, writable = false, owner = \"executable\" },")
+        "token authority manifest missing SPL Token program account schema"
+      require (contains manifest "{ name = \"new_authority\", index = 4, signer = false, writable = false, owner = \"any\" }")
+        "token authority manifest missing new authority account schema"
+      require (contains manifest "instruction = \"set_authority\"")
+        "token authority manifest missing set_authority CPI"
+      require (contains manifest "data_layout = \"spl-token.set_authority\"")
+        "token authority manifest missing set_authority data layout"
+      require (contains manifest "authority_type = \"mint_tokens\"")
+        "token authority manifest missing authority_type metadata"
+      require (contains manifest "new_authority = \"new_authority\"")
+        "token authority manifest missing new_authority metadata"
+      require (contains asm "sol_cpi_token_set_authority:")
+        "assembly missing SPL Token set_authority helper label"
+      require (contains asm "solana.cpi.data spl-token.set_authority: u8 instruction=6, u8 authority_type=mint_tokens, option=some, pubkey new_authority")
+        "assembly missing SPL Token set_authority data packing"
+      require (contains asm "solana.cpi.value new_authority from account new_authority")
+        "assembly missing new_authority account-key data binding"
+      require (contains asm "mov64 r3, 35")
+        "assembly missing set_authority SPL Token data length"
+      require (contains asm "stb [r8+0], 6")
+        "assembly missing set_authority instruction tag store"
+      require (contains asm "stb [r8+1], 0")
+        "assembly missing set_authority MintTokens authority type store"
+      require (contains asm "stb [r8+2], 1")
+        "assembly missing set_authority new-authority option store"
+      require (contains asm "call sol_cpi_token_set_authority")
+        "assembly missing set_authority entrypoint CPI helper call"
+  | .error err =>
+      throw <| IO.userError s!"Solana token-authority CPI packing render failed: {err.render}"
 
   IO.println "solana-cpi-packing: ok"
   return 0

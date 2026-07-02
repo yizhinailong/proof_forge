@@ -96,13 +96,37 @@ solana-pinocchio-system-create-account-equivalence:
 solana-pinocchio-spl-token-transfer-equivalence:
     scripts/solana/pinocchio-spl-token-transfer-equivalence.sh
 
+# Compare the generated SPL Token mint_to/burn/approve/revoke CPI artifact with the Pinocchio reference contract.
+solana-pinocchio-spl-token-ops-equivalence:
+    scripts/solana/pinocchio-spl-token-ops-equivalence.sh
+
+# Compare the generated SPL Token set_authority CPI artifact with the Pinocchio reference contract.
+solana-pinocchio-spl-token-authority-equivalence:
+    scripts/solana/pinocchio-spl-token-authority-equivalence.sh
+
 # Build/deploy ProofForge and Pinocchio System transfer programs and compare behavior on Surfpool.
 solana-pinocchio-system-transfer-live-equivalence:
     scripts/solana/pinocchio-system-transfer-live-equivalence.sh
 
+# Build/deploy ProofForge and Pinocchio System create_account programs and compare behavior on Surfpool.
+solana-pinocchio-system-create-account-live-equivalence:
+    scripts/solana/pinocchio-system-create-account-live-equivalence.sh
+
+# Build/deploy ProofForge and Pinocchio SPL Token transfer_checked programs and compare behavior on Surfpool.
+solana-pinocchio-spl-token-transfer-live-equivalence:
+    scripts/solana/pinocchio-spl-token-transfer-live-equivalence.sh
+
+# Build/deploy ProofForge and Pinocchio SPL Token mint_to/burn/approve/revoke programs and compare behavior on Surfpool.
+solana-pinocchio-spl-token-ops-live-equivalence:
+    scripts/solana/pinocchio-spl-token-ops-live-equivalence.sh
+
+# Build/deploy ProofForge and Pinocchio SPL Token set_authority programs and compare behavior on Surfpool.
+solana-pinocchio-spl-token-authority-live-equivalence:
+    scripts/solana/pinocchio-spl-token-authority-live-equivalence.sh
+
 # Repair/install the Solana SBF rustc/platform-tools used by the Pinocchio live gate.
 solana-pinocchio-install-sbf-tools:
-    PATH="$HOME/.cargo/bin:$PATH" cargo-build-sbf --force-tools-install --tools-version v1.52
+    PATH="$HOME/.cargo/bin:$PATH" cargo-build-sbf --install-only --force-tools-install --tools-version v1.52
 
 # Run a live System Program create_account CPI smoke on Surfpool with Web3.js.
 solana-system-create-account-cpi-web3:
@@ -115,6 +139,10 @@ solana-spl-token-transfer-cpi-web3:
 # Run a live SPL Token mint_to/burn/approve/revoke CPI smoke on Surfpool with Web3.js.
 solana-spl-token-ops-cpi-web3:
     scripts/solana/spl-token-ops-cpi-web3-smoke.sh
+
+# Run a live SPL Token set_authority CPI smoke on Surfpool with Web3.js.
+solana-spl-token-authority-cpi-web3:
+    scripts/solana/spl-token-authority-cpi-web3-smoke.sh
 
 # Run a live Solana log/event smoke on Surfpool with Web3.js.
 solana-log-event-web3:

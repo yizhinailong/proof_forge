@@ -650,6 +650,23 @@ def splTokenRevokeCall (name source owner : String) (tokenProgram : String := sp
   extraMetadata := tokenMetadata tokenProgram
 }
 
+def splTokenSetAuthorityCall (name account authority authorityType newAuthority : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "set_authority"
+  accounts := #[
+    writableAccount account,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.set_authority"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.authority_type" authorityType,
+    kv "solana.cpi.new_authority" newAuthority
+  ]
+}
+
 def pda (binding : PdaBinding) : ProofForge.Contract.Builder.ModuleM Unit := do
   ProofForge.Contract.Builder.capability .accountExplicit "solana.account.pda" (source? := some binding.name)
     (metadata := binding.metadata)
@@ -1230,5 +1247,17 @@ def invokeSplTokenRevoke (name source owner : String) (tokenProgram : String := 
     (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
   cpiEntry (splTokenRevokeCall name source owner (tokenProgram := tokenProgram)
     (signerSeeds := signerSeeds))
+
+def splTokenSetAuthority (name account authority authorityType newAuthority : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenSetAuthorityCall name account authority authorityType newAuthority
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def invokeSplTokenSetAuthority (name account authority authorityType newAuthority : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenSetAuthorityCall name account authority authorityType newAuthority
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
 
 end ProofForge.Solana

@@ -185,6 +185,8 @@ def cpiJson (cpi : CpiInvoke) : String :=
     cpiMetadataJson cpi "solana.cpi.owner" "ownerSource",
     cpiMetadataJson cpi "solana.cpi.amount_source" "amountSource",
     cpiMetadataJson cpi "solana.cpi.decimals" "decimals",
+    cpiMetadataJson cpi "solana.cpi.authority_type" "authorityType",
+    cpiMetadataJson cpi "solana.cpi.new_authority" "newAuthority",
     ("signed", jsonBool cpi.signed),
     ("entrypoint", jsonStringOption cpi.entrypoint?)
   ]

@@ -406,7 +406,9 @@ def renderCpi (cpi : CpiInvoke) : String :=
     renderCpiMetadataField cpi "solana.cpi.space_source" "space_source" ++
     renderCpiMetadataField cpi "solana.cpi.owner" "owner_source" ++
     renderCpiMetadataField cpi "solana.cpi.amount_source" "amount_source" ++
-    renderCpiMetadataField cpi "solana.cpi.decimals" "decimals"
+    renderCpiMetadataField cpi "solana.cpi.decimals" "decimals" ++
+    renderCpiMetadataField cpi "solana.cpi.authority_type" "authority_type" ++
+    renderCpiMetadataField cpi "solana.cpi.new_authority" "new_authority"
   "[[solana.cpi]]\n" ++
   "name = " ++ tomlString cpi.name ++ "\n" ++
   "program = " ++ tomlString cpi.program ++ "\n" ++

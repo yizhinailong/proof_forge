@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# ProofForge vs Pinocchio System transfer live equivalence on Surfpool.
+# ProofForge vs Pinocchio SPL Token transfer_checked live equivalence on Surfpool.
 #
-# Builds the generated ProofForge System transfer CPI ELF and the checked-in
-# Pinocchio reference ELF, deploys both programs to the same Surfpool instance,
-# invokes the same Web3.js System transfer scenario against each program, and
-# compares the observable lamport delta plus state write.
+# Builds the generated ProofForge SPL Token transfer_checked CPI ELF and the
+# checked-in Pinocchio reference ELF, deploys both programs to the same
+# Surfpool instance, invokes the same Web3.js token transfer scenario against
+# each program, and compares the token balance deltas plus state writes.
 #
 # Exit codes:
 #   0 - live equivalence passed
@@ -15,10 +15,10 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-OUT_DIR="${PROOF_FORGE_PINOCCHIO_SYSTEM_TRANSFER_LIVE_OUT:-build/solana-pinocchio-system-transfer-live}"
-REFERENCE_DIR="$REPO_ROOT/references/solana/pinocchio/system-transfer"
-PROOF_FORGE_PROJECT_NAME="proofforge-system-transfer-live"
-PINOCCHIO_PROJECT_NAME="pinocchio-system-transfer-reference"
+OUT_DIR="${PROOF_FORGE_PINOCCHIO_SPL_TOKEN_TRANSFER_LIVE_OUT:-build/solana-pinocchio-spl-token-transfer-live}"
+REFERENCE_DIR="$REPO_ROOT/references/solana/pinocchio/spl-token-transfer"
+PROOF_FORGE_PROJECT_NAME="proofforge-spl-token-transfer-live"
+PINOCCHIO_PROJECT_NAME="pinocchio-spl-token-transfer-reference"
 PROOF_FORGE_ELF="$OUT_DIR/$PROOF_FORGE_PROJECT_NAME.so"
 PROOF_FORGE_ARTIFACT="$OUT_DIR/proof-forge-artifact.json"
 PINOCCHIO_BUILD_DIR="$OUT_DIR/pinocchio-build"
@@ -26,21 +26,24 @@ PINOCCHIO_ELF="$OUT_DIR/$PINOCCHIO_PROJECT_NAME.so"
 PAYER_KEYPAIR="$OUT_DIR/payer.json"
 PROOF_FORGE_PROGRAM_KEYPAIR="$OUT_DIR/proofforge-program-keypair.json"
 PINOCCHIO_PROGRAM_KEYPAIR="$OUT_DIR/pinocchio-program-keypair.json"
-JS_TEMPLATE="$REPO_ROOT/Tests/solana/system_cpi_web3_smoke.mjs"
+JS_TEMPLATE="$REPO_ROOT/Tests/solana/spl_token_transfer_cpi_web3_smoke.mjs"
 NODE_PROJECT="$OUT_DIR/web3"
 SURFPOOL_BIN="${SURFPOOL:-surfpool}"
 SOLANA_BIN="${SOLANA:-solana}"
 KEYGEN="${SOLANA_KEYGEN:-solana-keygen}"
 NPM_BIN="${NPM:-npm}"
 CARGO_BUILD_SBF_BIN="${CARGO_BUILD_SBF:-cargo-build-sbf}"
-SBPF_ARCH="${PROOF_FORGE_SOLANA_SYSTEM_CPI_SBPF_ARCH:-v0}"
+SBPF_ARCH="${PROOF_FORGE_SOLANA_SPL_TOKEN_TRANSFER_CPI_SBPF_ARCH:-v0}"
 SOLANA_RUSTUP_TOOLCHAIN="${PROOF_FORGE_PINOCCHIO_RUSTUP_TOOLCHAIN:-1.89.0-sbpf-solana-v1.52}"
 RPC_HOST="${PROOF_FORGE_SURFPOOL_HOST:-127.0.0.1}"
-RPC_PORT="${PROOF_FORGE_PINOCCHIO_SYSTEM_TRANSFER_SURFPOOL_PORT:-8908}"
-WS_PORT="${PROOF_FORGE_PINOCCHIO_SYSTEM_TRANSFER_SURFPOOL_WS_PORT:-8909}"
+RPC_PORT="${PROOF_FORGE_PINOCCHIO_SPL_TOKEN_TRANSFER_SURFPOOL_PORT:-8912}"
+WS_PORT="${PROOF_FORGE_PINOCCHIO_SPL_TOKEN_TRANSFER_SURFPOOL_WS_PORT:-8913}"
 RPC_URL="http://$RPC_HOST:$RPC_PORT"
+WS_URL="ws://$RPC_HOST:$WS_PORT"
 SURFPOOL_LOG_DIR="$OUT_DIR/surfpool-logs"
-LAMPORTS="${PROOF_FORGE_SOLANA_TRANSFER_LAMPORTS:-5000}"
+TOKEN_DECIMALS="${PROOF_FORGE_SOLANA_TOKEN_DECIMALS:-9}"
+TRANSFER_AMOUNT="${PROOF_FORGE_SOLANA_TOKEN_TRANSFER_AMOUNT:-250000000}"
+INITIAL_AMOUNT="${PROOF_FORGE_SOLANA_TOKEN_INITIAL_AMOUNT:-1000000000}"
 SURFPOOL_PID=""
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
@@ -57,7 +60,7 @@ Pinocchio reference SBF build needs Solana rustc/platform-tools.
 Suggested repair:
   PATH="\$HOME/.cargo/bin:\$PATH" cargo-build-sbf --install-only --force-tools-install --tools-version v1.52
 Then rerun:
-  PROOF_FORGE_PINOCCHIO_USE_RUSTUP=1 scripts/solana/pinocchio-system-transfer-live-equivalence.sh
+  PROOF_FORGE_PINOCCHIO_USE_RUSTUP=1 scripts/solana/pinocchio-spl-token-transfer-live-equivalence.sh
 EOF
 }
 
@@ -92,14 +95,14 @@ command -v python3 >/dev/null 2>&1 || fail "python3 not on PATH"
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$PINOCCHIO_BUILD_DIR" "$NODE_PROJECT" "$SURFPOOL_LOG_DIR"
 
-echo "=== Pinocchio live equivalence step 1: build ProofForge fixture ELF ==="
-lake env proof-forge --solana-system-cpi-elf --solana-sbpf-arch "$SBPF_ARCH" \
+echo "=== Pinocchio SPL Token transfer live equivalence step 1: build ProofForge fixture ELF ==="
+lake env proof-forge --solana-spl-token-transfer-cpi-elf --solana-sbpf-arch "$SBPF_ARCH" \
   -o "$PROOF_FORGE_ELF" \
   --artifact-output "$PROOF_FORGE_ARTIFACT" \
-  || fail "proof-forge --solana-system-cpi-elf failed"
+  || fail "proof-forge --solana-spl-token-transfer-cpi-elf failed"
 [ -f "$PROOF_FORGE_ELF" ] || fail "ProofForge ELF not produced: $PROOF_FORGE_ELF"
 
-echo "=== Pinocchio live equivalence step 2: build Pinocchio reference ELF ==="
+echo "=== Pinocchio SPL Token transfer live equivalence step 2: build Pinocchio reference ELF ==="
 use_no_rustup_override=0
 case "${PROOF_FORGE_PINOCCHIO_USE_RUSTUP:-auto}" in
   1|true|yes|auto)
@@ -152,7 +155,7 @@ PINOCCHIO_BUILT_ELF="$(find "$PINOCCHIO_BUILD_DIR" -maxdepth 1 -type f -name '*.
 [ -n "$PINOCCHIO_BUILT_ELF" ] || fail "Pinocchio ELF not found in $PINOCCHIO_BUILD_DIR"
 cp "$PINOCCHIO_BUILT_ELF" "$PINOCCHIO_ELF"
 
-echo "=== Pinocchio live equivalence step 3: generate local keypairs ==="
+echo "=== Pinocchio SPL Token transfer live equivalence step 3: generate local keypairs ==="
 "$KEYGEN" new --no-bip39-passphrase --silent -o "$PAYER_KEYPAIR" --force \
   || fail "payer keypair generation failed"
 "$KEYGEN" new --no-bip39-passphrase --silent -o "$PROOF_FORGE_PROGRAM_KEYPAIR" --force \
@@ -166,7 +169,7 @@ echo "  payer: $PAYER_PUBKEY"
 echo "  ProofForge program id: $PROOF_FORGE_PROGRAM_ID"
 echo "  Pinocchio program id: $PINOCCHIO_PROGRAM_ID"
 
-echo "=== Pinocchio live equivalence step 4: start Surfpool ==="
+echo "=== Pinocchio SPL Token transfer live equivalence step 4: start Surfpool ==="
 "$SURFPOOL_BIN" start \
   --host "$RPC_HOST" \
   --port "$RPC_PORT" \
@@ -196,10 +199,10 @@ done
 "$SOLANA_BIN" --url "$RPC_URL" cluster-version >/dev/null 2>&1 \
   || fail "surfpool RPC did not become ready at $RPC_URL"
 echo "  RPC ready: $RPC_URL"
-"$SOLANA_BIN" --url "$RPC_URL" airdrop 30 "$PAYER_PUBKEY" >/dev/null \
+"$SOLANA_BIN" --url "$RPC_URL" airdrop 40 "$PAYER_PUBKEY" >/dev/null \
   || fail "airdrop to payer failed"
 
-echo "=== Pinocchio live equivalence step 5: deploy both programs ==="
+echo "=== Pinocchio SPL Token transfer live equivalence step 5: deploy both programs ==="
 "$SOLANA_BIN" program deploy \
   --url "$RPC_URL" \
   --keypair "$PAYER_KEYPAIR" \
@@ -219,27 +222,33 @@ echo "=== Pinocchio live equivalence step 5: deploy both programs ==="
   "$PINOCCHIO_ELF" \
   || fail "Pinocchio program deploy failed"
 
-echo "=== Pinocchio live equivalence step 6: run Web3.js behavior checks ==="
-cp "$JS_TEMPLATE" "$NODE_PROJECT/system_cpi_web3_smoke.mjs"
+echo "=== Pinocchio SPL Token transfer live equivalence step 6: run Web3.js behavior checks ==="
+cp "$JS_TEMPLATE" "$NODE_PROJECT/spl_token_transfer_cpi_web3_smoke.mjs"
 if [ ! -f "$NODE_PROJECT/package.json" ]; then
   ( cd "$NODE_PROJECT" && "$NPM_BIN" init -y >/dev/null ) \
     || fail "npm init failed"
 fi
-( cd "$NODE_PROJECT" && "$NPM_BIN" install --silent @solana/web3.js@^1.98.0 ) \
-  || fail "npm install @solana/web3.js failed"
+( cd "$NODE_PROJECT" && "$NPM_BIN" install --silent @solana/web3.js@^1.98.0 @solana/spl-token@^0.4.14 ) \
+  || fail "npm install @solana/web3.js @solana/spl-token failed"
 
 PROOF_FORGE_SOLANA_RPC_URL="$RPC_URL" \
+PROOF_FORGE_SOLANA_WS_URL="$WS_URL" \
 PROOF_FORGE_SOLANA_PAYER="$PAYER_KEYPAIR" \
 PROOF_FORGE_SOLANA_PROGRAM_ID="$PROOF_FORGE_PROGRAM_ID" \
-PROOF_FORGE_SOLANA_TRANSFER_LAMPORTS="$LAMPORTS" \
-  node "$NODE_PROJECT/system_cpi_web3_smoke.mjs" > "$OUT_DIR/proofforge-result.json" \
-  || fail "Web3.js ProofForge System CPI checks failed"
+PROOF_FORGE_SOLANA_TOKEN_DECIMALS="$TOKEN_DECIMALS" \
+PROOF_FORGE_SOLANA_TOKEN_TRANSFER_AMOUNT="$TRANSFER_AMOUNT" \
+PROOF_FORGE_SOLANA_TOKEN_INITIAL_AMOUNT="$INITIAL_AMOUNT" \
+  node "$NODE_PROJECT/spl_token_transfer_cpi_web3_smoke.mjs" > "$OUT_DIR/proofforge-result.json" \
+  || fail "Web3.js ProofForge SPL Token transfer_checked CPI checks failed"
 PROOF_FORGE_SOLANA_RPC_URL="$RPC_URL" \
+PROOF_FORGE_SOLANA_WS_URL="$WS_URL" \
 PROOF_FORGE_SOLANA_PAYER="$PAYER_KEYPAIR" \
 PROOF_FORGE_SOLANA_PROGRAM_ID="$PINOCCHIO_PROGRAM_ID" \
-PROOF_FORGE_SOLANA_TRANSFER_LAMPORTS="$LAMPORTS" \
-  node "$NODE_PROJECT/system_cpi_web3_smoke.mjs" > "$OUT_DIR/pinocchio-result.json" \
-  || fail "Web3.js Pinocchio System CPI checks failed"
+PROOF_FORGE_SOLANA_TOKEN_DECIMALS="$TOKEN_DECIMALS" \
+PROOF_FORGE_SOLANA_TOKEN_TRANSFER_AMOUNT="$TRANSFER_AMOUNT" \
+PROOF_FORGE_SOLANA_TOKEN_INITIAL_AMOUNT="$INITIAL_AMOUNT" \
+  node "$NODE_PROJECT/spl_token_transfer_cpi_web3_smoke.mjs" > "$OUT_DIR/pinocchio-result.json" \
+  || fail "Web3.js Pinocchio SPL Token transfer_checked CPI checks failed"
 
 python3 - "$OUT_DIR/proofforge-result.json" "$OUT_DIR/pinocchio-result.json" <<'PY'
 import json
@@ -253,22 +262,35 @@ def require(condition, message):
     if not condition:
         raise SystemExit(message)
 
-for label, result in (("ProofForge", proof), ("Pinocchio", reference)):
-    delta = result["recipientAfter"] - result["recipientBefore"]
-    require(delta == result["lamports"], f"{label} recipient delta mismatch: {result}")
-    require(result["recorded"] == result["lamports"], f"{label} state write mismatch: {result}")
+def as_int(result, field):
+    return int(result[field])
 
-for field in ("lamports", "recorded"):
+for label, result in (("ProofForge", proof), ("Pinocchio", reference)):
+    transfer = as_int(result, "transferAmount")
+    source_before = as_int(result, "sourceBefore")
+    source_after = as_int(result, "sourceAfter")
+    destination_before = as_int(result, "destinationBefore")
+    destination_after = as_int(result, "destinationAfter")
+    recorded = as_int(result, "recordedAmount")
+    require(source_before - source_after == transfer,
+            f"{label} source delta mismatch: {result}")
+    require(destination_after - destination_before == transfer,
+            f"{label} destination delta mismatch: {result}")
+    require(recorded == transfer,
+            f"{label} state write mismatch: {result}")
+
+for field in ("decimals", "transferAmount", "recordedAmount"):
     require(proof[field] == reference[field],
             f"{field} mismatch: proof={proof[field]} reference={reference[field]}")
 
 print(json.dumps({
     "proofForgeProgramId": proof["programId"],
     "pinocchioProgramId": reference["programId"],
-    "lamports": proof["lamports"],
-    "proofForgeRecorded": proof["recorded"],
-    "pinocchioRecorded": reference["recorded"],
+    "decimals": proof["decimals"],
+    "transferAmount": proof["transferAmount"],
+    "proofForgeRecordedAmount": proof["recordedAmount"],
+    "pinocchioRecordedAmount": reference["recordedAmount"],
 }, sort_keys=True))
 PY
 
-echo "=== Pinocchio System transfer live equivalence: PASS ==="
+echo "=== Pinocchio SPL Token transfer_checked live equivalence: PASS ==="

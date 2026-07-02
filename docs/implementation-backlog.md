@@ -720,7 +720,8 @@ partial progress is visible before the full acceptance criteria close:
       `scripts/solana/pda-web3-smoke.sh`.
 - [x] Standard Solana protocol SDK helpers now cover System Program
       transfer/create-account and SPL Token transfer_checked/mint_to/burn/
-      approve/revoke. They route through target capability metadata with
+      approve/revoke/set_authority. They route through target capability
+      metadata with
       `solana.cpi.protocol`, canonical `data_layout`, account metas, signer
       seeds, and instruction-data source names, and are included in the
       generated manifest plus artifact JSON. Covered by `Tests/SolanaSdk.lean`,
@@ -766,7 +767,9 @@ partial progress is visible before the full acceptance criteria close:
       payload. System transfer/create-account use bincode-style `u32`
       discriminators plus `u64` lamports/space and owner pubkey fields; SPL
       Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` use
-      the standard token instruction tags and amount/decimals layouts. Value
+      the standard token instruction tags and amount/decimals layouts, while
+      `set_authority` packs instruction tag `6`, authority type `MintTokens`,
+      and a new-authority pubkey sourced from a readonly input account. Value
       sources can bind to generated scalar state offsets, numeric literals, or
       decoded scalar entrypoint parameters. The CPI helper also packs program id
       bytes, C `SolAccountMeta[]`,
@@ -838,8 +841,9 @@ manifest/artifact output, module-wide multi-account schemas, standard
 System/SPL Token CPI data packing, bump-allocator metadata, scalar entrypoint
 parameter decoding, typed PDA seed lowering, live System Program transfer plus
 create-account CPI validation, live SPL Token `transfer_checked` CPI
-validation, and live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
-validation, plus live scalar `events.emit` log validation through
+validation, live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI validation,
+and live SPL Token `set_authority` CPI validation, plus live scalar
+`events.emit` log validation through
 `sol_log_64_`, live account-pubkey log validation through `sol_log_pubkey`,
 live state-backed data-log validation through `sol_log_data`, and live
 `Clock.slot` sysvar validation for `contextRead checkpointId`, plus live
@@ -908,6 +912,13 @@ Completed alpha slices:
   test accounts with `@solana/spl-token`, invokes all four generated
   entrypoints through Web3.js, and proves supply/balance/delegate changes plus
   state writes.
+- Live SPL Token authority CPI fixture:
+  `scripts/solana/spl-token-authority-cpi-web3-smoke.sh` builds and deploys a
+  generated `set_authority` CPI program on Surfpool, validates the generated
+  single-entrypoint artifact schema, creates an SPL Token mint through
+  `@solana/spl-token`, invokes the generated entrypoint through Web3.js, and
+  proves mint authority moved to the requested new authority plus the marker
+  state write.
 - Live scalar event, pubkey log, and data log fixture: `scripts/solana/log-event-web3-smoke.sh`
   builds and deploys a generated `events.emit` program on Surfpool, invokes it
   through Web3.js, verifies the generated `sol_log_64_` transaction log
@@ -1004,6 +1015,13 @@ Completed beta scaffolding slices:
   state-write contract against the reference manifest/source. With
   `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1`, the same gate typechecks the
   reference against `pinocchio-system`.
+- Pinocchio System create-account live-equivalence harness:
+  `scripts/solana/pinocchio-system-create-account-live-equivalence.sh` is
+  wired to build the ProofForge ELF and the checked-in Pinocchio reference ELF,
+  deploy both programs to one Surfpool instance, invoke the same Web3.js
+  create-account scenario for each, and compare lamports/space inputs plus
+  both state writes. The harness currently skips when `cargo-build-sbf` cannot
+  find Solana rustc/platform-tools.
 - Pinocchio SPL Token transfer reference contract:
   `references/solana/pinocchio/spl-token-transfer` contains a checked-in
   no-allocator Pinocchio reference for the same SPL Token `transfer_checked`
@@ -1015,6 +1033,49 @@ Completed beta scaffolding slices:
   against the reference manifest/source. With
   `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1`, the same gate typechecks the reference
   against `pinocchio-token`.
+- Pinocchio SPL Token transfer live-equivalence harness:
+  `scripts/solana/pinocchio-spl-token-transfer-live-equivalence.sh` is wired to
+  build the ProofForge ELF and the checked-in Pinocchio Token reference ELF,
+  deploy both programs to one Surfpool instance, invoke the same Web3.js +
+  `@solana/spl-token` transfer_checked scenario for each, and compare
+  source/destination token balance deltas plus the amount state write. The
+  harness currently skips when `cargo-build-sbf` cannot find Solana rustc/
+  platform-tools.
+- Pinocchio SPL Token ops reference contract:
+  `references/solana/pinocchio/spl-token-ops` contains a checked-in
+  no-allocator Pinocchio reference for the same SPL Token
+  `mint_to`/`burn`/`approve`/`revoke` account schema as
+  `ProofForge.Solana.Examples.SplTokenOpsCpi`. The gate
+  `scripts/solana/pinocchio-spl-token-ops-equivalence.sh` emits the ProofForge
+  SPL Token ops CPI artifact and compares its four instruction tags, parameter
+  ABI, account order, signer/writable constraints, CPI protocol/data layout,
+  SPL Token instruction contract, and state-write contract against the
+  reference manifest/source. With `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1`, the
+  same gate typechecks the reference against `pinocchio-token`.
+- Pinocchio SPL Token ops live-equivalence harness:
+  `scripts/solana/pinocchio-spl-token-ops-live-equivalence.sh` is wired to
+  build the ProofForge ELF and the checked-in Pinocchio Token ops reference
+  ELF, deploy both programs to one Surfpool instance, invoke the same Web3.js +
+  `@solana/spl-token` mint/burn/approve/revoke scenario for each, and compare
+  token effects plus all four amount/marker state writes. The harness currently
+  skips when `cargo-build-sbf` cannot find Solana rustc/platform-tools.
+- Pinocchio SPL Token authority reference contract:
+  `references/solana/pinocchio/spl-token-authority` contains a checked-in
+  no-allocator Pinocchio reference for the same SPL Token `set_authority`
+  account schema as `ProofForge.Solana.Examples.SplTokenAuthorityCpi`. The
+  gate `scripts/solana/pinocchio-spl-token-authority-equivalence.sh` emits the
+  ProofForge SPL Token authority CPI artifact and compares its instruction ABI,
+  account order, signer/writable constraints, CPI protocol/data layout,
+  `SetAuthority` instruction contract, and marker state-write contract against
+  the reference manifest/source. With `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1`,
+  the same gate typechecks the reference against `pinocchio-token`.
+- Pinocchio SPL Token authority live-equivalence harness:
+  `scripts/solana/pinocchio-spl-token-authority-live-equivalence.sh` is wired
+  to build the ProofForge ELF and the checked-in Pinocchio Token authority
+  reference ELF, deploy both programs to one Surfpool instance, invoke the same
+  Web3.js + `@solana/spl-token` mint-authority transfer scenario for each, and
+  compare mint authority plus marker state writes. The harness currently skips
+  when `cargo-build-sbf` cannot find Solana rustc/platform-tools.
 
 Completed developer-surface slices:
 
@@ -1048,19 +1109,23 @@ Completed developer-surface slices:
   this source block while the macro emits the same `ContractSpec`/portable IR
   boundary used by routing, EVM selector hydration, Solana instruction tags,
   IDL, and client artifact generation.
-- Learn source parser/lowering seed:
+- Legacy `.learn` parser/lowering seed:
   `ProofForge.Contract.Learn` now lexes and parses checked-in `.learn` files
   under `Examples/Learn/` into a small source AST for the portable scalar/event
-  subset, lowers that AST to `ContractSpec`/portable IR, and proves that
+  subset, lowers that AST to `ContractSpec`/portable IR, and serves as a
+  compatibility validation entrypoint rather than a new product source
+  language. The primary authoring surface remains Lean `.lean` files and Lean
+  SDK helpers. It proves that
   `Counter.learn` and `ValueVault.learn` produce the same IR modules as the
-  current `contract_source` examples. The CLI now accepts `.learn` files
+  current `contract_source` examples. The CLI still accepts `.learn` files
   through `--learn --target evm` and `--learn --target solana-sbpf-asm`, with
   `--learn-yul`, `--learn-bytecode`, and `--learn-sbpf` retained as lower-level
-  convenience paths.
+  compatibility convenience paths.
   `scripts/portable/value-vault-smoke.sh` uses
-  `Examples/Learn/ValueVault.learn` as the source of record and proves that the
-  Learn-authored contract can route to EVM Yul/bytecode metadata and Solana sBPF
-  assembly/manifest/IDL/client artifacts without hand-authoring `ContractSpec`.
+  `Examples/Learn/ValueVault.learn` as a legacy equivalence fixture and proves
+  that compatibility entrypoint can route to EVM Yul/bytecode metadata and
+  Solana sBPF assembly/manifest/IDL/client artifacts without hand-authoring
+  `ContractSpec`.
 - Learn Solana target-extension syntax:
   `ProofForge.Contract.Learn` now parses `SolanaVault.learn` forms for
   `solana allocator`, `solana account`, `solana pda`, `solana cpi
@@ -1115,8 +1180,10 @@ Completed developer-surface slices:
   helpers. `ProofForge.Solana.Examples.Vault` now uses dedicated
   `contract_source` items such as `allocator bump`, `account ... writable`,
   `pda ... seeds [...]`, `cpi ... spl_token_transfer_checked(...)`, `derive
-  pda ...`, and `invoke ... spl_token_transfer_checked(...)` instead of raw
-  account/PDA/CPI strings or `use`/`do` helper plumbing. The target extension
+  pda ...`, `invoke ... spl_token_transfer_checked(...)`, and the same
+  first-class source-syntax path now covers `spl_token_set_authority(...)`
+  instead of raw account/PDA/CPI strings or `use`/`do` helper plumbing. The
+  target extension
   emits declared account constraints into `manifest.toml`,
   `proof-forge-artifact.json` (`solanaExtensions.accounts`), and the generated
   account-validation schema.
@@ -1127,6 +1194,14 @@ Completed developer-surface slices:
   `ProofForge.Solana.Examples.SystemCreateAccountCpi` uses those forms instead
   of the lower-level builder API while preserving the existing generated
   assembly, manifest, artifact, and Surfpool/Web3.js behavior gate.
+- SPL Token authority source syntax:
+  `ProofForge.Contract.Source` now exposes source-level
+  `cpi ... spl_token_set_authority(...) authority_type(...) signer_seeds [...]`
+  and `invoke ... spl_token_set_authority(...) authority_type(...) signer_seeds
+  [...]` forms. `ProofForge.Solana.Examples.SplTokenAuthorityCpi` uses those
+  forms in a Lean `.lean` fixture, and the generated artifact, Surfpool/Web3.js
+  behavior gate, and Pinocchio reference gates all validate the same lowering
+  boundary.
 - Target-stage ABI selector hydration:
   the Learn/ValueVault CLI emit paths derive EVM selectors from each
   entrypoint's Solidity ABI signature with `cast sig` immediately before EVM
@@ -1146,8 +1221,9 @@ Completed developer-surface slices:
 
 Current boundary:
 
-- `ProofForge.Contract.Learn` is now the first standalone Learn parser/lowering
-  seed. It covers the portable Counter/ValueVault subset and the Vault-level
+- `ProofForge.Contract.Learn` is now a legacy `.learn` compatibility
+  parser/lowering seed rather than a new product source language. It covers the
+  portable Counter/ValueVault subset and the Vault-level
   Solana account/PDA/SPL Token transfer CPI subset, System Program
   transfer/create-account CPI, SPL Token mint/burn/approve/revoke CPI, and
   Solana log/return-data/compute-unit/memory/crypto/sysvar helper statements.
@@ -1156,22 +1232,23 @@ Current boundary:
   declared with `solana account ...`; CPI writable/signer requirements are
   checked against those declarations, so the remaining string names are
   compiler-owned identifiers rather than unchecked user-authored specs.
-  `ProofForge.Contract.Source` remains the richer embedded macro frontend for
-  examples not yet expressed in Learn, but portable ValueVault artifact emission
-  now starts from `.learn` and dispatches by compile-time target id. The next
-  authoring gap is to extend Learn parsing to typed target-extension forms for
+  `ProofForge.Contract.Source` and Lean SDK helpers remain the primary
+  authoring frontend; `.learn` files are retained only as legacy compatibility
+  and equivalence fixtures that reuse the same lowering boundary by compile-time
+  target id. The next authoring gap is to extend the Lean `.lean` surface to
   Token-2022, typed account/data references, and richer Pinocchio-style account
-  validation ergonomics, then broaden `--learn --target <id>` package emission
-  beyond EVM and Solana sBPF.
+  validation ergonomics; legacy `--learn` package emission is not the direction
+  for new syntax work.
 
 Remaining priority slices:
 
-1. Rust/Pinocchio equivalence fixtures (2-4 days): make the System transfer
-   live-equivalence harness pass in CI/local environments by installing Solana
-   rustc/platform-tools reliably, then extend live dual-deploy equivalence to
-   the System create-account and SPL Token transfer_checked references. The
-   key comparison points are account order, signer/writable checks, CPI
-   instruction data, and observable state changes.
+1. Rust/Pinocchio equivalence fixtures (2-4 days): make the Pinocchio live
+   equivalence harnesses pass in CI/local environments by installing Solana
+   rustc/platform-tools reliably, then extend static and live reference
+   coverage to Token-2022 and remaining SPL helper paths beyond the checked
+   transfer/mint/burn/approve/revoke/set-authority set. The key comparison
+   points are account order, signer/writable checks, CPI instruction data, and
+   observable state changes.
 2. Richer structured logs, account data, and typed return helpers (3-5 days):
    extend the current scalar `sol_log_64_`/`sol_log_data` event path to
    string logs, Anchor-style discriminator/Borsh payloads, and indexed event
@@ -1188,11 +1265,11 @@ Remaining priority slices:
    instruction-data offsets no longer depend on every entrypoint sharing the
    same account list.
 5. Token-2022 and richer SPL coverage (3-5 days per iteration): add checked
-   mint/burn/approve variants, authority changes, associated-token account
-   setup flows, and Token-2022 extension routes without moving those details
-   into portable IR.
+   Token-2022 extension routes, associated-token account setup flows, and
+   remaining SPL variants beyond the covered mint-authority `set_authority`
+   path without moving those details into portable IR.
 6. Developer ergonomics and framework surface (3-5 days per iteration): extend
-   the new surface layer toward real Learn-level contract syntax with richer
+   the new surface layer toward Lean `.lean`/Lean SDK contract syntax with richer
    typed account/data wrappers, richer generated client APIs, broader
    SPL/Token-2022 helper coverage, and diagnostics that map generated assembly
    failures back to SDK declarations.
