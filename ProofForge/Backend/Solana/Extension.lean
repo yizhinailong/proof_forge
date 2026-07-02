@@ -74,6 +74,7 @@ structure CpiAccountBinding where
 structure CpiValueBinding where
   name : String
   absOff : Nat
+  sourceKind : String := "state"
   deriving Repr, Inhabited
 
 def metadataValue? (metadata : Array TargetMetadata) (key : String) : Option String :=
@@ -570,7 +571,7 @@ def lowerCpiU64Field (bindings : Array CpiValueBinding) (cpi : CpiInvoke)
           match cpiValueBinding? bindings source with
           | some binding =>
               #[
-                .comment s!"solana.cpi.value {fieldName} from state {source}",
+                .comment s!"solana.cpi.value {fieldName} from {binding.sourceKind} {source}",
                 .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num binding.absOff) },
                 storeReg .stxdw .r8 fieldOff .r3
               ]

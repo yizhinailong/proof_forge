@@ -467,12 +467,23 @@ owner pubkey`; SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and
 Program ids, account meta pubkeys, and `SolAccountInfo`
 key/lamports/data/owner/rent/flag fields are sourced from the generated
 multi-account input layout when the account appears in the module schema. CPI
-value sources can bind to scalar state offsets or numeric literals; placeholders
-remain for entrypoint parameters until instruction-data decoding lands.
+value sources can bind to scalar state offsets, numeric literals, or decoded
+entrypoint parameters.
 
-Remaining work: decode entrypoint parameters into CPI value sources, add
-dynamic per-entrypoint account parsing, return-data decoding, and runtime tests
-that exercise live CPI paths.
+The current instruction-data ABI reserves byte 0 for the ProofForge entrypoint
+tag. Packed scalar parameters start at `instruction_data+1`, in entrypoint
+parameter order, with little-endian `U64`/`U32` loads and one-byte `Bool` loads.
+The backend decodes those parameters into stack locals before SDK helper calls
+and exposes the same absolute input offsets to CPI value binding, so helpers can
+pack fields such as SPL Token `amount` directly from user instruction data. The
+module-wide helper table only binds a parameter name when all occurrences share
+the same offset; duplicate names at conflicting offsets are intentionally left
+unbound until per-entrypoint helper specialization lands.
+
+Remaining work: add instruction-data length checks for parameter payloads,
+per-entrypoint parameter schemas in manifest/artifact metadata, dynamic
+per-entrypoint account parsing, return-data decoding, and runtime tests that
+exercise live CPI paths.
 
 PDA helper lowering:
 1. Allocate stack space for seed data + result buffer (32 byte).

@@ -707,13 +707,20 @@ partial progress is visible before the full acceptance criteria close:
       discriminators plus `u64` lamports/space and owner pubkey fields; SPL
       Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` use
       the standard token instruction tags and amount/decimals layouts. Value
-      sources can bind to generated scalar state offsets or numeric literals,
-      with explicit placeholders for not-yet-decoded entrypoint parameters. The
-      CPI helper also packs program id bytes, C `SolAccountMeta[]`,
+      sources can bind to generated scalar state offsets, numeric literals, or
+      decoded scalar entrypoint parameters. The CPI helper also packs program id
+      bytes, C `SolAccountMeta[]`,
       `SolAccountInfo[]` entries bound to the generated multi-account input
       layout, signer seed tables, and syscall register setup. Covered by
       `Tests/SolanaCpiPacking.lean`, `Tests/SolanaSdkManifest.lean`, and
       `scripts/solana/sdk-smoke.sh`.
+- [x] Entry instruction-data decoding now treats byte 0 as the entrypoint tag
+      and decodes packed scalar parameters from `instruction_data+1` into
+      stack locals. The initial scalar ABI supports `U64`, `U32`, and `Bool`
+      and exposes the same fixed input offsets to CPI value bindings, so SDK
+      calls such as SPL Token `transfer_checked` can source `amount` from a
+      user instruction parameter instead of a placeholder. Covered by
+      `Tests/SolanaCpiPacking.lean`.
 
 Next Solana SDK completion items:
 
@@ -721,9 +728,9 @@ Next Solana SDK completion items:
   bump/instruction-data seeds; validate the resulting PDA against account
   pubkeys; add Web3.js fixtures that compare derived addresses with
   `PublicKey.findProgramAddressSync`.
-- Entry instruction-data decoding: map entrypoint parameters and SDK
-  instruction-data fields into CPI value sources so `amount`/`lamports` no
-  longer need placeholders when they come from user input.
+- Richer instruction ABI: add bounds checks for parameter payload length,
+  per-entrypoint parameter schemas in the generated manifest/artifact, and
+  aggregate/string/bytes decoding once the Solana SDK exposes those types.
 - Live CPI validation: exercise System Program transfer/create-account and SPL
   Token transfer_checked/mint_to/burn/approve/revoke against Surfpool/Web3.js,
   then compare behavior with Rust/Pinocchio reference fixtures.

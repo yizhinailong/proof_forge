@@ -136,6 +136,18 @@ def accountDataSize (module : Module) (account : AccountEntry) : Nat :=
 def accountDataSizes (module : Module) (accounts : Array AccountEntry) : Array Nat :=
   accounts.map (accountDataSize module)
 
+def scalarParamSize? : ValueType → Option Nat
+  | .u64 => some 8
+  | .u32 => some 4
+  | .bool => some 1
+  | _ => none
+
+def scalarParamLoadOpcode? : ValueType → Option Opcode
+  | .u64 => some .ldxdw
+  | .u32 => some .ldxw
+  | .bool => some .ldxb
+  | _ => none
+
 -- ============================================================================
 -- IR expression → AST nodes (result in r2, r3 as scratch)
 -- ============================================================================
@@ -487,7 +499,28 @@ def lowerAccountValidations (instrDataLenOff : Nat) (accounts : Array AccountEnt
     .comment "account.validation: generated account schema"
   ] ++ lowerAccountValidation instrDataLenOff accounts.toList layouts.toList
 
-partial def lowerEntrypoint (ctx : LowerCtx) (instrDataLenOff : Nat)
+def lowerEntrypointParamDecoding (ctx : LowerCtx) (instrDataOff : Nat) (ep : IR.Entrypoint) :
+    Except LowerError (LowerCtx × Array AstNode) := do
+  let mut ctx := ctx
+  let mut nodes := #[]
+  let mut payloadOff := 1
+  for param in ep.params do
+    let (name, ty) := param
+    let some byteSize := scalarParamSize? ty
+      | .error { message := s!"unsupported Solana entrypoint parameter type for `{name}`: {ty.name}" }
+    let some opcode := scalarParamLoadOpcode? ty
+      | .error { message := s!"unsupported Solana entrypoint parameter load for `{name}`: {ty.name}" }
+    let localOff := ctx.nextLocalOffset
+    ctx := ctx.addLocal name
+    nodes := nodes ++ #[
+      .comment s!"entrypoint.param[{ep.name}.{name}]: {ty.name} @ instruction_data+{payloadOff}",
+      .instruction { opcode := opcode, dst := some .r2, src := some .r1, off := some (.num (instrDataOff + payloadOff)) },
+      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num localOff), src := some .r2 }
+    ]
+    payloadOff := payloadOff + byteSize
+  .ok (ctx, nodes)
+
+partial def lowerEntrypoint (ctx : LowerCtx) (instrDataLenOff instrDataOff : Nat)
     (accounts : Array AccountEntry) (accountLayouts : Array AccountInputLayout)
     (extensions : ProgramExtensions) (ep : IR.Entrypoint) :
     Except LowerError (LowerCtx × Array AstNode) := do
@@ -496,6 +529,8 @@ partial def lowerEntrypoint (ctx : LowerCtx) (instrDataLenOff : Nat)
     .blankLine
   ]
   nodes := nodes ++ lowerAccountValidations instrDataLenOff accounts accountLayouts
+  let (ctx, paramNodes) ← lowerEntrypointParamDecoding ctx instrDataOff ep
+  nodes := nodes ++ paramNodes
   nodes := nodes ++ lowerEntrypointActions extensions ep.name
   let mut ctx := ctx
   for stmt in ep.body do
@@ -541,11 +576,48 @@ def buildCpiAccountBindings (accounts : Array AccountEntry)
     idx := idx + 1
   return bindings
 
-def buildCpiValueBindings (module : IR.Module) (stateDataOff : Nat) : Array CpiValueBinding :=
+def buildStateCpiValueBindings (module : IR.Module) (stateDataOff : Nat) : Array CpiValueBinding :=
   buildStateOffsetsAtBase module stateDataOff |>.map fun field => {
     name := field.id
     absOff := field.absOff
+    sourceKind := "state"
   }
+
+def buildEntrypointParamCpiValueBindings (module : IR.Module) (instrDataOff : Nat) :
+    Array CpiValueBinding := Id.run do
+  let mut bindings := #[]
+  let mut ambiguous := #[]
+  for ep in module.entrypoints do
+    let mut payloadOff := 1
+    for param in ep.params do
+      let (name, ty) := param
+      match scalarParamSize? ty with
+      | some byteSize =>
+          let binding := {
+            name := name
+            absOff := instrDataOff + payloadOff
+            sourceKind := "instruction param"
+          }
+          if ambiguous.any (fun existing => existing == name) then
+            pure ()
+          else
+            match bindings.find? (fun existing => existing.name == name) with
+            | none => bindings := bindings.push binding
+            | some existing =>
+                if existing.absOff == binding.absOff then
+                  pure ()
+                else
+                  bindings := bindings.filter (fun item => item.name != name)
+                  ambiguous := ambiguous.push name
+          payloadOff := payloadOff + byteSize
+      | none =>
+          pure ()
+  return bindings
+
+def buildCpiValueBindings (module : IR.Module) (stateDataOff instrDataOff : Nat) :
+    Array CpiValueBinding :=
+  buildStateCpiValueBindings module stateDataOff ++
+  buildEntrypointParamCpiValueBindings module instrDataOff
 
 partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
     Except LowerError (Array AstNode) := do
@@ -592,7 +664,8 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
     nodes := nodes.push .blankLine
     let epCtx := ctx.resetLocals
     let (ctx', block) ←
-      lowerEntrypoint epCtx inputLayout.instructionDataLenOff accounts inputLayout.accounts extensions ep
+      lowerEntrypoint epCtx inputLayout.instructionDataLenOff inputLayout.instructionDataOff
+        accounts inputLayout.accounts extensions ep
     ctx := { ctx with nextLabel := ctx'.nextLabel }
     nodes := nodes ++ block
 
@@ -638,7 +711,8 @@ def lowerModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.Capabilit
   let accountBindings := buildCpiAccountBindings schema.accounts schema.inputLayout.accounts
   let valueBindings :=
     match schema.inputLayout.accounts[0]? with
-    | some accountLayout => buildCpiValueBindings module accountLayout.dataStart
+    | some accountLayout =>
+        buildCpiValueBindings module accountLayout.dataStart schema.inputLayout.instructionDataOff
     | none => #[]
   let nodes ← lowerModuleCore module extensions
   .ok (nodes ++

@@ -59,6 +59,30 @@ def systemCreateAccountSpec : ProofForge.Contract.ContractSpec :=
         "program"
       effect (storageScalarWrite "nonce" (u64 1))
 
+def tokenParamAmountSpec : ProofForge.Contract.ContractSpec :=
+  build "SolanaTokenParamCpi" do
+    scalarState "nonce" .u64
+
+    splTokenTransferChecked
+      "token_transfer"
+      "source"
+      "mint"
+      "destination"
+      "authority"
+      "amount"
+      9
+
+    entrySelectorWithParams "transfer" "03" #[("amount", .u64)] .unit do
+      invokeSplTokenTransferChecked
+        "token_transfer"
+        "source"
+        "mint"
+        "destination"
+        "authority"
+        "amount"
+        9
+      effect (storageScalarWrite "nonce" (localVar "amount"))
+
 def main : IO UInt32 := do
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "system-cpi" systemTransferSpec with
   | .ok pkg =>
@@ -140,6 +164,28 @@ def main : IO UInt32 := do
         "assembly missing system.create_account data length"
   | .error err =>
       throw <| IO.userError s!"Solana create-account CPI packing render failed: {err.render}"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec "token-param-cpi" tokenParamAmountSpec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "token-param package missing sBPF assembly"
+      let asm := asmFile.contents
+      require (contains asm "entrypoint.param[transfer.amount]: U64 @ instruction_data+1")
+        "assembly missing transfer amount parameter decoding"
+      require (contains asm "stxdw [r10-8], r2")
+        "assembly missing parameter local stack store"
+      require (contains asm "solana.cpi.data spl-token.transfer_checked: u8 instruction=12, u64 amount, u8 decimals=9")
+        "assembly missing transfer_checked data packing marker"
+      require (contains asm "solana.cpi.value amount from instruction param amount")
+        "assembly missing transfer_checked amount instruction parameter binding"
+      require (!contains asm "solana.cpi.value amount source=amount placeholder=0")
+        "transfer_checked amount should not fall back to placeholder"
+      require (contains asm "stb [r8+0], 12")
+        "assembly missing transfer_checked instruction tag store"
+      require (contains asm "stb [r8+9], 9")
+        "assembly missing transfer_checked decimals store"
+  | .error err =>
+      throw <| IO.userError s!"Solana token-param CPI packing render failed: {err.render}"
 
   IO.println "solana-cpi-packing: ok"
   return 0
