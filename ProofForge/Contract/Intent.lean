@@ -1,5 +1,5 @@
 import Init.Data.String.Basic
-import ProofForge.Target.Capability
+import ProofForge.Target.Plan
 
 namespace ProofForge.Contract
 
@@ -21,13 +21,16 @@ structure Intent where
   label : String
   capability? : Option ProofForge.Target.Capability := none
   source? : Option String := none
+  metadata : Array ProofForge.Target.TargetMetadata := #[]
   deriving Repr
 
-def Intent.capability (capability : ProofForge.Target.Capability) (source? : Option String := none) : Intent := {
+def Intent.capability (capability : ProofForge.Target.Capability) (operation : String := capability.id)
+    (source? : Option String := none) (metadata : Array ProofForge.Target.TargetMetadata := #[]) : Intent := {
   kind := .capability
-  label := capability.id
+  label := operation
   capability? := some capability
   source?
+  metadata := metadata
 }
 
 end ProofForge.Contract

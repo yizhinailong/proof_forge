@@ -1,15 +1,18 @@
 import Init.Control.State
 import ProofForge.Contract.Spec
+import ProofForge.Target.Plan
 
 namespace ProofForge.Contract.Builder
 
 open ProofForge.IR
+open ProofForge.Target
 
 structure ModuleBuilder where
   name : String
   structs : Array StructDecl := #[]
   state : Array StateDecl := #[]
   entrypoints : Array Entrypoint := #[]
+  intents : Array Intent := #[]
   deriving Repr
 
 structure EntryBuilder where
@@ -26,12 +29,28 @@ def ModuleBuilder.toModule (builder : ModuleBuilder) : Module := {
   entrypoints := builder.entrypoints
 }
 
+def ModuleBuilder.toSpec (builder : ModuleBuilder) : ContractSpec :=
+  let module := builder.toModule
+  {
+    name := module.name
+    module := module
+    intents := intentsFromIR module ++ builder.intents
+  }
+
 def buildModule (name : String) (body : ModuleM Unit) : Module :=
   let (_, builder) := body.run { name := name }
   builder.toModule
 
 def build (name : String) (body : ModuleM Unit) : ContractSpec :=
-  ContractSpec.fromIR (buildModule name body)
+  let (_, builder) := body.run { name := name }
+  builder.toSpec
+
+def intent (intent : Intent) : ModuleM Unit := do
+  modify fun builder => { builder with intents := builder.intents.push intent }
+
+def capability (capability : Capability) (operation : String := capability.id)
+    (source? : Option String := none) (metadata : Array TargetMetadata := #[]) : ModuleM Unit :=
+  intent (Intent.capability capability operation source? metadata)
 
 def struct (decl : StructDecl) : ModuleM Unit := do
   modify fun builder => { builder with structs := builder.structs.push decl }

@@ -25,6 +25,7 @@ def intentCapabilityCalls (spec : ProofForge.Contract.ContractSpec) : Array Capa
           capability := capability
           operation := intent.label
           source? := intent.source?
+          metadata := intent.metadata
         }
       | none => calls)
     #[]
