@@ -1,24 +1,20 @@
-import ProofForge.Contract.Builder
+import ProofForge.Contract.Source
 
 namespace ProofForge.Contract.Examples.Counter
 
-open ProofForge.Contract.Builder
+open ProofForge.Contract.Source
 
-def spec : ContractSpec :=
-  build "Counter" do
-    scalarState "count" .u64
+contract_source Counter do
+  state count : .u64
 
-    entrySelector "initialize" "8129fc1c" do
-      effect (storageScalarWrite "count" (u64 0))
+  entry «initialize» do
+    count := u64 0;
 
-    entrySelector "increment" "d09de08a" do
-      letBind "n" .u64 (storageScalarRead "count")
-      effect (storageScalarWrite "count" (add (localVar "n") (u64 1)))
+  entry increment do
+    let n : .u64 := count;
+    count := n +! u64 1;
 
-    entrySelectorReturns "get" "6d4ce63c" .u64 do
-      ret (storageScalarRead "count")
-
-def module : ProofForge.IR.Module :=
-  spec.module
+  query get returns(.u64) do
+    return count;
 
 end ProofForge.Contract.Examples.Counter

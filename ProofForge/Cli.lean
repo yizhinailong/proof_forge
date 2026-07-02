@@ -8,6 +8,12 @@ import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Package
 import ProofForge.Backend.Solana.Extension
+import ProofForge.Backend.Solana.Idl
+import ProofForge.Backend.Solana.Client
+import ProofForge.Contract.Examples.ValueVault
+import ProofForge.Contract.Learn
+import ProofForge.Contract.Token.Evm
+import ProofForge.Contract.Token.Learn
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -55,6 +61,19 @@ import ProofForge.IR.Examples.U32StorageArrayProbe
 import ProofForge.IR.Examples.U32StorageScalarProbe
 import ProofForge.Target
 import ProofForge.Solana.Examples.Vault
+import ProofForge.Solana.Examples.SystemCpi
+import ProofForge.Solana.Examples.SystemCreateAccountCpi
+import ProofForge.Solana.Examples.SplTokenTransferCheckedCpi
+import ProofForge.Solana.Examples.SplTokenOpsCpi
+import ProofForge.Solana.Examples.LogEvent
+import ProofForge.Solana.Examples.Clock
+import ProofForge.Solana.Examples.Rent
+import ProofForge.Solana.Examples.EpochSchedule
+import ProofForge.Solana.Examples.EpochRewards
+import ProofForge.Solana.Examples.LastRestartSlot
+import ProofForge.Solana.Examples.Memory
+import ProofForge.Solana.Examples.Crypto
+import ProofForge.Solana.Examples.ReturnDataCompute
 
 open Lean
 open System
@@ -78,6 +97,13 @@ inductive EmitMode where
   | evmBytecode
   | counterIrYul
   | counterIrBytecode
+  | valueVaultIrYul
+  | valueVaultIrBytecode
+  | learnYul
+  | learnBytecode
+  | learnSbpf
+  | learnTarget
+  | learnTokenTarget
   | abiScalarIrYul
   | abiScalarIrBytecode
   | assertIrYul
@@ -145,15 +171,32 @@ inductive EmitMode where
   | u32StorageScalarIrPsy
   | u32StorageArrayIrPsy
   | counterIrSbpf
+  | valueVaultIrSbpf
   | controlIrSbpf
   | solanaSdkSbpf
   | solanaElf
+  | valueVaultSolanaElf
+  | solanaSystemCpiElf
+  | solanaSystemCreateAccountCpiElf
+  | solanaSplTokenTransferCpiElf
+  | solanaSplTokenOpsCpiElf
+  | solanaLogEventElf
+  | solanaClockSysvarElf
+  | solanaRentSysvarElf
+  | solanaEpochScheduleSysvarElf
+  | solanaEpochRewardsSysvarElf
+  | solanaLastRestartSlotSysvarElf
+  | solanaMemoryElf
+  | solanaCryptoHashElf
+  | solanaReturnDataComputeElf
   | sbpfAsm
   deriving BEq, Inhabited
 
 def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
   | .evmBytecode
   | .counterIrBytecode
+  | .valueVaultIrBytecode
+  | .learnBytecode
   | .abiScalarIrBytecode
   | .assertIrBytecode
   | .assignmentIrBytecode
@@ -179,6 +222,8 @@ def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
 def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .counterIrYul
   | .counterIrBytecode
+  | .valueVaultIrYul
+  | .valueVaultIrBytecode
   | .abiScalarIrYul
   | .abiScalarIrBytecode
   | .assertIrYul
@@ -246,9 +291,24 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .u32StorageScalarIrPsy
   | .u32StorageArrayIrPsy
   | .counterIrSbpf
+  | .valueVaultIrSbpf
   | .controlIrSbpf
   | .solanaSdkSbpf
   | .solanaElf
+  | .valueVaultSolanaElf
+  | .solanaSystemCpiElf
+  | .solanaSystemCreateAccountCpiElf
+  | .solanaSplTokenTransferCpiElf
+  | .solanaSplTokenOpsCpiElf
+  | .solanaLogEventElf
+  | .solanaClockSysvarElf
+  | .solanaRentSysvarElf
+  | .solanaEpochScheduleSysvarElf
+  | .solanaEpochRewardsSysvarElf
+  | .solanaLastRestartSlotSysvarElf
+  | .solanaMemoryElf
+  | .solanaCryptoHashElf
+  | .solanaReturnDataComputeElf
   | .sbpfAsm => true
   | _ => false
 
@@ -269,8 +329,18 @@ structure CliOptions where
   evmConstructorParams : Array ConstructorParamSpec := #[]
   evmConstructorValues : Array ConstructorValueSpec := #[]
   solanaSbpfArch : String := "v3"
+  targetId? : Option String := none
   mode : EmitMode := .yul
   deriving Inhabited
+
+def CliOptions.emitsEvmDeployManifest (opts : CliOptions) : Bool :=
+  opts.mode.emitsEvmDeployManifest ||
+    (opts.mode == .learnTarget && opts.targetId? == some ProofForge.Target.evm.id)
+
+def EmitMode.acceptsTarget : EmitMode → Bool
+  | .learnTarget
+  | .learnTokenTarget => true
+  | _ => false
 
 def usage : String :=
   String.intercalate "\n" [
@@ -279,6 +349,16 @@ def usage : String :=
     "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
+    "  proof-forge --emit-value-vault-ir-yul [-o output.yul]",
+    "  proof-forge --emit-value-vault-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
+    "  proof-forge --learn --target evm [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
+    "  proof-forge --learn --target solana-sbpf-asm [-o output.s] [--artifact-output file] input.learn",
+    "  proof-forge --learn-target <target-id> [target options] input.learn",
+    "  proof-forge --learn-token --target evm [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
+    "  proof-forge --learn-token --target solana-sbpf-asm [-o token-plan.json] input.learn",
+    "  proof-forge --learn-yul [-o output.yul] input.learn",
+    "  proof-forge --learn-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
+    "  proof-forge --learn-sbpf [-o output.s] [--artifact-output file] input.learn",
     "  proof-forge --emit-abi-scalar-ir-yul [-o output.yul]",
     "  proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-assert-ir-yul [-o output.yul]",
@@ -346,9 +426,24 @@ def usage : String :=
     "  proof-forge --emit-u32-storage-scalar-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-storage-array-ir-psy [-o output.psy]",
     "  proof-forge --emit-counter-ir-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-value-vault-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-control-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-sdk-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --value-vault-solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-system-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-system-create-account-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-spl-token-transfer-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-spl-token-ops-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-log-event-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-clock-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-rent-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-epoch-schedule-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-epoch-rewards-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-last-restart-slot-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-memory-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-crypto-hash-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-return-data-compute-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -805,6 +900,10 @@ def jsonStringOption : Option String → String
   | some value => jsonString value
   | none => "null"
 
+def jsonNatOption : Option Nat → String
+  | some value => toString value
+  | none => "null"
+
 def defaultArtifactOutput (bytecodeOutput : FilePath) : FilePath :=
   let fileName := FilePath.mk "proof-forge-artifact.json"
   match bytecodeOutput.parent with
@@ -1010,6 +1109,34 @@ def entrypointReturnJson
       let abiType ← entrypointAbiType module s!"entrypoint `{entrypointName}` return" type
       let wordTypes ← entrypointAbiWordTypes module s!"entrypoint `{entrypointName}` return" type
       .ok (wordTypes.size, entrypointAbiValueJson none type abiType wordTypes)
+
+def entrypointSoliditySignature
+    (module : ProofForge.IR.Module)
+    (entrypoint : ProofForge.IR.Entrypoint) : Except String String := do
+  let mut paramAbiTypes := #[]
+  for param in entrypoint.params do
+    let abiType ← entrypointAbiType module s!"entrypoint `{entrypoint.name}` parameter `{param.fst}`" param.snd
+    paramAbiTypes := paramAbiTypes.push abiType
+  .ok s!"{entrypoint.name}({String.intercalate "," paramAbiTypes.toList})"
+
+def hydrateEvmSelectors (cast : String) (module : ProofForge.IR.Module) :
+    IO ProofForge.IR.Module := do
+  let mut entrypoints := #[]
+  for entrypoint in module.entrypoints do
+    let signature ←
+      match entrypointSoliditySignature module entrypoint with
+      | .ok signature => pure signature
+      | .error msg => throw <| IO.userError msg
+    let derived ← selectorFor cast signature
+    match entrypoint.selector? with
+    | some selector =>
+        if selector.toLower != derived.toLower then
+          throw <| IO.userError
+            s!"entrypoint `{entrypoint.name}` selector `{selector}` does not match ABI signature `{signature}` selector `{derived}`"
+        entrypoints := entrypoints.push entrypoint
+    | none =>
+        entrypoints := entrypoints.push { entrypoint with selector? := some derived }
+  return { module with entrypoints := entrypoints }
 
 def entrypointJson (module : ProofForge.IR.Module) (entrypoint : ProofForge.IR.Entrypoint) : Except String String := do
   let mut params := #[]
@@ -1280,10 +1407,26 @@ def solanaExtensionAccountJson (account : ProofForge.Backend.Solana.Extension.Ac
     ("signer", jsonString account.signer)
   ]
 
+def solanaDeclaredAccountJson
+    (account : ProofForge.Backend.Solana.Extension.DeclaredAccount) : String :=
+  jsonObject #[
+    ("name", jsonString account.name),
+    ("access", jsonString account.access),
+    ("signer", jsonString account.signer),
+    ("owner", jsonString account.owner)
+  ]
+
+def solanaPdaSeedJson (seed : ProofForge.Backend.Solana.Extension.PdaSeed) : String :=
+  jsonObject #[
+    ("kind", jsonString seed.kind.id),
+    ("value", jsonString seed.value)
+  ]
+
 def solanaPdaJson (pda : ProofForge.Backend.Solana.Extension.PdaDerive) : String :=
   jsonObject #[
     ("name", jsonString pda.name),
-    ("seeds", jsonStringArray pda.seeds),
+    ("seeds", jsonStringArray pda.seedValues),
+    ("typedSeeds", jsonArray (pda.effectiveSeeds.map solanaPdaSeedJson)),
     ("bump", match pda.bump? with | some bump => jsonString bump | none => "null"),
     ("account", match pda.account? with | some account => jsonString account | none => "null"),
     ("signer", jsonBool pda.signer)
@@ -1296,8 +1439,38 @@ def solanaCpiJson (cpi : ProofForge.Backend.Solana.Extension.CpiInvoke) : String
     ("instruction", jsonString cpi.instruction),
     ("accounts", jsonArray (cpi.accounts.map solanaExtensionAccountJson)),
     ("signerSeeds", jsonStringArray cpi.signerSeeds),
+    ("protocol", match cpi.protocol? with | some protocol => jsonString protocol | none => "null"),
     ("dataLayout", match cpi.dataLayout? with | some layout => jsonString layout | none => "null"),
+    ("lamportsSource",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.lamports_source" with
+      | some value => jsonString value
+      | none => "null"),
+    ("spaceSource",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.space_source" with
+      | some value => jsonString value
+      | none => "null"),
+    ("ownerSource",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.owner" with
+      | some value => jsonString value
+      | none => "null"),
+    ("amountSource",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.amount_source" with
+      | some value => jsonString value
+      | none => "null"),
+    ("decimals",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.decimals" with
+      | some value => jsonString value
+      | none => "null"),
     ("signed", jsonBool cpi.signed)
+  ]
+
+def solanaAllocatorJson (allocator : ProofForge.Backend.Solana.Extension.RuntimeAllocator) : String :=
+  jsonObject #[
+    ("name", jsonString allocator.name),
+    ("kind", jsonString allocator.kind),
+    ("model", jsonString allocator.model),
+    ("heapStart", jsonString allocator.heapStart),
+    ("heapBytes", jsonString allocator.heapBytes)
   ]
 
 def solanaPdaActionJson (action : ProofForge.Backend.Solana.Extension.PdaAction) : String :=
@@ -1312,18 +1485,160 @@ def solanaCpiActionJson (action : ProofForge.Backend.Solana.Extension.CpiAction)
     ("cpi", jsonString action.name)
   ]
 
+def solanaMemoryActionJson (action : ProofForge.Backend.Solana.Extension.MemoryAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("memory", jsonString action.name),
+    ("op", jsonString action.op.id),
+    ("bytes", toString action.bytes),
+    ("dstState", match action.dstState? with | some state => jsonString state | none => "null"),
+    ("srcState", match action.srcState? with | some state => jsonString state | none => "null"),
+    ("lhsState", match action.lhsState? with | some state => jsonString state | none => "null"),
+    ("rhsState", match action.rhsState? with | some state => jsonString state | none => "null"),
+    ("resultState", match action.resultState? with | some state => jsonString state | none => "null"),
+    ("value", match action.value? with | some value => toString value | none => "null")
+  ]
+
+def solanaCryptoHashActionJson
+    (action : ProofForge.Backend.Solana.Extension.CryptoHashAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("crypto", jsonString action.name),
+    ("op", jsonString action.op.id),
+    ("inputState", jsonString action.inputState),
+    ("bytes", toString action.bytes),
+    ("outputStates", jsonArray (action.outputStates.map jsonString)),
+    ("featureGated", jsonBool action.featureGated)
+  ]
+
+def solanaSysvarActionJson
+    (action : ProofForge.Backend.Solana.Extension.SysvarReadAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("sysvar", jsonString action.name),
+    ("kind", jsonString action.kind.id),
+    ("field", jsonString action.field.id),
+    ("outputState", jsonString action.outputState),
+    ("featureGated", jsonBool (ProofForge.Backend.Solana.Extension.SysvarKind.featureGated action.kind))
+  ]
+
+def solanaReturnDataActionJson
+    (action : ProofForge.Backend.Solana.Extension.ReturnDataAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("returnData", jsonString action.name),
+    ("op", jsonString "set"),
+    ("sourceState", jsonString action.sourceState),
+    ("bytes", toString action.bytes)
+  ]
+
+def solanaReturnDataReadActionJson
+    (action : ProofForge.Backend.Solana.Extension.ReturnDataReadAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("returnData", jsonString action.name),
+    ("op", jsonString "get"),
+    ("destinationState", jsonString action.destinationState),
+    ("maxBytes", toString action.maxBytes),
+    ("lengthState", match action.lengthState? with | some state => jsonString state | none => "null"),
+    ("programIdStates", jsonArray (action.programIdStates.map jsonString))
+  ]
+
+def solanaComputeUnitsActionJson
+    (action : ProofForge.Backend.Solana.Extension.ComputeUnitsAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("computeUnits", jsonString action.name),
+    ("op", jsonString "remaining"),
+    ("outputState", jsonString action.outputState),
+    ("featureGated", jsonBool action.featureGated)
+  ]
+
+def solanaComputeUnitsLogActionJson
+    (action : ProofForge.Backend.Solana.Extension.ComputeUnitsLogAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("computeUnits", jsonString action.name),
+    ("op", jsonString "log_remaining")
+  ]
+
+def solanaPubkeyLogActionJson
+    (action : ProofForge.Backend.Solana.Extension.PubkeyLogAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("log", jsonString action.name),
+    ("op", jsonString "pubkey"),
+    ("account", jsonString action.account)
+  ]
+
+def solanaDataLogActionJson
+    (action : ProofForge.Backend.Solana.Extension.DataLogAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("log", jsonString action.name),
+    ("op", jsonString "data"),
+    ("sourceState", jsonString action.sourceState),
+    ("bytes", toString action.bytes)
+  ]
+
+def solanaInstructionAccountJson (account : ProofForge.Backend.Solana.Manifest.AccountEntry) : String :=
+  jsonObject #[
+    ("name", jsonString account.name),
+    ("index", toString account.index),
+    ("signer", jsonBool account.signer),
+    ("writable", jsonBool account.writable),
+    ("owner", jsonString account.owner)
+  ]
+
+def solanaInstructionParamJson
+    (param : ProofForge.Backend.Solana.Manifest.InstructionParamEntry) : String :=
+  jsonObject #[
+    ("name", jsonString param.name),
+    ("type", jsonString param.typeName),
+    ("offset", toString param.offset),
+    ("byteSize", toString param.byteSize),
+    ("encoding", jsonString param.encoding)
+  ]
+
+def solanaInstructionJson (instruction : ProofForge.Backend.Solana.Manifest.InstructionEntry) : String :=
+  jsonObject #[
+    ("name", jsonString instruction.name),
+    ("tag", toString instruction.tag),
+    ("handler", jsonString instruction.handler),
+    ("minDataLen", toString instruction.minDataLen),
+    ("accounts", jsonArray (instruction.accounts.map solanaInstructionAccountJson)),
+    ("params", jsonArray (instruction.params.map solanaInstructionParamJson))
+  ]
+
+def solanaInstructionsJson (module : ProofForge.IR.Module)
+    (plan : ProofForge.Target.CapabilityPlan) : String :=
+  jsonArray ((ProofForge.Backend.Solana.Manifest.buildInstructionsWithPlan module plan).map solanaInstructionJson)
+
 def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
   let extensions := ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan
   jsonObject #[
+    ("accounts", jsonArray (extensions.accounts.map solanaDeclaredAccountJson)),
+    ("allocators", jsonArray (extensions.allocators.map solanaAllocatorJson)),
     ("pdas", jsonArray (extensions.pdas.map solanaPdaJson)),
     ("cpis", jsonArray (extensions.cpis.map solanaCpiJson)),
     ("pdaActions", jsonArray (extensions.pdaActions.map solanaPdaActionJson)),
-    ("cpiActions", jsonArray (extensions.cpiActions.map solanaCpiActionJson))
+    ("cpiActions", jsonArray (extensions.cpiActions.map solanaCpiActionJson)),
+    ("memoryActions", jsonArray (extensions.memoryActions.map solanaMemoryActionJson)),
+    ("cryptoHashActions", jsonArray (extensions.cryptoHashActions.map solanaCryptoHashActionJson)),
+    ("sysvarActions", jsonArray (extensions.sysvarActions.map solanaSysvarActionJson)),
+    ("returnDataActions", jsonArray (extensions.returnDataActions.map solanaReturnDataActionJson)),
+    ("returnDataReadActions", jsonArray (extensions.returnDataReadActions.map solanaReturnDataReadActionJson)),
+    ("computeUnitsActions", jsonArray (extensions.computeUnitsActions.map solanaComputeUnitsActionJson)),
+    ("computeUnitsLogActions", jsonArray (extensions.computeUnitsLogActions.map solanaComputeUnitsLogActionJson)),
+    ("pubkeyLogActions", jsonArray (extensions.pubkeyLogActions.map solanaPubkeyLogActionJson)),
+    ("dataLogActions", jsonArray (extensions.dataLogActions.map solanaDataLogActionJson))
   ]
 
 def contractNameForFixture (fixture : String) : String :=
   if fixture.endsWith ".lean" then
     dropEndString fixture ".lean".length
+  else if fixture.endsWith ".learn" then
+    dropEndString fixture ".learn".length
   else
     fixture
 
@@ -1546,9 +1861,9 @@ def writeEvmArtifactMetadata
   IO.FS.writeFile metadataOutput (metadata ++ "\n")
   IO.println s!"wrote {metadataOutput}"
 
-def writeEvmIrArtifactMetadata
+def writeEvmModuleArtifactMetadata
     (opts : CliOptions)
-    (fixture sourceModule : String)
+    (fixture sourceKind sourceModule : String)
     (module : ProofForge.IR.Module)
     (yulOutput bytecodeOutput : FilePath) : IO Unit := do
   let events ← eventAbisForModule opts.cast module
@@ -1558,13 +1873,50 @@ def writeEvmIrArtifactMetadata
   writeEvmArtifactMetadata
     opts
     fixture
-    "portable-ir"
+    sourceKind
     sourceModule
     (moduleCapabilityIds module)
     entrypoints
     (events.map eventAbiJson)
     #[]
     none
+    yulOutput
+    bytecodeOutput
+
+def writeEvmIrArtifactMetadata
+    (opts : CliOptions)
+    (fixture sourceModule : String)
+    (module : ProofForge.IR.Module)
+    (yulOutput bytecodeOutput : FilePath) : IO Unit :=
+  writeEvmModuleArtifactMetadata opts fixture "portable-ir" sourceModule module yulOutput bytecodeOutput
+
+def writeEvmContractSdkArtifactMetadata
+    (opts : CliOptions)
+    (fixture sourceModule : String)
+    (module : ProofForge.IR.Module)
+    (yulOutput bytecodeOutput : FilePath) : IO Unit :=
+  writeEvmModuleArtifactMetadata opts fixture "contract-sdk" sourceModule module yulOutput bytecodeOutput
+
+def writeEvmLearnArtifactMetadata
+    (opts : CliOptions)
+    (fixture sourceModule : String)
+    (input : FilePath)
+    (module : ProofForge.IR.Module)
+    (yulOutput bytecodeOutput : FilePath) : IO Unit := do
+  let events ← eventAbisForModule opts.cast module
+  let mut entrypoints := #[]
+  for entrypoint in module.entrypoints do
+    entrypoints := entrypoints.push (← liftExceptString (entrypointJson module entrypoint))
+  writeEvmArtifactMetadata
+    opts
+    fixture
+    "learn-source"
+    sourceModule
+    (moduleCapabilityIds module)
+    entrypoints
+    (events.map eventAbiJson)
+    #[]
+    (some input)
     yulOutput
     bytecodeOutput
 
@@ -1589,13 +1941,19 @@ def writeEvmSdkArtifactMetadata
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
       let hasRunnableInput := opts.input?.isSome || opts.mode.hasBuiltInFixture
-      if opts.evmChainProfile?.isSome && !opts.mode.emitsEvmDeployManifest then
+      if opts.targetId?.isSome && !opts.mode.acceptsTarget then
+        .error "--target only applies to --learn and --learn-token modes"
+      else if opts.mode == .learnTarget && opts.targetId?.isNone then
+        .error "--learn requires --target <target-id>"
+      else if opts.mode == .learnTokenTarget && opts.targetId?.isNone then
+        .error "--learn-token requires --target <target-id>"
+      else if opts.evmChainProfile?.isSome && !opts.emitsEvmDeployManifest then
         .error "--evm-chain-profile only applies to EVM bytecode modes that emit proof-forge-deploy.json"
-      else if !opts.evmConstructorArgsHex.isEmpty && !opts.mode.emitsEvmDeployManifest then
+      else if !opts.evmConstructorArgsHex.isEmpty && !opts.emitsEvmDeployManifest then
         .error "--evm-constructor-args-hex only applies to EVM bytecode modes that emit proof-forge-deploy.json"
-      else if !opts.evmConstructorParams.isEmpty && !opts.mode.emitsEvmDeployManifest then
+      else if !opts.evmConstructorParams.isEmpty && !opts.emitsEvmDeployManifest then
         .error "--evm-constructor-param only applies to EVM bytecode modes that emit proof-forge-deploy.json"
-      else if !opts.evmConstructorValues.isEmpty && !opts.mode.emitsEvmDeployManifest then
+      else if !opts.evmConstructorValues.isEmpty && !opts.emitsEvmDeployManifest then
         .error "--evm-constructor-arg only applies to EVM bytecode modes that emit proof-forge-deploy.json"
       else
         match finalizeConstructorOptions opts with
@@ -1618,6 +1976,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with yulOutput? := some (FilePath.mk path) }
   | "--artifact-output" :: path :: rest, opts =>
       parseArgs rest { opts with artifactOutput? := some (FilePath.mk path) }
+  | "--target" :: targetId :: rest, opts =>
+      parseArgs rest { opts with targetId? := some targetId }
+  | "--target" :: [], _ =>
+      .error "missing value for --target"
   | "--evm-chain-profile" :: profile :: rest, opts =>
       parseArgs rest { opts with evmChainProfile? := some profile }
   | "--evm-constructor-args-hex" :: hex :: rest, opts => do
@@ -1644,10 +2006,28 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .evmBytecode }
   | "--bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .evmBytecode }
+  | "--learn" :: rest, opts =>
+      parseArgs rest { opts with mode := .learnTarget }
+  | "--learn-token" :: rest, opts =>
+      parseArgs rest { opts with mode := .learnTokenTarget }
+  | "--learn-target" :: targetId :: rest, opts =>
+      parseArgs rest { opts with mode := .learnTarget, targetId? := some targetId }
+  | "--learn-target" :: [], _ =>
+      .error "missing value for --learn-target"
   | "--emit-counter-ir-yul" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrYul }
   | "--emit-counter-ir-bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrBytecode }
+  | "--emit-value-vault-ir-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .valueVaultIrYul }
+  | "--emit-value-vault-ir-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .valueVaultIrBytecode }
+  | "--learn-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .learnYul }
+  | "--learn-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .learnBytecode }
+  | "--learn-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .learnSbpf }
   | "--emit-abi-scalar-ir-yul" :: rest, opts =>
       parseArgs rest { opts with mode := .abiScalarIrYul }
   | "--emit-abi-scalar-ir-bytecode" :: rest, opts =>
@@ -1782,12 +2162,44 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .u32StorageArrayIrPsy }
   | "--emit-counter-ir-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrSbpf }
+  | "--emit-value-vault-ir-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .valueVaultIrSbpf }
   | "--emit-control-ir-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .controlIrSbpf }
   | "--emit-solana-sdk-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSdkSbpf }
   | "--solana-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaElf }
+  | "--value-vault-solana-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .valueVaultSolanaElf }
+  | "--solana-value-vault-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .valueVaultSolanaElf }
+  | "--solana-system-cpi-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSystemCpiElf }
+  | "--solana-system-create-account-cpi-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSystemCreateAccountCpiElf }
+  | "--solana-spl-token-transfer-cpi-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSplTokenTransferCpiElf }
+  | "--solana-spl-token-ops-cpi-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSplTokenOpsCpiElf }
+  | "--solana-log-event-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaLogEventElf }
+  | "--solana-clock-sysvar-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaClockSysvarElf }
+  | "--solana-rent-sysvar-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaRentSysvarElf }
+  | "--solana-epoch-schedule-sysvar-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaEpochScheduleSysvarElf }
+  | "--solana-epoch-rewards-sysvar-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaEpochRewardsSysvarElf }
+  | "--solana-last-restart-slot-sysvar-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaLastRestartSlotSysvarElf }
+  | "--solana-memory-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaMemoryElf }
+  | "--solana-crypto-hash-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaCryptoHashElf }
+  | "--solana-return-data-compute-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaReturnDataComputeElf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
@@ -1880,6 +2292,353 @@ def compileCounterIrBytecode (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/ir/Counter.bin")
   writeTextFile output (bytecode ++ "\n")
   writeEvmIrArtifactMetadata opts "Counter" "ProofForge.IR.Examples.Counter" ProofForge.IR.Examples.Counter.module yulOutput output
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
+def compileValueVaultIrYul (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/ir/ValueVault.yul")
+  let module ← hydrateEvmSelectors opts.cast ProofForge.Contract.Examples.ValueVault.module
+  match ProofForge.Backend.Evm.IR.renderModule module with
+  | .ok yul =>
+      writeTextFile output yul
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def renderValueVaultIrYul (opts : CliOptions) : IO (String × ProofForge.IR.Module) := do
+  let module ← hydrateEvmSelectors opts.cast ProofForge.Contract.Examples.ValueVault.module
+  match ProofForge.Backend.Evm.IR.renderModule module with
+  | .ok yul => return (yul, module)
+  | .error err => throw <| IO.userError err.render
+
+def compileValueVaultIrBytecode (opts : CliOptions) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/ValueVault.yul")
+  let (yul, module) ← renderValueVaultIrYul opts
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (FilePath.mk "build/ir/ValueVault.bin")
+  writeTextFile output (bytecode ++ "\n")
+  writeEvmContractSdkArtifactMetadata opts "ValueVault" "ProofForge.Contract.Examples.ValueVault"
+    module yulOutput output
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
+def learnInput (opts : CliOptions) (modeName : String) : IO FilePath := do
+  match opts.input? with
+  | some input => pure input
+  | none => throw <| IO.userError s!"{modeName} requires an input .learn file"
+
+def parseLearnInput (opts : CliOptions) (modeName : String) :
+    IO (FilePath × ProofForge.Contract.ContractSpec) := do
+  let input ← learnInput opts modeName
+  match (← ProofForge.Contract.Learn.parseAndLowerFile input) with
+  | .ok spec => pure (input, spec)
+  | .error err => throw <| IO.userError s!"{input}: {err}"
+
+def parseLearnTokenInput (opts : CliOptions) (modeName : String) :
+    IO (FilePath × ProofForge.Contract.Token.Learn.TokenDecl) := do
+  let input ← learnInput opts modeName
+  match (← ProofForge.Contract.Token.Learn.parseFile input) with
+  | .ok decl => pure (input, decl)
+  | .error err => throw <| IO.userError s!"{input}: {err}"
+
+def learnFixtureName (input : FilePath) : String :=
+  input.fileName.getD input.toString
+
+def learnSourceModuleName (input : FilePath) (spec : ProofForge.Contract.ContractSpec) : String :=
+  s!"{spec.name} ({input})"
+
+def defaultLearnOutput (subdir extension : String) (spec : ProofForge.Contract.ContractSpec) :
+    FilePath :=
+  FilePath.mk s!"build/{subdir}/{spec.name}.{extension}"
+
+def defaultLearnTokenPlanOutput (decl : ProofForge.Contract.Token.Learn.TokenDecl)
+    (profile : ProofForge.Target.TargetProfile) : FilePath :=
+  FilePath.mk s!"build/learn/token/{decl.id}.{profile.id}.token-plan.json"
+
+def defaultLearnTokenEvmYulOutput (decl : ProofForge.Contract.Token.Learn.TokenDecl) :
+    FilePath :=
+  FilePath.mk s!"build/learn/token/{decl.id}.erc20.yul"
+
+def defaultLearnTokenEvmBytecodeOutput (decl : ProofForge.Contract.Token.Learn.TokenDecl) :
+    FilePath :=
+  FilePath.mk s!"build/learn/token/{decl.id}.erc20.bin"
+
+def defaultLearnTokenArtifactOutput (bytecodeOutput : FilePath) : FilePath :=
+  let fileName := FilePath.mk "proof-forge-token-artifact.json"
+  match bytecodeOutput.parent with
+  | some parent => parent / fileName
+  | none => fileName
+
+def targetProfileForMode (opts : CliOptions) (modeName : String) :
+    IO ProofForge.Target.TargetProfile := do
+  let some targetId := opts.targetId?
+    | throw <| IO.userError s!"{modeName} requires --target <target-id>"
+  match ProofForge.Target.find? targetId with
+  | some profile => pure profile
+  | none =>
+      let known := String.intercalate ", " ProofForge.Target.knownIds.toList
+      throw <| IO.userError s!"unknown {modeName} target `{targetId}`; known targets: {known}"
+
+def learnTargetProfile (opts : CliOptions) : IO ProofForge.Target.TargetProfile :=
+  targetProfileForMode opts "--learn"
+
+def learnTokenTargetProfile (opts : CliOptions) : IO ProofForge.Target.TargetProfile :=
+  targetProfileForMode opts "--learn-token"
+
+def tokenFeatureIdsJson (spec : ProofForge.Contract.Token.TokenSpec) : String :=
+  jsonStringArray (spec.features.map fun feature => feature.id)
+
+def tokenSpecJson (decl : ProofForge.Contract.Token.Learn.TokenDecl) : String :=
+  jsonObject #[
+    ("id", jsonString decl.id),
+    ("name", jsonString decl.spec.name),
+    ("symbol", jsonString decl.spec.symbol),
+    ("decimals", toString decl.spec.decimals),
+    ("initialSupply", jsonNatOption decl.spec.initialSupply?),
+    ("features", tokenFeatureIdsJson decl.spec)
+  ]
+
+def tokenSolanaAccountJson
+    (account : ProofForge.Contract.Token.SolanaTokenAccountPlan) : String :=
+  jsonObject #[
+    ("name", jsonString account.name),
+    ("role", jsonString account.role),
+    ("ownerProgram", jsonStringOption account.ownerProgram?),
+    ("signer", jsonBool account.signer),
+    ("writable", jsonBool account.writable),
+    ("derivation", jsonStringOption account.derivation?)
+  ]
+
+def tokenSolanaInstructionParamJson
+    (param : ProofForge.Contract.Token.SolanaTokenInstructionParam) : String :=
+  jsonObject #[
+    ("name", jsonString param.name),
+    ("type", jsonString param.type),
+    ("source", jsonString param.source)
+  ]
+
+def tokenSolanaInstructionJson
+    (instruction : ProofForge.Contract.Token.SolanaTokenInstructionPlan) : String :=
+  jsonObject #[
+    ("order", toString instruction.order),
+    ("name", jsonString instruction.name),
+    ("operation", jsonString instruction.operation),
+    ("programId", jsonString instruction.programId),
+    ("accounts", jsonStringArray instruction.accounts),
+    ("params", jsonArray (instruction.params.map tokenSolanaInstructionParamJson)),
+    ("feature", jsonStringOption instruction.feature?),
+    ("token2022Only", jsonBool instruction.token2022Only)
+  ]
+
+def tokenSolanaExtensionJson
+    (extension : ProofForge.Contract.Token.SolanaTokenExtensionPlan) : String :=
+  jsonObject #[
+    ("feature", jsonString extension.feature),
+    ("extension", jsonString extension.extension),
+    ("scope", jsonString extension.scope),
+    ("initInstruction", jsonString extension.initInstruction),
+    ("requiresConfig", jsonBool extension.requiresConfig),
+    ("notes", jsonStringArray extension.notes)
+  ]
+
+def tokenSolanaAuthorityChangeJson
+    (change : ProofForge.Contract.Token.SolanaTokenAuthorityChangePlan) : String :=
+  jsonObject #[
+    ("name", jsonString change.name),
+    ("authorityType", jsonString change.authorityType),
+    ("currentAuthority", jsonString change.currentAuthority),
+    ("newAuthority", jsonString change.newAuthority),
+    ("operation", jsonString change.operation),
+    ("reason", jsonString change.reason)
+  ]
+
+def tokenSolanaReferenceJson
+    (reference : ProofForge.Contract.Token.SolanaTokenReference) : String :=
+  jsonObject #[
+    ("label", jsonString reference.label),
+    ("url", jsonString reference.url)
+  ]
+
+def tokenSolanaDeploymentPlanJson
+    (deployment : ProofForge.Contract.Token.SolanaTokenDeploymentPlan) : String :=
+  jsonObject #[
+    ("standard", jsonString deployment.standard.id),
+    ("programs", jsonObject #[
+      ("token", jsonString deployment.tokenProgramId),
+      ("associatedToken", jsonString deployment.associatedTokenProgramId),
+      ("system", jsonString deployment.systemProgramId),
+      ("rentSysvar", jsonString deployment.rentSysvarId)
+    ]),
+    ("accounts", jsonArray (deployment.accounts.map tokenSolanaAccountJson)),
+    ("instructions", jsonArray (deployment.instructions.map tokenSolanaInstructionJson)),
+    ("extensions", jsonArray (deployment.extensions.map tokenSolanaExtensionJson)),
+    ("authorityChanges", jsonArray (deployment.authorityChanges.map tokenSolanaAuthorityChangeJson)),
+    ("references", jsonArray (deployment.references.map tokenSolanaReferenceJson))
+  ]
+
+def tokenPlanJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
+    (profile : ProofForge.Target.TargetProfile)
+    (plan : ProofForge.Contract.Token.TokenPlan)
+    (sourceArtifact : String)
+    (solanaDeployment? : Option ProofForge.Contract.Token.SolanaTokenDeploymentPlan := none) : String :=
+  jsonObject #[
+    ("format", jsonString "proof-forge-token-plan-v0"),
+    ("sourceKind", jsonString "learn-token-source"),
+    ("token", tokenSpecJson decl),
+    ("target", jsonString profile.id),
+    ("targetFamily", jsonString profile.family.id),
+    ("standard", jsonString plan.standard.id),
+    ("artifactKind", jsonString plan.artifactKind.id),
+    ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+    ("operations", jsonStringArray plan.operations),
+    ("notes", jsonStringArray plan.notes),
+    ("solana", match solanaDeployment? with
+      | some deployment => tokenSolanaDeploymentPlanJson deployment
+      | none => "null"),
+    ("artifacts", jsonObject #[
+      ("source", sourceArtifact)
+    ]),
+    ("validation", jsonObject #[
+      ("learnTokenParsing", jsonString "passed"),
+      ("targetRouting", jsonString "passed"),
+      ("planGeneration", jsonString "passed")
+    ])
+  ]
+
+def tokenEvmEntrypointsJson (spec : ProofForge.Contract.Token.TokenSpec) : String := Id.run do
+  let mut entries := #[
+    jsonObject #[
+      ("name", jsonString "totalSupply"),
+      ("selector", jsonString "18160ddd"),
+      ("signature", jsonString "totalSupply()"),
+      ("returns", jsonString "uint256")
+    ],
+    jsonObject #[
+      ("name", jsonString "balanceOf"),
+      ("selector", jsonString "70a08231"),
+      ("signature", jsonString "balanceOf(address)"),
+      ("returns", jsonString "uint256")
+    ],
+    jsonObject #[
+      ("name", jsonString "transfer"),
+      ("selector", jsonString "a9059cbb"),
+      ("signature", jsonString "transfer(address,uint256)"),
+      ("returns", jsonString "bool")
+    ],
+    jsonObject #[
+      ("name", jsonString "approve"),
+      ("selector", jsonString "095ea7b3"),
+      ("signature", jsonString "approve(address,uint256)"),
+      ("returns", jsonString "bool")
+    ],
+    jsonObject #[
+      ("name", jsonString "allowance"),
+      ("selector", jsonString "dd62ed3e"),
+      ("signature", jsonString "allowance(address,address)"),
+      ("returns", jsonString "uint256")
+    ],
+    jsonObject #[
+      ("name", jsonString "transferFrom"),
+      ("selector", jsonString "23b872dd"),
+      ("signature", jsonString "transferFrom(address,address,uint256)"),
+      ("returns", jsonString "bool")
+    ],
+    jsonObject #[
+      ("name", jsonString "decimals"),
+      ("selector", jsonString "313ce567"),
+      ("signature", jsonString "decimals()"),
+      ("returns", jsonString "uint8")
+    ]
+  ]
+  if spec.hasFeature ProofForge.Contract.Token.TokenFeature.mintable then
+    entries := entries.push <| jsonObject #[
+      ("name", jsonString "mint"),
+      ("selector", jsonString "40c10f19"),
+      ("signature", jsonString "mint(address,uint256)"),
+      ("returns", jsonString "bool")
+    ]
+  if spec.hasFeature ProofForge.Contract.Token.TokenFeature.burnable then
+    entries := entries.push <| jsonObject #[
+      ("name", jsonString "burn"),
+      ("selector", jsonString "42966c68"),
+      ("signature", jsonString "burn(uint256)"),
+      ("returns", jsonString "bool")
+    ]
+  pure (jsonArray entries)
+
+def tokenEvmEventsJson : String :=
+  jsonArray #[
+    jsonObject #[
+      ("name", jsonString "Transfer"),
+      ("topic0", jsonString ProofForge.Contract.Token.Evm.transferTopic0),
+      ("signature", jsonString "Transfer(address,address,uint256)")
+    ],
+    jsonObject #[
+      ("name", jsonString "Approval"),
+      ("topic0", jsonString ProofForge.Contract.Token.Evm.approvalTopic0),
+      ("signature", jsonString "Approval(address,address,uint256)")
+    ]
+  ]
+
+def tokenEvmArtifactJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
+    (profile : ProofForge.Target.TargetProfile)
+    (plan : ProofForge.Contract.Token.TokenPlan)
+    (sourceArtifact yulArtifact bytecodeArtifact : String) : String :=
+  jsonObject #[
+    ("format", jsonString "proof-forge-token-artifact-v0"),
+    ("sourceKind", jsonString "learn-token-source"),
+    ("token", tokenSpecJson decl),
+    ("target", jsonString profile.id),
+    ("targetFamily", jsonString profile.family.id),
+    ("standard", jsonString plan.standard.id),
+    ("artifactKind", jsonString plan.artifactKind.id),
+    ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+    ("operations", jsonStringArray plan.operations),
+    ("notes", jsonStringArray plan.notes),
+    ("abi", jsonObject #[
+      ("entrypoints", tokenEvmEntrypointsJson decl.spec),
+      ("events", tokenEvmEventsJson)
+    ]),
+    ("artifacts", jsonObject #[
+      ("source", sourceArtifact),
+      ("yul", yulArtifact),
+      ("bytecode", bytecodeArtifact)
+    ]),
+    ("validation", jsonObject #[
+      ("learnTokenParsing", jsonString "passed"),
+      ("targetRouting", jsonString "passed"),
+      ("erc20YulGeneration", jsonString "passed"),
+      ("solcStrictAssembly", jsonString "passed")
+    ])
+  ]
+
+def renderLearnEvmYul (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) :
+    IO (String × ProofForge.IR.Module) := do
+  let module ← hydrateEvmSelectors opts.cast spec.module
+  match ProofForge.Backend.Evm.IR.renderModule module with
+  | .ok yul => return (yul, module)
+  | .error err => throw <| IO.userError err.render
+
+def compileLearnYul (opts : CliOptions) : IO UInt32 := do
+  let (_input, spec) ← parseLearnInput opts "--learn-yul"
+  let output := opts.output?.getD (defaultLearnOutput "learn/evm" "yul" spec)
+  let (yul, _module) ← renderLearnEvmYul opts spec
+  writeTextFile output yul
+  IO.println s!"wrote {output}"
+  return 0
+
+def compileLearnBytecode (opts : CliOptions) : IO UInt32 := do
+  let (input, spec) ← parseLearnInput opts "--learn-bytecode"
+  let yulOutput := opts.yulOutput?.getD (defaultLearnOutput "learn/evm" "yul" spec)
+  let (yul, module) ← renderLearnEvmYul opts spec
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (defaultLearnOutput "learn/evm" "bin" spec)
+  writeTextFile output (bytecode ++ "\n")
+  writeEvmLearnArtifactMetadata opts (learnFixtureName input)
+    (learnSourceModuleName input spec) input module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -2682,6 +3441,24 @@ def writeSbpfManifestWithPlan (output : FilePath) (module : ProofForge.IR.Module
   IO.FS.writeFile manifestOutput (manifest ++ "\n")
   return manifestOutput
 
+def writeSbpfIdlWithPlan (output : FilePath) (module : ProofForge.IR.Module)
+    (plan : ProofForge.Target.CapabilityPlan) : IO FilePath := do
+  let idlOutput := match output.parent with
+    | some parent => parent / ProofForge.Backend.Solana.Idl.idlPath
+    | none => FilePath.mk ProofForge.Backend.Solana.Idl.idlPath
+  let idl := ProofForge.Backend.Solana.Idl.renderWithPlan module plan
+  IO.FS.writeFile idlOutput (idl ++ "\n")
+  return idlOutput
+
+def writeSbpfClientWithPlan (output : FilePath) (module : ProofForge.IR.Module)
+    (plan : ProofForge.Target.CapabilityPlan) : IO FilePath := do
+  let clientOutput := match output.parent with
+    | some parent => parent / ProofForge.Backend.Solana.Client.clientPath
+    | none => FilePath.mk ProofForge.Backend.Solana.Client.clientPath
+  let client := ProofForge.Backend.Solana.Client.renderWithPlan module plan
+  IO.FS.writeFile clientOutput (client ++ "\n")
+  return clientOutput
+
 def packagePath (root : FilePath) (rel : String) : FilePath :=
   rel.splitOn "/" |>.foldl (init := root) fun acc part =>
     if part.isEmpty then acc else acc / part
@@ -2802,11 +3579,17 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
       IO.println s!"wrote {output}"
       let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
       IO.println s!"wrote {manifestOutput}"
+      let idlOutput ← writeSbpfIdlWithPlan output spec.module plan
+      IO.println s!"wrote {idlOutput}"
+      let clientOutput ← writeSbpfClientWithPlan output spec.module plan
+      IO.println s!"wrote {clientOutput}"
       let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
       if let some parent := metadataOutput.parent then
         IO.FS.createDirAll parent
       let sourceArtifact ← artifactEntryJson output
       let manifestArtifact ← artifactEntryJson manifestOutput
+      let idlArtifact ← artifactEntryJson idlOutput
+      let clientArtifact ← artifactEntryJson clientOutput
       let metadata := jsonObject #[
         ("schemaVersion", "1"),
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
@@ -2818,7 +3601,9 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
         ("sourceModule", jsonString spec.name),
         ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
         ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaInstructions", solanaInstructionsJson spec.module plan),
         ("solanaExtensions", solanaExtensionsJson plan),
+        ("solanaIdl", ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan),
         ("toolchain", jsonObject #[
           ("sbpf", jsonObject #[
             ("path", jsonString "sbpf"),
@@ -2827,7 +3612,9 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
         ]),
         ("artifacts", jsonObject #[
           ("sbpfAsm", sourceArtifact),
-          ("manifestToml", manifestArtifact)
+          ("manifestToml", manifestArtifact),
+          ("solanaIdl", idlArtifact),
+          ("solanaClientTs", clientArtifact)
         ]),
         ("validation", jsonObject #[
           ("targetRouting", jsonString "passed"),
@@ -2842,6 +3629,197 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
       return 0
   | .error err =>
       throw <| IO.userError err.render
+
+def compileValueVaultIrSbpf (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/ValueVault.s")
+  let spec := ProofForge.Contract.Examples.ValueVault.spec
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.render
+  match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan spec.module plan with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
+      IO.println s!"wrote {manifestOutput}"
+      let idlOutput ← writeSbpfIdlWithPlan output spec.module plan
+      IO.println s!"wrote {idlOutput}"
+      let clientOutput ← writeSbpfClientWithPlan output spec.module plan
+      IO.println s!"wrote {clientOutput}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let idlArtifact ← artifactEntryJson idlOutput
+      let clientArtifact ← artifactEntryJson clientOutput
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "value-vault-ir-sbpf"),
+        ("sourceKind", jsonString "contract-sdk"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString spec.name),
+        ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+        ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaInstructions", solanaInstructionsJson spec.module plan),
+        ("solanaExtensions", solanaExtensionsJson plan),
+        ("solanaIdl", ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact),
+          ("solanaIdl", idlArtifact),
+          ("solanaClientTs", clientArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("targetRouting", jsonString "passed"),
+          ("manifestGeneration", jsonString "passed"),
+          ("sbpfBuild", jsonString "pending")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileLearnSbpf (opts : CliOptions) : IO UInt32 := do
+  let (input, spec) ← parseLearnInput opts "--learn-sbpf"
+  let output := opts.output?.getD (defaultLearnOutput "learn/solana" "s" spec)
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.render
+  match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan spec.module plan with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
+      IO.println s!"wrote {manifestOutput}"
+      let idlOutput ← writeSbpfIdlWithPlan output spec.module plan
+      IO.println s!"wrote {idlOutput}"
+      let clientOutput ← writeSbpfClientWithPlan output spec.module plan
+      IO.println s!"wrote {clientOutput}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let asmArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let idlArtifact ← artifactEntryJson idlOutput
+      let clientArtifact ← artifactEntryJson clientOutput
+      let learnArtifact ← artifactEntryJson input
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString (learnFixtureName input)),
+        ("sourceKind", jsonString "learn-source"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString (learnSourceModuleName input spec)),
+        ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+        ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaInstructions", solanaInstructionsJson spec.module plan),
+        ("solanaExtensions", solanaExtensionsJson plan),
+        ("solanaIdl", ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("source", learnArtifact),
+          ("sbpfAsm", asmArtifact),
+          ("manifestToml", manifestArtifact),
+          ("solanaIdl", idlArtifact),
+          ("solanaClientTs", clientArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("learnLowering", jsonString "passed"),
+          ("targetRouting", jsonString "passed"),
+          ("manifestGeneration", jsonString "passed"),
+          ("sbpfBuild", jsonString "pending")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileLearnTarget (opts : CliOptions) : IO UInt32 := do
+  let profile ← learnTargetProfile opts
+  if profile.id == ProofForge.Target.evm.id then
+    compileLearnBytecode opts
+  else if profile.id == ProofForge.Target.solanaSbpfAsm.id then
+    compileLearnSbpf opts
+  else
+    throw <| IO.userError
+      s!"Learn target emission for `{profile.id}` is not implemented yet; currently implemented targets: evm, solana-sbpf-asm"
+
+def compileLearnTokenEvm (opts : CliOptions)
+    (profile : ProofForge.Target.TargetProfile)
+    (input : FilePath)
+    (decl : ProofForge.Contract.Token.Learn.TokenDecl)
+    (plan : ProofForge.Contract.Token.TokenPlan) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (defaultLearnTokenEvmYulOutput decl)
+  writeTextFile yulOutput (ProofForge.Contract.Token.Evm.renderErc20Yul decl)
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (defaultLearnTokenEvmBytecodeOutput decl)
+  writeTextFile output (bytecode ++ "\n")
+  let metadataOutput := opts.artifactOutput?.getD (defaultLearnTokenArtifactOutput output)
+  let sourceArtifact ← artifactEntryJson input
+  let yulArtifact ← artifactEntryJson yulOutput
+  let bytecodeArtifact ← artifactEntryJson output
+  writeTextFile metadataOutput (tokenEvmArtifactJson decl profile plan sourceArtifact yulArtifact bytecodeArtifact ++ "\n")
+  IO.println s!"wrote {yulOutput}"
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  IO.println s!"wrote {metadataOutput}"
+  return 0
+
+def compileLearnTokenPlan (opts : CliOptions)
+    (profile : ProofForge.Target.TargetProfile)
+    (input : FilePath)
+    (decl : ProofForge.Contract.Token.Learn.TokenDecl)
+    (plan : ProofForge.Contract.Token.TokenPlan) : IO UInt32 := do
+  let output := opts.output?.getD (defaultLearnTokenPlanOutput decl profile)
+  let sourceArtifact ← artifactEntryJson input
+  let solanaDeployment? ←
+    if profile.family == ProofForge.Target.TargetFamily.solana then
+      match ProofForge.Contract.Token.solanaTokenDeploymentPlan decl.spec with
+      | .ok deployment => pure (some deployment)
+      | .error err => throw <| IO.userError err
+    else
+      pure none
+  writeTextFile output (tokenPlanJson decl profile plan sourceArtifact solanaDeployment? ++ "\n")
+  IO.println s!"wrote {output}"
+  return 0
+
+def compileLearnTokenTarget (opts : CliOptions) : IO UInt32 := do
+  let profile ← learnTokenTargetProfile opts
+  let (input, decl) ← parseLearnTokenInput opts "--learn-token"
+  let plan ←
+    match ProofForge.Contract.Token.planForTarget profile decl.spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err
+  if profile.id == ProofForge.Target.evm.id then
+    compileLearnTokenEvm opts profile input decl plan
+  else
+    compileLearnTokenPlan opts profile input decl plan
 
 def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/Counter.so")
@@ -2915,6 +3893,191 @@ def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileSolanaSpecElf (opts : CliOptions) (defaultOutput : FilePath)
+    (fallbackProjectName fixture : String) (spec : ProofForge.Contract.ContractSpec) :
+    IO UInt32 := do
+  let output := opts.output?.getD defaultOutput
+  let projectName := match output.fileName with
+    | some n => (n.splitOn ".").headD fallbackProjectName
+    | none => fallbackProjectName
+  let projectDir := match output.parent with
+    | some parent => parent / s!"{projectName}-sbpf-project"
+    | none => FilePath.mk s!"{projectName}-sbpf-project"
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.render
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec projectName spec with
+  | .ok pkg =>
+      for file in pkg.files do
+        let path := packagePath projectDir file.path
+        writeTextFile path file.contents
+        IO.println s!"wrote {path}"
+
+      let asmSrc := packagePath projectDir pkg.asmPath
+      let manifestOutput := packagePath projectDir pkg.manifestPath
+      let idlOutput := packagePath projectDir pkg.idlPath
+      let clientOutput := packagePath projectDir pkg.clientPath
+      let _ ← runProcess "sbpf" #["build", "--arch", opts.solanaSbpfArch] (cwd? := some projectDir)
+
+      let builtElf := projectDir / "deploy" / s!"{projectName}.so"
+      if ! (← builtElf.pathExists) then
+        throw <| IO.userError s!"sbpf build did not produce {builtElf}"
+
+      let elfBytes ← IO.FS.readBinFile builtElf
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      IO.FS.writeBinFile output elfBytes
+      IO.println s!"wrote {output}"
+
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson asmSrc
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let idlArtifact ← artifactEntryJson idlOutput
+      let clientArtifact ← artifactEntryJson clientOutput
+      let elfArtifact ← artifactEntryJson output
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString fixture),
+        ("sourceKind", jsonString "contract-sdk"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString spec.name),
+        ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+        ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaInstructions", solanaInstructionsJson spec.module plan),
+        ("solanaExtensions", solanaExtensionsJson plan),
+        ("solanaIdl", ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null"),
+            ("arch", jsonString opts.solanaSbpfArch)
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact),
+          ("solanaIdl", idlArtifact),
+          ("solanaClientTs", clientArtifact),
+          ("solanaElf", elfArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("targetRouting", jsonString "passed"),
+          ("manifestGeneration", jsonString "passed"),
+          ("sbpfBuild", jsonString "passed"),
+          ("liveCpi", jsonString "pending")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileValueVaultSolanaElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/ValueVault.so")
+    "value-vault"
+    "value-vault-solana-elf"
+    ProofForge.Contract.Examples.ValueVault.spec
+
+def compileSolanaSystemCpiElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/SystemCpi.so")
+    "system-cpi"
+    "solana-system-cpi-elf"
+    ProofForge.Solana.Examples.SystemCpi.spec
+
+def compileSolanaSystemCreateAccountCpiElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/SystemCreateAccountCpi.so")
+    "system-create-account-cpi"
+    "solana-system-create-account-cpi-elf"
+    ProofForge.Solana.Examples.SystemCreateAccountCpi.spec
+
+def compileSolanaSplTokenTransferCpiElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/SplTokenTransferCheckedCpi.so")
+    "spl-token-transfer-cpi"
+    "solana-spl-token-transfer-cpi-elf"
+    ProofForge.Solana.Examples.SplTokenTransferCheckedCpi.spec
+
+def compileSolanaSplTokenOpsCpiElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/SplTokenOpsCpi.so")
+    "spl-token-ops-cpi"
+    "solana-spl-token-ops-cpi-elf"
+    ProofForge.Solana.Examples.SplTokenOpsCpi.spec
+
+def compileSolanaLogEventElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/LogEvent.so")
+    "log-event"
+    "solana-log-event-elf"
+    ProofForge.Solana.Examples.LogEvent.spec
+
+def compileSolanaClockSysvarElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/Clock.so")
+    "clock-sysvar"
+    "solana-clock-sysvar-elf"
+    ProofForge.Solana.Examples.Clock.spec
+
+def compileSolanaRentSysvarElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/Rent.so")
+    "rent-sysvar"
+    "solana-rent-sysvar-elf"
+    ProofForge.Solana.Examples.Rent.spec
+
+def compileSolanaEpochScheduleSysvarElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/EpochSchedule.so")
+    "epoch-schedule-sysvar"
+    "solana-epoch-schedule-sysvar-elf"
+    ProofForge.Solana.Examples.EpochSchedule.spec
+
+def compileSolanaEpochRewardsSysvarElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/EpochRewards.so")
+    "epoch-rewards-sysvar"
+    "solana-epoch-rewards-sysvar-elf"
+    ProofForge.Solana.Examples.EpochRewards.spec
+
+def compileSolanaLastRestartSlotSysvarElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/LastRestartSlot.so")
+    "last-restart-slot-sysvar"
+    "solana-last-restart-slot-sysvar-elf"
+    ProofForge.Solana.Examples.LastRestartSlot.spec
+
+def compileSolanaMemoryElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/Memory.so")
+    "memory"
+    "solana-memory-elf"
+    ProofForge.Solana.Examples.Memory.spec
+
+def compileSolanaCryptoHashElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/CryptoHash.so")
+    "crypto-hash"
+    "solana-crypto-hash-elf"
+    ProofForge.Solana.Examples.Crypto.spec
+
+def compileSolanaReturnDataComputeElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/ReturnDataCompute.so")
+    "return-data-compute"
+    "solana-return-data-compute-elf"
+    ProofForge.Solana.Examples.ReturnDataCompute.spec
+
 def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/entrypoint.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderCannedEntrypoint with
@@ -2982,6 +4145,13 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .evmBytecode => compileEvmBytecode opts
   | .counterIrYul => compileCounterIrYul opts
   | .counterIrBytecode => compileCounterIrBytecode opts
+  | .valueVaultIrYul => compileValueVaultIrYul opts
+  | .valueVaultIrBytecode => compileValueVaultIrBytecode opts
+  | .learnYul => compileLearnYul opts
+  | .learnBytecode => compileLearnBytecode opts
+  | .learnSbpf => compileLearnSbpf opts
+  | .learnTarget => compileLearnTarget opts
+  | .learnTokenTarget => compileLearnTokenTarget opts
   | .abiScalarIrYul => compileAbiScalarIrYul opts
   | .abiScalarIrBytecode => compileAbiScalarIrBytecode opts
   | .assertIrYul => compileAssertIrYul opts
@@ -3049,9 +4219,24 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .u32StorageScalarIrPsy => compileU32StorageScalarIrPsy opts
   | .u32StorageArrayIrPsy => compileU32StorageArrayIrPsy opts
   | .counterIrSbpf => compileCounterIrSbpf opts
+  | .valueVaultIrSbpf => compileValueVaultIrSbpf opts
   | .controlIrSbpf => compileControlIrSbpf opts
   | .solanaSdkSbpf => compileSolanaSdkSbpf opts
   | .solanaElf => compileSolanaElf opts
+  | .valueVaultSolanaElf => compileValueVaultSolanaElf opts
+  | .solanaSystemCpiElf => compileSolanaSystemCpiElf opts
+  | .solanaSystemCreateAccountCpiElf => compileSolanaSystemCreateAccountCpiElf opts
+  | .solanaSplTokenTransferCpiElf => compileSolanaSplTokenTransferCpiElf opts
+  | .solanaSplTokenOpsCpiElf => compileSolanaSplTokenOpsCpiElf opts
+  | .solanaLogEventElf => compileSolanaLogEventElf opts
+  | .solanaClockSysvarElf => compileSolanaClockSysvarElf opts
+  | .solanaRentSysvarElf => compileSolanaRentSysvarElf opts
+  | .solanaEpochScheduleSysvarElf => compileSolanaEpochScheduleSysvarElf opts
+  | .solanaEpochRewardsSysvarElf => compileSolanaEpochRewardsSysvarElf opts
+  | .solanaLastRestartSlotSysvarElf => compileSolanaLastRestartSlotSysvarElf opts
+  | .solanaMemoryElf => compileSolanaMemoryElf opts
+  | .solanaCryptoHashElf => compileSolanaCryptoHashElf opts
+  | .solanaReturnDataComputeElf => compileSolanaReturnDataComputeElf opts
   | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli

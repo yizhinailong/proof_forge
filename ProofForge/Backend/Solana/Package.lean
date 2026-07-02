@@ -13,6 +13,8 @@ import ProofForge.IR.Contract
 import ProofForge.Contract.Spec
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
+import ProofForge.Backend.Solana.Client
+import ProofForge.Backend.Solana.Idl
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.SbpfAsm
 
@@ -29,6 +31,8 @@ structure RenderedPackage where
   projectName : String
   asmPath : String
   manifestPath : String
+  idlPath : String
+  clientPath : String
   cargoTomlPath : String
   libRsPath : String
   files : Array PackageFile
@@ -38,6 +42,8 @@ def asmPath (projectName : String) : String :=
   s!"src/{projectName}/{projectName}.s"
 
 def manifestPath : String := "manifest.toml"
+def idlPath : String := Idl.idlPath
+def clientPath : String := Client.clientPath
 def cargoTomlPath : String := "Cargo.toml"
 def libRsPath : String := "src/lib.rs"
 
@@ -55,10 +61,14 @@ def renderPackage (projectName : String) (module : Module) : Except SbpfAsm.Lowe
   let nodes ← SbpfAsm.lowerModule module
   let asm := ProofForge.Backend.Solana.Asm.renderNodes nodes
   let manifest := Manifest.renderManifest module ++ "\n"
+  let idl := Idl.render module ++ "\n"
+  let client := Client.render module ++ "\n"
   let asmFile := asmPath projectName
   let files := #[
     { path := asmFile, contents := asm },
     { path := manifestPath, contents := manifest },
+    { path := idlPath, contents := idl },
+    { path := clientPath, contents := client },
     { path := cargoTomlPath, contents := renderCargoToml projectName },
     { path := libRsPath, contents := "" }
   ]
@@ -66,6 +76,8 @@ def renderPackage (projectName : String) (module : Module) : Except SbpfAsm.Lowe
     projectName,
     asmPath := asmFile,
     manifestPath,
+    idlPath,
+    clientPath,
     cargoTomlPath,
     libRsPath,
     files
@@ -76,10 +88,14 @@ def renderPackageWithPlan (projectName : String) (module : Module) (plan : Proof
   let nodes ← SbpfAsm.lowerModuleWithPlan module plan
   let asm := ProofForge.Backend.Solana.Asm.renderNodes nodes
   let manifest := Manifest.renderManifestWithPlan module plan ++ "\n"
+  let idl := Idl.renderWithPlan module plan ++ "\n"
+  let client := Client.renderWithPlan module plan ++ "\n"
   let asmFile := asmPath projectName
   let files := #[
     { path := asmFile, contents := asm },
     { path := manifestPath, contents := manifest },
+    { path := idlPath, contents := idl },
+    { path := clientPath, contents := client },
     { path := cargoTomlPath, contents := renderCargoToml projectName },
     { path := libRsPath, contents := "" }
   ]
@@ -87,6 +103,8 @@ def renderPackageWithPlan (projectName : String) (module : Module) (plan : Proof
     projectName,
     asmPath := asmFile,
     manifestPath,
+    idlPath,
+    clientPath,
     cargoTomlPath,
     libRsPath,
     files

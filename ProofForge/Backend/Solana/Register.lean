@@ -9,7 +9,8 @@ A simple register pool for the 11 sBPF registers. The convention is:
 - r0: return value / syscall result
 - r1: syscall arg 1 / entrypoint input pointer (preserved)
 - r2–r5: syscall args 2–5 / scratch
-- r6–r9: callee-saved scratch (can hold longer-lived temps)
+- r6–r8: callee-saved scratch (can hold longer-lived temps)
+- r9: entrypoint instruction-data pointer, preserved across internal helpers
 - r10: frame pointer (stack, grows downward)
 
 This module tracks which registers are free. Stack spill slots are assigned by
@@ -44,10 +45,11 @@ def Loc.render : Loc → String
   | .reg r => r.render
   | .spill off => s!"[r10-{off}]"
 
-/-- Registers available for general allocation. r0, r1, r2, r10 are reserved:
+/-- Registers available for general allocation. r0, r1, r2, r9, r10 are reserved:
 r0 is the return/syscall-result register, r1 is the input pointer, r2 is the
-current expression-result register, and r10 is the frame pointer. -/
-def allocatableRegs : Array Reg := #[.r4, .r5, .r6, .r7, .r8, .r9]
+current expression-result register, r9 is the instruction-data pointer, and r10
+is the frame pointer. -/
+def allocatableRegs : Array Reg := #[.r4, .r5, .r6, .r7, .r8]
 
 structure Allocator where
   inUse : Array Reg

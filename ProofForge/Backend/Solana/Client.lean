@@ -1,0 +1,103 @@
+import ProofForge.Backend.Solana.Idl
+import ProofForge.IR.Contract
+import ProofForge.Target.Plan
+
+namespace ProofForge.Backend.Solana.Client
+
+def clientPath : String := "proof-forge-client.ts"
+
+def renderWithIdl (idl : String) : String :=
+  String.intercalate "\n" [
+    "/* ProofForge generated Solana client. */",
+    "/* eslint-disable @typescript-eslint/no-explicit-any */",
+    "import { PublicKey, TransactionInstruction } from \"@solana/web3.js\";",
+    "",
+    s!"export const IDL = {idl} as const;",
+    "",
+    "export type InstructionName = (typeof IDL.instructions)[number][\"name\"];",
+    "export type InstructionArgs = Record<string, bigint | number | boolean>;",
+    "export type AccountPubkeys = Record<string, PublicKey>;",
+    "",
+    "function instructionByName(name: InstructionName) {",
+    "  const instruction = IDL.instructions.find((item) => item.name === name);",
+    "  if (!instruction) {",
+    "    throw new Error(`unknown ProofForge instruction: ${name}`);",
+    "  }",
+    "  return instruction;",
+    "}",
+    "",
+    "function writeU64LE(data: Uint8Array, offset: number, value: bigint | number) {",
+    "  let current = BigInt(value);",
+    "  for (let i = 0; i < 8; i += 1) {",
+    "    data[offset + i] = Number(current & 0xffn);",
+    "    current >>= 8n;",
+    "  }",
+    "}",
+    "",
+    "function writeU32LE(data: Uint8Array, offset: number, value: bigint | number) {",
+    "  let current = BigInt(value);",
+    "  for (let i = 0; i < 4; i += 1) {",
+    "    data[offset + i] = Number(current & 0xffn);",
+    "    current >>= 8n;",
+    "  }",
+    "}",
+    "",
+    "export function encodeInstructionData(name: InstructionName, args: InstructionArgs = {}) {",
+    "  const instruction = instructionByName(name);",
+    "  const data = new Uint8Array(instruction.minDataLen);",
+    "  data[0] = instruction.tag;",
+    "  for (const param of instruction.params) {",
+    "    const value = args[param.name];",
+    "    if (value === undefined) {",
+    "      throw new Error(`missing ProofForge instruction argument: ${param.name}`);",
+    "    }",
+    "    if (param.encoding === \"le-u64\") {",
+    "      writeU64LE(data, param.offset, value as bigint | number);",
+    "    } else if (param.encoding === \"le-u32\") {",
+    "      writeU32LE(data, param.offset, value as bigint | number);",
+    "    } else if (param.encoding === \"u8-bool\") {",
+    "      data[param.offset] = value ? 1 : 0;",
+    "    } else {",
+    "      throw new Error(`unsupported ProofForge parameter encoding: ${param.encoding}`);",
+    "    }",
+    "  }",
+    "  return data;",
+    "}",
+    "",
+    "export function accountMetas(name: InstructionName, accounts: AccountPubkeys) {",
+    "  const instruction = instructionByName(name);",
+    "  return instruction.accounts.map((account) => {",
+    "    const pubkey = accounts[account.name];",
+    "    if (!pubkey) {",
+    "      throw new Error(`missing ProofForge account: ${account.name}`);",
+    "    }",
+    "    return {",
+    "      pubkey,",
+    "      isSigner: account.signer,",
+    "      isWritable: account.writable,",
+    "    };",
+    "  });",
+    "}",
+    "",
+    "export function createInstruction(",
+    "  programId: PublicKey,",
+    "  name: InstructionName,",
+    "  accounts: AccountPubkeys,",
+    "  args: InstructionArgs = {},",
+    ") {",
+    "  return new TransactionInstruction({",
+    "    programId,",
+    "    keys: accountMetas(name, accounts),",
+    "    data: Buffer.from(encodeInstructionData(name, args)),",
+    "  });",
+    "}",
+    ""
+  ]
+
+def renderWithPlan (module : ProofForge.IR.Module) (plan : ProofForge.Target.CapabilityPlan) : String :=
+  renderWithIdl (ProofForge.Backend.Solana.Idl.renderWithPlan module plan)
+
+def render (module : ProofForge.IR.Module) : String :=
+  renderWithIdl (ProofForge.Backend.Solana.Idl.render module)
+
+end ProofForge.Backend.Solana.Client

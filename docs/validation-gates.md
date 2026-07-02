@@ -12,11 +12,32 @@ does not add or edit CI jobs.
 | Lean package build | `lake build` | Lean toolchain from `lean-toolchain` | Library roots typecheck and `proof-forge` links | Generated Yul/bytecode validity, external tools, runtime behavior |
 | Target registry smoke | `lake env lean --run Tests/TargetRegistry.lean` | Lean toolchain from `lean-toolchain` | The target registry exposes `evm` as a compiler target while EVM-compatible chain profiles such as `robinhood-chain-testnet` and `anvil-local` stay lookup-only deployment profiles | Deployment broadcast, live RPC or explorer reachability, wallet integration |
 | EVM semantic plan smoke | `just evm-plan` | Lean toolchain from `lean-toolchain` | The EVM semantic plan builds from the target-resolved `CapabilityPlan`, rejects non-EVM target plans, and validates storage layout, scalar storage slots, map value slots, nested map value slots, map presence slots, map assign-op helper requirements, and planned helper requirements before Yul generation | Full `ModulePlan` ownership of ABI dispatch, events, crosscalls, constructor metadata, artifact metadata, `solc` acceptance, bytecode, runtime behavior, broader aggregate storage planning |
-| Solana light gates | `just solana-light` | Lean toolchain from `lean-toolchain`; `python3`; optional `sbpf` and `solana-keygen` for the SDK script's build branch | Solana target diagnostics, SDK metadata, SDK manifest, target routing, token spec, Counter sBPF golden assembly/manifest diff, control-flow/assertion assembly emission, SDK extension artifact metadata, and canned sBPF emission when `sbpf` is available | Full Mollusk runtime coverage, Surfpool/Web3 deployment smoke, public validator deployment, Solana transaction UX |
+| Solana light gates | `just solana-light` | Lean toolchain from `lean-toolchain`; `python3`; optional `cast` for the portable ValueVault EVM selector-hydration/Yul branch; optional `solc` plus `cast` for its strict-assembly and EVM bytecode metadata branches; optional `sbpf` and `solana-keygen` for Solana SDK build branches | Solana target diagnostics, SDK metadata, SDK manifest, generated Solana IDL and TypeScript client artifacts, Contract Source Syntax v1 routing/render checks for Counter and portable ValueVault, Learn source lowering equivalence plus Learn reference diagnostics for CPI/PDA/state helper mistakes, typed account declaration metadata, CPI packing, log lowering, target routing, portable ValueVault Learn-source CLI emission to EVM Yul and Solana sBPF assembly/manifest/IDL/client artifact metadata, token spec, return-data/compute-units SDK helpers, Counter sBPF golden assembly/manifest diff, control-flow/assertion assembly emission, SDK extension artifact metadata, and canned sBPF emission when `sbpf` is available | Full Mollusk runtime coverage, Surfpool/Web3 deployment smoke, public validator deployment, Solana transaction UX |
+| Token SDK plan smoke | `just learn-token-smoke` | Lean toolchain from `lean-toolchain`; `python3`; optional `solc` for EVM bytecode; optional Node and npm for Web3.js validation | Validates the legacy `.learn` token path into the Lean `TokenSpec` boundary, emits ERC-20 Yul/bytecode metadata when `solc` is available, emits structured Solana SPL Token and Token-2022 plan JSON, checks mint/ATA/`mint_to`/`transfer_checked`/`approve`/`burn`/`revoke`/authority-change plan entries, checks Token-2022 transfer-fee extension routing and withheld-fee collection plan entries, and validates the Solana plan offline with `@solana/spl-token` / `@solana/web3.js` instruction builders when Node/npm are available | Live Surfpool execution of all token plan variants, actual token balances, public validator deployment, wallet UX, generated wrapper/transfer-hook programs |
+| Solana token plan Surfpool/Web3.js smoke | `just solana-token-plan-web3` | Lean toolchain from `lean-toolchain`; `python3`; `surfpool`; Solana CLI and `solana-keygen`; Node; npm | Emits the structured SPL Token plan, starts Surfpool, creates the mint and associated token accounts through `@solana/spl-token`, mints initial supply, executes the planned `mint_to`, `transfer_checked`, `approve`, `burn`, `revoke`, and mint-authority `set_authority` operations, then verifies token balances, supply, delegate state, and authority revocation through Web3.js reads | Token-2022 extension behavior, generated wrapper/transfer-hook programs, public validator deployment, wallet UX |
+| Solana Token-2022 transfer-fee Surfpool/Web3.js smoke | `just solana-token-2022-transfer-fee-web3` | Lean toolchain from `lean-toolchain`; `python3`; `surfpool`; Solana CLI and `solana-keygen`; Node; npm | Emits the structured Token-2022 transfer-fee plan, starts Surfpool, initializes a mint with `TransferFeeConfig`, creates Token-2022 associated token accounts, mints initial supply, executes `TransferCheckedWithFee`, verifies source balance, recipient net balance, and recipient withheld fee, directly withdraws withheld fees from a token account, then runs a second transfer, harvests withheld fees to the mint, withdraws them from the mint, and verifies the fee receiver balance plus cleared withheld amounts through Web3.js reads | Confidential transfer setup, transfer-hook routing, generated wrapper/transfer-hook programs, public validator deployment, wallet UX |
+| Solana Token-2022 non-transferable Surfpool/Web3.js smoke | `just solana-token-2022-non-transferable-web3` | Lean toolchain from `lean-toolchain`; `python3`; `surfpool`; Solana CLI and `solana-keygen`; Node; npm | Emits a structured Token-2022 plan from the Lean `.lean` token fixture, starts Surfpool, initializes a mint with `NonTransferable`, creates Token-2022 associated token accounts, mints initial supply, verifies mint/account extensions, proves `TransferChecked` is rejected with `Transfer is disabled for this mint`, then burns the token and verifies balances and supply | Confidential transfer setup, transfer-hook routing, generated wrapper/transfer-hook programs, public validator deployment, wallet UX |
+| Solana PDA Web3.js derivation smoke | `just solana-pda-web3` | Lean toolchain from `lean-toolchain`; Node; npm | Emits the Solana SDK Vault artifact, reads PDA `typedSeeds`, and verifies literal/account/bump descriptor semantics against `@solana/web3.js` `PublicKey.findProgramAddressSync` and `PublicKey.createProgramAddressSync`; also covers the local resolver for UTF-8 and instruction-parameter seed descriptors | Live deployment or transaction execution; SPL Token CPI behavior |
+| Solana System CPI Surfpool/Web3.js smoke | `just solana-system-cpi-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated System Program transfer CPI ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the program through `@solana/web3.js`, verifies recipient lamports increased by the requested amount, and verifies the program-owned state account recorded the same lamports value | System create-account CPI, SPL Token CPI behavior, public validator deployment, Rust/Pinocchio equivalence |
+| Solana Pinocchio System transfer reference-equivalence smoke | `just solana-pinocchio-system-transfer-equivalence` | Lean toolchain from `lean-toolchain`; `sbpf`; `python3` | Emits the generated System Program transfer CPI artifact and compares its instruction ABI, account order, signer/writable requirements, CPI metadata, and lamports state write contract against the checked-in Pinocchio reference manifest/source under `references/solana/pinocchio/system-transfer` | Build/deploy the Pinocchio reference ELF and run ProofForge/reference programs through the same Web3.js harness |
+| Solana Pinocchio System transfer live-equivalence smoke | `just solana-pinocchio-system-transfer-live-equivalence` | Lean toolchain from `lean-toolchain`; `cargo-build-sbf` with Solana rustc/platform-tools; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds the ProofForge System transfer CPI ELF and the checked-in Pinocchio reference ELF, deploys both programs to the same Surfpool instance, invokes the same Web3.js transfer scenario for each, and compares recipient lamport delta plus recorded state value | Add create-account and SPL Token Pinocchio reference programs; move the live equivalence into CI once Solana rustc is installed reliably; `just solana-pinocchio-install-sbf-tools` repairs missing/corrupted platform-tools |
+| Solana System create_account CPI Surfpool/Web3.js smoke | `just solana-system-create-account-cpi-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated System Program `create_account` CPI ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes it through `@solana/web3.js`, verifies the newly created account owner/space/lamports, and verifies the program-owned state account recorded the requested lamports and space | SPL Token CPI behavior, public validator deployment, Rust/Pinocchio equivalence |
+| Solana SPL Token transfer_checked CPI Surfpool/Web3.js smoke | `just solana-spl-token-transfer-cpi-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated SPL Token `transfer_checked` CPI ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, creates a mint and token accounts through `@solana/spl-token`, invokes the generated program through `@solana/web3.js`, verifies source/destination token balances, and verifies the program-owned state account recorded the requested amount | Broader SPL Token/Token-2022 coverage, public validator deployment, Rust/Pinocchio equivalence |
+| Solana SPL Token ops CPI Surfpool/Web3.js smoke | `just solana-spl-token-ops-cpi-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, creates a mint and token accounts through `@solana/spl-token`, invokes the generated program through `@solana/web3.js`, verifies mint supply and token balance changes, verifies delegate allowance then revoke clearing, and verifies the program-owned state account recorded all requested values | Token-2022 extension behavior, public validator deployment, Rust/Pinocchio equivalence |
+| Solana log/event Surfpool/Web3.js smoke | `just solana-log-event-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated `events.emit`/Solana log-extension ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_log_64_` transaction logs contain the stable event tag and scalar field value, verifies the program-owned state account recorded the same value, verifies `sol_log_pubkey` logs the state account's base58 pubkey, and verifies `sol_log_data` emits a base64 `Program data:` payload for state bytes | Anchor-compatible discriminator/Borsh event serialization, indexed events, `sol_log_` payloads, historical indexing guarantees |
+| Solana Clock sysvar Surfpool/Web3.js smoke | `just solana-clock-sysvar-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated `contextRead checkpointId` ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_get_clock_sysvar` records `Clock.slot` into program-owned state, and compares it with transaction slot metadata | Richer Clock fields, public validator deployment |
+| Solana Rent sysvar Surfpool/Web3.js smoke | `just solana-rent-sysvar-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated Solana-only `sysvar` target-extension ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_get_rent_sysvar` records `Rent.lamports_per_byte_year` into program-owned state, and compares it with the Rent sysvar account data | Additional Rent fields, public validator deployment |
+| Solana EpochSchedule sysvar Surfpool/Web3.js smoke | `just solana-epoch-schedule-sysvar-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated Solana-only `sysvar` target-extension ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_get_epoch_schedule_sysvar` records all five current RPC-exposed `EpochSchedule` fields into program-owned state, and compares them with RPC `getEpochSchedule()` | Additional Clock/Rent fields, generic account-passed sysvar reads, public validator deployment |
+| Solana EpochRewards sysvar Surfpool/Web3.js smoke | `just solana-epoch-rewards-sysvar-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated Solana-only `sysvar` target-extension ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_get_epoch_rewards_sysvar` records all current `EpochRewards` scalar/word-view fields into program-owned state, and compares them with the EpochRewards sysvar account data | Additional Clock/Rent fields, generic account-passed sysvar reads, public validator deployment |
+| Solana LastRestartSlot sysvar Surfpool/Web3.js smoke | `just solana-last-restart-slot-sysvar-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated Solana-only `sysvar` target-extension ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies the feature-gated `LastRestartSlot.last_restart_slot` read lowered through `sol_get_sysvar`, and compares the recorded value with the LastRestartSlot sysvar account data | Additional sysvars, public validator deployment, cluster feature-activation variance |
+| Solana memory syscall Surfpool/Web3.js smoke | `just solana-memory-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated `runtime.memory` ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes `set_source` plus `copy_compare_fill` through `@solana/web3.js`, and verifies program-owned account bytes prove `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_` executed | Broader account/data packing helpers, Rust/Pinocchio equivalence |
+| Solana return-data/compute Surfpool/Web3.js smoke | `just solana-return-data-compute-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated `runtime.return_data`/`runtime.compute_units` ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes it through `@solana/web3.js`, verifies `sol_set_return_data` through simulation returnData, verifies `sol_get_return_data` through empty reads and same-instruction set/get roundtrips, verifies `sol_remaining_compute_units` writes a nonzero state value, and verifies `sol_log_compute_units_` emits compute-unit logs | CPI return-value handling, typed return payloads beyond `u64`, public-validator feature variance |
+| Solana SHA-256/Keccak-256/Blake3 syscall Surfpool/Web3.js smoke | `just solana-crypto-hash-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated Solana-only `crypto.hash` ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes `set_preimage`, `hash_preimage`, `keccak_preimage`, and `blake3_preimage` through `@solana/web3.js`, and verifies account-stored digests against Node SHA-256 plus `@noble/hashes` Keccak-256/Blake3 for the same preimage bytes | Portable `Expr.hash` routing, Rust/Pinocchio equivalence |
 | Yul generation smoke | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | Built `proof-forge` | Lean frontend/LCNF lowers a simple contract to Yul | `solc` acceptance, ABI dispatch, EVM runtime behavior |
 | Yul-to-bytecode smoke | `solc --strict-assembly build/counter.yul --bin` | `solc` on `PATH` | Generated Yul is accepted by `solc` | Runtime semantics or method dispatch |
 | Single EVM bytecode compile | `lake env proof-forge --evm-bytecode --root . --module contract --artifact-output build/evm/Counter.proof-forge-artifact.json -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean` | `solc`, `cast`, `python3`, and `Examples/Evm/Contracts/Counter.evm-methods` | Lean -> Yul -> `solc` -> runtime bytecode with selector generation, deployable `.init.bin` creation bytecode, `proof-forge-artifact.json` metadata, and a `proof-forge-deploy.json` initcode manifest whose header copies and returns the referenced runtime bytecode; `--evm-chain-profile <id>` additionally records a known EVM chain profile in the deploy manifest without broadcasting; `--evm-constructor-param <name:type>` records static-word constructor ABI schema; `--evm-constructor-arg <name=value>` ABI-encodes supported static-word typed values; `--evm-constructor-args-hex <hex>` records and appends an ABI-encoded constructor-argument tail | Runtime behavior, gas, exhaustive ABI correctness, dynamic constructor ABI types, signed/raw transaction generation, real transaction broadcast |
 | EVM examples compile | `scripts/evm/build-examples.sh` | `cast`, `solc`, `python3`, `lake env proof-forge`; optional `PROOF_FORGE_BIN`, `CONTRACTS_DIR`, `EVM_OUT_DIR` | Every `.lean` contract with a sibling `.evm-methods` compiles to reproducible Yul, `.bin`, and `.init.bin`, diffs generated Yul against the tracked SDK example golden fixtures, and validates EVM metadata hashes, initcode hashes/header/runtime linkage, deploy-manifest hashes, source/module info, solc info, SDK method selectors/functions, and required Solidity method signatures | Runtime behavior; contracts without `.evm-methods` are skipped by the script |
+| Learn token ERC-20 VM smoke | `just learn-token-evm-vm` | Lean toolchain from `lean-toolchain`; `solc`; Node; npm | Parses `Examples/Learn/ProofToken.learn`, emits ERC-20 Yul/creation bytecode/artifact metadata through `proof-forge --learn-token --target evm`, deploys the generated creation bytecode in an EthereumJS VM, then verifies `totalSupply`, `decimals`, `balanceOf`, `transfer`, `approve`, `allowance`, `transferFrom`, optional `burn`, optional `mint`, Transfer/Approval topics, and insufficient-balance revert behavior | Live RPC deployment, gas accounting, wallet UX, stronger mint access-control policy |
 | EVM runtime smoke | `scripts/evm/foundry-smoke.sh` | `forge`, `cast`, `solc`; optional `EVM_OUT_DIR`, `EVM_FORGE_DIR` | Foundry executes generated runtime bytecode for Counter, ArrayExample, SimpleToken, and VerifiedVault, executes the generated Counter `.init.bin` through EVM `create`, and includes revert checks | Formal proof coverage, cross-target equivalence, live RPC deployment, exhaustive edge coverage |
 | EVM Anvil deploy smoke | `scripts/evm/anvil-deploy-smoke.sh` | `anvil`, `cast`, `solc`, `python3`; optional `EVM_ANVIL_CHAIN_ID`, `EVM_ANVIL_CHAIN_PROFILE`, `EVM_ANVIL_PORT`, `EVM_ANVIL_RUN_DIR`, `EVM_ANVIL_CONSTRUCTOR_ARG`, `EVM_ANVIL_CONSTRUCTOR_ARGS_HEX`, `EVM_ANVIL_CONSTRUCTOR_PARAM` | Starts a local Anvil chain, regenerates Counter initcode with deterministic typed `initial=123` constructor input, `initial:uint256` constructor ABI schema, and the `anvil-local` chain profile by default for chain id `31337`, validates signature-bearing Counter method metadata and profile-aware deploy metadata, deploys generated Counter `.init.bin` through `cast send --create`, records constructor ABI schema, constructor args, creation receipt, creation transaction JSON, chain profile, and deployed address in `Counter.proof-forge-deploy-run.json`, validates that the creation transaction input equals the generated initcode, validates that the profile chain id matches the actual local chain, validates that the deployed runtime code equals `Counter.bin`, runs Counter `get`/`set`/`increment`/`decrement` through JSON-RPC, and validates the deploy-run artifact with `scripts/evm/validate-deploy-run.py` | Live public RPC deployment, explorer verification, wallet UX, dynamic constructor ABI types, long-running chain state |
 | EVM ABI ScalarProbe IR smoke | `scripts/evm/abi-scalar-ir-smoke.sh` | `forge`, `solc`, `python3`, Lean toolchain from `lean-toolchain` | Portable IR `U64`, `U32`, and `Bool` ABI parameters lower to Yul function parameters and dispatcher calldata loads, match the golden Yul fixture, compile to runtime bytecode with `solc --strict-assembly`, validate EVM metadata including selector entrypoints and Yul/bytecode hashes, validate a chain-profile-aware deploy manifest for `robinhood-chain-testnet` with chain id `46630`, return expected values through Foundry calls, and reject short calldata, out-of-range `uint32`, and invalid `bool` encodings | Aggregate ABI parameters/returns, storage behavior, live RPC deployment |
@@ -141,6 +162,159 @@ The following gates are `Planned` and do not exist in CI or as scripts:
         `direct_account_pointers_in_program_input` /
         `virtual_address_space_adjustments` so the Phase 1 lowering's legacy
         embedded account-data layout is exercised. (Phase 1 complete.)
+  - **V-GATE-SOLANA-09** — PDA typed seed descriptor compatibility with
+    Solana Web3.js. Script: `scripts/solana/pda-web3-smoke.sh` emits the SDK
+    Vault artifact, installs `@solana/web3.js` in an isolated temp project,
+    reads `solanaExtensions.pdas[].typedSeeds`, and checks that
+    literal/account/bump descriptors reproduce the same PDA through
+    `PublicKey.findProgramAddressSync` and `PublicKey.createProgramAddressSync`.
+    The harness also covers UTF-8 and instruction-parameter seed resolver
+    behavior. This is an offline derivation gate; it does not deploy or execute
+    a transaction.
+  - **V-GATE-SOLANA-10** — System Program transfer CPI live behavior through
+    Surfpool and Web3.js. Script:
+    `scripts/solana/system-cpi-web3-smoke.sh` builds the generated
+    `--solana-system-cpi-elf` fixture, validates its artifact schema, starts
+    Surfpool, deploys the ELF with `solana program deploy --use-rpc`, invokes
+    the generated transfer entrypoint with a standard `@solana/web3.js`
+    transaction, and checks both the recipient lamport delta and the
+    program-owned state account's recorded lamports value.
+  - **V-GATE-SOLANA-10R** — System Program transfer Pinocchio
+    reference-equivalence contract. Script:
+    `scripts/solana/pinocchio-system-transfer-equivalence.sh` emits the same
+    `--solana-system-cpi-elf` fixture and compares its generated artifact
+    against `references/solana/pinocchio/system-transfer/reference-manifest.json`
+    plus source constants. This pins the reference account order,
+    signer/writable constraints, instruction data shape, CPI protocol/data
+    layout, and state-write contract before the later dual-deploy runtime
+    harness.
+  - **V-GATE-SOLANA-10L** — System Program transfer Pinocchio live
+    equivalence. Script:
+    `scripts/solana/pinocchio-system-transfer-live-equivalence.sh` builds the
+    ProofForge ELF and the checked-in Pinocchio reference ELF, starts Surfpool,
+    deploys both programs with separate program ids, invokes the same
+    `@solana/web3.js` System transfer scenario against each, and compares the
+    recipient lamport delta and program-owned state write. This gate skips when
+    `cargo-build-sbf` cannot find Solana rustc/platform-tools; run
+    `just solana-pinocchio-install-sbf-tools` to repair that toolchain.
+  - **V-GATE-SOLANA-11** — System Program `create_account` CPI live behavior
+    through Surfpool and Web3.js. Script:
+    `scripts/solana/system-create-account-cpi-web3-smoke.sh` builds the
+    generated `--solana-system-create-account-cpi-elf` fixture, validates its
+    artifact schema, starts Surfpool, deploys the ELF with
+    `solana program deploy --use-rpc`, invokes the generated create entrypoint
+    with payer and new-account signers, and checks the new account owner,
+    data length, lamports, plus the state account's recorded lamports and
+    space values.
+  - **V-GATE-SOLANA-12** — SPL Token `transfer_checked` CPI live behavior
+    through Surfpool and Web3.js. Script:
+    `scripts/solana/spl-token-transfer-cpi-web3-smoke.sh` builds the generated
+    `--solana-spl-token-transfer-cpi-elf` fixture, validates its artifact
+    schema, starts Surfpool, deploys the ELF with `solana program deploy
+    --use-rpc`, creates a mint plus source/destination token accounts through
+    `@solana/spl-token`, invokes the generated transfer entrypoint with the
+    source authority signer, and checks token balance deltas plus the state
+    account's recorded amount.
+  - **V-GATE-SOLANA-13** — SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
+    live behavior through Surfpool and Web3.js. Script:
+    `scripts/solana/spl-token-ops-cpi-web3-smoke.sh` builds the generated
+    `--solana-spl-token-ops-cpi-elf` fixture, validates artifact instruction
+    schemas for four entrypoints, starts Surfpool, deploys the ELF with
+    `solana program deploy --use-rpc`, creates a mint plus source/destination
+    token accounts through `@solana/spl-token`, invokes the generated mint,
+    burn, approve, and revoke entrypoints with the source/mint authority
+    signer, and checks supply/balance/delegate changes plus the state account's
+    recorded mint, burn, approve, and revoke values.
+  - **V-GATE-SOLANA-14** — Solana `events.emit` scalar log plus
+    `sol_log_pubkey` and `sol_log_data` live behavior through Surfpool and Web3.js. Script:
+    `scripts/solana/log-event-web3-smoke.sh` builds the generated
+    `--solana-log-event-elf` fixture, validates artifact instruction schema,
+    `events.emit` capability metadata, Solana-only `pubkeyLogActions`, and
+    Solana-only `dataLogActions`, starts Surfpool, deploys the ELF with
+    `solana program deploy --use-rpc`, invokes the generated `emit` entrypoint
+    with a scalar `amount` instruction parameter, checks the program-owned
+    state account's recorded amount, checks transaction `logMessages` for the
+    `sol_log_64_` output containing the stable `AmountEvent` tag and scalar
+    value, invokes `log_state_pubkey`, checks transaction `logMessages` for the
+    state account's base58 pubkey from `sol_log_pubkey`, invokes
+    `log_state_data`, and checks transaction `logMessages` for the base64
+    `Program data:` payload from `sol_log_data`.
+  - **V-GATE-SOLANA-15** — Solana Clock sysvar live behavior through Surfpool
+    and Web3.js. Script: `scripts/solana/clock-sysvar-web3-smoke.sh` builds
+    the generated `--solana-clock-sysvar-elf` fixture, validates artifact
+    instruction schema and `env.block` capability metadata, starts Surfpool,
+    deploys the ELF with `solana program deploy --use-rpc`, invokes the
+    generated `record` entrypoint, checks that `sol_get_clock_sysvar` wrote
+    `Clock.slot` into the program-owned state account, and compares that value
+    with the transaction slot from Web3.js metadata.
+  - **V-GATE-SOLANA-16** — Solana memory syscall live behavior through Surfpool
+    and Web3.js. Script: `scripts/solana/memory-web3-smoke.sh` builds the
+    generated `--solana-memory-elf` fixture, validates `runtime.memory`
+    artifact metadata, starts Surfpool, deploys the ELF with
+    `solana program deploy --use-rpc`, invokes `set_source` and
+    `copy_compare_fill`, and checks copied value, moved value, memcmp result,
+    and memset byte pattern in the program-owned state account.
+  - **V-GATE-SOLANA-17** — Solana SHA-256/Keccak-256/Blake3 syscall live behavior through Surfpool
+    and Web3.js. Script: `scripts/solana/crypto-hash-web3-smoke.sh` builds the
+    generated `--solana-crypto-hash-elf` fixture, validates `crypto.hash`
+    artifact metadata, starts Surfpool, deploys the ELF with
+    `solana program deploy --use-rpc`, invokes `set_preimage`,
+    `hash_preimage`, `keccak_preimage`, and `blake3_preimage`, and compares the
+    program-owned account's 32-byte digests against Node
+    `crypto.createHash("sha256")` and `@noble/hashes` Keccak-256/Blake3 for the
+    same preimage bytes.
+  - **V-GATE-SOLANA-18** — Solana Rent sysvar live behavior through Surfpool and
+    Web3.js. Script: `scripts/solana/rent-sysvar-web3-smoke.sh` builds the
+    generated `--solana-rent-sysvar-elf` fixture, validates `sysvar` target
+    extension artifact metadata, starts Surfpool, deploys the ELF with
+    `solana program deploy --use-rpc`, invokes `record_rent`, and compares the
+    program-owned account's recorded `Rent.lamports_per_byte_year` with the
+    Rent sysvar account's first `u64` word.
+  - **V-GATE-SOLANA-19** — Solana EpochSchedule sysvar live behavior through
+    Surfpool and Web3.js. Script:
+    `scripts/solana/epoch-schedule-sysvar-web3-smoke.sh` builds the generated
+    `--solana-epoch-schedule-sysvar-elf` fixture, validates `sysvar` target
+    extension artifact metadata, starts Surfpool, deploys the ELF with
+    `solana program deploy --use-rpc`, invokes `record_epoch_schedule`, and
+    compares the program-owned account's recorded `EpochSchedule.slots_per_epoch`,
+    `EpochSchedule.leader_schedule_slot_offset`, `EpochSchedule.warmup`,
+    `EpochSchedule.first_normal_epoch`, and `EpochSchedule.first_normal_slot`
+    fields with RPC `getEpochSchedule()`.
+  - **V-GATE-SOLANA-20** — Solana LastRestartSlot sysvar live behavior through
+    Surfpool and Web3.js. Script:
+    `scripts/solana/last-restart-slot-sysvar-web3-smoke.sh` builds the
+    generated `--solana-last-restart-slot-sysvar-elf` fixture, validates
+    feature-gated `sysvar` target-extension artifact metadata, starts Surfpool,
+    deploys the ELF with `solana program deploy --use-rpc`, invokes
+    `record_last_restart_slot`, and compares the program-owned account's
+    recorded `LastRestartSlot.last_restart_slot` with the LastRestartSlot
+    sysvar account's first `u64` word. The generated assembly uses
+    `sol_get_sysvar` with `SysvarLastRestartS1ot1111111111111111111111` to stay
+    compatible with the current `sbpf` assembler while preserving the Solana
+    SDK-level LastRestartSlot capability.
+  - **V-GATE-SOLANA-21** — Solana EpochRewards sysvar live behavior through
+    Surfpool and Web3.js. Script:
+    `scripts/solana/epoch-rewards-sysvar-web3-smoke.sh` builds the generated
+    `--solana-epoch-rewards-sysvar-elf` fixture, validates `sysvar` target
+    extension artifact metadata for all current `EpochRewards` fields, starts
+    Surfpool, deploys the ELF with `solana program deploy --use-rpc`, invokes
+    `record_epoch_rewards`, and compares the program-owned account's recorded
+    `EpochRewards.distribution_starting_block_height`,
+    `EpochRewards.num_partitions`, `EpochRewards.parent_blockhash_word0..3`,
+    `EpochRewards.total_points_low/high`, `EpochRewards.total_rewards`,
+    `EpochRewards.distributed_rewards`, and `EpochRewards.active` with the
+    EpochRewards sysvar account data.
+  - **V-GATE-SOLANA-22** — Solana return-data and compute-unit syscall live
+    behavior through Surfpool and Web3.js. Script:
+    `scripts/solana/return-data-compute-web3-smoke.sh` builds the generated
+    `--solana-return-data-compute-elf` fixture, validates
+    `runtime.return_data` and `runtime.compute_units` target-extension artifact
+    metadata, starts Surfpool, deploys the ELF with
+    `solana program deploy --use-rpc`, confirms `sol_set_return_data` via
+    simulation `returnData`, checks empty `sol_get_return_data` reads, checks a
+    same-instruction set/get roundtrip including the returned program id words,
+    records a nonzero `sol_remaining_compute_units` value, and verifies
+    `sol_log_compute_units_` emits compute-unit logs.
 - Move smoke — `aptos move compile/test` or Sui Move validation.
 - Cross-target capability rejection matrix — compile-time diagnostics for
   unsupported capability/target combinations beyond the target-specific Psy and

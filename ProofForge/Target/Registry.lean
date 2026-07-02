@@ -134,6 +134,10 @@ def solanaSbpfLinker : TargetProfile := {
     .envBlock,
     .cryptoHash,
     .accountExplicit,
+    .runtimeAllocator,
+    .runtimeMemory,
+    .runtimeReturnData,
+    .runtimeComputeUnits,
     .storagePda,
     .crosscallCpi
   ]
@@ -162,6 +166,10 @@ def solanaSbpfAsm : TargetProfile := {
     .cryptoHash,
     .assertions,
     .accountExplicit,
+    .runtimeAllocator,
+    .runtimeMemory,
+    .runtimeReturnData,
+    .runtimeComputeUnits,
     .storagePda,
     .crosscallCpi
   ]

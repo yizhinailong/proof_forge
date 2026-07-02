@@ -19,6 +19,10 @@ inductive Capability where
   | cryptoHash
   | assertions
   | accountExplicit
+  | runtimeAllocator
+  | runtimeMemory
+  | runtimeReturnData
+  | runtimeComputeUnits
   | storagePda
   | crosscallCpi
   | zkCircuit
@@ -41,6 +45,10 @@ def Capability.id : Capability → String
   | .cryptoHash => "crypto.hash"
   | .assertions => "assertions.check"
   | .accountExplicit => "account.explicit"
+  | .runtimeAllocator => "runtime.allocator"
+  | .runtimeMemory => "runtime.memory"
+  | .runtimeReturnData => "runtime.return_data"
+  | .runtimeComputeUnits => "runtime.compute_units"
   | .storagePda => "storage.pda"
   | .crosscallCpi => "crosscall.cpi"
   | .zkCircuit => "zk.circuit"

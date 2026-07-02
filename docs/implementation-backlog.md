@@ -630,10 +630,10 @@ Acceptance criteria:
   entrypoints, and capabilities used.
 
 Out of scope (Phase 2+): maps, struct types, events, bounded loops, Borsh
-serialization, full SPL Token data layouts, and runtime CPI validation. CPI and
-PDA stay Solana-specific (D-027): the SDK now routes them through target
-capability calls and sBPF helper actions instead of adding them to the portable
-IR.
+serialization, full SPL Token data layouts, complete live CPI matrix coverage,
+and Rust/Pinocchio equivalence. CPI and PDA stay Solana-specific (D-027): the
+SDK routes them through target capability calls and sBPF helper actions instead
+of adding them to the portable IR.
 
 Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md) § Phased
 Implementation Plan.
@@ -708,27 +708,476 @@ partial progress is visible before the full acceptance criteria close:
       and a 32-byte PDA result buffer before calling `sol_create_program_address`.
       Covered by `Tests/SolanaSdkManifest.lean` and
       `scripts/solana/sdk-smoke.sh`.
+- [x] PDA typed seed lowering now keeps the compatibility `seeds` field while
+      adding target-facing typed descriptors for literal/UTF-8 bytes, account
+      pubkeys, bump seeds, and scalar instruction-data seeds. The Solana target
+      extension consumes those descriptors, appends `bump?` to the effective
+      syscall seed list, emits `typed_seeds`/`typedSeeds` in manifest/artifact
+      metadata, and validates the derived PDA pubkey against the declared
+      account when `account?` is present. Covered by `Tests/SolanaSdk.lean`,
+      `Tests/SolanaSdkManifest.lean`, `Tests/SolanaPdaSeeds.lean`,
+      `scripts/solana/sdk-smoke.sh`, and
+      `scripts/solana/pda-web3-smoke.sh`.
+- [x] Standard Solana protocol SDK helpers now cover System Program
+      transfer/create-account and SPL Token transfer_checked/mint_to/burn/
+      approve/revoke. They route through target capability metadata with
+      `solana.cpi.protocol`, canonical `data_layout`, account metas, signer
+      seeds, and instruction-data source names, and are included in the
+      generated manifest plus artifact JSON. Covered by `Tests/SolanaSdk.lean`,
+      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+- [x] Runtime allocator target extension now models Solana's default
+      downward-bump allocator (`heap_start = "0x300000000"`,
+      `heap_bytes = 32768`) plus a `noAllocator`/deny-dynamic option aligned
+      with Pinocchio-style no-heap entrypoints. The selected allocator routes
+      through `runtime.allocator` capability metadata and appears in
+      `manifest.toml`, `proof-forge-artifact.json`, and assembly metadata.
+      Covered by `Tests/SolanaAllocator.lean`, `Tests/SolanaSdk.lean`,
+      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+- [x] Runtime memory target extension now routes Solana-only SDK actions through
+      `runtime.memory` capability metadata and lowers entrypoint actions to
+      `sol_memcpy_`, `sol_memcmp_`, and `sol_memset_` helpers over generated
+      state-account offsets. The generated manifest and artifact JSON record
+      `[[solana.entrypoint_memory]]` / `memoryActions`; Web3.js verifies copied
+      bytes, compare result, and fill pattern on a program-owned account.
+      Covered by `Tests/SolanaMemory.lean` and
+      `scripts/solana/memory-web3-smoke.sh`.
+- [x] Return-data and compute-budget target extensions now route Solana-only
+      SDK actions through `runtime.return_data` and `runtime.compute_units`
+      capability metadata. Return-data actions lower state-backed byte slices
+      to `sol_set_return_data` and can read the most recent CPI return-data
+      buffer/program id through `sol_get_return_data`; compute-budget actions
+      lower the feature-gated `sol_remaining_compute_units` syscall and write
+      the observed remaining CU value into state, and profiling actions lower
+      `sol_log_compute_units_`. The generated manifest records
+      `[[solana.entrypoint_return_data]]` and
+      `[[solana.entrypoint_compute_units]]`. Covered by
+      `Tests/SolanaReturnDataCompute.lean`.
+- [x] Generated Solana SDK instruction schemas now use a module-wide
+      multi-account account list instead of the old single-account manifest.
+      The schema includes the state account, PDA accounts, CPI accounts, and
+      executable CPI program accounts, and the sBPF backend computes
+      `INSTRUCTION_DATA` offsets from that same schema. The generated prologue
+      validates signer/writable constraints and program-owned accounts from the
+      schema. The account list is emitted in both `manifest.toml` and
+      `proof-forge-artifact.json`. Covered by `Tests/SolanaSdkManifest.lean`,
+      `Tests/SolanaCpiPacking.lean`, and `scripts/solana/sdk-smoke.sh`.
+- [x] System Program transfer/create-account and SPL Token CPI instruction-data
+      packing emit the standard instruction bytes into the C `SolInstruction`
+      payload. System transfer/create-account use bincode-style `u32`
+      discriminators plus `u64` lamports/space and owner pubkey fields; SPL
+      Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` use
+      the standard token instruction tags and amount/decimals layouts. Value
+      sources can bind to generated scalar state offsets, numeric literals, or
+      decoded scalar entrypoint parameters. The CPI helper also packs program id
+      bytes, C `SolAccountMeta[]`,
+      `SolAccountInfo[]` entries bound to the generated multi-account input
+      layout, signer seed tables, and syscall register setup. Covered by
+      `Tests/SolanaCpiPacking.lean`, `Tests/SolanaSdkManifest.lean`, and
+      `scripts/solana/sdk-smoke.sh`.
+- [x] System Program transfer CPI now has a live Surfpool/Web3.js behavior
+      gate. `ProofForge.Solana.Examples.SystemCpi` builds a generated
+      `--solana-system-cpi-elf` fixture whose entrypoint reads a scalar
+      `lamports` instruction parameter, performs a System Program transfer CPI,
+      and records the transferred amount in a program-owned state account.
+      `scripts/solana/system-cpi-web3-smoke.sh` validates the artifact schema,
+      deploys the ELF on Surfpool with Solana CLI, invokes it through
+      `@solana/web3.js`, and checks both recipient lamport delta and state data.
+      The sBPF lowering computes the instruction-data pointer from the
+      serialized account layout under direct account mapping and keeps it in
+      `r9` so internal helper calls do not lose it across callee stack frames.
+      Coverage: `just solana-system-cpi-web3` / V-GATE-SOLANA-10.
+- [x] System Program `create_account` CPI now has a live Surfpool/Web3.js
+      behavior gate. `ProofForge.Solana.Examples.SystemCreateAccountCpi`
+      builds a generated `--solana-system-create-account-cpi-elf` fixture whose
+      entrypoint reads scalar `lamports` and `space` instruction parameters,
+      performs a System Program `create_account` CPI with payer and new-account
+      signers, creates a program-owned account, and records both values in the
+      existing program-owned state account. The Web3.js harness checks the new
+      account owner, data length, lamports, and recorded state values. Coverage:
+      `just solana-system-create-account-cpi-web3` / V-GATE-SOLANA-11.
+- [x] SPL Token `transfer_checked` CPI now has a live Surfpool/Web3.js behavior
+      gate. `ProofForge.Solana.Examples.SplTokenTransferCheckedCpi` builds a
+      generated `--solana-spl-token-transfer-cpi-elf` fixture whose entrypoint
+      reads a scalar `amount` instruction parameter, performs an SPL Token
+      `transfer_checked` CPI with the source authority signer, and records the
+      amount in program-owned state. The Web3.js harness creates a mint plus
+      source/destination token accounts through `@solana/spl-token`, checks the
+      token balance deltas, and checks the state record. The sBPF lowering now
+      builds a runtime account pointer table in each entry/helper stack frame so
+      variable-size SPL Token account data does not invalidate account offsets
+      across internal helper calls. Coverage:
+      `just solana-spl-token-transfer-cpi-web3` / V-GATE-SOLANA-12.
+- [x] Entry instruction-data decoding now treats byte 0 as the entrypoint tag
+      and decodes packed scalar parameters from `instruction_data+1` into
+      stack locals. The initial scalar ABI supports `U64`, `U32`, and `Bool`,
+      emits per-entrypoint parameter schemas and minimum instruction-data
+      lengths in `manifest.toml`/`proof-forge-artifact.json`, rejects short
+      payloads with `error_instruction_data`, and exposes the same fixed input
+      offsets to CPI value bindings, so SDK calls such as SPL Token
+      `transfer_checked` can source `amount` from a user instruction parameter
+      instead of a placeholder. Covered by `Tests/SolanaCpiPacking.lean`,
+      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
 
-Next Solana SDK completion items:
+### Solana SDK completion roadmap
 
-- PDA typed seed completion: distinguish literal/UTF-8 bytes, account pubkeys, and
-  bump/instruction-data seeds; validate the resulting PDA against account
-  pubkeys; add Web3.js fixtures that compare derived addresses with
-  `PublicKey.findProgramAddressSync`.
-- System Program CPI: lower transfer/create-account style SDK calls to
-  `sol_invoke_signed`, express account metas in `manifest.toml`, and validate
-  balances/owners through Web3.js.
-- SPL Token CPI: add mint/account/authority manifests, token instruction
-  packing, and behavior checks against the standard token program.
-- Logs/events and return data: expose `sol_log*` / `sol_set_return_data` /
-  `sol_get_return_data` helpers with Web3.js log and simulation assertions.
-- Sysvars, crypto, and memory helpers: cover clock/rent sysvars, hash syscalls,
-  memcpy/memcmp/memset, and compare outputs with JavaScript reference code.
-- Add Rust/Pinocchio reference fixtures for the same account schema and compare
-  ProofForge-generated behavior against those reference programs through the
-  same Web3.js harness.
-- Move from Phase 1 single-account manifests to generated multi-account schemas
-  with signer/writable/owner constraints per entrypoint.
+Reference docs driving this roadmap:
+
+- Solana CPI and PDA docs:
+  <https://solana.com/docs/core/cpi> and
+  <https://solana.com/docs/core/pda>.
+- Anchor CPI/account-constraint docs:
+  <https://www.anchor-lang.com/docs/basics/cpi> and
+  <https://www.anchor-lang.com/docs/references/account-constraints>.
+- Pinocchio no-dependency / no-std program model:
+  <https://docs.rs/pinocchio> and
+  <https://github.com/anza-xyz/pinocchio>.
+
+Baseline: as of 2026-07-02, the Solana path has direct sBPF assembly emission,
+Counter deployment through Surfpool/Web3.js, SDK capability metadata, generated
+manifest/artifact output, module-wide multi-account schemas, standard
+System/SPL Token CPI data packing, bump-allocator metadata, scalar entrypoint
+parameter decoding, typed PDA seed lowering, live System Program transfer plus
+create-account CPI validation, live SPL Token `transfer_checked` CPI
+validation, and live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
+validation, plus live scalar `events.emit` log validation through
+`sol_log_64_`, live account-pubkey log validation through `sol_log_pubkey`,
+live state-backed data-log validation through `sol_log_data`, and live
+`Clock.slot` sysvar validation for `contextRead checkpointId`, plus live
+`runtime.memory` validation through `sol_memcpy_`, `sol_memmove_`,
+`sol_memcmp_`, and `sol_memset_`, plus live Solana-only `crypto.hash`
+validation through `sol_sha256`, `sol_keccak256`, and feature-gated
+`sol_blake3`, plus live `Rent.lamports_per_byte_year` sysvar validation
+through `sol_get_rent_sysvar`.
+It also covers live validation for all current RPC-exposed `EpochSchedule`
+fields through `sol_get_epoch_schedule_sysvar`: `slots_per_epoch`,
+`leader_schedule_slot_offset`, `warmup`, `first_normal_epoch`, and
+`first_normal_slot`, plus live `EpochRewards` validation through
+`sol_get_epoch_rewards_sysvar` for
+`distribution_starting_block_height`, `num_partitions`,
+`parent_blockhash_word0..3`, `total_points_low/high`, `total_rewards`,
+`distributed_rewards`, and `active`, plus feature-gated live
+`LastRestartSlot.last_restart_slot` validation through `sol_get_sysvar` with
+the `SysvarLastRestartS1ot1111111111111111111111` sysvar id. Live SDK
+coverage now includes `runtime.return_data` lowering to `sol_set_return_data`
+and `sol_get_return_data`, with empty-read, set-return simulation, and
+same-instruction set/get roundtrip checks, plus `runtime.compute_units`
+lowering to feature-gated `sol_remaining_compute_units` state writes and
+profiling logs through `sol_log_compute_units_`.
+The estimates below assume one engineer working on this branch,
+the current direct-assembly architecture staying stable, and local
+`sbpf`/Surfpool/Solana CLI tooling remaining available.
+
+| Level | Estimated effort | Done when |
+|---|---:|---|
+| SDK alpha: usable Solana programs | 3-5 focused engineering days | Simple programs can use state, PDA seeds, scalar instruction parameters, System Program CPI, SPL Token CPI, logs/return data, and Web3.js behavior tests without hand-written assembly patches. |
+| SDK beta: reference-comparable Solana backend | 2-3 focused weeks | ProofForge output is compared against Rust/Pinocchio fixtures for the same account schema, covers key syscalls, validates live CPI behavior, and supports per-entrypoint account schemas. |
+| Anchor/Pinocchio-class developer surface | 4-6 focused weeks after beta | The SDK offers account constraints, typed account/data helpers, IDL/client generation, richer SPL/Token-2022 coverage, and stable diagnostics comparable to a framework-level workflow. |
+
+Completed alpha slices:
+
+- Instruction ABI hardening: parameter payload length bounds checks,
+  per-entrypoint parameter schemas in `manifest.toml` and
+  `proof-forge-artifact.json`, and stable scalar parameter metadata are now in
+  place.
+- PDA typed seed lowering: `literalSeed`/`utf8Seed`, `accountSeed`,
+  `bumpSeed`, and `paramSeed` descriptors now lower to Solana seed slices,
+  `bump?` participates in the effective seed list, and declared PDA accounts
+  can be checked against the derived pubkey.
+- PDA/Web3.js derivation fixture: `scripts/solana/pda-web3-smoke.sh` reads the
+  generated SDK Vault `typedSeeds` artifact data and verifies literal/account/
+  bump descriptor semantics against `PublicKey.findProgramAddressSync` and
+  `PublicKey.createProgramAddressSync`; the harness also covers UTF-8 and
+  instruction-parameter resolver behavior.
+- Live System Program transfer CPI fixture:
+  `scripts/solana/system-cpi-web3-smoke.sh` builds and deploys a generated
+  transfer CPI program on Surfpool, invokes it through Web3.js, and proves both
+  the lamport movement and state write.
+- Live System Program create-account CPI fixture:
+  `scripts/solana/system-create-account-cpi-web3-smoke.sh` builds and deploys a
+  generated create-account CPI program on Surfpool, invokes it through Web3.js,
+  and proves the new account owner/space/lamports plus state writes.
+- Live SPL Token transfer-checked CPI fixture:
+  `scripts/solana/spl-token-transfer-cpi-web3-smoke.sh` builds and deploys a
+  generated transfer_checked CPI program on Surfpool, creates SPL Token test
+  accounts with `@solana/spl-token`, invokes it through Web3.js, and proves the
+  source/destination token balance deltas plus state writes.
+- Live SPL Token ops CPI fixture:
+  `scripts/solana/spl-token-ops-cpi-web3-smoke.sh` builds and deploys a
+  generated `mint_to`/`burn`/`approve`/`revoke` CPI program on Surfpool,
+  validates the generated four-entrypoint artifact schema, creates SPL Token
+  test accounts with `@solana/spl-token`, invokes all four generated
+  entrypoints through Web3.js, and proves supply/balance/delegate changes plus
+  state writes.
+- Live scalar event, pubkey log, and data log fixture: `scripts/solana/log-event-web3-smoke.sh`
+  builds and deploys a generated `events.emit` program on Surfpool, invokes it
+  through Web3.js, verifies the generated `sol_log_64_` transaction log
+  contains the stable `AmountEvent` tag and scalar `amount` field, and proves
+  the program-owned state account recorded the same value. The same fixture now
+  validates Solana-only `logAccountPubkey` metadata, invokes the generated
+  `log_state_pubkey` entrypoint, and proves `sol_log_pubkey` logs the state
+  account's base58 pubkey. It also validates Solana-only `logStateData`
+  metadata, invokes `log_state_data`, and proves `sol_log_data` emits a base64
+  `Program data:` payload for the state-backed `amount` bytes.
+- Live Clock sysvar fixture: `scripts/solana/clock-sysvar-web3-smoke.sh`
+  builds and deploys a generated `contextRead checkpointId` program on
+  Surfpool, lowers it to `sol_get_clock_sysvar`, invokes it through Web3.js,
+  and proves the recorded `Clock.slot` matches the observed transaction slot.
+- Live memory syscall fixture: `scripts/solana/memory-web3-smoke.sh` builds and
+  deploys a generated `runtime.memory` program on Surfpool, invokes it through
+  Web3.js, and proves `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and
+  `sol_memset_` effects by reading copied value, moved value, compare result,
+  and fill bytes from program-owned state.
+- Return-data/compute-units SDK fixture:
+  `Tests/SolanaReturnDataCompute.lean` proves `runtime.return_data` and
+  `runtime.compute_units` route through Solana-only capability metadata, rejects
+  on EVM, and render manifest sections plus sBPF helper calls for
+  `sol_set_return_data`, `sol_get_return_data`, feature-gated
+  `sol_remaining_compute_units`, and `sol_log_compute_units_`.
+  `scripts/solana/return-data-compute-web3-smoke.sh` builds and deploys the
+  generated `--solana-return-data-compute-elf` fixture on Surfpool, validates
+  artifact action metadata, verifies no-data `sol_get_return_data` reads,
+  confirms `sol_set_return_data` through Web3.js simulation returnData, checks a
+  same-instruction set/get roundtrip including program id words, records a
+  nonzero remaining-compute-units value, and confirms compute-unit logging.
+- Live SHA-256/Keccak-256/Blake3 syscall fixture:
+  `scripts/solana/crypto-hash-web3-smoke.sh` builds and deploys a generated
+  Solana-only `crypto.hash` program on Surfpool, invokes `set_preimage`,
+  `hash_preimage`, `keccak_preimage`, and `blake3_preimage` through Web3.js, and
+  proves the account-stored 32-byte digests match Node SHA-256 and
+  `@noble/hashes` Keccak-256/Blake3 references for the same little-endian
+  preimage. The Blake3 action is recorded as feature-gated in manifest and
+  artifact metadata.
+- Live Rent sysvar fixture: `scripts/solana/rent-sysvar-web3-smoke.sh` builds
+  and deploys a generated Solana-only `sysvar` target-extension program on
+  Surfpool, invokes `record_rent` through Web3.js, and proves the recorded
+  `Rent.lamports_per_byte_year` matches the Rent sysvar account data.
+- Live EpochSchedule sysvar fixture:
+  `scripts/solana/epoch-schedule-sysvar-web3-smoke.sh` builds and deploys a
+  generated Solana-only `sysvar` target-extension program on Surfpool, invokes
+  `record_epoch_schedule` through Web3.js, and proves the recorded
+  `EpochSchedule.slots_per_epoch`,
+  `EpochSchedule.leader_schedule_slot_offset`, `EpochSchedule.warmup`,
+  `EpochSchedule.first_normal_epoch`, and `EpochSchedule.first_normal_slot`
+  match RPC `getEpochSchedule()` fields.
+- Live EpochRewards sysvar fixture:
+  `scripts/solana/epoch-rewards-sysvar-web3-smoke.sh` builds and deploys a
+  generated Solana-only `sysvar` target-extension program on Surfpool, invokes
+  `record_epoch_rewards` through Web3.js, and proves that
+  `sol_get_epoch_rewards_sysvar` records `EpochRewards` fields into state.
+  `parent_blockhash` is exposed as four little-endian `u64` word views and
+  `total_points` is exposed as low/high `u64` word views until the portable
+  scalar layer has first-class wide-value output states.
+- Live LastRestartSlot sysvar fixture:
+  `scripts/solana/last-restart-slot-sysvar-web3-smoke.sh` builds and deploys a
+  generated Solana-only `sysvar` target-extension program on Surfpool, invokes
+  `record_last_restart_slot` through Web3.js, and proves the feature-gated
+  `LastRestartSlot.last_restart_slot` read lowers through `sol_get_sysvar` and
+  matches the LastRestartSlot sysvar account data. The action is marked
+  `feature_gated` in manifest and artifact metadata.
+
+Completed beta scaffolding slices:
+
+- Pinocchio System transfer reference contract:
+  `references/solana/pinocchio/system-transfer` contains a checked-in
+  no-allocator Pinocchio reference for the same System transfer account schema
+  as `ProofForge.Solana.Examples.SystemCpi`. The gate
+  `scripts/solana/pinocchio-system-transfer-equivalence.sh` emits the
+  ProofForge System CPI artifact and compares its instruction tag, parameter
+  ABI, account order, signer/writable constraints, CPI protocol/data layout,
+  and state-write contract against the reference manifest/source.
+- Pinocchio System transfer live-equivalence harness:
+  `scripts/solana/pinocchio-system-transfer-live-equivalence.sh` is wired to
+  build the ProofForge ELF and the checked-in Pinocchio reference ELF, deploy
+  both programs to one Surfpool instance, invoke the same Web3.js transfer
+  scenario for each, and compare recipient lamport deltas plus state writes.
+  The harness currently skips when `cargo-build-sbf` cannot find Solana rustc/
+  platform-tools.
+
+Completed developer-surface slices:
+
+- Portable ValueVault surface source:
+  `ProofForge.Contract.Surface` now lets examples declare state slots,
+  parameters, methods, and event fields once, then write entrypoint bodies
+  through typed refs (`read`, `write`, `bind`, `emit`, `ret`) instead of raw
+  `ContractSpec` string plumbing. `ProofForge.Contract.Examples.ValueVault`
+  uses this layer and intentionally leaves `selector? = none` in the source.
+- Declaration-derived IR names:
+  `state_decl`, `binding_decl`, `method_decl`, `method_return_decl`, and
+  `event_decl` macros now derive IR names from Lean declarations, so the
+  portable Counter and ValueVault sources no longer repeat raw strings for
+  state slots, inputs, locals, method names, or event names. Tests assert the
+  derived snake-case state/parameter/method names and PascalCase event names
+  before routing the same source across EVM and Solana.
+- Source-facing declaration facade:
+  `contract_decl Name do ...` derives the module name from a Lean identifier
+  and keeps `ContractSpec` as the compiler-owned intermediate product rather
+  than the user-visible authoring model. `ProofForge.Contract.Examples.Counter`
+  and `ProofForge.Contract.Examples.ValueVault` now use this facade; the older
+  `*_ref` macros remain as compatibility shims for older downstream source.
+- Contract Source Syntax v1:
+  `ProofForge.Contract.Source` adds scoped `contract_source` syntax for
+  state declarations, events, entrypoints, queries, source-local bindings,
+  state assignment, event emission, returns, typed arithmetic operators, and
+  Solana extension declarations for allocator, accounts, PDA derivation, and
+  SPL Token CPI calls.
+  `ProofForge.Contract.Examples.Counter` and
+  `ProofForge.Contract.Examples.ValueVault` now author portable logic through
+  this source block while the macro emits the same `ContractSpec`/portable IR
+  boundary used by routing, EVM selector hydration, Solana instruction tags,
+  IDL, and client artifact generation.
+- Learn source parser/lowering seed:
+  `ProofForge.Contract.Learn` now lexes and parses checked-in `.learn` files
+  under `Examples/Learn/` into a small source AST for the portable scalar/event
+  subset, lowers that AST to `ContractSpec`/portable IR, and proves that
+  `Counter.learn` and `ValueVault.learn` produce the same IR modules as the
+  current `contract_source` examples. The CLI now accepts `.learn` files
+  through `--learn --target evm` and `--learn --target solana-sbpf-asm`, with
+  `--learn-yul`, `--learn-bytecode`, and `--learn-sbpf` retained as lower-level
+  convenience paths.
+  `scripts/portable/value-vault-smoke.sh` uses
+  `Examples/Learn/ValueVault.learn` as the source of record and proves that the
+  Learn-authored contract can route to EVM Yul/bytecode metadata and Solana sBPF
+  assembly/manifest/IDL/client artifacts without hand-authoring `ContractSpec`.
+- Learn Solana target-extension syntax:
+  `ProofForge.Contract.Learn` now parses `SolanaVault.learn` forms for
+  `solana allocator`, `solana account`, `solana pda`, `solana cpi
+  ... spl_token_transfer_checked(...)`, and entry-level `solana derive` /
+  `solana invoke`. The lowering reuses `ProofForge.Solana` builder helpers, so
+  account/PDA/CPI metadata still flows through the existing capability plan,
+  manifest, IDL, client, and sBPF assembly paths. `Tests/LearnSource.lean`
+  checks that Learn-lowered SolanaVault has the same IR module and generated
+  manifest as `ProofForge.Solana.Examples.Vault`.
+- Learn System Program CPI syntax:
+  `SystemCpi.learn` and `SystemCreateAccountCpi.learn` now cover
+  `solana cpi ... system_transfer(...)`, `solana cpi ...
+  system_create_account(...) owner ...`, and matching entry-level
+  `solana invoke` statements. `Tests/LearnSource.lean` proves both Learn files
+  lower to the same IR modules and generated manifests as the existing
+  `ProofForge.Solana.Examples.SystemCpi` and
+  `ProofForge.Solana.Examples.SystemCreateAccountCpi` source examples.
+- Learn SPL Token ops syntax:
+  `SplTokenOpsCpi.learn` now covers selector-bearing Learn entrypoints plus
+  `spl_token_mint_to`, `spl_token_burn`, `spl_token_approve`, and
+  `spl_token_revoke` declarations/invocations. `Tests/LearnSource.lean` proves
+  the Learn file lowers to the same IR module and generated manifest as
+  `ProofForge.Solana.Examples.SplTokenOpsCpi`, keeping the string-heavy Builder
+  code as an internal expected fixture rather than the user-facing syntax.
+- Learn log/return-data/compute-unit syntax:
+  `LogEvent.learn` and `ReturnDataCompute.learn` now cover Solana pubkey/data
+  log helper statements, return-data set/get statements, and remaining
+  compute-unit read/log statements. `Tests/LearnSource.lean` proves both Learn
+  files lower to the same IR modules and generated manifests as
+  `ProofForge.Solana.Examples.LogEvent` and
+  `ProofForge.Solana.Examples.ReturnDataCompute`, moving another syscall-facing
+  SDK slice from Builder-only fixtures into user-facing Learn source.
+- Learn memory/crypto/sysvar syntax:
+  `Memory.learn`, `Crypto.learn`, `Rent.learn`, `EpochSchedule.learn`,
+  `EpochRewards.learn`, `LastRestartSlot.learn`, and `Clock.learn` now cover
+  Solana memory helpers, SHA-256/Keccak-256/BLAKE3 helpers, and
+  sysvar/context reads in user-facing Learn source. `Tests/LearnSource.lean`
+  proves these Learn files lower to the same IR modules and generated
+  manifests as the corresponding `ProofForge.Solana.Examples.*` fixtures.
+- Learn reference diagnostics:
+  `ProofForge.Contract.Learn` now builds a declaration reference index while
+  lowering and rejects unknown or mismatched Solana CPI invocations, unknown
+  PDA derivations, invalid signer seeds, CPI declarations that use undeclared
+  accounts, CPI account declarations that do not satisfy required writable or
+  signer constraints, and helper statements that reference undeclared
+  state/account names. `Tests/LearnDiagnostics.lean` pins these messages so
+  Learn behaves like a checked language frontend instead of asking users to
+  hand-author unchecked `ContractSpec` data.
+- Solana typed account surface:
+  `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
+  declarations plus typed PDA seed, account constraint, and SPL/System CPI
+  helpers. `ProofForge.Solana.Examples.Vault` now uses dedicated
+  `contract_source` items such as `allocator bump`, `account ... writable`,
+  `pda ... seeds [...]`, `cpi ... spl_token_transfer_checked(...)`, `derive
+  pda ...`, and `invoke ... spl_token_transfer_checked(...)` instead of raw
+  account/PDA/CPI strings or `use`/`do` helper plumbing. The target extension
+  emits declared account constraints into `manifest.toml`,
+  `proof-forge-artifact.json` (`solanaExtensions.accounts`), and the generated
+  account-validation schema.
+- System create-account source syntax:
+  `ProofForge.Contract.Source` now exposes source-level
+  `cpi ... system_create_account(...) owner ...` and
+  `invoke ... system_create_account(...) owner ...` forms.
+  `ProofForge.Solana.Examples.SystemCreateAccountCpi` uses those forms instead
+  of the lower-level builder API while preserving the existing generated
+  assembly, manifest, artifact, and Surfpool/Web3.js behavior gate.
+- Target-stage ABI selector hydration:
+  the Learn/ValueVault CLI emit paths derive EVM selectors from each
+  entrypoint's Solidity ABI signature with `cast sig` immediately before EVM
+  Yul/bytecode emission, validate any explicit selector against the derived
+  value, and keep Solana routing independent by continuing to use target
+  instruction tags. `scripts/portable/value-vault-smoke.sh` proves the same
+  `.learn` source emits EVM Yul/bytecode metadata plus Solana sBPF
+  assembly/manifest/artifact metadata.
+- Solana IDL and TypeScript client package output:
+  `ProofForge.Backend.Solana.Idl` renders `proof-forge-idl.json` from the same
+  instruction/account/PDA/CPI schema used by `manifest.toml` and artifact
+  metadata. `ProofForge.Backend.Solana.Client` renders
+  `proof-forge-client.ts` with Web3.js `TransactionInstruction` helpers,
+  instruction-data encoding, and account-meta construction. Solana package
+  printing, `--emit-solana-sdk-sbpf`, `--emit-value-vault-ir-sbpf`, and the
+  Solana ELF contract-sdk path now emit and hash both files.
+
+Current boundary:
+
+- `ProofForge.Contract.Learn` is now the first standalone Learn parser/lowering
+  seed. It covers the portable Counter/ValueVault subset and the Vault-level
+  Solana account/PDA/SPL Token transfer CPI subset, System Program
+  transfer/create-account CPI, SPL Token mint/burn/approve/revoke CPI, and
+  Solana log/return-data/compute-unit/memory/crypto/sysvar helper statements.
+  During lowering, Solana CPI/PDA declarations and entrypoint helper statements
+  are cross-checked against declared references. CPI account operands must be
+  declared with `solana account ...`; CPI writable/signer requirements are
+  checked against those declarations, so the remaining string names are
+  compiler-owned identifiers rather than unchecked user-authored specs.
+  `ProofForge.Contract.Source` remains the richer embedded macro frontend for
+  examples not yet expressed in Learn, but portable ValueVault artifact emission
+  now starts from `.learn` and dispatches by compile-time target id. The next
+  authoring gap is to extend Learn parsing to typed target-extension forms for
+  Token-2022, typed account/data references, and richer Pinocchio-style account
+  validation ergonomics, then broaden `--learn --target <id>` package emission
+  beyond EVM and Solana sBPF.
+
+Remaining priority slices:
+
+1. Rust/Pinocchio equivalence fixtures (2-4 days): make the System transfer
+   live-equivalence harness pass in CI/local environments by installing Solana
+   rustc/platform-tools reliably, then add matching reference programs for
+   create-account and SPL Token account schemas. The key comparison points are
+   account order, signer/writable checks, CPI instruction data, and observable
+   state changes.
+2. Richer structured logs, account data, and typed return helpers (3-5 days):
+   extend the current scalar `sol_log_64_`/`sol_log_data` event path to
+   string logs, Anchor-style discriminator/Borsh payloads, and indexed event
+   forms; add typed return payload helpers beyond `u64`, portable `Expr.hash`
+   routing where the hash semantics match the target, and broader account/data
+   packing helpers that reuse the new memory/syscall path, with JavaScript
+   reference checks.
+3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures
+   through `runtime.allocator`, emit actual downward bump-pointer allocation
+   code when needed, and reject allocation-using structures under
+   `noAllocator`.
+4. Dynamic per-entrypoint account schemas (3-5 days): replace the current
+   module-wide fixed schema with runtime account parsing before dispatch, so
+   instruction-data offsets no longer depend on every entrypoint sharing the
+   same account list.
+5. Token-2022 and richer SPL coverage (3-5 days per iteration): add checked
+   mint/burn/approve variants, authority changes, associated-token account
+   setup flows, and Token-2022 extension routes without moving those details
+   into portable IR.
+6. Developer ergonomics and framework surface (3-5 days per iteration): extend
+   the new surface layer toward real Learn-level contract syntax with richer
+   typed account/data wrappers, richer generated client APIs, broader
+   SPL/Token-2022 helper coverage, and diagnostics that map generated assembly
+   failures back to SDK declarations.
+
+The fastest credible route to a more complete SDK is therefore: the alpha
+observability baseline is now in place, so next close the richer beta syscall
+and return-data slices, then remove remaining architecture shortcuts before adding
+Anchor/Pinocchio-class ergonomics.
 
 ## Workstream 8: Move Source Generation POC (Aptos first)
 
@@ -1293,27 +1742,88 @@ Tasks:
 
 - Done: add RFC 0006, `ProofForge.Contract.Token.TokenSpec`, target token
   plans, and `Tests/TokenSpec.lean`.
+- Done: add legacy Learn token intent source syntax,
+  `ProofForge.Contract.Token.Learn`,
+  `Examples/Learn/ProofToken.learn`, `Examples/Learn/FeeToken.learn`,
+  `Tests/TokenLearn.lean`, and `proof-forge --learn-token --target <id>` plan
+  emission as a compatibility path into `TokenSpec`.
+- Done: add the first EVM ERC-20 artifact emitter for Learn token sources:
+  `ProofForge.Contract.Token.Evm`, `Tests/TokenEvm.lean`, standard ERC-20
+  selectors/events in metadata, Yul generation, and `solc --strict-assembly`
+  bytecode validation through `--learn-token --target evm`.
+- Done: add `scripts/portable/learn-token-smoke.sh` / `just
+  learn-token-smoke` to validate the EVM ERC-20 token artifact path and the
+  Solana Token-2022 plan path from Learn source.
+- Done: add `scripts/evm/learn-token-erc20-vm-smoke.sh` / `just
+  learn-token-evm-vm` to deploy the generated ERC-20 creation bytecode in an
+  EthereumJS VM and validate standard ERC-20 calls, Transfer/Approval topics,
+  and insufficient-balance revert behavior.
+- Done: implement Solana SPL Token / Token-2022 deployment plan rendering at
+  the Lean `TokenSpec` layer. `solanaTokenDeploymentPlan` now records mint
+  account creation, associated token accounts, `mint_to`, `transfer_checked`,
+  `approve`, `burn`, `revoke`, authority changes, Token-2022 extension
+  initialization, Solana program ids, and source documentation references.
+- Done: route Token-2022 features such as `transfer_fee`,
+  `non_transferable`, `confidential_transfer`, and `transfer_hook` to
+  Token-2022 extension metadata rather than custom per-token programs. The
+  planner rejects the documented incompatible `transfer_fee` +
+  `non_transferable` combination.
+- Done: extend `scripts/portable/learn-token-smoke.sh` so the legacy `.learn`
+  input path reuses the Lean `TokenSpec` plan, emits both SPL Token and
+  Token-2022 structured plan JSON, and validates the plan offline with
+  `@solana/spl-token` / `@solana/web3.js` instruction builders.
+- Done: add `scripts/solana/token-plan-web3-smoke.sh` / `just
+  solana-token-plan-web3` to execute the structured legacy SPL Token plan on
+  Surfpool. The live runner creates the mint and associated token accounts,
+  mints initial supply, executes the planned `mint_to`, `transfer_checked`,
+  `approve`, `burn`, `revoke`, and mint-authority `set_authority` operations,
+  and validates balances, supply, delegate state, and authority revocation with
+  Web3.js reads.
+- Done: add `scripts/solana/token-2022-transfer-fee-web3-smoke.sh` / `just
+  solana-token-2022-transfer-fee-web3` to execute the structured Token-2022
+  transfer-fee plan on Surfpool. The live runner initializes `TransferFeeConfig`,
+  creates Token-2022 associated token accounts, mints initial supply, executes
+  `TransferCheckedWithFee`, validates the source balance, recipient net balance,
+  and recipient withheld fee, directly withdraws withheld fees from a token
+  account, then runs a second transfer, harvests withheld fees to the mint,
+  withdraws them from the mint, and validates the fee receiver balance plus
+  cleared account/mint withheld amounts with Web3.js reads.
+- Done: add `ProofForge.Contract.Token.Examples.SoulboundToken`,
+  `Tests/TokenPlanEmit.lean`,
+  `scripts/solana/token-2022-non-transferable-web3-smoke.sh`, and `just
+  solana-token-2022-non-transferable-web3` to execute a Lean `.lean`
+  TokenSpec-backed Token-2022 non-transferable plan on Surfpool. The live
+  runner initializes `NonTransferable`, creates Token-2022 associated token
+  accounts, mints initial supply, verifies mint/account extensions, proves
+  `TransferChecked` is rejected, then burns the token and validates balances
+  and supply with Web3.js reads.
 - Implement EVM ERC-20 lowering: ABI/selectors, balance/allowance storage,
   total supply, transfer/approve/transferFrom, mint/burn options, events, and
-  Foundry/Web3 behavior tests.
-- Implement Solana SPL Token plan rendering: mint creation, associated token
-  account creation, mint_to, transfer_checked, approve, burn, authority changes,
-  and Web3.js validation through `@solana/spl-token`.
-- Route Token-2022 features such as transfer fees, non-transferable tokens,
-  confidential transfer, and transfer hooks to Token-2022 extension
-  initialization rather than custom per-token programs.
+  broader Foundry/Web3 behavior tests.
+- Continue Surfpool live validation for Token-2022 extension plans beyond the
+  transfer-fee initialization, checked-transfer, direct withdraw, and
+  harvest-to-mint withdraw paths plus non-transferable transfer rejection:
+  confidential transfer setup and transfer-hook routing.
 - Add optional Solana wrapper/authority/transfer-hook program generation for
   custom policies such as capped supply or custom transfer restrictions.
-- Emit token-specific artifact metadata that records standard, target,
-  operations, extension set, deployment accounts, tool versions, and validation
-  results.
+- Extend token-specific artifact metadata with live deployment accounts, tool
+  versions, and validation-run results once the Surfpool plan runner lands.
 
 Acceptance criteria:
 
-- A single `TokenSpec` has deterministic EVM and Solana token plans.
-- EVM output passes ERC-20 behavior tests using standard Web3/Foundry calls.
-- Solana output creates a mint and token accounts, mints supply, transfers
-  tokens, and validates balances with `@solana/spl-token` on Surfpool.
+- A Lean-authored `TokenSpec` has deterministic EVM and Solana token plans; the
+  legacy Learn token source lowers to the same `TokenSpec` boundary.
+- EVM output emits ERC-20 Yul/bytecode and passes ERC-20 behavior tests using
+  standard Web3/Foundry calls.
+- Solana output renders structured SPL Token / Token-2022 plans, validates the
+  instruction builders offline with `@solana/spl-token`, and now executes the
+  legacy SPL Token plan plus the Token-2022 transfer-fee and non-transferable
+  plans on Surfpool to create mints and token accounts, mint supply, transfer
+  tokens where allowed, validate balances, verify withheld transfer fees,
+  collect those fees through both direct account withdraw and harvest-to-mint
+  plus mint withdraw, reject non-transferable `TransferChecked`, and burn
+  non-transferable supply. Confidential transfer and transfer-hook behavior
+  remains follow-up.
 - Documentation clearly says Solana does not default to a per-token SPL
   contract; it uses SPL Token / Token-2022 programs by plan and CPI.
 

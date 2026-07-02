@@ -25,8 +25,20 @@ solana-lean:
     lake env lean --run Tests/SolanaDiagnostics.lean
     lake env lean --run Tests/SolanaSdk.lean
     lake env lean --run Tests/SolanaSdkManifest.lean
+    lake env lean --run Tests/SolanaCpiPacking.lean
+    lake env lean --run Tests/SolanaLogs.lean
+    lake env lean --run Tests/SolanaSysvars.lean
+    lake env lean --run Tests/SolanaMemory.lean
+    lake env lean --run Tests/SolanaCrypto.lean
+    lake env lean --run Tests/SolanaReturnDataCompute.lean
+    lake env lean --run Tests/SolanaPdaSeeds.lean
+    lake env lean --run Tests/LearnSource.lean
+    lake env lean --run Tests/LearnDiagnostics.lean
     lake env lean --run Tests/TargetRouting.lean
+    lake env lean --run Tests/ValueVaultExample.lean
     lake env lean --run Tests/TokenSpec.lean
+    lake env lean --run Tests/TokenLearn.lean
+    lake env lean --run Tests/TokenEvm.lean
 
 # Emit and diff tracked Solana sBPF example artifacts.
 solana-build-examples:
@@ -40,12 +52,104 @@ solana-emit-control:
 solana-sdk-smoke:
     scripts/solana/sdk-smoke.sh
 
+# Run the portable ValueVault SDK smoke across EVM Yul and Solana sBPF outputs.
+portable-value-vault:
+    scripts/portable/value-vault-smoke.sh
+
+# Run the Learn token SDK smoke across EVM ERC-20 and Solana Token-2022 outputs.
+learn-token-smoke:
+    scripts/portable/learn-token-smoke.sh
+
+# Run the Learn-token ERC-20 artifact in a local EthereumJS VM.
+learn-token-evm-vm:
+    scripts/evm/learn-token-erc20-vm-smoke.sh
+
+# Run a live Solana SPL Token plan smoke on Surfpool with Web3.js.
+solana-token-plan-web3:
+    scripts/solana/token-plan-web3-smoke.sh
+
+# Run a live Solana Token-2022 transfer-fee plan smoke on Surfpool with Web3.js.
+solana-token-2022-transfer-fee-web3:
+    scripts/solana/token-2022-transfer-fee-web3-smoke.sh
+
+# Run a live Solana Token-2022 non-transferable plan smoke on Surfpool with Web3.js.
+solana-token-2022-non-transferable-web3:
+    scripts/solana/token-2022-non-transferable-web3-smoke.sh
+
+# Run Solana PDA typed-seed Web3.js derivation smoke. Skips when Node/npm are unavailable.
+solana-pda-web3:
+    scripts/solana/pda-web3-smoke.sh
+
+# Run a live System Program transfer CPI smoke on Surfpool with Web3.js.
+solana-system-cpi-web3:
+    scripts/solana/system-cpi-web3-smoke.sh
+
+# Compare the generated System transfer CPI artifact with the Pinocchio reference contract.
+solana-pinocchio-system-transfer-equivalence:
+    scripts/solana/pinocchio-system-transfer-equivalence.sh
+
+# Build/deploy ProofForge and Pinocchio System transfer programs and compare behavior on Surfpool.
+solana-pinocchio-system-transfer-live-equivalence:
+    scripts/solana/pinocchio-system-transfer-live-equivalence.sh
+
+# Repair/install the Solana SBF rustc/platform-tools used by the Pinocchio live gate.
+solana-pinocchio-install-sbf-tools:
+    PATH="$HOME/.cargo/bin:$PATH" cargo-build-sbf --force-tools-install --tools-version v1.52
+
+# Run a live System Program create_account CPI smoke on Surfpool with Web3.js.
+solana-system-create-account-cpi-web3:
+    scripts/solana/system-create-account-cpi-web3-smoke.sh
+
+# Run a live SPL Token transfer_checked CPI smoke on Surfpool with Web3.js.
+solana-spl-token-transfer-cpi-web3:
+    scripts/solana/spl-token-transfer-cpi-web3-smoke.sh
+
+# Run a live SPL Token mint_to/burn/approve/revoke CPI smoke on Surfpool with Web3.js.
+solana-spl-token-ops-cpi-web3:
+    scripts/solana/spl-token-ops-cpi-web3-smoke.sh
+
+# Run a live Solana log/event smoke on Surfpool with Web3.js.
+solana-log-event-web3:
+    scripts/solana/log-event-web3-smoke.sh
+
+# Run a live Solana Clock sysvar smoke on Surfpool with Web3.js.
+solana-clock-sysvar-web3:
+    scripts/solana/clock-sysvar-web3-smoke.sh
+
+# Run a live Solana Rent sysvar smoke on Surfpool with Web3.js.
+solana-rent-sysvar-web3:
+    scripts/solana/rent-sysvar-web3-smoke.sh
+
+# Run a live Solana EpochSchedule sysvar smoke on Surfpool with Web3.js.
+solana-epoch-schedule-sysvar-web3:
+    scripts/solana/epoch-schedule-sysvar-web3-smoke.sh
+
+# Run a live Solana EpochRewards sysvar smoke on Surfpool with Web3.js.
+solana-epoch-rewards-sysvar-web3:
+    scripts/solana/epoch-rewards-sysvar-web3-smoke.sh
+
+# Run a live Solana LastRestartSlot sysvar smoke on Surfpool with Web3.js.
+solana-last-restart-slot-sysvar-web3:
+    scripts/solana/last-restart-slot-sysvar-web3-smoke.sh
+
+# Run a live Solana memory syscall smoke on Surfpool with Web3.js.
+solana-memory-web3:
+    scripts/solana/memory-web3-smoke.sh
+
+# Run a live Solana SHA-256/Keccak-256 syscall smoke on Surfpool with Web3.js.
+solana-crypto-hash-web3:
+    scripts/solana/crypto-hash-web3-smoke.sh
+
+# Run a live Solana return-data/compute-units syscall smoke on Surfpool with Web3.js.
+solana-return-data-compute-web3:
+    scripts/solana/return-data-compute-web3-smoke.sh
+
 # Run the canned Solana sBPF smoke. Skips when sbpf is unavailable.
 solana-emit-asm:
     scripts/solana/emit-asm-smoke.sh
 
 # Run all Solana gates that are safe for default CI.
-solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke solana-emit-asm
+solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm
 
 # Check translated documentation freshness.
 docs-check:

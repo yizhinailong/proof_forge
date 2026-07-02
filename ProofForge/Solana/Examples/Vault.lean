@@ -1,55 +1,48 @@
-import ProofForge.Contract.Builder
-import ProofForge.Solana
+import ProofForge.Contract.Source
+import ProofForge.Solana.Surface
 
 namespace ProofForge.Solana.Examples.Vault
 
-open ProofForge.Contract.Builder
-open ProofForge.Solana
+open ProofForge.Contract.Source
 
-def spec : ProofForge.Contract.ContractSpec :=
-  build "SolanaVault" do
-    scalarState "nonce" .u64
+contract_source SolanaVault do
+  state nonce : .u64
+  binding amount : .u64
+  binding vault_bump : .u64
 
-    pdaAccount "vault" #["vault", "authority"]
-      (bump? := some "vault_bump")
-      (account? := some "vault_account")
-      (isSigner := true)
+  allocator bump
+  account vault_account writable owner "program"
+  account source writable
+  account mint readonly
+  account destination writable
+  account authority readonly
+  account spl_token readonly owner "executable"
 
-    cpiInvokeSigned
-      "token_transfer"
-      "spl_token"
-      "transfer_checked"
-      #[
-        writableAccount "source",
-        writableAccount "destination",
-        signerAccount "authority"
-      ]
-      #["vault", "vault_bump"]
-      (dataLayout? := some "spl-token.transfer_checked")
+  pda vault seeds [literal_seed "vault", account_seed authority]
+    bump vault_bump account vault_account signer
 
-    entrySelector "initialize" "afaf6d1f" do
-      effect (storageScalarWrite "nonce" (u64 0))
+  cpi token_transfer spl_token_transfer_checked(
+    source,
+    mint,
+    destination,
+    authority,
+    amount
+  ) decimals(9) signer_seeds [pda_seed vault, bump_seed vault_bump]
 
-    entrySelector "touch" "62de7396" do
-      derivePda "vault" #["vault", "authority"]
-        (bump? := some "vault_bump")
-        (account? := some "vault_account")
-        (isSigner := true)
-      invokeSignedCpi
-        "token_transfer"
-        "spl_token"
-        "transfer_checked"
-        #[
-          writableAccount "source",
-          writableAccount "destination",
-          signerAccount "authority"
-        ]
-        #["vault", "vault_bump"]
-        (dataLayout? := some "spl-token.transfer_checked")
-      letBind "n" .u64 (storageScalarRead "nonce")
-      effect (storageScalarWrite "nonce" (add (localVar "n") (u64 1)))
+  entry «initialize» do
+    nonce := u64 0;
 
-def module : ProofForge.IR.Module :=
-  spec.module
+  entry touch do
+    derive pda vault seeds [literal_seed "vault", account_seed authority]
+      bump vault_bump account vault_account signer;
+    invoke token_transfer spl_token_transfer_checked(
+      source,
+      mint,
+      destination,
+      authority,
+      amount
+    ) decimals(9) signer_seeds [pda_seed vault, bump_seed vault_bump];
+    let n : .u64 := nonce;
+    nonce := n +! u64 1;
 
 end ProofForge.Solana.Examples.Vault

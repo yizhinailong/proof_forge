@@ -9,11 +9,32 @@
 | Lean 包构建 | `lake build` | 来自 `lean-toolchain` 的 Lean 工具链 | 库根节点通过类型检查且 `proof-forge` 链接成功 | 生成的 Yul/字节码有效性、外部工具、运行时行为 |
 | 目标注册表冒烟测试 | `lake env lean --run Tests/TargetRegistry.lean` | 来自 `lean-toolchain` 的 Lean 工具链 | 目标注册表将 `evm` 暴露为 compiler target，同时让 `robinhood-chain-testnet` 和 `anvil-local` 等 EVM-compatible chain profile 只作为 lookup-only deployment profile 存在 | 交易广播、实时 RPC 或 explorer 可达性、wallet 集成 |
 | EVM 语义计划冒烟测试 | `just evm-plan` | 来自 `lean-toolchain` 的 Lean 工具链 | EVM semantic plan 会从 target 已解析的 `CapabilityPlan` 构建，拒绝非 EVM target plan，并在 Yul 生成前校验 storage layout、scalar storage slot、map value slot、nested map value slot、map presence slot、map assign-op helper 需求以及计划出的 helper 需求 | ABI dispatch、event、crosscall、constructor metadata、artifact metadata 完全归入 `ModulePlan`、`solc` 验收、字节码、运行时行为、更广泛的 aggregate storage planning |
-| Solana light gates | `just solana-light` | 来自 `lean-toolchain` 的 Lean 工具链；`python3`；SDK 脚本的 build 分支可选依赖 `sbpf` 和 `solana-keygen` | Solana target diagnostics、SDK metadata、SDK manifest、target routing、token spec、Counter sBPF golden assembly/manifest diff、control-flow/assertion assembly emission、SDK extension artifact metadata，以及存在 `sbpf` 时的 canned sBPF emission | 完整 Mollusk runtime 覆盖、Surfpool/Web3 部署冒烟、公共 validator 部署、Solana transaction UX |
+| Solana light gates | `just solana-light` | 来自 `lean-toolchain` 的 Lean 工具链；`python3`；portable ValueVault EVM selector-hydration/Yul 分支可选依赖 `cast`；其 strict-assembly 与 EVM bytecode metadata 分支可选依赖 `solc` 加 `cast`；Solana SDK build 分支可选依赖 `sbpf` 和 `solana-keygen` | Solana target diagnostics、SDK metadata、SDK manifest、生成的 Solana IDL 与 TypeScript client artifacts、Counter 和 portable ValueVault 的 Contract Source Syntax v1 routing/render checks、Learn source lowering equivalence，以及针对 CPI/PDA/state helper 错误的 Learn reference diagnostics、typed account declaration metadata、CPI packing、log lowering、target routing、portable ValueVault Learn-source CLI emission 到 EVM Yul 与 Solana sBPF assembly/manifest/IDL/client artifact metadata、token spec、return-data/compute-units SDK helpers、Counter sBPF golden assembly/manifest diff、control-flow/assertion assembly emission、SDK extension artifact metadata，以及存在 `sbpf` 时的 canned sBPF emission | 完整 Mollusk runtime 覆盖、Surfpool/Web3 部署冒烟、公共 validator 部署、Solana transaction UX |
+| Token SDK plan smoke | `just learn-token-smoke` | 来自 `lean-toolchain` 的 Lean 工具链；`python3`；EVM bytecode 分支可选依赖 `solc`；Web3.js validation 可选依赖 Node 和 npm | 验证 legacy `.learn` token 路径会进入 Lean `TokenSpec` 边界；存在 `solc` 时发射 ERC-20 Yul/bytecode metadata；发射结构化 Solana SPL Token 与 Token-2022 plan JSON；检查 mint/ATA/`mint_to`/`transfer_checked`/`approve`/`burn`/`revoke`/authority-change plan entry；检查 Token-2022 transfer-fee extension routing 和 withheld-fee collection plan entry；存在 Node/npm 时用 `@solana/spl-token` / `@solana/web3.js` instruction builder 离线验证 Solana plan | 所有 token plan variant 的 Surfpool live 执行、真实 token balance、公共 validator 部署、wallet UX、生成 wrapper/transfer-hook program |
+| Solana token plan Surfpool/Web3.js smoke | `just solana-token-plan-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`python3`；`surfpool`；Solana CLI 和 `solana-keygen`；Node；npm | 发射结构化 SPL Token plan，启动 Surfpool，通过 `@solana/spl-token` 创建 mint 和 associated token account，mint initial supply，执行计划中的 `mint_to`、`transfer_checked`、`approve`、`burn`、`revoke` 和 mint-authority `set_authority`，再通过 Web3.js 读取验证 token balance、supply、delegate state 和 authority revoke | Token-2022 extension 行为、生成 wrapper/transfer-hook program、公共 validator 部署、wallet UX |
+| Solana Token-2022 transfer-fee Surfpool/Web3.js smoke | `just solana-token-2022-transfer-fee-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`python3`；`surfpool`；Solana CLI 和 `solana-keygen`；Node；npm | 发射结构化 Token-2022 transfer-fee plan，启动 Surfpool，初始化带 `TransferFeeConfig` 的 mint，创建 Token-2022 associated token accounts，mint initial supply，执行 `TransferCheckedWithFee`，验证 source balance、recipient net balance 和 recipient withheld fee，直接从 token account withdraw withheld fee；然后执行第二次 transfer，harvest withheld fee 到 mint，再从 mint withdraw，并通过 Web3.js 验证 fee receiver balance 与已清空的 withheld amount | confidential transfer setup、transfer-hook routing、生成 wrapper/transfer-hook program、公共 validator 部署、wallet UX |
+| Solana Token-2022 non-transferable Surfpool/Web3.js smoke | `just solana-token-2022-non-transferable-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`python3`；`surfpool`；Solana CLI 和 `solana-keygen`；Node；npm | 从 Lean `.lean` token fixture 发射结构化 Token-2022 plan，启动 Surfpool，初始化带 `NonTransferable` 的 mint，创建 Token-2022 associated token accounts，mint initial supply，验证 mint/account extension，证明 `TransferChecked` 会以 `Transfer is disabled for this mint` 被拒绝，然后 burn token 并验证 balance 与 supply | confidential transfer setup、transfer-hook routing、生成 wrapper/transfer-hook program、公共 validator 部署、wallet UX |
+| Solana PDA Web3.js derivation smoke | `just solana-pda-web3` | 来自 `lean-toolchain` 的 Lean 工具链；Node；npm | 发射 Solana SDK Vault artifact，读取 PDA `typedSeeds`，并用 `@solana/web3.js` 的 `PublicKey.findProgramAddressSync` 和 `PublicKey.createProgramAddressSync` 校验 literal/account/bump descriptor 语义；同时覆盖本地 UTF-8 与 instruction-parameter seed descriptor resolver | live deployment 或 transaction execution；SPL Token CPI 行为 |
+| Solana System CPI Surfpool/Web3.js smoke | `just solana-system-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 System Program transfer CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用程序，验证 recipient lamports 按请求数增加，并验证 program-owned state account 记录了同一 lamports 值 | System create-account CPI、SPL Token CPI 行为、公共 validator 部署、Rust/Pinocchio 等价性 |
+| Solana System create_account CPI Surfpool/Web3.js smoke | `just solana-system-create-account-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 System Program `create_account` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用，验证新建 account 的 owner/space/lamports，并验证 program-owned state account 记录了请求的 lamports 和 space | SPL Token CPI 行为、公共 validator 部署、Rust/Pinocchio 等价性 |
+| Solana SPL Token transfer_checked CPI Surfpool/Web3.js smoke | `just solana-spl-token-transfer-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 SPL Token `transfer_checked` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/spl-token` 创建 mint 和 token accounts，通过 `@solana/web3.js` 调用生成程序，验证 source/destination token balance，并验证 program-owned state account 记录了请求的 amount | 更广泛的 SPL Token/Token-2022 覆盖、公共 validator 部署、Rust/Pinocchio 等价性 |
+| Solana SPL Token ops CPI Surfpool/Web3.js smoke | `just solana-spl-token-ops-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/spl-token` 创建 mint 和 token accounts，通过 `@solana/web3.js` 调用生成程序，验证 mint supply 与 token balance 变化，验证 delegate allowance 后再 revoke 清空，并验证 program-owned state account 记录所有请求值 | Token-2022 extension 行为、公共 validator 部署、Rust/Pinocchio 等价性 |
+| Solana Pinocchio System transfer reference-equivalence smoke | `just solana-pinocchio-system-transfer-equivalence` | 来自 `lean-toolchain` 的 Lean 工具链；`sbpf`；`python3` | emit 生成的 System Program transfer CPI artifact，并将 instruction ABI、account order、signer/writable requirement、CPI metadata 和 lamports state write contract 与 `references/solana/pinocchio/system-transfer` 下 checked-in Pinocchio reference manifest/source 对比 | 构建/部署 Pinocchio reference ELF，并让 ProofForge/reference programs 通过同一个 Web3.js harness 对比 |
+| Solana Pinocchio System transfer live-equivalence smoke | `just solana-pinocchio-system-transfer-live-equivalence` | 来自 `lean-toolchain` 的 Lean 工具链；带 Solana rustc/platform-tools 的 `cargo-build-sbf`；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建 ProofForge System transfer CPI ELF 和 checked-in Pinocchio reference ELF，将两个程序部署到同一个 Surfpool instance，用同一个 Web3.js transfer scenario 分别调用，并对比 recipient lamport delta 和 state 记录值 | 增加 create-account 与 SPL Token Pinocchio reference programs；在 Solana rustc 可稳定安装后纳入 CI；`just solana-pinocchio-install-sbf-tools` 可修复缺失/损坏的 platform-tools |
+| Solana log/event Surfpool/Web3.js smoke | `just solana-log-event-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `events.emit`/Solana log-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_log_64_` transaction logs 包含稳定 event tag 和 scalar field value，验证 program-owned state account 记录了同一个值，验证 `sol_log_pubkey` 会记录 state account 的 base58 pubkey，并验证 `sol_log_data` 会为 state bytes 产出 base64 `Program data:` payload | Anchor-compatible discriminator/Borsh event serialization、indexed events、`sol_log_` payload、历史索引保证 |
+| Solana Clock sysvar Surfpool/Web3.js smoke | `just solana-clock-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `contextRead checkpointId` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_clock_sysvar` 将 `Clock.slot` 记录进 program-owned state，并与 transaction slot metadata 对比 | 更丰富的 Clock fields、公共 validator 部署 |
+| Solana Rent sysvar Surfpool/Web3.js smoke | `just solana-rent-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_rent_sysvar` 将 `Rent.lamports_per_byte_year` 记录进 program-owned state，并与 Rent sysvar account data 对比 | 更多 Rent fields、公共 validator 部署 |
+| Solana EpochSchedule sysvar Surfpool/Web3.js smoke | `just solana-epoch-schedule-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_epoch_schedule_sysvar` 将当前 RPC 暴露的 5 个 `EpochSchedule` 字段记录进 program-owned state，并与 RPC `getEpochSchedule()` 对比 | 更多 Clock/Rent 字段、generic account-passed sysvar 读取、公共 validator 部署 |
+| Solana EpochRewards sysvar Surfpool/Web3.js smoke | `just solana-epoch-rewards-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_epoch_rewards_sysvar` 将当前 `EpochRewards` scalar/word-view 字段记录进 program-owned state，并与 EpochRewards sysvar account data 对比 | 更多 Clock/Rent 字段、generic account-passed sysvar 读取、公共 validator 部署 |
+| Solana LastRestartSlot sysvar Surfpool/Web3.js smoke | `just solana-last-restart-slot-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 feature-gated `LastRestartSlot.last_restart_slot` 读取已通过 `sol_get_sysvar` lowering，并与 LastRestartSlot sysvar account data 对比 | 其他 sysvars、公共 validator 部署、cluster feature activation 差异 |
+| Solana memory syscall Surfpool/Web3.js smoke | `just solana-memory-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `runtime.memory` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_source` 和 `copy_compare_fill`，并验证 program-owned account bytes 证明 `sol_memcpy_`、`sol_memmove_`、`sol_memcmp_` 和 `sol_memset_` 已执行 | 更广泛的 account/data packing helper、Rust/Pinocchio 等价性 |
+| Solana return-data/compute Surfpool/Web3.js smoke | `just solana-return-data-compute-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `runtime.return_data`/`runtime.compute_units` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用，借助 simulation returnData 验证 `sol_set_return_data`，通过 empty read 与同一条 instruction 内 set/get roundtrip 验证 `sol_get_return_data`，验证 `sol_remaining_compute_units` 写入非零 state value，并验证 `sol_log_compute_units_` 产出 compute-unit log | CPI return-value 处理、`u64` 之外的 typed return payload、public-validator feature 差异 |
+| Solana SHA-256/Keccak-256/Blake3 syscall Surfpool/Web3.js smoke | `just solana-crypto-hash-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `crypto.hash` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_preimage`、`hash_preimage`、`keccak_preimage` 和 `blake3_preimage`，并验证 account 中保存的 digest 与同一 preimage bytes 的 Node SHA-256 和 `@noble/hashes` Keccak-256/Blake3 一致 | portable `Expr.hash` 路由、Rust/Pinocchio 等价性 |
 | Yul 生成冒烟测试 | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | 已构建 `proof-forge` | Lean 前端/LCNF 将简单合约降级为 Yul | `solc` 验收、ABI 调度、EVM 运行时行为 |
 | Yul 到字节码冒烟测试 | `solc --strict-assembly build/counter.yul --bin` | `PATH` 上的 `solc` | 生成的 Yul 被 `solc` 接受 | 运行时语义或方法调度 |
 | 单个 EVM 字节码编译 | `lake env proof-forge --evm-bytecode --root . --module contract --artifact-output build/evm/Counter.proof-forge-artifact.json -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean` | `solc`、`cast`、`python3` 和 `Examples/Evm/Contracts/Counter.evm-methods` | Lean -> Yul -> `solc` -> 带有选择器生成的 runtime bytecode、可部署 `.init.bin` creation bytecode、`proof-forge-artifact.json` metadata，以及 `proof-forge-deploy.json` initcode manifest；manifest 中的 initcode header 会复制并返回引用的 runtime bytecode；`--evm-chain-profile <id>` 还会把已知 EVM chain profile 写入 deploy manifest，但不广播交易；`--evm-constructor-param <name:type>` 会记录静态 word constructor ABI schema；`--evm-constructor-arg <name=value>` 会 ABI-encode 支持的静态 word typed value；`--evm-constructor-args-hex <hex>` 会记录并追加一段 ABI-encoded constructor-argument tail | 运行时行为、gas、详尽的 ABI 正确性、dynamic constructor ABI types、签名/原始交易生成、真实交易广播 |
 | EVM 示例编译 | `scripts/evm/build-examples.sh` | `cast`、`solc`、`python3`、`lake env proof-forge`；可选 `PROOF_FORGE_BIN`、`CONTRACTS_DIR`、`EVM_OUT_DIR` | 每个带有兄弟 `.evm-methods` 的 `.lean` 合约都编译为可复现 Yul、`.bin` 和 `.init.bin`，diff 生成的 Yul 与已跟踪的 SDK 示例 golden fixture，并校验 EVM metadata hash、initcode hash/header/runtime 关联、deploy-manifest hash、source/module 信息、solc 信息、SDK method selector/function，以及必需的 Solidity method signature | 运行时行为；没有 `.evm-methods` 的合约会被脚本跳过 |
+| Learn token ERC-20 VM 冒烟测试 | `just learn-token-evm-vm` | 来自 `lean-toolchain` 的 Lean 工具链；`solc`；Node；npm | 解析 `Examples/Learn/ProofToken.learn`，通过 `proof-forge --learn-token --target evm` 发射 ERC-20 Yul、creation bytecode 和 artifact metadata，在 EthereumJS VM 中部署生成的 creation bytecode，然后验证 `totalSupply`、`decimals`、`balanceOf`、`transfer`、`approve`、`allowance`、`transferFrom`、可选 `burn`、可选 `mint`、Transfer/Approval topic，以及余额不足时的 revert 行为 | live RPC 部署、gas accounting、wallet UX、更强的 mint access-control policy |
 | EVM 运行时冒烟测试 | `scripts/evm/foundry-smoke.sh` | `forge`、`cast`、`solc`；可选 `EVM_OUT_DIR`、`EVM_FORGE_DIR` | Foundry 执行为 Counter、ArrayExample、SimpleToken 和 VerifiedVault 生成的 runtime bytecode，也会通过 EVM `create` 执行生成的 Counter `.init.bin`，并包含 revert 检查 | 形式化证明覆盖、跨目标等效性、实时 RPC 部署、详尽的边界覆盖 |
 | EVM Anvil 部署冒烟测试 | `scripts/evm/anvil-deploy-smoke.sh` | `anvil`、`cast`、`solc`、`python3`；可选 `EVM_ANVIL_CHAIN_ID`、`EVM_ANVIL_CHAIN_PROFILE`、`EVM_ANVIL_PORT`、`EVM_ANVIL_RUN_DIR`、`EVM_ANVIL_CONSTRUCTOR_ARG`、`EVM_ANVIL_CONSTRUCTOR_ARGS_HEX`、`EVM_ANVIL_CONSTRUCTOR_PARAM` | 启动本地 Anvil 链，默认用 deterministic typed `initial=123` constructor input、`initial:uint256` constructor ABI schema，以及 chain id `31337` 的 `anvil-local` chain profile 重新生成 Counter initcode，校验带 signature 的 Counter method metadata 和带 profile 的 deploy metadata，通过 `cast send --create` 部署生成的 Counter `.init.bin`，在 `Counter.proof-forge-deploy-run.json` 中记录 constructor ABI schema、constructor args、creation receipt、creation transaction JSON、chain profile 和 deployed address，验证 creation transaction input 等于生成的 initcode，验证 profile chain id 匹配实际本地链，验证 deployed runtime code 等于 `Counter.bin`，通过 JSON-RPC 运行 Counter `get`/`set`/`increment`/`decrement`，并用 `scripts/evm/validate-deploy-run.py` 校验 deploy-run artifact | live public RPC 部署、explorer verification、wallet UX、dynamic constructor ABI types、长期运行链状态 |
 | EVM ABI ScalarProbe IR 冒烟测试 | `scripts/evm/abi-scalar-ir-smoke.sh` | `forge`、`solc`、`python3`、来自 `lean-toolchain` 的 Lean 工具链 | Portable IR `U64`、`U32` 和 `Bool` ABI 参数降级为 Yul 函数参数和 dispatcher calldata load，匹配 golden Yul，通过 `solc --strict-assembly` 生成 runtime bytecode，校验包含 selector entrypoints 与 Yul/bytecode hash 的 EVM metadata，校验 `robinhood-chain-testnet`、chain id `46630` 的 chain-profile-aware deploy manifest，并通过 Foundry 校验有效调用和 malformed calldata revert | 聚合 ABI 参数/返回、storage 行为、实时 RPC 部署 |
@@ -63,6 +84,150 @@
   - **V-GATE-SOLANA-08** — 控制流 + 断言 IR 覆盖。两半部分：
       * 发射半部分（可运行，不需要 `sbpf`）：`scripts/solana/emit-control-smoke.sh` 运行 `--emit-control-ir-sbpf`，grep 生成的 `.s` 中 `control.conditional` / `control.assert` / `control.assert_eq` 标记、`assert_fail`（exit 2）与 `assert_eq_fail`（exit 3）全局 label、三个 entrypoint 的 dispatch 行、驱动 `r3` 与 `r2` 的 `jeq`/`jlt` 比较指令，判断汇编跨重发射逐字节可复现，并校验制品 metadata 记录 `target: "solana-sbpf-asm"`、`fixture: "control-ir-sbpf"`、`sourceModule: "ControlFlowAssertProbe"` 以及 `storage.scalar` / `control.conditional` / `assertions.check` / `account.explicit` 能力。（发射半部分完成）。
       * 运行时半部分（依 `sbpf` + `cargo` + `solana-keygen`）：`scripts/solana/control-smoke.sh` 通过 `sbpf build` 汇编生成的 `.s` 并跑由 `Tests/solana/control_mollusk.rs.tpl` 渲染的 Mollusk 测试 crate。6 项 Mollusk 断言覆盖从零状态及非零 pre-state 调用 `lifecycle`（都落到 10u64 并返回 10）、从 3 调用 `guarded_increment`（`.assert` 通过、count→4）及从 9 调用（`.assert` 经 `assert_fail` exit 2 revert）、从 7 调用 `equality_guard`（`.assertEq` 通过、count→7 且返回 7）及从 42 调用（`.assertEq` 经 `assert_eq_fail` exit 3 revert）。Mollusk fixture 关闭 `account_data_direct_mapping` / `direct_account_pointers_in_program_input` / `virtual_address_space_adjustments`，以使用 Phase 1 lowering 的 legacy 嵌入式账户数据布局。（Phase 1 完成）。
+  - **V-GATE-SOLANA-09** — PDA typed seed descriptor 与 Solana Web3.js 兼容。
+    脚本：`scripts/solana/pda-web3-smoke.sh` 发射 SDK Vault artifact，在隔离
+    temp project 中安装 `@solana/web3.js`，读取
+    `solanaExtensions.pdas[].typedSeeds`，并确认 literal/account/bump descriptor
+    通过 `PublicKey.findProgramAddressSync` 和
+    `PublicKey.createProgramAddressSync` 可以复现同一个 PDA。Harness 也覆盖
+    UTF-8 和 instruction-parameter seed resolver 行为。这是离线 derivation
+    gate；不会部署或执行交易。
+  - **V-GATE-SOLANA-10** — System Program transfer CPI 通过 Surfpool 和
+    Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/system-cpi-web3-smoke.sh` 构建生成的
+    `--solana-system-cpi-elf` fixture，校验 artifact schema，启动 Surfpool，
+    用 `solana program deploy --use-rpc` 部署 ELF，通过标准
+    `@solana/web3.js` transaction 调用生成的 transfer entrypoint，并同时检查
+    recipient lamport delta 与 program-owned state account 中记录的 lamports 值。
+  - **V-GATE-SOLANA-10R** — System Program transfer Pinocchio
+    reference-equivalence contract。脚本：
+    `scripts/solana/pinocchio-system-transfer-equivalence.sh` emit 同一个
+    `--solana-system-cpi-elf` fixture，并将生成 artifact 与
+    `references/solana/pinocchio/system-transfer/reference-manifest.json`
+    以及 source constants 对比。它先锁住 reference account order、
+    signer/writable constraint、instruction data shape、CPI protocol/data
+    layout 和 state-write contract，再进入后续 dual-deploy runtime harness。
+  - **V-GATE-SOLANA-10L** — System Program transfer Pinocchio live
+    equivalence。脚本：
+    `scripts/solana/pinocchio-system-transfer-live-equivalence.sh` 构建
+    ProofForge ELF 和 checked-in Pinocchio reference ELF，启动 Surfpool，
+    用不同 program id 部署两个程序，用同一个 `@solana/web3.js` System
+    transfer scenario 分别调用，并对比 recipient lamport delta 和
+    program-owned state write。若 `cargo-build-sbf` 找不到 Solana
+    rustc/platform-tools，该 gate 会 skip；可运行
+    `just solana-pinocchio-install-sbf-tools` 修复该工具链。
+  - **V-GATE-SOLANA-11** — System Program `create_account` CPI 通过 Surfpool
+    和 Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/system-create-account-cpi-web3-smoke.sh` 构建生成的
+    `--solana-system-create-account-cpi-elf` fixture，校验 artifact schema，
+    启动 Surfpool，用 `solana program deploy --use-rpc` 部署 ELF，使用 payer
+    和 new-account signer 调用生成的 create entrypoint，并检查新 account 的
+    owner、data length、lamports，以及 state account 记录的 lamports 和 space。
+  - **V-GATE-SOLANA-12** — SPL Token `transfer_checked` CPI 通过 Surfpool
+    和 Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/spl-token-transfer-cpi-web3-smoke.sh` 构建生成的
+    `--solana-spl-token-transfer-cpi-elf` fixture，校验 artifact schema，
+    启动 Surfpool，用 `solana program deploy --use-rpc` 部署 ELF，通过
+    `@solana/spl-token` 创建 mint、source token account 和 destination token
+    account，用 source authority signer 调用生成的 transfer entrypoint，并检查
+    token balance delta 与 state account 记录的 amount。
+  - **V-GATE-SOLANA-13** — SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
+    通过 Surfpool 和 Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/spl-token-ops-cpi-web3-smoke.sh` 构建生成的
+    `--solana-spl-token-ops-cpi-elf` fixture，校验四个 entrypoint 的 artifact
+    instruction schema，启动 Surfpool，用 `solana program deploy --use-rpc`
+    部署 ELF，通过 `@solana/spl-token` 创建 mint、source token account 和
+    destination token account，用 source/mint authority signer 调用生成的
+    mint、burn、approve 和 revoke entrypoint，并检查 supply/balance/delegate
+    变化以及 state account 记录的 mint、burn、approve 和 revoke 值。
+  - **V-GATE-SOLANA-14** — Solana `events.emit` scalar log 加
+    `sol_log_pubkey`、`sol_log_data` 通过 Surfpool 和 Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/log-event-web3-smoke.sh` 构建生成的
+    `--solana-log-event-elf` fixture，校验 artifact instruction schema、
+    `events.emit` capability metadata、Solana-only `pubkeyLogActions` 和
+    Solana-only `dataLogActions`，
+    启动 Surfpool，用 `solana program deploy --use-rpc` 部署 ELF，用
+    scalar `amount` instruction parameter 调用生成的 `emit` entrypoint，
+    检查 program-owned state account 记录的 amount，检查 transaction
+    `logMessages` 中 `sol_log_64_` 输出包含稳定的 `AmountEvent` tag 和
+    scalar value，调用 `log_state_pubkey`，并检查 transaction `logMessages`
+    中包含来自 `sol_log_pubkey` 的 state account base58 pubkey；随后调用
+    `log_state_data`，并检查 transaction `logMessages` 中包含来自
+    `sol_log_data` 的 base64 `Program data:` payload。
+  - **V-GATE-SOLANA-15** — Solana Clock sysvar 通过 Surfpool 和 Web3.js
+    进行 live 行为验证。脚本：`scripts/solana/clock-sysvar-web3-smoke.sh`
+    构建生成的 `--solana-clock-sysvar-elf` fixture，校验 artifact
+    instruction schema 与 `env.block` capability metadata，启动 Surfpool，
+    用 `solana program deploy --use-rpc` 部署 ELF，调用生成的 `record`
+    entrypoint，检查 `sol_get_clock_sysvar` 把 `Clock.slot` 写入
+    program-owned state account，并与 Web3.js metadata 中的 transaction slot
+    对比。
+  - **V-GATE-SOLANA-16** — Solana memory syscall 通过 Surfpool 和 Web3.js
+    进行 live 行为验证。脚本：`scripts/solana/memory-web3-smoke.sh`
+    构建生成的 `--solana-memory-elf` fixture，校验 `runtime.memory`
+    artifact metadata，启动 Surfpool，用 `solana program deploy --use-rpc`
+    部署 ELF，依次调用 `set_source` 和 `copy_compare_fill`，并检查
+    program-owned state account 中的 copied value、moved value、memcmp result
+    和 memset byte pattern。
+  - **V-GATE-SOLANA-17** — Solana SHA-256/Keccak-256/Blake3 syscall 通过 Surfpool 和 Web3.js
+    进行 live 行为验证。脚本：`scripts/solana/crypto-hash-web3-smoke.sh`
+    构建生成的 `--solana-crypto-hash-elf` fixture，校验 `crypto.hash`
+    artifact metadata，启动 Surfpool，用 `solana program deploy --use-rpc`
+    部署 ELF，依次调用 `set_preimage`、`hash_preimage`、`keccak_preimage` 和
+    `blake3_preimage`，并将 program-owned account 中的 32-byte digest 与同一
+    preimage bytes 的 Node `crypto.createHash("sha256")` 和 `@noble/hashes`
+    Keccak-256/Blake3 对比。
+  - **V-GATE-SOLANA-18** — Solana Rent sysvar 通过 Surfpool 和 Web3.js
+    进行 live 行为验证。脚本：`scripts/solana/rent-sysvar-web3-smoke.sh`
+    构建生成的 `--solana-rent-sysvar-elf` fixture，校验 `sysvar` target
+    extension artifact metadata，启动 Surfpool，用 `solana program deploy --use-rpc`
+    部署 ELF，调用 `record_rent`，并将 program-owned account 记录的
+    `Rent.lamports_per_byte_year` 与 Rent sysvar account 的第一个 `u64` word
+    对比。
+  - **V-GATE-SOLANA-19** — Solana EpochSchedule sysvar 通过 Surfpool 和
+    Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/epoch-schedule-sysvar-web3-smoke.sh` 构建生成的
+    `--solana-epoch-schedule-sysvar-elf` fixture，校验 `sysvar` target
+    extension artifact metadata，启动 Surfpool，用 `solana program deploy --use-rpc`
+    部署 ELF，调用 `record_epoch_schedule`，并将 program-owned account 记录的
+    `EpochSchedule.slots_per_epoch`、`EpochSchedule.leader_schedule_slot_offset`、
+    `EpochSchedule.warmup`、`EpochSchedule.first_normal_epoch` 和
+    `EpochSchedule.first_normal_slot` 字段与 RPC `getEpochSchedule()` 对比。
+  - **V-GATE-SOLANA-20** — Solana LastRestartSlot sysvar 通过 Surfpool 和
+    Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/last-restart-slot-sysvar-web3-smoke.sh` 构建生成的
+    `--solana-last-restart-slot-sysvar-elf` fixture，校验 feature-gated
+    `sysvar` target-extension artifact metadata，启动 Surfpool，用
+    `solana program deploy --use-rpc` 部署 ELF，调用
+    `record_last_restart_slot`，并将 program-owned account 记录的
+    `LastRestartSlot.last_restart_slot` 与 LastRestartSlot sysvar account 的第一个
+    `u64` word 对比。生成的汇编使用
+    `SysvarLastRestartS1ot1111111111111111111111` 调用 `sol_get_sysvar`，
+    以兼容当前 `sbpf` assembler，同时保留 Solana SDK 层的 LastRestartSlot
+    能力。
+  - **V-GATE-SOLANA-21** — Solana EpochRewards sysvar 通过 Surfpool 和
+    Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/epoch-rewards-sysvar-web3-smoke.sh` 构建生成的
+    `--solana-epoch-rewards-sysvar-elf` fixture，校验当前所有
+    `EpochRewards` 字段的 `sysvar` target-extension artifact metadata，启动
+    Surfpool，用 `solana program deploy --use-rpc` 部署 ELF，调用
+    `record_epoch_rewards`，并把 program-owned account 里记录的
+    `EpochRewards.distribution_starting_block_height`、
+    `EpochRewards.num_partitions`、`EpochRewards.parent_blockhash_word0..3`、
+    `EpochRewards.total_points_low/high`、`EpochRewards.total_rewards`、
+    `EpochRewards.distributed_rewards` 和 `EpochRewards.active` 与
+    EpochRewards sysvar account data 对比。
+  - **V-GATE-SOLANA-22** — Solana return-data 与 compute-unit syscall 通过
+    Surfpool 和 Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/return-data-compute-web3-smoke.sh` 构建生成的
+    `--solana-return-data-compute-elf` fixture，校验 `runtime.return_data`
+    与 `runtime.compute_units` target-extension artifact metadata，启动
+    Surfpool，用 `solana program deploy --use-rpc` 部署 ELF，通过
+    simulation `returnData` 确认 `sol_set_return_data`，检查 empty
+    `sol_get_return_data` 读取，检查同一条 instruction 内的 set/get
+    roundtrip 以及返回的 program id words，记录非零
+    `sol_remaining_compute_units` value，并验证 `sol_log_compute_units_`
+    产出 compute-unit log。
 - Move 冒烟测试 — `aptos move compile/test` 或 Sui Move 验证。
 - 能力拒绝测试 — 针对不支持的能力/目标组合的编译时诊断。
 

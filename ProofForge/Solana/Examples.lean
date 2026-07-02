@@ -1,1 +1,14 @@
 import ProofForge.Solana.Examples.Vault
+import ProofForge.Solana.Examples.SystemCpi
+import ProofForge.Solana.Examples.SystemCreateAccountCpi
+import ProofForge.Solana.Examples.SplTokenTransferCheckedCpi
+import ProofForge.Solana.Examples.SplTokenOpsCpi
+import ProofForge.Solana.Examples.LogEvent
+import ProofForge.Solana.Examples.Clock
+import ProofForge.Solana.Examples.Rent
+import ProofForge.Solana.Examples.EpochSchedule
+import ProofForge.Solana.Examples.EpochRewards
+import ProofForge.Solana.Examples.LastRestartSlot
+import ProofForge.Solana.Examples.Memory
+import ProofForge.Solana.Examples.Crypto
+import ProofForge.Solana.Examples.ReturnDataCompute

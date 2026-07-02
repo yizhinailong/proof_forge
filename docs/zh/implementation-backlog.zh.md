@@ -316,7 +316,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - 同一个 portable IR Counter 模块可以降级到 EVM 和 Solana。
 - 制品元数据记录 `target: "solana-sbpf-asm"`、`irVersion`、entrypoints 和使用的 capabilities。
 
-范围外（Phase 2+）：maps、struct types、events、bounded loops、Borsh serialization、完整 SPL Token 数据布局，以及真实运行时 CPI 验证。CPI 和 PDA 仍按 D-027 留在 Solana 特定层：SDK 现在通过 target capability call 和 sBPF helper action 路由它们，而不是把它们加入 portable IR。
+范围外（Phase 2+）：maps、struct types、events、bounded loops、Borsh serialization、完整 SPL Token 数据布局、完整 live CPI 矩阵覆盖，以及 Rust/Pinocchio 等价性。CPI 和 PDA 仍按 D-027 留在 Solana 特定层：SDK 通过 target capability call 和 sBPF helper action 路由它们，而不是把它们加入 portable IR。
 
 参考：[solana-sbpf-asm 设计文档](targets/solana-sbpf-asm.md) 的 Phased Implementation Plan。
 
@@ -337,16 +337,374 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] Surfpool/Web3.js live deployment 冒烟（V-GATE-SOLANA-04）。可选门禁 `scripts/solana/surfpool-web3-smoke.sh` 会构建 Counter ELF、启动 Surfpool、用 Solana CLI 部署、通过 `@solana/web3.js` 创建 program-owned counter account、调用 initialize/increment/get、检查 account data 0→1→2，并验证 `get` return data。该脚本通过 `--solana-sbpf-arch v0` 直接产出兼容 Solana CLI 部署的 ELF，并对 Surfpool 使用 `--use-rpc`。
 - [x] `--solana-elf` 暴露 `--solana-sbpf-arch v0|v3`，并在 `proof-forge-artifact.json` 记录选定架构。默认保持 `v3`；Surfpool live deployment 在当前 CLI/runtime 组合完整接受新版 sbpf feature set 之前使用 `v0`。
 - [x] PDA helper runtime packing 现在会在调用 `sol_create_program_address` 前生成静态 ASCII seed byte buffer、Solana `Slice { ptr, len }` seed table、动态 program-id 指针计算，以及 32-byte PDA result buffer。覆盖：`Tests/SolanaSdkManifest.lean` 与 `scripts/solana/sdk-smoke.sh`。
+- [x] PDA typed seed lowering 现在保留兼容用的 `seeds` 字段，同时增加面向
+  target 的 typed descriptor，覆盖 literal/UTF-8 bytes、account pubkey、bump
+  seed 和 scalar instruction-data seed。Solana target extension 会消费这些
+  descriptor，将 `bump?` 加入 effective syscall seed list，在 manifest/artifact
+  metadata 中发射 `typed_seeds`/`typedSeeds`，并在声明 `account?` 时把派生
+  PDA pubkey 与对应账户 pubkey 做校验。覆盖：`Tests/SolanaSdk.lean`、
+  `Tests/SolanaSdkManifest.lean`、`Tests/SolanaPdaSeeds.lean`、
+  `scripts/solana/sdk-smoke.sh`、`scripts/solana/pda-web3-smoke.sh`。
+- [x] 标准 Solana protocol SDK helper 现在覆盖 System Program 的 transfer/create-account，以及 SPL Token 的 transfer_checked/mint_to/burn/approve/revoke。它们通过 target capability metadata 路由，写入 `solana.cpi.protocol`、规范化 `data_layout`、account metas、signer seeds 和 instruction-data source name，并进入生成的 manifest 与 artifact JSON。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] Runtime allocator target extension 现在建模 Solana 默认 downward-bump allocator（`heap_start = "0x300000000"`、`heap_bytes = 32768`），并提供与 Pinocchio no-heap entrypoint 对齐的 `noAllocator`/deny-dynamic 选项。选中的 allocator 会通过 `runtime.allocator` capability metadata 路由，并进入 `manifest.toml`、`proof-forge-artifact.json` 和 assembly metadata。覆盖：`Tests/SolanaAllocator.lean`、`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] Runtime memory target extension 现在将 Solana-only SDK action 通过
+  `runtime.memory` capability metadata 路由，并把 entrypoint action 降为基于
+  生成 state-account offset 的 `sol_memcpy_`、`sol_memcmp_` 和 `sol_memset_`
+  helper。生成的 manifest 与 artifact JSON 会记录
+  `[[solana.entrypoint_memory]]` / `memoryActions`；Web3.js 会在
+  program-owned account 上验证 copied bytes、compare result 和 fill pattern。
+  覆盖：`Tests/SolanaMemory.lean` 与 `scripts/solana/memory-web3-smoke.sh`。
+- [x] Return-data 和 compute-budget target extension 现在将 Solana-only SDK
+  action 通过 `runtime.return_data` 与 `runtime.compute_units` capability
+  metadata 路由。Return-data action 会把 state-backed byte slice 降为
+  `sol_set_return_data`，也可以通过 `sol_get_return_data` 读取最近一次 CPI
+  的 return-data buffer 与 program id；compute-budget action 会把
+  feature-gated `sol_remaining_compute_units` syscall 的结果写入 state，
+  profiling action 会降为 `sol_log_compute_units_`。生成的 manifest
+  会记录 `[[solana.entrypoint_return_data]]` 与
+  `[[solana.entrypoint_compute_units]]`。覆盖：
+  `Tests/SolanaReturnDataCompute.lean`。
+- [x] 生成的 Solana SDK instruction schema 现在使用 module-wide multi-account account list，取代旧的单账户 manifest。schema 包含 state account、PDA account、CPI account 和 executable CPI program account；sBPF backend 会从同一份 schema 计算 `INSTRUCTION_DATA` offset，并在 prologue 中按 schema 校验 signer/writable 约束和 program-owned account。账户列表会进入 `manifest.toml` 与 `proof-forge-artifact.json`。覆盖：`Tests/SolanaSdkManifest.lean`、`Tests/SolanaCpiPacking.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] System Program transfer/create-account 与 SPL Token CPI instruction-data packing 现在会把标准 instruction bytes 写入 C `SolInstruction` payload。System transfer/create-account 使用 bincode-style `u32` discriminator，加 `u64` lamports/space 和 owner pubkey 字段；SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke` 使用标准 token instruction tag 和 amount/decimals layout。value source 可以绑定到生成的 scalar state offset、数字 literal 或已解码的 scalar entrypoint parameter。CPI helper 也会打包 program id bytes、C `SolAccountMeta[]`、绑定到生成的 multi-account input layout 的 `SolAccountInfo[]`、signer seed table，以及 syscall register setup。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] System Program transfer CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SystemCpi` 会构建生成的 `--solana-system-cpi-elf` fixture；entrypoint 读取 scalar `lamports` instruction parameter，执行 System Program transfer CPI，并把转账数写入 program-owned state account。`scripts/solana/system-cpi-web3-smoke.sh` 会校验 artifact schema，用 Solana CLI 在 Surfpool 部署 ELF，通过 `@solana/web3.js` 调用，并同时检查 recipient lamport delta 和 state data。sBPF lowering 会在 direct account mapping 下从序列化账户布局计算 instruction-data pointer，并保存在 `r9`，避免 internal helper call 跨 callee stack frame 时丢失该指针。覆盖：`just solana-system-cpi-web3` / V-GATE-SOLANA-10。
+- [x] System Program `create_account` CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SystemCreateAccountCpi` 会构建生成的 `--solana-system-create-account-cpi-elf` fixture；entrypoint 读取 scalar `lamports` 和 `space` instruction parameter，使用 payer 与 new-account signer 执行 System Program `create_account` CPI，创建 program-owned account，并把两个值写入已有 program-owned state account。Web3.js harness 会检查新 account 的 owner、data length、lamports，以及 state account 记录的值。覆盖：`just solana-system-create-account-cpi-web3` / V-GATE-SOLANA-11。
+- [x] SPL Token `transfer_checked` CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SplTokenTransferCheckedCpi` 会构建生成的 `--solana-spl-token-transfer-cpi-elf` fixture；entrypoint 读取 scalar `amount` instruction parameter，使用 source authority signer 执行 SPL Token `transfer_checked` CPI，并把 amount 写入 program-owned state。Web3.js harness 会通过 `@solana/spl-token` 创建 mint 和 source/destination token accounts，检查 token balance delta 与 state 记录。sBPF lowering 现在会在每个 entry/helper stack frame 里构建 runtime account pointer table，因此可变长度 SPL Token account data 不会让 internal helper call 里的 account offset 失效。覆盖：`just solana-spl-token-transfer-cpi-web3` / V-GATE-SOLANA-12。
+- [x] Entry instruction-data decoding 现在把第 0 字节作为 entrypoint tag，从 `instruction_data+1` 起按 packed scalar parameter 解码到 stack local。初始 scalar ABI 支持 `U64`、`U32` 和 `Bool`，在 `manifest.toml`/`proof-forge-artifact.json` 中发射 per-entrypoint parameter schema 和 minimum instruction-data length，对过短 payload 返回 `error_instruction_data`，并把同一组固定 input offset 暴露给 CPI value binding，因此 SPL Token `transfer_checked` 这类 SDK 调用可以从用户 instruction parameter 读取 `amount`，不再落到 placeholder。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean` 和 `scripts/solana/sdk-smoke.sh`。
 
-后续 Solana SDK 补齐项：
+### Solana SDK 补齐路线图
 
-- PDA typed seed 补齐：区分 literal/UTF-8 bytes、account pubkey、bump/instruction-data seed；将结果 PDA 与 account pubkey 校验；增加 Web3.js fixture，与 `PublicKey.findProgramAddressSync` 对比派生地址。
-- System Program CPI：把 transfer/create-account 类 SDK 调用降级到 `sol_invoke_signed`，在 `manifest.toml` 表达 account metas，并用 Web3.js 验证余额和 owner。
-- SPL Token CPI：补 mint/account/authority manifest、token instruction packing，并对标准 token program 做行为检查。
-- logs/events 与 return data：暴露 `sol_log*` / `sol_set_return_data` / `sol_get_return_data` helper，并用 Web3.js 检查日志和 simulation return data。
-- sysvars、crypto 与 memory helpers：覆盖 clock/rent sysvar、hash syscall、memcpy/memcmp/memset，并与 JavaScript reference output 对比。
-- 为同一套 account schema 增加 Rust/Pinocchio reference fixture，并通过同一个 Web3.js harness 对比 ProofForge 生成程序与参考程序的行为。
-- 从 Phase 1 单账户 manifest 推进到生成 multi-account schema，并为每个 entrypoint 表达 signer/writable/owner 约束。
+驱动这条路线的参考文档：
+
+- Solana CPI 与 PDA 文档：
+  <https://solana.com/docs/core/cpi> 和
+  <https://solana.com/docs/core/pda>。
+- Anchor CPI/account constraint 文档：
+  <https://www.anchor-lang.com/docs/basics/cpi> 和
+  <https://www.anchor-lang.com/docs/references/account-constraints>。
+- Pinocchio no-dependency / no-std program model：
+  <https://docs.rs/pinocchio> 和
+  <https://github.com/anza-xyz/pinocchio>。
+
+基线：截至 2026-07-02，Solana 路线已经具备 direct sBPF assembly emission、
+通过 Surfpool/Web3.js 部署 Counter、SDK capability metadata、生成
+manifest/artifact、module-wide multi-account schema、标准 System/SPL Token CPI
+data packing、bump-allocator metadata、scalar entrypoint parameter decoding、
+typed PDA seed lowering、live System Program transfer/create-account CPI
+validation、live SPL Token `transfer_checked` CPI validation，以及 live SPL
+Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
+`sol_log_64_` 验证的 live scalar `events.emit` 日志路径、通过
+`sol_log_pubkey` 验证的 live account-pubkey log 路径、通过 `sol_log_data`
+验证的 live state-backed data-log 路径，以及 `contextRead checkpointId`
+的 live `Clock.slot` sysvar validation，加上通过 `sol_memcpy_`、
+`sol_memmove_`、`sol_memcmp_` 和 `sol_memset_` 验证的 live `runtime.memory`
+路径，以及通过 `sol_sha256`、`sol_keccak256` 和 feature-gated `sol_blake3`
+验证的 Solana-only live `crypto.hash` 路径，以及通过 `sol_get_rent_sysvar`
+验证的 live `Rent.lamports_per_byte_year` sysvar 路径，以及通过
+`sol_get_epoch_schedule_sysvar` 验证的、当前 RPC 暴露的全部
+`EpochSchedule` 字段：`slots_per_epoch`、`leader_schedule_slot_offset`、
+`warmup`、`first_normal_epoch` 和 `first_normal_slot`，加上通过
+`sol_get_epoch_rewards_sysvar` 验证的 live `EpochRewards` 路径，覆盖
+`distribution_starting_block_height`、`num_partitions`、
+`parent_blockhash_word0..3`、`total_points_low/high`、`total_rewards`、
+`distributed_rewards` 和 `active`，以及通过 `sol_get_sysvar` 和
+`SysvarLastRestartS1ot1111111111111111111111` sysvar id 验证的
+feature-gated live `LastRestartSlot.last_restart_slot` 路径。Live SDK 覆盖
+现在还包括把 `runtime.return_data` 降为 `sol_set_return_data` 与
+`sol_get_return_data`，并验证 empty read、set-return simulation 和同一条
+instruction 内 set/get roundtrip；同时也包括把 `runtime.compute_units` 降为
+feature-gated `sol_remaining_compute_units` state write 和 profiling log
+`sol_log_compute_units_`。
+下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
+`sbpf`/Surfpool/Solana CLI 工具链可用。
+
+| 层级 | 预计工作量 | 完成标准 |
+|---|---:|---|
+| SDK alpha：可写可跑的 Solana 程序 | 3-5 个集中工程日 | 简单程序可以使用 state、PDA seed、scalar instruction parameter、System Program CPI、SPL Token CPI、logs/return data，以及 Web3.js 行为测试，不需要手写 assembly 补丁。 |
+| SDK beta：可与参考实现对比的 Solana backend | 2-3 个集中工程周 | ProofForge 输出可以与同一套 account schema 的 Rust/Pinocchio fixture 对比，覆盖关键 syscall，验证 live CPI 行为，并支持 per-entrypoint account schema。 |
+| Anchor/Pinocchio 级开发体验 | beta 之后 4-6 个集中工程周 | SDK 提供 account constraint、typed account/data helper、IDL/client generation、更完整 SPL/Token-2022 覆盖，以及接近框架级 workflow 的稳定诊断。 |
+
+已完成的 alpha 切片：
+
+- Instruction ABI hardening：parameter payload length bounds check、
+  `manifest.toml` 和 `proof-forge-artifact.json` 中的 per-entrypoint parameter
+  schema，以及稳定的 scalar parameter metadata 已经落地。
+- PDA typed seed lowering：`literalSeed`/`utf8Seed`、`accountSeed`、
+  `bumpSeed` 和 `paramSeed` descriptor 现在会 lowering 为 Solana seed slice，
+  `bump?` 会参与 effective seed list，声明的 PDA account 可以与派生 pubkey
+  进行校验。
+- PDA/Web3.js derivation fixture：`scripts/solana/pda-web3-smoke.sh` 会读取生成的
+  SDK Vault `typedSeeds` artifact data，并用 `PublicKey.findProgramAddressSync`
+  和 `PublicKey.createProgramAddressSync` 校验 literal/account/bump descriptor
+  语义；harness 也覆盖 UTF-8 与 instruction-parameter resolver 行为。
+- Live System Program transfer CPI fixture：`scripts/solana/system-cpi-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 transfer CPI 程序，通过 Web3.js 调用，并证明
+  lamport movement 与 state write 都成立。
+- Live System Program create-account CPI fixture：`scripts/solana/system-create-account-cpi-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 create-account CPI 程序，通过 Web3.js
+  调用，并证明新 account 的 owner/space/lamports 与 state write 都成立。
+- Live SPL Token transfer-checked CPI fixture：`scripts/solana/spl-token-transfer-cpi-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 transfer_checked CPI 程序，用
+  `@solana/spl-token` 创建 SPL Token 测试账户，通过 Web3.js 调用，并证明
+  source/destination token balance delta 与 state write 都成立。
+- Live SPL Token ops CPI fixture：`scripts/solana/spl-token-ops-cpi-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 `mint_to`/`burn`/`approve`/`revoke`
+  CPI 程序，校验生成的四 entrypoint artifact schema，用
+  `@solana/spl-token` 创建 SPL Token 测试账户，通过 Web3.js 调用全部四个
+  entrypoint，并证明 supply/balance/delegate 变化与 state write 都成立。
+- Live scalar event、pubkey log 与 data log fixture：`scripts/solana/log-event-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 `events.emit` 程序，通过 Web3.js 调用，
+  验证生成的 `sol_log_64_` transaction log 包含稳定的 `AmountEvent` tag 与
+  scalar `amount` 字段，并证明 program-owned state account 记录了同一个值。同一
+  fixture 现在还会校验 Solana-only `logAccountPubkey` metadata，调用生成的
+  `log_state_pubkey` entrypoint，并证明 `sol_log_pubkey` 会记录 state account 的
+  base58 pubkey。它也会校验 Solana-only `logStateData` metadata，调用
+  `log_state_data`，并证明 `sol_log_data` 会为 state-backed `amount` bytes
+  产出 base64 `Program data:` payload。
+- Live Clock sysvar fixture：`scripts/solana/clock-sysvar-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 `contextRead checkpointId` 程序，把它降级到
+  `sol_get_clock_sysvar`，通过 Web3.js 调用，并证明记录的 `Clock.slot`
+  与观察到的 transaction slot 一致。
+- Live memory syscall fixture：`scripts/solana/memory-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 `runtime.memory` 程序，通过 Web3.js
+  调用，并通过读取 program-owned state 中的 copied value、moved value、
+  compare result 和 fill bytes 证明 `sol_memcpy_`、`sol_memmove_`、
+  `sol_memcmp_` 与 `sol_memset_` 的效果。
+- Return-data/compute-units SDK fixture：
+  `Tests/SolanaReturnDataCompute.lean` 会证明 `runtime.return_data` 与
+  `runtime.compute_units` 通过 Solana-only capability metadata 路由、在 EVM
+  上被拒绝，并且会生成 manifest section 与 sBPF helper call，覆盖
+  `sol_set_return_data`、`sol_get_return_data`、feature-gated
+  `sol_remaining_compute_units` 和 `sol_log_compute_units_`。
+  `scripts/solana/return-data-compute-web3-smoke.sh` 会在 Surfpool 上构建并部署
+  生成的 `--solana-return-data-compute-elf` fixture，校验 artifact action
+  metadata，验证无数据时的 `sol_get_return_data` 读取，通过 Web3.js simulation
+  returnData 确认 `sol_set_return_data`，检查同一条 instruction 内的 set/get
+  roundtrip 与 program id words，记录非零 remaining-compute-units value，并确认
+  compute-unit log。
+- Live SHA-256/Keccak-256/Blake3 syscall fixture：`scripts/solana/crypto-hash-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 Solana-only `crypto.hash` 程序，通过
+  Web3.js 调用 `set_preimage`、`hash_preimage`、`keccak_preimage` 和
+  `blake3_preimage`，并证明 account 中保存的 32-byte digest 与同一
+  little-endian preimage 的 Node SHA-256 和 `@noble/hashes`
+  Keccak-256/Blake3 reference hash 一致。Blake3 action 会在 manifest 与
+  artifact metadata 中标记为 feature-gated。
+- Live Rent sysvar fixture：`scripts/solana/rent-sysvar-web3-smoke.sh` 会在
+  Surfpool 上构建并部署生成的 Solana-only `sysvar` target-extension 程序，
+  通过 Web3.js 调用 `record_rent`，并证明记录的
+  `Rent.lamports_per_byte_year` 与 Rent sysvar account data 一致。
+- Live EpochSchedule sysvar fixture：
+  `scripts/solana/epoch-schedule-sysvar-web3-smoke.sh` 会在 Surfpool 上构建并
+  部署生成的 Solana-only `sysvar` target-extension 程序，通过 Web3.js 调用
+  `record_epoch_schedule`，并证明记录的 `EpochSchedule.slots_per_epoch`、
+  `EpochSchedule.leader_schedule_slot_offset`、`EpochSchedule.warmup`、
+  `EpochSchedule.first_normal_epoch` 和 `EpochSchedule.first_normal_slot`
+  与 RPC `getEpochSchedule()` 字段一致。
+- Live EpochRewards sysvar fixture：
+  `scripts/solana/epoch-rewards-sysvar-web3-smoke.sh` 会在 Surfpool 上构建并
+  部署生成的 Solana-only `sysvar` target-extension 程序，通过 Web3.js 调用
+  `record_epoch_rewards`，并证明 `sol_get_epoch_rewards_sysvar` 会把
+  `EpochRewards` 字段记录进 state。`parent_blockhash` 先暴露为四个
+  little-endian `u64` word 视图，`total_points` 先暴露为 low/high `u64`
+  word 视图，直到 portable scalar 层支持一等宽值输出 state。
+- Live LastRestartSlot sysvar fixture：
+  `scripts/solana/last-restart-slot-sysvar-web3-smoke.sh` 会在 Surfpool 上构建并
+  部署生成的 Solana-only `sysvar` target-extension 程序，通过 Web3.js 调用
+  `record_last_restart_slot`，并证明 feature-gated
+  `LastRestartSlot.last_restart_slot` 读取会通过 `sol_get_sysvar` lowering，
+  且与 LastRestartSlot sysvar account data 一致。该 action 会在 manifest 与
+  artifact metadata 中标记为 `feature_gated`。
+
+已完成的 beta scaffolding 切片：
+
+- Pinocchio System transfer reference contract：
+  `references/solana/pinocchio/system-transfer` 提供了一个 checked-in
+  no-allocator Pinocchio reference，对齐
+  `ProofForge.Solana.Examples.SystemCpi` 的 System transfer account schema。
+  `scripts/solana/pinocchio-system-transfer-equivalence.sh` 会 emit
+  ProofForge System CPI artifact，并将 instruction tag、parameter ABI、
+  account order、signer/writable constraint、CPI protocol/data layout 和
+  state-write contract 与 reference manifest/source 对比。
+- Pinocchio System transfer live-equivalence harness：
+  `scripts/solana/pinocchio-system-transfer-live-equivalence.sh` 已接好
+  ProofForge ELF 与 checked-in Pinocchio reference ELF 的构建、同一
+  Surfpool instance 部署、同一 Web3.js transfer scenario 调用，以及
+  recipient lamport delta 和 state write 对比。若 `cargo-build-sbf` 找不到
+  Solana rustc/platform-tools，该 harness 会 skip。
+
+已完成的开发者 surface 切片：
+
+- Portable ValueVault surface source：
+  `ProofForge.Contract.Surface` 现在允许示例只声明一次 state slot、参数、
+  method 和 event field，然后在 entrypoint body 里通过 typed refs
+  （`read`、`write`、`bind`、`emit`、`ret`）编写逻辑，不再直接写 raw
+  `ContractSpec` 字符串拼装。`ProofForge.Contract.Examples.ValueVault`
+  已经使用该层，并且 source 中刻意保留 `selector? = none`。
+- Declaration-derived IR names：
+  `state_decl`、`binding_decl`、`method_decl`、`method_return_decl` 和
+  `event_decl` 宏现在会从 Lean declaration 派生 IR 名称，因此 portable
+  Counter 与 ValueVault source 不再重复写 state slot、input、local、method
+  name 或 event name 的 raw string。测试会先断言派生出的 snake-case
+  state/parameter/method 名称和 PascalCase event 名称，再把同一份 source
+  路由到 EVM 与 Solana。
+- 面向源码的 declaration facade：
+  `contract_decl Name do ...` 会从 Lean identifier 派生 module name，并将
+  `ContractSpec` 保持为编译器内部中间产物，而不是用户可见的 authoring model。
+  `ProofForge.Contract.Examples.Counter` 和
+  `ProofForge.Contract.Examples.ValueVault` 现在都使用该 facade；旧的 `*_ref`
+  宏仍作为兼容 shim 保留，供较旧的下游源码使用。
+- Contract Source Syntax v1：
+  `ProofForge.Contract.Source` 增加了 scoped `contract_source` 语法，用于
+  state declaration、event、entrypoint、query、source-local binding、state
+  assignment、event emission、return、typed arithmetic operator，以及 allocator、
+  account、PDA derivation 和 SPL Token CPI call 这些 Solana extension
+  declaration。
+  `ProofForge.Contract.Examples.Counter` 和
+  `ProofForge.Contract.Examples.ValueVault` 现在都通过这个 source block 编写
+  portable 逻辑；宏仍会发射到同一个 `ContractSpec`/portable IR 边界，供
+  routing、EVM selector hydration、Solana instruction tag、IDL 和 client
+  artifact generation 复用。
+- Learn source parser/lowering seed：
+  `ProofForge.Contract.Learn` 现在会 lex 和 parse `Examples/Learn/` 下
+  checked-in 的 `.learn` 文件，生成 portable scalar/event 子集的小型 source
+  AST，并降低到 `ContractSpec`/portable IR。`Counter.learn` 与
+  `ValueVault.learn` 会被证明生成与当前 `contract_source` 示例一致的 IR module。
+  CLI 现在可以通过 `--learn --target evm` 和
+  `--learn --target solana-sbpf-asm` 接受 `.learn` 文件；`--learn-yul`、
+  `--learn-bytecode` 和 `--learn-sbpf` 仍作为较低层的便捷路径保留。
+  `scripts/portable/value-vault-smoke.sh` 使用
+  `Examples/Learn/ValueVault.learn` 作为 source of record，证明 Learn-authored
+  合约不需要手写 `ContractSpec`，也能路由到 EVM Yul/bytecode metadata 和 Solana
+  sBPF assembly/manifest/IDL/client artifacts。
+- Learn Solana target-extension syntax：
+  `ProofForge.Contract.Learn` 现在会解析 `SolanaVault.learn` 中的
+  `solana allocator`、`solana account`、`solana pda`、`solana cpi
+  ... spl_token_transfer_checked(...)`，以及 entry-level `solana derive` /
+  `solana invoke`。lowering 会复用 `ProofForge.Solana` builder helper，因此
+  account/PDA/CPI metadata 仍然进入现有 capability plan、manifest、IDL、client 和
+  sBPF assembly 路径。`Tests/LearnSource.lean` 会检查 Learn-lowered
+  SolanaVault 具有与 `ProofForge.Solana.Examples.Vault` 一致的 IR module 和
+  generated manifest。
+- Learn System Program CPI syntax：
+  `SystemCpi.learn` 和 `SystemCreateAccountCpi.learn` 现在覆盖
+  `solana cpi ... system_transfer(...)`、`solana cpi ...
+  system_create_account(...) owner ...`，以及对应的 entry-level
+  `solana invoke` statement。`Tests/LearnSource.lean` 会证明这两个 Learn 文件
+  降低出的 IR module 和 generated manifest 与现有
+  `ProofForge.Solana.Examples.SystemCpi`、
+  `ProofForge.Solana.Examples.SystemCreateAccountCpi` source 示例一致。
+- Learn SPL Token ops syntax：
+  `SplTokenOpsCpi.learn` 现在覆盖带 selector 的 Learn entrypoint，以及
+  `spl_token_mint_to`、`spl_token_burn`、`spl_token_approve` 和
+  `spl_token_revoke` declaration/invocation。`Tests/LearnSource.lean` 会证明
+  这个 Learn 文件降低出的 IR module 和 generated manifest 与
+  `ProofForge.Solana.Examples.SplTokenOpsCpi` 一致，让字符串较多的 Builder
+  代码保持为内部 expected fixture，而不是用户面对的语法。
+- Learn log/return-data/compute-unit syntax：
+  `LogEvent.learn` 和 `ReturnDataCompute.learn` 现在覆盖 Solana pubkey/data
+  log helper statement、return-data set/get statement，以及 remaining
+  compute-unit read/log statement。`Tests/LearnSource.lean` 会证明这两个
+  Learn 文件降低出的 IR module 和 generated manifest 与
+  `ProofForge.Solana.Examples.LogEvent`、
+  `ProofForge.Solana.Examples.ReturnDataCompute` 一致，把另一个 syscall-facing
+  SDK 切片从 Builder-only fixture 推到用户面对的 Learn source。
+- Learn memory/crypto/sysvar syntax：
+  `Memory.learn`、`Crypto.learn`、`Rent.learn`、`EpochSchedule.learn`、
+  `EpochRewards.learn`、`LastRestartSlot.learn` 和 `Clock.learn` 现在覆盖
+  Solana memory helper、SHA-256/Keccak-256/BLAKE3 helper，以及用户面对的
+  Learn source 中的 sysvar/context read。`Tests/LearnSource.lean` 会证明这些
+  Learn 文件降低出的 IR module 和 generated manifest 与对应的
+  `ProofForge.Solana.Examples.*` fixture 一致。
+- Learn reference diagnostics：
+  `ProofForge.Contract.Learn` 现在会在 lowering 时构建声明引用索引，并拒绝未知
+  或签名不匹配的 Solana CPI invocation、未知 PDA derivation、无效 signer seed，
+  使用未声明 account 的 CPI declaration、不满足所需 writable 或 signer constraint
+  的 CPI account declaration，以及引用未声明 state/account 名称的 helper statement。
+  `Tests/LearnDiagnostics.lean` 固定这些诊断信息，让 Learn 表现为经过检查的语言
+  frontend，而不是要求用户手写未检查的 `ContractSpec` 数据。
+- Solana typed account surface：
+  `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
+  `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
+  CPI helper。`ProofForge.Solana.Examples.Vault` 现在使用
+  `contract_source` 的专用 item/statement，例如 `allocator bump`、
+  `account ... writable`、`pda ... seeds [...]`、
+  `cpi ... spl_token_transfer_checked(...)`、`derive pda ...` 和
+  `invoke ... spl_token_transfer_checked(...)`，不再直接写 raw
+  account/PDA/CPI 字符串，也不再通过 `use`/`do` 暴露 helper plumbing；
+  target extension 会把声明式 account constraint 发射到 `manifest.toml`、
+  `proof-forge-artifact.json`（`solanaExtensions.accounts`）以及生成的
+  account-validation schema。
+- System create-account source syntax：
+  `ProofForge.Contract.Source` 现在提供 source-level
+  `cpi ... system_create_account(...) owner ...` 和
+  `invoke ... system_create_account(...) owner ...` 形式。
+  `ProofForge.Solana.Examples.SystemCreateAccountCpi` 已经改用这些形式，不再使用
+  低层 builder API，同时保留已有 generated assembly、manifest、artifact 与
+  Surfpool/Web3.js behavior gate。
+- Target-stage ABI selector hydration：
+  Learn/ValueVault CLI emit path 会在 EVM Yul/bytecode 发射前，根据每个
+  entrypoint 的 Solidity ABI signature 通过 `cast sig` 派生 EVM selector，
+  并校验显式 selector 是否与派生值一致；Solana 路由仍独立使用 target
+  instruction tag。`scripts/portable/value-vault-smoke.sh` 会证明同一份
+  `.learn` source 能发射 EVM Yul/bytecode metadata 以及 Solana sBPF
+  assembly/manifest/artifact metadata。
+- Solana IDL 与 TypeScript client package output：
+  `ProofForge.Backend.Solana.Idl` 会从 `manifest.toml` 和 artifact metadata
+  共用的 instruction/account/PDA/CPI schema 渲染 `proof-forge-idl.json`。
+  `ProofForge.Backend.Solana.Client` 会渲染 `proof-forge-client.ts`，包含
+  Web3.js `TransactionInstruction` helper、instruction-data encoding 和
+  account-meta construction。Solana package printer、
+  `--emit-solana-sdk-sbpf`、`--emit-value-vault-ir-sbpf` 以及 Solana ELF
+  contract-sdk 路径现在都会发射并记录这两个文件的 hash。
+
+当前边界：
+
+- `ProofForge.Contract.Learn` 现在是第一版 standalone Learn parser/lowering
+  seed。它覆盖 portable Counter/ValueVault 子集，以及 Vault-level Solana
+  account/PDA/SPL Token transfer CPI 子集、System Program
+  transfer/create-account CPI、SPL Token mint/burn/approve/revoke CPI，以及
+  Solana log/return-data/compute-unit/memory/crypto/sysvar helper statement。
+  Lowering 过程中，Solana CPI/PDA declaration 与 entrypoint helper statement
+  会和已声明引用交叉校验。CPI account operand 必须先通过
+  `solana account ...` 声明；CPI writable/signer 要求会和这些声明校验，因此剩余字符串名称属于
+  编译器内部 identifier，而不是未检查的用户手写 spec。
+  `ProofForge.Contract.Source` 仍是尚未表达为 Learn 的示例所使用的 embedded
+  macro frontend，但 portable ValueVault artifact emission 现在已经从 `.learn`
+  开始，并根据编译阶段 target id 分派。下一步 authoring 缺口是把 Learn parser
+  扩展到 Token-2022、typed account/data reference，以及更接近 Pinocchio 的
+  account validation ergonomics；然后把 `--learn --target <id>` package
+  emission 扩展到 EVM 和 Solana sBPF 之外的更多后端。
+
+剩余优先切片：
+
+1. Rust/Pinocchio equivalence fixture（2-4 天）：在 CI/local 环境稳定安装
+   Solana rustc/platform-tools，让 System transfer live-equivalence harness
+   通过；然后为 create-account 和 SPL Token account schema 增加对应
+   reference program。关键比较点是 account order、signer/writable check、
+   CPI instruction data 和可观察 state change。
+2. 更丰富的 structured log、account data 与 typed return helper（3-5 天）：
+   将当前 scalar `sol_log_64_`/`sol_log_data` event 路径扩展到 string log、
+   Anchor-style discriminator/Borsh payload 与 indexed event 形态；增加 `u64`
+   之外的 typed return payload helper、语义匹配时的 portable `Expr.hash`
+   路由，以及复用新 memory/syscall 路径的更广 account/data packing helper，并与
+   JavaScript reference 对比。
+3. Runtime allocation lowering（1-2 天）：后续 heap-backed SDK structure 通过
+   `runtime.allocator` 路由；需要动态分配时生成真实 downward bump-pointer
+   allocation code；在 `noAllocator` 下拒绝使用分配的结构。
+4. Dynamic per-entrypoint account schema（3-5 天）：用 dispatch 前的 runtime
+   account parsing 替换当前 module-wide fixed schema，使 instruction-data offset
+   不再依赖所有 entrypoint 使用同一套账户列表。
+5. Token-2022 与更丰富的 SPL coverage（每轮 3-5 天）：增加 checked
+   mint/burn/approve variants、authority changes、associated-token account
+   setup flows，以及 Token-2022 extension routes，同时不把这些细节上移到
+   portable IR。
+6. Developer ergonomics 和框架层体验（每轮 3-5 天）：把新的 surface 层继续推进到
+   真正的 Learn-level contract syntax，并继续补更丰富的 typed account/data
+   wrapper、更丰富的 generated client API、更完整 SPL/Token-2022 helper 覆盖，以及能把
+   generated assembly failure 映射回 SDK declaration 的诊断。
+
+最快可信路线是：alpha observability baseline 现在已经落地；下一步先关闭更丰富的
+beta syscall 与 return-data 切片，再移除剩余架构捷径，最后补
+Anchor/Pinocchio 级别的开发体验。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）
 
@@ -712,26 +1070,82 @@ EVM 上生成 ERC-20 合约，还是在 Solana 上生成 SPL Token / Token-2022
 
 - 已完成：增加 RFC 0006、`ProofForge.Contract.Token.TokenSpec`、target
   token plan，以及 `Tests/TokenSpec.lean`。
+- 已完成：增加 legacy Learn token intent source syntax、
+  `ProofForge.Contract.Token.Learn`、`Examples/Learn/ProofToken.learn`、
+  `Examples/Learn/FeeToken.learn`、`Tests/TokenLearn.lean`，以及
+  `proof-forge --learn-token --target <id>` plan emission，作为兼容路径进入
+  `TokenSpec`。
+- 已完成：为 Learn token source 增加第一版 EVM ERC-20 artifact emitter：
+  `ProofForge.Contract.Token.Evm`、`Tests/TokenEvm.lean`、metadata 中的标准
+  ERC-20 selector/event、Yul generation，以及通过 `--learn-token --target evm`
+  执行的 `solc --strict-assembly` bytecode validation。
+- 已完成：增加 `scripts/portable/learn-token-smoke.sh` / `just
+  learn-token-smoke`，从 Learn source 同时验证 EVM ERC-20 token artifact 路径
+  和 Solana Token-2022 plan 路径。
+- 已完成：增加 `scripts/evm/learn-token-erc20-vm-smoke.sh` / `just
+  learn-token-evm-vm`，在 EthereumJS VM 中部署生成的 ERC-20 creation
+  bytecode，并验证标准 ERC-20 调用、Transfer/Approval topic，以及余额不足
+  revert 行为。
+- 已完成：在 Lean `TokenSpec` 层实现 Solana SPL Token / Token-2022 deployment
+  plan rendering。`solanaTokenDeploymentPlan` 现在会记录 mint account 创建、
+  associated token account、`mint_to`、`transfer_checked`、`approve`、`burn`、
+  `revoke`、authority change、Token-2022 extension 初始化、Solana program id
+  和来源文档引用。
+- 已完成：将 `transfer_fee`、`non_transferable`、`confidential_transfer`、
+  `transfer_hook` 等 Token-2022 功能路由到 Token-2022 extension metadata，
+  而不是默认生成 custom per-token program。planner 会拒绝文档中不兼容的
+  `transfer_fee` + `non_transferable` 组合。
+- 已完成：扩展 `scripts/portable/learn-token-smoke.sh`，让 legacy `.learn`
+  输入路径复用 Lean `TokenSpec` plan，发射 SPL Token 与 Token-2022 两种结构化
+  plan JSON，并通过 `@solana/spl-token` / `@solana/web3.js` instruction
+  builder 做离线验证。
+- 已完成：增加 `scripts/solana/token-plan-web3-smoke.sh` / `just
+  solana-token-plan-web3`，在 Surfpool 上执行结构化 legacy SPL Token plan。
+  live runner 会创建 mint 和 associated token account、mint initial supply，
+  执行计划中的 `mint_to`、`transfer_checked`、`approve`、`burn`、`revoke` 和
+  mint-authority `set_authority`，并通过 Web3.js 读取验证 balance、supply、
+  delegate state 和 authority revoke。
+- 已完成：增加 `scripts/solana/token-2022-transfer-fee-web3-smoke.sh` / `just
+  solana-token-2022-transfer-fee-web3`，在 Surfpool 上执行结构化 Token-2022
+  transfer-fee plan。live runner 会初始化 `TransferFeeConfig`，创建 Token-2022
+  associated token account，mint initial supply，执行
+  `TransferCheckedWithFee`，验证 source balance、recipient net balance 和
+  recipient withheld fee，直接从 token account withdraw withheld fee；随后执行第二次
+  transfer，将 withheld fee harvest 到 mint，再从 mint withdraw，并通过 Web3.js
+  读取验证 fee receiver balance 与已清空的 account/mint withheld amount。
+- 已完成：增加 `ProofForge.Contract.Token.Examples.SoulboundToken`、
+  `Tests/TokenPlanEmit.lean`、
+  `scripts/solana/token-2022-non-transferable-web3-smoke.sh` 和 `just
+  solana-token-2022-non-transferable-web3`，在 Surfpool 上执行由 Lean `.lean`
+  TokenSpec 支撑的 Token-2022 non-transferable plan。live runner 会初始化
+  `NonTransferable`，创建 Token-2022 associated token account，mint initial
+  supply，验证 mint/account extension，证明 `TransferChecked` 被拒绝，然后 burn
+  token，并通过 Web3.js 读取验证 balance 和 supply。
 - 实现 EVM ERC-20 降级：ABI/selectors、balance/allowance storage、total
   supply、transfer/approve/transferFrom、mint/burn 选项、events，以及
-  Foundry/Web3 行为测试。
-- 实现 Solana SPL Token plan 渲染：mint 创建、associated token account
-  创建、mint_to、transfer_checked、approve、burn、authority 变更，并通过
-  `@solana/spl-token` 做 Web3.js 验证。
-- 将 transfer fee、non-transferable、confidential transfer、transfer hook
-  等 Token-2022 功能路由到 Token-2022 extension 初始化，而不是默认生成
-  custom per-token program。
+  更广的 Foundry/Web3 行为测试。
+- 继续为 transfer-fee initialization、checked-transfer、direct withdraw 和
+  harvest-to-mint withdraw path 以及 non-transferable transfer rejection 之外的
+  Token-2022 extension plan 增加 Surfpool live validation：confidential
+  transfer setup 和 transfer-hook routing。
 - 为 capped supply 或 custom transfer restriction 等自定义策略增加可选的
   Solana wrapper/authority/transfer-hook program 生成。
-- 输出 token-specific artifact metadata，记录 standard、target、operations、
-  extension set、deployment accounts、tool versions 和 validation results。
+- 在 Surfpool plan runner 落地后，继续扩展 token-specific artifact metadata，
+  记录 live deployment accounts、tool versions 和 validation-run results。
 
 验收标准：
 
-- 同一个 `TokenSpec` 能生成确定性的 EVM 与 Solana token plans。
-- EVM 输出通过标准 Web3/Foundry ERC-20 行为测试。
-- Solana 输出能在 Surfpool 上创建 mint 和 token accounts、mint 初始供应、
-  transfer tokens，并用 `@solana/spl-token` 验证 balances。
+- Lean-authored `TokenSpec` 会生成确定性的 EVM 与 Solana token plans；legacy
+  Learn token source 会降低到同一个 `TokenSpec` 边界。
+- EVM 输出会发射 ERC-20 Yul/bytecode，并通过标准 Web3/Foundry ERC-20 行为测试。
+- Solana 输出会渲染结构化 SPL Token / Token-2022 plan，用
+  `@solana/spl-token` 离线验证 instruction builder，并已在 Surfpool 上执行
+  legacy SPL Token plan 以及 Token-2022 transfer-fee 与 non-transferable plan：
+  创建 mint 和 token accounts、mint supply、在允许时 transfer tokens、验证
+  balances，验证 withheld transfer fees，通过 direct account withdraw 与
+  harvest-to-mint 后从 mint withdraw 两条路径收取这些费用，拒绝
+  non-transferable `TransferChecked`，并 burn non-transferable supply。
+  confidential transfer 与 transfer-hook 行为仍是后续工作。
 - 文档明确说明 Solana 默认不是 per-token SPL 合约，而是通过 plan 和 CPI
   使用 SPL Token / Token-2022 programs。
 

@@ -32,6 +32,13 @@ structure AccountMeta where
   signer : SignerPolicy := .none
   deriving Repr
 
+structure AccountConstraint where
+  name : String
+  access : AccountAccess := .readOnly
+  signer : SignerPolicy := .none
+  owner : String := "any"
+  deriving Repr
+
 structure PdaBinding where
   name : String
   seeds : Array String := #[]
@@ -47,6 +54,192 @@ structure CpiCall where
   accounts : Array AccountMeta := #[]
   signerSeeds : Array String := #[]
   dataLayout? : Option String := none
+  extraMetadata : Array TargetMetadata := #[]
+  deriving Repr
+
+inductive AllocatorKind where
+  | bump
+  | noAllocator
+  deriving BEq, DecidableEq, Repr
+
+def AllocatorKind.id : AllocatorKind -> String
+  | .bump => "bump"
+  | .noAllocator => "none"
+
+structure AllocatorConfig where
+  name : String := "runtime"
+  kind : AllocatorKind := .bump
+  heapStart : String := "0x300000000"
+  heapBytes : Nat := 32768
+  deriving Repr
+
+inductive MemoryOp where
+  | memcpy
+  | memmove
+  | memcmp
+  | memset
+  deriving BEq, DecidableEq, Repr
+
+def MemoryOp.id : MemoryOp -> String
+  | .memcpy => "memcpy"
+  | .memmove => "memmove"
+  | .memcmp => "memcmp"
+  | .memset => "memset"
+
+inductive CryptoHashOp where
+  | sha256
+  | keccak256
+  | blake3
+  deriving BEq, DecidableEq, Repr
+
+def CryptoHashOp.id : CryptoHashOp -> String
+  | .sha256 => "sha256"
+  | .keccak256 => "keccak256"
+  | .blake3 => "blake3"
+
+def CryptoHashOp.featureGated : CryptoHashOp -> Bool
+  | .blake3 => true
+  | _ => false
+
+inductive SysvarKind where
+  | rent
+  | epochSchedule
+  | epochRewards
+  | lastRestartSlot
+  deriving BEq, DecidableEq, Repr
+
+def SysvarKind.id : SysvarKind -> String
+  | .rent => "rent"
+  | .epochSchedule => "epoch_schedule"
+  | .epochRewards => "epoch_rewards"
+  | .lastRestartSlot => "last_restart_slot"
+
+def SysvarKind.featureGated : SysvarKind -> Bool
+  | .lastRestartSlot => true
+  | _ => false
+
+inductive SysvarField where
+  | rentLamportsPerByteYear
+  | epochScheduleSlotsPerEpoch
+  | epochScheduleLeaderScheduleSlotOffset
+  | epochScheduleWarmup
+  | epochScheduleFirstNormalEpoch
+  | epochScheduleFirstNormalSlot
+  | epochRewardsDistributionStartingBlockHeight
+  | epochRewardsNumPartitions
+  | epochRewardsParentBlockhashWord0
+  | epochRewardsParentBlockhashWord1
+  | epochRewardsParentBlockhashWord2
+  | epochRewardsParentBlockhashWord3
+  | epochRewardsTotalPointsLow
+  | epochRewardsTotalPointsHigh
+  | epochRewardsTotalRewards
+  | epochRewardsDistributedRewards
+  | epochRewardsActive
+  | lastRestartSlot
+  deriving BEq, DecidableEq, Repr
+
+def SysvarField.id : SysvarField -> String
+  | .rentLamportsPerByteYear => "lamports_per_byte_year"
+  | .epochScheduleSlotsPerEpoch => "slots_per_epoch"
+  | .epochScheduleLeaderScheduleSlotOffset => "leader_schedule_slot_offset"
+  | .epochScheduleWarmup => "warmup"
+  | .epochScheduleFirstNormalEpoch => "first_normal_epoch"
+  | .epochScheduleFirstNormalSlot => "first_normal_slot"
+  | .epochRewardsDistributionStartingBlockHeight => "distribution_starting_block_height"
+  | .epochRewardsNumPartitions => "num_partitions"
+  | .epochRewardsParentBlockhashWord0 => "parent_blockhash_word0"
+  | .epochRewardsParentBlockhashWord1 => "parent_blockhash_word1"
+  | .epochRewardsParentBlockhashWord2 => "parent_blockhash_word2"
+  | .epochRewardsParentBlockhashWord3 => "parent_blockhash_word3"
+  | .epochRewardsTotalPointsLow => "total_points_low"
+  | .epochRewardsTotalPointsHigh => "total_points_high"
+  | .epochRewardsTotalRewards => "total_rewards"
+  | .epochRewardsDistributedRewards => "distributed_rewards"
+  | .epochRewardsActive => "active"
+  | .lastRestartSlot => "last_restart_slot"
+
+def SysvarField.kind : SysvarField -> SysvarKind
+  | .rentLamportsPerByteYear => .rent
+  | .epochScheduleSlotsPerEpoch => .epochSchedule
+  | .epochScheduleLeaderScheduleSlotOffset => .epochSchedule
+  | .epochScheduleWarmup => .epochSchedule
+  | .epochScheduleFirstNormalEpoch => .epochSchedule
+  | .epochScheduleFirstNormalSlot => .epochSchedule
+  | .epochRewardsDistributionStartingBlockHeight => .epochRewards
+  | .epochRewardsNumPartitions => .epochRewards
+  | .epochRewardsParentBlockhashWord0 => .epochRewards
+  | .epochRewardsParentBlockhashWord1 => .epochRewards
+  | .epochRewardsParentBlockhashWord2 => .epochRewards
+  | .epochRewardsParentBlockhashWord3 => .epochRewards
+  | .epochRewardsTotalPointsLow => .epochRewards
+  | .epochRewardsTotalPointsHigh => .epochRewards
+  | .epochRewardsTotalRewards => .epochRewards
+  | .epochRewardsDistributedRewards => .epochRewards
+  | .epochRewardsActive => .epochRewards
+  | .lastRestartSlot => .lastRestartSlot
+
+structure MemoryAction where
+  name : String
+  op : MemoryOp
+  dstState? : Option String := none
+  srcState? : Option String := none
+  lhsState? : Option String := none
+  rhsState? : Option String := none
+  resultState? : Option String := none
+  bytes : Nat
+  value? : Option Nat := none
+  deriving Repr
+
+structure CryptoHashAction where
+  name : String
+  op : CryptoHashOp := .sha256
+  inputState : String
+  bytes : Nat
+  outputStates : Array String
+  featureGated : Bool := false
+  deriving Repr
+
+structure SysvarReadAction where
+  name : String
+  kind : SysvarKind := .rent
+  field : SysvarField := .rentLamportsPerByteYear
+  outputState : String
+  deriving Repr
+
+structure ReturnDataAction where
+  name : String
+  sourceState : String
+  bytes : Nat
+  deriving Repr
+
+structure ReturnDataReadAction where
+  name : String
+  destinationState : String
+  maxBytes : Nat
+  lengthState? : Option String := none
+  programIdStates : Array String := #[]
+  deriving Repr
+
+structure ComputeUnitsAction where
+  name : String
+  outputState : String
+  featureGated : Bool := true
+  deriving Repr
+
+structure ComputeUnitsLogAction where
+  name : String
+  deriving Repr
+
+structure PubkeyLogAction where
+  name : String
+  account : String
+  deriving Repr
+
+structure DataLogAction where
+  name : String
+  sourceState : String
+  bytes : Nat
   deriving Repr
 
 def kv (key value : String) : TargetMetadata := {
@@ -70,8 +263,61 @@ def maybeKv (key : String) : Option String -> Array TargetMetadata
 def boolValue (value : Bool) : String :=
   if value then "true" else "false"
 
+def seedPrefixValue? (marker seed : String) : Option String :=
+  if seed.startsWith marker then
+    some (seed.drop marker.length |>.toString)
+  else
+    none
+
+def seedDescriptorValue (seed : String) : String :=
+  match seedPrefixValue? "literal:" seed with
+  | some value => value
+  | none =>
+      match seedPrefixValue? "utf8:" seed with
+      | some value => value
+      | none =>
+          match seedPrefixValue? "account:" seed with
+          | some value => value
+          | none =>
+              match seedPrefixValue? "bump:" seed with
+              | some value => value
+              | none =>
+                  match seedPrefixValue? "param:" seed with
+                  | some value => value
+                  | none =>
+                      match seedPrefixValue? "instruction:" seed with
+                      | some value => value
+                      | none => seed
+
+def literalSeed (value : String) : String :=
+  "literal:" ++ value
+
+def utf8Seed (value : String) : String :=
+  "utf8:" ++ value
+
+def accountSeed (account : String) : String :=
+  "account:" ++ account
+
+def bumpSeed (source : String) : String :=
+  "bump:" ++ source
+
+def instructionSeed (param : String) : String :=
+  "param:" ++ param
+
+def paramSeed (param : String) : String :=
+  instructionSeed param
+
 def AccountMeta.encode (account : AccountMeta) : String :=
   account.name ++ ":" ++ account.access.id ++ ":" ++ account.signer.id
+
+def AccountConstraint.metadata (account : AccountConstraint) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "account",
+    kv "solana.account.name" account.name,
+    kv "solana.account.access" account.access.id,
+    kv "solana.account.signer" account.signer.id,
+    kv "solana.account.owner" account.owner
+  ]
 
 def account (name : String) (access : AccountAccess := .readOnly)
     (signerPolicy : SignerPolicy := .none) : AccountMeta := {
@@ -95,11 +341,36 @@ def writableSignerAccount (name : String) : AccountMeta :=
 def pdaSignerAccount (name : String) (access : AccountAccess := .readOnly) : AccountMeta :=
   account name access .pdaSigner
 
+def accountConstraint (name : String) (access : AccountAccess := .readOnly)
+    (signerPolicy : SignerPolicy := .none) (owner : String := "any") :
+    ProofForge.Contract.Builder.ModuleM Unit := do
+  let account : AccountConstraint := { name, access, signer := signerPolicy, owner }
+  ProofForge.Contract.Builder.capability .accountExplicit "solana.account.declare"
+    (source? := some name)
+    (metadata := account.metadata)
+
+def readonlyAccountConstraint (name : String) (owner : String := "any") :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  accountConstraint name .readOnly .none owner
+
+def writableAccountConstraint (name : String) (owner : String := "any") :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  accountConstraint name .writable .none owner
+
+def signerAccountConstraint (name : String) (access : AccountAccess := .readOnly)
+    (owner : String := "any") : ProofForge.Contract.Builder.ModuleM Unit :=
+  accountConstraint name access .signer owner
+
+def writableSignerAccountConstraint (name : String) (owner : String := "any") :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  accountConstraint name .writable .signer owner
+
 def PdaBinding.metadata (binding : PdaBinding) : Array TargetMetadata :=
   #[
     kv "solana.extension" "pda",
     kv "solana.pda.name" binding.name,
-    kv "solana.pda.seeds" (joinWith "," binding.seeds),
+    kv "solana.pda.seeds" (joinWith "," (binding.seeds.map seedDescriptorValue)),
+    kv "solana.pda.seed_descriptors" (joinWith "," binding.seeds),
     kv "solana.pda.signer" (boolValue binding.isSigner)
   ] ++
   maybeKv "solana.pda.bump" binding.bump? ++
@@ -114,7 +385,270 @@ def CpiCall.metadata (call : CpiCall) : Array TargetMetadata :=
     kv "solana.cpi.accounts" (joinWith "," (call.accounts.map AccountMeta.encode)),
     kv "solana.cpi.signer_seeds" (joinWith "," call.signerSeeds)
   ] ++
-  maybeKv "solana.cpi.data_layout" call.dataLayout?
+  maybeKv "solana.cpi.data_layout" call.dataLayout? ++
+  call.extraMetadata
+
+def AllocatorConfig.metadata (config : AllocatorConfig) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "allocator",
+    kv "solana.allocator.name" config.name,
+    kv "solana.allocator.kind" config.kind.id,
+    kv "solana.allocator.heap_start" config.heapStart,
+    kv "solana.allocator.heap_bytes" (toString config.heapBytes),
+    kv "solana.allocator.model" (
+      match config.kind with
+      | .bump => "downward-bump"
+      | .noAllocator => "deny-dynamic"
+    )
+  ]
+
+def natKv (key : String) (value : Nat) : TargetMetadata :=
+  kv key (toString value)
+
+def maybeNatKv (key : String) : Option Nat -> Array TargetMetadata
+  | some value => #[natKv key value]
+  | none => #[]
+
+def MemoryAction.metadata (action : MemoryAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "memory",
+    kv "solana.memory.name" action.name,
+    kv "solana.memory.op" action.op.id,
+    natKv "solana.memory.bytes" action.bytes
+  ] ++
+  maybeKv "solana.memory.dst_state" action.dstState? ++
+  maybeKv "solana.memory.src_state" action.srcState? ++
+  maybeKv "solana.memory.lhs_state" action.lhsState? ++
+  maybeKv "solana.memory.rhs_state" action.rhsState? ++
+  maybeKv "solana.memory.result_state" action.resultState? ++
+  maybeNatKv "solana.memory.value" action.value?
+
+def CryptoHashAction.metadata (action : CryptoHashAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "crypto",
+    kv "solana.crypto.name" action.name,
+    kv "solana.crypto.op" action.op.id,
+    kv "solana.crypto.input_state" action.inputState,
+    natKv "solana.crypto.bytes" action.bytes,
+    kv "solana.crypto.output_states" (joinWith "," action.outputStates),
+    kv "solana.crypto.feature_gated" (boolValue action.featureGated)
+  ]
+
+def SysvarReadAction.metadata (action : SysvarReadAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "sysvar",
+    kv "solana.sysvar.name" action.name,
+    kv "solana.sysvar.kind" action.kind.id,
+    kv "solana.sysvar.field" action.field.id,
+    kv "solana.sysvar.output_state" action.outputState,
+    kv "solana.sysvar.feature_gated" (boolValue (SysvarKind.featureGated action.kind))
+  ]
+
+def ReturnDataAction.metadata (action : ReturnDataAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "return_data",
+    kv "solana.return_data.name" action.name,
+    kv "solana.return_data.op" "set",
+    kv "solana.return_data.source_state" action.sourceState,
+    natKv "solana.return_data.bytes" action.bytes
+  ]
+
+def ReturnDataReadAction.metadata (action : ReturnDataReadAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "return_data",
+    kv "solana.return_data.name" action.name,
+    kv "solana.return_data.op" "get",
+    kv "solana.return_data.destination_state" action.destinationState,
+    natKv "solana.return_data.max_bytes" action.maxBytes,
+    kv "solana.return_data.program_id_states" (joinWith "," action.programIdStates)
+  ] ++
+  maybeKv "solana.return_data.length_state" action.lengthState?
+
+def ComputeUnitsAction.metadata (action : ComputeUnitsAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "compute_units",
+    kv "solana.compute_units.name" action.name,
+    kv "solana.compute_units.op" "remaining",
+    kv "solana.compute_units.output_state" action.outputState,
+    kv "solana.compute_units.feature_gated" (boolValue action.featureGated)
+  ]
+
+def ComputeUnitsLogAction.metadata (action : ComputeUnitsLogAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "compute_units",
+    kv "solana.compute_units.name" action.name,
+    kv "solana.compute_units.op" "log_remaining"
+  ]
+
+def PubkeyLogAction.metadata (action : PubkeyLogAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "log",
+    kv "solana.log.name" action.name,
+    kv "solana.log.op" "pubkey",
+    kv "solana.log.account" action.account
+  ]
+
+def DataLogAction.metadata (action : DataLogAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "log",
+    kv "solana.log.name" action.name,
+    kv "solana.log.op" "data",
+    kv "solana.log.source_state" action.sourceState,
+    natKv "solana.log.bytes" action.bytes
+  ]
+
+def systemProgram : String :=
+  "system_program"
+
+def splTokenProgram : String :=
+  "spl_token"
+
+def splToken2022Program : String :=
+  "spl_token_2022"
+
+def associatedTokenProgram : String :=
+  "associated_token"
+
+def tokenProtocolForProgram (tokenProgram : String) : String :=
+  if tokenProgram == splToken2022Program then
+    "token-2022"
+  else
+    "spl-token"
+
+def signerForSeeds (name : String) (access : AccountAccess) (signerSeeds : Array String) : AccountMeta :=
+  if signerSeeds.isEmpty then
+    signerAccount name access
+  else
+    pdaSignerAccount name access
+
+def systemMetadata : Array TargetMetadata :=
+  #[
+    kv "solana.cpi.protocol" "system"
+  ]
+
+def tokenMetadata (tokenProgram : String) : Array TargetMetadata :=
+  #[
+    kv "solana.cpi.protocol" (tokenProtocolForProgram tokenProgram)
+  ]
+
+def systemTransferCall (name fromAccount to lamportsSource : String)
+    (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := systemProgram
+  instruction := "transfer"
+  accounts := #[
+    signerForSeeds fromAccount .writable signerSeeds,
+    writableAccount to
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "system.transfer"
+  extraMetadata := systemMetadata ++ #[
+    kv "solana.cpi.lamports_source" lamportsSource
+  ]
+}
+
+def systemCreateAccountCall (name payer newAccount lamportsSource spaceSource owner : String)
+    (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := systemProgram
+  instruction := "create_account"
+  accounts := #[
+    writableSignerAccount payer,
+    signerForSeeds newAccount .writable signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "system.create_account"
+  extraMetadata := systemMetadata ++ #[
+    kv "solana.cpi.lamports_source" lamportsSource,
+    kv "solana.cpi.space_source" spaceSource,
+    kv "solana.cpi.owner" owner
+  ]
+}
+
+def splTokenTransferCheckedCall (name source mint destination authority amountSource : String)
+    (decimals : Nat) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "transfer_checked"
+  accounts := #[
+    writableAccount source,
+    readonlyAccount mint,
+    writableAccount destination,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.transfer_checked"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.amount_source" amountSource,
+    kv "solana.cpi.decimals" (toString decimals)
+  ]
+}
+
+def splTokenMintToCall (name mint destination authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "mint_to"
+  accounts := #[
+    writableAccount mint,
+    writableAccount destination,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.mint_to"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.amount_source" amountSource
+  ]
+}
+
+def splTokenBurnCall (name source mint authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "burn"
+  accounts := #[
+    writableAccount source,
+    writableAccount mint,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.burn"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.amount_source" amountSource
+  ]
+}
+
+def splTokenApproveCall (name source delegate owner amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "approve"
+  accounts := #[
+    writableAccount source,
+    readonlyAccount delegate,
+    signerForSeeds owner .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.approve"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.amount_source" amountSource
+  ]
+}
+
+def splTokenRevokeCall (name source owner : String) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "revoke"
+  accounts := #[
+    writableAccount source,
+    signerForSeeds owner .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.revoke"
+  extraMetadata := tokenMetadata tokenProgram
+}
 
 def pda (binding : PdaBinding) : ProofForge.Contract.Builder.ModuleM Unit := do
   ProofForge.Contract.Builder.capability .accountExplicit "solana.account.pda" (source? := some binding.name)
@@ -148,6 +682,405 @@ def derivePda (name : String) (seeds : Array String) (bump? : Option String := n
     isSigner := isSigner
   }
 
+def allocator (config : AllocatorConfig) : ProofForge.Contract.Builder.ModuleM Unit := do
+  ProofForge.Contract.Builder.capability .runtimeAllocator "solana.runtime.allocator"
+    (source? := some config.name)
+    (metadata := config.metadata)
+
+def bumpAllocator (name : String := "runtime") (heapStart : String := "0x300000000")
+    (heapBytes : Nat := 32768) : ProofForge.Contract.Builder.ModuleM Unit :=
+  allocator {
+    name := name
+    kind := .bump
+    heapStart := heapStart
+    heapBytes := heapBytes
+  }
+
+def noAllocator (name : String := "runtime") : ProofForge.Contract.Builder.ModuleM Unit :=
+  allocator {
+    name := name
+    kind := .noAllocator
+    heapBytes := 0
+  }
+
+def memoryEntry (action : MemoryAction) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .runtimeMemory
+    ("solana.memory." ++ action.op.id)
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def memcpyState (name dstState srcState : String) (bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  memoryEntry {
+    name := name
+    op := .memcpy
+    dstState? := some dstState
+    srcState? := some srcState
+    bytes := bytes
+  }
+
+def memmoveState (name dstState srcState : String) (bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  memoryEntry {
+    name := name
+    op := .memmove
+    dstState? := some dstState
+    srcState? := some srcState
+    bytes := bytes
+  }
+
+def memcmpState (name lhsState rhsState resultState : String) (bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  memoryEntry {
+    name := name
+    op := .memcmp
+    lhsState? := some lhsState
+    rhsState? := some rhsState
+    resultState? := some resultState
+    bytes := bytes
+  }
+
+def memsetState (name dstState : String) (value bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  memoryEntry {
+    name := name
+    op := .memset
+    dstState? := some dstState
+    bytes := bytes
+    value? := some value
+  }
+
+def cryptoHashEntry (action : CryptoHashAction) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .cryptoHash
+    ("solana.crypto." ++ action.op.id)
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def sha256StateToStates (name inputState : String) (bytes : Nat)
+    (outputStates : Array String) : ProofForge.Contract.Builder.EntryM Unit :=
+  cryptoHashEntry {
+    name := name
+    op := .sha256
+    inputState := inputState
+    bytes := bytes
+    outputStates := outputStates
+    featureGated := CryptoHashOp.featureGated .sha256
+  }
+
+def keccak256StateToStates (name inputState : String) (bytes : Nat)
+    (outputStates : Array String) : ProofForge.Contract.Builder.EntryM Unit :=
+  cryptoHashEntry {
+    name := name
+    op := .keccak256
+    inputState := inputState
+    bytes := bytes
+    outputStates := outputStates
+    featureGated := CryptoHashOp.featureGated .keccak256
+  }
+
+def blake3StateToStates (name inputState : String) (bytes : Nat)
+    (outputStates : Array String) : ProofForge.Contract.Builder.EntryM Unit :=
+  cryptoHashEntry {
+    name := name
+    op := .blake3
+    inputState := inputState
+    bytes := bytes
+    outputStates := outputStates
+    featureGated := CryptoHashOp.featureGated .blake3
+  }
+
+def sysvarEntry (action : SysvarReadAction) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .storageScalar
+    "solana.sysvar.output_state"
+    (source? := some action.outputState)
+    (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .envBlock
+    ("solana.sysvar." ++ action.kind.id ++ "." ++ action.field.id)
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def rentLamportsPerByteYearToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .rent
+    field := .rentLamportsPerByteYear
+    outputState := outputState
+  }
+
+def epochScheduleSlotsPerEpochToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochSchedule
+    field := .epochScheduleSlotsPerEpoch
+    outputState := outputState
+  }
+
+def epochScheduleLeaderScheduleSlotOffsetToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochSchedule
+    field := .epochScheduleLeaderScheduleSlotOffset
+    outputState := outputState
+  }
+
+def epochScheduleWarmupToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochSchedule
+    field := .epochScheduleWarmup
+    outputState := outputState
+  }
+
+def epochScheduleFirstNormalEpochToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochSchedule
+    field := .epochScheduleFirstNormalEpoch
+    outputState := outputState
+  }
+
+def epochScheduleFirstNormalSlotToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochSchedule
+    field := .epochScheduleFirstNormalSlot
+    outputState := outputState
+  }
+
+def epochRewardsDistributionStartingBlockHeightToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsDistributionStartingBlockHeight
+    outputState := outputState
+  }
+
+def epochRewardsNumPartitionsToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsNumPartitions
+    outputState := outputState
+  }
+
+def epochRewardsParentBlockhashWord0ToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsParentBlockhashWord0
+    outputState := outputState
+  }
+
+def epochRewardsParentBlockhashWord1ToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsParentBlockhashWord1
+    outputState := outputState
+  }
+
+def epochRewardsParentBlockhashWord2ToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsParentBlockhashWord2
+    outputState := outputState
+  }
+
+def epochRewardsParentBlockhashWord3ToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsParentBlockhashWord3
+    outputState := outputState
+  }
+
+def epochRewardsTotalPointsLowToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsTotalPointsLow
+    outputState := outputState
+  }
+
+def epochRewardsTotalPointsHighToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsTotalPointsHigh
+    outputState := outputState
+  }
+
+def epochRewardsTotalRewardsToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsTotalRewards
+    outputState := outputState
+  }
+
+def epochRewardsDistributedRewardsToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsDistributedRewards
+    outputState := outputState
+  }
+
+def epochRewardsActiveToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsActive
+    outputState := outputState
+  }
+
+def lastRestartSlotToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .lastRestartSlot
+    field := .lastRestartSlot
+    outputState := outputState
+  }
+
+def returnDataEntry (action : ReturnDataAction) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .storageScalar
+    "solana.return_data.source_state"
+    (source? := some action.sourceState)
+    (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .runtimeReturnData
+    "solana.return_data.set"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def setReturnDataFromState (name sourceState : String) (bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  returnDataEntry {
+    name := name
+    sourceState := sourceState
+    bytes := bytes
+  }
+
+def returnDataReadEntry (action : ReturnDataReadAction) :
+    ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .storageScalar
+    "solana.return_data.destination_state"
+    (source? := some action.destinationState)
+    (metadata := action.metadata)
+  match action.lengthState? with
+  | some state =>
+      ProofForge.Contract.Builder.entryCapability .storageScalar
+        "solana.return_data.length_state"
+        (source? := some state)
+        (metadata := action.metadata)
+  | none => pure ()
+  for state in action.programIdStates do
+    ProofForge.Contract.Builder.entryCapability .storageScalar
+      "solana.return_data.program_id_state"
+      (source? := some state)
+      (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .runtimeReturnData
+    "solana.return_data.get"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def getReturnDataToState (name destinationState : String) (maxBytes : Nat)
+    (lengthState? : Option String := none) (programIdStates : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  returnDataReadEntry {
+    name := name
+    destinationState := destinationState
+    maxBytes := maxBytes
+    lengthState? := lengthState?
+    programIdStates := programIdStates
+  }
+
+def computeUnitsEntry (action : ComputeUnitsAction) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .storageScalar
+    "solana.compute_units.output_state"
+    (source? := some action.outputState)
+    (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .runtimeComputeUnits
+    "solana.compute_units.remaining"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def remainingComputeUnitsToState (name outputState : String) (featureGated : Bool := true) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  computeUnitsEntry {
+    name := name
+    outputState := outputState
+    featureGated := featureGated
+  }
+
+def computeUnitsLogEntry (action : ComputeUnitsLogAction) :
+    ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .runtimeComputeUnits
+    "solana.compute_units.log_remaining"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def logRemainingComputeUnits (name : String := "log_remaining_compute_units") :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  computeUnitsLogEntry {
+    name := name
+  }
+
+def pubkeyLogEntry (action : PubkeyLogAction) :
+    ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .accountExplicit
+    "solana.log.pubkey.account"
+    (source? := some action.account)
+    (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .eventsEmit
+    "solana.log.pubkey"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def logAccountPubkey (name account : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  pubkeyLogEntry {
+    name := name
+    account := account
+  }
+
+def dataLogEntry (action : DataLogAction) :
+    ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .storageScalar
+    "solana.log.data.source_state"
+    (source? := some action.sourceState)
+    (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .eventsEmit
+    "solana.log.data"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def logStateData (name sourceState : String) (bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  dataLogEntry {
+    name := name
+    sourceState := sourceState
+    bytes := bytes
+  }
+
 def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do
   if call.accounts.size > 0 then
     ProofForge.Contract.Builder.capability .accountExplicit "solana.cpi.accounts" (source? := some call.name)
@@ -173,17 +1106,20 @@ def cpiEntry (call : CpiCall) : ProofForge.Contract.Builder.EntryM Unit := do
     (metadata := call.metadata)
 
 def cpiInvoke (name program instruction : String) (accounts : Array AccountMeta := #[])
-    (dataLayout? : Option String := none) : ProofForge.Contract.Builder.ModuleM Unit :=
+    (dataLayout? : Option String := none) (extraMetadata : Array TargetMetadata := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
   cpi {
     name := name
     program := program
     instruction := instruction
     accounts := accounts
     dataLayout? := dataLayout?
+    extraMetadata := extraMetadata
   }
 
 def cpiInvokeSigned (name program instruction : String) (accounts : Array AccountMeta)
-    (signerSeeds : Array String) (dataLayout? : Option String := none) : ProofForge.Contract.Builder.ModuleM Unit :=
+    (signerSeeds : Array String) (dataLayout? : Option String := none)
+    (extraMetadata : Array TargetMetadata := #[]) : ProofForge.Contract.Builder.ModuleM Unit :=
   cpi {
     name := name
     program := program
@@ -191,20 +1127,24 @@ def cpiInvokeSigned (name program instruction : String) (accounts : Array Accoun
     accounts := accounts
     signerSeeds := signerSeeds
     dataLayout? := dataLayout?
+    extraMetadata := extraMetadata
   }
 
 def invokeCpi (name program instruction : String) (accounts : Array AccountMeta := #[])
-    (dataLayout? : Option String := none) : ProofForge.Contract.Builder.EntryM Unit :=
+    (dataLayout? : Option String := none) (extraMetadata : Array TargetMetadata := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
   cpiEntry {
     name := name
     program := program
     instruction := instruction
     accounts := accounts
     dataLayout? := dataLayout?
+    extraMetadata := extraMetadata
   }
 
 def invokeSignedCpi (name program instruction : String) (accounts : Array AccountMeta)
-    (signerSeeds : Array String) (dataLayout? : Option String := none) : ProofForge.Contract.Builder.EntryM Unit :=
+    (signerSeeds : Array String) (dataLayout? : Option String := none)
+    (extraMetadata : Array TargetMetadata := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
   cpiEntry {
     name := name
     program := program
@@ -212,6 +1152,83 @@ def invokeSignedCpi (name program instruction : String) (accounts : Array Accoun
     accounts := accounts
     signerSeeds := signerSeeds
     dataLayout? := dataLayout?
+    extraMetadata := extraMetadata
   }
+
+def systemTransfer (name fromAccount to lamportsSource : String) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (systemTransferCall name fromAccount to lamportsSource (signerSeeds := signerSeeds))
+
+def invokeSystemTransfer (name fromAccount to lamportsSource : String) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (systemTransferCall name fromAccount to lamportsSource (signerSeeds := signerSeeds))
+
+def systemCreateAccount (name payer newAccount lamportsSource spaceSource owner : String)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (systemCreateAccountCall name payer newAccount lamportsSource spaceSource owner
+    (signerSeeds := signerSeeds))
+
+def invokeSystemCreateAccount (name payer newAccount lamportsSource spaceSource owner : String)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (systemCreateAccountCall name payer newAccount lamportsSource spaceSource owner
+    (signerSeeds := signerSeeds))
+
+def splTokenTransferChecked (name source mint destination authority amountSource : String)
+    (decimals : Nat) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenTransferCheckedCall name source mint destination authority amountSource decimals
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def invokeSplTokenTransferChecked (name source mint destination authority amountSource : String)
+    (decimals : Nat) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenTransferCheckedCall name source mint destination authority amountSource decimals
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def splTokenMintTo (name mint destination authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenMintToCall name mint destination authority amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def invokeSplTokenMintTo (name mint destination authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenMintToCall name mint destination authority amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def splTokenBurn (name source mint authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenBurnCall name source mint authority amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def invokeSplTokenBurn (name source mint authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenBurnCall name source mint authority amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def splTokenApprove (name source delegate owner amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenApproveCall name source delegate owner amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def invokeSplTokenApprove (name source delegate owner amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenApproveCall name source delegate owner amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def splTokenRevoke (name source owner : String) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenRevokeCall name source owner (tokenProgram := tokenProgram)
+    (signerSeeds := signerSeeds))
+
+def invokeSplTokenRevoke (name source owner : String) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenRevokeCall name source owner (tokenProgram := tokenProgram)
+    (signerSeeds := signerSeeds))
 
 end ProofForge.Solana

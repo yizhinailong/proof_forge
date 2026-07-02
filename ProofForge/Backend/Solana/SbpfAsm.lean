@@ -21,6 +21,7 @@ import ProofForge.Backend.Solana.Extension
 import ProofForge.Backend.Solana.StateLayout
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Register
+import ProofForge.Backend.Solana.Syscalls
 
 namespace ProofForge.Backend.Solana.SbpfAsm
 
@@ -30,6 +31,7 @@ open ProofForge.Backend.Solana.Extension
 open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.Manifest
 open ProofForge.Backend.Solana.Register
+open ProofForge.Backend.Solana.Syscalls
 
 -- ============================================================================
 -- Metadata
@@ -98,6 +100,14 @@ def LowerCtx.allocScratch (ctx : LowerCtx) : Nat × LowerCtx :=
   let offset := ctx.scratchOffset
   (offset, { ctx with scratchOffset := offset + 8 })
 
+/-- Reserve a contiguous stack byte buffer and return the stack offset of the
+first byte. Stack offsets render as `[r10-offset]`, so a buffer of `bytes`
+starts at the lowest address in the reserved range. -/
+def LowerCtx.allocScratchBytes (ctx : LowerCtx) (bytes : Nat) : Nat × LowerCtx :=
+  let size := max 8 (bytes + alignTo8 bytes)
+  let offset := ctx.scratchOffset + size - 8
+  (offset, { ctx with scratchOffset := ctx.scratchOffset + size })
+
 /-- Allocate a temporary location. Prefer a register, then fall back to a stack
 slot assigned by `allocScratch` so spill slots stay disjoint from locals. -/
 def LowerCtx.allocLoc (ctx : LowerCtx) : Loc × LowerCtx :=
@@ -126,9 +136,96 @@ frame. The label counter and state-field offsets are preserved by the caller. -/
 def LowerCtx.resetLocals (ctx : LowerCtx) : LowerCtx :=
   { ctx with locals := #[], nextLocalOffset := 8, scratchOffset := 8, allocator := Allocator.new }
 
-def buildCtx (module : Module) : Except LowerError LowerCtx := do
-  let offsets := buildStateOffsets module
+def buildCtx (module : Module) (stateDataOff : Nat) : Except LowerError LowerCtx := do
+  let offsets := buildStateOffsetsAtBase module stateDataOff
   return { stateFieldOffsets := offsets.map (fun f => (f.id, f.absOff)), locals := #[], nextLocalOffset := 8, scratchOffset := 8, nextLabel := 0, allocator := Allocator.new }
+
+def SPL_TOKEN_ACCOUNT_DATA_SIZE : Nat := 165
+def SPL_TOKEN_MINT_DATA_SIZE : Nat := 82
+def CLOCK_SYSVAR_SIZE : Nat := 40
+
+def LOG_EVENT_TAG_MODULUS : Nat := 4294967296
+
+def stableEventTag (name : String) : Nat :=
+  (stringBytes name).foldl
+    (fun acc byte => (acc * 33 + byte) % LOG_EVENT_TAG_MODULUS)
+    5381
+
+def cpiAccountName? (cpi : CpiInvoke) (idx : Nat) : Option String :=
+  cpi.accounts[idx]? |>.map fun account => account.name
+
+def cpiAccountIs? (cpi : CpiInvoke) (idx : Nat) (name : String) : Bool :=
+  cpiAccountName? cpi idx == some name
+
+def tokenCpiAccountDataSize? (cpi : CpiInvoke) (account : AccountEntry) : Option Nat :=
+  match cpi.dataLayout? with
+  | some "spl-token.transfer_checked" =>
+      if cpiAccountIs? cpi 0 account.name || cpiAccountIs? cpi 2 account.name then
+        some SPL_TOKEN_ACCOUNT_DATA_SIZE
+      else if cpiAccountIs? cpi 1 account.name then
+        some SPL_TOKEN_MINT_DATA_SIZE
+      else
+        none
+  | some "spl-token.mint_to" =>
+      if cpiAccountIs? cpi 0 account.name then
+        some SPL_TOKEN_MINT_DATA_SIZE
+      else if cpiAccountIs? cpi 1 account.name then
+        some SPL_TOKEN_ACCOUNT_DATA_SIZE
+      else
+        none
+  | some "spl-token.burn" =>
+      if cpiAccountIs? cpi 0 account.name then
+        some SPL_TOKEN_ACCOUNT_DATA_SIZE
+      else if cpiAccountIs? cpi 1 account.name then
+        some SPL_TOKEN_MINT_DATA_SIZE
+      else
+        none
+  | some "spl-token.approve" =>
+      if cpiAccountIs? cpi 0 account.name then
+        some SPL_TOKEN_ACCOUNT_DATA_SIZE
+      else
+        none
+  | some "spl-token.revoke" =>
+      if cpiAccountIs? cpi 0 account.name then
+        some SPL_TOKEN_ACCOUNT_DATA_SIZE
+      else
+        none
+  | _ => none
+
+def extensionAccountDataSize (extensions : ProgramExtensions) (account : AccountEntry) : Nat :=
+  extensions.cpis.foldl
+    (fun acc cpi =>
+      match tokenCpiAccountDataSize? cpi account with
+      | some size => max acc size
+      | none => acc)
+    0
+
+def accountDataSize (module : Module) (extensions : ProgramExtensions) (account : AccountEntry) : Nat :=
+  if account.index == 0 then
+    moduleDataSize module
+  else
+    extensionAccountDataSize extensions account
+
+def accountReserveRealloc (idx accountCount : Nat) (account : AccountEntry) : Bool :=
+  account.writable || idx + 1 == accountCount
+
+def accountDataSizes (module : Module) (extensions : ProgramExtensions)
+    (accounts : Array AccountEntry) : Array Nat :=
+  accounts.map (accountDataSize module extensions)
+
+def accountInputSpecs (module : Module) (extensions : ProgramExtensions)
+    (accounts : Array AccountEntry) : Array (Nat × Bool) :=
+  accounts.mapIdx fun idx account =>
+    (accountDataSize module extensions account, accountReserveRealloc idx accounts.size account)
+
+def scalarParamSize? : ValueType → Option Nat :=
+  instructionParamByteSize?
+
+def scalarParamLoadOpcode? : ValueType → Option Opcode
+  | .u64 => some .ldxdw
+  | .u32 => some .ldxw
+  | .bool => some .ldxb
+  | _ => none
 
 -- ============================================================================
 -- IR expression → AST nodes (result in r2, r3 as scratch)
@@ -272,6 +369,21 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
       | some absOff => .ok (#[ .instruction (res .ldxdw (src := some .r1) (off := some (.num absOff))) ], ctx)
       | none => .error { message := s!"unknown state: {stateId}" }
     else .error { message := "storage path read with non-empty path not supported in Phase 1" }
+  | .effect (.contextRead .checkpointId) =>
+    let (inputPtrScratch, ctx) := ctx.allocScratch
+    let (clockBuffer, ctx) := ctx.allocScratchBytes CLOCK_SYSVAR_SIZE
+    .ok (#[
+      .comment "solana.sysvar.clock: sol_get_clock_sysvar -> Clock.slot",
+      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num inputPtrScratch), src := some .r1 },
+      .instruction { opcode := .mov64, dst := some .r1, src := some .r10 },
+      .instruction { opcode := .sub64, dst := some .r1, imm := some (.num clockBuffer) },
+      .instruction { opcode := .call, imm := some (.sym sol_get_clock_sysvar) },
+      .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_syscall") },
+      .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num clockBuffer) },
+      .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrScratch) }
+    ], ctx)
+  | .effect (.contextRead field) =>
+    .error { message := s!"Solana context read `{field.name}` is not supported in Phase 1; checkpointId maps to Clock.slot" }
   | _ => .error { message := "unsupported expression in Phase 1" }
 where
   lowerCmp (ctx : LowerCtx) (lhs rhs : IR.Expr) (condJmp : Opcode) : Except LowerError (Array AstNode × LowerCtx) := do
@@ -357,6 +469,29 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
         .instruction { opcode := .stxdw, dst := some .r1, off := some (.num absOff), src := some .r2 }
       ], ctx')
     | none => .error { message := s!"unknown state: {stateId}" }
+  | .effect (.eventEmit name fields) => do
+    let mut nodes := #[.comment s!"solana.event.emit {name}: sol_log_64_ scalar fields"]
+    let mut ctx := ctx
+    let tag := stableEventTag name
+    for field in fields, idx in [0:fields.size] do
+      let (fieldName, value) := field
+      let (vn, ctx') ← lowerExpr ctx value
+      let (inputPtrScratch, ctx') := ctx'.allocScratch
+      nodes := nodes ++ vn ++ #[
+        .comment s!"solana.event.field {name}.{fieldName}: tag={tag} index={idx}",
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num inputPtrScratch), src := some .r1 },
+        .instruction { opcode := .mov64, dst := some .r3, src := some .r2 },
+        .instruction { opcode := .mov64, dst := some .r1, imm := some (.num tag) },
+        .instruction { opcode := .mov64, dst := some .r2, imm := some (.num idx) },
+        .instruction { opcode := .mov64, dst := some .r4, imm := some (.num 0) },
+        .instruction { opcode := .mov64, dst := some .r5, imm := some (.num 0) },
+        .instruction { opcode := .call, imm := some (.sym sol_log_64_) },
+        .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrScratch) }
+      ]
+      ctx := ctx'
+    .ok (nodes, ctx)
+  | .effect (.eventEmitIndexed _ _ _) =>
+    .error { message := "Solana indexed event lowering is not supported in Phase 1; use eventEmit scalar fields" }
   | .assert cond _ => do
     let (cn, ctx') ← lowerExpr ctx cond
     .ok (cn ++ #[
@@ -416,45 +551,124 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
 def entrypointHasReturn (ep : IR.Entrypoint) : Bool :=
   ep.body.any fun stmt => match stmt with | .return _ => true | _ => false
 
-/-- Phase 1 default account-validation prologue.
-Every entrypoint expects a single account at index 0 that is writable and
-owned by the program (signer=false is recorded in the manifest but not
-enforced at runtime). The owner check computes the program_id address from
-the dynamic instruction_data_len so it remains correct even as the
-discriminant payload grows. -/
-def lowerAccountValidation (instrDataOff : Nat) : Array AstNode :=
-  let instrDataLenOff := instrDataOff - 8
-  #[
-  .comment "account.validation: writable=true",
-  .instruction { opcode := .ldxb, dst := some .r2, src := some .r1, off := some (.num 10) },
-  .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "error_not_writable") },
-  .comment "account.validation: owner=program",
-  .instruction { opcode := .mov64, dst := some .r4, src := some .r1 },
-  .instruction { opcode := .add64, dst := some .r4, imm := some (.num instrDataLenOff) },
-  .instruction { opcode := .ldxdw, dst := some .r2, src := some .r4, off := some (.num 0) },
-  .instruction { opcode := .add64, dst := some .r4, imm := some (.num 8) },
-  .instruction { opcode := .add64, dst := some .r4, src := some .r2 },
-  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 48) },
-  .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 0) },
-  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
-  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 56) },
-  .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 8) },
-  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
-  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 64) },
-  .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 16) },
-  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
-  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 72) },
-  .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 24) },
-  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") }
-]
+def moduleNeedsSyscallError (module : IR.Module) : Bool :=
+  module.capabilities.any (fun capability => capability == .envBlock)
 
-partial def lowerEntrypoint (ctx : LowerCtx) (instrDataOff : Nat) (extensions : ProgramExtensions)
-    (ep : IR.Entrypoint) : Except LowerError (LowerCtx × Array AstNode) := do
+def lowerProgramOwnerValidation (layout : AccountInputLayout) : Array AstNode :=
+  loadCurrentProgramIdPtr .r4 .r2 ++ #[
+    .instruction { opcode := .stxdw, dst := some .r10, off := some (.num 3600), src := some .r4 }
+  ] ++
+  inputAccountFieldPtr .r7 layout layout.ownerOff ++
+  #[
+    .instruction { opcode := .ldxdw, dst := some .r4, src := some .r10, off := some (.num 3600) },
+    .instruction { opcode := .ldxdw, dst := some .r5, src := some .r7, off := some (.num 0) },
+    .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 0) },
+    .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
+    .instruction { opcode := .ldxdw, dst := some .r5, src := some .r7, off := some (.num 8) },
+    .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 8) },
+    .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
+    .instruction { opcode := .ldxdw, dst := some .r5, src := some .r7, off := some (.num 16) },
+    .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 16) },
+    .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
+    .instruction { opcode := .ldxdw, dst := some .r5, src := some .r7, off := some (.num 24) },
+    .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 24) },
+    .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") }
+  ]
+
+def lowerAccountValidationFor (account : AccountEntry)
+    (layout : AccountInputLayout) : Array AstNode :=
+  let signerCheck :=
+    if account.signer then
+      #[
+        .comment s!"account.validation[{account.index}:{account.name}]: signer=true"
+      ] ++ inputAccountFieldPtr .r7 layout layout.signerOff ++ #[
+        .instruction { opcode := .ldxb, dst := some .r2, src := some .r7, off := some (.num 0) },
+        .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "error_signer") }
+      ]
+    else
+      #[]
+  let writableCheck :=
+    if account.writable then
+      #[
+        .comment s!"account.validation[{account.index}:{account.name}]: writable=true"
+      ] ++ inputAccountFieldPtr .r7 layout layout.writableOff ++ #[
+        .instruction { opcode := .ldxb, dst := some .r2, src := some .r7, off := some (.num 0) },
+        .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "error_not_writable") }
+      ]
+    else
+      #[]
+  let ownerCheck :=
+    if account.owner == "program" then
+      #[.comment s!"account.validation[{account.index}:{account.name}]: owner=program"] ++
+        lowerProgramOwnerValidation layout
+    else
+      #[]
+  signerCheck ++ writableCheck ++ ownerCheck
+
+/-- Account-validation prologue for the generated fixed account schema. The
+owner check uses the runtime instruction-data pointer saved from entrypoint
+register `r9`, so it stays correct under account-data direct mapping. -/
+def lowerAccountValidation :
+    List AccountEntry -> List AccountInputLayout -> Array AstNode
+  | [], _ => #[]
+  | _, [] => #[]
+  | account :: accounts, layout :: layouts =>
+      lowerAccountValidationFor account layout ++
+      lowerAccountValidation accounts layouts
+
+def lowerAccountValidations (accounts : Array AccountEntry)
+    (layouts : Array AccountInputLayout) : Array AstNode :=
+  #[
+    .comment "account.validation: generated account schema"
+  ] ++ lowerAccountValidation accounts.toList layouts.toList
+
+def lowerInstructionDataLengthCheck (requiredLen : Nat) : Array AstNode :=
+  if requiredLen <= 1 then
+    #[]
+  else
+    #[
+      .comment s!"instruction_data.length >= {requiredLen}"
+    ] ++ loadSavedInstructionDataPtr .r3 ++ #[
+      .instruction { opcode := .mov64, dst := some .r4, src := some .r3 },
+      .instruction { opcode := .sub64, dst := some .r4, imm := some (.num 8) },
+      .instruction { opcode := .ldxdw, dst := some .r2, src := some .r4, off := some (.num 0) },
+      .instruction { opcode := .jlt, dst := some .r2, imm := some (.num requiredLen), off := some (.sym "error_instruction_data") }
+    ]
+
+def lowerEntrypointParamDecoding (ctx : LowerCtx) (ep : IR.Entrypoint) :
+    Except LowerError (LowerCtx × Array AstNode) := do
+  let mut ctx := ctx
+  let mut nodes := #[]
+  let mut payloadOff := 1
+  for param in ep.params do
+    let (name, ty) := param
+    let some byteSize := scalarParamSize? ty
+      | .error { message := s!"unsupported Solana entrypoint parameter type for `{name}`: {ty.name}" }
+    let some opcode := scalarParamLoadOpcode? ty
+      | .error { message := s!"unsupported Solana entrypoint parameter load for `{name}`: {ty.name}" }
+    let localOff := ctx.nextLocalOffset
+    ctx := ctx.addLocal name
+    nodes := nodes ++ #[
+      .comment s!"entrypoint.param[{ep.name}.{name}]: {ty.name} @ instruction_data+{payloadOff}"
+    ] ++ loadSavedInstructionDataPtr .r3 ++ #[
+      .instruction { opcode := opcode, dst := some .r2, src := some .r3, off := some (.num payloadOff) },
+      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num localOff), src := some .r2 }
+    ]
+    payloadOff := payloadOff + byteSize
+  .ok (ctx, nodes)
+
+partial def lowerEntrypoint (ctx : LowerCtx)
+    (accounts : Array AccountEntry) (accountLayouts : Array AccountInputLayout)
+    (extensions : ProgramExtensions) (ep : IR.Entrypoint) :
+    Except LowerError (LowerCtx × Array AstNode) := do
   let mut nodes := #[
     .label s!"sol_{ep.name}",
     .blankLine
   ]
-  nodes := nodes ++ lowerAccountValidation instrDataOff
+  nodes := nodes ++ lowerAccountValidations accounts accountLayouts
+  nodes := nodes ++ lowerInstructionDataLengthCheck (instructionDataMinLen ep)
+  let (ctx, paramNodes) ← lowerEntrypointParamDecoding ctx ep
+  nodes := nodes ++ paramNodes
   nodes := nodes ++ lowerEntrypointActions extensions ep.name
   let mut ctx := ctx
   for stmt in ep.body do
@@ -472,19 +686,110 @@ partial def lowerEntrypoint (ctx : LowerCtx) (instrDataOff : Nat) (extensions : 
 -- Module → AST nodes
 -- ============================================================================
 
+structure ModuleInputSchema where
+  accounts : Array AccountEntry
+  inputLayout : InputLayout
+  deriving Inhabited
+
+def buildModuleInputSchema (module : IR.Module) (extensions : ProgramExtensions) :
+    ModuleInputSchema :=
+  let instructions := buildInstructionsWithExtensions module extensions
+  let accounts :=
+    match instructions[0]? with
+    | some instruction => instruction.accounts
+    | none => buildDefaultAccounts module
+  let inputLayout := computeInputLayoutWithReallocFlags (accountInputSpecs module extensions accounts)
+  { accounts, inputLayout }
+
+def buildCpiAccountBindings (accounts : Array AccountEntry)
+    (layouts : Array AccountInputLayout) : Array CpiAccountBinding := Id.run do
+  let mut bindings := #[]
+  let mut idx := 0
+  for account in accounts do
+    match layouts[idx]? with
+    | some layout =>
+        bindings := bindings.push { name := account.name, layout }
+    | none =>
+        pure ()
+    idx := idx + 1
+  return bindings
+
+def buildStateCpiValueBindings (module : IR.Module) (stateDataOff : Nat) : Array CpiValueBinding :=
+  buildStateOffsetsAtBase module stateDataOff |>.map fun field => {
+    name := field.id
+    absOff := field.absOff
+    byteSize := 8
+    sourceKind := "state"
+  }
+
+def buildEntrypointParamCpiValueBindings (module : IR.Module) :
+    Array CpiValueBinding := Id.run do
+  let mut bindings := #[]
+  let mut ambiguous : Array String := #[]
+  for ep in module.entrypoints do
+    let mut payloadOff := 1
+    for param in ep.params do
+      let (name, ty) := param
+      match scalarParamSize? ty with
+      | some byteSize =>
+          let binding := {
+            name := name
+            absOff := payloadOff
+            byteSize := byteSize
+            sourceKind := "instruction param"
+            relativeToInstructionData := true
+          }
+          if ambiguous.any (fun existing => existing == name) then
+            pure ()
+          else
+            match bindings.find? (fun existing => existing.name == name) with
+            | none => bindings := bindings.push binding
+            | some existing =>
+                if existing.absOff == binding.absOff then
+                  pure ()
+                else
+                  bindings := bindings.filter (fun item => item.name != name)
+                  ambiguous := ambiguous.push name
+          payloadOff := payloadOff + byteSize
+      | none =>
+          pure ()
+  return bindings
+
+def buildCpiValueBindings (module : IR.Module) (stateDataOff : Nat) :
+    Array CpiValueBinding :=
+  buildStateCpiValueBindings module stateDataOff ++
+  buildEntrypointParamCpiValueBindings module
+
+def lastAccountLayout? (layouts : Array AccountInputLayout) : Option AccountInputLayout :=
+  layouts[layouts.size - 1]?
+
+def lowerInstructionDataPointerSetup (accountCount : Nat) : Array AstNode :=
+  #[
+    .comment "save instruction_data pointer from generated Solana input layout"
+  ] ++ lowerAccountPtrTableSetup "entrypoint" accountCount ++ #[
+    .instruction { opcode := .mov64, dst := some entryInstructionDataReg, src := some .r3 },
+    .instruction { opcode := .add64, dst := some entryInstructionDataReg, imm := some (.num U64_SIZE) },
+    .instruction { opcode := .stxdw, dst := some .r10, off := some (.num entryInstructionDataSaveOffset), src := some entryInstructionDataReg }
+  ]
+
 partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
     Except LowerError (Array AstNode) := do
   validateCapabilities module
-  let ctx ← buildCtx module
-  let dataSize := moduleDataSize module
-  let (_, instrDataOff) := computeSingleAccountLayout dataSize
+  let schema := buildModuleInputSchema module extensions
+  let accounts := schema.accounts
+  let inputLayout := schema.inputLayout
+  let stateDataOff ←
+    match inputLayout.accounts[0]? with
+    | some accountLayout => .ok accountLayout.dataStart
+    | none => .error { message := "Solana account schema must contain at least one state account" }
+  let ctx ← buildCtx module stateDataOff
 
   let mut nodes := #[
     .comment s!"ProofForge generated sBPF — {module.name} (Phase 1)",
     .comment "Target: solana-sbpf-asm (D-026)",
     .blankLine,
-    .equDecl "INSTRUCTION_DATA_LEN" (instrDataOff - 8),
-    .equDecl "INSTRUCTION_DATA" instrDataOff
+    .equDecl "INSTRUCTION_DATA_LEN" inputLayout.instructionDataLenOff,
+    .equDecl "INSTRUCTION_DATA" inputLayout.instructionDataOff
   ]
   for (stateId, absOff) in ctx.stateFieldOffsets do
     nodes := nodes.push (.equDecl (stateId.toUpper ++ "_DATA") absOff)
@@ -493,8 +798,15 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
     .blankLine,
     .globalDecl "entrypoint",
     .blankLine,
-    .label "entrypoint",
-    .instruction { opcode := .ldxb, dst := some .r2, src := some .r1, off := some (.sym "INSTRUCTION_DATA") }
+    .label "entrypoint"
+  ] ++ lowerInstructionDataPointerSetup accounts.size ++ #[
+    .comment "instruction_data.length >= 1",
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num entryInstructionDataSaveOffset) },
+    .instruction { opcode := .sub64, dst := some .r3, imm := some (.num 8) },
+    .instruction { opcode := .ldxdw, dst := some .r2, src := some .r3, off := some (.num 0) },
+    .instruction { opcode := .jlt, dst := some .r2, imm := some (.num 1), off := some (.sym "error_instruction_data") },
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num entryInstructionDataSaveOffset) },
+    .instruction { opcode := .ldxb, dst := some .r2, src := some .r3, off := some (.num 0) }
   ]
   let mut idx := 0
   for ep in module.entrypoints do
@@ -511,7 +823,8 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
   for ep in module.entrypoints do
     nodes := nodes.push .blankLine
     let epCtx := ctx.resetLocals
-    let (ctx', block) ← lowerEntrypoint epCtx instrDataOff extensions ep
+    let (ctx', block) ←
+      lowerEntrypoint epCtx accounts inputLayout.accounts extensions ep
     ctx := { ctx with nextLabel := ctx'.nextLabel }
     nodes := nodes ++ block
 
@@ -535,8 +848,19 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
     .blankLine,
     .label "error_owner",
     .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 6) },
+    .instruction { opcode := .exit },
+    .blankLine,
+    .label "error_instruction_data",
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 9) },
     .instruction { opcode := .exit }
   ]
+  if moduleNeedsSyscallError module then
+    nodes := nodes ++ #[
+      .blankLine,
+      .label "error_syscall",
+      .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 10) },
+      .instruction { opcode := .exit }
+    ]
   .ok nodes
 
 partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode) :=
@@ -553,8 +877,17 @@ def renderModule (module : IR.Module) : Except LowerError String := do
 def lowerModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.CapabilityPlan) :
     Except LowerError (Array AstNode) := do
   let extensions := ProgramExtensions.fromPlan plan
+  let schema := buildModuleInputSchema module extensions
+  let accountBindings := buildCpiAccountBindings schema.accounts schema.inputLayout.accounts
+  let valueBindings :=
+    match schema.inputLayout.accounts[0]? with
+    | some accountLayout =>
+        buildCpiValueBindings module accountLayout.dataStart
+    | none => #[]
   let nodes ← lowerModuleCore module extensions
-  .ok (nodes ++ ProofForge.Backend.Solana.Extension.lowerProgramExtensions extensions)
+  .ok (nodes ++
+    ProofForge.Backend.Solana.Extension.lowerProgramExtensionsWithBindings
+      accountBindings valueBindings extensions)
 
 def renderModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.CapabilityPlan) :
     Except LowerError String := do

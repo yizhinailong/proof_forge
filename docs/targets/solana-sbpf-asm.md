@@ -49,6 +49,23 @@ The `sbpf` CLI provides everything needed after `.s` emission:
 ProofForge's role is to produce valid `.s` text files that `sbpf build`
 accepts. No further toolchain work is needed in this repo.
 
+## SDK Reference Anchors
+
+The Solana SDK completion work tracks these upstream surfaces:
+
+- Solana CPI: native programs call other programs through `invoke` /
+  `invoke_signed`, which is the high-level Rust API shape ProofForge lowers to
+  `sol_invoke_signed_c`.
+- SPL Token: `TokenInstruction` defines the account schemas and data payloads
+  for `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke`.
+- Pinocchio: the framework target is a `no_std`, zero-copy, no-copy/no-allocation
+  entrypoint style with optional allocator control; ProofForge mirrors that by
+  keeping Solana account parsing, allocator policy, and CPI packing in target
+  lowering rather than portable IR.
+- pinocchio-tkn: the longer-term token SDK reference is stack-only,
+  zero-allocation CPI helpers spanning SPL Token and Token-2022. ProofForge's
+  current SPL Token helpers are the first compatible slice of that surface.
+
 ### Assembler ISA
 
 The sBPF assembly grammar (from the blueshift `sbpf.pest` PEG grammar):
@@ -83,16 +100,19 @@ The sBPF assembly grammar (from the blueshift `sbpf.pest` PEG grammar):
 | `sol_log_` | (r1: ptr, r2: len) | Logging / events |
 | `sol_log_64_` | (r1: u64, r2: u64, r3: u64, r4: u64, r5: u64) | Logging structured data |
 | `sol_log_pubkey` | (r1: ptr) | Logging pubkeys |
+| `sol_log_data` | (r1: slices_ptr, r2: slice_count) | Base64 data logs used by Anchor-style event payloads |
 | `sol_log_compute_units_` | () → r0 | Compute budget tracking |
-| `sol_memcpy_` / `sol_memmove_` / `sol_memset_` / `sol_memcmp_` | (dst, src, len) | Memory operations |
+| `sol_memcpy_` / `sol_memmove_` / `sol_memset_` / `sol_memcmp_` | copy/fill/compare pointers and byte lengths | Memory operations |
 | `sol_create_program_address` | (seeds_ptr, seeds_len, program_id_ptr, result_ptr) → r0 | PDA derivation |
 | `sol_try_find_program_address` | (seeds_ptr, seeds_count, program_id_ptr, result_addr, bump_ptr) → r0 | PDA find |
 | `sol_invoke_signed_c` | (instruction_ptr, account_infos_ptr, num_accounts, signer_seeds_ptr, num_seeds) → r0 | CPI with signer seeds |
 | `sol_invoke_signed_rust` | (instruction_ptr, infos_ptr, num_accounts, seeds_ptr, num_seeds) | CPI Rust calling convention |
-| `sol_get_clock_sysvar` / `sol_get_rent_sysvar` / `sol_get_epoch_schedule_sysvar` / `sol_get_last_restart_slot_sysvar` | (ptr) → r0 | Sysvar reads |
+| `sol_get_clock_sysvar` / `sol_get_rent_sysvar` / `sol_get_epoch_schedule_sysvar` / `sol_get_epoch_rewards_sysvar` | (ptr) → r0 | Fixed-layout sysvar reads |
+| `sol_get_sysvar` | (r1: sysvar id ptr, r2: result ptr, r3: offset, r4: len) → r0 | Generic feature-gated sysvar reads, including `LastRestartSlot` |
+| `sol_get_last_restart_slot` | (ptr) → r0 | Direct feature-gated LastRestartSlot syscall; kept as the canonical Solana name, but ProofForge currently lowers LastRestartSlot through `sol_get_sysvar` because `sbpf` 0.2.2 still registers the older assembler spelling |
 | `sol_get_return_data` | (buffer, len, program_id_ptr) → r0 | Cross-call return data |
 | `sol_set_return_data` | (buffer, len) | Return data / results |
-| `sol_sha256` / `sol_keccak256` / `sol_blake3` | (dst, src, len) | Cryptographic hashing |
+| `sol_sha256` / `sol_keccak256` / `sol_blake3` | (vals: slice table ptr, val_len: slice count, hash_result: ptr) → u64 | Cryptographic hashing |
 | `sol_panic_` | () → ! | Abort |
 | `sol_remaining_compute_units` | () → u64 | Compute unit budget query |
 
@@ -106,15 +126,66 @@ test when the syscall changes observable chain behavior.
 
 | Family | Current status | Next validation |
 |---|---|---|
-| Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
-| PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; static ASCII seed byte buffers and Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; assembly builds | Add typed UTF-8/account-pubkey/bump seed packing, validate output account/pubkey, add Web3.js PDA fixture |
-| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; assembly builds | Pack `SolInstruction`, account infos, signer seeds, then compare System Program/SPL Token CPI behavior against Rust |
-| Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Documented only | Lower `events.emit` to structured logs and assert logs via Web3.js transaction metadata |
-| Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | Documented only | Use internally for account/data packing helpers; unit-test generated assembly and runtime copies |
-| Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | Documented only | Map `env.block`/rent-like SDK reads to syscalls and validate returned fields |
-| Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | Documented only | Lower `crypto.hash` variants and compare against JS reference hashes |
-| Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | Documented only | Add diagnostics/profiling helpers and explicit failure tests |
-| Return-data read (`sol_get_return_data`) | Documented only | Use in CPI return handling after CPI packing lands |
+| Return data (`sol_set_return_data`, `sol_get_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get`; `runtime.return_data` SDK entrypoint actions now lower state-backed return-data buffers through `sol_set_return_data`, read return-data buffers/program ids through `sol_get_return_data`, and have Surfpool/Web3.js coverage for empty reads, set-return simulation output, and same-instruction set/get roundtrips | Add typed return payload helpers beyond `u64` and CPI return-value handling |
+| PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; typed seed descriptors cover literal/UTF-8 bytes, account pubkeys, bump seeds, and scalar instruction-data seeds; Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; derived pubkeys can be validated against declared PDA accounts; assembly builds | Add Web3.js PDA fixture against `PublicKey.findProgramAddressSync`, then add `sol_try_find_program_address` support |
+| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; System transfer/create-account plus SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` have Surfpool/Web3.js live behavior gates; System transfer now has a checked-in Pinocchio reference contract/manifest gate plus a dual-deploy live-equivalence harness gated on Solana rustc availability | Make the Pinocchio live gate pass in CI/local toolchains and extend to Token-2022 |
+| Sysvars (`sol_get_clock_sysvar`, `sol_get_rent_sysvar`, `sol_get_epoch_schedule_sysvar`, `sol_get_epoch_rewards_sysvar`, `sol_get_sysvar`) | Clock.slot, Rent.lamports_per_byte_year, EpochSchedule's five RPC-exposed fields, EpochRewards' scalar/word-view fields, and feature-gated LastRestartSlot.last_restart_slot are exposed as Solana-only SDK target-extension helpers, route through capability metadata, render manifest/artifact action metadata, build to ELF, and have Surfpool/Web3.js smoke scripts | Add generic account-passed sysvar reads, plus Rust/Pinocchio reference comparisons |
+| Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations plus explicit typed account declarations; manifest, artifact JSON (`solanaExtensions.accounts`), fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
+| Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
+| Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`, `sol_log_data`) | Phase 1 scalar `events.emit` lowers to `sol_log_64_`; Solana-only `logAccountPubkey` entrypoint actions lower account pubkey pointers to `sol_log_pubkey`; Solana-only `logStateData` actions pack a `SolBytes` slice table and lower state-backed payloads through `sol_log_data`; Surfpool/Web3.js verifies transaction logs contain a stable event tag, scalar field value, base58 account pubkey, and base64 `Program data:` payload | Extend to `sol_log_` string payloads, Anchor-style discriminator/Borsh events, and indexed fields |
+| Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | `runtime.memory` target extension lowers entrypoint actions to `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`; Surfpool/Web3.js verifies account byte effects | Use memory helpers for broader account/data packing and compare against Rust/Pinocchio fixtures |
+| Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, epoch rewards, restart slot) | `contextRead checkpointId` lowers to `sol_get_clock_sysvar` and reads `Clock.slot`; Solana-only `sysvar` target-extension actions lower `Rent.lamports_per_byte_year` to `sol_get_rent_sysvar`, all current RPC-exposed `EpochSchedule` fields to `sol_get_epoch_schedule_sysvar`, all current `EpochRewards` fields through scalar/word-view states to `sol_get_epoch_rewards_sysvar`, and feature-gated `LastRestartSlot.last_restart_slot` to `sol_get_sysvar`; Surfpool/Web3.js verifies recorded values against transaction metadata, sysvar account data, or RPC `getEpochSchedule()` | Expose typed SDK accessors for additional Clock/Rent fields and generic account-passed sysvars |
+| Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | SHA-256, Keccak-256, and feature-gated Blake3 target-extension actions lower to `sol_sha256`/`sol_keccak256`/`sol_blake3` and have Surfpool/Web3.js reference hash gates | Add portable `Expr.hash` lowering where target semantics match, plus additional crypto syscall families |
+| Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | `runtime.compute_units` SDK entrypoint actions lower the feature-gated `sol_remaining_compute_units` syscall and store the result in state; profiling actions lower `sol_log_compute_units_`; Surfpool/Web3.js coverage verifies remaining-CU state writes and compute-unit logs | Add explicit panic failure tests and track public-cluster feature variance |
+
+Implementation note: `sol_get_epoch_schedule_sysvar` returns the runtime struct
+layout, not the compact 33-byte sysvar-account serialization. The live
+Surfpool/Web3.js gate pins the currently used offsets as `slots_per_epoch = 0`,
+`leader_schedule_slot_offset = 8`, `warmup = 16`, `first_normal_epoch = 24`,
+and `first_normal_slot = 32`.
+
+Implementation note: `sol_get_epoch_rewards_sysvar` writes the runtime
+`EpochRewards` struct. ProofForge exposes 64-bit state views for every field:
+`distribution_starting_block_height = 0`, `num_partitions = 8`,
+`parent_blockhash_word0..3 = 16,24,32,40`, `total_points_low/high = 48,56`,
+`total_rewards = 64`, `distributed_rewards = 72`, and `active = 80`.
+
+### Runtime allocator
+
+Solana's Rust SDK entrypoint installs a default heap allocator. The runtime
+constants are `HEAP_START_ADDRESS = 0x300000000` and `HEAP_LENGTH = 32 * 1024`,
+and the allocator is a one-way bump allocator: `alloc` moves the bump pointer
+downward with alignment and `dealloc` is a no-op. Pinocchio follows the same
+shape: `entrypoint!` expands to the program entrypoint plus
+`default_allocator!` and `default_panic_handler!`; lower-level macros also let a
+program opt out with `no_allocator!`.
+
+ProofForge mirrors this at the target-extension layer instead of baking it into
+portable IR:
+
+```lean
+build "SolanaVault" do
+  scalarState "nonce" .u64
+  bumpAllocator
+```
+
+`bumpAllocator` records `runtime.allocator` with:
+
+```toml
+[[solana.allocator]]
+name = "runtime"
+kind = "bump"
+model = "downward-bump"
+heap_start = "0x300000000"
+heap_bytes = 32768
+```
+
+`noAllocator` records `kind = "none"` and `model = "deny-dynamic"`, matching
+the no-heap pattern useful for Pinocchio-style programs that intentionally avoid
+dynamic allocation. At this stage the selected allocator is emitted in
+`manifest.toml`, `proof-forge-artifact.json`, and assembly metadata comments.
+Future lowering for heap-backed SDK data structures must route through this
+capability before emitting real allocation code.
 
 ## Solana Contract Model
 
@@ -375,14 +446,19 @@ the portable IR. Instead, Solana-specific SDK calls are routed through
 
 ```lean
 entrySelector "touch" "62de7396" do
-  derivePda "vault" #["vault", "authority"]
+  derivePda "vault" #[literalSeed "vault", accountSeed "authority"]
     (bump? := some "vault_bump")
     (account? := some "vault_account")
     (isSigner := true)
-  invokeSignedCpi "token_transfer" "spl_token" "transfer_checked"
-    #[writableAccount "source", writableAccount "destination", signerAccount "authority"]
-    #["vault", "vault_bump"]
-    (dataLayout? := some "spl-token.transfer_checked")
+  invokeSplTokenTransferChecked
+    "token_transfer"
+    "source"
+    "mint"
+    "destination"
+    "authority"
+    "amount"
+    9
+    (signerSeeds := #["vault", "vault_bump"])
 ```
 
 The portable IR never knows about these — it operates at the capability level
@@ -399,30 +475,97 @@ Current CPI/PDA lowering pattern:
    `sol_cpi_<name>`).
 3. In entrypoint handlers with scoped SDK actions, call the helper and branch
    to `error_pda` / `error_cpi` when `r0 != 0`.
-4. Build `manifest.toml` and artifact metadata with both extension definitions
+4. Build a module-wide multi-account instruction schema from state, PDA, CPI
+   accounts, and executable CPI program accounts. This schema is used by
+   `manifest.toml`, `proof-forge-artifact.json`, fixed instruction-data offset
+   computation, and generated signer/writable/program-owner validation.
+5. Build `manifest.toml` and artifact metadata with both extension definitions
    and entrypoint action lists.
 
-Remaining work: full runtime packing of seed byte slices, instruction data,
-account infos, SPL Token layouts, return-data decoding, and runtime tests that
-exercise a live CPI path.
+The SDK layer already exposes protocol-level helpers for System Program
+transfer/create-account and SPL Token transfer/mint/burn/approve/revoke. These
+helpers emit `solana.cpi.protocol`, `solana.cpi.data_layout`, account metas,
+signer seeds, and instruction-data sources into the capability plan, manifest,
+and artifact metadata.
+
+The source-facing layer exposes first-class `contract_source` forms for System
+Program transfer, System Program `create_account`, and SPL Token
+`transfer_checked`. These forms are still a v1 embedded macro frontend rather
+than the legacy standalone `.learn` parser, but they prevent new examples from
+dropping back to raw `ContractSpec`/builder strings for the core CPI paths.
+
+System and SPL Token helpers now emit the C ABI packing skeleton for
+`sol_invoke_signed_c`: program id bytes, C `SolAccountMeta[]`, standard
+instruction-data bytes, C `SolInstruction`, bound `SolAccountInfo[]`, optional
+signer seed tables, and the syscall register contract. `system.transfer` uses
+the bincode-style `u32 discriminator=2 + u64 lamports` layout;
+`system.create_account` uses `u32 discriminator=0 + u64 lamports + u64 space +
+owner pubkey`; SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and
+`revoke` use the standard token instruction tags and amount/decimals layouts.
+Program ids, account meta pubkeys, and `SolAccountInfo`
+key/lamports/data/owner/rent/flag fields are sourced from the generated
+multi-account input layout when the account appears in the module schema. CPI
+value sources can bind to scalar state offsets, numeric literals, or decoded
+entrypoint parameters.
+
+PDA helper metadata now carries both a compatibility `seeds` list and
+target-facing typed seed descriptors. Bare strings remain literal seed bytes for
+backward compatibility; SDK helpers such as `literalSeed`, `utf8Seed`,
+`accountSeed`, `bumpSeed`, and `paramSeed` make the source explicit for Solana
+lowering. The Solana target extension consumes those descriptors, appends the
+declared `bump?` as an effective bump seed, and emits `typed_seeds` in
+`manifest.toml` plus `typedSeeds` in `proof-forge-artifact.json`. This remains
+a target-extension concern: portable IR and the chain-neutral SDK surface only
+see capability intent, while `--target solana-sbpf-asm` decides how those
+capabilities are packed into the Solana syscall ABI.
+
+The current instruction-data ABI reserves byte 0 for the ProofForge entrypoint
+tag. Packed scalar parameters start at `instruction_data+1`, in entrypoint
+parameter order, with little-endian `U64`/`U32` loads and one-byte `Bool` loads.
+The generated dispatcher rejects empty instruction data before reading the tag;
+each handler also checks the minimum payload length required by its parameter
+schema before decoding. The backend decodes those parameters into stack locals
+before SDK helper calls and exposes the same absolute input offsets to CPI value
+binding, so helpers can pack fields such as SPL Token `amount` directly from
+user instruction data. `manifest.toml` and `proof-forge-artifact.json` record
+each instruction's `min_data_len`/`minDataLen` plus parameter name, type, offset,
+byte size, and encoding. The module-wide helper table only binds a parameter
+name when all occurrences share the same offset; duplicate names at conflicting
+offsets are intentionally left unbound until per-entrypoint helper
+specialization lands.
+
+Remaining work: add dynamic per-entrypoint account parsing, richer
+aggregate/string/bytes instruction ABI decoding, return-data decoding, and
+runtime tests that exercise live CPI paths.
 
 PDA helper lowering:
 1. Allocate stack space for seed data + result buffer (32 byte).
-2. Pack seeds (each seed requires ptr+len pair).
+2. Pack typed seeds into Solana `Slice { ptr, len }` entries: literal/UTF-8
+   seeds are copied into stack buffers, account seeds point at input account
+   pubkeys, bump seeds are one byte, and scalar instruction-data seeds are
+   copied from the decoded fixed input offset.
 3. `call sol_create_program_address`.
-4. Store result + bump.
+4. Restore the Solana input pointer and, when `account?` is declared, compare
+   the 32-byte derived pubkey with the declared account pubkey before returning.
 
 ### Effect lowering: events
 
 Solana has no chain-level event log like EVM. Options:
 
 1. `sol_log_` / `sol_log_64_` — simple but unstructured.
-2. Anchor-style event serialization into a special account.
+2. `sol_log_data` — base64 data logs used as the Anchor-style event payload carrier.
 3. `sol_set_return_data` as a quasi-event mechanism.
 
-Recommendation (Phase 1): emit `sol_log_` with a structured encoding
-(type tag + fields). This is block‑explorer‑readable and costs zero overhead
-beyond the log compute units.
+Phase 1 emits scalar `eventEmit` fields through `sol_log_64_` as
+`[eventTag, fieldIndex, value, 0, 0]`. The event tag is a stable 32-bit
+compile-time tag derived from the event name so generated Web3.js harnesses can
+assert the transaction log without baking in Solana-specific syntax at the
+portable SDK layer. Solana-only `logAccountPubkey` lowers account keys through
+`sol_log_pubkey`, and `logStateData` lowers fixed state-backed byte payloads
+through `sol_log_data` as the base layer for future Anchor-compatible
+discriminator/Borsh event serialization. Future work should add string
+`sol_log_` payloads, complete Anchor-compatible serialization, and indexed
+event forms.
 
 ### Capability mapping
 
@@ -440,14 +583,18 @@ The target profile must accept or reject each IR capability. The proposed
 | `events.emit` | Partial | `sol_log_` / `sol_log_64_` |
 | `crosscall.invoke` | ✗ | EVM‑specific; Solana uses CPI |
 | `crosscall.cpi` | Partial | SDK entry actions emit `sol_invoke_signed_c` helpers; full account/data packing remains |
-| `env.block` | Phase 2 | Sysvar clock reads |
+| `env.block` | ✓ | `contextRead checkpointId` lowers to Clock.slot via `sol_get_clock_sysvar` |
 | `control.conditional` | ✓ | Conditional jumps |
 | `control.bounded_loop` | Phase 2 | Counted loop or unrolling |
 | `data.fixed_array` | ✓ | Fixed‑size local arrays, stack‑allocated |
 | `data.struct` | ✓ | Struct access at known offsets |
-| `crypto.hash` | ✓ | `sol_sha` / `sol_keccak` / `sol_blake` |
+| `crypto.hash` | Partial | Solana-only SHA-256, Keccak-256, and feature-gated Blake3 entrypoint actions lower to `sol_sha256`/`sol_keccak256`/`sol_blake3`; portable `Expr.hash` lowering remains target-semantics-dependent |
 | `assertions.check` | ✓ | Assert with error codes |
 | `account.explicit` | ✓ | The core abstraction |
+| `runtime.allocator` | ✓ | Bump allocator or no-allocator contract recorded as target-extension metadata |
+| `runtime.memory` | ✓ | Solana-only entrypoint actions lower to memory syscalls and stay outside portable IR |
+| `runtime.return_data` | ✓ | Solana-only entrypoint actions lower state-backed buffers to `sol_set_return_data`, read return buffers/program ids through `sol_get_return_data`, and have live `--solana-return-data-compute-elf` coverage |
+| `runtime.compute_units` | Partial | Feature-gated `sol_remaining_compute_units` helper emission plus `sol_log_compute_units_` profiling logs have live Surfpool coverage; public-cluster availability must be checked before relying on remaining-CU reads |
 
 ## CLI and Build Integration
 
@@ -589,6 +736,15 @@ and Node tooling) following the same pattern as others (`solc`, `foundry`,
 | V-GATE-SOLANA-05 | Capability checker rejects IR modules using unsupported capabilities with a clear diagnostic mentioning the target id. |
 | V-GATE-SOLANA-06 | `proof-forge-artifact.json` includes `target: "solana-sbpf-asm"`, `irVersion`, and entrypoint list. |
 | V-GATE-SOLANA-07 | `sbpf debug --elf --input` works interactively (developer ergonomics gate — not CI). |
+| V-GATE-SOLANA-16 | `just solana-memory-web3` deploys a generated memory syscall program on Surfpool and verifies `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_` effects through Web3.js account reads. |
+| V-GATE-SOLANA-17 | `just solana-crypto-hash-web3` deploys a generated SHA-256/Keccak-256/Blake3 syscall program on Surfpool and verifies account-stored digests against Node `crypto.createHash("sha256")` plus `@noble/hashes` Keccak-256 and Blake3 references. |
+| V-GATE-SOLANA-18 | `just solana-rent-sysvar-web3` deploys a generated Rent sysvar program on Surfpool and verifies `sol_get_rent_sysvar` records `Rent.lamports_per_byte_year` matching the Rent sysvar account data. |
+| V-GATE-SOLANA-19 | `just solana-epoch-schedule-sysvar-web3` deploys a generated EpochSchedule sysvar program on Surfpool and verifies `sol_get_epoch_schedule_sysvar` records all five current RPC-exposed `EpochSchedule` fields matching RPC `getEpochSchedule()` fields. |
+| V-GATE-SOLANA-20 | `just solana-last-restart-slot-sysvar-web3` deploys a generated LastRestartSlot sysvar program on Surfpool and verifies the feature-gated read lowers through `sol_get_sysvar` with `SysvarLastRestartS1ot1111111111111111111111`. |
+| V-GATE-SOLANA-21 | `just solana-epoch-rewards-sysvar-web3` deploys a generated EpochRewards sysvar program on Surfpool and verifies `sol_get_epoch_rewards_sysvar` records all scalar/word-view fields matching the EpochRewards sysvar account data. |
+| V-GATE-SOLANA-22 | `just solana-return-data-compute-web3` deploys a generated ReturnDataCompute program on Surfpool and verifies `sol_set_return_data`, `sol_get_return_data`, `sol_remaining_compute_units`, and `sol_log_compute_units_` through Web3.js. |
+| V-GATE-SOLANA-10R | `just solana-pinocchio-system-transfer-equivalence` emits the generated System transfer CPI artifact and compares its ABI/account/CPI/state-write contract against a checked-in Pinocchio reference manifest/source. |
+| V-GATE-SOLANA-10L | `just solana-pinocchio-system-transfer-live-equivalence` builds/deploys the ProofForge and Pinocchio System transfer programs on Surfpool and compares the same Web3.js transfer scenario against both. |
 
 ## Lean Module Layout
 
@@ -655,6 +811,10 @@ def solanaSbpfAsm : TargetProfile := {
     .cryptoHash,
     .assertions,
     .accountExplicit,
+    .runtimeAllocator,
+    .runtimeMemory,
+    .runtimeReturnData,
+    .runtimeComputeUnits,
     .storagePda,
     .crosscallCpi
   ]
@@ -696,10 +856,27 @@ def solanaSbpfAsm : TargetProfile := {
 - Instruction manifest TOML generation.
 
 ### Phase 3: Developer SDK
-- `Solana` Lean namespace with `account`, `owner`, `isSigner`, `lamports`, etc.
-- Borsh serialization primitives.
-- SPL helpers.
-- `proof-forge --solana-elf` end‑to‑end.
+
+Phase 3 is split into verifiable SDK completeness levels rather than one large
+"framework" milestone. Estimates assume one engineer working from the
+2026-07-02 baseline, current direct-assembly codegen staying stable, and local
+`sbpf`/Surfpool/Solana CLI tooling being available.
+
+| Level | Estimated effort | Scope |
+|---|---:|---|
+| SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. PDA/System/SPL live gates, instruction ABI bounds/schema metadata, typed PDA seed lowering, return-data `get`, scalar `sol_log_64_` event logging, pubkey logging, and state-backed `sol_log_data` payload logging are already in place. |
+| SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. Clock.slot, Rent.lamports_per_byte_year, all current RPC-exposed EpochSchedule fields, all current EpochRewards fields through scalar/word-view states, SHA-256, Keccak-256, and feature-gated Blake3 are already covered through their target-extension syscall paths. |
+| Anchor/Pinocchio-class surface | 4-6 focused weeks after beta | Extend the new typed account/PDA/CPI surface toward richer account/data wrappers, IDL/client generation, richer SPL/Token-2022 helper coverage, and SDK-facing diagnostics. |
+
+The alpha line is the point where a developer should be able to write and
+deploy simple Solana programs without hand-written assembly patches. The beta
+line is the point where ProofForge output can be compared against reference
+Rust/Pinocchio programs for the same account schema. The System transfer
+reference contract is the first static equivalence anchor for that line, and
+the live harness is already wired to build/deploy both ELFs when Solana rustc
+is available. The final framework line adds the higher-level
+ergonomics expected from Anchor-like and Pinocchio-style workflows without
+moving Solana-specific details into portable IR.
 
 ## References
 

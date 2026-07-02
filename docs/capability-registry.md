@@ -24,9 +24,10 @@ chain-neutral Contract Intent API. The selected target adapter resolves those
 intents into a capability plan, then checks this registry before lowering.
 
 Target Extension SDKs may expose target-specific operations such as Solana
-PDA/CPI, Move resources, or UTXO covenant primitives. Those extensions still
-route through capability ids and target metadata so diagnostics, artifact
-metadata, and cross-target support checks remain uniform.
+PDA/CPI/runtime allocator configuration, Move resources, or UTXO covenant
+primitives. Those extensions still route through capability ids and target
+metadata so diagnostics, artifact metadata, and cross-target support checks
+remain uniform.
 
 ## Core Capabilities
 
@@ -52,6 +53,10 @@ metadata, and cross-target support checks remain uniform.
 | `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | N | N | Y | N | N | P |
 | `account.explicit` | Named account/object/resource binding | P | N | N | Y | Y | Y | P |
 | `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N |
+| `runtime.allocator` | Target runtime heap allocator contract | N | P | P | Y | P | P | P |
+| `runtime.memory` | Target runtime memory operations | N | N | N | Y | N | N | N |
+| `runtime.return_data` | Target runtime return-data buffer operations | N | N | N | Y | N | N | N |
+| `runtime.compute_units` | Target runtime compute-budget introspection | N | N | N | P | N | N | N |
 | `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N | N |
 | `zk.circuit` | Compile entrypoints into target circuit definitions | N | N | N | N | N | N | Y |
 | `zk.proof` | Target proof generation or verification flow | N | N | N | N | N | N | P |
@@ -59,7 +64,7 @@ metadata, and cross-target support checks remain uniform.
 ## Id Naming Rules
 
 - Format: `<domain>.<operation>` or `<domain>.<variant>` (lowercase, dot-separated).
-- Domains: `storage`, `caller`, `value`, `events`, `crosscall`, `env`, `control`, `data`, `crypto`, `assertions`, `account`, `zk`.
+- Domains: `storage`, `caller`, `value`, `events`, `crosscall`, `env`, `control`, `data`, `crypto`, `assertions`, `account`, `runtime`, `zk`.
 - Artifact metadata lists the ids used by a build (see RFC 0002 artifact schema).
 - Diagnostics must cite capability id and target id on rejection.
 

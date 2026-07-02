@@ -20,16 +20,19 @@ def hasCapability (plan : CapabilityPlan) (capability : Capability) : Bool :=
 def stateShape (module : ProofForge.IR.Module) :=
   module.state.map (fun state => (state.id, state.kind, state.type))
 
-def entrypointShape (module : ProofForge.IR.Module) :=
+def portableEntrypointShape (module : ProofForge.IR.Module) :=
   module.entrypoints.map (fun entrypoint =>
-    (entrypoint.name, entrypoint.selector?, entrypoint.params, entrypoint.returns))
+    (entrypoint.name, entrypoint.params, entrypoint.returns))
 
 def requireSameCounterShape : IO Unit := do
   let builderModule := ProofForge.Contract.Examples.Counter.module
   let irModule := ProofForge.IR.Examples.Counter.module
   require (builderModule.name == irModule.name) "Builder Counter module name mismatch"
   require (stateShape builderModule == stateShape irModule) "Builder Counter state shape mismatch"
-  require (entrypointShape builderModule == entrypointShape irModule) "Builder Counter entrypoint shape mismatch"
+  require (portableEntrypointShape builderModule == portableEntrypointShape irModule)
+    "Builder Counter portable entrypoint shape mismatch"
+  require (builderModule.entrypoints.all (fun entrypoint => entrypoint.selector?.isNone))
+    "Builder Counter source should defer target selectors to emission"
   require (builderModule.capabilities == irModule.capabilities) "Builder Counter capabilities mismatch"
 
 def main : IO UInt32 := do
