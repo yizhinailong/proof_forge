@@ -1711,6 +1711,10 @@ Tasks:
 
 - Done: add RFC 0006, `ProofForge.Contract.Token.TokenSpec`, target token
   plans, and `Tests/TokenSpec.lean`.
+- Done: add Learn token intent source syntax, `ProofForge.Contract.Token.Learn`,
+  `Examples/Learn/ProofToken.learn`, `Examples/Learn/FeeToken.learn`,
+  `Tests/TokenLearn.lean`, and `proof-forge --learn-token --target <id>` plan
+  emission so application authors do not hand-write `TokenSpec`.
 - Implement EVM ERC-20 lowering: ABI/selectors, balance/allowance storage,
   total supply, transfer/approve/transferFrom, mint/burn options, events, and
   Foundry/Web3 behavior tests.
@@ -1728,7 +1732,8 @@ Tasks:
 
 Acceptance criteria:
 
-- A single `TokenSpec` has deterministic EVM and Solana token plans.
+- A single Learn token source lowers to a deterministic `TokenSpec` and has
+  deterministic EVM and Solana token plans.
 - EVM output passes ERC-20 behavior tests using standard Web3/Foundry calls.
 - Solana output creates a mint and token accounts, mints supply, transfers
   tokens, and validates balances with `@solana/spl-token` on Surfpool.

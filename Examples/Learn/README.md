@@ -55,3 +55,15 @@ renders the same manifest as the embedded source example. The next
 implementation step is broadening the parser to Token-2022 and typed
 account/program references that further reduce string-bearing declarations in
 user-facing Learn source.
+
+Token SDK examples use a separate Learn intent form rather than a hand-written
+Lean `TokenSpec`:
+
+- `ProofToken.learn` describes one fungible token once and can be routed with
+  `proof-forge --learn-token --target evm` to an ERC-20 token plan.
+- `FeeToken.learn` adds `transfer_fee`; routing the same source shape with
+  `--target solana-sbpf-asm` selects a Token-2022 plan instead of a legacy SPL
+  Token plan.
+
+This is intentionally source syntax first. `TokenSpec` remains the internal
+compiler boundary used after parsing, target routing, and validation.

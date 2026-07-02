@@ -12,6 +12,7 @@ import ProofForge.Backend.Solana.Idl
 import ProofForge.Backend.Solana.Client
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Learn
+import ProofForge.Contract.Token.Learn
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -101,6 +102,7 @@ inductive EmitMode where
   | learnBytecode
   | learnSbpf
   | learnTarget
+  | learnTokenTarget
   | abiScalarIrYul
   | abiScalarIrBytecode
   | assertIrYul
@@ -334,6 +336,11 @@ def CliOptions.emitsEvmDeployManifest (opts : CliOptions) : Bool :=
   opts.mode.emitsEvmDeployManifest ||
     (opts.mode == .learnTarget && opts.targetId? == some ProofForge.Target.evm.id)
 
+def EmitMode.acceptsTarget : EmitMode → Bool
+  | .learnTarget
+  | .learnTokenTarget => true
+  | _ => false
+
 def usage : String :=
   String.intercalate "\n" [
     "Usage:",
@@ -346,6 +353,7 @@ def usage : String :=
     "  proof-forge --learn --target evm [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
     "  proof-forge --learn --target solana-sbpf-asm [-o output.s] [--artifact-output file] input.learn",
     "  proof-forge --learn-target <target-id> [target options] input.learn",
+    "  proof-forge --learn-token --target <target-id> [-o token-plan.json] input.learn",
     "  proof-forge --learn-yul [-o output.yul] input.learn",
     "  proof-forge --learn-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
     "  proof-forge --learn-sbpf [-o output.s] [--artifact-output file] input.learn",
@@ -888,6 +896,10 @@ def jsonStringArray (values : Array String) : String :=
 
 def jsonStringOption : Option String → String
   | some value => jsonString value
+  | none => "null"
+
+def jsonNatOption : Option Nat → String
+  | some value => toString value
   | none => "null"
 
 def defaultArtifactOutput (bytecodeOutput : FilePath) : FilePath :=
@@ -1927,10 +1939,12 @@ def writeEvmSdkArtifactMetadata
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
       let hasRunnableInput := opts.input?.isSome || opts.mode.hasBuiltInFixture
-      if opts.targetId?.isSome && opts.mode != .learnTarget then
-        .error "--target only applies to --learn mode"
+      if opts.targetId?.isSome && !opts.mode.acceptsTarget then
+        .error "--target only applies to --learn and --learn-token modes"
       else if opts.mode == .learnTarget && opts.targetId?.isNone then
         .error "--learn requires --target <target-id>"
+      else if opts.mode == .learnTokenTarget && opts.targetId?.isNone then
+        .error "--learn-token requires --target <target-id>"
       else if opts.evmChainProfile?.isSome && !opts.emitsEvmDeployManifest then
         .error "--evm-chain-profile only applies to EVM bytecode modes that emit proof-forge-deploy.json"
       else if !opts.evmConstructorArgsHex.isEmpty && !opts.emitsEvmDeployManifest then
@@ -1992,6 +2006,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .evmBytecode }
   | "--learn" :: rest, opts =>
       parseArgs rest { opts with mode := .learnTarget }
+  | "--learn-token" :: rest, opts =>
+      parseArgs rest { opts with mode := .learnTokenTarget }
   | "--learn-target" :: targetId :: rest, opts =>
       parseArgs rest { opts with mode := .learnTarget, targetId? := some targetId }
   | "--learn-target" :: [], _ =>
@@ -2318,6 +2334,13 @@ def parseLearnInput (opts : CliOptions) (modeName : String) :
   | .ok spec => pure (input, spec)
   | .error err => throw <| IO.userError s!"{input}: {err}"
 
+def parseLearnTokenInput (opts : CliOptions) (modeName : String) :
+    IO (FilePath × ProofForge.Contract.Token.Learn.TokenDecl) := do
+  let input ← learnInput opts modeName
+  match (← ProofForge.Contract.Token.Learn.parseFile input) with
+  | .ok decl => pure (input, decl)
+  | .error err => throw <| IO.userError s!"{input}: {err}"
+
 def learnFixtureName (input : FilePath) : String :=
   input.fileName.getD input.toString
 
@@ -2328,14 +2351,63 @@ def defaultLearnOutput (subdir extension : String) (spec : ProofForge.Contract.C
     FilePath :=
   FilePath.mk s!"build/{subdir}/{spec.name}.{extension}"
 
-def learnTargetProfile (opts : CliOptions) : IO ProofForge.Target.TargetProfile := do
+def defaultLearnTokenPlanOutput (decl : ProofForge.Contract.Token.Learn.TokenDecl)
+    (profile : ProofForge.Target.TargetProfile) : FilePath :=
+  FilePath.mk s!"build/learn/token/{decl.id}.{profile.id}.token-plan.json"
+
+def targetProfileForMode (opts : CliOptions) (modeName : String) :
+    IO ProofForge.Target.TargetProfile := do
   let some targetId := opts.targetId?
-    | throw <| IO.userError "--learn requires --target <target-id>"
+    | throw <| IO.userError s!"{modeName} requires --target <target-id>"
   match ProofForge.Target.find? targetId with
   | some profile => pure profile
   | none =>
       let known := String.intercalate ", " ProofForge.Target.knownIds.toList
-      throw <| IO.userError s!"unknown Learn target `{targetId}`; known targets: {known}"
+      throw <| IO.userError s!"unknown {modeName} target `{targetId}`; known targets: {known}"
+
+def learnTargetProfile (opts : CliOptions) : IO ProofForge.Target.TargetProfile :=
+  targetProfileForMode opts "--learn"
+
+def learnTokenTargetProfile (opts : CliOptions) : IO ProofForge.Target.TargetProfile :=
+  targetProfileForMode opts "--learn-token"
+
+def tokenFeatureIdsJson (spec : ProofForge.Contract.Token.TokenSpec) : String :=
+  jsonStringArray (spec.features.map fun feature => feature.id)
+
+def tokenSpecJson (decl : ProofForge.Contract.Token.Learn.TokenDecl) : String :=
+  jsonObject #[
+    ("id", jsonString decl.id),
+    ("name", jsonString decl.spec.name),
+    ("symbol", jsonString decl.spec.symbol),
+    ("decimals", toString decl.spec.decimals),
+    ("initialSupply", jsonNatOption decl.spec.initialSupply?),
+    ("features", tokenFeatureIdsJson decl.spec)
+  ]
+
+def tokenPlanJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
+    (profile : ProofForge.Target.TargetProfile)
+    (plan : ProofForge.Contract.Token.TokenPlan)
+    (sourceArtifact : String) : String :=
+  jsonObject #[
+    ("format", jsonString "proof-forge-token-plan-v0"),
+    ("sourceKind", jsonString "learn-token-source"),
+    ("token", tokenSpecJson decl),
+    ("target", jsonString profile.id),
+    ("targetFamily", jsonString profile.family.id),
+    ("standard", jsonString plan.standard.id),
+    ("artifactKind", jsonString plan.artifactKind.id),
+    ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+    ("operations", jsonStringArray plan.operations),
+    ("notes", jsonStringArray plan.notes),
+    ("artifacts", jsonObject #[
+      ("source", sourceArtifact)
+    ]),
+    ("validation", jsonObject #[
+      ("learnTokenParsing", jsonString "passed"),
+      ("targetRouting", jsonString "passed"),
+      ("planGeneration", jsonString "passed")
+    ])
+  ]
 
 def renderLearnEvmYul (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) :
     IO (String × ProofForge.IR.Module) := do
@@ -3494,6 +3566,19 @@ def compileLearnTarget (opts : CliOptions) : IO UInt32 := do
     throw <| IO.userError
       s!"Learn target emission for `{profile.id}` is not implemented yet; currently implemented targets: evm, solana-sbpf-asm"
 
+def compileLearnTokenTarget (opts : CliOptions) : IO UInt32 := do
+  let profile ← learnTokenTargetProfile opts
+  let (input, decl) ← parseLearnTokenInput opts "--learn-token"
+  let plan ←
+    match ProofForge.Contract.Token.planForTarget profile decl.spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err
+  let output := opts.output?.getD (defaultLearnTokenPlanOutput decl profile)
+  let sourceArtifact ← artifactEntryJson input
+  writeTextFile output (tokenPlanJson decl profile plan sourceArtifact ++ "\n")
+  IO.println s!"wrote {output}"
+  return 0
+
 def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/Counter.so")
   let projectName := match output.fileName with
@@ -3824,6 +3909,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .learnBytecode => compileLearnBytecode opts
   | .learnSbpf => compileLearnSbpf opts
   | .learnTarget => compileLearnTarget opts
+  | .learnTokenTarget => compileLearnTokenTarget opts
   | .abiScalarIrYul => compileAbiScalarIrYul opts
   | .abiScalarIrBytecode => compileAbiScalarIrBytecode opts
   | .assertIrYul => compileAssertIrYul opts

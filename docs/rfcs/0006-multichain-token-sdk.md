@@ -35,7 +35,7 @@ logic.
 
 ## SDK Shape
 
-The first implementation adds `ProofForge.Contract.Token.TokenSpec`:
+The internal compiler boundary is `ProofForge.Contract.Token.TokenSpec`:
 
 ```lean
 {
@@ -46,6 +46,23 @@ The first implementation adds `ProofForge.Contract.Token.TokenSpec`:
   features := #[.mintable, .burnable]
 }
 ```
+
+Application authors should not hand-write that Lean object. The Learn source
+entrypoint is:
+
+```learn
+token ProofToken {
+  name "Proof Token"
+  symbol "PRF"
+  decimals 9
+  initial_supply 1000000
+  feature mintable
+  feature burnable
+}
+```
+
+`proof-forge --learn-token --target <id> input.learn` parses this source form,
+then lowers it to `TokenSpec` and routes the plan by target.
 
 `planForTarget` maps the same `TokenSpec` to target-specific plans:
 
@@ -111,7 +128,8 @@ Solana uses existing capabilities such as `account.explicit`, `crosscall.cpi`,
 
 1. **Done:** add `TokenSpec`, `TokenFeature`, and `planForTarget` as a
    chain-neutral planning layer.
-2. Add artifact metadata for token plans.
+2. **Done:** add Learn token source parsing and token-plan artifact metadata
+   through `proof-forge --learn-token --target <id>`.
 3. Add EVM ERC-20 source/Yul lowering and Foundry/Web3 tests.
 4. Add Solana SPL Token plan rendering and Web3.js `@solana/spl-token`
    validation.

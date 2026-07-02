@@ -40,6 +40,37 @@ def TokenFeature.id : TokenFeature → String
   | .confidentialTransfer => "confidential_transfer"
   | .transferHook => "transfer_hook"
 
+def knownFeatureIds : Array String := #[
+  TokenFeature.mintable.id,
+  TokenFeature.burnable.id,
+  TokenFeature.capped.id,
+  TokenFeature.pausable.id,
+  TokenFeature.permit.id,
+  TokenFeature.transferFee.id,
+  TokenFeature.nonTransferable.id,
+  TokenFeature.confidentialTransfer.id,
+  TokenFeature.transferHook.id
+]
+
+def TokenFeature.ofId? (id : String) : Option TokenFeature :=
+  match id with
+  | "mintable" => some .mintable
+  | "burnable" => some .burnable
+  | "capped" => some .capped
+  | "pausable" => some .pausable
+  | "permit" => some .permit
+  | "transfer_fee" => some .transferFee
+  | "non_transferable" => some .nonTransferable
+  | "confidential_transfer" => some .confidentialTransfer
+  | "transfer_hook" => some .transferHook
+  | _ => none
+
+def TokenFeature.parse (id : String) : Except String TokenFeature :=
+  match TokenFeature.ofId? id with
+  | some feature => .ok feature
+  | none =>
+      .error s!"unknown token feature `{id}`; known features: {String.intercalate ", " knownFeatureIds.toList}"
+
 structure TokenSpec where
   name : String
   symbol : String

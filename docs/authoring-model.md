@@ -22,6 +22,9 @@ now lets smoke tests and users start from `.learn` source and choose the chain
 backend at compile time instead of from a built-in fixture or a hand-written
 `ContractSpec`. The target-specific `--learn-yul`, `--learn-bytecode`, and
 `--learn-sbpf` commands remain lower-level convenience paths.
+The same rule applies to protocol SDK intents: `proof-forge --learn-token
+--target <id>` parses a Learn `token ... { ... }` declaration before lowering
+it to the compiler-owned `TokenSpec` boundary and target-specific token plan.
 
 The string-heavy `ContractSpec` and Builder examples should therefore be read
 as compiler fixtures, not as the product surface. They describe the same
@@ -76,6 +79,11 @@ declared CPI account references, CPI writable/signer requirements, and helper
 state/account references before emitting `ContractSpec`, so the remaining
 string-bearing identifiers are checked compiler data instead of unchecked
 user-facing spec plumbing.
+`ProofForge.Contract.Token.Learn` separately parses Learn token intent sources
+such as `Examples/Learn/ProofToken.learn` and `Examples/Learn/FeeToken.learn`.
+`--learn-token --target evm` emits an ERC-20 token plan, while
+`--learn-token --target solana-sbpf-asm` emits an SPL Token plan or switches to
+Token-2022 when features such as `transfer_fee` require Token Extensions.
 `ProofForge.Contract.Source` remains the executable embedded syntax layer and
 covers:
 
@@ -120,8 +128,8 @@ need to manually switch between these internals when the contract is portable.
 ## Next Implementation Steps
 
 1. Expand the Learn parser beyond the current Vault/System CPI Solana subset to
-   cover Token-2022 and the remaining framework-level account/data
-   declarations.
+   cover richer Token-2022 setup flows and the remaining framework-level
+   account/data declarations.
 2. Gradually replace string-bearing Solana declarations with typed account,
    owner, program, and capability references in the source grammar while
    keeping string names inside compiler artifacts only.

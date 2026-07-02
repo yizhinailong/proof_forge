@@ -6,3 +6,4 @@ import ProofForge.Contract.Spec
 import ProofForge.Contract.Source
 import ProofForge.Contract.Surface
 import ProofForge.Contract.Token
+import ProofForge.Contract.Token.Learn

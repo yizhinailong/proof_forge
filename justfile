@@ -37,6 +37,7 @@ solana-lean:
     lake env lean --run Tests/TargetRouting.lean
     lake env lean --run Tests/ValueVaultExample.lean
     lake env lean --run Tests/TokenSpec.lean
+    lake env lean --run Tests/TokenLearn.lean
 
 # Emit and diff tracked Solana sBPF example artifacts.
 solana-build-examples:
