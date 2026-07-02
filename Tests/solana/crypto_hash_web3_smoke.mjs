@@ -6,6 +6,7 @@ import {
   Transaction,
   TransactionInstruction,
 } from "@solana/web3.js";
+import { keccak_256 } from "@noble/hashes/sha3";
 import crypto from "node:crypto";
 import fs from "node:fs";
 
@@ -83,7 +84,7 @@ async function main() {
   });
   const payer = readKeypair(payerPath);
   const programId = new PublicKey(programIdValue);
-  const state = await createProgramState(connection, payer, programId, 40);
+  const state = await createProgramState(connection, payer, programId, 72);
   const preimageValue = 0x1122334455667788n;
   const preimageBytes = writeU64LE(preimageValue);
 
@@ -109,6 +110,17 @@ async function main() {
     [payer]
   );
 
+  const keccakIx = new TransactionInstruction({
+    programId,
+    keys: [{ pubkey: state.publicKey, isSigner: false, isWritable: true }],
+    data: Buffer.from([2]),
+  });
+  const keccakSignature = await sendAndPollTransaction(
+    connection,
+    new Transaction().add(keccakIx),
+    [payer]
+  );
+
   const account = await connection.getAccountInfo(state.publicKey, "confirmed");
   if (account === null) {
     throw new Error(`state account not found: ${state.publicKey.toBase58()}`);
@@ -118,6 +130,9 @@ async function main() {
   const actualDigest = account.data.subarray(8, 40);
   const expectedDigest = crypto.createHash("sha256").update(preimageBytes).digest();
   requireBufferEqual(actualDigest, expectedDigest, "sha256 digest");
+  const actualKeccakDigest = account.data.subarray(40, 72);
+  const expectedKeccakDigest = Buffer.from(keccak_256(preimageBytes));
+  requireBufferEqual(actualKeccakDigest, expectedKeccakDigest, "keccak256 digest");
 
   console.log(JSON.stringify({
     programId: programId.toBase58(),
@@ -125,8 +140,10 @@ async function main() {
     payer: payer.publicKey.toBase58(),
     setPreimageSignature,
     hashSignature,
+    keccakSignature,
     preimageHex: preimageBytes.toString("hex"),
     digestHex: Buffer.from(actualDigest).toString("hex"),
+    keccakDigestHex: Buffer.from(actualKeccakDigest).toString("hex"),
   }));
 }
 

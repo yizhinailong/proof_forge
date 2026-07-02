@@ -131,7 +131,7 @@ test when the syscall changes observable chain behavior.
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Phase 1 scalar `events.emit` lowers to `sol_log_64_`; Surfpool/Web3.js verifies transaction logs contain a stable event tag and scalar field value | Extend to `sol_log_` string/base64 payloads, Anchor-style events, indexed fields, and pubkey logs |
 | Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | `runtime.memory` target extension lowers entrypoint actions to `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`; Surfpool/Web3.js verifies account byte effects | Use memory helpers for broader account/data packing and compare against Rust/Pinocchio fixtures |
 | Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | `contextRead checkpointId` lowers to `sol_get_clock_sysvar` and reads `Clock.slot`; Surfpool/Web3.js verifies the recorded slot against transaction metadata | Add rent, epoch schedule, and restart slot reads; expose typed SDK accessors for additional Clock fields |
-| Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | SHA-256 target-extension action lowers to `sol_sha256` and has a Surfpool/Web3.js + Node reference hash gate | Add `sol_keccak256`/`sol_blake3` variants and portable `Expr.hash` lowering |
+| Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | SHA-256 and Keccak-256 target-extension actions lower to `sol_sha256`/`sol_keccak256` and have Surfpool/Web3.js reference hash gates | Add `sol_blake3` variant and portable `Expr.hash` lowering |
 | Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | Documented only | Add diagnostics/profiling helpers and explicit failure tests |
 | Return-data read (`sol_get_return_data`) | Documented only | Use in CPI return handling after CPI packing lands |
 
@@ -563,7 +563,7 @@ The target profile must accept or reject each IR capability. The proposed
 | `control.bounded_loop` | Phase 2 | Counted loop or unrolling |
 | `data.fixed_array` | ✓ | Fixed‑size local arrays, stack‑allocated |
 | `data.struct` | ✓ | Struct access at known offsets |
-| `crypto.hash` | Partial | Solana-only SHA-256 entrypoint actions lower to `sol_sha256`; Keccak/Blake3 and portable `Expr.hash` lowering remain |
+| `crypto.hash` | Partial | Solana-only SHA-256 and Keccak-256 entrypoint actions lower to `sol_sha256`/`sol_keccak256`; Blake3 and portable `Expr.hash` lowering remain |
 | `assertions.check` | ✓ | Assert with error codes |
 | `account.explicit` | ✓ | The core abstraction |
 | `runtime.allocator` | ✓ | Bump allocator or no-allocator contract recorded as target-extension metadata |
@@ -710,7 +710,7 @@ and Node tooling) following the same pattern as others (`solc`, `foundry`,
 | V-GATE-SOLANA-06 | `proof-forge-artifact.json` includes `target: "solana-sbpf-asm"`, `irVersion`, and entrypoint list. |
 | V-GATE-SOLANA-07 | `sbpf debug --elf --input` works interactively (developer ergonomics gate — not CI). |
 | V-GATE-SOLANA-16 | `just solana-memory-web3` deploys a generated memory syscall program on Surfpool and verifies `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_` effects through Web3.js account reads. |
-| V-GATE-SOLANA-17 | `just solana-crypto-hash-web3` deploys a generated SHA-256 syscall program on Surfpool and verifies the account-stored digest against Node `crypto.createHash("sha256")`. |
+| V-GATE-SOLANA-17 | `just solana-crypto-hash-web3` deploys a generated SHA-256/Keccak-256 syscall program on Surfpool and verifies account-stored digests against Node `crypto.createHash("sha256")` and `@noble/hashes` Keccak-256. |
 
 ## Lean Module Layout
 

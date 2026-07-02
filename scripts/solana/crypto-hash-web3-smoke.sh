@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# ProofForge Solana SHA-256 syscall live smoke on Surfpool.
+# ProofForge Solana SHA-256/Keccak-256 syscall live smoke on Surfpool.
 #
 # Builds the generated crypto.hash ELF, starts Surfpool, deploys with Solana
-# CLI, invokes it through @solana/web3.js, and compares the state digest against
-# Node's SHA-256 implementation.
+# CLI, invokes it through @solana/web3.js, and compares the state digests
+# against Node SHA-256 and @noble/hashes Keccak-256 references.
 #
 # Exit codes:
 #   0 - all gates passed
@@ -87,22 +87,28 @@ for capability in ["crypto.hash", "storage.scalar"]:
         raise SystemExit(f"artifact missing {capability} capability: {capabilities}")
 instructions = artifact.get("solanaInstructions", [])
 names = [instruction.get("name") for instruction in instructions]
-if names != ["set_preimage", "hash_preimage"]:
+if names != ["set_preimage", "hash_preimage", "keccak_preimage"]:
     raise SystemExit(f"instruction schema mismatch: {names}")
 params = instructions[0].get("params", [])
 if len(params) != 1 or params[0].get("name") != "value" or params[0].get("offset") != 1:
     raise SystemExit(f"set_preimage parameter schema mismatch: {params}")
 extensions = artifact.get("solanaExtensions", {})
 crypto_actions = extensions.get("cryptoHashActions", [])
-if len(crypto_actions) != 1:
-    raise SystemExit(f"expected one crypto hash action: {crypto_actions}")
-action = crypto_actions[0]
-if action.get("crypto") != "hash_preimage" or action.get("op") != "sha256":
-    raise SystemExit(f"crypto action identity mismatch: {action}")
-if action.get("inputState") != "preimage" or action.get("bytes") != 8:
-    raise SystemExit(f"crypto action input mismatch: {action}")
-if action.get("outputStates") != ["hash0", "hash1", "hash2", "hash3"]:
-    raise SystemExit(f"crypto action output mismatch: {action}")
+if len(crypto_actions) != 2:
+    raise SystemExit(f"expected two crypto hash actions: {crypto_actions}")
+actions = {(action.get("crypto"), action.get("op")): action for action in crypto_actions}
+expected_actions = {
+    ("hash_preimage", "sha256"): ["hash0", "hash1", "hash2", "hash3"],
+    ("keccak_preimage", "keccak256"): ["keccak0", "keccak1", "keccak2", "keccak3"],
+}
+for key, output_states in expected_actions.items():
+    action = actions.get(key)
+    if action is None:
+        raise SystemExit(f"missing crypto action {key}: {crypto_actions}")
+    if action.get("inputState") != "preimage" or action.get("bytes") != 8:
+        raise SystemExit(f"crypto action input mismatch: {action}")
+    if action.get("outputStates") != output_states:
+        raise SystemExit(f"crypto action output mismatch: {action}")
 print("artifact validation: ok")
 PY
 
@@ -166,8 +172,8 @@ if [ ! -f "$NODE_PROJECT/package.json" ]; then
   ( cd "$NODE_PROJECT" && "$NPM_BIN" init -y >/dev/null ) \
     || fail "npm init failed"
 fi
-( cd "$NODE_PROJECT" && "$NPM_BIN" install --silent @solana/web3.js@^1.98.0 ) \
-  || fail "npm install @solana/web3.js failed"
+( cd "$NODE_PROJECT" && "$NPM_BIN" install --silent @solana/web3.js@^1.98.0 @noble/hashes@1.8.0 ) \
+  || fail "npm install @solana/web3.js or @noble/hashes failed"
 
 PROOF_FORGE_SOLANA_RPC_URL="$RPC_URL" \
 PROOF_FORGE_SOLANA_WS_URL="$WS_URL" \

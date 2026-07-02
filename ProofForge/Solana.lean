@@ -81,10 +81,12 @@ def MemoryOp.id : MemoryOp -> String
 
 inductive CryptoHashOp where
   | sha256
+  | keccak256
   deriving BEq, DecidableEq, Repr
 
 def CryptoHashOp.id : CryptoHashOp -> String
   | .sha256 => "sha256"
+  | .keccak256 => "keccak256"
 
 structure MemoryAction where
   name : String
@@ -528,6 +530,16 @@ def sha256StateToStates (name inputState : String) (bytes : Nat)
   cryptoHashEntry {
     name := name
     op := .sha256
+    inputState := inputState
+    bytes := bytes
+    outputStates := outputStates
+  }
+
+def keccak256StateToStates (name inputState : String) (bytes : Nat)
+    (outputStates : Array String) : ProofForge.Contract.Builder.EntryM Unit :=
+  cryptoHashEntry {
+    name := name
+    op := .keccak256
     inputState := inputState
     bytes := bytes
     outputStates := outputStates

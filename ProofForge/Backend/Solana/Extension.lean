@@ -73,13 +73,16 @@ def MemoryOp.id : MemoryOp -> String
 
 inductive CryptoHashOp where
   | sha256
+  | keccak256
   deriving BEq, DecidableEq, Repr, Inhabited
 
 def CryptoHashOp.id : CryptoHashOp -> String
   | .sha256 => "sha256"
+  | .keccak256 => "keccak256"
 
 def CryptoHashOp.syscall : CryptoHashOp -> String
   | .sha256 => ProofForge.Backend.Solana.Syscalls.sol_sha256
+  | .keccak256 => ProofForge.Backend.Solana.Syscalls.sol_keccak256
 
 structure MemoryAction where
   name : String
@@ -219,6 +222,7 @@ def memoryOpFromString? : String -> Option MemoryOp
 
 def cryptoHashOpFromString? : String -> Option CryptoHashOp
   | "sha256" => some .sha256
+  | "keccak256" => some .keccak256
   | _ => none
 
 def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=

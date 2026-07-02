@@ -66,6 +66,18 @@ def main : IO UInt32 := do
   requireMetadata hashCall "solana.crypto.bytes" "8"
   requireMetadata hashCall "solana.crypto.output_states" "hash0,hash1,hash2,hash3"
 
+  let keccakCall ←
+    match scopedCryptoCall? plan "keccak_preimage" "keccak_preimage" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana crypto plan missing keccak_preimage action"
+  require (keccakCall.operation == "solana.crypto.keccak256")
+    "keccak_preimage should lower through solana.crypto.keccak256"
+  requireMetadata keccakCall "solana.extension" "crypto"
+  requireMetadata keccakCall "solana.crypto.op" "keccak256"
+  requireMetadata keccakCall "solana.crypto.input_state" "preimage"
+  requireMetadata keccakCall "solana.crypto.bytes" "8"
+  requireMetadata keccakCall "solana.crypto.output_states" "keccak0,keccak1,keccak2,keccak3"
+
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "solana-crypto-hash" spec with
   | .ok pkg =>
       let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
@@ -84,6 +96,12 @@ def main : IO UInt32 := do
         "crypto manifest missing input state"
       require (contains manifest "output_states = [\"hash0\", \"hash1\", \"hash2\", \"hash3\"]")
         "crypto manifest missing output states"
+      require (contains manifest "crypto = \"keccak_preimage\"")
+        "crypto manifest missing keccak_preimage action"
+      require (contains manifest "op = \"keccak256\"")
+        "crypto manifest missing keccak256 op"
+      require (contains manifest "output_states = [\"keccak0\", \"keccak1\", \"keccak2\", \"keccak3\"]")
+        "crypto manifest missing keccak output states"
       require (contains asm "solana.crypto.action hash_preimage")
         "assembly missing crypto action"
       require (contains asm "sol_crypto_sha256_hash_preimage:")
@@ -92,8 +110,18 @@ def main : IO UInt32 := do
         "assembly missing crypto hash marker"
       require (contains asm "call sol_sha256")
         "assembly missing sol_sha256 syscall"
+      require (contains asm "solana.crypto.action keccak_preimage")
+        "assembly missing keccak crypto action"
+      require (contains asm "sol_crypto_keccak256_keccak_preimage:")
+        "assembly missing keccak256 helper label"
+      require (contains asm "solana.crypto.hash keccak_preimage: op=keccak256 input=preimage bytes=8")
+        "assembly missing keccak hash marker"
+      require (contains asm "call sol_keccak256")
+        "assembly missing sol_keccak256 syscall"
       require (contains asm "solana.crypto.output hash_preimage[3] state=hash3")
         "assembly missing fourth hash output copy"
+      require (contains asm "solana.crypto.output keccak_preimage[3] state=keccak3")
+        "assembly missing fourth keccak output copy"
       require (contains asm "add64 r5, 24")
         "assembly should read the fourth digest word from result_ptr + 24"
   | .error err =>
