@@ -82,13 +82,51 @@ lake env proof-forge --emit-counter-ir-ts -o build/ts/Counter.ts # CF Workers
 
 ## 架构
 
-```text
-Lean SDK 语法 / contract_source          （用户面，链中立）
-  -> source AST
-  -> ContractSpec / portable IR          （编译器私有边界）
-  -> target resolver + capability 路由（--target）
-  -> 目标语义 AST / plan
-  -> printer / assembler / package emitter
+```mermaid
+flowchart TB
+  subgraph authoring ["作者层（用户面，链中立）"]
+    SDK["Lean SDK<br/>contract_source / Contract Intent API"]
+    TOK["Token SDK<br/>TokenSpec"]
+    LEARN[".learn 解析器<br/>（冻结的兼容层）"]
+  end
+
+  subgraph core ["编译器私有核心"]
+    SPEC["ContractSpec"]
+    IR["可移植 IR<br/>+ AllocatorConfig + 所有权规则"]
+    SEM["IR 语义 + 形式化锚点<br/>（FV 路线图）"]
+  end
+
+  subgraph routing ["目标路由（--target）"]
+    REG["Target registry<br/>profile + allocator 绑定"]
+    CAP["Capability 检查<br/>拒绝不支持的 intent"]
+    EXT["Target Extension SDK<br/>Solana 账户/PDA/CPI 等"]
+  end
+
+  subgraph backends ["后端"]
+    EVM["EVM<br/>Plan → Yul → solc"]
+    SOL["Solana<br/>sBPF asm → ELF"]
+    NEAR["NEAR<br/>EmitWat → WAT → wasm"]
+    PSY["Psy/DPN<br/>.psy → Dargo"]
+    ALEO["Aleo<br/>Leo package"]
+    CFW["CF Workers<br/>TypeScript"]
+  end
+
+  subgraph artifacts ["制品与验证"]
+    ART["bytecode/ELF/wasm/circuit + ABI/IDL<br/>artifact + deploy manifest + TS client"]
+    GATES["门禁：Lean 测试 · testkit（规划中，RFC 0007）<br/>Foundry · Mollusk/Surfpool · 离线宿主 · dargo/leo"]
+  end
+
+  SDK --> SPEC
+  TOK --> SPEC
+  LEARN --> SPEC
+  SPEC --> IR
+  IR --- SEM
+  IR --> CAP
+  REG --> CAP
+  EXT --> CAP
+  CAP --> EVM & SOL & NEAR & PSY & ALEO & CFW
+  EVM & SOL & NEAR & PSY & ALEO & CFW --> ART
+  ART --> GATES
 ```
 
 - **Contract Intent API** — 默认 SDK 表面：state、entrypoint、event、

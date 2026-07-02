@@ -38,6 +38,26 @@ testkit/
   scenarios/               *.toml scenario manifests + expectations
 ```
 
+```mermaid
+flowchart TB
+  SC["scenarios/*.toml<br/>steps + expectations + budgets"]
+  CORE["testkit core<br/>discovery · matrix expansion · reporting"]
+  PF["proof-forge CLI<br/>emit artifact per target"]
+  subgraph harnesses ["ChainHarness implementations"]
+    HE["harness-evm<br/>revm"]
+    HS["harness-solana<br/>mollusk-svm"]
+    HN["harness-near<br/>wasmtime + host shim"]
+  end
+  EQ["cross-target equivalence<br/>same observable trace"]
+  REJ["capability-gated targets:<br/>assert compile-time rejection"]
+
+  SC --> CORE
+  CORE --> PF
+  PF --> HE & HS & HN
+  HE & HS & HN --> EQ
+  CORE --> REJ
+```
+
 Rust is the right host language because all three priority chains have
 first-class Rust-native runtimes — no RPC, no local validator, deterministic
 and CI-friendly:
