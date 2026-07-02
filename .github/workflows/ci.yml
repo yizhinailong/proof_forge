@@ -51,6 +51,9 @@ jobs:
       - name: Check target registry
         run: just target-registry
 
+      - name: Check EVM semantic plan
+        run: just evm-plan
+
       - name: Check documentation translations
         run: just docs-check
 

@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Semantic Plan Storage Slice
+
+Commit: feature commit for the first EVM semantic plan slice
+
+Summary:
+
+- Added `ProofForge.Backend.Evm.Plan` as the first explicit semantic planning
+  layer between portable IR and target-specific Yul lowering.
+- Modeled storage layout entries, scalar storage slot plans, map value slot
+  plans, nested map value slot plans, map presence slot plans, and helper
+  requirements without changing generated Yul output.
+- Added `Tests/EvmPlan.lean` to lock scalar/map/nested-map slot planning
+  against the existing `EvmMapProbe` and `EvmTypedMapProbe` fixtures.
+- Added `just evm-plan` and a GitHub Actions step so the plan slice is checked
+  independently before broader EVM smokes.
+
+Validation run:
+
+```sh
+just evm-plan
+```
+
+Known limitations:
+
+- The existing Yul generator still owns actual rendering; this slice creates
+  the semantic structures and tests that later lowering can migrate onto.
+- The first plan slice covers scalar slots and consecutive `mapKey` paths only.
+  Arrays, structs, ABI dispatch, event/crosscall helpers, and artifact metadata
+  planning remain follow-up work.
+
+Next step:
+
+- Refactor the current EVM storage path lowering to consume plan nodes while
+  preserving golden Yul output, then broaden the plan to arrays and flat
+  storage structs.
+
 ### EVM Nested Map Storage Paths
 
 Commit: feature commit for EVM nested map storage paths

@@ -12,12 +12,17 @@ build:
 target-registry:
     lake env lean --run Tests/TargetRegistry.lean
 
+# Check the EVM semantic plan smoke.
+evm-plan:
+    lake build ProofForge.Backend.Evm.Plan
+    lake env lean --run Tests/EvmPlan.lean
+
 # Check translated documentation freshness.
 docs-check:
     scripts/i18n/check-sync.sh
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry docs-check evm-diagnostics evm-coverage psy-diagnostics psy-coverage
+check: build target-registry evm-plan docs-check evm-diagnostics evm-coverage psy-diagnostics psy-coverage
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
@@ -185,7 +190,7 @@ evm-ir-smokes:
 evm-all: evm-diagnostics evm-coverage evm-ir-smokes evm-build-examples evm-foundry evm-anvil-deploy
 
 # Run the current GitHub CI build-test sequence locally.
-ci: build target-registry docs-check psy-golden-sources psy-diagnostics psy-coverage evm-all
+ci: build target-registry evm-plan docs-check psy-golden-sources psy-diagnostics psy-coverage evm-all
 
 # Check for whitespace errors before committing.
 diff-check:
