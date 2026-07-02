@@ -5,3 +5,4 @@ import ProofForge.Solana.Examples.SplTokenTransferCheckedCpi
 import ProofForge.Solana.Examples.SplTokenOpsCpi
 import ProofForge.Solana.Examples.LogEvent
 import ProofForge.Solana.Examples.Clock
+import ProofForge.Solana.Examples.Memory

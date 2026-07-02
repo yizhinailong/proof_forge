@@ -43,6 +43,7 @@ Target Extension SDK 可以暴露 Solana PDA/CPI/runtime allocator 配置、Move
 | `account.explicit` | 具名账户/对象/资源绑定 | P | N | N | Y | Y | Y | P |
 | `storage.pda` | 程序派生地址状态 | N | N | N | Y | N | N | N |
 | `runtime.allocator` | 目标运行时堆分配器约定 | N | P | P | Y | P | P | P |
+| `runtime.memory` | 目标运行时内存操作 | N | N | N | Y | N | N | N |
 | `crosscall.cpi` | 带有账户元数据的 Solana CPI | N | N | N | Y | N | N | N |
 | `zk.circuit` | 将入口编译为目标电路定义 | N | N | N | N | N | N | Y |
 | `zk.proof` | 目标证明生成或验证流 | N | N | N | N | N | N | P |

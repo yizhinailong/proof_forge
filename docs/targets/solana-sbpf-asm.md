@@ -101,7 +101,7 @@ The sBPF assembly grammar (from the blueshift `sbpf.pest` PEG grammar):
 | `sol_log_64_` | (r1: u64, r2: u64, r3: u64, r4: u64, r5: u64) | Logging structured data |
 | `sol_log_pubkey` | (r1: ptr) | Logging pubkeys |
 | `sol_log_compute_units_` | () → r0 | Compute budget tracking |
-| `sol_memcpy_` / `sol_memmove_` / `sol_memset_` / `sol_memcmp_` | (dst, src, len) | Memory operations |
+| `sol_memcpy_` / `sol_memmove_` / `sol_memset_` / `sol_memcmp_` | copy/fill/compare pointers and byte lengths | Memory operations |
 | `sol_create_program_address` | (seeds_ptr, seeds_len, program_id_ptr, result_ptr) → r0 | PDA derivation |
 | `sol_try_find_program_address` | (seeds_ptr, seeds_count, program_id_ptr, result_addr, bump_ptr) → r0 | PDA find |
 | `sol_invoke_signed_c` | (instruction_ptr, account_infos_ptr, num_accounts, signer_seeds_ptr, num_seeds) → r0 | CPI with signer seeds |
@@ -129,7 +129,7 @@ test when the syscall changes observable chain behavior.
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Phase 1 scalar `events.emit` lowers to `sol_log_64_`; Surfpool/Web3.js verifies transaction logs contain a stable event tag and scalar field value | Extend to `sol_log_` string/base64 payloads, Anchor-style events, indexed fields, and pubkey logs |
-| Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | Documented only | Use internally for account/data packing helpers; unit-test generated assembly and runtime copies |
+| Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | `runtime.memory` target extension lowers entrypoint actions to `sol_memcpy_`, `sol_memcmp_`, and `sol_memset_`; Surfpool/Web3.js verifies account byte effects | Add `sol_memmove_`, use memory helpers for broader account/data packing, and compare against Rust/Pinocchio fixtures |
 | Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | `contextRead checkpointId` lowers to `sol_get_clock_sysvar` and reads `Clock.slot`; Surfpool/Web3.js verifies the recorded slot against transaction metadata | Add rent, epoch schedule, and restart slot reads; expose typed SDK accessors for additional Clock fields |
 | Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | Documented only | Lower `crypto.hash` variants and compare against JS reference hashes |
 | Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | Documented only | Add diagnostics/profiling helpers and explicit failure tests |
@@ -567,6 +567,7 @@ The target profile must accept or reject each IR capability. The proposed
 | `assertions.check` | ✓ | Assert with error codes |
 | `account.explicit` | ✓ | The core abstraction |
 | `runtime.allocator` | ✓ | Bump allocator or no-allocator contract recorded as target-extension metadata |
+| `runtime.memory` | ✓ | Solana-only entrypoint actions lower to memory syscalls and stay outside portable IR |
 
 ## CLI and Build Integration
 
@@ -708,6 +709,7 @@ and Node tooling) following the same pattern as others (`solc`, `foundry`,
 | V-GATE-SOLANA-05 | Capability checker rejects IR modules using unsupported capabilities with a clear diagnostic mentioning the target id. |
 | V-GATE-SOLANA-06 | `proof-forge-artifact.json` includes `target: "solana-sbpf-asm"`, `irVersion`, and entrypoint list. |
 | V-GATE-SOLANA-07 | `sbpf debug --elf --input` works interactively (developer ergonomics gate — not CI). |
+| V-GATE-SOLANA-16 | `just solana-memory-web3` deploys a generated memory syscall program on Surfpool and verifies `sol_memcpy_`, `sol_memcmp_`, and `sol_memset_` effects through Web3.js account reads. |
 
 ## Lean Module Layout
 

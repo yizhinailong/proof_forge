@@ -20,6 +20,7 @@ inductive Capability where
   | assertions
   | accountExplicit
   | runtimeAllocator
+  | runtimeMemory
   | storagePda
   | crosscallCpi
   | zkCircuit
@@ -43,6 +44,7 @@ def Capability.id : Capability → String
   | .assertions => "assertions.check"
   | .accountExplicit => "account.explicit"
   | .runtimeAllocator => "runtime.allocator"
+  | .runtimeMemory => "runtime.memory"
   | .storagePda => "storage.pda"
   | .crosscallCpi => "crosscall.cpi"
   | .zkCircuit => "zk.circuit"

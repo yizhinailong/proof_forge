@@ -54,6 +54,7 @@ remain uniform.
 | `account.explicit` | Named account/object/resource binding | P | N | N | Y | Y | Y | P |
 | `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N |
 | `runtime.allocator` | Target runtime heap allocator contract | N | P | P | Y | P | P | P |
+| `runtime.memory` | Target runtime memory operations | N | N | N | Y | N | N | N |
 | `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N | N |
 | `zk.circuit` | Compile entrypoints into target circuit definitions | N | N | N | N | N | N | Y |
 | `zk.proof` | Target proof generation or verification flow | N | N | N | N | N | N | P |

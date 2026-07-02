@@ -377,14 +377,43 @@ def renderCpiAction (action : CpiAction) : String :=
   "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
   "cpi = " ++ tomlString action.name ++ "\n"
 
+def renderMemoryAction (action : MemoryAction) : String :=
+  let optionalFields :=
+    (match action.dstState? with
+    | some state => s!"dst_state = {tomlString state}\n"
+    | none => "") ++
+    (match action.srcState? with
+    | some state => s!"src_state = {tomlString state}\n"
+    | none => "") ++
+    (match action.lhsState? with
+    | some state => s!"lhs_state = {tomlString state}\n"
+    | none => "") ++
+    (match action.rhsState? with
+    | some state => s!"rhs_state = {tomlString state}\n"
+    | none => "") ++
+    (match action.resultState? with
+    | some state => s!"result_state = {tomlString state}\n"
+    | none => "") ++
+    (match action.value? with
+    | some value => s!"value = {value}\n"
+    | none => "")
+  "[[solana.entrypoint_memory]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "memory = " ++ tomlString action.name ++ "\n" ++
+  "op = " ++ tomlString action.op.id ++ "\n" ++
+  "bytes = " ++ toString action.bytes ++ "\n" ++
+  optionalFields
+
 def renderActions (extensions : ProgramExtensions) : String :=
   if !hasEntrypointActions extensions then
     ""
   else
     "\n# Solana SDK entrypoint actions\n" ++
     String.intercalate "\n" (extensions.pdaActions.map renderPdaAction).toList ++
-    (if extensions.pdaActions.size > 0 && extensions.cpiActions.size > 0 then "\n" else "") ++
-    String.intercalate "\n" (extensions.cpiActions.map renderCpiAction).toList
+    (if extensions.pdaActions.size > 0 && (extensions.cpiActions.size > 0 || extensions.memoryActions.size > 0) then "\n" else "") ++
+    String.intercalate "\n" (extensions.cpiActions.map renderCpiAction).toList ++
+    (if extensions.cpiActions.size > 0 && extensions.memoryActions.size > 0 then "\n" else "") ++
+    String.intercalate "\n" (extensions.memoryActions.map renderMemoryAction).toList
 
 def renderExtensions (extensions : ProgramExtensions) : String :=
   if !hasExtensions extensions then

@@ -702,6 +702,14 @@ partial progress is visible before the full acceptance criteria close:
       `manifest.toml`, `proof-forge-artifact.json`, and assembly metadata.
       Covered by `Tests/SolanaAllocator.lean`, `Tests/SolanaSdk.lean`,
       `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+- [x] Runtime memory target extension now routes Solana-only SDK actions through
+      `runtime.memory` capability metadata and lowers entrypoint actions to
+      `sol_memcpy_`, `sol_memcmp_`, and `sol_memset_` helpers over generated
+      state-account offsets. The generated manifest and artifact JSON record
+      `[[solana.entrypoint_memory]]` / `memoryActions`; Web3.js verifies copied
+      bytes, compare result, and fill pattern on a program-owned account.
+      Covered by `Tests/SolanaMemory.lean` and
+      `scripts/solana/memory-web3-smoke.sh`.
 - [x] Generated Solana SDK instruction schemas now use a module-wide
       multi-account account list instead of the old single-account manifest.
       The schema includes the state account, PDA accounts, CPI accounts, and
@@ -779,7 +787,8 @@ create-account CPI validation, live SPL Token `transfer_checked` CPI
 validation, and live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
 validation, plus live scalar `events.emit` log validation through
 `sol_log_64_`, and live `Clock.slot` sysvar validation for `contextRead
-checkpointId`. The estimates below assume one engineer working on this branch,
+checkpointId`, plus live `runtime.memory` validation through `sol_memcpy_`,
+`sol_memcmp_`, and `sol_memset_`. The estimates below assume one engineer working on this branch,
 the current direct-assembly architecture staying stable, and local
 `sbpf`/Surfpool/Solana CLI tooling remaining available.
 
@@ -833,6 +842,10 @@ Completed alpha slices:
   builds and deploys a generated `contextRead checkpointId` program on
   Surfpool, lowers it to `sol_get_clock_sysvar`, invokes it through Web3.js,
   and proves the recorded `Clock.slot` matches the observed transaction slot.
+- Live memory syscall fixture: `scripts/solana/memory-web3-smoke.sh` builds and
+  deploys a generated `runtime.memory` program on Surfpool, invokes it through
+  Web3.js, and proves `sol_memcpy_`, `sol_memcmp_`, and `sol_memset_` effects by
+  reading copied value, compare result, and fill bytes from program-owned state.
 
 Remaining priority slices:
 
@@ -845,8 +858,9 @@ Remaining priority slices:
    extend the current scalar `sol_log_64_` event path to string/base64/
    Anchor-style and indexed event forms; expose `sol_get_return_data`,
    typed return payload helpers beyond `u64`, rent/epoch sysvar reads,
-   `sol_sha256`/`sol_keccak256`/`sol_blake3`, and
-   `sol_memcpy`/`sol_memcmp`/`sol_memset`, with JavaScript reference checks.
+   `sol_sha256`/`sol_keccak256`/`sol_blake3`, `sol_memmove_`, and broader
+   account/data packing helpers that reuse the new memory syscall path, with
+   JavaScript reference checks.
 3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures
    through `runtime.allocator`, emit actual downward bump-pointer allocation
    code when needed, and reject allocation-using structures under

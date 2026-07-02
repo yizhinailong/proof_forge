@@ -323,6 +323,13 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
   `scripts/solana/sdk-smoke.sh`、`scripts/solana/pda-web3-smoke.sh`。
 - [x] 标准 Solana protocol SDK helper 现在覆盖 System Program 的 transfer/create-account，以及 SPL Token 的 transfer_checked/mint_to/burn/approve/revoke。它们通过 target capability metadata 路由，写入 `solana.cpi.protocol`、规范化 `data_layout`、account metas、signer seeds 和 instruction-data source name，并进入生成的 manifest 与 artifact JSON。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] Runtime allocator target extension 现在建模 Solana 默认 downward-bump allocator（`heap_start = "0x300000000"`、`heap_bytes = 32768`），并提供与 Pinocchio no-heap entrypoint 对齐的 `noAllocator`/deny-dynamic 选项。选中的 allocator 会通过 `runtime.allocator` capability metadata 路由，并进入 `manifest.toml`、`proof-forge-artifact.json` 和 assembly metadata。覆盖：`Tests/SolanaAllocator.lean`、`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] Runtime memory target extension 现在将 Solana-only SDK action 通过
+  `runtime.memory` capability metadata 路由，并把 entrypoint action 降为基于
+  生成 state-account offset 的 `sol_memcpy_`、`sol_memcmp_` 和 `sol_memset_`
+  helper。生成的 manifest 与 artifact JSON 会记录
+  `[[solana.entrypoint_memory]]` / `memoryActions`；Web3.js 会在
+  program-owned account 上验证 copied bytes、compare result 和 fill pattern。
+  覆盖：`Tests/SolanaMemory.lean` 与 `scripts/solana/memory-web3-smoke.sh`。
 - [x] 生成的 Solana SDK instruction schema 现在使用 module-wide multi-account account list，取代旧的单账户 manifest。schema 包含 state account、PDA account、CPI account 和 executable CPI program account；sBPF backend 会从同一份 schema 计算 `INSTRUCTION_DATA` offset，并在 prologue 中按 schema 校验 signer/writable 约束和 program-owned account。账户列表会进入 `manifest.toml` 与 `proof-forge-artifact.json`。覆盖：`Tests/SolanaSdkManifest.lean`、`Tests/SolanaCpiPacking.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] System Program transfer/create-account 与 SPL Token CPI instruction-data packing 现在会把标准 instruction bytes 写入 C `SolInstruction` payload。System transfer/create-account 使用 bincode-style `u32` discriminator，加 `u64` lamports/space 和 owner pubkey 字段；SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke` 使用标准 token instruction tag 和 amount/decimals layout。value source 可以绑定到生成的 scalar state offset、数字 literal 或已解码的 scalar entrypoint parameter。CPI helper 也会打包 program id bytes、C `SolAccountMeta[]`、绑定到生成的 multi-account input layout 的 `SolAccountInfo[]`、signer seed table，以及 syscall register setup。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] System Program transfer CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SystemCpi` 会构建生成的 `--solana-system-cpi-elf` fixture；entrypoint 读取 scalar `lamports` instruction parameter，执行 System Program transfer CPI，并把转账数写入 program-owned state account。`scripts/solana/system-cpi-web3-smoke.sh` 会校验 artifact schema，用 Solana CLI 在 Surfpool 部署 ELF，通过 `@solana/web3.js` 调用，并同时检查 recipient lamport delta 和 state data。sBPF lowering 会在 direct account mapping 下从序列化账户布局计算 instruction-data pointer，并保存在 `r9`，避免 internal helper call 跨 callee stack frame 时丢失该指针。覆盖：`just solana-system-cpi-web3` / V-GATE-SOLANA-10。
@@ -340,7 +347,9 @@ typed PDA seed lowering、live System Program transfer/create-account CPI
 validation、live SPL Token `transfer_checked` CPI validation，以及 live SPL
 Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
 `sol_log_64_` 验证的 live scalar `events.emit` 日志路径，以及
-`contextRead checkpointId` 的 live `Clock.slot` sysvar validation。下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
+`contextRead checkpointId` 的 live `Clock.slot` sysvar validation，加上通过
+`sol_memcpy_`、`sol_memcmp_` 和 `sol_memset_` 验证的 live `runtime.memory`
+路径。下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
 `sbpf`/Surfpool/Solana CLI 工具链可用。
 
 | 层级 | 预计工作量 | 完成标准 |
@@ -385,6 +394,10 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
   会在 Surfpool 上构建并部署生成的 `contextRead checkpointId` 程序，把它降级到
   `sol_get_clock_sysvar`，通过 Web3.js 调用，并证明记录的 `Clock.slot`
   与观察到的 transaction slot 一致。
+- Live memory syscall fixture：`scripts/solana/memory-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 `runtime.memory` 程序，通过 Web3.js
+  调用，并通过读取 program-owned state 中的 copied value、compare result
+  和 fill bytes 证明 `sol_memcpy_`、`sol_memcmp_` 与 `sol_memset_` 的效果。
 
 剩余优先切片：
 
@@ -396,8 +409,9 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
    将当前 scalar `sol_log_64_` event 路径扩展到 string/base64/Anchor-style
    与 indexed event 形态；暴露 `sol_get_return_data`、`u64` 之外的 typed
    return payload helper、rent/epoch sysvar reads、
-   `sol_sha256`/`sol_keccak256`/`sol_blake3`，以及
-   `sol_memcpy`/`sol_memcmp`/`sol_memset`，并与 JavaScript reference 对比。
+   `sol_sha256`/`sol_keccak256`/`sol_blake3`、`sol_memmove_`，以及复用新
+   memory syscall 路径的更广 account/data packing helper，并与 JavaScript
+   reference 对比。
 3. Runtime allocation lowering（1-2 天）：后续 heap-backed SDK structure 通过
    `runtime.allocator` 路由；需要动态分配时生成真实 downward bump-pointer
    allocation code；在 `noAllocator` 下拒绝使用分配的结构。

@@ -66,6 +66,29 @@ structure AllocatorConfig where
   heapBytes : Nat := 32768
   deriving Repr
 
+inductive MemoryOp where
+  | memcpy
+  | memcmp
+  | memset
+  deriving BEq, DecidableEq, Repr
+
+def MemoryOp.id : MemoryOp -> String
+  | .memcpy => "memcpy"
+  | .memcmp => "memcmp"
+  | .memset => "memset"
+
+structure MemoryAction where
+  name : String
+  op : MemoryOp
+  dstState? : Option String := none
+  srcState? : Option String := none
+  lhsState? : Option String := none
+  rhsState? : Option String := none
+  resultState? : Option String := none
+  bytes : Nat
+  value? : Option Nat := none
+  deriving Repr
+
 def kv (key value : String) : TargetMetadata := {
   key := key
   value := value
@@ -192,6 +215,27 @@ def AllocatorConfig.metadata (config : AllocatorConfig) : Array TargetMetadata :
       | .noAllocator => "deny-dynamic"
     )
   ]
+
+def natKv (key : String) (value : Nat) : TargetMetadata :=
+  kv key (toString value)
+
+def maybeNatKv (key : String) : Option Nat -> Array TargetMetadata
+  | some value => #[natKv key value]
+  | none => #[]
+
+def MemoryAction.metadata (action : MemoryAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "memory",
+    kv "solana.memory.name" action.name,
+    kv "solana.memory.op" action.op.id,
+    natKv "solana.memory.bytes" action.bytes
+  ] ++
+  maybeKv "solana.memory.dst_state" action.dstState? ++
+  maybeKv "solana.memory.src_state" action.srcState? ++
+  maybeKv "solana.memory.lhs_state" action.lhsState? ++
+  maybeKv "solana.memory.rhs_state" action.rhsState? ++
+  maybeKv "solana.memory.result_state" action.resultState? ++
+  maybeNatKv "solana.memory.value" action.value?
 
 def systemProgram : String :=
   "system_program"
@@ -397,6 +441,43 @@ def noAllocator (name : String := "runtime") : ProofForge.Contract.Builder.Modul
     name := name
     kind := .noAllocator
     heapBytes := 0
+  }
+
+def memoryEntry (action : MemoryAction) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .runtimeMemory
+    ("solana.memory." ++ action.op.id)
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def memcpyState (name dstState srcState : String) (bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  memoryEntry {
+    name := name
+    op := .memcpy
+    dstState? := some dstState
+    srcState? := some srcState
+    bytes := bytes
+  }
+
+def memcmpState (name lhsState rhsState resultState : String) (bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  memoryEntry {
+    name := name
+    op := .memcmp
+    lhsState? := some lhsState
+    rhsState? := some rhsState
+    resultState? := some resultState
+    bytes := bytes
+  }
+
+def memsetState (name dstState : String) (value bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  memoryEntry {
+    name := name
+    op := .memset
+    dstState? := some dstState
+    bytes := bytes
+    value? := some value
   }
 
 def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do

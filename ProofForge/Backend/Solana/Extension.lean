@@ -58,6 +58,30 @@ structure CpiInvoke where
   entrypoint? : Option String := none
   deriving Repr, Inhabited
 
+inductive MemoryOp where
+  | memcpy
+  | memcmp
+  | memset
+  deriving BEq, DecidableEq, Repr, Inhabited
+
+def MemoryOp.id : MemoryOp -> String
+  | .memcpy => "memcpy"
+  | .memcmp => "memcmp"
+  | .memset => "memset"
+
+structure MemoryAction where
+  name : String
+  op : MemoryOp
+  dstState? : Option String := none
+  srcState? : Option String := none
+  lhsState? : Option String := none
+  rhsState? : Option String := none
+  resultState? : Option String := none
+  bytes : Nat
+  value? : Option Nat := none
+  entrypoint : String
+  deriving Repr, Inhabited
+
 structure RuntimeAllocator where
   name : String
   kind : String
@@ -83,6 +107,7 @@ structure ProgramExtensions where
   cpis : Array CpiInvoke := #[]
   pdaActions : Array PdaAction := #[]
   cpiActions : Array CpiAction := #[]
+  memoryActions : Array MemoryAction := #[]
   deriving Repr, Inhabited
 
 structure CpiAccountBinding where
@@ -155,8 +180,19 @@ def parseAccountMetas (encoded : String) : Array AccountMeta :=
 def boolFromString (value : String) : Bool :=
   value == "true"
 
+def natFromMetadata? (metadata : Array TargetMetadata) (key : String) : Option Nat :=
+  match metadataValue? metadata key with
+  | some value => value.toNat?
+  | none => none
+
 def entrypoint? (call : CapabilityCall) : Option String :=
   metadataValue? call.metadata "proof_forge.entrypoint"
+
+def memoryOpFromString? : String -> Option MemoryOp
+  | "memcpy" => some .memcpy
+  | "memcmp" => some .memcmp
+  | "memset" => some .memset
+  | _ => none
 
 def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=
   { pda with entrypoint? := none }
@@ -200,6 +236,16 @@ def ProgramExtensions.pushCpiAction (acc : ProgramExtensions) (action : CpiActio
   else
     { acc with cpiActions := acc.cpiActions.push action }
 
+def ProgramExtensions.pushMemoryAction (acc : ProgramExtensions)
+    (action : MemoryAction) : ProgramExtensions :=
+  if acc.memoryActions.any (fun existing =>
+      existing.name == action.name &&
+      existing.op == action.op &&
+      existing.entrypoint == action.entrypoint) then
+    acc
+  else
+    { acc with memoryActions := acc.memoryActions.push action }
+
 def ProgramExtensions.addPda (acc : ProgramExtensions) (pda : PdaDerive) : ProgramExtensions :=
   let acc := acc.pushPdaDefinition pda
   match pda.entrypoint? with
@@ -215,6 +261,10 @@ def ProgramExtensions.addCpi (acc : ProgramExtensions) (cpi : CpiInvoke) : Progr
 def ProgramExtensions.addAllocator (acc : ProgramExtensions)
     (allocator : RuntimeAllocator) : ProgramExtensions :=
   acc.pushAllocatorDefinition allocator
+
+def ProgramExtensions.addMemory (acc : ProgramExtensions)
+    (action : MemoryAction) : ProgramExtensions :=
+  acc.pushMemoryAction action
 
 def allocatorFromCall? (call : CapabilityCall) : Option RuntimeAllocator :=
   if call.capability == .runtimeAllocator then
@@ -263,6 +313,26 @@ def cpiFromCall? (call : CapabilityCall) : Option CpiInvoke :=
   else
     none
 
+def memoryFromCall? (call : CapabilityCall) : Option MemoryAction :=
+  if call.capability == .runtimeMemory then
+    match entrypoint? call, metadataValue? call.metadata "solana.memory.op" >>= memoryOpFromString? with
+    | some entrypoint, some op =>
+        some {
+          name := metadataValue? call.metadata "solana.memory.name" |>.getD call.operation
+          op := op
+          dstState? := metadataValue? call.metadata "solana.memory.dst_state"
+          srcState? := metadataValue? call.metadata "solana.memory.src_state"
+          lhsState? := metadataValue? call.metadata "solana.memory.lhs_state"
+          rhsState? := metadataValue? call.metadata "solana.memory.rhs_state"
+          resultState? := metadataValue? call.metadata "solana.memory.result_state"
+          bytes := natFromMetadata? call.metadata "solana.memory.bytes" |>.getD 0
+          value? := natFromMetadata? call.metadata "solana.memory.value"
+          entrypoint := entrypoint
+        }
+    | _, _ => none
+  else
+    none
+
 def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
   plan.calls.foldl
     (fun acc call =>
@@ -274,19 +344,28 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
         match pdaFromCall? call with
         | some pda => acc.addPda pda
         | none => acc
-      match cpiFromCall? call with
-      | some cpi => acc.addCpi cpi
+      let acc :=
+        match cpiFromCall? call with
+        | some cpi => acc.addCpi cpi
+        | none => acc
+      match memoryFromCall? call with
+      | some action => acc.addMemory action
       | none => acc)
     {}
 
 def hasExtensions (extensions : ProgramExtensions) : Bool :=
-  extensions.allocators.size > 0 || extensions.pdas.size > 0 || extensions.cpis.size > 0
+  extensions.allocators.size > 0 ||
+    extensions.pdas.size > 0 ||
+    extensions.cpis.size > 0 ||
+    extensions.memoryActions.size > 0
 
 def hasSyscallExtensions (extensions : ProgramExtensions) : Bool :=
-  extensions.pdas.size > 0 || extensions.cpis.size > 0
+  extensions.pdas.size > 0 || extensions.cpis.size > 0 || extensions.memoryActions.size > 0
 
 def hasEntrypointActions (extensions : ProgramExtensions) : Bool :=
-  extensions.pdaActions.size > 0 || extensions.cpiActions.size > 0
+  extensions.pdaActions.size > 0 ||
+    extensions.cpiActions.size > 0 ||
+    extensions.memoryActions.size > 0
 
 def labelPart (name : String) : String :=
   let chars := name.toList.map fun ch =>
@@ -298,6 +377,9 @@ def PdaDerive.label (pda : PdaDerive) : String :=
 
 def CpiInvoke.label (cpi : CpiInvoke) : String :=
   "sol_cpi_" ++ labelPart cpi.name
+
+def MemoryAction.label (action : MemoryAction) : String :=
+  "sol_memory_" ++ action.op.id ++ "_" ++ labelPart action.name
 
 def callSyscall (name : String) : AstNode :=
   .instruction { opcode := .call, imm := some (.sym name) }
@@ -346,6 +428,7 @@ def cpiSignerEntriesOffset : Nat := 2240
 def cpiSignerSeedTableOffset : Nat := 2304
 def cpiSignerSeedDataOffset : Nat := 2816
 def cpiMaxSeedLen : Nat := 32
+def memoryResultOffset : Nat := 3200
 
 def cpiAccountBinding? (bindings : Array CpiAccountBinding) (name : String) :
     Option CpiAccountBinding :=
@@ -354,6 +437,13 @@ def cpiAccountBinding? (bindings : Array CpiAccountBinding) (name : String) :
 def cpiValueBinding? (bindings : Array CpiValueBinding) (name : String) :
     Option CpiValueBinding :=
   bindings.find? (fun binding => binding.name == name)
+
+def stateValueBinding? (bindings : Array CpiValueBinding) (name : String) :
+    Option CpiValueBinding :=
+  bindings.find? (fun binding =>
+    binding.name == name &&
+    binding.sourceKind == "state" &&
+    !binding.relativeToInstructionData)
 
 def inputPtr (dst : Reg) (off : Nat) : Array AstNode := #[
   .instruction { opcode := .mov64, dst := some dst, src := some .r1 },
@@ -587,6 +677,12 @@ def callHelperPreservingInput (helperName errorLabel : String) : Array AstNode :
   callHelper helperName,
   .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num entryInputSaveOffset) },
   .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym errorLabel) }
+]
+
+def callVoidHelperPreservingInput (helperName : String) : Array AstNode := #[
+  .instruction { opcode := .stxdw, dst := some .r10, off := some (.num entryInputSaveOffset), src := some .r1 },
+  callHelper helperName,
+  .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num entryInputSaveOffset) }
 ]
 
 def lowerPdaDerive (accountBindings : Array CpiAccountBinding) (valueBindings : Array CpiValueBinding)
@@ -1141,6 +1237,112 @@ def lowerCpiInvoke (accountBindings : Array CpiAccountBinding)
   else
     lowerGenericCpiInvoke accountBindings valueBindings cpi
 
+def memoryStateName (value? : Option String) (fallback : String) : String :=
+  value?.getD ("missing_" ++ fallback)
+
+def lowerMemoryStatePtr (bindings : Array CpiValueBinding) (state purpose : String)
+    (dst inputBase : Reg) : Array AstNode :=
+  match stateValueBinding? bindings state with
+  | some binding =>
+      #[
+        .comment s!"solana.memory.ptr {purpose} state={state} input+{binding.absOff}",
+        .instruction { opcode := .mov64, dst := some dst, src := some inputBase },
+        .instruction { opcode := .add64, dst := some dst, imm := some (.num binding.absOff) }
+      ]
+  | none =>
+      #[
+        .comment s!"solana.memory.ptr {purpose} state={state} missing placeholder=stack"
+      ] ++
+      stackPtr dst memoryResultOffset
+
+def MemoryAction.byteValue (action : MemoryAction) : Nat :=
+  action.value?.getD 0 % 256
+
+def lowerMemoryMemcpy (valueBindings : Array CpiValueBinding)
+    (action : MemoryAction) : Array AstNode :=
+  let dstState := memoryStateName action.dstState? "dst"
+  let srcState := memoryStateName action.srcState? "src"
+  #[
+    .comment s!"solana.memory.memcpy {action.name}: dst={dstState} src={srcState} bytes={action.bytes}"
+  ] ++
+  lowerMemoryStatePtr valueBindings dstState "dst" .r1 .r7 ++
+  lowerMemoryStatePtr valueBindings srcState "src" .r2 .r7 ++ #[
+    loadImm .r3 action.bytes,
+    .comment "r1=dst_ptr r2=src_ptr r3=n",
+    callSyscall ProofForge.Backend.Solana.Syscalls.sol_memcpy_
+  ]
+
+def lowerMemoryMemset (valueBindings : Array CpiValueBinding)
+    (action : MemoryAction) : Array AstNode :=
+  let dstState := memoryStateName action.dstState? "dst"
+  let value := action.byteValue
+  #[
+    .comment s!"solana.memory.memset {action.name}: dst={dstState} value={value} bytes={action.bytes}"
+  ] ++
+  lowerMemoryStatePtr valueBindings dstState "dst" .r1 .r7 ++ #[
+    loadImm .r2 value,
+    loadImm .r3 action.bytes,
+    .comment "r1=dst_ptr r2=byte r3=n",
+    callSyscall ProofForge.Backend.Solana.Syscalls.sol_memset_
+  ]
+
+def lowerMemoryMemcmp (valueBindings : Array CpiValueBinding)
+    (action : MemoryAction) : Array AstNode :=
+  let lhsState := memoryStateName action.lhsState? "lhs"
+  let rhsState := memoryStateName action.rhsState? "rhs"
+  let resultState := memoryStateName action.resultState? "result"
+  #[
+    .comment s!"solana.memory.memcmp {action.name}: lhs={lhsState} rhs={rhsState} result={resultState} bytes={action.bytes}"
+  ] ++
+  lowerMemoryStatePtr valueBindings lhsState "lhs" .r1 .r7 ++
+  lowerMemoryStatePtr valueBindings rhsState "rhs" .r2 .r7 ++ #[
+    loadImm .r3 action.bytes
+  ] ++
+  stackPtr .r4 memoryResultOffset ++ #[
+    storeImm .stw .r4 0 0,
+    .comment "r1=s1_ptr r2=s2_ptr r3=n r4=result_ptr",
+    callSyscall ProofForge.Backend.Solana.Syscalls.sol_memcmp_
+  ] ++
+  stackPtr .r5 memoryResultOffset ++ #[
+    .instruction { opcode := .ldxw, dst := some .r3, src := some .r5, off := some (.num 0) }
+  ] ++
+  lowerMemoryStatePtr valueBindings resultState "result" .r5 .r7 ++ #[
+    storeReg .stxdw .r5 0 .r3
+  ]
+
+def lowerMemoryHelper (valueBindings : Array CpiValueBinding)
+    (action : MemoryAction) : Array AstNode :=
+  let body :=
+    match action.op with
+    | .memcpy => lowerMemoryMemcpy valueBindings action
+    | .memcmp => lowerMemoryMemcmp valueBindings action
+    | .memset => lowerMemoryMemset valueBindings action
+  #[
+    .blankLine,
+    .comment s!"solana.memory {action.name}: op={action.op.id}",
+    .label action.label,
+    .instruction { opcode := .mov64, dst := some .r7, src := some .r1 }
+  ] ++ body ++ #[
+    .instruction { opcode := .mov64, dst := some .r1, src := some .r7 },
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
+    .instruction { opcode := .exit }
+  ]
+
+def lowerMemoryAction (action : MemoryAction) : Array AstNode :=
+  #[
+    .comment s!"solana.memory.action {action.name}"
+  ] ++ callVoidHelperPreservingInput action.label
+
+def pushUniqueMemoryHelper (actions : Array MemoryAction)
+    (action : MemoryAction) : Array MemoryAction :=
+  if actions.any (fun existing => existing.name == action.name && existing.op == action.op) then
+    actions
+  else
+    actions.push action
+
+def uniqueMemoryHelpers (extensions : ProgramExtensions) : Array MemoryAction :=
+  extensions.memoryActions.foldl pushUniqueMemoryHelper #[]
+
 def lowerPdaAction (action : PdaAction) : Array AstNode :=
   #[
     .comment s!"solana.pda.action {action.name}"
@@ -1158,12 +1360,14 @@ def lowerCpiAction (action : CpiAction) : Array AstNode :=
 def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String) : Array AstNode :=
   let pdaActions := extensions.pdaActions.filter (fun action => action.entrypoint == entrypoint)
   let cpiActions := extensions.cpiActions.filter (fun action => action.entrypoint == entrypoint)
-  if pdaActions.isEmpty && cpiActions.isEmpty then
+  let memoryActions := extensions.memoryActions.filter (fun action => action.entrypoint == entrypoint)
+  if pdaActions.isEmpty && cpiActions.isEmpty && memoryActions.isEmpty then
     #[]
   else
     #[.comment s!"Solana SDK target extension actions for {entrypoint}"] ++
     pdaActions.foldl (fun acc action => acc ++ lowerPdaAction action) #[] ++
-    cpiActions.foldl (fun acc action => acc ++ lowerCpiAction action) #[]
+    cpiActions.foldl (fun acc action => acc ++ lowerCpiAction action) #[] ++
+    memoryActions.foldl (fun acc action => acc ++ lowerMemoryAction action) #[]
 
 def lowerExtensionErrors : Array AstNode := #[
   .blankLine,
@@ -1197,6 +1401,7 @@ def lowerProgramExtensionsWithBindings
     lowerRuntimeAllocators extensions ++
     extensions.pdas.foldl (fun acc pda => acc ++ lowerPdaDerive accountBindings valueBindings pda) #[] ++
     extensions.cpis.foldl (fun acc cpi => acc ++ lowerCpiInvoke accountBindings valueBindings cpi) #[] ++
+    (uniqueMemoryHelpers extensions).foldl (fun acc action => acc ++ lowerMemoryHelper valueBindings action) #[] ++
     lowerExtensionErrors
 
 def lowerProgramExtensionsWithAccountBindings

@@ -61,6 +61,7 @@ import ProofForge.Solana.Examples.SplTokenTransferCheckedCpi
 import ProofForge.Solana.Examples.SplTokenOpsCpi
 import ProofForge.Solana.Examples.LogEvent
 import ProofForge.Solana.Examples.Clock
+import ProofForge.Solana.Examples.Memory
 
 open Lean
 open System
@@ -160,6 +161,7 @@ inductive EmitMode where
   | solanaSplTokenOpsCpiElf
   | solanaLogEventElf
   | solanaClockSysvarElf
+  | solanaMemoryElf
   | sbpfAsm
   deriving BEq, Inhabited
 
@@ -267,6 +269,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSplTokenOpsCpiElf
   | .solanaLogEventElf
   | .solanaClockSysvarElf
+  | .solanaMemoryElf
   | .sbpfAsm => true
   | _ => false
 
@@ -373,6 +376,7 @@ def usage : String :=
     "  proof-forge --solana-spl-token-ops-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-log-event-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-clock-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-memory-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -1373,6 +1377,20 @@ def solanaCpiActionJson (action : ProofForge.Backend.Solana.Extension.CpiAction)
     ("cpi", jsonString action.name)
   ]
 
+def solanaMemoryActionJson (action : ProofForge.Backend.Solana.Extension.MemoryAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("memory", jsonString action.name),
+    ("op", jsonString action.op.id),
+    ("bytes", toString action.bytes),
+    ("dstState", match action.dstState? with | some state => jsonString state | none => "null"),
+    ("srcState", match action.srcState? with | some state => jsonString state | none => "null"),
+    ("lhsState", match action.lhsState? with | some state => jsonString state | none => "null"),
+    ("rhsState", match action.rhsState? with | some state => jsonString state | none => "null"),
+    ("resultState", match action.resultState? with | some state => jsonString state | none => "null"),
+    ("value", match action.value? with | some value => toString value | none => "null")
+  ]
+
 def solanaInstructionAccountJson (account : ProofForge.Backend.Solana.Manifest.AccountEntry) : String :=
   jsonObject #[
     ("name", jsonString account.name),
@@ -1413,7 +1431,8 @@ def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
     ("pdas", jsonArray (extensions.pdas.map solanaPdaJson)),
     ("cpis", jsonArray (extensions.cpis.map solanaCpiJson)),
     ("pdaActions", jsonArray (extensions.pdaActions.map solanaPdaActionJson)),
-    ("cpiActions", jsonArray (extensions.cpiActions.map solanaCpiActionJson))
+    ("cpiActions", jsonArray (extensions.cpiActions.map solanaCpiActionJson)),
+    ("memoryActions", jsonArray (extensions.memoryActions.map solanaMemoryActionJson))
   ]
 
 def contractNameForFixture (fixture : String) : String :=
@@ -1895,6 +1914,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaLogEventElf }
   | "--solana-clock-sysvar-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaClockSysvarElf }
+  | "--solana-memory-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaMemoryElf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
@@ -3145,6 +3166,13 @@ def compileSolanaClockSysvarElf (opts : CliOptions) : IO UInt32 :=
     "solana-clock-sysvar-elf"
     ProofForge.Solana.Examples.Clock.spec
 
+def compileSolanaMemoryElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/Memory.so")
+    "memory"
+    "solana-memory-elf"
+    ProofForge.Solana.Examples.Memory.spec
+
 def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/entrypoint.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderCannedEntrypoint with
@@ -3288,6 +3316,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaSplTokenOpsCpiElf => compileSolanaSplTokenOpsCpiElf opts
   | .solanaLogEventElf => compileSolanaLogEventElf opts
   | .solanaClockSysvarElf => compileSolanaClockSysvarElf opts
+  | .solanaMemoryElf => compileSolanaMemoryElf opts
   | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli
