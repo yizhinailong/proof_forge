@@ -986,6 +986,14 @@ Completed developer-surface slices:
   tags. `scripts/portable/value-vault-smoke.sh` proves the same surface source
   emits EVM Yul/bytecode metadata plus Solana sBPF assembly/manifest/artifact
   metadata.
+- Solana IDL and TypeScript client package output:
+  `ProofForge.Backend.Solana.Idl` renders `proof-forge-idl.json` from the same
+  instruction/account/PDA/CPI schema used by `manifest.toml` and artifact
+  metadata. `ProofForge.Backend.Solana.Client` renders
+  `proof-forge-client.ts` with Web3.js `TransactionInstruction` helpers,
+  instruction-data encoding, and account-meta construction. Solana package
+  printing, `--emit-solana-sdk-sbpf`, `--emit-value-vault-ir-sbpf`, and the
+  Solana ELF contract-sdk path now emit and hash both files.
 
 Current boundary:
 
@@ -1030,9 +1038,9 @@ Remaining priority slices:
    into portable IR.
 6. Developer ergonomics and framework surface (3-5 days per iteration): extend
    the new surface layer toward real Learn-level contract syntax with richer
-   typed account/data wrappers, IDL/client generation, broader SPL/Token-2022
-   helper coverage, and diagnostics that map generated assembly failures back
-   to SDK declarations.
+   typed account/data wrappers, richer generated client APIs, broader
+   SPL/Token-2022 helper coverage, and diagnostics that map generated assembly
+   failures back to SDK declarations.
 
 The fastest credible route to a more complete SDK is therefore: the alpha
 observability baseline is now in place, so next close the richer beta syscall

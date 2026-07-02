@@ -4,7 +4,7 @@
 # This gate exercises one Contract Builder source across target backends:
 #   - EVM: ContractSpec IR -> ABI-selector hydration -> Yul, when Foundry cast exists.
 #   - EVM bytecode/artifact: optional, when both solc and Foundry cast exist.
-#   - Solana: ContractSpec -> target-routed sBPF assembly, manifest, metadata.
+#   - Solana: ContractSpec -> target-routed sBPF assembly, manifest, IDL, TS client, metadata.
 #   - Solana ELF: optional, set PROOF_FORGE_VALUE_VAULT_ELF=1 when sbpf exists.
 set -euo pipefail
 
@@ -24,6 +24,8 @@ EVM_ARTIFACT="$EVM_DIR/ValueVault.proof-forge-artifact.json"
 
 SOLANA_ASM="$SOLANA_DIR/ValueVault.s"
 SOLANA_MANIFEST="$SOLANA_DIR/manifest.toml"
+SOLANA_IDL="$SOLANA_DIR/proof-forge-idl.json"
+SOLANA_CLIENT="$SOLANA_DIR/proof-forge-client.ts"
 SOLANA_ARTIFACT="$SOLANA_DIR/ValueVault.proof-forge-artifact.json"
 SOLANA_ELF="$SOLANA_DIR/ValueVault.so"
 
@@ -112,6 +114,8 @@ lake env proof-forge --emit-value-vault-ir-sbpf \
   || fail "proof-forge --emit-value-vault-ir-sbpf failed"
 require_file "$SOLANA_ASM"
 require_file "$SOLANA_MANIFEST"
+require_file "$SOLANA_IDL"
+require_file "$SOLANA_CLIENT"
 require_file "$SOLANA_ARTIFACT"
 require_contains "$SOLANA_ASM" "solana.event.emit ValueDeposited" "Solana event lowering"
 require_contains "$SOLANA_ASM" "solana.event.emit ValueSnapshot" "Solana snapshot event lowering"
@@ -122,7 +126,7 @@ require_contains "$SOLANA_MANIFEST" 'name = "charge_fee"' "Solana manifest charg
 require_contains "$SOLANA_MANIFEST" 'name = "snapshot"' "Solana manifest snapshot instruction"
 
 echo "=== Portable ValueVault step 5: validate Solana artifact metadata ==="
-python3 - "$REPO_ROOT" "$SOLANA_ARTIFACT" "$SOLANA_ASM" "$SOLANA_MANIFEST" <<'PY'
+python3 - "$REPO_ROOT" "$SOLANA_ARTIFACT" "$SOLANA_ASM" "$SOLANA_MANIFEST" "$SOLANA_IDL" "$SOLANA_CLIENT" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -132,7 +136,11 @@ root = pathlib.Path(sys.argv[1])
 artifact_path = pathlib.Path(sys.argv[2])
 asm_path = pathlib.Path(sys.argv[3])
 manifest_path = pathlib.Path(sys.argv[4])
+idl_path = pathlib.Path(sys.argv[5])
+client_path = pathlib.Path(sys.argv[6])
 artifact = json.loads(artifact_path.read_text())
+idl = json.loads(idl_path.read_text())
+client = client_path.read_text()
 
 def fail(message: str) -> None:
     raise SystemExit(message)
@@ -163,7 +171,12 @@ require(set(plan.get("capabilities", [])) >= {"storage.scalar", "events.emit", "
         "capabilityPlan capabilities mismatch")
 
 artifacts = artifact.get("artifacts", {})
-for name, expected_path in [("sbpfAsm", asm_path), ("manifestToml", manifest_path)]:
+for name, expected_path in [
+    ("sbpfAsm", asm_path),
+    ("manifestToml", manifest_path),
+    ("solanaIdl", idl_path),
+    ("solanaClientTs", client_path),
+]:
     entry = artifacts.get(name)
     require(isinstance(entry, dict), f"missing artifact entry {name}")
     actual_path = resolve(entry.get("path", ""))
@@ -173,6 +186,22 @@ for name, expected_path in [("sbpfAsm", asm_path), ("manifestToml", manifest_pat
     require(entry.get("sha256") == hashlib.sha256(data).hexdigest(), f"{name} sha256 mismatch")
 
 instructions = artifact.get("solanaInstructions", [])
+require(artifact.get("solanaIdl") == idl, "artifact solanaIdl does not match IDL file")
+require(idl.get("schema") == "proof-forge.solana.idl.v0", "IDL schema mismatch")
+require(idl.get("name") == "ValueVault", "IDL program name mismatch")
+require(idl.get("target") == "solana-sbpf-asm", "IDL target mismatch")
+for needle in ["export const IDL = ", "encodeInstructionData", "accountMetas", "createInstruction"]:
+    require(needle in client, f"client missing {needle}")
+idl_instructions = idl.get("instructions", [])
+require([instruction.get("name") for instruction in idl_instructions] == [
+    "initialize",
+    "deposit",
+    "charge_fee",
+    "release",
+    "snapshot",
+    "get_balance",
+    "get_net_value",
+], "IDL instruction order mismatch")
 names = [instruction.get("name") for instruction in instructions]
 expected_names = [
     "initialize",

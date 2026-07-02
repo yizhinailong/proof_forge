@@ -530,6 +530,14 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   instruction tag。`scripts/portable/value-vault-smoke.sh` 会证明同一份
   surface source 能发射 EVM Yul/bytecode metadata 以及 Solana sBPF
   assembly/manifest/artifact metadata。
+- Solana IDL 与 TypeScript client package output：
+  `ProofForge.Backend.Solana.Idl` 会从 `manifest.toml` 和 artifact metadata
+  共用的 instruction/account/PDA/CPI schema 渲染 `proof-forge-idl.json`。
+  `ProofForge.Backend.Solana.Client` 会渲染 `proof-forge-client.ts`，包含
+  Web3.js `TransactionInstruction` helper、instruction-data encoding 和
+  account-meta construction。Solana package printer、
+  `--emit-solana-sdk-sbpf`、`--emit-value-vault-ir-sbpf` 以及 Solana ELF
+  contract-sdk 路径现在都会发射并记录这两个文件的 hash。
 
 当前边界：
 
@@ -567,7 +575,7 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
    portable IR。
 6. Developer ergonomics 和框架层体验（每轮 3-5 天）：把新的 surface 层继续推进到
    真正的 Learn-level contract syntax，并继续补更丰富的 typed account/data
-   wrapper、IDL/client generation、更完整 SPL/Token-2022 helper 覆盖，以及能把
+   wrapper、更丰富的 generated client API、更完整 SPL/Token-2022 helper 覆盖，以及能把
    generated assembly failure 映射回 SDK declaration 的诊断。
 
 最快可信路线是：alpha observability baseline 现在已经落地；下一步先关闭更丰富的

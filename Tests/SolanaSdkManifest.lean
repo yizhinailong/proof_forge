@@ -1,5 +1,6 @@
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Package
+import ProofForge.Backend.Solana.Idl
 import ProofForge.Solana.Examples.Vault
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
@@ -25,7 +26,36 @@ def main : IO UInt32 := do
     | .error err => throw <| IO.userError s!"Solana Vault SDK routing failed: {err.render}"
 
   let manifest := ProofForge.Backend.Solana.Manifest.renderManifestWithPlan spec.module plan
+  let idl := ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan
   require (contains manifest "[[solana.account]]") "manifest missing Solana declared account section"
+  require (contains idl "\"schema\": \"proof-forge.solana.idl.v0\"")
+    "IDL missing schema marker"
+  require (contains idl "\"name\": \"SolanaVault\"")
+    "IDL missing program name"
+  require (contains idl "\"target\": \"solana-sbpf-asm\"")
+    "IDL missing target"
+  require (contains idl "\"instructions\"")
+    "IDL missing instruction list"
+  require (contains idl "\"name\": \"touch\"")
+    "IDL missing touch instruction"
+  require (contains idl "\"accounts\"")
+    "IDL missing account schema"
+  require (contains idl "\"name\": \"vault_account\"")
+    "IDL missing vault_account"
+  require (contains idl "\"owner\": \"program\"")
+    "IDL missing program owner constraint"
+  require (contains idl "\"pdas\"")
+    "IDL missing PDA list"
+  require (contains idl "\"typedSeeds\"")
+    "IDL missing typed PDA seeds"
+  require (contains idl "\"cpis\"")
+    "IDL missing CPI list"
+  require (contains idl "\"name\": \"token_transfer\"")
+    "IDL missing token_transfer CPI"
+  require (contains idl "\"dataLayout\": \"spl-token.transfer_checked\"")
+    "IDL missing SPL Token data layout"
+  require (contains idl "\"entrypointActions\"")
+    "IDL missing entrypoint action metadata"
   require (contains manifest "name = \"vault_account\"\naccess = \"writable\"\nsigner = \"none\"\nowner = \"program\"")
     "manifest missing declared vault_account constraints"
   require (contains manifest "name = \"spl_token\"\naccess = \"readonly\"\nsigner = \"none\"\nowner = \"executable\"")
@@ -99,8 +129,32 @@ def main : IO UInt32 := do
   | .ok pkg =>
       let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
         | throw <| IO.userError "package missing manifest.toml"
+      let some idlFile := pkg.files.find? (fun file => file.path == pkg.idlPath)
+        | throw <| IO.userError "package missing proof-forge-idl.json"
+      let some clientFile := pkg.files.find? (fun file => file.path == pkg.clientPath)
+        | throw <| IO.userError "package missing proof-forge-client.ts"
       let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
         | throw <| IO.userError "package missing sBPF assembly"
+      require (pkg.idlPath == "proof-forge-idl.json")
+        "package IDL path mismatch"
+      require (pkg.clientPath == "proof-forge-client.ts")
+        "package client path mismatch"
+      require (contains idlFile.contents "\"schema\": \"proof-forge.solana.idl.v0\"")
+        "package IDL missing schema marker"
+      require (contains idlFile.contents "\"instructions\"")
+        "package IDL missing instruction list"
+      require (contains idlFile.contents "\"name\": \"touch\"")
+        "package IDL missing touch instruction"
+      require (contains idlFile.contents "\"name\": \"token_transfer\"")
+        "package IDL missing token_transfer CPI"
+      require (contains clientFile.contents "export const IDL = ")
+        "package client missing embedded IDL"
+      require (contains clientFile.contents "encodeInstructionData")
+        "package client missing instruction-data encoder"
+      require (contains clientFile.contents "accountMetas")
+        "package client missing account meta builder"
+      require (contains clientFile.contents "createInstruction")
+        "package client missing TransactionInstruction factory"
       require (contains manifestFile.contents "[[solana.pda]]")
         "package manifest missing Solana PDA section"
       require (contains manifestFile.contents "[[solana.account]]")

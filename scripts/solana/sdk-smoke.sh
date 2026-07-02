@@ -5,6 +5,8 @@
 # helpers emits:
 #   - sBPF assembly
 #   - manifest.toml with PDA/CPI extension metadata
+#   - proof-forge-idl.json for client/account schema generation
+#   - proof-forge-client.ts with Web3.js instruction helpers
 #   - proof-forge-artifact.json with capability plan and Solana extension data
 #
 # If `sbpf` and `solana-keygen` are available, it also verifies that the
@@ -18,6 +20,8 @@ OUT_DIR="${PROOF_FORGE_SOLANA_SDK_OUT:-build/solana-sdk}"
 ASM_OUTPUT="$OUT_DIR/SolanaVault.s"
 ARTIFACT_OUTPUT="$OUT_DIR/proof-forge-artifact.json"
 MANIFEST_OUTPUT="$OUT_DIR/manifest.toml"
+IDL_OUTPUT="$OUT_DIR/proof-forge-idl.json"
+CLIENT_OUTPUT="$OUT_DIR/proof-forge-client.ts"
 PROJECT_NAME="proofforge-solana-vault"
 SBPF_BIN="${SBPF:-sbpf}"
 KEYGEN="${SOLANA_KEYGEN:-solana-keygen}"
@@ -38,10 +42,12 @@ lake env proof-forge --emit-solana-sdk-sbpf \
 
 [ -f "$ASM_OUTPUT" ] || fail "assembly file not written: $ASM_OUTPUT"
 [ -f "$MANIFEST_OUTPUT" ] || fail "manifest not written: $MANIFEST_OUTPUT"
+[ -f "$IDL_OUTPUT" ] || fail "IDL not written: $IDL_OUTPUT"
+[ -f "$CLIENT_OUTPUT" ] || fail "client not written: $CLIENT_OUTPUT"
 [ -f "$ARTIFACT_OUTPUT" ] || fail "artifact metadata not written: $ARTIFACT_OUTPUT"
 
 echo "=== Solana SDK step 2: validate manifest and artifact metadata ==="
-python3 - "$MANIFEST_OUTPUT" "$ARTIFACT_OUTPUT" "$ASM_OUTPUT" <<'PY'
+python3 - "$MANIFEST_OUTPUT" "$ARTIFACT_OUTPUT" "$ASM_OUTPUT" "$IDL_OUTPUT" "$CLIENT_OUTPUT" <<'PY'
 import json
 import pathlib
 import sys
@@ -50,9 +56,13 @@ import tomllib
 manifest_path = pathlib.Path(sys.argv[1])
 artifact_path = pathlib.Path(sys.argv[2])
 asm_path = pathlib.Path(sys.argv[3])
+idl_path = pathlib.Path(sys.argv[4])
+client_path = pathlib.Path(sys.argv[5])
 manifest = tomllib.loads(manifest_path.read_text())
 artifact = json.loads(artifact_path.read_text())
 asm = asm_path.read_text()
+idl = json.loads(idl_path.read_text())
+client = client_path.read_text()
 
 caps = set(artifact.get("capabilities", []))
 required_caps = {"storage.scalar", "account.explicit", "storage.pda", "runtime.allocator", "crosscall.cpi"}
@@ -63,10 +73,35 @@ if missing:
 allocators = artifact.get("solanaExtensions", {}).get("allocators", [])
 account_decls = artifact.get("solanaExtensions", {}).get("accounts", [])
 instructions = artifact.get("solanaInstructions", [])
+artifact_idl = artifact.get("solanaIdl")
 pdas = artifact.get("solanaExtensions", {}).get("pdas", [])
 cpis = artifact.get("solanaExtensions", {}).get("cpis", [])
 pda_actions = artifact.get("solanaExtensions", {}).get("pdaActions", [])
 cpi_actions = artifact.get("solanaExtensions", {}).get("cpiActions", [])
+if artifact_idl != idl:
+    raise SystemExit("artifact solanaIdl does not match proof-forge-idl.json")
+if idl.get("schema") != "proof-forge.solana.idl.v0":
+    raise SystemExit("IDL schema mismatch")
+if idl.get("name") != "SolanaVault":
+    raise SystemExit("IDL program name mismatch")
+if idl.get("target") != "solana-sbpf-asm":
+    raise SystemExit("IDL target mismatch")
+for needle in [
+    "export const IDL = ",
+    "encodeInstructionData",
+    "accountMetas",
+    "createInstruction",
+    "new TransactionInstruction",
+]:
+    if needle not in client:
+        raise SystemExit(f"client missing {needle!r}")
+client_entry = artifact.get("artifacts", {}).get("solanaClientTs")
+if not isinstance(client_entry, dict):
+    raise SystemExit("artifact missing solanaClientTs entry")
+if pathlib.Path(client_entry.get("path", "")).resolve() != client_path.resolve():
+    raise SystemExit("artifact solanaClientTs path mismatch")
+if client_entry.get("bytes") != len(client_path.read_bytes()):
+    raise SystemExit("artifact solanaClientTs byte count mismatch")
 if not allocators or allocators[0].get("kind") != "bump":
     raise SystemExit("artifact missing bump runtime allocator")
 if allocators[0].get("model") != "downward-bump":
@@ -87,6 +122,15 @@ if account_decls != expected_account_decls:
     raise SystemExit(f"artifact account declarations mismatch: {account_decls}")
 if len(instructions) != 2:
     raise SystemExit(f"artifact instruction schema count mismatch: {len(instructions)}")
+idl_instructions = idl.get("instructions", [])
+normalized_idl_instructions = [
+    {key: value for key, value in instruction.items() if key != "returns"}
+    for instruction in idl_instructions
+]
+if normalized_idl_instructions != instructions:
+    raise SystemExit(f"IDL instructions mismatch: {idl_instructions}")
+if any(instruction.get("returns") != "Unit" for instruction in idl_instructions):
+    raise SystemExit(f"IDL instruction return schema mismatch: {idl_instructions}")
 if any(instruction.get("minDataLen") != 1 for instruction in instructions):
     raise SystemExit(f"artifact instruction minDataLen mismatch: {instructions}")
 if any(instruction.get("params") != [] for instruction in instructions):
@@ -103,6 +147,37 @@ expected_instruction_accounts = [
 ]
 if instruction_accounts != expected_instruction_accounts:
     raise SystemExit(f"artifact instruction accounts mismatch: {instruction_accounts}")
+idl_accounts = [account.get("name") for account in idl.get("accounts", [])]
+if idl_accounts != expected_instruction_accounts:
+    raise SystemExit(f"IDL account schema mismatch: {idl_accounts}")
+idl_declared_accounts = [
+    {key: value for key, value in account.items() if key != "entrypoint"}
+    for account in idl.get("declaredAccounts", [])
+]
+if idl_declared_accounts != expected_account_decls:
+    raise SystemExit(f"IDL declared accounts mismatch: {idl_declared_accounts}")
+if idl.get("allocators") != [dict(allocator, entrypoint=None) for allocator in allocators]:
+    raise SystemExit("IDL allocator metadata mismatch")
+normalized_idl_pdas = []
+for pda in idl.get("pdas", []):
+    normalized = {key: value for key, value in pda.items() if key != "entrypoint"}
+    normalized["typedSeeds"] = [
+        {key: value for key, value in seed.items() if key != "raw"}
+        for seed in normalized.get("typedSeeds", [])
+    ]
+    normalized_idl_pdas.append(normalized)
+if normalized_idl_pdas != pdas:
+    raise SystemExit("IDL PDA metadata mismatch")
+normalized_idl_cpis = [
+    {key: value for key, value in cpi.items() if key != "entrypoint"}
+    for cpi in idl.get("cpis", [])
+]
+if normalized_idl_cpis != cpis:
+    raise SystemExit("IDL CPI metadata mismatch")
+if idl.get("entrypointActions", {}).get("pdas") != pda_actions:
+    raise SystemExit("IDL PDA action metadata mismatch")
+if idl.get("entrypointActions", {}).get("cpis") != cpi_actions:
+    raise SystemExit("IDL CPI action metadata mismatch")
 program_accounts = [account for account in instructions[0].get("accounts", []) if account.get("name") == "spl_token"]
 if not program_accounts or program_accounts[0].get("owner") != "executable":
     raise SystemExit("artifact missing SPL Token executable account schema")

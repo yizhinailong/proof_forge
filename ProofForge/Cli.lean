@@ -8,6 +8,8 @@ import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Package
 import ProofForge.Backend.Solana.Extension
+import ProofForge.Backend.Solana.Idl
+import ProofForge.Backend.Solana.Client
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
@@ -3041,6 +3043,24 @@ def writeSbpfManifestWithPlan (output : FilePath) (module : ProofForge.IR.Module
   IO.FS.writeFile manifestOutput (manifest ++ "\n")
   return manifestOutput
 
+def writeSbpfIdlWithPlan (output : FilePath) (module : ProofForge.IR.Module)
+    (plan : ProofForge.Target.CapabilityPlan) : IO FilePath := do
+  let idlOutput := match output.parent with
+    | some parent => parent / ProofForge.Backend.Solana.Idl.idlPath
+    | none => FilePath.mk ProofForge.Backend.Solana.Idl.idlPath
+  let idl := ProofForge.Backend.Solana.Idl.renderWithPlan module plan
+  IO.FS.writeFile idlOutput (idl ++ "\n")
+  return idlOutput
+
+def writeSbpfClientWithPlan (output : FilePath) (module : ProofForge.IR.Module)
+    (plan : ProofForge.Target.CapabilityPlan) : IO FilePath := do
+  let clientOutput := match output.parent with
+    | some parent => parent / ProofForge.Backend.Solana.Client.clientPath
+    | none => FilePath.mk ProofForge.Backend.Solana.Client.clientPath
+  let client := ProofForge.Backend.Solana.Client.renderWithPlan module plan
+  IO.FS.writeFile clientOutput (client ++ "\n")
+  return clientOutput
+
 def packagePath (root : FilePath) (rel : String) : FilePath :=
   rel.splitOn "/" |>.foldl (init := root) fun acc part =>
     if part.isEmpty then acc else acc / part
@@ -3161,11 +3181,17 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
       IO.println s!"wrote {output}"
       let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
       IO.println s!"wrote {manifestOutput}"
+      let idlOutput ← writeSbpfIdlWithPlan output spec.module plan
+      IO.println s!"wrote {idlOutput}"
+      let clientOutput ← writeSbpfClientWithPlan output spec.module plan
+      IO.println s!"wrote {clientOutput}"
       let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
       if let some parent := metadataOutput.parent then
         IO.FS.createDirAll parent
       let sourceArtifact ← artifactEntryJson output
       let manifestArtifact ← artifactEntryJson manifestOutput
+      let idlArtifact ← artifactEntryJson idlOutput
+      let clientArtifact ← artifactEntryJson clientOutput
       let metadata := jsonObject #[
         ("schemaVersion", "1"),
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
@@ -3179,6 +3205,7 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
         ("capabilityPlan", capabilityPlanJson plan),
         ("solanaInstructions", solanaInstructionsJson spec.module plan),
         ("solanaExtensions", solanaExtensionsJson plan),
+        ("solanaIdl", ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan),
         ("toolchain", jsonObject #[
           ("sbpf", jsonObject #[
             ("path", jsonString "sbpf"),
@@ -3187,7 +3214,9 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
         ]),
         ("artifacts", jsonObject #[
           ("sbpfAsm", sourceArtifact),
-          ("manifestToml", manifestArtifact)
+          ("manifestToml", manifestArtifact),
+          ("solanaIdl", idlArtifact),
+          ("solanaClientTs", clientArtifact)
         ]),
         ("validation", jsonObject #[
           ("targetRouting", jsonString "passed"),
@@ -3218,11 +3247,17 @@ def compileValueVaultIrSbpf (opts : CliOptions) : IO UInt32 := do
       IO.println s!"wrote {output}"
       let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
       IO.println s!"wrote {manifestOutput}"
+      let idlOutput ← writeSbpfIdlWithPlan output spec.module plan
+      IO.println s!"wrote {idlOutput}"
+      let clientOutput ← writeSbpfClientWithPlan output spec.module plan
+      IO.println s!"wrote {clientOutput}"
       let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
       if let some parent := metadataOutput.parent then
         IO.FS.createDirAll parent
       let sourceArtifact ← artifactEntryJson output
       let manifestArtifact ← artifactEntryJson manifestOutput
+      let idlArtifact ← artifactEntryJson idlOutput
+      let clientArtifact ← artifactEntryJson clientOutput
       let metadata := jsonObject #[
         ("schemaVersion", "1"),
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
@@ -3236,6 +3271,7 @@ def compileValueVaultIrSbpf (opts : CliOptions) : IO UInt32 := do
         ("capabilityPlan", capabilityPlanJson plan),
         ("solanaInstructions", solanaInstructionsJson spec.module plan),
         ("solanaExtensions", solanaExtensionsJson plan),
+        ("solanaIdl", ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan),
         ("toolchain", jsonObject #[
           ("sbpf", jsonObject #[
             ("path", jsonString "sbpf"),
@@ -3244,7 +3280,9 @@ def compileValueVaultIrSbpf (opts : CliOptions) : IO UInt32 := do
         ]),
         ("artifacts", jsonObject #[
           ("sbpfAsm", sourceArtifact),
-          ("manifestToml", manifestArtifact)
+          ("manifestToml", manifestArtifact),
+          ("solanaIdl", idlArtifact),
+          ("solanaClientTs", clientArtifact)
         ]),
         ("validation", jsonObject #[
           ("targetRouting", jsonString "passed"),
@@ -3354,6 +3392,8 @@ def compileSolanaSpecElf (opts : CliOptions) (defaultOutput : FilePath)
 
       let asmSrc := packagePath projectDir pkg.asmPath
       let manifestOutput := packagePath projectDir pkg.manifestPath
+      let idlOutput := packagePath projectDir pkg.idlPath
+      let clientOutput := packagePath projectDir pkg.clientPath
       let _ ← runProcess "sbpf" #["build", "--arch", opts.solanaSbpfArch] (cwd? := some projectDir)
 
       let builtElf := projectDir / "deploy" / s!"{projectName}.so"
@@ -3371,6 +3411,8 @@ def compileSolanaSpecElf (opts : CliOptions) (defaultOutput : FilePath)
         IO.FS.createDirAll parent
       let sourceArtifact ← artifactEntryJson asmSrc
       let manifestArtifact ← artifactEntryJson manifestOutput
+      let idlArtifact ← artifactEntryJson idlOutput
+      let clientArtifact ← artifactEntryJson clientOutput
       let elfArtifact ← artifactEntryJson output
       let metadata := jsonObject #[
         ("schemaVersion", "1"),
@@ -3385,6 +3427,7 @@ def compileSolanaSpecElf (opts : CliOptions) (defaultOutput : FilePath)
         ("capabilityPlan", capabilityPlanJson plan),
         ("solanaInstructions", solanaInstructionsJson spec.module plan),
         ("solanaExtensions", solanaExtensionsJson plan),
+        ("solanaIdl", ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan),
         ("toolchain", jsonObject #[
           ("sbpf", jsonObject #[
             ("path", jsonString "sbpf"),
@@ -3395,6 +3438,8 @@ def compileSolanaSpecElf (opts : CliOptions) (defaultOutput : FilePath)
         ("artifacts", jsonObject #[
           ("sbpfAsm", sourceArtifact),
           ("manifestToml", manifestArtifact),
+          ("solanaIdl", idlArtifact),
+          ("solanaClientTs", clientArtifact),
           ("solanaElf", elfArtifact)
         ]),
         ("validation", jsonObject #[
