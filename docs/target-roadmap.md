@@ -214,6 +214,35 @@ placement:
 
 ## Sequencing summary (gates, not dates)
 
+```mermaid
+flowchart LR
+  T0["Tier 0 (active)<br/>evm · solana-sbpf-asm · wasm-near<br/>psy-dpn · aleo-leo · cf-workers"]
+  G0{"Gate G0<br/>testkit M3 +<br/>shared-scenario parity"}
+  CW["Tier 1a<br/>wasm-cosmwasm"]
+  AP["Tier 1b<br/>move-aptos"]
+  G1a{"G1a: CosmWasm M4"}
+  G1b{"G1b: Aptos M4"}
+  SOR["wasm-stellar-soroban"]
+  ICP["wasm-icp-canister<br/>(+ async design note)"]
+  SUI["move-sui"]
+  SRC["Sourcegen lane<br/>starknet → ton/avm/cardano/tezos<br/>(one spike at a time)"]
+  G2{"Gate G2<br/>both Tier-1 exits"}
+  BTC["Policy family<br/>miniscript first"]
+  KAS["kaspa-toccata Road 1<br/>(trigger: upstream ZK SDK + Silverscript)"]
+  ZC["bch / zcash / kaspa Roads 2-3"]
+
+  T0 --> G0
+  G0 --> CW & AP
+  CW --> G1a --> SOR
+  G1a -.-> ICP
+  AP --> G1b --> SUI
+  G1b --> SRC
+  G1a & G1b --> G2
+  G2 --> BTC
+  G2 -.-> KAS
+  BTC --> ZC
+```
+
 ```text
 Gate G0: testkit M3 + shared-scenario parity on evm/solana/wasm-near   (Tier-0 exit)
   ├── opens 1a wasm-cosmwasm  (M1..M4)

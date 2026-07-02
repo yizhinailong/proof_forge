@@ -1,6 +1,6 @@
 {
   "README.md": {
-    "sha256": "eda3bcfbc95afef5dce47e06b649f187300116cb706d0e5e5e1113640461d01f",
+    "sha256": "ab29ed67cd58aae290c01e6d41a56f9509ec484efbd177f4621030cfff057f0f",
     "zh": "docs/zh/README-root.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -50,7 +50,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/development-standards.md": {
-    "sha256": "ece321fa595c35533cca6d911789e2135c4edc8680fe29b79dbc13ddccf06c65",
+    "sha256": "9cff37aa11ad99f6774b0a57569edd94f12170af3460b73e842f8c5ba533f191",
     "zh": "docs/zh/development-standards.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -80,7 +80,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/0004-evm-semantic-plan.md": {
-    "sha256": "00504c6d179cc7bbc625cabf4d5c4a04af1da767615a67a99a18e1c16dc59718",
+    "sha256": "ba0d0a80e2f5d9fafb3ff9985ae30fd59bb567bccb310318d169156a03f906e9",
     "zh": "docs/zh/rfcs/0004-evm-semantic-plan.zh.md",
     "model": "gemini-3-flash-preview"
   },

@@ -86,13 +86,51 @@ Cloud/agent environment notes are in [AGENTS.md](AGENTS.md).
 
 ## Architecture
 
-```text
-Lean SDK syntax / contract_source        (user-facing, chain-neutral)
-  -> source AST
-  -> ContractSpec / portable IR          (compiler-owned boundary)
-  -> target resolver + capability routing (--target)
-  -> target semantic AST / plan
-  -> printer / assembler / package emitter
+```mermaid
+flowchart TB
+  subgraph authoring ["Authoring (user-facing, chain-neutral)"]
+    SDK["Lean SDK<br/>contract_source / Contract Intent API"]
+    TOK["Token SDK<br/>TokenSpec"]
+    LEARN[".learn parser<br/>(frozen compatibility)"]
+  end
+
+  subgraph core ["Compiler-owned core"]
+    SPEC["ContractSpec"]
+    IR["Portable IR<br/>+ AllocatorConfig + ownership rules"]
+    SEM["IR semantics + formal anchors<br/>(FV roadmap)"]
+  end
+
+  subgraph routing ["Target routing (--target)"]
+    REG["Target registry<br/>profiles + allocator bindings"]
+    CAP["Capability check<br/>reject unsupported intents"]
+    EXT["Target Extension SDKs<br/>Solana accounts/PDA/CPI, ..."]
+  end
+
+  subgraph backends ["Backends"]
+    EVM["EVM<br/>Plan → Yul → solc"]
+    SOL["Solana<br/>sBPF asm → ELF"]
+    NEAR["NEAR<br/>EmitWat → WAT → wasm"]
+    PSY["Psy/DPN<br/>.psy → Dargo"]
+    ALEO["Aleo<br/>Leo package"]
+    CFW["CF Workers<br/>TypeScript"]
+  end
+
+  subgraph artifacts ["Artifacts + validation"]
+    ART["bytecode/ELF/wasm/circuit + ABI/IDL<br/>artifact + deploy manifests + TS clients"]
+    GATES["Gates: Lean tests · testkit (planned, RFC 0007)<br/>Foundry · Mollusk/Surfpool · offline host · dargo/leo"]
+  end
+
+  SDK --> SPEC
+  TOK --> SPEC
+  LEARN --> SPEC
+  SPEC --> IR
+  IR --- SEM
+  IR --> CAP
+  REG --> CAP
+  EXT --> CAP
+  CAP --> EVM & SOL & NEAR & PSY & ALEO & CFW
+  EVM & SOL & NEAR & PSY & ALEO & CFW --> ART
+  ART --> GATES
 ```
 
 - **Contract Intent API** — the default SDK surface: state, entrypoints,

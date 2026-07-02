@@ -63,6 +63,25 @@ TargetProfile binding (per target, Registry layer)
   wasm-near       -> { strategy = freeList | bump | bumpReset, region = linear-memory@heapBase, growable, release = reuse | noop }
 ```
 
+```mermaid
+flowchart TB
+  IRA["IR: Statement.release +<br/>Module.allocator (AllocatorModel)"]
+  OWN["Ownership checker<br/>(no use-after-release / double release)"]
+  MODEL["AllocatorModel<br/>strategy × region × release"]
+  CAPG["Capability gate<br/>runtime.allocator"]
+  subgraph bindings ["Per-target bindings (TargetProfile)"]
+    BE["evm: bump over call-scratch<br/>release = noop*"]
+    BS["solana: bump over heap 0x300000000/32K<br/>release = noop"]
+    BN["wasm-near: freeList/bump/bumpReset<br/>linear memory, release = reuse"]
+  end
+  OUT["Out of scope, stays chain-specific:<br/>EVM storage · Solana account data · NEAR storage"]
+
+  IRA --> OWN --> MODEL
+  MODEL --> CAPG
+  CAPG --> BE & BS & BN
+  MODEL -. "explicitly not covered" .-> OUT
+```
+
 Concretely, in code:
 
 1. **Generalize `ProofForge/IR/Allocator.lean`** from its Wasm-flavored
