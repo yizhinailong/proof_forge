@@ -1886,6 +1886,15 @@ Tasks:
   ([authoring-model](authoring-model.md)).
 - Declare `ContractSpec` → EVM Plan → Yul the EVM product pipeline in
   RFC 0004; label LCNF → `EmitYul` as the Lean-native experimental path.
+- Decide whether `wasm-cloudflare-workers` keeps its registry entry under
+  `wasmHost` or moves to a distinct off-chain host family (no consensus, no
+  on-chain state) so it does not dilute capability semantics; record in
+  `decisions.md` alongside D-033.
+- Record the phase completion criterion in `decisions.md`: the current
+  phase's completion standard is the shared scenario (Counter, then
+  ValueVault) passing on `evm`, `solana-sbpf-asm`, and `wasm-near`; until
+  then, new research targets add docs only — no registry or capability-file
+  changes.
 
 Acceptance criteria:
 

@@ -90,6 +90,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 ## Chinese Notes
 
 - [中文文档索引](zh/README.md)
+- [架构评审 2026-07：统一 SDK 输入与分支收敛](zh/architecture-review-2026-07.md)
 - [多链愿景可行性分析](zh/feasibility-analysis.md)
 - [多链技术实现方案](zh/technical-implementation-plan.md) — summary; engineering detail in RFC 0002
 - [多链方案 Review 清单](zh/review-checklist.md)
