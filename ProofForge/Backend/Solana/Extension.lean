@@ -101,17 +101,26 @@ inductive SysvarField where
   | rentLamportsPerByteYear
   | epochScheduleSlotsPerEpoch
   | epochScheduleLeaderScheduleSlotOffset
+  | epochScheduleWarmup
+  | epochScheduleFirstNormalEpoch
+  | epochScheduleFirstNormalSlot
   deriving BEq, DecidableEq, Repr, Inhabited
 
 def SysvarField.id : SysvarField -> String
   | .rentLamportsPerByteYear => "lamports_per_byte_year"
   | .epochScheduleSlotsPerEpoch => "slots_per_epoch"
   | .epochScheduleLeaderScheduleSlotOffset => "leader_schedule_slot_offset"
+  | .epochScheduleWarmup => "warmup"
+  | .epochScheduleFirstNormalEpoch => "first_normal_epoch"
+  | .epochScheduleFirstNormalSlot => "first_normal_slot"
 
 def SysvarField.kind : SysvarField -> SysvarKind
   | .rentLamportsPerByteYear => .rent
   | .epochScheduleSlotsPerEpoch => .epochSchedule
   | .epochScheduleLeaderScheduleSlotOffset => .epochSchedule
+  | .epochScheduleWarmup => .epochSchedule
+  | .epochScheduleFirstNormalEpoch => .epochSchedule
+  | .epochScheduleFirstNormalSlot => .epochSchedule
 
 structure MemoryAction where
   name : String
@@ -272,6 +281,9 @@ def sysvarFieldFromString? : String -> Option SysvarField
   | "lamports_per_byte_year" => some .rentLamportsPerByteYear
   | "slots_per_epoch" => some .epochScheduleSlotsPerEpoch
   | "leader_schedule_slot_offset" => some .epochScheduleLeaderScheduleSlotOffset
+  | "warmup" => some .epochScheduleWarmup
+  | "first_normal_epoch" => some .epochScheduleFirstNormalEpoch
+  | "first_normal_slot" => some .epochScheduleFirstNormalSlot
   | _ => none
 
 def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=
@@ -1646,6 +1658,44 @@ def lowerSysvarFieldRead (valueBindings : Array CpiValueBinding)
       ] ++
       stackPtr .r5 sysvarResultOffset ++ #[
         .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 8) }
+      ] ++
+      lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
+        storeReg .stxdw .r5 0 .r3
+      ]
+  | .epochScheduleWarmup =>
+      stackPtr .r1 sysvarResultOffset ++ #[
+        callSyscall SysvarKind.epochSchedule.syscall,
+        .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_sysvar") },
+        .comment "read EpochSchedule.warmup from sysvar buffer"
+      ] ++
+      stackPtr .r5 sysvarResultOffset ++ #[
+        .instruction { opcode := .ldxb, dst := some .r3, src := some .r5, off := some (.num 16) }
+      ] ++
+      lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
+        storeReg .stxdw .r5 0 .r3
+      ]
+  | .epochScheduleFirstNormalEpoch =>
+      stackPtr .r1 sysvarResultOffset ++ #[
+        callSyscall SysvarKind.epochSchedule.syscall,
+        .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_sysvar") },
+        .comment "read EpochSchedule.first_normal_epoch from sysvar buffer"
+      ] ++
+      stackPtr .r5 sysvarResultOffset ++
+      #[
+        .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 24) }
+      ] ++
+      lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
+        storeReg .stxdw .r5 0 .r3
+      ]
+  | .epochScheduleFirstNormalSlot =>
+      stackPtr .r1 sysvarResultOffset ++ #[
+        callSyscall SysvarKind.epochSchedule.syscall,
+        .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_sysvar") },
+        .comment "read EpochSchedule.first_normal_slot from sysvar buffer"
+      ] ++
+      stackPtr .r5 sysvarResultOffset ++
+      #[
+        .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 32) }
       ] ++
       lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
         storeReg .stxdw .r5 0 .r3

@@ -3,7 +3,7 @@
 #
 # Builds the generated EpochSchedule sysvar ELF, starts Surfpool, deploys with
 # Solana CLI, invokes the program through @solana/web3.js, and verifies that the
-# SDK sysvar target extension records EpochSchedule.slots_per_epoch into a
+# SDK sysvar target extension records the EpochSchedule fields into a
 # program-owned state account.
 #
 # Exit codes:
@@ -109,6 +109,24 @@ expected = [{
     "kind": "epoch_schedule",
     "field": "leader_schedule_slot_offset",
     "outputState": "leader_schedule_slot_offset",
+}, {
+    "entrypoint": "record_epoch_schedule",
+    "sysvar": "read_warmup",
+    "kind": "epoch_schedule",
+    "field": "warmup",
+    "outputState": "warmup",
+}, {
+    "entrypoint": "record_epoch_schedule",
+    "sysvar": "read_first_normal_epoch",
+    "kind": "epoch_schedule",
+    "field": "first_normal_epoch",
+    "outputState": "first_normal_epoch",
+}, {
+    "entrypoint": "record_epoch_schedule",
+    "sysvar": "read_first_normal_slot",
+    "kind": "epoch_schedule",
+    "field": "first_normal_slot",
+    "outputState": "first_normal_slot",
 }]
 if sysvar_actions != expected:
     raise SystemExit(f"sysvar action mismatch: {sysvar_actions}")

@@ -138,10 +138,34 @@ def main : IO UInt32 := do
         "epoch schedule sysvar manifest missing leader_schedule_slot_offset field"
       require (contains manifest "output_state = \"leader_schedule_slot_offset\"")
         "epoch schedule sysvar manifest missing leader_schedule_slot_offset output state"
+      require (contains manifest "sysvar = \"read_warmup\"")
+        "epoch schedule sysvar manifest missing read_warmup action"
+      require (contains manifest "field = \"warmup\"")
+        "epoch schedule sysvar manifest missing warmup field"
+      require (contains manifest "output_state = \"warmup\"")
+        "epoch schedule sysvar manifest missing warmup output state"
+      require (contains manifest "sysvar = \"read_first_normal_epoch\"")
+        "epoch schedule sysvar manifest missing read_first_normal_epoch action"
+      require (contains manifest "field = \"first_normal_epoch\"")
+        "epoch schedule sysvar manifest missing first_normal_epoch field"
+      require (contains manifest "output_state = \"first_normal_epoch\"")
+        "epoch schedule sysvar manifest missing first_normal_epoch output state"
+      require (contains manifest "sysvar = \"read_first_normal_slot\"")
+        "epoch schedule sysvar manifest missing read_first_normal_slot action"
+      require (contains manifest "field = \"first_normal_slot\"")
+        "epoch schedule sysvar manifest missing first_normal_slot field"
+      require (contains manifest "output_state = \"first_normal_slot\"")
+        "epoch schedule sysvar manifest missing first_normal_slot output state"
       require (contains asm "solana.sysvar.epoch_schedule read_epoch_schedule: field=slots_per_epoch")
         "assembly missing epoch schedule sysvar marker"
       require (contains asm "solana.sysvar.epoch_schedule read_leader_schedule_slot_offset: field=leader_schedule_slot_offset")
         "assembly missing epoch schedule leader_schedule_slot_offset marker"
+      require (contains asm "solana.sysvar.epoch_schedule read_warmup: field=warmup")
+        "assembly missing epoch schedule warmup marker"
+      require (contains asm "solana.sysvar.epoch_schedule read_first_normal_epoch: field=first_normal_epoch")
+        "assembly missing epoch schedule first_normal_epoch marker"
+      require (contains asm "solana.sysvar.epoch_schedule read_first_normal_slot: field=first_normal_slot")
+        "assembly missing epoch schedule first_normal_slot marker"
       require (contains asm "call sol_get_epoch_schedule_sysvar")
         "assembly missing sol_get_epoch_schedule_sysvar syscall"
       require (contains asm "error_sysvar")
@@ -150,8 +174,20 @@ def main : IO UInt32 := do
         "assembly missing slots_per_epoch offset symbol"
       require (contains asm ".equ LEADER_SCHEDULE_SLOT_OFFSET_DATA")
         "assembly missing leader_schedule_slot_offset offset symbol"
+      require (contains asm ".equ WARMUP_DATA")
+        "assembly missing warmup offset symbol"
+      require (contains asm ".equ FIRST_NORMAL_EPOCH_DATA")
+        "assembly missing first_normal_epoch offset symbol"
+      require (contains asm ".equ FIRST_NORMAL_SLOT_DATA")
+        "assembly missing first_normal_slot offset symbol"
       require (contains asm "ldxdw r3, [r5+8]")
         "assembly missing leader_schedule_slot_offset field read"
+      require (contains asm "ldxb r3, [r5+16]")
+        "assembly missing warmup field read"
+      require (contains asm "ldxdw r3, [r5+24]")
+        "assembly missing first_normal_epoch field read"
+      require (contains asm "ldxdw r3, [r5+32]")
+        "assembly missing first_normal_slot field read"
       require (contains asm "stxdw [r5+0], r3")
         "assembly missing epoch schedule sysvar state write"
   | .error err =>

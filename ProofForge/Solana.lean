@@ -101,17 +101,26 @@ inductive SysvarField where
   | rentLamportsPerByteYear
   | epochScheduleSlotsPerEpoch
   | epochScheduleLeaderScheduleSlotOffset
+  | epochScheduleWarmup
+  | epochScheduleFirstNormalEpoch
+  | epochScheduleFirstNormalSlot
   deriving BEq, DecidableEq, Repr
 
 def SysvarField.id : SysvarField -> String
   | .rentLamportsPerByteYear => "lamports_per_byte_year"
   | .epochScheduleSlotsPerEpoch => "slots_per_epoch"
   | .epochScheduleLeaderScheduleSlotOffset => "leader_schedule_slot_offset"
+  | .epochScheduleWarmup => "warmup"
+  | .epochScheduleFirstNormalEpoch => "first_normal_epoch"
+  | .epochScheduleFirstNormalSlot => "first_normal_slot"
 
 def SysvarField.kind : SysvarField -> SysvarKind
   | .rentLamportsPerByteYear => .rent
   | .epochScheduleSlotsPerEpoch => .epochSchedule
   | .epochScheduleLeaderScheduleSlotOffset => .epochSchedule
+  | .epochScheduleWarmup => .epochSchedule
+  | .epochScheduleFirstNormalEpoch => .epochSchedule
+  | .epochScheduleFirstNormalSlot => .epochSchedule
 
 structure MemoryAction where
   name : String
@@ -620,6 +629,33 @@ def epochScheduleLeaderScheduleSlotOffsetToState (name outputState : String) :
     name := name
     kind := .epochSchedule
     field := .epochScheduleLeaderScheduleSlotOffset
+    outputState := outputState
+  }
+
+def epochScheduleWarmupToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochSchedule
+    field := .epochScheduleWarmup
+    outputState := outputState
+  }
+
+def epochScheduleFirstNormalEpochToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochSchedule
+    field := .epochScheduleFirstNormalEpoch
+    outputState := outputState
+  }
+
+def epochScheduleFirstNormalSlotToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochSchedule
+    field := .epochScheduleFirstNormalSlot
     outputState := outputState
   }
 

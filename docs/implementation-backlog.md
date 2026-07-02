@@ -791,9 +791,10 @@ checkpointId`, plus live `runtime.memory` validation through `sol_memcpy_`,
 `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`, plus live Solana-only
 `crypto.hash` validation through `sol_sha256` and `sol_keccak256`, plus live
 `Rent.lamports_per_byte_year` sysvar validation through `sol_get_rent_sysvar`.
-It also covers live `EpochSchedule.slots_per_epoch` and
-`EpochSchedule.leader_schedule_slot_offset` validation through
-`sol_get_epoch_schedule_sysvar`.
+It also covers live validation for all current RPC-exposed `EpochSchedule`
+fields through `sol_get_epoch_schedule_sysvar`: `slots_per_epoch`,
+`leader_schedule_slot_offset`, `warmup`, `first_normal_epoch`, and
+`first_normal_slot`.
 The estimates below assume one engineer working on this branch,
 the current direct-assembly architecture staying stable, and local
 `sbpf`/Surfpool/Solana CLI tooling remaining available.
@@ -867,10 +868,10 @@ Completed alpha slices:
   `scripts/solana/epoch-schedule-sysvar-web3-smoke.sh` builds and deploys a
   generated Solana-only `sysvar` target-extension program on Surfpool, invokes
   `record_epoch_schedule` through Web3.js, and proves the recorded
-  `EpochSchedule.slots_per_epoch` and
-  `EpochSchedule.leader_schedule_slot_offset` match RPC
-  `getEpochSchedule().slotsPerEpoch` and
-  `getEpochSchedule().leaderScheduleSlotOffset`.
+  `EpochSchedule.slots_per_epoch`,
+  `EpochSchedule.leader_schedule_slot_offset`, `EpochSchedule.warmup`,
+  `EpochSchedule.first_normal_epoch`, and `EpochSchedule.first_normal_slot`
+  match RPC `getEpochSchedule()` fields.
 
 Remaining priority slices:
 
@@ -883,7 +884,7 @@ Remaining priority slices:
    extend the current scalar `sol_log_64_` event path to string/base64/
    Anchor-style and indexed event forms; expose `sol_get_return_data`,
    typed return payload helpers beyond `u64`, restart-slot sysvar reads,
-   `sol_blake3`, portable `Expr.hash` routing where the hash
+   additional non-EpochSchedule sysvar fields, `sol_blake3`, portable `Expr.hash` routing where the hash
    semantics match the target, and broader account/data packing helpers that
    reuse the new memory syscall path, with JavaScript reference checks.
 3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures

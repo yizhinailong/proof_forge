@@ -77,10 +77,13 @@ async function main() {
   });
   const payer = readKeypair(payerPath);
   const programId = new PublicKey(programIdValue);
-  const state = await createProgramState(connection, payer, programId, 16);
+  const state = await createProgramState(connection, payer, programId, 40);
   const epochSchedule = await connection.getEpochSchedule();
   const expectedSlotsPerEpoch = BigInt(epochSchedule.slotsPerEpoch);
   const expectedLeaderScheduleSlotOffset = BigInt(epochSchedule.leaderScheduleSlotOffset);
+  const expectedWarmup = epochSchedule.warmup ? 1n : 0n;
+  const expectedFirstNormalEpoch = BigInt(epochSchedule.firstNormalEpoch);
+  const expectedFirstNormalSlot = BigInt(epochSchedule.firstNormalSlot);
   if (expectedSlotsPerEpoch === 0n) {
     throw new Error("RPC EpochSchedule.slotsPerEpoch was zero");
   }
@@ -115,6 +118,24 @@ async function main() {
       `EpochSchedule.leader_schedule_slot_offset mismatch: recorded=${recordedLeaderScheduleSlotOffset} expected=${expectedLeaderScheduleSlotOffset}`
     );
   }
+  const recordedWarmup = readU64LE(account.data, 16);
+  if (recordedWarmup !== expectedWarmup) {
+    throw new Error(
+      `EpochSchedule.warmup mismatch: recorded=${recordedWarmup} expected=${expectedWarmup}`
+    );
+  }
+  const recordedFirstNormalEpoch = readU64LE(account.data, 24);
+  if (recordedFirstNormalEpoch !== expectedFirstNormalEpoch) {
+    throw new Error(
+      `EpochSchedule.first_normal_epoch mismatch: recorded=${recordedFirstNormalEpoch} expected=${expectedFirstNormalEpoch}`
+    );
+  }
+  const recordedFirstNormalSlot = readU64LE(account.data, 32);
+  if (recordedFirstNormalSlot !== expectedFirstNormalSlot) {
+    throw new Error(
+      `EpochSchedule.first_normal_slot mismatch: recorded=${recordedFirstNormalSlot} expected=${expectedFirstNormalSlot}`
+    );
+  }
 
   console.log(JSON.stringify({
     programId: programId.toBase58(),
@@ -125,6 +146,12 @@ async function main() {
     expectedSlotsPerEpoch: expectedSlotsPerEpoch.toString(),
     recordedLeaderScheduleSlotOffset: recordedLeaderScheduleSlotOffset.toString(),
     expectedLeaderScheduleSlotOffset: expectedLeaderScheduleSlotOffset.toString(),
+    recordedWarmup: recordedWarmup.toString(),
+    expectedWarmup: expectedWarmup.toString(),
+    recordedFirstNormalEpoch: recordedFirstNormalEpoch.toString(),
+    expectedFirstNormalEpoch: expectedFirstNormalEpoch.toString(),
+    recordedFirstNormalSlot: recordedFirstNormalSlot.toString(),
+    expectedFirstNormalSlot: expectedFirstNormalSlot.toString(),
   }));
 }
 
