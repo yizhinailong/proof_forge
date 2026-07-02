@@ -3,6 +3,7 @@ import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Solana.Examples.Clock
 import ProofForge.Solana.Examples.Rent
 import ProofForge.Solana.Examples.EpochSchedule
+import ProofForge.Solana.Examples.LastRestartSlot
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
 
@@ -21,6 +22,28 @@ def contains (haystack needle : String) : Bool :=
 
 def hasCapability (plan : CapabilityPlan) (capability : Capability) : Bool :=
   plan.capabilities.any (fun c => c == capability)
+
+def metadataValue? (call : CapabilityCall) (key : String) : Option String :=
+  call.metadata.foldl
+    (fun found metadata =>
+      match found with
+      | some _ => found
+      | none =>
+          if metadata.key == key then
+            some metadata.value
+          else
+            none)
+    none
+
+def scopedSysvarCall? (plan : CapabilityPlan) (name entrypoint : String) : Option CapabilityCall :=
+  plan.calls.find? fun call =>
+    call.capability == .envBlock &&
+    metadataValue? call "solana.sysvar.name" == some name &&
+    metadataValue? call "proof_forge.entrypoint" == some entrypoint
+
+def requireMetadata (call : CapabilityCall) (key expected : String) : IO Unit :=
+  require (metadataValue? call key == some expected)
+    s!"metadata `{key}` mismatch for operation `{call.operation}`"
 
 def main : IO UInt32 := do
   let spec := ProofForge.Solana.Examples.Clock.spec
@@ -192,6 +215,65 @@ def main : IO UInt32 := do
         "assembly missing epoch schedule sysvar state write"
   | .error err =>
       throw <| IO.userError s!"Solana epoch schedule sysvar package render failed: {err.render}"
+
+  let lastRestartSlotSpec := ProofForge.Solana.Examples.LastRestartSlot.spec
+  let lastRestartSlotPlan ←
+    match resolveSpec solanaSbpfAsm lastRestartSlotSpec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError s!"Solana LastRestartSlot sysvar routing failed: {err.render}"
+
+  require (hasCapability lastRestartSlotPlan .envBlock)
+    "Solana LastRestartSlot sysvar plan missing env.block capability"
+  require (hasCapability lastRestartSlotPlan .storageScalar)
+    "Solana LastRestartSlot sysvar plan missing storage.scalar capability"
+  let lastRestartSlotCall ←
+    match scopedSysvarCall? lastRestartSlotPlan "read_last_restart_slot" "record_last_restart_slot" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana LastRestartSlot plan missing read_last_restart_slot action"
+  requireMetadata lastRestartSlotCall "solana.extension" "sysvar"
+  requireMetadata lastRestartSlotCall "solana.sysvar.kind" "last_restart_slot"
+  requireMetadata lastRestartSlotCall "solana.sysvar.field" "last_restart_slot"
+  requireMetadata lastRestartSlotCall "solana.sysvar.output_state" "last_restart_slot"
+  requireMetadata lastRestartSlotCall "solana.sysvar.feature_gated" "true"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec "solana-last-restart-slot-sysvar" lastRestartSlotSpec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "LastRestartSlot sysvar package missing sBPF assembly"
+      let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
+        | throw <| IO.userError "LastRestartSlot sysvar package missing manifest.toml"
+      let asm := asmFile.contents
+      let manifest := manifestFile.contents
+      require (contains manifest "name = \"record_last_restart_slot\"")
+        "LastRestartSlot sysvar manifest missing record_last_restart_slot entrypoint"
+      require (contains manifest "[[solana.entrypoint_sysvar]]")
+        "LastRestartSlot sysvar manifest missing entrypoint sysvar action"
+      require (contains manifest "sysvar = \"read_last_restart_slot\"")
+        "LastRestartSlot sysvar manifest missing read_last_restart_slot action"
+      require (contains manifest "kind = \"last_restart_slot\"")
+        "LastRestartSlot sysvar manifest missing last_restart_slot kind"
+      require (contains manifest "field = \"last_restart_slot\"")
+        "LastRestartSlot sysvar manifest missing last_restart_slot field"
+      require (contains manifest "output_state = \"last_restart_slot\"")
+        "LastRestartSlot sysvar manifest missing output state"
+      require (contains manifest "feature_gated = true")
+        "LastRestartSlot sysvar manifest missing feature gate"
+      require (contains asm "solana.sysvar.last_restart_slot read_last_restart_slot: field=last_restart_slot")
+        "assembly missing LastRestartSlot sysvar marker"
+      require (contains asm "load SysvarLastRestartS1ot1111111111111111111111 id")
+        "assembly missing LastRestartSlot sysvar id setup"
+      require (contains asm "r1=sysvar_id r2=result r3=offset r4=length")
+        "assembly missing LastRestartSlot sol_get_sysvar argument setup"
+      require (contains asm "call sol_get_sysvar")
+        "assembly missing sol_get_sysvar syscall"
+      require (contains asm "error_sysvar")
+        "assembly missing LastRestartSlot sysvar failure branch"
+      require (contains asm ".equ LAST_RESTART_SLOT_DATA")
+        "assembly missing last_restart_slot offset symbol"
+      require (contains asm "stxdw [r5+0], r3")
+        "assembly missing LastRestartSlot sysvar state write"
+  | .error err =>
+      throw <| IO.userError s!"Solana LastRestartSlot sysvar package render failed: {err.render}"
 
   IO.println "solana-sysvars: ok"
   return 0

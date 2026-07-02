@@ -97,11 +97,17 @@ def CryptoHashOp.featureGated : CryptoHashOp -> Bool
 inductive SysvarKind where
   | rent
   | epochSchedule
+  | lastRestartSlot
   deriving BEq, DecidableEq, Repr
 
 def SysvarKind.id : SysvarKind -> String
   | .rent => "rent"
   | .epochSchedule => "epoch_schedule"
+  | .lastRestartSlot => "last_restart_slot"
+
+def SysvarKind.featureGated : SysvarKind -> Bool
+  | .lastRestartSlot => true
+  | _ => false
 
 inductive SysvarField where
   | rentLamportsPerByteYear
@@ -110,6 +116,7 @@ inductive SysvarField where
   | epochScheduleWarmup
   | epochScheduleFirstNormalEpoch
   | epochScheduleFirstNormalSlot
+  | lastRestartSlot
   deriving BEq, DecidableEq, Repr
 
 def SysvarField.id : SysvarField -> String
@@ -119,6 +126,7 @@ def SysvarField.id : SysvarField -> String
   | .epochScheduleWarmup => "warmup"
   | .epochScheduleFirstNormalEpoch => "first_normal_epoch"
   | .epochScheduleFirstNormalSlot => "first_normal_slot"
+  | .lastRestartSlot => "last_restart_slot"
 
 def SysvarField.kind : SysvarField -> SysvarKind
   | .rentLamportsPerByteYear => .rent
@@ -127,6 +135,7 @@ def SysvarField.kind : SysvarField -> SysvarKind
   | .epochScheduleWarmup => .epochSchedule
   | .epochScheduleFirstNormalEpoch => .epochSchedule
   | .epochScheduleFirstNormalSlot => .epochSchedule
+  | .lastRestartSlot => .lastRestartSlot
 
 structure MemoryAction where
   name : String
@@ -345,7 +354,8 @@ def SysvarReadAction.metadata (action : SysvarReadAction) : Array TargetMetadata
     kv "solana.sysvar.name" action.name,
     kv "solana.sysvar.kind" action.kind.id,
     kv "solana.sysvar.field" action.field.id,
-    kv "solana.sysvar.output_state" action.outputState
+    kv "solana.sysvar.output_state" action.outputState,
+    kv "solana.sysvar.feature_gated" (boolValue (SysvarKind.featureGated action.kind))
   ]
 
 def ReturnDataAction.metadata (action : ReturnDataAction) : Array TargetMetadata :=
@@ -737,6 +747,15 @@ def epochScheduleFirstNormalSlotToState (name outputState : String) :
     name := name
     kind := .epochSchedule
     field := .epochScheduleFirstNormalSlot
+    outputState := outputState
+  }
+
+def lastRestartSlotToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .lastRestartSlot
+    field := .lastRestartSlot
     outputState := outputState
   }
 

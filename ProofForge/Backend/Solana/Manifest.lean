@@ -420,7 +420,8 @@ def renderSysvarAction (action : SysvarReadAction) : String :=
   "sysvar = " ++ tomlString action.name ++ "\n" ++
   "kind = " ++ tomlString action.kind.id ++ "\n" ++
   "field = " ++ tomlString action.field.id ++ "\n" ++
-  "output_state = " ++ tomlString action.outputState ++ "\n"
+  "output_state = " ++ tomlString action.outputState ++ "\n" ++
+  "feature_gated = " ++ tomlBool (SysvarKind.featureGated action.kind) ++ "\n"
 
 def renderReturnDataAction (action : ReturnDataAction) : String :=
   "[[solana.entrypoint_return_data]]\n" ++

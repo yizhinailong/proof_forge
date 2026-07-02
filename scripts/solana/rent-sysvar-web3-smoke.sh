@@ -103,6 +103,7 @@ expected = [{
     "kind": "rent",
     "field": "lamports_per_byte_year",
     "outputState": "lamports_per_byte_year",
+    "featureGated": False,
 }]
 if sysvar_actions != expected:
     raise SystemExit(f"sysvar action mismatch: {sysvar_actions}")

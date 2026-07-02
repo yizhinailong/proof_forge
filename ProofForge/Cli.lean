@@ -63,6 +63,7 @@ import ProofForge.Solana.Examples.LogEvent
 import ProofForge.Solana.Examples.Clock
 import ProofForge.Solana.Examples.Rent
 import ProofForge.Solana.Examples.EpochSchedule
+import ProofForge.Solana.Examples.LastRestartSlot
 import ProofForge.Solana.Examples.Memory
 import ProofForge.Solana.Examples.Crypto
 
@@ -166,6 +167,7 @@ inductive EmitMode where
   | solanaClockSysvarElf
   | solanaRentSysvarElf
   | solanaEpochScheduleSysvarElf
+  | solanaLastRestartSlotSysvarElf
   | solanaMemoryElf
   | solanaCryptoHashElf
   | sbpfAsm
@@ -277,6 +279,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaClockSysvarElf
   | .solanaRentSysvarElf
   | .solanaEpochScheduleSysvarElf
+  | .solanaLastRestartSlotSysvarElf
   | .solanaMemoryElf
   | .solanaCryptoHashElf
   | .sbpfAsm => true
@@ -387,6 +390,7 @@ def usage : String :=
     "  proof-forge --solana-clock-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-rent-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-epoch-schedule-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-last-restart-slot-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-memory-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-crypto-hash-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
@@ -1422,7 +1426,8 @@ def solanaSysvarActionJson
     ("sysvar", jsonString action.name),
     ("kind", jsonString action.kind.id),
     ("field", jsonString action.field.id),
-    ("outputState", jsonString action.outputState)
+    ("outputState", jsonString action.outputState),
+    ("featureGated", jsonBool (ProofForge.Backend.Solana.Extension.SysvarKind.featureGated action.kind))
   ]
 
 def solanaInstructionAccountJson (account : ProofForge.Backend.Solana.Manifest.AccountEntry) : String :=
@@ -1954,6 +1959,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaRentSysvarElf }
   | "--solana-epoch-schedule-sysvar-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaEpochScheduleSysvarElf }
+  | "--solana-last-restart-slot-sysvar-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaLastRestartSlotSysvarElf }
   | "--solana-memory-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaMemoryElf }
   | "--solana-crypto-hash-elf" :: rest, opts =>
@@ -3222,6 +3229,13 @@ def compileSolanaEpochScheduleSysvarElf (opts : CliOptions) : IO UInt32 :=
     "solana-epoch-schedule-sysvar-elf"
     ProofForge.Solana.Examples.EpochSchedule.spec
 
+def compileSolanaLastRestartSlotSysvarElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/LastRestartSlot.so")
+    "last-restart-slot-sysvar"
+    "solana-last-restart-slot-sysvar-elf"
+    ProofForge.Solana.Examples.LastRestartSlot.spec
+
 def compileSolanaMemoryElf (opts : CliOptions) : IO UInt32 :=
   compileSolanaSpecElf opts
     (FilePath.mk "build/solana/Memory.so")
@@ -3381,6 +3395,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaClockSysvarElf => compileSolanaClockSysvarElf opts
   | .solanaRentSysvarElf => compileSolanaRentSysvarElf opts
   | .solanaEpochScheduleSysvarElf => compileSolanaEpochScheduleSysvarElf opts
+  | .solanaLastRestartSlotSysvarElf => compileSolanaLastRestartSlotSysvarElf opts
   | .solanaMemoryElf => compileSolanaMemoryElf opts
   | .solanaCryptoHashElf => compileSolanaCryptoHashElf opts
   | .sbpfAsm => compileSbpfAsm opts

@@ -94,15 +94,22 @@ def CryptoHashOp.featureGated : CryptoHashOp -> Bool
 inductive SysvarKind where
   | rent
   | epochSchedule
+  | lastRestartSlot
   deriving BEq, DecidableEq, Repr, Inhabited
 
 def SysvarKind.id : SysvarKind -> String
   | .rent => "rent"
   | .epochSchedule => "epoch_schedule"
+  | .lastRestartSlot => "last_restart_slot"
 
 def SysvarKind.syscall : SysvarKind -> String
   | .rent => ProofForge.Backend.Solana.Syscalls.sol_get_rent_sysvar
   | .epochSchedule => ProofForge.Backend.Solana.Syscalls.sol_get_epoch_schedule_sysvar
+  | .lastRestartSlot => ProofForge.Backend.Solana.Syscalls.sol_get_sysvar
+
+def SysvarKind.featureGated : SysvarKind -> Bool
+  | .lastRestartSlot => true
+  | _ => false
 
 inductive SysvarField where
   | rentLamportsPerByteYear
@@ -111,6 +118,7 @@ inductive SysvarField where
   | epochScheduleWarmup
   | epochScheduleFirstNormalEpoch
   | epochScheduleFirstNormalSlot
+  | lastRestartSlot
   deriving BEq, DecidableEq, Repr, Inhabited
 
 def SysvarField.id : SysvarField -> String
@@ -120,6 +128,7 @@ def SysvarField.id : SysvarField -> String
   | .epochScheduleWarmup => "warmup"
   | .epochScheduleFirstNormalEpoch => "first_normal_epoch"
   | .epochScheduleFirstNormalSlot => "first_normal_slot"
+  | .lastRestartSlot => "last_restart_slot"
 
 def SysvarField.kind : SysvarField -> SysvarKind
   | .rentLamportsPerByteYear => .rent
@@ -128,6 +137,7 @@ def SysvarField.kind : SysvarField -> SysvarKind
   | .epochScheduleWarmup => .epochSchedule
   | .epochScheduleFirstNormalEpoch => .epochSchedule
   | .epochScheduleFirstNormalSlot => .epochSchedule
+  | .lastRestartSlot => .lastRestartSlot
 
 structure MemoryAction where
   name : String
@@ -316,6 +326,7 @@ def cryptoHashOpFromString? : String -> Option CryptoHashOp
 def sysvarKindFromString? : String -> Option SysvarKind
   | "rent" => some .rent
   | "epoch_schedule" => some .epochSchedule
+  | "last_restart_slot" => some .lastRestartSlot
   | _ => none
 
 def sysvarFieldFromString? : String -> Option SysvarField
@@ -325,6 +336,7 @@ def sysvarFieldFromString? : String -> Option SysvarField
   | "warmup" => some .epochScheduleWarmup
   | "first_normal_epoch" => some .epochScheduleFirstNormalEpoch
   | "first_normal_slot" => some .epochScheduleFirstNormalSlot
+  | "last_restart_slot" => some .lastRestartSlot
   | _ => none
 
 def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=
@@ -813,9 +825,16 @@ def cpiMaxSeedLen : Nat := 32
 def cryptoSliceTableOffset : Nat := 3072
 def cryptoResultOffset : Nat := 3104
 def sysvarResultOffset : Nat := 3008
+def sysvarIdOffset : Nat := 3040
 def memoryResultOffset : Nat := 3200
 def returnDataScratchOffset : Nat := 2048
 def returnDataProgramIdOffset : Nat := 3104
+
+def lastRestartSlotSysvarIdBytes : Array Nat :=
+  #[6, 167, 213, 23, 25, 6, 221, 225,
+    205, 63, 148, 125, 202, 180, 200, 244,
+    244, 245, 27, 173, 15, 152, 19, 184,
+    0, 210, 137, 71, 31, 192, 0, 0]
 
 def cpiAccountBinding? (bindings : Array CpiAccountBinding) (name : String) :
     Option CpiAccountBinding :=
@@ -1834,6 +1853,27 @@ def lowerSysvarFieldRead (valueBindings : Array CpiValueBinding)
         callSyscall SysvarKind.rent.syscall,
         .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_sysvar") },
         .comment "read Rent.lamports_per_byte_year from sysvar buffer"
+      ] ++
+      stackPtr .r5 sysvarResultOffset ++ #[
+        .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 0) }
+      ] ++
+      lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
+        storeReg .stxdw .r5 0 .r3
+      ]
+  | .lastRestartSlot =>
+      #[
+        .comment "solana.sysvar.last_restart_slot: load SysvarLastRestartS1ot1111111111111111111111 id"
+      ] ++
+      stackPtr .r5 sysvarIdOffset ++
+      storePubkeyBytes .r5 lastRestartSlotSysvarIdBytes ++
+      stackPtr .r1 sysvarIdOffset ++
+      stackPtr .r2 sysvarResultOffset ++ #[
+        loadImm .r3 0,
+        loadImm .r4 8,
+        .comment "r1=sysvar_id r2=result r3=offset r4=length",
+        callSyscall ProofForge.Backend.Solana.Syscalls.sol_get_sysvar,
+        .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_sysvar") },
+        .comment "read LastRestartSlot.last_restart_slot from generic sysvar buffer"
       ] ++
       stackPtr .r5 sysvarResultOffset ++ #[
         .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 0) }
