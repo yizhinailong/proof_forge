@@ -6,6 +6,7 @@ import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Psy.IR
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.Solana.Manifest
+import ProofForge.Backend.Solana.Package
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -1814,6 +1815,10 @@ def writeSbpfManifest (output : FilePath) (module : ProofForge.IR.Module) : IO F
   IO.FS.writeFile manifestOutput (manifest ++ "\n")
   return manifestOutput
 
+def packagePath (root : FilePath) (rel : String) : FilePath :=
+  rel.splitOn "/" |>.foldl (init := root) fun acc part =>
+    if part.isEmpty then acc else acc / part
+
 def compileCounterIrSbpf (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/Counter.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderModule ProofForge.IR.Examples.Counter.module with
@@ -1924,26 +1929,15 @@ def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
     | some parent => parent / s!"{projectName}-sbpf-project"
     | none => FilePath.mk s!"{projectName}-sbpf-project"
 
-  match ProofForge.Backend.Solana.SbpfAsm.renderModule ProofForge.IR.Examples.Counter.module with
-  | .ok source =>
-      -- Scaffold the sbpf project layout expected by `sbpf build`.
-      let asmSrcDir := projectDir / "src" / projectName
-      IO.FS.createDirAll asmSrcDir
-      let asmSrc := asmSrcDir / s!"{projectName}.s"
-      IO.FS.writeFile asmSrc source
-      IO.println s!"wrote {asmSrc}"
+  match ProofForge.Backend.Solana.Package.renderPackage projectName ProofForge.IR.Examples.Counter.module with
+  | .ok pkg =>
+      for file in pkg.files do
+        let path := packagePath projectDir file.path
+        writeTextFile path file.contents
+        IO.println s!"wrote {path}"
 
-      let manifest := ProofForge.Backend.Solana.Manifest.renderManifest ProofForge.IR.Examples.Counter.module
-      let manifestOutput := projectDir / "manifest.toml"
-      IO.FS.writeFile manifestOutput (manifest ++ "\n")
-      IO.println s!"wrote {manifestOutput}"
-
-      let cargoToml := projectDir / "Cargo.toml"
-      IO.FS.writeFile cargoToml s!"[package]\nname = \"{projectName}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
-      IO.println s!"wrote {cargoToml}"
-
-      let libRs := projectDir / "src" / "lib.rs"
-      IO.FS.writeFile libRs ""
+      let asmSrc := packagePath projectDir pkg.asmPath
+      let manifestOutput := packagePath projectDir pkg.manifestPath
 
       -- Invoke the sbpf toolchain to assemble and link the ELF.
       let _ ← runProcess "sbpf" #["build"] (cwd? := some projectDir)

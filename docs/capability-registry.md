@@ -16,6 +16,17 @@ Legend: **Y** supported (planned or implemented), **P** partial/spike only,
 - This registry owns capability ids, not target lifecycle stages.
 - Docs must not invent alternate ids for the same semantics.
 
+## Relationship to Contract Intent and Target Extensions
+
+Capability ids are the lower-level protocol used after target selection, not
+the default user-facing SDK. Portable contracts should normally call the
+chain-neutral Contract Intent API. The selected target adapter resolves those
+intents into a capability plan, then checks this registry before lowering.
+
+Target Extension SDKs may expose target-specific operations such as Solana
+PDA/CPI, Move resources, or UTXO covenant primitives. Those extensions still
+route through capability ids and target metadata so diagnostics, artifact
+metadata, and cross-target support checks remain uniform.
 
 ## Core Capabilities
 

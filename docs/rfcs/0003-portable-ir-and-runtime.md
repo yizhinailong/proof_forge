@@ -11,19 +11,20 @@ target backends. RFC 0002 lists the backends but leaves the IR, the capability
 mechanism, and the runtime-selection question unspecified. This RFC closes that
 gap. It defines three things that the rest of the platform depends on:
 
-1. A portable contract IR whose effect-bearing calls are typed capabilities,
-   not target opcodes.
-2. A capability namespace and a per-target lowering table that backends consult
-   to lower each capability to a concrete host primitive.
+1. A chain-neutral Contract Intent API whose source-level operations are
+   resolved by the selected target at build time.
+2. A capability namespace, capability plan, and per-target lowering table that
+   target adapters consult to lower each routed capability to a concrete host
+   primitive.
 3. A runtime profile per target that states how the Lean language runtime is
    reconciled with the chain host runtime, and that the compiler checks
    statically before lowering.
 
 The core claim this RFC makes explicit: target selection is a build-time,
 table-driven, statically checked decision. There is no runtime dispatch over
-chains. A contract either lowers cleanly to a target under its capability and
-runtime constraints, or it is rejected with a precise diagnostic before any
-artifact is produced.
+chains. A contract either resolves its portable intents and lowers cleanly to a
+target under that target's capability and runtime constraints, or it is
+rejected with a precise diagnostic before any artifact is produced.
 
 This RFC does not define the full IR surface. The IR unit structure (Module,
 Entrypoint, State, Effect) is defined in [`portable-ir.md`](../portable-ir.md);
@@ -53,8 +54,9 @@ prove that the design generalizes. Three things block generalization today:
   bridge. Move backends cannot carry the Lean runtime at all. Without an
   explicit model, every new backend re-derives these decisions ad hoc.
 
-This RFC fixes the shared layer so that backends differ only in their lowering
-tables and runtime profiles, not in their mental models.
+This RFC fixes the shared layer so that user contracts can start from one
+chain-neutral SDK surface. Backends differ in intent routing, lowering tables,
+and runtime profiles, not in their mental models.
 
 ## Non-goals
 
@@ -64,6 +66,9 @@ tables and runtime profiles, not in their mental models.
   and the capability checker depend on.
 - It does not define the canonical capability id set — that is
   [`capability-registry.md`](../capability-registry.md). It consumes those ids.
+- It does not make capability calls the primary user-facing SDK. Capability ids
+  are the lower-level protocol produced by target routing and used by target
+  adapters and Target Extension SDKs.
 - It does not pick the Solana runtime strategy. It defines the three strategies
   and the constraint that the Solana spike result feeds back into the IR subset.
 - It does not define the cloud platform or artifact registry schema beyond what
@@ -79,10 +84,10 @@ RFC is the runtime-and-lowering authority; the others own their own surfaces.
 
 | Surface | Authority | This RFC's role |
 |---|---|---|
-| IR unit structure | [`portable-ir.md`](../portable-ir.md) | Consumes it; adds capability lowering rules on top of `Effect` |
+| Contract Intent API and IR unit structure | [`portable-ir.md`](../portable-ir.md) | Consumes it; adds target intent resolution and capability lowering rules on top of `Effect` |
 | Capability ids + support matrix | [`capability-registry.md`](../capability-registry.md) | Consumes ids; defines the lowering rule format and how the backend uses them |
 | Cross-target scenario | [`shared-scenario.md`](../shared-scenario.md) | Provides the test case the static checks must pass/reject |
-| Settled decisions | [`decisions.md`](../decisions.md) | Inherits D-001..D-010; see below |
+| Settled decisions | [`decisions.md`](../decisions.md) | Inherits selected decisions; see below |
 
 Decisions inherited from [`decisions.md`](../decisions.md) that affect this
 RFC:
@@ -97,10 +102,15 @@ RFC:
   CosmWasm-before-Solana). Both validate different backend families; neither
   is gated on the other. The Solana runtime decision (B vs B') still must
   land before Solana can exit spike, but it no longer blocks CosmWasm.
-- **D-004/D-005**: canonical Solana id is `solana-sbpf-linker`; the Zig fork
-  stays a fallback/reference. The runtime profile below uses the canonical id.
+- **D-004/D-005/D-026**: `solana-sbpf-asm` is the canonical Solana direct
+  assembly route. `solana-sbpf-linker` and the Zig fork stay historical
+  fallback/reference tracks.
 - **D-007/D-008**: Move POC is Aptos-first source generation (strategy C).
   This RFC's strategy C and the Move runtime profile follow that.
+- **D-027**: Solana CPI/PDA remain in the Solana-specific layer and are gated
+  by capabilities rather than added to the portable IR.
+- **D-028**: User contracts target a chain-neutral Contract Intent API; the
+  selected target resolves intents into capability plans.
 
 
 ## Two runtimes, three reconciliation strategies
@@ -169,12 +179,19 @@ A-like path.
 
 ## Capability model
 
-### Capability calls as typed effects
+### Intent resolution and capability plans
 
-Portable IR does not contain target opcodes. It contains capability calls:
-calls to opaque functions annotated with a capability identifier. The IR
-records the capability tag alongside the call so the backend can lower it
-without re-inferring from the callee name.
+Portable IR does not contain target opcodes. The default user-facing SDK also
+does not expose capability calls directly. Source code expresses contract
+intents such as state declarations, entrypoints, events, caller reads, value
+access, assertions, and proof obligations. The selected target adapter resolves
+those intents into a capability plan before lowering.
+
+Capability calls are the lower-level representation after routing. They record
+the semantic operation that must be supported by the selected target and
+provide a stable diagnostic/artifact surface. Target Extension SDKs may expose
+target-specific operations, but those operations still route through capability
+calls and target metadata.
 
 Conceptual representation (Lean sketch; the concrete IR data structure is an
 implementation detail, but it must carry this information):
@@ -184,26 +201,39 @@ implementation detail, but it must carry this information):
 structure CapId where
   parts : List String
 
-/-- A capability call recorded in the IR. The callee is an opaque symbol
-    declared in the contract's capability SDK; the `capability` field lets the
-    backend lower it from the table rather than by name matching. -/
+/-- A source-level portable operation before target routing. -/
+structure ContractIntent where
+  kind   : IntentKind
+  args   : Array IRExpr
+  source : SourceSpan
+
+/-- A capability call recorded after target routing. The `capability` field lets
+    the backend lower it from the table rather than by name matching. -/
 structure CapabilityCall where
   capability : CapId
-  callee     : Name        -- e.g. ``Storage.load``, `Lean.Solana.readData`
+  operation  : Name        -- e.g. ``Storage.load``, ``Solana.Cpi.invokeSigned``
   args       : Array IRExpr
+
+/-- Target-selected plan consumed by the checker and backend. -/
+structure CapabilityPlan where
+  calls          : Array CapabilityCall
+  targetMetadata : TargetMetadata
 ```
 
-A contract uses a capability by calling a function declared `opaque` with an
-`@[capability "..."]` attribute in the per-target SDK:
+A target adapter provides the routing step:
 
 ```lean
-@[capability "storage.scalar.read"]
-opaque load (slot : Nat) : IO Nat
+structure TargetAdapter where
+  targetId      : TargetId
+  profile       : TargetProfile
+  resolveIntent : ContractSpec -> Except Diagnostic CapabilityPlan
+  lower         : CapabilityPlan -> IR.Module -> Except Diagnostic TargetAst
 ```
 
-The Lean frontend preserves this annotation into LCNF, and the IR builder
-records it on each call site. Backends never pattern-match `lean_evm_*` names
-again; they read the capability tag.
+Lean attributes such as `@[capability "..."]` may still be used as an
+implementation hook for opaque target-extension functions. They are not the
+default product API. Backends never pattern-match `lean_evm_*` names again;
+they read the resolved capability plan.
 
 ### Capability namespace
 
@@ -257,9 +287,9 @@ Examples:
 | evm | `caller.sender` | `evmOpcode "caller"` |
 | wasm-near | `storage.scalar` | `hostImport ``Lean.Near.storage_read`` |
 | wasm-cosmwasm | `storage.scalar` | `hostImport ``Lean.CosmWasm.storage_read`` |
-| solana-sbpf-linker | `storage.scalar` | `syscall ``Lean.Solana.read_data`` (needs account manifest) |
-| solana-sbpf-linker | `storage.pda` | `syscall PDA derivation (needs account manifest) |
-| solana-sbpf-linker | `crosscall.cpi` | `syscall CPI with account metas |
+| solana-sbpf-asm | `storage.scalar` | `syscall ``Lean.Solana.read_data`` (needs account manifest) |
+| solana-sbpf-asm | `storage.pda` | `syscall PDA derivation (needs account manifest) |
+| solana-sbpf-asm | `crosscall.cpi` | `syscall CPI with account metas |
 | move-sui | `events.emit` | `generated ``sui::event::emit`` |
 | move-aptos | `storage.scalar` | `generated resource access (needs abilities + acquires)`` |
 
@@ -268,10 +298,11 @@ table. A capability with no row for a target is unsupported for that target.
 
 ### Static capability checking
 
-Before lowering, the compiler computes the set of capability ids used by the
-contract (union over all capability calls in the IR) and checks it against the
-target's supported set. This is a set operation; it either succeeds or produces
-precise diagnostics.
+Before lowering, the compiler asks the selected target to resolve the contract
+intents into a capability plan. It then computes the set of capability ids used
+by that plan (plus any explicit target-extension calls in the IR) and checks it
+against the target's supported set. This is a set operation; it either succeeds
+or produces precise diagnostics.
 
 ```
 usedCapabilities(contract) ⊆ supportedCapabilities(target)
@@ -280,7 +311,7 @@ usedCapabilities(contract) ⊆ supportedCapabilities(target)
 On failure, the compiler emits one diagnostic per unsupported capability:
 
 ```
-error: target `solana-sbpf-linker` does not support capability `value.native`
+error: target `solana-sbpf-asm` does not support capability `value.native`
   hint: Solana has no EVM-style msg.value; model native assets as explicit
         lamport/Coin accounts via the `account.explicit` capability
   used at: Examples/Counter.lean:42
@@ -298,7 +329,7 @@ usage. A contract that uses closures targeting a B' runtime is rejected the
 same way:
 
 ```
-error: target `solana-sbpf-linker` runtime profile `restrictedLean` does not support closures
+error: target `solana-sbpf-asm` runtime profile `restrictedLean` does not support closures
   used at: Examples/Counter.lean:55 (`fun x => ...`)
   hint: rewrite as a first-order function or inline the body
 ```
@@ -346,7 +377,7 @@ Initial profiles:
 | evm | degenerate | inlineOpcodes | false (lowered to switch) | false (U256-capped) | false (per-call scratch) |
 | wasm-near | fullLean | module "near" | true | true | true |
 | wasm-cosmwasm | fullLean | module "cosmwasm" | true | true | true |
-| solana-sbpf-linker | restrictedLean (tentative) | module "solana" | TBD by spike | TBD | TBD |
+| solana-sbpf-asm | restrictedLean (tentative) | module "solana" | TBD by spike | TBD | TBD |
 | move-sui | none | none | false | false (fixed-width) | false (resources) |
 | move-aptos | none | none | false | false (fixed-width) | false (resources) |
 
@@ -359,16 +390,18 @@ that spike lands, the Solana profile records the open questions, not answers.
 The target-oriented build, end to end:
 
 1. Parse `--target <id>`; resolve the target profile and its runtime profile.
-2. Compile Lean source to LCNF, preserving `@[capability]` annotations and
+2. Compile Lean source to LCNF and build the chain-neutral `ContractSpec`,
    recording feature usage (closures, recursion, allocations).
-3. Build the portable IR: entrypoints, types, state transitions, and capability
-   calls tagged with their `CapId`. Proofs are checked in step 2 and erased;
-   the IR carries proof-status metadata, not proof terms.
+3. Ask the selected target adapter to resolve contract intents into a
+   `CapabilityPlan`, then build the portable IR: entrypoints, types, state
+   transitions, and target-resolved capability calls tagged with their `CapId`.
+   Proofs are checked in step 2 and erased; the IR carries proof-status
+   metadata, not proof terms.
 4. **Static check (set arithmetic, build-time, non-negotiable):**
    - `usedCapabilities ⊆ supportedCapabilities(target)`, else reject.
    - `usedFeatures ⊆ runtimeProfile.features`, else reject.
-5. Lower: for each capability call, look up the target's lowering rule and emit
-   the host primitive (opcode / bridge call / syscall / generated API).
+5. Lower: for each routed capability call, look up the target's lowering rule
+   and emit the host primitive (opcode / bridge call / syscall / generated API).
 6. Construct the runtime per `mode`:
    - degenerate → emit only the no-op RC stubs and the inlined host opcodes.
    - fullLean / restrictedLean → compile the corresponding `lean_rt` subset and
@@ -458,9 +491,9 @@ This RFC is implemented when:
   touch (e.g. `storage.scalar` vs `storage.map` vs `account.explicit`), or is
   the current flat namespace in `capability-registry.md` enough for precise
   diagnostics?
-- How are capability ids bound to SDK functions at the source level — a Lean
-  attribute, a derived declaration, or a separate manifest? The attribute form
-  (`@[capability "..."]`) is assumed here but not final.
+- How are Contract Intent API operations recognized at the source level, and
+  when do target-extension functions need an explicit `@[capability "..."]`
+  implementation hook instead of target intent routing?
 - Should the static feature check be conservative (reject anything that might
   use a closure) or precise (only reject confirmed closures)? Conservative is
   safer for a first cut.
@@ -489,6 +522,6 @@ This RFC is implemented when:
 - Capability matrix and target profiles: RFC 0002.
 - IR unit structure (Module/Entrypoint/State/Effect): `docs/portable-ir.md`.
 - Canonical capability ids and support matrix: `docs/capability-registry.md`.
-- Settled decisions (D-001..D-010, incl. parallel Phase 2 spikes):
+- Settled decisions, including D-027 and D-028:
   `docs/decisions.md`.
 - Cross-target Counter scenario: `docs/shared-scenario.md`.

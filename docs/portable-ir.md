@@ -2,8 +2,9 @@
 
 Status: **Draft spec (Phase 1)**
 
-The portable contract IR sits between Lean source/LCNF and target backends. It
-expresses chain-independent business logic and typed capability effects.
+The portable contract IR sits between the chain-neutral Contract Intent API and
+target backends. It expresses chain-independent business logic plus the
+target-resolved capability effects that the selected target adapter will lower.
 
 Related: [RFC 0001](rfcs/0001-multichain-platform.md),
 [RFC 0002](rfcs/0002-target-implementation-design.md),
@@ -13,18 +14,41 @@ Related: [RFC 0001](rfcs/0001-multichain-platform.md),
 
 ## Goals
 
+- Preserve the user-facing model where contract source declares portable
+  intents and `--target` chooses the concrete chain route at compile time.
 - Represent exported entrypoints, state, and transitions without EVM/Solana/Move
   ABI details.
-- Record capability calls as typed effects so targets can reject unsupported
-  operations before lowering.
+- Record target-resolved capability calls as typed effects so targets can
+  reject unsupported operations before lowering.
 - Carry enough metadata for artifact emission and cross-target scenario tests.
 
 ## Non-goals (v0)
 
 - Full Lean/LCNF preservation — only the contract-relevant subset.
 - Automatic account/object inference for Solana or Move.
+- Implicitly emulating target-specific semantics when a target cannot route an
+  intent safely.
 - Runtime proof transport to target chains — proofs are checked in Lean before
   codegen.
+
+## Layering
+
+```text
+Lean contract source
+  -> Contract Intent API
+  -> target intent resolution (`--target`)
+  -> CapabilityPlan
+  -> Portable Contract IR + target metadata
+  -> Target AST / assembler / package printer
+```
+
+The default SDK surface is the Contract Intent API. It should not expose EVM
+storage slots, Solana account metas, Move resources, or Wasm host ABIs. The
+selected target adapter resolves those intents into a `CapabilityPlan` before
+lowering. Target Extension SDKs may expose chain-specific operations such as
+Solana PDA/CPI or Move resource primitives, but those extensions still lower
+through capability ids and target metadata rather than adding chain-only
+constructors to the portable IR.
 
 ## IR Units (v0 sketch)
 
@@ -39,9 +63,9 @@ Related: [RFC 0001](rfcs/0001-multichain-platform.md),
 
 - `name`: logical method name (e.g. `increment`, `get`)
 - `tag`: optional dispatch tag for non-EVM targets
-- `params`: portable values + target-specific account/resource bindings where
-  required
-- `effects`: ordered capability calls
+- `params`: portable values plus target-resolved account/resource bindings when
+  the selected adapter requires explicit metadata
+- `effects`: ordered target-resolved capability calls
 - `returns`: portable return type or unit
 
 ### State
@@ -50,7 +74,7 @@ Related: [RFC 0001](rfcs/0001-multichain-platform.md),
 - `kind`: `scalar` | `map` | `account_owned` | `object` (target lowering hints)
 - `type`: portable type reference
 
-### Effect (capability call)
+### Effect (target-resolved capability call)
 
 - `capability`: id from [capability-registry.md](capability-registry.md)
 - `args`: portable operands

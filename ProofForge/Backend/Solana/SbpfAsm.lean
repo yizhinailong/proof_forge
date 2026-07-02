@@ -19,6 +19,7 @@ import ProofForge.Target.Registry
 import ProofForge.Backend.Solana.Asm
 import ProofForge.Backend.Solana.StateLayout
 import ProofForge.Backend.Solana.Manifest
+import ProofForge.Backend.Solana.Register
 
 namespace ProofForge.Backend.Solana.SbpfAsm
 
@@ -26,6 +27,7 @@ open ProofForge.IR
 open ProofForge.Backend.Solana.Asm
 open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.Manifest
+open ProofForge.Backend.Solana.Register
 
 -- ============================================================================
 -- Metadata
@@ -75,6 +77,7 @@ structure LowerCtx where
   nextLocalOffset : Nat
   scratchOffset : Nat
   nextLabel : Nat
+  allocator : Allocator
   deriving Inhabited
 
 def LowerCtx.localOffset? (ctx : LowerCtx) (name : String) : Option Nat :=
@@ -82,10 +85,32 @@ def LowerCtx.localOffset? (ctx : LowerCtx) (name : String) : Option Nat :=
 
 def LowerCtx.addLocal (ctx : LowerCtx) (name : String) : LowerCtx :=
   let offset := ctx.nextLocalOffset
+  let scratchOffset := max ctx.scratchOffset (offset + 16)
   { ctx with
     locals := ctx.locals.push { name, offset }
     nextLocalOffset := offset + 8
-    scratchOffset := offset + 16 }
+    scratchOffset := scratchOffset }
+
+/-- Reserve a stack word for a temporary value. The allocation is monotonic
+within an entrypoint so nested expression lowering cannot overwrite an outer
+temporary that is still live while lowering the RHS. -/
+def LowerCtx.allocScratch (ctx : LowerCtx) : Nat × LowerCtx :=
+  let offset := ctx.scratchOffset
+  (offset, { ctx with scratchOffset := offset + 8 })
+
+/-- Allocate a temporary location. Prefer a register, then fall back to a stack
+slot assigned by `allocScratch` so spill slots stay disjoint from locals. -/
+def LowerCtx.allocLoc (ctx : LowerCtx) : Loc × LowerCtx :=
+  let (reg?, allocator) := ctx.allocator.allocReg?
+  match reg? with
+  | some r => (.reg r, { ctx with allocator })
+  | none =>
+      let ctx := { ctx with allocator }
+      let (offset, ctx) := ctx.allocScratch
+      (.spill offset, ctx)
+
+def LowerCtx.freeLoc (ctx : LowerCtx) (loc : Loc) : LowerCtx :=
+  { ctx with allocator := ctx.allocator.free loc }
 
 def LowerCtx.stateAbsOff? (ctx : LowerCtx) (id : String) : Option Nat :=
   ctx.stateFieldOffsets.find? (fun p => p.fst == id) |>.map fun p => p.snd
@@ -99,11 +124,11 @@ def LowerCtx.freshLabel (ctx : LowerCtx) : String × LowerCtx :=
 /-- Reset local allocation state so each entrypoint gets its own scratch/local
 frame. The label counter and state-field offsets are preserved by the caller. -/
 def LowerCtx.resetLocals (ctx : LowerCtx) : LowerCtx :=
-  { ctx with locals := #[], nextLocalOffset := 8, scratchOffset := 8 }
+  { ctx with locals := #[], nextLocalOffset := 8, scratchOffset := 8, allocator := Allocator.new }
 
 def buildCtx (module : Module) : Except LowerError LowerCtx := do
   let offsets := buildStateOffsets module
-  return { stateFieldOffsets := offsets.map (fun f => (f.id, f.absOff)), locals := #[], nextLocalOffset := 8, scratchOffset := 8, nextLabel := 0 }
+  return { stateFieldOffsets := offsets.map (fun f => (f.id, f.absOff)), locals := #[], nextLocalOffset := 8, scratchOffset := 8, nextLabel := 0, allocator := Allocator.new }
 
 -- ============================================================================
 -- IR expression → AST nodes (result in r2, r3 as scratch)
@@ -138,22 +163,42 @@ def lowerOrderedBinaryCombine (lhsNodes rhsNodes : Array AstNode) (op : Opcode) 
   ]
 
 /-- Combine already-lowered LHS/RHS nodes for an unsigned comparison that
-returns a boolean 0/1 in r2 (and leaves the boolean in r4 before the final
-mov). `condJmp` is `jeq/jne/jlt/jle/jgt/jge`; it jumps to `trueLabel` when
-the comparison holds. -/
-def lowerCmpCombine (lhsNodes rhsNodes : Array AstNode) (condJmp : Opcode) (trueLabel endLabel : String) (scratchOffset : Nat) : Array AstNode :=
+returns a boolean 0/1 in r2. `condJmp` is `jeq/jne/jlt/jle/jgt/jge`; it jumps
+to `trueLabel` when the comparison holds. The boolean temp is allocated from
+the register pool (or spilled to the stack); the LHS is stashed at the caller's
+scratch offset. -/
+def lowerCmpCombine (lhsNodes rhsNodes : Array AstNode) (condJmp : Opcode) (trueLabel endLabel : String) (scratchOffset : Nat) (boolLoc : Loc) : Array AstNode :=
+  let boolSet (v : Nat) : Array AstNode := match boolLoc with
+    | .reg r => #[ .instruction { opcode := .mov64, dst := some r, imm := some (.num v) } ]
+    | .spill off => #[ .instruction { opcode := .stdw, dst := some .r10, off := some (.num off), imm := some (.num v) } ]
+  let boolMovToR2 : Array AstNode := match boolLoc with
+    | .reg r =>
+        if r == .r2 then #[]
+        else #[ .instruction { opcode := .mov64, dst := some .r2, src := some r } ]
+    | .spill off => #[ .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num off) } ]
   lhsNodes ++ #[
     .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratchOffset), src := some .r2 }
   ] ++ rhsNodes ++ #[
-    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num scratchOffset) },
-    .instruction { opcode := .mov64, dst := some .r4, imm := some (.num 0) },
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num scratchOffset) }
+  ] ++ boolSet 0 ++ #[
     .instruction { opcode := condJmp, dst := some .r3, src := some .r2, off := some (.sym trueLabel) },
     .instruction { opcode := .ja, off := some (.sym endLabel) },
-    .label trueLabel,
-    .instruction { opcode := .mov64, dst := some .r4, imm := some (.num 1) },
-    .label endLabel,
-    .instruction { opcode := .mov64, dst := some .r2, src := some .r4 }
-  ]
+    .label trueLabel
+  ] ++ boolSet 1 ++ #[
+    .label endLabel
+  ] ++ boolMovToR2
+
+def assignOpcode : AssignOp → Opcode
+  | .add => .add64
+  | .sub => .sub64
+  | .mul => .mul64
+  | .div => .div64
+  | .mod => .mod64
+  | .bitAnd => .and64
+  | .bitOr => .or64
+  | .bitXor => .xor64
+  | .shiftLeft => .lsh64
+  | .shiftRight => .rsh64
 
 /-- `lowerExpr` lowers an IR expr into AST nodes that compute the value in r2
 and thread the lowering context so nested comparisons can mint fresh labels. -/
@@ -174,32 +219,39 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
     | none => .error { message := s!"unknown local: {name}" }
   | .add lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
+    let (scratch, ctx) := ctx.allocScratch
     let (rn, ctx) ← lowerExpr ctx rhs
-    .ok (lowerBinaryCombine ln rn .add64 ctx.scratchOffset, ctx)
+    .ok (lowerBinaryCombine ln rn .add64 scratch, ctx)
   | .sub lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
+    let (scratch, ctx) := ctx.allocScratch
     let (rn, ctx) ← lowerExpr ctx rhs
-    .ok (lowerOrderedBinaryCombine ln rn .sub64 ctx.scratchOffset, ctx)
+    .ok (lowerOrderedBinaryCombine ln rn .sub64 scratch, ctx)
   | .mul lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
+    let (scratch, ctx) := ctx.allocScratch
     let (rn, ctx) ← lowerExpr ctx rhs
-    .ok (lowerBinaryCombine ln rn .mul64 ctx.scratchOffset, ctx)
+    .ok (lowerBinaryCombine ln rn .mul64 scratch, ctx)
   | .div lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
+    let (scratch, ctx) := ctx.allocScratch
     let (rn, ctx) ← lowerExpr ctx rhs
-    .ok (lowerOrderedBinaryCombine ln rn .div64 ctx.scratchOffset, ctx)
+    .ok (lowerOrderedBinaryCombine ln rn .div64 scratch, ctx)
   | .mod lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
+    let (scratch, ctx) := ctx.allocScratch
     let (rn, ctx) ← lowerExpr ctx rhs
-    .ok (lowerOrderedBinaryCombine ln rn .mod64 ctx.scratchOffset, ctx)
+    .ok (lowerOrderedBinaryCombine ln rn .mod64 scratch, ctx)
   | .boolAnd lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
+    let (scratch, ctx) := ctx.allocScratch
     let (rn, ctx) ← lowerExpr ctx rhs
-    .ok (lowerBinaryCombine ln rn .and64 ctx.scratchOffset, ctx)
+    .ok (lowerBinaryCombine ln rn .and64 scratch, ctx)
   | .boolOr lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
+    let (scratch, ctx) := ctx.allocScratch
     let (rn, ctx) ← lowerExpr ctx rhs
-    .ok (lowerBinaryCombine ln rn .or64 ctx.scratchOffset, ctx)
+    .ok (lowerBinaryCombine ln rn .or64 scratch, ctx)
   | .boolNot value => do
     -- value is a strict 0/1 boolean: bitwise NOT via xor with 1.
     let (vn, ctx) ← lowerExpr ctx value
@@ -224,10 +276,14 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
 where
   lowerCmp (ctx : LowerCtx) (lhs rhs : IR.Expr) (condJmp : Opcode) : Except LowerError (Array AstNode × LowerCtx) := do
     let (ln, ctx) ← lowerExpr ctx lhs
+    let (scratch, ctx) := ctx.allocScratch
     let (rn, ctx) ← lowerExpr ctx rhs
     let (trueLabel, ctx) := ctx.freshLabel
     let (endLabel, ctx) := ctx.freshLabel
-    .ok (lowerCmpCombine ln rn condJmp trueLabel endLabel ctx.scratchOffset, ctx)
+    let (boolLoc, ctx) := ctx.allocLoc
+    let nodes := lowerCmpCombine ln rn condJmp trueLabel endLabel scratch boolLoc
+    let ctx := ctx.freeLoc boolLoc
+    .ok (nodes, ctx)
 
 -- ============================================================================
 -- IR statement → AST nodes
@@ -254,6 +310,24 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
         .ok (vn ++ #[ .instruction { opcode := .stxdw, dst := some .r10, off := some (.num off), src := some .r2 } ], ctx')
       | none => .error { message := s!"assign to unknown local: {name}" }
     | _ => .error { message := "assign to non-local not supported in Phase 1" }
+  | .assignOp target opA value =>
+    match target with
+    | .local name =>
+      match ctx.localOffset? name with
+      | some localOff => do
+        let (scratch, ctx) := ctx.allocScratch
+        let (vn, ctx') ← lowerExpr ctx value
+        .ok (#[
+          .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num localOff) },
+          .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratch), src := some .r3 }
+        ] ++ vn ++ #[
+          .instruction { opcode := .mov64, dst := some .r3, src := some .r2 },
+          .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num scratch) },
+          .instruction { opcode := assignOpcode opA, dst := some .r2, src := some .r3 },
+          .instruction { opcode := .stxdw, dst := some .r10, off := some (.num localOff), src := some .r2 }
+        ], ctx')
+      | none => .error { message := s!"assignOp to unknown local: {name}" }
+    | _ => .error { message := "assignOp to non-local not supported in Phase 1" }
   | .effect (.storageScalarWrite stateId value) => do
     match ctx.stateAbsOff? stateId with
     | some absOff => do
@@ -271,15 +345,15 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
   | .effect (.storageScalarAssignOp stateId opA value) => do
     match ctx.stateAbsOff? stateId with
     | some absOff => do
-      let aluOp : Opcode := match opA with | .add => .add64 | .sub => .sub64 | .mul => .mul64 | .div => .div64 | .mod => .mod64 | _ => .add64
-      let sc := ctx.scratchOffset
+      let (scratch, ctx) := ctx.allocScratch
       let (vn, ctx') ← lowerExpr ctx value
       .ok (#[
         .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num absOff) },
-        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num sc), src := some .r3 }
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratch), src := some .r3 }
       ] ++ vn ++ #[
-        .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num sc) },
-        .instruction { opcode := aluOp, dst := some .r2, src := some .r3 },
+        .instruction { opcode := .mov64, dst := some .r3, src := some .r2 },
+        .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num scratch) },
+        .instruction { opcode := assignOpcode opA, dst := some .r2, src := some .r3 },
         .instruction { opcode := .stxdw, dst := some .r1, off := some (.num absOff), src := some .r2 }
       ], ctx')
     | none => .error { message := s!"unknown state: {stateId}" }
@@ -290,14 +364,14 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
       .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "assert_fail") }
     ], ctx')
   | .assertEq lhs rhs _ => do
-    let sc := ctx.scratchOffset
     let (ln, ctx') ← lowerExpr ctx lhs
+    let (scratch, ctx') := ctx'.allocScratch
     let (rn, ctx') ← lowerExpr ctx' rhs
     .ok (ln ++ #[
       .comment "control.assert_eq",
-      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num sc), src := some .r2 }
+      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratch), src := some .r2 }
     ] ++ rn ++ #[
-      .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num sc) },
+      .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num scratch) },
       .instruction { opcode := .jne, dst := some .r3, src := some .r2, off := some (.sym "assert_eq_fail") }
     ], ctx')
   | .ifElse cond thenBody elseBody => do

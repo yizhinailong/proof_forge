@@ -12,6 +12,11 @@
 - 此注册表拥有能力 id，而非目标生命周期阶段。
 - 文档不得为相同的语义发明替代 id。
 
+## 与 Contract Intent 和 Target Extension 的关系
+
+capability id 是 target selection 之后使用的下层协议，不是默认面向用户的 SDK。portable contract 通常应调用链中立的 Contract Intent API。所选 target adapter 会把这些 intent 解析为 capability plan，然后在降级前检查本注册表。
+
+Target Extension SDK 可以暴露 Solana PDA/CPI、Move resource 或 UTXO covenant primitive 等目标特定操作。这些 extension 仍通过 capability id 和 target metadata 路由，使诊断、制品元数据和跨 target 支持检查保持统一。
 
 ## 核心能力
 

@@ -12,9 +12,10 @@ A simple register pool for the 11 sBPF registers. The convention is:
 - r6–r9: callee-saved scratch (can hold longer-lived temps)
 - r10: frame pointer (stack, grows downward)
 
-This module tracks which registers are free and spills to the stack when the
-pool is exhausted. It is intentionally simple for Phase 1; a real allocator
-can replace it later without changing callers.
+This module tracks which registers are free. Stack spill slots are assigned by
+the lowering context because they must share the same frame allocator as locals
+and scratch slots. It is intentionally simple for Phase 1; a real allocator can
+replace it later without changing callers.
 
 See `docs/targets/solana-sbpf-asm.md` (D-026).
 -/
@@ -25,26 +26,47 @@ namespace ProofForge.Backend.Solana.Register
 
 open ProofForge.Backend.Solana.Asm
 
-/-- Registers available for general allocation. r0, r1, r10 are reserved. -/
-def allocatableRegs : Array Reg := #[.r2, .r3, .r4, .r5, .r6, .r7, .r8, .r9]
+/-- Result of allocating a value location. Either a register or a stack slot. -/
+inductive Loc where
+  | reg (r : Reg)
+  | spill (off : Nat)
+  deriving Repr, Inhabited
+
+def Loc.isReg : Loc → Bool
+  | .reg _ => true
+  | .spill _ => false
+
+def Loc.reg? : Loc → Option Reg
+  | .reg r => some r
+  | .spill _ => none
+
+def Loc.render : Loc → String
+  | .reg r => r.render
+  | .spill off => s!"[r10-{off}]"
+
+/-- Registers available for general allocation. r0, r1, r2, r10 are reserved:
+r0 is the return/syscall-result register, r1 is the input pointer, r2 is the
+current expression-result register, and r10 is the frame pointer. -/
+def allocatableRegs : Array Reg := #[.r4, .r5, .r6, .r7, .r8, .r9]
 
 structure Allocator where
   inUse : Array Reg
-  nextSpill : Nat
   deriving Repr, Inhabited
 
-def Allocator.new : Allocator := { inUse := #[], nextSpill := 8 }
+def Allocator.new : Allocator := { inUse := #[] }
 
-/-- Allocate a register. Returns `(reg, allocator')`. If none are free, returns
-a stack spill slot encoded as `r10` with an offset (the caller must decide how
-to materialize spills; for now we return `r10` as a sentinel). -/
-def Allocator.alloc (a : Allocator) : Reg × Allocator :=
+/-- Allocate a register if one is available. Stack fallback belongs to
+`LowerCtx`, where stack offsets can be kept disjoint from locals and scratch
+temporaries. -/
+def Allocator.allocReg? (a : Allocator) : Option Reg × Allocator :=
   match allocatableRegs.find? (fun r => !a.inUse.contains r) with
-  | some r => (r, { a with inUse := a.inUse.push r })
-  | none   => (.r10, { a with nextSpill := a.nextSpill + 8 }) -- spill sentinel
+  | some r => (some r, { a with inUse := a.inUse.push r })
+  | none   => (none, a)
 
-/-- Mark a register as free again. -/
-def Allocator.free (a : Allocator) (r : Reg) : Allocator :=
-  { a with inUse := a.inUse.filter (· != r) }
+/-- Mark a location as free again. -/
+def Allocator.free (a : Allocator) (loc : Loc) : Allocator :=
+  match loc with
+  | .reg r => { a with inUse := a.inUse.filter (· != r) }
+  | .spill _ => a
 
 end ProofForge.Backend.Solana.Register

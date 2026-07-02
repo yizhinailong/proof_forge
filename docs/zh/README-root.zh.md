@@ -231,11 +231,12 @@ curl -fsSL https://raw.githubusercontent.com/QEDProtocol/psyup/main/install.sh |
 
 ## 平台方向
 
-ProofForge 使用可移植核心加能力模型：
+ProofForge 使用链中立的 Contract Intent API，底层是可移植核心加 target-routed capability 模型：
 
+- Contract Intent API：默认面向用户的 SDK，用于声明状态、入口、事件、caller/value 访问、断言和证明，而不需要导入目标链模块。
 - 可移植核心：业务逻辑、状态机转换、数学和证明。
-- 能力：显式的面向链的操作，例如存储、调用者、价值转移、事件、跨合约调用、账户/对象/资源访问以及链环境读取。
-- 目标适配器：针对每个目标家族的 ABI、打包、测试运行器和部署逻辑。
+- Target-routed capability：更底层的语义操作，例如存储、调用者、价值转移、事件、跨合约调用、账户/对象/资源访问以及链环境读取。所选 target 会把 portable intent 解析为 capability plan；capability id 是 adapter/extension 协议和诊断表面，而不是主要 SDK 表面。
+- 目标适配器：针对每个目标家族的 ABI、打包、测试运行器和部署逻辑。`--target` 选择适配器；不支持的 intent 或 capability 会在制品生成前被拒绝。
 
 计划中的目标家族：
 
@@ -251,7 +252,7 @@ ProofForge 使用可移植核心加能力模型：
 proof-forge build --target evm
 proof-forge build --target wasm-near        # planned reference target
 proof-forge build --target wasm-cosmwasm    # planned first new Wasm spike
-proof-forge build --target solana-sbpf-linker
+proof-forge build --target solana-sbpf-asm
 proof-forge build --target move-aptos       # planned first Move POC
 proof-forge build --target move-sui         # planned follow-up Move target
 ```

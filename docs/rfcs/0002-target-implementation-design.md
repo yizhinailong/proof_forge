@@ -228,10 +228,10 @@ The target-oriented CLI should eventually expose:
 proof-forge build --target evm --out build/evm Examples/Evm/Contracts/Counter.lean
 proof-forge build --target wasm-near --out build/near Examples/Near/Counter.lean          # planned
 proof-forge build --target wasm-cosmwasm --out build/cosmwasm Examples/CosmWasm/Counter.lean  # planned
-proof-forge build --target solana-sbpf-linker --out build/solana Examples/Solana/Counter.lean  # planned
+proof-forge build --target solana-sbpf-asm --out build/solana Examples/Solana/Counter.lean  # planned
 proof-forge build --target move-aptos --out build/aptos Examples/Move/Aptos/Counter/       # planned
 proof-forge test --target evm
-proof-forge test --target solana-sbpf-linker
+proof-forge test --target solana-sbpf-asm
 ```
 
 Near-term implementation can keep target scripts under `scripts/<target>/`
@@ -253,7 +253,7 @@ Lean contract
 
 Implementation notes:
 
-- Keep `ProofForge.Evm` as the first concrete capability SDK.
+- Keep `ProofForge.Evm` as the first concrete target adapter / extension SDK.
 - Keep `.evm-methods` as target metadata until a unified manifest exists.
 - Add artifact metadata around the existing bytecode path.
 - Add golden Yul snapshots for simple examples before major IR refactors.

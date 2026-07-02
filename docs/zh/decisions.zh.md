@@ -35,6 +35,7 @@
 | D-025 | 2026-07-01 | 增加 **`solana-sbpf-asm`** 作为新的 Solana 路线（direct sBPF assembly codegen）并进入探索；保留 `solana-sbpf-linker` 作为 fallback | 从 portable IR 直接生成 sBPF assembly 可以避开完整 Lean Zig runtime 链接风险；blueshift-gg/sbpf 工具链负责 assembly 和 linking。见 [RFC 0004](rfcs/0004-solana-sbpf-assembly-backend.md) 与 [设计文档](targets/solana-sbpf-asm.md)。 |
 | D-026 | 2026-07-01 | **采用 `solana-sbpf-asm` 作为规范 Solana 路线；取代 `solana-sbpf-linker`** | direct-assembly 路线避开 Lean runtime 链接风险，能完全控制 compute units 和 stack，并且更接近 EVM/Yul 模式。`solana-sbpf-linker` 仅保留为历史参考。 |
 | D-027 | 2026-07-01 | **CPI 和 PDA effect 留在 Solana 特定层，而不是 portable IR** | `cpiInvoke`、`cpiInvokeSigned` 和 `pdaDerive` 是 Solana 独有概念；它们属于 `ProofForge.Backend.Solana.Effects` 或 Solana SDK 模块，由 `crosscall.cpi` 和 `storage.pda` 能力门控。portable IR 保持链中立，只有两个或更多目标家族共享同一语义形态时才新增 constructor。 |
+| D-028 | 2026-07-02 | **用户合约面向链中立的 Contract Intent API；所选 target 将 intent 解析为 capability plan** | 默认 SDK 表面不应暴露目标链。用户编写 portable contract intent，然后由 `--target` 选择目标适配器；适配器把这些 intent 路由到更底层的 capability 实现，检查支持情况和运行时约束，并发射目标制品。capability id 仍是 target adapter 和 Target Extension SDK 使用的内部协议，而不是主要用户 API。 |
 
 ## 目标家族分类
 

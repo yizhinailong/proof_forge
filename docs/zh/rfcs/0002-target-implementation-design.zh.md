@@ -211,10 +211,10 @@ lake env proof-forge --evm-bytecode -o build/evm/Counter.bin \
 proof-forge build --target evm --out build/evm Examples/Evm/Contracts/Counter.lean
 proof-forge build --target wasm-near --out build/near Examples/Near/Counter.lean          # planned
 proof-forge build --target wasm-cosmwasm --out build/cosmwasm Examples/CosmWasm/Counter.lean  # planned
-proof-forge build --target solana-sbpf-linker --out build/solana Examples/Solana/Counter.lean  # planned
+proof-forge build --target solana-sbpf-asm --out build/solana Examples/Solana/Counter.lean  # planned
 proof-forge build --target move-aptos --out build/aptos Examples/Move/Aptos/Counter/       # planned
 proof-forge test --target evm
-proof-forge test --target solana-sbpf-linker
+proof-forge test --target solana-sbpf-asm
 ```
 
 近期实现可以在 CLI 泛化期间将目标脚本保留在 `scripts/<target>/` 下。
@@ -235,7 +235,7 @@ Lean contract
 
 实现说明：
 
-- 保留 `ProofForge.Evm` 作为第一个具体的能力 SDK。
+- 保留 `ProofForge.Evm` 作为第一个具体的 target adapter / extension SDK。
 - 在统一清单存在之前，保留 `.evm-methods` 作为目标元数据。
 - 在现有字节码路径周围添加制品元数据。
 - 在重大 IR 重构之前，为简单示例添加黄金 Yul 快照。

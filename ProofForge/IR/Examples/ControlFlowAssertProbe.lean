@@ -11,6 +11,8 @@ statement shapes that any target backend must lower:
   * `.assertEq` — runtime equality check that reverts when not equal
   * comparison expressions (`.eq`, `.lt`, …) and boolean expressions that
     produce the predicates the above statements consume
+  * nested arithmetic and compound assignment paths that require distinct
+    stack temporaries while lowering RHS expressions
 
 The module is chain-neutral; it lowers through both the EVM/Yul and the
 Solana sBPF assembly backends. It is the fixture behind the Solana sBPF
@@ -61,6 +63,25 @@ def lifecycle : Entrypoint := {
       .letBind "next" .u64 (.add readCount (felt 6)),
       .effect (.storageScalarWrite "count" (.local "next"))
     ],
+    .letBind "nestedProduct" .u64 (.mul
+      (.add (felt 2) (felt 3))
+      (.sub (felt 10) (felt 4))),
+    .assertEq (.local "nestedProduct") (felt 30) "nested RHS temp slots do not clobber outer LHS",
+    .letBind "orderedExpr" .u64 (.mod
+      (.sub (felt 30) (.div (felt 12) (felt 2)))
+      (felt 5)),
+    .assertEq (.local "orderedExpr") (felt 4) "sub/div/mod preserve lhs op rhs order",
+    .effect (.storageScalarWrite "count" (felt 40)),
+    .effect (.storageScalarAssignOp "count" .sub (felt 7)),
+    .effect (.storageScalarAssignOp "count" .div (felt 3)),
+    .effect (.storageScalarAssignOp "count" .mod (felt 5)),
+    .assertEq readCount (felt 1) "storage compound assignment preserves lhs op rhs order",
+    .letMutBind "localTotal" .u64 (felt 40),
+    .assignOp (.local "localTotal") .sub (felt 7),
+    .assignOp (.local "localTotal") .div (felt 3),
+    .assignOp (.local "localTotal") .mod (felt 5),
+    .assertEq (.local "localTotal") (felt 1) "local compound assignment lowers through AST",
+    .effect (.storageScalarWrite "count" (felt 10)),
     .assertEq readCount (felt 10) "branches land on ten",
     .return readCount
   ]
