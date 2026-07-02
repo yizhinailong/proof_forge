@@ -78,6 +78,9 @@ jobs:
       - name: Run EmitWat offline host smoke
         run: scripts/near/emitwat-ci-smoke.sh
 
+      - name: Run unified testkit
+        run: just testkit
+
       - name: Check Psy golden sources
         run: just psy-golden-sources
 

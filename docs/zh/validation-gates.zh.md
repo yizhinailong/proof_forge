@@ -6,6 +6,7 @@
 
 | 门禁 | 命令 | 前提条件 | 证明了什么 | 未证明什么 |
 |---|---|---|---|---|
+| 统一 testkit Counter 场景 | `just testkit` | Rust/Cargo；来自 `lean-toolchain` 的 Lean 工具链 | RFC 0007 testkit 会发现 `testkit/scenarios/counter.toml`，通过 Lean 发射 Counter WAT fixture，在确定性的 `runtime/offline-host` wasmtime NEAR host 上运行，并校验 `initialize`、`get`、`increment`、`get` 场景的返回期望 | EVM/revm 跨目标等价性、Solana/Mollusk 执行、live NEAR sandbox 部署、替换旧的逐目标 smoke 脚本 |
 | Lean 包构建 | `lake build` | 来自 `lean-toolchain` 的 Lean 工具链 | 库根节点通过类型检查且 `proof-forge` 链接成功 | 生成的 Yul/字节码有效性、外部工具、运行时行为 |
 | 目标注册表冒烟测试 | `lake env lean --run Tests/TargetRegistry.lean` | 来自 `lean-toolchain` 的 Lean 工具链 | 目标注册表将 `evm` 暴露为 compiler target，同时让 `robinhood-chain-testnet` 和 `anvil-local` 等 EVM-compatible chain profile 只作为 lookup-only deployment profile 存在 | 交易广播、实时 RPC 或 explorer 可达性、wallet 集成 |
 | EVM 语义计划冒烟测试 | `just evm-plan` | 来自 `lean-toolchain` 的 Lean 工具链 | EVM semantic plan 会从 target 已解析的 `CapabilityPlan` 构建，拒绝非 EVM target plan，并在 Yul 生成前校验 storage layout、scalar storage slot、map value slot、nested map value slot、map presence slot、map assign-op helper 需求以及计划出的 helper 需求 | ABI dispatch、event、crosscall、constructor metadata、artifact metadata 完全归入 `ModulePlan`、`solc` 验收、字节码、运行时行为、更广泛的 aggregate storage planning |

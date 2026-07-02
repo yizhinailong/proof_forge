@@ -1,0 +1,21 @@
+[scenario]
+name = "counter"
+fixture = "counter"
+targets = ["wasm-near"]
+capabilities = ["storage.scalar", "entrypoint.external"]
+
+[[step]]
+call = "initialize"
+
+[[step]]
+call = "get"
+[step.expect.return]
+u64 = 0
+
+[[step]]
+call = "increment"
+
+[[step]]
+call = "get"
+[step.expect.return]
+u64 = 1

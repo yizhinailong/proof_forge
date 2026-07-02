@@ -191,8 +191,16 @@ solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-s
 docs-check:
     scripts/i18n/check-sync.sh
 
+# Run the unified RFC 0007 testkit scenario suite.
+testkit:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run
+
+# List RFC 0007 testkit scenarios.
+testkit-list:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry evm-plan solana-light docs-check evm-diagnostics evm-coverage psy-diagnostics psy-coverage
+check: build target-registry evm-plan solana-light docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
@@ -360,7 +368,7 @@ evm-ir-smokes:
 evm-all: evm-diagnostics evm-coverage evm-ir-smokes evm-build-examples evm-foundry evm-anvil-deploy
 
 # Run the current GitHub CI build-test sequence locally.
-ci: build target-registry evm-plan solana-light docs-check psy-golden-sources psy-diagnostics psy-coverage evm-all
+ci: build target-registry evm-plan solana-light docs-check testkit psy-golden-sources psy-diagnostics psy-coverage evm-all
 
 # Check for whitespace errors before committing.
 diff-check:

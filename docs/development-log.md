@@ -15,6 +15,41 @@ Each entry should include:
 - known limitations
 - next step
 
+## 2026-07-03
+
+### Unified Testkit M1 Skeleton
+
+Commit: feature commit for unified testkit M1 skeleton
+
+Summary:
+
+- Added the RFC 0007 `testkit/` Rust workspace with core scenario parsing,
+  NEAR harness wiring, and the `proof-forge-testkit` runner.
+- Added `testkit/scenarios/counter.toml` as the first declarative scenario.
+- Wired `just testkit`, `just testkit-list`, and the GitHub Actions
+  `build-test` job.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all
+cargo check --manifest-path testkit/Cargo.toml
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+just testkit
+```
+
+Known limitations:
+
+- This is the M1 `wasm-near` slice only. It wraps the existing deterministic
+  `runtime/offline-host`; EVM/revm and Solana/Mollusk are not wired yet.
+- Cross-target equivalence assertions start in M2 after the EVM harness lands.
+
+Next step:
+
+- Add `harness-evm` on revm, load emitted runtime bytecode plus
+  `.evm-methods`, and compare the Counter observable trace against
+  `wasm-near`.
+
 ## 2026-07-02
 
 ### EVM StorageSlotPlan ToYul Slice

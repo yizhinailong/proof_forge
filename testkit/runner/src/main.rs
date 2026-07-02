@@ -1,0 +1,161 @@
+use std::collections::HashMap;
+use std::env;
+use std::path::{Path, PathBuf};
+
+use anyhow::{bail, Context, Result};
+use proof_forge_testkit_core::{
+    assert_expectations, discover_scenarios, ChainHarness, ScenarioCase,
+};
+use proof_forge_testkit_harness_near::NearHarness;
+
+fn main() -> Result<()> {
+    let args = Args::parse(env::args().skip(1))?;
+    let repo_root = env::current_dir().context("failed to read current directory")?;
+    let scenario_dir = repo_root.join(&args.scenario_dir);
+    let scenarios = discover_scenarios(&scenario_dir)?;
+
+    match args.command {
+        CommandKind::List => list_scenarios(&scenarios),
+        CommandKind::Run => run_scenarios(&repo_root, &scenarios, &args),
+    }
+}
+
+#[derive(Debug)]
+struct Args {
+    command: CommandKind,
+    scenario: Option<String>,
+    target: Option<String>,
+    scenario_dir: PathBuf,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CommandKind {
+    Run,
+    List,
+}
+
+impl Args {
+    fn parse<I>(args: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = String>,
+    {
+        let mut command = CommandKind::Run;
+        let mut scenario = None;
+        let mut target = None;
+        let mut scenario_dir = PathBuf::from("testkit/scenarios");
+
+        let mut args = args.into_iter().peekable();
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "run" => command = CommandKind::Run,
+                "list" => command = CommandKind::List,
+                "--scenario" => scenario = Some(take_arg(&mut args, "--scenario")?),
+                "--target" => target = Some(take_arg(&mut args, "--target")?),
+                "--scenarios-dir" => {
+                    scenario_dir = PathBuf::from(take_arg(&mut args, "--scenarios-dir")?);
+                }
+                "-h" | "--help" => {
+                    print_usage();
+                    std::process::exit(0);
+                }
+                other => bail!("unknown testkit argument `{other}`"),
+            }
+        }
+
+        Ok(Self {
+            command,
+            scenario,
+            target,
+            scenario_dir,
+        })
+    }
+}
+
+fn take_arg<I>(args: &mut std::iter::Peekable<I>, option: &str) -> Result<String>
+where
+    I: Iterator<Item = String>,
+{
+    args.next()
+        .ok_or_else(|| anyhow::anyhow!("{option} requires a value"))
+}
+
+fn print_usage() {
+    eprintln!(
+        "usage: proof-forge-testkit [run|list] [--scenario NAME] [--target ID] [--scenarios-dir DIR]"
+    );
+}
+
+fn list_scenarios(scenarios: &[ScenarioCase]) -> Result<()> {
+    for case in scenarios {
+        println!(
+            "{} fixture={} targets=[{}]",
+            case.manifest.scenario.name,
+            case.manifest.scenario.fixture,
+            case.manifest.scenario.targets.join(",")
+        );
+    }
+    Ok(())
+}
+
+fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> Result<()> {
+    let harnesses = harnesses();
+    let selected: Vec<&ScenarioCase> = scenarios
+        .iter()
+        .filter(|case| {
+            args.scenario
+                .as_ref()
+                .map(|name| case.manifest.scenario.name == *name)
+                .unwrap_or(true)
+        })
+        .collect();
+
+    if selected.is_empty() {
+        bail!("no scenarios matched");
+    }
+
+    println!("testkit: discovered {} scenario(s)", selected.len());
+    let mut target_runs = 0usize;
+    for case in selected {
+        let targets: Vec<&str> = case
+            .manifest
+            .scenario
+            .targets
+            .iter()
+            .map(String::as_str)
+            .filter(|target| args.target.as_deref().map(|t| t == *target).unwrap_or(true))
+            .collect();
+        if targets.is_empty() {
+            bail!(
+                "scenario `{}` has no targets after filtering",
+                case.manifest.scenario.name
+            );
+        }
+
+        for target in targets {
+            let Some(harness) = harnesses.get(target) else {
+                bail!(
+                    "scenario `{}` targets unsupported `{target}`",
+                    case.manifest.scenario.name
+                );
+            };
+            let outcomes = harness.run_scenario(case, repo_root)?;
+            assert_expectations(case, &outcomes)?;
+            println!(
+                "scenario {} target {}: ok ({} call outcome(s))",
+                case.manifest.scenario.name,
+                target,
+                outcomes.len()
+            );
+            target_runs += 1;
+        }
+    }
+    println!("testkit: ok ({target_runs} target run(s))");
+    Ok(())
+}
+
+fn harnesses() -> HashMap<&'static str, Box<dyn ChainHarness>> {
+    let mut harnesses: HashMap<&'static str, Box<dyn ChainHarness>> = HashMap::new();
+    let near = NearHarness::new();
+    harnesses.insert(near.target_id(), Box::new(near));
+    harnesses
+}
