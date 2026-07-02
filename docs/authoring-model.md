@@ -37,9 +37,11 @@ but it is not the final language parser.
 
 ## Current Syntax Boundary
 
-`ProofForge.Contract.Learn` now parses the checked-in portable `.learn`
-examples under `Examples/Learn/` into a small source AST and lowers that AST to
-the same `ContractSpec`/portable IR boundary used by `contract_source`.
+`ProofForge.Contract.Learn` now parses the checked-in `.learn` examples under
+`Examples/Learn/` into a small source AST and lowers that AST to the same
+`ContractSpec`/portable IR boundary used by `contract_source`. The parser covers
+the portable scalar/event subset plus the first Solana target-extension forms
+for accounts, PDA derivation, and SPL Token transfer CPI.
 `ProofForge.Contract.Source` remains the executable embedded syntax layer and
 covers:
 
@@ -79,8 +81,9 @@ need to manually switch between these internals when the contract is portable.
 
 ## Next Implementation Steps
 
-1. Expand the Learn parser beyond the current portable scalar/event subset to
-   cover Solana target-extension declarations through typed SDK forms.
+1. Expand the Learn parser beyond the current Vault-level Solana subset to cover
+   System Program transfer/create-account, Token-2022, sysvars, logs, memory,
+   crypto, and return-data helpers.
 2. Gradually replace string-bearing Solana declarations with typed account,
    owner, program, and capability references.
 3. Keep backend artifact checks unchanged so the new Learn syntax proves the

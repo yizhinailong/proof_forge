@@ -534,6 +534,15 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   `ValueVault.learn` 会被证明生成与当前 `contract_source` 示例一致的 IR module。
   `Tests/LearnSource.lean` 还会把 Learn-lowered ValueVault 走 Solana package
   路径渲染，确保新的 authoring entrypoint 仍绑定 backend artifact check。
+- Learn Solana target-extension syntax：
+  `ProofForge.Contract.Learn` 现在会解析 `SolanaVault.learn` 中的
+  `solana allocator`、`solana account`、`solana pda`、`solana cpi
+  ... spl_token_transfer_checked(...)`，以及 entry-level `solana derive` /
+  `solana invoke`。lowering 会复用 `ProofForge.Solana` builder helper，因此
+  account/PDA/CPI metadata 仍然进入现有 capability plan、manifest、IDL、client 和
+  sBPF assembly 路径。`Tests/LearnSource.lean` 会检查 Learn-lowered
+  SolanaVault 具有与 `ProofForge.Solana.Examples.Vault` 一致的 IR module 和
+  generated manifest。
 - Solana typed account surface：
   `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
   `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
@@ -572,14 +581,14 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 当前边界：
 
 - `ProofForge.Contract.Learn` 现在是第一版 standalone Learn parser/lowering
-  seed，但它刻意只覆盖 Counter 和 ValueVault 需要的 portable scalar/event
-  子集。`ProofForge.Contract.Source` 仍是更丰富的 v1 embedded macro frontend，
-  用于可执行的 Solana extension 示例。下一步 authoring 缺口是把 Learn parser
-  扩展到 typed target-extension form，覆盖 Solana account constraint、PDA
-  derivation、System transfer/create-account、SPL Token operation、sysvar、log、
-  memory、crypto，以及更接近 Pinocchio 的 account validation ergonomics；同时
-  由 target extension 层在编译阶段派生 selector、instruction tag、
-  IDL/client metadata 和 package artifact。
+  seed。它覆盖 portable Counter/ValueVault 子集，以及 Vault-level Solana
+  account/PDA/SPL Token transfer CPI 子集。`ProofForge.Contract.Source` 仍是
+  Solana System transfer 和 create-account 示例的 embedded macro frontend，直到这些
+  form 迁移进 Learn。下一步 authoring 缺口是把 Learn parser 扩展到 System
+  transfer/create-account、更多 SPL Token op、Token-2022、sysvar、log、memory、
+  crypto、return data，以及更接近 Pinocchio 的 account validation ergonomics；同时
+  由 target extension 层在编译阶段派生 selector、instruction tag、IDL/client
+  metadata 和 package artifact。
 
 剩余优先切片：
 

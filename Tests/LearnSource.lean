@@ -2,6 +2,7 @@ import ProofForge.Backend.Solana.Package
 import ProofForge.Contract.Examples.Counter
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Learn
+import ProofForge.Solana.Examples.Vault
 
 namespace ProofForge.Tests.LearnSource
 
@@ -28,6 +29,20 @@ def requireSameModule (label : String)
   require (actualRepr == expectedRepr)
     s!"{label} Learn source did not lower to the expected IR module\nactual:\n{actualRepr}\nexpected:\n{expectedRepr}"
 
+def requireSameText (label actual expected : String) : IO Unit :=
+  require (actual == expected)
+    s!"{label} mismatch\nactual:\n{actual}\nexpected:\n{expected}"
+
+def packageFile (label path : String)
+    (spec : ProofForge.Contract.ContractSpec) : IO String := do
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec label spec with
+  | .ok pkg =>
+      let some file := pkg.files.find? (fun file => file.path == path)
+        | throw <| IO.userError s!"{label} package missing {path}"
+      pure file.contents
+  | .error err =>
+      throw <| IO.userError s!"{label} Solana render failed: {err.render}"
+
 def requireValueVaultSolanaRender (spec : ProofForge.Contract.ContractSpec) : IO Unit := do
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "learn-value-vault" spec with
   | .ok pkg =>
@@ -49,6 +64,11 @@ def main : IO UInt32 := do
   let valueVault ← parseSpec "Examples/Learn/ValueVault.learn"
   requireSameModule "ValueVault" valueVault.module ProofForge.Contract.Examples.ValueVault.module
   requireValueVaultSolanaRender valueVault
+  let solanaVault ← parseSpec "Examples/Learn/SolanaVault.learn"
+  requireSameModule "SolanaVault" solanaVault.module ProofForge.Solana.Examples.Vault.module
+  let learnManifest ← packageFile "learn-solana-vault" "manifest.toml" solanaVault
+  let sourceManifest ← packageFile "source-solana-vault" "manifest.toml" ProofForge.Solana.Examples.Vault.spec
+  requireSameText "SolanaVault Learn manifest" learnManifest sourceManifest
   IO.println "learn-source: ok"
   return 0
 

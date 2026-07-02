@@ -990,6 +990,15 @@ Completed developer-surface slices:
   current `contract_source` examples. `Tests/LearnSource.lean` also renders the
   Learn-lowered ValueVault through the Solana package path, keeping backend
   artifact checks attached to the new authoring entrypoint.
+- Learn Solana target-extension syntax:
+  `ProofForge.Contract.Learn` now parses `SolanaVault.learn` forms for
+  `solana allocator`, `solana account`, `solana pda`, `solana cpi
+  ... spl_token_transfer_checked(...)`, and entry-level `solana derive` /
+  `solana invoke`. The lowering reuses `ProofForge.Solana` builder helpers, so
+  account/PDA/CPI metadata still flows through the existing capability plan,
+  manifest, IDL, client, and sBPF assembly paths. `Tests/LearnSource.lean`
+  checks that Learn-lowered SolanaVault has the same IR module and generated
+  manifest as `ProofForge.Solana.Examples.Vault`.
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
@@ -1028,15 +1037,16 @@ Completed developer-surface slices:
 Current boundary:
 
 - `ProofForge.Contract.Learn` is now the first standalone Learn parser/lowering
-  seed, but it intentionally covers only the portable scalar/event subset needed
-  by Counter and ValueVault. `ProofForge.Contract.Source` remains the richer v1
-  embedded macro frontend for executable Solana extension examples. The next
+  seed. It covers the portable Counter/ValueVault subset and the Vault-level
+  Solana account/PDA/SPL Token transfer CPI subset. `ProofForge.Contract.Source`
+  remains the richer embedded macro frontend for Solana System transfer and
+  create-account examples until those forms are migrated into Learn. The next
   authoring gap is to extend Learn parsing to typed target-extension forms for
-  Solana account constraints, PDA derivation, System transfer/create-account,
-  SPL Token operations, sysvars, logs, memory, crypto, and richer
-  Pinocchio-style account validation ergonomics while the target extension
-  layer derives chain-specific selectors, instruction tags, IDL/client metadata,
-  and package artifacts during compilation.
+  System transfer/create-account, additional SPL Token ops, Token-2022, sysvars,
+  logs, memory, crypto, return data, and richer Pinocchio-style account
+  validation ergonomics while the target extension layer derives chain-specific
+  selectors, instruction tags, IDL/client metadata, and package artifacts during
+  compilation.
 
 Remaining priority slices:
 
