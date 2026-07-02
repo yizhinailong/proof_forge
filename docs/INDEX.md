@@ -1,11 +1,14 @@
 # ProofForge Documentation Index
 
-ProofForge is a Lean-first multi-chain smart contract platform. The current
-repository contains the EVM backend baseline and the design track for expanding
-the compiler, SDK, test runners, and deployment surface to additional chains.
+ProofForge is a Lean-first multi-chain smart contract platform. The trunk
+contains the EVM baseline plus Solana (sBPF assembly), NEAR (EmitWat), Psy/DPN,
+Aleo Leo, and Cloudflare Workers backends behind one portable IR and capability
+registry, following the 2026-07 branch consolidation.
 
-**Current phase:** Phase 0 complete (EVM baseline); Phase 1 in progress (target
-registry, portable IR, artifact metadata).
+**Current phase:** Phases 0–1 complete (EVM baseline, target registry,
+portable IR, artifact metadata). Current goals: shared-scenario parity on
+`evm` + `solana-sbpf-asm` + `wasm-near`, consolidation follow-ups
+(backlog Workstream 24), and the formal verification roadmap (Workstream 25).
 
 ## Documentation Map
 
@@ -98,10 +101,19 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 
 ## Current Implementation Baseline
 
-- EVM contracts use `ProofForge.Evm` (`open Lean.Evm`).
-- `proof-forge --evm-bytecode` compiles Lean contracts through LCNF, Yul, and
-  `solc --strict-assembly`.
-- `scripts/evm/foundry-smoke.sh` validates generated runtime bytecode with
-  Foundry's local EVM test runner.
-- Target registry, portable IR in code, and `proof-forge-artifact.json` are
-  planned (Phase 1) — see [backlog](implementation-backlog.md).
+- The target registry (`ProofForge/Target/Registry.lean`), portable IR
+  (`ProofForge/IR/Contract.lean`), capability routing, and
+  `proof-forge-artifact.json` emission are implemented.
+- EVM: `proof-forge --evm-bytecode` compiles Lean contracts through LCNF,
+  Yul, and `solc --strict-assembly`; portable-IR contracts lower through the
+  EVM semantic plan (`Backend/Evm/Plan.lean`). Foundry and Anvil smokes
+  validate runtime behavior.
+- Solana: `--solana-elf` and related modes emit sBPF assembly and ELF
+  packages, validated by Mollusk, Surfpool/Web3.js, and Pinocchio
+  equivalence gates.
+- NEAR: `--emit-*-emitwat` lowers portable IR through the Wasm AST to WAT,
+  with formal trace obligations (`Tests/NearWasmFormal.lean`) and an offline
+  host smoke.
+- Psy/DPN, Aleo Leo, and Cloudflare Workers emit target sources from
+  portable IR fixtures; see [validation-gates.md](validation-gates.md) for
+  each gate's tool prerequisites.
