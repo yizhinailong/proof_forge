@@ -70,6 +70,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Validation gates](validation-gates.md): runnable gates and tool prerequisites.
 - [Formal verification roadmap](formal-verification.md): existing formal anchors and staged proof targets.
 - [Target portfolio roadmap](target-roadmap.md): tiered sequencing for the remaining research targets and the Bitcoin policy family (D-034).
+- [Platform gap analysis 2026-07](platform-gaps-2026-07.md): unplanned dimensions (CLI surface, versioning, budgets, upgrades/signing, error model, clients) and their sequencing hooks.
 - [Implementation backlog](implementation-backlog.md): staged tasks and acceptance criteria.
 - [Review checklist (English)](review-checklist.md)
 - [Target notes](targets/README.md): per-family research and spike plans.

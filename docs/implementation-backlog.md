@@ -2125,6 +2125,33 @@ Acceptance criteria:
   they get a separate `policy.*` section in the capability registry when
   Tier 3 opens.
 
+## Workstreams 29–33: Platform Hardening (planning-first)
+
+These come from the [2026-07 gap analysis](platform-gaps-2026-07.md). Each
+starts as an RFC, not code; sequencing hooks are listed in the gap doc.
+
+- **Workstream 29 — CLI product surface.** RFC for
+  `proof-forge build|emit|check --target <id> --fixture <id>`, collapsing
+  the ~136 emit modes; legacy flags become aliases for one release. Must be
+  planned before testkit M4 binds to the current flags.
+- **Workstream 30 — Versioning and compatibility policy.** RFC covering IR
+  version rules (tied to the coverage-manifest gate), artifact/deploy
+  schema stability, append-only capability ids, and SDK deprecation policy.
+- **Workstream 31 — Resource budgets as gates.** Extend the testkit
+  scenario schema (before M2/M3) with per-step gas/CU/near-gas budget
+  baselines and tolerance bands; parity (D-034 Gate G0) requires budgets,
+  not just behavior.
+- **Workstream 32 — Deployment lifecycle, upgrades, signing.** RFC for an
+  upgrade-policy intent (`immutable | authority | governance`) lowered
+  honestly per chain (Solana upgrade authority, EVM immutable/proxy, NEAR
+  account keys, Aleo `@noupgrade`) or rejected; unsigned-transaction
+  signing boundary; live-gate key conventions.
+- **Workstream 33 — Runtime error model + client generation.** Portable
+  error codes with per-target encodings and `expect.error` scenario
+  vocabulary (plan with Workstream 31's schema change); then a
+  client-schema layer generalizing the Solana IDL/TS client generation to
+  all targets (implementation waits for testkit M3).
+
 ## Suggested Order
 
 Workstreams 1, 1.5, 2–3, 6–7 (registry, portable IR, EVM metadata, Solana
@@ -2133,7 +2160,11 @@ workstream. The forward order follows the tier gates of
 [target-roadmap.md](target-roadmap.md) (D-034):
 
 0. Architecture convergence follow-ups (Workstream 24) and FV-1/FV-2 from
-   the formal verification roadmap (Workstream 25).
+   the formal verification roadmap (Workstream 25). In parallel, the
+   planning-first RFCs from the gap analysis: CLI surface (29, before
+   testkit M4), budgets + error vocabulary (31/33, before testkit M2/M3
+   freeze the scenario schema), versioning and deployment lifecycle
+   (30/32, docs-agent parallel track).
 1. **Parallel:** unified testkit (Workstream 26) and allocator unification
    (Workstream 27) — testkit M1/M2 has no dependency on allocator M1/M2;
    allocator M4 lands after testkit M3.
