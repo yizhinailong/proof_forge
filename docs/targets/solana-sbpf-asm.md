@@ -49,6 +49,23 @@ The `sbpf` CLI provides everything needed after `.s` emission:
 ProofForge's role is to produce valid `.s` text files that `sbpf build`
 accepts. No further toolchain work is needed in this repo.
 
+## SDK Reference Anchors
+
+The Solana SDK completion work tracks these upstream surfaces:
+
+- Solana CPI: native programs call other programs through `invoke` /
+  `invoke_signed`, which is the high-level Rust API shape ProofForge lowers to
+  `sol_invoke_signed_c`.
+- SPL Token: `TokenInstruction` defines the account schemas and data payloads
+  for `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke`.
+- Pinocchio: the framework target is a `no_std`, zero-copy, no-copy/no-allocation
+  entrypoint style with optional allocator control; ProofForge mirrors that by
+  keeping Solana account parsing, allocator policy, and CPI packing in target
+  lowering rather than portable IR.
+- pinocchio-tkn: the longer-term token SDK reference is stack-only,
+  zero-allocation CPI helpers spanning SPL Token and Token-2022. ProofForge's
+  current SPL Token helpers are the first compatible slice of that surface.
+
 ### Assembler ISA
 
 The sBPF assembly grammar (from the blueshift `sbpf.pest` PEG grammar):
@@ -108,7 +125,7 @@ test when the syscall changes observable chain behavior.
 |---|---|---|
 | Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
 | PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; typed seed descriptors cover literal/UTF-8 bytes, account pubkeys, bump seeds, and scalar instruction-data seeds; Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; derived pubkeys can be validated against declared PDA accounts; assembly builds | Add Web3.js PDA fixture against `PublicKey.findProgramAddressSync`, then add `sol_try_find_program_address` support |
-| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; assembly builds | Compare live CPI behavior against Rust/Pinocchio |
+| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; System transfer/create-account plus SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` have Surfpool/Web3.js live behavior gates | Compare live CPI behavior against Rust/Pinocchio and extend to Token-2022 |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Documented only | Lower `events.emit` to structured logs and assert logs via Web3.js transaction metadata |
@@ -803,7 +820,7 @@ Phase 3 is split into verifiable SDK completeness levels rather than one large
 
 | Level | Estimated effort | Scope |
 |---|---:|---|
-| SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. Instruction ABI bounds/schema metadata and typed PDA seed lowering are already in place. |
+| SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. PDA/System/SPL live gates, instruction ABI bounds/schema metadata, and typed PDA seed lowering are already in place. |
 | SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. |
 | Anchor/Pinocchio-class surface | 4-6 focused weeks after beta | Add account constraints, typed account/data wrappers, IDL/client generation, richer SPL/Token-2022 helper coverage, and SDK-facing diagnostics. |
 

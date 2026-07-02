@@ -337,9 +337,9 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 manifest/artifact、module-wide multi-account schema、标准 System/SPL Token CPI
 data packing、bump-allocator metadata、scalar entrypoint parameter decoding、
 typed PDA seed lowering、live System Program transfer/create-account CPI
-validation，以及 live SPL Token `transfer_checked` CPI validation。下面估算默认一名工程师持续在这个分支推进，
-当前 direct-assembly 架构保持稳定，并且本地 `sbpf`/Surfpool/Solana CLI
-工具链可用。
+validation、live SPL Token `transfer_checked` CPI validation，以及 live SPL
+Token `mint_to`/`burn`/`approve`/`revoke` CPI validation。下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
+`sbpf`/Surfpool/Solana CLI 工具链可用。
 
 | 层级 | 预计工作量 | 完成标准 |
 |---|---:|---|
@@ -370,12 +370,18 @@ validation，以及 live SPL Token `transfer_checked` CPI validation。下面估
   会在 Surfpool 上构建并部署生成的 transfer_checked CPI 程序，用
   `@solana/spl-token` 创建 SPL Token 测试账户，通过 Web3.js 调用，并证明
   source/destination token balance delta 与 state write 都成立。
+- Live SPL Token ops CPI fixture：`scripts/solana/spl-token-ops-cpi-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 `mint_to`/`burn`/`approve`/`revoke`
+  CPI 程序，校验生成的四 entrypoint artifact schema，用
+  `@solana/spl-token` 创建 SPL Token 测试账户，通过 Web3.js 调用全部四个
+  entrypoint，并证明 supply/balance/delegate 变化与 state write 都成立。
 
 剩余优先切片：
 
-1. Live CPI validation（2-3 天）：把已经跑通的 System Program transfer、
-   create-account 和 SPL Token transfer_checked smoke 扩展到 SPL Token
-   mint_to/burn/approve/revoke，再与 Rust/Pinocchio reference fixture 对比行为。
+1. Rust/Pinocchio equivalence fixture（2-4 天）：为同一套 System/SPL Token
+   account schema 增加 reference program，并让 ProofForge 生成程序与参考实现
+   通过同一个 Web3.js harness 对比。关键比较点是 account order、
+   signer/writable check、CPI instruction data 和可观察 state change。
 2. Logs、return data、sysvars、crypto 与 memory helpers（3-5 天）：暴露
    `sol_log*`、`sol_set_return_data`、`sol_get_return_data`、clock/rent sysvar
    reads、`sol_sha256`/`sol_keccak256`/`sol_blake3`，以及
@@ -386,14 +392,16 @@ validation，以及 live SPL Token `transfer_checked` CPI validation。下面估
 4. Dynamic per-entrypoint account schema（3-5 天）：用 dispatch 前的 runtime
    account parsing 替换当前 module-wide fixed schema，使 instruction-data offset
    不再依赖所有 entrypoint 使用同一套账户列表。
-5. Rust/Pinocchio equivalence fixture（2-4 天）：为同一套 account schema 增加
-   reference program，并通过同一个 Web3.js harness 对比 ProofForge 生成程序与参考实现。
+5. Token-2022 与更丰富的 SPL coverage（每轮 3-5 天）：增加 checked
+   mint/burn/approve variants、authority changes、associated-token account
+   setup flows，以及 Token-2022 extension routes，同时不把这些细节上移到
+   portable IR。
 6. Developer ergonomics 和框架层体验（每轮 3-5 天）：增加 account constraint
    helper、typed account wrapper、IDL/client generation、更完整 SPL/Token-2022
    helper 覆盖，以及能把 generated assembly failure 映射回 SDK declaration 的诊断。
 
-最快可信路线是：先关闭剩余 alpha 切片（live CPI、基础 logs/return data），
-再通过 beta 切片移除剩余架构捷径，最后补
+最快可信路线是：先关闭基础 logs/return data 这条剩余 alpha 切片，再通过
+beta 切片移除剩余架构捷径，最后补
 Anchor/Pinocchio 级别的开发体验。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）

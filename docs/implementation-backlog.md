@@ -775,7 +775,8 @@ Counter deployment through Surfpool/Web3.js, SDK capability metadata, generated
 manifest/artifact output, module-wide multi-account schemas, standard
 System/SPL Token CPI data packing, bump-allocator metadata, scalar entrypoint
 parameter decoding, typed PDA seed lowering, live System Program transfer plus
-create-account CPI validation, and live SPL Token `transfer_checked` CPI
+create-account CPI validation, live SPL Token `transfer_checked` CPI
+validation, and live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
 validation. The estimates below assume one engineer working on this branch, the
 current direct-assembly architecture staying stable, and local
 `sbpf`/Surfpool/Solana CLI tooling remaining available.
@@ -814,13 +815,21 @@ Completed alpha slices:
   generated transfer_checked CPI program on Surfpool, creates SPL Token test
   accounts with `@solana/spl-token`, invokes it through Web3.js, and proves the
   source/destination token balance deltas plus state writes.
+- Live SPL Token ops CPI fixture:
+  `scripts/solana/spl-token-ops-cpi-web3-smoke.sh` builds and deploys a
+  generated `mint_to`/`burn`/`approve`/`revoke` CPI program on Surfpool,
+  validates the generated four-entrypoint artifact schema, creates SPL Token
+  test accounts with `@solana/spl-token`, invokes all four generated
+  entrypoints through Web3.js, and proves supply/balance/delegate changes plus
+  state writes.
 
 Remaining priority slices:
 
-1. Live CPI validation (2-3 days): extend the proven System Program transfer,
-   create-account, and SPL Token transfer_checked smokes to SPL Token
-   mint_to/burn/approve/revoke against Surfpool/Web3.js, then compare behavior
-   with Rust/Pinocchio reference fixtures.
+1. Rust/Pinocchio equivalence fixtures (2-4 days): add reference programs for
+   the same System/SPL Token account schemas and run ProofForge and reference
+   implementations through the same Web3.js harness. The key comparison points
+   are account order, signer/writable checks, CPI instruction data, and
+   observable state changes.
 2. Logs, return data, sysvars, crypto, and memory helpers (3-5 days): expose
    `sol_log*`, `sol_set_return_data`, `sol_get_return_data`, clock/rent sysvar
    reads, `sol_sha256`/`sol_keccak256`/`sol_blake3`, and
@@ -833,17 +842,18 @@ Remaining priority slices:
    module-wide fixed schema with runtime account parsing before dispatch, so
    instruction-data offsets no longer depend on every entrypoint sharing the
    same account list.
-5. Rust/Pinocchio equivalence fixtures (2-4 days): add reference programs for
-   the same account schemas and run ProofForge and reference implementations
-   through the same Web3.js harness.
+5. Token-2022 and richer SPL coverage (3-5 days per iteration): add checked
+   mint/burn/approve variants, authority changes, associated-token account
+   setup flows, and Token-2022 extension routes without moving those details
+   into portable IR.
 6. Developer ergonomics and framework surface (3-5 days per iteration): add
    account constraint helpers, typed account wrappers, IDL/client generation,
    richer SPL/Token-2022 helper coverage, and diagnostics that map generated
    assembly failures back to SDK declarations.
 
 The fastest credible route to a more complete SDK is therefore: first close
-the remaining alpha slices (live CPI and basic logs/return data), then use the
-beta slices to remove remaining architecture shortcuts before adding
+the remaining alpha slice around basic logs/return data, then use the beta
+slices to remove remaining architecture shortcuts before adding
 Anchor/Pinocchio-class ergonomics.
 
 ## Workstream 8: Move Source Generation POC (Aptos first)

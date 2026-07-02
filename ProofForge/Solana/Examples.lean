@@ -2,3 +2,4 @@ import ProofForge.Solana.Examples.Vault
 import ProofForge.Solana.Examples.SystemCpi
 import ProofForge.Solana.Examples.SystemCreateAccountCpi
 import ProofForge.Solana.Examples.SplTokenTransferCheckedCpi
+import ProofForge.Solana.Examples.SplTokenOpsCpi

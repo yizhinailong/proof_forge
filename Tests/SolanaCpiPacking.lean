@@ -1,6 +1,7 @@
 import ProofForge.Backend.Solana.Package
 import ProofForge.Contract.Builder
 import ProofForge.Solana
+import ProofForge.Solana.Examples.SplTokenOpsCpi
 
 namespace ProofForge.Tests.SolanaCpiPacking
 
@@ -195,6 +196,78 @@ def main : IO UInt32 := do
         "assembly missing transfer_checked decimals store"
   | .error err =>
       throw <| IO.userError s!"Solana token-param CPI packing render failed: {err.render}"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec
+      "token-ops-cpi" ProofForge.Solana.Examples.SplTokenOpsCpi.spec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "token-ops package missing sBPF assembly"
+      let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
+        | throw <| IO.userError "token-ops package missing manifest.toml"
+      let asm := asmFile.contents
+      let manifest := manifestFile.contents
+      require (contains manifest "name = \"mint\"")
+        "token ops manifest missing mint entrypoint"
+      require (contains manifest "name = \"burn\"")
+        "token ops manifest missing burn entrypoint"
+      require (contains manifest "name = \"approve\"")
+        "token ops manifest missing approve entrypoint"
+      require (contains manifest "name = \"revoke\"")
+        "token ops manifest missing revoke entrypoint"
+      require (contains manifest "{ name = \"last_mint_amount\", index = 0, signer = false, writable = true, owner = \"program\" },")
+        "token ops manifest missing state account schema"
+      require (contains manifest "{ name = \"mint\", index = 1, signer = false, writable = true, owner = \"any\" },")
+        "token ops manifest missing mint account schema"
+      require (contains manifest "{ name = \"destination\", index = 2, signer = false, writable = true, owner = \"any\" },")
+        "token ops manifest missing destination account schema"
+      require (contains manifest "{ name = \"authority\", index = 3, signer = true, writable = false, owner = \"any\" },")
+        "token ops manifest missing authority account schema"
+      require (contains manifest "{ name = \"spl_token\", index = 4, signer = false, writable = false, owner = \"executable\" },")
+        "token ops manifest missing SPL Token account schema"
+      require (contains manifest "{ name = \"source\", index = 5, signer = false, writable = true, owner = \"any\" },")
+        "token ops manifest missing source account schema"
+      require (contains manifest "{ name = \"delegate\", index = 6, signer = false, writable = false, owner = \"any\" }")
+        "token ops manifest missing delegate account schema"
+      require (contains asm "sol_cpi_token_mint:")
+        "assembly missing SPL Token mint_to helper label"
+      require (contains asm "sol_cpi_token_burn:")
+        "assembly missing SPL Token burn helper label"
+      require (contains asm "sol_cpi_token_approve:")
+        "assembly missing SPL Token approve helper label"
+      require (contains asm "sol_cpi_token_revoke:")
+        "assembly missing SPL Token revoke helper label"
+      require (contains asm "solana.cpi.data spl-token.mint_to: u8 instruction=7, u64 amount")
+        "assembly missing SPL Token mint_to data packing"
+      require (contains asm "solana.cpi.data spl-token.burn: u8 instruction=8, u64 amount")
+        "assembly missing SPL Token burn data packing"
+      require (contains asm "solana.cpi.data spl-token.approve: u8 instruction=4, u64 amount")
+        "assembly missing SPL Token approve data packing"
+      require (contains asm "solana.cpi.data spl-token.revoke: u8 instruction=5")
+        "assembly missing SPL Token revoke data packing"
+      require (contains asm "mov64 r3, 9")
+        "assembly missing amount-based SPL Token data length"
+      require (contains asm "mov64 r3, 1")
+        "assembly missing revoke SPL Token data length"
+      require (contains asm "solana.cpi.value amount from instruction param amount")
+        "assembly missing SPL Token ops amount instruction parameter binding"
+      require (contains asm "stb [r8+0], 7")
+        "assembly missing mint_to instruction tag store"
+      require (contains asm "stb [r8+0], 8")
+        "assembly missing burn instruction tag store"
+      require (contains asm "stb [r8+0], 4")
+        "assembly missing approve instruction tag store"
+      require (contains asm "stb [r8+0], 5")
+        "assembly missing revoke instruction tag store"
+      require (contains asm "call sol_cpi_token_mint")
+        "assembly missing mint entrypoint CPI helper call"
+      require (contains asm "call sol_cpi_token_burn")
+        "assembly missing burn entrypoint CPI helper call"
+      require (contains asm "call sol_cpi_token_approve")
+        "assembly missing approve entrypoint CPI helper call"
+      require (contains asm "call sol_cpi_token_revoke")
+        "assembly missing revoke entrypoint CPI helper call"
+  | .error err =>
+      throw <| IO.userError s!"Solana token-ops CPI packing render failed: {err.render}"
 
   IO.println "solana-cpi-packing: ok"
   return 0
