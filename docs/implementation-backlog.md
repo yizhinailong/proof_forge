@@ -991,6 +991,14 @@ Completed beta scaffolding slices:
   against the reference manifest/source. With
   `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1`, the same gate typechecks the reference
   against `pinocchio-token`.
+- Pinocchio SPL Token transfer live-equivalence harness:
+  `scripts/solana/pinocchio-spl-token-transfer-live-equivalence.sh` is wired to
+  build the ProofForge ELF and the checked-in Pinocchio Token reference ELF,
+  deploy both programs to one Surfpool instance, invoke the same Web3.js +
+  `@solana/spl-token` transfer_checked scenario for each, and compare
+  source/destination token balance deltas plus the amount state write. The
+  harness currently skips when `cargo-build-sbf` cannot find Solana rustc/
+  platform-tools.
 
 Completed developer-surface slices:
 
@@ -1024,19 +1032,23 @@ Completed developer-surface slices:
   this source block while the macro emits the same `ContractSpec`/portable IR
   boundary used by routing, EVM selector hydration, Solana instruction tags,
   IDL, and client artifact generation.
-- Learn source parser/lowering seed:
+- Legacy `.learn` parser/lowering seed:
   `ProofForge.Contract.Learn` now lexes and parses checked-in `.learn` files
   under `Examples/Learn/` into a small source AST for the portable scalar/event
-  subset, lowers that AST to `ContractSpec`/portable IR, and proves that
+  subset, lowers that AST to `ContractSpec`/portable IR, and serves as a
+  compatibility validation entrypoint rather than a new product source
+  language. The primary authoring surface remains Lean `.lean` files and Lean
+  SDK helpers. It proves that
   `Counter.learn` and `ValueVault.learn` produce the same IR modules as the
-  current `contract_source` examples. The CLI now accepts `.learn` files
+  current `contract_source` examples. The CLI still accepts `.learn` files
   through `--learn --target evm` and `--learn --target solana-sbpf-asm`, with
   `--learn-yul`, `--learn-bytecode`, and `--learn-sbpf` retained as lower-level
-  convenience paths.
+  compatibility convenience paths.
   `scripts/portable/value-vault-smoke.sh` uses
-  `Examples/Learn/ValueVault.learn` as the source of record and proves that the
-  Learn-authored contract can route to EVM Yul/bytecode metadata and Solana sBPF
-  assembly/manifest/IDL/client artifacts without hand-authoring `ContractSpec`.
+  `Examples/Learn/ValueVault.learn` as a legacy equivalence fixture and proves
+  that compatibility entrypoint can route to EVM Yul/bytecode metadata and
+  Solana sBPF assembly/manifest/IDL/client artifacts without hand-authoring
+  `ContractSpec`.
 - Learn Solana target-extension syntax:
   `ProofForge.Contract.Learn` now parses `SolanaVault.learn` forms for
   `solana allocator`, `solana account`, `solana pda`, `solana cpi
@@ -1122,8 +1134,9 @@ Completed developer-surface slices:
 
 Current boundary:
 
-- `ProofForge.Contract.Learn` is now the first standalone Learn parser/lowering
-  seed. It covers the portable Counter/ValueVault subset and the Vault-level
+- `ProofForge.Contract.Learn` is now a legacy `.learn` compatibility
+  parser/lowering seed rather than a new product source language. It covers the
+  portable Counter/ValueVault subset and the Vault-level
   Solana account/PDA/SPL Token transfer CPI subset, System Program
   transfer/create-account CPI, SPL Token mint/burn/approve/revoke CPI, and
   Solana log/return-data/compute-unit/memory/crypto/sysvar helper statements.
@@ -1132,22 +1145,22 @@ Current boundary:
   declared with `solana account ...`; CPI writable/signer requirements are
   checked against those declarations, so the remaining string names are
   compiler-owned identifiers rather than unchecked user-authored specs.
-  `ProofForge.Contract.Source` remains the richer embedded macro frontend for
-  examples not yet expressed in Learn, but portable ValueVault artifact emission
-  now starts from `.learn` and dispatches by compile-time target id. The next
-  authoring gap is to extend Learn parsing to typed target-extension forms for
+  `ProofForge.Contract.Source` and Lean SDK helpers remain the primary
+  authoring frontend; `.learn` files are retained only as legacy compatibility
+  and equivalence fixtures that reuse the same lowering boundary by compile-time
+  target id. The next authoring gap is to extend the Lean `.lean` surface to
   Token-2022, typed account/data references, and richer Pinocchio-style account
-  validation ergonomics, then broaden `--learn --target <id>` package emission
-  beyond EVM and Solana sBPF.
+  validation ergonomics; legacy `--learn` package emission is not the direction
+  for new syntax work.
 
 Remaining priority slices:
 
-1. Rust/Pinocchio equivalence fixtures (2-4 days): make the System transfer
-   live-equivalence harness pass in CI/local environments by installing Solana
-   rustc/platform-tools reliably, then extend live dual-deploy equivalence to
-   the SPL Token transfer_checked reference. The key comparison points are
-   account order, signer/writable checks, CPI instruction data, and observable
-   state changes.
+1. Rust/Pinocchio equivalence fixtures (2-4 days): make the Pinocchio live
+   equivalence harnesses pass in CI/local environments by installing Solana
+   rustc/platform-tools reliably, then extend static and live reference
+   coverage to Token-2022 and broader SPL helper paths. The key comparison
+   points are account order, signer/writable checks, CPI instruction data, and
+   observable state changes.
 2. Richer structured logs, account data, and typed return helpers (3-5 days):
    extend the current scalar `sol_log_64_`/`sol_log_data` event path to
    string logs, Anchor-style discriminator/Borsh payloads, and indexed event
@@ -1168,7 +1181,7 @@ Remaining priority slices:
    setup flows, and Token-2022 extension routes without moving those details
    into portable IR.
 6. Developer ergonomics and framework surface (3-5 days per iteration): extend
-   the new surface layer toward real Learn-level contract syntax with richer
+   the new surface layer toward Lean `.lean`/Lean SDK contract syntax with richer
    typed account/data wrappers, richer generated client APIs, broader
    SPL/Token-2022 helper coverage, and diagnostics that map generated assembly
    failures back to SDK declarations.

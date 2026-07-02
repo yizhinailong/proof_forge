@@ -533,6 +533,13 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   decimals/amount contract 和 state-write contract 与 reference
   manifest/source 对比。设置 `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1` 时，同一
   gate 还会用 `pinocchio-token` typecheck 该 reference。
+- Pinocchio SPL Token transfer live-equivalence harness：
+  `scripts/solana/pinocchio-spl-token-transfer-live-equivalence.sh` 已接好
+  ProofForge ELF 与 checked-in Pinocchio Token reference ELF 的构建、同一
+  Surfpool instance 部署、同一 Web3.js + `@solana/spl-token`
+  transfer_checked scenario 调用，以及 source/destination token balance delta
+  和 amount state write 对比。若 `cargo-build-sbf` 找不到 Solana rustc/
+  platform-tools，该 harness 会 skip。
 
 已完成的开发者 surface 切片：
 
@@ -566,18 +573,20 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   portable 逻辑；宏仍会发射到同一个 `ContractSpec`/portable IR 边界，供
   routing、EVM selector hydration、Solana instruction tag、IDL 和 client
   artifact generation 复用。
-- Learn source parser/lowering seed：
+- Legacy `.learn` parser/lowering seed：
   `ProofForge.Contract.Learn` 现在会 lex 和 parse `Examples/Learn/` 下
   checked-in 的 `.learn` 文件，生成 portable scalar/event 子集的小型 source
-  AST，并降低到 `ContractSpec`/portable IR。`Counter.learn` 与
+  AST，并降低到 `ContractSpec`/portable IR。它是兼容性验证入口，不是新的
+  产品级源码语言；主 authoring surface 仍然是 Lean `.lean` 源码和 Lean SDK
+  helper。`Counter.learn` 与
   `ValueVault.learn` 会被证明生成与当前 `contract_source` 示例一致的 IR module。
-  CLI 现在可以通过 `--learn --target evm` 和
+  CLI 仍可通过 `--learn --target evm` 和
   `--learn --target solana-sbpf-asm` 接受 `.learn` 文件；`--learn-yul`、
-  `--learn-bytecode` 和 `--learn-sbpf` 仍作为较低层的便捷路径保留。
+  `--learn-bytecode` 和 `--learn-sbpf` 作为较低层的兼容便捷路径保留。
   `scripts/portable/value-vault-smoke.sh` 使用
-  `Examples/Learn/ValueVault.learn` 作为 source of record，证明 Learn-authored
-  合约不需要手写 `ContractSpec`，也能路由到 EVM Yul/bytecode metadata 和 Solana
-  sBPF assembly/manifest/IDL/client artifacts。
+  `Examples/Learn/ValueVault.learn` 作为 legacy equivalence fixture，证明该
+  兼容入口不需要手写 `ContractSpec`，也能路由到 EVM Yul/bytecode metadata 和
+  Solana sBPF assembly/manifest/IDL/client artifacts。
 - Learn Solana target-extension syntax：
   `ProofForge.Contract.Learn` 现在会解析 `SolanaVault.learn` 中的
   `solana allocator`、`solana account`、`solana pda`、`solana cpi
@@ -661,8 +670,8 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 
 当前边界：
 
-- `ProofForge.Contract.Learn` 现在是第一版 standalone Learn parser/lowering
-  seed。它覆盖 portable Counter/ValueVault 子集，以及 Vault-level Solana
+- `ProofForge.Contract.Learn` 现在是 legacy `.learn` 兼容 parser/lowering
+  seed，而不是新的产品级源码语言。它覆盖 portable Counter/ValueVault 子集，以及 Vault-level Solana
   account/PDA/SPL Token transfer CPI 子集、System Program
   transfer/create-account CPI、SPL Token mint/burn/approve/revoke CPI，以及
   Solana log/return-data/compute-unit/memory/crypto/sysvar helper statement。
@@ -670,20 +679,20 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   会和已声明引用交叉校验。CPI account operand 必须先通过
   `solana account ...` 声明；CPI writable/signer 要求会和这些声明校验，因此剩余字符串名称属于
   编译器内部 identifier，而不是未检查的用户手写 spec。
-  `ProofForge.Contract.Source` 仍是尚未表达为 Learn 的示例所使用的 embedded
-  macro frontend，但 portable ValueVault artifact emission 现在已经从 `.learn`
-  开始，并根据编译阶段 target id 分派。下一步 authoring 缺口是把 Learn parser
-  扩展到 Token-2022、typed account/data reference，以及更接近 Pinocchio 的
-  account validation ergonomics；然后把 `--learn --target <id>` package
-  emission 扩展到 EVM 和 Solana sBPF 之外的更多后端。
+  `ProofForge.Contract.Source` 和 Lean SDK helper 仍是当前主 authoring
+  frontend；`.learn` 文件只保留为 legacy compatibility/equivalence fixture，
+  并根据编译阶段 target id 复用同一个 lowering 边界。下一步 authoring 缺口是
+  把 Lean `.lean` surface 扩展到 Token-2022、typed account/data reference，
+  以及更接近 Pinocchio 的 account validation ergonomics；legacy `--learn`
+  package emission 不作为新语法方向扩展。
 
 剩余优先切片：
 
 1. Rust/Pinocchio equivalence fixture（2-4 天）：在 CI/local 环境稳定安装
-   Solana rustc/platform-tools，让 System transfer live-equivalence harness
-   通过，然后把 live dual-deploy equivalence 扩展到 SPL Token
-   `transfer_checked` reference。关键比较点是 account order、signer/writable
-   check、CPI instruction data 和可观察 state change。
+   Solana rustc/platform-tools，让 Pinocchio live-equivalence harness
+   稳定通过，然后把 static/live reference coverage 扩展到 Token-2022 和更广
+   SPL helper。关键比较点是 account order、signer/writable check、CPI
+   instruction data 和可观察 state change。
 2. 更丰富的 structured log、account data 与 typed return helper（3-5 天）：
    将当前 scalar `sol_log_64_`/`sol_log_data` event 路径扩展到 string log、
    Anchor-style discriminator/Borsh payload 与 indexed event 形态；增加 `u64`
@@ -701,7 +710,7 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
    setup flows，以及 Token-2022 extension routes，同时不把这些细节上移到
    portable IR。
 6. Developer ergonomics 和框架层体验（每轮 3-5 天）：把新的 surface 层继续推进到
-   真正的 Learn-level contract syntax，并继续补更丰富的 typed account/data
+   Lean `.lean`/Lean SDK contract syntax，并继续补更丰富的 typed account/data
    wrapper、更丰富的 generated client API、更完整 SPL/Token-2022 helper 覆盖，以及能把
    generated assembly failure 映射回 SDK declaration 的诊断。
 

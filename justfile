@@ -104,6 +104,10 @@ solana-pinocchio-system-transfer-live-equivalence:
 solana-pinocchio-system-create-account-live-equivalence:
     scripts/solana/pinocchio-system-create-account-live-equivalence.sh
 
+# Build/deploy ProofForge and Pinocchio SPL Token transfer_checked programs and compare behavior on Surfpool.
+solana-pinocchio-spl-token-transfer-live-equivalence:
+    scripts/solana/pinocchio-spl-token-transfer-live-equivalence.sh
+
 # Repair/install the Solana SBF rustc/platform-tools used by the Pinocchio live gate.
 solana-pinocchio-install-sbf-tools:
     PATH="$HOME/.cargo/bin:$PATH" cargo-build-sbf --install-only --force-tools-install --tools-version v1.52
