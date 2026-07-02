@@ -11,6 +11,7 @@ import ProofForge.Backend.Solana.Extension
 import ProofForge.Backend.Solana.Idl
 import ProofForge.Backend.Solana.Client
 import ProofForge.Contract.Examples.ValueVault
+import ProofForge.Contract.Learn
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -96,6 +97,9 @@ inductive EmitMode where
   | counterIrBytecode
   | valueVaultIrYul
   | valueVaultIrBytecode
+  | learnYul
+  | learnBytecode
+  | learnSbpf
   | abiScalarIrYul
   | abiScalarIrBytecode
   | assertIrYul
@@ -188,6 +192,7 @@ def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
   | .evmBytecode
   | .counterIrBytecode
   | .valueVaultIrBytecode
+  | .learnBytecode
   | .abiScalarIrBytecode
   | .assertIrBytecode
   | .assignmentIrBytecode
@@ -332,6 +337,9 @@ def usage : String :=
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-value-vault-ir-yul [-o output.yul]",
     "  proof-forge --emit-value-vault-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
+    "  proof-forge --learn-yul [-o output.yul] input.learn",
+    "  proof-forge --learn-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
+    "  proof-forge --learn-sbpf [-o output.s] [--artifact-output file] input.learn",
     "  proof-forge --emit-abi-scalar-ir-yul [-o output.yul]",
     "  proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-assert-ir-yul [-o output.yul]",
@@ -1606,6 +1614,8 @@ def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
 def contractNameForFixture (fixture : String) : String :=
   if fixture.endsWith ".lean" then
     dropEndString fixture ".lean".length
+  else if fixture.endsWith ".learn" then
+    dropEndString fixture ".learn".length
   else
     fixture
 
@@ -1864,6 +1874,29 @@ def writeEvmContractSdkArtifactMetadata
     (yulOutput bytecodeOutput : FilePath) : IO Unit :=
   writeEvmModuleArtifactMetadata opts fixture "contract-sdk" sourceModule module yulOutput bytecodeOutput
 
+def writeEvmLearnArtifactMetadata
+    (opts : CliOptions)
+    (fixture sourceModule : String)
+    (input : FilePath)
+    (module : ProofForge.IR.Module)
+    (yulOutput bytecodeOutput : FilePath) : IO Unit := do
+  let events ← eventAbisForModule opts.cast module
+  let mut entrypoints := #[]
+  for entrypoint in module.entrypoints do
+    entrypoints := entrypoints.push (← liftExceptString (entrypointJson module entrypoint))
+  writeEvmArtifactMetadata
+    opts
+    fixture
+    "learn-source"
+    sourceModule
+    (moduleCapabilityIds module)
+    entrypoints
+    (events.map eventAbiJson)
+    #[]
+    (some input)
+    yulOutput
+    bytecodeOutput
+
 def writeEvmSdkArtifactMetadata
     (opts : CliOptions)
     (sourceModule : String)
@@ -1948,6 +1981,12 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .valueVaultIrYul }
   | "--emit-value-vault-ir-bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .valueVaultIrBytecode }
+  | "--learn-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .learnYul }
+  | "--learn-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .learnBytecode }
+  | "--learn-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .learnSbpf }
   | "--emit-abi-scalar-ir-yul" :: rest, opts =>
       parseArgs rest { opts with mode := .abiScalarIrYul }
   | "--emit-abi-scalar-ir-bytecode" :: rest, opts =>
@@ -2241,6 +2280,56 @@ def compileValueVaultIrBytecode (opts : CliOptions) : IO UInt32 := do
   writeTextFile output (bytecode ++ "\n")
   writeEvmContractSdkArtifactMetadata opts "ValueVault" "ProofForge.Contract.Examples.ValueVault"
     module yulOutput output
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
+def learnInput (opts : CliOptions) (modeName : String) : IO FilePath := do
+  match opts.input? with
+  | some input => pure input
+  | none => throw <| IO.userError s!"{modeName} requires an input .learn file"
+
+def parseLearnInput (opts : CliOptions) (modeName : String) :
+    IO (FilePath × ProofForge.Contract.ContractSpec) := do
+  let input ← learnInput opts modeName
+  match (← ProofForge.Contract.Learn.parseAndLowerFile input) with
+  | .ok spec => pure (input, spec)
+  | .error err => throw <| IO.userError s!"{input}: {err}"
+
+def learnFixtureName (input : FilePath) : String :=
+  input.fileName.getD input.toString
+
+def learnSourceModuleName (input : FilePath) (spec : ProofForge.Contract.ContractSpec) : String :=
+  s!"{spec.name} ({input})"
+
+def defaultLearnOutput (subdir extension : String) (spec : ProofForge.Contract.ContractSpec) :
+    FilePath :=
+  FilePath.mk s!"build/{subdir}/{spec.name}.{extension}"
+
+def renderLearnEvmYul (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) :
+    IO (String × ProofForge.IR.Module) := do
+  let module ← hydrateEvmSelectors opts.cast spec.module
+  match ProofForge.Backend.Evm.IR.renderModule module with
+  | .ok yul => return (yul, module)
+  | .error err => throw <| IO.userError err.render
+
+def compileLearnYul (opts : CliOptions) : IO UInt32 := do
+  let (_input, spec) ← parseLearnInput opts "--learn-yul"
+  let output := opts.output?.getD (defaultLearnOutput "learn/evm" "yul" spec)
+  let (yul, _module) ← renderLearnEvmYul opts spec
+  writeTextFile output yul
+  IO.println s!"wrote {output}"
+  return 0
+
+def compileLearnBytecode (opts : CliOptions) : IO UInt32 := do
+  let (input, spec) ← parseLearnInput opts "--learn-bytecode"
+  let yulOutput := opts.yulOutput?.getD (defaultLearnOutput "learn/evm" "yul" spec)
+  let (yul, module) ← renderLearnEvmYul opts spec
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (defaultLearnOutput "learn/evm" "bin" spec)
+  writeTextFile output (bytecode ++ "\n")
+  writeEvmLearnArtifactMetadata opts (learnFixtureName input)
+    (learnSourceModuleName input spec) input module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -3296,6 +3385,73 @@ def compileValueVaultIrSbpf (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileLearnSbpf (opts : CliOptions) : IO UInt32 := do
+  let (input, spec) ← parseLearnInput opts "--learn-sbpf"
+  let output := opts.output?.getD (defaultLearnOutput "learn/solana" "s" spec)
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.render
+  match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan spec.module plan with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
+      IO.println s!"wrote {manifestOutput}"
+      let idlOutput ← writeSbpfIdlWithPlan output spec.module plan
+      IO.println s!"wrote {idlOutput}"
+      let clientOutput ← writeSbpfClientWithPlan output spec.module plan
+      IO.println s!"wrote {clientOutput}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let asmArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let idlArtifact ← artifactEntryJson idlOutput
+      let clientArtifact ← artifactEntryJson clientOutput
+      let learnArtifact ← artifactEntryJson input
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString (learnFixtureName input)),
+        ("sourceKind", jsonString "learn-source"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString (learnSourceModuleName input spec)),
+        ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+        ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaInstructions", solanaInstructionsJson spec.module plan),
+        ("solanaExtensions", solanaExtensionsJson plan),
+        ("solanaIdl", ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("source", learnArtifact),
+          ("sbpfAsm", asmArtifact),
+          ("manifestToml", manifestArtifact),
+          ("solanaIdl", idlArtifact),
+          ("solanaClientTs", clientArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("learnLowering", jsonString "passed"),
+          ("targetRouting", jsonString "passed"),
+          ("manifestGeneration", jsonString "passed"),
+          ("sbpfBuild", jsonString "pending")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/Counter.so")
   let projectName := match output.fileName with
@@ -3622,6 +3778,9 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .counterIrBytecode => compileCounterIrBytecode opts
   | .valueVaultIrYul => compileValueVaultIrYul opts
   | .valueVaultIrBytecode => compileValueVaultIrBytecode opts
+  | .learnYul => compileLearnYul opts
+  | .learnBytecode => compileLearnBytecode opts
+  | .learnSbpf => compileLearnSbpf opts
   | .abiScalarIrYul => compileAbiScalarIrYul opts
   | .abiScalarIrBytecode => compileAbiScalarIrBytecode opts
   | .assertIrYul => compileAssertIrYul opts

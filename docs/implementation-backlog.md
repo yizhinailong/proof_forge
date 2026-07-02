@@ -999,9 +999,12 @@ Completed developer-surface slices:
   under `Examples/Learn/` into a small source AST for the portable scalar/event
   subset, lowers that AST to `ContractSpec`/portable IR, and proves that
   `Counter.learn` and `ValueVault.learn` produce the same IR modules as the
-  current `contract_source` examples. `Tests/LearnSource.lean` also renders the
-  Learn-lowered ValueVault through the Solana package path, keeping backend
-  artifact checks attached to the new authoring entrypoint.
+  current `contract_source` examples. The CLI now accepts `.learn` files
+  directly through `--learn-yul`, `--learn-bytecode`, and `--learn-sbpf`.
+  `scripts/portable/value-vault-smoke.sh` uses
+  `Examples/Learn/ValueVault.learn` as the source of record and proves that the
+  Learn-authored contract can emit EVM Yul/bytecode metadata and Solana sBPF
+  assembly/manifest/IDL/client artifacts without hand-authoring `ContractSpec`.
 - Learn Solana target-extension syntax:
   `ProofForge.Contract.Learn` now parses `SolanaVault.learn` forms for
   `solana allocator`, `solana account`, `solana pda`, `solana cpi
@@ -1069,13 +1072,13 @@ Completed developer-surface slices:
   of the lower-level builder API while preserving the existing generated
   assembly, manifest, artifact, and Surfpool/Web3.js behavior gate.
 - Target-stage ABI selector hydration:
-  the ValueVault CLI emit path derives EVM selectors from each entrypoint's
-  Solidity ABI signature with `cast sig` immediately before EVM Yul/bytecode
-  emission, validates any explicit selector against the derived value, and
-  keeps Solana routing independent by continuing to use target instruction
-  tags. `scripts/portable/value-vault-smoke.sh` proves the same surface source
-  emits EVM Yul/bytecode metadata plus Solana sBPF assembly/manifest/artifact
-  metadata.
+  the Learn/ValueVault CLI emit paths derive EVM selectors from each
+  entrypoint's Solidity ABI signature with `cast sig` immediately before EVM
+  Yul/bytecode emission, validate any explicit selector against the derived
+  value, and keep Solana routing independent by continuing to use target
+  instruction tags. `scripts/portable/value-vault-smoke.sh` proves the same
+  `.learn` source emits EVM Yul/bytecode metadata plus Solana sBPF
+  assembly/manifest/artifact metadata.
 - Solana IDL and TypeScript client package output:
   `ProofForge.Backend.Solana.Idl` renders `proof-forge-idl.json` from the same
   instruction/account/PDA/CPI schema used by `manifest.toml` and artifact
@@ -1097,13 +1100,12 @@ Current boundary:
   declared with `solana account ...`; CPI writable/signer requirements are
   checked against those declarations, so the remaining string names are
   compiler-owned identifiers rather than unchecked user-authored specs.
-  `ProofForge.Contract.Source` remains the richer
-  embedded macro frontend for examples not yet expressed in Learn. The next
-  authoring gap is to extend Learn parsing to typed target-extension forms for
-  Token-2022, typed account/data references, and richer Pinocchio-style account
-  validation ergonomics while the target extension layer derives
-  chain-specific selectors, instruction tags, IDL/client metadata, and package
-  artifacts during compilation.
+  `ProofForge.Contract.Source` remains the richer embedded macro frontend for
+  examples not yet expressed in Learn, but portable ValueVault artifact emission
+  now starts from `.learn`. The next authoring gap is to extend Learn parsing
+  to typed target-extension forms for Token-2022, typed account/data
+  references, and richer Pinocchio-style account validation ergonomics, then add
+  target-selection sugar above the current per-target `--learn-*` modes.
 
 Remaining priority slices:
 

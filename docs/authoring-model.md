@@ -11,13 +11,16 @@ The current stack has three authoring layers:
 
 | Layer | Status | Purpose |
 |---|---|---|
-| Learn source | Planned standalone source format | User-facing contract language. A developer writes portable contract logic once and selects a target such as EVM, Solana, Move, or Wasm at build time. |
+| Learn source | Implemented v0 standalone parser and CLI entrypoint | User-facing contract language. A developer writes portable contract logic once and selects a target such as EVM, Solana, Move, or Wasm at build time. |
 | `contract_source` | Implemented v1 embedded source syntax | Transitional Lean macro frontend. It lets the repo express portable state, entrypoints, events, arithmetic, and first Solana account/PDA/CPI declarations without hand-building `ContractSpec` strings. |
 | `ContractSpec` / IR | Internal compiler artifact | Stable bridge into target routing, capability checks, backend lowering, AST/printer stages, manifests, IDL, clients, and deployable packages. |
 
 The intended user experience is Learn-first. `contract_source` is useful because
 it is executable inside the current Lean/Lake repo and proves the lowering path,
-but it is not the final language parser.
+but it is not the final language parser. CLI modes such as `--learn-sbpf`,
+`--learn-yul`, and `--learn-bytecode` now let smoke tests and users start from
+`.learn` source instead of from a built-in fixture or a hand-written
+`ContractSpec`.
 
 The string-heavy `ContractSpec` and Builder examples should therefore be read
 as compiler fixtures, not as the product surface. They describe the same
@@ -52,10 +55,13 @@ inside `ContractSpec`, manifests, IDL, clients, and backend ASTs.
 
 `ProofForge.Contract.Learn` now parses the checked-in `.learn` examples under
 `Examples/Learn/` into a small source AST and lowers that AST to the same
-`ContractSpec`/portable IR boundary used by `contract_source`. The parser covers
-the portable scalar/event subset plus the first Solana target-extension forms
-for accounts, PDA derivation, System Program transfer/create-account CPI, and
-SPL Token transfer, mint, burn, approve, and revoke CPI. It also accepts
+`ContractSpec`/portable IR boundary used by `contract_source`. The CLI can emit
+EVM Yul/bytecode metadata and Solana sBPF assembly packages directly from a
+`.learn` input; the portable ValueVault smoke now uses
+`Examples/Learn/ValueVault.learn` as the source of record. The parser covers the
+portable scalar/event subset plus the first Solana target-extension forms for
+accounts, PDA derivation, System Program transfer/create-account CPI, and SPL
+Token transfer, mint, burn, approve, and revoke CPI. It also accepts
 selector-bearing entrypoints such as `entry mint selector "04"(amount: u64)`,
 so Solana instruction tags can be represented in Learn source instead of only
 in Builder fixtures. Learn statements now also cover the Solana log helpers for
@@ -88,6 +94,8 @@ covers:
 Examples such as `ProofForge.Contract.Examples.ValueVault` should be read as
 v1 source examples, not as the final `.learn` grammar. They exist to keep the
 compiler pipeline executable while the standalone Learn parser is introduced.
+The matching `.learn` file is the product-language example; the Lean file is the
+reviewed embedded fixture used to prove lowering equivalence.
 
 ## Target Routing
 
@@ -115,5 +123,6 @@ need to manually switch between these internals when the contract is portable.
 2. Gradually replace string-bearing Solana declarations with typed account,
    owner, program, and capability references in the source grammar while
    keeping string names inside compiler artifacts only.
-3. Keep backend artifact checks unchanged so the new Learn syntax proves the
-   same EVM/Solana package output.
+3. Add target-selection sugar above the per-target CLI modes so users can write
+   one `.learn` source and choose EVM, Solana, Move, or Wasm with a build target
+   flag.

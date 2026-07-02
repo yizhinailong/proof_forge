@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Portable ValueVault SDK smoke.
 #
-# This gate exercises one Contract Builder source across target backends:
-#   - EVM: ContractSpec IR -> ABI-selector hydration -> Yul, when Foundry cast exists.
+# This gate exercises one Learn source across target backends:
+#   - EVM: Learn -> ContractSpec IR -> ABI-selector hydration -> Yul, when Foundry cast exists.
 #   - EVM bytecode/artifact: optional, when both solc and Foundry cast exist.
-#   - Solana: ContractSpec -> target-routed sBPF assembly, manifest, IDL, TS client, metadata.
+#   - Solana: Learn -> ContractSpec -> target-routed sBPF assembly, manifest, IDL, TS client, metadata.
 #   - Solana ELF: optional, set PROOF_FORGE_VALUE_VAULT_ELF=1 when sbpf exists.
 set -euo pipefail
 
@@ -16,6 +16,7 @@ export PATH="$HOME/.foundry/bin:$PATH"
 OUT_DIR="${PROOF_FORGE_VALUE_VAULT_OUT:-build/portable/value-vault}"
 EVM_DIR="$OUT_DIR/evm"
 SOLANA_DIR="$OUT_DIR/solana"
+LEARN_SOURCE="Examples/Learn/ValueVault.learn"
 
 EVM_YUL="$EVM_DIR/ValueVault.yul"
 EVM_BYTECODE_YUL="$EVM_DIR/ValueVault.bytecode.yul"
@@ -53,8 +54,8 @@ mkdir -p "$EVM_DIR" "$SOLANA_DIR"
 
 if command -v cast >/dev/null 2>&1; then
   echo "=== Portable ValueVault step 1: emit EVM Yul ==="
-  lake env proof-forge --emit-value-vault-ir-yul -o "$EVM_YUL" \
-    || fail "proof-forge --emit-value-vault-ir-yul failed"
+  lake env proof-forge --learn-yul -o "$EVM_YUL" "$LEARN_SOURCE" \
+    || fail "proof-forge --learn-yul failed"
   require_file "$EVM_YUL"
   require_contains "$EVM_YUL" 'object "ValueVault"' "EVM Yul object"
   require_contains "$EVM_YUL" "function f_ValueVault_deposit" "EVM Yul deposit function"
@@ -75,17 +76,18 @@ fi
 
 if command -v solc >/dev/null 2>&1 && command -v cast >/dev/null 2>&1; then
   echo "=== Portable ValueVault step 3: emit EVM bytecode and metadata ==="
-  lake env proof-forge --emit-value-vault-ir-bytecode \
+  lake env proof-forge --learn-bytecode \
     --yul-output "$EVM_BYTECODE_YUL" \
     --artifact-output "$EVM_ARTIFACT" \
     -o "$EVM_BIN" \
-    || fail "proof-forge --emit-value-vault-ir-bytecode failed"
+    "$LEARN_SOURCE" \
+    || fail "proof-forge --learn-bytecode failed"
   require_file "$EVM_BIN"
   require_file "$EVM_ARTIFACT"
   python3 "$REPO_ROOT/scripts/evm/validate-artifact-metadata.py" \
     --root "$REPO_ROOT" \
-    --expect-fixture ValueVault \
-    --expect-source-kind contract-sdk \
+    --expect-fixture ValueVault.learn \
+    --expect-source-kind learn-source \
     --expect-capability storage.scalar \
     --expect-capability events.emit \
     --expect-capability env.block \
@@ -108,10 +110,11 @@ else
 fi
 
 echo "=== Portable ValueVault step 4: emit Solana sBPF assembly ==="
-lake env proof-forge --emit-value-vault-ir-sbpf \
+lake env proof-forge --learn-sbpf \
   -o "$SOLANA_ASM" \
   --artifact-output "$SOLANA_ARTIFACT" \
-  || fail "proof-forge --emit-value-vault-ir-sbpf failed"
+  "$LEARN_SOURCE" \
+  || fail "proof-forge --learn-sbpf failed"
 require_file "$SOLANA_ASM"
 require_file "$SOLANA_MANIFEST"
 require_file "$SOLANA_IDL"
@@ -126,7 +129,7 @@ require_contains "$SOLANA_MANIFEST" 'name = "charge_fee"' "Solana manifest charg
 require_contains "$SOLANA_MANIFEST" 'name = "snapshot"' "Solana manifest snapshot instruction"
 
 echo "=== Portable ValueVault step 5: validate Solana artifact metadata ==="
-python3 - "$REPO_ROOT" "$SOLANA_ARTIFACT" "$SOLANA_ASM" "$SOLANA_MANIFEST" "$SOLANA_IDL" "$SOLANA_CLIENT" <<'PY'
+python3 - "$REPO_ROOT" "$SOLANA_ARTIFACT" "$SOLANA_ASM" "$SOLANA_MANIFEST" "$SOLANA_IDL" "$SOLANA_CLIENT" "$LEARN_SOURCE" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -138,6 +141,7 @@ asm_path = pathlib.Path(sys.argv[3])
 manifest_path = pathlib.Path(sys.argv[4])
 idl_path = pathlib.Path(sys.argv[5])
 client_path = pathlib.Path(sys.argv[6])
+learn_source_path = pathlib.Path(sys.argv[7])
 artifact = json.loads(artifact_path.read_text())
 idl = json.loads(idl_path.read_text())
 client = client_path.read_text()
@@ -157,9 +161,9 @@ require(artifact.get("schemaVersion") == 1, "schemaVersion mismatch")
 require(artifact.get("target") == "solana-sbpf-asm", "target mismatch")
 require(artifact.get("targetFamily") == "solana", "targetFamily mismatch")
 require(artifact.get("artifactKind") == "solana-elf", "artifactKind mismatch")
-require(artifact.get("fixture") == "value-vault-ir-sbpf", "fixture mismatch")
-require(artifact.get("sourceKind") == "contract-sdk", "sourceKind mismatch")
-require(artifact.get("sourceModule") == "ValueVault", "sourceModule mismatch")
+require(artifact.get("fixture") == "ValueVault.learn", "fixture mismatch")
+require(artifact.get("sourceKind") == "learn-source", "sourceKind mismatch")
+require(artifact.get("sourceModule") == "ValueVault (Examples/Learn/ValueVault.learn)", "sourceModule mismatch")
 
 caps = set(artifact.get("capabilities", []))
 for cap in ["storage.scalar", "events.emit", "env.block"]:
@@ -172,6 +176,7 @@ require(set(plan.get("capabilities", [])) >= {"storage.scalar", "events.emit", "
 
 artifacts = artifact.get("artifacts", {})
 for name, expected_path in [
+    ("source", learn_source_path),
     ("sbpfAsm", asm_path),
     ("manifestToml", manifest_path),
     ("solanaIdl", idl_path),

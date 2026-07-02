@@ -2,7 +2,10 @@
 
 These files are grammar seeds for the standalone Learn authoring layer.
 `ProofForge.Contract.Learn` parses the current portable subset into a source AST
-and lowers it into `ContractSpec` and portable IR.
+and lowers it into `ContractSpec` and portable IR. The product-facing entrypoint
+is now the `.learn` file: `proof-forge --learn-sbpf input.learn` emits Solana
+sBPF assembly, manifest, IDL, TypeScript client, and artifact metadata from the
+source language without requiring a hand-written Lean `ContractSpec`.
 
 They are intentionally not Lean files. The executable embedded equivalent still
 lives in `ProofForge.Contract.Source` through the `contract_source` syntax:
@@ -13,6 +16,9 @@ fixtures are expected-IR/reference fixtures for tests; they are not the surface
 application developers should author by hand. The Learn parser may represent
 identifiers as strings internally after parsing, but lowering now checks Solana
 CPI/PDA/state/account references before those names reach compiler artifacts.
+The portable ValueVault smoke deliberately routes `Examples/Learn/ValueVault.learn`
+through the CLI so regressions in the source-language path are caught before
+backend package generation is considered passing.
 For CPI declarations, account operands must first be introduced with
 `solana account ...`; writable and signer requirements are checked against that
 declaration. Scalar instruction parameters and state values remain ordinary

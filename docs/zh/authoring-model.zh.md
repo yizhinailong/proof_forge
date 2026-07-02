@@ -10,12 +10,15 @@ ProofForge 不应该要求应用开发者直接编写 `ContractSpec` 对象。
 
 | 层 | 状态 | 作用 |
 |---|---|---|
-| Learn source | 计划中的独立源码格式 | 用户面对的合约语言。开发者写一份 portable contract logic，然后在构建阶段选择 EVM、Solana、Move 或 Wasm 等 target。 |
+| Learn source | 已实现 v0 standalone parser 与 CLI entrypoint | 用户面对的合约语言。开发者写一份 portable contract logic，然后在构建阶段选择 EVM、Solana、Move 或 Wasm 等 target。 |
 | `contract_source` | 已实现的 v1 embedded source syntax | 过渡性的 Lean macro frontend。它让仓库能表达 portable state、entrypoint、event、arithmetic，以及第一批 Solana account/PDA/CPI declaration，而不用手写 `ContractSpec` 字符串。 |
 | `ContractSpec` / IR | 编译器内部制品 | 进入 target routing、capability check、backend lowering、AST/printer stage、manifest、IDL、client 和 deployable package 的稳定边界。 |
 
 预期用户体验是 Learn-first。`contract_source` 有价值，是因为它能在当前
 Lean/Lake 仓库里直接执行并证明 lowering path；但它不是最终语言 parser。
+`--learn-sbpf`、`--learn-yul` 和 `--learn-bytecode` 这类 CLI mode 现在允许
+smoke test 与用户从 `.learn` 源码开始，而不是从 built-in fixture 或手写
+`ContractSpec` 开始。
 
 因此，带有较多字符串的 `ContractSpec` 与 Builder 示例应被看作编译器 fixture，
 不是产品 surface。它们描述的是源码经过 parsing、capability routing 和
@@ -45,10 +48,13 @@ expected IR。
 
 `ProofForge.Contract.Learn` 现在会解析 `Examples/Learn/` 下 checked-in 的
 `.learn` 示例，生成一个小型 source AST，并将该 AST 降低到 `contract_source`
-共用的 `ContractSpec`/portable IR 边界。parser 目前覆盖 portable scalar/event
-子集，以及第一批 Solana target-extension form：account、PDA derivation、
-System Program transfer/create-account CPI，以及 SPL Token transfer、mint、
-burn、approve 和 revoke CPI。它也支持带 selector 的 entrypoint，例如
+共用的 `ContractSpec`/portable IR 边界。CLI 可以从 `.learn` 输入直接发射
+EVM Yul/bytecode metadata 和 Solana sBPF assembly package；portable
+ValueVault smoke 现在使用 `Examples/Learn/ValueVault.learn` 作为 source of
+record。parser 目前覆盖 portable scalar/event 子集，以及第一批 Solana
+target-extension form：account、PDA derivation、System Program
+transfer/create-account CPI，以及 SPL Token transfer、mint、burn、approve 和
+revoke CPI。它也支持带 selector 的 entrypoint，例如
 `entry mint selector "04"(amount: u64)`，因此 Solana instruction tag 可以在
 Learn 源码中表达，而不是只存在于 Builder fixture。Learn statement 现在也覆盖
 Solana pubkey/data log、return-data set/get，以及 remaining-compute-unit read/log
@@ -77,6 +83,8 @@ state/account 引用，因此剩余带字符串的 identifier 属于被检查过
 `ProofForge.Contract.Examples.ValueVault` 这样的示例应被理解为 v1 source
 example，而不是最终 `.learn` grammar。它们存在的目的，是在 standalone Learn
 parser 引入之前，让编译器流水线保持可执行。
+对应的 `.learn` 文件才是产品语言示例；Lean 文件是经过评审的 embedded fixture，
+用于证明 lowering equivalence。
 
 ## Target Routing
 
@@ -102,4 +110,5 @@ Yul、bytecode、ABI metadata 和 deployment file。当合约本身是 portable 
    以及剩余框架级 account/data declaration。
 2. 逐步用 typed account、owner、program 和 capability reference 替代带字符串的
    source grammar 中的 Solana declaration，同时只在编译器制品内部保留字符串名称。
-3. 保持 backend artifact check 不变，让新的 Learn 语法证明能生成同样的 EVM/Solana package output。
+3. 在现有 per-target CLI mode 之上增加 target-selection sugar，让用户写一份
+   `.learn` 源码，然后通过 build target flag 选择 EVM、Solana、Move 或 Wasm。

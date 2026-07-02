@@ -544,8 +544,11 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   checked-in 的 `.learn` 文件，生成 portable scalar/event 子集的小型 source
   AST，并降低到 `ContractSpec`/portable IR。`Counter.learn` 与
   `ValueVault.learn` 会被证明生成与当前 `contract_source` 示例一致的 IR module。
-  `Tests/LearnSource.lean` 还会把 Learn-lowered ValueVault 走 Solana package
-  路径渲染，确保新的 authoring entrypoint 仍绑定 backend artifact check。
+  CLI 现在可以通过 `--learn-yul`、`--learn-bytecode` 和 `--learn-sbpf` 直接接受
+  `.learn` 文件。`scripts/portable/value-vault-smoke.sh` 使用
+  `Examples/Learn/ValueVault.learn` 作为 source of record，证明 Learn-authored
+  合约不需要手写 `ContractSpec`，也能发射 EVM Yul/bytecode metadata 和 Solana
+  sBPF assembly/manifest/IDL/client artifacts。
 - Learn Solana target-extension syntax：
   `ProofForge.Contract.Learn` 现在会解析 `SolanaVault.learn` 中的
   `solana allocator`、`solana account`、`solana pda`、`solana cpi
@@ -612,11 +615,11 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   低层 builder API，同时保留已有 generated assembly、manifest、artifact 与
   Surfpool/Web3.js behavior gate。
 - Target-stage ABI selector hydration：
-  ValueVault CLI emit path 会在 EVM Yul/bytecode 发射前，根据每个
+  Learn/ValueVault CLI emit path 会在 EVM Yul/bytecode 发射前，根据每个
   entrypoint 的 Solidity ABI signature 通过 `cast sig` 派生 EVM selector，
   并校验显式 selector 是否与派生值一致；Solana 路由仍独立使用 target
   instruction tag。`scripts/portable/value-vault-smoke.sh` 会证明同一份
-  surface source 能发射 EVM Yul/bytecode metadata 以及 Solana sBPF
+  `.learn` source 能发射 EVM Yul/bytecode metadata 以及 Solana sBPF
   assembly/manifest/artifact metadata。
 - Solana IDL 与 TypeScript client package output：
   `ProofForge.Backend.Solana.Idl` 会从 `manifest.toml` 和 artifact metadata
@@ -638,12 +641,12 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   会和已声明引用交叉校验。CPI account operand 必须先通过
   `solana account ...` 声明；CPI writable/signer 要求会和这些声明校验，因此剩余字符串名称属于
   编译器内部 identifier，而不是未检查的用户手写 spec。
-  `ProofForge.Contract.Source` 仍是尚未表达为
-  Learn 的示例所使用的 embedded macro frontend。下一步 authoring 缺口是把
-  Learn parser 扩展到 Token-2022、typed account/data reference，以及更接近
-  Pinocchio 的 account validation ergonomics；
-  同时由 target extension 层在编译阶段派生 selector、instruction tag、IDL/client
-  metadata 和 package artifact。
+  `ProofForge.Contract.Source` 仍是尚未表达为 Learn 的示例所使用的 embedded
+  macro frontend，但 portable ValueVault artifact emission 现在已经从 `.learn`
+  开始。下一步 authoring 缺口是把 Learn parser 扩展到 Token-2022、typed
+  account/data reference，以及更接近 Pinocchio 的 account validation
+  ergonomics；然后在当前 per-target `--learn-*` mode 之上增加
+  target-selection sugar。
 
 剩余优先切片：
 
