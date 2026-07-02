@@ -50,7 +50,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/validation-gates.md": {
-    "sha256": "0869970ddfd10de451b5389f01b26dcad17f8373c458b3ad7362f2a72b1e96fd",
+    "sha256": "f4b03e542769544079aab969c6bead502a6c6a1827f1e78997e2310c39cd6333",
     "zh": "docs/zh/validation-gates.zh.md",
     "model": "gemini-3-flash-preview"
   },
