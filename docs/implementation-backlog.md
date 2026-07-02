@@ -958,6 +958,12 @@ Completed developer-surface slices:
   through typed refs (`read`, `write`, `bind`, `emit`, `ret`) instead of raw
   `ContractSpec` string plumbing. `ProofForge.Contract.Examples.ValueVault`
   uses this layer and intentionally leaves `selector? = none` in the source.
+- Declaration-derived IR names:
+  `state_ref`, `binding_ref`, `method_ref`, and `event_ref` macros now derive
+  IR names from Lean declarations, so the ValueVault source no longer repeats
+  raw strings for state slots, inputs, locals, method names, or event names.
+  Tests assert the derived snake-case state/parameter/method names and
+  PascalCase event names before routing the same source across EVM and Solana.
 - Target-stage ABI selector hydration:
   the ValueVault CLI emit path derives EVM selectors from each entrypoint's
   Solidity ABI signature with `cast sig` immediately before EVM Yul/bytecode
@@ -970,12 +976,13 @@ Completed developer-surface slices:
 Current boundary:
 
 - `ProofForge.Contract.Surface` is a typed builder surface, not the final Learn
-  contract syntax. It deliberately reduces raw string/spec plumbing first, but
-  the desired end state is language-level contract authoring where state,
-  entrypoints, accounts, constraints, and target capabilities read as normal
-  Learn declarations and expressions, with the target extension layer deriving
-  chain-specific selectors, instruction tags, IDL/client metadata, and package
-  artifacts during compilation.
+  contract syntax. It deliberately reduces raw string/spec plumbing first by
+  deriving common IR names from declarations, but the desired end state is
+  language-level contract authoring where state, entrypoints, accounts,
+  constraints, and target capabilities read as normal Learn declarations and
+  expressions, with the target extension layer deriving chain-specific
+  selectors, instruction tags, IDL/client metadata, and package artifacts during
+  compilation.
 
 Remaining priority slices:
 

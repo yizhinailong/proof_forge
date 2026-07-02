@@ -503,6 +503,12 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   （`read`、`write`、`bind`、`emit`、`ret`）编写逻辑，不再直接写 raw
   `ContractSpec` 字符串拼装。`ProofForge.Contract.Examples.ValueVault`
   已经使用该层，并且 source 中刻意保留 `selector? = none`。
+- Declaration-derived IR names：
+  `state_ref`、`binding_ref`、`method_ref` 和 `event_ref` 宏现在会从 Lean
+  declaration 派生 IR 名称，因此 ValueVault source 不再重复写 state slot、
+  input、local、method name 或 event name 的 raw string。测试会先断言派生出的
+  snake-case state/parameter/method 名称和 PascalCase event 名称，再把同一份
+  source 路由到 EVM 与 Solana。
 - Target-stage ABI selector hydration：
   ValueVault CLI emit path 会在 EVM Yul/bytecode 发射前，根据每个
   entrypoint 的 Solidity ABI signature 通过 `cast sig` 派生 EVM selector，
@@ -514,11 +520,11 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 当前边界：
 
 - `ProofForge.Contract.Surface` 是一个 typed builder surface，还不是最终的
-  Learn 合约语法。它当前先把 raw string/spec 拼装收束起来；目标终态是语言级
-  合约编写方式，让 state、entrypoint、account、constraint 和 target
-  capability 看起来像正常 Learn declaration 与 expression，而 selector、
-  instruction tag、IDL/client metadata 和 package artifact 由 target
-  extension 层在编译阶段派生。
+  Learn 合约语法。它当前先通过从 declaration 派生常见 IR 名称，把 raw
+  string/spec 拼装收束起来；目标终态是语言级合约编写方式，让 state、
+  entrypoint、account、constraint 和 target capability 看起来像正常 Learn
+  declaration 与 expression，而 selector、instruction tag、IDL/client
+  metadata 和 package artifact 由 target extension 层在编译阶段派生。
 
 剩余优先切片：
 

@@ -55,6 +55,15 @@ def requireModuleShape : IO Unit := do
   let module := ProofForge.Contract.Examples.ValueVault.module
   require (module.name == "ValueVault") "ValueVault module name mismatch"
   require (module.state.size == 6) "ValueVault should have six scalar state fields"
+  let stateIds := module.state.map (fun state => state.id)
+  require (stateIds == #[
+    "balance",
+    "released",
+    "fees",
+    "last_value",
+    "last_checkpoint",
+    "operations"
+  ]) s!"ValueVault state declaration macro ids mismatch: {stateIds}"
   require (module.entrypoints.size == 7) "ValueVault should have seven entrypoints"
   require (module.entrypoints.all (fun entrypoint => entrypoint.selector?.isNone))
     "ValueVault surface source should defer target selectors to emission"
@@ -68,6 +77,15 @@ def requireModuleShape : IO Unit := do
     "get_balance",
     "get_net_value"
   ]) s!"ValueVault entrypoint order mismatch: {names}"
+  let some chargeFee := module.entrypoints.find? (fun entrypoint => entrypoint.name == "charge_fee")
+    | throw <| IO.userError "ValueVault missing charge_fee entrypoint"
+  let chargeFeeParams := chargeFee.params.map (fun param => param.fst)
+  require (chargeFeeParams == #["gross", "fee_bps"])
+    s!"ValueVault method declaration macro params mismatch: {chargeFeeParams}"
+  require (ProofForge.Contract.Examples.ValueVault.Event.ValueDeposited.name == "ValueDeposited")
+    "ValueVault event declaration macro should derive PascalCase event name"
+  require (ProofForge.Contract.Examples.ValueVault.Event.ValueSnapshot.name == "ValueSnapshot")
+    "ValueVault event declaration macro should derive ValueSnapshot event name"
 
 def requireSolanaRender : IO Unit := do
   match ProofForge.Backend.Solana.Package.renderPackageForSpec
