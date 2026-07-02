@@ -5,6 +5,7 @@ import Lean.Util.Path
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Psy.IR
 import ProofForge.Backend.Solana.SbpfAsm
+import ProofForge.Backend.Solana.Manifest
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -1809,7 +1810,7 @@ def writeSbpfManifest (output : FilePath) (module : ProofForge.IR.Module) : IO F
   let manifestOutput := match output.parent with
     | some parent => parent / "manifest.toml"
     | none => FilePath.mk "manifest.toml"
-  let manifest := ProofForge.Backend.Solana.SbpfAsm.renderManifest module
+  let manifest := ProofForge.Backend.Solana.Manifest.renderManifest module
   IO.FS.writeFile manifestOutput (manifest ++ "\n")
   return manifestOutput
 
@@ -1932,7 +1933,7 @@ def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
       IO.FS.writeFile asmSrc source
       IO.println s!"wrote {asmSrc}"
 
-      let manifest := ProofForge.Backend.Solana.SbpfAsm.renderManifest ProofForge.IR.Examples.Counter.module
+      let manifest := ProofForge.Backend.Solana.Manifest.renderManifest ProofForge.IR.Examples.Counter.module
       let manifestOutput := projectDir / "manifest.toml"
       IO.FS.writeFile manifestOutput (manifest ++ "\n")
       IO.println s!"wrote {manifestOutput}"

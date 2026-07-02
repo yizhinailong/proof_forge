@@ -1,24 +1,31 @@
-import Init.Data.Array.Basic
-import Init.Data.String.Basic
-import ProofForge.IR.Contract
-import ProofForge.Target.Check
-import ProofForge.Target.Registry
+/-
+Copyright (c) 2026 DaviRain. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
 
-/-!
 # Solana sBPF Assembly Backend
 
 Architecture: IR.Module → `Array AstNode` → sBPF assembly text (`.s`)
 
-The AST layer mirrors the blueshift-gg/sbpf assembler's AST (`ASTNode`,
-`Instruction`, `Register`, `Number`, `Opcode`).  The lowering produces
-structured AST nodes; the printer renders them to text.
+The AST/printer lives in `ProofForge.Backend.Solana.Asm`, account layout in
+`StateLayout`, manifest generation in `Manifest`, syscalls in `Syscalls`, and
+register bookkeeping in `Register`. This file owns the IR → AST lowering.
 
 See `docs/targets/solana-sbpf-asm.md` (D-026).
 -/
 
+import ProofForge.IR.Contract
+import ProofForge.Target.Check
+import ProofForge.Target.Registry
+import ProofForge.Backend.Solana.Asm
+import ProofForge.Backend.Solana.StateLayout
+import ProofForge.Backend.Solana.Manifest
+
 namespace ProofForge.Backend.Solana.SbpfAsm
 
 open ProofForge.IR
+open ProofForge.Backend.Solana.Asm
+open ProofForge.Backend.Solana.StateLayout
+open ProofForge.Backend.Solana.Manifest
 
 -- ============================================================================
 -- Metadata
@@ -27,178 +34,6 @@ open ProofForge.IR
 def targetId : String := "solana-sbpf-asm"
 def artifactKind : String := "solana-elf"
 def irVersion : String := "portable-ir-v0"
-
--- ============================================================================
--- sBPF AST (mirrors blueshift-gg/sbpf assembler structures)
--- ============================================================================
-
-inductive Reg where
-  | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10
-  deriving BEq, Repr, Inhabited
-
-def Reg.idx : Reg → Nat
-  | .r0 => 0  | .r1 => 1  | .r2 => 2  | .r3 => 3  | .r4 => 4
-  | .r5 => 5  | .r6 => 6  | .r7 => 7  | .r8 => 8  | .r9 => 9
-  | .r10 => 10
-
-def Reg.render (r : Reg) : String := s!"r{r.idx}"
-
-inductive Imm where
-  | num (n : Nat)
-  | sym (name : String)
-  deriving BEq, Repr, Inhabited
-
-inductive Opcode where
-  | lddw | ldxb | ldxh | ldxw | ldxdw
-  | stb  | sth  | stw  | stdw
-  | stxb | stxh | stxw | stxdw
-  | add64 | sub64 | mul64 | div64 | mod64 | or64 | and64
-  | lsh64 | rsh64 | xor64 | mov64 | arsh64 | neg64
-  | add32 | sub32 | mul32 | div32 | mod32 | or32 | and32
-  | lsh32 | rsh32 | xor32 | mov32 | arsh32 | neg32
-  | ja | jeq | jne | jgt | jge | jlt | jle
-  | jsgt | jsge | jslt | jsle | jset
-  | call | callx | exit
-  deriving BEq, Repr, Inhabited
-
-def Opcode.render : Opcode → String
-  | .lddw => "lddw"     | .ldxb => "ldxb"     | .ldxh => "ldxh"     | .ldxw => "ldxw"     | .ldxdw => "ldxdw"
-  | .stb  => "stb"      | .sth  => "sth"      | .stw  => "stw"      | .stdw => "stdw"
-  | .stxb => "stxb"     | .stxh => "stxh"     | .stxw => "stxw"     | .stxdw => "stxdw"
-  | .add64 => "add64"   | .sub64 => "sub64"   | .mul64 => "mul64"   | .div64 => "div64"
-  | .mod64 => "mod64"   | .or64  => "or64"    | .and64 => "and64"   | .lsh64 => "lsh64"
-  | .rsh64 => "rsh64"   | .xor64 => "xor64"   | .mov64 => "mov64"   | .arsh64 => "arsh64" | .neg64 => "neg64"
-  | .add32 => "add32"   | .sub32 => "sub32"   | .mul32 => "mul32"   | .div32 => "div32"
-  | .mod32 => "mod32"   | .or32  => "or32"    | .and32 => "and32"   | .lsh32 => "lsh32"
-  | .rsh32 => "rsh32"   | .xor32 => "xor32"   | .mov32 => "mov32"   | .arsh32 => "arsh32" | .neg32 => "neg32"
-  | .ja   => "ja"       | .jeq  => "jeq"      | .jne  => "jne"      | .jgt  => "jgt"
-  | .jge  => "jge"      | .jlt  => "jlt"      | .jle  => "jle"      | .jsgt => "jsgt"
-  | .jsge => "jsge"     | .jslt => "jslt"     | .jsle => "jsle"     | .jset => "jset"
-  | .call => "call"     | .callx => "callx"   | .exit => "exit"
-
-inductive MemOff where
-  | num (n : Nat)
-  | sym (name : String)
-  deriving BEq, Repr, Inhabited
-
-structure Inst where
-  opcode : Opcode
-  dst  : Option Reg := none
-  src  : Option Reg := none
-  off  : Option MemOff := none
-  imm  : Option Imm := none
-  deriving Repr, Inhabited
-
--- Helper to build Inst concisely
-def inst (opcode : Opcode) (dst : Option Reg := none) (src : Option Reg := none)
-         (off : Option MemOff := none) (imm : Option Imm := none) : Inst :=
-  { opcode, dst, src, off, imm }
-
-inductive AstNode where
-  | globalDecl  (label : String)
-  | equDecl     (name : String) (value : Nat)
-  | label      (name : String)
-  | instruction (inst : Inst)
-  | comment    (text : String)
-  | blankLine
-  deriving Repr, Inhabited
-
--- ============================================================================
--- AST → text printer
--- ============================================================================
-
-def numStr (n : Nat) : String := toString n
-
-def Imm.render : Imm → String
-  | .num n => numStr n
-  | .sym s => s
-
-def MemOff.render : MemOff → String
-  | .num n => numStr n
-  | .sym s => s
-
-def Opcode.isCondJump : Opcode → Bool
-  | .jeq | .jne | .jgt | .jge | .jlt | .jle
-  | .jsgt | .jsge | .jslt | .jsle | .jset => true
-  | _ => false
-
-/-- ALU opcodes whose second operand is a register. -/
-def Opcode.isRegOp : Opcode → Bool
-  | .add64 | .sub64 | .mul64 | .div64 | .mod64 | .or64 | .and64
-  | .lsh64 | .rsh64 | .xor64 | .arsh64
-  | .add32 | .sub32 | .mul32 | .div32 | .mod32 | .or32 | .and32
-  | .lsh32 | .rsh32 | .xor32 | .arsh32 => true
-  | _ => false
-
-/-- Load/store opcodes. -/
-def Opcode.isLoad : Opcode → Bool
-  | .ldxb | .ldxh | .ldxw | .ldxdw => true
-  | _ => false
-
-def Opcode.isStore : Opcode → Bool
-  | .stb | .sth | .stw | .stdw => true
-  | _ => false
-
-def Opcode.isStoreReg : Opcode → Bool
-  | .stxb | .stxh | .stxw | .stxdw => true
-  | _ => false
-
-def memSign (base : Reg) : String := if base == .r10 then "-" else "+"
-
-/-- Render one instruction to an indented line. -/
-def Inst.render (i : Inst) : String :=
-  let op := i.opcode.render
-  let dstStr (r : Reg) : String := r.render
-  let body :=
-    if i.opcode == .exit then ""
-    else if i.opcode == .call then
-      match i.imm with | some (.sym n) => s!" {n}" | _ => ""
-    else if i.opcode == .callx then
-      match i.dst with | some r => s!" {dstStr r}" | none => ""
-    else if i.opcode == .ja then
-      match i.off with | some o => s!" {o.render}" | none => ""
-    else if i.opcode == .lddw then
-      s!" {dstStr (i.dst.getD .r0)}, {i.imm.getD (.num 0) |>.render}"
-    else if i.opcode.isLoad then
-      let base := dstStr (i.src.getD .r1)
-      let off := i.off.getD (.num 0) |>.render
-      s!" {dstStr (i.dst.getD .r0)}, [{base}{memSign (i.src.getD .r1)}{off}]"
-    else if i.opcode.isStore then
-      let base := dstStr (i.dst.getD .r1)
-      let off := i.off.getD (.num 0) |>.render
-      let val := i.imm.getD (.num 0) |>.render
-      s!" [{base}{memSign (i.dst.getD .r1)}{off}], {val}"
-    else if i.opcode.isStoreReg then
-      let base := dstStr (i.dst.getD .r1)
-      let off := i.off.getD (.num 0) |>.render
-      let val := dstStr (i.src.getD .r0)
-      s!" [{base}{memSign (i.dst.getD .r1)}{off}], {val}"
-    else if i.opcode.isCondJump then
-      let arg2 : String := match i.imm with | some imm => imm.render | none => dstStr (i.src.getD .r0)
-      let target : String := match i.off with | some o => o.render | none => "?"
-      s!" {dstStr (i.dst.getD .r0)}, {arg2}, {target}"
-    else if i.opcode.isRegOp then
-      let arg2 : String := match i.imm with | some imm => imm.render | none => dstStr (i.src.getD .r0)
-      s!" {dstStr (i.dst.getD .r0)}, {arg2}"
-    else
-      let arg : String := match i.imm with | some imm => imm.render | none => dstStr (i.src.getD .r0)
-      s!" {dstStr (i.dst.getD .r0)}, {arg}"
-  s!"  {op}{body}"
-
-/-- Render one AST node to one or more lines. -/
-def AstNode.render (node : AstNode) : Array String :=
-  match node with
-  | .globalDecl lbl  => #[ s!".globl {lbl}" ]
-  | .equDecl name val => #[ s!".equ {name}, {numStr val}" ]
-  | .label name      => #[ s!"{name}:" ]
-  | .instruction i   => #[ i.render ]
-  | .comment text    => #[ "  ; " ++ text ]
-  | .blankLine       => #[""]
-
-/-- Render a list of AST nodes to assembly text. -/
-def renderNodes (nodes : Array AstNode) : String :=
-  let lines := nodes.foldl (init := #[]) fun acc node => acc ++ node.render
-  String.intercalate "\n" lines.toList ++ "\n"
 
 -- ============================================================================
 -- Error type
@@ -224,30 +59,6 @@ def validateCapabilities (module : IR.Module) : Except LowerError Unit := do
   match ProofForge.Target.requireCapabilities ProofForge.Target.solanaSbpfAsm module.capabilities with
   | .ok () => .ok ()
   | .error err => .error (capabilityError err)
-
--- ============================================================================
--- Serialized input layout
--- ============================================================================
-
-def ACCOUNT_HEADER_SIZE : Nat := 8
-def PUBKEY_SIZE : Nat := 32
-def U64_SIZE : Nat := 8
-def MAX_PERMITTED_DATA_INCREASE : Nat := 10240
-
-def alignTo8 (n : Nat) : Nat :=
-  let r := n % 8
-  if r == 0 then 0 else 8 - r
-
-def computeSingleAccountLayout (dataSize : Nat) : Nat × Nat :=
-  let numAccounts := U64_SIZE
-  let dataStart := numAccounts + ACCOUNT_HEADER_SIZE + PUBKEY_SIZE + PUBKEY_SIZE + U64_SIZE + U64_SIZE
-  let afterPadding := dataStart + dataSize + MAX_PERMITTED_DATA_INCREASE
-  let align := alignTo8 afterPadding
-  let rentEpochEnd := afterPadding + align + U64_SIZE
-  let instrDataStart := rentEpochEnd + U64_SIZE
-  (dataStart, instrDataStart)
-
-def moduleDataSize (module : Module) : Nat := module.state.size * 8
 
 -- ============================================================================
 -- Lowering context
@@ -291,14 +102,8 @@ def LowerCtx.resetLocals (ctx : LowerCtx) : LowerCtx :=
   { ctx with locals := #[], nextLocalOffset := 8, scratchOffset := 8 }
 
 def buildCtx (module : Module) : Except LowerError LowerCtx := do
-  let dataSize := moduleDataSize module
-  let (acctDataOff, _) := computeSingleAccountLayout dataSize
-  let mut stateOffsets := #[]
-  let mut fieldOff := 0
-  for state in module.state do
-    stateOffsets := stateOffsets.push (state.id, acctDataOff + fieldOff)
-    fieldOff := fieldOff + 8
-  return { stateFieldOffsets := stateOffsets, locals := #[], nextLocalOffset := 8, scratchOffset := 8, nextLabel := 0 }
+  let offsets := buildStateOffsets module
+  return { stateFieldOffsets := offsets.map (fun f => (f.id, f.absOff)), locals := #[], nextLocalOffset := 8, scratchOffset := 8, nextLabel := 0 }
 
 -- ============================================================================
 -- IR expression → AST nodes (result in r2, r3 as scratch)
@@ -605,37 +410,6 @@ partial def lowerEntrypoint (ctx : LowerCtx) (instrDataOff : Nat) (ep : IR.Entry
   .ok (ctx, nodes)
 
 -- ============================================================================
--- Module → instruction manifest.toml (target metadata, not embedded in IR)
--- ============================================================================
-
-/-- Generate a Solana instruction manifest.toml describing dispatch tags and the
-single default account used by Phase 1 fixtures. Multi-account schemas and
-signer/writable/owner constraints will move into the IR/source layer in
-Phase 2+. -/
-def renderManifest (module : IR.Module) : String :=
-  let programName := module.name.toLower
-  let defaultAccountName := match module.state[0]? with | some s => s.id | none => "data"
-  let accountLine :=
-    "  { name = \"" ++ defaultAccountName ++ "\", index = 0, signer = false, writable = true, owner = \"program\" }"
-  let instructionBlocks := module.entrypoints.mapIdx fun idx ep =>
-    "[[instruction]]\n" ++
-    "name = \"" ++ ep.name ++ "\"\n" ++
-    "tag = " ++ toString idx ++ "\n" ++
-    "handler = \"sol_" ++ ep.name ++ "\"\n" ++
-    "accounts = [\n" ++
-    accountLine ++ "\n" ++
-    "]\n"
-  String.intercalate "\n" #[
-    "# ProofForge generated Solana instruction manifest",
-    "target = \"solana-sbpf-asm\"",
-    "",
-    "[program]",
-    "id = \"REPLACE_WITH_PROGRAM_ID\"",
-    "name = \"" ++ programName ++ "\"",
-    ""
-  ].toList ++ "\n" ++ String.intercalate "\n" instructionBlocks.toList ++ "\n"
-
--- ============================================================================
 -- Module → AST nodes
 -- ============================================================================
 
@@ -711,7 +485,7 @@ partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode)
 
 def renderModule (module : IR.Module) : Except LowerError String := do
   let nodes ← lowerModule module
-  .ok (renderNodes nodes)
+  .ok (Asm.renderNodes nodes)
 
 -- ============================================================================
 -- Phase 0: canned entrypoint
