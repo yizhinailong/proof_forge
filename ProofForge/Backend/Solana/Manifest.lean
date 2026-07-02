@@ -73,6 +73,14 @@ def renderExtensionAccount (account : AccountMeta) : String :=
   ", access = " ++ tomlString account.access ++
   ", signer = " ++ tomlString account.signer ++ " }"
 
+def renderAllocator (allocator : RuntimeAllocator) : String :=
+  "[[solana.allocator]]\n" ++
+  "name = " ++ tomlString allocator.name ++ "\n" ++
+  "kind = " ++ tomlString allocator.kind ++ "\n" ++
+  "model = " ++ tomlString allocator.model ++ "\n" ++
+  "heap_start = " ++ tomlString allocator.heapStart ++ "\n" ++
+  "heap_bytes = " ++ allocator.heapBytes ++ "\n"
+
 def renderPda (pda : PdaDerive) : String :=
   let optionalFields :=
     (match pda.bump? with
@@ -97,6 +105,9 @@ def renderCpi (cpi : CpiInvoke) : String :=
     else
       "accounts = [\n" ++ String.intercalate "\n" accountLines.toList ++ "\n]"
   let optionalFields :=
+    (match cpi.protocol? with
+    | some protocol => s!"protocol = {tomlString protocol}\n"
+    | none => "") ++
     match cpi.dataLayout? with
     | some dataLayout => s!"data_layout = {tomlString dataLayout}\n"
     | none => ""
@@ -133,6 +144,8 @@ def renderExtensions (extensions : ProgramExtensions) : String :=
     ""
   else
     "\n# Solana SDK target extension metadata\n" ++
+    String.intercalate "\n" (extensions.allocators.map renderAllocator).toList ++
+    (if extensions.allocators.size > 0 && (extensions.pdas.size > 0 || extensions.cpis.size > 0) then "\n" else "") ++
     String.intercalate "\n" (extensions.pdas.map renderPda).toList ++
     (if extensions.pdas.size > 0 && extensions.cpis.size > 0 then "\n" else "") ++
     String.intercalate "\n" (extensions.cpis.map renderCpi).toList ++

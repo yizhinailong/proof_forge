@@ -9,23 +9,22 @@ open ProofForge.Solana
 def spec : ProofForge.Contract.ContractSpec :=
   build "SolanaVault" do
     scalarState "nonce" .u64
+    bumpAllocator
 
     pdaAccount "vault" #["vault", "authority"]
       (bump? := some "vault_bump")
       (account? := some "vault_account")
       (isSigner := true)
 
-    cpiInvokeSigned
+    splTokenTransferChecked
       "token_transfer"
-      "spl_token"
-      "transfer_checked"
-      #[
-        writableAccount "source",
-        writableAccount "destination",
-        signerAccount "authority"
-      ]
-      #["vault", "vault_bump"]
-      (dataLayout? := some "spl-token.transfer_checked")
+      "source"
+      "mint"
+      "destination"
+      "authority"
+      "amount"
+      9
+      (signerSeeds := #["vault", "vault_bump"])
 
     entrySelector "initialize" "afaf6d1f" do
       effect (storageScalarWrite "nonce" (u64 0))
@@ -35,17 +34,15 @@ def spec : ProofForge.Contract.ContractSpec :=
         (bump? := some "vault_bump")
         (account? := some "vault_account")
         (isSigner := true)
-      invokeSignedCpi
+      invokeSplTokenTransferChecked
         "token_transfer"
-        "spl_token"
-        "transfer_checked"
-        #[
-          writableAccount "source",
-          writableAccount "destination",
-          signerAccount "authority"
-        ]
-        #["vault", "vault_bump"]
-        (dataLayout? := some "spl-token.transfer_checked")
+        "source"
+        "mint"
+        "destination"
+        "authority"
+        "amount"
+        9
+        (signerSeeds := #["vault", "vault_bump"])
       letBind "n" .u64 (storageScalarRead "nonce")
       effect (storageScalarWrite "nonce" (add (localVar "n") (u64 1)))
 

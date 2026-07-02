@@ -109,12 +109,50 @@ test when the syscall changes observable chain behavior.
 | Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
 | PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; static ASCII seed byte buffers and Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; assembly builds | Add typed UTF-8/account-pubkey/bump seed packing, validate output account/pubkey, add Web3.js PDA fixture |
 | CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; assembly builds | Pack `SolInstruction`, account infos, signer seeds, then compare System Program/SPL Token CPI behavior against Rust |
+| Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Documented only | Lower `events.emit` to structured logs and assert logs via Web3.js transaction metadata |
 | Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | Documented only | Use internally for account/data packing helpers; unit-test generated assembly and runtime copies |
 | Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | Documented only | Map `env.block`/rent-like SDK reads to syscalls and validate returned fields |
 | Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | Documented only | Lower `crypto.hash` variants and compare against JS reference hashes |
 | Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | Documented only | Add diagnostics/profiling helpers and explicit failure tests |
 | Return-data read (`sol_get_return_data`) | Documented only | Use in CPI return handling after CPI packing lands |
+
+### Runtime allocator
+
+Solana's Rust SDK entrypoint installs a default heap allocator. The runtime
+constants are `HEAP_START_ADDRESS = 0x300000000` and `HEAP_LENGTH = 32 * 1024`,
+and the allocator is a one-way bump allocator: `alloc` moves the bump pointer
+downward with alignment and `dealloc` is a no-op. Pinocchio follows the same
+shape: `entrypoint!` expands to the program entrypoint plus
+`default_allocator!` and `default_panic_handler!`; lower-level macros also let a
+program opt out with `no_allocator!`.
+
+ProofForge mirrors this at the target-extension layer instead of baking it into
+portable IR:
+
+```lean
+build "SolanaVault" do
+  scalarState "nonce" .u64
+  bumpAllocator
+```
+
+`bumpAllocator` records `runtime.allocator` with:
+
+```toml
+[[solana.allocator]]
+name = "runtime"
+kind = "bump"
+model = "downward-bump"
+heap_start = "0x300000000"
+heap_bytes = 32768
+```
+
+`noAllocator` records `kind = "none"` and `model = "deny-dynamic"`, matching
+the no-heap pattern useful for Pinocchio-style programs that intentionally avoid
+dynamic allocation. At this stage the selected allocator is emitted in
+`manifest.toml`, `proof-forge-artifact.json`, and assembly metadata comments.
+Future lowering for heap-backed SDK data structures must route through this
+capability before emitting real allocation code.
 
 ## Solana Contract Model
 
@@ -379,10 +417,15 @@ entrySelector "touch" "62de7396" do
     (bump? := some "vault_bump")
     (account? := some "vault_account")
     (isSigner := true)
-  invokeSignedCpi "token_transfer" "spl_token" "transfer_checked"
-    #[writableAccount "source", writableAccount "destination", signerAccount "authority"]
-    #["vault", "vault_bump"]
-    (dataLayout? := some "spl-token.transfer_checked")
+  invokeSplTokenTransferChecked
+    "token_transfer"
+    "source"
+    "mint"
+    "destination"
+    "authority"
+    "amount"
+    9
+    (signerSeeds := #["vault", "vault_bump"])
 ```
 
 The portable IR never knows about these — it operates at the capability level
@@ -402,9 +445,23 @@ Current CPI/PDA lowering pattern:
 4. Build `manifest.toml` and artifact metadata with both extension definitions
    and entrypoint action lists.
 
-Remaining work: full runtime packing of seed byte slices, instruction data,
-account infos, SPL Token layouts, return-data decoding, and runtime tests that
-exercise a live CPI path.
+The SDK layer already exposes protocol-level helpers for System Program
+transfer/create-account and SPL Token transfer/mint/burn/approve/revoke. These
+helpers emit `solana.cpi.protocol`, `solana.cpi.data_layout`, account metas,
+signer seeds, and instruction-data sources into the capability plan, manifest,
+and artifact metadata.
+
+`system.transfer` now also emits the C ABI packing skeleton for
+`sol_invoke_signed_c`: system program id bytes, C `SolAccountMeta[]`, the
+`u32 discriminator=2 + u64 lamports` instruction-data layout, C
+`SolInstruction`, placeholder `SolAccountInfo[]`, optional signer seed tables,
+and the syscall register contract. The account info fields still use
+compile-time placeholder buffers because Phase 1 has not generated a real
+multi-account input layout yet.
+
+Remaining work: replace placeholder account infos with multi-account layout
+offsets, add `system.create_account` and SPL Token instruction-data packing,
+return-data decoding, and runtime tests that exercise a live CPI path.
 
 PDA helper lowering:
 1. Allocate stack space for seed data + result buffer (32 byte).
@@ -448,6 +505,7 @@ The target profile must accept or reject each IR capability. The proposed
 | `crypto.hash` | ✓ | `sol_sha` / `sol_keccak` / `sol_blake` |
 | `assertions.check` | ✓ | Assert with error codes |
 | `account.explicit` | ✓ | The core abstraction |
+| `runtime.allocator` | ✓ | Bump allocator or no-allocator contract recorded as target-extension metadata |
 
 ## CLI and Build Integration
 

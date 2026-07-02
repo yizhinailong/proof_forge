@@ -30,8 +30,18 @@ structure CpiInvoke where
   instruction : String
   accounts : Array AccountMeta := #[]
   signerSeeds : Array String := #[]
+  protocol? : Option String := none
   dataLayout? : Option String := none
   signed : Bool := false
+  entrypoint? : Option String := none
+  deriving Repr, Inhabited
+
+structure RuntimeAllocator where
+  name : String
+  kind : String
+  heapStart : String
+  heapBytes : String
+  model : String
   entrypoint? : Option String := none
   deriving Repr, Inhabited
 
@@ -46,6 +56,7 @@ structure CpiAction where
   deriving Repr, Inhabited
 
 structure ProgramExtensions where
+  allocators : Array RuntimeAllocator := #[]
   pdas : Array PdaDerive := #[]
   cpis : Array CpiInvoke := #[]
   pdaActions : Array PdaAction := #[]
@@ -87,6 +98,16 @@ def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=
 def CpiInvoke.definition (cpi : CpiInvoke) : CpiInvoke :=
   { cpi with entrypoint? := none }
 
+def RuntimeAllocator.definition (allocator : RuntimeAllocator) : RuntimeAllocator :=
+  { allocator with entrypoint? := none }
+
+def ProgramExtensions.pushAllocatorDefinition (acc : ProgramExtensions)
+    (allocator : RuntimeAllocator) : ProgramExtensions :=
+  if acc.allocators.any (fun existing => existing.name == allocator.name) then
+    acc
+  else
+    { acc with allocators := acc.allocators.push allocator.definition }
+
 def ProgramExtensions.pushPdaDefinition (acc : ProgramExtensions) (pda : PdaDerive) : ProgramExtensions :=
   if acc.pdas.any (fun existing => existing.name == pda.name) then
     acc
@@ -123,6 +144,23 @@ def ProgramExtensions.addCpi (acc : ProgramExtensions) (cpi : CpiInvoke) : Progr
   | some entrypoint => acc.pushCpiAction { name := cpi.name, entrypoint := entrypoint }
   | none => acc
 
+def ProgramExtensions.addAllocator (acc : ProgramExtensions)
+    (allocator : RuntimeAllocator) : ProgramExtensions :=
+  acc.pushAllocatorDefinition allocator
+
+def allocatorFromCall? (call : CapabilityCall) : Option RuntimeAllocator :=
+  if call.capability == .runtimeAllocator then
+    some {
+      name := metadataValue? call.metadata "solana.allocator.name" |>.getD "runtime"
+      kind := metadataValue? call.metadata "solana.allocator.kind" |>.getD "bump"
+      heapStart := metadataValue? call.metadata "solana.allocator.heap_start" |>.getD "0x300000000"
+      heapBytes := metadataValue? call.metadata "solana.allocator.heap_bytes" |>.getD "32768"
+      model := metadataValue? call.metadata "solana.allocator.model" |>.getD "downward-bump"
+      entrypoint? := entrypoint? call
+    }
+  else
+    none
+
 def pdaFromCall? (call : CapabilityCall) : Option PdaDerive :=
   if call.operation == "solana.pda.derive" then
     let name := metadataValue? call.metadata "solana.pda.name" |>.getD call.operation
@@ -148,6 +186,7 @@ def cpiFromCall? (call : CapabilityCall) : Option CpiInvoke :=
       instruction := instruction
       accounts := metadataValue? call.metadata "solana.cpi.accounts" |>.map parseAccountMetas |>.getD #[]
       signerSeeds := metadataValue? call.metadata "solana.cpi.signer_seeds" |>.map splitComma |>.getD #[]
+      protocol? := metadataValue? call.metadata "solana.cpi.protocol"
       dataLayout? := metadataValue? call.metadata "solana.cpi.data_layout"
       signed := call.operation == "solana.cpi.invoke_signed"
       entrypoint? := entrypoint? call
@@ -159,6 +198,10 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
   plan.calls.foldl
     (fun acc call =>
       let acc :=
+        match allocatorFromCall? call with
+        | some allocator => acc.addAllocator allocator
+        | none => acc
+      let acc :=
         match pdaFromCall? call with
         | some pda => acc.addPda pda
         | none => acc
@@ -168,6 +211,9 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
     {}
 
 def hasExtensions (extensions : ProgramExtensions) : Bool :=
+  extensions.allocators.size > 0 || extensions.pdas.size > 0 || extensions.cpis.size > 0
+
+def hasSyscallExtensions (extensions : ProgramExtensions) : Bool :=
   extensions.pdas.size > 0 || extensions.cpis.size > 0
 
 def hasEntrypointActions (extensions : ProgramExtensions) : Bool :=
@@ -202,6 +248,18 @@ def pdaSeedTableOffset : Nat := 128
 def pdaSeedDataOffset : Nat := 512
 def pdaMaxSeedLen : Nat := 32
 def pdaMaxSeeds : Nat := 16
+
+def cpiInstructionOffset : Nat := 64
+def cpiAccountMetaOffset : Nat := 128
+def cpiInstructionDataOffset : Nat := 384
+def cpiProgramIdOffset : Nat := 448
+def cpiPlaceholderPubkeyOffset : Nat := 512
+def cpiAccountInfoOffset : Nat := 1088
+def cpiPlaceholderLamportsOffset : Nat := 2048
+def cpiSignerEntriesOffset : Nat := 2240
+def cpiSignerSeedTableOffset : Nat := 2304
+def cpiSignerSeedDataOffset : Nat := 2816
+def cpiMaxSeedLen : Nat := 32
 
 def stringBytes (value : String) : Array Nat :=
   value.toList.foldl (fun acc ch => acc.push ch.toNat) #[]
@@ -267,24 +325,238 @@ def lowerPdaDerive (pda : PdaDerive) : Array AstNode :=
     .instruction { opcode := .exit }
   ]
 
+def boolByte (value : Bool) : Nat :=
+  if value then 1 else 0
+
+def cpiAccountWritable (account : AccountMeta) : Nat :=
+  boolByte (account.access == "writable")
+
+def cpiAccountSigner (account : AccountMeta) : Nat :=
+  boolByte (account.signer != "none")
+
+def storeImm (opcode : Opcode) (base : Reg) (off value : Nat) : AstNode :=
+  .instruction { opcode, dst := some base, off := some (.num off), imm := some (.num value) }
+
+def storeReg (opcode : Opcode) (base : Reg) (off : Nat) (src : Reg) : AstNode :=
+  .instruction { opcode, dst := some base, off := some (.num off), src := some src }
+
+def zeroStackQuad (base : Reg) (off : Nat) : AstNode :=
+  storeImm .stdw base off 0
+
+def loadImm (dst : Reg) (value : Nat) : AstNode :=
+  .instruction { opcode := .mov64, dst := some dst, imm := some (.num value) }
+
+def lowerZero32 (base : Reg) : Array AstNode := #[
+  zeroStackQuad base 0,
+  zeroStackQuad base 8,
+  zeroStackQuad base 16,
+  zeroStackQuad base 24
+]
+
+def lowerCpiSystemProgramId : Array AstNode :=
+  #[
+    .comment "solana.cpi.program_id system_program (32 zero bytes)"
+  ] ++
+  stackPtr .r8 cpiProgramIdOffset ++
+  lowerZero32 .r8
+
+def lowerCpiPlaceholderPubkey (idx : Nat) (name : String) : Array AstNode :=
+  let offset := cpiPlaceholderPubkeyOffset + idx * 32
+  #[
+    .comment s!"solana.cpi.placeholder_pubkey {name}"
+  ] ++
+  stackPtr .r8 offset ++
+  lowerZero32 .r8 ++ #[
+    storeImm .stb .r8 31 (idx + 1)
+  ]
+
+def lowerCpiPlaceholderLamports (idx : Nat) : Array AstNode :=
+  let offset := cpiPlaceholderLamportsOffset + idx * 8
+  stackPtr .r8 offset ++ #[
+    zeroStackQuad .r8 0
+  ]
+
+def lowerCpiPlaceholders (cpi : CpiInvoke) : Array AstNode :=
+  cpi.accounts.mapIdx (fun idx account =>
+    lowerCpiPlaceholderPubkey idx account.name ++
+    lowerCpiPlaceholderLamports idx)
+    |>.foldl (fun acc nodes => acc ++ nodes) #[]
+
+def lowerCpiAccountMeta (idx : Nat) (account : AccountMeta) : Array AstNode :=
+  let metaOffset := idx * 16
+  let pubkeyOffset := cpiPlaceholderPubkeyOffset + idx * 32
+  #[
+    .comment s!"solana.cpi.account_meta {account.name}"
+  ] ++
+  stackPtr .r7 cpiAccountMetaOffset ++ #[
+    .instruction { opcode := .add64, dst := some .r7, imm := some (.num metaOffset) }
+  ] ++
+  stackPtr .r8 pubkeyOffset ++ #[
+    storeReg .stxdw .r7 0 .r8,
+    storeImm .stb .r7 8 (cpiAccountWritable account),
+    storeImm .stb .r7 9 (cpiAccountSigner account)
+  ]
+
+def lowerCpiAccountMetas (cpi : CpiInvoke) : Array AstNode :=
+  cpi.accounts.mapIdx lowerCpiAccountMeta
+    |>.foldl (fun acc nodes => acc ++ nodes) #[]
+
+def lowerCpiAccountInfo (idx : Nat) (account : AccountMeta) : Array AstNode :=
+  let infoOffset := idx * 56
+  let pubkeyOffset := cpiPlaceholderPubkeyOffset + idx * 32
+  let lamportsOffset := cpiPlaceholderLamportsOffset + idx * 8
+  #[
+    .comment s!"solana.cpi.account_info {account.name} placeholder"
+  ] ++
+  stackPtr .r6 cpiAccountInfoOffset ++ #[
+    .instruction { opcode := .add64, dst := some .r6, imm := some (.num infoOffset) }
+  ] ++
+  stackPtr .r8 pubkeyOffset ++ #[
+    storeReg .stxdw .r6 0 .r8
+  ] ++
+  stackPtr .r8 lamportsOffset ++ #[
+    storeReg .stxdw .r6 8 .r8,
+    zeroStackQuad .r6 16,
+    zeroStackQuad .r6 24
+  ] ++
+  stackPtr .r8 cpiProgramIdOffset ++ #[
+    storeReg .stxdw .r6 32 .r8,
+    zeroStackQuad .r6 40,
+    storeImm .stb .r6 48 (cpiAccountSigner account),
+    storeImm .stb .r6 49 (cpiAccountWritable account),
+    storeImm .stb .r6 50 0
+  ]
+
+def lowerCpiAccountInfos (cpi : CpiInvoke) : Array AstNode :=
+  cpi.accounts.mapIdx lowerCpiAccountInfo
+    |>.foldl (fun acc nodes => acc ++ nodes) #[]
+
+def lowerCpiSignerSeed (cpiName : String) (idx : Nat) (seed : String) : Array AstNode :=
+  let seedOffset := cpiSignerSeedDataOffset + idx * cpiMaxSeedLen
+  let tableOffset := cpiSignerSeedTableOffset + idx * 16
+  let bytes := stringBytes seed
+  #[
+    .comment s!"solana.cpi.signer_seed {cpiName}[{idx}] \"{seed}\""
+  ] ++
+  stackPtr .r8 seedOffset ++
+  lowerSeedBytes seed .r8 ++
+  stackPtr .r7 tableOffset ++ #[
+    storeReg .stxdw .r7 0 .r8,
+    loadImm .r3 bytes.size,
+    storeReg .stxdw .r7 8 .r3
+  ]
+
+def lowerCpiSignerSeeds (cpi : CpiInvoke) : Array AstNode :=
+  if cpi.signerSeeds.isEmpty then
+    #[
+      .comment "solana.cpi.signer_seeds none"
+    ]
+  else
+    let seedTable :=
+      cpi.signerSeeds.mapIdx (fun idx seed => lowerCpiSignerSeed cpi.name idx seed)
+        |>.foldl (fun acc nodes => acc ++ nodes) #[]
+    seedTable ++
+    stackPtr .r8 cpiSignerEntriesOffset ++
+    stackPtr .r7 cpiSignerSeedTableOffset ++ #[
+      storeReg .stxdw .r8 0 .r7,
+      loadImm .r3 cpi.signerSeeds.size,
+      storeReg .stxdw .r8 8 .r3
+    ]
+
+def lowerCpiSignerArgs (cpi : CpiInvoke) : Array AstNode :=
+  if cpi.signerSeeds.isEmpty then
+    #[
+      loadImm .r4 0,
+      loadImm .r5 0
+    ]
+  else
+    stackPtr .r4 cpiSignerEntriesOffset ++ #[
+      loadImm .r5 1
+    ]
+
+def lowerSystemTransferData : Array AstNode :=
+  #[
+    .comment "solana.cpi.data system.transfer: u32 discriminator=2, u64 lamports placeholder"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    loadImm .r3 2,
+    storeReg .stxw .r8 0 .r3,
+    loadImm .r3 0,
+    storeReg .stxdw .r8 4 .r3
+  ]
+
+def lowerCpiInstructionRecord (cpi : CpiInvoke) (dataLen : Nat) : Array AstNode :=
+  #[
+    .comment "solana.cpi.instruction record: C SolInstruction"
+  ] ++
+  stackPtr .r5 cpiInstructionOffset ++
+  stackPtr .r8 cpiProgramIdOffset ++ #[
+    storeReg .stxdw .r5 0 .r8
+  ] ++
+  stackPtr .r7 cpiAccountMetaOffset ++ #[
+    storeReg .stxdw .r5 8 .r7,
+    loadImm .r3 cpi.accounts.size,
+    storeReg .stxdw .r5 16 .r3
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeReg .stxdw .r5 24 .r8,
+    loadImm .r3 dataLen,
+    storeReg .stxdw .r5 32 .r3
+  ]
+
+def lowerCpiCall (cpi : CpiInvoke) : Array AstNode :=
+  stackPtr .r1 cpiInstructionOffset ++
+  stackPtr .r2 cpiAccountInfoOffset ++ #[
+    loadImm .r3 cpi.accounts.size
+  ] ++
+  lowerCpiSignerArgs cpi ++ #[
+    .comment "r1=instruction_ptr r2=account_infos_ptr r3=num_accounts r4=signer_seeds_ptr r5=num_signers",
+    callSyscall ProofForge.Backend.Solana.Syscalls.sol_invoke_signed_c,
+    .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_cpi") },
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
+    .instruction { opcode := .exit }
+  ]
+
+def lowerSystemTransferCpi (cpi : CpiInvoke) : Array AstNode :=
+  #[
+    .comment "solana.cpi.pack system.transfer"
+  ] ++
+  lowerCpiSystemProgramId ++
+  lowerCpiPlaceholders cpi ++
+  lowerCpiAccountMetas cpi ++
+  lowerSystemTransferData ++
+  lowerCpiInstructionRecord cpi 12 ++
+  lowerCpiAccountInfos cpi ++
+  lowerCpiSignerSeeds cpi ++
+  lowerCpiCall cpi
+
+def lowerGenericCpiInvoke (cpi : CpiInvoke) : Array AstNode :=
+  #[
+    .comment "generic CPI placeholder packing; protocol-specific ABI packing pending"
+  ] ++
+  stackPtr .r1 cpiInstructionOffset ++
+  stackPtr .r2 cpiAccountInfoOffset ++ #[
+    .instruction { opcode := .mov64, dst := some .r3, imm := some (.num cpi.accounts.size) }
+  ] ++
+  lowerCpiSignerSeeds cpi ++
+  lowerCpiSignerArgs cpi ++ #[
+    .comment "r1=instruction_ptr r2=account_infos_ptr r3=num_accounts r4=signer_seeds_ptr r5=num_signers",
+    callSyscall ProofForge.Backend.Solana.Syscalls.sol_invoke_signed_c,
+    .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_cpi") },
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
+    .instruction { opcode := .exit }
+  ]
+
 def lowerCpiInvoke (cpi : CpiInvoke) : Array AstNode :=
   #[
     .blankLine,
     .comment s!"solana.cpi {cpi.name}: {cpi.program}.{cpi.instruction}",
     .label cpi.label
   ] ++
-  stackPtr .r1 256 ++
-  stackPtr .r2 512 ++ #[
-    .instruction { opcode := .mov64, dst := some .r3, imm := some (.num cpi.accounts.size) }
-  ] ++
-  stackPtr .r4 768 ++ #[
-    .instruction { opcode := .mov64, dst := some .r5, imm := some (.num cpi.signerSeeds.size) },
-    .comment "r1=instruction_ptr r2=account_infos_ptr r3=num_accounts r4=signer_seeds_ptr r5=num_seeds",
-    callSyscall ProofForge.Backend.Solana.Syscalls.sol_invoke_signed_c,
-    .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_cpi") },
-    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
-    .instruction { opcode := .exit }
-  ]
+  if cpi.protocol? == some "system" && cpi.dataLayout? == some "system.transfer" then
+    lowerSystemTransferCpi cpi
+  else
+    lowerGenericCpiInvoke cpi
 
 def lowerPdaAction (action : PdaAction) : Array AstNode :=
   #[
@@ -321,11 +593,23 @@ def lowerExtensionErrors : Array AstNode := #[
   .instruction { opcode := .exit }
 ]
 
+def lowerRuntimeAllocator (allocator : RuntimeAllocator) : Array AstNode := #[
+  .blankLine,
+  .comment s!"solana.allocator {allocator.name}: kind={allocator.kind} model={allocator.model} heap_start={allocator.heapStart} heap_bytes={allocator.heapBytes}"
+]
+
+def lowerRuntimeAllocators (extensions : ProgramExtensions) : Array AstNode :=
+  extensions.allocators.foldl (fun acc allocator => acc ++ lowerRuntimeAllocator allocator) #[]
+
 def lowerProgramExtensions (extensions : ProgramExtensions) : Array AstNode :=
   if !hasExtensions extensions then
     #[]
+  else if !hasSyscallExtensions extensions then
+    #[.blankLine, .comment "Solana SDK target extension metadata"] ++
+    lowerRuntimeAllocators extensions
   else
     #[.blankLine, .comment "Solana SDK target extension syscall helpers"] ++
+    lowerRuntimeAllocators extensions ++
     extensions.pdas.foldl (fun acc pda => acc ++ lowerPdaDerive pda) #[] ++
     extensions.cpis.foldl (fun acc cpi => acc ++ lowerCpiInvoke cpi) #[] ++
     lowerExtensionErrors

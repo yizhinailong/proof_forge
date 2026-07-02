@@ -16,7 +16,7 @@
 
 capability id 是 target selection 之后使用的下层协议，不是默认面向用户的 SDK。portable contract 通常应调用链中立的 Contract Intent API。所选 target adapter 会把这些 intent 解析为 capability plan，然后在降级前检查本注册表。
 
-Target Extension SDK 可以暴露 Solana PDA/CPI、Move resource 或 UTXO covenant primitive 等目标特定操作。这些 extension 仍通过 capability id 和 target metadata 路由，使诊断、制品元数据和跨 target 支持检查保持统一。
+Target Extension SDK 可以暴露 Solana PDA/CPI/runtime allocator 配置、Move resource 或 UTXO covenant primitive 等目标特定操作。这些 extension 仍通过 capability id 和 target metadata 路由，使诊断、制品元数据和跨 target 支持检查保持统一。
 
 ## 核心能力
 
@@ -42,6 +42,7 @@ Target Extension SDK 可以暴露 Solana PDA/CPI、Move resource 或 UTXO covena
 | `assertions.check` | 从 portable IR 语句发射运行时或电路断言 | Y | N | N | Y | N | N | P |
 | `account.explicit` | 具名账户/对象/资源绑定 | P | N | N | Y | Y | Y | P |
 | `storage.pda` | 程序派生地址状态 | N | N | N | Y | N | N | N |
+| `runtime.allocator` | 目标运行时堆分配器约定 | N | P | P | Y | P | P | P |
 | `crosscall.cpi` | 带有账户元数据的 Solana CPI | N | N | N | Y | N | N | N |
 | `zk.circuit` | 将入口编译为目标电路定义 | N | N | N | N | N | N | Y |
 | `zk.proof` | 目标证明生成或验证流 | N | N | N | N | N | N | P |
@@ -49,7 +50,7 @@ Target Extension SDK 可以暴露 Solana PDA/CPI、Move resource 或 UTXO covena
 ## Id 命名规则
 
 - 格式：`<domain>.<operation>` 或 `<domain>.<variant>`（小写，点分隔）。
-- 领域：`storage`, `caller`, `value`, `events`, `crosscall`, `env`, `control`, `data`, `crypto`, `assertions`, `account`, `zk`。
+- 领域：`storage`, `caller`, `value`, `events`, `crosscall`, `env`, `control`, `data`, `crypto`, `assertions`, `account`, `runtime`, `zk`。
 - 制品元数据列出了构建所使用的 id（参见 RFC 0002 制品 schema）。
 - 诊断信息在拒绝时必须引用能力 id 和目标 id。
 

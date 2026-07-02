@@ -600,6 +600,27 @@ partial progress is visible before the full acceptance criteria close:
       and a 32-byte PDA result buffer before calling `sol_create_program_address`.
       Covered by `Tests/SolanaSdkManifest.lean` and
       `scripts/solana/sdk-smoke.sh`.
+- [x] Standard Solana protocol SDK helpers now cover System Program
+      transfer/create-account and SPL Token transfer_checked/mint_to/burn/
+      approve/revoke. They route through target capability metadata with
+      `solana.cpi.protocol`, canonical `data_layout`, account metas, signer
+      seeds, and instruction-data source names, and are included in the
+      generated manifest plus artifact JSON. Covered by `Tests/SolanaSdk.lean`,
+      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+- [x] Runtime allocator target extension now models Solana's default
+      downward-bump allocator (`heap_start = "0x300000000"`,
+      `heap_bytes = 32768`) plus a `noAllocator`/deny-dynamic option aligned
+      with Pinocchio-style no-heap entrypoints. The selected allocator routes
+      through `runtime.allocator` capability metadata and appears in
+      `manifest.toml`, `proof-forge-artifact.json`, and assembly metadata.
+      Covered by `Tests/SolanaAllocator.lean`, `Tests/SolanaSdk.lean`,
+      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+- [x] System Program transfer CPI packing skeleton emits the C ABI shape for
+      `sol_invoke_signed_c`: system program id bytes, C `SolAccountMeta[]`,
+      `system.transfer` instruction data (`u32` discriminator + `u64`
+      lamports placeholder), C `SolInstruction`, placeholder
+      `SolAccountInfo[]`, signer seed tables, and syscall register setup.
+      Covered by `Tests/SolanaCpiPacking.lean`.
 
 Next Solana SDK completion items:
 
@@ -607,11 +628,17 @@ Next Solana SDK completion items:
   bump/instruction-data seeds; validate the resulting PDA against account
   pubkeys; add Web3.js fixtures that compare derived addresses with
   `PublicKey.findProgramAddressSync`.
-- System Program CPI: lower transfer/create-account style SDK calls to
-  `sol_invoke_signed`, express account metas in `manifest.toml`, and validate
-  balances/owners through Web3.js.
-- SPL Token CPI: add mint/account/authority manifests, token instruction
-  packing, and behavior checks against the standard token program.
+- System Program CPI runtime completion: replace placeholder account
+  pubkeys/lamports/data pointers with the generated multi-account input layout,
+  add `system.create_account` packing, and validate balances/owners through
+  Web3.js.
+- SPL Token CPI runtime packing: lower `spl-token.transfer_checked`,
+  `mint_to`, `burn`, `approve`, and `revoke` metadata into standard token
+  instruction bytes, then check behavior against the standard token program.
+- Runtime allocation lowering: route any future heap-backed SDK structures
+  through `runtime.allocator`, emit real bump-pointer allocation code when
+  dynamic allocation is required, and reject such structures under
+  `noAllocator`.
 - Logs/events and return data: expose `sol_log*` / `sol_set_return_data` /
   `sol_get_return_data` helpers with Web3.js log and simulation assertions.
 - Sysvars, crypto, and memory helpers: cover clock/rent sysvars, hash syscalls,

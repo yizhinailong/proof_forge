@@ -55,38 +55,68 @@ artifact = json.loads(artifact_path.read_text())
 asm = asm_path.read_text()
 
 caps = set(artifact.get("capabilities", []))
-required_caps = {"storage.scalar", "account.explicit", "storage.pda", "crosscall.cpi"}
+required_caps = {"storage.scalar", "account.explicit", "storage.pda", "runtime.allocator", "crosscall.cpi"}
 missing = sorted(required_caps - caps)
 if missing:
     raise SystemExit(f"missing capabilities in artifact: {missing}")
 
+allocators = artifact.get("solanaExtensions", {}).get("allocators", [])
 pdas = artifact.get("solanaExtensions", {}).get("pdas", [])
 cpis = artifact.get("solanaExtensions", {}).get("cpis", [])
 pda_actions = artifact.get("solanaExtensions", {}).get("pdaActions", [])
 cpi_actions = artifact.get("solanaExtensions", {}).get("cpiActions", [])
+if not allocators or allocators[0].get("kind") != "bump":
+    raise SystemExit("artifact missing bump runtime allocator")
+if allocators[0].get("model") != "downward-bump":
+    raise SystemExit("artifact missing downward-bump allocator model")
+if allocators[0].get("heapStart") != "0x300000000":
+    raise SystemExit("artifact missing Solana heap start")
+if allocators[0].get("heapBytes") != "32768":
+    raise SystemExit("artifact missing Solana heap size")
 if not pdas or pdas[0].get("name") != "vault":
     raise SystemExit("artifact missing vault PDA extension")
 if not cpis or cpis[0].get("name") != "token_transfer":
     raise SystemExit("artifact missing token_transfer CPI extension")
+if cpis[0].get("protocol") != "spl-token":
+    raise SystemExit("artifact missing spl-token CPI protocol")
+if cpis[0].get("dataLayout") != "spl-token.transfer_checked":
+    raise SystemExit("artifact missing SPL Token transfer_checked data layout")
+account_names = [account.get("name") for account in cpis[0].get("accounts", [])]
+if account_names != ["source", "mint", "destination", "authority"]:
+    raise SystemExit(f"artifact CPI accounts mismatch: {account_names}")
 if not pda_actions or pda_actions[0].get("entrypoint") != "touch" or pda_actions[0].get("pda") != "vault":
     raise SystemExit("artifact missing touch PDA action")
 if not cpi_actions or cpi_actions[0].get("entrypoint") != "touch" or cpi_actions[0].get("cpi") != "token_transfer":
     raise SystemExit("artifact missing touch CPI action")
 
+manifest_allocators = manifest.get("solana", {}).get("allocator", [])
 manifest_pdas = manifest.get("solana", {}).get("pda", [])
 manifest_cpis = manifest.get("solana", {}).get("cpi", [])
 manifest_pda_actions = manifest.get("solana", {}).get("entrypoint_pda", [])
 manifest_cpi_actions = manifest.get("solana", {}).get("entrypoint_cpi", [])
+if not manifest_allocators or manifest_allocators[0].get("kind") != "bump":
+    raise SystemExit("manifest missing bump runtime allocator")
+if manifest_allocators[0].get("model") != "downward-bump":
+    raise SystemExit("manifest missing downward-bump allocator model")
+if manifest_allocators[0].get("heap_start") != "0x300000000":
+    raise SystemExit("manifest missing Solana heap start")
+if manifest_allocators[0].get("heap_bytes") != 32768:
+    raise SystemExit("manifest missing Solana heap size")
 if not manifest_pdas or manifest_pdas[0].get("name") != "vault":
     raise SystemExit("manifest missing vault PDA extension")
 if not manifest_cpis or manifest_cpis[0].get("program") != "spl_token":
     raise SystemExit("manifest missing spl_token CPI extension")
+if manifest_cpis[0].get("protocol") != "spl-token":
+    raise SystemExit("manifest missing spl-token CPI protocol")
+if manifest_cpis[0].get("data_layout") != "spl-token.transfer_checked":
+    raise SystemExit("manifest missing SPL Token transfer_checked data layout")
 if not manifest_pda_actions or manifest_pda_actions[0].get("entrypoint") != "touch":
     raise SystemExit("manifest missing touch PDA action")
 if not manifest_cpi_actions or manifest_cpi_actions[0].get("entrypoint") != "touch":
     raise SystemExit("manifest missing touch CPI action")
 
 for needle in [
+    "solana.allocator runtime: kind=bump model=downward-bump heap_start=0x300000000 heap_bytes=32768",
     "sol_pda_derive_vault:",
     "solana.pda.seed vault[0] \"vault\"",
     "stb [r5+0], 118",

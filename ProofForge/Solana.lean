@@ -47,6 +47,23 @@ structure CpiCall where
   accounts : Array AccountMeta := #[]
   signerSeeds : Array String := #[]
   dataLayout? : Option String := none
+  extraMetadata : Array TargetMetadata := #[]
+  deriving Repr
+
+inductive AllocatorKind where
+  | bump
+  | noAllocator
+  deriving BEq, DecidableEq, Repr
+
+def AllocatorKind.id : AllocatorKind -> String
+  | .bump => "bump"
+  | .noAllocator => "none"
+
+structure AllocatorConfig where
+  name : String := "runtime"
+  kind : AllocatorKind := .bump
+  heapStart : String := "0x300000000"
+  heapBytes : Nat := 32768
   deriving Repr
 
 def kv (key value : String) : TargetMetadata := {
@@ -114,7 +131,175 @@ def CpiCall.metadata (call : CpiCall) : Array TargetMetadata :=
     kv "solana.cpi.accounts" (joinWith "," (call.accounts.map AccountMeta.encode)),
     kv "solana.cpi.signer_seeds" (joinWith "," call.signerSeeds)
   ] ++
-  maybeKv "solana.cpi.data_layout" call.dataLayout?
+  maybeKv "solana.cpi.data_layout" call.dataLayout? ++
+  call.extraMetadata
+
+def AllocatorConfig.metadata (config : AllocatorConfig) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "allocator",
+    kv "solana.allocator.name" config.name,
+    kv "solana.allocator.kind" config.kind.id,
+    kv "solana.allocator.heap_start" config.heapStart,
+    kv "solana.allocator.heap_bytes" (toString config.heapBytes),
+    kv "solana.allocator.model" (
+      match config.kind with
+      | .bump => "downward-bump"
+      | .noAllocator => "deny-dynamic"
+    )
+  ]
+
+def systemProgram : String :=
+  "system_program"
+
+def splTokenProgram : String :=
+  "spl_token"
+
+def splToken2022Program : String :=
+  "spl_token_2022"
+
+def associatedTokenProgram : String :=
+  "associated_token"
+
+def tokenProtocolForProgram (tokenProgram : String) : String :=
+  if tokenProgram == splToken2022Program then
+    "token-2022"
+  else
+    "spl-token"
+
+def signerForSeeds (name : String) (access : AccountAccess) (signerSeeds : Array String) : AccountMeta :=
+  if signerSeeds.isEmpty then
+    signerAccount name access
+  else
+    pdaSignerAccount name access
+
+def systemMetadata : Array TargetMetadata :=
+  #[
+    kv "solana.cpi.protocol" "system"
+  ]
+
+def tokenMetadata (tokenProgram : String) : Array TargetMetadata :=
+  #[
+    kv "solana.cpi.protocol" (tokenProtocolForProgram tokenProgram)
+  ]
+
+def systemTransferCall (name fromAccount to lamportsSource : String)
+    (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := systemProgram
+  instruction := "transfer"
+  accounts := #[
+    signerForSeeds fromAccount .writable signerSeeds,
+    writableAccount to
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "system.transfer"
+  extraMetadata := systemMetadata ++ #[
+    kv "solana.cpi.lamports_source" lamportsSource
+  ]
+}
+
+def systemCreateAccountCall (name payer newAccount lamportsSource spaceSource owner : String)
+    (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := systemProgram
+  instruction := "create_account"
+  accounts := #[
+    writableSignerAccount payer,
+    signerForSeeds newAccount .writable signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "system.create_account"
+  extraMetadata := systemMetadata ++ #[
+    kv "solana.cpi.lamports_source" lamportsSource,
+    kv "solana.cpi.space_source" spaceSource,
+    kv "solana.cpi.owner" owner
+  ]
+}
+
+def splTokenTransferCheckedCall (name source mint destination authority amountSource : String)
+    (decimals : Nat) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "transfer_checked"
+  accounts := #[
+    writableAccount source,
+    readonlyAccount mint,
+    writableAccount destination,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.transfer_checked"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.amount_source" amountSource,
+    kv "solana.cpi.decimals" (toString decimals)
+  ]
+}
+
+def splTokenMintToCall (name mint destination authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "mint_to"
+  accounts := #[
+    writableAccount mint,
+    writableAccount destination,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.mint_to"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.amount_source" amountSource
+  ]
+}
+
+def splTokenBurnCall (name source mint authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "burn"
+  accounts := #[
+    writableAccount source,
+    writableAccount mint,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.burn"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.amount_source" amountSource
+  ]
+}
+
+def splTokenApproveCall (name source delegate owner amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "approve"
+  accounts := #[
+    writableAccount source,
+    readonlyAccount delegate,
+    signerForSeeds owner .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.approve"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.amount_source" amountSource
+  ]
+}
+
+def splTokenRevokeCall (name source owner : String) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "revoke"
+  accounts := #[
+    writableAccount source,
+    signerForSeeds owner .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.revoke"
+  extraMetadata := tokenMetadata tokenProgram
+}
 
 def pda (binding : PdaBinding) : ProofForge.Contract.Builder.ModuleM Unit := do
   ProofForge.Contract.Builder.capability .accountExplicit "solana.account.pda" (source? := some binding.name)
@@ -148,6 +333,27 @@ def derivePda (name : String) (seeds : Array String) (bump? : Option String := n
     isSigner := isSigner
   }
 
+def allocator (config : AllocatorConfig) : ProofForge.Contract.Builder.ModuleM Unit := do
+  ProofForge.Contract.Builder.capability .runtimeAllocator "solana.runtime.allocator"
+    (source? := some config.name)
+    (metadata := config.metadata)
+
+def bumpAllocator (name : String := "runtime") (heapStart : String := "0x300000000")
+    (heapBytes : Nat := 32768) : ProofForge.Contract.Builder.ModuleM Unit :=
+  allocator {
+    name := name
+    kind := .bump
+    heapStart := heapStart
+    heapBytes := heapBytes
+  }
+
+def noAllocator (name : String := "runtime") : ProofForge.Contract.Builder.ModuleM Unit :=
+  allocator {
+    name := name
+    kind := .noAllocator
+    heapBytes := 0
+  }
+
 def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do
   if call.accounts.size > 0 then
     ProofForge.Contract.Builder.capability .accountExplicit "solana.cpi.accounts" (source? := some call.name)
@@ -173,17 +379,20 @@ def cpiEntry (call : CpiCall) : ProofForge.Contract.Builder.EntryM Unit := do
     (metadata := call.metadata)
 
 def cpiInvoke (name program instruction : String) (accounts : Array AccountMeta := #[])
-    (dataLayout? : Option String := none) : ProofForge.Contract.Builder.ModuleM Unit :=
+    (dataLayout? : Option String := none) (extraMetadata : Array TargetMetadata := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
   cpi {
     name := name
     program := program
     instruction := instruction
     accounts := accounts
     dataLayout? := dataLayout?
+    extraMetadata := extraMetadata
   }
 
 def cpiInvokeSigned (name program instruction : String) (accounts : Array AccountMeta)
-    (signerSeeds : Array String) (dataLayout? : Option String := none) : ProofForge.Contract.Builder.ModuleM Unit :=
+    (signerSeeds : Array String) (dataLayout? : Option String := none)
+    (extraMetadata : Array TargetMetadata := #[]) : ProofForge.Contract.Builder.ModuleM Unit :=
   cpi {
     name := name
     program := program
@@ -191,20 +400,24 @@ def cpiInvokeSigned (name program instruction : String) (accounts : Array Accoun
     accounts := accounts
     signerSeeds := signerSeeds
     dataLayout? := dataLayout?
+    extraMetadata := extraMetadata
   }
 
 def invokeCpi (name program instruction : String) (accounts : Array AccountMeta := #[])
-    (dataLayout? : Option String := none) : ProofForge.Contract.Builder.EntryM Unit :=
+    (dataLayout? : Option String := none) (extraMetadata : Array TargetMetadata := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
   cpiEntry {
     name := name
     program := program
     instruction := instruction
     accounts := accounts
     dataLayout? := dataLayout?
+    extraMetadata := extraMetadata
   }
 
 def invokeSignedCpi (name program instruction : String) (accounts : Array AccountMeta)
-    (signerSeeds : Array String) (dataLayout? : Option String := none) : ProofForge.Contract.Builder.EntryM Unit :=
+    (signerSeeds : Array String) (dataLayout? : Option String := none)
+    (extraMetadata : Array TargetMetadata := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
   cpiEntry {
     name := name
     program := program
@@ -212,6 +425,83 @@ def invokeSignedCpi (name program instruction : String) (accounts : Array Accoun
     accounts := accounts
     signerSeeds := signerSeeds
     dataLayout? := dataLayout?
+    extraMetadata := extraMetadata
   }
+
+def systemTransfer (name fromAccount to lamportsSource : String) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (systemTransferCall name fromAccount to lamportsSource (signerSeeds := signerSeeds))
+
+def invokeSystemTransfer (name fromAccount to lamportsSource : String) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (systemTransferCall name fromAccount to lamportsSource (signerSeeds := signerSeeds))
+
+def systemCreateAccount (name payer newAccount lamportsSource spaceSource owner : String)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (systemCreateAccountCall name payer newAccount lamportsSource spaceSource owner
+    (signerSeeds := signerSeeds))
+
+def invokeSystemCreateAccount (name payer newAccount lamportsSource spaceSource owner : String)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (systemCreateAccountCall name payer newAccount lamportsSource spaceSource owner
+    (signerSeeds := signerSeeds))
+
+def splTokenTransferChecked (name source mint destination authority amountSource : String)
+    (decimals : Nat) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenTransferCheckedCall name source mint destination authority amountSource decimals
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def invokeSplTokenTransferChecked (name source mint destination authority amountSource : String)
+    (decimals : Nat) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenTransferCheckedCall name source mint destination authority amountSource decimals
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def splTokenMintTo (name mint destination authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenMintToCall name mint destination authority amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def invokeSplTokenMintTo (name mint destination authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenMintToCall name mint destination authority amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def splTokenBurn (name source mint authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenBurnCall name source mint authority amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def invokeSplTokenBurn (name source mint authority amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenBurnCall name source mint authority amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def splTokenApprove (name source delegate owner amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenApproveCall name source delegate owner amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def invokeSplTokenApprove (name source delegate owner amountSource : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenApproveCall name source delegate owner amountSource
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def splTokenRevoke (name source owner : String) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenRevokeCall name source owner (tokenProgram := tokenProgram)
+    (signerSeeds := signerSeeds))
+
+def invokeSplTokenRevoke (name source owner : String) (tokenProgram : String := splTokenProgram)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenRevokeCall name source owner (tokenProgram := tokenProgram)
+    (signerSeeds := signerSeeds))
 
 end ProofForge.Solana

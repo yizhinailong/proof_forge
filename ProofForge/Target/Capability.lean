@@ -19,6 +19,7 @@ inductive Capability where
   | cryptoHash
   | assertions
   | accountExplicit
+  | runtimeAllocator
   | storagePda
   | crosscallCpi
   | zkCircuit
@@ -41,6 +42,7 @@ def Capability.id : Capability → String
   | .cryptoHash => "crypto.hash"
   | .assertions => "assertions.check"
   | .accountExplicit => "account.explicit"
+  | .runtimeAllocator => "runtime.allocator"
   | .storagePda => "storage.pda"
   | .crosscallCpi => "crosscall.cpi"
   | .zkCircuit => "zk.circuit"

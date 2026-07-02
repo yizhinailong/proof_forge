@@ -25,6 +25,11 @@ def main : IO UInt32 := do
     | .error err => throw <| IO.userError s!"Solana Vault SDK routing failed: {err.render}"
 
   let manifest := ProofForge.Backend.Solana.Manifest.renderManifestWithPlan spec.module plan
+  require (contains manifest "[[solana.allocator]]") "manifest missing Solana allocator section"
+  require (contains manifest "kind = \"bump\"") "manifest missing bump allocator kind"
+  require (contains manifest "model = \"downward-bump\"") "manifest missing bump allocator model"
+  require (contains manifest "heap_start = \"0x300000000\"") "manifest missing allocator heap start"
+  require (contains manifest "heap_bytes = 32768") "manifest missing allocator heap size"
   require (contains manifest "[[solana.pda]]") "manifest missing Solana PDA section"
   require (contains manifest "name = \"vault\"") "manifest missing PDA name"
   require (contains manifest "seeds = [\"vault\", \"authority\"]") "manifest missing PDA seeds"
@@ -32,12 +37,19 @@ def main : IO UInt32 := do
   require (contains manifest "account = \"vault_account\"") "manifest missing PDA account"
   require (contains manifest "[[solana.cpi]]") "manifest missing Solana CPI section"
   require (contains manifest "program = \"spl_token\"") "manifest missing CPI program"
+  require (contains manifest "protocol = \"spl-token\"") "manifest missing CPI protocol"
   require (contains manifest "instruction = \"transfer_checked\"") "manifest missing CPI instruction"
   require (contains manifest "signed = true") "manifest missing signed CPI marker"
+  require (contains manifest "data_layout = \"spl-token.transfer_checked\"")
+    "manifest missing CPI data layout"
   require (contains manifest "{ name = \"source\", access = \"writable\", signer = \"none\" }")
     "manifest missing writable source account"
   require (contains manifest "{ name = \"source\", access = \"writable\", signer = \"none\" },")
     "manifest missing comma after non-final CPI account"
+  require (contains manifest "{ name = \"mint\", access = \"readonly\", signer = \"none\" },")
+    "manifest missing readonly mint account"
+  require (contains manifest "{ name = \"authority\", access = \"readonly\", signer = \"pda-signer\" }")
+    "manifest missing PDA signer authority account"
   require (contains manifest "signer_seeds = [\"vault\", \"vault_bump\"]")
     "manifest missing CPI signer seeds"
   require (contains manifest "[[solana.entrypoint_pda]]")
@@ -59,8 +71,16 @@ def main : IO UInt32 := do
         | throw <| IO.userError "package missing sBPF assembly"
       require (contains manifestFile.contents "[[solana.pda]]")
         "package manifest missing Solana PDA section"
+      require (contains manifestFile.contents "[[solana.allocator]]")
+        "package manifest missing Solana allocator section"
+      require (contains manifestFile.contents "heap_start = \"0x300000000\"")
+        "package manifest missing allocator heap start"
       require (contains manifestFile.contents "[[solana.cpi]]")
         "package manifest missing Solana CPI section"
+      require (contains manifestFile.contents "protocol = \"spl-token\"")
+        "package manifest missing CPI protocol"
+      require (contains asmFile.contents "solana.allocator runtime: kind=bump model=downward-bump heap_start=0x300000000 heap_bytes=32768")
+        "package assembly missing runtime allocator metadata"
       require (contains asmFile.contents "sol_pda_derive_vault:")
         "package assembly missing PDA helper label"
       require (contains asmFile.contents "solana.pda.seed vault[0] \"vault\"")

@@ -649,8 +649,18 @@ def solanaCpiJson (cpi : ProofForge.Backend.Solana.Extension.CpiInvoke) : String
     ("instruction", jsonString cpi.instruction),
     ("accounts", jsonArray (cpi.accounts.map solanaExtensionAccountJson)),
     ("signerSeeds", jsonStringArray cpi.signerSeeds),
+    ("protocol", match cpi.protocol? with | some protocol => jsonString protocol | none => "null"),
     ("dataLayout", match cpi.dataLayout? with | some layout => jsonString layout | none => "null"),
     ("signed", jsonBool cpi.signed)
+  ]
+
+def solanaAllocatorJson (allocator : ProofForge.Backend.Solana.Extension.RuntimeAllocator) : String :=
+  jsonObject #[
+    ("name", jsonString allocator.name),
+    ("kind", jsonString allocator.kind),
+    ("model", jsonString allocator.model),
+    ("heapStart", jsonString allocator.heapStart),
+    ("heapBytes", jsonString allocator.heapBytes)
   ]
 
 def solanaPdaActionJson (action : ProofForge.Backend.Solana.Extension.PdaAction) : String :=
@@ -668,6 +678,7 @@ def solanaCpiActionJson (action : ProofForge.Backend.Solana.Extension.CpiAction)
 def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
   let extensions := ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan
   jsonObject #[
+    ("allocators", jsonArray (extensions.allocators.map solanaAllocatorJson)),
     ("pdas", jsonArray (extensions.pdas.map solanaPdaJson)),
     ("cpis", jsonArray (extensions.cpis.map solanaCpiJson)),
     ("pdaActions", jsonArray (extensions.pdaActions.map solanaPdaActionJson)),

@@ -259,12 +259,16 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] Surfpool/Web3.js live deployment 冒烟（V-GATE-SOLANA-04）。可选门禁 `scripts/solana/surfpool-web3-smoke.sh` 会构建 Counter ELF、启动 Surfpool、用 Solana CLI 部署、通过 `@solana/web3.js` 创建 program-owned counter account、调用 initialize/increment/get、检查 account data 0→1→2，并验证 `get` return data。该脚本通过 `--solana-sbpf-arch v0` 直接产出兼容 Solana CLI 部署的 ELF，并对 Surfpool 使用 `--use-rpc`。
 - [x] `--solana-elf` 暴露 `--solana-sbpf-arch v0|v3`，并在 `proof-forge-artifact.json` 记录选定架构。默认保持 `v3`；Surfpool live deployment 在当前 CLI/runtime 组合完整接受新版 sbpf feature set 之前使用 `v0`。
 - [x] PDA helper runtime packing 现在会在调用 `sol_create_program_address` 前生成静态 ASCII seed byte buffer、Solana `Slice { ptr, len }` seed table、动态 program-id 指针计算，以及 32-byte PDA result buffer。覆盖：`Tests/SolanaSdkManifest.lean` 与 `scripts/solana/sdk-smoke.sh`。
+- [x] 标准 Solana protocol SDK helper 现在覆盖 System Program 的 transfer/create-account，以及 SPL Token 的 transfer_checked/mint_to/burn/approve/revoke。它们通过 target capability metadata 路由，写入 `solana.cpi.protocol`、规范化 `data_layout`、account metas、signer seeds 和 instruction-data source name，并进入生成的 manifest 与 artifact JSON。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] Runtime allocator target extension 现在建模 Solana 默认 downward-bump allocator（`heap_start = "0x300000000"`、`heap_bytes = 32768`），并提供与 Pinocchio no-heap entrypoint 对齐的 `noAllocator`/deny-dynamic 选项。选中的 allocator 会通过 `runtime.allocator` capability metadata 路由，并进入 `manifest.toml`、`proof-forge-artifact.json` 和 assembly metadata。覆盖：`Tests/SolanaAllocator.lean`、`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] System Program transfer CPI packing 骨架现在会生成 `sol_invoke_signed_c` 所需的 C ABI 形状：system program id bytes、C `SolAccountMeta[]`、`system.transfer` instruction data（`u32` discriminator + `u64` lamports placeholder）、C `SolInstruction`、placeholder `SolAccountInfo[]`、signer seed table，以及 syscall register setup。覆盖：`Tests/SolanaCpiPacking.lean`。
 
 后续 Solana SDK 补齐项：
 
 - PDA typed seed 补齐：区分 literal/UTF-8 bytes、account pubkey、bump/instruction-data seed；将结果 PDA 与 account pubkey 校验；增加 Web3.js fixture，与 `PublicKey.findProgramAddressSync` 对比派生地址。
-- System Program CPI：把 transfer/create-account 类 SDK 调用降级到 `sol_invoke_signed`，在 `manifest.toml` 表达 account metas，并用 Web3.js 验证余额和 owner。
-- SPL Token CPI：补 mint/account/authority manifest、token instruction packing，并对标准 token program 做行为检查。
+- System Program CPI runtime completion：用生成的 multi-account input layout 替换 placeholder account pubkey/lamports/data pointer，补 `system.create_account` packing，再通过 Web3.js 验证余额和 owner。
+- SPL Token CPI runtime packing：把 `spl-token.transfer_checked`、`mint_to`、`burn`、`approve`、`revoke` metadata 降级成标准 token instruction bytes，再对标准 token program 做行为检查。
+- Runtime allocation lowering：后续 heap-backed SDK structure 必须通过 `runtime.allocator` 路由；需要动态分配时生成真实 bump-pointer allocation code，并在 `noAllocator` 下拒绝这些结构。
 - logs/events 与 return data：暴露 `sol_log*` / `sol_set_return_data` / `sol_get_return_data` helper，并用 Web3.js 检查日志和 simulation return data。
 - sysvars、crypto 与 memory helpers：覆盖 clock/rent sysvar、hash syscall、memcpy/memcmp/memset，并与 JavaScript reference output 对比。
 - 为同一套 account schema 增加 Rust/Pinocchio reference fixture，并通过同一个 Web3.js harness 对比 ProofForge 生成程序与参考程序的行为。
