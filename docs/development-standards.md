@@ -56,6 +56,29 @@ source-of-truth docs and states when they must be updated.
   should still name the underlying script when that script is the authoritative
   implementation of a validation gate.
 
+## Branch and target policy
+
+- A target, chain, or backend spike is represented by directories and target
+  ids, not by long-lived feature branches.
+- Changes that touch the following source-of-truth files must land on `main`
+  in standalone, reviewable PRs rather than being batch-carried on a chain
+  branch:
+  - `ProofForge/IR/*`
+  - `ProofForge/Target/*`
+  - `ProofForge/Contract/{Spec,Intent,Source}*`
+  - `docs/capability-registry.md`
+  - `docs/decisions.md`
+  - `docs/portable-ir.md`
+- After a chain branch is merged, retire its remote branch; the trunk owns the
+  target from that point on.
+
+## i18n rule
+
+- Feature and chain branches must not modify `docs/zh/*.zh.md` or
+  `scripts/i18n/manifest.json`.
+- Translation sync (`scripts/translate-docs.py`) runs on `main` only, after the
+  English source-of-truth docs are settled.
+
 ## Lean package conventions
 
 - Lean toolchain is `leanprover/lean4:v4.31.0` from `lean-toolchain`.

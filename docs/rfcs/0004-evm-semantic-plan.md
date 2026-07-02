@@ -16,10 +16,10 @@ expressions, functions, and literals.
 The missing layer is a target-semantic EVM plan between portable IR and that
 syntax AST.
 
-The intended pipeline is:
+The product pipeline for the EVM target is:
 
 ```text
-Lean contract surface
+ContractSpec / contract surface
   -> ProofForge portable IR
   -> EVM semantic plan
   -> Yul AST
@@ -27,6 +27,11 @@ Lean contract surface
   -> solc --strict-assembly
   -> runtime bytecode + ProofForge metadata
 ```
+
+The older `Lean.Compiler.LCNF` → `ProofForge.Compiler.LCNF.EmitYul` path is a
+Lean-native experimental route that is not the product pipeline. It remains
+available for research and equivalence experiments, but new EVM work, CI gates,
+and documentation should follow the portable-IR → EVM-plan → Yul pipeline above.
 
 This RFC defines the boundary and migration path for that EVM semantic plan.
 It keeps the existing Yul AST as the final syntax layer, but stops treating it

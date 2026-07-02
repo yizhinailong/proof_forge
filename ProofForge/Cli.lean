@@ -2320,7 +2320,7 @@ def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO U
     if r.exitCode == 0 then
       IO.println s!"wrote EmitWat {name}.wat + {name}.wasm to {outputDir}"
     else
-      IO.eprintln s!"wat2wasm exit {r.exitCode}: {r.stderr.trim} (WAT at {watPath})"
+      IO.eprintln s!"wat2wasm exit {r.exitCode}: {r.stderr.trimAscii} (WAT at {watPath})"
   catch _ =>
     IO.println s!"wrote EmitWat {name}.wat to {watPath} (wat2wasm unavailable; install wabt to build wasm)"
 

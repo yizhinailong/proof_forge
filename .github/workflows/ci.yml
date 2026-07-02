@@ -161,3 +161,73 @@ jobs:
 
       - name: Run Anvil deploy smoke
         run: just evm-anvil-deploy
+
+  aleo-smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just@1.48.0
+
+      - name: Install Lean
+        run: |
+          toolchain="$(cat lean-toolchain)"
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain "$toolchain"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install Leo
+        run: |
+          curl -sSfL https://github.com/AleoHQ/leo/releases/download/v4.0.2/leo-ubuntu-latest > /tmp/leo
+          chmod +x /tmp/leo
+          sudo mv /tmp/leo /usr/local/bin/leo
+          leo --version
+
+      - name: Build proof-forge
+        run: just build
+
+      - name: Run Aleo Counter smoke
+        run: ./scripts/aleo/counter-smoke.sh
+
+      - name: Run Aleo PureMath smoke
+        run: ./scripts/aleo/pure-math-smoke.sh
+
+  cloudflare-smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just@1.48.0
+
+      - name: Install Lean
+        run: |
+          toolchain="$(cat lean-toolchain)"
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain "$toolchain"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install Node and wrangler
+        run: |
+          curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+          sudo npm install -g typescript wrangler
+          tsc --version
+          wrangler --version
+
+      - name: Build proof-forge
+        run: just build
+
+      - name: Run TypeScript / Cloudflare Workers smoke
+        run: ./scripts/ts/counter-ir-smoke.sh

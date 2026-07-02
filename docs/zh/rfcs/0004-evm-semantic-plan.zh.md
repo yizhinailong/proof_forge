@@ -15,10 +15,10 @@ block、statement、expression、function 和 literal。
 缺少的是 portable IR 和这个语法 AST 之间的一层 target-semantic EVM
 plan。
 
-目标流水线应当是：
+EVM target 的产品流水线应当是：
 
 ```text
-Lean contract surface
+ContractSpec / contract surface
   -> ProofForge portable IR
   -> EVM semantic plan
   -> Yul AST
@@ -26,6 +26,11 @@ Lean contract surface
   -> solc --strict-assembly
   -> runtime bytecode + ProofForge metadata
 ```
+
+较旧的 `Lean.Compiler.LCNF` → `ProofForge.Compiler.LCNF.EmitYul` 路径是
+Lean-native experimental route，不是产品流水线。它仍可用于研究和等价性实验，
+但新的 EVM 工作、CI gates 和文档应遵循上面的 portable-IR → EVM-plan → Yul
+pipeline。
 
 本 RFC 定义这层 EVM semantic plan 的边界和迁移路径。它保留现有 Yul AST
 作为最终语法层，但不再让 ABI dispatch、storage layout、helper discovery、

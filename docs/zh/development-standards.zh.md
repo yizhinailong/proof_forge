@@ -47,6 +47,27 @@
 - 文档可以用 `just` 命令展示常见工作流，但当某个脚本是验证门禁的权威实现时，
   目标文档仍应命名底层脚本。
 
+## 分支与目标策略
+
+- 目标、链或后端 spike 应由目录和 target id 表示，而不是由长期 feature
+  branch 表示。
+- 触及下列真值来源文件的更改，必须以独立、可 review 的 PR 落到 `main`，
+  不应批量夹带在某条链分支里：
+  - `ProofForge/IR/*`
+  - `ProofForge/Target/*`
+  - `ProofForge/Contract/{Spec,Intent,Source}*`
+  - `docs/capability-registry.md`
+  - `docs/decisions.md`
+  - `docs/portable-ir.md`
+- 链分支合并后，应 retire 对应 remote branch；从那一刻起 trunk 拥有该 target。
+
+## i18n 规则
+
+- Feature branch 和 chain branch 不应修改 `docs/zh/*.zh.md` 或
+  `scripts/i18n/manifest.json`。
+- Translation sync（`scripts/translate-docs.py`）只在 `main` 上运行，并且应在英文
+  真值来源文档稳定后再运行。
+
 ## Lean 包规范
 
 - Lean 工具链是来自 `lean-toolchain` 的 `leanprover/lean4:v4.31.0`。
