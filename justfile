@@ -48,6 +48,10 @@ solana-emit-control:
 solana-sdk-smoke:
     scripts/solana/sdk-smoke.sh
 
+# Run the portable ValueVault SDK smoke across EVM Yul and Solana sBPF outputs.
+portable-value-vault:
+    scripts/portable/value-vault-smoke.sh
+
 # Run Solana PDA typed-seed Web3.js derivation smoke. Skips when Node/npm are unavailable.
 solana-pda-web3:
     scripts/solana/pda-web3-smoke.sh
@@ -121,7 +125,7 @@ solana-emit-asm:
     scripts/solana/emit-asm-smoke.sh
 
 # Run all Solana gates that are safe for default CI.
-solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke solana-emit-asm
+solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm
 
 # Check translated documentation freshness.
 docs-check:

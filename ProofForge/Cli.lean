@@ -8,6 +8,7 @@ import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Package
 import ProofForge.Backend.Solana.Extension
+import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -91,6 +92,8 @@ inductive EmitMode where
   | evmBytecode
   | counterIrYul
   | counterIrBytecode
+  | valueVaultIrYul
+  | valueVaultIrBytecode
   | abiScalarIrYul
   | abiScalarIrBytecode
   | assertIrYul
@@ -158,9 +161,11 @@ inductive EmitMode where
   | u32StorageScalarIrPsy
   | u32StorageArrayIrPsy
   | counterIrSbpf
+  | valueVaultIrSbpf
   | controlIrSbpf
   | solanaSdkSbpf
   | solanaElf
+  | valueVaultSolanaElf
   | solanaSystemCpiElf
   | solanaSystemCreateAccountCpiElf
   | solanaSplTokenTransferCpiElf
@@ -180,6 +185,7 @@ inductive EmitMode where
 def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
   | .evmBytecode
   | .counterIrBytecode
+  | .valueVaultIrBytecode
   | .abiScalarIrBytecode
   | .assertIrBytecode
   | .assignmentIrBytecode
@@ -205,6 +211,8 @@ def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
 def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .counterIrYul
   | .counterIrBytecode
+  | .valueVaultIrYul
+  | .valueVaultIrBytecode
   | .abiScalarIrYul
   | .abiScalarIrBytecode
   | .assertIrYul
@@ -272,9 +280,11 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .u32StorageScalarIrPsy
   | .u32StorageArrayIrPsy
   | .counterIrSbpf
+  | .valueVaultIrSbpf
   | .controlIrSbpf
   | .solanaSdkSbpf
   | .solanaElf
+  | .valueVaultSolanaElf
   | .solanaSystemCpiElf
   | .solanaSystemCreateAccountCpiElf
   | .solanaSplTokenTransferCpiElf
@@ -318,6 +328,8 @@ def usage : String :=
     "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
+    "  proof-forge --emit-value-vault-ir-yul [-o output.yul]",
+    "  proof-forge --emit-value-vault-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-abi-scalar-ir-yul [-o output.yul]",
     "  proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-assert-ir-yul [-o output.yul]",
@@ -385,9 +397,11 @@ def usage : String :=
     "  proof-forge --emit-u32-storage-scalar-ir-psy [-o output.psy]",
     "  proof-forge --emit-u32-storage-array-ir-psy [-o output.psy]",
     "  proof-forge --emit-counter-ir-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-value-vault-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-control-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-sdk-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --value-vault-solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-system-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-system-create-account-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-spl-token-transfer-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
@@ -1774,9 +1788,9 @@ def writeEvmArtifactMetadata
   IO.FS.writeFile metadataOutput (metadata ++ "\n")
   IO.println s!"wrote {metadataOutput}"
 
-def writeEvmIrArtifactMetadata
+def writeEvmModuleArtifactMetadata
     (opts : CliOptions)
-    (fixture sourceModule : String)
+    (fixture sourceKind sourceModule : String)
     (module : ProofForge.IR.Module)
     (yulOutput bytecodeOutput : FilePath) : IO Unit := do
   let events ← eventAbisForModule opts.cast module
@@ -1786,7 +1800,7 @@ def writeEvmIrArtifactMetadata
   writeEvmArtifactMetadata
     opts
     fixture
-    "portable-ir"
+    sourceKind
     sourceModule
     (moduleCapabilityIds module)
     entrypoints
@@ -1795,6 +1809,20 @@ def writeEvmIrArtifactMetadata
     none
     yulOutput
     bytecodeOutput
+
+def writeEvmIrArtifactMetadata
+    (opts : CliOptions)
+    (fixture sourceModule : String)
+    (module : ProofForge.IR.Module)
+    (yulOutput bytecodeOutput : FilePath) : IO Unit :=
+  writeEvmModuleArtifactMetadata opts fixture "portable-ir" sourceModule module yulOutput bytecodeOutput
+
+def writeEvmContractSdkArtifactMetadata
+    (opts : CliOptions)
+    (fixture sourceModule : String)
+    (module : ProofForge.IR.Module)
+    (yulOutput bytecodeOutput : FilePath) : IO Unit :=
+  writeEvmModuleArtifactMetadata opts fixture "contract-sdk" sourceModule module yulOutput bytecodeOutput
 
 def writeEvmSdkArtifactMetadata
     (opts : CliOptions)
@@ -1876,6 +1904,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .counterIrYul }
   | "--emit-counter-ir-bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrBytecode }
+  | "--emit-value-vault-ir-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .valueVaultIrYul }
+  | "--emit-value-vault-ir-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .valueVaultIrBytecode }
   | "--emit-abi-scalar-ir-yul" :: rest, opts =>
       parseArgs rest { opts with mode := .abiScalarIrYul }
   | "--emit-abi-scalar-ir-bytecode" :: rest, opts =>
@@ -2010,12 +2042,18 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .u32StorageArrayIrPsy }
   | "--emit-counter-ir-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrSbpf }
+  | "--emit-value-vault-ir-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .valueVaultIrSbpf }
   | "--emit-control-ir-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .controlIrSbpf }
   | "--emit-solana-sdk-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSdkSbpf }
   | "--solana-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaElf }
+  | "--value-vault-solana-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .valueVaultSolanaElf }
+  | "--solana-value-vault-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .valueVaultSolanaElf }
   | "--solana-system-cpi-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSystemCpiElf }
   | "--solana-system-create-account-cpi-elf" :: rest, opts =>
@@ -2134,6 +2172,33 @@ def compileCounterIrBytecode (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/ir/Counter.bin")
   writeTextFile output (bytecode ++ "\n")
   writeEvmIrArtifactMetadata opts "Counter" "ProofForge.IR.Examples.Counter" ProofForge.IR.Examples.Counter.module yulOutput output
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
+def compileValueVaultIrYul (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/ir/ValueVault.yul")
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.Contract.Examples.ValueVault.module with
+  | .ok yul =>
+      writeTextFile output yul
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def renderValueVaultIrYul : IO String := do
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.Contract.Examples.ValueVault.module with
+  | .ok yul => return yul
+  | .error err => throw <| IO.userError err.render
+
+def compileValueVaultIrBytecode (opts : CliOptions) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/ValueVault.yul")
+  let yul ← renderValueVaultIrYul
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (FilePath.mk "build/ir/ValueVault.bin")
+  writeTextFile output (bytecode ++ "\n")
+  writeEvmContractSdkArtifactMetadata opts "ValueVault" "ProofForge.Contract.Examples.ValueVault"
+    ProofForge.Contract.Examples.ValueVault.module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -3098,6 +3163,61 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileValueVaultIrSbpf (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/ValueVault.s")
+  let spec := ProofForge.Contract.Examples.ValueVault.spec
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.render
+  match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan spec.module plan with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
+      IO.println s!"wrote {manifestOutput}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "value-vault-ir-sbpf"),
+        ("sourceKind", jsonString "contract-sdk"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString spec.name),
+        ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+        ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaInstructions", solanaInstructionsJson spec.module plan),
+        ("solanaExtensions", solanaExtensionsJson plan),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("targetRouting", jsonString "passed"),
+          ("manifestGeneration", jsonString "passed"),
+          ("sbpfBuild", jsonString "pending")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/Counter.so")
   let projectName := match output.fileName with
@@ -3249,6 +3369,13 @@ def compileSolanaSpecElf (opts : CliOptions) (defaultOutput : FilePath)
       return 0
   | .error err =>
       throw <| IO.userError err.render
+
+def compileValueVaultSolanaElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/ValueVault.so")
+    "value-vault"
+    "value-vault-solana-elf"
+    ProofForge.Contract.Examples.ValueVault.spec
 
 def compileSolanaSystemCpiElf (opts : CliOptions) : IO UInt32 :=
   compileSolanaSpecElf opts
@@ -3408,6 +3535,8 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .evmBytecode => compileEvmBytecode opts
   | .counterIrYul => compileCounterIrYul opts
   | .counterIrBytecode => compileCounterIrBytecode opts
+  | .valueVaultIrYul => compileValueVaultIrYul opts
+  | .valueVaultIrBytecode => compileValueVaultIrBytecode opts
   | .abiScalarIrYul => compileAbiScalarIrYul opts
   | .abiScalarIrBytecode => compileAbiScalarIrBytecode opts
   | .assertIrYul => compileAssertIrYul opts
@@ -3475,9 +3604,11 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .u32StorageScalarIrPsy => compileU32StorageScalarIrPsy opts
   | .u32StorageArrayIrPsy => compileU32StorageArrayIrPsy opts
   | .counterIrSbpf => compileCounterIrSbpf opts
+  | .valueVaultIrSbpf => compileValueVaultIrSbpf opts
   | .controlIrSbpf => compileControlIrSbpf opts
   | .solanaSdkSbpf => compileSolanaSdkSbpf opts
   | .solanaElf => compileSolanaElf opts
+  | .valueVaultSolanaElf => compileValueVaultSolanaElf opts
   | .solanaSystemCpiElf => compileSolanaSystemCpiElf opts
   | .solanaSystemCreateAccountCpiElf => compileSolanaSystemCreateAccountCpiElf opts
   | .solanaSplTokenTransferCpiElf => compileSolanaSplTokenTransferCpiElf opts

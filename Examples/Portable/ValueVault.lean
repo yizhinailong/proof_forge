@@ -1,10 +1,10 @@
 /-
 Portable ValueVault example.
 
-This file is intentionally a normal ProofForge Contract Builder source, not a
-backend fixture. The same `spec` can be routed to EVM, Solana sBPF assembly,
-Wasm-family profiles, Move-family profiles, and future targets according to
-their capability sets.
+This file exposes the ValueVault contract written through the ProofForge
+Contract Surface API, not a backend fixture. The same `spec` can be routed to
+EVM, Solana sBPF assembly, Wasm-family profiles, Move-family profiles, and
+future targets according to their capability sets.
 -/
 
 import ProofForge.Contract.Examples.ValueVault
