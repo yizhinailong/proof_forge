@@ -595,11 +595,17 @@ partial progress is visible before the full acceptance criteria close:
       architecture in `proof-forge-artifact.json`. Default stays `v3`; Surfpool
       live deployment uses `v0` until the deployed CLI/runtime stack accepts
       the newer sbpf feature set without `--skip-feature-verify`.
+- [x] PDA helper runtime packing now emits static ASCII seed byte buffers, Solana
+      `Slice { ptr, len }` seed tables, dynamic program-id pointer calculation,
+      and a 32-byte PDA result buffer before calling `sol_create_program_address`.
+      Covered by `Tests/SolanaSdkManifest.lean` and
+      `scripts/solana/sdk-smoke.sh`.
 
 Next Solana SDK completion items:
 
-- PDA runtime packing: generate seed buffers, bump handling, signer seed
-  arrays, and Web3.js fixtures that validate derived addresses against
+- PDA typed seed completion: distinguish literal/UTF-8 bytes, account pubkeys, and
+  bump/instruction-data seeds; validate the resulting PDA against account
+  pubkeys; add Web3.js fixtures that compare derived addresses with
   `PublicKey.findProgramAddressSync`.
 - System Program CPI: lower transfer/create-account style SDK calls to
   `sol_invoke_signed`, express account metas in `manifest.toml`, and validate

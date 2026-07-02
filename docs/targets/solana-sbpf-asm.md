@@ -107,7 +107,7 @@ test when the syscall changes observable chain behavior.
 | Family | Current status | Next validation |
 |---|---|---|
 | Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
-| PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; `sol_create_program_address` appears in assembly and builds | Pack real seed byte slices, validate output account/pubkey, add Web3.js PDA fixture |
+| PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; static ASCII seed byte buffers and Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; assembly builds | Add typed UTF-8/account-pubkey/bump seed packing, validate output account/pubkey, add Web3.js PDA fixture |
 | CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; assembly builds | Pack `SolInstruction`, account infos, signer seeds, then compare System Program/SPL Token CPI behavior against Rust |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Documented only | Lower `events.emit` to structured logs and assert logs via Web3.js transaction metadata |
 | Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | Documented only | Use internally for account/data packing helpers; unit-test generated assembly and runtime copies |

@@ -258,10 +258,11 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] Solana SDK target extension 将 `ProofForge.Solana` 的 PDA/CPI API 路由到 capability plan metadata，生成 `manifest.toml` 的 extension definition 与 entrypoint action section，并在 handler 中、IR body 之前注入 helper call（`sol_pda_derive_<name>`、`sol_cpi_<name>`），同时保存/恢复 Solana input 指针 `r1`。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`（可用时执行 `sbpf build`）。
 - [x] Surfpool/Web3.js live deployment 冒烟（V-GATE-SOLANA-04）。可选门禁 `scripts/solana/surfpool-web3-smoke.sh` 会构建 Counter ELF、启动 Surfpool、用 Solana CLI 部署、通过 `@solana/web3.js` 创建 program-owned counter account、调用 initialize/increment/get、检查 account data 0→1→2，并验证 `get` return data。该脚本通过 `--solana-sbpf-arch v0` 直接产出兼容 Solana CLI 部署的 ELF，并对 Surfpool 使用 `--use-rpc`。
 - [x] `--solana-elf` 暴露 `--solana-sbpf-arch v0|v3`，并在 `proof-forge-artifact.json` 记录选定架构。默认保持 `v3`；Surfpool live deployment 在当前 CLI/runtime 组合完整接受新版 sbpf feature set 之前使用 `v0`。
+- [x] PDA helper runtime packing 现在会在调用 `sol_create_program_address` 前生成静态 ASCII seed byte buffer、Solana `Slice { ptr, len }` seed table、动态 program-id 指针计算，以及 32-byte PDA result buffer。覆盖：`Tests/SolanaSdkManifest.lean` 与 `scripts/solana/sdk-smoke.sh`。
 
 后续 Solana SDK 补齐项：
 
-- PDA runtime packing：生成 seed buffer、bump 处理、signer seed 数组，并用 Web3.js fixture 对比 `PublicKey.findProgramAddressSync`。
+- PDA typed seed 补齐：区分 literal/UTF-8 bytes、account pubkey、bump/instruction-data seed；将结果 PDA 与 account pubkey 校验；增加 Web3.js fixture，与 `PublicKey.findProgramAddressSync` 对比派生地址。
 - System Program CPI：把 transfer/create-account 类 SDK 调用降级到 `sol_invoke_signed`，在 `manifest.toml` 表达 account metas，并用 Web3.js 验证余额和 owner。
 - SPL Token CPI：补 mint/account/authority manifest、token instruction packing，并对标准 token program 做行为检查。
 - logs/events 与 return data：暴露 `sol_log*` / `sol_set_return_data` / `sol_get_return_data` helper，并用 Web3.js 检查日志和 simulation return data。

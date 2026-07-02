@@ -88,7 +88,14 @@ if not manifest_cpi_actions or manifest_cpi_actions[0].get("entrypoint") != "tou
 
 for needle in [
     "sol_pda_derive_vault:",
+    "solana.pda.seed vault[0] \"vault\"",
+    "stb [r5+0], 118",
+    "solana.pda.seed vault[1] \"authority\"",
+    "stxdw [r6+0], r5",
+    "stxdw [r6+8], r3",
+    "add64 r3, INSTRUCTION_DATA_LEN",
     "call sol_create_program_address",
+    "PDA result stored at stack offset 64",
     "call sol_pda_derive_vault",
     "sol_cpi_token_transfer:",
     "call sol_invoke_signed_c",

@@ -197,6 +197,43 @@ def stackPtr (dst : Reg) (offset : Nat) : Array AstNode := #[
 
 def entryInputSaveOffset : Nat := 1024
 
+def pdaResultOffset : Nat := 64
+def pdaSeedTableOffset : Nat := 128
+def pdaSeedDataOffset : Nat := 512
+def pdaMaxSeedLen : Nat := 32
+def pdaMaxSeeds : Nat := 16
+
+def stringBytes (value : String) : Array Nat :=
+  value.toList.foldl (fun acc ch => acc.push ch.toNat) #[]
+
+def lowerSeedBytes (seed : String) (base : Reg) : Array AstNode :=
+  stringBytes seed |>.mapIdx (fun idx byte =>
+    .instruction {
+      opcode := .stb,
+      dst := some base,
+      off := some (.num idx),
+      imm := some (.num byte)
+    })
+
+def lowerPdaStaticSeed (pdaName : String) (idx : Nat) (seed : String) : Array AstNode :=
+  let seedOffset := pdaSeedDataOffset + idx * pdaMaxSeedLen
+  let tableOffset := pdaSeedTableOffset + idx * 16
+  let bytes := stringBytes seed
+  #[
+    .comment s!"solana.pda.seed {pdaName}[{idx}] \"{seed}\"",
+  ] ++
+  stackPtr .r5 seedOffset ++
+  lowerSeedBytes seed .r5 ++
+  stackPtr .r6 tableOffset ++ #[
+    .instruction { opcode := .stxdw, dst := some .r6, off := some (.num 0), src := some .r5 },
+    .instruction { opcode := .mov64, dst := some .r3, imm := some (.num bytes.size) },
+    .instruction { opcode := .stxdw, dst := some .r6, off := some (.num 8), src := some .r3 }
+  ]
+
+def lowerPdaStaticSeeds (pda : PdaDerive) : Array AstNode :=
+  pda.seeds.mapIdx (fun idx seed => lowerPdaStaticSeed pda.name idx seed)
+    |>.foldl (fun acc nodes => acc ++ nodes) #[]
+
 def callHelperPreservingInput (helperName errorLabel : String) : Array AstNode := #[
   .instruction { opcode := .stxdw, dst := some .r10, off := some (.num entryInputSaveOffset), src := some .r1 },
   callHelper helperName,
@@ -208,16 +245,24 @@ def lowerPdaDerive (pda : PdaDerive) : Array AstNode :=
   #[
     .blankLine,
     .comment s!"solana.pda.derive {pda.name}",
-    .label pda.label
+    .label pda.label,
+    .instruction { opcode := .mov64, dst := some .r7, src := some .r1 },
+    .comment "pack static ASCII PDA seed byte slices"
   ] ++
-  stackPtr .r1 64 ++ #[
-    .instruction { opcode := .mov64, dst := some .r2, imm := some (.num pda.seeds.size) }
+  lowerPdaStaticSeeds pda ++
+  stackPtr .r1 pdaSeedTableOffset ++ #[
+    .instruction { opcode := .mov64, dst := some .r2, imm := some (.num pda.seeds.size) },
+    .instruction { opcode := .mov64, dst := some .r3, src := some .r7 },
+    .instruction { opcode := .add64, dst := some .r3, imm := some (.sym "INSTRUCTION_DATA_LEN") },
+    .instruction { opcode := .ldxdw, dst := some .r5, src := some .r3, off := some (.num 0) },
+    .instruction { opcode := .add64, dst := some .r3, imm := some (.num 8) },
+    .instruction { opcode := .add64, dst := some .r3, src := some .r5 }
   ] ++
-  stackPtr .r3 128 ++
-  stackPtr .r4 192 ++ #[
+  stackPtr .r4 pdaResultOffset ++ #[
     .comment "r1=seeds_ptr r2=seeds_len r3=program_id_ptr r4=result_ptr",
     callSyscall ProofForge.Backend.Solana.Syscalls.sol_create_program_address,
     .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_pda") },
+    .comment s!"PDA result stored at stack offset {pdaResultOffset}",
     .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
     .instruction { opcode := .exit }
   ]

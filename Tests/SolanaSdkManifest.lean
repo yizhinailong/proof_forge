@@ -63,8 +63,22 @@ def main : IO UInt32 := do
         "package manifest missing Solana CPI section"
       require (contains asmFile.contents "sol_pda_derive_vault:")
         "package assembly missing PDA helper label"
+      require (contains asmFile.contents "solana.pda.seed vault[0] \"vault\"")
+        "package assembly missing static vault PDA seed packing"
+      require (contains asmFile.contents "stb [r5+0], 118")
+        "package assembly missing vault seed byte store"
+      require (contains asmFile.contents "solana.pda.seed vault[1] \"authority\"")
+        "package assembly missing authority PDA seed packing"
+      require (contains asmFile.contents "stxdw [r6+0], r5")
+        "package assembly missing PDA seed slice ptr store"
+      require (contains asmFile.contents "stxdw [r6+8], r3")
+        "package assembly missing PDA seed slice length store"
+      require (contains asmFile.contents "add64 r3, INSTRUCTION_DATA_LEN")
+        "package assembly missing dynamic program id pointer calculation"
       require (contains asmFile.contents "call sol_create_program_address")
         "package assembly missing PDA syscall"
+      require (contains asmFile.contents "PDA result stored at stack offset 64")
+        "package assembly missing PDA result buffer marker"
       require (contains asmFile.contents "call sol_pda_derive_vault")
         "package assembly missing entrypoint PDA helper call"
       require (contains asmFile.contents "sol_cpi_token_transfer:")
