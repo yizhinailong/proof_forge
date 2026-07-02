@@ -2002,7 +2002,7 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
     match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
     | .ok plan => pure plan
     | .error err => throw <| IO.userError err.render
-  match ProofForge.Backend.Solana.SbpfAsm.renderModule spec.module with
+  match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan spec.module plan with
   | .ok source =>
       if let some parent := output.parent then
         IO.FS.createDirAll parent
@@ -2041,8 +2041,8 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
           ("targetRouting", jsonString "passed"),
           ("manifestGeneration", jsonString "passed"),
           ("sbpfBuild", jsonString "pending"),
-          ("cpiLowering", jsonString "planned"),
-          ("pdaLowering", jsonString "planned")
+          ("cpiLowering", jsonString "helper-emitted"),
+          ("pdaLowering", jsonString "helper-emitted")
         ])
       ]
       IO.FS.writeFile metadataOutput (metadata ++ "\n")

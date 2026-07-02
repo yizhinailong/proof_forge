@@ -45,10 +45,20 @@ def main : IO UInt32 := do
   | .ok pkg =>
       let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
         | throw <| IO.userError "package missing manifest.toml"
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "package missing sBPF assembly"
       require (contains manifestFile.contents "[[solana.pda]]")
         "package manifest missing Solana PDA section"
       require (contains manifestFile.contents "[[solana.cpi]]")
         "package manifest missing Solana CPI section"
+      require (contains asmFile.contents "sol_pda_derive_vault:")
+        "package assembly missing PDA helper label"
+      require (contains asmFile.contents "call sol_create_program_address")
+        "package assembly missing PDA syscall"
+      require (contains asmFile.contents "sol_cpi_token_transfer:")
+        "package assembly missing CPI helper label"
+      require (contains asmFile.contents "call sol_invoke_signed_c")
+        "package assembly missing CPI syscall"
   | .error err =>
       throw <| IO.userError s!"Solana SDK package render failed: {err.render}"
 

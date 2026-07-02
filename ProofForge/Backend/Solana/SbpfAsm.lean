@@ -17,6 +17,7 @@ import ProofForge.IR.Contract
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
 import ProofForge.Backend.Solana.Asm
+import ProofForge.Backend.Solana.Extension
 import ProofForge.Backend.Solana.StateLayout
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Register
@@ -540,6 +541,16 @@ partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode)
 
 def renderModule (module : IR.Module) : Except LowerError String := do
   let nodes ← lowerModule module
+  .ok (Asm.renderNodes nodes)
+
+def lowerModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.CapabilityPlan) :
+    Except LowerError (Array AstNode) := do
+  let nodes ← lowerModule module
+  .ok (nodes ++ ProofForge.Backend.Solana.Extension.lowerPlan plan)
+
+def renderModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.CapabilityPlan) :
+    Except LowerError String := do
+  let nodes ← lowerModuleWithPlan module plan
   .ok (Asm.renderNodes nodes)
 
 -- ============================================================================

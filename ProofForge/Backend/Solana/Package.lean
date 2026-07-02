@@ -73,7 +73,7 @@ def renderPackage (projectName : String) (module : Module) : Except SbpfAsm.Lowe
 
 def renderPackageWithPlan (projectName : String) (module : Module) (plan : ProofForge.Target.CapabilityPlan) :
     Except SbpfAsm.LowerError RenderedPackage := do
-  let nodes ← SbpfAsm.lowerModule module
+  let nodes ← SbpfAsm.lowerModuleWithPlan module plan
   let asm := ProofForge.Backend.Solana.Asm.renderNodes nodes
   let manifest := Manifest.renderManifestWithPlan module plan ++ "\n"
   let asmFile := asmPath projectName

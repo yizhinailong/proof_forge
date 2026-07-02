@@ -41,7 +41,7 @@ lake env proof-forge --emit-solana-sdk-sbpf \
 [ -f "$ARTIFACT_OUTPUT" ] || fail "artifact metadata not written: $ARTIFACT_OUTPUT"
 
 echo "=== Solana SDK step 2: validate manifest and artifact metadata ==="
-python3 - "$MANIFEST_OUTPUT" "$ARTIFACT_OUTPUT" <<'PY'
+python3 - "$MANIFEST_OUTPUT" "$ARTIFACT_OUTPUT" "$ASM_OUTPUT" <<'PY'
 import json
 import pathlib
 import sys
@@ -49,8 +49,10 @@ import tomllib
 
 manifest_path = pathlib.Path(sys.argv[1])
 artifact_path = pathlib.Path(sys.argv[2])
+asm_path = pathlib.Path(sys.argv[3])
 manifest = tomllib.loads(manifest_path.read_text())
 artifact = json.loads(artifact_path.read_text())
+asm = asm_path.read_text()
 
 caps = set(artifact.get("capabilities", []))
 required_caps = {"storage.scalar", "account.explicit", "storage.pda", "crosscall.cpi"}
@@ -71,6 +73,15 @@ if not manifest_pdas or manifest_pdas[0].get("name") != "vault":
     raise SystemExit("manifest missing vault PDA extension")
 if not manifest_cpis or manifest_cpis[0].get("program") != "spl_token":
     raise SystemExit("manifest missing spl_token CPI extension")
+
+for needle in [
+    "sol_pda_derive_vault:",
+    "call sol_create_program_address",
+    "sol_cpi_token_transfer:",
+    "call sol_invoke_signed_c",
+]:
+    if needle not in asm:
+        raise SystemExit(f"assembly missing {needle!r}")
 
 print("metadata validation: ok")
 PY
