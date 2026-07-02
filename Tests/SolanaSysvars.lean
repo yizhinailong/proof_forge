@@ -1,6 +1,7 @@
 import ProofForge.Backend.Solana.Package
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Solana.Examples.Clock
+import ProofForge.Solana.Examples.Rent
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
 
@@ -54,6 +55,50 @@ def main : IO UInt32 := do
         "assembly missing last_slot state write"
   | .error err =>
       throw <| IO.userError s!"Solana clock sysvar package render failed: {err.render}"
+
+  let rentSpec := ProofForge.Solana.Examples.Rent.spec
+  let rentPlan ←
+    match resolveSpec solanaSbpfAsm rentSpec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError s!"Solana rent sysvar routing failed: {err.render}"
+
+  require (hasCapability rentPlan .envBlock)
+    "Solana rent sysvar plan missing env.block capability"
+  require (hasCapability rentPlan .storageScalar)
+    "Solana rent sysvar plan missing storage.scalar capability"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec "solana-rent-sysvar" rentSpec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "rent sysvar package missing sBPF assembly"
+      let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
+        | throw <| IO.userError "rent sysvar package missing manifest.toml"
+      let asm := asmFile.contents
+      let manifest := manifestFile.contents
+      require (contains manifest "name = \"record_rent\"")
+        "rent sysvar manifest missing record_rent entrypoint"
+      require (contains manifest "[[solana.entrypoint_sysvar]]")
+        "rent sysvar manifest missing entrypoint sysvar action"
+      require (contains manifest "sysvar = \"read_rent\"")
+        "rent sysvar manifest missing read_rent action"
+      require (contains manifest "kind = \"rent\"")
+        "rent sysvar manifest missing rent kind"
+      require (contains manifest "field = \"lamports_per_byte_year\"")
+        "rent sysvar manifest missing lamports_per_byte_year field"
+      require (contains manifest "output_state = \"lamports_per_byte_year\"")
+        "rent sysvar manifest missing lamports_per_byte_year output state"
+      require (contains asm "solana.sysvar.rent read_rent: field=lamports_per_byte_year")
+        "assembly missing rent sysvar marker"
+      require (contains asm "call sol_get_rent_sysvar")
+        "assembly missing sol_get_rent_sysvar syscall"
+      require (contains asm "error_sysvar")
+        "assembly missing rent sysvar failure branch"
+      require (contains asm ".equ LAMPORTS_PER_BYTE_YEAR_DATA")
+        "assembly missing lamports_per_byte_year offset symbol"
+      require (contains asm "stxdw [r5+0], r3")
+        "assembly missing rent sysvar state write"
+  | .error err =>
+      throw <| IO.userError s!"Solana rent sysvar package render failed: {err.render}"
 
   IO.println "solana-sysvars: ok"
   return 0

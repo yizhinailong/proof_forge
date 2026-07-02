@@ -16,7 +16,8 @@
 | Solana SPL Token transfer_checked CPI Surfpool/Web3.js smoke | `just solana-spl-token-transfer-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 SPL Token `transfer_checked` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/spl-token` 创建 mint 和 token accounts，通过 `@solana/web3.js` 调用生成程序，验证 source/destination token balance，并验证 program-owned state account 记录了请求的 amount | 更广泛的 SPL Token/Token-2022 覆盖、公共 validator 部署、Rust/Pinocchio 等价性 |
 | Solana SPL Token ops CPI Surfpool/Web3.js smoke | `just solana-spl-token-ops-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/spl-token` 创建 mint 和 token accounts，通过 `@solana/web3.js` 调用生成程序，验证 mint supply 与 token balance 变化，验证 delegate allowance 后再 revoke 清空，并验证 program-owned state account 记录所有请求值 | Token-2022 extension 行为、公共 validator 部署、Rust/Pinocchio 等价性 |
 | Solana log/event Surfpool/Web3.js smoke | `just solana-log-event-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `events.emit` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_log_64_` transaction logs 包含稳定 event tag 和 scalar field value，并验证 program-owned state account 记录了同一个值 | Anchor-compatible event serialization、indexed events、历史索引保证 |
-| Solana Clock sysvar Surfpool/Web3.js smoke | `just solana-clock-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `contextRead checkpointId` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_clock_sysvar` 将 `Clock.slot` 记录进 program-owned state，并与 transaction slot metadata 对比 | Rent/epoch sysvars、更丰富的 Clock fields、公共 validator 部署 |
+| Solana Clock sysvar Surfpool/Web3.js smoke | `just solana-clock-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `contextRead checkpointId` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_clock_sysvar` 将 `Clock.slot` 记录进 program-owned state，并与 transaction slot metadata 对比 | Epoch/restart-slot sysvars、更丰富的 Clock fields、公共 validator 部署 |
+| Solana Rent sysvar Surfpool/Web3.js smoke | `just solana-rent-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_rent_sysvar` 将 `Rent.lamports_per_byte_year` 记录进 program-owned state，并与 Rent sysvar account data 对比 | Epoch schedule/restart-slot sysvars、更多 Rent fields、公共 validator 部署 |
 | Solana memory syscall Surfpool/Web3.js smoke | `just solana-memory-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `runtime.memory` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_source` 和 `copy_compare_fill`，并验证 program-owned account bytes 证明 `sol_memcpy_`、`sol_memmove_`、`sol_memcmp_` 和 `sol_memset_` 已执行 | 更广泛的 account/data packing helper、Rust/Pinocchio 等价性 |
 | Solana SHA-256/Keccak-256 syscall Surfpool/Web3.js smoke | `just solana-crypto-hash-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `crypto.hash` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_preimage`、`hash_preimage` 和 `keccak_preimage`，并验证 account 中保存的 digest 与同一 preimage bytes 的 Node SHA-256 和 `@noble/hashes` Keccak-256 一致 | `sol_blake3`、portable `Expr.hash` 路由、Rust/Pinocchio 等价性 |
 | Yul 生成冒烟测试 | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | 已构建 `proof-forge` | Lean 前端/LCNF 将简单合约降级为 Yul | `solc` 验收、ABI 调度、EVM 运行时行为 |
@@ -140,9 +141,15 @@
     构建生成的 `--solana-crypto-hash-elf` fixture，校验 `crypto.hash`
     artifact metadata，启动 Surfpool，用 `solana program deploy --use-rpc`
     部署 ELF，依次调用 `set_preimage`、`hash_preimage` 和 `keccak_preimage`，
-    并将 program-owned state account 中的 32-byte digest 与同一 preimage
-    bytes 的 Node `crypto.createHash("sha256")` 和 `@noble/hashes` Keccak-256
-    结果对比。
+    并将 program-owned account 中的 32-byte digest 与同一 preimage bytes 的
+    Node `crypto.createHash("sha256")` 和 `@noble/hashes` Keccak-256 对比。
+  - **V-GATE-SOLANA-18** — Solana Rent sysvar 通过 Surfpool 和 Web3.js
+    进行 live 行为验证。脚本：`scripts/solana/rent-sysvar-web3-smoke.sh`
+    构建生成的 `--solana-rent-sysvar-elf` fixture，校验 `sysvar` target
+    extension artifact metadata，启动 Surfpool，用 `solana program deploy --use-rpc`
+    部署 ELF，调用 `record_rent`，并将 program-owned account 记录的
+    `Rent.lamports_per_byte_year` 与 Rent sysvar account 的第一个 `u64` word
+    对比。
 - Move 冒烟测试 — `aptos move compile/test` 或 Sui Move 验证。
 - 能力拒绝测试 — 针对不支持的能力/目标组合的编译时诊断。
 

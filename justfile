@@ -74,6 +74,10 @@ solana-log-event-web3:
 solana-clock-sysvar-web3:
     scripts/solana/clock-sysvar-web3-smoke.sh
 
+# Run a live Solana Rent sysvar smoke on Surfpool with Web3.js.
+solana-rent-sysvar-web3:
+    scripts/solana/rent-sysvar-web3-smoke.sh
+
 # Run a live Solana memory syscall smoke on Surfpool with Web3.js.
 solana-memory-web3:
     scripts/solana/memory-web3-smoke.sh

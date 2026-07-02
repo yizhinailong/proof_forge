@@ -61,6 +61,7 @@ import ProofForge.Solana.Examples.SplTokenTransferCheckedCpi
 import ProofForge.Solana.Examples.SplTokenOpsCpi
 import ProofForge.Solana.Examples.LogEvent
 import ProofForge.Solana.Examples.Clock
+import ProofForge.Solana.Examples.Rent
 import ProofForge.Solana.Examples.Memory
 import ProofForge.Solana.Examples.Crypto
 
@@ -162,6 +163,7 @@ inductive EmitMode where
   | solanaSplTokenOpsCpiElf
   | solanaLogEventElf
   | solanaClockSysvarElf
+  | solanaRentSysvarElf
   | solanaMemoryElf
   | solanaCryptoHashElf
   | sbpfAsm
@@ -271,6 +273,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSplTokenOpsCpiElf
   | .solanaLogEventElf
   | .solanaClockSysvarElf
+  | .solanaRentSysvarElf
   | .solanaMemoryElf
   | .solanaCryptoHashElf
   | .sbpfAsm => true
@@ -379,6 +382,7 @@ def usage : String :=
     "  proof-forge --solana-spl-token-ops-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-log-event-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-clock-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-rent-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-memory-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-crypto-hash-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
@@ -1406,6 +1410,16 @@ def solanaCryptoHashActionJson
     ("outputStates", jsonArray (action.outputStates.map jsonString))
   ]
 
+def solanaSysvarActionJson
+    (action : ProofForge.Backend.Solana.Extension.SysvarReadAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("sysvar", jsonString action.name),
+    ("kind", jsonString action.kind.id),
+    ("field", jsonString action.field.id),
+    ("outputState", jsonString action.outputState)
+  ]
+
 def solanaInstructionAccountJson (account : ProofForge.Backend.Solana.Manifest.AccountEntry) : String :=
   jsonObject #[
     ("name", jsonString account.name),
@@ -1448,7 +1462,8 @@ def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
     ("pdaActions", jsonArray (extensions.pdaActions.map solanaPdaActionJson)),
     ("cpiActions", jsonArray (extensions.cpiActions.map solanaCpiActionJson)),
     ("memoryActions", jsonArray (extensions.memoryActions.map solanaMemoryActionJson)),
-    ("cryptoHashActions", jsonArray (extensions.cryptoHashActions.map solanaCryptoHashActionJson))
+    ("cryptoHashActions", jsonArray (extensions.cryptoHashActions.map solanaCryptoHashActionJson)),
+    ("sysvarActions", jsonArray (extensions.sysvarActions.map solanaSysvarActionJson))
   ]
 
 def contractNameForFixture (fixture : String) : String :=
@@ -1930,6 +1945,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaLogEventElf }
   | "--solana-clock-sysvar-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaClockSysvarElf }
+  | "--solana-rent-sysvar-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaRentSysvarElf }
   | "--solana-memory-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaMemoryElf }
   | "--solana-crypto-hash-elf" :: rest, opts =>
@@ -3184,6 +3201,13 @@ def compileSolanaClockSysvarElf (opts : CliOptions) : IO UInt32 :=
     "solana-clock-sysvar-elf"
     ProofForge.Solana.Examples.Clock.spec
 
+def compileSolanaRentSysvarElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/Rent.so")
+    "rent-sysvar"
+    "solana-rent-sysvar-elf"
+    ProofForge.Solana.Examples.Rent.spec
+
 def compileSolanaMemoryElf (opts : CliOptions) : IO UInt32 :=
   compileSolanaSpecElf opts
     (FilePath.mk "build/solana/Memory.so")
@@ -3341,6 +3365,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaSplTokenOpsCpiElf => compileSolanaSplTokenOpsCpiElf opts
   | .solanaLogEventElf => compileSolanaLogEventElf opts
   | .solanaClockSysvarElf => compileSolanaClockSysvarElf opts
+  | .solanaRentSysvarElf => compileSolanaRentSysvarElf opts
   | .solanaMemoryElf => compileSolanaMemoryElf opts
   | .solanaCryptoHashElf => compileSolanaCryptoHashElf opts
   | .sbpfAsm => compileSbpfAsm opts

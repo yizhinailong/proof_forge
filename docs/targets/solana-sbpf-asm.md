@@ -130,7 +130,7 @@ test when the syscall changes observable chain behavior.
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Phase 1 scalar `events.emit` lowers to `sol_log_64_`; Surfpool/Web3.js verifies transaction logs contain a stable event tag and scalar field value | Extend to `sol_log_` string/base64 payloads, Anchor-style events, indexed fields, and pubkey logs |
 | Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | `runtime.memory` target extension lowers entrypoint actions to `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`; Surfpool/Web3.js verifies account byte effects | Use memory helpers for broader account/data packing and compare against Rust/Pinocchio fixtures |
-| Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | `contextRead checkpointId` lowers to `sol_get_clock_sysvar` and reads `Clock.slot`; Surfpool/Web3.js verifies the recorded slot against transaction metadata | Add rent, epoch schedule, and restart slot reads; expose typed SDK accessors for additional Clock fields |
+| Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | `contextRead checkpointId` lowers to `sol_get_clock_sysvar` and reads `Clock.slot`; Solana-only `sysvar` target-extension actions lower `Rent.lamports_per_byte_year` to `sol_get_rent_sysvar`; Surfpool/Web3.js verifies both recorded values against transaction metadata or sysvar account data | Add epoch schedule and restart-slot reads; expose typed SDK accessors for additional Clock/Rent fields |
 | Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | SHA-256 and Keccak-256 target-extension actions lower to `sol_sha256`/`sol_keccak256` and have Surfpool/Web3.js reference hash gates | Add `sol_blake3` variant and portable `Expr.hash` lowering |
 | Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | Documented only | Add diagnostics/profiling helpers and explicit failure tests |
 | Return-data read (`sol_get_return_data`) | Documented only | Use in CPI return handling after CPI packing lands |
@@ -711,6 +711,7 @@ and Node tooling) following the same pattern as others (`solc`, `foundry`,
 | V-GATE-SOLANA-07 | `sbpf debug --elf --input` works interactively (developer ergonomics gate — not CI). |
 | V-GATE-SOLANA-16 | `just solana-memory-web3` deploys a generated memory syscall program on Surfpool and verifies `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_` effects through Web3.js account reads. |
 | V-GATE-SOLANA-17 | `just solana-crypto-hash-web3` deploys a generated SHA-256/Keccak-256 syscall program on Surfpool and verifies account-stored digests against Node `crypto.createHash("sha256")` and `@noble/hashes` Keccak-256. |
+| V-GATE-SOLANA-18 | `just solana-rent-sysvar-web3` deploys a generated Rent sysvar program on Surfpool and verifies `sol_get_rent_sysvar` records `Rent.lamports_per_byte_year` matching the Rent sysvar account data. |
 
 ## Lean Module Layout
 
@@ -827,7 +828,7 @@ Phase 3 is split into verifiable SDK completeness levels rather than one large
 | Level | Estimated effort | Scope |
 |---|---:|---|
 | SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. PDA/System/SPL live gates, instruction ABI bounds/schema metadata, typed PDA seed lowering, return-data `get`, and scalar `sol_log_64_` event logging are already in place. |
-| SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. Clock.slot is already covered through `sol_get_clock_sysvar`. |
+| SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. Clock.slot and Rent.lamports_per_byte_year are already covered through `sol_get_clock_sysvar` and `sol_get_rent_sysvar`. |
 | Anchor/Pinocchio-class surface | 4-6 focused weeks after beta | Add account constraints, typed account/data wrappers, IDL/client generation, richer SPL/Token-2022 helper coverage, and SDK-facing diagnostics. |
 
 The alpha line is the point where a developer should be able to write and

@@ -413,18 +413,28 @@ def renderCryptoHashAction (action : CryptoHashAction) : String :=
   "bytes = " ++ toString action.bytes ++ "\n" ++
   "output_states = " ++ tomlStringArray action.outputStates ++ "\n"
 
+def renderSysvarAction (action : SysvarReadAction) : String :=
+  "[[solana.entrypoint_sysvar]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "sysvar = " ++ tomlString action.name ++ "\n" ++
+  "kind = " ++ tomlString action.kind.id ++ "\n" ++
+  "field = " ++ tomlString action.field.id ++ "\n" ++
+  "output_state = " ++ tomlString action.outputState ++ "\n"
+
 def renderActions (extensions : ProgramExtensions) : String :=
   if !hasEntrypointActions extensions then
     ""
   else
     "\n# Solana SDK entrypoint actions\n" ++
     String.intercalate "\n" (extensions.pdaActions.map renderPdaAction).toList ++
-    (if extensions.pdaActions.size > 0 && (extensions.cpiActions.size > 0 || extensions.memoryActions.size > 0 || extensions.cryptoHashActions.size > 0) then "\n" else "") ++
+    (if extensions.pdaActions.size > 0 && (extensions.cpiActions.size > 0 || extensions.memoryActions.size > 0 || extensions.cryptoHashActions.size > 0 || extensions.sysvarActions.size > 0) then "\n" else "") ++
     String.intercalate "\n" (extensions.cpiActions.map renderCpiAction).toList ++
-    (if extensions.cpiActions.size > 0 && (extensions.memoryActions.size > 0 || extensions.cryptoHashActions.size > 0) then "\n" else "") ++
+    (if extensions.cpiActions.size > 0 && (extensions.memoryActions.size > 0 || extensions.cryptoHashActions.size > 0 || extensions.sysvarActions.size > 0) then "\n" else "") ++
     String.intercalate "\n" (extensions.memoryActions.map renderMemoryAction).toList ++
-    (if extensions.memoryActions.size > 0 && extensions.cryptoHashActions.size > 0 then "\n" else "") ++
-    String.intercalate "\n" (extensions.cryptoHashActions.map renderCryptoHashAction).toList
+    (if extensions.memoryActions.size > 0 && (extensions.cryptoHashActions.size > 0 || extensions.sysvarActions.size > 0) then "\n" else "") ++
+    String.intercalate "\n" (extensions.cryptoHashActions.map renderCryptoHashAction).toList ++
+    (if extensions.cryptoHashActions.size > 0 && extensions.sysvarActions.size > 0 then "\n" else "") ++
+    String.intercalate "\n" (extensions.sysvarActions.map renderSysvarAction).toList
 
 def renderExtensions (extensions : ProgramExtensions) : String :=
   if !hasExtensions extensions then
@@ -432,10 +442,11 @@ def renderExtensions (extensions : ProgramExtensions) : String :=
   else
     "\n# Solana SDK target extension metadata\n" ++
     String.intercalate "\n" (extensions.allocators.map renderAllocator).toList ++
-    (if extensions.allocators.size > 0 && (extensions.pdas.size > 0 || extensions.cpis.size > 0) then "\n" else "") ++
+    (if extensions.allocators.size > 0 && (extensions.pdas.size > 0 || extensions.cpis.size > 0 || hasEntrypointActions extensions) then "\n" else "") ++
     String.intercalate "\n" (extensions.pdas.map renderPda).toList ++
-    (if extensions.pdas.size > 0 && extensions.cpis.size > 0 then "\n" else "") ++
+    (if extensions.pdas.size > 0 && (extensions.cpis.size > 0 || hasEntrypointActions extensions) then "\n" else "") ++
     String.intercalate "\n" (extensions.cpis.map renderCpi).toList ++
+    (if extensions.cpis.size > 0 && hasEntrypointActions extensions then "\n" else "") ++
     renderActions extensions
 
 /-- Default account schema for portable IR modules without Solana SDK target

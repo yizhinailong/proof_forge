@@ -88,6 +88,23 @@ def CryptoHashOp.id : CryptoHashOp -> String
   | .sha256 => "sha256"
   | .keccak256 => "keccak256"
 
+inductive SysvarKind where
+  | rent
+  deriving BEq, DecidableEq, Repr
+
+def SysvarKind.id : SysvarKind -> String
+  | .rent => "rent"
+
+inductive SysvarField where
+  | rentLamportsPerByteYear
+  deriving BEq, DecidableEq, Repr
+
+def SysvarField.id : SysvarField -> String
+  | .rentLamportsPerByteYear => "lamports_per_byte_year"
+
+def SysvarField.kind : SysvarField -> SysvarKind
+  | .rentLamportsPerByteYear => .rent
+
 structure MemoryAction where
   name : String
   op : MemoryOp
@@ -106,6 +123,13 @@ structure CryptoHashAction where
   inputState : String
   bytes : Nat
   outputStates : Array String
+  deriving Repr
+
+structure SysvarReadAction where
+  name : String
+  kind : SysvarKind := .rent
+  field : SysvarField := .rentLamportsPerByteYear
+  outputState : String
   deriving Repr
 
 def kv (key value : String) : TargetMetadata := {
@@ -264,6 +288,15 @@ def CryptoHashAction.metadata (action : CryptoHashAction) : Array TargetMetadata
     kv "solana.crypto.input_state" action.inputState,
     natKv "solana.crypto.bytes" action.bytes,
     kv "solana.crypto.output_states" (joinWith "," action.outputStates)
+  ]
+
+def SysvarReadAction.metadata (action : SysvarReadAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "sysvar",
+    kv "solana.sysvar.name" action.name,
+    kv "solana.sysvar.kind" action.kind.id,
+    kv "solana.sysvar.field" action.field.id,
+    kv "solana.sysvar.output_state" action.outputState
   ]
 
 def systemProgram : String :=
@@ -543,6 +576,25 @@ def keccak256StateToStates (name inputState : String) (bytes : Nat)
     inputState := inputState
     bytes := bytes
     outputStates := outputStates
+  }
+
+def sysvarEntry (action : SysvarReadAction) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .storageScalar
+    "solana.sysvar.output_state"
+    (source? := some action.outputState)
+    (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .envBlock
+    ("solana.sysvar." ++ action.kind.id ++ "." ++ action.field.id)
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def rentLamportsPerByteYearToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .rent
+    field := .rentLamportsPerByteYear
+    outputState := outputState
   }
 
 def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do

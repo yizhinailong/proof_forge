@@ -84,6 +84,26 @@ def CryptoHashOp.syscall : CryptoHashOp -> String
   | .sha256 => ProofForge.Backend.Solana.Syscalls.sol_sha256
   | .keccak256 => ProofForge.Backend.Solana.Syscalls.sol_keccak256
 
+inductive SysvarKind where
+  | rent
+  deriving BEq, DecidableEq, Repr, Inhabited
+
+def SysvarKind.id : SysvarKind -> String
+  | .rent => "rent"
+
+def SysvarKind.syscall : SysvarKind -> String
+  | .rent => ProofForge.Backend.Solana.Syscalls.sol_get_rent_sysvar
+
+inductive SysvarField where
+  | rentLamportsPerByteYear
+  deriving BEq, DecidableEq, Repr, Inhabited
+
+def SysvarField.id : SysvarField -> String
+  | .rentLamportsPerByteYear => "lamports_per_byte_year"
+
+def SysvarField.kind : SysvarField -> SysvarKind
+  | .rentLamportsPerByteYear => .rent
+
 structure MemoryAction where
   name : String
   op : MemoryOp
@@ -103,6 +123,14 @@ structure CryptoHashAction where
   inputState : String
   bytes : Nat
   outputStates : Array String := #[]
+  entrypoint : String
+  deriving Repr, Inhabited
+
+structure SysvarReadAction where
+  name : String
+  kind : SysvarKind
+  field : SysvarField
+  outputState : String
   entrypoint : String
   deriving Repr, Inhabited
 
@@ -133,6 +161,7 @@ structure ProgramExtensions where
   cpiActions : Array CpiAction := #[]
   memoryActions : Array MemoryAction := #[]
   cryptoHashActions : Array CryptoHashAction := #[]
+  sysvarActions : Array SysvarReadAction := #[]
   deriving Repr, Inhabited
 
 structure CpiAccountBinding where
@@ -225,6 +254,14 @@ def cryptoHashOpFromString? : String -> Option CryptoHashOp
   | "keccak256" => some .keccak256
   | _ => none
 
+def sysvarKindFromString? : String -> Option SysvarKind
+  | "rent" => some .rent
+  | _ => none
+
+def sysvarFieldFromString? : String -> Option SysvarField
+  | "lamports_per_byte_year" => some .rentLamportsPerByteYear
+  | _ => none
+
 def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=
   { pda with entrypoint? := none }
 
@@ -287,6 +324,17 @@ def ProgramExtensions.pushCryptoHashAction (acc : ProgramExtensions)
   else
     { acc with cryptoHashActions := acc.cryptoHashActions.push action }
 
+def ProgramExtensions.pushSysvarAction (acc : ProgramExtensions)
+    (action : SysvarReadAction) : ProgramExtensions :=
+  if acc.sysvarActions.any (fun existing =>
+      existing.name == action.name &&
+      existing.kind == action.kind &&
+      existing.field == action.field &&
+      existing.entrypoint == action.entrypoint) then
+    acc
+  else
+    { acc with sysvarActions := acc.sysvarActions.push action }
+
 def ProgramExtensions.addPda (acc : ProgramExtensions) (pda : PdaDerive) : ProgramExtensions :=
   let acc := acc.pushPdaDefinition pda
   match pda.entrypoint? with
@@ -310,6 +358,10 @@ def ProgramExtensions.addMemory (acc : ProgramExtensions)
 def ProgramExtensions.addCryptoHash (acc : ProgramExtensions)
     (action : CryptoHashAction) : ProgramExtensions :=
   acc.pushCryptoHashAction action
+
+def ProgramExtensions.addSysvar (acc : ProgramExtensions)
+    (action : SysvarReadAction) : ProgramExtensions :=
+  acc.pushSysvarAction action
 
 def allocatorFromCall? (call : CapabilityCall) : Option RuntimeAllocator :=
   if call.capability == .runtimeAllocator then
@@ -395,6 +447,27 @@ def cryptoHashFromCall? (call : CapabilityCall) : Option CryptoHashAction :=
   else
     none
 
+def sysvarFromCall? (call : CapabilityCall) : Option SysvarReadAction :=
+  if call.capability == .envBlock &&
+      metadataValue? call.metadata "solana.extension" == some "sysvar" then
+    match entrypoint? call,
+        metadataValue? call.metadata "solana.sysvar.kind" >>= sysvarKindFromString?,
+        metadataValue? call.metadata "solana.sysvar.field" >>= sysvarFieldFromString? with
+    | some entrypoint, some kind, some field =>
+        if field.kind == kind then
+          some {
+            name := metadataValue? call.metadata "solana.sysvar.name" |>.getD call.operation
+            kind := kind
+            field := field
+            outputState := metadataValue? call.metadata "solana.sysvar.output_state" |>.getD ""
+            entrypoint := entrypoint
+          }
+        else
+          none
+    | _, _, _ => none
+  else
+    none
+
 def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
   plan.calls.foldl
     (fun acc call =>
@@ -414,8 +487,12 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
         match memoryFromCall? call with
         | some action => acc.addMemory action
         | none => acc
-      match cryptoHashFromCall? call with
-      | some action => acc.addCryptoHash action
+      let acc :=
+        match cryptoHashFromCall? call with
+        | some action => acc.addCryptoHash action
+        | none => acc
+      match sysvarFromCall? call with
+      | some action => acc.addSysvar action
       | none => acc)
     {}
 
@@ -424,19 +501,22 @@ def hasExtensions (extensions : ProgramExtensions) : Bool :=
     extensions.pdas.size > 0 ||
     extensions.cpis.size > 0 ||
     extensions.memoryActions.size > 0 ||
-    extensions.cryptoHashActions.size > 0
+    extensions.cryptoHashActions.size > 0 ||
+    extensions.sysvarActions.size > 0
 
 def hasSyscallExtensions (extensions : ProgramExtensions) : Bool :=
   extensions.pdas.size > 0 ||
     extensions.cpis.size > 0 ||
     extensions.memoryActions.size > 0 ||
-    extensions.cryptoHashActions.size > 0
+    extensions.cryptoHashActions.size > 0 ||
+    extensions.sysvarActions.size > 0
 
 def hasEntrypointActions (extensions : ProgramExtensions) : Bool :=
   extensions.pdaActions.size > 0 ||
     extensions.cpiActions.size > 0 ||
     extensions.memoryActions.size > 0 ||
-    extensions.cryptoHashActions.size > 0
+    extensions.cryptoHashActions.size > 0 ||
+    extensions.sysvarActions.size > 0
 
 def labelPart (name : String) : String :=
   let chars := name.toList.map fun ch =>
@@ -454,6 +534,9 @@ def MemoryAction.label (action : MemoryAction) : String :=
 
 def CryptoHashAction.label (action : CryptoHashAction) : String :=
   "sol_crypto_" ++ action.op.id ++ "_" ++ labelPart action.name
+
+def SysvarReadAction.label (action : SysvarReadAction) : String :=
+  "sol_sysvar_" ++ action.kind.id ++ "_" ++ labelPart action.name
 
 def callSyscall (name : String) : AstNode :=
   .instruction { opcode := .call, imm := some (.sym name) }
@@ -504,6 +587,7 @@ def cpiSignerSeedDataOffset : Nat := 2816
 def cpiMaxSeedLen : Nat := 32
 def cryptoSliceTableOffset : Nat := 3072
 def cryptoResultOffset : Nat := 3104
+def sysvarResultOffset : Nat := 3008
 def memoryResultOffset : Nat := 3200
 
 def cpiAccountBinding? (bindings : Array CpiAccountBinding) (name : String) :
@@ -1500,6 +1584,56 @@ def lowerCryptoHashAction (action : CryptoHashAction) : Array AstNode :=
     .comment s!"solana.crypto.action {action.name}"
   ] ++ callHelperPreservingInput action.label "error_crypto"
 
+def lowerSysvarOutputStatePtr (bindings : Array CpiValueBinding) (action : SysvarReadAction)
+    (dst inputBase : Reg) : Array AstNode :=
+  match stateValueBinding? bindings action.outputState with
+  | some binding =>
+      #[
+        .comment s!"solana.sysvar.output {action.name} state={action.outputState} input+{binding.absOff}",
+        .instruction { opcode := .mov64, dst := some dst, src := some inputBase },
+        .instruction { opcode := .add64, dst := some dst, imm := some (.num binding.absOff) }
+      ]
+  | none =>
+      #[
+        .comment s!"solana.sysvar.output {action.name} state={action.outputState} missing placeholder=stack"
+      ] ++
+      stackPtr dst sysvarResultOffset
+
+def lowerSysvarFieldRead (valueBindings : Array CpiValueBinding)
+    (action : SysvarReadAction) : Array AstNode :=
+  match action.kind, action.field with
+  | .rent, .rentLamportsPerByteYear =>
+      stackPtr .r1 sysvarResultOffset ++ #[
+        callSyscall action.kind.syscall,
+        .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_sysvar") },
+        .comment "read Rent.lamports_per_byte_year from sysvar buffer"
+      ] ++
+      stackPtr .r5 sysvarResultOffset ++ #[
+        .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 0) }
+      ] ++
+      lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
+        storeReg .stxdw .r5 0 .r3
+      ]
+
+def lowerSysvarHelper (valueBindings : Array CpiValueBinding)
+    (action : SysvarReadAction) : Array AstNode :=
+  #[
+    .blankLine,
+    .comment s!"solana.sysvar.{action.kind.id} {action.name}: field={action.field.id}",
+    .label action.label,
+    .instruction { opcode := .mov64, dst := some .r7, src := some .r1 }
+  ] ++
+  lowerSysvarFieldRead valueBindings action ++ #[
+    .instruction { opcode := .mov64, dst := some .r1, src := some .r7 },
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
+    .instruction { opcode := .exit }
+  ]
+
+def lowerSysvarAction (action : SysvarReadAction) : Array AstNode :=
+  #[
+    .comment s!"solana.sysvar.action {action.name}"
+  ] ++ callHelperPreservingInput action.label "error_sysvar"
+
 def pushUniqueMemoryHelper (actions : Array MemoryAction)
     (action : MemoryAction) : Array MemoryAction :=
   if actions.any (fun existing => existing.name == action.name && existing.op == action.op) then
@@ -1520,6 +1654,19 @@ def pushUniqueCryptoHashHelper (actions : Array CryptoHashAction)
 def uniqueCryptoHashHelpers (extensions : ProgramExtensions) : Array CryptoHashAction :=
   extensions.cryptoHashActions.foldl pushUniqueCryptoHashHelper #[]
 
+def pushUniqueSysvarHelper (actions : Array SysvarReadAction)
+    (action : SysvarReadAction) : Array SysvarReadAction :=
+  if actions.any (fun existing =>
+      existing.name == action.name &&
+      existing.kind == action.kind &&
+      existing.field == action.field) then
+    actions
+  else
+    actions.push action
+
+def uniqueSysvarHelpers (extensions : ProgramExtensions) : Array SysvarReadAction :=
+  extensions.sysvarActions.foldl pushUniqueSysvarHelper #[]
+
 def lowerPdaAction (action : PdaAction) : Array AstNode :=
   #[
     .comment s!"solana.pda.action {action.name}"
@@ -1539,14 +1686,17 @@ def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String
   let cpiActions := extensions.cpiActions.filter (fun action => action.entrypoint == entrypoint)
   let memoryActions := extensions.memoryActions.filter (fun action => action.entrypoint == entrypoint)
   let cryptoHashActions := extensions.cryptoHashActions.filter (fun action => action.entrypoint == entrypoint)
-  if pdaActions.isEmpty && cpiActions.isEmpty && memoryActions.isEmpty && cryptoHashActions.isEmpty then
+  let sysvarActions := extensions.sysvarActions.filter (fun action => action.entrypoint == entrypoint)
+  if pdaActions.isEmpty && cpiActions.isEmpty && memoryActions.isEmpty && cryptoHashActions.isEmpty &&
+      sysvarActions.isEmpty then
     #[]
   else
     #[.comment s!"Solana SDK target extension actions for {entrypoint}"] ++
     pdaActions.foldl (fun acc action => acc ++ lowerPdaAction action) #[] ++
     cpiActions.foldl (fun acc action => acc ++ lowerCpiAction action) #[] ++
     memoryActions.foldl (fun acc action => acc ++ lowerMemoryAction action) #[] ++
-    cryptoHashActions.foldl (fun acc action => acc ++ lowerCryptoHashAction action) #[]
+    cryptoHashActions.foldl (fun acc action => acc ++ lowerCryptoHashAction action) #[] ++
+    sysvarActions.foldl (fun acc action => acc ++ lowerSysvarAction action) #[]
 
 def lowerExtensionErrors : Array AstNode := #[
   .blankLine,
@@ -1560,6 +1710,10 @@ def lowerExtensionErrors : Array AstNode := #[
   .blankLine,
   .label "error_crypto",
   .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 11) },
+  .instruction { opcode := .exit },
+  .blankLine,
+  .label "error_sysvar",
+  .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 12) },
   .instruction { opcode := .exit }
 ]
 
@@ -1586,6 +1740,7 @@ def lowerProgramExtensionsWithBindings
     extensions.cpis.foldl (fun acc cpi => acc ++ lowerCpiInvoke accountBindings valueBindings cpi) #[] ++
     (uniqueMemoryHelpers extensions).foldl (fun acc action => acc ++ lowerMemoryHelper valueBindings action) #[] ++
     (uniqueCryptoHashHelpers extensions).foldl (fun acc action => acc ++ lowerCryptoHashHelper valueBindings action) #[] ++
+    (uniqueSysvarHelpers extensions).foldl (fun acc action => acc ++ lowerSysvarHelper valueBindings action) #[] ++
     lowerExtensionErrors
 
 def lowerProgramExtensionsWithAccountBindings
