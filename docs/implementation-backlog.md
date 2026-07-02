@@ -971,6 +971,15 @@ Completed developer-surface slices:
   than the user-visible authoring model. `ProofForge.Contract.Examples.Counter`
   and `ProofForge.Contract.Examples.ValueVault` now use this facade; the older
   `*_ref` macros remain as compatibility shims for older downstream source.
+- Contract Source Syntax v1:
+  `ProofForge.Contract.Source` adds scoped `contract_source` syntax for
+  state declarations, events, entrypoints, queries, source-local bindings,
+  state assignment, event emission, returns, and typed arithmetic operators.
+  `ProofForge.Contract.Examples.Counter` and
+  `ProofForge.Contract.Examples.ValueVault` now author portable logic through
+  this source block while the macro emits the same `ContractSpec`/portable IR
+  boundary used by routing, EVM selector hydration, Solana instruction tags,
+  IDL, and client artifact generation.
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
@@ -997,13 +1006,13 @@ Completed developer-surface slices:
 
 Current boundary:
 
-- `ProofForge.Contract.Surface` is a typed builder surface, not the final Learn
-  contract syntax. It deliberately reduces raw string/spec plumbing first by
-  deriving common IR names from declarations and by hiding direct builder
-  strings from the public portable examples, but the desired end state is
-  language-level contract authoring where state, entrypoints, accounts,
-  constraints, and target capabilities read as normal Learn declarations and
-  expressions, with the target extension layer deriving chain-specific
+- `ProofForge.Contract.Source` is the first source-facing syntax layer, but it
+  is still a v1 macro frontend over the existing `ContractSpec` builder rather
+  than a complete standalone Learn parser. It covers portable scalar state,
+  entry/query bodies, events, and arithmetic. The next source-syntax gap is to
+  bring Solana account/PDA/CPI target extensions into the same block so
+  accounts, constraints, and target capabilities read as normal Learn
+  declarations while the target extension layer derives chain-specific
   selectors, instruction tags, IDL/client metadata, and package artifacts during
   compilation.
 

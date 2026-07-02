@@ -27,6 +27,22 @@ def noSolanaMetadata (plan : CapabilityPlan) : Bool :=
   plan.calls.all (fun call =>
     call.metadata.all (fun item => !item.key.startsWith "solana."))
 
+def eventNamesInStatement : ProofForge.IR.Statement → Array String
+  | .effect (.eventEmit name _) => #[name]
+  | .effect (.eventEmitIndexed name _ _) => #[name]
+  | .ifElse _ thenBody elseBody =>
+      thenBody.foldl (fun acc stmt => acc ++ eventNamesInStatement stmt) #[] ++
+        elseBody.foldl (fun acc stmt => acc ++ eventNamesInStatement stmt) #[]
+  | .boundedFor _ _ _ body =>
+      body.foldl (fun acc stmt => acc ++ eventNamesInStatement stmt) #[]
+  | _ => #[]
+
+def eventNamesInModule (module : ProofForge.IR.Module) : Array String :=
+  module.entrypoints.foldl
+    (fun acc entrypoint =>
+      acc ++ entrypoint.body.foldl (fun names stmt => names ++ eventNamesInStatement stmt) #[])
+    #[]
+
 def routableTargets : Array TargetProfile := #[
   evm,
   wasmNear,
@@ -82,10 +98,11 @@ def requireModuleShape : IO Unit := do
   let chargeFeeParams := chargeFee.params.map (fun param => param.fst)
   require (chargeFeeParams == #["gross", "fee_bps"])
     s!"ValueVault method declaration macro params mismatch: {chargeFeeParams}"
-  require (ProofForge.Contract.Examples.ValueVault.Event.ValueDeposited.name == "ValueDeposited")
-    "ValueVault event declaration macro should derive PascalCase event name"
-  require (ProofForge.Contract.Examples.ValueVault.Event.ValueSnapshot.name == "ValueSnapshot")
-    "ValueVault event declaration macro should derive ValueSnapshot event name"
+  let eventNames := eventNamesInModule module
+  require (eventNames.contains "ValueDeposited")
+    "ValueVault source event should lower ValueDeposited into IR"
+  require (eventNames.contains "ValueSnapshot")
+    "ValueVault source event should lower ValueSnapshot into IR"
 
 def requireSolanaRender : IO Unit := do
   match ProofForge.Backend.Solana.Package.renderPackageForSpec

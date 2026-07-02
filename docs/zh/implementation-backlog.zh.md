@@ -516,6 +516,15 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   `ProofForge.Contract.Examples.Counter` 和
   `ProofForge.Contract.Examples.ValueVault` 现在都使用该 facade；旧的 `*_ref`
   宏仍作为兼容 shim 保留，供较旧的下游源码使用。
+- Contract Source Syntax v1：
+  `ProofForge.Contract.Source` 增加了 scoped `contract_source` 语法，用于
+  state declaration、event、entrypoint、query、source-local binding、state
+  assignment、event emission、return，以及 typed arithmetic operator。
+  `ProofForge.Contract.Examples.Counter` 和
+  `ProofForge.Contract.Examples.ValueVault` 现在都通过这个 source block 编写
+  portable 逻辑；宏仍会发射到同一个 `ContractSpec`/portable IR 边界，供
+  routing、EVM selector hydration、Solana instruction tag、IDL 和 client
+  artifact generation 复用。
 - Solana typed account surface：
   `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
   `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
@@ -541,13 +550,13 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 
 当前边界：
 
-- `ProofForge.Contract.Surface` 是一个 typed builder surface，还不是最终的
-  Learn 合约语法。它当前先通过从 declaration 派生常见 IR 名称，把 raw
-  string/spec 拼装收束起来，并先把公开 portable 示例里的直接 builder 字符串
-  隐藏掉；目标终态是语言级合约编写方式，让 state、entrypoint、account、
-  constraint 和 target capability 看起来像正常 Learn declaration 与
-  expression，而 selector、instruction tag、IDL/client metadata 和 package
-  artifact 由 target extension 层在编译阶段派生。
+- `ProofForge.Contract.Source` 已经是第一层面向源码的语法，但它仍是基于
+  现有 `ContractSpec` builder 的 v1 macro frontend，而不是完整独立的 Learn
+  parser。它目前覆盖 portable scalar state、entry/query body、event 和
+  arithmetic。下一步 source-syntax 缺口是把 Solana account/PDA/CPI target
+  extension 合并进同一个 block，让 account、constraint 和 target capability
+  也像正常 Learn declaration 一样书写，同时由 target extension 层在编译阶段
+  派生 selector、instruction tag、IDL/client metadata 和 package artifact。
 
 剩余优先切片：
 

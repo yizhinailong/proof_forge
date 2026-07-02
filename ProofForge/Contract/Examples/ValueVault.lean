@@ -1,180 +1,114 @@
-import ProofForge.Contract.Surface
+import ProofForge.Contract.Source
 
 namespace ProofForge.Contract.Examples.ValueVault
 
-open ProofForge.Contract.Surface
+open ProofForge.Contract.Source
 
 /-
-Portable ValueVault is written through the Contract Surface API. The declaration
-sections derive IR names from declarations for state slots, parameters, locals,
-methods, and events; the entrypoint bodies use typed refs instead of repeating
-raw storage and local strings. EVM ABI selectors are target-derived during CLI
-emission rather than written in this source file.
+Portable ValueVault is authored through the source-facing contract syntax.
+The macro expands this block to `ContractSpec`/portable IR, while the target
+backends derive EVM selectors, Solana instruction tags, IDL, and client files
+during compilation.
 -/
 
-namespace State
+contract_source ValueVault do
+  state balance : .u64
+  state released : .u64
+  state fees : .u64
+  state last_value : .u64
+  state last_checkpoint : .u64
+  state operations : .u64
 
-state_decl balance : .u64
-state_decl released : .u64
-state_decl fees : .u64
-state_decl last_value : .u64
-state_decl last_checkpoint : .u64
-state_decl operations : .u64
+  event VaultInitialized
+  event ValueDeposited
+  event ValueCharged
+  event ValueReleased
+  event ValueSnapshot
 
-end State
+  entry «initialize» (initial : .u64) do
+    let checkpoint : .u64 := checkpointId;
+    balance := initial;
+    released := u64 0;
+    fees := u64 0;
+    last_value := initial;
+    last_checkpoint := checkpoint;
+    operations := u64 1;
+    emit VaultInitialized #[
+      field initial,
+      field checkpoint
+    ];
 
-namespace Input
+  entry deposit (amount : .u64) do
+    let current : .u64 := balance;
+    let next : .u64 := current +! amount;
+    let ops : .u64 := operations;
+    let next_ops : .u64 := ops +! u64 1;
+    balance := next;
+    last_value := amount;
+    operations := next_ops;
+    emit ValueDeposited #[
+      field amount,
+      fieldAs balance next,
+      fieldAs operations next_ops
+    ];
 
-binding_decl initial : .u64
-binding_decl amount : .u64
-binding_decl gross : .u64
-binding_decl fee_bps : .u64
+  entry charge_fee (gross : .u64, fee_bps : .u64) do
+    let fee : .u64 := (gross *! fee_bps) /! u64 10000;
+    let net : .u64 := gross -! fee;
+    let current : .u64 := balance;
+    let next : .u64 := current +! net;
+    let current_fees : .u64 := fees;
+    let next_fees : .u64 := current_fees +! fee;
+    let ops : .u64 := operations;
+    let next_ops : .u64 := ops +! u64 1;
+    balance := next;
+    fees := next_fees;
+    last_value := net;
+    operations := next_ops;
+    emit ValueCharged #[
+      field gross,
+      field fee,
+      field net,
+      fieldAs balance next
+    ];
 
-end Input
+  entry release (amount : .u64) do
+    let current : .u64 := balance;
+    let next : .u64 := current -! amount;
+    let released_before : .u64 := released;
+    let released_next : .u64 := released_before +! amount;
+    let ops : .u64 := operations;
+    let next_ops : .u64 := ops +! u64 1;
+    balance := next;
+    released := released_next;
+    last_value := amount;
+    operations := next_ops;
+    emit ValueReleased #[
+      field amount,
+      fieldAs balance next,
+      fieldAs released released_next
+    ];
 
-namespace Local
+  query snapshot returns(.u64) do
+    let checkpoint : .u64 := checkpointId;
+    let balance_now : .u64 := balance;
+    let released_now : .u64 := released;
+    let fees_now : .u64 := fees;
+    last_checkpoint := checkpoint;
+    emit ValueSnapshot #[
+      fieldAs balance balance_now,
+      fieldAs released released_now,
+      fieldAs fees fees_now,
+      field checkpoint
+    ];
+    return balance_now;
 
-binding_decl checkpoint : .u64
-binding_decl current : .u64
-binding_decl next : .u64
-binding_decl ops : .u64
-binding_decl next_ops : .u64
-binding_decl fee : .u64
-binding_decl net : .u64
-binding_decl current_fees : .u64
-binding_decl next_fees : .u64
-binding_decl released_before : .u64
-binding_decl released_next : .u64
-binding_decl balance_now : .u64
-binding_decl released_now : .u64
-binding_decl fees_now : .u64
+  query get_balance returns(.u64) do
+    return balance;
 
-end Local
-
-namespace Method
-
-method_decl «initialize» : #[Input.initial]
-
-method_decl deposit : #[Input.amount]
-
-method_decl charge_fee : #[Input.gross, Input.fee_bps]
-
-method_decl release : #[Input.amount]
-
-method_return_decl snapshot : .u64 := #[]
-
-method_return_decl get_balance : .u64 := #[]
-
-method_return_decl get_net_value : .u64 := #[]
-
-end Method
-
-namespace Event
-
-event_decl VaultInitialized
-event_decl ValueDeposited
-event_decl ValueCharged
-event_decl ValueReleased
-event_decl ValueSnapshot
-
-end Event
-
-def spec : ContractSpec :=
-  contract_decl ValueVault do
-    scalar State.balance
-    scalar State.released
-    scalar State.fees
-    scalar State.last_value
-    scalar State.last_checkpoint
-    scalar State.operations
-
-    entry Method.«initialize» do
-      bind Local.checkpoint checkpointId
-      write State.balance (ref Input.initial)
-      write State.released (u64 0)
-      write State.fees (u64 0)
-      write State.last_value (ref Input.initial)
-      write State.last_checkpoint (ref Local.checkpoint)
-      write State.operations (u64 1)
-      emit Event.VaultInitialized #[
-        fieldOf Input.initial,
-        fieldOf Local.checkpoint
-      ]
-
-    entry Method.deposit do
-      bind Local.current (read State.balance)
-      bind Local.next (add (ref Local.current) (ref Input.amount))
-      bind Local.ops (read State.operations)
-      bind Local.next_ops (add (ref Local.ops) (u64 1))
-      write State.balance (ref Local.next)
-      write State.last_value (ref Input.amount)
-      write State.operations (ref Local.next_ops)
-      emit Event.ValueDeposited #[
-        fieldOf Input.amount,
-        fieldAs State.balance (ref Local.next),
-        fieldAs State.operations (ref Local.next_ops)
-      ]
-
-    entry Method.charge_fee do
-      bind Local.fee (div (mul (ref Input.gross) (ref Input.fee_bps)) (u64 10000))
-      bind Local.net (sub (ref Input.gross) (ref Local.fee))
-      bind Local.current (read State.balance)
-      bind Local.next (add (ref Local.current) (ref Local.net))
-      bind Local.current_fees (read State.fees)
-      bind Local.next_fees (add (ref Local.current_fees) (ref Local.fee))
-      bind Local.ops (read State.operations)
-      bind Local.next_ops (add (ref Local.ops) (u64 1))
-      write State.balance (ref Local.next)
-      write State.fees (ref Local.next_fees)
-      write State.last_value (ref Local.net)
-      write State.operations (ref Local.next_ops)
-      emit Event.ValueCharged #[
-        fieldOf Input.gross,
-        fieldOf Local.fee,
-        fieldOf Local.net,
-        fieldAs State.balance (ref Local.next)
-      ]
-
-    entry Method.release do
-      bind Local.current (read State.balance)
-      bind Local.next (sub (ref Local.current) (ref Input.amount))
-      bind Local.released_before (read State.released)
-      bind Local.released_next (add (ref Local.released_before) (ref Input.amount))
-      bind Local.ops (read State.operations)
-      bind Local.next_ops (add (ref Local.ops) (u64 1))
-      write State.balance (ref Local.next)
-      write State.released (ref Local.released_next)
-      write State.last_value (ref Input.amount)
-      write State.operations (ref Local.next_ops)
-      emit Event.ValueReleased #[
-        fieldOf Input.amount,
-        fieldAs State.balance (ref Local.next),
-        fieldAs State.released (ref Local.released_next)
-      ]
-
-    entry Method.snapshot do
-      bind Local.checkpoint checkpointId
-      bind Local.balance_now (read State.balance)
-      bind Local.released_now (read State.released)
-      bind Local.fees_now (read State.fees)
-      write State.last_checkpoint (ref Local.checkpoint)
-      emit Event.ValueSnapshot #[
-        fieldAs State.balance (ref Local.balance_now),
-        fieldAs State.released (ref Local.released_now),
-        fieldAs State.fees (ref Local.fees_now),
-        fieldOf Local.checkpoint
-      ]
-      ret (ref Local.balance_now)
-
-    entry Method.get_balance do
-      ret (read State.balance)
-
-    entry Method.get_net_value do
-      bind Local.balance_now (read State.balance)
-      bind Local.fees_now (read State.fees)
-      ret (sub (ref Local.balance_now) (ref Local.fees_now))
-
-def module : ProofForge.IR.Module :=
-  spec.module
+  query get_net_value returns(.u64) do
+    let balance_now : .u64 := balance;
+    let fees_now : .u64 := fees;
+    return balance_now -! fees_now;
 
 end ProofForge.Contract.Examples.ValueVault

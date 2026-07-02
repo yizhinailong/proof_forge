@@ -1,44 +1,20 @@
-import ProofForge.Contract.Surface
+import ProofForge.Contract.Source
 
 namespace ProofForge.Contract.Examples.Counter
 
-open ProofForge.Contract.Surface
+open ProofForge.Contract.Source
 
-namespace State
+contract_source Counter do
+  state count : .u64
 
-state_decl count : .u64
+  entry «initialize» do
+    count := u64 0;
 
-end State
+  entry increment do
+    let n : .u64 := count;
+    count := n +! u64 1;
 
-namespace Local
-
-binding_decl n : .u64
-
-end Local
-
-namespace Method
-
-method_decl «initialize» : #[]
-method_decl increment : #[]
-method_return_decl get : .u64 := #[]
-
-end Method
-
-def spec : ContractSpec :=
-  contract_decl Counter do
-    scalar State.count
-
-    entry Method.«initialize» do
-      write State.count (u64 0)
-
-    entry Method.increment do
-      bind Local.n (read State.count)
-      write State.count (add (ref Local.n) (u64 1))
-
-    entry Method.get do
-      ret (read State.count)
-
-def module : ProofForge.IR.Module :=
-  spec.module
+  query get returns(.u64) do
+    return count;
 
 end ProofForge.Contract.Examples.Counter
