@@ -1,11 +1,13 @@
 import ProofForge.Backend.Evm.Plan
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmTypedMapProbe
+import ProofForge.Target.Capability
 
 namespace ProofForge.Tests.EvmPlan
 
 open ProofForge.IR
 open ProofForge.Backend.Evm.Plan
+open ProofForge.Target
 
 def mapProbeModule : Module :=
   ProofForge.IR.Examples.EvmMapProbe.module
@@ -81,6 +83,12 @@ def requireHelper (helpers : HelperSet) (helper : Helper) (message : String) : I
 def requireMissingHelper (helpers : HelperSet) (helper : Helper) (message : String) : IO Unit :=
   require (!HelperSet.contains helpers helper) message
 
+def requireCapability (plan : ModulePlan) (capability : Capability) (message : String) : IO Unit :=
+  require (plan.capabilities.any (fun existing => existing == capability)) message
+
+def requireNoCapability (plan : ModulePlan) (capability : Capability) (message : String) : IO Unit :=
+  require (!plan.capabilities.any (fun existing => existing == capability)) message
+
 def testMapProbeLayout : IO Unit := do
   requireEqNat (← requireSome (stateSlot? mapProbeModule "before") "missing before slot") 0
     "EvmMapProbe.before slot"
@@ -152,11 +160,43 @@ def testTypedMapProbeLayout : IO Unit := do
     "typed nested map value plan failed"
   requireMapValueSlot typedNested 0 2 "typed nested map value plan"
 
+def testModulePlanCapabilities : IO Unit := do
+  let plan ← requireOk (buildModulePlan mapProbeModule) "EVM module plan failed"
+  require (plan.name == mapProbeModule.name) "module plan name mismatch"
+  require (plan.targetPlan.targetId == "evm") "module plan target must be evm"
+  requireCapability plan .storageScalar "EVM module plan missing storage.scalar"
+  requireCapability plan .storageMap "EVM module plan missing storage.map"
+  requireCapability plan .assertions "EVM module plan missing assertions.check"
+  requireNoCapability plan .storagePda "EVM module plan must not claim storage.pda"
+  requireNoCapability plan .crosscallCpi "EVM module plan must not claim crosscall.cpi"
+  requireHelper plan.helpers Helper.mapSlot "EVM module plan missing map slot helper"
+  requireHelper plan.helpers Helper.mapPresenceSlot "EVM module plan missing map presence helper"
+  requireHelper plan.helpers Helper.mapWrite "EVM module plan missing map write helper"
+  requireHelper plan.helpers Helper.mapSetReturn "EVM module plan missing map set-return helper"
+  require (plan.mapAssignOps.any (fun op => op == .add))
+    "EVM module plan missing map assign-op helper requirement"
+  let balances ← requireSome (plan.storage.find? "balances") "module plan missing balances storage"
+  requireEqNat balances.slot 1 "module plan balances slot"
+
+def testWrongTargetPlanRejected : IO Unit := do
+  let wrongTargetPlan : CapabilityPlan := {
+    targetId := "solana-sbpf-asm"
+    calls := #[CapabilityCall.fromCapability .storageScalar]
+  }
+  match buildModulePlanWithTargetPlan mapProbeModule wrongTargetPlan with
+  | .ok _ => throw <| IO.userError "EVM module plan must reject a non-EVM target plan"
+  | .error err =>
+      require
+        (err.render == "EVM module plan requires target `evm`, got `solana-sbpf-asm`")
+        "wrong-target diagnostic mismatch"
+
 def main : IO UInt32 := do
   testMapProbeLayout
   testScalarSlotPlan
   testMapSlotPlans
   testTypedMapProbeLayout
+  testModulePlanCapabilities
+  testWrongTargetPlanRejected
   IO.println "evm-plan: ok"
   return 0
 
