@@ -1,0 +1,10 @@
+contract SolanaSystemCpi {
+  state last_transfer_lamports: u64
+
+  solana cpi lamport_transfer system_transfer(payer, recipient, lamports)
+
+  entry transfer(lamports: u64) {
+    solana invoke lamport_transfer system_transfer(payer, recipient, lamports)
+    last_transfer_lamports = lamports
+  }
+}

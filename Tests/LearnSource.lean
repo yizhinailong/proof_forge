@@ -2,6 +2,8 @@ import ProofForge.Backend.Solana.Package
 import ProofForge.Contract.Examples.Counter
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Learn
+import ProofForge.Solana.Examples.SystemCpi
+import ProofForge.Solana.Examples.SystemCreateAccountCpi
 import ProofForge.Solana.Examples.Vault
 
 namespace ProofForge.Tests.LearnSource
@@ -69,6 +71,21 @@ def main : IO UInt32 := do
   let learnManifest ← packageFile "learn-solana-vault" "manifest.toml" solanaVault
   let sourceManifest ← packageFile "source-solana-vault" "manifest.toml" ProofForge.Solana.Examples.Vault.spec
   requireSameText "SolanaVault Learn manifest" learnManifest sourceManifest
+  let systemCpi ← parseSpec "Examples/Learn/SystemCpi.learn"
+  requireSameModule "SystemCpi" systemCpi.module ProofForge.Solana.Examples.SystemCpi.module
+  let learnSystemManifest ← packageFile "learn-system-cpi" "manifest.toml" systemCpi
+  let sourceSystemManifest ← packageFile "source-system-cpi" "manifest.toml"
+    ProofForge.Solana.Examples.SystemCpi.spec
+  requireSameText "SystemCpi Learn manifest" learnSystemManifest sourceSystemManifest
+  let systemCreateAccount ← parseSpec "Examples/Learn/SystemCreateAccountCpi.learn"
+  requireSameModule "SystemCreateAccountCpi" systemCreateAccount.module
+    ProofForge.Solana.Examples.SystemCreateAccountCpi.module
+  let learnCreateAccountManifest ← packageFile "learn-system-create-account-cpi" "manifest.toml"
+    systemCreateAccount
+  let sourceCreateAccountManifest ← packageFile "source-system-create-account-cpi" "manifest.toml"
+    ProofForge.Solana.Examples.SystemCreateAccountCpi.spec
+  requireSameText "SystemCreateAccountCpi Learn manifest"
+    learnCreateAccountManifest sourceCreateAccountManifest
   IO.println "learn-source: ok"
   return 0
 

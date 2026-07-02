@@ -12,9 +12,12 @@ lives in `ProofForge.Contract.Source` through the `contract_source` syntax:
 - `SolanaVault.learn` mirrors `ProofForge.Solana.Examples.Vault` and exercises
   the first Solana target-extension syntax for accounts, PDA derivation, and
   SPL Token CPI.
+- `SystemCpi.learn` mirrors `ProofForge.Solana.Examples.SystemCpi`.
+- `SystemCreateAccountCpi.learn` mirrors
+  `ProofForge.Solana.Examples.SystemCreateAccountCpi`.
 
 `Tests/LearnSource.lean` checks that these files lower to the same IR modules as
 the macro-generated examples, and checks that the Solana target-extension form
 renders the same manifest as the embedded source example. The next
-implementation step is broadening the parser to System CPI, Token-2022,
-sysvars, logs, memory, and crypto helpers.
+implementation step is broadening the parser to Token-2022, sysvars, logs,
+memory, crypto, and return-data helpers.

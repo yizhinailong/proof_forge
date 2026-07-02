@@ -543,6 +543,14 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   sBPF assembly 路径。`Tests/LearnSource.lean` 会检查 Learn-lowered
   SolanaVault 具有与 `ProofForge.Solana.Examples.Vault` 一致的 IR module 和
   generated manifest。
+- Learn System Program CPI syntax：
+  `SystemCpi.learn` 和 `SystemCreateAccountCpi.learn` 现在覆盖
+  `solana cpi ... system_transfer(...)`、`solana cpi ...
+  system_create_account(...) owner ...`，以及对应的 entry-level
+  `solana invoke` statement。`Tests/LearnSource.lean` 会证明这两个 Learn 文件
+  降低出的 IR module 和 generated manifest 与现有
+  `ProofForge.Solana.Examples.SystemCpi`、
+  `ProofForge.Solana.Examples.SystemCreateAccountCpi` source 示例一致。
 - Solana typed account surface：
   `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
   `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
@@ -582,12 +590,12 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 
 - `ProofForge.Contract.Learn` 现在是第一版 standalone Learn parser/lowering
   seed。它覆盖 portable Counter/ValueVault 子集，以及 Vault-level Solana
-  account/PDA/SPL Token transfer CPI 子集。`ProofForge.Contract.Source` 仍是
-  Solana System transfer 和 create-account 示例的 embedded macro frontend，直到这些
-  form 迁移进 Learn。下一步 authoring 缺口是把 Learn parser 扩展到 System
-  transfer/create-account、更多 SPL Token op、Token-2022、sysvar、log、memory、
-  crypto、return data，以及更接近 Pinocchio 的 account validation ergonomics；同时
-  由 target extension 层在编译阶段派生 selector、instruction tag、IDL/client
+  account/PDA/SPL Token transfer CPI 子集，以及 System Program
+  transfer/create-account CPI。`ProofForge.Contract.Source` 仍是尚未表达为
+  Learn 的示例所使用的 embedded macro frontend。下一步 authoring 缺口是把
+  Learn parser 扩展到更多 SPL Token op、Token-2022、sysvar、log、memory、
+  crypto、return data，以及更接近 Pinocchio 的 account validation ergonomics；
+  同时由 target extension 层在编译阶段派生 selector、instruction tag、IDL/client
   metadata 和 package artifact。
 
 剩余优先切片：
