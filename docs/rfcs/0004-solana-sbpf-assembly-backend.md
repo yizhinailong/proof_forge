@@ -102,11 +102,12 @@ constructors are needed.
 
 ```text
 proof-forge --emit-sbpf-asm [-o output.s] input.lean  # emit .s only
-proof-forge --solana-elf [--root DIR] input.lean      # emit .s + sbpf build
+proof-forge --solana-elf [--root DIR] [--solana-sbpf-arch v0|v3] input.lean
 ```
 
 `--solana-elf` invokes `sbpf build` as a subprocess (like `--evm-bytecode`
-invokes `solc`).
+invokes `solc`). `--solana-sbpf-arch` is forwarded to `sbpf build --arch` and
+recorded in artifact metadata.
 
 ## Test gates
 
@@ -115,7 +116,7 @@ invokes `solc`).
 | V-GATE-SOLANA-01 | `--emit-sbpf-asm` produces valid `.s` → `sbpf build` succeeds |
 | V-GATE-SOLANA-02 | `sbpf disassemble` round‑trips the ELF |
 | V-GATE-SOLANA-03 | Counter scenario passes `sbpf test` (Mollusk) |
-| V-GATE-SOLANA-04 | Counter scenario passes `solana-test-validator` smoke (optional) |
+| V-GATE-SOLANA-04 | Counter scenario passes Surfpool/Web3.js live deploy/invoke smoke (optional) |
 | V-GATE-SOLANA-05 | Capability checker rejects unsupported effects with target‑id diagnostic |
 | V-GATE-SOLANA-06 | `proof-forge-artifact.json` contains `target: "solana-sbpf-asm"` |
 

@@ -151,6 +151,7 @@ structure CliOptions where
   artifactOutput? : Option FilePath := none
   solc : String := "solc"
   cast : String := "cast"
+  solanaSbpfArch : String := "v3"
   mode : EmitMode := .yul
   deriving Inhabited
 
@@ -230,7 +231,7 @@ def usage : String :=
     "  proof-forge --emit-counter-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-control-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-sdk-sbpf [-o output.s] [--artifact-output file]",
-    "  proof-forge --solana-elf [-o output.so] [--artifact-output file]",
+    "  proof-forge --solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -858,6 +859,13 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with yulOutput? := some (FilePath.mk path) }
   | "--artifact-output" :: path :: rest, opts =>
       parseArgs rest { opts with artifactOutput? := some (FilePath.mk path) }
+  | "--solana-sbpf-arch" :: arch :: rest, opts =>
+      if arch == "v0" || arch == "v3" then
+        parseArgs rest { opts with solanaSbpfArch := arch }
+      else
+        .error s!"invalid --solana-sbpf-arch '{arch}', expected v0 or v3"
+  | "--solana-sbpf-arch" :: [], _ =>
+      .error "missing value for --solana-sbpf-arch, expected v0 or v3"
   | "--solc" :: path :: rest, opts =>
       parseArgs rest { opts with solc := path }
   | "--cast" :: path :: rest, opts =>
@@ -2085,7 +2093,7 @@ def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
       let manifestOutput := packagePath projectDir pkg.manifestPath
 
       -- Invoke the sbpf toolchain to assemble and link the ELF.
-      let _ ← runProcess "sbpf" #["build"] (cwd? := some projectDir)
+      let _ ← runProcess "sbpf" #["build", "--arch", opts.solanaSbpfArch] (cwd? := some projectDir)
 
       let builtElf := projectDir / "deploy" / s!"{projectName}.so"
       if ! (← builtElf.pathExists) then
@@ -2116,7 +2124,8 @@ def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
         ("toolchain", jsonObject #[
           ("sbpf", jsonObject #[
             ("path", jsonString "sbpf"),
-            ("version", "null")
+            ("version", "null"),
+            ("arch", jsonString opts.solanaSbpfArch)
           ])
         ]),
         ("artifacts", jsonObject #[

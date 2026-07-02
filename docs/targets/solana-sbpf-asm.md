@@ -454,12 +454,14 @@ The target profile must accept or reject each IR capability. The proposed
 ### New CLI flag
 
 ```text
-proof-forge --solana-elf [--root DIR] [--manifest manifest.toml] [-o output.s] input.lean
+proof-forge --solana-elf [--root DIR] [--manifest manifest.toml] [--solana-sbpf-arch v0|v3] [-o output.so] input.lean
 ```
 
 Also:
 - `--emit-sbpf-asm` — emit `.s` without invoking `sbpf build` (development).
 - `--emit-sbpf-elf` or `--solana-elf` — emit `.s` then invoke `sbpf build`.
+- `--solana-sbpf-arch v0|v3` — pass the selected sbpf architecture to
+  `sbpf build --arch`; artifacts record the value under `toolchain.sbpf.arch`.
 
 ### Build pipeline steps
 
@@ -474,7 +476,8 @@ Also:
    - Emit `.rodata` for string constants, event type tags.
 6. **Write `.s`**: Produce `src/<module>/<module>.s`.
 7. **Write `manifest.toml`**: Record instruction metadata, account offsets.
-8. **`sbpf build`**: Invoke external tool, produce `deploy/<module>.so`.
+8. **`sbpf build`**: Invoke external tool with the selected sbpf architecture,
+   produce `deploy/<module>.so`.
 9. **Artifact metadata**: Write `proof-forge-artifact.json` recording
    `irVersion`, target id, tool versions, capability subset.
 

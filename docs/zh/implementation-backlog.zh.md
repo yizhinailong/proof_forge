@@ -256,13 +256,17 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] `Examples/Solana/Counter.lean` + manifest 作为自包含示例。包含跟踪的 `Counter.golden.s`、`Counter.manifest.toml`，以及 CI 可运行的 `scripts/solana/build-examples.sh` 负责发射并做 diff。
 - [x] 能力检查器以清晰诊断拒绝不支持的能力/目标组合，诊断含 target id 和 capability id。`Tests/SolanaDiagnostics.lean` 与 `scripts/solana/diagnostic-smoke.sh` 覆盖 8 个 `crosscall.invoke` 家族用例，作为 V-GATE-SOLANA-05 的基础。
 - [x] Solana SDK target extension 将 `ProofForge.Solana` 的 PDA/CPI API 路由到 capability plan metadata，生成 `manifest.toml` 的 extension definition 与 entrypoint action section，并在 handler 中、IR body 之前注入 helper call（`sol_pda_derive_<name>`、`sol_cpi_<name>`），同时保存/恢复 Solana input 指针 `r1`。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`（可用时执行 `sbpf build`）。
-- [x] Surfpool/Web3.js live deployment 冒烟（V-GATE-SOLANA-04）。可选门禁 `scripts/solana/surfpool-web3-smoke.sh` 会构建 Counter ELF、启动 Surfpool、用 Solana CLI 部署、通过 `@solana/web3.js` 创建 program-owned counter account、调用 initialize/increment/get、检查 account data 0→1→2，并验证 `get` return data。该脚本为了兼容 Solana CLI 部署，会把生成的 sbpf project 用 `--arch v0` 重建，并对 Surfpool 使用 `--use-rpc`。
+- [x] Surfpool/Web3.js live deployment 冒烟（V-GATE-SOLANA-04）。可选门禁 `scripts/solana/surfpool-web3-smoke.sh` 会构建 Counter ELF、启动 Surfpool、用 Solana CLI 部署、通过 `@solana/web3.js` 创建 program-owned counter account、调用 initialize/increment/get、检查 account data 0→1→2，并验证 `get` return data。该脚本通过 `--solana-sbpf-arch v0` 直接产出兼容 Solana CLI 部署的 ELF，并对 Surfpool 使用 `--use-rpc`。
+- [x] `--solana-elf` 暴露 `--solana-sbpf-arch v0|v3`，并在 `proof-forge-artifact.json` 记录选定架构。默认保持 `v3`；Surfpool live deployment 在当前 CLI/runtime 组合完整接受新版 sbpf feature set 之前使用 `v0`。
 
 后续 Solana SDK 补齐项：
 
-- 补完整个 syscall-backed SDK 家族：PDA seed packing 与验证、System Program CPI、SPL Token CPI、logs/events、sysvars、crypto hashes、memory helpers，以及 return-data read。
+- PDA runtime packing：生成 seed buffer、bump 处理、signer seed 数组，并用 Web3.js fixture 对比 `PublicKey.findProgramAddressSync`。
+- System Program CPI：把 transfer/create-account 类 SDK 调用降级到 `sol_invoke_signed`，在 `manifest.toml` 表达 account metas，并用 Web3.js 验证余额和 owner。
+- SPL Token CPI：补 mint/account/authority manifest、token instruction packing，并对标准 token program 做行为检查。
+- logs/events 与 return data：暴露 `sol_log*` / `sol_set_return_data` / `sol_get_return_data` helper，并用 Web3.js 检查日志和 simulation return data。
+- sysvars、crypto 与 memory helpers：覆盖 clock/rent sysvar、hash syscall、memcpy/memcmp/memset，并与 JavaScript reference output 对比。
 - 为同一套 account schema 增加 Rust/Pinocchio reference fixture，并通过同一个 Web3.js harness 对比 ProofForge 生成程序与参考程序的行为。
-- 泛化 `--solana-elf`，把 sbpf arch/profile 变成正式参数，而不是由 live smoke 再执行 `sbpf build --arch v0`。
 - 从 Phase 1 单账户 manifest 推进到生成 multi-account schema，并为每个 entrypoint 表达 signer/writable/owner 约束。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）

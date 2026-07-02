@@ -589,21 +589,32 @@ partial progress is visible before the full acceptance criteria close:
       starts Surfpool, deploys with the Solana CLI, creates a program-owned
       counter account via `@solana/web3.js`, invokes initialize/increment/get,
       checks account data 0→1→2, and validates `get` return data. The script
-      rebuilds the generated sbpf project with `--arch v0` for Solana CLI
-      deploy compatibility and uses `--use-rpc` for Surfpool.
+      passes `--solana-sbpf-arch v0` to produce a Solana CLI deploy-compatible
+      ELF directly and uses `--use-rpc` for Surfpool.
+- [x] `--solana-elf` exposes `--solana-sbpf-arch v0|v3` and records the chosen
+      architecture in `proof-forge-artifact.json`. Default stays `v3`; Surfpool
+      live deployment uses `v0` until the deployed CLI/runtime stack accepts
+      the newer sbpf feature set without `--skip-feature-verify`.
 
 Next Solana SDK completion items:
 
-- Complete syscall-backed SDK families: PDA seed packing and validation,
-  System Program CPI, SPL Token CPI, logs/events, sysvars, crypto hashes,
-  memory helpers, and return-data reads.
+- PDA runtime packing: generate seed buffers, bump handling, signer seed
+  arrays, and Web3.js fixtures that validate derived addresses against
+  `PublicKey.findProgramAddressSync`.
+- System Program CPI: lower transfer/create-account style SDK calls to
+  `sol_invoke_signed`, express account metas in `manifest.toml`, and validate
+  balances/owners through Web3.js.
+- SPL Token CPI: add mint/account/authority manifests, token instruction
+  packing, and behavior checks against the standard token program.
+- Logs/events and return data: expose `sol_log*` / `sol_set_return_data` /
+  `sol_get_return_data` helpers with Web3.js log and simulation assertions.
+- Sysvars, crypto, and memory helpers: cover clock/rent sysvars, hash syscalls,
+  memcpy/memcmp/memset, and compare outputs with JavaScript reference code.
 - Add Rust/Pinocchio reference fixtures for the same account schema and compare
   ProofForge-generated behavior against those reference programs through the
   same Web3.js harness.
-- Generalize `--solana-elf` to expose sbpf arch/profile options instead of the
-  live smoke rebuilding with `sbpf build --arch v0`.
-- Move from Phase 1 single-account manifests to generated multi-account
-  schemas with signer/writable/owner constraints per entrypoint.
+- Move from Phase 1 single-account manifests to generated multi-account schemas
+  with signer/writable/owner constraints per entrypoint.
 
 ## Workstream 8: Move Source Generation POC (Aptos first)
 

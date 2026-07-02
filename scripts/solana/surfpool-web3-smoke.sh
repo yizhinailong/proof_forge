@@ -30,7 +30,6 @@ SURFPOOL_BIN="${SURFPOOL:-surfpool}"
 SOLANA_BIN="${SOLANA:-solana}"
 KEYGEN="${SOLANA_KEYGEN:-solana-keygen}"
 NPM_BIN="${NPM:-npm}"
-SBPF_BIN="${SBPF:-sbpf}"
 SBPF_ARCH="${PROOF_FORGE_SOLANA_LIVE_SBPF_ARCH:-v0}"
 RPC_HOST="${PROOF_FORGE_SURFPOOL_HOST:-127.0.0.1}"
 RPC_PORT="${PROOF_FORGE_SURFPOOL_PORT:-8899}"
@@ -54,7 +53,7 @@ command -v lake >/dev/null 2>&1 || fail "lake not on PATH"
 command -v "$SURFPOOL_BIN" >/dev/null 2>&1 || skip "surfpool not on PATH (set SURFPOOL=/path/to/surfpool)"
 command -v "$SOLANA_BIN" >/dev/null 2>&1 || skip "solana CLI not on PATH (set SOLANA=/path/to/solana)"
 command -v "$KEYGEN" >/dev/null 2>&1 || skip "solana-keygen not on PATH (set SOLANA_KEYGEN=/path/to/solana-keygen)"
-command -v "$SBPF_BIN" >/dev/null 2>&1 || skip "sbpf not on PATH (set SBPF=/path/to/sbpf)"
+command -v sbpf >/dev/null 2>&1 || skip "sbpf not on PATH"
 command -v node >/dev/null 2>&1 || skip "node not on PATH"
 command -v "$NPM_BIN" >/dev/null 2>&1 || skip "npm not on PATH (set NPM=/path/to/npm)"
 [ -f "$JS_TEMPLATE" ] || fail "Web3.js smoke template not found: $JS_TEMPLATE"
@@ -63,15 +62,9 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$NODE_PROJECT" "$SURFPOOL_LOG_DIR"
 
 echo "=== V-GATE-SOLANA-04 step 1: build Counter ELF ==="
-lake env proof-forge --solana-elf -o "$ELF_OUTPUT" --artifact-output "$ARTIFACT_OUTPUT" \
+lake env proof-forge --solana-elf --solana-sbpf-arch "$SBPF_ARCH" -o "$ELF_OUTPUT" --artifact-output "$ARTIFACT_OUTPUT" \
   || fail "proof-forge --solana-elf failed"
 [ -f "$ELF_OUTPUT" ] || fail "ELF not produced: $ELF_OUTPUT"
-SBPF_PROJECT="$OUT_DIR/$PROJECT_NAME-sbpf-project"
-if [ -d "$SBPF_PROJECT" ]; then
-  ( cd "$SBPF_PROJECT" && "$SBPF_BIN" build --arch "$SBPF_ARCH" ) \
-    || fail "sbpf build --arch $SBPF_ARCH failed"
-  cp "$SBPF_PROJECT/deploy/$PROJECT_NAME.so" "$ELF_OUTPUT"
-fi
 
 echo "=== V-GATE-SOLANA-04 step 2: generate local keypairs ==="
 "$KEYGEN" new --no-bip39-passphrase --silent -o "$PAYER_KEYPAIR" --force \
