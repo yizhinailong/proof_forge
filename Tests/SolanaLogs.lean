@@ -20,6 +20,29 @@ def contains (haystack needle : String) : Bool :=
 def hasCapability (plan : CapabilityPlan) (capability : Capability) : Bool :=
   plan.capabilities.any (fun c => c == capability)
 
+def metadataValue? (call : CapabilityCall) (key : String) : Option String :=
+  call.metadata.foldl
+    (fun found metadata =>
+      match found with
+      | some _ => found
+      | none =>
+          if metadata.key == key then
+            some metadata.value
+          else
+            none)
+    none
+
+def scopedPubkeyLogCall? (plan : CapabilityPlan) (name entrypoint : String) :
+    Option CapabilityCall :=
+  plan.calls.find? fun call =>
+    call.capability == .eventsEmit &&
+    metadataValue? call "solana.log.name" == some name &&
+    metadataValue? call "proof_forge.entrypoint" == some entrypoint
+
+def requireMetadata (call : CapabilityCall) (key expected : String) : IO Unit :=
+  require (metadataValue? call key == some expected)
+    s!"metadata `{key}` mismatch for operation `{call.operation}`"
+
 def main : IO UInt32 := do
   let spec := ProofForge.Solana.Examples.LogEvent.spec
   let plan ←
@@ -31,6 +54,25 @@ def main : IO UInt32 := do
     "Solana log event plan missing events.emit capability"
   require (hasCapability plan .storageScalar)
     "Solana log event plan missing storage.scalar capability"
+  require (hasCapability plan .accountExplicit)
+    "Solana pubkey log plan missing account.explicit capability"
+
+  let pubkeyLogCall ←
+    match scopedPubkeyLogCall? plan "log_state_account" "log_state_pubkey" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana log event plan missing log_state_account pubkey action"
+  require (pubkeyLogCall.operation == "solana.log.pubkey")
+    "log_state_account should lower through solana.log.pubkey"
+  requireMetadata pubkeyLogCall "solana.extension" "log"
+  requireMetadata pubkeyLogCall "solana.log.op" "pubkey"
+  requireMetadata pubkeyLogCall "solana.log.account" "last_logged_amount"
+
+  match resolveSpec evm spec with
+  | .ok _ =>
+      throw <| IO.userError "EVM target should reject Solana pubkey-log extension metadata"
+  | .error err =>
+      require (contains err.render "cannot use Solana target extension metadata")
+        "EVM rejection should mention Solana target extension metadata"
 
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "solana-log-event" spec with
   | .ok pkg =>
@@ -43,10 +85,22 @@ def main : IO UInt32 := do
       let tag := ProofForge.Backend.Solana.SbpfAsm.stableEventTag "AmountEvent"
       require (contains manifest "name = \"emit\"")
         "log event manifest missing emit entrypoint"
+      require (contains manifest "name = \"log_state_pubkey\"")
+        "log event manifest missing log_state_pubkey entrypoint"
       require (contains manifest "min_data_len = 9")
         "log event manifest missing parameter payload length"
+      require (contains manifest "min_data_len = 1")
+        "log event manifest missing pubkey log payload length"
       require (contains manifest "{ name = \"amount\", type = \"U64\", offset = 1, byte_size = 8, encoding = \"le-u64\" }")
         "log event manifest missing amount parameter schema"
+      require (contains manifest "[[solana.entrypoint_log]]")
+        "log event manifest missing entrypoint log action section"
+      require (contains manifest "log = \"log_state_account\"")
+        "log event manifest missing pubkey log action"
+      require (contains manifest "op = \"pubkey\"")
+        "log event manifest missing pubkey log op"
+      require (contains manifest "account = \"last_logged_amount\"")
+        "log event manifest missing pubkey log account"
       require (contains asm "solana.event.emit AmountEvent: sol_log_64_ scalar fields")
         "assembly missing event emission marker"
       require (contains asm s!"solana.event.field AmountEvent.amount: tag={tag} index=0")
@@ -59,6 +113,16 @@ def main : IO UInt32 := do
         "assembly missing event field value argument"
       require (contains asm "call sol_log_64_")
         "assembly missing sol_log_64_ syscall"
+      require (contains asm "solana.log.pubkey_action log_state_account")
+        "assembly missing pubkey log entrypoint action"
+      require (contains asm "sol_log_pubkey_log_state_account:")
+        "assembly missing pubkey log helper label"
+      require (contains asm "solana.log.pubkey log_state_account: account=last_logged_amount")
+        "assembly missing pubkey log helper marker"
+      require (contains asm "solana.log.pubkey.ptr log_state_account account=last_logged_amount")
+        "assembly missing pubkey log account pointer marker"
+      require (contains asm "call sol_log_pubkey")
+        "assembly missing sol_log_pubkey syscall"
   | .error err =>
       throw <| IO.userError s!"Solana log event package render failed: {err.render}"
 

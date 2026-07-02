@@ -84,13 +84,11 @@ def main : IO UInt32 := do
     "solana.allocator runtime: kind=none model=deny-dynamic heap_start=0x300000000 heap_bytes=0"
     "model = \"deny-dynamic\""
 
-  let expected :=
-    "target `evm` does not support capability `runtime.allocator`: " ++
-    "capability is not present in the target profile"
   match resolveSpec evm bumpSpec with
   | .ok _ => throw <| IO.userError "EVM unexpectedly accepted Solana runtime allocator"
   | .error err =>
-      require (err.render == expected) s!"unexpected EVM diagnostic: {err.render}"
+      require (contains err.render "cannot use Solana target extension metadata")
+        s!"unexpected EVM diagnostic: {err.render}"
 
   IO.println "solana-allocator: ok"
   return 0

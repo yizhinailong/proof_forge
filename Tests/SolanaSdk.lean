@@ -190,13 +190,11 @@ def main : IO UInt32 := do
     | .error err => throw <| IO.userError s!"Solana SDK routing failed: {err.render}"
   requireSolanaPlan plan
 
-  let expected :=
-    "target `evm` does not support capability `storage.pda`: " ++
-    "capability is not present in the target profile"
   match resolveSpec evm extensionSpec with
   | .ok _ => throw <| IO.userError "EVM unexpectedly accepted Solana PDA/CPI extension"
   | .error err =>
-      require (err.render == expected) s!"unexpected EVM diagnostic: {err.render}"
+      require (err.render == "target `evm` cannot use Solana target extension metadata on operation `solana.account.pda`")
+        s!"unexpected EVM diagnostic: {err.render}"
 
   IO.println "solana-sdk: ok"
   return 0

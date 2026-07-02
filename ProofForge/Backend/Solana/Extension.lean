@@ -234,6 +234,12 @@ structure ComputeUnitsLogAction where
   entrypoint : String
   deriving Repr, Inhabited
 
+structure PubkeyLogAction where
+  name : String
+  account : String
+  entrypoint : String
+  deriving Repr, Inhabited
+
 structure RuntimeAllocator where
   name : String
   kind : String
@@ -266,6 +272,7 @@ structure ProgramExtensions where
   returnDataReadActions : Array ReturnDataReadAction := #[]
   computeUnitsActions : Array ComputeUnitsAction := #[]
   computeUnitsLogActions : Array ComputeUnitsLogAction := #[]
+  pubkeyLogActions : Array PubkeyLogAction := #[]
   deriving Repr, Inhabited
 
 structure CpiAccountBinding where
@@ -496,6 +503,16 @@ def ProgramExtensions.pushComputeUnitsLogAction (acc : ProgramExtensions)
   else
     { acc with computeUnitsLogActions := acc.computeUnitsLogActions.push action }
 
+def ProgramExtensions.pushPubkeyLogAction (acc : ProgramExtensions)
+    (action : PubkeyLogAction) : ProgramExtensions :=
+  if acc.pubkeyLogActions.any (fun existing =>
+      existing.name == action.name &&
+      existing.account == action.account &&
+      existing.entrypoint == action.entrypoint) then
+    acc
+  else
+    { acc with pubkeyLogActions := acc.pubkeyLogActions.push action }
+
 def ProgramExtensions.addPda (acc : ProgramExtensions) (pda : PdaDerive) : ProgramExtensions :=
   let acc := acc.pushPdaDefinition pda
   match pda.entrypoint? with
@@ -539,6 +556,10 @@ def ProgramExtensions.addComputeUnits (acc : ProgramExtensions)
 def ProgramExtensions.addComputeUnitsLog (acc : ProgramExtensions)
     (action : ComputeUnitsLogAction) : ProgramExtensions :=
   acc.pushComputeUnitsLogAction action
+
+def ProgramExtensions.addPubkeyLog (acc : ProgramExtensions)
+    (action : PubkeyLogAction) : ProgramExtensions :=
+  acc.pushPubkeyLogAction action
 
 def allocatorFromCall? (call : CapabilityCall) : Option RuntimeAllocator :=
   if call.capability == .runtimeAllocator then
@@ -713,6 +734,21 @@ def computeUnitsLogFromCall? (call : CapabilityCall) : Option ComputeUnitsLogAct
   else
     none
 
+def pubkeyLogFromCall? (call : CapabilityCall) : Option PubkeyLogAction :=
+  if call.capability == .eventsEmit &&
+      metadataValue? call.metadata "solana.extension" == some "log" &&
+      metadataValue? call.metadata "solana.log.op" == some "pubkey" then
+    match entrypoint? call with
+    | some entrypoint =>
+        some {
+          name := metadataValue? call.metadata "solana.log.name" |>.getD call.operation
+          account := metadataValue? call.metadata "solana.log.account" |>.getD ""
+          entrypoint := entrypoint
+        }
+    | none => none
+  else
+    none
+
 def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
   plan.calls.foldl
     (fun acc call =>
@@ -752,8 +788,12 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
         match computeUnitsFromCall? call with
         | some action => acc.addComputeUnits action
         | none => acc
-      match computeUnitsLogFromCall? call with
-      | some action => acc.addComputeUnitsLog action
+      let acc :=
+        match computeUnitsLogFromCall? call with
+        | some action => acc.addComputeUnitsLog action
+        | none => acc
+      match pubkeyLogFromCall? call with
+      | some action => acc.addPubkeyLog action
       | none => acc)
     {}
 
@@ -767,7 +807,8 @@ def hasExtensions (extensions : ProgramExtensions) : Bool :=
     extensions.returnDataActions.size > 0 ||
     extensions.returnDataReadActions.size > 0 ||
     extensions.computeUnitsActions.size > 0 ||
-    extensions.computeUnitsLogActions.size > 0
+    extensions.computeUnitsLogActions.size > 0 ||
+    extensions.pubkeyLogActions.size > 0
 
 def hasSyscallExtensions (extensions : ProgramExtensions) : Bool :=
   extensions.pdas.size > 0 ||
@@ -778,7 +819,8 @@ def hasSyscallExtensions (extensions : ProgramExtensions) : Bool :=
     extensions.returnDataActions.size > 0 ||
     extensions.returnDataReadActions.size > 0 ||
     extensions.computeUnitsActions.size > 0 ||
-    extensions.computeUnitsLogActions.size > 0
+    extensions.computeUnitsLogActions.size > 0 ||
+    extensions.pubkeyLogActions.size > 0
 
 def hasEntrypointActions (extensions : ProgramExtensions) : Bool :=
   extensions.pdaActions.size > 0 ||
@@ -789,7 +831,8 @@ def hasEntrypointActions (extensions : ProgramExtensions) : Bool :=
     extensions.returnDataActions.size > 0 ||
     extensions.returnDataReadActions.size > 0 ||
     extensions.computeUnitsActions.size > 0 ||
-    extensions.computeUnitsLogActions.size > 0
+    extensions.computeUnitsLogActions.size > 0 ||
+    extensions.pubkeyLogActions.size > 0
 
 def labelPart (name : String) : String :=
   let chars := name.toList.map fun ch =>
@@ -822,6 +865,9 @@ def ComputeUnitsAction.label (action : ComputeUnitsAction) : String :=
 
 def ComputeUnitsLogAction.label (action : ComputeUnitsLogAction) : String :=
   "sol_compute_units_log_" ++ labelPart action.name
+
+def PubkeyLogAction.label (action : PubkeyLogAction) : String :=
+  "sol_log_pubkey_" ++ labelPart action.name
 
 def callSyscall (name : String) : AstNode :=
   .instruction { opcode := .call, imm := some (.sym name) }
@@ -2224,6 +2270,43 @@ def lowerComputeUnitsLogAction (action : ComputeUnitsLogAction) : Array AstNode 
     .comment s!"solana.compute_units.log_action {action.name}"
   ] ++ callVoidHelperPreservingInput action.label
 
+def lowerPubkeyLogAccountPtr (bindings : Array CpiAccountBinding)
+    (action : PubkeyLogAction) : Array AstNode :=
+  match cpiAccountBinding? bindings action.account with
+  | some binding =>
+      #[
+        .comment s!"solana.log.pubkey.ptr {action.name} account={action.account}",
+        .instruction { opcode := .mov64, dst := some .r1, src := some .r7 },
+        .instruction { opcode := .add64, dst := some .r1, imm := some (.num binding.layout.keyOff) }
+      ]
+  | none =>
+      #[
+        .comment s!"solana.log.pubkey.ptr {action.name} account={action.account} missing placeholder=zero"
+      ] ++
+      stackPtr .r1 memoryResultOffset ++
+      lowerZero32 .r1
+
+def lowerPubkeyLogHelper (accountBindings : Array CpiAccountBinding)
+    (action : PubkeyLogAction) : Array AstNode :=
+  #[
+    .blankLine,
+    .comment s!"solana.log.pubkey {action.name}: account={action.account}",
+    .label action.label,
+    .instruction { opcode := .mov64, dst := some .r7, src := some .r1 }
+  ] ++
+  lowerPubkeyLogAccountPtr accountBindings action ++ #[
+    .comment "r1=pubkey_ptr",
+    callSyscall ProofForge.Backend.Solana.Syscalls.sol_log_pubkey,
+    .instruction { opcode := .mov64, dst := some .r1, src := some .r7 },
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
+    .instruction { opcode := .exit }
+  ]
+
+def lowerPubkeyLogAction (action : PubkeyLogAction) : Array AstNode :=
+  #[
+    .comment s!"solana.log.pubkey_action {action.name}"
+  ] ++ callVoidHelperPreservingInput action.label
+
 def pushUniqueMemoryHelper (actions : Array MemoryAction)
     (action : MemoryAction) : Array MemoryAction :=
   if actions.any (fun existing => existing.name == action.name && existing.op == action.op) then
@@ -2297,6 +2380,16 @@ def pushUniqueComputeUnitsLogHelper (actions : Array ComputeUnitsLogAction)
 def uniqueComputeUnitsLogHelpers (extensions : ProgramExtensions) : Array ComputeUnitsLogAction :=
   extensions.computeUnitsLogActions.foldl pushUniqueComputeUnitsLogHelper #[]
 
+def pushUniquePubkeyLogHelper (actions : Array PubkeyLogAction)
+    (action : PubkeyLogAction) : Array PubkeyLogAction :=
+  if actions.any (fun existing => existing.name == action.name && existing.account == action.account) then
+    actions
+  else
+    actions.push action
+
+def uniquePubkeyLogHelpers (extensions : ProgramExtensions) : Array PubkeyLogAction :=
+  extensions.pubkeyLogActions.foldl pushUniquePubkeyLogHelper #[]
+
 def lowerPdaAction (action : PdaAction) : Array AstNode :=
   #[
     .comment s!"solana.pda.action {action.name}"
@@ -2321,9 +2414,10 @@ def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String
   let returnDataReadActions := extensions.returnDataReadActions.filter (fun action => action.entrypoint == entrypoint)
   let computeUnitsActions := extensions.computeUnitsActions.filter (fun action => action.entrypoint == entrypoint)
   let computeUnitsLogActions := extensions.computeUnitsLogActions.filter (fun action => action.entrypoint == entrypoint)
+  let pubkeyLogActions := extensions.pubkeyLogActions.filter (fun action => action.entrypoint == entrypoint)
   if pdaActions.isEmpty && cpiActions.isEmpty && memoryActions.isEmpty && cryptoHashActions.isEmpty &&
       sysvarActions.isEmpty && returnDataActions.isEmpty && returnDataReadActions.isEmpty &&
-      computeUnitsActions.isEmpty && computeUnitsLogActions.isEmpty then
+      computeUnitsActions.isEmpty && computeUnitsLogActions.isEmpty && pubkeyLogActions.isEmpty then
     #[]
   else
     #[.comment s!"Solana SDK target extension actions for {entrypoint}"] ++
@@ -2335,7 +2429,8 @@ def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String
     returnDataActions.foldl (fun acc action => acc ++ lowerReturnDataAction action) #[] ++
     returnDataReadActions.foldl (fun acc action => acc ++ lowerReturnDataReadAction action) #[] ++
     computeUnitsActions.foldl (fun acc action => acc ++ lowerComputeUnitsAction action) #[] ++
-    computeUnitsLogActions.foldl (fun acc action => acc ++ lowerComputeUnitsLogAction action) #[]
+    computeUnitsLogActions.foldl (fun acc action => acc ++ lowerComputeUnitsLogAction action) #[] ++
+    pubkeyLogActions.foldl (fun acc action => acc ++ lowerPubkeyLogAction action) #[]
 
 def lowerExtensionErrors : Array AstNode := #[
   .blankLine,
@@ -2384,6 +2479,7 @@ def lowerProgramExtensionsWithBindings
     (uniqueReturnDataReadHelpers extensions).foldl (fun acc action => acc ++ lowerReturnDataReadHelper valueBindings action) #[] ++
     (uniqueComputeUnitsHelpers extensions).foldl (fun acc action => acc ++ lowerComputeUnitsHelper valueBindings action) #[] ++
     (uniqueComputeUnitsLogHelpers extensions).foldl (fun acc action => acc ++ lowerComputeUnitsLogHelper action) #[] ++
+    (uniquePubkeyLogHelpers extensions).foldl (fun acc action => acc ++ lowerPubkeyLogHelper accountBindings action) #[] ++
     lowerExtensionErrors
 
 def lowerProgramExtensionsWithAccountBindings

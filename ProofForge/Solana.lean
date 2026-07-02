@@ -224,6 +224,11 @@ structure ComputeUnitsLogAction where
   name : String
   deriving Repr
 
+structure PubkeyLogAction where
+  name : String
+  account : String
+  deriving Repr
+
 def kv (key value : String) : TargetMetadata := {
   key := key
   value := value
@@ -427,6 +432,14 @@ def ComputeUnitsLogAction.metadata (action : ComputeUnitsLogAction) : Array Targ
     kv "solana.extension" "compute_units",
     kv "solana.compute_units.name" action.name,
     kv "solana.compute_units.op" "log_remaining"
+  ]
+
+def PubkeyLogAction.metadata (action : PubkeyLogAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "log",
+    kv "solana.log.name" action.name,
+    kv "solana.log.op" "pubkey",
+    kv "solana.log.account" action.account
   ]
 
 def systemProgram : String :=
@@ -974,6 +987,24 @@ def logRemainingComputeUnits (name : String := "log_remaining_compute_units") :
     ProofForge.Contract.Builder.EntryM Unit :=
   computeUnitsLogEntry {
     name := name
+  }
+
+def pubkeyLogEntry (action : PubkeyLogAction) :
+    ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .accountExplicit
+    "solana.log.pubkey.account"
+    (source? := some action.account)
+    (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .eventsEmit
+    "solana.log.pubkey"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def logAccountPubkey (name account : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  pubkeyLogEntry {
+    name := name
+    account := account
   }
 
 def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do

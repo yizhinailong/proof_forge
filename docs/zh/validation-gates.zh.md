@@ -17,7 +17,7 @@
 | Solana SPL Token ops CPI Surfpool/Web3.js smoke | `just solana-spl-token-ops-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/spl-token` 创建 mint 和 token accounts，通过 `@solana/web3.js` 调用生成程序，验证 mint supply 与 token balance 变化，验证 delegate allowance 后再 revoke 清空，并验证 program-owned state account 记录所有请求值 | Token-2022 extension 行为、公共 validator 部署、Rust/Pinocchio 等价性 |
 | Solana Pinocchio System transfer reference-equivalence smoke | `just solana-pinocchio-system-transfer-equivalence` | 来自 `lean-toolchain` 的 Lean 工具链；`sbpf`；`python3` | emit 生成的 System Program transfer CPI artifact，并将 instruction ABI、account order、signer/writable requirement、CPI metadata 和 lamports state write contract 与 `references/solana/pinocchio/system-transfer` 下 checked-in Pinocchio reference manifest/source 对比 | 构建/部署 Pinocchio reference ELF，并让 ProofForge/reference programs 通过同一个 Web3.js harness 对比 |
 | Solana Pinocchio System transfer live-equivalence smoke | `just solana-pinocchio-system-transfer-live-equivalence` | 来自 `lean-toolchain` 的 Lean 工具链；带 Solana rustc/platform-tools 的 `cargo-build-sbf`；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建 ProofForge System transfer CPI ELF 和 checked-in Pinocchio reference ELF，将两个程序部署到同一个 Surfpool instance，用同一个 Web3.js transfer scenario 分别调用，并对比 recipient lamport delta 和 state 记录值 | 增加 create-account 与 SPL Token Pinocchio reference programs；在 Solana rustc 可稳定安装后纳入 CI；`just solana-pinocchio-install-sbf-tools` 可修复缺失/损坏的 platform-tools |
-| Solana log/event Surfpool/Web3.js smoke | `just solana-log-event-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `events.emit` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_log_64_` transaction logs 包含稳定 event tag 和 scalar field value，并验证 program-owned state account 记录了同一个值 | Anchor-compatible event serialization、indexed events、历史索引保证 |
+| Solana log/event Surfpool/Web3.js smoke | `just solana-log-event-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `events.emit`/Solana log-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_log_64_` transaction logs 包含稳定 event tag 和 scalar field value，验证 program-owned state account 记录了同一个值，并验证 `sol_log_pubkey` 会记录 state account 的 base58 pubkey | Anchor-compatible event serialization、indexed events、`sol_log_`/`sol_log_data` payloads、历史索引保证 |
 | Solana Clock sysvar Surfpool/Web3.js smoke | `just solana-clock-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `contextRead checkpointId` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_clock_sysvar` 将 `Clock.slot` 记录进 program-owned state，并与 transaction slot metadata 对比 | 更丰富的 Clock fields、公共 validator 部署 |
 | Solana Rent sysvar Surfpool/Web3.js smoke | `just solana-rent-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_rent_sysvar` 将 `Rent.lamports_per_byte_year` 记录进 program-owned state，并与 Rent sysvar account data 对比 | 更多 Rent fields、公共 validator 部署 |
 | Solana EpochSchedule sysvar Surfpool/Web3.js smoke | `just solana-epoch-schedule-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_epoch_schedule_sysvar` 将当前 RPC 暴露的 5 个 `EpochSchedule` 字段记录进 program-owned state，并与 RPC `getEpochSchedule()` 对比 | 更多 Clock/Rent 字段、generic account-passed sysvar 读取、公共 validator 部署 |
@@ -135,15 +135,17 @@
     destination token account，用 source/mint authority signer 调用生成的
     mint、burn、approve 和 revoke entrypoint，并检查 supply/balance/delegate
     变化以及 state account 记录的 mint、burn、approve 和 revoke 值。
-  - **V-GATE-SOLANA-14** — Solana `events.emit` scalar log 通过 Surfpool 和
-    Web3.js 进行 live 行为验证。脚本：
+  - **V-GATE-SOLANA-14** — Solana `events.emit` scalar log 加
+    `sol_log_pubkey` 通过 Surfpool 和 Web3.js 进行 live 行为验证。脚本：
     `scripts/solana/log-event-web3-smoke.sh` 构建生成的
-    `--solana-log-event-elf` fixture，校验 artifact instruction schema 与
-    `events.emit` capability metadata，启动 Surfpool，用
-    `solana program deploy --use-rpc` 部署 ELF，用 scalar `amount`
-    instruction parameter 调用生成的 `emit` entrypoint，检查 program-owned
-    state account 记录的 amount，并检查 transaction `logMessages` 中
-    `sol_log_64_` 输出包含稳定的 `AmountEvent` tag 和 scalar value。
+    `--solana-log-event-elf` fixture，校验 artifact instruction schema、
+    `events.emit` capability metadata 和 Solana-only `pubkeyLogActions`，
+    启动 Surfpool，用 `solana program deploy --use-rpc` 部署 ELF，用
+    scalar `amount` instruction parameter 调用生成的 `emit` entrypoint，
+    检查 program-owned state account 记录的 amount，检查 transaction
+    `logMessages` 中 `sol_log_64_` 输出包含稳定的 `AmountEvent` tag 和
+    scalar value，调用 `log_state_pubkey`，并检查 transaction `logMessages`
+    中包含来自 `sol_log_pubkey` 的 state account base58 pubkey。
   - **V-GATE-SOLANA-15** — Solana Clock sysvar 通过 Surfpool 和 Web3.js
     进行 live 行为验证。脚本：`scripts/solana/clock-sysvar-web3-smoke.sh`
     构建生成的 `--solana-clock-sysvar-elf` fixture，校验 artifact

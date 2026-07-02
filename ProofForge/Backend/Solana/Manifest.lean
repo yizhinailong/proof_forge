@@ -204,6 +204,14 @@ def cpiProgramAccount (cpi : CpiInvoke) : AccountEntry := {
 def cpiProgramAccountRequired (_cpi : CpiInvoke) : Bool :=
   true
 
+def pubkeyLogAccount (action : PubkeyLogAction) : AccountEntry := {
+  name := action.account
+  index := 0
+  signer := false
+  writable := false
+  owner := "any"
+}
+
 def pdaByName? (extensions : ProgramExtensions) (name : String) : Option PdaDerive :=
   extensions.pdas.find? (fun pda => pda.name == name)
 
@@ -262,6 +270,16 @@ def pushEntrypointCpiAccounts (extensions : ProgramExtensions) (entrypoint : Str
         accounts)
     accounts
 
+def pushEntrypointPubkeyLogAccounts (extensions : ProgramExtensions) (entrypoint : String)
+    (accounts : Array AccountEntry) : Array AccountEntry :=
+  extensions.pubkeyLogActions.foldl
+    (fun accounts action =>
+      if action.entrypoint == entrypoint && !action.account.isEmpty then
+        pushAccount accounts (pubkeyLogAccount action)
+      else
+        accounts)
+    accounts
+
 def pushCpiAccounts (accounts : Array AccountEntry) (cpi : CpiInvoke) : Array AccountEntry :=
   let accounts :=
     cpi.accounts.foldl
@@ -277,6 +295,7 @@ def buildInstructionAccounts (module : Module) (extensions : ProgramExtensions)
   let accounts := pushAccount #[] (defaultStateAccount module)
   let accounts := pushEntrypointPdaAccounts extensions entrypoint accounts
   let accounts := pushEntrypointCpiAccounts extensions entrypoint accounts
+  let accounts := pushEntrypointPubkeyLogAccounts extensions entrypoint accounts
   pushEntrypointPdaSeedAccounts extensions entrypoint accounts
 
 def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Array AccountEntry :=
@@ -286,6 +305,10 @@ def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Arr
       (fun accounts pda => pushAccount accounts (pdaInstructionAccount pda))
       accounts
   let accounts := extensions.cpis.foldl pushCpiAccounts accounts
+  let accounts := extensions.pubkeyLogActions.foldl
+    (fun accounts action =>
+      if action.account.isEmpty then accounts else pushAccount accounts (pubkeyLogAccount action))
+    accounts
   extensions.pdas.foldl pushPdaSeedAccounts accounts
 
 def tomlBool (value : Bool) : String :=
@@ -459,6 +482,13 @@ def renderComputeUnitsLogAction (action : ComputeUnitsLogAction) : String :=
   "compute_units = " ++ tomlString action.name ++ "\n" ++
   "op = \"log_remaining\"\n"
 
+def renderPubkeyLogAction (action : PubkeyLogAction) : String :=
+  "[[solana.entrypoint_log]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "log = " ++ tomlString action.name ++ "\n" ++
+  "op = \"pubkey\"\n" ++
+  "account = " ++ tomlString action.account ++ "\n"
+
 def renderActions (extensions : ProgramExtensions) : String :=
   if !hasEntrypointActions extensions then
     ""
@@ -472,7 +502,8 @@ def renderActions (extensions : ProgramExtensions) : String :=
       extensions.returnDataActions.map renderReturnDataAction ++
       extensions.returnDataReadActions.map renderReturnDataReadAction ++
       extensions.computeUnitsActions.map renderComputeUnitsAction ++
-      extensions.computeUnitsLogActions.map renderComputeUnitsLogAction
+      extensions.computeUnitsLogActions.map renderComputeUnitsLogAction ++
+      extensions.pubkeyLogActions.map renderPubkeyLogAction
     "\n# Solana SDK entrypoint actions\n" ++
     String.intercalate "\n" actionBlocks.toList
 

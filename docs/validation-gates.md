@@ -20,7 +20,7 @@ does not add or edit CI jobs.
 | Solana System create_account CPI Surfpool/Web3.js smoke | `just solana-system-create-account-cpi-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated System Program `create_account` CPI ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes it through `@solana/web3.js`, verifies the newly created account owner/space/lamports, and verifies the program-owned state account recorded the requested lamports and space | SPL Token CPI behavior, public validator deployment, Rust/Pinocchio equivalence |
 | Solana SPL Token transfer_checked CPI Surfpool/Web3.js smoke | `just solana-spl-token-transfer-cpi-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated SPL Token `transfer_checked` CPI ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, creates a mint and token accounts through `@solana/spl-token`, invokes the generated program through `@solana/web3.js`, verifies source/destination token balances, and verifies the program-owned state account recorded the requested amount | Broader SPL Token/Token-2022 coverage, public validator deployment, Rust/Pinocchio equivalence |
 | Solana SPL Token ops CPI Surfpool/Web3.js smoke | `just solana-spl-token-ops-cpi-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, creates a mint and token accounts through `@solana/spl-token`, invokes the generated program through `@solana/web3.js`, verifies mint supply and token balance changes, verifies delegate allowance then revoke clearing, and verifies the program-owned state account recorded all requested values | Token-2022 extension behavior, public validator deployment, Rust/Pinocchio equivalence |
-| Solana log/event Surfpool/Web3.js smoke | `just solana-log-event-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated `events.emit` ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_log_64_` transaction logs contain the stable event tag and scalar field value, and verifies the program-owned state account recorded the same value | Anchor-compatible event serialization, indexed events, historical indexing guarantees |
+| Solana log/event Surfpool/Web3.js smoke | `just solana-log-event-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated `events.emit`/Solana log-extension ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_log_64_` transaction logs contain the stable event tag and scalar field value, verifies the program-owned state account recorded the same value, and verifies `sol_log_pubkey` logs the state account's base58 pubkey | Anchor-compatible event serialization, indexed events, `sol_log_`/`sol_log_data` payloads, historical indexing guarantees |
 | Solana Clock sysvar Surfpool/Web3.js smoke | `just solana-clock-sysvar-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated `contextRead checkpointId` ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_get_clock_sysvar` records `Clock.slot` into program-owned state, and compares it with transaction slot metadata | Richer Clock fields, public validator deployment |
 | Solana Rent sysvar Surfpool/Web3.js smoke | `just solana-rent-sysvar-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated Solana-only `sysvar` target-extension ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_get_rent_sysvar` records `Rent.lamports_per_byte_year` into program-owned state, and compares it with the Rent sysvar account data | Additional Rent fields, public validator deployment |
 | Solana EpochSchedule sysvar Surfpool/Web3.js smoke | `just solana-epoch-schedule-sysvar-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated Solana-only `sysvar` target-extension ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_get_epoch_schedule_sysvar` records all five current RPC-exposed `EpochSchedule` fields into program-owned state, and compares them with RPC `getEpochSchedule()` | Additional Clock/Rent fields, generic account-passed sysvar reads, public validator deployment |
@@ -220,16 +220,18 @@ The following gates are `Planned` and do not exist in CI or as scripts:
     burn, approve, and revoke entrypoints with the source/mint authority
     signer, and checks supply/balance/delegate changes plus the state account's
     recorded mint, burn, approve, and revoke values.
-  - **V-GATE-SOLANA-14** — Solana `events.emit` scalar log live behavior
-    through Surfpool and Web3.js. Script:
+  - **V-GATE-SOLANA-14** — Solana `events.emit` scalar log plus
+    `sol_log_pubkey` live behavior through Surfpool and Web3.js. Script:
     `scripts/solana/log-event-web3-smoke.sh` builds the generated
-    `--solana-log-event-elf` fixture, validates artifact instruction schema
-    and `events.emit` capability metadata, starts Surfpool, deploys the ELF
-    with `solana program deploy --use-rpc`, invokes the generated `emit`
-    entrypoint with a scalar `amount` instruction parameter, checks the
-    program-owned state account's recorded amount, and checks transaction
-    `logMessages` for the `sol_log_64_` output containing the stable
-    `AmountEvent` tag and scalar value.
+    `--solana-log-event-elf` fixture, validates artifact instruction schema,
+    `events.emit` capability metadata, and Solana-only `pubkeyLogActions`,
+    starts Surfpool, deploys the ELF with `solana program deploy --use-rpc`,
+    invokes the generated `emit` entrypoint with a scalar `amount` instruction
+    parameter, checks the program-owned state account's recorded amount, checks
+    transaction `logMessages` for the `sol_log_64_` output containing the
+    stable `AmountEvent` tag and scalar value, invokes `log_state_pubkey`, and
+    checks transaction `logMessages` for the state account's base58 pubkey from
+    `sol_log_pubkey`.
   - **V-GATE-SOLANA-15** — Solana Clock sysvar live behavior through Surfpool
     and Web3.js. Script: `scripts/solana/clock-sysvar-web3-smoke.sh` builds
     the generated `--solana-clock-sysvar-elf` fixture, validates artifact

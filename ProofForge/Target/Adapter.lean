@@ -46,6 +46,17 @@ def defaultMetadata (profile : TargetProfile) (spec : ProofForge.Contract.Contra
   { key := "resolver", value := "ir-capability-plan-v0" }
 ]
 
+def metadataRequiresSolana (metadata : Array TargetMetadata) : Bool :=
+  metadata.any (fun item => item.key.startsWith "solana.")
+
+def requireTargetExtensionMetadata (profile : TargetProfile) (calls : Array CapabilityCall) :
+    Except Diagnostic Unit := do
+  for call in calls do
+    if metadataRequiresSolana call.metadata && profile.family != .solana then
+      .error {
+        message := s!"target `{profile.id}` cannot use Solana target extension metadata on operation `{call.operation}`"
+      }
+
 def defaultResolve (profile : TargetProfile) (spec : ProofForge.Contract.ContractSpec) :
     Except Diagnostic CapabilityPlan := do
   let plan : CapabilityPlan := {
@@ -53,6 +64,7 @@ def defaultResolve (profile : TargetProfile) (spec : ProofForge.Contract.Contrac
     calls := capabilityCallsForSpec spec
     metadata := defaultMetadata profile spec
   }
+  requireTargetExtensionMetadata profile plan.calls
   match requireCapabilities profile plan.capabilities with
   | .ok () => .ok plan
   | .error err => .error (Diagnostic.fromCapabilityError err)

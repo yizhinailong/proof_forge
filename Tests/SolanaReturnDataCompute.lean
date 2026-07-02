@@ -141,10 +141,8 @@ def main : IO UInt32 := do
   match resolveSpec evm spec with
   | .ok _ => throw <| IO.userError "EVM unexpectedly accepted Solana return-data/compute extensions"
   | .error err =>
-      let expected :=
-        "target `evm` does not support capability `runtime.return_data`: " ++
-        "capability is not present in the target profile"
-      require (err.render == expected) s!"unexpected EVM diagnostic: {err.render}"
+      require (contains err.render "cannot use Solana target extension metadata")
+        s!"unexpected EVM diagnostic: {err.render}"
 
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "solana-return-data-compute" spec with
   | .ok pkg =>

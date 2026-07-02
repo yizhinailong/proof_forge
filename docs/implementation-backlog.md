@@ -797,7 +797,8 @@ parameter decoding, typed PDA seed lowering, live System Program transfer plus
 create-account CPI validation, live SPL Token `transfer_checked` CPI
 validation, and live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
 validation, plus live scalar `events.emit` log validation through
-`sol_log_64_`, and live `Clock.slot` sysvar validation for `contextRead
+`sol_log_64_`, live account-pubkey log validation through `sol_log_pubkey`,
+and live `Clock.slot` sysvar validation for `contextRead
 checkpointId`, plus live `runtime.memory` validation through `sol_memcpy_`,
 `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`, plus live Solana-only
 `crypto.hash` validation through `sol_sha256`, `sol_keccak256`, and
@@ -863,11 +864,14 @@ Completed alpha slices:
   test accounts with `@solana/spl-token`, invokes all four generated
   entrypoints through Web3.js, and proves supply/balance/delegate changes plus
   state writes.
-- Live scalar event log fixture: `scripts/solana/log-event-web3-smoke.sh`
+- Live scalar event and pubkey log fixture: `scripts/solana/log-event-web3-smoke.sh`
   builds and deploys a generated `events.emit` program on Surfpool, invokes it
   through Web3.js, verifies the generated `sol_log_64_` transaction log
   contains the stable `AmountEvent` tag and scalar `amount` field, and proves
-  the program-owned state account recorded the same value.
+  the program-owned state account recorded the same value. The same fixture now
+  validates Solana-only `logAccountPubkey` metadata, invokes the generated
+  `log_state_pubkey` entrypoint, and proves `sol_log_pubkey` logs the state
+  account's base58 pubkey.
 - Live Clock sysvar fixture: `scripts/solana/clock-sysvar-web3-smoke.sh`
   builds and deploys a generated `contextRead checkpointId` program on
   Surfpool, lowers it to `sol_get_clock_sysvar`, invokes it through Web3.js,
@@ -953,7 +957,7 @@ Remaining priority slices:
    state changes.
 2. Richer return data, sysvars, crypto, logs, and memory helpers (3-5 days):
    extend the current scalar `sol_log_64_` event path to string/base64/
-   Anchor-style and indexed event forms; add CPI return-value handling and
+   Anchor-style and indexed event forms plus `sol_log_data`; add CPI return-value handling and
    validation for `sol_get_return_data`, typed return payload helpers beyond `u64`,
    additional Clock/Rent fields and generic account-passed sysvar reads,
    portable `Expr.hash` routing where the hash semantics match the target, and

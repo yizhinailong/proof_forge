@@ -27,6 +27,10 @@ function writeEmitData(amount) {
   return data;
 }
 
+function writeLogPubkeyData() {
+  return Buffer.from([1]);
+}
+
 function stableEventTag(name) {
   let acc = 5381n;
   const modulus = 4294967296n;
@@ -149,16 +153,34 @@ async function main() {
     throw new Error(`logs missing amount ${amount}: ${JSON.stringify(logs)}`);
   }
 
+  const pubkeyIx = new TransactionInstruction({
+    programId,
+    keys: [{ pubkey: state.publicKey, isSigner: false, isWritable: true }],
+    data: writeLogPubkeyData(),
+  });
+  const pubkeySignature = await sendAndPollTransaction(
+    connection,
+    new Transaction().add(pubkeyIx),
+    [payer]
+  );
+  const pubkeyLogs = await pollTransactionLogs(connection, pubkeySignature);
+  const expectedPubkey = state.publicKey.toBase58();
+  if (!pubkeyLogs.some((line) => line.includes(expectedPubkey))) {
+    throw new Error(`logs missing state pubkey ${expectedPubkey}: ${JSON.stringify(pubkeyLogs)}`);
+  }
+
   console.log(JSON.stringify({
     programId: programId.toBase58(),
     state: state.publicKey.toBase58(),
     payer: payer.publicKey.toBase58(),
     signature,
+    pubkeySignature,
     event: "AmountEvent",
     eventTag: eventTag.toString(),
     amount: amount.toString(),
     recordedAmount: recordedAmount.toString(),
     logs,
+    pubkeyLogs,
   }));
 }
 

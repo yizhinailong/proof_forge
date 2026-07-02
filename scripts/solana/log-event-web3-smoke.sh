@@ -85,17 +85,33 @@ capabilities = artifact.get("capabilities", [])
 if "events.emit" not in capabilities:
     raise SystemExit(f"artifact missing events.emit capability: {capabilities}")
 instructions = artifact.get("solanaInstructions", [])
-if len(instructions) != 1 or instructions[0].get("name") != "emit":
+instruction_names = [instruction.get("name") for instruction in instructions]
+if instruction_names != ["emit", "log_state_pubkey"]:
     raise SystemExit(f"instruction schema mismatch: {instructions}")
-accounts = [account.get("name") for account in instructions[0].get("accounts", [])]
-if accounts != ["last_logged_amount"]:
-    raise SystemExit(f"account schema mismatch: {accounts}")
+for instruction in instructions:
+    accounts = [account.get("name") for account in instruction.get("accounts", [])]
+    if accounts != ["last_logged_amount"]:
+        raise SystemExit(f"account schema mismatch for {instruction.get('name')}: {accounts}")
 params = instructions[0].get("params", [])
 expected_params = [
     {"name": "amount", "type": "U64", "offset": 1, "byteSize": 8, "encoding": "le-u64"},
 ]
 if params != expected_params:
     raise SystemExit(f"parameter schema mismatch: {params}")
+if instructions[1].get("params", []) != []:
+    raise SystemExit(f"log_state_pubkey should not have params: {instructions[1].get('params')}")
+extensions = artifact.get("solanaExtensions", {})
+pubkey_actions = extensions.get("pubkeyLogActions", [])
+expected_pubkey_actions = [
+    {
+        "entrypoint": "log_state_pubkey",
+        "log": "log_state_account",
+        "op": "pubkey",
+        "account": "last_logged_amount",
+    }
+]
+if pubkey_actions != expected_pubkey_actions:
+    raise SystemExit(f"pubkey log action schema mismatch: {pubkey_actions}")
 print("artifact validation: ok")
 PY
 
