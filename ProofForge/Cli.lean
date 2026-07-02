@@ -62,6 +62,7 @@ import ProofForge.Solana.Examples.SplTokenOpsCpi
 import ProofForge.Solana.Examples.LogEvent
 import ProofForge.Solana.Examples.Clock
 import ProofForge.Solana.Examples.Memory
+import ProofForge.Solana.Examples.Crypto
 
 open Lean
 open System
@@ -162,6 +163,7 @@ inductive EmitMode where
   | solanaLogEventElf
   | solanaClockSysvarElf
   | solanaMemoryElf
+  | solanaCryptoHashElf
   | sbpfAsm
   deriving BEq, Inhabited
 
@@ -270,6 +272,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaLogEventElf
   | .solanaClockSysvarElf
   | .solanaMemoryElf
+  | .solanaCryptoHashElf
   | .sbpfAsm => true
   | _ => false
 
@@ -377,6 +380,7 @@ def usage : String :=
     "  proof-forge --solana-log-event-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-clock-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-memory-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-crypto-hash-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -1391,6 +1395,17 @@ def solanaMemoryActionJson (action : ProofForge.Backend.Solana.Extension.MemoryA
     ("value", match action.value? with | some value => toString value | none => "null")
   ]
 
+def solanaCryptoHashActionJson
+    (action : ProofForge.Backend.Solana.Extension.CryptoHashAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("crypto", jsonString action.name),
+    ("op", jsonString action.op.id),
+    ("inputState", jsonString action.inputState),
+    ("bytes", toString action.bytes),
+    ("outputStates", jsonArray (action.outputStates.map jsonString))
+  ]
+
 def solanaInstructionAccountJson (account : ProofForge.Backend.Solana.Manifest.AccountEntry) : String :=
   jsonObject #[
     ("name", jsonString account.name),
@@ -1432,7 +1447,8 @@ def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
     ("cpis", jsonArray (extensions.cpis.map solanaCpiJson)),
     ("pdaActions", jsonArray (extensions.pdaActions.map solanaPdaActionJson)),
     ("cpiActions", jsonArray (extensions.cpiActions.map solanaCpiActionJson)),
-    ("memoryActions", jsonArray (extensions.memoryActions.map solanaMemoryActionJson))
+    ("memoryActions", jsonArray (extensions.memoryActions.map solanaMemoryActionJson)),
+    ("cryptoHashActions", jsonArray (extensions.cryptoHashActions.map solanaCryptoHashActionJson))
   ]
 
 def contractNameForFixture (fixture : String) : String :=
@@ -1916,6 +1932,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaClockSysvarElf }
   | "--solana-memory-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaMemoryElf }
+  | "--solana-crypto-hash-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaCryptoHashElf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
@@ -3173,6 +3191,13 @@ def compileSolanaMemoryElf (opts : CliOptions) : IO UInt32 :=
     "solana-memory-elf"
     ProofForge.Solana.Examples.Memory.spec
 
+def compileSolanaCryptoHashElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/CryptoHash.so")
+    "crypto-hash"
+    "solana-crypto-hash-elf"
+    ProofForge.Solana.Examples.Crypto.spec
+
 def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/entrypoint.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderCannedEntrypoint with
@@ -3317,6 +3342,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaLogEventElf => compileSolanaLogEventElf opts
   | .solanaClockSysvarElf => compileSolanaClockSysvarElf opts
   | .solanaMemoryElf => compileSolanaMemoryElf opts
+  | .solanaCryptoHashElf => compileSolanaCryptoHashElf opts
   | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli

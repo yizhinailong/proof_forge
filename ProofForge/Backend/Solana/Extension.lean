@@ -69,6 +69,16 @@ def MemoryOp.id : MemoryOp -> String
   | .memcmp => "memcmp"
   | .memset => "memset"
 
+inductive CryptoHashOp where
+  | sha256
+  deriving BEq, DecidableEq, Repr, Inhabited
+
+def CryptoHashOp.id : CryptoHashOp -> String
+  | .sha256 => "sha256"
+
+def CryptoHashOp.syscall : CryptoHashOp -> String
+  | .sha256 => ProofForge.Backend.Solana.Syscalls.sol_sha256
+
 structure MemoryAction where
   name : String
   op : MemoryOp
@@ -79,6 +89,15 @@ structure MemoryAction where
   resultState? : Option String := none
   bytes : Nat
   value? : Option Nat := none
+  entrypoint : String
+  deriving Repr, Inhabited
+
+structure CryptoHashAction where
+  name : String
+  op : CryptoHashOp
+  inputState : String
+  bytes : Nat
+  outputStates : Array String := #[]
   entrypoint : String
   deriving Repr, Inhabited
 
@@ -108,6 +127,7 @@ structure ProgramExtensions where
   pdaActions : Array PdaAction := #[]
   cpiActions : Array CpiAction := #[]
   memoryActions : Array MemoryAction := #[]
+  cryptoHashActions : Array CryptoHashAction := #[]
   deriving Repr, Inhabited
 
 structure CpiAccountBinding where
@@ -194,6 +214,10 @@ def memoryOpFromString? : String -> Option MemoryOp
   | "memset" => some .memset
   | _ => none
 
+def cryptoHashOpFromString? : String -> Option CryptoHashOp
+  | "sha256" => some .sha256
+  | _ => none
+
 def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=
   { pda with entrypoint? := none }
 
@@ -246,6 +270,16 @@ def ProgramExtensions.pushMemoryAction (acc : ProgramExtensions)
   else
     { acc with memoryActions := acc.memoryActions.push action }
 
+def ProgramExtensions.pushCryptoHashAction (acc : ProgramExtensions)
+    (action : CryptoHashAction) : ProgramExtensions :=
+  if acc.cryptoHashActions.any (fun existing =>
+      existing.name == action.name &&
+      existing.op == action.op &&
+      existing.entrypoint == action.entrypoint) then
+    acc
+  else
+    { acc with cryptoHashActions := acc.cryptoHashActions.push action }
+
 def ProgramExtensions.addPda (acc : ProgramExtensions) (pda : PdaDerive) : ProgramExtensions :=
   let acc := acc.pushPdaDefinition pda
   match pda.entrypoint? with
@@ -265,6 +299,10 @@ def ProgramExtensions.addAllocator (acc : ProgramExtensions)
 def ProgramExtensions.addMemory (acc : ProgramExtensions)
     (action : MemoryAction) : ProgramExtensions :=
   acc.pushMemoryAction action
+
+def ProgramExtensions.addCryptoHash (acc : ProgramExtensions)
+    (action : CryptoHashAction) : ProgramExtensions :=
+  acc.pushCryptoHashAction action
 
 def allocatorFromCall? (call : CapabilityCall) : Option RuntimeAllocator :=
   if call.capability == .runtimeAllocator then
@@ -333,6 +371,23 @@ def memoryFromCall? (call : CapabilityCall) : Option MemoryAction :=
   else
     none
 
+def cryptoHashFromCall? (call : CapabilityCall) : Option CryptoHashAction :=
+  if call.capability == .cryptoHash &&
+      metadataValue? call.metadata "solana.extension" == some "crypto" then
+    match entrypoint? call, metadataValue? call.metadata "solana.crypto.op" >>= cryptoHashOpFromString? with
+    | some entrypoint, some op =>
+        some {
+          name := metadataValue? call.metadata "solana.crypto.name" |>.getD call.operation
+          op := op
+          inputState := metadataValue? call.metadata "solana.crypto.input_state" |>.getD ""
+          bytes := natFromMetadata? call.metadata "solana.crypto.bytes" |>.getD 0
+          outputStates := metadataValue? call.metadata "solana.crypto.output_states" |>.map splitComma |>.getD #[]
+          entrypoint := entrypoint
+        }
+    | _, _ => none
+  else
+    none
+
 def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
   plan.calls.foldl
     (fun acc call =>
@@ -348,8 +403,12 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
         match cpiFromCall? call with
         | some cpi => acc.addCpi cpi
         | none => acc
-      match memoryFromCall? call with
-      | some action => acc.addMemory action
+      let acc :=
+        match memoryFromCall? call with
+        | some action => acc.addMemory action
+        | none => acc
+      match cryptoHashFromCall? call with
+      | some action => acc.addCryptoHash action
       | none => acc)
     {}
 
@@ -357,15 +416,20 @@ def hasExtensions (extensions : ProgramExtensions) : Bool :=
   extensions.allocators.size > 0 ||
     extensions.pdas.size > 0 ||
     extensions.cpis.size > 0 ||
-    extensions.memoryActions.size > 0
+    extensions.memoryActions.size > 0 ||
+    extensions.cryptoHashActions.size > 0
 
 def hasSyscallExtensions (extensions : ProgramExtensions) : Bool :=
-  extensions.pdas.size > 0 || extensions.cpis.size > 0 || extensions.memoryActions.size > 0
+  extensions.pdas.size > 0 ||
+    extensions.cpis.size > 0 ||
+    extensions.memoryActions.size > 0 ||
+    extensions.cryptoHashActions.size > 0
 
 def hasEntrypointActions (extensions : ProgramExtensions) : Bool :=
   extensions.pdaActions.size > 0 ||
     extensions.cpiActions.size > 0 ||
-    extensions.memoryActions.size > 0
+    extensions.memoryActions.size > 0 ||
+    extensions.cryptoHashActions.size > 0
 
 def labelPart (name : String) : String :=
   let chars := name.toList.map fun ch =>
@@ -380,6 +444,9 @@ def CpiInvoke.label (cpi : CpiInvoke) : String :=
 
 def MemoryAction.label (action : MemoryAction) : String :=
   "sol_memory_" ++ action.op.id ++ "_" ++ labelPart action.name
+
+def CryptoHashAction.label (action : CryptoHashAction) : String :=
+  "sol_crypto_" ++ action.op.id ++ "_" ++ labelPart action.name
 
 def callSyscall (name : String) : AstNode :=
   .instruction { opcode := .call, imm := some (.sym name) }
@@ -428,6 +495,8 @@ def cpiSignerEntriesOffset : Nat := 2240
 def cpiSignerSeedTableOffset : Nat := 2304
 def cpiSignerSeedDataOffset : Nat := 2816
 def cpiMaxSeedLen : Nat := 32
+def cryptoSliceTableOffset : Nat := 3072
+def cryptoResultOffset : Nat := 3104
 def memoryResultOffset : Nat := 3200
 
 def cpiAccountBinding? (bindings : Array CpiAccountBinding) (name : String) :
@@ -1333,6 +1402,82 @@ def lowerMemoryAction (action : MemoryAction) : Array AstNode :=
     .comment s!"solana.memory.action {action.name}"
   ] ++ callVoidHelperPreservingInput action.label
 
+def lowerCryptoHashStatePtr (bindings : Array CpiValueBinding) (state purpose : String)
+    (dst inputBase : Reg) : Array AstNode :=
+  match stateValueBinding? bindings state with
+  | some binding =>
+      #[
+        .comment s!"solana.crypto.ptr {purpose} state={state} input+{binding.absOff}",
+        .instruction { opcode := .mov64, dst := some dst, src := some inputBase },
+        .instruction { opcode := .add64, dst := some dst, imm := some (.num binding.absOff) }
+      ]
+  | none =>
+      #[
+        .comment s!"solana.crypto.ptr {purpose} state={state} missing placeholder=stack"
+      ] ++
+      stackPtr dst cryptoResultOffset
+
+def lowerCryptoHashSlice (valueBindings : Array CpiValueBinding)
+    (action : CryptoHashAction) : Array AstNode :=
+  lowerCryptoHashStatePtr valueBindings action.inputState "input" .r5 .r7 ++
+  stackPtr .r6 cryptoSliceTableOffset ++ #[
+    .instruction { opcode := .stxdw, dst := some .r6, off := some (.num 0), src := some .r5 },
+    loadImm .r3 action.bytes,
+    .instruction { opcode := .stxdw, dst := some .r6, off := some (.num 8), src := some .r3 }
+  ]
+
+def lowerCryptoHashOutputWord (valueBindings : Array CpiValueBinding)
+    (action : CryptoHashAction) (idx : Nat) (state : String) : Array AstNode :=
+  #[
+    .comment s!"solana.crypto.output {action.name}[{idx}] state={state}"
+  ] ++
+  stackPtr .r5 cryptoResultOffset ++ #[
+    .instruction { opcode := .add64, dst := some .r5, imm := some (.num (idx * 8)) },
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 0) }
+  ] ++
+  lowerCryptoHashStatePtr valueBindings state s!"output[{idx}]" .r5 .r7 ++ #[
+    storeReg .stxdw .r5 0 .r3
+  ]
+
+def lowerCryptoHashOutputs (valueBindings : Array CpiValueBinding)
+    (action : CryptoHashAction) : Array AstNode :=
+  action.outputStates.mapIdx (fun idx state =>
+    if idx < 4 then
+      lowerCryptoHashOutputWord valueBindings action idx state
+    else
+      #[.comment s!"solana.crypto.output {action.name}[{idx}] state={state} ignored: sha256 has four u64 words"])
+    |>.foldl (fun acc nodes => acc ++ nodes) #[]
+
+def lowerCryptoHashHelper (valueBindings : Array CpiValueBinding)
+    (action : CryptoHashAction) : Array AstNode :=
+  #[
+    .blankLine,
+    .comment s!"solana.crypto.hash {action.name}: op={action.op.id} input={action.inputState} bytes={action.bytes}",
+    .label action.label,
+    .instruction { opcode := .mov64, dst := some .r7, src := some .r1 },
+    .comment "pack SolBytes slice array for hash input"
+  ] ++
+  lowerCryptoHashSlice valueBindings action ++
+  stackPtr .r1 cryptoSliceTableOffset ++ #[
+    loadImm .r2 1,
+    .comment "r1=slices_ptr r2=num_slices r3=hash_result_ptr",
+  ] ++
+  stackPtr .r3 cryptoResultOffset ++ #[
+    callSyscall action.op.syscall,
+    .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_crypto") },
+    .comment "copy 32-byte hash result into output state words"
+  ] ++
+  lowerCryptoHashOutputs valueBindings action ++ #[
+    .instruction { opcode := .mov64, dst := some .r1, src := some .r7 },
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
+    .instruction { opcode := .exit }
+  ]
+
+def lowerCryptoHashAction (action : CryptoHashAction) : Array AstNode :=
+  #[
+    .comment s!"solana.crypto.action {action.name}"
+  ] ++ callHelperPreservingInput action.label "error_crypto"
+
 def pushUniqueMemoryHelper (actions : Array MemoryAction)
     (action : MemoryAction) : Array MemoryAction :=
   if actions.any (fun existing => existing.name == action.name && existing.op == action.op) then
@@ -1342,6 +1487,16 @@ def pushUniqueMemoryHelper (actions : Array MemoryAction)
 
 def uniqueMemoryHelpers (extensions : ProgramExtensions) : Array MemoryAction :=
   extensions.memoryActions.foldl pushUniqueMemoryHelper #[]
+
+def pushUniqueCryptoHashHelper (actions : Array CryptoHashAction)
+    (action : CryptoHashAction) : Array CryptoHashAction :=
+  if actions.any (fun existing => existing.name == action.name && existing.op == action.op) then
+    actions
+  else
+    actions.push action
+
+def uniqueCryptoHashHelpers (extensions : ProgramExtensions) : Array CryptoHashAction :=
+  extensions.cryptoHashActions.foldl pushUniqueCryptoHashHelper #[]
 
 def lowerPdaAction (action : PdaAction) : Array AstNode :=
   #[
@@ -1361,13 +1516,15 @@ def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String
   let pdaActions := extensions.pdaActions.filter (fun action => action.entrypoint == entrypoint)
   let cpiActions := extensions.cpiActions.filter (fun action => action.entrypoint == entrypoint)
   let memoryActions := extensions.memoryActions.filter (fun action => action.entrypoint == entrypoint)
-  if pdaActions.isEmpty && cpiActions.isEmpty && memoryActions.isEmpty then
+  let cryptoHashActions := extensions.cryptoHashActions.filter (fun action => action.entrypoint == entrypoint)
+  if pdaActions.isEmpty && cpiActions.isEmpty && memoryActions.isEmpty && cryptoHashActions.isEmpty then
     #[]
   else
     #[.comment s!"Solana SDK target extension actions for {entrypoint}"] ++
     pdaActions.foldl (fun acc action => acc ++ lowerPdaAction action) #[] ++
     cpiActions.foldl (fun acc action => acc ++ lowerCpiAction action) #[] ++
-    memoryActions.foldl (fun acc action => acc ++ lowerMemoryAction action) #[]
+    memoryActions.foldl (fun acc action => acc ++ lowerMemoryAction action) #[] ++
+    cryptoHashActions.foldl (fun acc action => acc ++ lowerCryptoHashAction action) #[]
 
 def lowerExtensionErrors : Array AstNode := #[
   .blankLine,
@@ -1377,6 +1534,10 @@ def lowerExtensionErrors : Array AstNode := #[
   .blankLine,
   .label "error_cpi",
   .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 8) },
+  .instruction { opcode := .exit },
+  .blankLine,
+  .label "error_crypto",
+  .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 11) },
   .instruction { opcode := .exit }
 ]
 
@@ -1402,6 +1563,7 @@ def lowerProgramExtensionsWithBindings
     extensions.pdas.foldl (fun acc pda => acc ++ lowerPdaDerive accountBindings valueBindings pda) #[] ++
     extensions.cpis.foldl (fun acc cpi => acc ++ lowerCpiInvoke accountBindings valueBindings cpi) #[] ++
     (uniqueMemoryHelpers extensions).foldl (fun acc action => acc ++ lowerMemoryHelper valueBindings action) #[] ++
+    (uniqueCryptoHashHelpers extensions).foldl (fun acc action => acc ++ lowerCryptoHashHelper valueBindings action) #[] ++
     lowerExtensionErrors
 
 def lowerProgramExtensionsWithAccountBindings

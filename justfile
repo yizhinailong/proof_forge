@@ -29,6 +29,7 @@ solana-lean:
     lake env lean --run Tests/SolanaLogs.lean
     lake env lean --run Tests/SolanaSysvars.lean
     lake env lean --run Tests/SolanaMemory.lean
+    lake env lean --run Tests/SolanaCrypto.lean
     lake env lean --run Tests/SolanaPdaSeeds.lean
     lake env lean --run Tests/TargetRouting.lean
     lake env lean --run Tests/TokenSpec.lean
@@ -76,6 +77,10 @@ solana-clock-sysvar-web3:
 # Run a live Solana memory syscall smoke on Surfpool with Web3.js.
 solana-memory-web3:
     scripts/solana/memory-web3-smoke.sh
+
+# Run a live Solana SHA-256 syscall smoke on Surfpool with Web3.js.
+solana-crypto-hash-web3:
+    scripts/solana/crypto-hash-web3-smoke.sh
 
 # Run the canned Solana sBPF smoke. Skips when sbpf is unavailable.
 solana-emit-asm:

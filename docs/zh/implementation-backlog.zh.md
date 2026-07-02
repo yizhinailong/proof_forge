@@ -349,7 +349,7 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
 `sol_log_64_` 验证的 live scalar `events.emit` 日志路径，以及
 `contextRead checkpointId` 的 live `Clock.slot` sysvar validation，加上通过
 `sol_memcpy_`、`sol_memcmp_` 和 `sol_memset_` 验证的 live `runtime.memory`
-路径。下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
+路径，以及通过 `sol_sha256` 验证的 Solana-only live `crypto.hash` 路径。下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
 `sbpf`/Surfpool/Solana CLI 工具链可用。
 
 | 层级 | 预计工作量 | 完成标准 |
@@ -398,6 +398,11 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
   会在 Surfpool 上构建并部署生成的 `runtime.memory` 程序，通过 Web3.js
   调用，并通过读取 program-owned state 中的 copied value、compare result
   和 fill bytes 证明 `sol_memcpy_`、`sol_memcmp_` 与 `sol_memset_` 的效果。
+- Live SHA-256 syscall fixture：`scripts/solana/crypto-hash-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 Solana-only `crypto.hash` 程序，通过
+  Web3.js 调用 `set_preimage` 和 `hash_preimage`，并证明 account 中保存的
+  32-byte digest 与同一 little-endian preimage 的 Node SHA-256 reference hash
+  一致。
 
 剩余优先切片：
 
@@ -409,9 +414,9 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
    将当前 scalar `sol_log_64_` event 路径扩展到 string/base64/Anchor-style
    与 indexed event 形态；暴露 `sol_get_return_data`、`u64` 之外的 typed
    return payload helper、rent/epoch sysvar reads、
-   `sol_sha256`/`sol_keccak256`/`sol_blake3`、`sol_memmove_`，以及复用新
-   memory syscall 路径的更广 account/data packing helper，并与 JavaScript
-   reference 对比。
+   `sol_keccak256`/`sol_blake3`、语义匹配时的 portable `Expr.hash` 路由、
+   `sol_memmove_`，以及复用新 memory syscall 路径的更广 account/data
+   packing helper，并与 JavaScript reference 对比。
 3. Runtime allocation lowering（1-2 天）：后续 heap-backed SDK structure 通过
    `runtime.allocator` 路由；需要动态分配时生成真实 downward bump-pointer
    allocation code；在 `noAllocator` 下拒绝使用分配的结构。

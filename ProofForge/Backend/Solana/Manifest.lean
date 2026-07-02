@@ -404,16 +404,27 @@ def renderMemoryAction (action : MemoryAction) : String :=
   "bytes = " ++ toString action.bytes ++ "\n" ++
   optionalFields
 
+def renderCryptoHashAction (action : CryptoHashAction) : String :=
+  "[[solana.entrypoint_crypto]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "crypto = " ++ tomlString action.name ++ "\n" ++
+  "op = " ++ tomlString action.op.id ++ "\n" ++
+  "input_state = " ++ tomlString action.inputState ++ "\n" ++
+  "bytes = " ++ toString action.bytes ++ "\n" ++
+  "output_states = " ++ tomlStringArray action.outputStates ++ "\n"
+
 def renderActions (extensions : ProgramExtensions) : String :=
   if !hasEntrypointActions extensions then
     ""
   else
     "\n# Solana SDK entrypoint actions\n" ++
     String.intercalate "\n" (extensions.pdaActions.map renderPdaAction).toList ++
-    (if extensions.pdaActions.size > 0 && (extensions.cpiActions.size > 0 || extensions.memoryActions.size > 0) then "\n" else "") ++
+    (if extensions.pdaActions.size > 0 && (extensions.cpiActions.size > 0 || extensions.memoryActions.size > 0 || extensions.cryptoHashActions.size > 0) then "\n" else "") ++
     String.intercalate "\n" (extensions.cpiActions.map renderCpiAction).toList ++
-    (if extensions.cpiActions.size > 0 && extensions.memoryActions.size > 0 then "\n" else "") ++
-    String.intercalate "\n" (extensions.memoryActions.map renderMemoryAction).toList
+    (if extensions.cpiActions.size > 0 && (extensions.memoryActions.size > 0 || extensions.cryptoHashActions.size > 0) then "\n" else "") ++
+    String.intercalate "\n" (extensions.memoryActions.map renderMemoryAction).toList ++
+    (if extensions.memoryActions.size > 0 && extensions.cryptoHashActions.size > 0 then "\n" else "") ++
+    String.intercalate "\n" (extensions.cryptoHashActions.map renderCryptoHashAction).toList
 
 def renderExtensions (extensions : ProgramExtensions) : String :=
   if !hasExtensions extensions then

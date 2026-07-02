@@ -77,6 +77,13 @@ def MemoryOp.id : MemoryOp -> String
   | .memcmp => "memcmp"
   | .memset => "memset"
 
+inductive CryptoHashOp where
+  | sha256
+  deriving BEq, DecidableEq, Repr
+
+def CryptoHashOp.id : CryptoHashOp -> String
+  | .sha256 => "sha256"
+
 structure MemoryAction where
   name : String
   op : MemoryOp
@@ -87,6 +94,14 @@ structure MemoryAction where
   resultState? : Option String := none
   bytes : Nat
   value? : Option Nat := none
+  deriving Repr
+
+structure CryptoHashAction where
+  name : String
+  op : CryptoHashOp := .sha256
+  inputState : String
+  bytes : Nat
+  outputStates : Array String
   deriving Repr
 
 def kv (key value : String) : TargetMetadata := {
@@ -236,6 +251,16 @@ def MemoryAction.metadata (action : MemoryAction) : Array TargetMetadata :=
   maybeKv "solana.memory.rhs_state" action.rhsState? ++
   maybeKv "solana.memory.result_state" action.resultState? ++
   maybeNatKv "solana.memory.value" action.value?
+
+def CryptoHashAction.metadata (action : CryptoHashAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "crypto",
+    kv "solana.crypto.name" action.name,
+    kv "solana.crypto.op" action.op.id,
+    kv "solana.crypto.input_state" action.inputState,
+    natKv "solana.crypto.bytes" action.bytes,
+    kv "solana.crypto.output_states" (joinWith "," action.outputStates)
+  ]
 
 def systemProgram : String :=
   "system_program"
@@ -478,6 +503,22 @@ def memsetState (name dstState : String) (value bytes : Nat) :
     dstState? := some dstState
     bytes := bytes
     value? := some value
+  }
+
+def cryptoHashEntry (action : CryptoHashAction) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .cryptoHash
+    ("solana.crypto." ++ action.op.id)
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def sha256StateToStates (name inputState : String) (bytes : Nat)
+    (outputStates : Array String) : ProofForge.Contract.Builder.EntryM Unit :=
+  cryptoHashEntry {
+    name := name
+    op := .sha256
+    inputState := inputState
+    bytes := bytes
+    outputStates := outputStates
   }
 
 def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do
