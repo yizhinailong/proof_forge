@@ -983,8 +983,10 @@ Completed developer-surface slices:
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
-  helpers. `ProofForge.Solana.Examples.Vault` uses those refs instead of raw
-  account/PDA/CPI strings, and the target extension emits declared account
+  helpers. `ProofForge.Solana.Examples.Vault` now uses `contract_source` for
+  its portable state and entry bodies while bridging existing Solana extension
+  helpers through source-level `use` and `do` statements instead of raw
+  account/PDA/CPI strings. The target extension emits declared account
   constraints into `manifest.toml`, `proof-forge-artifact.json`
   (`solanaExtensions.accounts`), and the generated account-validation schema.
 - Target-stage ABI selector hydration:
@@ -1009,10 +1011,11 @@ Current boundary:
 - `ProofForge.Contract.Source` is the first source-facing syntax layer, but it
   is still a v1 macro frontend over the existing `ContractSpec` builder rather
   than a complete standalone Learn parser. It covers portable scalar state,
-  entry/query bodies, events, and arithmetic. The next source-syntax gap is to
-  bring Solana account/PDA/CPI target extensions into the same block so
-  accounts, constraints, and target capabilities read as normal Learn
-  declarations while the target extension layer derives chain-specific
+  entry/query bodies, events, arithmetic, and a bridge path for existing
+  Solana extension helpers. The next source-syntax gap is to replace the
+  bridge with dedicated Solana account/PDA/CPI declarations so accounts,
+  constraints, and target capabilities read as normal Learn declarations while
+  the target extension layer derives chain-specific
   selectors, instruction tags, IDL/client metadata, and package artifacts during
   compilation.
 

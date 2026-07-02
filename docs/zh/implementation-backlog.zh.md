@@ -528,8 +528,10 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 - Solana typed account surface：
   `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
   `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
-  CPI helper。`ProofForge.Solana.Examples.Vault` 使用这些 refs，不再直接写 raw
-  account/PDA/CPI 字符串；target extension 会把声明式 account constraint 发射到
+  CPI helper。`ProofForge.Solana.Examples.Vault` 现在用 `contract_source`
+  编写 portable state 和 entry body，同时通过 source-level `use` 和 `do`
+  statement 桥接现有 Solana extension helper，不再直接写 raw account/PDA/CPI
+  字符串；target extension 会把声明式 account constraint 发射到
   `manifest.toml`、`proof-forge-artifact.json`（`solanaExtensions.accounts`）
   以及生成的 account-validation schema。
 - Target-stage ABI selector hydration：
@@ -553,10 +555,11 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 - `ProofForge.Contract.Source` 已经是第一层面向源码的语法，但它仍是基于
   现有 `ContractSpec` builder 的 v1 macro frontend，而不是完整独立的 Learn
   parser。它目前覆盖 portable scalar state、entry/query body、event 和
-  arithmetic。下一步 source-syntax 缺口是把 Solana account/PDA/CPI target
-  extension 合并进同一个 block，让 account、constraint 和 target capability
-  也像正常 Learn declaration 一样书写，同时由 target extension 层在编译阶段
-  派生 selector、instruction tag、IDL/client metadata 和 package artifact。
+  arithmetic，并提供现有 Solana extension helper 的桥接路径。下一步
+  source-syntax 缺口是把桥接形式替换成专用 Solana account/PDA/CPI
+  declaration，让 account、constraint 和 target capability 也像正常 Learn
+  declaration 一样书写，同时由 target extension 层在编译阶段派生 selector、
+  instruction tag、IDL/client metadata 和 package artifact。
 
 剩余优先切片：
 
