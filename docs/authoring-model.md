@@ -64,9 +64,10 @@ or log helpers. The same source layer covers Solana memory helpers, SHA-256,
 Keccak-256, and BLAKE3 hash helpers, and sysvar/context reads for Clock, Rent,
 EpochSchedule, EpochRewards, and LastRestartSlot fixture coverage.
 Learn lowering also validates declared Solana CPI/PDA references, signer seeds,
-declared CPI account references, and helper state/account references before
-emitting `ContractSpec`, so the remaining string-bearing identifiers are
-checked compiler data instead of unchecked user-facing spec plumbing.
+declared CPI account references, CPI writable/signer requirements, and helper
+state/account references before emitting `ContractSpec`, so the remaining
+string-bearing identifiers are checked compiler data instead of unchecked
+user-facing spec plumbing.
 `ProofForge.Contract.Source` remains the executable embedded syntax layer and
 covers:
 
@@ -75,7 +76,7 @@ covers:
 - local bindings, assignment, return, event emission, and checked arithmetic
   syntax;
 - Solana allocator selection;
-- Solana account constraints;
+- Solana account constraints, including writable and signer declarations;
 - Solana PDA declarations and derivation statements;
 - Solana System Program `transfer` and `create_account` CPI declarations and
   invocation statements;

@@ -1045,10 +1045,11 @@ Completed developer-surface slices:
   `ProofForge.Contract.Learn` now builds a declaration reference index while
   lowering and rejects unknown or mismatched Solana CPI invocations, unknown
   PDA derivations, invalid signer seeds, CPI declarations that use undeclared
-  accounts, and helper statements that reference undeclared state/account
-  names. `Tests/LearnDiagnostics.lean` pins these messages so Learn behaves
-  like a checked language frontend instead of asking users to hand-author
-  unchecked `ContractSpec` data.
+  accounts, CPI account declarations that do not satisfy required writable or
+  signer constraints, and helper statements that reference undeclared
+  state/account names. `Tests/LearnDiagnostics.lean` pins these messages so
+  Learn behaves like a checked language frontend instead of asking users to
+  hand-author unchecked `ContractSpec` data.
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
@@ -1093,7 +1094,8 @@ Current boundary:
   Solana log/return-data/compute-unit/memory/crypto/sysvar helper statements.
   During lowering, Solana CPI/PDA declarations and entrypoint helper statements
   are cross-checked against declared references. CPI account operands must be
-  declared with `solana account ...`, so the remaining string names are
+  declared with `solana account ...`; CPI writable/signer requirements are
+  checked against those declarations, so the remaining string names are
   compiler-owned identifiers rather than unchecked user-authored specs.
   `ProofForge.Contract.Source` remains the richer
   embedded macro frontend for examples not yet expressed in Learn. The next

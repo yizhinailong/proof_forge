@@ -19,7 +19,7 @@ def unknownCpiSource : String := "
 contract BadUnknownCpi {
   state last_transfer_lamports: u64
 
-  solana account payer writable
+  solana account payer writable signer
   solana account recipient writable
 
   solana cpi lamport_transfer system_transfer(payer, recipient, lamports)
@@ -35,7 +35,7 @@ def mismatchedCpiSource : String := "
 contract BadMismatchedCpi {
   state last_transfer_lamports: u64
 
-  solana account payer writable
+  solana account payer writable signer
   solana account recipient writable
 
   solana cpi lamport_transfer system_transfer(payer, recipient, lamports)
@@ -78,7 +78,39 @@ def unknownCpiAccountSource : String := "
 contract BadUnknownCpiAccount {
   state last_transfer_lamports: u64
 
+  solana account payer writable signer
+
+  solana cpi lamport_transfer system_transfer(payer, recipient, lamports)
+
+  entry transfer(lamports: u64) {
+    solana invoke lamport_transfer system_transfer(payer, recipient, lamports)
+    last_transfer_lamports = lamports
+  }
+}
+"
+
+def readonlyCpiAccountSource : String := "
+contract BadReadonlyCpiAccount {
+  state last_transfer_lamports: u64
+
+  solana account payer writable signer
+  solana account recipient readonly
+
+  solana cpi lamport_transfer system_transfer(payer, recipient, lamports)
+
+  entry transfer(lamports: u64) {
+    solana invoke lamport_transfer system_transfer(payer, recipient, lamports)
+    last_transfer_lamports = lamports
+  }
+}
+"
+
+def missingSignerCpiAccountSource : String := "
+contract BadMissingSignerCpiAccount {
+  state last_transfer_lamports: u64
+
   solana account payer writable
+  solana account recipient writable
 
   solana cpi lamport_transfer system_transfer(payer, recipient, lamports)
 
@@ -101,6 +133,10 @@ def main : IO UInt32 := do
     unknownStateSource
   requireErrorContains "unknown CPI account" "unknown Learn Solana account `recipient`"
     unknownCpiAccountSource
+  requireErrorContains "readonly CPI account" "Learn Solana account `recipient` must be writable"
+    readonlyCpiAccountSource
+  requireErrorContains "missing signer CPI account" "Learn Solana account `payer` must be signer"
+    missingSignerCpiAccountSource
   IO.println "learn-diagnostics: ok"
   return 0
 

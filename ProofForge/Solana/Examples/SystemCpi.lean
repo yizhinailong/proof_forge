@@ -7,7 +7,7 @@ open ProofForge.Contract.Source
 contract_source SolanaSystemCpi do
   state last_transfer_lamports : .u64
 
-  account payer writable
+  account payer writable signer
   account recipient writable
 
   cpi lamport_transfer system_transfer(payer, recipient, lamports)

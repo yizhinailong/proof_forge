@@ -99,9 +99,13 @@ scoped syntax "binding " ident " : " term : contractItem
 scoped syntax "event " ident : contractItem
 scoped syntax "allocator " "bump" : contractItem
 scoped syntax "account " ident " readonly" : contractItem
+scoped syntax "account " ident " readonly " "signer" : contractItem
 scoped syntax "account " ident " readonly " "owner " term : contractItem
+scoped syntax "account " ident " readonly " "signer " "owner " term : contractItem
 scoped syntax "account " ident " writable" : contractItem
+scoped syntax "account " ident " writable " "signer" : contractItem
 scoped syntax "account " ident " writable " "owner " term : contractItem
+scoped syntax "account " ident " writable " "signer " "owner " term : contractItem
 scoped syntax "pda " ident " seeds " "[" solanaSeed,* "]" " bump " ident " account " ident " signer" : contractItem
 scoped syntax "cpi " ident " system_transfer" "(" ident ", " ident ", " ident ")" : contractItem
 scoped syntax "cpi " ident " system_create_account" "(" ident ", " ident ", " ident ", " ident ")" " owner " term : contractItem
@@ -314,14 +318,26 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
   | `(contractItem| account $name:ident readonly) =>
       let action ← `(ProofForge.Solana.Surface.readonlyAccount $name)
       return { action? := some action, binder := mkAccountLet name }
+  | `(contractItem| account $name:ident readonly signer) =>
+      let action ← `(ProofForge.Solana.Surface.signerAccount $name)
+      return { action? := some action, binder := mkAccountLet name }
   | `(contractItem| account $name:ident readonly owner $ownerValue:term) =>
       let action ← `(ProofForge.Solana.Surface.readonlyAccount $name $ownerValue)
+      return { action? := some action, binder := mkAccountLet name }
+  | `(contractItem| account $name:ident readonly signer owner $ownerValue:term) =>
+      let action ← `(ProofForge.Solana.Surface.signerAccount $name .readOnly $ownerValue)
       return { action? := some action, binder := mkAccountLet name }
   | `(contractItem| account $name:ident writable) =>
       let action ← `(ProofForge.Solana.Surface.writableAccount $name)
       return { action? := some action, binder := mkAccountLet name }
+  | `(contractItem| account $name:ident writable signer) =>
+      let action ← `(ProofForge.Solana.Surface.writableSignerAccount $name)
+      return { action? := some action, binder := mkAccountLet name }
   | `(contractItem| account $name:ident writable owner $ownerValue:term) =>
       let action ← `(ProofForge.Solana.Surface.writableAccount $name $ownerValue)
+      return { action? := some action, binder := mkAccountLet name }
+  | `(contractItem| account $name:ident writable signer owner $ownerValue:term) =>
+      let action ← `(ProofForge.Solana.Surface.writableSignerAccount $name $ownerValue)
       return { action? := some action, binder := mkAccountLet name }
   | `(contractItem| pda $name:ident seeds [$seedItems:solanaSeed,*] bump $bumpRef:ident account $accountRef:ident signer) =>
       let seedArray ← lowerSolanaSeeds seedItems

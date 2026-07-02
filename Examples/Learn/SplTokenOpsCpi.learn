@@ -6,7 +6,7 @@ contract SolanaSplTokenOpsCpi {
 
   solana account mint writable
   solana account destination writable
-  solana account authority readonly
+  solana account authority readonly signer
   solana account source writable
   solana account delegate readonly
 

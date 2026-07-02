@@ -47,7 +47,8 @@ inductive SolanaSignerSeed where
 
 inductive SolanaItem where
   | allocatorBump
-  | account (name : String) (access : ProofForge.Solana.AccountAccess) (owner : String)
+  | account (name : String) (access : ProofForge.Solana.AccountAccess)
+      (signerPolicy : ProofForge.Solana.SignerPolicy) (owner : String)
   | pda (name : String) (seeds : Array SolanaSeed) (bump account : String) (isSigner : Bool)
   | systemTransfer (name fromAccount toAccount lamportsSource : String)
   | systemCreateAccount (name payer newAccount lamportsSource spaceSource owner : String)
@@ -396,6 +397,23 @@ private partial def parsePdaTail : ParserM (Array SolanaSeed × String × String
   let isSigner ← consumeKeyword "signer"
   pure (seeds, bump, account, isSigner)
 
+private partial def parseAccountTail :
+    ParserM (ProofForge.Solana.AccountAccess × ProofForge.Solana.SignerPolicy × String) := do
+  let access ← parseAccountAccess
+  let mut signerPolicy : ProofForge.Solana.SignerPolicy := .none
+  let mut owner := "any"
+  let mut done := false
+  repeat
+    if (← consumeKeyword "signer") then
+      signerPolicy := .signer
+    else if (← consumeKeyword "owner") then
+      owner ← expectText
+    else
+      done := true
+    if done then
+      break
+  pure (access, signerPolicy, owner)
+
 private partial def parseReturnDataStmt : ParserM Stmt := do
   let op ← expectIdent
   match op with
@@ -659,13 +677,8 @@ private partial def parseSolanaItem : ParserM SolanaItem := do
       pure .allocatorBump
   | "account" =>
       let name ← expectIdent
-      let access ← parseAccountAccess
-      let owner ←
-        if (← consumeKeyword "owner") then
-          expectText
-        else
-          pure "any"
-      pure (.account name access owner)
+      let (access, signerPolicy, owner) ← parseAccountTail
+      pure (.account name access signerPolicy owner)
   | "pda" =>
       let name ← expectIdent
       let (seeds, bump, account, isSigner) ← parsePdaTail
@@ -871,11 +884,21 @@ private structure LowerEnv where
   locals : Array String
   deriving Repr
 
+private structure SolanaAccountRef where
+  name : String
+  access : ProofForge.Solana.AccountAccess := .readOnly
+  signerPolicy : ProofForge.Solana.SignerPolicy := .none
+  owner : String := "any"
+  deriving Repr
+
 private structure SolanaRefs where
-  accountNames : Array String := #[]
+  accounts : Array SolanaAccountRef := #[]
   pdaItems : Array SolanaItem := #[]
   cpiItems : Array SolanaItem := #[]
   deriving Repr
+
+private def SolanaRefs.accountNames (refs : SolanaRefs) : Array String :=
+  refs.accounts.map (fun account => account.name)
 
 private def joined (values : Array String) : String :=
   String.intercalate "," values.toList
@@ -961,7 +984,8 @@ private def buildSolanaRefs (items : Array SolanaItem) : SolanaRefs :=
   items.foldl
     (fun refs item =>
       match item with
-      | .account name _ _ => { refs with accountNames := refs.accountNames.push name }
+      | .account name access signerPolicy owner =>
+          { refs with accounts := refs.accounts.push { name, access, signerPolicy, owner } }
       | .pda .. => { refs with pdaItems := refs.pdaItems.push item }
       | .systemTransfer .. | .systemCreateAccount .. | .splTokenTransferChecked ..
       | .splTokenMintTo .. | .splTokenBurn .. | .splTokenApprove .. | .splTokenRevoke .. =>
@@ -1003,6 +1027,39 @@ private def requireKnownAccounts (refs : SolanaRefs) (names : Array String) :
     Except String Unit := do
   for name in names do
     requireKnownAccount refs name
+
+private def findAccount? (refs : SolanaRefs) (name : String) : Option SolanaAccountRef :=
+  refs.accounts.find? fun account => account.name == name
+
+private def requireWritableAccount (refs : SolanaRefs) (name : String) :
+    Except String Unit := do
+  requireKnownAccount refs name
+  match findAccount? refs name with
+  | some account =>
+      if account.access == .writable then
+        .ok ()
+      else
+        .error s!"Learn Solana account `{name}` must be writable"
+  | none => .error s!"unknown Learn Solana account `{name}`"
+
+private def requireSignerAccount (refs : SolanaRefs) (name : String) :
+    Except String Unit := do
+  requireKnownAccount refs name
+  match findAccount? refs name with
+  | some account =>
+      if account.signerPolicy == .signer then
+        .ok ()
+      else
+        .error s!"Learn Solana account `{name}` must be signer"
+  | none => .error s!"unknown Learn Solana account `{name}`"
+
+private def validateAccountMetas (refs : SolanaRefs)
+    (writable signer : Array String) : Except String Unit := do
+  requireKnownAccounts refs (writable ++ signer)
+  for name in writable do
+    requireWritableAccount refs name
+  for name in signer do
+    requireSignerAccount refs name
 
 private def validateSignerSeeds (refs : SolanaRefs) (knownValueNames : Array String)
     (seeds : Array SolanaSignerSeed) : Except String Unit := do
@@ -1065,23 +1122,33 @@ private def validateSolanaItemRefs (refs : SolanaRefs) (knownValueNames : Array 
   | .pda name seeds bump account _ =>
       validatePdaDecl refs knownValueNames name seeds bump account
   | .systemTransfer _ fromAccount toAccount _ =>
-      requireKnownAccounts refs #[fromAccount, toAccount]
+      validateAccountMetas refs #[fromAccount, toAccount] #[fromAccount]
   | .systemCreateAccount _ payer newAccount _ _ _ =>
-      requireKnownAccounts refs #[payer, newAccount]
+      validateAccountMetas refs #[payer, newAccount] #[payer, newAccount]
   | .splTokenTransferChecked _ source mint destination authority _ _ signerSeeds =>
-      requireKnownAccounts refs #[source, mint, destination, authority]
+      validateAccountMetas refs #[source, destination] <|
+        if signerSeeds.isEmpty then #[authority] else #[]
+      requireKnownAccounts refs #[mint, authority]
       validateSignerSeeds refs knownValueNames signerSeeds
   | .splTokenMintTo _ mint destination authority _ signerSeeds =>
-      requireKnownAccounts refs #[mint, destination, authority]
+      validateAccountMetas refs #[mint, destination] <|
+        if signerSeeds.isEmpty then #[authority] else #[]
+      requireKnownAccount refs authority
       validateSignerSeeds refs knownValueNames signerSeeds
   | .splTokenBurn _ source mint authority _ signerSeeds =>
-      requireKnownAccounts refs #[source, mint, authority]
+      validateAccountMetas refs #[source, mint] <|
+        if signerSeeds.isEmpty then #[authority] else #[]
+      requireKnownAccount refs authority
       validateSignerSeeds refs knownValueNames signerSeeds
   | .splTokenApprove _ source delegate owner _ signerSeeds =>
-      requireKnownAccounts refs #[source, delegate, owner]
+      validateAccountMetas refs #[source] <|
+        if signerSeeds.isEmpty then #[owner] else #[]
+      requireKnownAccounts refs #[delegate, owner]
       validateSignerSeeds refs knownValueNames signerSeeds
   | .splTokenRevoke _ source owner signerSeeds =>
-      requireKnownAccounts refs #[source, owner]
+      validateAccountMetas refs #[source] <|
+        if signerSeeds.isEmpty then #[owner] else #[]
+      requireKnownAccount refs owner
       validateSignerSeeds refs knownValueNames signerSeeds
   | _ => pure ()
 
@@ -1189,8 +1256,8 @@ private def lowerSolanaItem (item : SolanaItem) :
   match item with
   | .allocatorBump =>
       pure ProofForge.Solana.bumpAllocator
-  | .account name access owner =>
-      pure (ProofForge.Solana.accountConstraint name access .none owner)
+  | .account name access signerPolicy owner =>
+      pure (ProofForge.Solana.accountConstraint name access signerPolicy owner)
   | .pda name seeds bump account isSigner =>
       pure (ProofForge.Solana.pdaAccount name (lowerSolanaSeeds seeds)
         (bump? := some bump) (account? := some account) (isSigner := isSigner))

@@ -8,8 +8,8 @@ contract_source SolanaSystemCreateAccountCpi do
   state last_created_lamports : .u64
   state last_created_space : .u64
 
-  account payer writable
-  account new_account writable
+  account payer writable signer
+  account new_account writable signer
 
   cpi create_program_account system_create_account(
     payer,

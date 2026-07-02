@@ -15,7 +15,7 @@ def spec : ProofForge.Contract.ContractSpec :=
 
     writableAccountConstraint "mint"
     writableAccountConstraint "destination"
-    readonlyAccountConstraint "authority"
+    signerAccountConstraint "authority"
     writableAccountConstraint "source"
     readonlyAccountConstraint "delegate"
 

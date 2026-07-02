@@ -14,8 +14,9 @@ application developers should author by hand. The Learn parser may represent
 identifiers as strings internally after parsing, but lowering now checks Solana
 CPI/PDA/state/account references before those names reach compiler artifacts.
 For CPI declarations, account operands must first be introduced with
-`solana account ...`; scalar instruction parameters and state values remain
-ordinary Learn values.
+`solana account ...`; writable and signer requirements are checked against that
+declaration. Scalar instruction parameters and state values remain ordinary
+Learn values.
 
 - `Counter.learn` mirrors the portable Counter source.
 - `ValueVault.learn` mirrors `ProofForge.Contract.Examples.ValueVault`.
