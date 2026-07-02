@@ -67,6 +67,24 @@ exactly why it is worth doing early in parallel: it exercises the
 portable-IR → *source package* route that Tezos/Cardano/TON/Starknet would
 also use, with the most mature tooling of that group.
 
+**Why Aptos before Sui (D-007 rationale, and when to flip it).** The
+ordering is a compiler-cost argument, not an ecosystem judgment. Aptos Move
+keeps classic Move global storage: a `Counter` resource under an account
+address maps almost one-to-one onto the portable IR's state model (scalar
+state owned by the contract), so the first IR→Move printer stays small.
+Sui removes global storage: state lives in owned/shared **objects** with
+UID-based identity, transfer/share semantics, and programmable transaction
+blocks — an object model that must be designed as a Target Extension SDK
+(the same class of work as Solana's account extensions, D-027) *before* a
+faithful Counter can even be expressed. Doing Aptos first splits the risk:
+M1–M2 prove "portable IR → Move source → native test gate" with minimal
+target-extension design; the Sui object extension then lands on a working
+printer. Flip the order only if an ecosystem/product reason outweighs
+carrying both risks at once — the technical cost of Sui-first is designing
+the object extension concurrently with the first Move printer, and the
+schedule cost is that the sourcegen-lane gate (G1b) inherits that extra
+design dependency.
+
 - Milestones: M1 IR → Move module printer for the Counter subset (scalar
   state, entrypoints, events); M2 `aptos move test` gate + golden fixture;
   M3 testkit integration (CLI-wrapped executor); M4 capability matrix row
@@ -129,14 +147,61 @@ Design consequences to record when this lane opens:
 - **Zcash ordering:** `zcash-shielded` stays behind
   `bitcoin-script-miniscript` — it adds a proving/nullifier boundary on top
   of the same UTXO policy shape (D-022) and should inherit a working policy
-  lane first. `kaspa-toccata` waits for covenant/transaction-v1 semantics to
-  stabilize upstream (D-012).
+  lane first.
+
+### Kaspa Toccata: straddles the policy lane and the ZK lane
+
+`kaspa-toccata` deserves its own entry rather than one line in the Bitcoin
+family, because its situation changed: **the Toccata hardfork activated on
+Kaspa mainnet ~2026-06-30** (rusty-kaspa v2.0.0), shipping native L1
+covenants, transaction v1 (`covenant` outputs, `compute_commit` inputs,
+per-input compute budgets), KIP-16 ZK verifier opcodes, and KIP-21
+partitioned sequencing commitments for based ZK apps. The
+[target note](targets/kaspa-toccata.md) already splits it into three roads,
+and they belong to two different ProofForge lanes:
+
+- **Road 1 (L1 covenant app)** is UTXO policy-family work: covenant lineage
+  + successor-output validation over a predicate-tree-like policy IR. It
+  shares the policy IR investment with `bitcoin-script-miniscript`, but is
+  *more* expressive (stateful covenant lineage), so miniscript remains the
+  simpler proving ground first.
+- **Roads 2–3 (inline ZK covenant, based-app settlement)** are strategically
+  distinctive for ProofForge specifically: a proof-first platform emitting
+  covenant packages whose *on-chain verification is itself proof-based*
+  (Noir/Groth16 inline; RISC Zero/SP1 for based apps) lines up with the
+  Lean-proof story and the ZK experience from `psy-dpn`/`aleo-leo`. No other
+  target in the portfolio has this shape.
+
+**Trigger:** upstream's announced second-phase release (SMT RPC API, ZK SDK,
+first Silverscript version). When that ships, re-review D-012 and schedule
+the Road 1 spike (Silverscript-based, tiny covenant Counter with successor
+validation) — it may open at Gate G2 together with miniscript rather than
+strictly behind it, since mainnet activation removed the
+"semantics not stable upstream" blocker. Roads 2–3 stay research until
+Road 1 exits.
 
 **Recommendation:** keep the whole family parked until both Tier-1 targets
 exit. When opened, `bitcoin-script-miniscript` goes first, as a deliberately
 small vertical: policy IR + rust-miniscript emission + regtest gate, Counter
 has no meaning here — the shared scenario for the policy family is a 2-of-3
 multisig with a timelock recovery path.
+
+## Coverage audit: researched vs not researched
+
+Every chain with a `docs/targets/` note is placed in a tier above: EVM,
+Solana, NEAR, CosmWasm, Soroban, ICP, Cloudflare Workers, Aptos, Sui,
+Starknet, TON, Algorand, Cardano, Tezos, Aleo, Psy/DPN, Bitcoin
+Script/Miniscript, BCH CashScript, Zcash, Kaspa Toccata, plus the research-only
+Polkadot/ink!. Chains that have come up in discussion but have **no research
+note yet** — they need a docs-first target note (D-012-style) before any tier
+placement:
+
+- **Casper Network (`casper`, CSPR)** — Wasm-based chain with upgradeable
+  contracts and the Odra framework; architecturally it would join the
+  Wasm-host family behind CosmWasm/Soroban if researched. Not in the current
+  portfolio; add a target note first if wanted.
+- EVM-compatible L2s/chains are intentionally *not* individual targets —
+  they are chain profiles under `evm` (D-024 pattern).
 
 ## Explicit non-plans
 
@@ -156,6 +221,8 @@ Gate G0: testkit M3 + shared-scenario parity on evm/solana/wasm-near   (Tier-0 e
 Gate G1a: cosmwasm M4  -> opens wasm-stellar-soroban; ICP needs +async design note
 Gate G1b: aptos M4     -> opens move-sui; opens sourcegen lane (starknet first pick)
 Gate G2:  both Tier-1 exits -> opens Bitcoin policy family (miniscript first)
+Kaspa trigger: upstream phase-2 release (ZK SDK + Silverscript) -> re-review
+  D-012; Road 1 may open alongside miniscript at G2; Roads 2-3 after Road 1
 Sourcegen lane rule: at most one active spike at a time
 ```
 

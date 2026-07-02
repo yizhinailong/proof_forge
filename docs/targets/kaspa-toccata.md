@@ -2,6 +2,17 @@
 
 Status: **Research (docs-first candidate)**
 
+> **Status update 2026-07-02:** the Toccata hardfork activated on Kaspa
+> mainnet on ~2026-06-30 (rusty-kaspa v2.0.0), shipping KIP-16 (ZK verifier
+> opcodes), KIP-17, KIP-20, and KIP-21 (partitioned sequencing commitments),
+> native L1 covenants, and transaction v1 fields
+> (`TransactionOutput.covenant`, `TransactionInput.compute_commit`). The
+> upstream ZK stack is tiered: inline ZK covenants (Noir/Groth16, ~1s local
+> proving), based ZK apps (RISC Zero / SP1), based ZK rollups (Cairo). A
+> second-phase upstream release (SMT RPC API, ZK SDK, first Silverscript
+> version) is announced but not yet shipped — that release is this target's
+> spike trigger. See the [target roadmap](../target-roadmap.md).
+
 Candidate target id: **`kaspa-toccata`**
 
 This note records the first ProofForge classification for Kaspa's Toccata
