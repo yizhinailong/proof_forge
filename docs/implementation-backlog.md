@@ -684,7 +684,9 @@ partial progress is visible before the full acceptance criteria close:
       syscall seed list, emits `typed_seeds`/`typedSeeds` in manifest/artifact
       metadata, and validates the derived PDA pubkey against the declared
       account when `account?` is present. Covered by `Tests/SolanaSdk.lean`,
-      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+      `Tests/SolanaSdkManifest.lean`, `Tests/SolanaPdaSeeds.lean`,
+      `scripts/solana/sdk-smoke.sh`, and
+      `scripts/solana/pda-web3-smoke.sh`.
 - [x] Standard Solana protocol SDK helpers now cover System Program
       transfer/create-account and SPL Token transfer_checked/mint_to/burn/
       approve/revoke. They route through target capability metadata with
@@ -760,40 +762,42 @@ Completed alpha slices:
   `bumpSeed`, and `paramSeed` descriptors now lower to Solana seed slices,
   `bump?` participates in the effective seed list, and declared PDA accounts
   can be checked against the derived pubkey.
+- PDA/Web3.js derivation fixture: `scripts/solana/pda-web3-smoke.sh` reads the
+  generated SDK Vault `typedSeeds` artifact data and verifies literal/account/
+  bump descriptor semantics against `PublicKey.findProgramAddressSync` and
+  `PublicKey.createProgramAddressSync`; the harness also covers UTF-8 and
+  instruction-parameter resolver behavior.
 
 Remaining priority slices:
 
-1. PDA/Web3.js live fixture (1 day): compare generated PDA behavior against
-   `PublicKey.findProgramAddressSync` and cover the typed descriptor cases in a
-   JavaScript harness.
-2. Live CPI validation (2-3 days): exercise System Program transfer/
+1. Live CPI validation (2-3 days): exercise System Program transfer/
    create-account and SPL Token transfer_checked/mint_to/burn/approve/revoke
    against Surfpool/Web3.js, then compare behavior with Rust/Pinocchio
    reference fixtures.
-3. Logs, return data, sysvars, crypto, and memory helpers (3-5 days): expose
+2. Logs, return data, sysvars, crypto, and memory helpers (3-5 days): expose
    `sol_log*`, `sol_set_return_data`, `sol_get_return_data`, clock/rent sysvar
    reads, `sol_sha256`/`sol_keccak256`/`sol_blake3`, and
    `sol_memcpy`/`sol_memcmp`/`sol_memset`, with JavaScript reference checks.
-4. Runtime allocation lowering (1-2 days): route heap-backed SDK structures
+3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures
    through `runtime.allocator`, emit actual downward bump-pointer allocation
    code when needed, and reject allocation-using structures under
    `noAllocator`.
-5. Dynamic per-entrypoint account schemas (3-5 days): replace the current
+4. Dynamic per-entrypoint account schemas (3-5 days): replace the current
    module-wide fixed schema with runtime account parsing before dispatch, so
    instruction-data offsets no longer depend on every entrypoint sharing the
    same account list.
-6. Rust/Pinocchio equivalence fixtures (2-4 days): add reference programs for
+5. Rust/Pinocchio equivalence fixtures (2-4 days): add reference programs for
    the same account schemas and run ProofForge and reference implementations
    through the same Web3.js harness.
-7. Developer ergonomics and framework surface (3-5 days per iteration): add
+6. Developer ergonomics and framework surface (3-5 days per iteration): add
    account constraint helpers, typed account wrappers, IDL/client generation,
    richer SPL/Token-2022 helper coverage, and diagnostics that map generated
    assembly failures back to SDK declarations.
 
 The fastest credible route to a more complete SDK is therefore: first close
-the remaining alpha slices (PDA/Web3.js fixture, live CPI, and basic logs/return
-data), then use the beta slices to remove remaining architecture shortcuts
-before adding Anchor/Pinocchio-class ergonomics.
+the remaining alpha slices (live CPI and basic logs/return data), then use the
+beta slices to remove remaining architecture shortcuts before adding
+Anchor/Pinocchio-class ergonomics.
 
 ## Workstream 8: Move Source Generation POC (Aptos first)
 

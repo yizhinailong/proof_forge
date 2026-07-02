@@ -319,7 +319,8 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
   descriptor，将 `bump?` 加入 effective syscall seed list，在 manifest/artifact
   metadata 中发射 `typed_seeds`/`typedSeeds`，并在声明 `account?` 时把派生
   PDA pubkey 与对应账户 pubkey 做校验。覆盖：`Tests/SolanaSdk.lean`、
-  `Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+  `Tests/SolanaSdkManifest.lean`、`Tests/SolanaPdaSeeds.lean`、
+  `scripts/solana/sdk-smoke.sh`、`scripts/solana/pda-web3-smoke.sh`。
 - [x] 标准 Solana protocol SDK helper 现在覆盖 System Program 的 transfer/create-account，以及 SPL Token 的 transfer_checked/mint_to/burn/approve/revoke。它们通过 target capability metadata 路由，写入 `solana.cpi.protocol`、规范化 `data_layout`、account metas、signer seeds 和 instruction-data source name，并进入生成的 manifest 与 artifact JSON。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] Runtime allocator target extension 现在建模 Solana 默认 downward-bump allocator（`heap_start = "0x300000000"`、`heap_bytes = 32768`），并提供与 Pinocchio no-heap entrypoint 对齐的 `noAllocator`/deny-dynamic 选项。选中的 allocator 会通过 `runtime.allocator` capability metadata 路由，并进入 `manifest.toml`、`proof-forge-artifact.json` 和 assembly metadata。覆盖：`Tests/SolanaAllocator.lean`、`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] 生成的 Solana SDK instruction schema 现在使用 module-wide multi-account account list，取代旧的单账户 manifest。schema 包含 state account、PDA account、CPI account 和 executable CPI program account；sBPF backend 会从同一份 schema 计算 `INSTRUCTION_DATA` offset，并在 prologue 中按 schema 校验 signer/writable 约束和 program-owned account。账户列表会进入 `manifest.toml` 与 `proof-forge-artifact.json`。覆盖：`Tests/SolanaSdkManifest.lean`、`Tests/SolanaCpiPacking.lean`、`scripts/solana/sdk-smoke.sh`。
@@ -351,32 +352,34 @@ data packing、bump-allocator metadata、scalar entrypoint parameter decoding，
   `bumpSeed` 和 `paramSeed` descriptor 现在会 lowering 为 Solana seed slice，
   `bump?` 会参与 effective seed list，声明的 PDA account 可以与派生 pubkey
   进行校验。
+- PDA/Web3.js derivation fixture：`scripts/solana/pda-web3-smoke.sh` 会读取生成的
+  SDK Vault `typedSeeds` artifact data，并用 `PublicKey.findProgramAddressSync`
+  和 `PublicKey.createProgramAddressSync` 校验 literal/account/bump descriptor
+  语义；harness 也覆盖 UTF-8 与 instruction-parameter resolver 行为。
 
 剩余优先切片：
 
-1. PDA/Web3.js live fixture（1 天）：用 JavaScript harness 对比生成的 PDA
-   行为与 `PublicKey.findProgramAddressSync`，并覆盖 typed descriptor cases。
-2. Live CPI validation（2-3 天）：在 Surfpool/Web3.js 上实际跑 System Program
+1. Live CPI validation（2-3 天）：在 Surfpool/Web3.js 上实际跑 System Program
    transfer/create-account 和 SPL Token transfer_checked/mint_to/burn/approve/
    revoke，再与 Rust/Pinocchio reference fixture 对比行为。
-3. Logs、return data、sysvars、crypto 与 memory helpers（3-5 天）：暴露
+2. Logs、return data、sysvars、crypto 与 memory helpers（3-5 天）：暴露
    `sol_log*`、`sol_set_return_data`、`sol_get_return_data`、clock/rent sysvar
    reads、`sol_sha256`/`sol_keccak256`/`sol_blake3`，以及
    `sol_memcpy`/`sol_memcmp`/`sol_memset`，并与 JavaScript reference 对比。
-4. Runtime allocation lowering（1-2 天）：后续 heap-backed SDK structure 通过
+3. Runtime allocation lowering（1-2 天）：后续 heap-backed SDK structure 通过
    `runtime.allocator` 路由；需要动态分配时生成真实 downward bump-pointer
    allocation code；在 `noAllocator` 下拒绝使用分配的结构。
-5. Dynamic per-entrypoint account schema（3-5 天）：用 dispatch 前的 runtime
+4. Dynamic per-entrypoint account schema（3-5 天）：用 dispatch 前的 runtime
    account parsing 替换当前 module-wide fixed schema，使 instruction-data offset
    不再依赖所有 entrypoint 使用同一套账户列表。
-6. Rust/Pinocchio equivalence fixture（2-4 天）：为同一套 account schema 增加
+5. Rust/Pinocchio equivalence fixture（2-4 天）：为同一套 account schema 增加
    reference program，并通过同一个 Web3.js harness 对比 ProofForge 生成程序与参考实现。
-7. Developer ergonomics 和框架层体验（每轮 3-5 天）：增加 account constraint
+6. Developer ergonomics 和框架层体验（每轮 3-5 天）：增加 account constraint
    helper、typed account wrapper、IDL/client generation、更完整 SPL/Token-2022
    helper 覆盖，以及能把 generated assembly failure 映射回 SDK declaration 的诊断。
 
-最快可信路线是：先关闭剩余 alpha 切片（PDA/Web3.js fixture、live CPI、基础
-logs/return data），再通过 beta 切片移除剩余架构捷径，最后补
+最快可信路线是：先关闭剩余 alpha 切片（live CPI、基础 logs/return data），
+再通过 beta 切片移除剩余架构捷径，最后补
 Anchor/Pinocchio 级别的开发体验。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）

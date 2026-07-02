@@ -25,6 +25,7 @@ solana-lean:
     lake env lean --run Tests/SolanaDiagnostics.lean
     lake env lean --run Tests/SolanaSdk.lean
     lake env lean --run Tests/SolanaSdkManifest.lean
+    lake env lean --run Tests/SolanaPdaSeeds.lean
     lake env lean --run Tests/TargetRouting.lean
     lake env lean --run Tests/TokenSpec.lean
 
@@ -39,6 +40,10 @@ solana-emit-control:
 # Run Solana SDK artifact smoke. The sbpf build portion is optional.
 solana-sdk-smoke:
     scripts/solana/sdk-smoke.sh
+
+# Run Solana PDA typed-seed Web3.js derivation smoke. Skips when Node/npm are unavailable.
+solana-pda-web3:
+    scripts/solana/pda-web3-smoke.sh
 
 # Run the canned Solana sBPF smoke. Skips when sbpf is unavailable.
 solana-emit-asm:

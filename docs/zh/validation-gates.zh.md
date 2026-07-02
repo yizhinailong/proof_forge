@@ -10,6 +10,7 @@
 | 目标注册表冒烟测试 | `lake env lean --run Tests/TargetRegistry.lean` | 来自 `lean-toolchain` 的 Lean 工具链 | 目标注册表将 `evm` 暴露为 compiler target，同时让 `robinhood-chain-testnet` 和 `anvil-local` 等 EVM-compatible chain profile 只作为 lookup-only deployment profile 存在 | 交易广播、实时 RPC 或 explorer 可达性、wallet 集成 |
 | EVM 语义计划冒烟测试 | `just evm-plan` | 来自 `lean-toolchain` 的 Lean 工具链 | EVM semantic plan 会从 target 已解析的 `CapabilityPlan` 构建，拒绝非 EVM target plan，并在 Yul 生成前校验 storage layout、scalar storage slot、map value slot、nested map value slot、map presence slot、map assign-op helper 需求以及计划出的 helper 需求 | ABI dispatch、event、crosscall、constructor metadata、artifact metadata 完全归入 `ModulePlan`、`solc` 验收、字节码、运行时行为、更广泛的 aggregate storage planning |
 | Solana light gates | `just solana-light` | 来自 `lean-toolchain` 的 Lean 工具链；`python3`；SDK 脚本的 build 分支可选依赖 `sbpf` 和 `solana-keygen` | Solana target diagnostics、SDK metadata、SDK manifest、target routing、token spec、Counter sBPF golden assembly/manifest diff、control-flow/assertion assembly emission、SDK extension artifact metadata，以及存在 `sbpf` 时的 canned sBPF emission | 完整 Mollusk runtime 覆盖、Surfpool/Web3 部署冒烟、公共 validator 部署、Solana transaction UX |
+| Solana PDA Web3.js derivation smoke | `just solana-pda-web3` | 来自 `lean-toolchain` 的 Lean 工具链；Node；npm | 发射 Solana SDK Vault artifact，读取 PDA `typedSeeds`，并用 `@solana/web3.js` 的 `PublicKey.findProgramAddressSync` 和 `PublicKey.createProgramAddressSync` 校验 literal/account/bump descriptor 语义；同时覆盖本地 UTF-8 与 instruction-parameter seed descriptor resolver | live deployment 或 transaction execution；SPL Token CPI 行为 |
 | Yul 生成冒烟测试 | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | 已构建 `proof-forge` | Lean 前端/LCNF 将简单合约降级为 Yul | `solc` 验收、ABI 调度、EVM 运行时行为 |
 | Yul 到字节码冒烟测试 | `solc --strict-assembly build/counter.yul --bin` | `PATH` 上的 `solc` | 生成的 Yul 被 `solc` 接受 | 运行时语义或方法调度 |
 | 单个 EVM 字节码编译 | `lake env proof-forge --evm-bytecode --root . --module contract --artifact-output build/evm/Counter.proof-forge-artifact.json -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean` | `solc`、`cast`、`python3` 和 `Examples/Evm/Contracts/Counter.evm-methods` | Lean -> Yul -> `solc` -> 带有选择器生成的 runtime bytecode、可部署 `.init.bin` creation bytecode、`proof-forge-artifact.json` metadata，以及 `proof-forge-deploy.json` initcode manifest；manifest 中的 initcode header 会复制并返回引用的 runtime bytecode；`--evm-chain-profile <id>` 还会把已知 EVM chain profile 写入 deploy manifest，但不广播交易；`--evm-constructor-param <name:type>` 会记录静态 word constructor ABI schema；`--evm-constructor-arg <name=value>` 会 ABI-encode 支持的静态 word typed value；`--evm-constructor-args-hex <hex>` 会记录并追加一段 ABI-encoded constructor-argument tail | 运行时行为、gas、详尽的 ABI 正确性、dynamic constructor ABI types、签名/原始交易生成、真实交易广播 |
@@ -63,6 +64,14 @@
   - **V-GATE-SOLANA-08** — 控制流 + 断言 IR 覆盖。两半部分：
       * 发射半部分（可运行，不需要 `sbpf`）：`scripts/solana/emit-control-smoke.sh` 运行 `--emit-control-ir-sbpf`，grep 生成的 `.s` 中 `control.conditional` / `control.assert` / `control.assert_eq` 标记、`assert_fail`（exit 2）与 `assert_eq_fail`（exit 3）全局 label、三个 entrypoint 的 dispatch 行、驱动 `r3` 与 `r2` 的 `jeq`/`jlt` 比较指令，判断汇编跨重发射逐字节可复现，并校验制品 metadata 记录 `target: "solana-sbpf-asm"`、`fixture: "control-ir-sbpf"`、`sourceModule: "ControlFlowAssertProbe"` 以及 `storage.scalar` / `control.conditional` / `assertions.check` / `account.explicit` 能力。（发射半部分完成）。
       * 运行时半部分（依 `sbpf` + `cargo` + `solana-keygen`）：`scripts/solana/control-smoke.sh` 通过 `sbpf build` 汇编生成的 `.s` 并跑由 `Tests/solana/control_mollusk.rs.tpl` 渲染的 Mollusk 测试 crate。6 项 Mollusk 断言覆盖从零状态及非零 pre-state 调用 `lifecycle`（都落到 10u64 并返回 10）、从 3 调用 `guarded_increment`（`.assert` 通过、count→4）及从 9 调用（`.assert` 经 `assert_fail` exit 2 revert）、从 7 调用 `equality_guard`（`.assertEq` 通过、count→7 且返回 7）及从 42 调用（`.assertEq` 经 `assert_eq_fail` exit 3 revert）。Mollusk fixture 关闭 `account_data_direct_mapping` / `direct_account_pointers_in_program_input` / `virtual_address_space_adjustments`，以使用 Phase 1 lowering 的 legacy 嵌入式账户数据布局。（Phase 1 完成）。
+  - **V-GATE-SOLANA-09** — PDA typed seed descriptor 与 Solana Web3.js 兼容。
+    脚本：`scripts/solana/pda-web3-smoke.sh` 发射 SDK Vault artifact，在隔离
+    temp project 中安装 `@solana/web3.js`，读取
+    `solanaExtensions.pdas[].typedSeeds`，并确认 literal/account/bump descriptor
+    通过 `PublicKey.findProgramAddressSync` 和
+    `PublicKey.createProgramAddressSync` 可以复现同一个 PDA。Harness 也覆盖
+    UTF-8 和 instruction-parameter seed resolver 行为。这是离线 derivation
+    gate；不会部署或执行交易。
 - Move 冒烟测试 — `aptos move compile/test` 或 Sui Move 验证。
 - 能力拒绝测试 — 针对不支持的能力/目标组合的编译时诊断。
 

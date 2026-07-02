@@ -174,6 +174,14 @@ def pdaInstructionAccount (pda : PdaDerive) : AccountEntry := {
   owner := "program"
 }
 
+def pdaSeedAccount (name : String) : AccountEntry := {
+  name
+  index := 0
+  signer := false
+  writable := false
+  owner := "any"
+}
+
 def cpiInstructionSigner (account : AccountMeta) : Bool :=
   account.signer == "signer"
 
@@ -211,6 +219,26 @@ def pushEntrypointPdaAccounts (extensions : ProgramExtensions) (entrypoint : Str
         accounts)
     accounts
 
+def pushPdaSeedAccounts (accounts : Array AccountEntry) (pda : PdaDerive) : Array AccountEntry :=
+  pda.explicitSeeds.foldl
+    (fun accounts seed =>
+      match seed.kind with
+      | .account => pushAccount accounts (pdaSeedAccount seed.value)
+      | _ => accounts)
+    accounts
+
+def pushEntrypointPdaSeedAccounts (extensions : ProgramExtensions) (entrypoint : String)
+    (accounts : Array AccountEntry) : Array AccountEntry :=
+  extensions.pdaActions.foldl
+    (fun accounts action =>
+      if action.entrypoint == entrypoint then
+        match pdaByName? extensions action.name with
+        | some pda => pushPdaSeedAccounts accounts pda
+        | none => accounts
+      else
+        accounts)
+    accounts
+
 def pushEntrypointCpiAccounts (extensions : ProgramExtensions) (entrypoint : String)
     (accounts : Array AccountEntry) : Array AccountEntry :=
   extensions.cpiActions.foldl
@@ -239,7 +267,8 @@ def buildInstructionAccounts (module : Module) (extensions : ProgramExtensions)
     (entrypoint : String) : Array AccountEntry :=
   let accounts := pushAccount #[] (defaultStateAccount module)
   let accounts := pushEntrypointPdaAccounts extensions entrypoint accounts
-  pushEntrypointCpiAccounts extensions entrypoint accounts
+  let accounts := pushEntrypointCpiAccounts extensions entrypoint accounts
+  pushEntrypointPdaSeedAccounts extensions entrypoint accounts
 
 def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Array AccountEntry :=
   let accounts := pushAccount #[] (defaultStateAccount module)
@@ -247,7 +276,8 @@ def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Arr
     extensions.pdas.foldl
       (fun accounts pda => pushAccount accounts (pdaInstructionAccount pda))
       accounts
-  extensions.cpis.foldl pushCpiAccounts accounts
+  let accounts := extensions.cpis.foldl pushCpiAccounts accounts
+  extensions.pdas.foldl pushPdaSeedAccounts accounts
 
 def tomlBool (value : Bool) : String :=
   if value then "true" else "false"

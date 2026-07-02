@@ -13,6 +13,7 @@ does not add or edit CI jobs.
 | Target registry smoke | `lake env lean --run Tests/TargetRegistry.lean` | Lean toolchain from `lean-toolchain` | The target registry exposes `evm` as a compiler target while EVM-compatible chain profiles such as `robinhood-chain-testnet` and `anvil-local` stay lookup-only deployment profiles | Deployment broadcast, live RPC or explorer reachability, wallet integration |
 | EVM semantic plan smoke | `just evm-plan` | Lean toolchain from `lean-toolchain` | The EVM semantic plan builds from the target-resolved `CapabilityPlan`, rejects non-EVM target plans, and validates storage layout, scalar storage slots, map value slots, nested map value slots, map presence slots, map assign-op helper requirements, and planned helper requirements before Yul generation | Full `ModulePlan` ownership of ABI dispatch, events, crosscalls, constructor metadata, artifact metadata, `solc` acceptance, bytecode, runtime behavior, broader aggregate storage planning |
 | Solana light gates | `just solana-light` | Lean toolchain from `lean-toolchain`; `python3`; optional `sbpf` and `solana-keygen` for the SDK script's build branch | Solana target diagnostics, SDK metadata, SDK manifest, target routing, token spec, Counter sBPF golden assembly/manifest diff, control-flow/assertion assembly emission, SDK extension artifact metadata, and canned sBPF emission when `sbpf` is available | Full Mollusk runtime coverage, Surfpool/Web3 deployment smoke, public validator deployment, Solana transaction UX |
+| Solana PDA Web3.js derivation smoke | `just solana-pda-web3` | Lean toolchain from `lean-toolchain`; Node; npm | Emits the Solana SDK Vault artifact, reads PDA `typedSeeds`, and verifies literal/account/bump descriptor semantics against `@solana/web3.js` `PublicKey.findProgramAddressSync` and `PublicKey.createProgramAddressSync`; also covers the local resolver for UTF-8 and instruction-parameter seed descriptors | Live deployment or transaction execution; SPL Token CPI behavior |
 | Yul generation smoke | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | Built `proof-forge` | Lean frontend/LCNF lowers a simple contract to Yul | `solc` acceptance, ABI dispatch, EVM runtime behavior |
 | Yul-to-bytecode smoke | `solc --strict-assembly build/counter.yul --bin` | `solc` on `PATH` | Generated Yul is accepted by `solc` | Runtime semantics or method dispatch |
 | Single EVM bytecode compile | `lake env proof-forge --evm-bytecode --root . --module contract --artifact-output build/evm/Counter.proof-forge-artifact.json -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean` | `solc`, `cast`, `python3`, and `Examples/Evm/Contracts/Counter.evm-methods` | Lean -> Yul -> `solc` -> runtime bytecode with selector generation, deployable `.init.bin` creation bytecode, `proof-forge-artifact.json` metadata, and a `proof-forge-deploy.json` initcode manifest whose header copies and returns the referenced runtime bytecode; `--evm-chain-profile <id>` additionally records a known EVM chain profile in the deploy manifest without broadcasting; `--evm-constructor-param <name:type>` records static-word constructor ABI schema; `--evm-constructor-arg <name=value>` ABI-encodes supported static-word typed values; `--evm-constructor-args-hex <hex>` records and appends an ABI-encoded constructor-argument tail | Runtime behavior, gas, exhaustive ABI correctness, dynamic constructor ABI types, signed/raw transaction generation, real transaction broadcast |
@@ -141,6 +142,15 @@ The following gates are `Planned` and do not exist in CI or as scripts:
         `direct_account_pointers_in_program_input` /
         `virtual_address_space_adjustments` so the Phase 1 lowering's legacy
         embedded account-data layout is exercised. (Phase 1 complete.)
+  - **V-GATE-SOLANA-09** — PDA typed seed descriptor compatibility with
+    Solana Web3.js. Script: `scripts/solana/pda-web3-smoke.sh` emits the SDK
+    Vault artifact, installs `@solana/web3.js` in an isolated temp project,
+    reads `solanaExtensions.pdas[].typedSeeds`, and checks that
+    literal/account/bump descriptors reproduce the same PDA through
+    `PublicKey.findProgramAddressSync` and `PublicKey.createProgramAddressSync`.
+    The harness also covers UTF-8 and instruction-parameter seed resolver
+    behavior. This is an offline derivation gate; it does not deploy or execute
+    a transaction.
 - Move smoke — `aptos move compile/test` or Sui Move validation.
 - Cross-target capability rejection matrix — compile-time diagnostics for
   unsupported capability/target combinations beyond the target-specific Psy and
