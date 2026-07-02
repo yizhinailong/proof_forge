@@ -8,11 +8,15 @@ open ProofForge.Contract.Builder
 def spec : ProofForge.Contract.ContractSpec :=
   build "SolanaEpochSchedule" do
     scalarState "slots_per_epoch" .u64
+    scalarState "leader_schedule_slot_offset" .u64
 
     entrySelector "record_epoch_schedule" "10" do
       ProofForge.Solana.epochScheduleSlotsPerEpochToState
         "read_epoch_schedule"
         "slots_per_epoch"
+      ProofForge.Solana.epochScheduleLeaderScheduleSlotOffsetToState
+        "read_leader_schedule_slot_offset"
+        "leader_schedule_slot_offset"
 
 def module : ProofForge.IR.Module :=
   spec.module

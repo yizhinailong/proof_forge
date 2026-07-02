@@ -132,14 +132,26 @@ def main : IO UInt32 := do
         "epoch schedule sysvar manifest missing slots_per_epoch field"
       require (contains manifest "output_state = \"slots_per_epoch\"")
         "epoch schedule sysvar manifest missing slots_per_epoch output state"
+      require (contains manifest "sysvar = \"read_leader_schedule_slot_offset\"")
+        "epoch schedule sysvar manifest missing read_leader_schedule_slot_offset action"
+      require (contains manifest "field = \"leader_schedule_slot_offset\"")
+        "epoch schedule sysvar manifest missing leader_schedule_slot_offset field"
+      require (contains manifest "output_state = \"leader_schedule_slot_offset\"")
+        "epoch schedule sysvar manifest missing leader_schedule_slot_offset output state"
       require (contains asm "solana.sysvar.epoch_schedule read_epoch_schedule: field=slots_per_epoch")
         "assembly missing epoch schedule sysvar marker"
+      require (contains asm "solana.sysvar.epoch_schedule read_leader_schedule_slot_offset: field=leader_schedule_slot_offset")
+        "assembly missing epoch schedule leader_schedule_slot_offset marker"
       require (contains asm "call sol_get_epoch_schedule_sysvar")
         "assembly missing sol_get_epoch_schedule_sysvar syscall"
       require (contains asm "error_sysvar")
         "assembly missing epoch schedule sysvar failure branch"
       require (contains asm ".equ SLOTS_PER_EPOCH_DATA")
         "assembly missing slots_per_epoch offset symbol"
+      require (contains asm ".equ LEADER_SCHEDULE_SLOT_OFFSET_DATA")
+        "assembly missing leader_schedule_slot_offset offset symbol"
+      require (contains asm "ldxdw r3, [r5+8]")
+        "assembly missing leader_schedule_slot_offset field read"
       require (contains asm "stxdw [r5+0], r3")
         "assembly missing epoch schedule sysvar state write"
   | .error err =>

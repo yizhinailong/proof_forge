@@ -100,15 +100,18 @@ def SysvarKind.id : SysvarKind -> String
 inductive SysvarField where
   | rentLamportsPerByteYear
   | epochScheduleSlotsPerEpoch
+  | epochScheduleLeaderScheduleSlotOffset
   deriving BEq, DecidableEq, Repr
 
 def SysvarField.id : SysvarField -> String
   | .rentLamportsPerByteYear => "lamports_per_byte_year"
   | .epochScheduleSlotsPerEpoch => "slots_per_epoch"
+  | .epochScheduleLeaderScheduleSlotOffset => "leader_schedule_slot_offset"
 
 def SysvarField.kind : SysvarField -> SysvarKind
   | .rentLamportsPerByteYear => .rent
   | .epochScheduleSlotsPerEpoch => .epochSchedule
+  | .epochScheduleLeaderScheduleSlotOffset => .epochSchedule
 
 structure MemoryAction where
   name : String
@@ -608,6 +611,15 @@ def epochScheduleSlotsPerEpochToState (name outputState : String) :
     name := name
     kind := .epochSchedule
     field := .epochScheduleSlotsPerEpoch
+    outputState := outputState
+  }
+
+def epochScheduleLeaderScheduleSlotOffsetToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochSchedule
+    field := .epochScheduleLeaderScheduleSlotOffset
     outputState := outputState
   }
 

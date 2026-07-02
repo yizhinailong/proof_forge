@@ -100,15 +100,18 @@ def SysvarKind.syscall : SysvarKind -> String
 inductive SysvarField where
   | rentLamportsPerByteYear
   | epochScheduleSlotsPerEpoch
+  | epochScheduleLeaderScheduleSlotOffset
   deriving BEq, DecidableEq, Repr, Inhabited
 
 def SysvarField.id : SysvarField -> String
   | .rentLamportsPerByteYear => "lamports_per_byte_year"
   | .epochScheduleSlotsPerEpoch => "slots_per_epoch"
+  | .epochScheduleLeaderScheduleSlotOffset => "leader_schedule_slot_offset"
 
 def SysvarField.kind : SysvarField -> SysvarKind
   | .rentLamportsPerByteYear => .rent
   | .epochScheduleSlotsPerEpoch => .epochSchedule
+  | .epochScheduleLeaderScheduleSlotOffset => .epochSchedule
 
 structure MemoryAction where
   name : String
@@ -268,6 +271,7 @@ def sysvarKindFromString? : String -> Option SysvarKind
 def sysvarFieldFromString? : String -> Option SysvarField
   | "lamports_per_byte_year" => some .rentLamportsPerByteYear
   | "slots_per_epoch" => some .epochScheduleSlotsPerEpoch
+  | "leader_schedule_slot_offset" => some .epochScheduleLeaderScheduleSlotOffset
   | _ => none
 
 def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=
@@ -1630,6 +1634,18 @@ def lowerSysvarFieldRead (valueBindings : Array CpiValueBinding)
       ] ++
       stackPtr .r5 sysvarResultOffset ++ #[
         .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 0) }
+      ] ++
+      lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
+        storeReg .stxdw .r5 0 .r3
+      ]
+  | .epochScheduleLeaderScheduleSlotOffset =>
+      stackPtr .r1 sysvarResultOffset ++ #[
+        callSyscall SysvarKind.epochSchedule.syscall,
+        .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_sysvar") },
+        .comment "read EpochSchedule.leader_schedule_slot_offset from sysvar buffer"
+      ] ++
+      stackPtr .r5 sysvarResultOffset ++ #[
+        .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 8) }
       ] ++
       lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
         storeReg .stxdw .r5 0 .r3

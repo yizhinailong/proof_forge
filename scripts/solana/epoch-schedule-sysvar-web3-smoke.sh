@@ -103,6 +103,12 @@ expected = [{
     "kind": "epoch_schedule",
     "field": "slots_per_epoch",
     "outputState": "slots_per_epoch",
+}, {
+    "entrypoint": "record_epoch_schedule",
+    "sysvar": "read_leader_schedule_slot_offset",
+    "kind": "epoch_schedule",
+    "field": "leader_schedule_slot_offset",
+    "outputState": "leader_schedule_slot_offset",
 }]
 if sysvar_actions != expected:
     raise SystemExit(f"sysvar action mismatch: {sysvar_actions}")

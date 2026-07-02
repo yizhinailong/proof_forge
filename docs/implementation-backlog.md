@@ -791,7 +791,8 @@ checkpointId`, plus live `runtime.memory` validation through `sol_memcpy_`,
 `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`, plus live Solana-only
 `crypto.hash` validation through `sol_sha256` and `sol_keccak256`, plus live
 `Rent.lamports_per_byte_year` sysvar validation through `sol_get_rent_sysvar`.
-It also covers live `EpochSchedule.slots_per_epoch` validation through
+It also covers live `EpochSchedule.slots_per_epoch` and
+`EpochSchedule.leader_schedule_slot_offset` validation through
 `sol_get_epoch_schedule_sysvar`.
 The estimates below assume one engineer working on this branch,
 the current direct-assembly architecture staying stable, and local
@@ -866,7 +867,10 @@ Completed alpha slices:
   `scripts/solana/epoch-schedule-sysvar-web3-smoke.sh` builds and deploys a
   generated Solana-only `sysvar` target-extension program on Surfpool, invokes
   `record_epoch_schedule` through Web3.js, and proves the recorded
-  `EpochSchedule.slots_per_epoch` matches RPC `getEpochSchedule().slotsPerEpoch`.
+  `EpochSchedule.slots_per_epoch` and
+  `EpochSchedule.leader_schedule_slot_offset` match RPC
+  `getEpochSchedule().slotsPerEpoch` and
+  `getEpochSchedule().leaderScheduleSlotOffset`.
 
 Remaining priority slices:
 

@@ -13,11 +13,11 @@ function readKeypair(path) {
   return Keypair.fromSecretKey(Uint8Array.from(bytes));
 }
 
-function readU64LE(data) {
-  if (data.length < 8) {
-    throw new Error(`expected at least 8 bytes, got ${data.length}`);
+function readU64LE(data, offset = 0) {
+  if (data.length < offset + 8) {
+    throw new Error(`expected at least ${offset + 8} bytes, got ${data.length}`);
   }
-  return Buffer.from(data).readBigUInt64LE(0);
+  return Buffer.from(data).readBigUInt64LE(offset);
 }
 
 function sleep(ms) {
@@ -77,11 +77,15 @@ async function main() {
   });
   const payer = readKeypair(payerPath);
   const programId = new PublicKey(programIdValue);
-  const state = await createProgramState(connection, payer, programId, 8);
+  const state = await createProgramState(connection, payer, programId, 16);
   const epochSchedule = await connection.getEpochSchedule();
   const expectedSlotsPerEpoch = BigInt(epochSchedule.slotsPerEpoch);
+  const expectedLeaderScheduleSlotOffset = BigInt(epochSchedule.leaderScheduleSlotOffset);
   if (expectedSlotsPerEpoch === 0n) {
     throw new Error("RPC EpochSchedule.slotsPerEpoch was zero");
+  }
+  if (expectedLeaderScheduleSlotOffset === 0n) {
+    throw new Error("RPC EpochSchedule.leaderScheduleSlotOffset was zero");
   }
 
   const ix = new TransactionInstruction({
@@ -99,10 +103,16 @@ async function main() {
   if (account === null) {
     throw new Error(`state account not found: ${state.publicKey.toBase58()}`);
   }
-  const recordedSlotsPerEpoch = readU64LE(account.data);
+  const recordedSlotsPerEpoch = readU64LE(account.data, 0);
   if (recordedSlotsPerEpoch !== expectedSlotsPerEpoch) {
     throw new Error(
       `EpochSchedule.slots_per_epoch mismatch: recorded=${recordedSlotsPerEpoch} expected=${expectedSlotsPerEpoch}`
+    );
+  }
+  const recordedLeaderScheduleSlotOffset = readU64LE(account.data, 8);
+  if (recordedLeaderScheduleSlotOffset !== expectedLeaderScheduleSlotOffset) {
+    throw new Error(
+      `EpochSchedule.leader_schedule_slot_offset mismatch: recorded=${recordedLeaderScheduleSlotOffset} expected=${expectedLeaderScheduleSlotOffset}`
     );
   }
 
@@ -113,6 +123,8 @@ async function main() {
     signature,
     recordedSlotsPerEpoch: recordedSlotsPerEpoch.toString(),
     expectedSlotsPerEpoch: expectedSlotsPerEpoch.toString(),
+    recordedLeaderScheduleSlotOffset: recordedLeaderScheduleSlotOffset.toString(),
+    expectedLeaderScheduleSlotOffset: expectedLeaderScheduleSlotOffset.toString(),
   }));
 }
 
