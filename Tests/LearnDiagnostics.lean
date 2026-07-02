@@ -19,6 +19,9 @@ def unknownCpiSource : String := "
 contract BadUnknownCpi {
   state last_transfer_lamports: u64
 
+  solana account payer writable
+  solana account recipient writable
+
   solana cpi lamport_transfer system_transfer(payer, recipient, lamports)
 
   entry transfer(lamports: u64) {
@@ -31,6 +34,9 @@ contract BadUnknownCpi {
 def mismatchedCpiSource : String := "
 contract BadMismatchedCpi {
   state last_transfer_lamports: u64
+
+  solana account payer writable
+  solana account recipient writable
 
   solana cpi lamport_transfer system_transfer(payer, recipient, lamports)
 
@@ -68,6 +74,21 @@ contract BadUnknownState {
 }
 "
 
+def unknownCpiAccountSource : String := "
+contract BadUnknownCpiAccount {
+  state last_transfer_lamports: u64
+
+  solana account payer writable
+
+  solana cpi lamport_transfer system_transfer(payer, recipient, lamports)
+
+  entry transfer(lamports: u64) {
+    solana invoke lamport_transfer system_transfer(payer, recipient, lamports)
+    last_transfer_lamports = lamports
+  }
+}
+"
+
 def main : IO UInt32 := do
   requireErrorContains "unknown CPI" "unknown Learn Solana CPI `missing_transfer`"
     unknownCpiSource
@@ -78,6 +99,8 @@ def main : IO UInt32 := do
     unknownPdaSource
   requireErrorContains "unknown helper state" "unknown Learn state `missing`"
     unknownStateSource
+  requireErrorContains "unknown CPI account" "unknown Learn Solana account `recipient`"
+    unknownCpiAccountSource
   IO.println "learn-diagnostics: ok"
   return 0
 

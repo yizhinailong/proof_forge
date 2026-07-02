@@ -4,6 +4,12 @@ contract SolanaSplTokenOpsCpi {
   state last_approve_amount: u64
   state last_revoke_marker: u64
 
+  solana account mint writable
+  solana account destination writable
+  solana account authority readonly
+  solana account source writable
+  solana account delegate readonly
+
   solana cpi token_mint spl_token_mint_to(mint, destination, authority, amount)
   solana cpi token_burn spl_token_burn(source, mint, authority, amount)
   solana cpi token_approve spl_token_approve(source, delegate, authority, amount)

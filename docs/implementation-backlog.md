@@ -789,6 +789,18 @@ partial progress is visible before the full acceptance criteria close:
 
 ### Solana SDK completion roadmap
 
+Reference docs driving this roadmap:
+
+- Solana CPI and PDA docs:
+  <https://solana.com/docs/core/cpi> and
+  <https://solana.com/docs/core/pda>.
+- Anchor CPI/account-constraint docs:
+  <https://www.anchor-lang.com/docs/basics/cpi> and
+  <https://www.anchor-lang.com/docs/references/account-constraints>.
+- Pinocchio no-dependency / no-std program model:
+  <https://docs.rs/pinocchio> and
+  <https://github.com/anza-xyz/pinocchio>.
+
 Baseline: as of 2026-07-02, the Solana path has direct sBPF assembly emission,
 Counter deployment through Surfpool/Web3.js, SDK capability metadata, generated
 manifest/artifact output, module-wide multi-account schemas, standard
@@ -1032,10 +1044,11 @@ Completed developer-surface slices:
 - Learn reference diagnostics:
   `ProofForge.Contract.Learn` now builds a declaration reference index while
   lowering and rejects unknown or mismatched Solana CPI invocations, unknown
-  PDA derivations, invalid signer seeds, and helper statements that reference
-  undeclared state/account names. `Tests/LearnDiagnostics.lean` pins these
-  messages so Learn behaves like a checked language frontend instead of asking
-  users to hand-author unchecked `ContractSpec` data.
+  PDA derivations, invalid signer seeds, CPI declarations that use undeclared
+  accounts, and helper statements that reference undeclared state/account
+  names. `Tests/LearnDiagnostics.lean` pins these messages so Learn behaves
+  like a checked language frontend instead of asking users to hand-author
+  unchecked `ContractSpec` data.
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
@@ -1079,8 +1092,9 @@ Current boundary:
   transfer/create-account CPI, SPL Token mint/burn/approve/revoke CPI, and
   Solana log/return-data/compute-unit/memory/crypto/sysvar helper statements.
   During lowering, Solana CPI/PDA declarations and entrypoint helper statements
-  are cross-checked against declared references, so the remaining string names
-  are compiler-owned identifiers rather than unchecked user-authored specs.
+  are cross-checked against declared references. CPI account operands must be
+  declared with `solana account ...`, so the remaining string names are
+  compiler-owned identifiers rather than unchecked user-authored specs.
   `ProofForge.Contract.Source` remains the richer
   embedded macro frontend for examples not yet expressed in Learn. The next
   authoring gap is to extend Learn parsing to typed target-extension forms for

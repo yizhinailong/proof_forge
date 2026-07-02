@@ -995,6 +995,15 @@ private def requireStateOrAccount (refs : SolanaRefs) (stateNames : Array String
   else
     .error s!"unknown Learn state/account `{name}`"
 
+private def requireKnownAccount (refs : SolanaRefs) (name : String) :
+    Except String Unit :=
+  requireKnownName "Solana account" refs.accountNames name
+
+private def requireKnownAccounts (refs : SolanaRefs) (names : Array String) :
+    Except String Unit := do
+  for name in names do
+    requireKnownAccount refs name
+
 private def validateSignerSeeds (refs : SolanaRefs) (knownValueNames : Array String)
     (seeds : Array SolanaSignerSeed) : Except String Unit := do
   for seed in seeds do
@@ -1055,11 +1064,24 @@ private def validateSolanaItemRefs (refs : SolanaRefs) (knownValueNames : Array 
   match item with
   | .pda name seeds bump account _ =>
       validatePdaDecl refs knownValueNames name seeds bump account
-  | .splTokenTransferChecked _ _ _ _ _ _ _ signerSeeds
-  | .splTokenMintTo _ _ _ _ _ signerSeeds
-  | .splTokenBurn _ _ _ _ _ signerSeeds
-  | .splTokenApprove _ _ _ _ _ signerSeeds
-  | .splTokenRevoke _ _ _ signerSeeds =>
+  | .systemTransfer _ fromAccount toAccount _ =>
+      requireKnownAccounts refs #[fromAccount, toAccount]
+  | .systemCreateAccount _ payer newAccount _ _ _ =>
+      requireKnownAccounts refs #[payer, newAccount]
+  | .splTokenTransferChecked _ source mint destination authority _ _ signerSeeds =>
+      requireKnownAccounts refs #[source, mint, destination, authority]
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | .splTokenMintTo _ mint destination authority _ signerSeeds =>
+      requireKnownAccounts refs #[mint, destination, authority]
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | .splTokenBurn _ source mint authority _ signerSeeds =>
+      requireKnownAccounts refs #[source, mint, authority]
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | .splTokenApprove _ source delegate owner _ signerSeeds =>
+      requireKnownAccounts refs #[source, delegate, owner]
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | .splTokenRevoke _ source owner signerSeeds =>
+      requireKnownAccounts refs #[source, owner]
       validateSignerSeeds refs knownValueNames signerSeeds
   | _ => pure ()
 

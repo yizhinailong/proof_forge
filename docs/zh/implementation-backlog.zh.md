@@ -349,6 +349,18 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 
 ### Solana SDK 补齐路线图
 
+驱动这条路线的参考文档：
+
+- Solana CPI 与 PDA 文档：
+  <https://solana.com/docs/core/cpi> 和
+  <https://solana.com/docs/core/pda>。
+- Anchor CPI/account constraint 文档：
+  <https://www.anchor-lang.com/docs/basics/cpi> 和
+  <https://www.anchor-lang.com/docs/references/account-constraints>。
+- Pinocchio no-dependency / no-std program model：
+  <https://docs.rs/pinocchio> 和
+  <https://github.com/anza-xyz/pinocchio>。
+
 基线：截至 2026-07-02，Solana 路线已经具备 direct sBPF assembly emission、
 通过 Surfpool/Web3.js 部署 Counter、SDK capability metadata、生成
 manifest/artifact、module-wide multi-account schema、标准 System/SPL Token CPI
@@ -576,7 +588,8 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 - Learn reference diagnostics：
   `ProofForge.Contract.Learn` 现在会在 lowering 时构建声明引用索引，并拒绝未知
   或签名不匹配的 Solana CPI invocation、未知 PDA derivation、无效 signer seed，
-  以及引用未声明 state/account 名称的 helper statement。
+  使用未声明 account 的 CPI declaration，以及引用未声明 state/account 名称的
+  helper statement。
   `Tests/LearnDiagnostics.lean` 固定这些诊断信息，让 Learn 表现为经过检查的语言
   frontend，而不是要求用户手写未检查的 `ContractSpec` 数据。
 - Solana typed account surface：
@@ -622,7 +635,8 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   transfer/create-account CPI、SPL Token mint/burn/approve/revoke CPI，以及
   Solana log/return-data/compute-unit/memory/crypto/sysvar helper statement。
   Lowering 过程中，Solana CPI/PDA declaration 与 entrypoint helper statement
-  会和已声明引用交叉校验，因此剩余字符串名称属于编译器内部 identifier，而不是未检查的
+  会和已声明引用交叉校验。CPI account operand 必须先通过
+  `solana account ...` 声明，因此剩余字符串名称属于编译器内部 identifier，而不是未检查的
   用户手写 spec。
   `ProofForge.Contract.Source` 仍是尚未表达为
   Learn 的示例所使用的 embedded macro frontend。下一步 authoring 缺口是把

@@ -13,6 +13,12 @@ def spec : ProofForge.Contract.ContractSpec :=
     scalarState "last_approve_amount" .u64
     scalarState "last_revoke_marker" .u64
 
+    writableAccountConstraint "mint"
+    writableAccountConstraint "destination"
+    readonlyAccountConstraint "authority"
+    writableAccountConstraint "source"
+    readonlyAccountConstraint "delegate"
+
     splTokenMintTo
       "token_mint"
       "mint"
