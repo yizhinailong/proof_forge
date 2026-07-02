@@ -34,6 +34,7 @@ KEYGEN="${SOLANA_KEYGEN:-solana-keygen}"
 NPM_BIN="${NPM:-npm}"
 CARGO_BUILD_SBF_BIN="${CARGO_BUILD_SBF:-cargo-build-sbf}"
 SBPF_ARCH="${PROOF_FORGE_SOLANA_SYSTEM_CPI_SBPF_ARCH:-v0}"
+SOLANA_RUSTUP_TOOLCHAIN="${PROOF_FORGE_PINOCCHIO_RUSTUP_TOOLCHAIN:-1.89.0-sbpf-solana-v1.52}"
 RPC_HOST="${PROOF_FORGE_SURFPOOL_HOST:-127.0.0.1}"
 RPC_PORT="${PROOF_FORGE_PINOCCHIO_SYSTEM_TRANSFER_SURFPOOL_PORT:-8908}"
 WS_PORT="${PROOF_FORGE_PINOCCHIO_SYSTEM_TRANSFER_SURFPOOL_WS_PORT:-8909}"
@@ -44,6 +45,21 @@ SURFPOOL_PID=""
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 skip() { echo "SKIP: $1" >&2; exit 2; }
+
+rustupCargoAvailable() {
+  [ -x "$HOME/.cargo/bin/cargo" ] &&
+    PATH="$HOME/.cargo/bin:$PATH" cargo +"$SOLANA_RUSTUP_TOOLCHAIN" --version >/dev/null 2>&1
+}
+
+printSbfToolchainHint() {
+  cat >&2 <<EOF
+Pinocchio reference SBF build needs Solana rustc/platform-tools.
+Suggested repair:
+  PATH="\$HOME/.cargo/bin:\$PATH" cargo-build-sbf --force-tools-install --tools-version v1.52
+Then rerun:
+  PROOF_FORGE_PINOCCHIO_USE_RUSTUP=1 scripts/solana/pinocchio-system-transfer-live-equivalence.sh
+EOF
+}
 
 cleanup() {
   if [ -n "$SURFPOOL_PID" ] && kill -0 "$SURFPOOL_PID" >/dev/null 2>&1; then
@@ -85,9 +101,26 @@ lake env proof-forge --solana-system-cpi-elf --solana-sbpf-arch "$SBPF_ARCH" \
 
 echo "=== Pinocchio live equivalence step 2: build Pinocchio reference ELF ==="
 build_sbf_args=()
-if [ "${PROOF_FORGE_PINOCCHIO_USE_RUSTUP:-0}" != "1" ]; then
-  build_sbf_args+=(--no-rustup-override)
-fi
+case "${PROOF_FORGE_PINOCCHIO_USE_RUSTUP:-auto}" in
+  1|true|yes|auto)
+    if rustupCargoAvailable; then
+      export PATH="$HOME/.cargo/bin:$PATH"
+      echo "  using rustup Solana toolchain: $SOLANA_RUSTUP_TOOLCHAIN"
+    elif [ "${PROOF_FORGE_PINOCCHIO_USE_RUSTUP:-auto}" = "auto" ]; then
+      build_sbf_args+=(--no-rustup-override)
+      echo "  rustup Solana toolchain unavailable; trying PATH rustc with --no-rustup-override"
+    else
+      printSbfToolchainHint
+      skip "rustup Solana toolchain unavailable: $SOLANA_RUSTUP_TOOLCHAIN"
+    fi
+    ;;
+  0|false|no)
+    build_sbf_args+=(--no-rustup-override)
+    ;;
+  *)
+    fail "invalid PROOF_FORGE_PINOCCHIO_USE_RUSTUP value: ${PROOF_FORGE_PINOCCHIO_USE_RUSTUP:-}"
+    ;;
+esac
 if ! "$CARGO_BUILD_SBF_BIN" "${build_sbf_args[@]}" \
     --manifest-path "$REFERENCE_DIR/Cargo.toml" \
     --no-default-features \
@@ -100,7 +133,8 @@ if ! "$CARGO_BUILD_SBF_BIN" "${build_sbf_args[@]}" \
   sed -n '1,160p' "$OUT_DIR/pinocchio-build.stdout.log" >&2 || true
   echo "Pinocchio cargo-build-sbf stderr:" >&2
   sed -n '1,160p' "$OUT_DIR/pinocchio-build.stderr.log" >&2 || true
-  skip "Pinocchio reference SBF build failed; install Solana rustc/platform-tools or set PROOF_FORGE_PINOCCHIO_USE_RUSTUP=1 when rustup owns cargo"
+  printSbfToolchainHint
+  skip "Pinocchio reference SBF build failed"
 fi
 PINOCCHIO_BUILT_ELF="$(find "$PINOCCHIO_BUILD_DIR" -maxdepth 1 -type f -name '*.so' | head -n 1)"
 [ -n "$PINOCCHIO_BUILT_ELF" ] || fail "Pinocchio ELF not found in $PINOCCHIO_BUILD_DIR"

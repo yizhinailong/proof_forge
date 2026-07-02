@@ -62,6 +62,10 @@ solana-pinocchio-system-transfer-equivalence:
 solana-pinocchio-system-transfer-live-equivalence:
     scripts/solana/pinocchio-system-transfer-live-equivalence.sh
 
+# Repair/install the Solana SBF rustc/platform-tools used by the Pinocchio live gate.
+solana-pinocchio-install-sbf-tools:
+    PATH="$HOME/.cargo/bin:$PATH" cargo-build-sbf --force-tools-install --tools-version v1.52
+
 # Run a live System Program create_account CPI smoke on Surfpool with Web3.js.
 solana-system-create-account-cpi-web3:
     scripts/solana/system-create-account-cpi-web3-smoke.sh

@@ -30,6 +30,11 @@ scripts/solana/pinocchio-system-transfer-live-equivalence.sh
 It requires `cargo-build-sbf` to find Solana rustc/platform-tools. In
 environments where `cargo` is owned by `rustup`, set
 `PROOF_FORGE_PINOCCHIO_USE_RUSTUP=1`.
+If the Solana rustup toolchain is missing or corrupted, run:
+
+```sh
+just solana-pinocchio-install-sbf-tools
+```
 
 Primary references:
 
