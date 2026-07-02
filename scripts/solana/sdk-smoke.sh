@@ -196,7 +196,7 @@ for needle in [
     "solana.pda.validate vault account vault_account",
     "call sol_pda_derive_vault",
     "sol_cpi_token_transfer:",
-    "solana.cpi.program_id spl_token account[6] from input account",
+    "solana.cpi.program_id spl_token TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
     "solana.cpi.account_meta source key_ptr account[2]",
     "solana.cpi.account_meta destination key_ptr account[4]",
     "solana.cpi.account_info source account[2]",

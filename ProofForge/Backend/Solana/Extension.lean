@@ -311,6 +311,7 @@ def stackPtr (dst : Reg) (offset : Nat) : Array AstNode := #[
 ]
 
 def entryInputSaveOffset : Nat := 3520
+def accountPtrTableOffset : Nat := 3328
 def entryInstructionDataSaveOffset : Nat := 3584
 def entryInstructionDataReg : Reg := .r9
 
@@ -358,6 +359,43 @@ def inputPtr (dst : Reg) (off : Nat) : Array AstNode := #[
   .instruction { opcode := .mov64, dst := some dst, src := some .r1 },
   .instruction { opcode := .add64, dst := some dst, imm := some (.num off) }
 ]
+
+def inputAccountPtr (dst : Reg) (idx : Nat) : Array AstNode :=
+  stackPtr dst accountPtrTableOffset ++ #[
+    .instruction { opcode := .ldxdw, dst := some dst, src := some dst, off := some (.num (idx * 8)) }
+  ]
+
+def inputAccountFieldPtr (dst : Reg) (layout : AccountInputLayout) (absOff : Nat) : Array AstNode :=
+  inputAccountPtr dst layout.index ++ #[
+    .instruction { opcode := .add64, dst := some dst, imm := some (.num (absOff - layout.accountStart)) }
+  ]
+
+def lowerAccountScanStep (labelPrefix : String) (idx : Nat) : Array AstNode :=
+  let alignedLabel := s!"{labelPrefix}_account_scan_{idx}_aligned"
+  stackPtr .r6 accountPtrTableOffset ++ #[
+    .instruction { opcode := .stxdw, dst := some .r6, off := some (.num (idx * 8)), src := some .r3 },
+    .instruction { opcode := .ldxdw, dst := some .r4, src := some .r3, off := some (.num 80) },
+    .instruction { opcode := .add64, dst := some .r3, imm := some (.num 88) },
+    .instruction { opcode := .add64, dst := some .r3, src := some .r4 },
+    .instruction { opcode := .add64, dst := some .r3, imm := some (.num MAX_PERMITTED_DATA_INCREASE) },
+    .instruction { opcode := .add64, dst := some .r3, imm := some (.num U64_SIZE) },
+    .instruction { opcode := .mov64, dst := some .r5, src := some .r3 },
+    .instruction { opcode := .and64, dst := some .r5, imm := some (.num 7) },
+    .instruction { opcode := .jeq, dst := some .r5, imm := some (.num 0), off := some (.sym alignedLabel) },
+    .instruction { opcode := .mov64, dst := some .r6, imm := some (.num 8) },
+    .instruction { opcode := .sub64, dst := some .r6, src := some .r5 },
+    .instruction { opcode := .add64, dst := some .r3, src := some .r6 },
+    .label alignedLabel
+  ]
+
+def lowerAccountPtrTableSetup (labelPrefix : String) (accountCount : Nat) : Array AstNode :=
+  let scanSteps :=
+    (List.range accountCount).foldl (fun acc idx => acc ++ lowerAccountScanStep labelPrefix idx) #[]
+  #[
+    .comment "scan Solana input account pointers into current stack frame",
+    .instruction { opcode := .mov64, dst := some .r3, src := some .r1 },
+    .instruction { opcode := .add64, dst := some .r3, imm := some (.num U64_SIZE) }
+  ] ++ scanSteps
 
 def PdaDerive.explicitSeeds (pda : PdaDerive) : Array PdaSeed :=
   pda.seeds.map parsePdaSeed
@@ -440,7 +478,7 @@ def lowerPdaAccountSeed (bindings : Array CpiAccountBinding) (pdaName : String)
       #[
         .comment s!"solana.pda.seed {pdaName}[{idx}] account {account} pubkey"
       ] ++
-      inputPtr .r5 binding.layout.keyOff ++
+      inputAccountFieldPtr .r5 binding.layout binding.layout.keyOff ++
       lowerPdaSeedTableEntry idx 32
   | none =>
       #[
@@ -541,7 +579,7 @@ def lowerPdaResultAccountValidation (accountBindings : Array CpiAccountBinding)
             .comment s!"solana.pda.validate {pda.name} account {account}"
           ] ++
           stackPtr .r5 pdaResultOffset ++
-          inputPtr .r6 binding.layout.keyOff ++
+          inputAccountFieldPtr .r6 binding.layout binding.layout.keyOff ++
           compareWords
 
 def callHelperPreservingInput (helperName errorLabel : String) : Array AstNode := #[
@@ -560,6 +598,7 @@ def lowerPdaDerive (accountBindings : Array CpiAccountBinding) (valueBindings : 
     .instruction { opcode := .mov64, dst := some .r7, src := some .r1 },
     .comment "pack PDA seed byte slices"
   ] ++
+  lowerAccountPtrTableSetup pda.label accountBindings.size ++
   lowerPdaSeeds accountBindings valueBindings pda ++
   stackPtr .r1 pdaSeedTableOffset ++ #[
     .instruction { opcode := .mov64, dst := some .r2, imm := some (.num pda.effectiveSeeds.size) },
@@ -617,6 +656,23 @@ def copyInputPubkeyToStack (name : String) (srcOff stackOff : Nat) : Array AstNo
     storeReg .stxdw .r8 24 .r3
   ]
 
+def copyInputAccountPubkeyToStack (name : String) (layout : AccountInputLayout)
+    (stackOff : Nat) : Array AstNode :=
+  #[
+    .comment s!"solana.cpi.program_id {name} from input account"
+  ] ++
+  stackPtr .r8 stackOff ++
+  inputAccountFieldPtr .r7 layout layout.keyOff ++ #[
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
+    storeReg .stxdw .r8 0 .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 8) },
+    storeReg .stxdw .r8 8 .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 16) },
+    storeReg .stxdw .r8 16 .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 24) },
+    storeReg .stxdw .r8 24 .r3
+  ]
+
 def lowerZero32 (base : Reg) : Array AstNode := #[
   zeroStackQuad base 0,
   zeroStackQuad base 8,
@@ -638,6 +694,22 @@ def lowerCpiSystemProgramId : Array AstNode :=
   stackPtr .r8 cpiProgramIdOffset ++
   lowerZero32 .r8
 
+def splTokenProgramIdBytes : Array Nat :=
+  #[6, 221, 246, 225, 215, 101, 161, 147,
+    217, 203, 225, 70, 206, 235, 121, 172,
+    28, 180, 133, 237, 95, 91, 55, 145,
+    58, 140, 245, 133, 126, 255, 0, 169]
+
+def storePubkeyBytes (base : Reg) (bytes : Array Nat) : Array AstNode :=
+  bytes.mapIdx fun idx byte => storeImm .stb base idx byte
+
+def lowerCpiSplTokenProgramId : Array AstNode :=
+  #[
+    .comment "solana.cpi.program_id spl_token TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  ] ++
+  stackPtr .r8 cpiProgramIdOffset ++
+  storePubkeyBytes .r8 splTokenProgramIdBytes
+
 def lowerCpiFallbackProgramId (program : String) : Array AstNode :=
   #[
     .comment s!"solana.cpi.program_id {program} fallback placeholder"
@@ -646,15 +718,18 @@ def lowerCpiFallbackProgramId (program : String) : Array AstNode :=
   lowerZero32 .r8
 
 def lowerCpiProgramId (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
-  match cpiAccountBinding? bindings cpi.program with
-  | some binding =>
-      copyInputPubkeyToStack s!"{cpi.program} account[{binding.layout.index}]"
-        binding.layout.keyOff cpiProgramIdOffset
-  | none =>
-      if cpi.program == "system_program" then
-        lowerCpiSystemProgramId
-      else
-        lowerCpiFallbackProgramId cpi.program
+  if cpi.program == "spl_token" then
+    lowerCpiSplTokenProgramId
+  else
+    match cpiAccountBinding? bindings cpi.program with
+    | some binding =>
+        copyInputAccountPubkeyToStack s!"{cpi.program} account[{binding.layout.index}]"
+          binding.layout cpiProgramIdOffset
+    | none =>
+        if cpi.program == "system_program" then
+          lowerCpiSystemProgramId
+        else
+          lowerCpiFallbackProgramId cpi.program
 
 def lowerCpiPlaceholderPubkey (idx : Nat) (name : String) : Array AstNode :=
   let offset := cpiPlaceholderPubkeyOffset + idx * 32
@@ -691,7 +766,7 @@ def lowerCpiAccountMeta (bindings : Array CpiAccountBinding) (idx : Nat)
         #[
           .comment s!"solana.cpi.account_meta {account.name} key_ptr account[{binding.layout.index}]"
         ] ++
-        inputPtr .r8 binding.layout.keyOff
+        inputAccountFieldPtr .r8 binding.layout binding.layout.keyOff
     | none =>
         #[
           .comment s!"solana.cpi.account_meta {account.name} placeholder"
@@ -745,26 +820,36 @@ def lowerCpiAccountInfoBound (idx : Nat) (account : AccountMeta)
   stackPtr .r6 cpiAccountInfoOffset ++ #[
     .instruction { opcode := .add64, dst := some .r6, imm := some (.num infoOffset) }
   ] ++
-  inputPtr .r8 layout.keyOff ++ #[
+  inputAccountFieldPtr .r8 layout layout.keyOff ++ #[
     storeReg .stxdw .r6 0 .r8
   ] ++
-  inputPtr .r8 layout.lamportsOff ++ #[
-    storeReg .stxdw .r6 8 .r8,
-    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num layout.dataLenOff) },
+  inputAccountFieldPtr .r8 layout layout.lamportsOff ++ #[
+    storeReg .stxdw .r6 8 .r8
+  ] ++
+  inputAccountFieldPtr .r8 layout layout.dataLenOff ++ #[
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r8, off := some (.num 0) },
     storeReg .stxdw .r6 16 .r3
   ] ++
-  inputPtr .r8 layout.dataStart ++ #[
+  inputAccountFieldPtr .r8 layout layout.dataStart ++ #[
     storeReg .stxdw .r6 24 .r8
   ] ++
-  inputPtr .r8 layout.ownerOff ++ #[
-    storeReg .stxdw .r6 32 .r8,
-    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num layout.rentEpochOff) },
-    storeReg .stxdw .r6 40 .r3,
-    .instruction { opcode := .ldxb, dst := some .r3, src := some .r1, off := some (.num layout.signerOff) },
-    storeReg .stxb .r6 48 .r3,
-    .instruction { opcode := .ldxb, dst := some .r3, src := some .r1, off := some (.num layout.writableOff) },
-    storeReg .stxb .r6 49 .r3,
-    .instruction { opcode := .ldxb, dst := some .r3, src := some .r1, off := some (.num layout.executableOff) },
+  inputAccountFieldPtr .r8 layout layout.ownerOff ++ #[
+    storeReg .stxdw .r6 32 .r8
+  ] ++
+  inputAccountFieldPtr .r8 layout layout.rentEpochOff ++ #[
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r8, off := some (.num 0) },
+    storeReg .stxdw .r6 40 .r3
+  ] ++
+  inputAccountFieldPtr .r8 layout layout.signerOff ++ #[
+    .instruction { opcode := .ldxb, dst := some .r3, src := some .r8, off := some (.num 0) },
+    storeReg .stxb .r6 48 .r3
+  ] ++
+  inputAccountFieldPtr .r8 layout layout.writableOff ++ #[
+    .instruction { opcode := .ldxb, dst := some .r3, src := some .r8, off := some (.num 0) },
+    storeReg .stxb .r6 49 .r3
+  ] ++
+  inputAccountFieldPtr .r8 layout layout.executableOff ++ #[
+    .instruction { opcode := .ldxb, dst := some .r3, src := some .r8, off := some (.num 0) },
     storeReg .stxb .r6 50 .r3
   ]
 
@@ -832,11 +917,11 @@ def lowerCurrentProgramIdToData (fieldOff : Nat) : Array AstNode := #[
   storeReg .stxdw .r8 (fieldOff + 24) .r3
 ]
 
-def lowerAccountKeyToData (source : String) (keyOff fieldOff : Nat) : Array AstNode :=
+def lowerAccountKeyToData (source : String) (layout : AccountInputLayout) (fieldOff : Nat) : Array AstNode :=
   #[
     .comment s!"solana.cpi.value owner from account {source}",
   ] ++
-  inputPtr .r7 keyOff ++ #[
+  inputAccountFieldPtr .r7 layout layout.keyOff ++ #[
     .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
     storeReg .stxdw .r8 fieldOff .r3,
     .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 8) },
@@ -853,7 +938,7 @@ def lowerCpiOwnerField (accountBindings : Array CpiAccountBinding) (cpi : CpiInv
   | some "program" => lowerCurrentProgramIdToData fieldOff
   | some source =>
       match cpiAccountBinding? accountBindings source with
-      | some binding => lowerAccountKeyToData source binding.layout.keyOff fieldOff
+      | some binding => lowerAccountKeyToData source binding.layout fieldOff
       | none =>
           #[
             .comment s!"solana.cpi.value owner source={source} placeholder=zero",
@@ -1018,6 +1103,7 @@ def lowerSystemTransferCpi (accountBindings : Array CpiAccountBinding)
   #[
     .comment "solana.cpi.pack system.transfer"
   ] ++
+  lowerAccountPtrTableSetup cpi.label accountBindings.size ++
   lowerCpiProgramId accountBindings cpi ++
   lowerCpiFallbackPlaceholders accountBindings cpi ++
   lowerCpiAccountMetas accountBindings cpi ++
@@ -1033,6 +1119,7 @@ def lowerGenericCpiInvoke (accountBindings : Array CpiAccountBinding)
   #[
     .comment "generic CPI C ABI packing"
   ] ++
+  lowerAccountPtrTableSetup cpi.label accountBindings.size ++
   lowerCpiProgramId accountBindings cpi ++
   lowerCpiFallbackPlaceholders accountBindings cpi ++
   lowerCpiAccountMetas accountBindings cpi ++

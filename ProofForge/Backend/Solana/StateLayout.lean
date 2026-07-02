@@ -63,7 +63,8 @@ def computeAccountLayoutAt (index accountStart dataSize : Nat) (reserveRealloc :
   let dataStart := dataLenOff + U64_SIZE
   let reallocPadding := if reserveRealloc then MAX_PERMITTED_DATA_INCREASE else 0
   let afterPadding := dataStart + dataSize + reallocPadding
-  let rentEpochOff := afterPadding + alignTo8 afterPadding
+  let rentEpochOff := afterPadding
+  let nextAccountStart := rentEpochOff + U64_SIZE
   {
     index
     accountStart
@@ -76,7 +77,7 @@ def computeAccountLayoutAt (index accountStart dataSize : Nat) (reserveRealloc :
     dataLenOff
     dataStart
     rentEpochOff
-    nextAccountStart := rentEpochOff + U64_SIZE
+    nextAccountStart := nextAccountStart + alignTo8 nextAccountStart
   }
 
 def computeInputLayout (accountDataSizes : Array Nat) : InputLayout := Id.run do
@@ -116,9 +117,9 @@ def computeSingleAccountLayout (dataSize : Nat) : Nat × Nat :=
   let numAccounts := U64_SIZE
   let dataStart := numAccounts + ACCOUNT_HEADER_SIZE + PUBKEY_SIZE + PUBKEY_SIZE + U64_SIZE + U64_SIZE
   let afterPadding := dataStart + dataSize + MAX_PERMITTED_DATA_INCREASE
-  let align := alignTo8 afterPadding
-  let rentEpochEnd := afterPadding + align + U64_SIZE
-  let instrDataStart := rentEpochEnd + U64_SIZE
+  let rentEpochEnd := afterPadding + U64_SIZE
+  let instrDataLenOff := rentEpochEnd + alignTo8 rentEpochEnd
+  let instrDataStart := instrDataLenOff + U64_SIZE
   (dataStart, instrDataStart)
 
 /-- Compute the total account data size needed for all IR state variables.

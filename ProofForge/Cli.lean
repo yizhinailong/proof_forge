@@ -57,6 +57,7 @@ import ProofForge.Target
 import ProofForge.Solana.Examples.Vault
 import ProofForge.Solana.Examples.SystemCpi
 import ProofForge.Solana.Examples.SystemCreateAccountCpi
+import ProofForge.Solana.Examples.SplTokenTransferCheckedCpi
 
 open Lean
 open System
@@ -152,6 +153,7 @@ inductive EmitMode where
   | solanaElf
   | solanaSystemCpiElf
   | solanaSystemCreateAccountCpiElf
+  | solanaSplTokenTransferCpiElf
   | sbpfAsm
   deriving BEq, Inhabited
 
@@ -255,6 +257,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaElf
   | .solanaSystemCpiElf
   | .solanaSystemCreateAccountCpiElf
+  | .solanaSplTokenTransferCpiElf
   | .sbpfAsm => true
   | _ => false
 
@@ -357,6 +360,7 @@ def usage : String :=
     "  proof-forge --solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-system-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-system-create-account-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-spl-token-transfer-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -1871,6 +1875,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaSystemCpiElf }
   | "--solana-system-create-account-cpi-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSystemCreateAccountCpiElf }
+  | "--solana-spl-token-transfer-cpi-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSplTokenTransferCpiElf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
@@ -3093,6 +3099,13 @@ def compileSolanaSystemCreateAccountCpiElf (opts : CliOptions) : IO UInt32 :=
     "solana-system-create-account-cpi-elf"
     ProofForge.Solana.Examples.SystemCreateAccountCpi.spec
 
+def compileSolanaSplTokenTransferCpiElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/SplTokenTransferCheckedCpi.so")
+    "spl-token-transfer-cpi"
+    "solana-spl-token-transfer-cpi-elf"
+    ProofForge.Solana.Examples.SplTokenTransferCheckedCpi.spec
+
 def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/entrypoint.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderCannedEntrypoint with
@@ -3232,6 +3245,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaElf => compileSolanaElf opts
   | .solanaSystemCpiElf => compileSolanaSystemCpiElf opts
   | .solanaSystemCreateAccountCpiElf => compileSolanaSystemCreateAccountCpiElf opts
+  | .solanaSplTokenTransferCpiElf => compileSolanaSplTokenTransferCpiElf opts
   | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli

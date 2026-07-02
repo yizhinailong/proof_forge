@@ -53,6 +53,10 @@ solana-system-cpi-web3:
 solana-system-create-account-cpi-web3:
     scripts/solana/system-create-account-cpi-web3-smoke.sh
 
+# Run a live SPL Token transfer_checked CPI smoke on Surfpool with Web3.js.
+solana-spl-token-transfer-cpi-web3:
+    scripts/solana/spl-token-transfer-cpi-web3-smoke.sh
+
 # Run the canned Solana sBPF smoke. Skips when sbpf is unavailable.
 solana-emit-asm:
     scripts/solana/emit-asm-smoke.sh

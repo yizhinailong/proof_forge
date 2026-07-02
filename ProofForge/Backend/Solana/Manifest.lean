@@ -201,6 +201,9 @@ def cpiProgramAccount (cpi : CpiInvoke) : AccountEntry := {
   owner := "executable"
 }
 
+def cpiProgramAccountRequired (_cpi : CpiInvoke) : Bool :=
+  true
+
 def pdaByName? (extensions : ProgramExtensions) (name : String) : Option PdaDerive :=
   extensions.pdas.find? (fun pda => pda.name == name)
 
@@ -250,7 +253,10 @@ def pushEntrypointCpiAccounts (extensions : ProgramExtensions) (entrypoint : Str
               cpi.accounts.foldl
                 (fun accounts account => pushAccount accounts (cpiInstructionAccount account))
                 accounts
-            pushAccount accounts (cpiProgramAccount cpi)
+            if cpiProgramAccountRequired cpi then
+              pushAccount accounts (cpiProgramAccount cpi)
+            else
+              accounts
         | none => accounts
       else
         accounts)
@@ -261,7 +267,10 @@ def pushCpiAccounts (accounts : Array AccountEntry) (cpi : CpiInvoke) : Array Ac
     cpi.accounts.foldl
       (fun accounts account => pushAccount accounts (cpiInstructionAccount account))
       accounts
-  pushAccount accounts (cpiProgramAccount cpi)
+  if cpiProgramAccountRequired cpi then
+    pushAccount accounts (cpiProgramAccount cpi)
+  else
+    accounts
 
 def buildInstructionAccounts (module : Module) (extensions : ProgramExtensions)
     (entrypoint : String) : Array AccountEntry :=

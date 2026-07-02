@@ -327,6 +327,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] System Program transfer/create-account 与 SPL Token CPI instruction-data packing 现在会把标准 instruction bytes 写入 C `SolInstruction` payload。System transfer/create-account 使用 bincode-style `u32` discriminator，加 `u64` lamports/space 和 owner pubkey 字段；SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke` 使用标准 token instruction tag 和 amount/decimals layout。value source 可以绑定到生成的 scalar state offset、数字 literal 或已解码的 scalar entrypoint parameter。CPI helper 也会打包 program id bytes、C `SolAccountMeta[]`、绑定到生成的 multi-account input layout 的 `SolAccountInfo[]`、signer seed table，以及 syscall register setup。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] System Program transfer CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SystemCpi` 会构建生成的 `--solana-system-cpi-elf` fixture；entrypoint 读取 scalar `lamports` instruction parameter，执行 System Program transfer CPI，并把转账数写入 program-owned state account。`scripts/solana/system-cpi-web3-smoke.sh` 会校验 artifact schema，用 Solana CLI 在 Surfpool 部署 ELF，通过 `@solana/web3.js` 调用，并同时检查 recipient lamport delta 和 state data。sBPF lowering 会在 direct account mapping 下从序列化账户布局计算 instruction-data pointer，并保存在 `r9`，避免 internal helper call 跨 callee stack frame 时丢失该指针。覆盖：`just solana-system-cpi-web3` / V-GATE-SOLANA-10。
 - [x] System Program `create_account` CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SystemCreateAccountCpi` 会构建生成的 `--solana-system-create-account-cpi-elf` fixture；entrypoint 读取 scalar `lamports` 和 `space` instruction parameter，使用 payer 与 new-account signer 执行 System Program `create_account` CPI，创建 program-owned account，并把两个值写入已有 program-owned state account。Web3.js harness 会检查新 account 的 owner、data length、lamports，以及 state account 记录的值。覆盖：`just solana-system-create-account-cpi-web3` / V-GATE-SOLANA-11。
+- [x] SPL Token `transfer_checked` CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SplTokenTransferCheckedCpi` 会构建生成的 `--solana-spl-token-transfer-cpi-elf` fixture；entrypoint 读取 scalar `amount` instruction parameter，使用 source authority signer 执行 SPL Token `transfer_checked` CPI，并把 amount 写入 program-owned state。Web3.js harness 会通过 `@solana/spl-token` 创建 mint 和 source/destination token accounts，检查 token balance delta 与 state 记录。sBPF lowering 现在会在每个 entry/helper stack frame 里构建 runtime account pointer table，因此可变长度 SPL Token account data 不会让 internal helper call 里的 account offset 失效。覆盖：`just solana-spl-token-transfer-cpi-web3` / V-GATE-SOLANA-12。
 - [x] Entry instruction-data decoding 现在把第 0 字节作为 entrypoint tag，从 `instruction_data+1` 起按 packed scalar parameter 解码到 stack local。初始 scalar ABI 支持 `U64`、`U32` 和 `Bool`，在 `manifest.toml`/`proof-forge-artifact.json` 中发射 per-entrypoint parameter schema 和 minimum instruction-data length，对过短 payload 返回 `error_instruction_data`，并把同一组固定 input offset 暴露给 CPI value binding，因此 SPL Token `transfer_checked` 这类 SDK 调用可以从用户 instruction parameter 读取 `amount`，不再落到 placeholder。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean` 和 `scripts/solana/sdk-smoke.sh`。
 
 ### Solana SDK 补齐路线图
@@ -335,8 +336,8 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 通过 Surfpool/Web3.js 部署 Counter、SDK capability metadata、生成
 manifest/artifact、module-wide multi-account schema、标准 System/SPL Token CPI
 data packing、bump-allocator metadata、scalar entrypoint parameter decoding、
-typed PDA seed lowering，以及 live System Program transfer/create-account CPI
-validation。下面估算默认一名工程师持续在这个分支推进，
+typed PDA seed lowering、live System Program transfer/create-account CPI
+validation，以及 live SPL Token `transfer_checked` CPI validation。下面估算默认一名工程师持续在这个分支推进，
 当前 direct-assembly 架构保持稳定，并且本地 `sbpf`/Surfpool/Solana CLI
 工具链可用。
 
@@ -365,12 +366,16 @@ validation。下面估算默认一名工程师持续在这个分支推进，
 - Live System Program create-account CPI fixture：`scripts/solana/system-create-account-cpi-web3-smoke.sh`
   会在 Surfpool 上构建并部署生成的 create-account CPI 程序，通过 Web3.js
   调用，并证明新 account 的 owner/space/lamports 与 state write 都成立。
+- Live SPL Token transfer-checked CPI fixture：`scripts/solana/spl-token-transfer-cpi-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 transfer_checked CPI 程序，用
+  `@solana/spl-token` 创建 SPL Token 测试账户，通过 Web3.js 调用，并证明
+  source/destination token balance delta 与 state write 都成立。
 
 剩余优先切片：
 
-1. Live CPI validation（2-3 天）：把已经跑通的 System Program transfer 和
-   create-account smoke 扩展到 SPL Token transfer_checked/mint_to/burn/approve/
-   revoke，再与 Rust/Pinocchio reference fixture 对比行为。
+1. Live CPI validation（2-3 天）：把已经跑通的 System Program transfer、
+   create-account 和 SPL Token transfer_checked smoke 扩展到 SPL Token
+   mint_to/burn/approve/revoke，再与 Rust/Pinocchio reference fixture 对比行为。
 2. Logs、return data、sysvars、crypto 与 memory helpers（3-5 天）：暴露
    `sol_log*`、`sol_set_return_data`、`sol_get_return_data`、clock/rent sysvar
    reads、`sol_sha256`/`sol_keccak256`/`sol_blake3`，以及
