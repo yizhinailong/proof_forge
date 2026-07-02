@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-02
 
+### Target-Driven EVM Module Plan
+
+Commit: feature commit for EVM capability-aware module planning
+
+Summary:
+
+- Extended `ProofForge.Backend.Evm.Plan` with a target-driven `ModulePlan`
+  that preserves the resolved `Target.CapabilityPlan` for the EVM compiler
+  target.
+- Moved EVM storage/helper planning behind `buildModulePlan`, so the backend
+  can consume target-resolved capabilities instead of rediscovering helper
+  requirements directly during final Yul lowering.
+- Added `lowerModuleWithPlan` in the EVM backend. The public `lowerModule`
+  path now builds an EVM module plan first, then renders through the existing
+  Yul AST path.
+- Extended `Tests/EvmPlan.lean` to verify target id, supported and unsupported
+  capabilities, helper requirements, storage layout, map assign-op helper
+  requirements, and explicit rejection of a non-EVM target plan.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmPlan.lean
+```
+
+Known limitations:
+
+- ABI dispatch, event plans, crosscall plans, constructor metadata, and artifact
+  metadata still need to move behind `ModulePlan`.
+- The generated Yul is intentionally unchanged in this slice.
+
+Next step:
+
+- Move storage-path Yul expression construction to consume `StorageSlotPlan`
+  directly, then promote ABI/event/crosscall metadata into `ModulePlan`.
+
 ### Solana sBPF And SDK PR Merge
 
 Commit: merge commit for PR #2 (`Solana supprot`)

@@ -1,10 +1,13 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.IR.Contract
+import ProofForge.Target.Adapter
+import ProofForge.Target.Registry
 
 namespace ProofForge.Backend.Evm.Plan
 
 open ProofForge.IR
+open ProofForge.Target
 
 structure PlanError where
   message : String
@@ -12,6 +15,10 @@ structure PlanError where
 
 def PlanError.render (err : PlanError) : String :=
   err.message
+
+def PlanError.fromDiagnostic (err : Diagnostic) : PlanError := {
+  message := err.render
+}
 
 def stateSlotSpan (module : Module) (state : StateDecl) : Nat :=
   match state.kind, state.type with
@@ -82,13 +89,35 @@ inductive Helper where
   | mapPresenceSlot
   | mapWrite
   | mapSetReturn
+  | mapAssign (op : AssignOp)
+  | arraySlot
+  | structArraySlot
+  | hashWord
+  | hashPair
   deriving BEq, DecidableEq, Repr
+
+def assignOpHelperSuffix : AssignOp → String
+  | .add => "add"
+  | .sub => "sub"
+  | .mul => "mul"
+  | .div => "div"
+  | .mod => "mod"
+  | .bitAnd => "and"
+  | .bitOr => "or"
+  | .bitXor => "xor"
+  | .shiftLeft => "shl"
+  | .shiftRight => "shr"
 
 def Helper.name : Helper → String
   | .mapSlot => "__proof_forge_map_slot"
   | .mapPresenceSlot => "__proof_forge_map_presence_slot"
   | .mapWrite => "__proof_forge_map_write"
   | .mapSetReturn => "__proof_forge_map_set_return"
+  | .mapAssign op => s!"__proof_forge_map_assign_{assignOpHelperSuffix op}"
+  | .arraySlot => "__proof_forge_array_slot"
+  | .structArraySlot => "__proof_forge_struct_array_slot"
+  | .hashWord => "__proof_forge_hash_word"
+  | .hashPair => "__proof_forge_hash_pair"
 
 abbrev HelperSet := Array Helper
 
@@ -210,5 +239,148 @@ def storagePathMapPresenceSlotPlan
   | some keys => mapPresenceSlotPlan module stateId keys
   | none =>
       .error { message := "EVM plan supports map storage paths only as one or more mapKey segments" }
+
+def isStorageWordType : ValueType → Bool
+  | .u32 | .u64 | .bool | .hash => true
+  | .unit | .fixedArray _ _ | .structType _ => false
+
+def findStruct? (module : Module) (name : String) : Option StructDecl :=
+  module.structs.find? (fun decl => decl.name == name)
+
+def isSupportedMapState (state : StateDecl) : Bool :=
+  match state.kind, state.type with
+  | .map keyType _, valueType => isStorageWordType keyType && isStorageWordType valueType
+  | _, _ => false
+
+def moduleUsesSupportedMap (module : Module) : Bool :=
+  module.state.any isSupportedMapState
+
+def isSupportedArrayState (state : StateDecl) : Bool :=
+  match state.kind, state.type with
+  | .array length, elementType => length > 0 && isStorageWordType elementType
+  | _, _ => false
+
+def moduleUsesSupportedArray (module : Module) : Bool :=
+  module.state.any isSupportedArrayState
+
+def moduleUsesSupportedStructArray (module : Module) : Bool :=
+  module.state.any fun state =>
+    match state.kind, state.type with
+    | .array length, .structType typeName =>
+        length > 0 && (findStruct? module typeName).isSome
+    | _, _ => false
+
+def moduleUsesHash (module : Module) : Bool :=
+  module.capabilities.contains .cryptoHash
+
+def pushAssignOpIfMissing (acc : Array AssignOp) (value : AssignOp) : Array AssignOp :=
+  if acc.any (fun existing => existing == value) then acc else acc.push value
+
+def mergeAssignOpSets (lhs rhs : Array AssignOp) : Array AssignOp :=
+  rhs.foldl pushAssignOpIfMissing lhs
+
+mutual
+  partial def storagePathAssignOpsStatement : Statement → Array AssignOp
+    | .effect (.storagePathAssignOp _ _ op _) =>
+        #[op]
+    | .ifElse _ thenBody elseBody =>
+        mergeAssignOpSets (storagePathAssignOpsStatements thenBody) (storagePathAssignOpsStatements elseBody)
+    | .boundedFor _ _ _ body =>
+        storagePathAssignOpsStatements body
+    | _ =>
+        #[]
+
+  partial def storagePathAssignOpsStatements (statements : Array Statement) : Array AssignOp :=
+    statements.foldl (init := #[]) fun acc stmt =>
+      mergeAssignOpSets acc (storagePathAssignOpsStatement stmt)
+end
+
+def moduleStoragePathAssignOps (module : Module) : Array AssignOp :=
+  module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
+    mergeAssignOpSets acc (storagePathAssignOpsStatements entrypoint.body)
+
+def baseMapHelpers : HelperSet := #[
+  .mapSlot,
+  .mapPresenceSlot,
+  .mapWrite,
+  .mapSetReturn
+]
+
+def moduleHelpers (module : Module) : HelperSet :=
+  let helpers : HelperSet :=
+    if moduleUsesSupportedMap module then baseMapHelpers else #[]
+  let helpers :=
+    if moduleUsesSupportedMap module then
+      moduleStoragePathAssignOps module |>.foldl
+        (fun acc op => HelperSet.insert acc (.mapAssign op))
+        helpers
+    else
+      helpers
+  let helpers :=
+    if moduleUsesSupportedArray module then
+      HelperSet.insert helpers .arraySlot
+    else
+      helpers
+  let helpers :=
+    if moduleUsesSupportedStructArray module then
+      HelperSet.insert helpers .structArraySlot
+    else
+      helpers
+  if moduleUsesHash module then
+    HelperSet.insert (HelperSet.insert helpers .hashWord) .hashPair
+  else
+    helpers
+
+def helperMapAssignOps (helpers : HelperSet) : Array AssignOp :=
+  helpers.foldl
+    (fun acc helper =>
+      match helper with
+      | .mapAssign op => pushAssignOpIfMissing acc op
+      | _ => acc)
+    #[]
+
+structure ModulePlan where
+  name : String
+  targetPlan : CapabilityPlan
+  storage : StorageLayout
+  helpers : HelperSet
+  mapAssignOps : Array AssignOp
+  deriving Repr
+
+def ModulePlan.capabilities (plan : ModulePlan) : Array Capability :=
+  plan.targetPlan.capabilities
+
+def ModulePlan.hasHelper (plan : ModulePlan) (helper : Helper) : Bool :=
+  HelperSet.contains plan.helpers helper
+
+def buildModulePlanWithTargetPlan (module : Module) (targetPlan : CapabilityPlan) :
+    Except PlanError ModulePlan := do
+  if targetPlan.targetId != Target.evm.id then
+    .error {
+      message := s!"EVM module plan requires target `{Target.evm.id}`, got `{targetPlan.targetId}`"
+    }
+  else
+    let helpers := moduleHelpers module
+    .ok {
+      name := module.name
+      targetPlan
+      storage := storageLayout module
+      helpers
+      mapAssignOps := helperMapAssignOps helpers
+    }
+
+def buildModulePlan (module : Module) : Except PlanError ModulePlan := do
+  let targetPlan ←
+    match resolveModule Target.evm module with
+    | .ok plan => .ok plan
+    | .error err => .error (PlanError.fromDiagnostic err)
+  buildModulePlanWithTargetPlan module targetPlan
+
+def buildSpecPlan (spec : ProofForge.Contract.ContractSpec) : Except PlanError ModulePlan := do
+  let targetPlan ←
+    match resolveSpec Target.evm spec with
+    | .ok plan => .ok plan
+    | .error err => .error (PlanError.fromDiagnostic err)
+  buildModulePlanWithTargetPlan spec.module targetPlan
 
 end ProofForge.Backend.Evm.Plan

@@ -1,5 +1,6 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
+import ProofForge.Backend.Evm.Plan
 import ProofForge.IR.Contract
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
@@ -19,6 +20,10 @@ def LowerError.render (err : LowerError) : String :=
   err.message
 
 def diagnosticError (err : Diagnostic) : LowerError := {
+  message := err.render
+}
+
+def planError (err : ProofForge.Backend.Evm.Plan.PlanError) : LowerError := {
   message := err.render
 }
 
@@ -4261,32 +4266,6 @@ def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statem
   }
   .ok (.switchStmt selectorExpr (cases.push defaultCase))
 
-def isSupportedMapState (state : StateDecl) : Bool :=
-  match state.kind, state.type with
-  | .map keyType _, valueType => isStorageWordType keyType && isStorageWordType valueType
-  | _, _ => false
-
-def moduleUsesSupportedMap (module : Module) : Bool :=
-  module.state.any isSupportedMapState
-
-def isSupportedArrayState (state : StateDecl) : Bool :=
-  match state.kind, state.type with
-  | .array length, elementType => length > 0 && isStorageWordType elementType
-  | _, _ => false
-
-def moduleUsesSupportedArray (module : Module) : Bool :=
-  module.state.any isSupportedArrayState
-
-def moduleUsesSupportedStructArray (module : Module) : Bool :=
-  module.state.any fun state =>
-    match state.kind, state.type with
-    | .array length, .structType typeName =>
-        length > 0 && (findStruct? module typeName).isSome
-    | _, _ => false
-
-def moduleUsesHash (module : Module) : Bool :=
-  module.capabilities.contains .cryptoHash
-
 def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
   .funcDef hashWordFunctionName
     #[{ name := "value" }]
@@ -5390,32 +5369,6 @@ def moduleNestedLocalArrayGetShapes (module : Module) : Except LowerError (Array
     shapes := mergeNatArraySets shapes entrypointShapes
   .ok shapes
 
-def pushAssignOpIfMissing (acc : Array AssignOp) (value : AssignOp) : Array AssignOp :=
-  if acc.any (fun existing => existing == value) then acc else acc.push value
-
-def mergeAssignOpSets (lhs rhs : Array AssignOp) : Array AssignOp :=
-  rhs.foldl pushAssignOpIfMissing lhs
-
-mutual
-  partial def storagePathAssignOpsStatement : Statement → Array AssignOp
-    | .effect (.storagePathAssignOp _ _ op _) =>
-        #[op]
-    | .ifElse _ thenBody elseBody =>
-        mergeAssignOpSets (storagePathAssignOpsStatements thenBody) (storagePathAssignOpsStatements elseBody)
-    | .boundedFor _ _ _ body =>
-        storagePathAssignOpsStatements body
-    | _ =>
-        #[]
-
-  partial def storagePathAssignOpsStatements (statements : Array Statement) : Array AssignOp :=
-    statements.foldl (init := #[]) fun acc stmt =>
-      mergeAssignOpSets acc (storagePathAssignOpsStatement stmt)
-end
-
-def moduleStoragePathAssignOps (module : Module) : Array AssignOp :=
-  module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
-    mergeAssignOpSets acc (storagePathAssignOpsStatements entrypoint.body)
-
 def validateDistinctStructName (seen : Array String) (name : String) : Except LowerError (Array String) :=
   if name.isEmpty then
     .error { message := "struct name must be non-empty for IR EVM v0" }
@@ -5485,17 +5438,38 @@ def validateCapabilities (module : Module) : Except LowerError Unit :=
   | .ok _ => .ok ()
   | .error err => .error (diagnosticError err)
 
-def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object := do
-  validateCapabilities module
+def plannedMapHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
+    Array Lean.Compiler.Yul.Statement :=
+  if plan.hasHelper .mapSlot then
+    mapHelperFunctions plan.mapAssignOps
+  else
+    #[]
+
+def plannedArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
+    Array Lean.Compiler.Yul.Statement :=
+  if plan.hasHelper .arraySlot then arrayHelperFunctions else #[]
+
+def plannedStructArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
+    Array Lean.Compiler.Yul.Statement :=
+  if plan.hasHelper .structArraySlot then structArrayHelperFunctions else #[]
+
+def plannedHashHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
+    Array Lean.Compiler.Yul.Statement :=
+  if plan.hasHelper .hashWord || plan.hasHelper .hashPair then hashHelperFunctions else #[]
+
+def lowerModuleWithPlan
+    (module : Module)
+    (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
+    Except LowerError Lean.Compiler.Yul.Object := do
   validateStructs module
   validateState module
   let functions ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
     .ok (acc.push (← lowerEntrypoint module entrypoint))
   let dispatch ← dispatchBlock module
-  let helpers := if moduleUsesSupportedMap module then mapHelperFunctions (moduleStoragePathAssignOps module) else #[]
-  let helpers := helpers ++ (if moduleUsesSupportedArray module then arrayHelperFunctions else #[])
-  let helpers := helpers ++ (if moduleUsesSupportedStructArray module then structArrayHelperFunctions else #[])
-  let helpers := helpers ++ (if moduleUsesHash module then hashHelperFunctions else #[])
+  let helpers := plannedMapHelperFunctions plan
+  let helpers := helpers ++ plannedArrayHelperFunctions plan
+  let helpers := helpers ++ plannedStructArrayHelperFunctions plan
+  let helpers := helpers ++ plannedHashHelperFunctions plan
   let helpers := helpers ++ (← crosscallHelperFunctions module (← moduleCrosscallHelperSpecs module))
   let helpers := helpers ++ (← createHelperFunctions (moduleCreateHelperSpecs module))
   let helpers := helpers ++ localArrayGetHelperFunctions (← moduleLocalArrayGetLengths module)
@@ -5504,6 +5478,13 @@ def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :
     name := module.name
     code := { statements := #[dispatch] ++ functions ++ helpers }
   }
+
+def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object := do
+  let plan ←
+    match ProofForge.Backend.Evm.Plan.buildModulePlan module with
+    | .ok plan => .ok plan
+    | .error err => .error (planError err)
+  lowerModuleWithPlan module plan
 
 def renderModule (module : Module) : Except LowerError String := do
   .ok (Lean.Compiler.Yul.Printer.render (← lowerModule module))
