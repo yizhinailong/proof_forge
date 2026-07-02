@@ -107,6 +107,13 @@ Tasks:
   `bool`, `bytes32`, and `address`, record whether constructor args came from
   typed values or raw hex, reject missing/duplicate/out-of-range values, and
   validate the generated initcode tail against metadata and deploy manifests.
+- Done for EVM: record structured portable IR selector-facing entrypoint ABI
+  metadata in `abi.entrypoints`, including Solidity-style selector signatures,
+  IR type names, ABI parameter/return types, flattened calldata word
+  types/counts, and flattened return word types/counts; validators check
+  selector/signature consistency with `cast sig` and
+  `EvmAbiAggregateProbe` locks aggregate word layouts with
+  `--expect-entrypoint-abi`.
 - Done for EVM: record portable IR event ABI metadata in `abi.events`, including
   Solidity-style event signatures, `topic0`, indexed/data fields, flattened ABI
   word types, and topic/data encodings; EventProbe validates every emitted event
@@ -129,6 +136,9 @@ Acceptance criteria:
 - EVM bytecode build writes runtime bytecode, deployable initcode, metadata,
   and deploy manifest next to each other.
 - Metadata and deploy manifests can be parsed independently by CI scripts.
+- Portable IR bytecode metadata and deploy manifests can describe ABI-facing
+  entrypoints, including selector signatures, flattened calldata word layout,
+  and flattened return-data word layout.
 - Portable IR bytecode metadata and deploy manifests can describe ABI-facing
   events, including indexed topic encoding and non-indexed data-word encoding.
 - Deploy manifests can carry optional EVM chain profile metadata from the
@@ -449,7 +459,8 @@ Tasks:
   flat structs, with calldata word flattening, `U32`/`Bool` aggregate word
   guards, multi-word return-data encoding, `EvmAbiAggregateProbe` golden Yul,
   solc bytecode, Foundry runtime/malformed calldata validation, metadata
-  capability validation, CI coverage, and explicit diagnostics for Unit,
+  capability validation, structured `abi.entrypoints` selector/calldata/return
+  word-layout validation, CI coverage, and explicit diagnostics for Unit,
   zero-length arrays, non-flat struct fields, and crosscall-only unsupported
   nested fixed-array leaf shapes.
 - Done: close the EVM aggregate ABI validation gap for `Hash` leaves.

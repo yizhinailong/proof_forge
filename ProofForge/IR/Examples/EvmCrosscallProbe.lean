@@ -192,7 +192,7 @@ def callRemotePairArg : Entrypoint := {
 
 def callRemoteArrayArg : Entrypoint := {
   name := "call_remote_array_arg"
-  selector? := some "00746b10"
+  selector? := some "f96abfe0"
   params := #[
     ("target", .u64),
     ("method", .u64),
@@ -208,7 +208,7 @@ def callRemoteArrayArg : Entrypoint := {
 
 def callRemoteMatrixArg : Entrypoint := {
   name := "call_remote_matrix_arg"
-  selector? := some "25c0a43d"
+  selector? := some "38e0bc4c"
   params := #[
     ("target", .u64),
     ("method", .u64),
@@ -456,7 +456,7 @@ def callRemoteValuePairMatrixArg : Entrypoint := {
 
 def callRemoteValueMatrixArg : Entrypoint := {
   name := "call_remote_value_matrix_arg"
-  selector? := some "635d3715"
+  selector? := some "1a211ecd"
   params := #[
     ("target", .u64),
     ("method", .u64),
@@ -666,7 +666,7 @@ def callRemoteStaticPairMatrixArg : Entrypoint := {
 
 def callRemoteStaticMatrixArg : Entrypoint := {
   name := "call_remote_static_matrix_arg"
-  selector? := some "5ef5b6fb"
+  selector? := some "123a499f"
   params := #[
     ("target", .u64),
     ("method", .u64),
@@ -876,7 +876,7 @@ def callRemoteDelegatePairMatrixArg : Entrypoint := {
 
 def callRemoteDelegateMatrixArg : Entrypoint := {
   name := "call_remote_delegate_matrix_arg"
-  selector? := some "08edf8ea"
+  selector? := some "ccc679f8"
   params := #[
     ("target", .u64),
     ("method", .u64),

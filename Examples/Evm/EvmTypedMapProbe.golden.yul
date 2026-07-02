@@ -6,7 +6,7 @@ object "EvmTypedMapProbe" {
       mstore(0, _r)
       return(0, 32)
     }
-    case 0xda367450 {
+    case 0x04395342 {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
@@ -17,7 +17,7 @@ object "EvmTypedMapProbe" {
       mstore(0, _r)
       return(0, 32)
     }
-    case 0xd00c2a34 {
+    case 0x9dfe7834 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
@@ -30,7 +30,7 @@ object "EvmTypedMapProbe" {
       f_EvmTypedMapProbe_write_score(calldataload(4), calldataload(36))
       return(0, 0)
     }
-    case 0x40bbd11a {
+    case 0x79b9741a {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }

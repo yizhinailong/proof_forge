@@ -42,9 +42,9 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-capability storage.map \
   --expect-capability assertions.check \
   --expect-entrypoint typed_map_lifecycle:e4e7feaf \
-  --expect-entrypoint read_score:da367450 \
-  --expect-entrypoint write_score:d00c2a34 \
-  --expect-entrypoint contains_score:40bbd11a \
+  --expect-entrypoint read_score:04395342 \
+  --expect-entrypoint write_score:9dfe7834 \
+  --expect-entrypoint contains_score:79b9741a \
   --expect-entrypoint read_flag:7c7d06af \
   --expect-entrypoint set_flag:481794a0 \
   --expect-entrypoint contains_flag:430d2c8d \
@@ -188,24 +188,24 @@ contract ProofForgeIRTypedMapSmokeTest {
         deployRuntime(hex"$probe_hex", probe);
 
         uint256 maxU32 = uint256(type(uint32).max);
-        assertEq(callU256(probe, abi.encodeWithSignature("read_score(uint256)", 99)), 0);
-        assertFalse(callBool(probe, abi.encodeWithSignature("contains_score(uint256)", 99)));
+        assertEq(callU256(probe, abi.encodeWithSignature("read_score(uint32)", 99)), 0);
+        assertFalse(callBool(probe, abi.encodeWithSignature("contains_score(uint32)", 99)));
 
         (bool writeOk, bytes memory result) =
-            probe.call(abi.encodeWithSignature("write_score(uint256,uint256)", maxU32, maxU32));
+            probe.call(abi.encodeWithSignature("write_score(uint32,uint32)", maxU32, maxU32));
         assertTrue(writeOk);
         assertEq(result.length, 0);
-        assertEq(callU256(probe, abi.encodeWithSignature("read_score(uint256)", maxU32)), maxU32);
-        assertTrue(callBool(probe, abi.encodeWithSignature("contains_score(uint256)", maxU32)));
+        assertEq(callU256(probe, abi.encodeWithSignature("read_score(uint32)", maxU32)), maxU32);
+        assertTrue(callBool(probe, abi.encodeWithSignature("contains_score(uint32)", maxU32)));
         assertEq(readStorage(probe, mapSlot(maxU32, 0)), maxU32);
         assertEq(readStorage(probe, mapPresenceSlot(maxU32, 0)), 1);
 
         (bool keyRangeOk,) =
-            probe.call(abi.encodeWithSignature("contains_score(uint256)", maxU32 + 1));
+            probe.call(abi.encodeWithSignature("contains_score(uint32)", maxU32 + 1));
         assertFalse(keyRangeOk);
 
         (bool valueRangeOk,) =
-            probe.call(abi.encodeWithSignature("write_score(uint256,uint256)", 1, maxU32 + 1));
+            probe.call(abi.encodeWithSignature("write_score(uint32,uint32)", 1, maxU32 + 1));
         assertFalse(valueRangeOk);
     }
 

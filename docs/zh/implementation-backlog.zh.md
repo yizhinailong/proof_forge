@@ -88,6 +88,12 @@
   `address` ABI-encode typed constructor values，记录 constructor args 来自
   typed values 还是 raw hex，拒绝缺失、重复和越界的值，并校验生成的 initcode
   tail 与 metadata 和 deploy manifest 一致。
+- 已完成（EVM）：在 `abi.entrypoints` 中记录结构化的 portable IR
+  selector-facing entrypoint ABI metadata，包括 Solidity-style selector
+  signature、IR type name、ABI parameter/return type、展开后的 calldata word
+  type/count，以及展开后的 return word type/count；validator 会用
+  `cast sig` 校验 selector/signature 一致性，`EvmAbiAggregateProbe` 会通过
+  `--expect-entrypoint-abi` 固定聚合 ABI word layout。
 - 已完成（EVM）：在 `abi.events` 中记录 portable IR event ABI metadata，包括
   Solidity-style event signature、`topic0`、indexed/data field、展开后的 ABI
   word type，以及 topic/data encoding；EventProbe 通过 `--expect-event` 和
@@ -108,6 +114,9 @@
 
 - EVM 字节码构建将 runtime bytecode、可部署 initcode、元数据和 deploy manifest 并排写入。
 - 元数据和 deploy manifest 可以由 CI 脚本独立解析。
+- Portable IR bytecode metadata 和 deploy manifest 可以描述 ABI-facing
+  entrypoint，包括 selector signature、展开后的 calldata word layout，以及展开后的
+  return-data word layout。
 - Portable IR bytecode metadata 和 deploy manifest 可以描述 ABI-facing
   events，包括 indexed topic encoding 和非 indexed data-word encoding。
 - Deploy manifest 可以携带来自 target registry 的可选 EVM chain profile
@@ -181,7 +190,7 @@
 - 已完成：扩展 EVM IR 嵌套 local fixed-array 到扁平 struct leaf，按 nested element field 展开为确定性 Yul local，支持静态/动态嵌套字段读取、嵌套可变字段赋值、数字字段复合赋值、从 local array 或自引用嵌套 array literal 做带 RHS 快照的 whole nested local assignment、动态越界 revert，并用 `EvmStructArrayValueProbe` 跑通 golden Yul、metadata entrypoint、solc bytecode、Foundry 运行时验证和 coverage manifest 更新。
 - 已完成：加入 EVM IR 扁平 storage struct lowering，覆盖 scalar storage struct、扁平 struct 固定 storage array、直接 struct field effect、scalar `field` storage path、array `index`+`field` storage path、数字字段复合赋值、带 RHS 快照的 whole scalar storage struct read/write、storage-backed ABI struct return、`Bool`/`U32`/`Hash` 字段，并用 `EvmStorageStructProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/原始 slot 验证、metadata 能力校验、CI 覆盖，以及缺失字段和非扁平 storage struct 的显式诊断。
 - 已完成：验证 EVM IR storage-backed aggregate ABI return：扩展 `EvmStorageArrayProbe` 的 `return_values()`，从 storage-array element read 组装 fixed-array return；扩展 `EvmStorageStructProbe` 的 `return_points()`，从扁平 struct 固定 storage array 的字段 read 组装 fixed-array-of-struct return；覆盖 golden Yul、solc bytecode、metadata selector 校验、Foundry ABI 解码和原始 slot 检查。
-- 已完成：加入 EVM IR 静态聚合 ABI lowering，覆盖 fixed-array 和 struct 参数/返回、嵌套标量 fixed array，以及元素为扁平 struct 的 fixed array、calldata word flattening、`U32`/`Bool` 聚合 word guard、多 word return-data encoding，并用 `EvmAbiAggregateProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/malformed calldata 验证、metadata 能力校验、CI 覆盖，以及 Unit、零长度 array、非扁平 struct field 和嵌套 crosscall aggregate array 的显式诊断。
+- 已完成：加入 EVM IR 静态聚合 ABI lowering，覆盖 fixed-array 和 struct 参数/返回、嵌套标量 fixed array，以及元素为扁平 struct 的 fixed array、calldata word flattening、`U32`/`Bool` 聚合 word guard、多 word return-data encoding，并用 `EvmAbiAggregateProbe` 跑通 golden Yul、solc bytecode、Foundry 运行时/malformed calldata 验证、metadata 能力校验、结构化 `abi.entrypoints` selector/calldata/return word-layout 校验、CI 覆盖，以及 Unit、零长度 array、非扁平 struct field 和嵌套 crosscall aggregate array 的显式诊断。
 - 已完成：补齐 EVM aggregate ABI 对 `Hash` leaf 的验证缺口。`HashPair(bytes32,bytes32)`、`pick_hash(bytes32[2])` 和 `make_hash_array(bytes32,bytes32)` 现在证明 `Hash`/`bytes32` 字段与 fixed array 能通过 calldata 和 return-data encoding 展开，并覆盖 golden Yul、metadata selector、`solc`、Foundry ABI 解码，以及短 `bytes32[2]` calldata 拒绝。
 - 已完成：为 SDK EVM 示例（`Counter`、`ArrayExample`、`SimpleToken`、`ERC20`、`Ownable`、`Pausable` 和 `VerifiedVault`）添加 golden Yul 输出，并让 `scripts/evm/build-examples.sh` 在校验 metadata 前先 diff 生成的 Yul 与这些 fixture。
 - 已完成：为 SDK 和 portable IR EVM bytecode build 在当前 `solc --strict-assembly` 流程周围添加 metadata 发射与校验。

@@ -118,7 +118,7 @@ def readFlag : Entrypoint := {
 
 def writeLimb : Entrypoint := {
   name := "write_limb"
-  selector? := some "89580c4d"
+  selector? := some "6a088e19"
   params := #[("index", .u64), ("value", .u32)]
   returns := .unit
   body := #[

@@ -359,9 +359,10 @@ flat structs and fixed arrays, and flat struct/fixed-array returns, nested
 scalar fixed-array returns, and fixed arrays of flat structs encode as
 multi-word ABI return data. The smoke checks golden Yul reproducibility,
 `solc --strict-assembly`, artifact metadata capabilities `data.struct` and
-`data.fixed_array`, Foundry calls for struct, hash-struct, array, hash-array,
-nested-array, and tuple-array parameters/returns, malformed calldata reverts,
-and unknown-selector reverts.
+`data.fixed_array`, structured `abi.entrypoints` selector signatures,
+flattened calldata word counts, and return-data word counts, Foundry calls for
+struct, hash-struct, array, hash-array, nested-array, and tuple-array
+parameters/returns, malformed calldata reverts, and unknown-selector reverts.
 
 `AssertProbe` validates portable IR `assert` and `assert_eq` lowering to Yul
 `if iszero(...) { revert(0, 0) }` guards, including Foundry coverage for the
@@ -655,8 +656,11 @@ The current EVM metadata schema records:
 - source kind (`lean-sdk` or `portable-ir`), source module, and `irVersion`
   (`portable-ir-v0` for portable IR fixtures)
 - portable IR capability ids when available
-- constructor ABI schema, selector-facing ABI entrypoints, portable IR event
-  ABI metadata in `abi.events`, or SDK method specs, including Solidity
+- constructor ABI schema, structured selector-facing portable IR entrypoint ABI
+  metadata in `abi.entrypoints` with Solidity-style signatures, selector
+  values, IR type names, ABI parameter/return types, flattened calldata
+  word types/counts, and flattened return-data word types/counts, portable IR
+  event ABI metadata in `abi.events`, or SDK method specs, including Solidity
   signatures for methods loaded from `.evm-methods`
 - `solc` path/version
 - Yul, runtime bytecode, deployable initcode, source when available, and
@@ -668,8 +672,8 @@ The EVM deploy manifest records:
 
 - `kind: proof-forge-evm-deploy-manifest`
 - source kind/module, `irVersion`, capabilities, constructor ABI schema, and
-  ABI entrypoints/events/methods, including SDK method signatures when
-  available
+  ABI entrypoints/events/methods, including portable IR entrypoint
+  calldata/return word layouts and SDK method signatures when available
 - optional `chainProfile` metadata copied from the EVM target registry when
   `--evm-chain-profile` is provided, including profile id, chain id, RPC URLs,
   native gas symbol, explorer, verifier, and notes

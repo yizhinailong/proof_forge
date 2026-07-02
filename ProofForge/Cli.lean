@@ -887,21 +887,132 @@ def moduleCapabilityIds (module : ProofForge.IR.Module) : Array String :=
 def valueTypeJson (type : ProofForge.IR.ValueType) : String :=
   jsonString type.name
 
-def entrypointJson (entrypoint : ProofForge.IR.Entrypoint) : String :=
-  let params := entrypoint.params.map fun param =>
-    jsonObject #[
-      ("name", jsonString param.fst),
-      ("type", valueTypeJson param.snd)
-    ]
+def entrypointAbiScalarTypeName
+    (context : String)
+    (type : ProofForge.IR.ValueType) : Except String String :=
+  match type with
+  | .u32 => .ok "uint32"
+  | .u64 => .ok "uint256"
+  | .bool => .ok "bool"
+  | .hash => .ok "bytes32"
+  | .unit | .fixedArray _ _ | .structType _ =>
+      .error s!"{context} has unsupported EVM ABI word type `{type.name}`; entrypoint ABI words support U32, U64, Bool, or Hash"
+
+partial def entrypointAbiType
+    (module : ProofForge.IR.Module)
+    (context : String)
+    (type : ProofForge.IR.ValueType) : Except String String := do
+  match type with
+  | .u32 | .u64 | .bool | .hash =>
+      entrypointAbiScalarTypeName context type
+  | .unit =>
+      .error s!"{context} uses Unit; EVM entrypoint parameters and non-Unit returns must use U32, U64, Bool, Hash, fixed arrays, or flat structs"
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error s!"{context} uses Array<{elementType.name},0>; EVM entrypoint ABI fixed arrays must have non-zero length"
+      let elementAbiType ← entrypointAbiType module s!"{context} fixed-array element" elementType
+      .ok s!"{elementAbiType}[{length}]"
+  | .structType typeName => do
+      let some decl := module.structs.find? fun decl => decl.name == typeName
+        | .error s!"{context} uses unknown struct `{typeName}`"
+      if decl.fields.isEmpty then
+        .error s!"{context} uses empty struct `{typeName}`; EVM entrypoint ABI structs must have at least one field"
+      let mut parts := #[]
+      for field in decl.fields do
+        parts := parts.push (← entrypointAbiScalarTypeName s!"{context} struct `{typeName}` field `{field.id}`" field.type)
+      .ok ("(" ++ String.intercalate "," parts.toList ++ ")")
+
+partial def entrypointAbiWordTypes
+    (module : ProofForge.IR.Module)
+    (context : String)
+    (type : ProofForge.IR.ValueType) : Except String (Array String) := do
+  match type with
+  | .u32 | .u64 | .bool | .hash =>
+      .ok #[← entrypointAbiScalarTypeName context type]
+  | .unit =>
+      .error s!"{context} uses Unit; EVM entrypoint ABI values must use U32, U64, Bool, Hash, fixed arrays, or flat structs"
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error s!"{context} uses Array<{elementType.name},0>; EVM entrypoint ABI fixed arrays must have non-zero length"
+      let elementWords ← entrypointAbiWordTypes module s!"{context} fixed-array element" elementType
+      let mut words : Array String := #[]
+      for _h : _idx in [0:length] do
+        words := words ++ elementWords
+      .ok words
+  | .structType typeName => do
+      let some decl := module.structs.find? fun decl => decl.name == typeName
+        | .error s!"{context} uses unknown struct `{typeName}`"
+      if decl.fields.isEmpty then
+        .error s!"{context} uses empty struct `{typeName}`; EVM entrypoint ABI structs must have at least one field"
+      let mut words : Array String := #[]
+      for field in decl.fields do
+        words := words.push (← entrypointAbiScalarTypeName s!"{context} struct `{typeName}` field `{field.id}`" field.type)
+      .ok words
+
+def entrypointAbiValueJson
+    (name? : Option String)
+    (type : ProofForge.IR.ValueType)
+    (abiType : String)
+    (wordTypes : Array String) : String :=
+  let encoding :=
+    if type == .unit then "none" else "abi-static-words"
+  let nameFields :=
+    match name? with
+    | some name => #[("name", jsonString name)]
+    | none => #[]
+  jsonObject (nameFields ++ #[
+    ("type", valueTypeJson type),
+    ("irType", valueTypeJson type),
+    ("abiType", jsonString abiType),
+    ("encoding", jsonString encoding),
+    ("wordTypes", jsonStringArray wordTypes),
+    ("wordCount", toString wordTypes.size)
+  ])
+
+def entrypointParamJson
+    (module : ProofForge.IR.Module)
+    (entrypointName : String)
+    (param : String × ProofForge.IR.ValueType) : Except String (String × Nat × String) := do
+  let abiType ← entrypointAbiType module s!"entrypoint `{entrypointName}` parameter `{param.fst}`" param.snd
+  let wordTypes ← entrypointAbiWordTypes module s!"entrypoint `{entrypointName}` parameter `{param.fst}`" param.snd
+  .ok (abiType, wordTypes.size, entrypointAbiValueJson (some param.fst) param.snd abiType wordTypes)
+
+def entrypointReturnJson
+    (module : ProofForge.IR.Module)
+    (entrypointName : String)
+    (type : ProofForge.IR.ValueType) : Except String (Nat × String) := do
+  match type with
+  | .unit =>
+      .ok (0, entrypointAbiValueJson none type "void" #[])
+  | _ => do
+      let abiType ← entrypointAbiType module s!"entrypoint `{entrypointName}` return" type
+      let wordTypes ← entrypointAbiWordTypes module s!"entrypoint `{entrypointName}` return" type
+      .ok (wordTypes.size, entrypointAbiValueJson none type abiType wordTypes)
+
+def entrypointJson (module : ProofForge.IR.Module) (entrypoint : ProofForge.IR.Entrypoint) : Except String String := do
+  let mut params := #[]
+  let mut paramAbiTypes := #[]
+  let mut calldataWords := 0
+  for param in entrypoint.params do
+    let (abiType, wordCount, paramJson) ← entrypointParamJson module entrypoint.name param
+    params := params.push paramJson
+    paramAbiTypes := paramAbiTypes.push abiType
+    calldataWords := calldataWords + wordCount
+  let (returnWords, returnValue) ← entrypointReturnJson module entrypoint.name entrypoint.returns
+  let signature := s!"{entrypoint.name}({String.intercalate "," paramAbiTypes.toList})"
   let selectorValue :=
     match entrypoint.selector? with
     | some selector => jsonString selector
     | none => "null"
-  jsonObject #[
+  .ok <| jsonObject #[
     ("name", jsonString entrypoint.name),
     ("selector", selectorValue),
+    ("signature", jsonString signature),
     ("params", jsonArray params),
-    ("returns", valueTypeJson entrypoint.returns)
+    ("returns", valueTypeJson entrypoint.returns),
+    ("returnValue", returnValue),
+    ("calldataWords", toString calldataWords),
+    ("returnWords", toString returnWords)
   ]
 
 structure EventAbiField where
@@ -1345,13 +1456,16 @@ def writeEvmIrArtifactMetadata
     (module : ProofForge.IR.Module)
     (yulOutput bytecodeOutput : FilePath) : IO Unit := do
   let events ← eventAbisForModule opts.cast module
+  let mut entrypoints := #[]
+  for entrypoint in module.entrypoints do
+    entrypoints := entrypoints.push (← liftExceptString (entrypointJson module entrypoint))
   writeEvmArtifactMetadata
     opts
     fixture
     "portable-ir"
     sourceModule
     (moduleCapabilityIds module)
-    (module.entrypoints.map entrypointJson)
+    entrypoints
     (events.map eventAbiJson)
     #[]
     none

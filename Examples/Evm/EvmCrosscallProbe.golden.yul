@@ -98,7 +98,7 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
-    case 0x00746b10 {
+    case 0xf96abfe0 {
       if lt(calldatasize(), 132) {
         revert(0, 0)
       }
@@ -106,7 +106,7 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
-    case 0x25c0a43d {
+    case 0x38e0bc4c {
       if lt(calldatasize(), 196) {
         revert(0, 0)
       }
@@ -321,7 +321,7 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
-    case 0x635d3715 {
+    case 0x1a211ecd {
       if lt(calldatasize(), 196) {
         revert(0, 0)
       }
@@ -488,7 +488,7 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
-    case 0x5ef5b6fb {
+    case 0x123a499f {
       if lt(calldatasize(), 196) {
         revert(0, 0)
       }
@@ -655,7 +655,7 @@ object "EvmCrosscallProbe" {
       mstore(0, _r)
       return(0, 32)
     }
-    case 0x08edf8ea {
+    case 0xccc679f8 {
       if lt(calldatasize(), 196) {
         revert(0, 0)
       }

@@ -17,6 +17,39 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Entrypoint ABI Artifact Metadata
+
+Commit: `feat: record EVM entrypoint ABI metadata`
+
+Summary:
+
+- Portable IR EVM bytecode artifacts and deploy manifests now include
+  structured `abi.entrypoints` metadata for selector-facing entrypoints.
+- Entrypoint metadata records the Solidity-style selector signature, parameter
+  ABI types, flattened calldata word types/counts, return ABI type, flattened
+  return word types/counts, and preserves the original IR type names.
+- `scripts/evm/validate-artifact-metadata.py` now validates entrypoint
+  selectors with `cast sig`, while `scripts/evm/abi-aggregate-ir-smoke.sh`
+  locks aggregate calldata/return word layouts through
+  `--expect-entrypoint-abi`.
+
+Validation run:
+
+```sh
+lake build proof-forge
+scripts/evm/abi-aggregate-ir-smoke.sh
+```
+
+Known limitations:
+
+- The metadata describes the current static ABI-word surface. Dynamic ABI
+  values remain an explicit unsupported surface for portable IR EVM.
+
+Next step:
+
+- Continue tightening metadata validation around deployment-facing manifests
+  and expand first-class ABI schema coverage as the portable IR grows.
+
 ### EVM Event ABI Artifact Metadata
 
 Commit: `feat: record EVM event ABI metadata`

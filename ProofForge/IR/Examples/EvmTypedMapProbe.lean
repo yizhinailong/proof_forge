@@ -79,7 +79,7 @@ def typedMapLifecycle : Entrypoint := {
 
 def readScore : Entrypoint := {
   name := "read_score"
-  selector? := some "da367450"
+  selector? := some "04395342"
   params := #[("key", .u32)]
   returns := .u32
   body := #[
@@ -89,7 +89,7 @@ def readScore : Entrypoint := {
 
 def writeScore : Entrypoint := {
   name := "write_score"
-  selector? := some "d00c2a34"
+  selector? := some "9dfe7834"
   params := #[
     ("key", .u32),
     ("value", .u32)
@@ -102,7 +102,7 @@ def writeScore : Entrypoint := {
 
 def containsScore : Entrypoint := {
   name := "contains_score"
-  selector? := some "40bbd11a"
+  selector? := some "79b9741a"
   params := #[("key", .u32)]
   returns := .bool
   body := #[

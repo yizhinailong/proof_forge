@@ -49,8 +49,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_array:717d6851 \
   --expect-entrypoint call_remote_matrix:d49690a6 \
   --expect-entrypoint call_remote_pair_arg:cabe3922 \
-  --expect-entrypoint call_remote_array_arg:00746b10 \
-  --expect-entrypoint call_remote_matrix_arg:25c0a43d \
+  --expect-entrypoint call_remote_array_arg:f96abfe0 \
+  --expect-entrypoint call_remote_matrix_arg:38e0bc4c \
   --expect-entrypoint call_remote_pair_array:031396d6 \
   --expect-entrypoint call_remote_pair_array_arg:7a45fdce \
   --expect-entrypoint call_remote_pair_matrix:3652f87d \
@@ -64,7 +64,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_value_pair_array_arg:27c33745 \
   --expect-entrypoint call_remote_value_pair_matrix:fa3cf7ed \
   --expect-entrypoint call_remote_value_pair_matrix_arg:4f1e8d96 \
-  --expect-entrypoint call_remote_value_matrix_arg:635d3715 \
+  --expect-entrypoint call_remote_value_matrix_arg:1a211ecd \
   --expect-entrypoint call_remote_static:d13203a8 \
   --expect-entrypoint call_remote_static_bool:ae266f0a \
   --expect-entrypoint call_remote_static_u32:ec8c40f9 \
@@ -77,7 +77,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_static_pair_array_arg:1b46265d \
   --expect-entrypoint call_remote_static_pair_matrix:9893a8f6 \
   --expect-entrypoint call_remote_static_pair_matrix_arg:db5109a1 \
-  --expect-entrypoint call_remote_static_matrix_arg:5ef5b6fb \
+  --expect-entrypoint call_remote_static_matrix_arg:123a499f \
   --expect-entrypoint call_remote_delegate:427320b1 \
   --expect-entrypoint call_remote_delegate_bool:62e5114d \
   --expect-entrypoint call_remote_delegate_u32:e3abe276 \
@@ -90,7 +90,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint call_remote_delegate_pair_array_arg:73049a39 \
   --expect-entrypoint call_remote_delegate_pair_matrix:26db7add \
   --expect-entrypoint call_remote_delegate_pair_matrix_arg:667806e6 \
-  --expect-entrypoint call_remote_delegate_matrix_arg:08edf8ea \
+  --expect-entrypoint call_remote_delegate_matrix_arg:ccc679f8 \
   --expect-entrypoint deploy_create:c9bc2909 \
   --expect-entrypoint deploy_create2:70b22efb \
   "$METADATA_FILE"
@@ -717,7 +717,7 @@ contract ProofForgeIRCrosscallSmokeTest {
             callU256(
                 probe,
                 abi.encodeWithSignature(
-                    "call_remote_array_arg(uint256,uint256,uint64,uint64)",
+                    "call_remote_array_arg(uint256,uint256,uint256,uint256)",
                     uint256(uint160(address(callee))),
                     selector(CrosscallCallee.sumValues.selector),
                     uint64(15),
@@ -737,7 +737,7 @@ contract ProofForgeIRCrosscallSmokeTest {
             callU256(
                 probe,
                 abi.encodeWithSignature(
-                    "call_remote_matrix_arg(uint256,uint256,uint64,uint64,uint64,uint64)",
+                    "call_remote_matrix_arg(uint256,uint256,uint256,uint256,uint256,uint256)",
                     uint256(uint160(address(callee))),
                     selector(CrosscallCallee.sumMatrix.selector),
                     uint64(1),
@@ -1025,7 +1025,7 @@ contract ProofForgeIRCrosscallSmokeTest {
             callU256Value(
                 probe,
                 abi.encodeWithSignature(
-                    "call_remote_value_matrix_arg(uint256,uint256,uint64,uint64,uint64,uint64)",
+                    "call_remote_value_matrix_arg(uint256,uint256,uint256,uint256,uint256,uint256)",
                     uint256(uint160(address(callee))),
                     selector(CrosscallCallee.paidMatrixScore.selector),
                     uint64(1),
@@ -1292,7 +1292,7 @@ contract ProofForgeIRCrosscallSmokeTest {
             callU256(
                 probe,
                 abi.encodeWithSignature(
-                    "call_remote_static_matrix_arg(uint256,uint256,uint64,uint64,uint64,uint64)",
+                    "call_remote_static_matrix_arg(uint256,uint256,uint256,uint256,uint256,uint256)",
                     uint256(uint160(address(callee))),
                     selector(CrosscallCallee.sumMatrix.selector),
                     uint64(1),
@@ -1702,7 +1702,7 @@ contract ProofForgeIRCrosscallSmokeTest {
             callU256(
                 probe,
                 abi.encodeWithSignature(
-                    "call_remote_delegate_matrix_arg(uint256,uint256,uint64,uint64,uint64,uint64)",
+                    "call_remote_delegate_matrix_arg(uint256,uint256,uint256,uint256,uint256,uint256)",
                     uint256(uint160(address(callee))),
                     selector(CrosscallCallee.sumMatrix.selector),
                     uint64(1),

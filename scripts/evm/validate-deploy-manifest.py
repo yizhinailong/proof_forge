@@ -8,6 +8,7 @@ from typing import Any, Optional
 
 SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
 SUPPORTED_CONSTRUCTOR_ARG_SOURCES = {"--evm-constructor-args-hex", "--evm-constructor-arg"}
+SUPPORTED_ENTRYPOINT_WORD_TYPES = {"uint256", "uint32", "bool", "bytes32"}
 SELECTOR_RE = re.compile(r"^[0-9a-fA-F]{8}$")
 SIGNATURE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\((.*)\)$")
 
@@ -265,20 +266,70 @@ def validate_events(abi: dict) -> None:
         expect(event.get("dataWords") == data_words, f"abi.events[{idx}].dataWords mismatch")
 
 
-def validate_abi(abi: dict, expected_constructor_params: list[dict], require_method_signatures: bool) -> list[dict]:
-    constructor_params = validate_constructor_abi(abi, expected_constructor_params)
-    validate_events(abi)
+def validate_entrypoint_abi_value(value: dict, prefix: str, allow_none: bool) -> int:
+    type_name = expect_string(value.get("type"), f"{prefix}.type")
+    ir_type = expect_string(value.get("irType"), f"{prefix}.irType")
+    expect(ir_type == type_name, f"{prefix}.irType must match type")
+    abi_type = expect_string(value.get("abiType"), f"{prefix}.abiType")
+    encoding = expect_string(value.get("encoding"), f"{prefix}.encoding")
+    word_types = expect_array(value.get("wordTypes"), f"{prefix}.wordTypes")
+    for idx, word_type in enumerate(word_types):
+        word_type = expect_string(word_type, f"{prefix}.wordTypes[{idx}]")
+        expect(word_type in SUPPORTED_ENTRYPOINT_WORD_TYPES, f"{prefix}.wordTypes[{idx}] unsupported")
+    word_count = value.get("wordCount")
+    expect(isinstance(word_count, int) and word_count == len(word_types), f"{prefix}.wordCount mismatch")
+    if encoding == "none":
+        expect(allow_none, f"{prefix}.encoding cannot be none")
+        expect(type_name == "Unit", f"{prefix}.type must be Unit when encoding is none")
+        expect(abi_type == "void", f"{prefix}.abiType must be void when encoding is none")
+        expect(word_count == 0, f"{prefix}.wordCount must be 0 when encoding is none")
+    else:
+        expect(encoding == "abi-static-words", f"{prefix}.encoding mismatch")
+        expect(abi_type != "void", f"{prefix}.abiType must not be void for static ABI words")
+        expect(word_count > 0, f"{prefix}.wordCount must be positive for static ABI words")
+    return word_count
+
+
+def validate_entrypoints(abi: dict) -> None:
     entrypoints = expect_array(abi.get("entrypoints"), "abi.entrypoints")
     seen_entrypoint_names: set[str] = set()
     seen_entrypoint_selectors: set[str] = set()
+    seen_entrypoint_signatures: set[str] = set()
     for idx, entry in enumerate(entrypoints):
         entry = expect_object(entry, f"abi.entrypoints[{idx}]")
         name = expect_string(entry.get("name"), f"abi.entrypoints[{idx}].name")
         selector = normalize_selector(expect_string(entry.get("selector"), f"abi.entrypoints[{idx}].selector"), f"abi.entrypoints[{idx}].selector")
+        signature = expect_string(entry.get("signature"), f"abi.entrypoints[{idx}].signature")
+        expect(signature.startswith(f"{name}("), f"abi.entrypoints[{idx}].signature must start with entrypoint name")
         expect_no_duplicate(name, seen_entrypoint_names, "abi.entrypoints.name")
         expect_no_duplicate(selector, seen_entrypoint_selectors, "abi.entrypoints.selector")
-        expect_array(entry.get("params"), f"abi.entrypoints[{idx}].params")
-        expect_string(entry.get("returns"), f"abi.entrypoints[{idx}].returns")
+        expect_no_duplicate(signature, seen_entrypoint_signatures, "abi.entrypoints.signature")
+
+        params = expect_array(entry.get("params"), f"abi.entrypoints[{idx}].params")
+        expect(signature_arg_count(signature, f"abi.entrypoints[{idx}].signature") == len(params), f"abi.entrypoints[{idx}].signature arg count mismatch")
+        param_abi_types = []
+        calldata_words = 0
+        seen_param_names: set[str] = set()
+        for param_idx, param in enumerate(params):
+            param = expect_object(param, f"abi.entrypoints[{idx}].params[{param_idx}]")
+            param_name = expect_string(param.get("name"), f"abi.entrypoints[{idx}].params[{param_idx}].name")
+            expect_no_duplicate(param_name, seen_param_names, f"abi.entrypoints[{idx}].params.name")
+            param_abi_types.append(expect_string(param.get("abiType"), f"abi.entrypoints[{idx}].params[{param_idx}].abiType"))
+            calldata_words += validate_entrypoint_abi_value(param, f"abi.entrypoints[{idx}].params[{param_idx}]", False)
+        expect(signature == f"{name}({','.join(param_abi_types)})", f"abi.entrypoints[{idx}].signature does not match params")
+        expect(entry.get("calldataWords") == calldata_words, f"abi.entrypoints[{idx}].calldataWords mismatch")
+
+        returns = expect_string(entry.get("returns"), f"abi.entrypoints[{idx}].returns")
+        return_value = expect_object(entry.get("returnValue"), f"abi.entrypoints[{idx}].returnValue")
+        expect(return_value.get("type") == returns, f"abi.entrypoints[{idx}].returnValue.type must match returns")
+        return_words = validate_entrypoint_abi_value(return_value, f"abi.entrypoints[{idx}].returnValue", True)
+        expect(entry.get("returnWords") == return_words, f"abi.entrypoints[{idx}].returnWords mismatch")
+
+
+def validate_abi(abi: dict, expected_constructor_params: list[dict], require_method_signatures: bool) -> list[dict]:
+    constructor_params = validate_constructor_abi(abi, expected_constructor_params)
+    validate_events(abi)
+    validate_entrypoints(abi)
 
     methods = expect_array(abi.get("methods"), "abi.methods")
     seen_method_selectors: set[str] = set()

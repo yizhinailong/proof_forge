@@ -12,6 +12,7 @@ REQUIRED_ARTIFACTS = ("yul", "bytecode", "initCode", "deployManifest")
 REQUIRED_VALIDATIONS = ("solcStrictAssembly", "bytecodeGeneration", "initCodeGeneration", "deployManifest")
 SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
 SUPPORTED_CONSTRUCTOR_ARG_SOURCES = {"--evm-constructor-args-hex", "--evm-constructor-arg"}
+SUPPORTED_ENTRYPOINT_WORD_TYPES = {"uint256", "uint32", "bool", "bytes32"}
 SELECTOR_RE = re.compile(r"^[0-9a-fA-F]{8}$")
 TOPIC_RE = re.compile(r"^(0x)?[0-9a-fA-F]{64}$")
 SIGNATURE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\((.*)\)$")
@@ -90,6 +91,24 @@ def parse_expected_event(value: str) -> tuple[str, str]:
     return name, signature
 
 
+def parse_expected_entrypoint_abi(value: str) -> tuple[str, str, int, int]:
+    parts = value.split(":")
+    if len(parts) != 4:
+        fail("--expect-entrypoint-abi expects name:signature:calldataWords:returnWords")
+    name, signature, calldata_words_text, return_words_text = parts
+    expect(name and signature, "--expect-entrypoint-abi expects name:signature:calldataWords:returnWords")
+    expect(signature.startswith(f"{name}("), "--expect-entrypoint-abi name must match signature")
+    signature_arg_count(signature, "--expect-entrypoint-abi signature")
+    try:
+        calldata_words = int(calldata_words_text)
+        return_words = int(return_words_text)
+    except ValueError:
+        fail("--expect-entrypoint-abi word counts must be integers")
+    expect(calldata_words >= 0, "--expect-entrypoint-abi calldataWords must be non-negative")
+    expect(return_words >= 0, "--expect-entrypoint-abi returnWords must be non-negative")
+    return name, signature, calldata_words, return_words
+
+
 def normalize_selector(value: str, name: str) -> str:
     selector = value[2:] if value.startswith(("0x", "0X")) else value
     expect(SELECTOR_RE.fullmatch(selector) is not None, f"{name} must be an 8-hex-digit selector")
@@ -116,6 +135,22 @@ def cast_keccak(signature: str) -> str:
     except subprocess.CalledProcessError as exc:
         fail(f"cast keccak failed for {signature}: {exc.stderr.strip() or exc.stdout.strip()}")
     return normalize_topic(result.stdout.strip(), f"cast keccak {signature}")
+
+
+def cast_sig(signature: str) -> str:
+    try:
+        result = subprocess.run(
+            ["cast", "sig", signature],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        fail("cast not found on PATH; entrypoint selector validation requires Foundry cast")
+    except subprocess.CalledProcessError as exc:
+        fail(f"cast sig failed for {signature}: {exc.stderr.strip() or exc.stdout.strip()}")
+    return normalize_selector(result.stdout.strip(), f"cast sig {signature}")
 
 
 def signature_arg_count(signature: str, name: str) -> int:
@@ -326,6 +361,96 @@ def validate_events(abi: dict, expected_events: list[tuple[str, str]]) -> None:
         expect(expected in actual_events, f"missing event metadata: {expected[1]}")
 
 
+def validate_entrypoint_abi_value(value: dict, prefix: str, allow_none: bool) -> int:
+    type_name = expect_string(value.get("type"), f"{prefix}.type")
+    ir_type = expect_string(value.get("irType"), f"{prefix}.irType")
+    expect(ir_type == type_name, f"{prefix}.irType must match type")
+    abi_type = expect_string(value.get("abiType"), f"{prefix}.abiType")
+    encoding = expect_string(value.get("encoding"), f"{prefix}.encoding")
+    word_types = expect_array(value.get("wordTypes"), f"{prefix}.wordTypes")
+    for idx, word_type in enumerate(word_types):
+        word_type = expect_string(word_type, f"{prefix}.wordTypes[{idx}]")
+        expect(word_type in SUPPORTED_ENTRYPOINT_WORD_TYPES, f"{prefix}.wordTypes[{idx}] unsupported")
+    word_count = value.get("wordCount")
+    expect(isinstance(word_count, int) and word_count == len(word_types), f"{prefix}.wordCount mismatch")
+    if encoding == "none":
+        expect(allow_none, f"{prefix}.encoding cannot be none")
+        expect(type_name == "Unit", f"{prefix}.type must be Unit when encoding is none")
+        expect(abi_type == "void", f"{prefix}.abiType must be void when encoding is none")
+        expect(word_count == 0, f"{prefix}.wordCount must be 0 when encoding is none")
+    else:
+        expect(encoding == "abi-static-words", f"{prefix}.encoding mismatch")
+        expect(abi_type != "void", f"{prefix}.abiType must not be void for static ABI words")
+        expect(word_count > 0, f"{prefix}.wordCount must be positive for static ABI words")
+    return word_count
+
+
+def validate_entrypoints(
+    abi: dict,
+    expected_entrypoint_selectors: list[str],
+    expected_entrypoint_abis: list[tuple[str, str, int, int]],
+) -> dict[str, dict[str, object]]:
+    entrypoints = expect_array(abi.get("entrypoints"), "abi.entrypoints")
+    actual_entrypoints: dict[str, dict[str, object]] = {}
+    seen_entrypoint_names: set[str] = set()
+    seen_entrypoint_selectors: set[str] = set()
+    seen_entrypoint_signatures: set[str] = set()
+    for idx, entry in enumerate(entrypoints):
+        entry = expect_object(entry, f"abi.entrypoints[{idx}]")
+        name = expect_string(entry.get("name"), f"abi.entrypoints[{idx}].name")
+        selector = normalize_selector(
+            expect_string(entry.get("selector"), f"abi.entrypoints[{idx}].selector"),
+            f"abi.entrypoints[{idx}].selector",
+        )
+        signature = expect_string(entry.get("signature"), f"abi.entrypoints[{idx}].signature")
+        expect(signature.startswith(f"{name}("), f"abi.entrypoints[{idx}].signature must start with entrypoint name")
+        expect_no_duplicate(name, seen_entrypoint_names, "abi.entrypoints.name")
+        expect_no_duplicate(selector, seen_entrypoint_selectors, "abi.entrypoints.selector")
+        expect_no_duplicate(signature, seen_entrypoint_signatures, "abi.entrypoints.signature")
+        expect(selector == cast_sig(signature), f"abi.entrypoints[{idx}].selector does not match signature")
+
+        params = expect_array(entry.get("params"), f"abi.entrypoints[{idx}].params")
+        expect(signature_arg_count(signature, f"abi.entrypoints[{idx}].signature") == len(params), f"abi.entrypoints[{idx}].signature arg count mismatch")
+        param_abi_types = []
+        calldata_words = 0
+        seen_param_names: set[str] = set()
+        for param_idx, param in enumerate(params):
+            param = expect_object(param, f"abi.entrypoints[{idx}].params[{param_idx}]")
+            param_name = expect_string(param.get("name"), f"abi.entrypoints[{idx}].params[{param_idx}].name")
+            expect_no_duplicate(param_name, seen_param_names, f"abi.entrypoints[{idx}].params.name")
+            param_abi_types.append(expect_string(param.get("abiType"), f"abi.entrypoints[{idx}].params[{param_idx}].abiType"))
+            calldata_words += validate_entrypoint_abi_value(param, f"abi.entrypoints[{idx}].params[{param_idx}]", False)
+        expect(signature == f"{name}({','.join(param_abi_types)})", f"abi.entrypoints[{idx}].signature does not match params")
+        expect(entry.get("calldataWords") == calldata_words, f"abi.entrypoints[{idx}].calldataWords mismatch")
+
+        returns = expect_string(entry.get("returns"), f"abi.entrypoints[{idx}].returns")
+        return_value = expect_object(entry.get("returnValue"), f"abi.entrypoints[{idx}].returnValue")
+        expect(return_value.get("type") == returns, f"abi.entrypoints[{idx}].returnValue.type must match returns")
+        return_words = validate_entrypoint_abi_value(return_value, f"abi.entrypoints[{idx}].returnValue", True)
+        expect(entry.get("returnWords") == return_words, f"abi.entrypoints[{idx}].returnWords mismatch")
+
+        actual_entrypoints[name] = {
+            "selector": selector,
+            "signature": signature,
+            "calldataWords": calldata_words,
+            "returnWords": return_words,
+        }
+
+    for expected in expected_entrypoint_selectors:
+        name, selector = parse_expected_mapping(expected, "--expect-entrypoint")
+        actual = actual_entrypoints.get(name)
+        expect(actual is not None and actual["selector"] == selector, f"entrypoint selector mismatch for {name}")
+
+    for name, signature, calldata_words, return_words in expected_entrypoint_abis:
+        actual = actual_entrypoints.get(name)
+        expect(actual is not None, f"missing entrypoint ABI metadata for {name}")
+        expect(actual["signature"] == signature, f"entrypoint signature mismatch for {name}")
+        expect(actual["calldataWords"] == calldata_words, f"entrypoint calldataWords mismatch for {name}")
+        expect(actual["returnWords"] == return_words, f"entrypoint returnWords mismatch for {name}")
+
+    return actual_entrypoints
+
+
 def validate_chain_profile(
     manifest: dict,
     expected_profile: Optional[str],
@@ -461,6 +586,7 @@ def main() -> int:
     parser.add_argument("--require-method-signatures", action="store_true")
     parser.add_argument("--expect-capability", action="append", default=[])
     parser.add_argument("--expect-entrypoint", action="append", default=[])
+    parser.add_argument("--expect-entrypoint-abi", action="append", default=[])
     parser.add_argument("--expect-event", action="append", default=[])
     parser.add_argument("metadata")
     args = parser.parse_args()
@@ -472,6 +598,9 @@ def main() -> int:
         parse_expected_constructor_param(value) for value in args.expect_constructor_param
     ]
     expected_events = [parse_expected_event(value) for value in args.expect_event]
+    expected_entrypoint_abis = [
+        parse_expected_entrypoint_abi(value) for value in args.expect_entrypoint_abi
+    ]
 
     expect(metadata.get("schemaVersion") == 1, "schemaVersion must be 1")
     expect(metadata.get("target") == "evm", "target must be evm")
@@ -519,20 +648,7 @@ def main() -> int:
     abi = expect_object(metadata.get("abi"), "abi")
     constructor_params = validate_constructor_abi(abi, expected_constructor_params)
     validate_events(abi, expected_events)
-    entrypoints = expect_array(abi.get("entrypoints"), "abi.entrypoints")
-    actual_entrypoints = {}
-    seen_entrypoint_names: set[str] = set()
-    seen_entrypoint_selectors: set[str] = set()
-    for idx, entry in enumerate(entrypoints):
-        entry = expect_object(entry, f"abi.entrypoints[{idx}]")
-        name = expect_string(entry.get("name"), f"abi.entrypoints[{idx}].name")
-        selector = normalize_selector(expect_string(entry.get("selector"), f"abi.entrypoints[{idx}].selector"), f"abi.entrypoints[{idx}].selector")
-        expect_no_duplicate(name, seen_entrypoint_names, "abi.entrypoints.name")
-        expect_no_duplicate(selector, seen_entrypoint_selectors, "abi.entrypoints.selector")
-        actual_entrypoints[name] = selector
-    for expected in args.expect_entrypoint:
-        name, selector = parse_expected_mapping(expected, "--expect-entrypoint")
-        expect(actual_entrypoints.get(name) == selector, f"entrypoint selector mismatch for {name}")
+    validate_entrypoints(abi, args.expect_entrypoint, expected_entrypoint_abis)
 
     methods = expect_array(abi.get("methods"), "abi.methods")
     seen_method_selectors: set[str] = set()

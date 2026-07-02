@@ -24,7 +24,7 @@ object "EvmTypedStorageProbe" {
       mstore(0, _r)
       return(0, 32)
     }
-    case 0x89580c4d {
+    case 0x6a088e19 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
