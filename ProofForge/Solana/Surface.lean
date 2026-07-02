@@ -201,4 +201,18 @@ def invokeSplTokenRevoke (call : CpiRef) (source owner : AccountRef)
   ProofForge.Solana.invokeSplTokenRevoke call.name source.name owner.name
     (tokenProgram := tokenProgram) (signerSeeds := signerSeeds)
 
+def splTokenSetAuthority (call : CpiRef) (account authority newAuthority : AccountRef)
+    (authorityType : String := "mint_tokens")
+    (tokenProgram : String := ProofForge.Solana.splTokenProgram)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Surface.ModuleM Unit :=
+  ProofForge.Solana.splTokenSetAuthority call.name account.name authority.name authorityType
+    newAuthority.name (tokenProgram := tokenProgram) (signerSeeds := signerSeeds)
+
+def invokeSplTokenSetAuthority (call : CpiRef) (account authority newAuthority : AccountRef)
+    (authorityType : String := "mint_tokens")
+    (tokenProgram : String := ProofForge.Solana.splTokenProgram)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Surface.EntryM Unit :=
+  ProofForge.Solana.invokeSplTokenSetAuthority call.name account.name authority.name authorityType
+    newAuthority.name (tokenProgram := tokenProgram) (signerSeeds := signerSeeds)
+
 end ProofForge.Solana.Surface

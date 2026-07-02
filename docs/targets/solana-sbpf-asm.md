@@ -57,7 +57,8 @@ The Solana SDK completion work tracks these upstream surfaces:
   `invoke_signed`, which is the high-level Rust API shape ProofForge lowers to
   `sol_invoke_signed_c`.
 - SPL Token: `TokenInstruction` defines the account schemas and data payloads
-  for `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke`.
+  for `transfer_checked`, `mint_to`, `burn`, `approve`, `revoke`, and
+  `set_authority`.
 - Pinocchio: the framework target is a `no_std`, zero-copy, no-copy/no-allocation
   entrypoint style with optional allocator control; ProofForge mirrors that by
   keeping Solana account parsing, allocator policy, and CPI packing in target
@@ -128,7 +129,7 @@ test when the syscall changes observable chain behavior.
 |---|---|---|
 | Return data (`sol_set_return_data`, `sol_get_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get`; `runtime.return_data` SDK entrypoint actions now lower state-backed return-data buffers through `sol_set_return_data`, read return-data buffers/program ids through `sol_get_return_data`, and have Surfpool/Web3.js coverage for empty reads, set-return simulation output, and same-instruction set/get roundtrips | Add typed return payload helpers beyond `u64` and CPI return-value handling |
 | PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; typed seed descriptors cover literal/UTF-8 bytes, account pubkeys, bump seeds, and scalar instruction-data seeds; Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; derived pubkeys can be validated against declared PDA accounts; assembly builds | Add Web3.js PDA fixture against `PublicKey.findProgramAddressSync`, then add `sol_try_find_program_address` support |
-| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; System transfer/create-account plus SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` have Surfpool/Web3.js live behavior gates; System transfer, System `create_account`, SPL Token `transfer_checked`, and SPL Token `mint_to`/`burn`/`approve`/`revoke` now have checked-in Pinocchio reference contract/manifest gates and dual-deploy live-equivalence harnesses gated on Solana rustc availability | Make the Pinocchio live gates pass in CI/local toolchains, add Token-2022 reference coverage, and extend remaining SPL helper live-equivalence |
+| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; System transfer/create-account plus SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, `revoke`, and `set_authority` have Surfpool/Web3.js live behavior gates; System transfer, System `create_account`, SPL Token `transfer_checked`, SPL Token `mint_to`/`burn`/`approve`/`revoke`, and SPL Token `set_authority` now have checked-in Pinocchio reference contract/manifest gates and dual-deploy live-equivalence harnesses gated on Solana rustc availability | Make the Pinocchio live gates pass in CI/local toolchains, add Token-2022 reference coverage, and extend remaining SPL helper live-equivalence |
 | Sysvars (`sol_get_clock_sysvar`, `sol_get_rent_sysvar`, `sol_get_epoch_schedule_sysvar`, `sol_get_epoch_rewards_sysvar`, `sol_get_sysvar`) | Clock.slot, Rent.lamports_per_byte_year, EpochSchedule's five RPC-exposed fields, EpochRewards' scalar/word-view fields, and feature-gated LastRestartSlot.last_restart_slot are exposed as Solana-only SDK target-extension helpers, route through capability metadata, render manifest/artifact action metadata, build to ELF, and have Surfpool/Web3.js smoke scripts | Add generic account-passed sysvar reads, plus Rust/Pinocchio reference comparisons |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations plus explicit typed account declarations; manifest, artifact JSON (`solanaExtensions.accounts`), fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
@@ -483,16 +484,18 @@ Current CPI/PDA lowering pattern:
    and entrypoint action lists.
 
 The SDK layer already exposes protocol-level helpers for System Program
-transfer/create-account and SPL Token transfer/mint/burn/approve/revoke. These
+transfer/create-account and SPL Token transfer/mint/burn/approve/revoke/
+set-authority. These
 helpers emit `solana.cpi.protocol`, `solana.cpi.data_layout`, account metas,
 signer seeds, and instruction-data sources into the capability plan, manifest,
 and artifact metadata.
 
 The source-facing layer exposes first-class `contract_source` forms for System
 Program transfer, System Program `create_account`, and SPL Token
-`transfer_checked`. These forms are still a v1 embedded macro frontend rather
-than the legacy standalone `.learn` parser, but they prevent new examples from
-dropping back to raw `ContractSpec`/builder strings for the core CPI paths.
+`transfer_checked` plus `set_authority`. These forms are still a v1 embedded
+macro frontend rather than the legacy standalone `.learn` parser, but they
+prevent new examples from dropping back to raw `ContractSpec`/builder strings
+for the core CPI paths.
 
 System and SPL Token helpers now emit the C ABI packing skeleton for
 `sol_invoke_signed_c`: program id bytes, C `SolAccountMeta[]`, standard
@@ -501,7 +504,10 @@ signer seed tables, and the syscall register contract. `system.transfer` uses
 the bincode-style `u32 discriminator=2 + u64 lamports` layout;
 `system.create_account` uses `u32 discriminator=0 + u64 lamports + u64 space +
 owner pubkey`; SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and
-`revoke` use the standard token instruction tags and amount/decimals layouts.
+`revoke` use the standard token instruction tags and amount/decimals layouts;
+SPL Token `set_authority` uses instruction tag `6`, authority type `0`
+(`MintTokens`), a `Some` option byte, and a new-authority pubkey copied from
+the generated program's readonly `new_authority` input account.
 Program ids, account meta pubkeys, and `SolAccountInfo`
 key/lamports/data/owner/rent/flag fields are sourced from the generated
 multi-account input layout when the account appears in the module schema. CPI
@@ -751,6 +757,9 @@ and Node tooling) following the same pattern as others (`solc`, `foundry`,
 | V-GATE-SOLANA-12L | `just solana-pinocchio-spl-token-transfer-live-equivalence` builds/deploys the ProofForge and Pinocchio SPL Token `transfer_checked` programs on Surfpool and compares the same Web3.js token-transfer scenario against both. |
 | V-GATE-SOLANA-13R | `just solana-pinocchio-spl-token-ops-equivalence` emits the generated SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI artifact and compares its ABI/account/CPI/state-write contract against a checked-in Pinocchio Token ops reference manifest/source. |
 | V-GATE-SOLANA-13L | `just solana-pinocchio-spl-token-ops-live-equivalence` builds/deploys the ProofForge and Pinocchio SPL Token ops programs on Surfpool and compares the same Web3.js mint/burn/approve/revoke scenario against both. |
+| V-GATE-SOLANA-13A | `just solana-spl-token-authority-cpi-web3` deploys a generated SPL Token `set_authority` CPI program on Surfpool and verifies mint authority plus marker state through Web3.js. |
+| V-GATE-SOLANA-13AR | `just solana-pinocchio-spl-token-authority-equivalence` emits the generated SPL Token `set_authority` CPI artifact and compares its ABI/account/CPI/state-write contract against a checked-in Pinocchio Token authority reference manifest/source. |
+| V-GATE-SOLANA-13AL | `just solana-pinocchio-spl-token-authority-live-equivalence` builds/deploys the ProofForge and Pinocchio SPL Token `set_authority` programs on Surfpool and compares the same Web3.js mint-authority transfer scenario against both. |
 
 ## Lean Module Layout
 
@@ -879,9 +888,10 @@ deploy simple Solana programs without hand-written assembly patches. The beta
 line is the point where ProofForge output can be compared against reference
 Rust/Pinocchio programs for the same account schema. The System transfer,
 System `create_account`, SPL Token `transfer_checked`, and SPL Token
-`mint_to`/`burn`/`approve`/`revoke` reference contracts are the first static
-equivalence anchors for that line, and their live dual-deploy harnesses are
-already wired to build/deploy both ELFs when Solana rustc is available. The
+`mint_to`/`burn`/`approve`/`revoke` plus SPL Token `set_authority` reference
+contracts are the first static equivalence anchors for that line, and their
+live dual-deploy harnesses are already wired to build/deploy both ELFs when
+Solana rustc is available. The
 final framework line adds the higher-level
 ergonomics expected from Anchor-like and Pinocchio-style workflows without
 moving Solana-specific details into portable IR.

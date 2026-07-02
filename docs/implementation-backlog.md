@@ -689,7 +689,8 @@ partial progress is visible before the full acceptance criteria close:
       `scripts/solana/pda-web3-smoke.sh`.
 - [x] Standard Solana protocol SDK helpers now cover System Program
       transfer/create-account and SPL Token transfer_checked/mint_to/burn/
-      approve/revoke. They route through target capability metadata with
+      approve/revoke/set_authority. They route through target capability
+      metadata with
       `solana.cpi.protocol`, canonical `data_layout`, account metas, signer
       seeds, and instruction-data source names, and are included in the
       generated manifest plus artifact JSON. Covered by `Tests/SolanaSdk.lean`,
@@ -735,7 +736,9 @@ partial progress is visible before the full acceptance criteria close:
       payload. System transfer/create-account use bincode-style `u32`
       discriminators plus `u64` lamports/space and owner pubkey fields; SPL
       Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` use
-      the standard token instruction tags and amount/decimals layouts. Value
+      the standard token instruction tags and amount/decimals layouts, while
+      `set_authority` packs instruction tag `6`, authority type `MintTokens`,
+      and a new-authority pubkey sourced from a readonly input account. Value
       sources can bind to generated scalar state offsets, numeric literals, or
       decoded scalar entrypoint parameters. The CPI helper also packs program id
       bytes, C `SolAccountMeta[]`,
@@ -807,8 +810,9 @@ manifest/artifact output, module-wide multi-account schemas, standard
 System/SPL Token CPI data packing, bump-allocator metadata, scalar entrypoint
 parameter decoding, typed PDA seed lowering, live System Program transfer plus
 create-account CPI validation, live SPL Token `transfer_checked` CPI
-validation, and live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
-validation, plus live scalar `events.emit` log validation through
+validation, live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI validation,
+and live SPL Token `set_authority` CPI validation, plus live scalar
+`events.emit` log validation through
 `sol_log_64_`, live account-pubkey log validation through `sol_log_pubkey`,
 live state-backed data-log validation through `sol_log_data`, and live
 `Clock.slot` sysvar validation for `contextRead checkpointId`, plus live
@@ -877,6 +881,13 @@ Completed alpha slices:
   test accounts with `@solana/spl-token`, invokes all four generated
   entrypoints through Web3.js, and proves supply/balance/delegate changes plus
   state writes.
+- Live SPL Token authority CPI fixture:
+  `scripts/solana/spl-token-authority-cpi-web3-smoke.sh` builds and deploys a
+  generated `set_authority` CPI program on Surfpool, validates the generated
+  single-entrypoint artifact schema, creates an SPL Token mint through
+  `@solana/spl-token`, invokes the generated entrypoint through Web3.js, and
+  proves mint authority moved to the requested new authority plus the marker
+  state write.
 - Live scalar event, pubkey log, and data log fixture: `scripts/solana/log-event-web3-smoke.sh`
   builds and deploys a generated `events.emit` program on Surfpool, invokes it
   through Web3.js, verifies the generated `sol_log_64_` transaction log
@@ -1017,6 +1028,23 @@ Completed beta scaffolding slices:
   `@solana/spl-token` mint/burn/approve/revoke scenario for each, and compare
   token effects plus all four amount/marker state writes. The harness currently
   skips when `cargo-build-sbf` cannot find Solana rustc/platform-tools.
+- Pinocchio SPL Token authority reference contract:
+  `references/solana/pinocchio/spl-token-authority` contains a checked-in
+  no-allocator Pinocchio reference for the same SPL Token `set_authority`
+  account schema as `ProofForge.Solana.Examples.SplTokenAuthorityCpi`. The
+  gate `scripts/solana/pinocchio-spl-token-authority-equivalence.sh` emits the
+  ProofForge SPL Token authority CPI artifact and compares its instruction ABI,
+  account order, signer/writable constraints, CPI protocol/data layout,
+  `SetAuthority` instruction contract, and marker state-write contract against
+  the reference manifest/source. With `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1`,
+  the same gate typechecks the reference against `pinocchio-token`.
+- Pinocchio SPL Token authority live-equivalence harness:
+  `scripts/solana/pinocchio-spl-token-authority-live-equivalence.sh` is wired
+  to build the ProofForge ELF and the checked-in Pinocchio Token authority
+  reference ELF, deploy both programs to one Surfpool instance, invoke the same
+  Web3.js + `@solana/spl-token` mint-authority transfer scenario for each, and
+  compare mint authority plus marker state writes. The harness currently skips
+  when `cargo-build-sbf` cannot find Solana rustc/platform-tools.
 
 Completed developer-surface slices:
 
@@ -1121,8 +1149,10 @@ Completed developer-surface slices:
   helpers. `ProofForge.Solana.Examples.Vault` now uses dedicated
   `contract_source` items such as `allocator bump`, `account ... writable`,
   `pda ... seeds [...]`, `cpi ... spl_token_transfer_checked(...)`, `derive
-  pda ...`, and `invoke ... spl_token_transfer_checked(...)` instead of raw
-  account/PDA/CPI strings or `use`/`do` helper plumbing. The target extension
+  pda ...`, `invoke ... spl_token_transfer_checked(...)`, and the same
+  first-class source-syntax path now covers `spl_token_set_authority(...)`
+  instead of raw account/PDA/CPI strings or `use`/`do` helper plumbing. The
+  target extension
   emits declared account constraints into `manifest.toml`,
   `proof-forge-artifact.json` (`solanaExtensions.accounts`), and the generated
   account-validation schema.
@@ -1133,6 +1163,14 @@ Completed developer-surface slices:
   `ProofForge.Solana.Examples.SystemCreateAccountCpi` uses those forms instead
   of the lower-level builder API while preserving the existing generated
   assembly, manifest, artifact, and Surfpool/Web3.js behavior gate.
+- SPL Token authority source syntax:
+  `ProofForge.Contract.Source` now exposes source-level
+  `cpi ... spl_token_set_authority(...) authority_type(...) signer_seeds [...]`
+  and `invoke ... spl_token_set_authority(...) authority_type(...) signer_seeds
+  [...]` forms. `ProofForge.Solana.Examples.SplTokenAuthorityCpi` uses those
+  forms in a Lean `.lean` fixture, and the generated artifact, Surfpool/Web3.js
+  behavior gate, and Pinocchio reference gates all validate the same lowering
+  boundary.
 - Target-stage ABI selector hydration:
   the Learn/ValueVault CLI emit paths derive EVM selectors from each
   entrypoint's Solidity ABI signature with `cast sig` immediately before EVM
@@ -1176,7 +1214,8 @@ Remaining priority slices:
 1. Rust/Pinocchio equivalence fixtures (2-4 days): make the Pinocchio live
    equivalence harnesses pass in CI/local environments by installing Solana
    rustc/platform-tools reliably, then extend static and live reference
-   coverage to Token-2022 and remaining SPL helper paths. The key comparison
+   coverage to Token-2022 and remaining SPL helper paths beyond the checked
+   transfer/mint/burn/approve/revoke/set-authority set. The key comparison
    points are account order, signer/writable checks, CPI instruction data, and
    observable state changes.
 2. Richer structured logs, account data, and typed return helpers (3-5 days):
@@ -1195,9 +1234,9 @@ Remaining priority slices:
    instruction-data offsets no longer depend on every entrypoint sharing the
    same account list.
 5. Token-2022 and richer SPL coverage (3-5 days per iteration): add checked
-   Token-2022 extension routes, authority changes, associated-token account
-   setup flows, and remaining SPL variants without moving those details into
-   portable IR.
+   Token-2022 extension routes, associated-token account setup flows, and
+   remaining SPL variants beyond the covered mint-authority `set_authority`
+   path without moving those details into portable IR.
 6. Developer ergonomics and framework surface (3-5 days per iteration): extend
    the new surface layer toward Lean `.lean`/Lean SDK contract syntax with richer
    typed account/data wrappers, richer generated client APIs, broader

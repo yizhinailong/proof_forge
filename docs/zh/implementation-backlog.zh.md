@@ -321,7 +321,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
   PDA pubkey 与对应账户 pubkey 做校验。覆盖：`Tests/SolanaSdk.lean`、
   `Tests/SolanaSdkManifest.lean`、`Tests/SolanaPdaSeeds.lean`、
   `scripts/solana/sdk-smoke.sh`、`scripts/solana/pda-web3-smoke.sh`。
-- [x] 标准 Solana protocol SDK helper 现在覆盖 System Program 的 transfer/create-account，以及 SPL Token 的 transfer_checked/mint_to/burn/approve/revoke。它们通过 target capability metadata 路由，写入 `solana.cpi.protocol`、规范化 `data_layout`、account metas、signer seeds 和 instruction-data source name，并进入生成的 manifest 与 artifact JSON。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] 标准 Solana protocol SDK helper 现在覆盖 System Program 的 transfer/create-account，以及 SPL Token 的 transfer_checked/mint_to/burn/approve/revoke/set_authority。它们通过 target capability metadata 路由，写入 `solana.cpi.protocol`、规范化 `data_layout`、account metas、signer seeds 和 instruction-data source name，并进入生成的 manifest 与 artifact JSON。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] Runtime allocator target extension 现在建模 Solana 默认 downward-bump allocator（`heap_start = "0x300000000"`、`heap_bytes = 32768`），并提供与 Pinocchio no-heap entrypoint 对齐的 `noAllocator`/deny-dynamic 选项。选中的 allocator 会通过 `runtime.allocator` capability metadata 路由，并进入 `manifest.toml`、`proof-forge-artifact.json` 和 assembly metadata。覆盖：`Tests/SolanaAllocator.lean`、`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] Runtime memory target extension 现在将 Solana-only SDK action 通过
   `runtime.memory` capability metadata 路由，并把 entrypoint action 降为基于
@@ -341,7 +341,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
   `[[solana.entrypoint_compute_units]]`。覆盖：
   `Tests/SolanaReturnDataCompute.lean`。
 - [x] 生成的 Solana SDK instruction schema 现在使用 module-wide multi-account account list，取代旧的单账户 manifest。schema 包含 state account、PDA account、CPI account 和 executable CPI program account；sBPF backend 会从同一份 schema 计算 `INSTRUCTION_DATA` offset，并在 prologue 中按 schema 校验 signer/writable 约束和 program-owned account。账户列表会进入 `manifest.toml` 与 `proof-forge-artifact.json`。覆盖：`Tests/SolanaSdkManifest.lean`、`Tests/SolanaCpiPacking.lean`、`scripts/solana/sdk-smoke.sh`。
-- [x] System Program transfer/create-account 与 SPL Token CPI instruction-data packing 现在会把标准 instruction bytes 写入 C `SolInstruction` payload。System transfer/create-account 使用 bincode-style `u32` discriminator，加 `u64` lamports/space 和 owner pubkey 字段；SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke` 使用标准 token instruction tag 和 amount/decimals layout。value source 可以绑定到生成的 scalar state offset、数字 literal 或已解码的 scalar entrypoint parameter。CPI helper 也会打包 program id bytes、C `SolAccountMeta[]`、绑定到生成的 multi-account input layout 的 `SolAccountInfo[]`、signer seed table，以及 syscall register setup。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] System Program transfer/create-account 与 SPL Token CPI instruction-data packing 现在会把标准 instruction bytes 写入 C `SolInstruction` payload。System transfer/create-account 使用 bincode-style `u32` discriminator，加 `u64` lamports/space 和 owner pubkey 字段；SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke` 使用标准 token instruction tag 和 amount/decimals layout；`set_authority` 会打包 instruction tag `6`、authority type `MintTokens`、`Some` option byte 和来自 readonly `new_authority` input account 的 pubkey。value source 可以绑定到生成的 scalar state offset、数字 literal 或已解码的 scalar entrypoint parameter。CPI helper 也会打包 program id bytes、C `SolAccountMeta[]`、绑定到生成的 multi-account input layout 的 `SolAccountInfo[]`、signer seed table，以及 syscall register setup。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] System Program transfer CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SystemCpi` 会构建生成的 `--solana-system-cpi-elf` fixture；entrypoint 读取 scalar `lamports` instruction parameter，执行 System Program transfer CPI，并把转账数写入 program-owned state account。`scripts/solana/system-cpi-web3-smoke.sh` 会校验 artifact schema，用 Solana CLI 在 Surfpool 部署 ELF，通过 `@solana/web3.js` 调用，并同时检查 recipient lamport delta 和 state data。sBPF lowering 会在 direct account mapping 下从序列化账户布局计算 instruction-data pointer，并保存在 `r9`，避免 internal helper call 跨 callee stack frame 时丢失该指针。覆盖：`just solana-system-cpi-web3` / V-GATE-SOLANA-10。
 - [x] System Program `create_account` CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SystemCreateAccountCpi` 会构建生成的 `--solana-system-create-account-cpi-elf` fixture；entrypoint 读取 scalar `lamports` 和 `space` instruction parameter，使用 payer 与 new-account signer 执行 System Program `create_account` CPI，创建 program-owned account，并把两个值写入已有 program-owned state account。Web3.js harness 会检查新 account 的 owner、data length、lamports，以及 state account 记录的值。覆盖：`just solana-system-create-account-cpi-web3` / V-GATE-SOLANA-11。
 - [x] SPL Token `transfer_checked` CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SplTokenTransferCheckedCpi` 会构建生成的 `--solana-spl-token-transfer-cpi-elf` fixture；entrypoint 读取 scalar `amount` instruction parameter，使用 source authority signer 执行 SPL Token `transfer_checked` CPI，并把 amount 写入 program-owned state。Web3.js harness 会通过 `@solana/spl-token` 创建 mint 和 source/destination token accounts，检查 token balance delta 与 state 记录。sBPF lowering 现在会在每个 entry/helper stack frame 里构建 runtime account pointer table，因此可变长度 SPL Token account data 不会让 internal helper call 里的 account offset 失效。覆盖：`just solana-spl-token-transfer-cpi-web3` / V-GATE-SOLANA-12。
@@ -367,7 +367,8 @@ manifest/artifact、module-wide multi-account schema、标准 System/SPL Token C
 data packing、bump-allocator metadata、scalar entrypoint parameter decoding、
 typed PDA seed lowering、live System Program transfer/create-account CPI
 validation、live SPL Token `transfer_checked` CPI validation，以及 live SPL
-Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
+Token `mint_to`/`burn`/`approve`/`revoke` CPI validation、live SPL Token
+`set_authority` CPI validation，加上通过
 `sol_log_64_` 验证的 live scalar `events.emit` 日志路径、通过
 `sol_log_pubkey` 验证的 live account-pubkey log 路径、通过 `sol_log_data`
 验证的 live state-backed data-log 路径，以及 `contextRead checkpointId`
@@ -427,6 +428,11 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   CPI 程序，校验生成的四 entrypoint artifact schema，用
   `@solana/spl-token` 创建 SPL Token 测试账户，通过 Web3.js 调用全部四个
   entrypoint，并证明 supply/balance/delegate 变化与 state write 都成立。
+- Live SPL Token authority CPI fixture：
+  `scripts/solana/spl-token-authority-cpi-web3-smoke.sh` 会在 Surfpool 上构建并
+  部署生成的 `set_authority` CPI 程序，校验生成的 artifact schema，用
+  `@solana/spl-token` 创建 SPL Token mint，通过 Web3.js 调用生成 entrypoint，
+  并证明 mint authority 转移到请求的新 authority，且 marker state write 成立。
 - Live scalar event、pubkey log 与 data log fixture：`scripts/solana/log-event-web3-smoke.sh`
   会在 Surfpool 上构建并部署生成的 `events.emit` 程序，通过 Web3.js 调用，
   验证生成的 `sol_log_64_` transaction log 包含稳定的 `AmountEvent` tag 与
@@ -558,6 +564,24 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   mint/burn/approve/revoke scenario 调用，以及 token effect 和四个
   amount/marker state write 对比。若 `cargo-build-sbf` 找不到 Solana rustc/
   platform-tools，该 harness 会 skip。
+- Pinocchio SPL Token authority reference contract：
+  `references/solana/pinocchio/spl-token-authority` 提供了一个 checked-in
+  no-allocator Pinocchio reference，对齐
+  `ProofForge.Solana.Examples.SplTokenAuthorityCpi` 的 SPL Token
+  `set_authority` account schema。`scripts/solana/pinocchio-spl-token-authority-equivalence.sh`
+  会 emit ProofForge SPL Token authority CPI artifact，并将 instruction tag、
+  account order、signer/writable constraint、CPI protocol/data layout、
+  `SetAuthority` instruction contract 和 marker state-write contract 与
+  reference manifest/source 对比。设置
+  `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1` 时，同一 gate 还会用
+  `pinocchio-token` typecheck 该 reference。
+- Pinocchio SPL Token authority live-equivalence harness：
+  `scripts/solana/pinocchio-spl-token-authority-live-equivalence.sh` 已接好
+  ProofForge ELF 与 checked-in Pinocchio Token authority reference ELF 的构建、
+  同一 Surfpool instance 部署、同一 Web3.js + `@solana/spl-token`
+  mint-authority transfer scenario 调用，以及 mint authority 和 marker state
+  write 对比。若 `cargo-build-sbf` 找不到 Solana rustc/platform-tools，该
+  harness 会 skip。
 
 已完成的开发者 surface 切片：
 
@@ -670,6 +694,15 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   `ProofForge.Solana.Examples.SystemCreateAccountCpi` 已经改用这些形式，不再使用
   低层 builder API，同时保留已有 generated assembly、manifest、artifact 与
   Surfpool/Web3.js behavior gate。
+- SPL Token authority source syntax：
+  `ProofForge.Contract.Source` 现在提供 Lean `.lean` source-level
+  `cpi ... spl_token_set_authority(...) authority_type(...) signer_seeds [...]`
+  和
+  `invoke ... spl_token_set_authority(...) authority_type(...) signer_seeds [...]`
+  形式。`ProofForge.Solana.Examples.SplTokenAuthorityCpi` 使用这个
+  `contract_source` 入口表达 mint authority transfer；lowering 仍进入同一个
+  `ContractSpec`/target-extension metadata 边界，再由 Solana backend 生成
+  manifest、IDL、artifact、sBPF assembly 和 ELF。
 - Target-stage ABI selector hydration：
   Learn/ValueVault CLI emit path 会在 EVM Yul/bytecode 发射前，根据每个
   entrypoint 的 Solidity ABI signature 通过 `cast sig` 派生 EVM selector，
@@ -708,8 +741,9 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 
 1. Rust/Pinocchio equivalence fixture（2-4 天）：在 CI/local 环境稳定安装
    Solana rustc/platform-tools，让 Pinocchio live-equivalence harness
-   稳定通过，然后把 static/live reference coverage 扩展到 Token-2022 和剩余
-   SPL helper。关键比较点是 account order、signer/writable check、CPI
+   稳定通过，然后把 static/live reference coverage 扩展到 Token-2022 和
+   已覆盖 transfer/mint/burn/approve/revoke/set_authority 之外的剩余 SPL helper。
+   关键比较点是 account order、signer/writable check、CPI
    instruction data 和可观察 state change。
 2. 更丰富的 structured log、account data 与 typed return helper（3-5 天）：
    将当前 scalar `sol_log_64_`/`sol_log_data` event 路径扩展到 string log、
@@ -724,8 +758,9 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
    account parsing 替换当前 module-wide fixed schema，使 instruction-data offset
    不再依赖所有 entrypoint 使用同一套账户列表。
 5. Token-2022 与更丰富的 SPL coverage（每轮 3-5 天）：增加 checked
-   Token-2022 extension routes、authority changes、associated-token account
-   setup flows，以及剩余 SPL variants，同时不把这些细节上移到 portable IR。
+   Token-2022 extension routes、associated-token account setup flows，以及
+   已覆盖 mint-authority `set_authority` 路径之外的剩余 SPL variants，同时不把
+   这些细节上移到 portable IR。
 6. Developer ergonomics 和框架层体验（每轮 3-5 天）：把新的 surface 层继续推进到
    Lean `.lean`/Lean SDK contract syntax，并继续补更丰富的 typed account/data
    wrapper、更丰富的 generated client API、更完整 SPL/Token-2022 helper 覆盖，以及能把
