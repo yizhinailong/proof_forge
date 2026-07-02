@@ -974,7 +974,9 @@ Completed developer-surface slices:
 - Contract Source Syntax v1:
   `ProofForge.Contract.Source` adds scoped `contract_source` syntax for
   state declarations, events, entrypoints, queries, source-local bindings,
-  state assignment, event emission, returns, and typed arithmetic operators.
+  state assignment, event emission, returns, typed arithmetic operators, and
+  Solana extension declarations for allocator, accounts, PDA derivation, and
+  SPL Token CPI calls.
   `ProofForge.Contract.Examples.Counter` and
   `ProofForge.Contract.Examples.ValueVault` now author portable logic through
   this source block while the macro emits the same `ContractSpec`/portable IR
@@ -983,12 +985,14 @@ Completed developer-surface slices:
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
-  helpers. `ProofForge.Solana.Examples.Vault` now uses `contract_source` for
-  its portable state and entry bodies while bridging existing Solana extension
-  helpers through source-level `use` and `do` statements instead of raw
-  account/PDA/CPI strings. The target extension emits declared account
-  constraints into `manifest.toml`, `proof-forge-artifact.json`
-  (`solanaExtensions.accounts`), and the generated account-validation schema.
+  helpers. `ProofForge.Solana.Examples.Vault` now uses dedicated
+  `contract_source` items such as `allocator bump`, `account ... writable`,
+  `pda ... seeds [...]`, `cpi ... spl_token_transfer_checked(...)`, `derive
+  pda ...`, and `invoke ... spl_token_transfer_checked(...)` instead of raw
+  account/PDA/CPI strings or `use`/`do` helper plumbing. The target extension
+  emits declared account constraints into `manifest.toml`,
+  `proof-forge-artifact.json` (`solanaExtensions.accounts`), and the generated
+  account-validation schema.
 - Target-stage ABI selector hydration:
   the ValueVault CLI emit path derives EVM selectors from each entrypoint's
   Solidity ABI signature with `cast sig` immediately before EVM Yul/bytecode
@@ -1011,11 +1015,12 @@ Current boundary:
 - `ProofForge.Contract.Source` is the first source-facing syntax layer, but it
   is still a v1 macro frontend over the existing `ContractSpec` builder rather
   than a complete standalone Learn parser. It covers portable scalar state,
-  entry/query bodies, events, arithmetic, and a bridge path for existing
-  Solana extension helpers. The next source-syntax gap is to replace the
-  bridge with dedicated Solana account/PDA/CPI declarations so accounts,
-  constraints, and target capabilities read as normal Learn declarations while
-  the target extension layer derives chain-specific
+  entry/query bodies, events, arithmetic, and first Solana account/PDA/CPI
+  declarations. The next source-syntax gap is to broaden the Solana forms
+  beyond the current SPL Token transfer-checked path to System CPI, additional
+  SPL Token ops, sysvars, logs, memory, crypto, and richer Pinocchio-style
+  account validation ergonomics while the target extension layer derives
+  chain-specific
   selectors, instruction tags, IDL/client metadata, and package artifacts during
   compilation.
 

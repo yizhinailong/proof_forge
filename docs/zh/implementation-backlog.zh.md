@@ -519,7 +519,9 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 - Contract Source Syntax v1：
   `ProofForge.Contract.Source` 增加了 scoped `contract_source` 语法，用于
   state declaration、event、entrypoint、query、source-local binding、state
-  assignment、event emission、return，以及 typed arithmetic operator。
+  assignment、event emission、return、typed arithmetic operator，以及 allocator、
+  account、PDA derivation 和 SPL Token CPI call 这些 Solana extension
+  declaration。
   `ProofForge.Contract.Examples.Counter` 和
   `ProofForge.Contract.Examples.ValueVault` 现在都通过这个 source block 编写
   portable 逻辑；宏仍会发射到同一个 `ContractSpec`/portable IR 边界，供
@@ -528,12 +530,15 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 - Solana typed account surface：
   `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
   `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
-  CPI helper。`ProofForge.Solana.Examples.Vault` 现在用 `contract_source`
-  编写 portable state 和 entry body，同时通过 source-level `use` 和 `do`
-  statement 桥接现有 Solana extension helper，不再直接写 raw account/PDA/CPI
-  字符串；target extension 会把声明式 account constraint 发射到
-  `manifest.toml`、`proof-forge-artifact.json`（`solanaExtensions.accounts`）
-  以及生成的 account-validation schema。
+  CPI helper。`ProofForge.Solana.Examples.Vault` 现在使用
+  `contract_source` 的专用 item/statement，例如 `allocator bump`、
+  `account ... writable`、`pda ... seeds [...]`、
+  `cpi ... spl_token_transfer_checked(...)`、`derive pda ...` 和
+  `invoke ... spl_token_transfer_checked(...)`，不再直接写 raw
+  account/PDA/CPI 字符串，也不再通过 `use`/`do` 暴露 helper plumbing；
+  target extension 会把声明式 account constraint 发射到 `manifest.toml`、
+  `proof-forge-artifact.json`（`solanaExtensions.accounts`）以及生成的
+  account-validation schema。
 - Target-stage ABI selector hydration：
   ValueVault CLI emit path 会在 EVM Yul/bytecode 发射前，根据每个
   entrypoint 的 Solidity ABI signature 通过 `cast sig` 派生 EVM selector，
@@ -555,11 +560,12 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 - `ProofForge.Contract.Source` 已经是第一层面向源码的语法，但它仍是基于
   现有 `ContractSpec` builder 的 v1 macro frontend，而不是完整独立的 Learn
   parser。它目前覆盖 portable scalar state、entry/query body、event 和
-  arithmetic，并提供现有 Solana extension helper 的桥接路径。下一步
-  source-syntax 缺口是把桥接形式替换成专用 Solana account/PDA/CPI
-  declaration，让 account、constraint 和 target capability 也像正常 Learn
-  declaration 一样书写，同时由 target extension 层在编译阶段派生 selector、
-  instruction tag、IDL/client metadata 和 package artifact。
+  arithmetic，也覆盖了第一批 Solana account/PDA/CPI declaration。下一步
+  source-syntax 缺口是把 Solana 形式从当前 SPL Token transfer-checked 路径
+  扩展到 System CPI、更多 SPL Token ops、sysvar、log、memory、crypto，以及
+  更接近 Pinocchio 的 account validation ergonomics；同时由 target extension
+  层在编译阶段派生 selector、instruction tag、IDL/client metadata 和 package
+  artifact。
 
 剩余优先切片：
 

@@ -1,5 +1,6 @@
 import Lean
 import ProofForge.Contract.Surface
+import ProofForge.Solana.Surface
 
 namespace ProofForge.Contract.Source
 
@@ -90,9 +91,20 @@ def emitEvent (eventRef : ProofForge.Contract.Surface.EventRef)
 
 declare_syntax_cat contractItem
 declare_syntax_cat entryStmt
+declare_syntax_cat solanaSeed
+declare_syntax_cat solanaSignerSeed
 
 scoped syntax "state " ident " : " term : contractItem
+scoped syntax "binding " ident " : " term : contractItem
 scoped syntax "event " ident : contractItem
+scoped syntax "allocator " "bump" : contractItem
+scoped syntax "account " ident " readonly" : contractItem
+scoped syntax "account " ident " readonly " "owner " term : contractItem
+scoped syntax "account " ident " writable" : contractItem
+scoped syntax "account " ident " writable " "owner " term : contractItem
+scoped syntax "pda " ident " seeds " "[" solanaSeed,* "]" " bump " ident " account " ident " signer" : contractItem
+scoped syntax "cpi " ident " spl_token_transfer_checked" "(" ident ", " ident ", " ident ", " ident ", " ident ")" " decimals" "(" term ")"
+  " signer_seeds " "[" solanaSignerSeed,* "]" : contractItem
 scoped syntax "use " term : contractItem
 scoped syntax "entry " ident " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ")" " do" ppLine entryStmt* : contractItem
@@ -105,7 +117,16 @@ scoped syntax "let " ident " : " term " := " term ";" : entryStmt
 scoped syntax ident " := " term ";" : entryStmt
 scoped syntax "emit " ident term ";" : entryStmt
 scoped syntax "return " term ";" : entryStmt
+scoped syntax "derive " "pda " ident " seeds " "[" solanaSeed,* "]" " bump " ident " account " ident " signer;" : entryStmt
+scoped syntax "invoke " ident " spl_token_transfer_checked" "(" ident ", " ident ", " ident ", " ident ", " ident ")" " decimals" "(" term ")"
+  " signer_seeds " "[" solanaSignerSeed,* "]" ";" : entryStmt
 scoped syntax "do " term ";" : entryStmt
+
+scoped syntax "literal_seed " str : solanaSeed
+scoped syntax "account_seed " ident : solanaSeed
+
+scoped syntax "pda_seed " ident : solanaSignerSeed
+scoped syntax "bump_seed " ident : solanaSignerSeed
 
 scoped syntax "contract_source " ident " do" ppLine contractItem* : command
 
@@ -125,6 +146,10 @@ private def mkParamLet (name : TSyntax `ident) (type : TSyntax `term)
       ProofForge.Contract.Surface.binding $nameLit $type
     $body)
 
+private def mkBindingLet (name : TSyntax `ident) (type : TSyntax `term)
+    (body : TSyntax `term) : MacroM (TSyntax `term) :=
+  mkParamLet name type body
+
 private def mkStateLet (name : TSyntax `ident) (type : TSyntax `term)
     (body : TSyntax `term) : MacroM (TSyntax `term) := do
   let nameLit := identNameLit name
@@ -138,6 +163,53 @@ private def mkEventLet (name : TSyntax `ident)
   `(let $name : ProofForge.Contract.Surface.EventRef :=
       ProofForge.Contract.Surface.event $nameLit
     $body)
+
+private def mkAccountLet (name : TSyntax `ident)
+    (body : TSyntax `term) : MacroM (TSyntax `term) := do
+  let nameLit := identNameLit name
+  `(let $name : ProofForge.Solana.Surface.AccountRef :=
+      { name := $nameLit }
+    $body)
+
+private def mkPdaLet (name : TSyntax `ident)
+    (body : TSyntax `term) : MacroM (TSyntax `term) := do
+  let nameLit := identNameLit name
+  `(let $name : ProofForge.Solana.Surface.PdaRef :=
+      { name := $nameLit }
+    $body)
+
+private def mkCpiLet (name : TSyntax `ident)
+    (body : TSyntax `term) : MacroM (TSyntax `term) := do
+  let nameLit := identNameLit name
+  `(let $name : ProofForge.Solana.Surface.CpiRef :=
+      { name := $nameLit }
+    $body)
+
+private def lowerSolanaSeed (seed : TSyntax `solanaSeed) : MacroM (TSyntax `term) := do
+  match seed with
+  | `(solanaSeed| literal_seed $value:str) =>
+      `(ProofForge.Solana.Surface.literalSeed $value)
+  | `(solanaSeed| account_seed $accountRef:ident) =>
+      `(ProofForge.Solana.Surface.accountSeed $accountRef)
+  | _ =>
+      Macro.throwError s!"unsupported Solana PDA seed: {seed.raw}"
+
+private def lowerSolanaSeeds (seedItems : TSyntaxArray `solanaSeed) : MacroM (TSyntax `term) := do
+  let lowered ← seedItems.mapM lowerSolanaSeed
+  `(#[$lowered,*])
+
+private def lowerSolanaSignerSeed (seed : TSyntax `solanaSignerSeed) : MacroM (TSyntax `term) := do
+  match seed with
+  | `(solanaSignerSeed| pda_seed $pdaRef:ident) =>
+      `(ProofForge.Solana.Surface.pdaName $pdaRef)
+  | `(solanaSignerSeed| bump_seed $bindingRef:ident) =>
+      `(ProofForge.Solana.Surface.bindingName $bindingRef)
+  | _ =>
+      Macro.throwError s!"unsupported Solana signer seed: {seed.raw}"
+
+private def lowerSolanaSignerSeeds (seedItems : TSyntaxArray `solanaSignerSeed) : MacroM (TSyntax `term) := do
+  let lowered ← seedItems.mapM lowerSolanaSignerSeed
+  `(#[$lowered,*])
 
 partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
     MacroM (TSyntax `term) := do
@@ -156,6 +228,19 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
         acc ← `(ProofForge.Contract.Source.emitEvent $eventRef $fields *> $acc)
     | `(entryStmt| return $value:term;) =>
         acc ← `(ProofForge.Contract.Source.retValue $value *> $acc)
+    | `(entryStmt| derive pda $pdaRef:ident seeds [$seedItems:solanaSeed,*] bump $bumpRef:ident account $accountRef:ident signer;) =>
+        let seedArray ← lowerSolanaSeeds seedItems
+        acc ←
+          `(ProofForge.Solana.Surface.derivePda $pdaRef $seedArray
+              (bump? := some $bumpRef)
+              (account? := some $accountRef)
+              (isSigner := true) *> $acc)
+    | `(entryStmt| invoke $call:ident spl_token_transfer_checked($source:ident, $mint:ident, $destination:ident, $authority:ident, $amountRef:ident) decimals($decimalValue:term) signer_seeds [$signerSeedItems:solanaSignerSeed,*];) =>
+        let signerSeedArray ← lowerSolanaSignerSeeds signerSeedItems
+        acc ←
+          `(ProofForge.Solana.Surface.invokeSplTokenTransferChecked
+              $call $source $mint $destination $authority $amountRef $decimalValue
+              (signerSeeds := $signerSeedArray) *> $acc)
     | `(entryStmt| do $action:term;) =>
         acc ← `($action *> $acc)
     | _ =>
@@ -199,8 +284,40 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
   | `(contractItem| state $name:ident : $type:term) =>
       let action ← `(ProofForge.Contract.Surface.scalar $name)
       return { action? := some action, binder := mkStateLet name type }
+  | `(contractItem| binding $name:ident : $type:term) =>
+      return { binder := mkBindingLet name type }
   | `(contractItem| event $name:ident) =>
       return { binder := mkEventLet name }
+  | `(contractItem| allocator bump) =>
+      let action ← `(ProofForge.Solana.Surface.bumpAllocator)
+      return { action? := some action }
+  | `(contractItem| account $name:ident readonly) =>
+      let action ← `(ProofForge.Solana.Surface.readonlyAccount $name)
+      return { action? := some action, binder := mkAccountLet name }
+  | `(contractItem| account $name:ident readonly owner $ownerValue:term) =>
+      let action ← `(ProofForge.Solana.Surface.readonlyAccount $name $ownerValue)
+      return { action? := some action, binder := mkAccountLet name }
+  | `(contractItem| account $name:ident writable) =>
+      let action ← `(ProofForge.Solana.Surface.writableAccount $name)
+      return { action? := some action, binder := mkAccountLet name }
+  | `(contractItem| account $name:ident writable owner $ownerValue:term) =>
+      let action ← `(ProofForge.Solana.Surface.writableAccount $name $ownerValue)
+      return { action? := some action, binder := mkAccountLet name }
+  | `(contractItem| pda $name:ident seeds [$seedItems:solanaSeed,*] bump $bumpRef:ident account $accountRef:ident signer) =>
+      let seedArray ← lowerSolanaSeeds seedItems
+      let action ←
+        `(ProofForge.Solana.Surface.pdaAccount $name $seedArray
+            (bump? := some $bumpRef)
+            (account? := some $accountRef)
+            (isSigner := true))
+      return { action? := some action, binder := mkPdaLet name }
+  | `(contractItem| cpi $call:ident spl_token_transfer_checked($source:ident, $mint:ident, $destination:ident, $authority:ident, $amountRef:ident) decimals($decimalValue:term) signer_seeds [$signerSeedItems:solanaSignerSeed,*]) =>
+      let signerSeedArray ← lowerSolanaSignerSeeds signerSeedItems
+      let action ←
+        `(ProofForge.Solana.Surface.splTokenTransferChecked
+            $call $source $mint $destination $authority $amountRef $decimalValue
+            (signerSeeds := $signerSeedArray))
+      return { action? := some action, binder := mkCpiLet call }
   | `(contractItem| use $action:term) =>
       return { action? := some action }
   | `(contractItem| entry $name:ident do $stmts:entryStmt*) =>
