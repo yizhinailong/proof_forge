@@ -10,7 +10,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "4bfc33d3e883c26763b9aaa33cde4426c71d84d60a8af826099cd73d78da6413",
+    "sha256": "327a66b1de3e62138ec2c18dfd1842e19e76e15edbc302d821157d7b78892d78",
     "zh": "docs/zh/INDEX.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -40,7 +40,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/implementation-backlog.md": {
-    "sha256": "a94497d35eaa5fcd61fc19a272e8a43350aa7e64bb38ceebf1efdbf851dea1e2",
+    "sha256": "b2d3a62ae8b637e5965947f648464af17fd19d2768b8d253f468296dad3bf76d",
     "zh": "docs/zh/implementation-backlog.zh.md",
     "model": "gemini-3-flash-preview"
   },

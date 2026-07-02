@@ -1850,8 +1850,90 @@ Acceptance criteria:
 - Documentation clearly says Solana does not default to a per-token SPL
   contract; it uses SPL Token / Token-2022 programs by plan and CPI.
 
+## Workstream 24: Architecture Convergence Follow-ups (post-merge)
+
+The 2026-07 branch consolidation merged `solana-supprot`, `lookdown`
+(Wasm/NEAR), `aleo-support`, and `cloudflare-support` into the trunk, resolved
+the D-025/D-026/D-027 decision-id collisions (NEAR decisions renumbered to
+D-029–D-031, Aleo to D-032, Cloudflare to D-033), unified the capability
+matrix, and fixed the `IR.Statement.release` semantic conflicts in the EVM
+event walker, Leo emitter, and TS emitter. Remaining follow-ups:
+
+Tasks:
+
+- Record the branch policy in `development-standards.md`: chains are
+  directories and target ids, not branches; changes to `ProofForge/IR/*`,
+  `ProofForge/Target/*`, `ProofForge/Contract/{Spec,Intent,Source}*`,
+  `docs/capability-registry.md`, `docs/decisions.md`, and
+  `docs/portable-ir.md` land on `main` in standalone PRs.
+- Record the i18n rule: feature branches do not touch `docs/zh/*.zh.md` or
+  `scripts/i18n/manifest.json`; translation sync runs on `main` only.
+- Retire the merged remote branches (`DaviRain-Su/solana-supprot`,
+  `DaviRain-Su/lookdown`, `DaviRain-Su/aleo-support`,
+  `DaviRain-Su/cloudflare-support`) after the consolidation PR lands.
+- Regenerate stale `docs/zh` translations flagged by the post-merge manifest
+  (hand-merged decision/capability tables are synced; narrative docs that
+  changed under auto-merge should be re-run through `translate-docs.py`).
+- Decide whether the Solana bump-allocator selection unifies under the
+  merged `TargetProfile.deploymentAllocator?` abstraction or stays
+  target-local; record the outcome in `decisions.md`.
+- Unify the CI workflow: the merged `.github/workflows/ci.yml` now carries
+  EVM, Solana-light, NEAR, and Psy gates; add the Aleo and TS/Cloudflare
+  smokes as optional jobs once their toolchains (`leo`, `tsc`/`wrangler`)
+  are pinned.
+- Naming cleanup: decide the public SDK name, schedule the `Lean.Evm` →
+  `ProofForge.*` namespace rename, and enforce the Learn freeze
+  ([authoring-model](authoring-model.md)).
+- Declare `ContractSpec` → EVM Plan → Yul the EVM product pipeline in
+  RFC 0004; label LCNF → `EmitYul` as the Lean-native experimental path.
+
+Acceptance criteria:
+
+- `docs/decisions.md` shows one linear decision log (D-001…D-033, no
+  duplicate ids) and records the allocator-unification outcome.
+- Development standards contain the branch and i18n rules.
+- All four merged chain branches are deleted or archived.
+
+## Workstream 25: Formal Verification Roadmap
+
+Goal: convert the platform's core promises into machine-checked theorems,
+per [formal-verification.md](formal-verification.md).
+
+Tasks (see the roadmap for full statements):
+
+- FV-1: prove capability routing soundness, rejection completeness, and
+  Solana target-extension isolation for `resolveSpec` (D-027/D-028 as
+  theorems).
+- FV-2: extend `ProofForge/IR/Semantics.lean` beyond the scalar subset
+  (maps, arrays, structs, `ifElse`, `boundedFor`, events) and prove
+  determinism plus bounded-loop termination.
+- FV-3: prove the `IR/Ownership.lean` checker sound against release-aware
+  semantics (no use-after-release, no double release), justifying the three
+  divergent `release` lowerings (EmitWat allocator, EVM/Psy reject, TS
+  no-op).
+- FV-4: add an EVM Counter trace obligation mirroring
+  `Backend/WasmNear/Refinement.lean`, backed by a Yul-subset interpreter;
+  keep Psy/Solana on differential gates until interpreters exist.
+- FV-5: state checked-arithmetic overflow/division semantics once in the IR
+  value domain and add the overflow branch to backend obligations.
+- FV-6: prove `.learn`-vs-`contract_source` lowering equivalence for the
+  paired fixture subset (decidable `ContractSpec` equality).
+- FV-7: prove Token SDK plan invariants (total feature routing, documented
+  incompatibility diagnostics, plan well-formedness).
+- FV-8: user-facing contract invariants over IR semantics, ValueVault as the
+  worked example.
+
+Acceptance criteria:
+
+- Each landed FV item is a `decide`-checkable theorem or Lean test wired
+  into CI, not an external-tool dependency.
+- A backend cannot move from Experimental to Supported without its FV-4
+  trace obligation and shared-scenario differential gate.
+
 ## Suggested Order
 
+0. Architecture convergence follow-ups (Workstream 24) and FV-1/FV-2 from the
+   formal verification roadmap (Workstream 25).
 1. Target registry (Workstream 1).
 2. Portable IR + shared Counter scenario (Workstream 1.5).
 3. EVM artifact metadata and deploy manifest (Workstreams 2–3).
