@@ -18,6 +18,9 @@ import ProofForge.Backend.WasmNear
 import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Backend.Aleo.IR
 import ProofForge.Compiler.LCNF.EmitYul
+import ProofForge.Compiler.TS.AST
+import ProofForge.Compiler.TS.Printer
+import ProofForge.Compiler.TS.Emit
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
 import ProofForge.IR.Examples.ArrayProbe
@@ -108,6 +111,7 @@ inductive EmitMode where
   | learnSbpf
   | learnTarget
   | learnTokenTarget
+  | counterIrTs
   | abiScalarIrYul
   | abiScalarIrBytecode
   | assertIrYul
@@ -333,7 +337,8 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .hashEmitWat
   | .mapEmitWat
   | .counterIrLeo
-  | .pureMathIrLeo => true
+  | .pureMathIrLeo
+  | .counterIrTs => true
   | _ => false
 
 structure CliOptions where
@@ -372,6 +377,7 @@ def usage : String :=
     "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
     "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
+    "  proof-forge --emit-counter-ir-ts [-o output.ts]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-value-vault-ir-yul [-o output.yul]",
     "  proof-forge --emit-value-vault-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
@@ -2047,6 +2053,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       .error "missing value for --learn-target"
   | "--emit-counter-ir-yul" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrYul }
+  | "--emit-counter-ir-ts" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrTs }
   | "--emit-counter-ir-bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrBytecode }
   | "--emit-value-vault-ir-yul" :: rest, opts =>
@@ -2372,6 +2380,14 @@ def renderCounterIrYul : IO String := do
   match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.Counter.module with
   | .ok yul => return yul
   | .error err => throw <| IO.userError err.render
+
+def compileCounterIrTs (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/ts/Counter.ts")
+  let tsModule := ProofForge.Compiler.TS.Emit.emitModule ProofForge.IR.Examples.Counter.module
+  let source := ProofForge.Compiler.TS.Printer.render tsModule
+  writeTextFile output source
+  IO.println s!"wrote {output}"
+  return 0
 
 def compileCounterIrBytecode (opts : CliOptions) : IO UInt32 := do
   let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/Counter.yul")
@@ -4296,6 +4312,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .yul => compileYul opts
   | .evmBytecode => compileEvmBytecode opts
   | .counterIrYul => compileCounterIrYul opts
+  | .counterIrTs => compileCounterIrTs opts
   | .counterIrBytecode => compileCounterIrBytecode opts
   | .valueVaultIrYul => compileValueVaultIrYul opts
   | .valueVaultIrBytecode => compileValueVaultIrBytecode opts

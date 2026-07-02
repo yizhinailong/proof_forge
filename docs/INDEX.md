@@ -67,6 +67,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
   - [EVM](targets/evm.md)
   - [Wasm family](targets/wasm-family.md)
   - [Wasm-NEAR](targets/wasm-near.md)
+  - [Cloudflare Workers target](targets/cloudflare-workers.md)
   - [Stellar Soroban target](targets/stellar-soroban.md)
   - [Internet Computer target](targets/internet-computer.md)
   - [Algorand AVM target](targets/algorand-avm.md)

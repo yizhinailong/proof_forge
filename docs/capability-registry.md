@@ -34,32 +34,34 @@ remain uniform.
 > The **Solana** column reflects the canonical `solana-sbpf-asm` route (D-026):
 > direct sBPF assembly codegen. Solana uses `crosscall.cpi` (not
 > `crosscall.invoke`) and `storage.pda` — these are Solana-specific per D-027.
+> The **CF Workers** column is the off-chain `wasm-cloudflare-workers` host
+> (D-033); it reinterprets capabilities without consensus or on-chain state.
 
-| Capability id | Portable meaning | EVM | NEAR | CosmWasm | Solana | Aptos | Sui | Psy DPN |
-|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| `storage.scalar` | Single persistent scalar | Y | Y | Y | Y | Y | Y | Y |
-| `storage.map` | Key-value or mapping storage | Y | Y | Y | P | P | P | P |
-| `storage.array` | Fixed-size indexed storage array | P | N | N | Y | N | N | P |
-| `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | Y | P |
-| `value.native` | Native token attached to call | Y | Y | Y | Y | Y | Y | P |
-| `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | Y |
-| `crosscall.invoke` | Call another contract/program | Y | N | Y | N | Y | Y | P |
-| `env.block` | Block height/time/chain id reads | Y | Y | P | P | P | P | P |
-| `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | P | N | N | Y | N | N | P |
-| `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | P | N | N | P |
-| `data.fixed_array` | Fixed-size array value type, literals, and index expressions | P | N | N | Y | N | N | P |
-| `data.struct` | Struct value type, literals, and field access | P | N | N | Y | N | N | P |
-| `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y | Y |
-| `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | Y | N | Y | N | N | P |
-| `account.explicit` | Named account/object/resource binding | P | Y | N | Y | Y | Y | P |
-| `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N |
-| `runtime.allocator` | Target runtime heap allocator contract | N | Y | P | Y | P | P | P |
-| `runtime.memory` | Target runtime memory operations | N | N | N | Y | N | N | N |
-| `runtime.return_data` | Target runtime return-data buffer operations | N | N | N | Y | N | N | N |
-| `runtime.compute_units` | Target runtime compute-budget introspection | N | N | N | P | N | N | N |
-| `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N | N |
-| `zk.circuit` | Compile entrypoints into target circuit definitions | N | N | N | N | N | N | Y |
-| `zk.proof` | Target proof generation or verification flow | N | N | N | N | N | N | P |
+| Capability id | Portable meaning | EVM | NEAR | CosmWasm | Solana | Aptos | Sui | Psy DPN | CF Workers |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `storage.scalar` | Single persistent scalar | Y | Y | Y | Y | Y | Y | Y | Y |
+| `storage.map` | Key-value or mapping storage | Y | Y | Y | P | P | P | P | Y |
+| `storage.array` | Fixed-size indexed storage array | P | N | N | Y | N | N | P | P |
+| `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | Y | P | Y |
+| `value.native` | Native token attached to call | Y | Y | Y | Y | Y | Y | P | N |
+| `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | Y | Y |
+| `crosscall.invoke` | Call another contract/program | Y | N | Y | N | Y | Y | P | Y |
+| `env.block` | Block height/time/chain id reads | Y | Y | P | P | P | P | P | P |
+| `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | P | N | N | Y | N | N | P | Y |
+| `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | P | N | N | P | Y |
+| `data.fixed_array` | Fixed-size array value type, literals, and index expressions | P | N | N | Y | N | N | P | Y |
+| `data.struct` | Struct value type, literals, and field access | P | N | N | Y | N | N | P | Y |
+| `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y | Y | Y |
+| `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | Y | N | Y | N | N | P | Y |
+| `account.explicit` | Named account/object/resource binding | P | Y | N | Y | Y | Y | P | P |
+| `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N | N |
+| `runtime.allocator` | Target runtime heap allocator contract | N | Y | P | Y | P | P | P | N |
+| `runtime.memory` | Target runtime memory operations | N | N | N | Y | N | N | N | N |
+| `runtime.return_data` | Target runtime return-data buffer operations | N | N | N | Y | N | N | N | N |
+| `runtime.compute_units` | Target runtime compute-budget introspection | N | N | N | P | N | N | N | N |
+| `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N | N | N |
+| `zk.circuit` | Compile entrypoints into target circuit definitions | N | N | N | N | N | N | Y | N |
+| `zk.proof` | Target proof generation or verification flow | N | N | N | N | N | N | P | N |
 
 ## Id Naming Rules
 

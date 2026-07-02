@@ -42,6 +42,7 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-030 | 2026-07-01 | `wasm-near` v0 supports `Hash` map keys, `.assertions.check`, and `.account.explicit` | Required by existing `MapProbe` (Hash keys, `assertEq`) and `ContextProbe` (`contractId`) fixtures; `.crosscall.invoke` remains unsupported for sourcegen v0. (Renumbered from the NEAR branch's D-026.) |
 | D-031 | 2026-07-01 | Adopt **`EmitWat`** (portable IR → Wasm AST → WAT text → `wat2wasm`) as the canonical Wasm-family backend; demote the Rust `near-sdk-rs` sourcegen to a **frozen v0 stopgap** | `EmitWat` mirrors the in-repo **portable-IR → Yul** renderer `Backend/Evm/IR.lean` (used by every `--emit-*-ir-yul` CLI mode), *not* the separate LCNF-based `Compiler/LCNF/EmitYul.lean`. Because the portable IR already abstracts over Lean objects (`u32`/`u64`/`bool`/`hash` scalars + storage effects only), `EmitWat` needs no Lean runtime port, object-model boxing, or GC — avoiding both the `near-sdk` macro coupling of the Rust route (E0119 Borsh / missing-`&self` cargo-check failures) and the Lean-runtime-to-Wasm port that blocks the prior `EmitZig` plan. Shared layer: `Compiler/Wasm/AST.lean` + `Printer.lean` + IR→AST lowering (parallel to `Compiler/Yul/AST.lean` + `Printer.lean`); reusable validation from `Backend/WasmNear/IR.lean` and `Backend/Evm/IR.lean`. Per-chain: host imports + ABI serialization. Key spike risk: NEAR argument (de)serialization (JSON/Borsh), which the EVM backend does not face (EVM uses calldata). (Renumbered from the NEAR branch's D-027.) |
 | D-032 | 2026-07-01 | Ratify **`aleo-leo`** Research exit design: Leo-first `zk-app-sourcegen` boundary, canonical capabilities for Road 1, artifact manifest schema, and `leo build`/`leo test` toolchain | Aleo's proof/finalization split requires its own sourcegen family distinct from `psy-dpn`-style circuit sourcegen; code registry changes remain deferred until the Road 1 spike succeeds and is reviewed. (Renumbered from the Aleo branch's D-025 during the 2026-07 branch consolidation merge.) |
+| D-033 | 2026-07-01 | Add **`wasm-cloudflare-workers`** as a Research Wasm-host target | Cloudflare Workers is not a blockchain, but it shares the Wasm-host backend pattern with NEAR/CosmWasm; it validates the portable-core model by running the same verified business logic off-chain with reinterpreted capabilities. (Renumbered from the Cloudflare branch's D-025 during the 2026-07 branch consolidation merge.) |
 
 ## Target Family Classification
 
@@ -49,7 +50,7 @@ See also: [Review checklist (English)](review-checklist.md),
 |---|---|---|
 | Direct compiler | `evm` | Lean → LCNF → Yul → solc |
 | EVM-compatible chain profiles | `robinhood-chain-testnet` | Reuse `evm` bytecode/ABI output; add chain id, RPC, explorer, verifier, rollup, and deployment metadata |
-| Wasm host | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban` (candidate, docs only), `wasm-icp-canister` (candidate, docs only) | Portable IR → **`EmitWat`** (Wasm AST → WAT) → `wat2wasm` + per-chain host imports; Rust/CDK sourcegen used only as a frozen v0 stopgap (D-031, [wasm-family](targets/wasm-family.md)) |
+| Wasm host | `wasm-near`, `wasm-cosmwasm`, `wasm-cloudflare-workers` (off-chain host, D-033), `wasm-stellar-soroban` (candidate, docs only), `wasm-icp-canister` (candidate, docs only) | Portable IR → **`EmitWat`** (Wasm AST → WAT) → `wat2wasm` + per-chain host imports; Rust/CDK sourcegen used only as a frozen v0 stopgap (D-031, [wasm-family](targets/wasm-family.md)); Cloudflare Workers currently uses TypeScript sourcegen |
 | Binary toolchain | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker (historical reference; superseded by D-026) |
 | sBPF direct codegen | `solana-sbpf-asm` | Lean → IR → sBPF assembly (.s) → sbpf toolchain → ELF (canonical D-026) |
 | Source codegen | `move-aptos`, `move-sui` | Portable IR → Move package source |
@@ -101,6 +102,7 @@ Detailed tasks: [Implementation backlog](implementation-backlog.md).
 | Target engineering shape | [RFC 0002](rfcs/0002-target-implementation-design.md) |
 | CosmWasm SDK spike sketch | [targets/wasm-family.md](targets/wasm-family.md) |
 | Wasm-NEAR sourcegen target | [targets/wasm-near.md](targets/wasm-near.md) |
+| Cloudflare Workers target | [targets/cloudflare-workers.md](targets/cloudflare-workers.md) |
 | Stellar/Soroban target candidate | [targets/stellar-soroban.md](targets/stellar-soroban.md) |
 | Internet Computer target candidate | [targets/internet-computer.md](targets/internet-computer.md) |
 | Algorand AVM target candidate | [targets/algorand-avm.md](targets/algorand-avm.md) |

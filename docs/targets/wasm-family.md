@@ -1,9 +1,12 @@
 # Wasm Family Targets
 
 The Wasm family includes NEAR, CosmWasm, Stellar/Soroban, Internet Computer
-canisters, and later Polkadot/ink-style contracts. They share an executable
-format, but not a contract ABI. ProofForge should share only the parts that are
-genuinely common.
+canisters, later Polkadot/ink-style contracts, and Cloudflare Workers. They
+share an executable format, but not a contract ABI. Cloudflare Workers is not a
+blockchain, but it uses the same Wasm-host backend pattern: a generated Wasm
+module plus a target-specific host bridge. ProofForge should share only the
+parts that are genuinely common. See [Cloudflare Workers target](cloudflare-workers.md)
+for the off-chain reinterpretation of capabilities.
 
 ## Common Shape
 
@@ -191,13 +194,13 @@ calls. The remaining target concerns are real and selected per target:
 - native GMP — none (hash is a fixed 4×u64 limb tuple, lowered directly)
 - chain-agnostic force-linking of host bridges — none
 
-| Option | NEAR | CosmWasm | Stellar/Soroban | ICP canister |
-|---|---|---|---|---|
-| Scalar lowering | shared `EmitWat` (IR u32/u64/bool/hash → Wasm i32/i64) | shared | shared | shared |
-| Hash lowering | shared `EmitWat` (4×u64 tuple in linear memory) | shared | shared | shared |
-| Host bridge | `near` (`env.*`) | `cosmwasm` (`db.*`) | `stellar-soroban` | `icp-canister` |
-| Args ABI | JSON / Borsh | JSON | Soroban XDR / native | Candid |
-| Validation | NEAR VM/MVP checks | `cosmwasm-check` | Stellar CLI or sandbox | Local replica, PocketIC, or ICP CLI |
+| Option | NEAR | CosmWasm | Stellar/Soroban | ICP canister | Cloudflare Workers |
+|---|---|---|---|---|---|
+| Scalar lowering | shared `EmitWat` (IR u32/u64/bool/hash → Wasm i32/i64) | shared | shared | shared | TypeScript sourcegen today; shared `EmitWat` planned |
+| Hash lowering | shared `EmitWat` (4×u64 tuple in linear memory) | shared | shared | shared | TypeScript bigint today |
+| Host bridge | `near` (`env.*`) | `cosmwasm` (`db.*`) | `stellar-soroban` | `icp-canister` | `cloudflare-workers` (fetch/KV) |
+| Args ABI | JSON / Borsh | JSON | Soroban XDR / native | Candid | JSON over HTTP |
+| Validation | NEAR VM/MVP checks | `cosmwasm-check` | Stellar CLI or sandbox | Local replica, PocketIC, or ICP CLI | `wrangler dev` / Miniflare |
 
 ## CosmWasm Counter Spike
 

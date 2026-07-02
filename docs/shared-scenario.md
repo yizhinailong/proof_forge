@@ -38,6 +38,7 @@ Each target adapter maps the same logical scenario to native mechanics:
 |---|---|---|
 | `evm` | contract storage slot | Foundry + `vm.etch` |
 | `wasm-cosmwasm` | string-key `"count"` in host KV | `cosmwasm-check` + instantiate/execute/query |
+| `wasm-cloudflare-workers` | Workers KV key `"count"` or Durable Object state | `wrangler dev` + `POST /increment` / `GET /count` |
 | `solana-sbpf-asm` | account data field | `sbpf test` (Mollusk) + Surfpool/Web3.js live smoke |
 | `move-aptos` | `Counter` resource under signer account | `aptos move test` |
 | `psy-dpn` | Psy storage field, likely `Felt`/`U32` in v0 | `dargo compile` + in-memory smoke |
