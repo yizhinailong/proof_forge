@@ -136,6 +136,8 @@ def solanaSbpfLinker : TargetProfile := {
     .accountExplicit,
     .runtimeAllocator,
     .runtimeMemory,
+    .runtimeReturnData,
+    .runtimeComputeUnits,
     .storagePda,
     .crosscallCpi
   ]
@@ -166,6 +168,8 @@ def solanaSbpfAsm : TargetProfile := {
     .accountExplicit,
     .runtimeAllocator,
     .runtimeMemory,
+    .runtimeReturnData,
+    .runtimeComputeUnits,
     .storagePda,
     .crosscallCpi
   ]

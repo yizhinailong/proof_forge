@@ -330,6 +330,14 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
   `[[solana.entrypoint_memory]]` / `memoryActions`；Web3.js 会在
   program-owned account 上验证 copied bytes、compare result 和 fill pattern。
   覆盖：`Tests/SolanaMemory.lean` 与 `scripts/solana/memory-web3-smoke.sh`。
+- [x] Return-data 和 compute-budget target extension 现在将 Solana-only SDK
+  action 通过 `runtime.return_data` 与 `runtime.compute_units` capability
+  metadata 路由。Return-data action 会把 state-backed byte slice 降为
+  `sol_set_return_data`；compute-budget action 会把 feature-gated
+  `sol_remaining_compute_units` syscall 的结果写入 state。生成的 manifest
+  会记录 `[[solana.entrypoint_return_data]]` 与
+  `[[solana.entrypoint_compute_units]]`。覆盖：
+  `Tests/SolanaReturnDataCompute.lean`。
 - [x] 生成的 Solana SDK instruction schema 现在使用 module-wide multi-account account list，取代旧的单账户 manifest。schema 包含 state account、PDA account、CPI account 和 executable CPI program account；sBPF backend 会从同一份 schema 计算 `INSTRUCTION_DATA` offset，并在 prologue 中按 schema 校验 signer/writable 约束和 program-owned account。账户列表会进入 `manifest.toml` 与 `proof-forge-artifact.json`。覆盖：`Tests/SolanaSdkManifest.lean`、`Tests/SolanaCpiPacking.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] System Program transfer/create-account 与 SPL Token CPI instruction-data packing 现在会把标准 instruction bytes 写入 C `SolInstruction` payload。System transfer/create-account 使用 bincode-style `u32` discriminator，加 `u64` lamports/space 和 owner pubkey 字段；SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke` 使用标准 token instruction tag 和 amount/decimals layout。value source 可以绑定到生成的 scalar state offset、数字 literal 或已解码的 scalar entrypoint parameter。CPI helper 也会打包 program id bytes、C `SolAccountMeta[]`、绑定到生成的 multi-account input layout 的 `SolAccountInfo[]`、signer seed table，以及 syscall register setup。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] System Program transfer CPI 现在具备 Surfpool/Web3.js live 行为门禁。`ProofForge.Solana.Examples.SystemCpi` 会构建生成的 `--solana-system-cpi-elf` fixture；entrypoint 读取 scalar `lamports` instruction parameter，执行 System Program transfer CPI，并把转账数写入 program-owned state account。`scripts/solana/system-cpi-web3-smoke.sh` 会校验 artifact schema，用 Solana CLI 在 Surfpool 部署 ELF，通过 `@solana/web3.js` 调用，并同时检查 recipient lamport delta 和 state data。sBPF lowering 会在 direct account mapping 下从序列化账户布局计算 instruction-data pointer，并保存在 `r9`，避免 internal helper call 跨 callee stack frame 时丢失该指针。覆盖：`just solana-system-cpi-web3` / V-GATE-SOLANA-10。
@@ -354,7 +362,10 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
 `Rent.lamports_per_byte_year` sysvar 路径，以及通过
 `sol_get_epoch_schedule_sysvar` 验证的、当前 RPC 暴露的全部
 `EpochSchedule` 字段：`slots_per_epoch`、`leader_schedule_slot_offset`、
-`warmup`、`first_normal_epoch` 和 `first_normal_slot`。下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
+`warmup`、`first_normal_epoch` 和 `first_normal_slot`。Lean/package 级 SDK 覆盖
+现在还包括把 `runtime.return_data` 降为 `sol_set_return_data`，以及把
+feature-gated `runtime.compute_units` 降为 `sol_remaining_compute_units`。
+下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
 `sbpf`/Surfpool/Solana CLI 工具链可用。
 
 | 层级 | 预计工作量 | 完成标准 |
@@ -404,6 +415,11 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
   调用，并通过读取 program-owned state 中的 copied value、moved value、
   compare result 和 fill bytes 证明 `sol_memcpy_`、`sol_memmove_`、
   `sol_memcmp_` 与 `sol_memset_` 的效果。
+- Return-data/compute-units SDK fixture：
+  `Tests/SolanaReturnDataCompute.lean` 会证明 `runtime.return_data` 与
+  `runtime.compute_units` 通过 Solana-only capability metadata 路由、在 EVM
+  上被拒绝，并且会生成 manifest section 与 sBPF helper call，覆盖
+  `sol_set_return_data` 和 feature-gated `sol_remaining_compute_units`。
 - Live SHA-256/Keccak-256 syscall fixture：`scripts/solana/crypto-hash-web3-smoke.sh`
   会在 Surfpool 上构建并部署生成的 Solana-only `crypto.hash` 程序，通过
   Web3.js 调用 `set_preimage`、`hash_preimage` 和 `keccak_preimage`，并证明

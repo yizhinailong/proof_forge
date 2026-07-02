@@ -152,6 +152,20 @@ structure SysvarReadAction where
   entrypoint : String
   deriving Repr, Inhabited
 
+structure ReturnDataAction where
+  name : String
+  sourceState : String
+  bytes : Nat
+  entrypoint : String
+  deriving Repr, Inhabited
+
+structure ComputeUnitsAction where
+  name : String
+  outputState : String
+  featureGated : Bool := true
+  entrypoint : String
+  deriving Repr, Inhabited
+
 structure RuntimeAllocator where
   name : String
   kind : String
@@ -180,6 +194,8 @@ structure ProgramExtensions where
   memoryActions : Array MemoryAction := #[]
   cryptoHashActions : Array CryptoHashAction := #[]
   sysvarActions : Array SysvarReadAction := #[]
+  returnDataActions : Array ReturnDataAction := #[]
+  computeUnitsActions : Array ComputeUnitsAction := #[]
   deriving Repr, Inhabited
 
 structure CpiAccountBinding where
@@ -359,6 +375,24 @@ def ProgramExtensions.pushSysvarAction (acc : ProgramExtensions)
   else
     { acc with sysvarActions := acc.sysvarActions.push action }
 
+def ProgramExtensions.pushReturnDataAction (acc : ProgramExtensions)
+    (action : ReturnDataAction) : ProgramExtensions :=
+  if acc.returnDataActions.any (fun existing =>
+      existing.name == action.name &&
+      existing.entrypoint == action.entrypoint) then
+    acc
+  else
+    { acc with returnDataActions := acc.returnDataActions.push action }
+
+def ProgramExtensions.pushComputeUnitsAction (acc : ProgramExtensions)
+    (action : ComputeUnitsAction) : ProgramExtensions :=
+  if acc.computeUnitsActions.any (fun existing =>
+      existing.name == action.name &&
+      existing.entrypoint == action.entrypoint) then
+    acc
+  else
+    { acc with computeUnitsActions := acc.computeUnitsActions.push action }
+
 def ProgramExtensions.addPda (acc : ProgramExtensions) (pda : PdaDerive) : ProgramExtensions :=
   let acc := acc.pushPdaDefinition pda
   match pda.entrypoint? with
@@ -386,6 +420,14 @@ def ProgramExtensions.addCryptoHash (acc : ProgramExtensions)
 def ProgramExtensions.addSysvar (acc : ProgramExtensions)
     (action : SysvarReadAction) : ProgramExtensions :=
   acc.pushSysvarAction action
+
+def ProgramExtensions.addReturnData (acc : ProgramExtensions)
+    (action : ReturnDataAction) : ProgramExtensions :=
+  acc.pushReturnDataAction action
+
+def ProgramExtensions.addComputeUnits (acc : ProgramExtensions)
+    (action : ComputeUnitsAction) : ProgramExtensions :=
+  acc.pushComputeUnitsAction action
 
 def allocatorFromCall? (call : CapabilityCall) : Option RuntimeAllocator :=
   if call.capability == .runtimeAllocator then
@@ -492,6 +534,39 @@ def sysvarFromCall? (call : CapabilityCall) : Option SysvarReadAction :=
   else
     none
 
+def returnDataFromCall? (call : CapabilityCall) : Option ReturnDataAction :=
+  if call.capability == .runtimeReturnData &&
+      metadataValue? call.metadata "solana.extension" == some "return_data" &&
+      metadataValue? call.metadata "solana.return_data.op" == some "set" then
+    match entrypoint? call with
+    | some entrypoint =>
+        some {
+          name := metadataValue? call.metadata "solana.return_data.name" |>.getD call.operation
+          sourceState := metadataValue? call.metadata "solana.return_data.source_state" |>.getD ""
+          bytes := natFromMetadata? call.metadata "solana.return_data.bytes" |>.getD 0
+          entrypoint := entrypoint
+        }
+    | none => none
+  else
+    none
+
+def computeUnitsFromCall? (call : CapabilityCall) : Option ComputeUnitsAction :=
+  if call.capability == .runtimeComputeUnits &&
+      metadataValue? call.metadata "solana.extension" == some "compute_units" &&
+      metadataValue? call.metadata "solana.compute_units.op" == some "remaining" then
+    match entrypoint? call with
+    | some entrypoint =>
+        some {
+          name := metadataValue? call.metadata "solana.compute_units.name" |>.getD call.operation
+          outputState := metadataValue? call.metadata "solana.compute_units.output_state" |>.getD ""
+          featureGated := metadataValue? call.metadata "solana.compute_units.feature_gated"
+            |>.map boolFromString |>.getD true
+          entrypoint := entrypoint
+        }
+    | none => none
+  else
+    none
+
 def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
   plan.calls.foldl
     (fun acc call =>
@@ -515,8 +590,16 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
         match cryptoHashFromCall? call with
         | some action => acc.addCryptoHash action
         | none => acc
-      match sysvarFromCall? call with
-      | some action => acc.addSysvar action
+      let acc :=
+        match sysvarFromCall? call with
+        | some action => acc.addSysvar action
+        | none => acc
+      let acc :=
+        match returnDataFromCall? call with
+        | some action => acc.addReturnData action
+        | none => acc
+      match computeUnitsFromCall? call with
+      | some action => acc.addComputeUnits action
       | none => acc)
     {}
 
@@ -526,21 +609,27 @@ def hasExtensions (extensions : ProgramExtensions) : Bool :=
     extensions.cpis.size > 0 ||
     extensions.memoryActions.size > 0 ||
     extensions.cryptoHashActions.size > 0 ||
-    extensions.sysvarActions.size > 0
+    extensions.sysvarActions.size > 0 ||
+    extensions.returnDataActions.size > 0 ||
+    extensions.computeUnitsActions.size > 0
 
 def hasSyscallExtensions (extensions : ProgramExtensions) : Bool :=
   extensions.pdas.size > 0 ||
     extensions.cpis.size > 0 ||
     extensions.memoryActions.size > 0 ||
     extensions.cryptoHashActions.size > 0 ||
-    extensions.sysvarActions.size > 0
+    extensions.sysvarActions.size > 0 ||
+    extensions.returnDataActions.size > 0 ||
+    extensions.computeUnitsActions.size > 0
 
 def hasEntrypointActions (extensions : ProgramExtensions) : Bool :=
   extensions.pdaActions.size > 0 ||
     extensions.cpiActions.size > 0 ||
     extensions.memoryActions.size > 0 ||
     extensions.cryptoHashActions.size > 0 ||
-    extensions.sysvarActions.size > 0
+    extensions.sysvarActions.size > 0 ||
+    extensions.returnDataActions.size > 0 ||
+    extensions.computeUnitsActions.size > 0
 
 def labelPart (name : String) : String :=
   let chars := name.toList.map fun ch =>
@@ -561,6 +650,12 @@ def CryptoHashAction.label (action : CryptoHashAction) : String :=
 
 def SysvarReadAction.label (action : SysvarReadAction) : String :=
   "sol_sysvar_" ++ action.kind.id ++ "_" ++ labelPart action.name
+
+def ReturnDataAction.label (action : ReturnDataAction) : String :=
+  "sol_return_data_set_" ++ labelPart action.name
+
+def ComputeUnitsAction.label (action : ComputeUnitsAction) : String :=
+  "sol_compute_units_remaining_" ++ labelPart action.name
 
 def callSyscall (name : String) : AstNode :=
   .instruction { opcode := .call, imm := some (.sym name) }
@@ -1720,6 +1815,80 @@ def lowerSysvarAction (action : SysvarReadAction) : Array AstNode :=
     .comment s!"solana.sysvar.action {action.name}"
   ] ++ callHelperPreservingInput action.label "error_sysvar"
 
+def lowerReturnDataStatePtr (bindings : Array CpiValueBinding) (state purpose : String)
+    (dst inputBase : Reg) : Array AstNode :=
+  match stateValueBinding? bindings state with
+  | some binding =>
+      #[
+        .comment s!"solana.return_data.ptr {purpose} state={state} input+{binding.absOff}",
+        .instruction { opcode := .mov64, dst := some dst, src := some inputBase },
+        .instruction { opcode := .add64, dst := some dst, imm := some (.num binding.absOff) }
+      ]
+  | none =>
+      #[
+        .comment s!"solana.return_data.ptr {purpose} state={state} missing placeholder=stack"
+      ] ++
+      stackPtr dst memoryResultOffset
+
+def lowerReturnDataHelper (valueBindings : Array CpiValueBinding)
+    (action : ReturnDataAction) : Array AstNode :=
+  #[
+    .blankLine,
+    .comment s!"solana.return_data.set {action.name}: source={action.sourceState} bytes={action.bytes}",
+    .label action.label,
+    .instruction { opcode := .mov64, dst := some .r7, src := some .r1 }
+  ] ++
+  lowerReturnDataStatePtr valueBindings action.sourceState "source" .r1 .r7 ++ #[
+    loadImm .r2 action.bytes,
+    .comment "r1=data_ptr r2=data_len",
+    callSyscall ProofForge.Backend.Solana.Syscalls.sol_set_return_data,
+    .instruction { opcode := .mov64, dst := some .r1, src := some .r7 },
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
+    .instruction { opcode := .exit }
+  ]
+
+def lowerReturnDataAction (action : ReturnDataAction) : Array AstNode :=
+  #[
+    .comment s!"solana.return_data.action {action.name}"
+  ] ++ callVoidHelperPreservingInput action.label
+
+def lowerComputeUnitsOutputStatePtr (bindings : Array CpiValueBinding)
+    (action : ComputeUnitsAction) (dst inputBase : Reg) : Array AstNode :=
+  match stateValueBinding? bindings action.outputState with
+  | some binding =>
+      #[
+        .comment s!"solana.compute_units.output {action.name} state={action.outputState} input+{binding.absOff}",
+        .instruction { opcode := .mov64, dst := some dst, src := some inputBase },
+        .instruction { opcode := .add64, dst := some dst, imm := some (.num binding.absOff) }
+      ]
+  | none =>
+      #[
+        .comment s!"solana.compute_units.output {action.name} state={action.outputState} missing placeholder=stack"
+      ] ++
+      stackPtr dst memoryResultOffset
+
+def lowerComputeUnitsHelper (valueBindings : Array CpiValueBinding)
+    (action : ComputeUnitsAction) : Array AstNode :=
+  #[
+    .blankLine,
+    .comment s!"solana.compute_units.remaining {action.name}: output={action.outputState} feature_gated={action.featureGated}",
+    .label action.label,
+    .instruction { opcode := .mov64, dst := some .r7, src := some .r1 },
+    callSyscall ProofForge.Backend.Solana.Syscalls.sol_remaining_compute_units,
+    .instruction { opcode := .mov64, dst := some .r3, src := some .r0 }
+  ] ++
+  lowerComputeUnitsOutputStatePtr valueBindings action .r5 .r7 ++ #[
+    storeReg .stxdw .r5 0 .r3,
+    .instruction { opcode := .mov64, dst := some .r1, src := some .r7 },
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
+    .instruction { opcode := .exit }
+  ]
+
+def lowerComputeUnitsAction (action : ComputeUnitsAction) : Array AstNode :=
+  #[
+    .comment s!"solana.compute_units.action {action.name}"
+  ] ++ callVoidHelperPreservingInput action.label
+
 def pushUniqueMemoryHelper (actions : Array MemoryAction)
     (action : MemoryAction) : Array MemoryAction :=
   if actions.any (fun existing => existing.name == action.name && existing.op == action.op) then
@@ -1753,6 +1922,26 @@ def pushUniqueSysvarHelper (actions : Array SysvarReadAction)
 def uniqueSysvarHelpers (extensions : ProgramExtensions) : Array SysvarReadAction :=
   extensions.sysvarActions.foldl pushUniqueSysvarHelper #[]
 
+def pushUniqueReturnDataHelper (actions : Array ReturnDataAction)
+    (action : ReturnDataAction) : Array ReturnDataAction :=
+  if actions.any (fun existing => existing.name == action.name) then
+    actions
+  else
+    actions.push action
+
+def uniqueReturnDataHelpers (extensions : ProgramExtensions) : Array ReturnDataAction :=
+  extensions.returnDataActions.foldl pushUniqueReturnDataHelper #[]
+
+def pushUniqueComputeUnitsHelper (actions : Array ComputeUnitsAction)
+    (action : ComputeUnitsAction) : Array ComputeUnitsAction :=
+  if actions.any (fun existing => existing.name == action.name) then
+    actions
+  else
+    actions.push action
+
+def uniqueComputeUnitsHelpers (extensions : ProgramExtensions) : Array ComputeUnitsAction :=
+  extensions.computeUnitsActions.foldl pushUniqueComputeUnitsHelper #[]
+
 def lowerPdaAction (action : PdaAction) : Array AstNode :=
   #[
     .comment s!"solana.pda.action {action.name}"
@@ -1773,8 +1962,10 @@ def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String
   let memoryActions := extensions.memoryActions.filter (fun action => action.entrypoint == entrypoint)
   let cryptoHashActions := extensions.cryptoHashActions.filter (fun action => action.entrypoint == entrypoint)
   let sysvarActions := extensions.sysvarActions.filter (fun action => action.entrypoint == entrypoint)
+  let returnDataActions := extensions.returnDataActions.filter (fun action => action.entrypoint == entrypoint)
+  let computeUnitsActions := extensions.computeUnitsActions.filter (fun action => action.entrypoint == entrypoint)
   if pdaActions.isEmpty && cpiActions.isEmpty && memoryActions.isEmpty && cryptoHashActions.isEmpty &&
-      sysvarActions.isEmpty then
+      sysvarActions.isEmpty && returnDataActions.isEmpty && computeUnitsActions.isEmpty then
     #[]
   else
     #[.comment s!"Solana SDK target extension actions for {entrypoint}"] ++
@@ -1782,7 +1973,9 @@ def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String
     cpiActions.foldl (fun acc action => acc ++ lowerCpiAction action) #[] ++
     memoryActions.foldl (fun acc action => acc ++ lowerMemoryAction action) #[] ++
     cryptoHashActions.foldl (fun acc action => acc ++ lowerCryptoHashAction action) #[] ++
-    sysvarActions.foldl (fun acc action => acc ++ lowerSysvarAction action) #[]
+    sysvarActions.foldl (fun acc action => acc ++ lowerSysvarAction action) #[] ++
+    returnDataActions.foldl (fun acc action => acc ++ lowerReturnDataAction action) #[] ++
+    computeUnitsActions.foldl (fun acc action => acc ++ lowerComputeUnitsAction action) #[]
 
 def lowerExtensionErrors : Array AstNode := #[
   .blankLine,
@@ -1827,6 +2020,8 @@ def lowerProgramExtensionsWithBindings
     (uniqueMemoryHelpers extensions).foldl (fun acc action => acc ++ lowerMemoryHelper valueBindings action) #[] ++
     (uniqueCryptoHashHelpers extensions).foldl (fun acc action => acc ++ lowerCryptoHashHelper valueBindings action) #[] ++
     (uniqueSysvarHelpers extensions).foldl (fun acc action => acc ++ lowerSysvarHelper valueBindings action) #[] ++
+    (uniqueReturnDataHelpers extensions).foldl (fun acc action => acc ++ lowerReturnDataHelper valueBindings action) #[] ++
+    (uniqueComputeUnitsHelpers extensions).foldl (fun acc action => acc ++ lowerComputeUnitsHelper valueBindings action) #[] ++
     lowerExtensionErrors
 
 def lowerProgramExtensionsWithAccountBindings

@@ -30,6 +30,7 @@ solana-lean:
     lake env lean --run Tests/SolanaSysvars.lean
     lake env lean --run Tests/SolanaMemory.lean
     lake env lean --run Tests/SolanaCrypto.lean
+    lake env lean --run Tests/SolanaReturnDataCompute.lean
     lake env lean --run Tests/SolanaPdaSeeds.lean
     lake env lean --run Tests/TargetRouting.lean
     lake env lean --run Tests/TokenSpec.lean

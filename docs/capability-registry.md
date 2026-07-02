@@ -55,6 +55,8 @@ remain uniform.
 | `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N |
 | `runtime.allocator` | Target runtime heap allocator contract | N | P | P | Y | P | P | P |
 | `runtime.memory` | Target runtime memory operations | N | N | N | Y | N | N | N |
+| `runtime.return_data` | Target runtime return-data buffer operations | N | N | N | Y | N | N | N |
+| `runtime.compute_units` | Target runtime compute-budget introspection | N | N | N | P | N | N | N |
 | `crosscall.cpi` | Solana CPI with account metas | N | N | N | Y | N | N | N |
 | `zk.circuit` | Compile entrypoints into target circuit definitions | N | N | N | N | N | N | Y |
 | `zk.proof` | Target proof generation or verification flow | N | N | N | N | N | N | P |

@@ -421,20 +421,36 @@ def renderSysvarAction (action : SysvarReadAction) : String :=
   "field = " ++ tomlString action.field.id ++ "\n" ++
   "output_state = " ++ tomlString action.outputState ++ "\n"
 
+def renderReturnDataAction (action : ReturnDataAction) : String :=
+  "[[solana.entrypoint_return_data]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "return_data = " ++ tomlString action.name ++ "\n" ++
+  "op = \"set\"\n" ++
+  "source_state = " ++ tomlString action.sourceState ++ "\n" ++
+  "bytes = " ++ toString action.bytes ++ "\n"
+
+def renderComputeUnitsAction (action : ComputeUnitsAction) : String :=
+  "[[solana.entrypoint_compute_units]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "compute_units = " ++ tomlString action.name ++ "\n" ++
+  "op = \"remaining\"\n" ++
+  "output_state = " ++ tomlString action.outputState ++ "\n" ++
+  "feature_gated = " ++ tomlBool action.featureGated ++ "\n"
+
 def renderActions (extensions : ProgramExtensions) : String :=
   if !hasEntrypointActions extensions then
     ""
   else
+    let actionBlocks :=
+      extensions.pdaActions.map renderPdaAction ++
+      extensions.cpiActions.map renderCpiAction ++
+      extensions.memoryActions.map renderMemoryAction ++
+      extensions.cryptoHashActions.map renderCryptoHashAction ++
+      extensions.sysvarActions.map renderSysvarAction ++
+      extensions.returnDataActions.map renderReturnDataAction ++
+      extensions.computeUnitsActions.map renderComputeUnitsAction
     "\n# Solana SDK entrypoint actions\n" ++
-    String.intercalate "\n" (extensions.pdaActions.map renderPdaAction).toList ++
-    (if extensions.pdaActions.size > 0 && (extensions.cpiActions.size > 0 || extensions.memoryActions.size > 0 || extensions.cryptoHashActions.size > 0 || extensions.sysvarActions.size > 0) then "\n" else "") ++
-    String.intercalate "\n" (extensions.cpiActions.map renderCpiAction).toList ++
-    (if extensions.cpiActions.size > 0 && (extensions.memoryActions.size > 0 || extensions.cryptoHashActions.size > 0 || extensions.sysvarActions.size > 0) then "\n" else "") ++
-    String.intercalate "\n" (extensions.memoryActions.map renderMemoryAction).toList ++
-    (if extensions.memoryActions.size > 0 && (extensions.cryptoHashActions.size > 0 || extensions.sysvarActions.size > 0) then "\n" else "") ++
-    String.intercalate "\n" (extensions.cryptoHashActions.map renderCryptoHashAction).toList ++
-    (if extensions.cryptoHashActions.size > 0 && extensions.sysvarActions.size > 0 then "\n" else "") ++
-    String.intercalate "\n" (extensions.sysvarActions.map renderSysvarAction).toList
+    String.intercalate "\n" actionBlocks.toList
 
 def renderExtensions (extensions : ProgramExtensions) : String :=
   if !hasExtensions extensions then

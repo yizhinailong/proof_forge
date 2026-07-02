@@ -9,3 +9,4 @@ import ProofForge.Solana.Examples.Rent
 import ProofForge.Solana.Examples.EpochSchedule
 import ProofForge.Solana.Examples.Memory
 import ProofForge.Solana.Examples.Crypto
+import ProofForge.Solana.Examples.ReturnDataCompute

@@ -710,6 +710,15 @@ partial progress is visible before the full acceptance criteria close:
       bytes, compare result, and fill pattern on a program-owned account.
       Covered by `Tests/SolanaMemory.lean` and
       `scripts/solana/memory-web3-smoke.sh`.
+- [x] Return-data and compute-budget target extensions now route Solana-only
+      SDK actions through `runtime.return_data` and `runtime.compute_units`
+      capability metadata. Return-data actions lower state-backed byte slices
+      to `sol_set_return_data`; compute-budget actions lower the feature-gated
+      `sol_remaining_compute_units` syscall and write the observed remaining CU
+      value into state. The generated manifest records
+      `[[solana.entrypoint_return_data]]` and
+      `[[solana.entrypoint_compute_units]]`. Covered by
+      `Tests/SolanaReturnDataCompute.lean`.
 - [x] Generated Solana SDK instruction schemas now use a module-wide
       multi-account account list instead of the old single-account manifest.
       The schema includes the state account, PDA accounts, CPI accounts, and
@@ -794,7 +803,9 @@ checkpointId`, plus live `runtime.memory` validation through `sol_memcpy_`,
 It also covers live validation for all current RPC-exposed `EpochSchedule`
 fields through `sol_get_epoch_schedule_sysvar`: `slots_per_epoch`,
 `leader_schedule_slot_offset`, `warmup`, `first_normal_epoch`, and
-`first_normal_slot`.
+`first_normal_slot`. Lean/package-level SDK coverage now includes
+`runtime.return_data` lowering to `sol_set_return_data` and the feature-gated
+`runtime.compute_units` lowering to `sol_remaining_compute_units`.
 The estimates below assume one engineer working on this branch,
 the current direct-assembly architecture staying stable, and local
 `sbpf`/Surfpool/Solana CLI tooling remaining available.
@@ -854,6 +865,11 @@ Completed alpha slices:
   Web3.js, and proves `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and
   `sol_memset_` effects by reading copied value, moved value, compare result,
   and fill bytes from program-owned state.
+- Return-data/compute-units SDK fixture:
+  `Tests/SolanaReturnDataCompute.lean` proves `runtime.return_data` and
+  `runtime.compute_units` route through Solana-only capability metadata, rejects
+  on EVM, and render manifest sections plus sBPF helper calls for
+  `sol_set_return_data` and feature-gated `sol_remaining_compute_units`.
 - Live SHA-256/Keccak-256 syscall fixture:
   `scripts/solana/crypto-hash-web3-smoke.sh` builds and deploys a generated
   Solana-only `crypto.hash` program on Surfpool, invokes `set_preimage`,

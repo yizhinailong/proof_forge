@@ -149,6 +149,18 @@ structure SysvarReadAction where
   outputState : String
   deriving Repr
 
+structure ReturnDataAction where
+  name : String
+  sourceState : String
+  bytes : Nat
+  deriving Repr
+
+structure ComputeUnitsAction where
+  name : String
+  outputState : String
+  featureGated : Bool := true
+  deriving Repr
+
 def kv (key value : String) : TargetMetadata := {
   key := key
   value := value
@@ -314,6 +326,24 @@ def SysvarReadAction.metadata (action : SysvarReadAction) : Array TargetMetadata
     kv "solana.sysvar.kind" action.kind.id,
     kv "solana.sysvar.field" action.field.id,
     kv "solana.sysvar.output_state" action.outputState
+  ]
+
+def ReturnDataAction.metadata (action : ReturnDataAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "return_data",
+    kv "solana.return_data.name" action.name,
+    kv "solana.return_data.op" "set",
+    kv "solana.return_data.source_state" action.sourceState,
+    natKv "solana.return_data.bytes" action.bytes
+  ]
+
+def ComputeUnitsAction.metadata (action : ComputeUnitsAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "compute_units",
+    kv "solana.compute_units.name" action.name,
+    kv "solana.compute_units.op" "remaining",
+    kv "solana.compute_units.output_state" action.outputState,
+    kv "solana.compute_units.feature_gated" (boolValue action.featureGated)
   ]
 
 def systemProgram : String :=
@@ -657,6 +687,42 @@ def epochScheduleFirstNormalSlotToState (name outputState : String) :
     kind := .epochSchedule
     field := .epochScheduleFirstNormalSlot
     outputState := outputState
+  }
+
+def returnDataEntry (action : ReturnDataAction) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .storageScalar
+    "solana.return_data.source_state"
+    (source? := some action.sourceState)
+    (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .runtimeReturnData
+    "solana.return_data.set"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def setReturnDataFromState (name sourceState : String) (bytes : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  returnDataEntry {
+    name := name
+    sourceState := sourceState
+    bytes := bytes
+  }
+
+def computeUnitsEntry (action : ComputeUnitsAction) : ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .storageScalar
+    "solana.compute_units.output_state"
+    (source? := some action.outputState)
+    (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .runtimeComputeUnits
+    "solana.compute_units.remaining"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def remainingComputeUnitsToState (name outputState : String) (featureGated : Bool := true) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  computeUnitsEntry {
+    name := name
+    outputState := outputState
+    featureGated := featureGated
   }
 
 def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do
