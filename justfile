@@ -58,6 +58,10 @@ solana-system-cpi-web3:
 solana-pinocchio-system-transfer-equivalence:
     scripts/solana/pinocchio-system-transfer-equivalence.sh
 
+# Build/deploy ProofForge and Pinocchio System transfer programs and compare behavior on Surfpool.
+solana-pinocchio-system-transfer-live-equivalence:
+    scripts/solana/pinocchio-system-transfer-live-equivalence.sh
+
 # Run a live System Program create_account CPI smoke on Surfpool with Web3.js.
 solana-system-create-account-cpi-web3:
     scripts/solana/system-create-account-cpi-web3-smoke.sh

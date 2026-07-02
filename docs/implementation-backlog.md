@@ -883,12 +883,19 @@ Completed beta scaffolding slices:
   ProofForge System CPI artifact and compares its instruction tag, parameter
   ABI, account order, signer/writable constraints, CPI protocol/data layout,
   and state-write contract against the reference manifest/source.
+- Pinocchio System transfer live-equivalence harness:
+  `scripts/solana/pinocchio-system-transfer-live-equivalence.sh` is wired to
+  build the ProofForge ELF and the checked-in Pinocchio reference ELF, deploy
+  both programs to one Surfpool instance, invoke the same Web3.js transfer
+  scenario for each, and compare recipient lamport deltas plus state writes.
+  The harness currently skips when `cargo-build-sbf` cannot find Solana rustc/
+  platform-tools.
 
 Remaining priority slices:
 
-1. Rust/Pinocchio equivalence fixtures (2-4 days): build/deploy the System
-   transfer Pinocchio reference ELF and run it plus the ProofForge ELF through
-   the same Web3.js harness, then add matching reference programs for
+1. Rust/Pinocchio equivalence fixtures (2-4 days): make the System transfer
+   live-equivalence harness pass in CI/local environments by installing Solana
+   rustc/platform-tools reliably, then add matching reference programs for
    create-account and SPL Token account schemas. The key comparison points are
    account order, signer/writable checks, CPI instruction data, and observable
    state changes.

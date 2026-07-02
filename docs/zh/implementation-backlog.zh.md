@@ -431,14 +431,20 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
   ProofForge System CPI artifact，并将 instruction tag、parameter ABI、
   account order、signer/writable constraint、CPI protocol/data layout 和
   state-write contract 与 reference manifest/source 对比。
+- Pinocchio System transfer live-equivalence harness：
+  `scripts/solana/pinocchio-system-transfer-live-equivalence.sh` 已接好
+  ProofForge ELF 与 checked-in Pinocchio reference ELF 的构建、同一
+  Surfpool instance 部署、同一 Web3.js transfer scenario 调用，以及
+  recipient lamport delta 和 state write 对比。若 `cargo-build-sbf` 找不到
+  Solana rustc/platform-tools，该 harness 会 skip。
 
 剩余优先切片：
 
-1. Rust/Pinocchio equivalence fixture（2-4 天）：构建/部署 System transfer
-   Pinocchio reference ELF，并让它和 ProofForge ELF 通过同一个 Web3.js
-   harness 对比；然后为 create-account 和 SPL Token account schema 增加
-   对应 reference program。关键比较点是 account order、signer/writable
-   check、CPI instruction data 和可观察 state change。
+1. Rust/Pinocchio equivalence fixture（2-4 天）：在 CI/local 环境稳定安装
+   Solana rustc/platform-tools，让 System transfer live-equivalence harness
+   通过；然后为 create-account 和 SPL Token account schema 增加对应
+   reference program。关键比较点是 account order、signer/writable check、
+   CPI instruction data 和可观察 state change。
 2. 更丰富的 return data、sysvars、crypto、logs 与 memory helpers（3-5 天）：
    将当前 scalar `sol_log_64_` event 路径扩展到 string/base64/Anchor-style
    与 indexed event 形态；暴露 `sol_get_return_data`、`u64` 之外的 typed

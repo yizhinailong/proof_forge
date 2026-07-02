@@ -21,6 +21,16 @@ PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1 \
   scripts/solana/pinocchio-system-transfer-equivalence.sh
 ```
 
+The live dual-deploy harness is:
+
+```sh
+scripts/solana/pinocchio-system-transfer-live-equivalence.sh
+```
+
+It requires `cargo-build-sbf` to find Solana rustc/platform-tools. In
+environments where `cargo` is owned by `rustup`, set
+`PROOF_FORGE_PINOCCHIO_USE_RUSTUP=1`.
+
 Primary references:
 
 - Pinocchio entrypoint, `no_allocator!`, and `cpi` feature docs:
