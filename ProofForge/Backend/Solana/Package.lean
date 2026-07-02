@@ -10,6 +10,9 @@ module owns the deployment-package text files around that assembly.
 -/
 
 import ProofForge.IR.Contract
+import ProofForge.Contract.Spec
+import ProofForge.Target.Adapter
+import ProofForge.Target.Registry
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.SbpfAsm
 
@@ -67,5 +70,34 @@ def renderPackage (projectName : String) (module : Module) : Except SbpfAsm.Lowe
     libRsPath,
     files
   }
+
+def renderPackageWithPlan (projectName : String) (module : Module) (plan : ProofForge.Target.CapabilityPlan) :
+    Except SbpfAsm.LowerError RenderedPackage := do
+  let nodes ← SbpfAsm.lowerModule module
+  let asm := ProofForge.Backend.Solana.Asm.renderNodes nodes
+  let manifest := Manifest.renderManifestWithPlan module plan ++ "\n"
+  let asmFile := asmPath projectName
+  let files := #[
+    { path := asmFile, contents := asm },
+    { path := manifestPath, contents := manifest },
+    { path := cargoTomlPath, contents := renderCargoToml projectName },
+    { path := libRsPath, contents := "" }
+  ]
+  .ok {
+    projectName,
+    asmPath := asmFile,
+    manifestPath,
+    cargoTomlPath,
+    libRsPath,
+    files
+  }
+
+def renderPackageForSpec (projectName : String) (spec : ProofForge.Contract.ContractSpec) :
+    Except SbpfAsm.LowerError RenderedPackage := do
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
+    | .ok plan => .ok plan
+    | .error err => .error (SbpfAsm.diagnosticError err)
+  renderPackageWithPlan projectName spec.module plan
 
 end ProofForge.Backend.Solana.Package
