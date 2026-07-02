@@ -504,11 +504,18 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   `ContractSpec` 字符串拼装。`ProofForge.Contract.Examples.ValueVault`
   已经使用该层，并且 source 中刻意保留 `selector? = none`。
 - Declaration-derived IR names：
-  `state_ref`、`binding_ref`、`method_ref` 和 `event_ref` 宏现在会从 Lean
-  declaration 派生 IR 名称，因此 ValueVault source 不再重复写 state slot、
-  input、local、method name 或 event name 的 raw string。测试会先断言派生出的
-  snake-case state/parameter/method 名称和 PascalCase event 名称，再把同一份
-  source 路由到 EVM 与 Solana。
+  `state_decl`、`binding_decl`、`method_decl`、`method_return_decl` 和
+  `event_decl` 宏现在会从 Lean declaration 派生 IR 名称，因此 portable
+  Counter 与 ValueVault source 不再重复写 state slot、input、local、method
+  name 或 event name 的 raw string。测试会先断言派生出的 snake-case
+  state/parameter/method 名称和 PascalCase event 名称，再把同一份 source
+  路由到 EVM 与 Solana。
+- 面向源码的 declaration facade：
+  `contract_decl Name do ...` 会从 Lean identifier 派生 module name，并将
+  `ContractSpec` 保持为编译器内部中间产物，而不是用户可见的 authoring model。
+  `ProofForge.Contract.Examples.Counter` 和
+  `ProofForge.Contract.Examples.ValueVault` 现在都使用该 facade；旧的 `*_ref`
+  宏仍作为兼容 shim 保留，供较旧的下游源码使用。
 - Solana typed account surface：
   `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
   `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
@@ -528,10 +535,11 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 
 - `ProofForge.Contract.Surface` 是一个 typed builder surface，还不是最终的
   Learn 合约语法。它当前先通过从 declaration 派生常见 IR 名称，把 raw
-  string/spec 拼装收束起来；目标终态是语言级合约编写方式，让 state、
-  entrypoint、account、constraint 和 target capability 看起来像正常 Learn
-  declaration 与 expression，而 selector、instruction tag、IDL/client
-  metadata 和 package artifact 由 target extension 层在编译阶段派生。
+  string/spec 拼装收束起来，并先把公开 portable 示例里的直接 builder 字符串
+  隐藏掉；目标终态是语言级合约编写方式，让 state、entrypoint、account、
+  constraint 和 target capability 看起来像正常 Learn declaration 与
+  expression，而 selector、instruction tag、IDL/client metadata 和 package
+  artifact 由 target extension 层在编译阶段派生。
 
 剩余优先切片：
 

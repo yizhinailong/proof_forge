@@ -8,15 +8,15 @@ open ProofForge.Solana.Surface
 
 namespace State
 
-state_ref nonce : .u64
+state_decl nonce : .u64
 
 end State
 
 namespace Local
 
-binding_ref amount : .u64
-binding_ref vault_bump : .u64
-binding_ref n : .u64
+binding_decl amount : .u64
+binding_decl vault_bump : .u64
+binding_decl n : .u64
 
 end Local
 
@@ -45,8 +45,8 @@ end Cpi
 
 namespace Method
 
-method_ref «initialize» : #[]
-method_ref touch : #[]
+method_decl «initialize» : #[]
+method_decl touch : #[]
 
 end Method
 
@@ -59,7 +59,7 @@ def vaultSignerSeeds : Array String :=
     ProofForge.Solana.Surface.bindingName Local.vault_bump]
 
 def spec : ProofForge.Contract.ContractSpec :=
-  contract "SolanaVault" do
+  contract_decl SolanaVault do
     scalar State.nonce
     ProofForge.Solana.Surface.bumpAllocator
     ProofForge.Solana.Surface.writableAccount Account.vault_account (owner := "program")

@@ -959,11 +959,18 @@ Completed developer-surface slices:
   `ContractSpec` string plumbing. `ProofForge.Contract.Examples.ValueVault`
   uses this layer and intentionally leaves `selector? = none` in the source.
 - Declaration-derived IR names:
-  `state_ref`, `binding_ref`, `method_ref`, and `event_ref` macros now derive
-  IR names from Lean declarations, so the ValueVault source no longer repeats
-  raw strings for state slots, inputs, locals, method names, or event names.
-  Tests assert the derived snake-case state/parameter/method names and
-  PascalCase event names before routing the same source across EVM and Solana.
+  `state_decl`, `binding_decl`, `method_decl`, `method_return_decl`, and
+  `event_decl` macros now derive IR names from Lean declarations, so the
+  portable Counter and ValueVault sources no longer repeat raw strings for
+  state slots, inputs, locals, method names, or event names. Tests assert the
+  derived snake-case state/parameter/method names and PascalCase event names
+  before routing the same source across EVM and Solana.
+- Source-facing declaration facade:
+  `contract_decl Name do ...` derives the module name from a Lean identifier
+  and keeps `ContractSpec` as the compiler-owned intermediate product rather
+  than the user-visible authoring model. `ProofForge.Contract.Examples.Counter`
+  and `ProofForge.Contract.Examples.ValueVault` now use this facade; the older
+  `*_ref` macros remain as compatibility shims for older downstream source.
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
@@ -984,7 +991,8 @@ Current boundary:
 
 - `ProofForge.Contract.Surface` is a typed builder surface, not the final Learn
   contract syntax. It deliberately reduces raw string/spec plumbing first by
-  deriving common IR names from declarations, but the desired end state is
+  deriving common IR names from declarations and by hiding direct builder
+  strings from the public portable examples, but the desired end state is
   language-level contract authoring where state, entrypoints, accounts,
   constraints, and target capabilities read as normal Learn declarations and
   expressions, with the target extension layer deriving chain-specific

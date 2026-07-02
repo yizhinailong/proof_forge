@@ -61,11 +61,23 @@ macro "state_ref " name:ident " : " type:term : command => do
   let nameLit := identNameLit name
   `(def $name : ScalarRef := slot $nameLit $type)
 
+macro "state_decl " name:ident " : " type:term : command => do
+  let nameLit := identNameLit name
+  `(def $name : ScalarRef := slot $nameLit $type)
+
 macro "binding_ref " name:ident " : " type:term : command => do
   let nameLit := identNameLit name
   `(def $name : BindingRef := binding $nameLit $type)
 
+macro "binding_decl " name:ident " : " type:term : command => do
+  let nameLit := identNameLit name
+  `(def $name : BindingRef := binding $nameLit $type)
+
 macro "event_ref " name:ident : command => do
+  let nameLit := identNameLit name
+  `(def $name : EventRef := event $nameLit)
+
+macro "event_decl " name:ident : command => do
   let nameLit := identNameLit name
   `(def $name : EventRef := event $nameLit)
 
@@ -77,22 +89,34 @@ macro "method_ref " name:ident " returns " "(" returns:term ")" " : " params:ter
   let nameLit := identNameLit name
   `(def $name : MethodRef := method $nameLit $params $returns)
 
+macro "method_decl " name:ident " : " params:term : command => do
+  let nameLit := identNameLit name
+  `(def $name : MethodRef := method $nameLit $params)
+
+macro "method_return_decl " name:ident " : " retTy:term " := " params:term : command => do
+  let nameLit := identNameLit name
+  `(def $name : MethodRef := method $nameLit $params $retTy)
+
+macro "contract_decl " name:ident body:term : term => do
+  let nameLit := identNameLit name
+  `(contract $nameLit $body)
+
 def scalar (ref : ScalarRef) : ModuleM Unit :=
   ProofForge.Contract.Builder.scalarState ref.id ref.type
 
-def entry (method : MethodRef) (body : EntryM Unit) : ModuleM Unit :=
+def entry (methodRef : MethodRef) (body : EntryM Unit) : ModuleM Unit :=
   ProofForge.Contract.Builder.entryFull
-    method.name
-    method.selector?
-    method.returns
-    (method.params.map fun param => (param.id, param.type))
+    methodRef.name
+    methodRef.selector?
+    methodRef.returns
+    (methodRef.params.map fun param => (param.id, param.type))
     body
 
-def bind (ref : BindingRef) (value : ProofForge.IR.Expr) : EntryM Unit :=
-  ProofForge.Contract.Builder.letBind ref.id ref.type value
+def bind (bindingRef : BindingRef) (value : ProofForge.IR.Expr) : EntryM Unit :=
+  ProofForge.Contract.Builder.letBind bindingRef.id bindingRef.type value
 
-def ref (binding : BindingRef) : ProofForge.IR.Expr :=
-  ProofForge.Contract.Builder.localVar binding.id
+def ref (bindingRef : BindingRef) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Builder.localVar bindingRef.id
 
 def read (slot : ScalarRef) : ProofForge.IR.Expr :=
   ProofForge.Contract.Builder.storageScalarRead slot.id
@@ -104,8 +128,8 @@ def write (slot : ScalarRef) (value : ProofForge.IR.Expr) : EntryM Unit :=
 def field (name : String) (value : ProofForge.IR.Expr) : EventField :=
   { name, value }
 
-def fieldOf (binding : BindingRef) : EventField :=
-  field binding.id (ref binding)
+def fieldOf (bindingRef : BindingRef) : EventField :=
+  field bindingRef.id (ref bindingRef)
 
 def fieldAs (slot : ScalarRef) (value : ProofForge.IR.Expr) : EventField :=
   field slot.id value
@@ -114,8 +138,8 @@ def emitNamed (name : String) (fields : Array EventField) : EntryM Unit :=
   ProofForge.Contract.Builder.effect
     (ProofForge.Contract.Builder.eventEmit name (fields.map fun field => (field.name, field.value)))
 
-def emit (event : EventRef) (fields : Array EventField) : EntryM Unit :=
-  emitNamed event.name fields
+def emit (eventRef : EventRef) (fields : Array EventField) : EntryM Unit :=
+  emitNamed eventRef.name fields
 
 def ret (value : ProofForge.IR.Expr) : EntryM Unit :=
   ProofForge.Contract.Builder.ret value

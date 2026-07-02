@@ -14,73 +14,73 @@ emission rather than written in this source file.
 
 namespace State
 
-state_ref balance : .u64
-state_ref released : .u64
-state_ref fees : .u64
-state_ref last_value : .u64
-state_ref last_checkpoint : .u64
-state_ref operations : .u64
+state_decl balance : .u64
+state_decl released : .u64
+state_decl fees : .u64
+state_decl last_value : .u64
+state_decl last_checkpoint : .u64
+state_decl operations : .u64
 
 end State
 
 namespace Input
 
-binding_ref initial : .u64
-binding_ref amount : .u64
-binding_ref gross : .u64
-binding_ref fee_bps : .u64
+binding_decl initial : .u64
+binding_decl amount : .u64
+binding_decl gross : .u64
+binding_decl fee_bps : .u64
 
 end Input
 
 namespace Local
 
-binding_ref checkpoint : .u64
-binding_ref current : .u64
-binding_ref next : .u64
-binding_ref ops : .u64
-binding_ref next_ops : .u64
-binding_ref fee : .u64
-binding_ref net : .u64
-binding_ref current_fees : .u64
-binding_ref next_fees : .u64
-binding_ref released_before : .u64
-binding_ref released_next : .u64
-binding_ref balance_now : .u64
-binding_ref released_now : .u64
-binding_ref fees_now : .u64
+binding_decl checkpoint : .u64
+binding_decl current : .u64
+binding_decl next : .u64
+binding_decl ops : .u64
+binding_decl next_ops : .u64
+binding_decl fee : .u64
+binding_decl net : .u64
+binding_decl current_fees : .u64
+binding_decl next_fees : .u64
+binding_decl released_before : .u64
+binding_decl released_next : .u64
+binding_decl balance_now : .u64
+binding_decl released_now : .u64
+binding_decl fees_now : .u64
 
 end Local
 
 namespace Method
 
-method_ref «initialize» : #[Input.initial]
+method_decl «initialize» : #[Input.initial]
 
-method_ref deposit : #[Input.amount]
+method_decl deposit : #[Input.amount]
 
-method_ref charge_fee : #[Input.gross, Input.fee_bps]
+method_decl charge_fee : #[Input.gross, Input.fee_bps]
 
-method_ref release : #[Input.amount]
+method_decl release : #[Input.amount]
 
-method_ref snapshot returns (.u64) : #[]
+method_return_decl snapshot : .u64 := #[]
 
-method_ref get_balance returns (.u64) : #[]
+method_return_decl get_balance : .u64 := #[]
 
-method_ref get_net_value returns (.u64) : #[]
+method_return_decl get_net_value : .u64 := #[]
 
 end Method
 
 namespace Event
 
-event_ref VaultInitialized
-event_ref ValueDeposited
-event_ref ValueCharged
-event_ref ValueReleased
-event_ref ValueSnapshot
+event_decl VaultInitialized
+event_decl ValueDeposited
+event_decl ValueCharged
+event_decl ValueReleased
+event_decl ValueSnapshot
 
 end Event
 
 def spec : ContractSpec :=
-  contract "ValueVault" do
+  contract_decl ValueVault do
     scalar State.balance
     scalar State.released
     scalar State.fees
