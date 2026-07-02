@@ -736,6 +736,15 @@ partial progress is visible before the full acceptance criteria close:
       serialized account layout under direct account mapping and keeps it in
       `r9` so internal helper calls do not lose it across callee stack frames.
       Coverage: `just solana-system-cpi-web3` / V-GATE-SOLANA-10.
+- [x] System Program `create_account` CPI now has a live Surfpool/Web3.js
+      behavior gate. `ProofForge.Solana.Examples.SystemCreateAccountCpi`
+      builds a generated `--solana-system-create-account-cpi-elf` fixture whose
+      entrypoint reads scalar `lamports` and `space` instruction parameters,
+      performs a System Program `create_account` CPI with payer and new-account
+      signers, creates a program-owned account, and records both values in the
+      existing program-owned state account. The Web3.js harness checks the new
+      account owner, data length, lamports, and recorded state values. Coverage:
+      `just solana-system-create-account-cpi-web3` / V-GATE-SOLANA-11.
 - [x] Entry instruction-data decoding now treats byte 0 as the entrypoint tag
       and decodes packed scalar parameters from `instruction_data+1` into
       stack locals. The initial scalar ABI supports `U64`, `U32`, and `Bool`,
@@ -754,9 +763,9 @@ Counter deployment through Surfpool/Web3.js, SDK capability metadata, generated
 manifest/artifact output, module-wide multi-account schemas, standard
 System/SPL Token CPI data packing, bump-allocator metadata, scalar entrypoint
 parameter decoding, typed PDA seed lowering, and live System Program transfer
-CPI validation. The estimates below assume one engineer working on this branch,
-the current direct-assembly architecture staying stable, and local
-`sbpf`/Surfpool/Solana CLI tooling remaining available.
+plus create-account CPI validation. The estimates below assume one engineer
+working on this branch, the current direct-assembly architecture staying
+stable, and local `sbpf`/Surfpool/Solana CLI tooling remaining available.
 
 | Level | Estimated effort | Done when |
 |---|---:|---|
@@ -783,13 +792,17 @@ Completed alpha slices:
   `scripts/solana/system-cpi-web3-smoke.sh` builds and deploys a generated
   transfer CPI program on Surfpool, invokes it through Web3.js, and proves both
   the lamport movement and state write.
+- Live System Program create-account CPI fixture:
+  `scripts/solana/system-create-account-cpi-web3-smoke.sh` builds and deploys a
+  generated create-account CPI program on Surfpool, invokes it through Web3.js,
+  and proves the new account owner/space/lamports plus state writes.
 
 Remaining priority slices:
 
 1. Live CPI validation (2-3 days): extend the proven System Program transfer
-   smoke to System Program create-account and SPL Token transfer_checked/
-   mint_to/burn/approve/revoke against Surfpool/Web3.js, then compare behavior
-   with Rust/Pinocchio reference fixtures.
+   and create-account smokes to SPL Token transfer_checked/mint_to/burn/
+   approve/revoke against Surfpool/Web3.js, then compare behavior with
+   Rust/Pinocchio reference fixtures.
 2. Logs, return data, sysvars, crypto, and memory helpers (3-5 days): expose
    `sol_log*`, `sol_set_return_data`, `sol_get_return_data`, clock/rent sysvar
    reads, `sol_sha256`/`sol_keccak256`/`sol_blake3`, and

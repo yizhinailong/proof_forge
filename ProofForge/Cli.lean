@@ -56,6 +56,7 @@ import ProofForge.IR.Examples.U32StorageScalarProbe
 import ProofForge.Target
 import ProofForge.Solana.Examples.Vault
 import ProofForge.Solana.Examples.SystemCpi
+import ProofForge.Solana.Examples.SystemCreateAccountCpi
 
 open Lean
 open System
@@ -150,6 +151,7 @@ inductive EmitMode where
   | solanaSdkSbpf
   | solanaElf
   | solanaSystemCpiElf
+  | solanaSystemCreateAccountCpiElf
   | sbpfAsm
   deriving BEq, Inhabited
 
@@ -252,6 +254,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSdkSbpf
   | .solanaElf
   | .solanaSystemCpiElf
+  | .solanaSystemCreateAccountCpiElf
   | .sbpfAsm => true
   | _ => false
 
@@ -353,6 +356,7 @@ def usage : String :=
     "  proof-forge --emit-solana-sdk-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-system-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-system-create-account-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -1865,6 +1869,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaElf }
   | "--solana-system-cpi-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSystemCpiElf }
+  | "--solana-system-create-account-cpi-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSystemCreateAccountCpiElf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
@@ -2993,15 +2999,16 @@ def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
-def compileSolanaSystemCpiElf (opts : CliOptions) : IO UInt32 := do
-  let output := opts.output?.getD (FilePath.mk "build/solana/SystemCpi.so")
+def compileSolanaSpecElf (opts : CliOptions) (defaultOutput : FilePath)
+    (fallbackProjectName fixture : String) (spec : ProofForge.Contract.ContractSpec) :
+    IO UInt32 := do
+  let output := opts.output?.getD defaultOutput
   let projectName := match output.fileName with
-    | some n => (n.splitOn ".").headD "system-cpi"
-    | none => "system-cpi"
+    | some n => (n.splitOn ".").headD fallbackProjectName
+    | none => fallbackProjectName
   let projectDir := match output.parent with
     | some parent => parent / s!"{projectName}-sbpf-project"
     | none => FilePath.mk s!"{projectName}-sbpf-project"
-  let spec := ProofForge.Solana.Examples.SystemCpi.spec
   let plan ←
     match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
     | .ok plan => pure plan
@@ -3039,7 +3046,7 @@ def compileSolanaSystemCpiElf (opts : CliOptions) : IO UInt32 := do
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
         ("targetFamily", jsonString "solana"),
         ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
-        ("fixture", jsonString "solana-system-cpi-elf"),
+        ("fixture", jsonString fixture),
         ("sourceKind", jsonString "contract-sdk"),
         ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
         ("sourceModule", jsonString spec.name),
@@ -3071,6 +3078,20 @@ def compileSolanaSystemCpiElf (opts : CliOptions) : IO UInt32 := do
       return 0
   | .error err =>
       throw <| IO.userError err.render
+
+def compileSolanaSystemCpiElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/SystemCpi.so")
+    "system-cpi"
+    "solana-system-cpi-elf"
+    ProofForge.Solana.Examples.SystemCpi.spec
+
+def compileSolanaSystemCreateAccountCpiElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/SystemCreateAccountCpi.so")
+    "system-create-account-cpi"
+    "solana-system-create-account-cpi-elf"
+    ProofForge.Solana.Examples.SystemCreateAccountCpi.spec
 
 def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/entrypoint.s")
@@ -3210,6 +3231,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaSdkSbpf => compileSolanaSdkSbpf opts
   | .solanaElf => compileSolanaElf opts
   | .solanaSystemCpiElf => compileSolanaSystemCpiElf opts
+  | .solanaSystemCreateAccountCpiElf => compileSolanaSystemCreateAccountCpiElf opts
   | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli
