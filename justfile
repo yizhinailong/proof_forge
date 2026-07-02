@@ -60,6 +60,10 @@ portable-value-vault:
 learn-token-smoke:
     scripts/portable/learn-token-smoke.sh
 
+# Run the Learn-token ERC-20 artifact in a local EthereumJS VM.
+learn-token-evm-vm:
+    scripts/evm/learn-token-erc20-vm-smoke.sh
+
 # Run Solana PDA typed-seed Web3.js derivation smoke. Skips when Node/npm are unavailable.
 solana-pda-web3:
     scripts/solana/pda-web3-smoke.sh

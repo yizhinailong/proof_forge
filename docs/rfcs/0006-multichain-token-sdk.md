@@ -133,8 +133,10 @@ Solana uses existing capabilities such as `account.explicit`, `crosscall.cpi`,
 2. **Done:** add Learn token source parsing and token-plan artifact metadata
    through `proof-forge --learn-token --target <id>`.
 3. **Partially done:** add EVM ERC-20 Yul/bytecode emission with standard core
-   selectors and Transfer/Approval event topics. Remaining work: Foundry/Web3
-   behavior tests and stronger access-control policies for optional minting.
+   selectors and Transfer/Approval event topics. The generated creation
+   bytecode now has an EthereumJS VM behavior gate for standard ERC-20 calls
+   and event topics. Remaining work: broader Foundry/Web3 coverage and stronger
+   access-control policies for optional minting.
 4. Add Solana SPL Token plan rendering and Web3.js `@solana/spl-token`
    validation.
 5. Add Token-2022 feature routing.

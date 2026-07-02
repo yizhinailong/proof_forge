@@ -1058,9 +1058,13 @@ EVM 上生成 ERC-20 合约，还是在 Solana 上生成 SPL Token / Token-2022
 - 已完成：增加 `scripts/portable/learn-token-smoke.sh` / `just
   learn-token-smoke`，从 Learn source 同时验证 EVM ERC-20 token artifact 路径
   和 Solana Token-2022 plan 路径。
+- 已完成：增加 `scripts/evm/learn-token-erc20-vm-smoke.sh` / `just
+  learn-token-evm-vm`，在 EthereumJS VM 中部署生成的 ERC-20 creation
+  bytecode，并验证标准 ERC-20 调用、Transfer/Approval topic，以及余额不足
+  revert 行为。
 - 实现 EVM ERC-20 降级：ABI/selectors、balance/allowance storage、total
   supply、transfer/approve/transferFrom、mint/burn 选项、events，以及
-  Foundry/Web3 行为测试。
+  更广的 Foundry/Web3 行为测试。
 - 实现 Solana SPL Token plan 渲染：mint 创建、associated token account
   创建、mint_to、transfer_checked、approve、burn、authority 变更，并通过
   `@solana/spl-token` 做 Web3.js 验证。

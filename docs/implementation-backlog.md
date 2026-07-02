@@ -1722,9 +1722,13 @@ Tasks:
 - Done: add `scripts/portable/learn-token-smoke.sh` / `just
   learn-token-smoke` to validate the EVM ERC-20 token artifact path and the
   Solana Token-2022 plan path from Learn source.
+- Done: add `scripts/evm/learn-token-erc20-vm-smoke.sh` / `just
+  learn-token-evm-vm` to deploy the generated ERC-20 creation bytecode in an
+  EthereumJS VM and validate standard ERC-20 calls, Transfer/Approval topics,
+  and insufficient-balance revert behavior.
 - Implement EVM ERC-20 lowering: ABI/selectors, balance/allowance storage,
   total supply, transfer/approve/transferFrom, mint/burn options, events, and
-  Foundry/Web3 behavior tests.
+  broader Foundry/Web3 behavior tests.
 - Implement Solana SPL Token plan rendering: mint creation, associated token
   account creation, mint_to, transfer_checked, approve, burn, authority changes,
   and Web3.js validation through `@solana/spl-token`.
