@@ -107,7 +107,7 @@ test when the syscall changes observable chain behavior.
 | Family | Current status | Next validation |
 |---|---|---|
 | Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
-| PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; static ASCII seed byte buffers and Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; assembly builds | Add typed UTF-8/account-pubkey/bump seed packing, validate output account/pubkey, add Web3.js PDA fixture |
+| PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; typed seed descriptors cover literal/UTF-8 bytes, account pubkeys, bump seeds, and scalar instruction-data seeds; Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; derived pubkeys can be validated against declared PDA accounts; assembly builds | Add Web3.js PDA fixture against `PublicKey.findProgramAddressSync`, then add `sol_try_find_program_address` support |
 | CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; assembly builds | Compare live CPI behavior against Rust/Pinocchio |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
@@ -414,7 +414,7 @@ the portable IR. Instead, Solana-specific SDK calls are routed through
 
 ```lean
 entrySelector "touch" "62de7396" do
-  derivePda "vault" #["vault", "authority"]
+  derivePda "vault" #[literalSeed "vault", accountSeed "authority"]
     (bump? := some "vault_bump")
     (account? := some "vault_account")
     (isSigner := true)
@@ -470,6 +470,17 @@ multi-account input layout when the account appears in the module schema. CPI
 value sources can bind to scalar state offsets, numeric literals, or decoded
 entrypoint parameters.
 
+PDA helper metadata now carries both a compatibility `seeds` list and
+target-facing typed seed descriptors. Bare strings remain literal seed bytes for
+backward compatibility; SDK helpers such as `literalSeed`, `utf8Seed`,
+`accountSeed`, `bumpSeed`, and `paramSeed` make the source explicit for Solana
+lowering. The Solana target extension consumes those descriptors, appends the
+declared `bump?` as an effective bump seed, and emits `typed_seeds` in
+`manifest.toml` plus `typedSeeds` in `proof-forge-artifact.json`. This remains
+a target-extension concern: portable IR and the chain-neutral SDK surface only
+see capability intent, while `--target solana-sbpf-asm` decides how those
+capabilities are packed into the Solana syscall ABI.
+
 The current instruction-data ABI reserves byte 0 for the ProofForge entrypoint
 tag. Packed scalar parameters start at `instruction_data+1`, in entrypoint
 parameter order, with little-endian `U64`/`U32` loads and one-byte `Bool` loads.
@@ -491,9 +502,13 @@ runtime tests that exercise live CPI paths.
 
 PDA helper lowering:
 1. Allocate stack space for seed data + result buffer (32 byte).
-2. Pack seeds (each seed requires ptr+len pair).
+2. Pack typed seeds into Solana `Slice { ptr, len }` entries: literal/UTF-8
+   seeds are copied into stack buffers, account seeds point at input account
+   pubkeys, bump seeds are one byte, and scalar instruction-data seeds are
+   copied from the decoded fixed input offset.
 3. `call sol_create_program_address`.
-4. Store result + bump.
+4. Restore the Solana input pointer and, when `account?` is declared, compare
+   the 32-byte derived pubkey with the declared account pubkey before returning.
 
 ### Effect lowering: events
 
@@ -788,7 +803,7 @@ Phase 3 is split into verifiable SDK completeness levels rather than one large
 
 | Level | Estimated effort | Scope |
 |---|---:|---|
-| SDK alpha | 4-6 focused engineering days | Complete typed PDA seeds, validate System/SPL CPI live through Surfpool/Web3.js, and expose basic logs/return-data helpers. Instruction ABI bounds/schema metadata is already in place. |
+| SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. Instruction ABI bounds/schema metadata and typed PDA seed lowering are already in place. |
 | SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. |
 | Anchor/Pinocchio-class surface | 4-6 focused weeks after beta | Add account constraints, typed account/data wrappers, IDL/client generation, richer SPL/Token-2022 helper coverage, and SDK-facing diagnostics. |
 

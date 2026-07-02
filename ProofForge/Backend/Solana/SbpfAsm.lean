@@ -588,6 +588,7 @@ def buildStateCpiValueBindings (module : IR.Module) (stateDataOff : Nat) : Array
   buildStateOffsetsAtBase module stateDataOff |>.map fun field => {
     name := field.id
     absOff := field.absOff
+    byteSize := 8
     sourceKind := "state"
   }
 
@@ -604,6 +605,7 @@ def buildEntrypointParamCpiValueBindings (module : IR.Module) (instrDataOff : Na
           let binding := {
             name := name
             absOff := instrDataOff + payloadOff
+            byteSize := byteSize
             sourceKind := "instruction param"
           }
           if ambiguous.any (fun existing => existing == name) then

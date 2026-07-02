@@ -1280,10 +1280,17 @@ def solanaExtensionAccountJson (account : ProofForge.Backend.Solana.Extension.Ac
     ("signer", jsonString account.signer)
   ]
 
+def solanaPdaSeedJson (seed : ProofForge.Backend.Solana.Extension.PdaSeed) : String :=
+  jsonObject #[
+    ("kind", jsonString seed.kind.id),
+    ("value", jsonString seed.value)
+  ]
+
 def solanaPdaJson (pda : ProofForge.Backend.Solana.Extension.PdaDerive) : String :=
   jsonObject #[
     ("name", jsonString pda.name),
-    ("seeds", jsonStringArray pda.seeds),
+    ("seeds", jsonStringArray pda.seedValues),
+    ("typedSeeds", jsonArray (pda.effectiveSeeds.map solanaPdaSeedJson)),
     ("bump", match pda.bump? with | some bump => jsonString bump | none => "null"),
     ("account", match pda.account? with | some account => jsonString account | none => "null"),
     ("signer", jsonBool pda.signer)

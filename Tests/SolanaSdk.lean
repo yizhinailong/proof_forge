@@ -55,7 +55,7 @@ def scopedCpiCall? (plan : CapabilityPlan) (name entrypoint : String) : Option C
 
 def extensionSpec : ProofForge.Contract.ContractSpec :=
   build "SolanaVault" do
-    pdaAccount "vault" #["vault", "authority"]
+    pdaAccount "vault" #[literalSeed "vault", accountSeed "authority"]
       (bump? := some "vault_bump")
       (account? := some "vault_account")
       (isSigner := true)
@@ -79,7 +79,7 @@ def extensionSpec : ProofForge.Contract.ContractSpec :=
       (signerSeeds := #["vault", "vault_bump"])
 
     entry "touch" do
-      derivePda "vault" #["vault", "authority"]
+      derivePda "vault" #[literalSeed "vault", accountSeed "authority"]
         (bump? := some "vault_bump")
         (account? := some "vault_account")
         (isSigner := true)
@@ -123,6 +123,7 @@ def requireSolanaPlan (plan : CapabilityPlan) : IO Unit := do
   requireMetadata pdaCall "solana.extension" "pda"
   requireMetadata pdaCall "solana.pda.name" "vault"
   requireMetadata pdaCall "solana.pda.seeds" "vault,authority"
+  requireMetadata pdaCall "solana.pda.seed_descriptors" "literal:vault,account:authority"
   requireMetadata pdaCall "solana.pda.bump" "vault_bump"
   requireMetadata pdaCall "solana.pda.account" "vault_account"
   requireMetadata pdaCall "solana.pda.signer" "true"

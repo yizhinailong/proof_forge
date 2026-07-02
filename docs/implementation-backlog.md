@@ -677,6 +677,14 @@ partial progress is visible before the full acceptance criteria close:
       and a 32-byte PDA result buffer before calling `sol_create_program_address`.
       Covered by `Tests/SolanaSdkManifest.lean` and
       `scripts/solana/sdk-smoke.sh`.
+- [x] PDA typed seed lowering now keeps the compatibility `seeds` field while
+      adding target-facing typed descriptors for literal/UTF-8 bytes, account
+      pubkeys, bump seeds, and scalar instruction-data seeds. The Solana target
+      extension consumes those descriptors, appends `bump?` to the effective
+      syscall seed list, emits `typed_seeds`/`typedSeeds` in manifest/artifact
+      metadata, and validates the derived PDA pubkey against the declared
+      account when `account?` is present. Covered by `Tests/SolanaSdk.lean`,
+      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
 - [x] Standard Solana protocol SDK helpers now cover System Program
       transfer/create-account and SPL Token transfer_checked/mint_to/burn/
       approve/revoke. They route through target capability metadata with
@@ -730,14 +738,15 @@ partial progress is visible before the full acceptance criteria close:
 Baseline: as of 2026-07-02, the Solana path has direct sBPF assembly emission,
 Counter deployment through Surfpool/Web3.js, SDK capability metadata, generated
 manifest/artifact output, module-wide multi-account schemas, standard
-System/SPL Token CPI data packing, bump-allocator metadata, and scalar
-entrypoint parameter decoding. The estimates below assume one engineer working
-on this branch, the current direct-assembly architecture staying stable, and
-local `sbpf`/Surfpool/Solana CLI tooling remaining available.
+System/SPL Token CPI data packing, bump-allocator metadata, scalar entrypoint
+parameter decoding, and typed PDA seed lowering. The estimates below assume one
+engineer working on this branch, the current direct-assembly architecture
+staying stable, and local `sbpf`/Surfpool/Solana CLI tooling remaining
+available.
 
 | Level | Estimated effort | Done when |
 |---|---:|---|
-| SDK alpha: usable Solana programs | 4-6 focused engineering days | Simple programs can use state, PDA seeds, scalar instruction parameters, System Program CPI, SPL Token CPI, logs/return data, and Web3.js behavior tests without hand-written assembly patches. |
+| SDK alpha: usable Solana programs | 3-5 focused engineering days | Simple programs can use state, PDA seeds, scalar instruction parameters, System Program CPI, SPL Token CPI, logs/return data, and Web3.js behavior tests without hand-written assembly patches. |
 | SDK beta: reference-comparable Solana backend | 2-3 focused weeks | ProofForge output is compared against Rust/Pinocchio fixtures for the same account schema, covers key syscalls, validates live CPI behavior, and supports per-entrypoint account schemas. |
 | Anchor/Pinocchio-class developer surface | 4-6 focused weeks after beta | The SDK offers account constraints, typed account/data helpers, IDL/client generation, richer SPL/Token-2022 coverage, and stable diagnostics comparable to a framework-level workflow. |
 
@@ -747,13 +756,16 @@ Completed alpha slices:
   per-entrypoint parameter schemas in `manifest.toml` and
   `proof-forge-artifact.json`, and stable scalar parameter metadata are now in
   place.
+- PDA typed seed lowering: `literalSeed`/`utf8Seed`, `accountSeed`,
+  `bumpSeed`, and `paramSeed` descriptors now lower to Solana seed slices,
+  `bump?` participates in the effective seed list, and declared PDA accounts
+  can be checked against the derived pubkey.
 
 Remaining priority slices:
 
-1. PDA typed seed completion (1-2 days): distinguish literal/UTF-8 bytes,
-   account pubkeys, bump seeds, and instruction-data seeds; validate derived
-   PDA outputs against account pubkeys; add Web3.js fixtures that compare
-   against `PublicKey.findProgramAddressSync`.
+1. PDA/Web3.js live fixture (1 day): compare generated PDA behavior against
+   `PublicKey.findProgramAddressSync` and cover the typed descriptor cases in a
+   JavaScript harness.
 2. Live CPI validation (2-3 days): exercise System Program transfer/
    create-account and SPL Token transfer_checked/mint_to/burn/approve/revoke
    against Surfpool/Web3.js, then compare behavior with Rust/Pinocchio
@@ -779,7 +791,7 @@ Remaining priority slices:
    assembly failures back to SDK declarations.
 
 The fastest credible route to a more complete SDK is therefore: first close
-the remaining alpha slices (PDA typed seeds, live CPI, and basic logs/return
+the remaining alpha slices (PDA/Web3.js fixture, live CPI, and basic logs/return
 data), then use the beta slices to remove remaining architecture shortcuts
 before adding Anchor/Pinocchio-class ergonomics.
 

@@ -313,6 +313,13 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] Surfpool/Web3.js live deployment 冒烟（V-GATE-SOLANA-04）。可选门禁 `scripts/solana/surfpool-web3-smoke.sh` 会构建 Counter ELF、启动 Surfpool、用 Solana CLI 部署、通过 `@solana/web3.js` 创建 program-owned counter account、调用 initialize/increment/get、检查 account data 0→1→2，并验证 `get` return data。该脚本通过 `--solana-sbpf-arch v0` 直接产出兼容 Solana CLI 部署的 ELF，并对 Surfpool 使用 `--use-rpc`。
 - [x] `--solana-elf` 暴露 `--solana-sbpf-arch v0|v3`，并在 `proof-forge-artifact.json` 记录选定架构。默认保持 `v3`；Surfpool live deployment 在当前 CLI/runtime 组合完整接受新版 sbpf feature set 之前使用 `v0`。
 - [x] PDA helper runtime packing 现在会在调用 `sol_create_program_address` 前生成静态 ASCII seed byte buffer、Solana `Slice { ptr, len }` seed table、动态 program-id 指针计算，以及 32-byte PDA result buffer。覆盖：`Tests/SolanaSdkManifest.lean` 与 `scripts/solana/sdk-smoke.sh`。
+- [x] PDA typed seed lowering 现在保留兼容用的 `seeds` 字段，同时增加面向
+  target 的 typed descriptor，覆盖 literal/UTF-8 bytes、account pubkey、bump
+  seed 和 scalar instruction-data seed。Solana target extension 会消费这些
+  descriptor，将 `bump?` 加入 effective syscall seed list，在 manifest/artifact
+  metadata 中发射 `typed_seeds`/`typedSeeds`，并在声明 `account?` 时把派生
+  PDA pubkey 与对应账户 pubkey 做校验。覆盖：`Tests/SolanaSdk.lean`、
+  `Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] 标准 Solana protocol SDK helper 现在覆盖 System Program 的 transfer/create-account，以及 SPL Token 的 transfer_checked/mint_to/burn/approve/revoke。它们通过 target capability metadata 路由，写入 `solana.cpi.protocol`、规范化 `data_layout`、account metas、signer seeds 和 instruction-data source name，并进入生成的 manifest 与 artifact JSON。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] Runtime allocator target extension 现在建模 Solana 默认 downward-bump allocator（`heap_start = "0x300000000"`、`heap_bytes = 32768`），并提供与 Pinocchio no-heap entrypoint 对齐的 `noAllocator`/deny-dynamic 选项。选中的 allocator 会通过 `runtime.allocator` capability metadata 路由，并进入 `manifest.toml`、`proof-forge-artifact.json` 和 assembly metadata。覆盖：`Tests/SolanaAllocator.lean`、`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] 生成的 Solana SDK instruction schema 现在使用 module-wide multi-account account list，取代旧的单账户 manifest。schema 包含 state account、PDA account、CPI account 和 executable CPI program account；sBPF backend 会从同一份 schema 计算 `INSTRUCTION_DATA` offset，并在 prologue 中按 schema 校验 signer/writable 约束和 program-owned account。账户列表会进入 `manifest.toml` 与 `proof-forge-artifact.json`。覆盖：`Tests/SolanaSdkManifest.lean`、`Tests/SolanaCpiPacking.lean`、`scripts/solana/sdk-smoke.sh`。
@@ -324,13 +331,14 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 基线：截至 2026-07-02，Solana 路线已经具备 direct sBPF assembly emission、
 通过 Surfpool/Web3.js 部署 Counter、SDK capability metadata、生成
 manifest/artifact、module-wide multi-account schema、标准 System/SPL Token CPI
-data packing、bump-allocator metadata，以及 scalar entrypoint parameter
-decoding。下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly
-架构保持稳定，并且本地 `sbpf`/Surfpool/Solana CLI 工具链可用。
+data packing、bump-allocator metadata、scalar entrypoint parameter decoding，
+以及 typed PDA seed lowering。下面估算默认一名工程师持续在这个分支推进，
+当前 direct-assembly 架构保持稳定，并且本地 `sbpf`/Surfpool/Solana CLI
+工具链可用。
 
 | 层级 | 预计工作量 | 完成标准 |
 |---|---:|---|
-| SDK alpha：可写可跑的 Solana 程序 | 4-6 个集中工程日 | 简单程序可以使用 state、PDA seed、scalar instruction parameter、System Program CPI、SPL Token CPI、logs/return data，以及 Web3.js 行为测试，不需要手写 assembly 补丁。 |
+| SDK alpha：可写可跑的 Solana 程序 | 3-5 个集中工程日 | 简单程序可以使用 state、PDA seed、scalar instruction parameter、System Program CPI、SPL Token CPI、logs/return data，以及 Web3.js 行为测试，不需要手写 assembly 补丁。 |
 | SDK beta：可与参考实现对比的 Solana backend | 2-3 个集中工程周 | ProofForge 输出可以与同一套 account schema 的 Rust/Pinocchio fixture 对比，覆盖关键 syscall，验证 live CPI 行为，并支持 per-entrypoint account schema。 |
 | Anchor/Pinocchio 级开发体验 | beta 之后 4-6 个集中工程周 | SDK 提供 account constraint、typed account/data helper、IDL/client generation、更完整 SPL/Token-2022 覆盖，以及接近框架级 workflow 的稳定诊断。 |
 
@@ -339,12 +347,15 @@ decoding。下面估算默认一名工程师持续在这个分支推进，当前
 - Instruction ABI hardening：parameter payload length bounds check、
   `manifest.toml` 和 `proof-forge-artifact.json` 中的 per-entrypoint parameter
   schema，以及稳定的 scalar parameter metadata 已经落地。
+- PDA typed seed lowering：`literalSeed`/`utf8Seed`、`accountSeed`、
+  `bumpSeed` 和 `paramSeed` descriptor 现在会 lowering 为 Solana seed slice，
+  `bump?` 会参与 effective seed list，声明的 PDA account 可以与派生 pubkey
+  进行校验。
 
 剩余优先切片：
 
-1. PDA typed seed 补齐（1-2 天）：区分 literal/UTF-8 bytes、account pubkey、
-   bump seed 和 instruction-data seed；将派生 PDA 与 account pubkey 校验；
-   增加 Web3.js fixture，与 `PublicKey.findProgramAddressSync` 对比。
+1. PDA/Web3.js live fixture（1 天）：用 JavaScript harness 对比生成的 PDA
+   行为与 `PublicKey.findProgramAddressSync`，并覆盖 typed descriptor cases。
 2. Live CPI validation（2-3 天）：在 Surfpool/Web3.js 上实际跑 System Program
    transfer/create-account 和 SPL Token transfer_checked/mint_to/burn/approve/
    revoke，再与 Rust/Pinocchio reference fixture 对比行为。
@@ -364,7 +375,7 @@ decoding。下面估算默认一名工程师持续在这个分支推进，当前
    helper、typed account wrapper、IDL/client generation、更完整 SPL/Token-2022
    helper 覆盖，以及能把 generated assembly failure 映射回 SDK declaration 的诊断。
 
-最快可信路线是：先关闭剩余 alpha 切片（PDA typed seed、live CPI、基础
+最快可信路线是：先关闭剩余 alpha 切片（PDA/Web3.js fixture、live CPI、基础
 logs/return data），再通过 beta 切片移除剩余架构捷径，最后补
 Anchor/Pinocchio 级别的开发体验。
 

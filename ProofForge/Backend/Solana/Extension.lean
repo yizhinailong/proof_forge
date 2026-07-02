@@ -26,6 +26,25 @@ structure PdaDerive where
   entrypoint? : Option String := none
   deriving Repr, Inhabited
 
+inductive PdaSeedKind where
+  | literal
+  | account
+  | bump
+  | instructionParam
+  deriving BEq, DecidableEq, Repr, Inhabited
+
+def PdaSeedKind.id : PdaSeedKind -> String
+  | .literal => "literal"
+  | .account => "account"
+  | .bump => "bump"
+  | .instructionParam => "instruction-param"
+
+structure PdaSeed where
+  kind : PdaSeedKind
+  value : String
+  raw : String
+  deriving Repr, Inhabited
+
 structure CpiInvoke where
   name : String
   program : String
@@ -74,6 +93,7 @@ structure CpiAccountBinding where
 structure CpiValueBinding where
   name : String
   absOff : Nat
+  byteSize : Nat := 8
   sourceKind : String := "state"
   deriving Repr, Inhabited
 
@@ -89,6 +109,37 @@ def splitComma (value : String) : Array String :=
   value.splitOn "," |>.foldl
     (fun acc part => if part.isEmpty then acc else acc.push part)
     #[]
+
+def parseSeedWithPrefix? (kind : PdaSeedKind) (marker raw : String) : Option PdaSeed :=
+  if raw.startsWith marker then
+    some { kind, value := raw.drop marker.length |>.toString, raw }
+  else
+    none
+
+def parsePdaSeed (raw : String) : PdaSeed :=
+  match parseSeedWithPrefix? .literal "literal:" raw with
+  | some seed => seed
+  | none =>
+      match parseSeedWithPrefix? .literal "utf8:" raw with
+      | some seed => seed
+      | none =>
+          match parseSeedWithPrefix? .account "account:" raw with
+          | some seed => seed
+          | none =>
+              match parseSeedWithPrefix? .bump "bump:" raw with
+              | some seed => seed
+              | none =>
+                  match parseSeedWithPrefix? .instructionParam "param:" raw with
+                  | some seed => seed
+                  | none =>
+                      match parseSeedWithPrefix? .instructionParam "instruction:" raw with
+                      | some seed => seed
+                      | none => { kind := .literal, value := raw, raw }
+
+def pdaMetadataSeeds (call : CapabilityCall) : Array String :=
+  match metadataValue? call.metadata "solana.pda.seed_descriptors" with
+  | some value => splitComma value
+  | none => metadataValue? call.metadata "solana.pda.seeds" |>.map splitComma |>.getD #[]
 
 def parseAccountMeta (encoded : String) : AccountMeta :=
   match encoded.splitOn ":" with
@@ -182,7 +233,7 @@ def pdaFromCall? (call : CapabilityCall) : Option PdaDerive :=
     let name := metadataValue? call.metadata "solana.pda.name" |>.getD call.operation
     some {
       name := name
-      seeds := metadataValue? call.metadata "solana.pda.seeds" |>.map splitComma |>.getD #[]
+      seeds := pdaMetadataSeeds call
       bump? := metadataValue? call.metadata "solana.pda.bump"
       account? := metadataValue? call.metadata "solana.pda.account"
       signer := metadataValue? call.metadata "solana.pda.signer" |>.map boolFromString |>.getD false
@@ -278,6 +329,35 @@ def cpiSignerSeedTableOffset : Nat := 2304
 def cpiSignerSeedDataOffset : Nat := 2816
 def cpiMaxSeedLen : Nat := 32
 
+def cpiAccountBinding? (bindings : Array CpiAccountBinding) (name : String) :
+    Option CpiAccountBinding :=
+  bindings.find? (fun binding => binding.name == name)
+
+def cpiValueBinding? (bindings : Array CpiValueBinding) (name : String) :
+    Option CpiValueBinding :=
+  bindings.find? (fun binding => binding.name == name)
+
+def inputPtr (dst : Reg) (off : Nat) : Array AstNode := #[
+  .instruction { opcode := .mov64, dst := some dst, src := some .r1 },
+  .instruction { opcode := .add64, dst := some dst, imm := some (.num off) }
+]
+
+def PdaDerive.explicitSeeds (pda : PdaDerive) : Array PdaSeed :=
+  pda.seeds.map parsePdaSeed
+
+def PdaDerive.effectiveSeeds (pda : PdaDerive) : Array PdaSeed :=
+  let seeds := pda.explicitSeeds
+  match pda.bump? with
+  | some bump =>
+      if seeds.any (fun seed => seed.kind == .bump && seed.value == bump) then
+        seeds
+      else
+        seeds.push { kind := .bump, value := bump, raw := "bump:" ++ bump }
+  | none => seeds
+
+def PdaDerive.seedValues (pda : PdaDerive) : Array String :=
+  pda.explicitSeeds.map (fun seed => seed.value)
+
 def stringBytes (value : String) : Array Nat :=
   value.toList.foldl (fun acc ch => acc.push ch.toNat) #[]
 
@@ -290,24 +370,156 @@ def lowerSeedBytes (seed : String) (base : Reg) : Array AstNode :=
       imm := some (.num byte)
     })
 
-def lowerPdaStaticSeed (pdaName : String) (idx : Nat) (seed : String) : Array AstNode :=
-  let seedOffset := pdaSeedDataOffset + idx * pdaMaxSeedLen
+def lowerPdaStackSeedPtr (idx : Nat) : Array AstNode :=
+  stackPtr .r5 (pdaSeedDataOffset + idx * pdaMaxSeedLen)
+
+def lowerPdaSeedTableEntry (idx len : Nat) : Array AstNode :=
   let tableOffset := pdaSeedTableOffset + idx * 16
+  stackPtr .r6 tableOffset ++ #[
+    .instruction { opcode := .stxdw, dst := some .r6, off := some (.num 0), src := some .r5 },
+    .instruction { opcode := .mov64, dst := some .r3, imm := some (.num len) },
+    .instruction { opcode := .stxdw, dst := some .r6, off := some (.num 8), src := some .r3 }
+  ]
+
+def lowerInputBytesToPdaSeed (absOff byteSize : Nat) : Array AstNode :=
+  (List.range byteSize).foldl
+    (fun acc idx =>
+      acc ++ #[
+        .instruction { opcode := .ldxb, dst := some .r3, src := some .r1, off := some (.num (absOff + idx)) },
+        .instruction { opcode := .stxb, dst := some .r5, off := some (.num idx), src := some .r3 }
+      ])
+    #[]
+
+def lowerPdaZeroSeedBytes (byteSize : Nat) : Array AstNode :=
+  (List.range byteSize).foldl
+    (fun acc idx =>
+      acc.push <| .instruction {
+        opcode := .stb,
+        dst := some .r5,
+        off := some (.num idx),
+        imm := some (.num 0)
+      })
+    #[]
+
+def lowerPdaStaticSeed (pdaName : String) (idx : Nat) (seed : String) : Array AstNode :=
   let bytes := stringBytes seed
   #[
     .comment s!"solana.pda.seed {pdaName}[{idx}] \"{seed}\"",
   ] ++
-  stackPtr .r5 seedOffset ++
+  lowerPdaStackSeedPtr idx ++
   lowerSeedBytes seed .r5 ++
-  stackPtr .r6 tableOffset ++ #[
-    .instruction { opcode := .stxdw, dst := some .r6, off := some (.num 0), src := some .r5 },
-    .instruction { opcode := .mov64, dst := some .r3, imm := some (.num bytes.size) },
-    .instruction { opcode := .stxdw, dst := some .r6, off := some (.num 8), src := some .r3 }
-  ]
+  lowerPdaSeedTableEntry idx bytes.size
 
-def lowerPdaStaticSeeds (pda : PdaDerive) : Array AstNode :=
-  pda.seeds.mapIdx (fun idx seed => lowerPdaStaticSeed pda.name idx seed)
+def lowerPdaAccountSeed (bindings : Array CpiAccountBinding) (pdaName : String)
+    (idx : Nat) (account : String) : Array AstNode :=
+  match cpiAccountBinding? bindings account with
+  | some binding =>
+      #[
+        .comment s!"solana.pda.seed {pdaName}[{idx}] account {account} pubkey"
+      ] ++
+      inputPtr .r5 binding.layout.keyOff ++
+      lowerPdaSeedTableEntry idx 32
+  | none =>
+      #[
+        .comment s!"solana.pda.seed {pdaName}[{idx}] account {account} missing placeholder=zero"
+      ] ++
+      lowerPdaStackSeedPtr idx ++
+      lowerPdaZeroSeedBytes 32 ++
+      lowerPdaSeedTableEntry idx 32
+
+def lowerPdaValueSeed (pdaName : String) (idx : Nat) (kind source : String)
+    (binding : CpiValueBinding) (byteSize : Nat) : Array AstNode :=
+  #[
+    .comment s!"solana.pda.seed {pdaName}[{idx}] {kind} {source} from {binding.sourceKind}"
+  ] ++
+  lowerPdaStackSeedPtr idx ++
+  lowerInputBytesToPdaSeed binding.absOff byteSize ++
+  lowerPdaSeedTableEntry idx byteSize
+
+def lowerPdaBumpSeed (bindings : Array CpiValueBinding) (pdaName : String)
+    (idx : Nat) (source : String) : Array AstNode :=
+  match source.toNat? with
+  | some bump =>
+      if bump < 256 then
+        #[
+          .comment s!"solana.pda.seed {pdaName}[{idx}] bump literal={bump}"
+        ] ++
+        lowerPdaStackSeedPtr idx ++ #[
+          .instruction { opcode := .stb, dst := some .r5, off := some (.num 0), imm := some (.num bump) }
+        ] ++
+        lowerPdaSeedTableEntry idx 1
+      else
+        #[
+          .comment s!"solana.pda.seed {pdaName}[{idx}] bump literal={bump} out-of-range placeholder=255"
+        ] ++
+        lowerPdaStackSeedPtr idx ++ #[
+          .instruction { opcode := .stb, dst := some .r5, off := some (.num 0), imm := some (.num 255) }
+        ] ++
+        lowerPdaSeedTableEntry idx 1
+  | none =>
+      match cpiValueBinding? bindings source with
+      | some binding => lowerPdaValueSeed pdaName idx "bump" source binding 1
+      | none =>
+          #[
+            .comment s!"solana.pda.seed {pdaName}[{idx}] bump {source} missing placeholder=255"
+          ] ++
+          lowerPdaStackSeedPtr idx ++ #[
+            .instruction { opcode := .stb, dst := some .r5, off := some (.num 0), imm := some (.num 255) }
+          ] ++
+          lowerPdaSeedTableEntry idx 1
+
+def lowerPdaInstructionParamSeed (bindings : Array CpiValueBinding) (pdaName : String)
+    (idx : Nat) (source : String) : Array AstNode :=
+  match cpiValueBinding? bindings source with
+  | some binding => lowerPdaValueSeed pdaName idx "instruction-param" source binding binding.byteSize
+  | none =>
+      #[
+        .comment s!"solana.pda.seed {pdaName}[{idx}] instruction-param {source} missing placeholder=zero"
+      ] ++
+      lowerPdaStackSeedPtr idx ++
+      lowerPdaZeroSeedBytes 1 ++
+      lowerPdaSeedTableEntry idx 1
+
+def lowerPdaSeed (accountBindings : Array CpiAccountBinding) (valueBindings : Array CpiValueBinding)
+    (pdaName : String) (idx : Nat) (seed : PdaSeed) : Array AstNode :=
+  match seed.kind with
+  | .literal => lowerPdaStaticSeed pdaName idx seed.value
+  | .account => lowerPdaAccountSeed accountBindings pdaName idx seed.value
+  | .bump => lowerPdaBumpSeed valueBindings pdaName idx seed.value
+  | .instructionParam => lowerPdaInstructionParamSeed valueBindings pdaName idx seed.value
+
+def lowerPdaSeeds (accountBindings : Array CpiAccountBinding) (valueBindings : Array CpiValueBinding)
+    (pda : PdaDerive) : Array AstNode :=
+  pda.effectiveSeeds.mapIdx (fun idx seed => lowerPdaSeed accountBindings valueBindings pda.name idx seed)
     |>.foldl (fun acc nodes => acc ++ nodes) #[]
+
+def lowerPdaResultAccountValidation (accountBindings : Array CpiAccountBinding)
+    (pda : PdaDerive) : Array AstNode :=
+  match pda.account? with
+  | none => #[]
+  | some account =>
+      match cpiAccountBinding? accountBindings account with
+      | none =>
+          #[
+            .comment s!"solana.pda.validate {pda.name} account {account} missing account binding"
+          ]
+      | some binding =>
+          let compareWords :=
+            (List.range 4).foldl
+              (fun acc idx =>
+                let off := idx * 8
+                acc ++ #[
+                  .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num off) },
+                  .instruction { opcode := .ldxdw, dst := some .r8, src := some .r6, off := some (.num off) },
+                  .instruction { opcode := .jne, dst := some .r3, src := some .r8, off := some (.sym "error_pda") }
+                ])
+              #[]
+          #[
+            .comment s!"solana.pda.validate {pda.name} account {account}"
+          ] ++
+          stackPtr .r5 pdaResultOffset ++
+          inputPtr .r6 binding.layout.keyOff ++
+          compareWords
 
 def callHelperPreservingInput (helperName errorLabel : String) : Array AstNode := #[
   .instruction { opcode := .stxdw, dst := some .r10, off := some (.num entryInputSaveOffset), src := some .r1 },
@@ -316,17 +528,18 @@ def callHelperPreservingInput (helperName errorLabel : String) : Array AstNode :
   .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym errorLabel) }
 ]
 
-def lowerPdaDerive (pda : PdaDerive) : Array AstNode :=
+def lowerPdaDerive (accountBindings : Array CpiAccountBinding) (valueBindings : Array CpiValueBinding)
+    (pda : PdaDerive) : Array AstNode :=
   #[
     .blankLine,
     .comment s!"solana.pda.derive {pda.name}",
     .label pda.label,
     .instruction { opcode := .mov64, dst := some .r7, src := some .r1 },
-    .comment "pack static ASCII PDA seed byte slices"
+    .comment "pack PDA seed byte slices"
   ] ++
-  lowerPdaStaticSeeds pda ++
+  lowerPdaSeeds accountBindings valueBindings pda ++
   stackPtr .r1 pdaSeedTableOffset ++ #[
-    .instruction { opcode := .mov64, dst := some .r2, imm := some (.num pda.seeds.size) },
+    .instruction { opcode := .mov64, dst := some .r2, imm := some (.num pda.effectiveSeeds.size) },
     .instruction { opcode := .mov64, dst := some .r3, src := some .r7 },
     .instruction { opcode := .add64, dst := some .r3, imm := some (.sym "INSTRUCTION_DATA_LEN") },
     .instruction { opcode := .ldxdw, dst := some .r5, src := some .r3, off := some (.num 0) },
@@ -337,7 +550,10 @@ def lowerPdaDerive (pda : PdaDerive) : Array AstNode :=
     .comment "r1=seeds_ptr r2=seeds_len r3=program_id_ptr r4=result_ptr",
     callSyscall ProofForge.Backend.Solana.Syscalls.sol_create_program_address,
     .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_pda") },
+    .instruction { opcode := .mov64, dst := some .r1, src := some .r7 },
     .comment s!"PDA result stored at stack offset {pdaResultOffset}",
+  ] ++
+  lowerPdaResultAccountValidation accountBindings pda ++ #[
     .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
     .instruction { opcode := .exit }
   ]
@@ -363,21 +579,8 @@ def zeroStackQuad (base : Reg) (off : Nat) : AstNode :=
 def loadImm (dst : Reg) (value : Nat) : AstNode :=
   .instruction { opcode := .mov64, dst := some dst, imm := some (.num value) }
 
-def cpiAccountBinding? (bindings : Array CpiAccountBinding) (name : String) :
-    Option CpiAccountBinding :=
-  bindings.find? (fun binding => binding.name == name)
-
-def cpiValueBinding? (bindings : Array CpiValueBinding) (name : String) :
-    Option CpiValueBinding :=
-  bindings.find? (fun binding => binding.name == name)
-
 def cpiMetadataValue? (cpi : CpiInvoke) (key : String) : Option String :=
   metadataValue? cpi.metadata key
-
-def inputPtr (dst : Reg) (off : Nat) : Array AstNode := #[
-  .instruction { opcode := .mov64, dst := some dst, src := some .r1 },
-  .instruction { opcode := .add64, dst := some dst, imm := some (.num off) }
-]
 
 def copyInputPubkeyToStack (name : String) (srcOff stackOff : Nat) : Array AstNode :=
   #[
@@ -881,7 +1084,7 @@ def lowerProgramExtensionsWithBindings
   else
     #[.blankLine, .comment "Solana SDK target extension syscall helpers"] ++
     lowerRuntimeAllocators extensions ++
-    extensions.pdas.foldl (fun acc pda => acc ++ lowerPdaDerive pda) #[] ++
+    extensions.pdas.foldl (fun acc pda => acc ++ lowerPdaDerive accountBindings valueBindings pda) #[] ++
     extensions.cpis.foldl (fun acc cpi => acc ++ lowerCpiInvoke accountBindings valueBindings cpi) #[] ++
     lowerExtensionErrors
 

@@ -11,7 +11,7 @@ def spec : ProofForge.Contract.ContractSpec :=
     scalarState "nonce" .u64
     bumpAllocator
 
-    pdaAccount "vault" #["vault", "authority"]
+    pdaAccount "vault" #[literalSeed "vault", accountSeed "authority"]
       (bump? := some "vault_bump")
       (account? := some "vault_account")
       (isSigner := true)
@@ -30,7 +30,7 @@ def spec : ProofForge.Contract.ContractSpec :=
       effect (storageScalarWrite "nonce" (u64 0))
 
     entrySelector "touch" "62de7396" do
-      derivePda "vault" #["vault", "authority"]
+      derivePda "vault" #[literalSeed "vault", accountSeed "authority"]
         (bump? := some "vault_bump")
         (account? := some "vault_account")
         (isSigner := true)

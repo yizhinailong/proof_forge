@@ -49,6 +49,13 @@ def main : IO UInt32 := do
   require (contains manifest "[[solana.pda]]") "manifest missing Solana PDA section"
   require (contains manifest "name = \"vault\"") "manifest missing PDA name"
   require (contains manifest "seeds = [\"vault\", \"authority\"]") "manifest missing PDA seeds"
+  require (contains manifest "typed_seeds = [") "manifest missing PDA typed seeds"
+  require (contains manifest "{ kind = \"literal\", value = \"vault\" },")
+    "manifest missing literal PDA seed descriptor"
+  require (contains manifest "{ kind = \"account\", value = \"authority\" },")
+    "manifest missing account PDA seed descriptor"
+  require (contains manifest "{ kind = \"bump\", value = \"vault_bump\" }")
+    "manifest missing bump PDA seed descriptor"
   require (contains manifest "bump = \"vault_bump\"") "manifest missing PDA bump"
   require (contains manifest "account = \"vault_account\"") "manifest missing PDA account"
   require (contains manifest "[[solana.cpi]]") "manifest missing Solana CPI section"
@@ -91,6 +98,8 @@ def main : IO UInt32 := do
         | throw <| IO.userError "package missing sBPF assembly"
       require (contains manifestFile.contents "[[solana.pda]]")
         "package manifest missing Solana PDA section"
+      require (contains manifestFile.contents "typed_seeds = [")
+        "package manifest missing PDA typed seeds"
       require (contains manifestFile.contents "[[solana.allocator]]")
         "package manifest missing Solana allocator section"
       require (contains manifestFile.contents "heap_start = \"0x300000000\"")
@@ -123,8 +132,10 @@ def main : IO UInt32 := do
         "package assembly missing static vault PDA seed packing"
       require (contains asmFile.contents "stb [r5+0], 118")
         "package assembly missing vault seed byte store"
-      require (contains asmFile.contents "solana.pda.seed vault[1] \"authority\"")
-        "package assembly missing authority PDA seed packing"
+      require (contains asmFile.contents "solana.pda.seed vault[1] account authority pubkey")
+        "package assembly missing authority account PDA seed packing"
+      require (contains asmFile.contents "solana.pda.seed vault[2] bump vault_bump missing placeholder=255")
+        "package assembly missing PDA bump seed packing"
       require (contains asmFile.contents "stxdw [r6+0], r5")
         "package assembly missing PDA seed slice ptr store"
       require (contains asmFile.contents "stxdw [r6+8], r3")
@@ -135,6 +146,8 @@ def main : IO UInt32 := do
         "package assembly missing PDA syscall"
       require (contains asmFile.contents "PDA result stored at stack offset 64")
         "package assembly missing PDA result buffer marker"
+      require (contains asmFile.contents "solana.pda.validate vault account vault_account")
+        "package assembly missing PDA result account validation"
       require (contains asmFile.contents "call sol_pda_derive_vault")
         "package assembly missing entrypoint PDA helper call"
       require (contains asmFile.contents "sol_cpi_token_transfer:")

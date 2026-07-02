@@ -97,6 +97,14 @@ if not program_accounts or program_accounts[0].get("owner") != "executable":
     raise SystemExit("artifact missing SPL Token executable account schema")
 if not pdas or pdas[0].get("name") != "vault":
     raise SystemExit("artifact missing vault PDA extension")
+if pdas[0].get("seeds") != ["vault", "authority"]:
+    raise SystemExit(f"artifact PDA seeds mismatch: {pdas[0].get('seeds')}")
+if pdas[0].get("typedSeeds") != [
+    {"kind": "literal", "value": "vault"},
+    {"kind": "account", "value": "authority"},
+    {"kind": "bump", "value": "vault_bump"},
+]:
+    raise SystemExit(f"artifact PDA typed seeds mismatch: {pdas[0].get('typedSeeds')}")
 if not cpis or cpis[0].get("name") != "token_transfer":
     raise SystemExit("artifact missing token_transfer CPI extension")
 if cpis[0].get("protocol") != "spl-token":
@@ -146,6 +154,14 @@ if not manifest_program_accounts or manifest_program_accounts[0].get("owner") !=
     raise SystemExit("manifest missing SPL Token executable account schema")
 if not manifest_pdas or manifest_pdas[0].get("name") != "vault":
     raise SystemExit("manifest missing vault PDA extension")
+if manifest_pdas[0].get("seeds") != ["vault", "authority"]:
+    raise SystemExit(f"manifest PDA seeds mismatch: {manifest_pdas[0].get('seeds')}")
+if manifest_pdas[0].get("typed_seeds") != [
+    {"kind": "literal", "value": "vault"},
+    {"kind": "account", "value": "authority"},
+    {"kind": "bump", "value": "vault_bump"},
+]:
+    raise SystemExit(f"manifest PDA typed seeds mismatch: {manifest_pdas[0].get('typed_seeds')}")
 if not manifest_cpis or manifest_cpis[0].get("program") != "spl_token":
     raise SystemExit("manifest missing spl_token CPI extension")
 if manifest_cpis[0].get("protocol") != "spl-token":
@@ -169,12 +185,14 @@ for needle in [
     "sol_pda_derive_vault:",
     "solana.pda.seed vault[0] \"vault\"",
     "stb [r5+0], 118",
-    "solana.pda.seed vault[1] \"authority\"",
+    "solana.pda.seed vault[1] account authority pubkey",
+    "solana.pda.seed vault[2] bump vault_bump missing placeholder=255",
     "stxdw [r6+0], r5",
     "stxdw [r6+8], r3",
     "add64 r3, INSTRUCTION_DATA_LEN",
     "call sol_create_program_address",
     "PDA result stored at stack offset 64",
+    "solana.pda.validate vault account vault_account",
     "call sol_pda_derive_vault",
     "sol_cpi_token_transfer:",
     "solana.cpi.program_id spl_token account[6] from input account",

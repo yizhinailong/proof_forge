@@ -87,6 +87,50 @@ def maybeKv (key : String) : Option String -> Array TargetMetadata
 def boolValue (value : Bool) : String :=
   if value then "true" else "false"
 
+def seedPrefixValue? (marker seed : String) : Option String :=
+  if seed.startsWith marker then
+    some (seed.drop marker.length |>.toString)
+  else
+    none
+
+def seedDescriptorValue (seed : String) : String :=
+  match seedPrefixValue? "literal:" seed with
+  | some value => value
+  | none =>
+      match seedPrefixValue? "utf8:" seed with
+      | some value => value
+      | none =>
+          match seedPrefixValue? "account:" seed with
+          | some value => value
+          | none =>
+              match seedPrefixValue? "bump:" seed with
+              | some value => value
+              | none =>
+                  match seedPrefixValue? "param:" seed with
+                  | some value => value
+                  | none =>
+                      match seedPrefixValue? "instruction:" seed with
+                      | some value => value
+                      | none => seed
+
+def literalSeed (value : String) : String :=
+  "literal:" ++ value
+
+def utf8Seed (value : String) : String :=
+  "utf8:" ++ value
+
+def accountSeed (account : String) : String :=
+  "account:" ++ account
+
+def bumpSeed (source : String) : String :=
+  "bump:" ++ source
+
+def instructionSeed (param : String) : String :=
+  "param:" ++ param
+
+def paramSeed (param : String) : String :=
+  instructionSeed param
+
 def AccountMeta.encode (account : AccountMeta) : String :=
   account.name ++ ":" ++ account.access.id ++ ":" ++ account.signer.id
 
@@ -116,7 +160,8 @@ def PdaBinding.metadata (binding : PdaBinding) : Array TargetMetadata :=
   #[
     kv "solana.extension" "pda",
     kv "solana.pda.name" binding.name,
-    kv "solana.pda.seeds" (joinWith "," binding.seeds),
+    kv "solana.pda.seeds" (joinWith "," (binding.seeds.map seedDescriptorValue)),
+    kv "solana.pda.seed_descriptors" (joinWith "," binding.seeds),
     kv "solana.pda.signer" (boolValue binding.isSigner)
   ] ++
   maybeKv "solana.pda.bump" binding.bump? ++

@@ -255,6 +255,16 @@ def tomlBool (value : Bool) : String :=
 def tomlStringArray (values : Array String) : String :=
   "[" ++ String.intercalate ", " (values.toList.map tomlString) ++ "]"
 
+def renderPdaSeed (seed : PdaSeed) : String :=
+  "  { kind = " ++ tomlString seed.kind.id ++
+  ", value = " ++ tomlString seed.value ++ " }"
+
+def renderPdaSeeds (seeds : Array PdaSeed) : String :=
+  if seeds.isEmpty then
+    "[]"
+  else
+    "[\n" ++ String.intercalate ",\n" (seeds.toList.map renderPdaSeed) ++ "\n]"
+
 def renderExtensionAccount (account : AccountMeta) : String :=
   "  { name = " ++ tomlString account.name ++
   ", access = " ++ tomlString account.access ++
@@ -283,7 +293,8 @@ def renderPda (pda : PdaDerive) : String :=
     | none => "")
   "[[solana.pda]]\n" ++
   "name = " ++ tomlString pda.name ++ "\n" ++
-  "seeds = " ++ tomlStringArray pda.seeds ++ "\n" ++
+  "seeds = " ++ tomlStringArray pda.seedValues ++ "\n" ++
+  "typed_seeds = " ++ renderPdaSeeds pda.effectiveSeeds ++ "\n" ++
   optionalFields ++
   "signer = " ++ tomlBool pda.signer ++ "\n"
 
