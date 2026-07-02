@@ -1077,6 +1077,34 @@ def entrypointReturnJson
       let wordTypes ← entrypointAbiWordTypes module s!"entrypoint `{entrypointName}` return" type
       .ok (wordTypes.size, entrypointAbiValueJson none type abiType wordTypes)
 
+def entrypointSoliditySignature
+    (module : ProofForge.IR.Module)
+    (entrypoint : ProofForge.IR.Entrypoint) : Except String String := do
+  let mut paramAbiTypes := #[]
+  for param in entrypoint.params do
+    let abiType ← entrypointAbiType module s!"entrypoint `{entrypoint.name}` parameter `{param.fst}`" param.snd
+    paramAbiTypes := paramAbiTypes.push abiType
+  .ok s!"{entrypoint.name}({String.intercalate "," paramAbiTypes.toList})"
+
+def hydrateEvmSelectors (cast : String) (module : ProofForge.IR.Module) :
+    IO ProofForge.IR.Module := do
+  let mut entrypoints := #[]
+  for entrypoint in module.entrypoints do
+    let signature ←
+      match entrypointSoliditySignature module entrypoint with
+      | .ok signature => pure signature
+      | .error msg => throw <| IO.userError msg
+    let derived ← selectorFor cast signature
+    match entrypoint.selector? with
+    | some selector =>
+        if selector.toLower != derived.toLower then
+          throw <| IO.userError
+            s!"entrypoint `{entrypoint.name}` selector `{selector}` does not match ABI signature `{signature}` selector `{derived}`"
+        entrypoints := entrypoints.push entrypoint
+    | none =>
+        entrypoints := entrypoints.push { entrypoint with selector? := some derived }
+  return { module with entrypoints := entrypoints }
+
 def entrypointJson (module : ProofForge.IR.Module) (entrypoint : ProofForge.IR.Entrypoint) : Except String String := do
   let mut params := #[]
   let mut paramAbiTypes := #[]
@@ -2177,7 +2205,8 @@ def compileCounterIrBytecode (opts : CliOptions) : IO UInt32 := do
 
 def compileValueVaultIrYul (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/ir/ValueVault.yul")
-  match ProofForge.Backend.Evm.IR.renderModule ProofForge.Contract.Examples.ValueVault.module with
+  let module ← hydrateEvmSelectors opts.cast ProofForge.Contract.Examples.ValueVault.module
+  match ProofForge.Backend.Evm.IR.renderModule module with
   | .ok yul =>
       writeTextFile output yul
       IO.println s!"wrote {output}"
@@ -2185,20 +2214,21 @@ def compileValueVaultIrYul (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
-def renderValueVaultIrYul : IO String := do
-  match ProofForge.Backend.Evm.IR.renderModule ProofForge.Contract.Examples.ValueVault.module with
-  | .ok yul => return yul
+def renderValueVaultIrYul (opts : CliOptions) : IO (String × ProofForge.IR.Module) := do
+  let module ← hydrateEvmSelectors opts.cast ProofForge.Contract.Examples.ValueVault.module
+  match ProofForge.Backend.Evm.IR.renderModule module with
+  | .ok yul => return (yul, module)
   | .error err => throw <| IO.userError err.render
 
 def compileValueVaultIrBytecode (opts : CliOptions) : IO UInt32 := do
   let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/ValueVault.yul")
-  let yul ← renderValueVaultIrYul
+  let (yul, module) ← renderValueVaultIrYul opts
   writeTextFile yulOutput yul
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (FilePath.mk "build/ir/ValueVault.bin")
   writeTextFile output (bytecode ++ "\n")
   writeEvmContractSdkArtifactMetadata opts "ValueVault" "ProofForge.Contract.Examples.ValueVault"
-    ProofForge.Contract.Examples.ValueVault.module yulOutput output
+    module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 

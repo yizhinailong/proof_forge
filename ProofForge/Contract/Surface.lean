@@ -19,7 +19,7 @@ structure BindingRef where
 
 structure MethodRef where
   name : String
-  selector : String
+  selector? : Option String := none
   params : Array BindingRef := #[]
   returns : ValueType := .unit
   deriving BEq, Repr
@@ -38,9 +38,13 @@ def slot (id : String) (type : ValueType) : ScalarRef :=
 def binding (id : String) (type : ValueType) : BindingRef :=
   { id, type }
 
-def method (name selector : String) (params : Array BindingRef := #[])
+def methodWithSelector (name selector : String) (params : Array BindingRef := #[])
     (returns : ValueType := .unit) : MethodRef :=
-  { name, selector, params, returns }
+  { name, selector? := some selector, params, returns }
+
+def method (name : String) (params : Array BindingRef := #[])
+    (returns : ValueType := .unit) : MethodRef :=
+  { name, selector? := none, params, returns }
 
 def scalar (ref : ScalarRef) : ModuleM Unit :=
   ProofForge.Contract.Builder.scalarState ref.id ref.type
@@ -48,7 +52,7 @@ def scalar (ref : ScalarRef) : ModuleM Unit :=
 def entry (method : MethodRef) (body : EntryM Unit) : ModuleM Unit :=
   ProofForge.Contract.Builder.entryFull
     method.name
-    (some method.selector)
+    method.selector?
     method.returns
     (method.params.map fun param => (param.id, param.type))
     body

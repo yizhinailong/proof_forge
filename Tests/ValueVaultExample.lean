@@ -1,4 +1,3 @@
-import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Solana.Package
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Target.Adapter
@@ -57,6 +56,8 @@ def requireModuleShape : IO Unit := do
   require (module.name == "ValueVault") "ValueVault module name mismatch"
   require (module.state.size == 6) "ValueVault should have six scalar state fields"
   require (module.entrypoints.size == 7) "ValueVault should have seven entrypoints"
+  require (module.entrypoints.all (fun entrypoint => entrypoint.selector?.isNone))
+    "ValueVault surface source should defer target selectors to emission"
   let names := module.entrypoints.map (fun entrypoint => entrypoint.name)
   require (names == #[
     "initialize",
@@ -67,22 +68,6 @@ def requireModuleShape : IO Unit := do
     "get_balance",
     "get_net_value"
   ]) s!"ValueVault entrypoint order mismatch: {names}"
-
-def requireEvmRender : IO Unit := do
-  match ProofForge.Backend.Evm.IR.renderModule ProofForge.Contract.Examples.ValueVault.module with
-  | .ok yul =>
-      require (contains yul "object \"ValueVault\"")
-        "ValueVault EVM render missing object name"
-      require (contains yul "function f_ValueVault_deposit")
-        "ValueVault EVM render missing deposit function"
-      require (contains yul "function f_ValueVault_snapshot")
-        "ValueVault EVM render missing snapshot function"
-      require (contains yul "log1")
-        "ValueVault EVM render missing event log lowering"
-      require (contains yul "number()")
-        "ValueVault EVM render missing checkpoint/block lowering"
-  | .error err =>
-      throw <| IO.userError s!"ValueVault EVM render failed: {err.render}"
 
 def requireSolanaRender : IO Unit := do
   match ProofForge.Backend.Solana.Package.renderPackageForSpec
@@ -119,7 +104,6 @@ def main : IO UInt32 := do
   requireModuleShape
   for profile in routableTargets do
     requireRoutableTarget profile
-  requireEvmRender
   requireSolanaRender
   IO.println "value-vault-example: ok"
   return 0

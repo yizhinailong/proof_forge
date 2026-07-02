@@ -2,7 +2,7 @@
 # Portable ValueVault SDK smoke.
 #
 # This gate exercises one Contract Builder source across target backends:
-#   - EVM: ContractSpec IR -> Yul, plus solc strict-assembly when available.
+#   - EVM: ContractSpec IR -> ABI-selector hydration -> Yul, when Foundry cast exists.
 #   - EVM bytecode/artifact: optional, when both solc and Foundry cast exist.
 #   - Solana: ContractSpec -> target-routed sBPF assembly, manifest, metadata.
 #   - Solana ELF: optional, set PROOF_FORGE_VALUE_VAULT_ELF=1 when sbpf exists.
@@ -49,22 +49,26 @@ command -v python3 >/dev/null 2>&1 || fail "python3 not on PATH"
 rm -rf "$OUT_DIR"
 mkdir -p "$EVM_DIR" "$SOLANA_DIR"
 
-echo "=== Portable ValueVault step 1: emit EVM Yul ==="
-lake env proof-forge --emit-value-vault-ir-yul -o "$EVM_YUL" \
-  || fail "proof-forge --emit-value-vault-ir-yul failed"
-require_file "$EVM_YUL"
-require_contains "$EVM_YUL" 'object "ValueVault"' "EVM Yul object"
-require_contains "$EVM_YUL" "function f_ValueVault_deposit" "EVM Yul deposit function"
-require_contains "$EVM_YUL" "function f_ValueVault_snapshot" "EVM Yul snapshot function"
-require_contains "$EVM_YUL" "log1" "EVM event lowering"
-require_contains "$EVM_YUL" "number()" "EVM checkpoint lowering"
+if command -v cast >/dev/null 2>&1; then
+  echo "=== Portable ValueVault step 1: emit EVM Yul ==="
+  lake env proof-forge --emit-value-vault-ir-yul -o "$EVM_YUL" \
+    || fail "proof-forge --emit-value-vault-ir-yul failed"
+  require_file "$EVM_YUL"
+  require_contains "$EVM_YUL" 'object "ValueVault"' "EVM Yul object"
+  require_contains "$EVM_YUL" "function f_ValueVault_deposit" "EVM Yul deposit function"
+  require_contains "$EVM_YUL" "function f_ValueVault_snapshot" "EVM Yul snapshot function"
+  require_contains "$EVM_YUL" "log1" "EVM event lowering"
+  require_contains "$EVM_YUL" "number()" "EVM checkpoint lowering"
 
-if command -v solc >/dev/null 2>&1; then
-  echo "=== Portable ValueVault step 2: validate EVM Yul with solc ==="
-  solc --strict-assembly "$EVM_YUL" --bin >/dev/null \
-    || fail "solc --strict-assembly rejected ValueVault Yul"
+  if command -v solc >/dev/null 2>&1; then
+    echo "=== Portable ValueVault step 2: validate EVM Yul with solc ==="
+    solc --strict-assembly "$EVM_YUL" --bin >/dev/null \
+      || fail "solc --strict-assembly rejected ValueVault Yul"
+  else
+    echo "SKIP: solc not on PATH; EVM Yul strict-assembly check skipped"
+  fi
 else
-  echo "SKIP: solc not on PATH; EVM Yul strict-assembly check skipped"
+  echo "SKIP: cast not on PATH; EVM selector hydration/Yul branch skipped"
 fi
 
 if command -v solc >/dev/null 2>&1 && command -v cast >/dev/null 2>&1; then

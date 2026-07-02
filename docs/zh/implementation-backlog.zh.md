@@ -495,6 +495,31 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   recipient lamport delta 和 state write 对比。若 `cargo-build-sbf` 找不到
   Solana rustc/platform-tools，该 harness 会 skip。
 
+已完成的开发者 surface 切片：
+
+- Portable ValueVault surface source：
+  `ProofForge.Contract.Surface` 现在允许示例只声明一次 state slot、参数、
+  method 和 event field，然后在 entrypoint body 里通过 typed refs
+  （`read`、`write`、`bind`、`emit`、`ret`）编写逻辑，不再直接写 raw
+  `ContractSpec` 字符串拼装。`ProofForge.Contract.Examples.ValueVault`
+  已经使用该层，并且 source 中刻意保留 `selector? = none`。
+- Target-stage ABI selector hydration：
+  ValueVault CLI emit path 会在 EVM Yul/bytecode 发射前，根据每个
+  entrypoint 的 Solidity ABI signature 通过 `cast sig` 派生 EVM selector，
+  并校验显式 selector 是否与派生值一致；Solana 路由仍独立使用 target
+  instruction tag。`scripts/portable/value-vault-smoke.sh` 会证明同一份
+  surface source 能发射 EVM Yul/bytecode metadata 以及 Solana sBPF
+  assembly/manifest/artifact metadata。
+
+当前边界：
+
+- `ProofForge.Contract.Surface` 是一个 typed builder surface，还不是最终的
+  Learn 合约语法。它当前先把 raw string/spec 拼装收束起来；目标终态是语言级
+  合约编写方式，让 state、entrypoint、account、constraint 和 target
+  capability 看起来像正常 Learn declaration 与 expression，而 selector、
+  instruction tag、IDL/client metadata 和 package artifact 由 target
+  extension 层在编译阶段派生。
+
 剩余优先切片：
 
 1. Rust/Pinocchio equivalence fixture（2-4 天）：在 CI/local 环境稳定安装
@@ -519,9 +544,11 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
    mint/burn/approve variants、authority changes、associated-token account
    setup flows，以及 Token-2022 extension routes，同时不把这些细节上移到
    portable IR。
-6. Developer ergonomics 和框架层体验（每轮 3-5 天）：增加 account constraint
-   helper、typed account wrapper、IDL/client generation、更完整 SPL/Token-2022
-   helper 覆盖，以及能把 generated assembly failure 映射回 SDK declaration 的诊断。
+6. Developer ergonomics 和框架层体验（每轮 3-5 天）：把新的 surface 层继续推进到
+   真正的 Learn-level contract syntax，并增加 account constraint helper、
+   typed account/data wrapper、IDL/client generation、更完整 SPL/Token-2022
+   helper 覆盖，以及能把 generated assembly failure 映射回 SDK declaration
+   的诊断。
 
 最快可信路线是：alpha observability baseline 现在已经落地；下一步先关闭更丰富的
 beta syscall 与 return-data 切片，再移除剩余架构捷径，最后补

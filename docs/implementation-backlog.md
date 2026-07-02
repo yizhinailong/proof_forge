@@ -950,6 +950,33 @@ Completed beta scaffolding slices:
   The harness currently skips when `cargo-build-sbf` cannot find Solana rustc/
   platform-tools.
 
+Completed developer-surface slices:
+
+- Portable ValueVault surface source:
+  `ProofForge.Contract.Surface` now lets examples declare state slots,
+  parameters, methods, and event fields once, then write entrypoint bodies
+  through typed refs (`read`, `write`, `bind`, `emit`, `ret`) instead of raw
+  `ContractSpec` string plumbing. `ProofForge.Contract.Examples.ValueVault`
+  uses this layer and intentionally leaves `selector? = none` in the source.
+- Target-stage ABI selector hydration:
+  the ValueVault CLI emit path derives EVM selectors from each entrypoint's
+  Solidity ABI signature with `cast sig` immediately before EVM Yul/bytecode
+  emission, validates any explicit selector against the derived value, and
+  keeps Solana routing independent by continuing to use target instruction
+  tags. `scripts/portable/value-vault-smoke.sh` proves the same surface source
+  emits EVM Yul/bytecode metadata plus Solana sBPF assembly/manifest/artifact
+  metadata.
+
+Current boundary:
+
+- `ProofForge.Contract.Surface` is a typed builder surface, not the final Learn
+  contract syntax. It deliberately reduces raw string/spec plumbing first, but
+  the desired end state is language-level contract authoring where state,
+  entrypoints, accounts, constraints, and target capabilities read as normal
+  Learn declarations and expressions, with the target extension layer deriving
+  chain-specific selectors, instruction tags, IDL/client metadata, and package
+  artifacts during compilation.
+
 Remaining priority slices:
 
 1. Rust/Pinocchio equivalence fixtures (2-4 days): make the System transfer
@@ -979,8 +1006,9 @@ Remaining priority slices:
    mint/burn/approve variants, authority changes, associated-token account
    setup flows, and Token-2022 extension routes without moving those details
    into portable IR.
-6. Developer ergonomics and framework surface (3-5 days per iteration): add
-   account constraint helpers, typed account wrappers, IDL/client generation,
+6. Developer ergonomics and framework surface (3-5 days per iteration): extend
+   the new surface layer toward real Learn-level contract syntax with account
+   constraint helpers, typed account/data wrappers, IDL/client generation,
    richer SPL/Token-2022 helper coverage, and diagnostics that map generated
    assembly failures back to SDK declarations.
 

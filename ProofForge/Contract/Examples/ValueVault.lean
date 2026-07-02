@@ -6,8 +6,9 @@ open ProofForge.Contract.Surface
 
 /-
 Portable ValueVault is written through the Contract Surface API. The declaration
-sections bind names, selectors, state slots, and parameters once; the entrypoint
-bodies then use typed refs instead of repeating raw storage and local strings.
+sections bind names, state slots, and parameters once; the entrypoint bodies use
+typed refs instead of repeating raw storage and local strings. EVM ABI selectors
+are target-derived during CLI emission rather than written in this source file.
 -/
 
 namespace State
@@ -52,25 +53,25 @@ end Local
 namespace Method
 
 def init : MethodRef :=
-  method "initialize" "fe4b84df" #[Input.initial]
+  method "initialize" #[Input.initial]
 
 def deposit : MethodRef :=
-  method "deposit" "b6b55f25" #[Input.amount]
+  method "deposit" #[Input.amount]
 
 def chargeFee : MethodRef :=
-  method "charge_fee" "be168a46" #[Input.gross, Input.feeBps]
+  method "charge_fee" #[Input.gross, Input.feeBps]
 
 def release : MethodRef :=
-  method "release" "37bdc99b" #[Input.amount]
+  method "release" #[Input.amount]
 
 def snapshot : MethodRef :=
-  method "snapshot" "9711715a" #[] .u64
+  method "snapshot" #[] .u64
 
 def getBalance : MethodRef :=
-  method "get_balance" "c1cfb99a" #[] .u64
+  method "get_balance" #[] .u64
 
 def getNetValue : MethodRef :=
-  method "get_net_value" "d43f79a2" #[] .u64
+  method "get_net_value" #[] .u64
 
 end Method
 
