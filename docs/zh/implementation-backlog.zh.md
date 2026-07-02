@@ -421,12 +421,24 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
   `EpochSchedule.first_normal_epoch` 和 `EpochSchedule.first_normal_slot`
   与 RPC `getEpochSchedule()` 字段一致。
 
+已完成的 beta scaffolding 切片：
+
+- Pinocchio System transfer reference contract：
+  `references/solana/pinocchio/system-transfer` 提供了一个 checked-in
+  no-allocator Pinocchio reference，对齐
+  `ProofForge.Solana.Examples.SystemCpi` 的 System transfer account schema。
+  `scripts/solana/pinocchio-system-transfer-equivalence.sh` 会 emit
+  ProofForge System CPI artifact，并将 instruction tag、parameter ABI、
+  account order、signer/writable constraint、CPI protocol/data layout 和
+  state-write contract 与 reference manifest/source 对比。
+
 剩余优先切片：
 
-1. Rust/Pinocchio equivalence fixture（2-4 天）：为同一套 System/SPL Token
-   account schema 增加 reference program，并让 ProofForge 生成程序与参考实现
-   通过同一个 Web3.js harness 对比。关键比较点是 account order、
-   signer/writable check、CPI instruction data 和可观察 state change。
+1. Rust/Pinocchio equivalence fixture（2-4 天）：构建/部署 System transfer
+   Pinocchio reference ELF，并让它和 ProofForge ELF 通过同一个 Web3.js
+   harness 对比；然后为 create-account 和 SPL Token account schema 增加
+   对应 reference program。关键比较点是 account order、signer/writable
+   check、CPI instruction data 和可观察 state change。
 2. 更丰富的 return data、sysvars、crypto、logs 与 memory helpers（3-5 天）：
    将当前 scalar `sol_log_64_` event 路径扩展到 string/base64/Anchor-style
    与 indexed event 形态；暴露 `sol_get_return_data`、`u64` 之外的 typed

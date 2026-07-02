@@ -15,6 +15,7 @@
 | Solana System create_account CPI Surfpool/Web3.js smoke | `just solana-system-create-account-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 System Program `create_account` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用，验证新建 account 的 owner/space/lamports，并验证 program-owned state account 记录了请求的 lamports 和 space | SPL Token CPI 行为、公共 validator 部署、Rust/Pinocchio 等价性 |
 | Solana SPL Token transfer_checked CPI Surfpool/Web3.js smoke | `just solana-spl-token-transfer-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 SPL Token `transfer_checked` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/spl-token` 创建 mint 和 token accounts，通过 `@solana/web3.js` 调用生成程序，验证 source/destination token balance，并验证 program-owned state account 记录了请求的 amount | 更广泛的 SPL Token/Token-2022 覆盖、公共 validator 部署、Rust/Pinocchio 等价性 |
 | Solana SPL Token ops CPI Surfpool/Web3.js smoke | `just solana-spl-token-ops-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/spl-token` 创建 mint 和 token accounts，通过 `@solana/web3.js` 调用生成程序，验证 mint supply 与 token balance 变化，验证 delegate allowance 后再 revoke 清空，并验证 program-owned state account 记录所有请求值 | Token-2022 extension 行为、公共 validator 部署、Rust/Pinocchio 等价性 |
+| Solana Pinocchio System transfer reference-equivalence smoke | `just solana-pinocchio-system-transfer-equivalence` | 来自 `lean-toolchain` 的 Lean 工具链；`sbpf`；`python3` | emit 生成的 System Program transfer CPI artifact，并将 instruction ABI、account order、signer/writable requirement、CPI metadata 和 lamports state write contract 与 `references/solana/pinocchio/system-transfer` 下 checked-in Pinocchio reference manifest/source 对比 | 构建/部署 Pinocchio reference ELF，并让 ProofForge/reference programs 通过同一个 Web3.js harness 对比 |
 | Solana log/event Surfpool/Web3.js smoke | `just solana-log-event-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `events.emit` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_log_64_` transaction logs 包含稳定 event tag 和 scalar field value，并验证 program-owned state account 记录了同一个值 | Anchor-compatible event serialization、indexed events、历史索引保证 |
 | Solana Clock sysvar Surfpool/Web3.js smoke | `just solana-clock-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `contextRead checkpointId` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_clock_sysvar` 将 `Clock.slot` 记录进 program-owned state，并与 transaction slot metadata 对比 | Epoch/restart-slot sysvars、更丰富的 Clock fields、公共 validator 部署 |
 | Solana Rent sysvar Surfpool/Web3.js smoke | `just solana-rent-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_rent_sysvar` 将 `Rent.lamports_per_byte_year` 记录进 program-owned state，并与 Rent sysvar account data 对比 | Epoch schedule/restart-slot sysvars、更多 Rent fields、公共 validator 部署 |
@@ -89,6 +90,14 @@
     用 `solana program deploy --use-rpc` 部署 ELF，通过标准
     `@solana/web3.js` transaction 调用生成的 transfer entrypoint，并同时检查
     recipient lamport delta 与 program-owned state account 中记录的 lamports 值。
+  - **V-GATE-SOLANA-10R** — System Program transfer Pinocchio
+    reference-equivalence contract。脚本：
+    `scripts/solana/pinocchio-system-transfer-equivalence.sh` emit 同一个
+    `--solana-system-cpi-elf` fixture，并将生成 artifact 与
+    `references/solana/pinocchio/system-transfer/reference-manifest.json`
+    以及 source constants 对比。它先锁住 reference account order、
+    signer/writable constraint、instruction data shape、CPI protocol/data
+    layout 和 state-write contract，再进入后续 dual-deploy runtime harness。
   - **V-GATE-SOLANA-11** — System Program `create_account` CPI 通过 Surfpool
     和 Web3.js 进行 live 行为验证。脚本：
     `scripts/solana/system-create-account-cpi-web3-smoke.sh` 构建生成的

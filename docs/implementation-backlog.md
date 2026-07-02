@@ -873,13 +873,25 @@ Completed alpha slices:
   `EpochSchedule.first_normal_epoch`, and `EpochSchedule.first_normal_slot`
   match RPC `getEpochSchedule()` fields.
 
+Completed beta scaffolding slices:
+
+- Pinocchio System transfer reference contract:
+  `references/solana/pinocchio/system-transfer` contains a checked-in
+  no-allocator Pinocchio reference for the same System transfer account schema
+  as `ProofForge.Solana.Examples.SystemCpi`. The gate
+  `scripts/solana/pinocchio-system-transfer-equivalence.sh` emits the
+  ProofForge System CPI artifact and compares its instruction tag, parameter
+  ABI, account order, signer/writable constraints, CPI protocol/data layout,
+  and state-write contract against the reference manifest/source.
+
 Remaining priority slices:
 
-1. Rust/Pinocchio equivalence fixtures (2-4 days): add reference programs for
-   the same System/SPL Token account schemas and run ProofForge and reference
-   implementations through the same Web3.js harness. The key comparison points
-   are account order, signer/writable checks, CPI instruction data, and
-   observable state changes.
+1. Rust/Pinocchio equivalence fixtures (2-4 days): build/deploy the System
+   transfer Pinocchio reference ELF and run it plus the ProofForge ELF through
+   the same Web3.js harness, then add matching reference programs for
+   create-account and SPL Token account schemas. The key comparison points are
+   account order, signer/writable checks, CPI instruction data, and observable
+   state changes.
 2. Richer return data, sysvars, crypto, logs, and memory helpers (3-5 days):
    extend the current scalar `sol_log_64_` event path to string/base64/
    Anchor-style and indexed event forms; expose `sol_get_return_data`,

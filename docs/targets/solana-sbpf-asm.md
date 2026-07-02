@@ -125,7 +125,7 @@ test when the syscall changes observable chain behavior.
 |---|---|---|
 | Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
 | PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; typed seed descriptors cover literal/UTF-8 bytes, account pubkeys, bump seeds, and scalar instruction-data seeds; Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; derived pubkeys can be validated against declared PDA accounts; assembly builds | Add Web3.js PDA fixture against `PublicKey.findProgramAddressSync`, then add `sol_try_find_program_address` support |
-| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; System transfer/create-account plus SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` have Surfpool/Web3.js live behavior gates | Compare live CPI behavior against Rust/Pinocchio and extend to Token-2022 |
+| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; System transfer/create-account plus SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` have Surfpool/Web3.js live behavior gates; System transfer now has a checked-in Pinocchio reference contract/manifest gate for ABI and CPI contract equivalence | Build/deploy the Pinocchio reference ELF through the same Web3.js harness and extend to Token-2022 |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Phase 1 scalar `events.emit` lowers to `sol_log_64_`; Surfpool/Web3.js verifies transaction logs contain a stable event tag and scalar field value | Extend to `sol_log_` string/base64 payloads, Anchor-style events, indexed fields, and pubkey logs |
@@ -719,6 +719,7 @@ and Node tooling) following the same pattern as others (`solc`, `foundry`,
 | V-GATE-SOLANA-17 | `just solana-crypto-hash-web3` deploys a generated SHA-256/Keccak-256 syscall program on Surfpool and verifies account-stored digests against Node `crypto.createHash("sha256")` and `@noble/hashes` Keccak-256. |
 | V-GATE-SOLANA-18 | `just solana-rent-sysvar-web3` deploys a generated Rent sysvar program on Surfpool and verifies `sol_get_rent_sysvar` records `Rent.lamports_per_byte_year` matching the Rent sysvar account data. |
 | V-GATE-SOLANA-19 | `just solana-epoch-schedule-sysvar-web3` deploys a generated EpochSchedule sysvar program on Surfpool and verifies `sol_get_epoch_schedule_sysvar` records all five current RPC-exposed `EpochSchedule` fields matching RPC `getEpochSchedule()` fields. |
+| V-GATE-SOLANA-10R | `just solana-pinocchio-system-transfer-equivalence` emits the generated System transfer CPI artifact and compares its ABI/account/CPI/state-write contract against a checked-in Pinocchio reference manifest/source. |
 
 ## Lean Module Layout
 
@@ -841,9 +842,12 @@ Phase 3 is split into verifiable SDK completeness levels rather than one large
 The alpha line is the point where a developer should be able to write and
 deploy simple Solana programs without hand-written assembly patches. The beta
 line is the point where ProofForge output can be compared against reference
-Rust/Pinocchio programs for the same account schema. The final framework line
-adds the higher-level ergonomics expected from Anchor-like and Pinocchio-style
-workflows without moving Solana-specific details into portable IR.
+Rust/Pinocchio programs for the same account schema. The System transfer
+reference contract is the first static equivalence anchor for that line; the
+next step is building and invoking that reference ELF in the same Web3.js
+harness as the ProofForge ELF. The final framework line adds the higher-level
+ergonomics expected from Anchor-like and Pinocchio-style workflows without
+moving Solana-specific details into portable IR.
 
 ## References
 
