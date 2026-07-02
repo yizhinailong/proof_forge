@@ -67,6 +67,7 @@ import ProofForge.Solana.Examples.EpochRewards
 import ProofForge.Solana.Examples.LastRestartSlot
 import ProofForge.Solana.Examples.Memory
 import ProofForge.Solana.Examples.Crypto
+import ProofForge.Solana.Examples.ReturnDataCompute
 
 open Lean
 open System
@@ -172,6 +173,7 @@ inductive EmitMode where
   | solanaLastRestartSlotSysvarElf
   | solanaMemoryElf
   | solanaCryptoHashElf
+  | solanaReturnDataComputeElf
   | sbpfAsm
   deriving BEq, Inhabited
 
@@ -285,6 +287,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaLastRestartSlotSysvarElf
   | .solanaMemoryElf
   | .solanaCryptoHashElf
+  | .solanaReturnDataComputeElf
   | .sbpfAsm => true
   | _ => false
 
@@ -397,6 +400,7 @@ def usage : String :=
     "  proof-forge --solana-last-restart-slot-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-memory-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-crypto-hash-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-return-data-compute-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -1434,6 +1438,46 @@ def solanaSysvarActionJson
     ("featureGated", jsonBool (ProofForge.Backend.Solana.Extension.SysvarKind.featureGated action.kind))
   ]
 
+def solanaReturnDataActionJson
+    (action : ProofForge.Backend.Solana.Extension.ReturnDataAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("returnData", jsonString action.name),
+    ("op", jsonString "set"),
+    ("sourceState", jsonString action.sourceState),
+    ("bytes", toString action.bytes)
+  ]
+
+def solanaReturnDataReadActionJson
+    (action : ProofForge.Backend.Solana.Extension.ReturnDataReadAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("returnData", jsonString action.name),
+    ("op", jsonString "get"),
+    ("destinationState", jsonString action.destinationState),
+    ("maxBytes", toString action.maxBytes),
+    ("lengthState", match action.lengthState? with | some state => jsonString state | none => "null"),
+    ("programIdStates", jsonArray (action.programIdStates.map jsonString))
+  ]
+
+def solanaComputeUnitsActionJson
+    (action : ProofForge.Backend.Solana.Extension.ComputeUnitsAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("computeUnits", jsonString action.name),
+    ("op", jsonString "remaining"),
+    ("outputState", jsonString action.outputState),
+    ("featureGated", jsonBool action.featureGated)
+  ]
+
+def solanaComputeUnitsLogActionJson
+    (action : ProofForge.Backend.Solana.Extension.ComputeUnitsLogAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("computeUnits", jsonString action.name),
+    ("op", jsonString "log_remaining")
+  ]
+
 def solanaInstructionAccountJson (account : ProofForge.Backend.Solana.Manifest.AccountEntry) : String :=
   jsonObject #[
     ("name", jsonString account.name),
@@ -1477,7 +1521,11 @@ def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
     ("cpiActions", jsonArray (extensions.cpiActions.map solanaCpiActionJson)),
     ("memoryActions", jsonArray (extensions.memoryActions.map solanaMemoryActionJson)),
     ("cryptoHashActions", jsonArray (extensions.cryptoHashActions.map solanaCryptoHashActionJson)),
-    ("sysvarActions", jsonArray (extensions.sysvarActions.map solanaSysvarActionJson))
+    ("sysvarActions", jsonArray (extensions.sysvarActions.map solanaSysvarActionJson)),
+    ("returnDataActions", jsonArray (extensions.returnDataActions.map solanaReturnDataActionJson)),
+    ("returnDataReadActions", jsonArray (extensions.returnDataReadActions.map solanaReturnDataReadActionJson)),
+    ("computeUnitsActions", jsonArray (extensions.computeUnitsActions.map solanaComputeUnitsActionJson)),
+    ("computeUnitsLogActions", jsonArray (extensions.computeUnitsLogActions.map solanaComputeUnitsLogActionJson))
   ]
 
 def contractNameForFixture (fixture : String) : String :=
@@ -1971,6 +2019,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaMemoryElf }
   | "--solana-crypto-hash-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaCryptoHashElf }
+  | "--solana-return-data-compute-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaReturnDataComputeElf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
@@ -3263,6 +3313,13 @@ def compileSolanaCryptoHashElf (opts : CliOptions) : IO UInt32 :=
     "solana-crypto-hash-elf"
     ProofForge.Solana.Examples.Crypto.spec
 
+def compileSolanaReturnDataComputeElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/ReturnDataCompute.so")
+    "return-data-compute"
+    "solana-return-data-compute-elf"
+    ProofForge.Solana.Examples.ReturnDataCompute.spec
+
 def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/entrypoint.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderCannedEntrypoint with
@@ -3412,6 +3469,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaLastRestartSlotSysvarElf => compileSolanaLastRestartSlotSysvarElf opts
   | .solanaMemoryElf => compileSolanaMemoryElf opts
   | .solanaCryptoHashElf => compileSolanaCryptoHashElf opts
+  | .solanaReturnDataComputeElf => compileSolanaReturnDataComputeElf opts
   | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli

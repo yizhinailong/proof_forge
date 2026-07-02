@@ -2152,6 +2152,11 @@ def lowerReturnDataReadHelper (valueBindings : Array CpiValueBinding)
     loadImm .r2 action.maxBytes
   ] ++
   stackPtr .r3 returnDataProgramIdOffset ++ #[
+    .comment "zero return-data program id buffer before sol_get_return_data",
+    storeImm .stxdw .r3 0 0,
+    storeImm .stxdw .r3 8 0,
+    storeImm .stxdw .r3 16 0,
+    storeImm .stxdw .r3 24 0,
     .comment "r1=data_ptr r2=max_len r3=program_id_ptr",
     callSyscall ProofForge.Backend.Solana.Syscalls.sol_get_return_data,
     .instruction { opcode := .mov64, dst := some .r6, src := some .r0 }

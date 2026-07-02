@@ -97,6 +97,27 @@ def main : IO UInt32 := do
   requireMetadata readReturnDataCall "solana.return_data.program_id_states"
     "return_program0,return_program1,return_program2,return_program3"
 
+  let roundtripSetCall ←
+    match scopedReturnDataCall? plan "roundtrip_publish_result_data" "roundtrip_return_data" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana plan missing roundtrip_publish_result_data return-data action"
+  requireMetadata roundtripSetCall "solana.extension" "return_data"
+  requireMetadata roundtripSetCall "solana.return_data.op" "set"
+  requireMetadata roundtripSetCall "solana.return_data.source_state" "result"
+  requireMetadata roundtripSetCall "solana.return_data.bytes" "8"
+
+  let roundtripReadCall ←
+    match scopedReturnDataCall? plan "roundtrip_read_return_data" "roundtrip_return_data" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana plan missing roundtrip_read_return_data return-data action"
+  requireMetadata roundtripReadCall "solana.extension" "return_data"
+  requireMetadata roundtripReadCall "solana.return_data.op" "get"
+  requireMetadata roundtripReadCall "solana.return_data.destination_state" "last_return"
+  requireMetadata roundtripReadCall "solana.return_data.max_bytes" "8"
+  requireMetadata roundtripReadCall "solana.return_data.length_state" "return_len"
+  requireMetadata roundtripReadCall "solana.return_data.program_id_states"
+    "return_program0,return_program1,return_program2,return_program3"
+
   let computeCall ←
     match scopedComputeUnitsCall? plan "record_remaining" "record_compute" with
     | some call => pure call
@@ -155,6 +176,12 @@ def main : IO UInt32 := do
         "manifest missing return-data length state"
       require (contains manifest "program_id_states = [\"return_program0\", \"return_program1\", \"return_program2\", \"return_program3\"]")
         "manifest missing return-data program id state outputs"
+      require (contains manifest "return_data = \"roundtrip_publish_result_data\"")
+        "manifest missing roundtrip_publish_result_data action"
+      require (contains manifest "return_data = \"roundtrip_read_return_data\"")
+        "manifest missing roundtrip_read_return_data action"
+      require (contains manifest "entrypoint = \"roundtrip_return_data\"")
+        "manifest missing roundtrip_return_data entrypoint action"
       require (contains manifest "[[solana.entrypoint_compute_units]]")
         "manifest missing entrypoint compute-units action section"
       require (contains manifest "compute_units = \"record_remaining\"")
@@ -183,12 +210,22 @@ def main : IO UInt32 := do
         "assembly missing return-data get helper label"
       require (contains asm "solana.return_data.get read_latest_return_data: destination=last_return max_bytes=8")
         "assembly missing return-data get helper marker"
+      require (contains asm "zero return-data program id buffer before sol_get_return_data")
+        "assembly missing return-data program id zeroing"
       require (contains asm "call sol_get_return_data")
         "assembly missing sol_get_return_data syscall"
       require (contains asm "solana.return_data.length read_latest_return_data state=return_len")
         "assembly missing return-data length output"
       require (contains asm "solana.return_data.program_id read_latest_return_data[3] state=return_program3")
         "assembly missing fourth return-data program id output"
+      require (contains asm "solana.return_data.action roundtrip_publish_result_data")
+        "assembly missing roundtrip return-data set entrypoint action"
+      require (contains asm "sol_return_data_set_roundtrip_publish_result_data:")
+        "assembly missing roundtrip return-data set helper label"
+      require (contains asm "solana.return_data.read_action roundtrip_read_return_data")
+        "assembly missing roundtrip return-data read entrypoint action"
+      require (contains asm "sol_return_data_get_roundtrip_read_return_data:")
+        "assembly missing roundtrip return-data get helper label"
       require (contains asm "solana.compute_units.action record_remaining")
         "assembly missing compute-units entrypoint action"
       require (contains asm "sol_compute_units_remaining_record_remaining:")

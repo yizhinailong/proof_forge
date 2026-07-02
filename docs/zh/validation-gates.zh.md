@@ -24,6 +24,7 @@
 | Solana EpochRewards sysvar Surfpool/Web3.js smoke | `just solana-epoch-rewards-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_epoch_rewards_sysvar` 将当前 `EpochRewards` scalar/word-view 字段记录进 program-owned state，并与 EpochRewards sysvar account data 对比 | 更多 Clock/Rent 字段、generic account-passed sysvar 读取、公共 validator 部署 |
 | Solana LastRestartSlot sysvar Surfpool/Web3.js smoke | `just solana-last-restart-slot-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 feature-gated `LastRestartSlot.last_restart_slot` 读取已通过 `sol_get_sysvar` lowering，并与 LastRestartSlot sysvar account data 对比 | 其他 sysvars、公共 validator 部署、cluster feature activation 差异 |
 | Solana memory syscall Surfpool/Web3.js smoke | `just solana-memory-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `runtime.memory` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_source` 和 `copy_compare_fill`，并验证 program-owned account bytes 证明 `sol_memcpy_`、`sol_memmove_`、`sol_memcmp_` 和 `sol_memset_` 已执行 | 更广泛的 account/data packing helper、Rust/Pinocchio 等价性 |
+| Solana return-data/compute Surfpool/Web3.js smoke | `just solana-return-data-compute-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `runtime.return_data`/`runtime.compute_units` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用，借助 simulation returnData 验证 `sol_set_return_data`，通过 empty read 与同一条 instruction 内 set/get roundtrip 验证 `sol_get_return_data`，验证 `sol_remaining_compute_units` 写入非零 state value，并验证 `sol_log_compute_units_` 产出 compute-unit log | CPI return-value 处理、`u64` 之外的 typed return payload、public-validator feature 差异 |
 | Solana SHA-256/Keccak-256/Blake3 syscall Surfpool/Web3.js smoke | `just solana-crypto-hash-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `crypto.hash` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_preimage`、`hash_preimage`、`keccak_preimage` 和 `blake3_preimage`，并验证 account 中保存的 digest 与同一 preimage bytes 的 Node SHA-256 和 `@noble/hashes` Keccak-256/Blake3 一致 | portable `Expr.hash` 路由、Rust/Pinocchio 等价性 |
 | Yul 生成冒烟测试 | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | 已构建 `proof-forge` | Lean 前端/LCNF 将简单合约降级为 Yul | `solc` 验收、ABI 调度、EVM 运行时行为 |
 | Yul 到字节码冒烟测试 | `solc --strict-assembly build/counter.yul --bin` | `PATH` 上的 `solc` | 生成的 Yul 被 `solc` 接受 | 运行时语义或方法调度 |
@@ -206,6 +207,17 @@
     `EpochRewards.total_points_low/high`、`EpochRewards.total_rewards`、
     `EpochRewards.distributed_rewards` 和 `EpochRewards.active` 与
     EpochRewards sysvar account data 对比。
+  - **V-GATE-SOLANA-22** — Solana return-data 与 compute-unit syscall 通过
+    Surfpool 和 Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/return-data-compute-web3-smoke.sh` 构建生成的
+    `--solana-return-data-compute-elf` fixture，校验 `runtime.return_data`
+    与 `runtime.compute_units` target-extension artifact metadata，启动
+    Surfpool，用 `solana program deploy --use-rpc` 部署 ELF，通过
+    simulation `returnData` 确认 `sol_set_return_data`，检查 empty
+    `sol_get_return_data` 读取，检查同一条 instruction 内的 set/get
+    roundtrip 以及返回的 program id words，记录非零
+    `sol_remaining_compute_units` value，并验证 `sol_log_compute_units_`
+    产出 compute-unit log。
 - Move 冒烟测试 — `aptos move compile/test` 或 Sui Move 验证。
 - 能力拒绝测试 — 针对不支持的能力/目标组合的编译时诊断。
 

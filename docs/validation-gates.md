@@ -27,6 +27,7 @@ does not add or edit CI jobs.
 | Solana EpochRewards sysvar Surfpool/Web3.js smoke | `just solana-epoch-rewards-sysvar-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated Solana-only `sysvar` target-extension ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies `sol_get_epoch_rewards_sysvar` records all current `EpochRewards` scalar/word-view fields into program-owned state, and compares them with the EpochRewards sysvar account data | Additional Clock/Rent fields, generic account-passed sysvar reads, public validator deployment |
 | Solana LastRestartSlot sysvar Surfpool/Web3.js smoke | `just solana-last-restart-slot-sysvar-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated Solana-only `sysvar` target-extension ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes the generated program through `@solana/web3.js`, verifies the feature-gated `LastRestartSlot.last_restart_slot` read lowered through `sol_get_sysvar`, and compares the recorded value with the LastRestartSlot sysvar account data | Additional sysvars, public validator deployment, cluster feature-activation variance |
 | Solana memory syscall Surfpool/Web3.js smoke | `just solana-memory-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated `runtime.memory` ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes `set_source` plus `copy_compare_fill` through `@solana/web3.js`, and verifies program-owned account bytes prove `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_` executed | Broader account/data packing helpers, Rust/Pinocchio equivalence |
+| Solana return-data/compute Surfpool/Web3.js smoke | `just solana-return-data-compute-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated `runtime.return_data`/`runtime.compute_units` ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes it through `@solana/web3.js`, verifies `sol_set_return_data` through simulation returnData, verifies `sol_get_return_data` through empty reads and same-instruction set/get roundtrips, verifies `sol_remaining_compute_units` writes a nonzero state value, and verifies `sol_log_compute_units_` emits compute-unit logs | CPI return-value handling, typed return payloads beyond `u64`, public-validator feature variance |
 | Solana SHA-256/Keccak-256/Blake3 syscall Surfpool/Web3.js smoke | `just solana-crypto-hash-web3` | Lean toolchain from `lean-toolchain`; `surfpool`; Solana CLI and `solana-keygen`; `sbpf`; Node; npm | Builds a generated Solana-only `crypto.hash` ELF, starts Surfpool, deploys with `solana program deploy --use-rpc`, invokes `set_preimage`, `hash_preimage`, `keccak_preimage`, and `blake3_preimage` through `@solana/web3.js`, and verifies account-stored digests against Node SHA-256 plus `@noble/hashes` Keccak-256/Blake3 for the same preimage bytes | Portable `Expr.hash` routing, Rust/Pinocchio equivalence |
 | Yul generation smoke | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | Built `proof-forge` | Lean frontend/LCNF lowers a simple contract to Yul | `solc` acceptance, ABI dispatch, EVM runtime behavior |
 | Yul-to-bytecode smoke | `solc --strict-assembly build/counter.yul --bin` | `solc` on `PATH` | Generated Yul is accepted by `solc` | Runtime semantics or method dispatch |
@@ -294,6 +295,17 @@ The following gates are `Planned` and do not exist in CI or as scripts:
     `EpochRewards.total_points_low/high`, `EpochRewards.total_rewards`,
     `EpochRewards.distributed_rewards`, and `EpochRewards.active` with the
     EpochRewards sysvar account data.
+  - **V-GATE-SOLANA-22** — Solana return-data and compute-unit syscall live
+    behavior through Surfpool and Web3.js. Script:
+    `scripts/solana/return-data-compute-web3-smoke.sh` builds the generated
+    `--solana-return-data-compute-elf` fixture, validates
+    `runtime.return_data` and `runtime.compute_units` target-extension artifact
+    metadata, starts Surfpool, deploys the ELF with
+    `solana program deploy --use-rpc`, confirms `sol_set_return_data` via
+    simulation `returnData`, checks empty `sol_get_return_data` reads, checks a
+    same-instruction set/get roundtrip including the returned program id words,
+    records a nonzero `sol_remaining_compute_units` value, and verifies
+    `sol_log_compute_units_` emits compute-unit logs.
 - Move smoke — `aptos move compile/test` or Sui Move validation.
 - Cross-target capability rejection matrix — compile-time diagnostics for
   unsupported capability/target combinations beyond the target-specific Psy and

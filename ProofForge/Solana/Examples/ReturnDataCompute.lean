@@ -46,6 +46,17 @@ def spec : ProofForge.Contract.ContractSpec :=
     entrySelector "log_compute" "16" do
       logRemainingComputeUnits "log_remaining"
 
+    entrySelector "roundtrip_return_data" "17" do
+      setReturnDataFromState "roundtrip_publish_result_data" "result" 8
+      getReturnDataToState "roundtrip_read_return_data" "last_return" 8
+        (lengthState? := some "return_len")
+        (programIdStates := #[
+          "return_program0",
+          "return_program1",
+          "return_program2",
+          "return_program3"
+        ])
+
 def module : ProofForge.IR.Module :=
   spec.module
 

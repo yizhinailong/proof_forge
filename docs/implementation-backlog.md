@@ -812,11 +812,12 @@ fields through `sol_get_epoch_schedule_sysvar`: `slots_per_epoch`,
 `parent_blockhash_word0..3`, `total_points_low/high`, `total_rewards`,
 `distributed_rewards`, and `active`, plus feature-gated live
 `LastRestartSlot.last_restart_slot` validation through `sol_get_sysvar` with
-the `SysvarLastRestartS1ot1111111111111111111111` sysvar id. Lean/package-level SDK coverage now includes
-`runtime.return_data` lowering to `sol_set_return_data` and
-`sol_get_return_data`, plus `runtime.compute_units` lowering to feature-gated
-`sol_remaining_compute_units` and profiling logs through
-`sol_log_compute_units_`.
+the `SysvarLastRestartS1ot1111111111111111111111` sysvar id. Live SDK
+coverage now includes `runtime.return_data` lowering to `sol_set_return_data`
+and `sol_get_return_data`, with empty-read, set-return simulation, and
+same-instruction set/get roundtrip checks, plus `runtime.compute_units`
+lowering to feature-gated `sol_remaining_compute_units` state writes and
+profiling logs through `sol_log_compute_units_`.
 The estimates below assume one engineer working on this branch,
 the current direct-assembly architecture staying stable, and local
 `sbpf`/Surfpool/Solana CLI tooling remaining available.
@@ -882,6 +883,12 @@ Completed alpha slices:
   on EVM, and render manifest sections plus sBPF helper calls for
   `sol_set_return_data`, `sol_get_return_data`, feature-gated
   `sol_remaining_compute_units`, and `sol_log_compute_units_`.
+  `scripts/solana/return-data-compute-web3-smoke.sh` builds and deploys the
+  generated `--solana-return-data-compute-elf` fixture on Surfpool, validates
+  artifact action metadata, verifies no-data `sol_get_return_data` reads,
+  confirms `sol_set_return_data` through Web3.js simulation returnData, checks a
+  same-instruction set/get roundtrip including program id words, records a
+  nonzero remaining-compute-units value, and confirms compute-unit logging.
 - Live SHA-256/Keccak-256/Blake3 syscall fixture:
   `scripts/solana/crypto-hash-web3-smoke.sh` builds and deploys a generated
   Solana-only `crypto.hash` program on Surfpool, invokes `set_preimage`,
@@ -946,8 +953,8 @@ Remaining priority slices:
    state changes.
 2. Richer return data, sysvars, crypto, logs, and memory helpers (3-5 days):
    extend the current scalar `sol_log_64_` event path to string/base64/
-   Anchor-style and indexed event forms; add live/CPI validation for
-   `sol_get_return_data`, typed return payload helpers beyond `u64`,
+   Anchor-style and indexed event forms; add CPI return-value handling and
+   validation for `sol_get_return_data`, typed return payload helpers beyond `u64`,
    additional Clock/Rent fields and generic account-passed sysvar reads,
    portable `Expr.hash` routing where the hash semantics match the target, and
    broader account/data packing helpers that reuse the new memory syscall path,

@@ -370,10 +370,12 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
 `parent_blockhash_word0..3`、`total_points_low/high`、`total_rewards`、
 `distributed_rewards` 和 `active`，以及通过 `sol_get_sysvar` 和
 `SysvarLastRestartS1ot1111111111111111111111` sysvar id 验证的
-feature-gated live `LastRestartSlot.last_restart_slot` 路径。Lean/package 级 SDK 覆盖
+feature-gated live `LastRestartSlot.last_restart_slot` 路径。Live SDK 覆盖
 现在还包括把 `runtime.return_data` 降为 `sol_set_return_data` 与
-`sol_get_return_data`，以及把 `runtime.compute_units` 降为 feature-gated
-`sol_remaining_compute_units` 和 profiling log `sol_log_compute_units_`。
+`sol_get_return_data`，并验证 empty read、set-return simulation 和同一条
+instruction 内 set/get roundtrip；同时也包括把 `runtime.compute_units` 降为
+feature-gated `sol_remaining_compute_units` state write 和 profiling log
+`sol_log_compute_units_`。
 下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
 `sbpf`/Surfpool/Solana CLI 工具链可用。
 
@@ -430,6 +432,12 @@ feature-gated live `LastRestartSlot.last_restart_slot` 路径。Lean/package 级
   上被拒绝，并且会生成 manifest section 与 sBPF helper call，覆盖
   `sol_set_return_data`、`sol_get_return_data`、feature-gated
   `sol_remaining_compute_units` 和 `sol_log_compute_units_`。
+  `scripts/solana/return-data-compute-web3-smoke.sh` 会在 Surfpool 上构建并部署
+  生成的 `--solana-return-data-compute-elf` fixture，校验 artifact action
+  metadata，验证无数据时的 `sol_get_return_data` 读取，通过 Web3.js simulation
+  returnData 确认 `sol_set_return_data`，检查同一条 instruction 内的 set/get
+  roundtrip 与 program id words，记录非零 remaining-compute-units value，并确认
+  compute-unit log。
 - Live SHA-256/Keccak-256/Blake3 syscall fixture：`scripts/solana/crypto-hash-web3-smoke.sh`
   会在 Surfpool 上构建并部署生成的 Solana-only `crypto.hash` 程序，通过
   Web3.js 调用 `set_preimage`、`hash_preimage`、`keccak_preimage` 和
@@ -489,7 +497,7 @@ feature-gated live `LastRestartSlot.last_restart_slot` 路径。Lean/package 级
    CPI instruction data 和可观察 state change。
 2. 更丰富的 return data、sysvars、crypto、logs 与 memory helpers（3-5 天）：
    将当前 scalar `sol_log_64_` event 路径扩展到 string/base64/Anchor-style
-   与 indexed event 形态；为 `sol_get_return_data` 增加 live/CPI 验证、
+   与 indexed event 形态；为 `sol_get_return_data` 增加 CPI return-value 处理与验证、
    `u64` 之外的 typed return payload helper、更多 Clock/Rent 字段、
    generic account-passed sysvar 读取、语义匹配时的 portable `Expr.hash`
    路由，以及复用新 memory syscall 路径的更广 account/data packing helper，
