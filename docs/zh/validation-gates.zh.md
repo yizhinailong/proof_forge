@@ -16,6 +16,7 @@
 | Solana SPL Token transfer_checked CPI Surfpool/Web3.js smoke | `just solana-spl-token-transfer-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 SPL Token `transfer_checked` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/spl-token` 创建 mint 和 token accounts，通过 `@solana/web3.js` 调用生成程序，验证 source/destination token balance，并验证 program-owned state account 记录了请求的 amount | 更广泛的 SPL Token/Token-2022 覆盖、公共 validator 部署、Rust/Pinocchio 等价性 |
 | Solana SPL Token ops CPI Surfpool/Web3.js smoke | `just solana-spl-token-ops-cpi-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/spl-token` 创建 mint 和 token accounts，通过 `@solana/web3.js` 调用生成程序，验证 mint supply 与 token balance 变化，验证 delegate allowance 后再 revoke 清空，并验证 program-owned state account 记录所有请求值 | Token-2022 extension 行为、公共 validator 部署、Rust/Pinocchio 等价性 |
 | Solana log/event Surfpool/Web3.js smoke | `just solana-log-event-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `events.emit` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_log_64_` transaction logs 包含稳定 event tag 和 scalar field value，并验证 program-owned state account 记录了同一个值 | Anchor-compatible event serialization、indexed events、历史索引保证 |
+| Solana Clock sysvar Surfpool/Web3.js smoke | `just solana-clock-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `contextRead checkpointId` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_clock_sysvar` 将 `Clock.slot` 记录进 program-owned state，并与 transaction slot metadata 对比 | Rent/epoch sysvars、更丰富的 Clock fields、公共 validator 部署 |
 | Yul 生成冒烟测试 | `lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean` | 已构建 `proof-forge` | Lean 前端/LCNF 将简单合约降级为 Yul | `solc` 验收、ABI 调度、EVM 运行时行为 |
 | Yul 到字节码冒烟测试 | `solc --strict-assembly build/counter.yul --bin` | `PATH` 上的 `solc` | 生成的 Yul 被 `solc` 接受 | 运行时语义或方法调度 |
 | 单个 EVM 字节码编译 | `lake env proof-forge --evm-bytecode --root . --module contract --artifact-output build/evm/Counter.proof-forge-artifact.json -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean` | `solc`、`cast`、`python3` 和 `Examples/Evm/Contracts/Counter.evm-methods` | Lean -> Yul -> `solc` -> 带有选择器生成的 runtime bytecode、可部署 `.init.bin` creation bytecode、`proof-forge-artifact.json` metadata，以及 `proof-forge-deploy.json` initcode manifest；manifest 中的 initcode header 会复制并返回引用的 runtime bytecode；`--evm-chain-profile <id>` 还会把已知 EVM chain profile 写入 deploy manifest，但不广播交易；`--evm-constructor-param <name:type>` 会记录静态 word constructor ABI schema；`--evm-constructor-arg <name=value>` 会 ABI-encode 支持的静态 word typed value；`--evm-constructor-args-hex <hex>` 会记录并追加一段 ABI-encoded constructor-argument tail | 运行时行为、gas、详尽的 ABI 正确性、dynamic constructor ABI types、签名/原始交易生成、真实交易广播 |
@@ -117,6 +118,14 @@
     instruction parameter 调用生成的 `emit` entrypoint，检查 program-owned
     state account 记录的 amount，并检查 transaction `logMessages` 中
     `sol_log_64_` 输出包含稳定的 `AmountEvent` tag 和 scalar value。
+  - **V-GATE-SOLANA-15** — Solana Clock sysvar 通过 Surfpool 和 Web3.js
+    进行 live 行为验证。脚本：`scripts/solana/clock-sysvar-web3-smoke.sh`
+    构建生成的 `--solana-clock-sysvar-elf` fixture，校验 artifact
+    instruction schema 与 `env.block` capability metadata，启动 Surfpool，
+    用 `solana program deploy --use-rpc` 部署 ELF，调用生成的 `record`
+    entrypoint，检查 `sol_get_clock_sysvar` 把 `Clock.slot` 写入
+    program-owned state account，并与 Web3.js metadata 中的 transaction slot
+    对比。
 - Move 冒烟测试 — `aptos move compile/test` 或 Sui Move 验证。
 - 能力拒绝测试 — 针对不支持的能力/目标组合的编译时诊断。
 

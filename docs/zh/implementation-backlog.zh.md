@@ -339,7 +339,8 @@ data packing、bump-allocator metadata、scalar entrypoint parameter decoding、
 typed PDA seed lowering、live System Program transfer/create-account CPI
 validation、live SPL Token `transfer_checked` CPI validation，以及 live SPL
 Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
-`sol_log_64_` 验证的 live scalar `events.emit` 日志路径。下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
+`sol_log_64_` 验证的 live scalar `events.emit` 日志路径，以及
+`contextRead checkpointId` 的 live `Clock.slot` sysvar validation。下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
 `sbpf`/Surfpool/Solana CLI 工具链可用。
 
 | 层级 | 预计工作量 | 完成标准 |
@@ -380,6 +381,10 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
   会在 Surfpool 上构建并部署生成的 `events.emit` 程序，通过 Web3.js 调用，
   验证生成的 `sol_log_64_` transaction log 包含稳定的 `AmountEvent` tag 与
   scalar `amount` 字段，并证明 program-owned state account 记录了同一个值。
+- Live Clock sysvar fixture：`scripts/solana/clock-sysvar-web3-smoke.sh`
+  会在 Surfpool 上构建并部署生成的 `contextRead checkpointId` 程序，把它降级到
+  `sol_get_clock_sysvar`，通过 Web3.js 调用，并证明记录的 `Clock.slot`
+  与观察到的 transaction slot 一致。
 
 剩余优先切片：
 
@@ -390,7 +395,7 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
 2. 更丰富的 return data、sysvars、crypto、logs 与 memory helpers（3-5 天）：
    将当前 scalar `sol_log_64_` event 路径扩展到 string/base64/Anchor-style
    与 indexed event 形态；暴露 `sol_get_return_data`、`u64` 之外的 typed
-   return payload helper、clock/rent sysvar reads、
+   return payload helper、rent/epoch sysvar reads、
    `sol_sha256`/`sol_keccak256`/`sol_blake3`，以及
    `sol_memcpy`/`sol_memcmp`/`sol_memset`，并与 JavaScript reference 对比。
 3. Runtime allocation lowering（1-2 天）：后续 heap-backed SDK structure 通过

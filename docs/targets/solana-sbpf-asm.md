@@ -130,7 +130,7 @@ test when the syscall changes observable chain behavior.
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Phase 1 scalar `events.emit` lowers to `sol_log_64_`; Surfpool/Web3.js verifies transaction logs contain a stable event tag and scalar field value | Extend to `sol_log_` string/base64 payloads, Anchor-style events, indexed fields, and pubkey logs |
 | Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | Documented only | Use internally for account/data packing helpers; unit-test generated assembly and runtime copies |
-| Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | Documented only | Map `env.block`/rent-like SDK reads to syscalls and validate returned fields |
+| Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | `contextRead checkpointId` lowers to `sol_get_clock_sysvar` and reads `Clock.slot`; Surfpool/Web3.js verifies the recorded slot against transaction metadata | Add rent, epoch schedule, and restart slot reads; expose typed SDK accessors for additional Clock fields |
 | Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | Documented only | Lower `crypto.hash` variants and compare against JS reference hashes |
 | Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | Documented only | Add diagnostics/profiling helpers and explicit failure tests |
 | Return-data read (`sol_get_return_data`) | Documented only | Use in CPI return handling after CPI packing lands |
@@ -558,7 +558,7 @@ The target profile must accept or reject each IR capability. The proposed
 | `events.emit` | Partial | `sol_log_` / `sol_log_64_` |
 | `crosscall.invoke` | ✗ | EVM‑specific; Solana uses CPI |
 | `crosscall.cpi` | Partial | SDK entry actions emit `sol_invoke_signed_c` helpers; full account/data packing remains |
-| `env.block` | Phase 2 | Sysvar clock reads |
+| `env.block` | ✓ | `contextRead checkpointId` lowers to Clock.slot via `sol_get_clock_sysvar` |
 | `control.conditional` | ✓ | Conditional jumps |
 | `control.bounded_loop` | Phase 2 | Counted loop or unrolling |
 | `data.fixed_array` | ✓ | Fixed‑size local arrays, stack‑allocated |
@@ -824,7 +824,7 @@ Phase 3 is split into verifiable SDK completeness levels rather than one large
 | Level | Estimated effort | Scope |
 |---|---:|---|
 | SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. PDA/System/SPL live gates, instruction ABI bounds/schema metadata, typed PDA seed lowering, return-data `get`, and scalar `sol_log_64_` event logging are already in place. |
-| SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. |
+| SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. Clock.slot is already covered through `sol_get_clock_sysvar`. |
 | Anchor/Pinocchio-class surface | 4-6 focused weeks after beta | Add account constraints, typed account/data wrappers, IDL/client generation, richer SPL/Token-2022 helper coverage, and SDK-facing diagnostics. |
 
 The alpha line is the point where a developer should be able to write and

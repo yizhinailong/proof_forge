@@ -60,6 +60,7 @@ import ProofForge.Solana.Examples.SystemCreateAccountCpi
 import ProofForge.Solana.Examples.SplTokenTransferCheckedCpi
 import ProofForge.Solana.Examples.SplTokenOpsCpi
 import ProofForge.Solana.Examples.LogEvent
+import ProofForge.Solana.Examples.Clock
 
 open Lean
 open System
@@ -158,6 +159,7 @@ inductive EmitMode where
   | solanaSplTokenTransferCpiElf
   | solanaSplTokenOpsCpiElf
   | solanaLogEventElf
+  | solanaClockSysvarElf
   | sbpfAsm
   deriving BEq, Inhabited
 
@@ -264,6 +266,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSplTokenTransferCpiElf
   | .solanaSplTokenOpsCpiElf
   | .solanaLogEventElf
+  | .solanaClockSysvarElf
   | .sbpfAsm => true
   | _ => false
 
@@ -369,6 +372,7 @@ def usage : String :=
     "  proof-forge --solana-spl-token-transfer-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-spl-token-ops-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-log-event-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-clock-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
@@ -1889,6 +1893,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaSplTokenOpsCpiElf }
   | "--solana-log-event-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaLogEventElf }
+  | "--solana-clock-sysvar-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaClockSysvarElf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
   | "-h" :: _, _ =>
@@ -3132,6 +3138,13 @@ def compileSolanaLogEventElf (opts : CliOptions) : IO UInt32 :=
     "solana-log-event-elf"
     ProofForge.Solana.Examples.LogEvent.spec
 
+def compileSolanaClockSysvarElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/Clock.so")
+    "clock-sysvar"
+    "solana-clock-sysvar-elf"
+    ProofForge.Solana.Examples.Clock.spec
+
 def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/entrypoint.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderCannedEntrypoint with
@@ -3274,6 +3287,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaSplTokenTransferCpiElf => compileSolanaSplTokenTransferCpiElf opts
   | .solanaSplTokenOpsCpiElf => compileSolanaSplTokenOpsCpiElf opts
   | .solanaLogEventElf => compileSolanaLogEventElf opts
+  | .solanaClockSysvarElf => compileSolanaClockSysvarElf opts
   | .sbpfAsm => compileSbpfAsm opts
 
 end ProofForge.Cli

@@ -100,6 +100,14 @@ def LowerCtx.allocScratch (ctx : LowerCtx) : Nat × LowerCtx :=
   let offset := ctx.scratchOffset
   (offset, { ctx with scratchOffset := offset + 8 })
 
+/-- Reserve a contiguous stack byte buffer and return the stack offset of the
+first byte. Stack offsets render as `[r10-offset]`, so a buffer of `bytes`
+starts at the lowest address in the reserved range. -/
+def LowerCtx.allocScratchBytes (ctx : LowerCtx) (bytes : Nat) : Nat × LowerCtx :=
+  let size := max 8 (bytes + alignTo8 bytes)
+  let offset := ctx.scratchOffset + size - 8
+  (offset, { ctx with scratchOffset := ctx.scratchOffset + size })
+
 /-- Allocate a temporary location. Prefer a register, then fall back to a stack
 slot assigned by `allocScratch` so spill slots stay disjoint from locals. -/
 def LowerCtx.allocLoc (ctx : LowerCtx) : Loc × LowerCtx :=
@@ -134,6 +142,7 @@ def buildCtx (module : Module) (stateDataOff : Nat) : Except LowerError LowerCtx
 
 def SPL_TOKEN_ACCOUNT_DATA_SIZE : Nat := 165
 def SPL_TOKEN_MINT_DATA_SIZE : Nat := 82
+def CLOCK_SYSVAR_SIZE : Nat := 40
 
 def LOG_EVENT_TAG_MODULUS : Nat := 4294967296
 
@@ -360,6 +369,21 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
       | some absOff => .ok (#[ .instruction (res .ldxdw (src := some .r1) (off := some (.num absOff))) ], ctx)
       | none => .error { message := s!"unknown state: {stateId}" }
     else .error { message := "storage path read with non-empty path not supported in Phase 1" }
+  | .effect (.contextRead .checkpointId) =>
+    let (inputPtrScratch, ctx) := ctx.allocScratch
+    let (clockBuffer, ctx) := ctx.allocScratchBytes CLOCK_SYSVAR_SIZE
+    .ok (#[
+      .comment "solana.sysvar.clock: sol_get_clock_sysvar -> Clock.slot",
+      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num inputPtrScratch), src := some .r1 },
+      .instruction { opcode := .mov64, dst := some .r1, src := some .r10 },
+      .instruction { opcode := .sub64, dst := some .r1, imm := some (.num clockBuffer) },
+      .instruction { opcode := .call, imm := some (.sym sol_get_clock_sysvar) },
+      .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_syscall") },
+      .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num clockBuffer) },
+      .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrScratch) }
+    ], ctx)
+  | .effect (.contextRead field) =>
+    .error { message := s!"Solana context read `{field.name}` is not supported in Phase 1; checkpointId maps to Clock.slot" }
   | _ => .error { message := "unsupported expression in Phase 1" }
 where
   lowerCmp (ctx : LowerCtx) (lhs rhs : IR.Expr) (condJmp : Opcode) : Except LowerError (Array AstNode × LowerCtx) := do
@@ -526,6 +550,9 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
 
 def entrypointHasReturn (ep : IR.Entrypoint) : Bool :=
   ep.body.any fun stmt => match stmt with | .return _ => true | _ => false
+
+def moduleNeedsSyscallError (module : IR.Module) : Bool :=
+  module.capabilities.any (fun capability => capability == .envBlock)
 
 def lowerProgramOwnerValidation (layout : AccountInputLayout) : Array AstNode :=
   loadCurrentProgramIdPtr .r4 .r2 ++ #[
@@ -827,6 +854,13 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
     .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 9) },
     .instruction { opcode := .exit }
   ]
+  if moduleNeedsSyscallError module then
+    nodes := nodes ++ #[
+      .blankLine,
+      .label "error_syscall",
+      .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 10) },
+      .instruction { opcode := .exit }
+    ]
   .ok nodes
 
 partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode) :=

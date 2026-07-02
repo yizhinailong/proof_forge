@@ -778,7 +778,8 @@ parameter decoding, typed PDA seed lowering, live System Program transfer plus
 create-account CPI validation, live SPL Token `transfer_checked` CPI
 validation, and live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
 validation, plus live scalar `events.emit` log validation through
-`sol_log_64_`. The estimates below assume one engineer working on this branch,
+`sol_log_64_`, and live `Clock.slot` sysvar validation for `contextRead
+checkpointId`. The estimates below assume one engineer working on this branch,
 the current direct-assembly architecture staying stable, and local
 `sbpf`/Surfpool/Solana CLI tooling remaining available.
 
@@ -828,6 +829,10 @@ Completed alpha slices:
   through Web3.js, verifies the generated `sol_log_64_` transaction log
   contains the stable `AmountEvent` tag and scalar `amount` field, and proves
   the program-owned state account recorded the same value.
+- Live Clock sysvar fixture: `scripts/solana/clock-sysvar-web3-smoke.sh`
+  builds and deploys a generated `contextRead checkpointId` program on
+  Surfpool, lowers it to `sol_get_clock_sysvar`, invokes it through Web3.js,
+  and proves the recorded `Clock.slot` matches the observed transaction slot.
 
 Remaining priority slices:
 
@@ -839,7 +844,7 @@ Remaining priority slices:
 2. Richer return data, sysvars, crypto, logs, and memory helpers (3-5 days):
    extend the current scalar `sol_log_64_` event path to string/base64/
    Anchor-style and indexed event forms; expose `sol_get_return_data`,
-   typed return payload helpers beyond `u64`, clock/rent sysvar reads,
+   typed return payload helpers beyond `u64`, rent/epoch sysvar reads,
    `sol_sha256`/`sol_keccak256`/`sol_blake3`, and
    `sol_memcpy`/`sol_memcmp`/`sol_memset`, with JavaScript reference checks.
 3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures
