@@ -232,17 +232,23 @@ inductive HostBridgeKind where
   | module (id : String)   -- "near" | "cosmwasm" | "solana"
   | none             -- source generation targets
 
-inductive AllocatorStrategy where
-  | evmFreeMemPtr    -- Solidity free-memory-pointer at 0x40
-  | bump
-  | wasmSafe
-  | cosmwasmAbi
-  | none             -- source generation
+inductive ChainAllocator where
+  | bump             -- final chain artifact 中的线性 frontier
+  | bumpReset        -- bump + 每个入口边界重置
+  | nearWeeModel     -- NEAR 部署 profile；Rust SDK 使用 wee_alloc
+  | minimalMalloc    -- direct-WAT 内部 free-list allocator
+  | cosmWasmRegion   -- CosmWasm allocate/deallocate region ABI
+
+inductive ExperimentAllocator where
+  | hostBump
+  | hostJemallocShape
+  | hostMimallocShape
 
 structure RuntimeProfile where
   mode              : RuntimeMode
   hostBridge        : HostBridgeKind
-  allocator         : AllocatorStrategy
+  deploymentAllocator? : Option ChainAllocator
+  offlineAllocators : Array ExperimentAllocator
   supportsClosures  : Bool
   supportsBignum    : Bool
   supportsHeapObjects : Bool
@@ -323,7 +329,6 @@ EVM 后端仍作为工作基准。它不会在第一天就通过 IR 进行重写
 - Contract Intent API 操作如何在源码层识别；target-extension 函数什么时候需要显式 `@[capability "..."]` 实现 hook，而不是走 target intent routing？
 - 静态特性检查应该是保守的（拒绝任何可能使用闭包的内容）还是精确的（仅拒绝确认的闭包）？对于初版来说，保守做法更安全。
 - 对于 Move 源代码生成，资源 abilities 和 `acquires` 子句存放在哪里——在 IR 中、在目标清单中，还是从能力使用中派生？RFC 0002 的 Move 说明倾向于 IR；本 RFC 暂缓讨论。
-- Wasm 家族是在 NEAR 和 CosmWasm 之间共享通用的分配器层，还是每个桥接拥有自己的分配器？运行时 profile 列出了每个目标的分配器，暗示了后者；这需要确认。
 - 可移植 IR 应该是被 Lean 实现的后端所使用的 Lean 数据结构，还是可以被外部（Zig/Rust）后端使用的序列化格式？答案将影响后端是否可以按照 RFC 0001 的待解决问题采用非 Lean 实现。
 
 ## 研究参考

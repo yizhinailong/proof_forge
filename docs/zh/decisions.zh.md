@@ -36,6 +36,9 @@
 | D-026 | 2026-07-01 | **采用 `solana-sbpf-asm` 作为规范 Solana 路线；取代 `solana-sbpf-linker`** | direct-assembly 路线避开 Lean runtime 链接风险，能完全控制 compute units 和 stack，并且更接近 EVM/Yul 模式。`solana-sbpf-linker` 仅保留为历史参考。 |
 | D-027 | 2026-07-01 | **CPI 和 PDA effect 留在 Solana 特定层，而不是 portable IR** | `cpiInvoke`、`cpiInvokeSigned` 和 `pdaDerive` 是 Solana 独有概念；它们属于 `ProofForge.Backend.Solana.Effects` 或 Solana SDK 模块，由 `crosscall.cpi` 和 `storage.pda` 能力门控。portable IR 保持链中立，只有两个或更多目标家族共享同一语义形态时才新增 constructor。 |
 | D-028 | 2026-07-02 | **用户合约面向链中立的 Contract Intent API；所选 target 将 intent 解析为 capability plan** | 默认 SDK 表面不应暴露目标链。用户编写 portable contract intent，然后由 `--target` 选择目标适配器；适配器把这些 intent 路由到更底层的 capability 实现，检查支持情况和运行时约束，并发射目标制品。capability id 仍是 target adapter 和 Target Extension SDK 使用的内部协议，而不是主要用户 API。 |
+| D-029 | 2026-07-01 | 采用 Rust `near-sdk-rs` source generation 作为仓库内 `wasm-near` v0 后端 | 仓库中没有 EmitZig/Zig host bridge 源码；portable IR → near-sdk-rs package → cargo wasm32 现在即可验证 NEAR 语义，并为后续恢复 Zig host-bridge 路径保留空间。（2026-07 分支收敛合并时由 NEAR 分支的 D-025 重编号。） |
+| D-030 | 2026-07-01 | `wasm-near` v0 支持 `Hash` map keys、`.assertions.check` 和 `.account.explicit` | 现有 `MapProbe` 需要 Hash keys 和 `assertEq`，`ContextProbe` 需要 `contractId`；`.crosscall.invoke` 在 sourcegen v0 中仍不支持。（由 NEAR 分支的 D-026 重编号。） |
+| D-031 | 2026-07-01 | 采用 **`EmitWat`**（portable IR → Wasm AST → WAT text → `wat2wasm`）作为 Wasm 家族的 canonical backend；将 Rust `near-sdk-rs` sourcegen 降级为**冻结的 v0 stopgap** | `EmitWat` 对齐仓库内 **portable-IR → Yul** renderer `Backend/Evm/IR.lean`（所有 `--emit-*-ir-yul` CLI mode 使用的路径），而不是单独的 LCNF-based `Compiler/LCNF/EmitYul.lean`。portable IR 已经抽象掉 Lean 对象（只有 `u32`/`u64`/`bool`/`hash` 标量 + storage effects），因此 `EmitWat` 不需要 Lean runtime port、object-model boxing 或 GC，避开了 Rust 路线的 `near-sdk` macro coupling（E0119 Borsh / missing-`&self` cargo-check failures）以及阻塞旧 `EmitZig` 计划的 Lean-runtime-to-Wasm port。共享层：`Compiler/Wasm/AST.lean` + `Printer.lean` + IR→AST lowering（并行于 `Compiler/Yul/AST.lean` + `Printer.lean`）；可复用 `Backend/WasmNear/IR.lean` 和 `Backend/Evm/IR.lean` 的 validation。按链区分：host imports + ABI serialization。关键 spike risk：NEAR argument (de)serialization（JSON/Borsh），这是 EVM backend 不会遇到的（EVM 使用 calldata）。（由 NEAR 分支的 D-027 重编号。） |
 
 ## 目标家族分类
 
@@ -43,7 +46,7 @@
 |---|---|---|
 | 直接编译器 | `evm` | Lean → LCNF → Yul → solc |
 | EVM-compatible chain profiles | `robinhood-chain-testnet` | 复用 `evm` bytecode/ABI 输出；补充 chain id、RPC、explorer、verifier、rollup 和 deployment metadata |
-| Wasm 宿主 | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban`（候选，仅文档）, `wasm-icp-canister`（候选，仅文档） | Lean → EmitZig → Wasm + 链宿主桥接，或在能更快验证语义时先走目标原生源码包 |
+| Wasm 宿主 | `wasm-near`, `wasm-cosmwasm`, `wasm-stellar-soroban`（候选，仅文档）, `wasm-icp-canister`（候选，仅文档） | Portable IR → **`EmitWat`**（Wasm AST → WAT）→ `wat2wasm` + per-chain host imports；Rust/CDK sourcegen 仅作为冻结的 v0 stopgap（D-031，[wasm-family](targets/wasm-family.zh.md)） |
 | 二进制工具链 | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker（历史参考；已被 D-026 取代） |
 | sBPF direct codegen | `solana-sbpf-asm` | Lean → IR → sBPF assembly (`.s`) → sbpf toolchain → ELF（D-026 规范路线） |
 | 源代码生成 | `move-aptos`, `move-sui` | 可移植 IR → Move 包源码 |
@@ -94,6 +97,7 @@ Phase 5: Cloud platform
 | 计数器共享场景 | [shared-scenario.md](shared-scenario.md) |
 | 目标工程形态 | [RFC 0002](rfcs/0002-target-implementation-design.md) |
 | CosmWasm SDK spike 草图 | [targets/wasm-family.md](targets/wasm-family.md) |
+| Wasm-NEAR sourcegen 目标 | [targets/wasm-near.md](targets/wasm-near.md) |
 | Stellar/Soroban 目标候选 | [targets/stellar-soroban.md](targets/stellar-soroban.md) |
 | Internet Computer 目标候选 | [targets/internet-computer.md](targets/internet-computer.md) |
 | Algorand AVM 目标候选 | [targets/algorand-avm.md](targets/algorand-avm.md) |

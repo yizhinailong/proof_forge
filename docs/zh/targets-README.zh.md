@@ -30,7 +30,7 @@
 | 目标 | 阶段 | 说明 |
 |---|---|---|
 | [EVM](evm.md) | Experimental | 通过 Yul、`solc`、Foundry smoke 建立基线；包含 EVM-compatible chain profile `robinhood-chain-testnet`。 |
-| NEAR | Research | 本地 Lean 分支中的参考实现；尚未移植到此仓库。 |
+| [NEAR](targets/wasm-near.zh.md) | Spike | Rust `near-sdk-rs` sourcegen 后端；CLI emit modes、IR lowering、package generation。 |
 | CosmWasm | Research | 强力的 Wasm Spike 候选；复用 NEAR 的经验。 |
 | [Stellar Soroban](targets/stellar-soroban.zh.md) | Research | 文档优先的 Wasm-host 候选，使用 Soroban/Stellar CLI 工具链；尚未进入代码 registry。 |
 | [Internet Computer](targets/internet-computer.zh.md) | Research | 文档优先的 Wasm canister 候选，包含 Candid、cycles、stable memory 和 canister lifecycle；尚未进入代码 registry。 |
@@ -55,6 +55,7 @@
 
 - [EVM](evm.md)
 - [Wasm 家族](wasm-family.md)
+- [Wasm-NEAR](targets/wasm-near.zh.md)
 - [Stellar Soroban 目标](targets/stellar-soroban.zh.md)
 - [Internet Computer 目标](targets/internet-computer.zh.md)
 - [Algorand AVM 目标](targets/algorand-avm.zh.md)

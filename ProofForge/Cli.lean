@@ -14,6 +14,8 @@ import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Learn
 import ProofForge.Contract.Token.Evm
 import ProofForge.Contract.Token.Learn
+import ProofForge.Backend.WasmNear
+import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -190,6 +192,14 @@ inductive EmitMode where
   | solanaCryptoHashElf
   | solanaReturnDataComputeElf
   | sbpfAsm
+  | counterIrWasmNear
+  | contextIrWasmNear
+  | hashIrWasmNear
+  | mapIrWasmNear
+  | counterEmitWat
+  | contextEmitWat
+  | hashEmitWat
+  | mapEmitWat
   deriving BEq, Inhabited
 
 def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
@@ -309,7 +319,15 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaMemoryElf
   | .solanaCryptoHashElf
   | .solanaReturnDataComputeElf
-  | .sbpfAsm => true
+  | .sbpfAsm
+  | .counterIrWasmNear
+  | .contextIrWasmNear
+  | .hashIrWasmNear
+  | .mapIrWasmNear
+  | .counterEmitWat
+  | .contextEmitWat
+  | .hashEmitWat
+  | .mapEmitWat => true
   | _ => false
 
 structure CliOptions where
@@ -445,6 +463,11 @@ def usage : String :=
     "  proof-forge --solana-crypto-hash-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-return-data-compute-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-counter-ir-wasm-near -o output-dir",
+    "  proof-forge --emit-counter-emitwat -o output-dir        (canonical: IR → WAT → wasm)",
+    "  proof-forge --emit-context-ir-wasm-near -o output-dir",
+    "  proof-forge --emit-hash-ir-wasm-near -o output-dir",
+    "  proof-forge --emit-map-ir-wasm-near -o output-dir",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
@@ -2202,6 +2225,22 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaReturnDataComputeElf }
   | "--emit-sbpf-asm" :: rest, opts =>
       parseArgs rest { opts with mode := .sbpfAsm }
+  | "--emit-counter-ir-wasm-near" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrWasmNear }
+  | "--emit-context-ir-wasm-near" :: rest, opts =>
+      parseArgs rest { opts with mode := .contextIrWasmNear }
+  | "--emit-hash-ir-wasm-near" :: rest, opts =>
+      parseArgs rest { opts with mode := .hashIrWasmNear }
+  | "--emit-map-ir-wasm-near" :: rest, opts =>
+      parseArgs rest { opts with mode := .mapIrWasmNear }
+  | "--emit-counter-emitwat" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterEmitWat }
+  | "--emit-context-emitwat" :: rest, opts =>
+      parseArgs rest { opts with mode := .contextEmitWat }
+  | "--emit-hash-emitwat" :: rest, opts =>
+      parseArgs rest { opts with mode := .hashEmitWat }
+  | "--emit-map-emitwat" :: rest, opts =>
+      parseArgs rest { opts with mode := .mapEmitWat }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -2227,6 +2266,44 @@ def writeTextFile (path : FilePath) (contents : String) : IO Unit := do
   if let some parent := path.parent then
     IO.FS.createDirAll parent
   IO.FS.writeFile path contents
+
+def writeNearPackage (outputDir : FilePath) (pkg : ProofForge.Backend.WasmNear.IR.NearPackage) : IO Unit := do
+  for file in pkg.files do
+    let path := outputDir / file.path
+    if let some parent := path.parent then
+      IO.FS.createDirAll parent
+    IO.FS.writeFile path file.content
+
+/-! ### EmitWat output (canonical IR → WAT → wasm) -/
+
+def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO Unit := do
+  IO.FS.createDirAll outputDir
+  let watPath := outputDir / s!"{name}.wat"
+  IO.FS.writeFile watPath wat
+  let wasmPath := outputDir / s!"{name}.wasm"
+  try
+    let r ← IO.Process.output { cmd := "wat2wasm", args := #[watPath.toString, "-o", wasmPath.toString] }
+    if r.exitCode == 0 then
+      IO.println s!"wrote EmitWat {name}.wat + {name}.wasm to {outputDir}"
+    else
+      IO.eprintln s!"wat2wasm exit {r.exitCode}: {r.stderr.trim} (WAT at {watPath})"
+  catch _ =>
+    IO.println s!"wrote EmitWat {name}.wat to {watPath} (wat2wasm unavailable; install wabt to build wasm)"
+
+def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Module) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "emitwat mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule mod with
+  | .ok wat =>
+      writeWatPackage output name wat
+      return 0
+  | .error e =>
+      throw <| IO.userError e.message
+
+def compileCounterEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "counter" ProofForge.IR.Examples.Counter.module
+def compileContextEmitWat  (opts : CliOptions) : IO UInt32 := compileEmitWat opts "context" ProofForge.IR.Examples.ContextProbe.module
+def compileHashEmitWat     (opts : CliOptions) : IO UInt32 := compileEmitWat opts "hash" ProofForge.IR.Examples.HashProbe.module
+def compileMapEmitWat      (opts : CliOptions) : IO UInt32 := compileEmitWat opts "map" ProofForge.IR.Examples.MapProbe.emitWatModule
 
 unsafe def emitYulFile (opts : CliOptions) (input output : FilePath) (methods : Array MethodSpec) : IO Unit := do
   enableInitializersExecution
@@ -3421,6 +3498,49 @@ def compileU32StorageArrayIrPsy (opts : CliOptions) : IO UInt32 := do
       return 0
   | .error err =>
       throw <| IO.userError err.render
+def compileCounterIrWasmNear (opts : CliOptions) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.Counter.module with
+  | .ok pkg =>
+      writeNearPackage output pkg
+      IO.println s!"wrote wasm-near Counter package to {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileContextIrWasmNear (opts : CliOptions) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.ContextProbe.module with
+  | .ok pkg =>
+      writeNearPackage output pkg
+      IO.println s!"wrote wasm-near ContextProbe package to {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileHashIrWasmNear (opts : CliOptions) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.HashProbe.module with
+  | .ok pkg =>
+      writeNearPackage output pkg
+      IO.println s!"wrote wasm-near HashProbe package to {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileMapIrWasmNear (opts : CliOptions) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.MapProbe.module with
+  | .ok pkg =>
+      writeNearPackage output pkg
+      IO.println s!"wrote wasm-near MapProbe package to {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
 
 /-- Write the Solana instruction manifest.toml alongside the emitted .s file.
 Returns the path that was written. -/
@@ -4238,6 +4358,14 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaCryptoHashElf => compileSolanaCryptoHashElf opts
   | .solanaReturnDataComputeElf => compileSolanaReturnDataComputeElf opts
   | .sbpfAsm => compileSbpfAsm opts
+  | .counterIrWasmNear => compileCounterIrWasmNear opts
+  | .contextIrWasmNear => compileContextIrWasmNear opts
+  | .hashIrWasmNear => compileHashIrWasmNear opts
+  | .mapIrWasmNear => compileMapIrWasmNear opts
+  | .counterEmitWat => compileCounterEmitWat opts
+  | .contextEmitWat => compileContextEmitWat opts
+  | .hashEmitWat => compileHashEmitWat opts
+  | .mapEmitWat => compileMapEmitWat opts
 
 end ProofForge.Cli
 

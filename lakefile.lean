@@ -15,6 +15,8 @@ lean_lib ProofForge where
     `ProofForge.Backend.Solana.SbpfAsm,
     `ProofForge.Compiler.Yul.AST,
     `ProofForge.Compiler.Yul.Printer,
+    `ProofForge.Compiler.Wasm.AST,
+    `ProofForge.Compiler.Wasm.Printer,
     `ProofForge.Compiler.LCNF.EmitYul
   ]
 

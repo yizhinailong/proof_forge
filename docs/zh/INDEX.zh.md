@@ -63,6 +63,7 @@ flowchart TB
 - [目标笔记](targets/README.md)：各家族的 Research 和 spike 计划。
   - [EVM](targets/evm.md)
   - [Wasm 家族](targets/wasm-family.md)
+  - [Wasm-NEAR](targets/wasm-near.zh.md)
   - [Stellar Soroban 目标](targets/stellar-soroban.zh.md)
   - [Internet Computer 目标](targets/internet-computer.zh.md)
   - [Algorand AVM 目标](targets/algorand-avm.zh.md)

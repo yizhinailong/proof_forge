@@ -43,17 +43,17 @@ remain uniform.
 | `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | Y | P |
 | `value.native` | Native token attached to call | Y | Y | Y | Y | Y | Y | P |
 | `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | Y | Y |
-| `crosscall.invoke` | Call another contract/program | Y | Y | Y | N | Y | Y | P |
-| `env.block` | Block height/time/chain id reads | Y | P | P | P | P | P | P |
+| `crosscall.invoke` | Call another contract/program | Y | N | Y | N | Y | Y | P |
+| `env.block` | Block height/time/chain id reads | Y | Y | P | P | P | P | P |
 | `control.conditional` | Statement-level conditional branches with target-supported boolean predicates | P | N | N | Y | N | N | P |
 | `control.bounded_loop` | Static bounded loops that can be flattened or unrolled by the target | N | N | N | P | N | N | P |
 | `data.fixed_array` | Fixed-size array value type, literals, and index expressions | P | N | N | Y | N | N | P |
 | `data.struct` | Struct value type, literals, and field access | P | N | N | Y | N | N | P |
 | `crypto.hash` | Host or library hashing | Y | Y | Y | Y | Y | Y | Y |
-| `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | N | N | Y | N | N | P |
-| `account.explicit` | Named account/object/resource binding | P | N | N | Y | Y | Y | P |
+| `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | Y | N | Y | N | N | P |
+| `account.explicit` | Named account/object/resource binding | P | Y | N | Y | Y | Y | P |
 | `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N |
-| `runtime.allocator` | Target runtime heap allocator contract | N | P | P | Y | P | P | P |
+| `runtime.allocator` | Target runtime heap allocator contract | N | Y | P | Y | P | P | P |
 | `runtime.memory` | Target runtime memory operations | N | N | N | Y | N | N | N |
 | `runtime.return_data` | Target runtime return-data buffer operations | N | N | N | Y | N | N | N |
 | `runtime.compute_units` | Target runtime compute-budget introspection | N | N | N | P | N | N | N |

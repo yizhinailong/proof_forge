@@ -1,5 +1,6 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
+import ProofForge.IR.Allocator
 import ProofForge.Target.Capability
 
 namespace ProofForge.Target
@@ -41,6 +42,8 @@ structure TargetProfile where
   family : TargetFamily
   artifactKind : ArtifactKind
   capabilities : CapabilitySet
+  deploymentAllocator? : Option ProofForge.IR.ChainAllocator := none
+  offlineAllocators : Array ProofForge.IR.ExperimentAllocator := #[]
   requiredTools : Array String := #[]
   deriving Repr
 
@@ -89,23 +92,28 @@ def wasmNear : TargetProfile := {
   id := "wasm-near"
   family := .wasmHost
   artifactKind := .wasm
+  deploymentAllocator? := some .nearWeeModel
+  offlineAllocators := #[.hostBump]
   capabilities := #[
     .storageScalar,
     .storageMap,
     .callerSender,
     .valueNative,
     .eventsEmit,
-    .crosscallInvoke,
     .envBlock,
-    .cryptoHash
+    .cryptoHash,
+    .accountExplicit,
+    .assertions
   ]
-  requiredTools := #["zig"]
+  requiredTools := #["rustup", "cargo", "near-cli"]
 }
 
 def wasmCosmWasm : TargetProfile := {
   id := "wasm-cosmwasm"
   family := .wasmHost
   artifactKind := .wasm
+  deploymentAllocator? := some .cosmWasmRegion
+  offlineAllocators := #[.hostBump]
   capabilities := #[
     .storageScalar,
     .storageMap,

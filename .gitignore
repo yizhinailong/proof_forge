@@ -1,5 +1,6 @@
 .lake/
 build/
+target/
 *.bin
 *.yul
 !Examples/Evm/*.golden.yul

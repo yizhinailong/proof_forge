@@ -182,4 +182,50 @@ def module : Module := {
   ]
 }
 
+/-! EmitWat-compatible subset: hash-key Map<Hash, Hash> using only storageMapGet /
+    storageMapContains / storageMapSet (as a statement). The full `module` uses
+    `storageMapInsert` (return-old-value semantics) and `pathLifecycle` (struct/path
+    storage), which EmitWat does not lower — those belong to the Rust-v0 borrow-heavy
+    surface and are out of scope for the minimal EmitWat backend. -/
+
+def ewGetBalance : Entrypoint := {
+  name := "getBalance", params := #[("key", .hash)], returns := .hash,
+  body := #[.return (.effect (.storageMapGet "balances" (.local "key")))] }
+
+def ewHasBalance : Entrypoint := {
+  name := "hasBalance", params := #[("key", .hash)], returns := .bool,
+  body := #[.return (.effect (.storageMapContains "balances" (.local "key")))] }
+
+def ewSetBalance : Entrypoint := {
+  name := "setBalanceReturn", params := #[("key", .hash), ("value", .hash)], returns := .hash,
+  body := #[
+    .effect (.storageMapSet "balances" (.local "key") (.local "value")),
+    .return (.effect (.storageMapGet "balances" (.local "key")))
+  ] }
+
+def emitWatModule : Module := {
+  name := "MapProbe",
+  state := #[stateBefore, stateBalances, stateAfter],
+  entrypoints := #[ewGetBalance, ewHasBalance, ewSetBalance]
+}
+
+/-! EmitWat "full" subset: every MapProbe entrypoint EXCEPT `pathLifecycle` (which
+    needs `storagePath*`, task #16). Exercises `storageMapInsert` + `storageMapSet`
+    return-old-value semantics (setReturnLifecycle / insertReturnLifecycle / mapLifecycle). -/
+def emitWatFullModule : Module := {
+  name := "MapProbe",
+  state := #[stateBefore, stateBalances, stateAfter],
+  entrypoints := #[mapLifecycle, getSeedBalance, hasSeedBalance, upsertBalance,
+                   setBalance, setReturnLifecycle, insertReturnLifecycle]
+}
+
+/-- EmitWat subset for 16d: only `pathLifecycle` (storagePathRead/Write with a single
+    mapKey segment). -/
+def emitWatPathModule : Module := {
+  name := "MapProbe",
+  state := #[stateBalances],
+  entrypoints := #[pathLifecycle]
+}
+
+
 end ProofForge.IR.Examples.MapProbe
