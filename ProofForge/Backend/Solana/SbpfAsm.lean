@@ -113,14 +113,27 @@ def buildCtx (module : Module) : Except LowerError LowerCtx := do
 def res (opcode : Opcode) (src : Option Reg := none) (off : Option MemOff := none) (imm : Option Imm := none) : Inst :=
   { opcode, dst := some .r2, src, off, imm }
 
-/-- Combine already-lowered LHS/RHS nodes for a binary ALU op.
+/-- Combine already-lowered LHS/RHS nodes for a commutative binary ALU op.
 The result lands in r2. LHS is stashed to the scratch slot, RHS is evaluated
-into r2, then LHS is reloaded into r3 and `op r2, r3` is applied. -/
+into r2, then LHS is reloaded into r3 and `op r2, r3` is applied. Order does
+not matter for commutative ops. -/
 def lowerBinaryCombine (lhsNodes rhsNodes : Array AstNode) (op : Opcode) (scratchOffset : Nat) : Array AstNode :=
   lhsNodes ++ #[
     .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratchOffset), src := some .r2 }
   ] ++ rhsNodes ++ #[
     .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num scratchOffset) },
+    .instruction { opcode := op, dst := some .r2, src := some .r3 }
+  ]
+
+/-- Combine already-lowered LHS/RHS nodes for a non-commutative binary ALU op.
+The result lands in r2 in `lhs op rhs` order. LHS is stashed, RHS is evaluated,
+then RHS is moved to r3, LHS is reloaded into r2, and `op r2, r3` is applied. -/
+def lowerOrderedBinaryCombine (lhsNodes rhsNodes : Array AstNode) (op : Opcode) (scratchOffset : Nat) : Array AstNode :=
+  lhsNodes ++ #[
+    .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratchOffset), src := some .r2 }
+  ] ++ rhsNodes ++ #[
+    .instruction { opcode := .mov64, dst := some .r3, src := some .r2 },
+    .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num scratchOffset) },
     .instruction { opcode := op, dst := some .r2, src := some .r3 }
   ]
 
@@ -166,7 +179,7 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
   | .sub lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
     let (rn, ctx) ← lowerExpr ctx rhs
-    .ok (lowerBinaryCombine ln rn .sub64 ctx.scratchOffset, ctx)
+    .ok (lowerOrderedBinaryCombine ln rn .sub64 ctx.scratchOffset, ctx)
   | .mul lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
     let (rn, ctx) ← lowerExpr ctx rhs
@@ -174,11 +187,11 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
   | .div lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
     let (rn, ctx) ← lowerExpr ctx rhs
-    .ok (lowerBinaryCombine ln rn .div64 ctx.scratchOffset, ctx)
+    .ok (lowerOrderedBinaryCombine ln rn .div64 ctx.scratchOffset, ctx)
   | .mod lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
     let (rn, ctx) ← lowerExpr ctx rhs
-    .ok (lowerBinaryCombine ln rn .mod64 ctx.scratchOffset, ctx)
+    .ok (lowerOrderedBinaryCombine ln rn .mod64 ctx.scratchOffset, ctx)
   | .boolAnd lhs rhs => do
     let (ln, ctx) ← lowerExpr ctx lhs
     let (rn, ctx) ← lowerExpr ctx rhs
@@ -308,48 +321,18 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
       ctx := ctx'
     nodes := nodes.push (.label endLabel)
     .ok (nodes, ctx)
-  | .return value =>
-    match value with
-    | .effect (.storageScalarRead stateId) =>
-      match ctx.stateAbsOff? stateId with
-      | some absOff => .ok (#[
-        .instruction { opcode := .ldxdw, dst := some .r2, src := some .r1, off := some (.num absOff) },
-        .instruction { opcode := .mov64, dst := some .r3, src := some .r10 },
-        .instruction { opcode := .sub64, dst := some .r3, imm := some (.num 8) },
-        .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 0), src := some .r2 },
-        .instruction { opcode := .mov64, dst := some .r1, src := some .r3 },
-        .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 8) },
-        .instruction { opcode := .call, imm := some (.sym "sol_set_return_data") },
-        .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
-        .instruction { opcode := .exit }
-      ], ctx)
-      | none => .error { message := s!"unknown state: {stateId}" }
-    | .literal (.u64 n) => .ok (#[
+  | .return value => do
+    let (vn, ctx') ← lowerExpr ctx value
+    .ok (vn ++ #[
       .instruction { opcode := .mov64, dst := some .r3, src := some .r10 },
       .instruction { opcode := .sub64, dst := some .r3, imm := some (.num 8) },
-      .instruction { opcode := .mov64, dst := some .r2, imm := some (.num n) },
       .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 0), src := some .r2 },
       .instruction { opcode := .mov64, dst := some .r1, src := some .r3 },
       .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 8) },
       .instruction { opcode := .call, imm := some (.sym "sol_set_return_data") },
       .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
       .instruction { opcode := .exit }
-    ], ctx)
-    | .local name =>
-      match ctx.localOffset? name with
-      | some off => .ok (#[
-        .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num off) },
-        .instruction { opcode := .mov64, dst := some .r3, src := some .r10 },
-        .instruction { opcode := .sub64, dst := some .r3, imm := some (.num 8) },
-        .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 0), src := some .r2 },
-        .instruction { opcode := .mov64, dst := some .r1, src := some .r3 },
-        .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 8) },
-        .instruction { opcode := .call, imm := some (.sym "sol_set_return_data") },
-        .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
-        .instruction { opcode := .exit }
-      ], ctx)
-      | none => .error { message := s!"unknown local: {name}" }
-    | _ => .error { message := "unsupported return in Phase 1" }
+    ], ctx')
   | _ => .error { message := "unsupported statement in Phase 1" }
 
 -- ============================================================================
