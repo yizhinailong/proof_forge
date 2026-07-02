@@ -506,6 +506,16 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   Surfpool instance 部署、同一 Web3.js transfer scenario 调用，以及
   recipient lamport delta 和 state write 对比。若 `cargo-build-sbf` 找不到
   Solana rustc/platform-tools，该 harness 会 skip。
+- Pinocchio SPL Token transfer reference contract：
+  `references/solana/pinocchio/spl-token-transfer` 提供了一个 checked-in
+  no-allocator Pinocchio reference，对齐
+  `ProofForge.Solana.Examples.SplTokenTransferCheckedCpi` 的 SPL Token
+  `transfer_checked` account schema。`scripts/solana/pinocchio-spl-token-transfer-equivalence.sh`
+  会 emit ProofForge SPL Token CPI artifact，并将 instruction tag、parameter
+  ABI、account order、signer/writable constraint、CPI protocol/data layout、
+  decimals/amount contract 和 state-write contract 与 reference
+  manifest/source 对比。设置 `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1` 时，同一
+  gate 还会用 `pinocchio-token` typecheck 该 reference。
 
 已完成的开发者 surface 切片：
 
@@ -654,9 +664,10 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 
 1. Rust/Pinocchio equivalence fixture（2-4 天）：在 CI/local 环境稳定安装
    Solana rustc/platform-tools，让 System transfer live-equivalence harness
-   通过；然后为 create-account 和 SPL Token account schema 增加对应
-   reference program。关键比较点是 account order、signer/writable check、
-   CPI instruction data 和可观察 state change。
+   通过，增加匹配的 create-account reference program，然后把 live dual-deploy
+   equivalence 扩展到 SPL Token `transfer_checked` reference。关键比较点是
+   account order、signer/writable check、CPI instruction data 和可观察 state
+   change。
 2. 更丰富的 structured log、account data 与 typed return helper（3-5 天）：
    将当前 scalar `sol_log_64_`/`sol_log_data` event 路径扩展到 string log、
    Anchor-style discriminator/Borsh payload 与 indexed event 形态；增加 `u64`

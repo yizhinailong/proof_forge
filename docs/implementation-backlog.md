@@ -961,6 +961,17 @@ Completed beta scaffolding slices:
   scenario for each, and compare recipient lamport deltas plus state writes.
   The harness currently skips when `cargo-build-sbf` cannot find Solana rustc/
   platform-tools.
+- Pinocchio SPL Token transfer reference contract:
+  `references/solana/pinocchio/spl-token-transfer` contains a checked-in
+  no-allocator Pinocchio reference for the same SPL Token `transfer_checked`
+  account schema as `ProofForge.Solana.Examples.SplTokenTransferCheckedCpi`.
+  The gate `scripts/solana/pinocchio-spl-token-transfer-equivalence.sh` emits
+  the ProofForge SPL Token CPI artifact and compares its instruction tag,
+  parameter ABI, account order, signer/writable constraints, CPI
+  protocol/data layout, decimals/amount contract, and state-write contract
+  against the reference manifest/source. With
+  `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1`, the same gate typechecks the reference
+  against `pinocchio-token`.
 
 Completed developer-surface slices:
 
@@ -1114,10 +1125,10 @@ Remaining priority slices:
 
 1. Rust/Pinocchio equivalence fixtures (2-4 days): make the System transfer
    live-equivalence harness pass in CI/local environments by installing Solana
-   rustc/platform-tools reliably, then add matching reference programs for
-   create-account and SPL Token account schemas. The key comparison points are
-   account order, signer/writable checks, CPI instruction data, and observable
-   state changes.
+   rustc/platform-tools reliably, add a matching create-account reference
+   program, then extend live dual-deploy equivalence to the SPL Token
+   transfer_checked reference. The key comparison points are account order,
+   signer/writable checks, CPI instruction data, and observable state changes.
 2. Richer structured logs, account data, and typed return helpers (3-5 days):
    extend the current scalar `sol_log_64_`/`sol_log_data` event path to
    string logs, Anchor-style discriminator/Borsh payloads, and indexed event

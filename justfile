@@ -88,6 +88,10 @@ solana-system-cpi-web3:
 solana-pinocchio-system-transfer-equivalence:
     scripts/solana/pinocchio-system-transfer-equivalence.sh
 
+# Compare the generated SPL Token transfer_checked CPI artifact with the Pinocchio reference contract.
+solana-pinocchio-spl-token-transfer-equivalence:
+    scripts/solana/pinocchio-spl-token-transfer-equivalence.sh
+
 # Build/deploy ProofForge and Pinocchio System transfer programs and compare behavior on Surfpool.
 solana-pinocchio-system-transfer-live-equivalence:
     scripts/solana/pinocchio-system-transfer-live-equivalence.sh
