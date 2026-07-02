@@ -17,6 +17,39 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Event ABI Artifact Metadata
+
+Commit: `feat: record EVM event ABI metadata`
+
+Summary:
+
+- Portable IR EVM bytecode artifacts and deploy manifests now include
+  `abi.events` entries for emitted events.
+- Event metadata records the Solidity-style event signature, `topic0`, indexed
+  fields, non-indexed data fields, flattened ABI word types, and per-field
+  topic/data encoding.
+- `scripts/evm/validate-artifact-metadata.py` validates event topics with
+  `cast keccak`, and `scripts/evm/event-ir-smoke.sh` now locks all EventProbe
+  event signatures through `--expect-event`.
+
+Validation run:
+
+```sh
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+python3 -m py_compile scripts/evm/validate-artifact-metadata.py scripts/evm/validate-deploy-manifest.py
+```
+
+Known limitations:
+
+- Event metadata is emitted for portable IR modules; richer first-class event
+  declarations remain an explicit unsupported surface.
+
+Next step:
+
+- Continue promoting ABI-facing metadata from smoke fixtures into a stable
+  target manifest schema shared by EVM deployment tooling.
+
 ### EVM Anvil Chain Profile Deploy-Run Validation
 
 Commit: `feat: validate Anvil chain profiles`

@@ -107,6 +107,10 @@ Tasks:
   `bool`, `bytes32`, and `address`, record whether constructor args came from
   typed values or raw hex, reject missing/duplicate/out-of-range values, and
   validate the generated initcode tail against metadata and deploy manifests.
+- Done for EVM: record portable IR event ABI metadata in `abi.events`, including
+  Solidity-style event signatures, `topic0`, indexed/data fields, flattened ABI
+  word types, and topic/data encodings; EventProbe validates every emitted event
+  with `--expect-event` and `cast keccak`.
 - Done for EVM: extend `scripts/evm/diagnostic-smoke.sh` to lock constructor
   CLI diagnostics for unsupported dynamic constructor ABI types, missing or
   duplicate typed values, mixed typed/raw constructor argument sources,
@@ -125,6 +129,8 @@ Acceptance criteria:
 - EVM bytecode build writes runtime bytecode, deployable initcode, metadata,
   and deploy manifest next to each other.
 - Metadata and deploy manifests can be parsed independently by CI scripts.
+- Portable IR bytecode metadata and deploy manifests can describe ABI-facing
+  events, including indexed topic encoding and non-indexed data-word encoding.
 - Deploy manifests can carry optional EVM chain profile metadata from the
   target registry while keeping transaction broadcast artifacts explicitly
   `not-generated`.

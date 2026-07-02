@@ -904,6 +904,193 @@ def entrypointJson (entrypoint : ProofForge.IR.Entrypoint) : String :=
     ("returns", valueTypeJson entrypoint.returns)
   ]
 
+structure EventAbiField where
+  name : String
+  irType : ProofForge.IR.ValueType
+  abiType : String
+  indexed : Bool
+  wordTypes : Array String
+  deriving BEq, Repr
+
+structure EventAbi where
+  name : String
+  signature : String
+  topic0 : String
+  indexedFields : Array EventAbiField
+  dataFields : Array EventAbiField
+  deriving BEq, Repr
+
+def lowerExceptString (result : Except ProofForge.Backend.Evm.IR.LowerError α) : Except String α :=
+  match result with
+  | .ok value => .ok value
+  | .error err => .error err.render
+
+def liftExceptString (result : Except String α) : IO α :=
+  match result with
+  | .ok value => pure value
+  | .error msg => throw <| IO.userError msg
+
+def eventAbiWordTypeName : ProofForge.IR.ValueType → Except String String
+  | .u32 => .ok "uint32"
+  | .u64 => .ok "uint64"
+  | .bool => .ok "bool"
+  | .hash => .ok "bytes32"
+  | type => .error s!"event ABI word type must be scalar, got `{type.name}`"
+
+def eventAbiField
+    (module : ProofForge.IR.Module)
+    (env : ProofForge.Backend.Evm.IR.TypeEnv)
+    (eventName : String)
+    (indexed : Bool)
+    (field : String × ProofForge.IR.Expr) : Except String EventAbiField := do
+  let irType ← lowerExceptString <|
+    ProofForge.Backend.Evm.IR.inferExprType module env field.snd
+  let abiType ← lowerExceptString <|
+    ProofForge.Backend.Evm.IR.eventSignatureFieldType module eventName field.fst irType
+  let wordTypes ← lowerExceptString <|
+    ProofForge.Backend.Evm.IR.abiValueWordTypes module s!"event `{eventName}` field `{field.fst}`" irType
+  let mut wordTypeNames : Array String := #[]
+  for wordType in wordTypes do
+    wordTypeNames := wordTypeNames.push (← eventAbiWordTypeName wordType)
+  .ok {
+    name := field.fst,
+    irType := irType,
+    abiType := abiType,
+    indexed := indexed,
+    wordTypes := wordTypeNames
+  }
+
+def eventAbiFieldJson (field : EventAbiField) : String :=
+  let encoding :=
+    if field.indexed then
+      if field.wordTypes.size == 1 then
+        "indexed-word"
+      else
+        "indexed-keccak256"
+    else
+      "abi-static-words"
+  jsonObject #[
+    ("name", jsonString field.name),
+    ("type", jsonString field.abiType),
+    ("irType", valueTypeJson field.irType),
+    ("indexed", jsonBool field.indexed),
+    ("encoding", jsonString encoding),
+    ("wordTypes", jsonStringArray field.wordTypes),
+    ("wordCount", toString field.wordTypes.size)
+  ]
+
+def eventFieldsWordCount (fields : Array EventAbiField) : Nat :=
+  fields.foldl (fun count field => count + field.wordTypes.size) 0
+
+def eventTopic0For (cast signature : String) : IO String := do
+  let stdout ← runProcess cast #["keccak", signature]
+  let topic := stripHexPrefix (trimAsciiString stdout)
+  if topic.length == 64 && isHexString topic then
+    return "0x" ++ lowerHexString topic
+  else
+    throw <| IO.userError s!"cast returned invalid event topic for {signature}: {trimAsciiString stdout}"
+
+def eventAbi
+    (cast : String)
+    (module : ProofForge.IR.Module)
+    (env : ProofForge.Backend.Evm.IR.TypeEnv)
+    (name : String)
+    (indexedFields dataFields : Array (String × ProofForge.IR.Expr)) : IO EventAbi := do
+  let signature ← liftExceptString <| lowerExceptString <|
+    ProofForge.Backend.Evm.IR.eventSignature module env name (indexedFields ++ dataFields)
+  let topic0 ← eventTopic0For cast signature
+  let indexed ← liftExceptString <| indexedFields.foldlM (init := #[]) fun acc field => do
+    .ok (acc.push (← eventAbiField module env name true field))
+  let data ← liftExceptString <| dataFields.foldlM (init := #[]) fun acc field => do
+    .ok (acc.push (← eventAbiField module env name false field))
+  return {
+    name := name,
+    signature := signature,
+    topic0 := topic0,
+    indexedFields := indexed,
+    dataFields := data
+  }
+
+def eventAbiJson (event : EventAbi) : String :=
+  jsonObject #[
+    ("name", jsonString event.name),
+    ("signature", jsonString event.signature),
+    ("topic0", jsonString event.topic0),
+    ("anonymous", "false"),
+    ("indexedFields", jsonArray (event.indexedFields.map eventAbiFieldJson)),
+    ("dataFields", jsonArray (event.dataFields.map eventAbiFieldJson)),
+    ("topics", toString (event.indexedFields.size + 1)),
+    ("dataWords", toString (eventFieldsWordCount event.dataFields))
+  ]
+
+def mergeEventAbis (left right : Array EventAbi) : Except String (Array EventAbi) :=
+  right.foldlM (init := left) fun acc event => do
+    match acc.find? (fun existing => existing.signature == event.signature) with
+    | none => .ok (acc.push event)
+    | some existing =>
+        if existing == event then
+          .ok acc
+        else
+          .error s!"conflicting EVM event ABI metadata for signature `{event.signature}`"
+
+mutual
+  partial def eventAbisInStatements
+      (cast : String)
+      (module : ProofForge.IR.Module)
+      (env : ProofForge.Backend.Evm.IR.TypeEnv)
+      (statements : Array ProofForge.IR.Statement) :
+      IO (Array EventAbi × ProofForge.Backend.Evm.IR.TypeEnv) := do
+    let mut events : Array EventAbi := #[]
+    let mut currentEnv := env
+    for statement in statements do
+      let (statementEvents, nextEnv) ← eventAbisInStatement cast module currentEnv statement
+      events ← liftExceptString <| mergeEventAbis events statementEvents
+      currentEnv := nextEnv
+    return (events, currentEnv)
+
+  partial def eventAbisInStatement
+      (cast : String)
+      (module : ProofForge.IR.Module)
+      (env : ProofForge.Backend.Evm.IR.TypeEnv) :
+      ProofForge.IR.Statement → IO (Array EventAbi × ProofForge.Backend.Evm.IR.TypeEnv)
+    | .letBind name type _ => do
+        let nextEnv ← liftExceptString <| lowerExceptString <|
+          ProofForge.Backend.Evm.IR.addLocal env name type false
+        return (#[], nextEnv)
+    | .letMutBind name type _ => do
+        let nextEnv ← liftExceptString <| lowerExceptString <|
+          ProofForge.Backend.Evm.IR.addLocal env name type true
+        return (#[], nextEnv)
+    | .assign _ _ | .assignOp _ _ _ | .assert _ _ | .assertEq _ _ _ | .return _ =>
+        return (#[], env)
+    | .effect (.eventEmit name fields) => do
+        let event ← eventAbi cast module env name #[] fields
+        return (#[event], env)
+    | .effect (.eventEmitIndexed name indexedFields dataFields) => do
+        let event ← eventAbi cast module env name indexedFields dataFields
+        return (#[event], env)
+    | .effect _ =>
+        return (#[], env)
+    | .ifElse _ thenBody elseBody => do
+        let (thenEvents, _) ← eventAbisInStatements cast module env thenBody
+        let (elseEvents, _) ← eventAbisInStatements cast module env elseBody
+        let events ← liftExceptString <| mergeEventAbis thenEvents elseEvents
+        return (events, env)
+    | .boundedFor indexName _ _ body => do
+        let loopEnv ← liftExceptString <| lowerExceptString <|
+          ProofForge.Backend.Evm.IR.addLocal env indexName .u32 false
+        let (events, _) ← eventAbisInStatements cast module loopEnv body
+        return (events, env)
+end
+
+def eventAbisForModule (cast : String) (module : ProofForge.IR.Module) : IO (Array EventAbi) := do
+  let mut events : Array EventAbi := #[]
+  for entrypoint in module.entrypoints do
+    let (entrypointEvents, _) ←
+      eventAbisInStatements cast module (ProofForge.Backend.Evm.IR.entrypointTypeEnv entrypoint) entrypoint.body
+    events ← liftExceptString <| mergeEventAbis events entrypointEvents
+  return events
+
 def methodSpecJson (method : MethodSpec) : String :=
   jsonObject #[
     ("selector", jsonString method.selector),
@@ -1026,6 +1213,7 @@ def writeEvmDeployManifest
     (fixture sourceKind sourceModule : String)
     (capabilities : Array String)
     (entrypoints : Array String)
+    (events : Array String)
     (methods : Array String)
     (chainProfile? : Option ProofForge.Target.EvmChainProfile)
     (constructorParams : Array ConstructorParamSpec)
@@ -1054,6 +1242,7 @@ def writeEvmDeployManifest
     ("abi", jsonObject #[
       ("constructor", constructorAbiJson constructorParams),
       ("entrypoints", jsonArray entrypoints),
+      ("events", jsonArray events),
       ("methods", jsonArray methods)
     ]),
     ("creation", jsonObject #[
@@ -1074,6 +1263,7 @@ def writeEvmArtifactMetadata
     (fixture sourceKind sourceModule : String)
     (capabilities : Array String)
     (entrypoints : Array String)
+    (events : Array String)
     (methods : Array String)
     (source? : Option FilePath)
     (yulOutput bytecodeOutput : FilePath) : IO Unit := do
@@ -1093,6 +1283,7 @@ def writeEvmArtifactMetadata
     sourceModule
     capabilities
     entrypoints
+    events
     methods
     chainProfile?
     opts.evmConstructorParams
@@ -1132,6 +1323,7 @@ def writeEvmArtifactMetadata
     ("abi", jsonObject #[
       ("constructor", constructorAbiJson opts.evmConstructorParams),
       ("entrypoints", jsonArray entrypoints),
+      ("events", jsonArray events),
       ("methods", jsonArray methods)
     ]),
     ("artifacts", jsonObject artifactFields),
@@ -1151,7 +1343,8 @@ def writeEvmIrArtifactMetadata
     (opts : CliOptions)
     (fixture sourceModule : String)
     (module : ProofForge.IR.Module)
-    (yulOutput bytecodeOutput : FilePath) : IO Unit :=
+    (yulOutput bytecodeOutput : FilePath) : IO Unit := do
+  let events ← eventAbisForModule opts.cast module
   writeEvmArtifactMetadata
     opts
     fixture
@@ -1159,6 +1352,7 @@ def writeEvmIrArtifactMetadata
     sourceModule
     (moduleCapabilityIds module)
     (module.entrypoints.map entrypointJson)
+    (events.map eventAbiJson)
     #[]
     none
     yulOutput
@@ -1174,6 +1368,7 @@ def writeEvmSdkArtifactMetadata
     (input.fileName.getD input.toString)
     "lean-sdk"
     sourceModule
+    #[]
     #[]
     #[]
     (methods.map methodSpecJson)

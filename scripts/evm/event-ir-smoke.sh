@@ -57,6 +57,24 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint emit_indexed_array_event:b7de5dd7 \
   --expect-entrypoint emit_indexed_storage_pair_array_event:45440e6c \
   --expect-entrypoint emit_indexed_pair_array_event:c1375f82 \
+  --expect-event 'ValueEvent:ValueEvent(uint64)' \
+  --expect-event 'TypedScalarEvent:TypedScalarEvent(bool,uint32,bytes32)' \
+  --expect-event 'IndexedValue:IndexedValue(uint64,uint64)' \
+  --expect-event 'IndexedTypedScalar:IndexedTypedScalar(bool,uint32,bytes32,uint64)' \
+  --expect-event 'IndexedTwoValues:IndexedTwoValues(uint64,uint64,uint64)' \
+  --expect-event 'IndexedThreeValues:IndexedThreeValues(uint64,uint64,uint64,uint64)' \
+  --expect-event 'PairEvent:PairEvent((uint64,uint64))' \
+  --expect-event 'StoragePairEvent:StoragePairEvent((uint64,uint64))' \
+  --expect-event 'StorageArrayEvent:StorageArrayEvent(uint64[2])' \
+  --expect-event 'ArrayEvent:ArrayEvent(uint64[2])' \
+  --expect-event 'PairArrayEvent:PairArrayEvent((uint64,uint64)[2])' \
+  --expect-event 'StoragePairArrayEvent:StoragePairArrayEvent((uint64,uint64)[2])' \
+  --expect-event 'IndexedPair:IndexedPair((uint64,uint64),uint64)' \
+  --expect-event 'IndexedStoragePair:IndexedStoragePair((uint64,uint64),uint64)' \
+  --expect-event 'IndexedStorageArray:IndexedStorageArray(uint64[2],uint64)' \
+  --expect-event 'IndexedArray:IndexedArray(uint64[2],uint64)' \
+  --expect-event 'IndexedStoragePairArray:IndexedStoragePairArray((uint64,uint64)[2],uint64)' \
+  --expect-event 'IndexedPairArray:IndexedPairArray((uint64,uint64)[2],uint64)' \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EventProbe.bin")"

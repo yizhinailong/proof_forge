@@ -221,8 +221,53 @@ def validate_constructor_schema_args(params: list[dict], constructor_args_hex: s
     )
 
 
+def validate_event_field(field: dict, prefix: str, indexed: bool) -> int:
+    expect_string(field.get("name"), f"{prefix}.name")
+    expect_string(field.get("type"), f"{prefix}.type")
+    expect_string(field.get("irType"), f"{prefix}.irType")
+    expect(field.get("indexed") is indexed, f"{prefix}.indexed mismatch")
+    word_types = expect_array(field.get("wordTypes"), f"{prefix}.wordTypes")
+    for idx, word_type in enumerate(word_types):
+        expect_string(word_type, f"{prefix}.wordTypes[{idx}]")
+    word_count = field.get("wordCount")
+    expect(isinstance(word_count, int) and word_count == len(word_types), f"{prefix}.wordCount mismatch")
+    encoding = expect_string(field.get("encoding"), f"{prefix}.encoding")
+    if indexed:
+        expected_encoding = "indexed-word" if word_count == 1 else "indexed-keccak256"
+    else:
+        expected_encoding = "abi-static-words"
+    expect(encoding == expected_encoding, f"{prefix}.encoding mismatch")
+    return word_count
+
+
+def validate_events(abi: dict) -> None:
+    events = expect_array(abi.get("events"), "abi.events")
+    seen_signatures: set[str] = set()
+    for idx, event in enumerate(events):
+        event = expect_object(event, f"abi.events[{idx}]")
+        name = expect_string(event.get("name"), f"abi.events[{idx}].name")
+        signature = expect_string(event.get("signature"), f"abi.events[{idx}].signature")
+        expect(signature.startswith(f"{name}("), f"abi.events[{idx}].signature must start with event name")
+        signature_arg_count(signature, f"abi.events[{idx}].signature")
+        expect_no_duplicate(signature, seen_signatures, "abi.events.signature")
+        expect_string(event.get("topic0"), f"abi.events[{idx}].topic0")
+        expect(event.get("anonymous") is False, f"abi.events[{idx}].anonymous must be false")
+        indexed_fields = expect_array(event.get("indexedFields"), f"abi.events[{idx}].indexedFields")
+        data_fields = expect_array(event.get("dataFields"), f"abi.events[{idx}].dataFields")
+        expect(isinstance(event.get("topics"), int), f"abi.events[{idx}].topics must be an integer")
+        expect(event.get("topics") == len(indexed_fields) + 1, f"abi.events[{idx}].topics mismatch")
+        expect(1 <= event.get("topics") <= 4, f"abi.events[{idx}].topics out of EVM log range")
+        data_words = 0
+        for field_idx, field in enumerate(indexed_fields):
+            validate_event_field(expect_object(field, f"abi.events[{idx}].indexedFields[{field_idx}]"), f"abi.events[{idx}].indexedFields[{field_idx}]", True)
+        for field_idx, field in enumerate(data_fields):
+            data_words += validate_event_field(expect_object(field, f"abi.events[{idx}].dataFields[{field_idx}]"), f"abi.events[{idx}].dataFields[{field_idx}]", False)
+        expect(event.get("dataWords") == data_words, f"abi.events[{idx}].dataWords mismatch")
+
+
 def validate_abi(abi: dict, expected_constructor_params: list[dict], require_method_signatures: bool) -> list[dict]:
     constructor_params = validate_constructor_abi(abi, expected_constructor_params)
+    validate_events(abi)
     entrypoints = expect_array(abi.get("entrypoints"), "abi.entrypoints")
     seen_entrypoint_names: set[str] = set()
     seen_entrypoint_selectors: set[str] = set()

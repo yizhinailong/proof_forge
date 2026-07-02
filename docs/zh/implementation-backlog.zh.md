@@ -88,6 +88,10 @@
   `address` ABI-encode typed constructor values，记录 constructor args 来自
   typed values 还是 raw hex，拒绝缺失、重复和越界的值，并校验生成的 initcode
   tail 与 metadata 和 deploy manifest 一致。
+- 已完成（EVM）：在 `abi.events` 中记录 portable IR event ABI metadata，包括
+  Solidity-style event signature、`topic0`、indexed/data field、展开后的 ABI
+  word type，以及 topic/data encoding；EventProbe 通过 `--expect-event` 和
+  `cast keccak` 校验每个已发射 event。
 - 已完成（EVM）：扩展 `scripts/evm/diagnostic-smoke.sh`，固定 constructor
   CLI 诊断，包括不支持的 dynamic constructor ABI type、缺失或重复的 typed
   value、typed/raw constructor argument source 混用、整数溢出，以及 address
@@ -104,6 +108,8 @@
 
 - EVM 字节码构建将 runtime bytecode、可部署 initcode、元数据和 deploy manifest 并排写入。
 - 元数据和 deploy manifest 可以由 CI 脚本独立解析。
+- Portable IR bytecode metadata 和 deploy manifest 可以描述 ABI-facing
+  events，包括 indexed topic encoding 和非 indexed data-word encoding。
 - Deploy manifest 可以携带来自 target registry 的可选 EVM chain profile
   metadata，同时让 transaction broadcast artifacts 明确保持 `not-generated`。
 - 本地 Anvil 部署可以消费生成的 deploy manifest 和 initcode，产出经过校验的

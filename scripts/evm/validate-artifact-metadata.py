@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
@@ -12,6 +13,7 @@ REQUIRED_VALIDATIONS = ("solcStrictAssembly", "bytecodeGeneration", "initCodeGen
 SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
 SUPPORTED_CONSTRUCTOR_ARG_SOURCES = {"--evm-constructor-args-hex", "--evm-constructor-arg"}
 SELECTOR_RE = re.compile(r"^[0-9a-fA-F]{8}$")
+TOPIC_RE = re.compile(r"^(0x)?[0-9a-fA-F]{64}$")
 SIGNATURE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\((.*)\)$")
 
 
@@ -78,10 +80,42 @@ def parse_expected_mapping(value: str, option: str) -> tuple[str, str]:
     return name, normalize_selector(selector, option)
 
 
+def parse_expected_event(value: str) -> tuple[str, str]:
+    if ":" not in value:
+        fail("--expect-event expects name:signature")
+    name, signature = value.split(":", 1)
+    expect(name and signature, "--expect-event expects name:signature")
+    expect(signature.startswith(f"{name}("), "--expect-event name must match signature")
+    signature_arg_count(signature, "--expect-event signature")
+    return name, signature
+
+
 def normalize_selector(value: str, name: str) -> str:
     selector = value[2:] if value.startswith(("0x", "0X")) else value
     expect(SELECTOR_RE.fullmatch(selector) is not None, f"{name} must be an 8-hex-digit selector")
     return selector.lower()
+
+
+def normalize_topic(value: str, name: str) -> str:
+    expect(isinstance(value, str) and TOPIC_RE.fullmatch(value) is not None, f"{name} must be a 32-byte hex topic")
+    topic = value[2:] if value.startswith(("0x", "0X")) else value
+    return "0x" + topic.lower()
+
+
+def cast_keccak(signature: str) -> str:
+    try:
+        result = subprocess.run(
+            ["cast", "keccak", signature],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        fail("cast not found on PATH; event topic validation requires Foundry cast")
+    except subprocess.CalledProcessError as exc:
+        fail(f"cast keccak failed for {signature}: {exc.stderr.strip() or exc.stdout.strip()}")
+    return normalize_topic(result.stdout.strip(), f"cast keccak {signature}")
 
 
 def signature_arg_count(signature: str, name: str) -> int:
@@ -241,6 +275,57 @@ def validate_constructor_schema_args(params: list[dict], constructor_args_hex: s
     )
 
 
+def validate_event_field(field: dict, prefix: str, indexed: bool) -> int:
+    expect_string(field.get("name"), f"{prefix}.name")
+    abi_type = expect_string(field.get("type"), f"{prefix}.type")
+    expect_string(field.get("irType"), f"{prefix}.irType")
+    expect(field.get("indexed") is indexed, f"{prefix}.indexed mismatch")
+    word_types = expect_array(field.get("wordTypes"), f"{prefix}.wordTypes")
+    for idx, word_type in enumerate(word_types):
+        expect_string(word_type, f"{prefix}.wordTypes[{idx}]")
+    word_count = field.get("wordCount")
+    expect(isinstance(word_count, int) and word_count == len(word_types), f"{prefix}.wordCount mismatch")
+    encoding = expect_string(field.get("encoding"), f"{prefix}.encoding")
+    if indexed:
+        expected_encoding = "indexed-word" if word_count == 1 else "indexed-keccak256"
+    else:
+        expected_encoding = "abi-static-words"
+    expect(encoding == expected_encoding, f"{prefix}.encoding mismatch")
+    expect(abi_type, f"{prefix}.type must be non-empty")
+    return word_count
+
+
+def validate_events(abi: dict, expected_events: list[tuple[str, str]]) -> None:
+    events = expect_array(abi.get("events"), "abi.events")
+    seen_signatures: set[str] = set()
+    actual_events: set[tuple[str, str]] = set()
+    for idx, event in enumerate(events):
+        event = expect_object(event, f"abi.events[{idx}]")
+        name = expect_string(event.get("name"), f"abi.events[{idx}].name")
+        signature = expect_string(event.get("signature"), f"abi.events[{idx}].signature")
+        expect(signature.startswith(f"{name}("), f"abi.events[{idx}].signature must start with event name")
+        signature_arg_count(signature, f"abi.events[{idx}].signature")
+        expect_no_duplicate(signature, seen_signatures, "abi.events.signature")
+        topic0 = normalize_topic(expect_string(event.get("topic0"), f"abi.events[{idx}].topic0"), f"abi.events[{idx}].topic0")
+        expect(topic0 == cast_keccak(signature), f"abi.events[{idx}].topic0 mismatch")
+        expect(event.get("anonymous") is False, f"abi.events[{idx}].anonymous must be false")
+        indexed_fields = expect_array(event.get("indexedFields"), f"abi.events[{idx}].indexedFields")
+        data_fields = expect_array(event.get("dataFields"), f"abi.events[{idx}].dataFields")
+        expect(isinstance(event.get("topics"), int), f"abi.events[{idx}].topics must be an integer")
+        expect(event.get("topics") == len(indexed_fields) + 1, f"abi.events[{idx}].topics mismatch")
+        expect(1 <= event.get("topics") <= 4, f"abi.events[{idx}].topics out of EVM log range")
+        data_words = 0
+        for field_idx, field in enumerate(indexed_fields):
+            validate_event_field(expect_object(field, f"abi.events[{idx}].indexedFields[{field_idx}]"), f"abi.events[{idx}].indexedFields[{field_idx}]", True)
+        for field_idx, field in enumerate(data_fields):
+            data_words += validate_event_field(expect_object(field, f"abi.events[{idx}].dataFields[{field_idx}]"), f"abi.events[{idx}].dataFields[{field_idx}]", False)
+        expect(event.get("dataWords") == data_words, f"abi.events[{idx}].dataWords mismatch")
+        actual_events.add((name, signature))
+
+    for expected in expected_events:
+        expect(expected in actual_events, f"missing event metadata: {expected[1]}")
+
+
 def validate_chain_profile(
     manifest: dict,
     expected_profile: Optional[str],
@@ -376,6 +461,7 @@ def main() -> int:
     parser.add_argument("--require-method-signatures", action="store_true")
     parser.add_argument("--expect-capability", action="append", default=[])
     parser.add_argument("--expect-entrypoint", action="append", default=[])
+    parser.add_argument("--expect-event", action="append", default=[])
     parser.add_argument("metadata")
     args = parser.parse_args()
 
@@ -385,6 +471,7 @@ def main() -> int:
     expected_constructor_params = [
         parse_expected_constructor_param(value) for value in args.expect_constructor_param
     ]
+    expected_events = [parse_expected_event(value) for value in args.expect_event]
 
     expect(metadata.get("schemaVersion") == 1, "schemaVersion must be 1")
     expect(metadata.get("target") == "evm", "target must be evm")
@@ -431,6 +518,7 @@ def main() -> int:
 
     abi = expect_object(metadata.get("abi"), "abi")
     constructor_params = validate_constructor_abi(abi, expected_constructor_params)
+    validate_events(abi, expected_events)
     entrypoints = expect_array(abi.get("entrypoints"), "abi.entrypoints")
     actual_entrypoints = {}
     seen_entrypoint_names: set[str] = set()
