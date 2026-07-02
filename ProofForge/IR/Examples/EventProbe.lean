@@ -42,6 +42,24 @@ def pair (left right : Expr) : Expr :=
     ("right", right)
   ]
 
+def matrix (a b c d : Expr) : Expr :=
+  .arrayLit (.fixedArray .u64 2) #[
+    .arrayLit .u64 #[a, b],
+    .arrayLit .u64 #[c, d]
+  ]
+
+def pairMatrix (a b c d e f g h : Expr) : Expr :=
+  .arrayLit (.fixedArray (.structType "Pair") 2) #[
+    .arrayLit (.structType "Pair") #[
+      pair a b,
+      pair c d
+    ],
+    .arrayLit (.structType "Pair") #[
+      pair e f,
+      pair g h
+    ]
+  ]
+
 def u64 (value : Nat) : Expr :=
   .literal (.u64 value)
 
@@ -195,6 +213,47 @@ def emitPairArrayEvent : Entrypoint := {
   ]
 }
 
+def emitMatrixEvent : Entrypoint := {
+  name := "emit_matrix_event"
+  selector? := some "765f1e45"
+  returns := .unit
+  params := #[("a", .u64), ("b", .u64), ("c", .u64), ("d", .u64)]
+  body := #[
+    .letBind "matrix" (.fixedArray (.fixedArray .u64 2) 2)
+      (matrix (.local "a") (.local "b") (.local "c") (.local "d")),
+    .effect (.eventEmit "MatrixEvent" #[("matrix", .local "matrix")])
+  ]
+}
+
+def emitPairMatrixEvent : Entrypoint := {
+  name := "emit_pair_matrix_event"
+  selector? := some "315aac0a"
+  returns := .unit
+  params := #[
+    ("a", .u64),
+    ("b", .u64),
+    ("c", .u64),
+    ("d", .u64),
+    ("e", .u64),
+    ("f", .u64),
+    ("g", .u64),
+    ("h", .u64)
+  ]
+  body := #[
+    .letBind "pairMatrix" (.fixedArray (.fixedArray (.structType "Pair") 2) 2)
+      (pairMatrix
+        (.local "a")
+        (.local "b")
+        (.local "c")
+        (.local "d")
+        (.local "e")
+        (.local "f")
+        (.local "g")
+        (.local "h")),
+    .effect (.eventEmit "PairMatrixEvent" #[("pairs", .local "pairMatrix")])
+  ]
+}
+
 def emitStoragePairArrayEvent : Entrypoint := {
   name := "emit_storage_pair_array_event"
   selector? := some "f31d3375"
@@ -300,6 +359,54 @@ def emitIndexedPairArrayEvent : Entrypoint := {
   ]
 }
 
+def emitIndexedMatrixEvent : Entrypoint := {
+  name := "emit_indexed_matrix_event"
+  selector? := some "6a843f41"
+  returns := .unit
+  params := #[("a", .u64), ("b", .u64), ("c", .u64), ("d", .u64), ("value", .u64)]
+  body := #[
+    .letBind "matrix" (.fixedArray (.fixedArray .u64 2) 2)
+      (matrix (.local "a") (.local "b") (.local "c") (.local "d")),
+    .effect (.eventEmitIndexed
+      "IndexedMatrix"
+      #[("matrix", .local "matrix")]
+      #[("value", .local "value")])
+  ]
+}
+
+def emitIndexedPairMatrixEvent : Entrypoint := {
+  name := "emit_indexed_pair_matrix_event"
+  selector? := some "d1b4d456"
+  returns := .unit
+  params := #[
+    ("a", .u64),
+    ("b", .u64),
+    ("c", .u64),
+    ("d", .u64),
+    ("e", .u64),
+    ("f", .u64),
+    ("g", .u64),
+    ("h", .u64),
+    ("value", .u64)
+  ]
+  body := #[
+    .letBind "pairMatrix" (.fixedArray (.fixedArray (.structType "Pair") 2) 2)
+      (pairMatrix
+        (.local "a")
+        (.local "b")
+        (.local "c")
+        (.local "d")
+        (.local "e")
+        (.local "f")
+        (.local "g")
+        (.local "h")),
+    .effect (.eventEmitIndexed
+      "IndexedPairMatrix"
+      #[("pairs", .local "pairMatrix")]
+      #[("value", .local "value")])
+  ]
+}
+
 def module : Module := {
   name := "EventProbe"
   state := #[stateMarker]
@@ -322,13 +429,17 @@ def evmModule : Module := {
     emitStorageArrayEvent,
     emitArrayEvent,
     emitPairArrayEvent,
+    emitMatrixEvent,
+    emitPairMatrixEvent,
     emitStoragePairArrayEvent,
     emitIndexedPairEvent,
     emitIndexedStoragePairEvent,
     emitIndexedStorageArrayEvent,
     emitIndexedArrayEvent,
     emitIndexedStoragePairArrayEvent,
-    emitIndexedPairArrayEvent
+    emitIndexedPairArrayEvent,
+    emitIndexedMatrixEvent,
+    emitIndexedPairMatrixEvent
   ]
 }
 

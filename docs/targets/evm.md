@@ -222,13 +222,13 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, flat scalar storage struct field read/write, and whole flat scalar storage struct read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks; word and flat-struct storage arrays can feed fixed-array ABI returns and event aggregate fields through storage reads |
-| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, static and dynamic nested scalar local fixed-array reads, static and dynamic nested scalar local leaf assignment/compound assignment, nested whole local fixed-array assignment with RHS snapshotting, local fixed arrays and nested local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns over U64/U32/Hash leaves, nested scalar fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, storage-backed fixed-array ABI returns from word arrays and fixed arrays of flat structs, nested fixed-array typed crosscall arguments/returns whose leaves are scalar words or flat structs, scalar fixed-array event data fields, and fixed-array event fields whose elements are flat structs, including non-indexed data flattening and indexed topic hashing from local values, storage array reads, and storage array struct field reads; zero-length ABI arrays, nested local arrays with unsupported aggregate/non-flat leaves, nested crosscall fixed arrays with non-flat struct or unsupported leaves, and unsupported element shapes still reject explicitly |
-| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns including Hash/bytes32 fields, fixed arrays of flat structs in ABI-facing parameters/returns, storage-backed fixed-array-of-flat-struct ABI returns, flat event data fields and indexed event topic hashing from local values, storage scalar struct reads, and storage array struct field reads inside fixed arrays, flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
+| `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, static and dynamic nested scalar local fixed-array reads, static and dynamic nested scalar local leaf assignment/compound assignment, nested whole local fixed-array assignment with RHS snapshotting, local fixed arrays and nested local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns over U64/U32/Hash leaves, nested scalar fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, storage-backed fixed-array ABI returns from word arrays and fixed arrays of flat structs, nested fixed-array typed crosscall arguments/returns whose leaves are scalar words or flat structs, scalar fixed-array event data fields, fixed-array event fields whose elements are flat structs, and nested fixed-array event fields whose leaves are scalar words or flat structs, including non-indexed data flattening and indexed topic hashing from local values, storage array reads, and storage array struct field reads; zero-length ABI arrays, nested local arrays with unsupported aggregate/non-flat leaves, nested crosscall fixed arrays with non-flat struct or unsupported leaves, and unsupported element shapes still reject explicitly |
+| `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns including Hash/bytes32 fields, fixed arrays of flat structs in ABI-facing parameters/returns, storage-backed fixed-array-of-flat-struct ABI returns, flat event data fields and indexed event topic hashing from local values, storage scalar struct reads, storage array struct field reads inside fixed arrays, and nested fixed-array event fields whose leaves are flat structs; flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
 | `caller.sender` | `Env.sender` |
 | `value.native` | `Env.value` |
 | `env.block` | `Env.blockNumber`, `Env.balance` |
 | `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested fixed-array arguments whose leaves are scalar words or flat structs, flattened to ABI words; typed normal/value/static/delegate calls return Bool/U32/U64/Hash scalar words with Bool/U32 return guards and support direct entrypoint returns of flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested fixed-array return data whose leaves are scalar words or flat structs; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot; `crosscallInvokeStaticTyped` preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` preserves caller-storage context; `crosscallCreate` and `crosscallCreate2` deploy fixed init-code hex through Yul `create`/`create2`, revert on zero-address failure, and return the deployed address word |
-| `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, non-indexed data fields can be U64/Bool/U32/Hash scalar words, flat structs from local values or storage scalar struct reads, scalar fixed arrays from local values or storage array reads, or fixed arrays of flat structs from local literals or storage array struct field reads, scalar indexed topics can be U64/Bool/U32/Hash words, indexed aggregate fields use `keccak256` over flattened ABI-style words, and portable IR artifacts record event ABI metadata in `abi.events` |
+| `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, non-indexed data fields can be U64/Bool/U32/Hash scalar words, flat structs from local values or storage scalar struct reads, scalar fixed arrays from local values or storage array reads, fixed arrays of flat structs from local literals or storage array struct field reads, or nested fixed arrays whose leaves are scalar words or flat structs, scalar indexed topics can be U64/Bool/U32/Hash words, indexed aggregate fields use `keccak256` over flattened ABI-style words including nested fixed arrays with scalar or flat-struct leaves, and portable IR artifacts record event ABI metadata in `abi.events` |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
 | `control.conditional` | Portable IR `if/else` lowers to Yul `switch` blocks |
 | `control.bounded_loop` | Portable IR `boundedFor` lowers to Yul `for` loops with static bounds |
@@ -429,6 +429,8 @@ name and field types, for example `ValueEvent(uint64)`,
 `PairEvent((uint64,uint64))`, `StoragePairEvent((uint64,uint64))`,
 `StorageArrayEvent(uint64[2])`, `ArrayEvent(uint64[2])`,
 `PairArrayEvent((uint64,uint64)[2])`,
+`MatrixEvent(uint64[2][2])`,
+`PairMatrixEvent((uint64,uint64)[2][2])`,
 `StoragePairArrayEvent((uint64,uint64)[2])`,
 `IndexedPair((uint64,uint64),uint64)`,
 `IndexedStoragePair((uint64,uint64),uint64)`,
@@ -438,19 +440,23 @@ name and field types, for example `ValueEvent(uint64)`,
 `IndexedStorageArray(uint64[2],uint64)`,
 `IndexedArray(uint64[2],uint64)`,
 `IndexedStoragePairArray((uint64,uint64)[2],uint64)`, or
-`IndexedPairArray((uint64,uint64)[2],uint64)`. Plain `eventEmit` lowers to
+`IndexedPairArray((uint64,uint64)[2],uint64)`,
+`IndexedMatrix(uint64[2][2],uint64)`, or
+`IndexedPairMatrix((uint64,uint64)[2][2],uint64)`. Plain `eventEmit` lowers to
 `log1`, while `eventEmitIndexed` snapshots up to three indexed fields into
 topics, producing `log2`, `log3`, or `log4`. Scalar indexed fields become direct
 topics for U64, Bool, U32, and Hash values. Flat structs, including
 storage-backed scalar struct reads, scalar fixed arrays, and fixed arrays of flat
-structs flatten into ABI-style 32-byte words and use `keccak256` of those words
-as the indexed topic; storage-backed fixed arrays do the same from storage array
-reads and storage array struct field reads. Non-indexed data fields can be
-scalar words, flat structs from local values or storage reads, scalar fixed
-arrays, or fixed arrays of flat structs, and aggregate values flatten in ABI
-order before the Yul log call. Portable IR EVM artifacts and deploy manifests
-also record `abi.events` entries with the Solidity-style signature, `topic0`,
-indexed/data fields, flattened ABI word types, and topic/data encoding. The
+structs, and nested fixed arrays with scalar or flat-struct leaves flatten into
+ABI-style 32-byte words and use `keccak256` of those words as the indexed
+topic; storage-backed fixed arrays do the same from storage array reads and
+storage array struct field reads. Non-indexed data fields can be scalar words,
+flat structs from local values or storage reads, scalar fixed arrays, fixed
+arrays of flat structs, or nested fixed arrays whose leaves are scalar words or
+flat structs, and aggregate values flatten in ABI order before the Yul log call.
+Portable IR EVM artifacts and deploy manifests also record `abi.events` entries
+with the Solidity-style signature, `topic0`, indexed/data fields, flattened ABI
+word types, and topic/data encoding. The
 smoke checks golden Yul reproducibility, `solc --strict-assembly` bytecode
 generation, metadata capability `events.emit`, `abi.events` signatures and
 `topic0` values using `cast keccak`, Foundry recorded logs (`emitter`,
@@ -460,9 +466,10 @@ indexed aggregate topic hash, Bool/U32/Hash scalar event data with dispatcher
 range guards, flat struct data from local values and storage reads, scalar
 fixed-array data from local values and storage array
 reads, fixed-array-of-struct data from local literals and storage array struct
-field reads, and decoded scalar data), ABI selector dispatch, and unknown-selector revert
-behavior. Nested/unsupported aggregate indexed fields and richer event
-declarations remain explicit unsupported surfaces for the portable IR.
+field reads, nested fixed-array data from scalar and flat-struct leaves, and
+decoded scalar data), ABI selector dispatch, and unknown-selector revert
+behavior. Aggregate event fields with unsupported or non-flat leaves and richer
+event declarations remain explicit unsupported surfaces for the portable IR.
 
 `EvmCrosscallProbe` validates portable IR `crosscallInvoke`,
 `crosscallInvokeTyped`, `crosscallInvokeValueTyped`,

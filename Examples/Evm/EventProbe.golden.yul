@@ -90,6 +90,20 @@ object "EventProbe" {
       f_EventProbe_emit_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       return(0, 0)
     }
+    case 0x765f1e45 {
+      if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_matrix_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
+      return(0, 0)
+    }
+    case 0x315aac0a {
+      if lt(calldatasize(), 260) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_pair_matrix_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132), calldataload(164), calldataload(196), calldataload(228))
+      return(0, 0)
+    }
     case 0xf31d3375 {
       if lt(calldatasize(), 132) {
         revert(0, 0)
@@ -137,6 +151,20 @@ object "EventProbe" {
         revert(0, 0)
       }
       f_EventProbe_emit_indexed_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132))
+      return(0, 0)
+    }
+    case 0x6a843f41 {
+      if lt(calldatasize(), 164) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_indexed_matrix_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132))
+      return(0, 0)
+    }
+    case 0xd1b4d456 {
+      if lt(calldatasize(), 292) {
+        revert(0, 0)
+      }
+      f_EventProbe_emit_indexed_pair_matrix_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132), calldataload(164), calldataload(196), calldataload(228), calldataload(260))
       return(0, 0)
     }
     default {
@@ -270,6 +298,45 @@ object "EventProbe" {
         log1(0, 128, _topic0)
       }
     }
+    function f_EventProbe_emit_matrix_event(a, b, c, d) {
+      let __proof_forge_array_matrix_0_0 := a
+      let __proof_forge_array_matrix_0_1 := b
+      let __proof_forge_array_matrix_1_0 := c
+      let __proof_forge_array_matrix_1_1 := d
+      {
+        mstore(0, 35000277193312430329116110807205321618552619317420529425454772113559294836736)
+        let _topic0 := keccak256(0, 25)
+        mstore(0, __proof_forge_array_matrix_0_0)
+        mstore(32, __proof_forge_array_matrix_0_1)
+        mstore(64, __proof_forge_array_matrix_1_0)
+        mstore(96, __proof_forge_array_matrix_1_1)
+        log1(0, 128, _topic0)
+      }
+    }
+    function f_EventProbe_emit_pair_matrix_event(a, b, c, d, e, f, g, h) {
+      let __proof_forge_array_struct_pairMatrix_0_0_left := a
+      let __proof_forge_array_struct_pairMatrix_0_0_right := b
+      let __proof_forge_array_struct_pairMatrix_0_1_left := c
+      let __proof_forge_array_struct_pairMatrix_0_1_right := d
+      let __proof_forge_array_struct_pairMatrix_1_0_left := e
+      let __proof_forge_array_struct_pairMatrix_1_0_right := f
+      let __proof_forge_array_struct_pairMatrix_1_1_left := g
+      let __proof_forge_array_struct_pairMatrix_1_1_right := h
+      {
+        mstore(0, 36357139816894284481188916627620183122405574950649796438417604283857043204443)
+        mstore(32, 22780588622913510007042461698051134993564019663524360774140824138400869122048)
+        let _topic0 := keccak256(0, 38)
+        mstore(0, __proof_forge_array_struct_pairMatrix_0_0_left)
+        mstore(32, __proof_forge_array_struct_pairMatrix_0_0_right)
+        mstore(64, __proof_forge_array_struct_pairMatrix_0_1_left)
+        mstore(96, __proof_forge_array_struct_pairMatrix_0_1_right)
+        mstore(128, __proof_forge_array_struct_pairMatrix_1_0_left)
+        mstore(160, __proof_forge_array_struct_pairMatrix_1_0_right)
+        mstore(192, __proof_forge_array_struct_pairMatrix_1_1_left)
+        mstore(224, __proof_forge_array_struct_pairMatrix_1_1_right)
+        log1(0, 256, _topic0)
+      }
+    }
     function f_EventProbe_emit_storage_pair_array_event(a, b, c, d) {
       sstore(__proof_forge_struct_array_slot(5, 2, 2, 0, 0), a)
       sstore(__proof_forge_struct_array_slot(5, 2, 2, 1, 0), b)
@@ -377,6 +444,50 @@ object "EventProbe" {
         mstore(64, __proof_forge_array_struct_pairs_1_left)
         mstore(96, __proof_forge_array_struct_pairs_1_right)
         let _indexed_topic0 := keccak256(0, 128)
+        mstore(0, value)
+        log2(0, 32, _topic0, _indexed_topic0)
+      }
+    }
+    function f_EventProbe_emit_indexed_matrix_event(a, b, c, d, value) {
+      let __proof_forge_array_matrix_0_0 := a
+      let __proof_forge_array_matrix_0_1 := b
+      let __proof_forge_array_matrix_1_0 := c
+      let __proof_forge_array_matrix_1_1 := d
+      {
+        mstore(0, 33213884033972546235930258014739257195049576989145838570368665434596530091062)
+        mstore(32, 23592708855985765952925771527420190941844392474980139947797807605860351868928)
+        let _topic0 := keccak256(0, 34)
+        mstore(0, __proof_forge_array_matrix_0_0)
+        mstore(32, __proof_forge_array_matrix_0_1)
+        mstore(64, __proof_forge_array_matrix_1_0)
+        mstore(96, __proof_forge_array_matrix_1_1)
+        let _indexed_topic0 := keccak256(0, 128)
+        mstore(0, value)
+        log2(0, 32, _topic0, _indexed_topic0)
+      }
+    }
+    function f_EventProbe_emit_indexed_pair_matrix_event(a, b, c, d, e, f, g, h, value) {
+      let __proof_forge_array_struct_pairMatrix_0_0_left := a
+      let __proof_forge_array_struct_pairMatrix_0_0_right := b
+      let __proof_forge_array_struct_pairMatrix_0_1_left := c
+      let __proof_forge_array_struct_pairMatrix_0_1_right := d
+      let __proof_forge_array_struct_pairMatrix_1_0_left := e
+      let __proof_forge_array_struct_pairMatrix_1_0_right := f
+      let __proof_forge_array_struct_pairMatrix_1_1_left := g
+      let __proof_forge_array_struct_pairMatrix_1_1_right := h
+      {
+        mstore(0, 33213884033972546254760509589163296150283721795102253188335509998120224437812)
+        mstore(32, 18705957479005271543611984770555474135478397334981757198088483621979016921088)
+        let _topic0 := keccak256(0, 47)
+        mstore(0, __proof_forge_array_struct_pairMatrix_0_0_left)
+        mstore(32, __proof_forge_array_struct_pairMatrix_0_0_right)
+        mstore(64, __proof_forge_array_struct_pairMatrix_0_1_left)
+        mstore(96, __proof_forge_array_struct_pairMatrix_0_1_right)
+        mstore(128, __proof_forge_array_struct_pairMatrix_1_0_left)
+        mstore(160, __proof_forge_array_struct_pairMatrix_1_0_right)
+        mstore(192, __proof_forge_array_struct_pairMatrix_1_1_left)
+        mstore(224, __proof_forge_array_struct_pairMatrix_1_1_right)
+        let _indexed_topic0 := keccak256(0, 256)
         mstore(0, value)
         log2(0, 32, _topic0, _indexed_topic0)
       }

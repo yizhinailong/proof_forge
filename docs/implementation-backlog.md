@@ -238,6 +238,16 @@ Tasks:
   topics by adding `IndexedArray(uint64[2],uint64)` golden Yul, metadata selector
   validation, solc bytecode generation, and Foundry recorded-log topic-hash
   checks.
+- Done: extend EventProbe nested fixed-array event aggregate coverage.
+  `MatrixEvent(uint64[2][2])` and
+  `PairMatrixEvent((uint64,uint64)[2][2])` prove recursive non-indexed data
+  flattening for scalar and flat-struct leaves, while
+  `IndexedMatrix(uint64[2][2],uint64)` and
+  `IndexedPairMatrix((uint64,uint64)[2][2],uint64)` prove indexed aggregate
+  topic hashing over recursively flattened ABI-style words. The smoke now locks
+  the new selectors, event ABI metadata, golden Yul, `solc` bytecode, and
+  Foundry recorded-log assertions; nested arrays with unsupported or non-flat
+  leaves remain explicit diagnostics.
 - Done: add EventProbe coverage for storage-backed flat struct event data and
   indexed aggregate topics. `StoragePairEvent((uint64,uint64))` and
   `IndexedStoragePair((uint64,uint64),uint64)` now prove that a whole scalar

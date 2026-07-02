@@ -283,10 +283,9 @@ partial def eventSignatureFieldType (module : Module) (eventName fieldName : Str
       if length == 0 then
         .error { message := s!"event `{eventName}` field `{fieldName}` uses Array<{elementType.name},0>; event fixed arrays must have non-zero length" }
       match elementType with
-      | .fixedArray _ _ =>
-          .error {
-            message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 aggregate type `{type.name}`; event fixed arrays support U32, U64, Bool, Hash, or flat structs"
-          }
+      | .fixedArray _ _ => do
+          let elementName ← eventSignatureFieldType module eventName fieldName elementType
+          .ok (elementName ++ s!"[{length}]")
       | .structType typeName => do
           let some decl := module.structs.find? fun decl => decl.name == typeName
             | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
@@ -1308,6 +1307,54 @@ mutual
         .error { message := "event.emit.indexed is a statement effect, not an expression" }
 end
 
+partial def inferEventFieldExprType (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError ValueType
+  | .literal (.u32 _) => .ok .u32
+  | .literal (.u64 _) => .ok .u64
+  | .literal (.bool _) => .ok .bool
+  | .literal (.hash4 ..) => .ok .hash
+  | .local name =>
+      match findLocal? env name with
+      | some binding => .ok binding.type
+      | none => .error { message := s!"unknown local `{name}`" }
+  | .arrayLit elementType values => do
+      for value in values do
+        ensureType "event field array literal element" elementType (← inferEventFieldExprType module env value)
+      .ok (.fixedArray elementType values.size)
+  | .arrayGet array index => do
+      ensureArrayIndexType "fixed array index" (← inferExprType module env index)
+      match ← inferEventFieldExprType module env array with
+      | .fixedArray elementType length => do
+          match literalArrayIndex? index with
+          | some indexValue =>
+              ensureFixedArrayIndexInBounds "fixed array index" indexValue length
+          | none => pure ()
+          .ok elementType
+      | other => .error { message := s!"fixed array indexing target expected `Array`, got `{other.name}`" }
+  | .structLit typeName fields => do
+      if fields.isEmpty then
+        .error { message := s!"struct literal `{typeName}` must have at least one field" }
+      let some decl := findStruct? module typeName
+        | .error { message := s!"unknown struct `{typeName}`" }
+      if decl.fields.size != fields.size then
+        .error { message := s!"struct literal `{typeName}` expected {decl.fields.size} field(s), got {fields.size}" }
+      for field in fields do
+        let expected ← structFieldType module typeName field.fst
+        let actual ← inferEventFieldExprType module env field.snd
+        ensureType s!"struct literal `{typeName}` field `{field.fst}`" expected actual
+      for expectedField in decl.fields do
+        if !(fields.any fun field => field.fst == expectedField.id) then
+          .error { message := s!"struct literal `{typeName}` is missing field `{expectedField.id}`" }
+      .ok (.structType typeName)
+  | .field base fieldName => do
+      match ← inferEventFieldExprType module env base with
+      | .structType typeName =>
+          structFieldType module typeName fieldName
+      | other => .error { message := s!"field `{fieldName}` requires struct value, got `{other.name}`" }
+  | .effect effect =>
+      inferEffectExprType module env effect
+  | other =>
+      inferExprType module env other
+
 def eventSignature
     (module : Module)
     (env : TypeEnv)
@@ -1318,7 +1365,7 @@ def eventSignature
     validateDistinctEventFieldName name seen field.fst
   let mut typeNames := #[]
   for field in fields do
-    let actual ← inferExprType module env field.snd
+    let actual ← inferEventFieldExprType module env field.snd
     typeNames := typeNames.push (← eventSignatureFieldType module name field.fst actual)
   .ok (name ++ "(" ++ String.intercalate "," typeNames.toList ++ ")")
 
@@ -1371,7 +1418,7 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
   | .eventEmitIndexed name indexedFields dataFields => do
       validateIndexedEventFieldCount name indexedFields.size
       for field in indexedFields do
-        ensureIndexedEventFieldType module name field.fst (← inferExprType module env field.snd)
+        ensureIndexedEventFieldType module name field.fst (← inferEventFieldExprType module env field.snd)
       discard <| eventSignature module env name (indexedFields ++ dataFields)
 
 def requireMutableLocal (env : TypeEnv) (context name : String) : Except LowerError LocalBinding := do
@@ -2406,6 +2453,30 @@ partial def lowerEventFixedArrayDataWords
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
   discard <| eventSignatureFieldType module eventName fieldName (.fixedArray elementType length)
   match elementType with
+  | .fixedArray nestedElementType nestedLength => do
+      match value with
+      | .local name =>
+          lowerLocalAbiWords
+            module
+            env
+            s!"event `{eventName}` data field `{fieldName}`"
+            name
+            (.fixedArray elementType length)
+      | .arrayLit literalElementType values => do
+          ensureType s!"event `{eventName}` data field `{fieldName}` fixed-array element type" elementType literalElementType
+          if values.size != length then
+            .error {
+              message := s!"event `{eventName}` data field `{fieldName}` expected fixed-array length {length}, got {values.size}"
+            }
+          let mut words : Array Lean.Compiler.Yul.Expr := #[]
+          for h : idx in [0:values.size] do
+            words := words ++
+              (← lowerEventFixedArrayDataWords module env eventName fieldName nestedElementType nestedLength values[idx])
+          .ok words
+      | _ =>
+          .error {
+            message := s!"event `{eventName}` data field `{fieldName}` nested fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
+          }
   | .structType typeName => do
       let some decl := module.structs.find? fun decl => decl.name == typeName
         | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
@@ -2477,7 +2548,7 @@ partial def lowerEventFixedArrayDataWords
           .error {
             message := s!"event `{eventName}` data field `{fieldName}` fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
           }
-  | .unit | .fixedArray _ _ =>
+  | .unit =>
       .error {
         message := s!"event `{eventName}` data field `{fieldName}` has unsupported EVM IR v0 fixed-array element type `{elementType.name}`"
       }
@@ -2535,16 +2606,16 @@ def lowerEventEmitCoreStmt
     (indexedFields dataFields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement := do
   validateIndexedEventFieldCount name indexedFields.size
   for field in indexedFields do
-    ensureIndexedEventFieldType module name field.fst (← inferExprType module env field.snd)
+    ensureIndexedEventFieldType module name field.fst (← inferEventFieldExprType module env field.snd)
   let signature ← eventSignature module env name (indexedFields ++ dataFields)
   let mut statements := eventSignatureTopicStatements signature
   for h : idx in [0:indexedFields.size] do
     let field := indexedFields[idx]
-    let type ← inferExprType module env field.snd
+    let type ← inferEventFieldExprType module env field.snd
     statements := statements ++ (← lowerIndexedEventTopicStatements module env name field.fst idx type field.snd)
   let mut dataWords : Array Lean.Compiler.Yul.Expr := #[]
   for field in dataFields do
-    let type ← inferExprType module env field.snd
+    let type ← inferEventFieldExprType module env field.snd
     dataWords := dataWords ++ (← lowerEventDataWords module env name field.fst type field.snd)
   statements := statements ++ eventDataStoreStatements dataWords
   let mut logArgs : Array Lean.Compiler.Yul.Expr := #[

@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Nested Fixed-Array Event Aggregates
+
+Commit: feature commit for EVM nested fixed-array event aggregates
+
+Summary:
+
+- Extended portable IR EVM event signature generation so nested fixed arrays are
+  rendered recursively as Solidity-style event types such as `uint64[2][2]` and
+  `(uint64,uint64)[2][2]`.
+- Extended event data-word lowering so nested fixed-array event fields flatten
+  recursively into ABI-style words when their leaves are scalar words or flat
+  structs.
+- Added `EventProbe` entrypoints for `MatrixEvent(uint64[2][2])`,
+  `PairMatrixEvent((uint64,uint64)[2][2])`,
+  `IndexedMatrix(uint64[2][2],uint64)`, and
+  `IndexedPairMatrix((uint64,uint64)[2][2],uint64)`.
+- Tightened diagnostics so nested fixed arrays whose leaves are unsupported or
+  non-flat still fail before Yul generation with explicit errors.
+
+Validation run:
+
+```sh
+just evm-smoke event
+```
+
+- Generated reproducible EventProbe Yul and runtime bytecode with
+  `solc --strict-assembly`.
+- Validated new selector/event ABI metadata through
+  `scripts/evm/validate-artifact-metadata.py`.
+- Foundry ran 24 EventProbe recorded-log tests, including nested scalar and
+  nested flat-struct fixed-array data flattening plus indexed aggregate topic
+  hashing.
+
+Known limitations:
+
+- Aggregate event fields with unsupported leaves, non-flat struct leaves, or
+  richer first-class event declarations remain explicit unsupported surfaces for
+  portable IR EVM.
+
+Next step:
+
+- Continue shrinking the EVM aggregate surface around remaining storage and ABI
+  edge cases while keeping unsupported shapes diagnostic-first.
+
 ### EVM Entrypoint ABI Artifact Metadata
 
 Commit: `feat: record EVM entrypoint ABI metadata`

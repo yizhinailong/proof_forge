@@ -371,9 +371,8 @@ def eventIndexedUnsupportedAggregateModule : Module := {
   entrypoints := #[selectedEntrypoint "bad" #[
     .effect (.eventEmitIndexed
       "Seen"
-      #[("matrix", .arrayLit (.fixedArray .u64 2) #[
-        .arrayLit .u64 #[.literal (.u64 1), .literal (.u64 2)],
-        .arrayLit .u64 #[.literal (.u64 3), .literal (.u64 4)]
+      #[("matrix", .arrayLit (.fixedArray .u64 0) #[
+        .arrayLit .u64 #[]
       ])]
       #[])
   ]]
@@ -746,7 +745,7 @@ def cases : Array (String × Module × String) := #[
   (
     "indexed unsupported aggregate event field unsupported",
     eventIndexedUnsupportedAggregateModule,
-    "event `Seen` field `matrix` has unsupported EVM IR v0 aggregate type `Array<Array<U64,2>,2>`; event fixed arrays support U32, U64, Bool, Hash, or flat structs"
+    "event `Seen` field `matrix` uses Array<U64,0>; event fixed arrays must have non-zero length"
   ),
   (
     "crosscall target type mismatch",
