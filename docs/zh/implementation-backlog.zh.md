@@ -364,9 +364,13 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
 `sol_get_rent_sysvar` 验证的 live `Rent.lamports_per_byte_year` sysvar 路径，以及通过
 `sol_get_epoch_schedule_sysvar` 验证的、当前 RPC 暴露的全部
 `EpochSchedule` 字段：`slots_per_epoch`、`leader_schedule_slot_offset`、
-`warmup`、`first_normal_epoch` 和 `first_normal_slot`，以及通过
-`sol_get_sysvar` 和 `SysvarLastRestartS1ot1111111111111111111111` sysvar id
-验证的 feature-gated live `LastRestartSlot.last_restart_slot` 路径。Lean/package 级 SDK 覆盖
+`warmup`、`first_normal_epoch` 和 `first_normal_slot`，加上通过
+`sol_get_epoch_rewards_sysvar` 验证的 live `EpochRewards` 路径，覆盖
+`distribution_starting_block_height`、`num_partitions`、
+`parent_blockhash_word0..3`、`total_points_low/high`、`total_rewards`、
+`distributed_rewards` 和 `active`，以及通过 `sol_get_sysvar` 和
+`SysvarLastRestartS1ot1111111111111111111111` sysvar id 验证的
+feature-gated live `LastRestartSlot.last_restart_slot` 路径。Lean/package 级 SDK 覆盖
 现在还包括把 `runtime.return_data` 降为 `sol_set_return_data` 与
 `sol_get_return_data`，以及把 `runtime.compute_units` 降为 feature-gated
 `sol_remaining_compute_units` 和 profiling log `sol_log_compute_units_`。
@@ -444,6 +448,13 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
   `EpochSchedule.leader_schedule_slot_offset`、`EpochSchedule.warmup`、
   `EpochSchedule.first_normal_epoch` 和 `EpochSchedule.first_normal_slot`
   与 RPC `getEpochSchedule()` 字段一致。
+- Live EpochRewards sysvar fixture：
+  `scripts/solana/epoch-rewards-sysvar-web3-smoke.sh` 会在 Surfpool 上构建并
+  部署生成的 Solana-only `sysvar` target-extension 程序，通过 Web3.js 调用
+  `record_epoch_rewards`，并证明 `sol_get_epoch_rewards_sysvar` 会把
+  `EpochRewards` 字段记录进 state。`parent_blockhash` 先暴露为四个
+  little-endian `u64` word 视图，`total_points` 先暴露为 low/high `u64`
+  word 视图，直到 portable scalar 层支持一等宽值输出 state。
 - Live LastRestartSlot sysvar fixture：
   `scripts/solana/last-restart-slot-sysvar-web3-smoke.sh` 会在 Surfpool 上构建并
   部署生成的 Solana-only `sysvar` target-extension 程序，通过 Web3.js 调用
@@ -479,10 +490,10 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
 2. 更丰富的 return data、sysvars、crypto、logs 与 memory helpers（3-5 天）：
    将当前 scalar `sol_log_64_` event 路径扩展到 string/base64/Anchor-style
    与 indexed event 形态；为 `sol_get_return_data` 增加 live/CPI 验证、
-   `u64` 之外的 typed return payload helper、其他非 EpochSchedule sysvar
-   字段、语义匹配时的 portable `Expr.hash` 路由，以及复用新
-   memory syscall 路径的更广 account/data packing helper，并与 JavaScript
-   reference 对比。
+   `u64` 之外的 typed return payload helper、更多 Clock/Rent 字段、
+   generic account-passed sysvar 读取、语义匹配时的 portable `Expr.hash`
+   路由，以及复用新 memory syscall 路径的更广 account/data packing helper，
+   并与 JavaScript reference 对比。
 3. Runtime allocation lowering（1-2 天）：后续 heap-backed SDK structure 通过
    `runtime.allocator` 路由；需要动态分配时生成真实 downward bump-pointer
    allocation code；在 `noAllocator` 下拒绝使用分配的结构。

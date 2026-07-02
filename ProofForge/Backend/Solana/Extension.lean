@@ -94,17 +94,20 @@ def CryptoHashOp.featureGated : CryptoHashOp -> Bool
 inductive SysvarKind where
   | rent
   | epochSchedule
+  | epochRewards
   | lastRestartSlot
   deriving BEq, DecidableEq, Repr, Inhabited
 
 def SysvarKind.id : SysvarKind -> String
   | .rent => "rent"
   | .epochSchedule => "epoch_schedule"
+  | .epochRewards => "epoch_rewards"
   | .lastRestartSlot => "last_restart_slot"
 
 def SysvarKind.syscall : SysvarKind -> String
   | .rent => ProofForge.Backend.Solana.Syscalls.sol_get_rent_sysvar
   | .epochSchedule => ProofForge.Backend.Solana.Syscalls.sol_get_epoch_schedule_sysvar
+  | .epochRewards => ProofForge.Backend.Solana.Syscalls.sol_get_epoch_rewards_sysvar
   | .lastRestartSlot => ProofForge.Backend.Solana.Syscalls.sol_get_sysvar
 
 def SysvarKind.featureGated : SysvarKind -> Bool
@@ -118,6 +121,17 @@ inductive SysvarField where
   | epochScheduleWarmup
   | epochScheduleFirstNormalEpoch
   | epochScheduleFirstNormalSlot
+  | epochRewardsDistributionStartingBlockHeight
+  | epochRewardsNumPartitions
+  | epochRewardsParentBlockhashWord0
+  | epochRewardsParentBlockhashWord1
+  | epochRewardsParentBlockhashWord2
+  | epochRewardsParentBlockhashWord3
+  | epochRewardsTotalPointsLow
+  | epochRewardsTotalPointsHigh
+  | epochRewardsTotalRewards
+  | epochRewardsDistributedRewards
+  | epochRewardsActive
   | lastRestartSlot
   deriving BEq, DecidableEq, Repr, Inhabited
 
@@ -128,6 +142,17 @@ def SysvarField.id : SysvarField -> String
   | .epochScheduleWarmup => "warmup"
   | .epochScheduleFirstNormalEpoch => "first_normal_epoch"
   | .epochScheduleFirstNormalSlot => "first_normal_slot"
+  | .epochRewardsDistributionStartingBlockHeight => "distribution_starting_block_height"
+  | .epochRewardsNumPartitions => "num_partitions"
+  | .epochRewardsParentBlockhashWord0 => "parent_blockhash_word0"
+  | .epochRewardsParentBlockhashWord1 => "parent_blockhash_word1"
+  | .epochRewardsParentBlockhashWord2 => "parent_blockhash_word2"
+  | .epochRewardsParentBlockhashWord3 => "parent_blockhash_word3"
+  | .epochRewardsTotalPointsLow => "total_points_low"
+  | .epochRewardsTotalPointsHigh => "total_points_high"
+  | .epochRewardsTotalRewards => "total_rewards"
+  | .epochRewardsDistributedRewards => "distributed_rewards"
+  | .epochRewardsActive => "active"
   | .lastRestartSlot => "last_restart_slot"
 
 def SysvarField.kind : SysvarField -> SysvarKind
@@ -137,6 +162,17 @@ def SysvarField.kind : SysvarField -> SysvarKind
   | .epochScheduleWarmup => .epochSchedule
   | .epochScheduleFirstNormalEpoch => .epochSchedule
   | .epochScheduleFirstNormalSlot => .epochSchedule
+  | .epochRewardsDistributionStartingBlockHeight => .epochRewards
+  | .epochRewardsNumPartitions => .epochRewards
+  | .epochRewardsParentBlockhashWord0 => .epochRewards
+  | .epochRewardsParentBlockhashWord1 => .epochRewards
+  | .epochRewardsParentBlockhashWord2 => .epochRewards
+  | .epochRewardsParentBlockhashWord3 => .epochRewards
+  | .epochRewardsTotalPointsLow => .epochRewards
+  | .epochRewardsTotalPointsHigh => .epochRewards
+  | .epochRewardsTotalRewards => .epochRewards
+  | .epochRewardsDistributedRewards => .epochRewards
+  | .epochRewardsActive => .epochRewards
   | .lastRestartSlot => .lastRestartSlot
 
 structure MemoryAction where
@@ -326,6 +362,7 @@ def cryptoHashOpFromString? : String -> Option CryptoHashOp
 def sysvarKindFromString? : String -> Option SysvarKind
   | "rent" => some .rent
   | "epoch_schedule" => some .epochSchedule
+  | "epoch_rewards" => some .epochRewards
   | "last_restart_slot" => some .lastRestartSlot
   | _ => none
 
@@ -336,6 +373,17 @@ def sysvarFieldFromString? : String -> Option SysvarField
   | "warmup" => some .epochScheduleWarmup
   | "first_normal_epoch" => some .epochScheduleFirstNormalEpoch
   | "first_normal_slot" => some .epochScheduleFirstNormalSlot
+  | "distribution_starting_block_height" => some .epochRewardsDistributionStartingBlockHeight
+  | "num_partitions" => some .epochRewardsNumPartitions
+  | "parent_blockhash_word0" => some .epochRewardsParentBlockhashWord0
+  | "parent_blockhash_word1" => some .epochRewardsParentBlockhashWord1
+  | "parent_blockhash_word2" => some .epochRewardsParentBlockhashWord2
+  | "parent_blockhash_word3" => some .epochRewardsParentBlockhashWord3
+  | "total_points_low" => some .epochRewardsTotalPointsLow
+  | "total_points_high" => some .epochRewardsTotalPointsHigh
+  | "total_rewards" => some .epochRewardsTotalRewards
+  | "distributed_rewards" => some .epochRewardsDistributedRewards
+  | "active" => some .epochRewardsActive
   | "last_restart_slot" => some .lastRestartSlot
   | _ => none
 
@@ -1845,6 +1893,22 @@ def lowerSysvarOutputStatePtr (bindings : Array CpiValueBinding) (action : Sysva
       ] ++
       stackPtr dst sysvarResultOffset
 
+def lowerFixedSysvarFieldRead (valueBindings : Array CpiValueBinding)
+    (action : SysvarReadAction) (fieldLabel : String) (fieldOffset : Nat)
+    (loadOpcode : Opcode := .ldxdw) : Array AstNode :=
+  let syscall := (SysvarField.kind action.field).syscall
+  stackPtr .r1 sysvarResultOffset ++ #[
+    callSyscall syscall,
+    .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_sysvar") },
+    .comment s!"read {fieldLabel} from sysvar buffer"
+  ] ++
+  stackPtr .r5 sysvarResultOffset ++ #[
+    .instruction { opcode := loadOpcode, dst := some .r3, src := some .r5, off := some (.num fieldOffset) }
+  ] ++
+  lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
+    storeReg .stxdw .r5 0 .r3
+  ]
+
 def lowerSysvarFieldRead (valueBindings : Array CpiValueBinding)
     (action : SysvarReadAction) : Array AstNode :=
   match action.field with
@@ -1943,6 +2007,39 @@ def lowerSysvarFieldRead (valueBindings : Array CpiValueBinding)
       lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
         storeReg .stxdw .r5 0 .r3
       ]
+  | .epochRewardsDistributionStartingBlockHeight =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.distribution_starting_block_height" 0
+  | .epochRewardsNumPartitions =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.num_partitions" 8
+  | .epochRewardsParentBlockhashWord0 =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.parent_blockhash_word0" 16
+  | .epochRewardsParentBlockhashWord1 =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.parent_blockhash_word1" 24
+  | .epochRewardsParentBlockhashWord2 =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.parent_blockhash_word2" 32
+  | .epochRewardsParentBlockhashWord3 =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.parent_blockhash_word3" 40
+  | .epochRewardsTotalPointsLow =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.total_points_low" 48
+  | .epochRewardsTotalPointsHigh =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.total_points_high" 56
+  | .epochRewardsTotalRewards =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.total_rewards" 64
+  | .epochRewardsDistributedRewards =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.distributed_rewards" 72
+  | .epochRewardsActive =>
+      lowerFixedSysvarFieldRead valueBindings action
+        "EpochRewards.active" 80 .ldxb
 
 def lowerSysvarHelper (valueBindings : Array CpiValueBinding)
     (action : SysvarReadAction) : Array AstNode :=

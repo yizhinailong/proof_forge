@@ -63,6 +63,7 @@ import ProofForge.Solana.Examples.LogEvent
 import ProofForge.Solana.Examples.Clock
 import ProofForge.Solana.Examples.Rent
 import ProofForge.Solana.Examples.EpochSchedule
+import ProofForge.Solana.Examples.EpochRewards
 import ProofForge.Solana.Examples.LastRestartSlot
 import ProofForge.Solana.Examples.Memory
 import ProofForge.Solana.Examples.Crypto
@@ -167,6 +168,7 @@ inductive EmitMode where
   | solanaClockSysvarElf
   | solanaRentSysvarElf
   | solanaEpochScheduleSysvarElf
+  | solanaEpochRewardsSysvarElf
   | solanaLastRestartSlotSysvarElf
   | solanaMemoryElf
   | solanaCryptoHashElf
@@ -279,6 +281,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaClockSysvarElf
   | .solanaRentSysvarElf
   | .solanaEpochScheduleSysvarElf
+  | .solanaEpochRewardsSysvarElf
   | .solanaLastRestartSlotSysvarElf
   | .solanaMemoryElf
   | .solanaCryptoHashElf
@@ -390,6 +393,7 @@ def usage : String :=
     "  proof-forge --solana-clock-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-rent-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-epoch-schedule-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-epoch-rewards-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-last-restart-slot-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-memory-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-crypto-hash-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
@@ -1959,6 +1963,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaRentSysvarElf }
   | "--solana-epoch-schedule-sysvar-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaEpochScheduleSysvarElf }
+  | "--solana-epoch-rewards-sysvar-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaEpochRewardsSysvarElf }
   | "--solana-last-restart-slot-sysvar-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaLastRestartSlotSysvarElf }
   | "--solana-memory-elf" :: rest, opts =>
@@ -3229,6 +3235,13 @@ def compileSolanaEpochScheduleSysvarElf (opts : CliOptions) : IO UInt32 :=
     "solana-epoch-schedule-sysvar-elf"
     ProofForge.Solana.Examples.EpochSchedule.spec
 
+def compileSolanaEpochRewardsSysvarElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/EpochRewards.so")
+    "epoch-rewards-sysvar"
+    "solana-epoch-rewards-sysvar-elf"
+    ProofForge.Solana.Examples.EpochRewards.spec
+
 def compileSolanaLastRestartSlotSysvarElf (opts : CliOptions) : IO UInt32 :=
   compileSolanaSpecElf opts
     (FilePath.mk "build/solana/LastRestartSlot.so")
@@ -3395,6 +3408,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaClockSysvarElf => compileSolanaClockSysvarElf opts
   | .solanaRentSysvarElf => compileSolanaRentSysvarElf opts
   | .solanaEpochScheduleSysvarElf => compileSolanaEpochScheduleSysvarElf opts
+  | .solanaEpochRewardsSysvarElf => compileSolanaEpochRewardsSysvarElf opts
   | .solanaLastRestartSlotSysvarElf => compileSolanaLastRestartSlotSysvarElf opts
   | .solanaMemoryElf => compileSolanaMemoryElf opts
   | .solanaCryptoHashElf => compileSolanaCryptoHashElf opts

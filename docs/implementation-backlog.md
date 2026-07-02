@@ -806,9 +806,13 @@ validation through `sol_get_rent_sysvar`.
 It also covers live validation for all current RPC-exposed `EpochSchedule`
 fields through `sol_get_epoch_schedule_sysvar`: `slots_per_epoch`,
 `leader_schedule_slot_offset`, `warmup`, `first_normal_epoch`, and
-`first_normal_slot`, plus feature-gated live `LastRestartSlot.last_restart_slot`
-validation through `sol_get_sysvar` with the
-`SysvarLastRestartS1ot1111111111111111111111` sysvar id. Lean/package-level SDK coverage now includes
+`first_normal_slot`, plus live `EpochRewards` validation through
+`sol_get_epoch_rewards_sysvar` for
+`distribution_starting_block_height`, `num_partitions`,
+`parent_blockhash_word0..3`, `total_points_low/high`, `total_rewards`,
+`distributed_rewards`, and `active`, plus feature-gated live
+`LastRestartSlot.last_restart_slot` validation through `sol_get_sysvar` with
+the `SysvarLastRestartS1ot1111111111111111111111` sysvar id. Lean/package-level SDK coverage now includes
 `runtime.return_data` lowering to `sol_set_return_data` and
 `sol_get_return_data`, plus `runtime.compute_units` lowering to feature-gated
 `sol_remaining_compute_units` and profiling logs through
@@ -898,6 +902,14 @@ Completed alpha slices:
   `EpochSchedule.leader_schedule_slot_offset`, `EpochSchedule.warmup`,
   `EpochSchedule.first_normal_epoch`, and `EpochSchedule.first_normal_slot`
   match RPC `getEpochSchedule()` fields.
+- Live EpochRewards sysvar fixture:
+  `scripts/solana/epoch-rewards-sysvar-web3-smoke.sh` builds and deploys a
+  generated Solana-only `sysvar` target-extension program on Surfpool, invokes
+  `record_epoch_rewards` through Web3.js, and proves that
+  `sol_get_epoch_rewards_sysvar` records `EpochRewards` fields into state.
+  `parent_blockhash` is exposed as four little-endian `u64` word views and
+  `total_points` is exposed as low/high `u64` word views until the portable
+  scalar layer has first-class wide-value output states.
 - Live LastRestartSlot sysvar fixture:
   `scripts/solana/last-restart-slot-sysvar-web3-smoke.sh` builds and deploys a
   generated Solana-only `sysvar` target-extension program on Surfpool, invokes
@@ -936,8 +948,8 @@ Remaining priority slices:
    extend the current scalar `sol_log_64_` event path to string/base64/
    Anchor-style and indexed event forms; add live/CPI validation for
    `sol_get_return_data`, typed return payload helpers beyond `u64`,
-   additional non-EpochSchedule sysvar fields, portable `Expr.hash` routing
-   where the hash semantics match the target, and
+   additional Clock/Rent fields and generic account-passed sysvar reads,
+   portable `Expr.hash` routing where the hash semantics match the target, and
    broader account/data packing helpers that reuse the new memory syscall path,
    with JavaScript reference checks.
 3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures

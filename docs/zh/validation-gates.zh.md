@@ -20,7 +20,8 @@
 | Solana log/event Surfpool/Web3.js smoke | `just solana-log-event-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `events.emit` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_log_64_` transaction logs 包含稳定 event tag 和 scalar field value，并验证 program-owned state account 记录了同一个值 | Anchor-compatible event serialization、indexed events、历史索引保证 |
 | Solana Clock sysvar Surfpool/Web3.js smoke | `just solana-clock-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `contextRead checkpointId` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_clock_sysvar` 将 `Clock.slot` 记录进 program-owned state，并与 transaction slot metadata 对比 | 更丰富的 Clock fields、公共 validator 部署 |
 | Solana Rent sysvar Surfpool/Web3.js smoke | `just solana-rent-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_rent_sysvar` 将 `Rent.lamports_per_byte_year` 记录进 program-owned state，并与 Rent sysvar account data 对比 | 更多 Rent fields、公共 validator 部署 |
-| Solana EpochSchedule sysvar Surfpool/Web3.js smoke | `just solana-epoch-schedule-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_epoch_schedule_sysvar` 将当前 RPC 暴露的 5 个 `EpochSchedule` 字段记录进 program-owned state，并与 RPC `getEpochSchedule()` 对比 | 其他非 EpochSchedule sysvar 字段、公共 validator 部署 |
+| Solana EpochSchedule sysvar Surfpool/Web3.js smoke | `just solana-epoch-schedule-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_epoch_schedule_sysvar` 将当前 RPC 暴露的 5 个 `EpochSchedule` 字段记录进 program-owned state，并与 RPC `getEpochSchedule()` 对比 | 更多 Clock/Rent 字段、generic account-passed sysvar 读取、公共 validator 部署 |
+| Solana EpochRewards sysvar Surfpool/Web3.js smoke | `just solana-epoch-rewards-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 `sol_get_epoch_rewards_sysvar` 将当前 `EpochRewards` scalar/word-view 字段记录进 program-owned state，并与 EpochRewards sysvar account data 对比 | 更多 Clock/Rent 字段、generic account-passed sysvar 读取、公共 validator 部署 |
 | Solana LastRestartSlot sysvar Surfpool/Web3.js smoke | `just solana-last-restart-slot-sysvar-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `sysvar` target-extension ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用生成程序，验证 feature-gated `LastRestartSlot.last_restart_slot` 读取已通过 `sol_get_sysvar` lowering，并与 LastRestartSlot sysvar account data 对比 | 其他 sysvars、公共 validator 部署、cluster feature activation 差异 |
 | Solana memory syscall Surfpool/Web3.js smoke | `just solana-memory-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 `runtime.memory` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_source` 和 `copy_compare_fill`，并验证 program-owned account bytes 证明 `sol_memcpy_`、`sol_memmove_`、`sol_memcmp_` 和 `sol_memset_` 已执行 | 更广泛的 account/data packing helper、Rust/Pinocchio 等价性 |
 | Solana SHA-256/Keccak-256/Blake3 syscall Surfpool/Web3.js smoke | `just solana-crypto-hash-web3` | 来自 `lean-toolchain` 的 Lean 工具链；`surfpool`；Solana CLI 和 `solana-keygen`；`sbpf`；Node；npm | 构建生成的 Solana-only `crypto.hash` ELF，启动 Surfpool，用 `solana program deploy --use-rpc` 部署，通过 `@solana/web3.js` 调用 `set_preimage`、`hash_preimage`、`keccak_preimage` 和 `blake3_preimage`，并验证 account 中保存的 digest 与同一 preimage bytes 的 Node SHA-256 和 `@noble/hashes` Keccak-256/Blake3 一致 | portable `Expr.hash` 路由、Rust/Pinocchio 等价性 |
@@ -193,6 +194,18 @@
     `SysvarLastRestartS1ot1111111111111111111111` 调用 `sol_get_sysvar`，
     以兼容当前 `sbpf` assembler，同时保留 Solana SDK 层的 LastRestartSlot
     能力。
+  - **V-GATE-SOLANA-21** — Solana EpochRewards sysvar 通过 Surfpool 和
+    Web3.js 进行 live 行为验证。脚本：
+    `scripts/solana/epoch-rewards-sysvar-web3-smoke.sh` 构建生成的
+    `--solana-epoch-rewards-sysvar-elf` fixture，校验当前所有
+    `EpochRewards` 字段的 `sysvar` target-extension artifact metadata，启动
+    Surfpool，用 `solana program deploy --use-rpc` 部署 ELF，调用
+    `record_epoch_rewards`，并把 program-owned account 里记录的
+    `EpochRewards.distribution_starting_block_height`、
+    `EpochRewards.num_partitions`、`EpochRewards.parent_blockhash_word0..3`、
+    `EpochRewards.total_points_low/high`、`EpochRewards.total_rewards`、
+    `EpochRewards.distributed_rewards` 和 `EpochRewards.active` 与
+    EpochRewards sysvar account data 对比。
 - Move 冒烟测试 — `aptos move compile/test` 或 Sui Move 验证。
 - 能力拒绝测试 — 针对不支持的能力/目标组合的编译时诊断。
 

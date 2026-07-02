@@ -97,12 +97,14 @@ def CryptoHashOp.featureGated : CryptoHashOp -> Bool
 inductive SysvarKind where
   | rent
   | epochSchedule
+  | epochRewards
   | lastRestartSlot
   deriving BEq, DecidableEq, Repr
 
 def SysvarKind.id : SysvarKind -> String
   | .rent => "rent"
   | .epochSchedule => "epoch_schedule"
+  | .epochRewards => "epoch_rewards"
   | .lastRestartSlot => "last_restart_slot"
 
 def SysvarKind.featureGated : SysvarKind -> Bool
@@ -116,6 +118,17 @@ inductive SysvarField where
   | epochScheduleWarmup
   | epochScheduleFirstNormalEpoch
   | epochScheduleFirstNormalSlot
+  | epochRewardsDistributionStartingBlockHeight
+  | epochRewardsNumPartitions
+  | epochRewardsParentBlockhashWord0
+  | epochRewardsParentBlockhashWord1
+  | epochRewardsParentBlockhashWord2
+  | epochRewardsParentBlockhashWord3
+  | epochRewardsTotalPointsLow
+  | epochRewardsTotalPointsHigh
+  | epochRewardsTotalRewards
+  | epochRewardsDistributedRewards
+  | epochRewardsActive
   | lastRestartSlot
   deriving BEq, DecidableEq, Repr
 
@@ -126,6 +139,17 @@ def SysvarField.id : SysvarField -> String
   | .epochScheduleWarmup => "warmup"
   | .epochScheduleFirstNormalEpoch => "first_normal_epoch"
   | .epochScheduleFirstNormalSlot => "first_normal_slot"
+  | .epochRewardsDistributionStartingBlockHeight => "distribution_starting_block_height"
+  | .epochRewardsNumPartitions => "num_partitions"
+  | .epochRewardsParentBlockhashWord0 => "parent_blockhash_word0"
+  | .epochRewardsParentBlockhashWord1 => "parent_blockhash_word1"
+  | .epochRewardsParentBlockhashWord2 => "parent_blockhash_word2"
+  | .epochRewardsParentBlockhashWord3 => "parent_blockhash_word3"
+  | .epochRewardsTotalPointsLow => "total_points_low"
+  | .epochRewardsTotalPointsHigh => "total_points_high"
+  | .epochRewardsTotalRewards => "total_rewards"
+  | .epochRewardsDistributedRewards => "distributed_rewards"
+  | .epochRewardsActive => "active"
   | .lastRestartSlot => "last_restart_slot"
 
 def SysvarField.kind : SysvarField -> SysvarKind
@@ -135,6 +159,17 @@ def SysvarField.kind : SysvarField -> SysvarKind
   | .epochScheduleWarmup => .epochSchedule
   | .epochScheduleFirstNormalEpoch => .epochSchedule
   | .epochScheduleFirstNormalSlot => .epochSchedule
+  | .epochRewardsDistributionStartingBlockHeight => .epochRewards
+  | .epochRewardsNumPartitions => .epochRewards
+  | .epochRewardsParentBlockhashWord0 => .epochRewards
+  | .epochRewardsParentBlockhashWord1 => .epochRewards
+  | .epochRewardsParentBlockhashWord2 => .epochRewards
+  | .epochRewardsParentBlockhashWord3 => .epochRewards
+  | .epochRewardsTotalPointsLow => .epochRewards
+  | .epochRewardsTotalPointsHigh => .epochRewards
+  | .epochRewardsTotalRewards => .epochRewards
+  | .epochRewardsDistributedRewards => .epochRewards
+  | .epochRewardsActive => .epochRewards
   | .lastRestartSlot => .lastRestartSlot
 
 structure MemoryAction where
@@ -747,6 +782,105 @@ def epochScheduleFirstNormalSlotToState (name outputState : String) :
     name := name
     kind := .epochSchedule
     field := .epochScheduleFirstNormalSlot
+    outputState := outputState
+  }
+
+def epochRewardsDistributionStartingBlockHeightToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsDistributionStartingBlockHeight
+    outputState := outputState
+  }
+
+def epochRewardsNumPartitionsToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsNumPartitions
+    outputState := outputState
+  }
+
+def epochRewardsParentBlockhashWord0ToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsParentBlockhashWord0
+    outputState := outputState
+  }
+
+def epochRewardsParentBlockhashWord1ToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsParentBlockhashWord1
+    outputState := outputState
+  }
+
+def epochRewardsParentBlockhashWord2ToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsParentBlockhashWord2
+    outputState := outputState
+  }
+
+def epochRewardsParentBlockhashWord3ToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsParentBlockhashWord3
+    outputState := outputState
+  }
+
+def epochRewardsTotalPointsLowToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsTotalPointsLow
+    outputState := outputState
+  }
+
+def epochRewardsTotalPointsHighToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsTotalPointsHigh
+    outputState := outputState
+  }
+
+def epochRewardsTotalRewardsToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsTotalRewards
+    outputState := outputState
+  }
+
+def epochRewardsDistributedRewardsToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsDistributedRewards
+    outputState := outputState
+  }
+
+def epochRewardsActiveToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochRewards
+    field := .epochRewardsActive
     outputState := outputState
   }
 

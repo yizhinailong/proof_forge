@@ -95,6 +95,10 @@ solana-rent-sysvar-web3:
 solana-epoch-schedule-sysvar-web3:
     scripts/solana/epoch-schedule-sysvar-web3-smoke.sh
 
+# Run a live Solana EpochRewards sysvar smoke on Surfpool with Web3.js.
+solana-epoch-rewards-sysvar-web3:
+    scripts/solana/epoch-rewards-sysvar-web3-smoke.sh
+
 # Run a live Solana LastRestartSlot sysvar smoke on Surfpool with Web3.js.
 solana-last-restart-slot-sysvar-web3:
     scripts/solana/last-restart-slot-sysvar-web3-smoke.sh

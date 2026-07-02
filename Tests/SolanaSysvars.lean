@@ -3,6 +3,7 @@ import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Solana.Examples.Clock
 import ProofForge.Solana.Examples.Rent
 import ProofForge.Solana.Examples.EpochSchedule
+import ProofForge.Solana.Examples.EpochRewards
 import ProofForge.Solana.Examples.LastRestartSlot
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
@@ -215,6 +216,111 @@ def main : IO UInt32 := do
         "assembly missing epoch schedule sysvar state write"
   | .error err =>
       throw <| IO.userError s!"Solana epoch schedule sysvar package render failed: {err.render}"
+
+  let epochRewardsSpec := ProofForge.Solana.Examples.EpochRewards.spec
+  let epochRewardsPlan ←
+    match resolveSpec solanaSbpfAsm epochRewardsSpec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError s!"Solana epoch rewards sysvar routing failed: {err.render}"
+
+  require (hasCapability epochRewardsPlan .envBlock)
+    "Solana epoch rewards sysvar plan missing env.block capability"
+  require (hasCapability epochRewardsPlan .storageScalar)
+    "Solana epoch rewards sysvar plan missing storage.scalar capability"
+  let epochRewardsCall ←
+    match scopedSysvarCall? epochRewardsPlan "read_total_rewards" "record_epoch_rewards" with
+    | some call => pure call
+    | none => throw <| IO.userError "Solana EpochRewards plan missing read_total_rewards action"
+  requireMetadata epochRewardsCall "solana.extension" "sysvar"
+  requireMetadata epochRewardsCall "solana.sysvar.kind" "epoch_rewards"
+  requireMetadata epochRewardsCall "solana.sysvar.field" "total_rewards"
+  requireMetadata epochRewardsCall "solana.sysvar.output_state" "total_rewards"
+  requireMetadata epochRewardsCall "solana.sysvar.feature_gated" "false"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec "solana-epoch-rewards-sysvar" epochRewardsSpec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "epoch rewards sysvar package missing sBPF assembly"
+      let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
+        | throw <| IO.userError "epoch rewards sysvar package missing manifest.toml"
+      let asm := asmFile.contents
+      let manifest := manifestFile.contents
+      require (contains manifest "name = \"record_epoch_rewards\"")
+        "epoch rewards sysvar manifest missing record_epoch_rewards entrypoint"
+      require (contains manifest "[[solana.entrypoint_sysvar]]")
+        "epoch rewards sysvar manifest missing entrypoint sysvar action"
+      require (contains manifest "sysvar = \"read_distribution_starting_block_height\"")
+        "epoch rewards sysvar manifest missing distribution_starting_block_height action"
+      require (contains manifest "kind = \"epoch_rewards\"")
+        "epoch rewards sysvar manifest missing epoch_rewards kind"
+      require (contains manifest "field = \"distribution_starting_block_height\"")
+        "epoch rewards sysvar manifest missing distribution_starting_block_height field"
+      require (contains manifest "output_state = \"distribution_starting_block_height\"")
+        "epoch rewards sysvar manifest missing distribution_starting_block_height output state"
+      require (contains manifest "field = \"num_partitions\"")
+        "epoch rewards sysvar manifest missing num_partitions field"
+      require (contains manifest "field = \"parent_blockhash_word0\"")
+        "epoch rewards sysvar manifest missing parent_blockhash_word0 field"
+      require (contains manifest "field = \"parent_blockhash_word1\"")
+        "epoch rewards sysvar manifest missing parent_blockhash_word1 field"
+      require (contains manifest "field = \"parent_blockhash_word2\"")
+        "epoch rewards sysvar manifest missing parent_blockhash_word2 field"
+      require (contains manifest "field = \"parent_blockhash_word3\"")
+        "epoch rewards sysvar manifest missing parent_blockhash_word3 field"
+      require (contains manifest "field = \"total_points_low\"")
+        "epoch rewards sysvar manifest missing total_points_low field"
+      require (contains manifest "field = \"total_points_high\"")
+        "epoch rewards sysvar manifest missing total_points_high field"
+      require (contains manifest "field = \"total_rewards\"")
+        "epoch rewards sysvar manifest missing total_rewards field"
+      require (contains manifest "field = \"distributed_rewards\"")
+        "epoch rewards sysvar manifest missing distributed_rewards field"
+      require (contains manifest "field = \"active\"")
+        "epoch rewards sysvar manifest missing active field"
+      require (contains manifest "feature_gated = false")
+        "epoch rewards sysvar manifest missing non-feature-gated marker"
+      require (contains asm "solana.sysvar.epoch_rewards read_distribution_starting_block_height: field=distribution_starting_block_height")
+        "assembly missing epoch rewards distribution_starting_block_height marker"
+      require (contains asm "solana.sysvar.epoch_rewards read_total_rewards: field=total_rewards")
+        "assembly missing epoch rewards total_rewards marker"
+      require (contains asm "call sol_get_epoch_rewards_sysvar")
+        "assembly missing sol_get_epoch_rewards_sysvar syscall"
+      require (contains asm "error_sysvar")
+        "assembly missing epoch rewards sysvar failure branch"
+      require (contains asm ".equ DISTRIBUTION_STARTING_BLOCK_HEIGHT_DATA")
+        "assembly missing distribution_starting_block_height offset symbol"
+      require (contains asm ".equ PARENT_BLOCKHASH_WORD0_DATA")
+        "assembly missing parent_blockhash_word0 offset symbol"
+      require (contains asm ".equ PARENT_BLOCKHASH_WORD3_DATA")
+        "assembly missing parent_blockhash_word3 offset symbol"
+      require (contains asm ".equ TOTAL_POINTS_LOW_DATA")
+        "assembly missing total_points_low offset symbol"
+      require (contains asm ".equ TOTAL_POINTS_HIGH_DATA")
+        "assembly missing total_points_high offset symbol"
+      require (contains asm ".equ ACTIVE_DATA")
+        "assembly missing active offset symbol"
+      require (contains asm "ldxdw r3, [r5+16]")
+        "assembly missing parent_blockhash_word0 field read"
+      require (contains asm "ldxdw r3, [r5+24]")
+        "assembly missing parent_blockhash_word1 field read"
+      require (contains asm "ldxdw r3, [r5+32]")
+        "assembly missing parent_blockhash_word2 field read"
+      require (contains asm "ldxdw r3, [r5+40]")
+        "assembly missing parent_blockhash_word3 field read"
+      require (contains asm "ldxdw r3, [r5+48]")
+        "assembly missing total_points_low field read"
+      require (contains asm "ldxdw r3, [r5+56]")
+        "assembly missing total_points_high field read"
+      require (contains asm "ldxdw r3, [r5+64]")
+        "assembly missing total_rewards field read"
+      require (contains asm "ldxdw r3, [r5+72]")
+        "assembly missing distributed_rewards field read"
+      require (contains asm "ldxb r3, [r5+80]")
+        "assembly missing active field read"
+      require (contains asm "stxdw [r5+0], r3")
+        "assembly missing epoch rewards sysvar state write"
+  | .error err =>
+      throw <| IO.userError s!"Solana epoch rewards sysvar package render failed: {err.render}"
 
   let lastRestartSlotSpec := ProofForge.Solana.Examples.LastRestartSlot.spec
   let lastRestartSlotPlan ←
