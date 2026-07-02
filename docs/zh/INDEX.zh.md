@@ -39,6 +39,7 @@ flowchart TB
 - [设计决策](decisions.md)：确定的架构选择和路线图摘要。
 - [可移植合约 IR](portable-ir.md)：IR 草案和阶段 1 验收标准。
 - [RFC 0003: 可移植 IR 与运行时](rfcs/0003-portable-ir-and-runtime.md)：详细的 IR/能力/运行时草案。
+- [RFC 0004: EVM semantic plan 与 Yul AST 边界](rfcs/0004-evm-semantic-plan.md)：位于 portable IR 和低层 Yul 语法之间的 EVM target-semantic plan 层。
 - [能力注册表](capability-registry.md)：规范的能力 id。
 - [共享场景：计数器](shared-scenario.md)：跨目标验收测试。
 
@@ -49,6 +50,7 @@ flowchart TB
 - [RFC 0001: Lean 优先的多链合约平台](rfcs/0001-multichain-platform.md)
 - [RFC 0002: 目标实现设计](rfcs/0002-target-implementation-design.md)
 - [RFC 0003: 可移植 IR 与运行时 profile](rfcs/0003-portable-ir-and-runtime.md) (草案 — 扩展 0001/0002)
+- [RFC 0004: EVM semantic plan 与 Yul AST 边界](rfcs/0004-evm-semantic-plan.md) (草案 — EVM 后端内部架构)
 
 ## 工程
 

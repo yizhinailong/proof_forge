@@ -42,6 +42,7 @@ flowchart TB
 - [Design decisions](decisions.md): settled architecture choices and roadmap summary.
 - [Portable Contract IR](portable-ir.md): IR sketch and Phase 1 acceptance criteria.
 - [RFC 0003: Portable IR and runtime](rfcs/0003-portable-ir-and-runtime.md): detailed IR/capability/runtime draft.
+- [RFC 0004: EVM semantic plan and Yul AST boundary](rfcs/0004-evm-semantic-plan.md): target-semantic EVM plan layer between portable IR and low-level Yul syntax.
 - [Capability registry](capability-registry.md): canonical capability ids.
 - [Shared scenario: Counter](shared-scenario.md): cross-target acceptance test.
 
@@ -52,6 +53,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [RFC 0001: Lean-first multi-chain contract platform](rfcs/0001-multichain-platform.md)
 - [RFC 0002: Target implementation design](rfcs/0002-target-implementation-design.md)
 - [RFC 0003: Portable IR and runtime profiles](rfcs/0003-portable-ir-and-runtime.md) (Draft — extends 0001/0002)
+- [RFC 0004: EVM semantic plan and Yul AST boundary](rfcs/0004-evm-semantic-plan.md) (Draft — EVM backend internal architecture)
 
 ## Engineering
 

@@ -7,7 +7,8 @@ diagnostic/coverage gates, and EVM artifact metadata validation are wired.
 
 Related: [Capability registry](../capability-registry.md),
 [Shared scenario](../shared-scenario.md),
-[RFC 0002](../rfcs/0002-target-implementation-design.md).
+[RFC 0002](../rfcs/0002-target-implementation-design.md),
+[RFC 0004](../rfcs/0004-evm-semantic-plan.md).
 
 ## Pipeline
 
@@ -20,6 +21,12 @@ Lean contract (ProofForge.Evm / Lean.Evm)
   -> EVM runtime bytecode
   -> Foundry smoke (vm.etch)
 ```
+
+The portable IR EVM backend already lowers to the shared Yul syntax AST before
+rendering. RFC 0004 defines the next internal architecture step: insert an EVM
+semantic plan layer between portable IR and the low-level Yul AST so storage
+layout, ABI dispatch, helper discovery, events, cross-calls, and metadata are
+planned before syntax generation.
 
 ## EVM-Compatible Chain Profiles
 

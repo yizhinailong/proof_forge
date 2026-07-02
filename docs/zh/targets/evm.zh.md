@@ -4,7 +4,7 @@
 
 阶段：**Experimental** —— CI 冒烟测试、目标注册表、portable IR 诊断/覆盖门禁以及 EVM 制品元数据校验已接入。
 
-相关内容：[能力注册表](../capability-registry.md)，[共享场景](../shared-scenario.md)，[RFC 0002](../rfcs/0002-target-implementation-design.md)。
+相关内容：[能力注册表](../capability-registry.md)，[共享场景](../shared-scenario.md)，[RFC 0002](../rfcs/0002-target-implementation-design.md)，[RFC 0004](../rfcs/0004-evm-semantic-plan.md)。
 
 ## 流水线
 
@@ -17,6 +17,8 @@ Lean contract (ProofForge.Evm / Lean.Evm)
   -> EVM runtime bytecode
   -> Foundry smoke (vm.etch)
 ```
+
+portable IR EVM 后端现在已经会先降到共享的 Yul 语法 AST，再渲染为源码。RFC 0004 定义下一步内部架构：在 portable IR 和低层 Yul AST 之间插入 EVM semantic plan 层，让 storage layout、ABI dispatch、helper discovery、event、cross-call 和 metadata 先完成计划，再生成语法。
 
 ## EVM 兼容链 profile
 
