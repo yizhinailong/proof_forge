@@ -1,22 +1,16 @@
 contract Counter {
   state count: u64
 
-  event CounterInitialized()
-  event CounterIncremented(value: u64)
-
-  entry initialize(initial: u64) {
-    count = initial
-    emit CounterInitialized()
+  entry initialize() {
+    count = 0
   }
 
-  entry increment(amount: u64) {
-    let current: u64 = count
-    let next: u64 = current + amount
-    count = next
-    emit CounterIncremented(value: next)
+  entry increment() {
+    let n: u64 = count
+    count = n + 1
   }
 
-  query get_count(): u64 {
+  query get(): u64 {
     return count
   }
 }

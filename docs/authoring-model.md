@@ -37,7 +37,11 @@ but it is not the final language parser.
 
 ## Current Syntax Boundary
 
-`ProofForge.Contract.Source` now covers:
+`ProofForge.Contract.Learn` now parses the checked-in portable `.learn`
+examples under `Examples/Learn/` into a small source AST and lowers that AST to
+the same `ContractSpec`/portable IR boundary used by `contract_source`.
+`ProofForge.Contract.Source` remains the executable embedded syntax layer and
+covers:
 
 - portable scalar state;
 - entrypoints and queries with typed parameters;
@@ -75,12 +79,9 @@ need to manually switch between these internals when the contract is portable.
 
 ## Next Implementation Steps
 
-1. Define a small source AST for the checked-in `.learn` examples under
-   `Examples/Learn/` instead of treating them
-   as documentation-only samples.
-2. Lower that AST into the existing `ContractSpec` boundary and compare the
-   result against the current macro-generated modules.
-3. Gradually replace string-bearing Solana declarations with typed account,
+1. Expand the Learn parser beyond the current portable scalar/event subset to
+   cover Solana target-extension declarations through typed SDK forms.
+2. Gradually replace string-bearing Solana declarations with typed account,
    owner, program, and capability references.
-4. Keep backend artifact checks unchanged so the new Learn syntax proves the
+3. Keep backend artifact checks unchanged so the new Learn syntax proves the
    same EVM/Solana package output.

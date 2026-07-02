@@ -982,6 +982,14 @@ Completed developer-surface slices:
   this source block while the macro emits the same `ContractSpec`/portable IR
   boundary used by routing, EVM selector hydration, Solana instruction tags,
   IDL, and client artifact generation.
+- Learn source parser/lowering seed:
+  `ProofForge.Contract.Learn` now lexes and parses checked-in `.learn` files
+  under `Examples/Learn/` into a small source AST for the portable scalar/event
+  subset, lowers that AST to `ContractSpec`/portable IR, and proves that
+  `Counter.learn` and `ValueVault.learn` produce the same IR modules as the
+  current `contract_source` examples. `Tests/LearnSource.lean` also renders the
+  Learn-lowered ValueVault through the Solana package path, keeping backend
+  artifact checks attached to the new authoring entrypoint.
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
@@ -1019,20 +1027,16 @@ Completed developer-surface slices:
 
 Current boundary:
 
-- `ProofForge.Contract.Source` is the first source-facing syntax layer, but it
-  is still a v1 macro frontend over the existing `ContractSpec` builder rather
-  than a complete standalone Learn parser. It covers portable scalar state,
-  entry/query bodies, events, arithmetic, and first Solana account/PDA/CPI
-  declarations. `ProofForge.Solana.Examples.SystemCpi` now also uses
-  source-level `cpi ... system_transfer(...)` / `invoke ... system_transfer(...)`
-  forms and `ProofForge.Solana.Examples.SystemCreateAccountCpi` uses
-  source-level System `create_account` forms while retaining the existing
-  Pinocchio/Web3.js artifact contract. The next source-syntax gap is to broaden
-  the Solana forms beyond System transfer/create-account and SPL Token
-  transfer-checked to additional SPL Token ops, sysvars, logs, memory, crypto,
-  and richer Pinocchio-style account validation ergonomics while the target
-  extension layer derives chain-specific selectors, instruction tags,
-  IDL/client metadata, and package artifacts during compilation.
+- `ProofForge.Contract.Learn` is now the first standalone Learn parser/lowering
+  seed, but it intentionally covers only the portable scalar/event subset needed
+  by Counter and ValueVault. `ProofForge.Contract.Source` remains the richer v1
+  embedded macro frontend for executable Solana extension examples. The next
+  authoring gap is to extend Learn parsing to typed target-extension forms for
+  Solana account constraints, PDA derivation, System transfer/create-account,
+  SPL Token operations, sysvars, logs, memory, crypto, and richer
+  Pinocchio-style account validation ergonomics while the target extension
+  layer derives chain-specific selectors, instruction tags, IDL/client metadata,
+  and package artifacts during compilation.
 
 Remaining priority slices:
 

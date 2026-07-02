@@ -1,15 +1,15 @@
 # Learn Source Examples
 
-These files are grammar seeds for the standalone Learn authoring layer. They
-show the source shape ProofForge should accept before lowering into
-`ContractSpec` and portable IR.
+These files are grammar seeds for the standalone Learn authoring layer.
+`ProofForge.Contract.Learn` parses the current portable subset into a source AST
+and lowers it into `ContractSpec` and portable IR.
 
-They are intentionally not Lean files. Today, the executable equivalent lives in
-`ProofForge.Contract.Source` through the embedded `contract_source` syntax:
+They are intentionally not Lean files. The executable embedded equivalent still
+lives in `ProofForge.Contract.Source` through the `contract_source` syntax:
 
 - `Counter.learn` mirrors the portable Counter source.
 - `ValueVault.learn` mirrors `ProofForge.Contract.Examples.ValueVault`.
 
-The next implementation step is to parse these files into a source AST, lower
-that AST to the existing `ContractSpec` boundary, and compare the generated IR
-against the current macro-generated examples.
+`Tests/LearnSource.lean` checks that these files lower to the same IR modules as
+the macro-generated examples. The next implementation step is extending this
+parser to typed Solana target-extension forms.

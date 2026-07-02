@@ -527,6 +527,13 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   portable 逻辑；宏仍会发射到同一个 `ContractSpec`/portable IR 边界，供
   routing、EVM selector hydration、Solana instruction tag、IDL 和 client
   artifact generation 复用。
+- Learn source parser/lowering seed：
+  `ProofForge.Contract.Learn` 现在会 lex 和 parse `Examples/Learn/` 下
+  checked-in 的 `.learn` 文件，生成 portable scalar/event 子集的小型 source
+  AST，并降低到 `ContractSpec`/portable IR。`Counter.learn` 与
+  `ValueVault.learn` 会被证明生成与当前 `contract_source` 示例一致的 IR module。
+  `Tests/LearnSource.lean` 还会把 Learn-lowered ValueVault 走 Solana package
+  路径渲染，确保新的 authoring entrypoint 仍绑定 backend artifact check。
 - Solana typed account surface：
   `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
   `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
@@ -564,19 +571,15 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 
 当前边界：
 
-- `ProofForge.Contract.Source` 已经是第一层面向源码的语法，但它仍是基于
-  现有 `ContractSpec` builder 的 v1 macro frontend，而不是完整独立的 Learn
-  parser。它目前覆盖 portable scalar state、entry/query body、event 和
-  arithmetic，也覆盖了第一批 Solana account/PDA/CPI declaration。
-  `ProofForge.Solana.Examples.SystemCpi` 现在也使用 source-level
-  `cpi ... system_transfer(...)` / `invoke ... system_transfer(...)` 形式，
-  `ProofForge.Solana.Examples.SystemCreateAccountCpi` 也使用 source-level
-  System `create_account` 形式，同时保持现有 Pinocchio/Web3.js artifact
-  contract。下一步 source-syntax 缺口是把 Solana 形式从 System
-  transfer/create-account 和 SPL Token transfer-checked 扩展到更多 SPL Token
-  ops、sysvar、log、memory、crypto，以及更接近 Pinocchio 的 account
-  validation ergonomics；同时由 target extension 层在编译阶段派生 selector、
-  instruction tag、IDL/client metadata 和 package artifact。
+- `ProofForge.Contract.Learn` 现在是第一版 standalone Learn parser/lowering
+  seed，但它刻意只覆盖 Counter 和 ValueVault 需要的 portable scalar/event
+  子集。`ProofForge.Contract.Source` 仍是更丰富的 v1 embedded macro frontend，
+  用于可执行的 Solana extension 示例。下一步 authoring 缺口是把 Learn parser
+  扩展到 typed target-extension form，覆盖 Solana account constraint、PDA
+  derivation、System transfer/create-account、SPL Token operation、sysvar、log、
+  memory、crypto，以及更接近 Pinocchio 的 account validation ergonomics；同时
+  由 target extension 层在编译阶段派生 selector、instruction tag、
+  IDL/client metadata 和 package artifact。
 
 剩余优先切片：
 
