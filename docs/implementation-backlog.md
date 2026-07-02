@@ -615,6 +615,15 @@ partial progress is visible before the full acceptance criteria close:
       `manifest.toml`, `proof-forge-artifact.json`, and assembly metadata.
       Covered by `Tests/SolanaAllocator.lean`, `Tests/SolanaSdk.lean`,
       `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+- [x] Generated Solana SDK instruction schemas now use a module-wide
+      multi-account account list instead of the old single-account manifest.
+      The schema includes the state account, PDA accounts, CPI accounts, and
+      executable CPI program accounts, and the sBPF backend computes
+      `INSTRUCTION_DATA` offsets from that same schema. The generated prologue
+      validates signer/writable constraints and program-owned accounts from the
+      schema. The account list is emitted in both `manifest.toml` and
+      `proof-forge-artifact.json`. Covered by `Tests/SolanaSdkManifest.lean`,
+      `Tests/SolanaCpiPacking.lean`, and `scripts/solana/sdk-smoke.sh`.
 - [x] System Program transfer CPI packing skeleton emits the C ABI shape for
       `sol_invoke_signed_c`: system program id bytes, C `SolAccountMeta[]`,
       `system.transfer` instruction data (`u32` discriminator + `u64`
@@ -646,8 +655,10 @@ Next Solana SDK completion items:
 - Add Rust/Pinocchio reference fixtures for the same account schema and compare
   ProofForge-generated behavior against those reference programs through the
   same Web3.js harness.
-- Move from Phase 1 single-account manifests to generated multi-account schemas
-  with signer/writable/owner constraints per entrypoint.
+- Move from the current module-wide fixed account schema to dynamic
+  per-entrypoint account schemas. This requires runtime parsing of
+  `num_accounts`/account data lengths before dispatch so instruction-data
+  offsets no longer depend on every entrypoint using the same account list.
 
 ## Workstream 8: Move Source Generation POC (Aptos first)
 

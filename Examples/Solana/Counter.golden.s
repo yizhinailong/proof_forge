@@ -17,10 +17,11 @@ entrypoint:
 
 sol_initialize:
 
-  ; account.validation: writable=true
+  ; account.validation: generated account schema
+  ; account.validation[0:count]: writable=true
   ldxb r2, [r1+10]
   jeq r2, 0, error_not_writable
-  ; account.validation: owner=program
+  ; account.validation[0:count]: owner=program
   mov64 r4, r1
   add64 r4, 10352
   ldxdw r2, [r4+0]
@@ -45,10 +46,11 @@ sol_initialize:
 
 sol_increment:
 
-  ; account.validation: writable=true
+  ; account.validation: generated account schema
+  ; account.validation[0:count]: writable=true
   ldxb r2, [r1+10]
   jeq r2, 0, error_not_writable
-  ; account.validation: owner=program
+  ; account.validation[0:count]: owner=program
   mov64 r4, r1
   add64 r4, 10352
   ldxdw r2, [r4+0]
@@ -79,10 +81,11 @@ sol_increment:
 
 sol_get:
 
-  ; account.validation: writable=true
+  ; account.validation: generated account schema
+  ; account.validation[0:count]: writable=true
   ldxb r2, [r1+10]
   jeq r2, 0, error_not_writable
-  ; account.validation: owner=program
+  ; account.validation[0:count]: owner=program
   mov64 r4, r1
   add64 r4, 10352
   ldxdw r2, [r4+0]

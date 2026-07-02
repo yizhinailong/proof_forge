@@ -675,6 +675,27 @@ def solanaCpiActionJson (action : ProofForge.Backend.Solana.Extension.CpiAction)
     ("cpi", jsonString action.name)
   ]
 
+def solanaInstructionAccountJson (account : ProofForge.Backend.Solana.Manifest.AccountEntry) : String :=
+  jsonObject #[
+    ("name", jsonString account.name),
+    ("index", toString account.index),
+    ("signer", jsonBool account.signer),
+    ("writable", jsonBool account.writable),
+    ("owner", jsonString account.owner)
+  ]
+
+def solanaInstructionJson (instruction : ProofForge.Backend.Solana.Manifest.InstructionEntry) : String :=
+  jsonObject #[
+    ("name", jsonString instruction.name),
+    ("tag", toString instruction.tag),
+    ("handler", jsonString instruction.handler),
+    ("accounts", jsonArray (instruction.accounts.map solanaInstructionAccountJson))
+  ]
+
+def solanaInstructionsJson (module : ProofForge.IR.Module)
+    (plan : ProofForge.Target.CapabilityPlan) : String :=
+  jsonArray ((ProofForge.Backend.Solana.Manifest.buildInstructionsWithPlan module plan).map solanaInstructionJson)
+
 def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
   let extensions := ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan
   jsonObject #[
@@ -2059,6 +2080,7 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
         ("sourceModule", jsonString spec.name),
         ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
         ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaInstructions", solanaInstructionsJson spec.module plan),
         ("solanaExtensions", solanaExtensionsJson plan),
         ("toolchain", jsonObject #[
           ("sbpf", jsonObject #[

@@ -109,6 +109,7 @@ test when the syscall changes observable chain behavior.
 | Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
 | PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; static ASCII seed byte buffers and Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; assembly builds | Add typed UTF-8/account-pubkey/bump seed packing, validate output account/pubkey, add Web3.js PDA fixture |
 | CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; assembly builds | Pack `SolInstruction`, account infos, signer seeds, then compare System Program/SPL Token CPI behavior against Rust |
+| Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Documented only | Lower `events.emit` to structured logs and assert logs via Web3.js transaction metadata |
 | Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | Documented only | Use internally for account/data packing helpers; unit-test generated assembly and runtime copies |
@@ -442,7 +443,11 @@ Current CPI/PDA lowering pattern:
    `sol_cpi_<name>`).
 3. In entrypoint handlers with scoped SDK actions, call the helper and branch
    to `error_pda` / `error_cpi` when `r0 != 0`.
-4. Build `manifest.toml` and artifact metadata with both extension definitions
+4. Build a module-wide multi-account instruction schema from state, PDA, CPI
+   accounts, and executable CPI program accounts. This schema is used by
+   `manifest.toml`, `proof-forge-artifact.json`, fixed instruction-data offset
+   computation, and generated signer/writable/program-owner validation.
+5. Build `manifest.toml` and artifact metadata with both extension definitions
    and entrypoint action lists.
 
 The SDK layer already exposes protocol-level helpers for System Program
@@ -460,8 +465,9 @@ compile-time placeholder buffers because Phase 1 has not generated a real
 multi-account input layout yet.
 
 Remaining work: replace placeholder account infos with multi-account layout
-offsets, add `system.create_account` and SPL Token instruction-data packing,
-return-data decoding, and runtime tests that exercise a live CPI path.
+offsets, add dynamic per-entrypoint account parsing, add `system.create_account`
+and SPL Token instruction-data packing, return-data decoding, and runtime tests
+that exercise a live CPI path.
 
 PDA helper lowering:
 1. Allocate stack space for seed data + result buffer (32 byte).

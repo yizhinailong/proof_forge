@@ -30,6 +30,20 @@ def main : IO UInt32 := do
   require (contains manifest "model = \"downward-bump\"") "manifest missing bump allocator model"
   require (contains manifest "heap_start = \"0x300000000\"") "manifest missing allocator heap start"
   require (contains manifest "heap_bytes = 32768") "manifest missing allocator heap size"
+  require (contains manifest "{ name = \"nonce\", index = 0, signer = false, writable = true, owner = \"program\" },")
+    "manifest missing state account schema"
+  require (contains manifest "{ name = \"vault_account\", index = 1, signer = false, writable = true, owner = \"program\" },")
+    "manifest missing PDA account schema"
+  require (contains manifest "{ name = \"source\", index = 2, signer = false, writable = true, owner = \"any\" },")
+    "manifest missing source account schema"
+  require (contains manifest "{ name = \"mint\", index = 3, signer = false, writable = false, owner = \"any\" },")
+    "manifest missing mint account schema"
+  require (contains manifest "{ name = \"destination\", index = 4, signer = false, writable = true, owner = \"any\" },")
+    "manifest missing destination account schema"
+  require (contains manifest "{ name = \"authority\", index = 5, signer = false, writable = false, owner = \"any\" },")
+    "manifest missing authority account schema"
+  require (contains manifest "{ name = \"spl_token\", index = 6, signer = false, writable = false, owner = \"executable\" }")
+    "manifest missing SPL Token program account schema"
   require (contains manifest "[[solana.pda]]") "manifest missing Solana PDA section"
   require (contains manifest "name = \"vault\"") "manifest missing PDA name"
   require (contains manifest "seeds = [\"vault\", \"authority\"]") "manifest missing PDA seeds"
@@ -79,8 +93,18 @@ def main : IO UInt32 := do
         "package manifest missing Solana CPI section"
       require (contains manifestFile.contents "protocol = \"spl-token\"")
         "package manifest missing CPI protocol"
+      require (contains manifestFile.contents "{ name = \"vault_account\", index = 1, signer = false, writable = true, owner = \"program\" },")
+        "package manifest missing PDA account schema"
+      require (contains manifestFile.contents "{ name = \"spl_token\", index = 6, signer = false, writable = false, owner = \"executable\" }")
+        "package manifest missing SPL Token program account schema"
       require (contains asmFile.contents "solana.allocator runtime: kind=bump model=downward-bump heap_start=0x300000000 heap_bytes=32768")
         "package assembly missing runtime allocator metadata"
+      require (contains asmFile.contents "account.validation[1:vault_account]: owner=program")
+        "package assembly missing PDA owner validation"
+      require (contains asmFile.contents "account.validation[2:source]: writable=true")
+        "package assembly missing source writable validation"
+      require (contains asmFile.contents "account.validation[4:destination]: writable=true")
+        "package assembly missing destination writable validation"
       require (contains asmFile.contents "sol_pda_derive_vault:")
         "package assembly missing PDA helper label"
       require (contains asmFile.contents "solana.pda.seed vault[0] \"vault\"")

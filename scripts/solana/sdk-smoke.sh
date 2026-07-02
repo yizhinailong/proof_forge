@@ -61,6 +61,7 @@ if missing:
     raise SystemExit(f"missing capabilities in artifact: {missing}")
 
 allocators = artifact.get("solanaExtensions", {}).get("allocators", [])
+instructions = artifact.get("solanaInstructions", [])
 pdas = artifact.get("solanaExtensions", {}).get("pdas", [])
 cpis = artifact.get("solanaExtensions", {}).get("cpis", [])
 pda_actions = artifact.get("solanaExtensions", {}).get("pdaActions", [])
@@ -73,6 +74,23 @@ if allocators[0].get("heapStart") != "0x300000000":
     raise SystemExit("artifact missing Solana heap start")
 if allocators[0].get("heapBytes") != "32768":
     raise SystemExit("artifact missing Solana heap size")
+if len(instructions) != 2:
+    raise SystemExit(f"artifact instruction schema count mismatch: {len(instructions)}")
+instruction_accounts = [account.get("name") for account in instructions[0].get("accounts", [])]
+expected_instruction_accounts = [
+    "nonce",
+    "vault_account",
+    "source",
+    "mint",
+    "destination",
+    "authority",
+    "spl_token",
+]
+if instruction_accounts != expected_instruction_accounts:
+    raise SystemExit(f"artifact instruction accounts mismatch: {instruction_accounts}")
+program_accounts = [account for account in instructions[0].get("accounts", []) if account.get("name") == "spl_token"]
+if not program_accounts or program_accounts[0].get("owner") != "executable":
+    raise SystemExit("artifact missing SPL Token executable account schema")
 if not pdas or pdas[0].get("name") != "vault":
     raise SystemExit("artifact missing vault PDA extension")
 if not cpis or cpis[0].get("name") != "token_transfer":
@@ -90,6 +108,7 @@ if not cpi_actions or cpi_actions[0].get("entrypoint") != "touch" or cpi_actions
     raise SystemExit("artifact missing touch CPI action")
 
 manifest_allocators = manifest.get("solana", {}).get("allocator", [])
+manifest_instructions = manifest.get("instruction", [])
 manifest_pdas = manifest.get("solana", {}).get("pda", [])
 manifest_cpis = manifest.get("solana", {}).get("cpi", [])
 manifest_pda_actions = manifest.get("solana", {}).get("entrypoint_pda", [])
@@ -102,6 +121,17 @@ if manifest_allocators[0].get("heap_start") != "0x300000000":
     raise SystemExit("manifest missing Solana heap start")
 if manifest_allocators[0].get("heap_bytes") != 32768:
     raise SystemExit("manifest missing Solana heap size")
+if len(manifest_instructions) != 2:
+    raise SystemExit(f"manifest instruction schema count mismatch: {len(manifest_instructions)}")
+manifest_instruction_accounts = [account.get("name") for account in manifest_instructions[0].get("accounts", [])]
+if manifest_instruction_accounts != expected_instruction_accounts:
+    raise SystemExit(f"manifest instruction accounts mismatch: {manifest_instruction_accounts}")
+manifest_program_accounts = [
+    account for account in manifest_instructions[0].get("accounts", [])
+    if account.get("name") == "spl_token"
+]
+if not manifest_program_accounts or manifest_program_accounts[0].get("owner") != "executable":
+    raise SystemExit("manifest missing SPL Token executable account schema")
 if not manifest_pdas or manifest_pdas[0].get("name") != "vault":
     raise SystemExit("manifest missing vault PDA extension")
 if not manifest_cpis or manifest_cpis[0].get("program") != "spl_token":
@@ -117,6 +147,9 @@ if not manifest_cpi_actions or manifest_cpi_actions[0].get("entrypoint") != "tou
 
 for needle in [
     "solana.allocator runtime: kind=bump model=downward-bump heap_start=0x300000000 heap_bytes=32768",
+    "account.validation[1:vault_account]: owner=program",
+    "account.validation[2:source]: writable=true",
+    "account.validation[4:destination]: writable=true",
     "sol_pda_derive_vault:",
     "solana.pda.seed vault[0] \"vault\"",
     "stb [r5+0], 118",

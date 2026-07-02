@@ -42,7 +42,9 @@ def AccountEntry.render (a : AccountEntry) : String :=
   ", owner = \"" ++ a.owner ++ "\" }"
 
 def InstructionEntry.render (ie : InstructionEntry) : String :=
-  let accountLines := ie.accounts.map AccountEntry.render
+  let accountLines := ie.accounts.mapIdx fun idx account =>
+    AccountEntry.render account ++
+      (if idx + 1 == ie.accounts.size then "" else ",")
   let accountsBlock :=
     if accountLines.isEmpty then "accounts = []"
     else "accounts = [\n" ++ String.intercalate "\n" accountLines.toList ++ "\n]"
@@ -51,6 +53,129 @@ def InstructionEntry.render (ie : InstructionEntry) : String :=
   "tag = " ++ toString ie.tag ++ "\n" ++
   "handler = \"" ++ ie.handler ++ "\"\n" ++
   accountsBlock ++ "\n"
+
+def defaultStateAccountName (module : Module) : String :=
+  match module.state[0]? with
+  | some state => state.id
+  | none => "data"
+
+def defaultStateAccount (module : Module) : AccountEntry := {
+  name := defaultStateAccountName module
+  index := 0
+  signer := false
+  writable := true
+  owner := "program"
+}
+
+def mergeOwner (existing incoming : String) : String :=
+  if existing == incoming then
+    existing
+  else if existing == "any" then
+    incoming
+  else if incoming == "any" then
+    existing
+  else
+    existing
+
+def AccountEntry.merge (existing incoming : AccountEntry) : AccountEntry := {
+  existing with
+  signer := existing.signer || incoming.signer
+  writable := existing.writable || incoming.writable
+  owner := mergeOwner existing.owner incoming.owner
+}
+
+def pushAccount (accounts : Array AccountEntry) (account : AccountEntry) : Array AccountEntry :=
+  if accounts.any (fun existing => existing.name == account.name) then
+    accounts.map fun existing =>
+      if existing.name == account.name then
+        existing.merge account
+      else
+        existing
+  else
+    accounts.push { account with index := accounts.size }
+
+def pdaInstructionAccount (pda : PdaDerive) : AccountEntry := {
+  name := pda.account?.getD pda.name
+  index := 0
+  signer := false
+  writable := true
+  owner := "program"
+}
+
+def cpiInstructionSigner (account : AccountMeta) : Bool :=
+  account.signer == "signer"
+
+def cpiInstructionAccount (account : AccountMeta) : AccountEntry := {
+  name := account.name
+  index := 0
+  signer := cpiInstructionSigner account
+  writable := account.access == "writable"
+  owner := "any"
+}
+
+def cpiProgramAccount (cpi : CpiInvoke) : AccountEntry := {
+  name := cpi.program
+  index := 0
+  signer := false
+  writable := false
+  owner := "executable"
+}
+
+def pdaByName? (extensions : ProgramExtensions) (name : String) : Option PdaDerive :=
+  extensions.pdas.find? (fun pda => pda.name == name)
+
+def cpiByName? (extensions : ProgramExtensions) (name : String) : Option CpiInvoke :=
+  extensions.cpis.find? (fun cpi => cpi.name == name)
+
+def pushEntrypointPdaAccounts (extensions : ProgramExtensions) (entrypoint : String)
+    (accounts : Array AccountEntry) : Array AccountEntry :=
+  extensions.pdaActions.foldl
+    (fun accounts action =>
+      if action.entrypoint == entrypoint then
+        match pdaByName? extensions action.name with
+        | some pda => pushAccount accounts (pdaInstructionAccount pda)
+        | none => accounts
+      else
+        accounts)
+    accounts
+
+def pushEntrypointCpiAccounts (extensions : ProgramExtensions) (entrypoint : String)
+    (accounts : Array AccountEntry) : Array AccountEntry :=
+  extensions.cpiActions.foldl
+    (fun accounts action =>
+      if action.entrypoint == entrypoint then
+        match cpiByName? extensions action.name with
+        | some cpi =>
+            let accounts :=
+              cpi.accounts.foldl
+                (fun accounts account => pushAccount accounts (cpiInstructionAccount account))
+                accounts
+            pushAccount accounts (cpiProgramAccount cpi)
+        | none => accounts
+      else
+        accounts)
+    accounts
+
+def pushCpiAccounts (accounts : Array AccountEntry) (cpi : CpiInvoke) : Array AccountEntry :=
+  let accounts :=
+    cpi.accounts.foldl
+      (fun accounts account => pushAccount accounts (cpiInstructionAccount account))
+      accounts
+  pushAccount accounts (cpiProgramAccount cpi)
+
+def buildInstructionAccounts (module : Module) (extensions : ProgramExtensions)
+    (entrypoint : String) : Array AccountEntry :=
+  let accounts := pushAccount #[] (defaultStateAccount module)
+  let accounts := pushEntrypointPdaAccounts extensions entrypoint accounts
+  pushEntrypointCpiAccounts extensions entrypoint accounts
+
+def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Array AccountEntry :=
+  let accounts := pushAccount #[] (defaultStateAccount module)
+  let accounts :=
+    extensions.pdas.foldl
+      (fun accounts pda => pushAccount accounts (pdaInstructionAccount pda))
+      accounts
+  extensions.cpis.foldl pushCpiAccounts accounts
 
 def tomlString (value : String) : String :=
   let escapeChar : Char → String
@@ -151,12 +276,10 @@ def renderExtensions (extensions : ProgramExtensions) : String :=
     String.intercalate "\n" (extensions.cpis.map renderCpi).toList ++
     renderActions extensions
 
-/-- Phase 1 default: every instruction uses a single writable account owned by
- the program, with signer=false. Multi-account schemas will move into the
-IR/source layer in Phase 2+. -/
+/-- Default account schema for portable IR modules without Solana SDK target
+extensions: a single writable account owned by the current program. -/
 def buildDefaultAccounts (module : Module) : Array AccountEntry :=
-  let defaultName := match module.state[0]? with | some s => s.id | none => "data"
-  #[{ name := defaultName, index := 0, signer := false, writable := true, owner := "program" }]
+  #[defaultStateAccount module]
 
 /-- Build instruction entries from the IR module. -/
 def buildInstructions (module : Module) : Array InstructionEntry :=
@@ -164,10 +287,26 @@ def buildInstructions (module : Module) : Array InstructionEntry :=
   module.entrypoints.mapIdx fun idx ep =>
     { name := ep.name, tag := idx, handler := "sol_" ++ ep.name, accounts := accounts }
 
-/-- Render the full manifest.toml contents. -/
-def renderManifest (module : Module) : String :=
+def buildInstructionsWithExtensions (module : Module) (extensions : ProgramExtensions) :
+    Array InstructionEntry :=
+  -- The current dispatcher still uses a fixed instruction-data offset, so SDK
+  -- modules use the union of all declared accounts for every entrypoint.
+  let accounts := buildModuleAccounts module extensions
+  module.entrypoints.mapIdx fun idx ep =>
+    {
+      name := ep.name
+      tag := idx
+      handler := "sol_" ++ ep.name
+      accounts := accounts
+    }
+
+def buildInstructionsWithPlan (module : Module) (plan : ProofForge.Target.CapabilityPlan) :
+    Array InstructionEntry :=
+  buildInstructionsWithExtensions module (ProgramExtensions.fromPlan plan)
+
+def renderManifestWithInstructions (module : Module) (instructions : Array InstructionEntry) : String :=
   let programName := module.name.toLower
-  let instructionBlocks := (buildInstructions module).map InstructionEntry.render
+  let instructionBlocks := instructions.map InstructionEntry.render
   String.intercalate "\n" #[
     "# ProofForge generated Solana instruction manifest",
     "target = \"solana-sbpf-asm\"",
@@ -178,7 +317,13 @@ def renderManifest (module : Module) : String :=
     ""
   ].toList ++ "\n" ++ String.intercalate "\n" instructionBlocks.toList ++ "\n"
 
+/-- Render the full manifest.toml contents. -/
+def renderManifest (module : Module) : String :=
+  renderManifestWithInstructions module (buildInstructions module)
+
 def renderManifestWithPlan (module : Module) (plan : ProofForge.Target.CapabilityPlan) : String :=
-  renderManifest module ++ renderExtensions (ProgramExtensions.fromPlan plan)
+  let extensions := ProgramExtensions.fromPlan plan
+  renderManifestWithInstructions module (buildInstructionsWithExtensions module extensions) ++
+    renderExtensions extensions
 
 end ProofForge.Backend.Solana.Manifest

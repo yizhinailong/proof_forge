@@ -40,6 +40,23 @@ def main : IO UInt32 := do
       let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
         | throw <| IO.userError "package missing sBPF assembly"
       let asm := asmFile.contents
+      let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
+        | throw <| IO.userError "package missing manifest.toml"
+      let manifest := manifestFile.contents
+      require (contains manifest "{ name = \"nonce\", index = 0, signer = false, writable = true, owner = \"program\" },")
+        "manifest missing state account schema"
+      require (contains manifest "{ name = \"payer\", index = 1, signer = true, writable = true, owner = \"any\" },")
+        "manifest missing payer account schema"
+      require (contains manifest "{ name = \"recipient\", index = 2, signer = false, writable = true, owner = \"any\" },")
+        "manifest missing recipient account schema"
+      require (contains manifest "{ name = \"system_program\", index = 3, signer = false, writable = false, owner = \"executable\" }")
+        "manifest missing system program account schema"
+      require (contains asm "account.validation[1:payer]: signer=true")
+        "assembly missing payer signer validation"
+      require (contains asm "account.validation[1:payer]: writable=true")
+        "assembly missing payer writable validation"
+      require (contains asm "account.validation[2:recipient]: writable=true")
+        "assembly missing recipient writable validation"
       require (contains asm "sol_cpi_lamport_transfer:")
         "assembly missing System CPI helper label"
       require (contains asm "solana.cpi.pack system.transfer")

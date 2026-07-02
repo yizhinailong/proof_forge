@@ -261,6 +261,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] PDA helper runtime packing 现在会在调用 `sol_create_program_address` 前生成静态 ASCII seed byte buffer、Solana `Slice { ptr, len }` seed table、动态 program-id 指针计算，以及 32-byte PDA result buffer。覆盖：`Tests/SolanaSdkManifest.lean` 与 `scripts/solana/sdk-smoke.sh`。
 - [x] 标准 Solana protocol SDK helper 现在覆盖 System Program 的 transfer/create-account，以及 SPL Token 的 transfer_checked/mint_to/burn/approve/revoke。它们通过 target capability metadata 路由，写入 `solana.cpi.protocol`、规范化 `data_layout`、account metas、signer seeds 和 instruction-data source name，并进入生成的 manifest 与 artifact JSON。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] Runtime allocator target extension 现在建模 Solana 默认 downward-bump allocator（`heap_start = "0x300000000"`、`heap_bytes = 32768`），并提供与 Pinocchio no-heap entrypoint 对齐的 `noAllocator`/deny-dynamic 选项。选中的 allocator 会通过 `runtime.allocator` capability metadata 路由，并进入 `manifest.toml`、`proof-forge-artifact.json` 和 assembly metadata。覆盖：`Tests/SolanaAllocator.lean`、`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
+- [x] 生成的 Solana SDK instruction schema 现在使用 module-wide multi-account account list，取代旧的单账户 manifest。schema 包含 state account、PDA account、CPI account 和 executable CPI program account；sBPF backend 会从同一份 schema 计算 `INSTRUCTION_DATA` offset，并在 prologue 中按 schema 校验 signer/writable 约束和 program-owned account。账户列表会进入 `manifest.toml` 与 `proof-forge-artifact.json`。覆盖：`Tests/SolanaSdkManifest.lean`、`Tests/SolanaCpiPacking.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] System Program transfer CPI packing 骨架现在会生成 `sol_invoke_signed_c` 所需的 C ABI 形状：system program id bytes、C `SolAccountMeta[]`、`system.transfer` instruction data（`u32` discriminator + `u64` lamports placeholder）、C `SolInstruction`、placeholder `SolAccountInfo[]`、signer seed table，以及 syscall register setup。覆盖：`Tests/SolanaCpiPacking.lean`。
 
 后续 Solana SDK 补齐项：
@@ -272,7 +273,7 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - logs/events 与 return data：暴露 `sol_log*` / `sol_set_return_data` / `sol_get_return_data` helper，并用 Web3.js 检查日志和 simulation return data。
 - sysvars、crypto 与 memory helpers：覆盖 clock/rent sysvar、hash syscall、memcpy/memcmp/memset，并与 JavaScript reference output 对比。
 - 为同一套 account schema 增加 Rust/Pinocchio reference fixture，并通过同一个 Web3.js harness 对比 ProofForge 生成程序与参考程序的行为。
-- 从 Phase 1 单账户 manifest 推进到生成 multi-account schema，并为每个 entrypoint 表达 signer/writable/owner 约束。
+- 从当前 module-wide 固定 account schema 推进到动态 per-entrypoint account schema。这需要在 dispatch 前运行时解析 `num_accounts`/account data length，使 instruction-data offset 不再依赖所有 entrypoint 使用同一套账户列表。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）
 

@@ -126,9 +126,15 @@ frame. The label counter and state-field offsets are preserved by the caller. -/
 def LowerCtx.resetLocals (ctx : LowerCtx) : LowerCtx :=
   { ctx with locals := #[], nextLocalOffset := 8, scratchOffset := 8, allocator := Allocator.new }
 
-def buildCtx (module : Module) : Except LowerError LowerCtx := do
-  let offsets := buildStateOffsets module
+def buildCtx (module : Module) (stateDataOff : Nat) : Except LowerError LowerCtx := do
+  let offsets := buildStateOffsetsAtBase module stateDataOff
   return { stateFieldOffsets := offsets.map (fun f => (f.id, f.absOff)), locals := #[], nextLocalOffset := 8, scratchOffset := 8, nextLabel := 0, allocator := Allocator.new }
+
+def accountDataSize (module : Module) (account : AccountEntry) : Nat :=
+  if account.index == 0 then moduleDataSize module else 0
+
+def accountDataSizes (module : Module) (accounts : Array AccountEntry) : Array Nat :=
+  accounts.map (accountDataSize module)
 
 -- ============================================================================
 -- IR expression → AST nodes (result in r2, r3 as scratch)
@@ -416,45 +422,80 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
 def entrypointHasReturn (ep : IR.Entrypoint) : Bool :=
   ep.body.any fun stmt => match stmt with | .return _ => true | _ => false
 
-/-- Phase 1 default account-validation prologue.
-Every entrypoint expects a single account at index 0 that is writable and
-owned by the program (signer=false is recorded in the manifest but not
-enforced at runtime). The owner check computes the program_id address from
-the dynamic instruction_data_len so it remains correct even as the
-discriminant payload grows. -/
-def lowerAccountValidation (instrDataOff : Nat) : Array AstNode :=
-  let instrDataLenOff := instrDataOff - 8
-  #[
-  .comment "account.validation: writable=true",
-  .instruction { opcode := .ldxb, dst := some .r2, src := some .r1, off := some (.num 10) },
-  .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "error_not_writable") },
-  .comment "account.validation: owner=program",
+def lowerProgramOwnerValidation (instrDataLenOff ownerOff : Nat) : Array AstNode := #[
   .instruction { opcode := .mov64, dst := some .r4, src := some .r1 },
   .instruction { opcode := .add64, dst := some .r4, imm := some (.num instrDataLenOff) },
   .instruction { opcode := .ldxdw, dst := some .r2, src := some .r4, off := some (.num 0) },
   .instruction { opcode := .add64, dst := some .r4, imm := some (.num 8) },
   .instruction { opcode := .add64, dst := some .r4, src := some .r2 },
-  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 48) },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num ownerOff) },
   .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 0) },
   .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
-  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 56) },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num (ownerOff + 8)) },
   .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 8) },
   .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
-  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 64) },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num (ownerOff + 16)) },
   .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 16) },
   .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
-  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num 72) },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some .r1, off := some (.num (ownerOff + 24)) },
   .instruction { opcode := .ldxdw, dst := some .r6, src := some .r4, off := some (.num 24) },
   .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") }
 ]
 
-partial def lowerEntrypoint (ctx : LowerCtx) (instrDataOff : Nat) (extensions : ProgramExtensions)
-    (ep : IR.Entrypoint) : Except LowerError (LowerCtx × Array AstNode) := do
+def lowerAccountValidationFor (instrDataLenOff : Nat) (account : AccountEntry)
+    (layout : AccountInputLayout) : Array AstNode :=
+  let signerCheck :=
+    if account.signer then
+      #[
+        .comment s!"account.validation[{account.index}:{account.name}]: signer=true",
+        .instruction { opcode := .ldxb, dst := some .r2, src := some .r1, off := some (.num layout.signerOff) },
+        .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "error_signer") }
+      ]
+    else
+      #[]
+  let writableCheck :=
+    if account.writable then
+      #[
+        .comment s!"account.validation[{account.index}:{account.name}]: writable=true",
+        .instruction { opcode := .ldxb, dst := some .r2, src := some .r1, off := some (.num layout.writableOff) },
+        .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "error_not_writable") }
+      ]
+    else
+      #[]
+  let ownerCheck :=
+    if account.owner == "program" then
+      #[.comment s!"account.validation[{account.index}:{account.name}]: owner=program"] ++
+        lowerProgramOwnerValidation instrDataLenOff layout.ownerOff
+    else
+      #[]
+  signerCheck ++ writableCheck ++ ownerCheck
+
+/-- Account-validation prologue for the generated fixed account schema. The
+owner check computes the program_id address from the dynamic instruction data
+length so it remains correct even as the discriminant payload grows. -/
+def lowerAccountValidation (instrDataLenOff : Nat) :
+    List AccountEntry -> List AccountInputLayout -> Array AstNode
+  | [], _ => #[]
+  | _, [] => #[]
+  | account :: accounts, layout :: layouts =>
+      lowerAccountValidationFor instrDataLenOff account layout ++
+      lowerAccountValidation instrDataLenOff accounts layouts
+
+def lowerAccountValidations (instrDataLenOff : Nat) (accounts : Array AccountEntry)
+    (layouts : Array AccountInputLayout) : Array AstNode :=
+  #[
+    .comment "account.validation: generated account schema"
+  ] ++ lowerAccountValidation instrDataLenOff accounts.toList layouts.toList
+
+partial def lowerEntrypoint (ctx : LowerCtx) (instrDataLenOff : Nat)
+    (accounts : Array AccountEntry) (accountLayouts : Array AccountInputLayout)
+    (extensions : ProgramExtensions) (ep : IR.Entrypoint) :
+    Except LowerError (LowerCtx × Array AstNode) := do
   let mut nodes := #[
     .label s!"sol_{ep.name}",
     .blankLine
   ]
-  nodes := nodes ++ lowerAccountValidation instrDataOff
+  nodes := nodes ++ lowerAccountValidations instrDataLenOff accounts accountLayouts
   nodes := nodes ++ lowerEntrypointActions extensions ep.name
   let mut ctx := ctx
   for stmt in ep.body do
@@ -475,16 +516,24 @@ partial def lowerEntrypoint (ctx : LowerCtx) (instrDataOff : Nat) (extensions : 
 partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
     Except LowerError (Array AstNode) := do
   validateCapabilities module
-  let ctx ← buildCtx module
-  let dataSize := moduleDataSize module
-  let (_, instrDataOff) := computeSingleAccountLayout dataSize
+  let instructions := buildInstructionsWithExtensions module extensions
+  let accounts :=
+    match instructions[0]? with
+    | some instruction => instruction.accounts
+    | none => buildDefaultAccounts module
+  let inputLayout := computeInputLayout (accountDataSizes module accounts)
+  let stateDataOff ←
+    match inputLayout.accounts[0]? with
+    | some accountLayout => .ok accountLayout.dataStart
+    | none => .error { message := "Solana account schema must contain at least one state account" }
+  let ctx ← buildCtx module stateDataOff
 
   let mut nodes := #[
     .comment s!"ProofForge generated sBPF — {module.name} (Phase 1)",
     .comment "Target: solana-sbpf-asm (D-026)",
     .blankLine,
-    .equDecl "INSTRUCTION_DATA_LEN" (instrDataOff - 8),
-    .equDecl "INSTRUCTION_DATA" instrDataOff
+    .equDecl "INSTRUCTION_DATA_LEN" inputLayout.instructionDataLenOff,
+    .equDecl "INSTRUCTION_DATA" inputLayout.instructionDataOff
   ]
   for (stateId, absOff) in ctx.stateFieldOffsets do
     nodes := nodes.push (.equDecl (stateId.toUpper ++ "_DATA") absOff)
@@ -511,7 +560,8 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
   for ep in module.entrypoints do
     nodes := nodes.push .blankLine
     let epCtx := ctx.resetLocals
-    let (ctx', block) ← lowerEntrypoint epCtx instrDataOff extensions ep
+    let (ctx', block) ←
+      lowerEntrypoint epCtx inputLayout.instructionDataLenOff accounts inputLayout.accounts extensions ep
     ctx := { ctx with nextLabel := ctx'.nextLabel }
     nodes := nodes ++ block
 
