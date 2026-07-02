@@ -169,7 +169,16 @@ def main : IO UInt32 := do
   | .ok pkg =>
       let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
         | throw <| IO.userError "token-param package missing sBPF assembly"
+      let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
+        | throw <| IO.userError "token-param package missing manifest.toml"
       let asm := asmFile.contents
+      let manifest := manifestFile.contents
+      require (contains manifest "min_data_len = 9")
+        "manifest missing transfer minimum instruction-data length"
+      require (contains manifest "{ name = \"amount\", type = \"U64\", offset = 1, byte_size = 8, encoding = \"le-u64\" }")
+        "manifest missing transfer amount parameter schema"
+      require (contains asm "instruction_data.length >= 9")
+        "assembly missing transfer parameter payload length check"
       require (contains asm "entrypoint.param[transfer.amount]: U64 @ instruction_data+1")
         "assembly missing transfer amount parameter decoding"
       require (contains asm "stxdw [r10-8], r2")

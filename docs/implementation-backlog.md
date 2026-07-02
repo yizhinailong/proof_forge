@@ -716,39 +716,72 @@ partial progress is visible before the full acceptance criteria close:
       `scripts/solana/sdk-smoke.sh`.
 - [x] Entry instruction-data decoding now treats byte 0 as the entrypoint tag
       and decodes packed scalar parameters from `instruction_data+1` into
-      stack locals. The initial scalar ABI supports `U64`, `U32`, and `Bool`
-      and exposes the same fixed input offsets to CPI value bindings, so SDK
-      calls such as SPL Token `transfer_checked` can source `amount` from a
-      user instruction parameter instead of a placeholder. Covered by
-      `Tests/SolanaCpiPacking.lean`.
+      stack locals. The initial scalar ABI supports `U64`, `U32`, and `Bool`,
+      emits per-entrypoint parameter schemas and minimum instruction-data
+      lengths in `manifest.toml`/`proof-forge-artifact.json`, rejects short
+      payloads with `error_instruction_data`, and exposes the same fixed input
+      offsets to CPI value bindings, so SDK calls such as SPL Token
+      `transfer_checked` can source `amount` from a user instruction parameter
+      instead of a placeholder. Covered by `Tests/SolanaCpiPacking.lean`,
+      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
 
-Next Solana SDK completion items:
+### Solana SDK completion roadmap
 
-- PDA typed seed completion: distinguish literal/UTF-8 bytes, account pubkeys, and
-  bump/instruction-data seeds; validate the resulting PDA against account
-  pubkeys; add Web3.js fixtures that compare derived addresses with
-  `PublicKey.findProgramAddressSync`.
-- Richer instruction ABI: add bounds checks for parameter payload length,
-  per-entrypoint parameter schemas in the generated manifest/artifact, and
-  aggregate/string/bytes decoding once the Solana SDK exposes those types.
-- Live CPI validation: exercise System Program transfer/create-account and SPL
-  Token transfer_checked/mint_to/burn/approve/revoke against Surfpool/Web3.js,
-  then compare behavior with Rust/Pinocchio reference fixtures.
-- Runtime allocation lowering: route any future heap-backed SDK structures
-  through `runtime.allocator`, emit real bump-pointer allocation code when
-  dynamic allocation is required, and reject such structures under
-  `noAllocator`.
-- Logs/events and return data: expose `sol_log*` / `sol_set_return_data` /
-  `sol_get_return_data` helpers with Web3.js log and simulation assertions.
-- Sysvars, crypto, and memory helpers: cover clock/rent sysvars, hash syscalls,
-  memcpy/memcmp/memset, and compare outputs with JavaScript reference code.
-- Add Rust/Pinocchio reference fixtures for the same account schema and compare
-  ProofForge-generated behavior against those reference programs through the
-  same Web3.js harness.
-- Move from the current module-wide fixed account schema to dynamic
-  per-entrypoint account schemas. This requires runtime parsing of
-  `num_accounts`/account data lengths before dispatch so instruction-data
-  offsets no longer depend on every entrypoint using the same account list.
+Baseline: as of 2026-07-02, the Solana path has direct sBPF assembly emission,
+Counter deployment through Surfpool/Web3.js, SDK capability metadata, generated
+manifest/artifact output, module-wide multi-account schemas, standard
+System/SPL Token CPI data packing, bump-allocator metadata, and scalar
+entrypoint parameter decoding. The estimates below assume one engineer working
+on this branch, the current direct-assembly architecture staying stable, and
+local `sbpf`/Surfpool/Solana CLI tooling remaining available.
+
+| Level | Estimated effort | Done when |
+|---|---:|---|
+| SDK alpha: usable Solana programs | 4-6 focused engineering days | Simple programs can use state, PDA seeds, scalar instruction parameters, System Program CPI, SPL Token CPI, logs/return data, and Web3.js behavior tests without hand-written assembly patches. |
+| SDK beta: reference-comparable Solana backend | 2-3 focused weeks | ProofForge output is compared against Rust/Pinocchio fixtures for the same account schema, covers key syscalls, validates live CPI behavior, and supports per-entrypoint account schemas. |
+| Anchor/Pinocchio-class developer surface | 4-6 focused weeks after beta | The SDK offers account constraints, typed account/data helpers, IDL/client generation, richer SPL/Token-2022 coverage, and stable diagnostics comparable to a framework-level workflow. |
+
+Completed alpha slices:
+
+- Instruction ABI hardening: parameter payload length bounds checks,
+  per-entrypoint parameter schemas in `manifest.toml` and
+  `proof-forge-artifact.json`, and stable scalar parameter metadata are now in
+  place.
+
+Remaining priority slices:
+
+1. PDA typed seed completion (1-2 days): distinguish literal/UTF-8 bytes,
+   account pubkeys, bump seeds, and instruction-data seeds; validate derived
+   PDA outputs against account pubkeys; add Web3.js fixtures that compare
+   against `PublicKey.findProgramAddressSync`.
+2. Live CPI validation (2-3 days): exercise System Program transfer/
+   create-account and SPL Token transfer_checked/mint_to/burn/approve/revoke
+   against Surfpool/Web3.js, then compare behavior with Rust/Pinocchio
+   reference fixtures.
+3. Logs, return data, sysvars, crypto, and memory helpers (3-5 days): expose
+   `sol_log*`, `sol_set_return_data`, `sol_get_return_data`, clock/rent sysvar
+   reads, `sol_sha256`/`sol_keccak256`/`sol_blake3`, and
+   `sol_memcpy`/`sol_memcmp`/`sol_memset`, with JavaScript reference checks.
+4. Runtime allocation lowering (1-2 days): route heap-backed SDK structures
+   through `runtime.allocator`, emit actual downward bump-pointer allocation
+   code when needed, and reject allocation-using structures under
+   `noAllocator`.
+5. Dynamic per-entrypoint account schemas (3-5 days): replace the current
+   module-wide fixed schema with runtime account parsing before dispatch, so
+   instruction-data offsets no longer depend on every entrypoint sharing the
+   same account list.
+6. Rust/Pinocchio equivalence fixtures (2-4 days): add reference programs for
+   the same account schemas and run ProofForge and reference implementations
+   through the same Web3.js harness.
+7. Developer ergonomics and framework surface (3-5 days per iteration): add
+   account constraint helpers, typed account wrappers, IDL/client generation,
+   richer SPL/Token-2022 helper coverage, and diagnostics that map generated
+   assembly failures back to SDK declarations.
+
+The fastest credible route to a more complete SDK is therefore: first close
+the remaining alpha slices (PDA typed seeds, live CPI, and basic logs/return
+data), then use the beta slices to remove remaining architecture shortcuts
+before adding Anchor/Pinocchio-class ergonomics.
 
 ## Workstream 8: Move Source Generation POC (Aptos first)
 

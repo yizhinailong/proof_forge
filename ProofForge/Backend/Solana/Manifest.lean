@@ -28,18 +28,82 @@ structure AccountEntry where
   owner : String
   deriving Repr, Inhabited
 
+/-- A scalar instruction parameter in the Solana instruction-data ABI.
+Offset is relative to the start of `instruction_data`; byte 0 is reserved for
+the ProofForge entrypoint tag. -/
+structure InstructionParamEntry where
+  name : String
+  typeName : String
+  offset : Nat
+  byteSize : Nat
+  encoding : String
+  deriving Repr, Inhabited
+
 /-- One instruction table entry. -/
 structure InstructionEntry where
   name : String
   tag : Nat
   handler : String
   accounts : Array AccountEntry
+  params : Array InstructionParamEntry := #[]
+  minDataLen : Nat := 1
   deriving Repr, Inhabited
 
 def AccountEntry.render (a : AccountEntry) : String :=
   "  { name = \"" ++ a.name ++ "\", index = " ++ toString a.index ++
   ", signer = " ++ toString a.signer ++ ", writable = " ++ toString a.writable ++
   ", owner = \"" ++ a.owner ++ "\" }"
+
+def tomlString (value : String) : String :=
+  let escapeChar : Char → String
+    | '"' => "\\\""
+    | '\\' => "\\\\"
+    | '\n' => "\\n"
+    | '\r' => "\\r"
+    | '\t' => "\\t"
+    | ch => ch.toString
+  "\"" ++ String.intercalate "" (value.toList.map escapeChar) ++ "\""
+
+def instructionParamByteSize? : ValueType → Option Nat
+  | .u64 => some 8
+  | .u32 => some 4
+  | .bool => some 1
+  | _ => none
+
+def instructionParamEncoding : ValueType → String
+  | .u64 => "le-u64"
+  | .u32 => "le-u32"
+  | .bool => "u8-bool"
+  | _ => "unsupported"
+
+def buildInstructionParams (ep : Entrypoint) : Array InstructionParamEntry := Id.run do
+  let mut params := #[]
+  let mut payloadOff := 1
+  for param in ep.params do
+    let (name, type) := param
+    let byteSize := (instructionParamByteSize? type).getD 0
+    params := params.push {
+      name := name
+      typeName := type.name
+      offset := payloadOff
+      byteSize := byteSize
+      encoding := instructionParamEncoding type
+    }
+    payloadOff := payloadOff + byteSize
+  return params
+
+def instructionParamPayloadSize (ep : Entrypoint) : Nat :=
+  (buildInstructionParams ep).foldl (fun acc param => acc + param.byteSize) 0
+
+def instructionDataMinLen (ep : Entrypoint) : Nat :=
+  1 + instructionParamPayloadSize ep
+
+def InstructionParamEntry.render (param : InstructionParamEntry) : String :=
+  "  { name = " ++ tomlString param.name ++
+  ", type = " ++ tomlString param.typeName ++
+  ", offset = " ++ toString param.offset ++
+  ", byte_size = " ++ toString param.byteSize ++
+  ", encoding = " ++ tomlString param.encoding ++ " }"
 
 def InstructionEntry.render (ie : InstructionEntry) : String :=
   let accountLines := ie.accounts.mapIdx fun idx account =>
@@ -48,11 +112,19 @@ def InstructionEntry.render (ie : InstructionEntry) : String :=
   let accountsBlock :=
     if accountLines.isEmpty then "accounts = []"
     else "accounts = [\n" ++ String.intercalate "\n" accountLines.toList ++ "\n]"
+  let paramLines := ie.params.mapIdx fun idx param =>
+    InstructionParamEntry.render param ++
+      (if idx + 1 == ie.params.size then "" else ",")
+  let paramsBlock :=
+    if paramLines.isEmpty then "params = []"
+    else "params = [\n" ++ String.intercalate "\n" paramLines.toList ++ "\n]"
   "[[instruction]]\n" ++
   "name = \"" ++ ie.name ++ "\"\n" ++
   "tag = " ++ toString ie.tag ++ "\n" ++
   "handler = \"" ++ ie.handler ++ "\"\n" ++
-  accountsBlock
+  "min_data_len = " ++ toString ie.minDataLen ++ "\n" ++
+  accountsBlock ++ "\n" ++
+  paramsBlock
 
 def defaultStateAccountName (module : Module) : String :=
   match module.state[0]? with
@@ -177,16 +249,6 @@ def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Arr
       accounts
   extensions.cpis.foldl pushCpiAccounts accounts
 
-def tomlString (value : String) : String :=
-  let escapeChar : Char → String
-    | '"' => "\\\""
-    | '\\' => "\\\\"
-    | '\n' => "\\n"
-    | '\r' => "\\r"
-    | '\t' => "\\t"
-    | ch => ch.toString
-  "\"" ++ String.intercalate "" (value.toList.map escapeChar) ++ "\""
-
 def tomlBool (value : Bool) : String :=
   if value then "true" else "false"
 
@@ -295,7 +357,14 @@ def buildDefaultAccounts (module : Module) : Array AccountEntry :=
 def buildInstructions (module : Module) : Array InstructionEntry :=
   let accounts := buildDefaultAccounts module
   module.entrypoints.mapIdx fun idx ep =>
-    { name := ep.name, tag := idx, handler := "sol_" ++ ep.name, accounts := accounts }
+    {
+      name := ep.name
+      tag := idx
+      handler := "sol_" ++ ep.name
+      accounts := accounts
+      params := buildInstructionParams ep
+      minDataLen := instructionDataMinLen ep
+    }
 
 def buildInstructionsWithExtensions (module : Module) (extensions : ProgramExtensions) :
     Array InstructionEntry :=
@@ -308,6 +377,8 @@ def buildInstructionsWithExtensions (module : Module) (extensions : ProgramExten
       tag := idx
       handler := "sol_" ++ ep.name
       accounts := accounts
+      params := buildInstructionParams ep
+      minDataLen := instructionDataMinLen ep
     }
 
 def buildInstructionsWithPlan (module : Module) (plan : ProofForge.Target.CapabilityPlan) :

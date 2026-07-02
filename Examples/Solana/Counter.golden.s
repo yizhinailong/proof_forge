@@ -8,6 +8,9 @@
 .globl entrypoint
 
 entrypoint:
+  ; instruction_data.length >= 1
+  ldxdw r2, [r1+INSTRUCTION_DATA_LEN]
+  jlt r2, 1, error_instruction_data
   ldxb r2, [r1+INSTRUCTION_DATA]
   jeq r2, 0, sol_initialize
   jeq r2, 1, sol_increment
@@ -131,4 +134,8 @@ error_signer:
 
 error_owner:
   mov64 r0, 6
+  exit
+
+error_instruction_data:
+  mov64 r0, 9
   exit

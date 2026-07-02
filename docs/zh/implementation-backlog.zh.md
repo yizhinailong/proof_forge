@@ -317,18 +317,56 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] Runtime allocator target extension 现在建模 Solana 默认 downward-bump allocator（`heap_start = "0x300000000"`、`heap_bytes = 32768`），并提供与 Pinocchio no-heap entrypoint 对齐的 `noAllocator`/deny-dynamic 选项。选中的 allocator 会通过 `runtime.allocator` capability metadata 路由，并进入 `manifest.toml`、`proof-forge-artifact.json` 和 assembly metadata。覆盖：`Tests/SolanaAllocator.lean`、`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] 生成的 Solana SDK instruction schema 现在使用 module-wide multi-account account list，取代旧的单账户 manifest。schema 包含 state account、PDA account、CPI account 和 executable CPI program account；sBPF backend 会从同一份 schema 计算 `INSTRUCTION_DATA` offset，并在 prologue 中按 schema 校验 signer/writable 约束和 program-owned account。账户列表会进入 `manifest.toml` 与 `proof-forge-artifact.json`。覆盖：`Tests/SolanaSdkManifest.lean`、`Tests/SolanaCpiPacking.lean`、`scripts/solana/sdk-smoke.sh`。
 - [x] System Program transfer/create-account 与 SPL Token CPI instruction-data packing 现在会把标准 instruction bytes 写入 C `SolInstruction` payload。System transfer/create-account 使用 bincode-style `u32` discriminator，加 `u64` lamports/space 和 owner pubkey 字段；SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke` 使用标准 token instruction tag 和 amount/decimals layout。value source 可以绑定到生成的 scalar state offset、数字 literal 或已解码的 scalar entrypoint parameter。CPI helper 也会打包 program id bytes、C `SolAccountMeta[]`、绑定到生成的 multi-account input layout 的 `SolAccountInfo[]`、signer seed table，以及 syscall register setup。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`。
-- [x] Entry instruction-data decoding 现在把第 0 字节作为 entrypoint tag，从 `instruction_data+1` 起按 packed scalar parameter 解码到 stack local。初始 scalar ABI 支持 `U64`、`U32` 和 `Bool`，并把同一组固定 input offset 暴露给 CPI value binding，因此 SPL Token `transfer_checked` 这类 SDK 调用可以从用户 instruction parameter 读取 `amount`，不再落到 placeholder。覆盖：`Tests/SolanaCpiPacking.lean`。
+- [x] Entry instruction-data decoding 现在把第 0 字节作为 entrypoint tag，从 `instruction_data+1` 起按 packed scalar parameter 解码到 stack local。初始 scalar ABI 支持 `U64`、`U32` 和 `Bool`，在 `manifest.toml`/`proof-forge-artifact.json` 中发射 per-entrypoint parameter schema 和 minimum instruction-data length，对过短 payload 返回 `error_instruction_data`，并把同一组固定 input offset 暴露给 CPI value binding，因此 SPL Token `transfer_checked` 这类 SDK 调用可以从用户 instruction parameter 读取 `amount`，不再落到 placeholder。覆盖：`Tests/SolanaCpiPacking.lean`、`Tests/SolanaSdkManifest.lean` 和 `scripts/solana/sdk-smoke.sh`。
 
-后续 Solana SDK 补齐项：
+### Solana SDK 补齐路线图
 
-- PDA typed seed 补齐：区分 literal/UTF-8 bytes、account pubkey、bump/instruction-data seed；将结果 PDA 与 account pubkey 校验；增加 Web3.js fixture，与 `PublicKey.findProgramAddressSync` 对比派生地址。
-- 更完整的 instruction ABI：补充 parameter payload length bounds check，在生成的 manifest/artifact 中记录 per-entrypoint parameter schema，并在 Solana SDK 暴露对应类型后加入 aggregate/string/bytes decoding。
-- Live CPI validation：在 Surfpool/Web3.js 上实际跑 System Program transfer/create-account 和 SPL Token transfer_checked/mint_to/burn/approve/revoke，再与 Rust/Pinocchio reference fixture 对比行为。
-- Runtime allocation lowering：后续 heap-backed SDK structure 必须通过 `runtime.allocator` 路由；需要动态分配时生成真实 bump-pointer allocation code，并在 `noAllocator` 下拒绝这些结构。
-- logs/events 与 return data：暴露 `sol_log*` / `sol_set_return_data` / `sol_get_return_data` helper，并用 Web3.js 检查日志和 simulation return data。
-- sysvars、crypto 与 memory helpers：覆盖 clock/rent sysvar、hash syscall、memcpy/memcmp/memset，并与 JavaScript reference output 对比。
-- 为同一套 account schema 增加 Rust/Pinocchio reference fixture，并通过同一个 Web3.js harness 对比 ProofForge 生成程序与参考程序的行为。
-- 从当前 module-wide 固定 account schema 推进到动态 per-entrypoint account schema。这需要在 dispatch 前运行时解析 `num_accounts`/account data length，使 instruction-data offset 不再依赖所有 entrypoint 使用同一套账户列表。
+基线：截至 2026-07-02，Solana 路线已经具备 direct sBPF assembly emission、
+通过 Surfpool/Web3.js 部署 Counter、SDK capability metadata、生成
+manifest/artifact、module-wide multi-account schema、标准 System/SPL Token CPI
+data packing、bump-allocator metadata，以及 scalar entrypoint parameter
+decoding。下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly
+架构保持稳定，并且本地 `sbpf`/Surfpool/Solana CLI 工具链可用。
+
+| 层级 | 预计工作量 | 完成标准 |
+|---|---:|---|
+| SDK alpha：可写可跑的 Solana 程序 | 4-6 个集中工程日 | 简单程序可以使用 state、PDA seed、scalar instruction parameter、System Program CPI、SPL Token CPI、logs/return data，以及 Web3.js 行为测试，不需要手写 assembly 补丁。 |
+| SDK beta：可与参考实现对比的 Solana backend | 2-3 个集中工程周 | ProofForge 输出可以与同一套 account schema 的 Rust/Pinocchio fixture 对比，覆盖关键 syscall，验证 live CPI 行为，并支持 per-entrypoint account schema。 |
+| Anchor/Pinocchio 级开发体验 | beta 之后 4-6 个集中工程周 | SDK 提供 account constraint、typed account/data helper、IDL/client generation、更完整 SPL/Token-2022 覆盖，以及接近框架级 workflow 的稳定诊断。 |
+
+已完成的 alpha 切片：
+
+- Instruction ABI hardening：parameter payload length bounds check、
+  `manifest.toml` 和 `proof-forge-artifact.json` 中的 per-entrypoint parameter
+  schema，以及稳定的 scalar parameter metadata 已经落地。
+
+剩余优先切片：
+
+1. PDA typed seed 补齐（1-2 天）：区分 literal/UTF-8 bytes、account pubkey、
+   bump seed 和 instruction-data seed；将派生 PDA 与 account pubkey 校验；
+   增加 Web3.js fixture，与 `PublicKey.findProgramAddressSync` 对比。
+2. Live CPI validation（2-3 天）：在 Surfpool/Web3.js 上实际跑 System Program
+   transfer/create-account 和 SPL Token transfer_checked/mint_to/burn/approve/
+   revoke，再与 Rust/Pinocchio reference fixture 对比行为。
+3. Logs、return data、sysvars、crypto 与 memory helpers（3-5 天）：暴露
+   `sol_log*`、`sol_set_return_data`、`sol_get_return_data`、clock/rent sysvar
+   reads、`sol_sha256`/`sol_keccak256`/`sol_blake3`，以及
+   `sol_memcpy`/`sol_memcmp`/`sol_memset`，并与 JavaScript reference 对比。
+4. Runtime allocation lowering（1-2 天）：后续 heap-backed SDK structure 通过
+   `runtime.allocator` 路由；需要动态分配时生成真实 downward bump-pointer
+   allocation code；在 `noAllocator` 下拒绝使用分配的结构。
+5. Dynamic per-entrypoint account schema（3-5 天）：用 dispatch 前的 runtime
+   account parsing 替换当前 module-wide fixed schema，使 instruction-data offset
+   不再依赖所有 entrypoint 使用同一套账户列表。
+6. Rust/Pinocchio equivalence fixture（2-4 天）：为同一套 account schema 增加
+   reference program，并通过同一个 Web3.js harness 对比 ProofForge 生成程序与参考实现。
+7. Developer ergonomics 和框架层体验（每轮 3-5 天）：增加 account constraint
+   helper、typed account wrapper、IDL/client generation、更完整 SPL/Token-2022
+   helper 覆盖，以及能把 generated assembly failure 映射回 SDK declaration 的诊断。
+
+最快可信路线是：先关闭剩余 alpha 切片（PDA typed seed、live CPI、基础
+logs/return data），再通过 beta 切片移除剩余架构捷径，最后补
+Anchor/Pinocchio 级别的开发体验。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）
 

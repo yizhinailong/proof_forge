@@ -76,6 +76,10 @@ if allocators[0].get("heapBytes") != "32768":
     raise SystemExit("artifact missing Solana heap size")
 if len(instructions) != 2:
     raise SystemExit(f"artifact instruction schema count mismatch: {len(instructions)}")
+if any(instruction.get("minDataLen") != 1 for instruction in instructions):
+    raise SystemExit(f"artifact instruction minDataLen mismatch: {instructions}")
+if any(instruction.get("params") != [] for instruction in instructions):
+    raise SystemExit(f"artifact instruction params should be empty for SDK vault fixture: {instructions}")
 instruction_accounts = [account.get("name") for account in instructions[0].get("accounts", [])]
 expected_instruction_accounts = [
     "nonce",
@@ -127,6 +131,10 @@ if manifest_allocators[0].get("heap_bytes") != 32768:
     raise SystemExit("manifest missing Solana heap size")
 if len(manifest_instructions) != 2:
     raise SystemExit(f"manifest instruction schema count mismatch: {len(manifest_instructions)}")
+if any(instruction.get("min_data_len") != 1 for instruction in manifest_instructions):
+    raise SystemExit(f"manifest instruction min_data_len mismatch: {manifest_instructions}")
+if any(instruction.get("params") != [] for instruction in manifest_instructions):
+    raise SystemExit(f"manifest instruction params should be empty for SDK vault fixture: {manifest_instructions}")
 manifest_instruction_accounts = [account.get("name") for account in manifest_instructions[0].get("accounts", [])]
 if manifest_instruction_accounts != expected_instruction_accounts:
     raise SystemExit(f"manifest instruction accounts mismatch: {manifest_instruction_accounts}")

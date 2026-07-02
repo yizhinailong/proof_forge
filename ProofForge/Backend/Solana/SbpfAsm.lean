@@ -136,11 +136,8 @@ def accountDataSize (module : Module) (account : AccountEntry) : Nat :=
 def accountDataSizes (module : Module) (accounts : Array AccountEntry) : Array Nat :=
   accounts.map (accountDataSize module)
 
-def scalarParamSize? : ValueType → Option Nat
-  | .u64 => some 8
-  | .u32 => some 4
-  | .bool => some 1
-  | _ => none
+def scalarParamSize? : ValueType → Option Nat :=
+  instructionParamByteSize?
 
 def scalarParamLoadOpcode? : ValueType → Option Opcode
   | .u64 => some .ldxdw
@@ -499,6 +496,16 @@ def lowerAccountValidations (instrDataLenOff : Nat) (accounts : Array AccountEnt
     .comment "account.validation: generated account schema"
   ] ++ lowerAccountValidation instrDataLenOff accounts.toList layouts.toList
 
+def lowerInstructionDataLengthCheck (instrDataLenOff requiredLen : Nat) : Array AstNode :=
+  if requiredLen <= 1 then
+    #[]
+  else
+    #[
+      .comment s!"instruction_data.length >= {requiredLen}",
+      .instruction { opcode := .ldxdw, dst := some .r2, src := some .r1, off := some (.num instrDataLenOff) },
+      .instruction { opcode := .jlt, dst := some .r2, imm := some (.num requiredLen), off := some (.sym "error_instruction_data") }
+    ]
+
 def lowerEntrypointParamDecoding (ctx : LowerCtx) (instrDataOff : Nat) (ep : IR.Entrypoint) :
     Except LowerError (LowerCtx × Array AstNode) := do
   let mut ctx := ctx
@@ -529,6 +536,7 @@ partial def lowerEntrypoint (ctx : LowerCtx) (instrDataLenOff instrDataOff : Nat
     .blankLine
   ]
   nodes := nodes ++ lowerAccountValidations instrDataLenOff accounts accountLayouts
+  nodes := nodes ++ lowerInstructionDataLengthCheck instrDataLenOff (instructionDataMinLen ep)
   let (ctx, paramNodes) ← lowerEntrypointParamDecoding ctx instrDataOff ep
   nodes := nodes ++ paramNodes
   nodes := nodes ++ lowerEntrypointActions extensions ep.name
@@ -586,7 +594,7 @@ def buildStateCpiValueBindings (module : IR.Module) (stateDataOff : Nat) : Array
 def buildEntrypointParamCpiValueBindings (module : IR.Module) (instrDataOff : Nat) :
     Array CpiValueBinding := Id.run do
   let mut bindings := #[]
-  let mut ambiguous := #[]
+  let mut ambiguous : Array String := #[]
   for ep in module.entrypoints do
     let mut payloadOff := 1
     for param in ep.params do
@@ -646,6 +654,9 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
     .globalDecl "entrypoint",
     .blankLine,
     .label "entrypoint",
+    .comment "instruction_data.length >= 1",
+    .instruction { opcode := .ldxdw, dst := some .r2, src := some .r1, off := some (.sym "INSTRUCTION_DATA_LEN") },
+    .instruction { opcode := .jlt, dst := some .r2, imm := some (.num 1), off := some (.sym "error_instruction_data") },
     .instruction { opcode := .ldxb, dst := some .r2, src := some .r1, off := some (.sym "INSTRUCTION_DATA") }
   ]
   let mut idx := 0
@@ -689,6 +700,10 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
     .blankLine,
     .label "error_owner",
     .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 6) },
+    .instruction { opcode := .exit },
+    .blankLine,
+    .label "error_instruction_data",
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 9) },
     .instruction { opcode := .exit }
   ]
   .ok nodes

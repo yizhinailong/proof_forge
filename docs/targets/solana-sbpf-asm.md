@@ -108,7 +108,7 @@ test when the syscall changes observable chain behavior.
 |---|---|---|
 | Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
 | PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; static ASCII seed byte buffers and Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; assembly builds | Add typed UTF-8/account-pubkey/bump seed packing, validate output account/pubkey, add Web3.js PDA fixture |
-| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, and signer seed tables; assembly builds | Add entrypoint parameter decoding and compare live CPI behavior against Rust/Pinocchio |
+| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; assembly builds | Compare live CPI behavior against Rust/Pinocchio |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Documented only | Lower `events.emit` to structured logs and assert logs via Web3.js transaction metadata |
@@ -473,17 +473,21 @@ entrypoint parameters.
 The current instruction-data ABI reserves byte 0 for the ProofForge entrypoint
 tag. Packed scalar parameters start at `instruction_data+1`, in entrypoint
 parameter order, with little-endian `U64`/`U32` loads and one-byte `Bool` loads.
-The backend decodes those parameters into stack locals before SDK helper calls
-and exposes the same absolute input offsets to CPI value binding, so helpers can
-pack fields such as SPL Token `amount` directly from user instruction data. The
-module-wide helper table only binds a parameter name when all occurrences share
-the same offset; duplicate names at conflicting offsets are intentionally left
-unbound until per-entrypoint helper specialization lands.
+The generated dispatcher rejects empty instruction data before reading the tag;
+each handler also checks the minimum payload length required by its parameter
+schema before decoding. The backend decodes those parameters into stack locals
+before SDK helper calls and exposes the same absolute input offsets to CPI value
+binding, so helpers can pack fields such as SPL Token `amount` directly from
+user instruction data. `manifest.toml` and `proof-forge-artifact.json` record
+each instruction's `min_data_len`/`minDataLen` plus parameter name, type, offset,
+byte size, and encoding. The module-wide helper table only binds a parameter
+name when all occurrences share the same offset; duplicate names at conflicting
+offsets are intentionally left unbound until per-entrypoint helper
+specialization lands.
 
-Remaining work: add instruction-data length checks for parameter payloads,
-per-entrypoint parameter schemas in manifest/artifact metadata, dynamic
-per-entrypoint account parsing, return-data decoding, and runtime tests that
-exercise live CPI paths.
+Remaining work: add dynamic per-entrypoint account parsing, richer
+aggregate/string/bytes instruction ABI decoding, return-data decoding, and
+runtime tests that exercise live CPI paths.
 
 PDA helper lowering:
 1. Allocate stack space for seed data + result buffer (32 byte).
@@ -776,10 +780,24 @@ def solanaSbpfAsm : TargetProfile := {
 - Instruction manifest TOML generation.
 
 ### Phase 3: Developer SDK
-- `Solana` Lean namespace with `account`, `owner`, `isSigner`, `lamports`, etc.
-- Borsh serialization primitives.
-- SPL helpers.
-- `proof-forge --solana-elf` end‑to‑end.
+
+Phase 3 is split into verifiable SDK completeness levels rather than one large
+"framework" milestone. Estimates assume one engineer working from the
+2026-07-02 baseline, current direct-assembly codegen staying stable, and local
+`sbpf`/Surfpool/Solana CLI tooling being available.
+
+| Level | Estimated effort | Scope |
+|---|---:|---|
+| SDK alpha | 4-6 focused engineering days | Complete typed PDA seeds, validate System/SPL CPI live through Surfpool/Web3.js, and expose basic logs/return-data helpers. Instruction ABI bounds/schema metadata is already in place. |
+| SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. |
+| Anchor/Pinocchio-class surface | 4-6 focused weeks after beta | Add account constraints, typed account/data wrappers, IDL/client generation, richer SPL/Token-2022 helper coverage, and SDK-facing diagnostics. |
+
+The alpha line is the point where a developer should be able to write and
+deploy simple Solana programs without hand-written assembly patches. The beta
+line is the point where ProofForge output can be compared against reference
+Rust/Pinocchio programs for the same account schema. The final framework line
+adds the higher-level ergonomics expected from Anchor-like and Pinocchio-style
+workflows without moving Solana-specific details into portable IR.
 
 ## References
 

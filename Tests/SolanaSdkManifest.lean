@@ -44,6 +44,8 @@ def main : IO UInt32 := do
     "manifest missing authority account schema"
   require (contains manifest "{ name = \"spl_token\", index = 6, signer = false, writable = false, owner = \"executable\" }")
     "manifest missing SPL Token program account schema"
+  require (contains manifest "min_data_len = 1") "manifest missing default instruction-data minimum length"
+  require (contains manifest "params = []") "manifest missing empty instruction parameter schema"
   require (contains manifest "[[solana.pda]]") "manifest missing Solana PDA section"
   require (contains manifest "name = \"vault\"") "manifest missing PDA name"
   require (contains manifest "seeds = [\"vault\", \"authority\"]") "manifest missing PDA seeds"
@@ -101,8 +103,14 @@ def main : IO UInt32 := do
         "package manifest missing PDA account schema"
       require (contains manifestFile.contents "{ name = \"spl_token\", index = 6, signer = false, writable = false, owner = \"executable\" }")
         "package manifest missing SPL Token program account schema"
+      require (contains manifestFile.contents "min_data_len = 1")
+        "package manifest missing default instruction-data minimum length"
+      require (contains manifestFile.contents "params = []")
+        "package manifest missing empty instruction parameter schema"
       require (contains asmFile.contents "solana.allocator runtime: kind=bump model=downward-bump heap_start=0x300000000 heap_bytes=32768")
         "package assembly missing runtime allocator metadata"
+      require (contains asmFile.contents "instruction_data.length >= 1")
+        "package assembly missing instruction-data tag length check"
       require (contains asmFile.contents "account.validation[1:vault_account]: owner=program")
         "package assembly missing PDA owner validation"
       require (contains asmFile.contents "account.validation[2:source]: writable=true")

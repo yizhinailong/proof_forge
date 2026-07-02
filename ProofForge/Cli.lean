@@ -1351,12 +1351,24 @@ def solanaInstructionAccountJson (account : ProofForge.Backend.Solana.Manifest.A
     ("owner", jsonString account.owner)
   ]
 
+def solanaInstructionParamJson
+    (param : ProofForge.Backend.Solana.Manifest.InstructionParamEntry) : String :=
+  jsonObject #[
+    ("name", jsonString param.name),
+    ("type", jsonString param.typeName),
+    ("offset", toString param.offset),
+    ("byteSize", toString param.byteSize),
+    ("encoding", jsonString param.encoding)
+  ]
+
 def solanaInstructionJson (instruction : ProofForge.Backend.Solana.Manifest.InstructionEntry) : String :=
   jsonObject #[
     ("name", jsonString instruction.name),
     ("tag", toString instruction.tag),
     ("handler", jsonString instruction.handler),
-    ("accounts", jsonArray (instruction.accounts.map solanaInstructionAccountJson))
+    ("minDataLen", toString instruction.minDataLen),
+    ("accounts", jsonArray (instruction.accounts.map solanaInstructionAccountJson)),
+    ("params", jsonArray (instruction.params.map solanaInstructionParamJson))
   ]
 
 def solanaInstructionsJson (module : ProofForge.IR.Module)
