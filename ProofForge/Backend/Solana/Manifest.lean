@@ -198,6 +198,11 @@ def renderExtensionAccount (account : AccountMeta) : String :=
   ", access = " ++ tomlString account.access ++
   ", signer = " ++ tomlString account.signer ++ " }"
 
+def renderCpiMetadataField (cpi : CpiInvoke) (metadataKey tomlKey : String) : String :=
+  match metadataValue? cpi.metadata metadataKey with
+  | some value => s!"{tomlKey} = {tomlString value}\n"
+  | none => ""
+
 def renderAllocator (allocator : RuntimeAllocator) : String :=
   "[[solana.allocator]]\n" ++
   "name = " ++ tomlString allocator.name ++ "\n" ++
@@ -233,9 +238,14 @@ def renderCpi (cpi : CpiInvoke) : String :=
     (match cpi.protocol? with
     | some protocol => s!"protocol = {tomlString protocol}\n"
     | none => "") ++
-    match cpi.dataLayout? with
+    (match cpi.dataLayout? with
     | some dataLayout => s!"data_layout = {tomlString dataLayout}\n"
-    | none => ""
+    | none => "") ++
+    renderCpiMetadataField cpi "solana.cpi.lamports_source" "lamports_source" ++
+    renderCpiMetadataField cpi "solana.cpi.space_source" "space_source" ++
+    renderCpiMetadataField cpi "solana.cpi.owner" "owner_source" ++
+    renderCpiMetadataField cpi "solana.cpi.amount_source" "amount_source" ++
+    renderCpiMetadataField cpi "solana.cpi.decimals" "decimals"
   "[[solana.cpi]]\n" ++
   "name = " ++ tomlString cpi.name ++ "\n" ++
   "program = " ++ tomlString cpi.program ++ "\n" ++

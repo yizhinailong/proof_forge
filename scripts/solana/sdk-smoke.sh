@@ -99,6 +99,10 @@ if cpis[0].get("protocol") != "spl-token":
     raise SystemExit("artifact missing spl-token CPI protocol")
 if cpis[0].get("dataLayout") != "spl-token.transfer_checked":
     raise SystemExit("artifact missing SPL Token transfer_checked data layout")
+if cpis[0].get("amountSource") != "amount":
+    raise SystemExit("artifact missing SPL Token amount source")
+if cpis[0].get("decimals") != "9":
+    raise SystemExit("artifact missing SPL Token decimals")
 account_names = [account.get("name") for account in cpis[0].get("accounts", [])]
 if account_names != ["source", "mint", "destination", "authority"]:
     raise SystemExit(f"artifact CPI accounts mismatch: {account_names}")
@@ -140,6 +144,10 @@ if manifest_cpis[0].get("protocol") != "spl-token":
     raise SystemExit("manifest missing spl-token CPI protocol")
 if manifest_cpis[0].get("data_layout") != "spl-token.transfer_checked":
     raise SystemExit("manifest missing SPL Token transfer_checked data layout")
+if manifest_cpis[0].get("amount_source") != "amount":
+    raise SystemExit("manifest missing SPL Token amount source")
+if manifest_cpis[0].get("decimals") != "9":
+    raise SystemExit("manifest missing SPL Token decimals")
 if not manifest_pda_actions or manifest_pda_actions[0].get("entrypoint") != "touch":
     raise SystemExit("manifest missing touch PDA action")
 if not manifest_cpi_actions or manifest_cpi_actions[0].get("entrypoint") != "touch":
@@ -166,6 +174,10 @@ for needle in [
     "solana.cpi.account_meta destination key_ptr account[4]",
     "solana.cpi.account_info source account[2]",
     "solana.cpi.account_info destination account[4]",
+    "solana.cpi.data spl-token.transfer_checked: u8 instruction=12, u64 amount, u8 decimals=9",
+    "solana.cpi.value amount source=amount placeholder=0",
+    "stb [r8+0], 12",
+    "stb [r8+9], 9",
     "solana.cpi.instruction record: C SolInstruction",
     "call sol_invoke_signed_c",
     "call sol_cpi_token_transfer",

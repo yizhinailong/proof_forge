@@ -34,6 +34,7 @@ structure CpiInvoke where
   signerSeeds : Array String := #[]
   protocol? : Option String := none
   dataLayout? : Option String := none
+  metadata : Array TargetMetadata := #[]
   signed : Bool := false
   entrypoint? : Option String := none
   deriving Repr, Inhabited
@@ -70,6 +71,11 @@ structure CpiAccountBinding where
   layout : AccountInputLayout
   deriving Repr, Inhabited
 
+structure CpiValueBinding where
+  name : String
+  absOff : Nat
+  deriving Repr, Inhabited
+
 def metadataValue? (metadata : Array TargetMetadata) (key : String) : Option String :=
   metadata.foldl
     (fun found item =>
@@ -103,7 +109,9 @@ def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=
   { pda with entrypoint? := none }
 
 def CpiInvoke.definition (cpi : CpiInvoke) : CpiInvoke :=
-  { cpi with entrypoint? := none }
+  { cpi with
+    entrypoint? := none
+    metadata := cpi.metadata.filter (fun item => item.key != "proof_forge.entrypoint") }
 
 def RuntimeAllocator.definition (allocator : RuntimeAllocator) : RuntimeAllocator :=
   { allocator with entrypoint? := none }
@@ -195,6 +203,7 @@ def cpiFromCall? (call : CapabilityCall) : Option CpiInvoke :=
       signerSeeds := metadataValue? call.metadata "solana.cpi.signer_seeds" |>.map splitComma |>.getD #[]
       protocol? := metadataValue? call.metadata "solana.cpi.protocol"
       dataLayout? := metadataValue? call.metadata "solana.cpi.data_layout"
+      metadata := call.metadata
       signed := call.operation == "solana.cpi.invoke_signed"
       entrypoint? := entrypoint? call
     }
@@ -357,6 +366,13 @@ def cpiAccountBinding? (bindings : Array CpiAccountBinding) (name : String) :
     Option CpiAccountBinding :=
   bindings.find? (fun binding => binding.name == name)
 
+def cpiValueBinding? (bindings : Array CpiValueBinding) (name : String) :
+    Option CpiValueBinding :=
+  bindings.find? (fun binding => binding.name == name)
+
+def cpiMetadataValue? (cpi : CpiInvoke) (key : String) : Option String :=
+  metadataValue? cpi.metadata key
+
 def inputPtr (dst : Reg) (off : Nat) : Array AstNode := #[
   .instruction { opcode := .mov64, dst := some dst, src := some .r1 },
   .instruction { opcode := .add64, dst := some dst, imm := some (.num off) }
@@ -383,6 +399,13 @@ def lowerZero32 (base : Reg) : Array AstNode := #[
   zeroStackQuad base 8,
   zeroStackQuad base 16,
   zeroStackQuad base 24
+]
+
+def lowerZero32At (base : Reg) (off : Nat) : Array AstNode := #[
+  zeroStackQuad base off,
+  zeroStackQuad base (off + 8),
+  zeroStackQuad base (off + 16),
+  zeroStackQuad base (off + 24)
 ]
 
 def lowerCpiSystemProgramId : Array AstNode :=
@@ -532,6 +555,86 @@ def lowerCpiAccountInfos (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) 
   cpi.accounts.mapIdx (lowerCpiAccountInfo bindings)
     |>.foldl (fun acc nodes => acc ++ nodes) #[]
 
+def lowerCpiU64Field (bindings : Array CpiValueBinding) (cpi : CpiInvoke)
+    (metadataKey fieldName : String) (fieldOff : Nat) : Array AstNode :=
+  match cpiMetadataValue? cpi metadataKey with
+  | some source =>
+      match source.toNat? with
+      | some value =>
+          #[
+            .comment s!"solana.cpi.value {fieldName} literal={value}",
+            loadImm .r3 value,
+            storeReg .stxdw .r8 fieldOff .r3
+          ]
+      | none =>
+          match cpiValueBinding? bindings source with
+          | some binding =>
+              #[
+                .comment s!"solana.cpi.value {fieldName} from state {source}",
+                .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num binding.absOff) },
+                storeReg .stxdw .r8 fieldOff .r3
+              ]
+          | none =>
+              #[
+                .comment s!"solana.cpi.value {fieldName} source={source} placeholder=0",
+                loadImm .r3 0,
+                storeReg .stxdw .r8 fieldOff .r3
+              ]
+  | none =>
+      #[
+        .comment s!"solana.cpi.value {fieldName} missing placeholder=0",
+        loadImm .r3 0,
+        storeReg .stxdw .r8 fieldOff .r3
+      ]
+
+def lowerCurrentProgramIdToData (fieldOff : Nat) : Array AstNode := #[
+  .comment "solana.cpi.value owner=current_program_id",
+  .instruction { opcode := .mov64, dst := some .r7, src := some .r1 },
+  .instruction { opcode := .add64, dst := some .r7, imm := some (.sym "INSTRUCTION_DATA_LEN") },
+  .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
+  .instruction { opcode := .add64, dst := some .r7, imm := some (.num 8) },
+  .instruction { opcode := .add64, dst := some .r7, src := some .r3 },
+  .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
+  storeReg .stxdw .r8 fieldOff .r3,
+  .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 8) },
+  storeReg .stxdw .r8 (fieldOff + 8) .r3,
+  .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 16) },
+  storeReg .stxdw .r8 (fieldOff + 16) .r3,
+  .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 24) },
+  storeReg .stxdw .r8 (fieldOff + 24) .r3
+]
+
+def lowerAccountKeyToData (source : String) (keyOff fieldOff : Nat) : Array AstNode :=
+  #[
+    .comment s!"solana.cpi.value owner from account {source}",
+  ] ++
+  inputPtr .r7 keyOff ++ #[
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
+    storeReg .stxdw .r8 fieldOff .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 8) },
+    storeReg .stxdw .r8 (fieldOff + 8) .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 16) },
+    storeReg .stxdw .r8 (fieldOff + 16) .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 24) },
+    storeReg .stxdw .r8 (fieldOff + 24) .r3
+  ]
+
+def lowerCpiOwnerField (accountBindings : Array CpiAccountBinding) (cpi : CpiInvoke)
+    (fieldOff : Nat) : Array AstNode :=
+  match cpiMetadataValue? cpi "solana.cpi.owner" with
+  | some "program" => lowerCurrentProgramIdToData fieldOff
+  | some source =>
+      match cpiAccountBinding? accountBindings source with
+      | some binding => lowerAccountKeyToData source binding.layout.keyOff fieldOff
+      | none =>
+          #[
+            .comment s!"solana.cpi.value owner source={source} placeholder=zero",
+          ] ++ lowerZero32At .r8 fieldOff
+  | none =>
+      #[
+        .comment "solana.cpi.value owner missing placeholder=zero",
+      ] ++ lowerZero32At .r8 fieldOff
+
 def lowerCpiSignerSeed (cpiName : String) (idx : Nat) (seed : String) : Array AstNode :=
   let seedOffset := cpiSignerSeedDataOffset + idx * cpiMaxSeedLen
   let tableOffset := cpiSignerSeedTableOffset + idx * 16
@@ -575,16 +678,79 @@ def lowerCpiSignerArgs (cpi : CpiInvoke) : Array AstNode :=
       loadImm .r5 1
     ]
 
-def lowerSystemTransferData : Array AstNode :=
+def lowerSystemTransferData (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
   #[
-    .comment "solana.cpi.data system.transfer: u32 discriminator=2, u64 lamports placeholder"
+    .comment "solana.cpi.data system.transfer: u32 discriminator=2, u64 lamports"
   ] ++
   stackPtr .r8 cpiInstructionDataOffset ++ #[
     loadImm .r3 2,
-    storeReg .stxw .r8 0 .r3,
+    storeReg .stxw .r8 0 .r3
+  ] ++
+  lowerCpiU64Field valueBindings cpi "solana.cpi.lamports_source" "lamports" 4
+
+def lowerSystemCreateAccountData (accountBindings : Array CpiAccountBinding)
+    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
+  #[
+    .comment "solana.cpi.data system.create_account: u32 discriminator=0, u64 lamports, u64 space, pubkey owner"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
     loadImm .r3 0,
-    storeReg .stxdw .r8 4 .r3
+    storeReg .stxw .r8 0 .r3
+  ] ++
+  lowerCpiU64Field valueBindings cpi "solana.cpi.lamports_source" "lamports" 4 ++
+  lowerCpiU64Field valueBindings cpi "solana.cpi.space_source" "space" 12 ++
+  lowerCpiOwnerField accountBindings cpi 20
+
+def cpiDecimals (cpi : CpiInvoke) : Nat :=
+  match cpiMetadataValue? cpi "solana.cpi.decimals" with
+  | some value => value.toNat?.getD 0
+  | none => 0
+
+def lowerSplTokenAmountData (valueBindings : Array CpiValueBinding)
+    (cpi : CpiInvoke) (layoutName : String) (tag dataLen : Nat)
+    (includeDecimals : Bool := false) : Array AstNode :=
+  #[
+    .comment (s!"solana.cpi.data {layoutName}: u8 instruction={tag}, u64 amount" ++
+      (if includeDecimals then s!", u8 decimals={cpiDecimals cpi}" else ""))
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 tag
+  ] ++
+  lowerCpiU64Field valueBindings cpi "solana.cpi.amount_source" "amount" 1 ++
+  (if includeDecimals then
+    #[storeImm .stb .r8 (dataLen - 1) (cpiDecimals cpi)]
+  else
+    #[])
+
+def lowerSplTokenRevokeData : Array AstNode :=
+  #[
+    .comment "solana.cpi.data spl-token.revoke: u8 instruction=5"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 5
   ]
+
+def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
+    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode × Nat :=
+  match cpi.dataLayout? with
+  | some "system.transfer" =>
+      (lowerSystemTransferData valueBindings cpi, 12)
+  | some "system.create_account" =>
+      (lowerSystemCreateAccountData accountBindings valueBindings cpi, 52)
+  | some "spl-token.transfer_checked" =>
+      (lowerSplTokenAmountData valueBindings cpi "spl-token.transfer_checked" 12 10 true, 10)
+  | some "spl-token.mint_to" =>
+      (lowerSplTokenAmountData valueBindings cpi "spl-token.mint_to" 7 9, 9)
+  | some "spl-token.burn" =>
+      (lowerSplTokenAmountData valueBindings cpi "spl-token.burn" 8 9, 9)
+  | some "spl-token.approve" =>
+      (lowerSplTokenAmountData valueBindings cpi "spl-token.approve" 4 9, 9)
+  | some "spl-token.revoke" =>
+      (lowerSplTokenRevokeData, 1)
+  | _ =>
+      (#[
+        .comment "generic CPI instruction data empty; protocol-specific ABI packing pending"
+      ], 0)
 
 def lowerCpiInstructionRecord (cpi : CpiInvoke) (dataLen : Nat) : Array AstNode :=
   #[
@@ -618,41 +784,47 @@ def lowerCpiCall (cpi : CpiInvoke) : Array AstNode :=
     .instruction { opcode := .exit }
   ]
 
-def lowerSystemTransferCpi (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
+def lowerSystemTransferCpi (accountBindings : Array CpiAccountBinding)
+    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
+  let (dataNodes, dataLen) := lowerCpiInstructionData accountBindings valueBindings cpi
   #[
     .comment "solana.cpi.pack system.transfer"
   ] ++
-  lowerCpiProgramId bindings cpi ++
-  lowerCpiFallbackPlaceholders bindings cpi ++
-  lowerCpiAccountMetas bindings cpi ++
-  lowerSystemTransferData ++
-  lowerCpiInstructionRecord cpi 12 ++
-  lowerCpiAccountInfos bindings cpi ++
+  lowerCpiProgramId accountBindings cpi ++
+  lowerCpiFallbackPlaceholders accountBindings cpi ++
+  lowerCpiAccountMetas accountBindings cpi ++
+  dataNodes ++
+  lowerCpiInstructionRecord cpi dataLen ++
+  lowerCpiAccountInfos accountBindings cpi ++
   lowerCpiSignerSeeds cpi ++
   lowerCpiCall cpi
 
-def lowerGenericCpiInvoke (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
+def lowerGenericCpiInvoke (accountBindings : Array CpiAccountBinding)
+    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
+  let (dataNodes, dataLen) := lowerCpiInstructionData accountBindings valueBindings cpi
   #[
-    .comment "generic CPI C ABI packing; protocol-specific instruction data pending"
+    .comment "generic CPI C ABI packing"
   ] ++
-  lowerCpiProgramId bindings cpi ++
-  lowerCpiFallbackPlaceholders bindings cpi ++
-  lowerCpiAccountMetas bindings cpi ++
-  lowerCpiInstructionRecord cpi 0 ++
-  lowerCpiAccountInfos bindings cpi ++
+  lowerCpiProgramId accountBindings cpi ++
+  lowerCpiFallbackPlaceholders accountBindings cpi ++
+  lowerCpiAccountMetas accountBindings cpi ++
+  dataNodes ++
+  lowerCpiInstructionRecord cpi dataLen ++
+  lowerCpiAccountInfos accountBindings cpi ++
   lowerCpiSignerSeeds cpi ++
   lowerCpiCall cpi
 
-def lowerCpiInvoke (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
+def lowerCpiInvoke (accountBindings : Array CpiAccountBinding)
+    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
   #[
     .blankLine,
     .comment s!"solana.cpi {cpi.name}: {cpi.program}.{cpi.instruction}",
     .label cpi.label
   ] ++
   if cpi.protocol? == some "system" && cpi.dataLayout? == some "system.transfer" then
-    lowerSystemTransferCpi bindings cpi
+    lowerSystemTransferCpi accountBindings valueBindings cpi
   else
-    lowerGenericCpiInvoke bindings cpi
+    lowerGenericCpiInvoke accountBindings valueBindings cpi
 
 def lowerPdaAction (action : PdaAction) : Array AstNode :=
   #[
@@ -697,8 +869,9 @@ def lowerRuntimeAllocator (allocator : RuntimeAllocator) : Array AstNode := #[
 def lowerRuntimeAllocators (extensions : ProgramExtensions) : Array AstNode :=
   extensions.allocators.foldl (fun acc allocator => acc ++ lowerRuntimeAllocator allocator) #[]
 
-def lowerProgramExtensionsWithAccountBindings
-    (bindings : Array CpiAccountBinding) (extensions : ProgramExtensions) : Array AstNode :=
+def lowerProgramExtensionsWithBindings
+    (accountBindings : Array CpiAccountBinding) (valueBindings : Array CpiValueBinding)
+    (extensions : ProgramExtensions) : Array AstNode :=
   if !hasExtensions extensions then
     #[]
   else if !hasSyscallExtensions extensions then
@@ -708,8 +881,12 @@ def lowerProgramExtensionsWithAccountBindings
     #[.blankLine, .comment "Solana SDK target extension syscall helpers"] ++
     lowerRuntimeAllocators extensions ++
     extensions.pdas.foldl (fun acc pda => acc ++ lowerPdaDerive pda) #[] ++
-    extensions.cpis.foldl (fun acc cpi => acc ++ lowerCpiInvoke bindings cpi) #[] ++
+    extensions.cpis.foldl (fun acc cpi => acc ++ lowerCpiInvoke accountBindings valueBindings cpi) #[] ++
     lowerExtensionErrors
+
+def lowerProgramExtensionsWithAccountBindings
+    (bindings : Array CpiAccountBinding) (extensions : ProgramExtensions) : Array AstNode :=
+  lowerProgramExtensionsWithBindings bindings #[] extensions
 
 def lowerProgramExtensions (extensions : ProgramExtensions) : Array AstNode :=
   lowerProgramExtensionsWithAccountBindings #[] extensions

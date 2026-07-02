@@ -701,13 +701,19 @@ partial progress is visible before the full acceptance criteria close:
       schema. The account list is emitted in both `manifest.toml` and
       `proof-forge-artifact.json`. Covered by `Tests/SolanaSdkManifest.lean`,
       `Tests/SolanaCpiPacking.lean`, and `scripts/solana/sdk-smoke.sh`.
-- [x] System Program transfer CPI packing skeleton emits the C ABI shape for
-      `sol_invoke_signed_c`: program id bytes, C `SolAccountMeta[]`,
-      `system.transfer` instruction data (`u32` discriminator + `u64`
-      lamports placeholder), C `SolInstruction`, `SolAccountInfo[]` entries
-      bound to the generated multi-account input layout, signer seed tables,
-      and syscall register setup. Covered by `Tests/SolanaCpiPacking.lean`,
-      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+- [x] System Program transfer/create-account and SPL Token CPI instruction-data
+      packing emit the standard instruction bytes into the C `SolInstruction`
+      payload. System transfer/create-account use bincode-style `u32`
+      discriminators plus `u64` lamports/space and owner pubkey fields; SPL
+      Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` use
+      the standard token instruction tags and amount/decimals layouts. Value
+      sources can bind to generated scalar state offsets or numeric literals,
+      with explicit placeholders for not-yet-decoded entrypoint parameters. The
+      CPI helper also packs program id bytes, C `SolAccountMeta[]`,
+      `SolAccountInfo[]` entries bound to the generated multi-account input
+      layout, signer seed tables, and syscall register setup. Covered by
+      `Tests/SolanaCpiPacking.lean`, `Tests/SolanaSdkManifest.lean`, and
+      `scripts/solana/sdk-smoke.sh`.
 
 Next Solana SDK completion items:
 
@@ -715,12 +721,12 @@ Next Solana SDK completion items:
   bump/instruction-data seeds; validate the resulting PDA against account
   pubkeys; add Web3.js fixtures that compare derived addresses with
   `PublicKey.findProgramAddressSync`.
-- System Program CPI runtime completion: lower the lamports source into the
-  instruction data, add `system.create_account` packing, and validate
-  balances/owners through Web3.js.
-- SPL Token CPI runtime packing: lower `spl-token.transfer_checked`,
-  `mint_to`, `burn`, `approve`, and `revoke` metadata into standard token
-  instruction bytes, then check behavior against the standard token program.
+- Entry instruction-data decoding: map entrypoint parameters and SDK
+  instruction-data fields into CPI value sources so `amount`/`lamports` no
+  longer need placeholders when they come from user input.
+- Live CPI validation: exercise System Program transfer/create-account and SPL
+  Token transfer_checked/mint_to/burn/approve/revoke against Surfpool/Web3.js,
+  then compare behavior with Rust/Pinocchio reference fixtures.
 - Runtime allocation lowering: route any future heap-backed SDK structures
   through `runtime.allocator`, emit real bump-pointer allocation code when
   dynamic allocation is required, and reject such structures under

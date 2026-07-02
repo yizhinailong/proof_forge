@@ -1298,6 +1298,26 @@ def solanaCpiJson (cpi : ProofForge.Backend.Solana.Extension.CpiInvoke) : String
     ("signerSeeds", jsonStringArray cpi.signerSeeds),
     ("protocol", match cpi.protocol? with | some protocol => jsonString protocol | none => "null"),
     ("dataLayout", match cpi.dataLayout? with | some layout => jsonString layout | none => "null"),
+    ("lamportsSource",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.lamports_source" with
+      | some value => jsonString value
+      | none => "null"),
+    ("spaceSource",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.space_source" with
+      | some value => jsonString value
+      | none => "null"),
+    ("ownerSource",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.owner" with
+      | some value => jsonString value
+      | none => "null"),
+    ("amountSource",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.amount_source" with
+      | some value => jsonString value
+      | none => "null"),
+    ("decimals",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.decimals" with
+      | some value => jsonString value
+      | none => "null"),
     ("signed", jsonBool cpi.signed)
   ]
 

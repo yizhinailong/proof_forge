@@ -541,6 +541,12 @@ def buildCpiAccountBindings (accounts : Array AccountEntry)
     idx := idx + 1
   return bindings
 
+def buildCpiValueBindings (module : IR.Module) (stateDataOff : Nat) : Array CpiValueBinding :=
+  buildStateOffsetsAtBase module stateDataOff |>.map fun field => {
+    name := field.id
+    absOff := field.absOff
+  }
+
 partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
     Except LowerError (Array AstNode) := do
   validateCapabilities module
@@ -630,10 +636,14 @@ def lowerModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.Capabilit
   let extensions := ProgramExtensions.fromPlan plan
   let schema := buildModuleInputSchema module extensions
   let accountBindings := buildCpiAccountBindings schema.accounts schema.inputLayout.accounts
+  let valueBindings :=
+    match schema.inputLayout.accounts[0]? with
+    | some accountLayout => buildCpiValueBindings module accountLayout.dataStart
+    | none => #[]
   let nodes ← lowerModuleCore module extensions
   .ok (nodes ++
-    ProofForge.Backend.Solana.Extension.lowerProgramExtensionsWithAccountBindings
-      accountBindings extensions)
+    ProofForge.Backend.Solana.Extension.lowerProgramExtensionsWithBindings
+      accountBindings valueBindings extensions)
 
 def renderModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.CapabilityPlan) :
     Except LowerError String := do

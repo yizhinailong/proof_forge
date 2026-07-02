@@ -19,6 +19,7 @@ def contains (haystack needle : String) : Bool :=
 def systemTransferSpec : ProofForge.Contract.ContractSpec :=
   build "SolanaSystemCpi" do
     scalarState "nonce" .u64
+    scalarState "lamports" .u64
 
     systemTransfer
       "lamport_transfer"
@@ -32,6 +33,30 @@ def systemTransferSpec : ProofForge.Contract.ContractSpec :=
         "payer"
         "recipient"
         "lamports"
+      effect (storageScalarWrite "nonce" (u64 1))
+
+def systemCreateAccountSpec : ProofForge.Contract.ContractSpec :=
+  build "SolanaSystemCreateAccountCpi" do
+    scalarState "nonce" .u64
+    scalarState "lamports" .u64
+    scalarState "space" .u64
+
+    systemCreateAccount
+      "create_state"
+      "payer"
+      "new_state"
+      "lamports"
+      "space"
+      "program"
+
+    entrySelector "create" "02" do
+      invokeSystemCreateAccount
+        "create_state"
+        "payer"
+        "new_state"
+        "lamports"
+        "space"
+        "program"
       effect (storageScalarWrite "nonce" (u64 1))
 
 def main : IO UInt32 := do
@@ -71,8 +96,10 @@ def main : IO UInt32 := do
         "assembly missing recipient account info packing"
       require (!contains asm "solana.cpi.account_info recipient placeholder")
         "recipient account info should use input account layout, not placeholder"
-      require (contains asm "solana.cpi.data system.transfer: u32 discriminator=2, u64 lamports placeholder")
+      require (contains asm "solana.cpi.data system.transfer: u32 discriminator=2, u64 lamports")
         "assembly missing system transfer data packing marker"
+      require (contains asm "solana.cpi.value lamports from state lamports")
+        "assembly missing system transfer lamports state binding"
       require (contains asm "stxw [r8+0], r3")
         "assembly missing system transfer discriminator store"
       require (contains asm "stxdw [r8+4], r3")
@@ -93,6 +120,26 @@ def main : IO UInt32 := do
         "assembly missing sol_invoke_signed_c syscall"
   | .error err =>
       throw <| IO.userError s!"Solana CPI packing render failed: {err.render}"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec "system-create-cpi" systemCreateAccountSpec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "create-account package missing sBPF assembly"
+      let asm := asmFile.contents
+      require (contains asm "sol_cpi_create_state:")
+        "assembly missing System create_account CPI helper label"
+      require (contains asm "solana.cpi.data system.create_account: u32 discriminator=0, u64 lamports, u64 space, pubkey owner")
+        "assembly missing system.create_account data packing marker"
+      require (contains asm "solana.cpi.value lamports from state lamports")
+        "assembly missing create_account lamports state binding"
+      require (contains asm "solana.cpi.value space from state space")
+        "assembly missing create_account space state binding"
+      require (contains asm "solana.cpi.value owner=current_program_id")
+        "assembly missing create_account owner program id binding"
+      require (contains asm "mov64 r3, 52")
+        "assembly missing system.create_account data length"
+  | .error err =>
+      throw <| IO.userError s!"Solana create-account CPI packing render failed: {err.render}"
 
   IO.println "solana-cpi-packing: ok"
   return 0

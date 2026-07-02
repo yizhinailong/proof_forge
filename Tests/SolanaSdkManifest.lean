@@ -56,6 +56,10 @@ def main : IO UInt32 := do
   require (contains manifest "signed = true") "manifest missing signed CPI marker"
   require (contains manifest "data_layout = \"spl-token.transfer_checked\"")
     "manifest missing CPI data layout"
+  require (contains manifest "amount_source = \"amount\"")
+    "manifest missing CPI amount source"
+  require (contains manifest "decimals = \"9\"")
+    "manifest missing CPI decimals"
   require (contains manifest "{ name = \"source\", access = \"writable\", signer = \"none\" }")
     "manifest missing writable source account"
   require (contains manifest "{ name = \"source\", access = \"writable\", signer = \"none\" },")
@@ -135,6 +139,14 @@ def main : IO UInt32 := do
         "package assembly missing source account info binding"
       require (contains asmFile.contents "solana.cpi.account_info destination account[4]")
         "package assembly missing destination account info binding"
+      require (contains asmFile.contents "solana.cpi.data spl-token.transfer_checked: u8 instruction=12, u64 amount, u8 decimals=9")
+        "package assembly missing SPL Token transfer_checked data packing"
+      require (contains asmFile.contents "solana.cpi.value amount source=amount placeholder=0")
+        "package assembly missing SPL Token amount source marker"
+      require (contains asmFile.contents "stb [r8+0], 12")
+        "package assembly missing SPL Token transfer_checked discriminator store"
+      require (contains asmFile.contents "stb [r8+9], 9")
+        "package assembly missing SPL Token transfer_checked decimals store"
       require (contains asmFile.contents "call sol_invoke_signed_c")
         "package assembly missing CPI syscall"
       require (contains asmFile.contents "call sol_cpi_token_transfer")

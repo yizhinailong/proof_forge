@@ -108,7 +108,7 @@ test when the syscall changes observable chain behavior.
 |---|---|---|
 | Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
 | PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; static ASCII seed byte buffers and Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; assembly builds | Add typed UTF-8/account-pubkey/bump seed packing, validate output account/pubkey, add Web3.js PDA fixture |
-| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer and generic CPI helpers pack C `SolInstruction`, `SolAccountMeta[]`, bound `SolAccountInfo[]`, and signer seed tables; assembly builds | Lower real System/SPL Token instruction data, then compare CPI behavior against Rust/Pinocchio |
+| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, and signer seed tables; assembly builds | Add entrypoint parameter decoding and compare live CPI behavior against Rust/Pinocchio |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Documented only | Lower `events.emit` to structured logs and assert logs via Web3.js transaction metadata |
@@ -456,19 +456,23 @@ helpers emit `solana.cpi.protocol`, `solana.cpi.data_layout`, account metas,
 signer seeds, and instruction-data sources into the capability plan, manifest,
 and artifact metadata.
 
-`system.transfer` now also emits the C ABI packing skeleton for
-`sol_invoke_signed_c`: program id bytes, C `SolAccountMeta[]`, the
-`u32 discriminator=2 + u64 lamports` instruction-data layout, C
-`SolInstruction`, bound `SolAccountInfo[]`, optional signer seed tables, and
-the syscall register contract. Program ids, account meta pubkeys, and
-`SolAccountInfo` key/lamports/data/owner/rent/flag fields are sourced from the
-generated multi-account input layout when the account appears in the module
-schema; placeholders remain only as a fallback for unbound accounts and for
-instruction data values that are not lowered yet.
+System and SPL Token helpers now emit the C ABI packing skeleton for
+`sol_invoke_signed_c`: program id bytes, C `SolAccountMeta[]`, standard
+instruction-data bytes, C `SolInstruction`, bound `SolAccountInfo[]`, optional
+signer seed tables, and the syscall register contract. `system.transfer` uses
+the bincode-style `u32 discriminator=2 + u64 lamports` layout;
+`system.create_account` uses `u32 discriminator=0 + u64 lamports + u64 space +
+owner pubkey`; SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and
+`revoke` use the standard token instruction tags and amount/decimals layouts.
+Program ids, account meta pubkeys, and `SolAccountInfo`
+key/lamports/data/owner/rent/flag fields are sourced from the generated
+multi-account input layout when the account appears in the module schema. CPI
+value sources can bind to scalar state offsets or numeric literals; placeholders
+remain for entrypoint parameters until instruction-data decoding lands.
 
-Remaining work: lower dynamic lamports and SPL Token instruction-data bytes,
-add dynamic per-entrypoint account parsing, add `system.create_account`,
-return-data decoding, and runtime tests that exercise a live CPI path.
+Remaining work: decode entrypoint parameters into CPI value sources, add
+dynamic per-entrypoint account parsing, return-data decoding, and runtime tests
+that exercise live CPI paths.
 
 PDA helper lowering:
 1. Allocate stack space for seed data + result buffer (32 byte).
