@@ -1,50 +1,108 @@
-import ProofForge.Contract.Builder
-import ProofForge.Solana
+import ProofForge.Contract.Surface
+import ProofForge.Solana.Surface
 
 namespace ProofForge.Solana.Examples.Vault
 
-open ProofForge.Contract.Builder
-open ProofForge.Solana
+open ProofForge.Contract.Surface
+open ProofForge.Solana.Surface
+
+namespace State
+
+state_ref nonce : .u64
+
+end State
+
+namespace Local
+
+binding_ref amount : .u64
+binding_ref vault_bump : .u64
+binding_ref n : .u64
+
+end Local
+
+namespace Account
+
+account_ref vault_account
+account_ref source
+account_ref mint
+account_ref destination
+account_ref authority
+account_ref spl_token
+
+end Account
+
+namespace Pda
+
+pda_ref vault
+
+end Pda
+
+namespace Cpi
+
+cpi_ref token_transfer
+
+end Cpi
+
+namespace Method
+
+method_ref «initialize» : #[]
+method_ref touch : #[]
+
+end Method
+
+def vaultSeeds : Array String :=
+  #[ProofForge.Solana.Surface.literalSeed "vault",
+    ProofForge.Solana.Surface.accountSeed Account.authority]
+
+def vaultSignerSeeds : Array String :=
+  #[ProofForge.Solana.Surface.pdaName Pda.vault,
+    ProofForge.Solana.Surface.bindingName Local.vault_bump]
 
 def spec : ProofForge.Contract.ContractSpec :=
-  build "SolanaVault" do
-    scalarState "nonce" .u64
-    bumpAllocator
+  contract "SolanaVault" do
+    scalar State.nonce
+    ProofForge.Solana.Surface.bumpAllocator
+    ProofForge.Solana.Surface.writableAccount Account.vault_account (owner := "program")
+    ProofForge.Solana.Surface.writableAccount Account.source
+    ProofForge.Solana.Surface.readonlyAccount Account.mint
+    ProofForge.Solana.Surface.writableAccount Account.destination
+    ProofForge.Solana.Surface.readonlyAccount Account.authority
+    ProofForge.Solana.Surface.readonlyAccount Account.spl_token (owner := "executable")
 
-    pdaAccount "vault" #[literalSeed "vault", accountSeed "authority"]
-      (bump? := some "vault_bump")
-      (account? := some "vault_account")
+    ProofForge.Solana.Surface.pdaAccount Pda.vault vaultSeeds
+      (bump? := some Local.vault_bump)
+      (account? := some Account.vault_account)
       (isSigner := true)
 
-    splTokenTransferChecked
-      "token_transfer"
-      "source"
-      "mint"
-      "destination"
-      "authority"
-      "amount"
+    ProofForge.Solana.Surface.splTokenTransferChecked
+      Cpi.token_transfer
+      Account.source
+      Account.mint
+      Account.destination
+      Account.authority
+      Local.amount
       9
-      (signerSeeds := #["vault", "vault_bump"])
+      (signerSeeds := vaultSignerSeeds)
 
-    entrySelector "initialize" "afaf6d1f" do
-      effect (storageScalarWrite "nonce" (u64 0))
+    entry Method.«initialize» do
+      write State.nonce (u64 0)
 
-    entrySelector "touch" "62de7396" do
-      derivePda "vault" #[literalSeed "vault", accountSeed "authority"]
-        (bump? := some "vault_bump")
-        (account? := some "vault_account")
+    entry Method.touch do
+      ProofForge.Solana.Surface.derivePda Pda.vault vaultSeeds
+        (bump? := some Local.vault_bump)
+        (account? := some Account.vault_account)
         (isSigner := true)
-      invokeSplTokenTransferChecked
-        "token_transfer"
-        "source"
-        "mint"
-        "destination"
-        "authority"
-        "amount"
+      ProofForge.Solana.Surface.invokeSplTokenTransferChecked
+        Cpi.token_transfer
+        Account.source
+        Account.mint
+        Account.destination
+        Account.authority
+        Local.amount
         9
-        (signerSeeds := #["vault", "vault_bump"])
-      letBind "n" .u64 (storageScalarRead "nonce")
-      effect (storageScalarWrite "nonce" (add (localVar "n") (u64 1)))
+        (signerSeeds := vaultSignerSeeds)
+      bind Local.n (read State.nonce)
+      write State.nonce (add (ref Local.n) (u64 1))
 
 def module : ProofForge.IR.Module :=
   spec.module

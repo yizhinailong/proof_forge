@@ -32,6 +32,13 @@ structure AccountMeta where
   signer : SignerPolicy := .none
   deriving Repr
 
+structure AccountConstraint where
+  name : String
+  access : AccountAccess := .readOnly
+  signer : SignerPolicy := .none
+  owner : String := "any"
+  deriving Repr
+
 structure PdaBinding where
   name : String
   seeds : Array String := #[]
@@ -303,6 +310,15 @@ def paramSeed (param : String) : String :=
 def AccountMeta.encode (account : AccountMeta) : String :=
   account.name ++ ":" ++ account.access.id ++ ":" ++ account.signer.id
 
+def AccountConstraint.metadata (account : AccountConstraint) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "account",
+    kv "solana.account.name" account.name,
+    kv "solana.account.access" account.access.id,
+    kv "solana.account.signer" account.signer.id,
+    kv "solana.account.owner" account.owner
+  ]
+
 def account (name : String) (access : AccountAccess := .readOnly)
     (signerPolicy : SignerPolicy := .none) : AccountMeta := {
   name := name
@@ -324,6 +340,30 @@ def writableSignerAccount (name : String) : AccountMeta :=
 
 def pdaSignerAccount (name : String) (access : AccountAccess := .readOnly) : AccountMeta :=
   account name access .pdaSigner
+
+def accountConstraint (name : String) (access : AccountAccess := .readOnly)
+    (signerPolicy : SignerPolicy := .none) (owner : String := "any") :
+    ProofForge.Contract.Builder.ModuleM Unit := do
+  let account : AccountConstraint := { name, access, signer := signerPolicy, owner }
+  ProofForge.Contract.Builder.capability .accountExplicit "solana.account.declare"
+    (source? := some name)
+    (metadata := account.metadata)
+
+def readonlyAccountConstraint (name : String) (owner : String := "any") :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  accountConstraint name .readOnly .none owner
+
+def writableAccountConstraint (name : String) (owner : String := "any") :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  accountConstraint name .writable .none owner
+
+def signerAccountConstraint (name : String) (access : AccountAccess := .readOnly)
+    (owner : String := "any") : ProofForge.Contract.Builder.ModuleM Unit :=
+  accountConstraint name access .signer owner
+
+def writableSignerAccountConstraint (name : String) (owner : String := "any") :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  accountConstraint name .writable .signer owner
 
 def PdaBinding.metadata (binding : PdaBinding) : Array TargetMetadata :=
   #[

@@ -1374,6 +1374,15 @@ def solanaExtensionAccountJson (account : ProofForge.Backend.Solana.Extension.Ac
     ("signer", jsonString account.signer)
   ]
 
+def solanaDeclaredAccountJson
+    (account : ProofForge.Backend.Solana.Extension.DeclaredAccount) : String :=
+  jsonObject #[
+    ("name", jsonString account.name),
+    ("access", jsonString account.access),
+    ("signer", jsonString account.signer),
+    ("owner", jsonString account.owner)
+  ]
+
 def solanaPdaSeedJson (seed : ProofForge.Backend.Solana.Extension.PdaSeed) : String :=
   jsonObject #[
     ("kind", jsonString seed.kind.id),
@@ -1575,6 +1584,7 @@ def solanaInstructionsJson (module : ProofForge.IR.Module)
 def solanaExtensionsJson (plan : ProofForge.Target.CapabilityPlan) : String :=
   let extensions := ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan
   jsonObject #[
+    ("accounts", jsonArray (extensions.accounts.map solanaDeclaredAccountJson)),
     ("allocators", jsonArray (extensions.allocators.map solanaAllocatorJson)),
     ("pdas", jsonArray (extensions.pdas.map solanaPdaJson)),
     ("cpis", jsonArray (extensions.cpis.map solanaCpiJson)),

@@ -25,6 +25,11 @@ def main : IO UInt32 := do
     | .error err => throw <| IO.userError s!"Solana Vault SDK routing failed: {err.render}"
 
   let manifest := ProofForge.Backend.Solana.Manifest.renderManifestWithPlan spec.module plan
+  require (contains manifest "[[solana.account]]") "manifest missing Solana declared account section"
+  require (contains manifest "name = \"vault_account\"\naccess = \"writable\"\nsigner = \"none\"\nowner = \"program\"")
+    "manifest missing declared vault_account constraints"
+  require (contains manifest "name = \"spl_token\"\naccess = \"readonly\"\nsigner = \"none\"\nowner = \"executable\"")
+    "manifest missing declared spl_token executable constraint"
   require (contains manifest "[[solana.allocator]]") "manifest missing Solana allocator section"
   require (contains manifest "kind = \"bump\"") "manifest missing bump allocator kind"
   require (contains manifest "model = \"downward-bump\"") "manifest missing bump allocator model"
@@ -98,6 +103,10 @@ def main : IO UInt32 := do
         | throw <| IO.userError "package missing sBPF assembly"
       require (contains manifestFile.contents "[[solana.pda]]")
         "package manifest missing Solana PDA section"
+      require (contains manifestFile.contents "[[solana.account]]")
+        "package manifest missing Solana declared account section"
+      require (contains manifestFile.contents "name = \"source\"\naccess = \"writable\"\nsigner = \"none\"\nowner = \"any\"")
+        "package manifest missing declared source writable account"
       require (contains manifestFile.contents "typed_seeds = [")
         "package manifest missing PDA typed seeds"
       require (contains manifestFile.contents "[[solana.allocator]]")

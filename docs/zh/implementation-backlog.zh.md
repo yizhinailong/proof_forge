@@ -509,6 +509,13 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   input、local、method name 或 event name 的 raw string。测试会先断言派生出的
   snake-case state/parameter/method 名称和 PascalCase event 名称，再把同一份
   source 路由到 EVM 与 Solana。
+- Solana typed account surface：
+  `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
+  `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
+  CPI helper。`ProofForge.Solana.Examples.Vault` 使用这些 refs，不再直接写 raw
+  account/PDA/CPI 字符串；target extension 会把声明式 account constraint 发射到
+  `manifest.toml`、`proof-forge-artifact.json`（`solanaExtensions.accounts`）
+  以及生成的 account-validation schema。
 - Target-stage ABI selector hydration：
   ValueVault CLI emit path 会在 EVM Yul/bytecode 发射前，根据每个
   entrypoint 的 Solidity ABI signature 通过 `cast sig` 派生 EVM selector，
@@ -551,10 +558,9 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
    setup flows，以及 Token-2022 extension routes，同时不把这些细节上移到
    portable IR。
 6. Developer ergonomics 和框架层体验（每轮 3-5 天）：把新的 surface 层继续推进到
-   真正的 Learn-level contract syntax，并增加 account constraint helper、
-   typed account/data wrapper、IDL/client generation、更完整 SPL/Token-2022
-   helper 覆盖，以及能把 generated assembly failure 映射回 SDK declaration
-   的诊断。
+   真正的 Learn-level contract syntax，并继续补更丰富的 typed account/data
+   wrapper、IDL/client generation、更完整 SPL/Token-2022 helper 覆盖，以及能把
+   generated assembly failure 映射回 SDK declaration 的诊断。
 
 最快可信路线是：alpha observability baseline 现在已经落地；下一步先关闭更丰富的
 beta syscall 与 return-data 切片，再移除剩余架构捷径，最后补

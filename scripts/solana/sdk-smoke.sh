@@ -61,6 +61,7 @@ if missing:
     raise SystemExit(f"missing capabilities in artifact: {missing}")
 
 allocators = artifact.get("solanaExtensions", {}).get("allocators", [])
+account_decls = artifact.get("solanaExtensions", {}).get("accounts", [])
 instructions = artifact.get("solanaInstructions", [])
 pdas = artifact.get("solanaExtensions", {}).get("pdas", [])
 cpis = artifact.get("solanaExtensions", {}).get("cpis", [])
@@ -74,6 +75,16 @@ if allocators[0].get("heapStart") != "0x300000000":
     raise SystemExit("artifact missing Solana heap start")
 if allocators[0].get("heapBytes") != "32768":
     raise SystemExit("artifact missing Solana heap size")
+expected_account_decls = [
+    {"name": "vault_account", "access": "writable", "signer": "none", "owner": "program"},
+    {"name": "source", "access": "writable", "signer": "none", "owner": "any"},
+    {"name": "mint", "access": "readonly", "signer": "none", "owner": "any"},
+    {"name": "destination", "access": "writable", "signer": "none", "owner": "any"},
+    {"name": "authority", "access": "readonly", "signer": "none", "owner": "any"},
+    {"name": "spl_token", "access": "readonly", "signer": "none", "owner": "executable"},
+]
+if account_decls != expected_account_decls:
+    raise SystemExit(f"artifact account declarations mismatch: {account_decls}")
 if len(instructions) != 2:
     raise SystemExit(f"artifact instruction schema count mismatch: {len(instructions)}")
 if any(instruction.get("minDataLen") != 1 for instruction in instructions):
@@ -124,6 +135,7 @@ if not cpi_actions or cpi_actions[0].get("entrypoint") != "touch" or cpi_actions
     raise SystemExit("artifact missing touch CPI action")
 
 manifest_allocators = manifest.get("solana", {}).get("allocator", [])
+manifest_account_decls = manifest.get("solana", {}).get("account", [])
 manifest_instructions = manifest.get("instruction", [])
 manifest_pdas = manifest.get("solana", {}).get("pda", [])
 manifest_cpis = manifest.get("solana", {}).get("cpi", [])
@@ -137,6 +149,8 @@ if manifest_allocators[0].get("heap_start") != "0x300000000":
     raise SystemExit("manifest missing Solana heap start")
 if manifest_allocators[0].get("heap_bytes") != 32768:
     raise SystemExit("manifest missing Solana heap size")
+if manifest_account_decls != expected_account_decls:
+    raise SystemExit(f"manifest account declarations mismatch: {manifest_account_decls}")
 if len(manifest_instructions) != 2:
     raise SystemExit(f"manifest instruction schema count mismatch: {len(manifest_instructions)}")
 if any(instruction.get("min_data_len") != 1 for instruction in manifest_instructions):

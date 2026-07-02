@@ -17,6 +17,14 @@ structure AccountMeta where
   signer : String
   deriving Repr, Inhabited
 
+structure DeclaredAccount where
+  name : String
+  access : String
+  signer : String
+  owner : String
+  entrypoint? : Option String := none
+  deriving Repr, Inhabited
+
 structure PdaDerive where
   name : String
   seeds : Array String := #[]
@@ -267,6 +275,7 @@ structure CpiAction where
   deriving Repr, Inhabited
 
 structure ProgramExtensions where
+  accounts : Array DeclaredAccount := #[]
   allocators : Array RuntimeAllocator := #[]
   pdas : Array PdaDerive := #[]
   cpis : Array CpiInvoke := #[]
@@ -412,6 +421,53 @@ def CpiInvoke.definition (cpi : CpiInvoke) : CpiInvoke :=
 
 def RuntimeAllocator.definition (allocator : RuntimeAllocator) : RuntimeAllocator :=
   { allocator with entrypoint? := none }
+
+def DeclaredAccount.definition (account : DeclaredAccount) : DeclaredAccount :=
+  { account with entrypoint? := none }
+
+def mergeDeclaredAccess (existing incoming : String) : String :=
+  if existing == "writable" || incoming == "writable" then
+    "writable"
+  else
+    "readonly"
+
+def mergeDeclaredSigner (existing incoming : String) : String :=
+  if existing == "signer" || incoming == "signer" then
+    "signer"
+  else if existing == "pda-signer" || incoming == "pda-signer" then
+    "pda-signer"
+  else
+    "none"
+
+def mergeDeclaredOwner (existing incoming : String) : String :=
+  if existing == incoming then
+    existing
+  else if existing == "any" then
+    incoming
+  else if incoming == "any" then
+    existing
+  else
+    existing
+
+def DeclaredAccount.merge (existing incoming : DeclaredAccount) : DeclaredAccount := {
+  existing with
+  access := mergeDeclaredAccess existing.access incoming.access
+  signer := mergeDeclaredSigner existing.signer incoming.signer
+  owner := mergeDeclaredOwner existing.owner incoming.owner
+}
+
+def ProgramExtensions.pushAccountDefinition (acc : ProgramExtensions)
+    (account : DeclaredAccount) : ProgramExtensions :=
+  let account := account.definition
+  if acc.accounts.any (fun existing => existing.name == account.name) then
+    { acc with
+      accounts := acc.accounts.map fun existing =>
+        if existing.name == account.name then
+          existing.merge account
+        else
+          existing }
+  else
+    { acc with accounts := acc.accounts.push account }
 
 def ProgramExtensions.pushAllocatorDefinition (acc : ProgramExtensions)
     (allocator : RuntimeAllocator) : ProgramExtensions :=
@@ -582,6 +638,24 @@ def ProgramExtensions.addPubkeyLog (acc : ProgramExtensions)
 def ProgramExtensions.addDataLog (acc : ProgramExtensions)
     (action : DataLogAction) : ProgramExtensions :=
   acc.pushDataLogAction action
+
+def ProgramExtensions.addDeclaredAccount (acc : ProgramExtensions)
+    (account : DeclaredAccount) : ProgramExtensions :=
+  acc.pushAccountDefinition account
+
+def declaredAccountFromCall? (call : CapabilityCall) : Option DeclaredAccount :=
+  if call.capability == .accountExplicit &&
+      metadataValue? call.metadata "solana.extension" == some "account" then
+    let name := metadataValue? call.metadata "solana.account.name" |>.getD call.operation
+    some {
+      name := name
+      access := metadataValue? call.metadata "solana.account.access" |>.getD "readonly"
+      signer := metadataValue? call.metadata "solana.account.signer" |>.getD "none"
+      owner := metadataValue? call.metadata "solana.account.owner" |>.getD "any"
+      entrypoint? := entrypoint? call
+    }
+  else
+    none
 
 def allocatorFromCall? (call : CapabilityCall) : Option RuntimeAllocator :=
   if call.capability == .runtimeAllocator then
@@ -791,6 +865,10 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
   plan.calls.foldl
     (fun acc call =>
       let acc :=
+        match declaredAccountFromCall? call with
+        | some account => acc.addDeclaredAccount account
+        | none => acc
+      let acc :=
         match allocatorFromCall? call with
         | some allocator => acc.addAllocator allocator
         | none => acc
@@ -840,7 +918,8 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
     {}
 
 def hasExtensions (extensions : ProgramExtensions) : Bool :=
-  extensions.allocators.size > 0 ||
+  extensions.accounts.size > 0 ||
+    extensions.allocators.size > 0 ||
     extensions.pdas.size > 0 ||
     extensions.cpis.size > 0 ||
     extensions.memoryActions.size > 0 ||

@@ -204,6 +204,17 @@ def cpiProgramAccount (cpi : CpiInvoke) : AccountEntry := {
 def cpiProgramAccountRequired (_cpi : CpiInvoke) : Bool :=
   true
 
+def declaredInstructionSigner (account : DeclaredAccount) : Bool :=
+  account.signer == "signer"
+
+def declaredInstructionAccount (account : DeclaredAccount) : AccountEntry := {
+  name := account.name
+  index := 0
+  signer := declaredInstructionSigner account
+  writable := account.access == "writable"
+  owner := account.owner
+}
+
 def pubkeyLogAccount (action : PubkeyLogAction) : AccountEntry := {
   name := action.account
   index := 0
@@ -280,6 +291,12 @@ def pushEntrypointPubkeyLogAccounts (extensions : ProgramExtensions) (entrypoint
         accounts)
     accounts
 
+def pushDeclaredAccounts (accounts : Array AccountEntry)
+    (declaredAccounts : Array DeclaredAccount) : Array AccountEntry :=
+  declaredAccounts.foldl
+    (fun accounts account => pushAccount accounts (declaredInstructionAccount account))
+    accounts
+
 def pushCpiAccounts (accounts : Array AccountEntry) (cpi : CpiInvoke) : Array AccountEntry :=
   let accounts :=
     cpi.accounts.foldl
@@ -296,7 +313,8 @@ def buildInstructionAccounts (module : Module) (extensions : ProgramExtensions)
   let accounts := pushEntrypointPdaAccounts extensions entrypoint accounts
   let accounts := pushEntrypointCpiAccounts extensions entrypoint accounts
   let accounts := pushEntrypointPubkeyLogAccounts extensions entrypoint accounts
-  pushEntrypointPdaSeedAccounts extensions entrypoint accounts
+  let accounts := pushEntrypointPdaSeedAccounts extensions entrypoint accounts
+  pushDeclaredAccounts accounts extensions.accounts
 
 def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Array AccountEntry :=
   let accounts := pushAccount #[] (defaultStateAccount module)
@@ -309,7 +327,8 @@ def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Arr
     (fun accounts action =>
       if action.account.isEmpty then accounts else pushAccount accounts (pubkeyLogAccount action))
     accounts
-  extensions.pdas.foldl pushPdaSeedAccounts accounts
+  let accounts := extensions.pdas.foldl pushPdaSeedAccounts accounts
+  pushDeclaredAccounts accounts extensions.accounts
 
 def tomlBool (value : Bool) : String :=
   if value then "true" else "false"
@@ -344,6 +363,13 @@ def renderAllocator (allocator : RuntimeAllocator) : String :=
   "model = " ++ tomlString allocator.model ++ "\n" ++
   "heap_start = " ++ tomlString allocator.heapStart ++ "\n" ++
   "heap_bytes = " ++ allocator.heapBytes ++ "\n"
+
+def renderDeclaredAccount (account : DeclaredAccount) : String :=
+  "[[solana.account]]\n" ++
+  "name = " ++ tomlString account.name ++ "\n" ++
+  "access = " ++ tomlString account.access ++ "\n" ++
+  "signer = " ++ tomlString account.signer ++ "\n" ++
+  "owner = " ++ tomlString account.owner ++ "\n"
 
 def renderPda (pda : PdaDerive) : String :=
   let optionalFields :=
@@ -521,6 +547,8 @@ def renderExtensions (extensions : ProgramExtensions) : String :=
     ""
   else
     "\n# Solana SDK target extension metadata\n" ++
+    String.intercalate "\n" (extensions.accounts.map renderDeclaredAccount).toList ++
+    (if extensions.accounts.size > 0 && (extensions.allocators.size > 0 || extensions.pdas.size > 0 || extensions.cpis.size > 0 || hasEntrypointActions extensions) then "\n" else "") ++
     String.intercalate "\n" (extensions.allocators.map renderAllocator).toList ++
     (if extensions.allocators.size > 0 && (extensions.pdas.size > 0 || extensions.cpis.size > 0 || hasEntrypointActions extensions) then "\n" else "") ++
     String.intercalate "\n" (extensions.pdas.map renderPda).toList ++

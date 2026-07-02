@@ -964,6 +964,13 @@ Completed developer-surface slices:
   raw strings for state slots, inputs, locals, method names, or event names.
   Tests assert the derived snake-case state/parameter/method names and
   PascalCase event names before routing the same source across EVM and Solana.
+- Solana typed account surface:
+  `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
+  declarations plus typed PDA seed, account constraint, and SPL/System CPI
+  helpers. `ProofForge.Solana.Examples.Vault` uses those refs instead of raw
+  account/PDA/CPI strings, and the target extension emits declared account
+  constraints into `manifest.toml`, `proof-forge-artifact.json`
+  (`solanaExtensions.accounts`), and the generated account-validation schema.
 - Target-stage ABI selector hydration:
   the ValueVault CLI emit path derives EVM selectors from each entrypoint's
   Solidity ABI signature with `cast sig` immediately before EVM Yul/bytecode
@@ -1014,10 +1021,10 @@ Remaining priority slices:
    setup flows, and Token-2022 extension routes without moving those details
    into portable IR.
 6. Developer ergonomics and framework surface (3-5 days per iteration): extend
-   the new surface layer toward real Learn-level contract syntax with account
-   constraint helpers, typed account/data wrappers, IDL/client generation,
-   richer SPL/Token-2022 helper coverage, and diagnostics that map generated
-   assembly failures back to SDK declarations.
+   the new surface layer toward real Learn-level contract syntax with richer
+   typed account/data wrappers, IDL/client generation, broader SPL/Token-2022
+   helper coverage, and diagnostics that map generated assembly failures back
+   to SDK declarations.
 
 The fastest credible route to a more complete SDK is therefore: the alpha
 observability baseline is now in place, so next close the richer beta syscall
