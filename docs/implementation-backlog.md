@@ -1175,6 +1175,40 @@ Acceptance criteria:
   Kaspa/Toccata inline ZK, `psy-dpn` circuit sourcegen, and generic smart
   contracts.
 
+## Workstream 23: Multi-Chain Token SDK
+
+Goal: let users describe fungible token intent once, then let `--target`
+choose ERC-20 contract generation on EVM or SPL Token / Token-2022 plans on
+Solana without exposing chain-specific code at the user-facing SDK layer.
+
+Tasks:
+
+- Done: add RFC 0005, `ProofForge.Contract.Token.TokenSpec`, target token
+  plans, and `Tests/TokenSpec.lean`.
+- Implement EVM ERC-20 lowering: ABI/selectors, balance/allowance storage,
+  total supply, transfer/approve/transferFrom, mint/burn options, events, and
+  Foundry/Web3 behavior tests.
+- Implement Solana SPL Token plan rendering: mint creation, associated token
+  account creation, mint_to, transfer_checked, approve, burn, authority changes,
+  and Web3.js validation through `@solana/spl-token`.
+- Route Token-2022 features such as transfer fees, non-transferable tokens,
+  confidential transfer, and transfer hooks to Token-2022 extension
+  initialization rather than custom per-token programs.
+- Add optional Solana wrapper/authority/transfer-hook program generation for
+  custom policies such as capped supply or custom transfer restrictions.
+- Emit token-specific artifact metadata that records standard, target,
+  operations, extension set, deployment accounts, tool versions, and validation
+  results.
+
+Acceptance criteria:
+
+- A single `TokenSpec` has deterministic EVM and Solana token plans.
+- EVM output passes ERC-20 behavior tests using standard Web3/Foundry calls.
+- Solana output creates a mint and token accounts, mints supply, transfers
+  tokens, and validates balances with `@solana/spl-token` on Surfpool.
+- Documentation clearly says Solana does not default to a per-token SPL
+  contract; it uses SPL Token / Token-2022 programs by plan and CPI.
+
 ## Suggested Order
 
 1. Target registry (Workstream 1).
@@ -1210,6 +1244,8 @@ Acceptance criteria:
     changes.
 20. Bitcoin Cash CashScript research target review (Workstream 15) before any
     registry changes.
-21. CI target matrix (Workstream 9).
-22. Cloud platform design refresh (prerequisite: two+ targets at Experimental
+21. Multi-chain Token SDK (Workstream 23) after the EVM and Solana validation
+    paths can both run locally.
+22. CI target matrix (Workstream 9).
+23. Cloud platform design refresh (prerequisite: two+ targets at Experimental
    stage; see [decisions.md](decisions.md)).

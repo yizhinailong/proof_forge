@@ -624,6 +624,39 @@ Zcash 当成 plain Bitcoin Script 或 generic ZK smart-contract chain。
   Kaspa/Toccata inline ZK、`psy-dpn` circuit sourcegen 和 generic smart
   contracts。
 
+## 工作流 23: Multi-Chain Token SDK
+
+目标：用户只描述一次 fungible token intent，然后由 `--target` 决定是在
+EVM 上生成 ERC-20 合约，还是在 Solana 上生成 SPL Token / Token-2022
+计划；用户层 SDK 不暴露链专属代码。
+
+任务：
+
+- 已完成：增加 RFC 0005、`ProofForge.Contract.Token.TokenSpec`、target
+  token plan，以及 `Tests/TokenSpec.lean`。
+- 实现 EVM ERC-20 降级：ABI/selectors、balance/allowance storage、total
+  supply、transfer/approve/transferFrom、mint/burn 选项、events，以及
+  Foundry/Web3 行为测试。
+- 实现 Solana SPL Token plan 渲染：mint 创建、associated token account
+  创建、mint_to、transfer_checked、approve、burn、authority 变更，并通过
+  `@solana/spl-token` 做 Web3.js 验证。
+- 将 transfer fee、non-transferable、confidential transfer、transfer hook
+  等 Token-2022 功能路由到 Token-2022 extension 初始化，而不是默认生成
+  custom per-token program。
+- 为 capped supply 或 custom transfer restriction 等自定义策略增加可选的
+  Solana wrapper/authority/transfer-hook program 生成。
+- 输出 token-specific artifact metadata，记录 standard、target、operations、
+  extension set、deployment accounts、tool versions 和 validation results。
+
+验收标准：
+
+- 同一个 `TokenSpec` 能生成确定性的 EVM 与 Solana token plans。
+- EVM 输出通过标准 Web3/Foundry ERC-20 行为测试。
+- Solana 输出能在 Surfpool 上创建 mint 和 token accounts、mint 初始供应、
+  transfer tokens，并用 `@solana/spl-token` 验证 balances。
+- 文档明确说明 Solana 默认不是 per-token SPL 合约，而是通过 plan 和 CPI
+  使用 SPL Token / Token-2022 programs。
+
 ## 建议顺序
 
 1. 目标注册表（工作流 1）。
@@ -646,5 +679,6 @@ Zcash 当成 plain Bitcoin Script 或 generic ZK smart-contract chain。
 18. 在任何 registry 变更前进行 Bitcoin Script/Miniscript research target review（工作流 20）。
 19. 在任何 registry 变更前进行 Zcash Shielded research target review（工作流 21）。
 20. 在任何 registry 变更前进行 Bitcoin Cash CashScript research target review（工作流 15）。
-21. CI 目标矩阵（工作流 9）。
-22. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。
+21. EVM 与 Solana 本地验证路径都可运行后，推进 Multi-chain Token SDK（工作流 23）。
+22. CI 目标矩阵（工作流 9）。
+23. 云平台设计更新（前提条件：两个以上目标处于 Experimental 阶段；参见 [decisions.md](decisions.md)）。
