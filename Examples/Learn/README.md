@@ -7,6 +7,13 @@ and lowers it into `ContractSpec` and portable IR.
 They are intentionally not Lean files. The executable embedded equivalent still
 lives in `ProofForge.Contract.Source` through the `contract_source` syntax:
 
+Treat these `.learn` files as the product-facing contract syntax. The
+string-heavy `ContractSpec`, Builder, and `ProofForge.Solana.Examples.*`
+fixtures are expected-IR/reference fixtures for tests; they are not the surface
+application developers should author by hand. The Learn parser may represent
+identifiers as strings internally after parsing, but lowering now checks Solana
+CPI/PDA/state/account references before those names reach compiler artifacts.
+
 - `Counter.learn` mirrors the portable Counter source.
 - `ValueVault.learn` mirrors `ProofForge.Contract.Examples.ValueVault`.
 - `SolanaVault.learn` mirrors `ProofForge.Solana.Examples.Vault` and exercises

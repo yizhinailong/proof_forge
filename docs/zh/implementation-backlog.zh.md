@@ -573,6 +573,12 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   Learn source 中的 sysvar/context read。`Tests/LearnSource.lean` 会证明这些
   Learn 文件降低出的 IR module 和 generated manifest 与对应的
   `ProofForge.Solana.Examples.*` fixture 一致。
+- Learn reference diagnostics：
+  `ProofForge.Contract.Learn` 现在会在 lowering 时构建声明引用索引，并拒绝未知
+  或签名不匹配的 Solana CPI invocation、未知 PDA derivation、无效 signer seed，
+  以及引用未声明 state/account 名称的 helper statement。
+  `Tests/LearnDiagnostics.lean` 固定这些诊断信息，让 Learn 表现为经过检查的语言
+  frontend，而不是要求用户手写未检查的 `ContractSpec` 数据。
 - Solana typed account surface：
   `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
   `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
@@ -615,6 +621,9 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   account/PDA/SPL Token transfer CPI 子集、System Program
   transfer/create-account CPI、SPL Token mint/burn/approve/revoke CPI，以及
   Solana log/return-data/compute-unit/memory/crypto/sysvar helper statement。
+  Lowering 过程中，Solana CPI/PDA declaration 与 entrypoint helper statement
+  会和已声明引用交叉校验，因此剩余字符串名称属于编译器内部 identifier，而不是未检查的
+  用户手写 spec。
   `ProofForge.Contract.Source` 仍是尚未表达为
   Learn 的示例所使用的 embedded macro frontend。下一步 authoring 缺口是把
   Learn parser 扩展到 Token-2022、typed account/data reference，以及更接近

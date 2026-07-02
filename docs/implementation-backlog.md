@@ -1029,6 +1029,13 @@ Completed developer-surface slices:
   sysvar/context reads in user-facing Learn source. `Tests/LearnSource.lean`
   proves these Learn files lower to the same IR modules and generated
   manifests as the corresponding `ProofForge.Solana.Examples.*` fixtures.
+- Learn reference diagnostics:
+  `ProofForge.Contract.Learn` now builds a declaration reference index while
+  lowering and rejects unknown or mismatched Solana CPI invocations, unknown
+  PDA derivations, invalid signer seeds, and helper statements that reference
+  undeclared state/account names. `Tests/LearnDiagnostics.lean` pins these
+  messages so Learn behaves like a checked language frontend instead of asking
+  users to hand-author unchecked `ContractSpec` data.
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
@@ -1071,6 +1078,9 @@ Current boundary:
   Solana account/PDA/SPL Token transfer CPI subset, System Program
   transfer/create-account CPI, SPL Token mint/burn/approve/revoke CPI, and
   Solana log/return-data/compute-unit/memory/crypto/sysvar helper statements.
+  During lowering, Solana CPI/PDA declarations and entrypoint helper statements
+  are cross-checked against declared references, so the remaining string names
+  are compiler-owned identifiers rather than unchecked user-authored specs.
   `ProofForge.Contract.Source` remains the richer
   embedded macro frontend for examples not yet expressed in Learn. The next
   authoring gap is to extend Learn parsing to typed target-extension forms for

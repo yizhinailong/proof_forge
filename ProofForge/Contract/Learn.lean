@@ -871,6 +871,263 @@ private structure LowerEnv where
   locals : Array String
   deriving Repr
 
+private structure SolanaRefs where
+  accountNames : Array String := #[]
+  pdaItems : Array SolanaItem := #[]
+  cpiItems : Array SolanaItem := #[]
+  deriving Repr
+
+private def joined (values : Array String) : String :=
+  String.intercalate "," values.toList
+
+private def signerSeedSyntax : SolanaSignerSeed → String
+  | .pda name => "pda:" ++ name
+  | .bump name => "bump:" ++ name
+
+private def signerSeedSignature (seeds : Array SolanaSignerSeed) : String :=
+  joined (seeds.map signerSeedSyntax)
+
+private def seedSyntax : SolanaSeed → String
+  | .literal value => "literal:" ++ value
+  | .account name => "account:" ++ name
+
+private def seedSignature (seeds : Array SolanaSeed) : String :=
+  joined (seeds.map seedSyntax)
+
+private def pdaName? : SolanaItem → Option String
+  | .pda name _ _ _ _ => some name
+  | _ => none
+
+private def cpiName? : SolanaItem → Option String
+  | .systemTransfer name _ _ _ => some name
+  | .systemCreateAccount name _ _ _ _ _ => some name
+  | .splTokenTransferChecked name _ _ _ _ _ _ _ => some name
+  | .splTokenMintTo name _ _ _ _ _ => some name
+  | .splTokenBurn name _ _ _ _ _ => some name
+  | .splTokenApprove name _ _ _ _ _ => some name
+  | .splTokenRevoke name _ _ _ => some name
+  | _ => none
+
+private def pdaSignature? : SolanaItem → Option String
+  | .pda _ seeds bump account isSigner =>
+      some s!"seeds={seedSignature seeds};bump={bump};account={account};signer={isSigner}"
+  | _ => none
+
+private def cpiSignature? : SolanaItem → Option String
+  | .systemTransfer _ fromAccount toAccount lamportsSource =>
+      some s!"system_transfer({joined #[fromAccount, toAccount, lamportsSource]})"
+  | .systemCreateAccount _ payer newAccount lamportsSource spaceSource owner =>
+      some s!"system_create_account({joined #[payer, newAccount, lamportsSource, spaceSource]});owner={owner}"
+  | .splTokenTransferChecked _ source mint destination authority amountSource decimals signerSeeds =>
+      some s!"spl_token_transfer_checked({joined #[source, mint, destination, authority, amountSource]});decimals={decimals};signer_seeds={signerSeedSignature signerSeeds}"
+  | .splTokenMintTo _ mint destination authority amountSource signerSeeds =>
+      some s!"spl_token_mint_to({joined #[mint, destination, authority, amountSource]});signer_seeds={signerSeedSignature signerSeeds}"
+  | .splTokenBurn _ source mint authority amountSource signerSeeds =>
+      some s!"spl_token_burn({joined #[source, mint, authority, amountSource]});signer_seeds={signerSeedSignature signerSeeds}"
+  | .splTokenApprove _ source delegate owner amountSource signerSeeds =>
+      some s!"spl_token_approve({joined #[source, delegate, owner, amountSource]});signer_seeds={signerSeedSignature signerSeeds}"
+  | .splTokenRevoke _ source owner signerSeeds =>
+      some s!"spl_token_revoke({joined #[source, owner]});signer_seeds={signerSeedSignature signerSeeds}"
+  | _ => none
+
+private def cpiInvocationSignature? : Stmt → Option String
+  | .solanaInvokeSystemTransfer _ fromAccount toAccount lamportsSource =>
+      some s!"system_transfer({joined #[fromAccount, toAccount, lamportsSource]})"
+  | .solanaInvokeSystemCreateAccount _ payer newAccount lamportsSource spaceSource owner =>
+      some s!"system_create_account({joined #[payer, newAccount, lamportsSource, spaceSource]});owner={owner}"
+  | .solanaInvokeSplTokenTransferChecked _ source mint destination authority amountSource decimals signerSeeds =>
+      some s!"spl_token_transfer_checked({joined #[source, mint, destination, authority, amountSource]});decimals={decimals};signer_seeds={signerSeedSignature signerSeeds}"
+  | .solanaInvokeSplTokenMintTo _ mint destination authority amountSource signerSeeds =>
+      some s!"spl_token_mint_to({joined #[mint, destination, authority, amountSource]});signer_seeds={signerSeedSignature signerSeeds}"
+  | .solanaInvokeSplTokenBurn _ source mint authority amountSource signerSeeds =>
+      some s!"spl_token_burn({joined #[source, mint, authority, amountSource]});signer_seeds={signerSeedSignature signerSeeds}"
+  | .solanaInvokeSplTokenApprove _ source delegate owner amountSource signerSeeds =>
+      some s!"spl_token_approve({joined #[source, delegate, owner, amountSource]});signer_seeds={signerSeedSignature signerSeeds}"
+  | .solanaInvokeSplTokenRevoke _ source owner signerSeeds =>
+      some s!"spl_token_revoke({joined #[source, owner]});signer_seeds={signerSeedSignature signerSeeds}"
+  | _ => none
+
+private def cpiInvocationName? : Stmt → Option String
+  | .solanaInvokeSystemTransfer name _ _ _ => some name
+  | .solanaInvokeSystemCreateAccount name _ _ _ _ _ => some name
+  | .solanaInvokeSplTokenTransferChecked name _ _ _ _ _ _ _ => some name
+  | .solanaInvokeSplTokenMintTo name _ _ _ _ _ => some name
+  | .solanaInvokeSplTokenBurn name _ _ _ _ _ => some name
+  | .solanaInvokeSplTokenApprove name _ _ _ _ _ => some name
+  | .solanaInvokeSplTokenRevoke name _ _ _ => some name
+  | _ => none
+
+private def buildSolanaRefs (items : Array SolanaItem) : SolanaRefs :=
+  items.foldl
+    (fun refs item =>
+      match item with
+      | .account name _ _ => { refs with accountNames := refs.accountNames.push name }
+      | .pda .. => { refs with pdaItems := refs.pdaItems.push item }
+      | .systemTransfer .. | .systemCreateAccount .. | .splTokenTransferChecked ..
+      | .splTokenMintTo .. | .splTokenBurn .. | .splTokenApprove .. | .splTokenRevoke .. =>
+          { refs with cpiItems := refs.cpiItems.push item }
+      | .allocatorBump => refs)
+    {}
+
+private def findNamed? (name : String) (items : Array SolanaItem)
+    (nameOf : SolanaItem → Option String) : Option SolanaItem :=
+  items.find? fun item => nameOf item == some name
+
+private def requireKnownName (kind : String) (names : Array String) (name : String) :
+    Except String Unit :=
+  if containsName names name then
+    .ok ()
+  else
+    .error s!"unknown Learn {kind} `{name}`"
+
+private def requireKnownState (stateNames : Array String) (name : String) :
+    Except String Unit :=
+  requireKnownName "state" stateNames name
+
+private def requireKnownStateAll (stateNames names : Array String) : Except String Unit := do
+  for name in names do
+    requireKnownState stateNames name
+
+private def requireStateOrAccount (refs : SolanaRefs) (stateNames : Array String)
+    (name : String) : Except String Unit :=
+  if containsName stateNames name || containsName refs.accountNames name then
+    .ok ()
+  else
+    .error s!"unknown Learn state/account `{name}`"
+
+private def validateSignerSeeds (refs : SolanaRefs) (knownValueNames : Array String)
+    (seeds : Array SolanaSignerSeed) : Except String Unit := do
+  for seed in seeds do
+    match seed with
+    | .pda name =>
+        match findNamed? name refs.pdaItems pdaName? with
+        | some _ => pure ()
+        | none => .error s!"unknown Learn Solana PDA signer seed `{name}`"
+    | .bump name =>
+        requireKnownName "PDA bump" knownValueNames name
+
+private def validatePdaSeeds (refs : SolanaRefs) (seeds : Array SolanaSeed) :
+    Except String Unit := do
+  for seed in seeds do
+    match seed with
+    | .literal _ => pure ()
+    | .account name => requireKnownName "Solana account seed" refs.accountNames name
+
+private def validatePdaDecl (refs : SolanaRefs) (knownValueNames : Array String)
+    (_name : String) (seeds : Array SolanaSeed) (bump account : String) : Except String Unit := do
+  validatePdaSeeds refs seeds
+  requireKnownName "PDA bump" knownValueNames bump
+  requireKnownName "Solana PDA account" refs.accountNames account
+
+private def validatePdaDerive (refs : SolanaRefs) (knownValueNames : Array String)
+    (name : String) (seeds : Array SolanaSeed) (bump account : String) (isSigner : Bool) :
+    Except String Unit := do
+  validatePdaDecl refs knownValueNames name seeds bump account
+  let actual := s!"seeds={seedSignature seeds};bump={bump};account={account};signer={isSigner}"
+  match findNamed? name refs.pdaItems pdaName? with
+  | none => .error s!"unknown Learn Solana PDA `{name}`"
+  | some item =>
+      match pdaSignature? item with
+      | some expected =>
+          if expected == actual then
+            .ok ()
+          else
+            .error s!"Learn Solana PDA derive `{name}` does not match declaration: expected {expected}, got {actual}"
+      | none => .error s!"unknown Learn Solana PDA `{name}`"
+
+private def validateCpiInvocation (refs : SolanaRefs) (stmt : Stmt) : Except String Unit := do
+  match cpiInvocationName? stmt, cpiInvocationSignature? stmt with
+  | some name, some actual =>
+      match findNamed? name refs.cpiItems cpiName? with
+      | none => .error s!"unknown Learn Solana CPI `{name}`"
+      | some item =>
+          match cpiSignature? item with
+          | some expected =>
+              if expected == actual then
+                .ok ()
+              else
+                .error s!"Learn Solana CPI invoke `{name}` does not match declaration: expected {expected}, got {actual}"
+          | none => .error s!"unknown Learn Solana CPI `{name}`"
+  | _, _ => .ok ()
+
+private def validateSolanaItemRefs (refs : SolanaRefs) (knownValueNames : Array String)
+    (item : SolanaItem) : Except String Unit := do
+  match item with
+  | .pda name seeds bump account _ =>
+      validatePdaDecl refs knownValueNames name seeds bump account
+  | .splTokenTransferChecked _ _ _ _ _ _ _ signerSeeds
+  | .splTokenMintTo _ _ _ _ _ signerSeeds
+  | .splTokenBurn _ _ _ _ _ signerSeeds
+  | .splTokenApprove _ _ _ _ _ signerSeeds
+  | .splTokenRevoke _ _ _ signerSeeds =>
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | _ => pure ()
+
+private def validateStmtRefs (refs : SolanaRefs) (stateNames : Array String)
+    (env : LowerEnv) (stmt : Stmt) : Except String Unit := do
+  let knownValueNames := stateNames ++ env.locals
+  match stmt with
+  | .solanaDerivePda name seeds bump account isSigner =>
+      validatePdaDerive refs knownValueNames name seeds bump account isSigner
+  | .solanaInvokeSystemTransfer _ _ _ lamportsSource =>
+      validateCpiInvocation refs stmt
+      requireKnownName "value" knownValueNames lamportsSource
+  | .solanaInvokeSystemCreateAccount _ _ _ lamportsSource spaceSource _ =>
+      validateCpiInvocation refs stmt
+      requireKnownName "value" knownValueNames lamportsSource
+      requireKnownName "value" knownValueNames spaceSource
+  | .solanaInvokeSplTokenTransferChecked _ _ _ _ _ amountSource _ signerSeeds =>
+      validateCpiInvocation refs stmt
+      requireKnownName "value" knownValueNames amountSource
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | .solanaInvokeSplTokenMintTo _ _ _ _ amountSource signerSeeds =>
+      validateCpiInvocation refs stmt
+      requireKnownName "value" knownValueNames amountSource
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | .solanaInvokeSplTokenBurn _ _ _ _ amountSource signerSeeds =>
+      validateCpiInvocation refs stmt
+      requireKnownName "value" knownValueNames amountSource
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | .solanaInvokeSplTokenApprove _ _ _ _ amountSource signerSeeds =>
+      validateCpiInvocation refs stmt
+      requireKnownName "value" knownValueNames amountSource
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | .solanaInvokeSplTokenRevoke _ _ _ signerSeeds =>
+      validateCpiInvocation refs stmt
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | .solanaSetReturnData _ sourceState _ =>
+      requireKnownState stateNames sourceState
+  | .solanaGetReturnData _ destinationState _ lengthState? programIdStates =>
+      requireKnownState stateNames destinationState
+      match lengthState? with
+      | some lengthState => requireKnownState stateNames lengthState
+      | none => pure ()
+      requireKnownStateAll stateNames programIdStates
+  | .solanaRemainingComputeUnits _ outputState =>
+      requireKnownState stateNames outputState
+  | .solanaLogAccountPubkey _ account =>
+      requireStateOrAccount refs stateNames account
+  | .solanaLogStateData _ sourceState _ =>
+      requireKnownState stateNames sourceState
+  | .solanaMemoryMemcpy _ dstState srcState _ =>
+      requireKnownState stateNames dstState
+      requireKnownState stateNames srcState
+  | .solanaMemoryMemmove _ dstState srcState _ =>
+      requireKnownState stateNames dstState
+      requireKnownState stateNames srcState
+  | .solanaMemoryMemcmp _ lhsState rhsState resultState _ =>
+      requireKnownState stateNames lhsState
+      requireKnownState stateNames rhsState
+      requireKnownState stateNames resultState
+  | .solanaMemoryMemset _ dstState _ _ =>
+      requireKnownState stateNames dstState
+  | .solanaCryptoHash _ _ inputState _ outputStates =>
+      requireKnownState stateNames inputState
+      requireKnownStateAll stateNames outputStates
+  | .solanaSysvarRead _ _ _ outputState =>
+      requireKnownState stateNames outputState
+  | _ => pure ()
+
 private def lowerExpr (env : LowerEnv) : Expr → Except String ProofForge.IR.Expr
   | .number value => .ok (.literal (.u64 value))
   | .name value =>
@@ -935,10 +1192,11 @@ private def lowerSolanaItem (item : SolanaItem) :
       pure (ProofForge.Solana.splTokenRevoke name source owner
         (signerSeeds := lowerSolanaSignerSeeds signerSeeds))
 
-private def lowerStmtAction (stateNames : Array String)
+private def lowerStmtAction (refs : SolanaRefs) (stateNames : Array String)
     (state : ProofForge.Contract.Builder.EntryM Unit × LowerEnv) (stmt : Stmt) :
     Except String (ProofForge.Contract.Builder.EntryM Unit × LowerEnv) := do
   let (action, env) := state
+  validateStmtRefs refs stateNames env stmt
   match stmt with
   | .letBind name type value =>
       let value ← lowerExpr env value
@@ -1047,24 +1305,28 @@ private def lowerStmtAction (stateNames : Array String)
       let stmtAction := ProofForge.Contract.Builder.ret value
       .ok (action *> stmtAction, env)
 
-private def lowerMethodAction (stateNames bindingNames : Array String) (method : MethodDecl) :
+private def lowerMethodAction (refs : SolanaRefs) (stateNames bindingNames : Array String)
+    (method : MethodDecl) :
     Except String (ProofForge.Contract.Builder.ModuleM Unit) := do
   let params := method.params.map (fun param => (param.name, param.type))
   let paramNames := method.params.map (fun param => param.name)
   let env : LowerEnv := { stateNames, locals := bindingNames ++ paramNames }
-  let (bodyAction, _) ← method.body.foldlM (lowerStmtAction stateNames) (pure (), env)
+  let (bodyAction, _) ← method.body.foldlM (lowerStmtAction refs stateNames) (pure (), env)
   .ok (ProofForge.Contract.Builder.entryFull method.name method.selector? method.returns params bodyAction)
 
 def lowerContract (decl : ContractDecl) : Except String ContractSpec := do
   let stateNames := decl.state.map (fun item => item.name)
   let bindingNames := decl.bindings.map (fun item => item.name)
+  let refs := buildSolanaRefs decl.solanaItems
+  let knownTopLevelValues := stateNames ++ bindingNames
   let mut action : ProofForge.Contract.Builder.ModuleM Unit := pure ()
   for state in decl.state do
     action := action *> ProofForge.Contract.Builder.scalarState state.name state.type
   for item in decl.solanaItems do
+    validateSolanaItemRefs refs knownTopLevelValues item
     action := action *> (← lowerSolanaItem item)
   for method in decl.methods do
-    action := action *> (← lowerMethodAction stateNames bindingNames method)
+    action := action *> (← lowerMethodAction refs stateNames bindingNames method)
   .ok (ProofForge.Contract.Builder.build decl.name action)
 
 def parseAndLower (source : String) : Except String ContractSpec := do

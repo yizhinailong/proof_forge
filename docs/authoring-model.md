@@ -26,6 +26,12 @@ target-extension expansion. Application authors should increasingly see
 language syntax in `.learn` files, while tests keep the Builder fixtures as the
 reviewed expected IR.
 
+It is still normal for the compiler-owned source AST and IR boundary to store
+identifiers as strings after parsing. That representation is not the authoring
+model. The product direction is that users write Learn syntax, the parser checks
+names and references, and only then does the compiler materialize string names
+inside `ContractSpec`, manifests, IDL, clients, and backend ASTs.
+
 ## Source Principles
 
 - Portable contracts should express business logic without target-specific
@@ -57,6 +63,10 @@ pubkey/data logs, return-data set/get helpers, and remaining-compute-unit read
 or log helpers. The same source layer covers Solana memory helpers, SHA-256,
 Keccak-256, and BLAKE3 hash helpers, and sysvar/context reads for Clock, Rent,
 EpochSchedule, EpochRewards, and LastRestartSlot fixture coverage.
+Learn lowering also validates declared Solana CPI/PDA references, signer seeds,
+and helper state/account references before emitting `ContractSpec`, so the
+remaining string-bearing identifiers are checked compiler data instead of
+unchecked user-facing spec plumbing.
 `ProofForge.Contract.Source` remains the executable embedded syntax layer and
 covers:
 
@@ -102,6 +112,7 @@ need to manually switch between these internals when the contract is portable.
    cover Token-2022 and the remaining framework-level account/data
    declarations.
 2. Gradually replace string-bearing Solana declarations with typed account,
-   owner, program, and capability references.
+   owner, program, and capability references in the source grammar while
+   keeping string names inside compiler artifacts only.
 3. Keep backend artifact checks unchanged so the new Learn syntax proves the
    same EVM/Solana package output.
