@@ -21,6 +21,7 @@ import ProofForge.Backend.Solana.Extension
 import ProofForge.Backend.Solana.StateLayout
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Register
+import ProofForge.Backend.Solana.Syscalls
 
 namespace ProofForge.Backend.Solana.SbpfAsm
 
@@ -30,6 +31,7 @@ open ProofForge.Backend.Solana.Extension
 open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.Manifest
 open ProofForge.Backend.Solana.Register
+open ProofForge.Backend.Solana.Syscalls
 
 -- ============================================================================
 -- Metadata
@@ -132,6 +134,13 @@ def buildCtx (module : Module) (stateDataOff : Nat) : Except LowerError LowerCtx
 
 def SPL_TOKEN_ACCOUNT_DATA_SIZE : Nat := 165
 def SPL_TOKEN_MINT_DATA_SIZE : Nat := 82
+
+def LOG_EVENT_TAG_MODULUS : Nat := 4294967296
+
+def stableEventTag (name : String) : Nat :=
+  (stringBytes name).foldl
+    (fun acc byte => (acc * 33 + byte) % LOG_EVENT_TAG_MODULUS)
+    5381
 
 def cpiAccountName? (cpi : CpiInvoke) (idx : Nat) : Option String :=
   cpi.accounts[idx]? |>.map fun account => account.name
@@ -436,6 +445,29 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
         .instruction { opcode := .stxdw, dst := some .r1, off := some (.num absOff), src := some .r2 }
       ], ctx')
     | none => .error { message := s!"unknown state: {stateId}" }
+  | .effect (.eventEmit name fields) => do
+    let mut nodes := #[.comment s!"solana.event.emit {name}: sol_log_64_ scalar fields"]
+    let mut ctx := ctx
+    let tag := stableEventTag name
+    for field in fields, idx in [0:fields.size] do
+      let (fieldName, value) := field
+      let (vn, ctx') ← lowerExpr ctx value
+      let (inputPtrScratch, ctx') := ctx'.allocScratch
+      nodes := nodes ++ vn ++ #[
+        .comment s!"solana.event.field {name}.{fieldName}: tag={tag} index={idx}",
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num inputPtrScratch), src := some .r1 },
+        .instruction { opcode := .mov64, dst := some .r3, src := some .r2 },
+        .instruction { opcode := .mov64, dst := some .r1, imm := some (.num tag) },
+        .instruction { opcode := .mov64, dst := some .r2, imm := some (.num idx) },
+        .instruction { opcode := .mov64, dst := some .r4, imm := some (.num 0) },
+        .instruction { opcode := .mov64, dst := some .r5, imm := some (.num 0) },
+        .instruction { opcode := .call, imm := some (.sym sol_log_64_) },
+        .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrScratch) }
+      ]
+      ctx := ctx'
+    .ok (nodes, ctx)
+  | .effect (.eventEmitIndexed _ _ _) =>
+    .error { message := "Solana indexed event lowering is not supported in Phase 1; use eventEmit scalar fields" }
   | .assert cond _ => do
     let (cn, ctx') ← lowerExpr ctx cond
     .ok (cn ++ #[

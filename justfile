@@ -26,6 +26,7 @@ solana-lean:
     lake env lean --run Tests/SolanaSdk.lean
     lake env lean --run Tests/SolanaSdkManifest.lean
     lake env lean --run Tests/SolanaCpiPacking.lean
+    lake env lean --run Tests/SolanaLogs.lean
     lake env lean --run Tests/SolanaPdaSeeds.lean
     lake env lean --run Tests/TargetRouting.lean
     lake env lean --run Tests/TokenSpec.lean
@@ -61,6 +62,10 @@ solana-spl-token-transfer-cpi-web3:
 # Run a live SPL Token mint_to/burn/approve/revoke CPI smoke on Surfpool with Web3.js.
 solana-spl-token-ops-cpi-web3:
     scripts/solana/spl-token-ops-cpi-web3-smoke.sh
+
+# Run a live Solana log/event smoke on Surfpool with Web3.js.
+solana-log-event-web3:
+    scripts/solana/log-event-web3-smoke.sh
 
 # Run the canned Solana sBPF smoke. Skips when sbpf is unavailable.
 solana-emit-asm:

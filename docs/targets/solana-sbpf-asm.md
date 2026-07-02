@@ -128,7 +128,7 @@ test when the syscall changes observable chain behavior.
 | CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; System transfer/create-account plus SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` have Surfpool/Web3.js live behavior gates | Compare live CPI behavior against Rust/Pinocchio and extend to Token-2022 |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
-| Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Documented only | Lower `events.emit` to structured logs and assert logs via Web3.js transaction metadata |
+| Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Phase 1 scalar `events.emit` lowers to `sol_log_64_`; Surfpool/Web3.js verifies transaction logs contain a stable event tag and scalar field value | Extend to `sol_log_` string/base64 payloads, Anchor-style events, indexed fields, and pubkey logs |
 | Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | Documented only | Use internally for account/data packing helpers; unit-test generated assembly and runtime copies |
 | Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | Documented only | Map `env.block`/rent-like SDK reads to syscalls and validate returned fields |
 | Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | Documented only | Lower `crypto.hash` variants and compare against JS reference hashes |
@@ -535,9 +535,12 @@ Solana has no chain-level event log like EVM. Options:
 2. Anchor-style event serialization into a special account.
 3. `sol_set_return_data` as a quasi-event mechanism.
 
-Recommendation (Phase 1): emit `sol_log_` with a structured encoding
-(type tag + fields). This is block‑explorer‑readable and costs zero overhead
-beyond the log compute units.
+Phase 1 emits scalar `eventEmit` fields through `sol_log_64_` as
+`[eventTag, fieldIndex, value, 0, 0]`. The event tag is a stable 32-bit
+compile-time tag derived from the event name so generated Web3.js harnesses can
+assert the transaction log without baking in Solana-specific syntax at the
+portable SDK layer. Future work should add string/base64 `sol_log_` payloads,
+Anchor-compatible serialization, pubkey logs, and indexed event forms.
 
 ### Capability mapping
 
@@ -820,7 +823,7 @@ Phase 3 is split into verifiable SDK completeness levels rather than one large
 
 | Level | Estimated effort | Scope |
 |---|---:|---|
-| SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. PDA/System/SPL live gates, instruction ABI bounds/schema metadata, and typed PDA seed lowering are already in place. |
+| SDK alpha | 3-5 focused engineering days | Validate PDA/System/SPL behavior live through Surfpool/Web3.js and expose basic logs/return-data helpers. PDA/System/SPL live gates, instruction ABI bounds/schema metadata, typed PDA seed lowering, return-data `get`, and scalar `sol_log_64_` event logging are already in place. |
 | SDK beta | 2-3 focused weeks | Add syscall families (sysvars, crypto, memory), runtime allocator lowering, dynamic per-entrypoint account schemas, and Rust/Pinocchio equivalence fixtures. |
 | Anchor/Pinocchio-class surface | 4-6 focused weeks after beta | Add account constraints, typed account/data wrappers, IDL/client generation, richer SPL/Token-2022 helper coverage, and SDK-facing diagnostics. |
 

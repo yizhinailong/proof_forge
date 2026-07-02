@@ -777,8 +777,9 @@ System/SPL Token CPI data packing, bump-allocator metadata, scalar entrypoint
 parameter decoding, typed PDA seed lowering, live System Program transfer plus
 create-account CPI validation, live SPL Token `transfer_checked` CPI
 validation, and live SPL Token `mint_to`/`burn`/`approve`/`revoke` CPI
-validation. The estimates below assume one engineer working on this branch, the
-current direct-assembly architecture staying stable, and local
+validation, plus live scalar `events.emit` log validation through
+`sol_log_64_`. The estimates below assume one engineer working on this branch,
+the current direct-assembly architecture staying stable, and local
 `sbpf`/Surfpool/Solana CLI tooling remaining available.
 
 | Level | Estimated effort | Done when |
@@ -822,6 +823,11 @@ Completed alpha slices:
   test accounts with `@solana/spl-token`, invokes all four generated
   entrypoints through Web3.js, and proves supply/balance/delegate changes plus
   state writes.
+- Live scalar event log fixture: `scripts/solana/log-event-web3-smoke.sh`
+  builds and deploys a generated `events.emit` program on Surfpool, invokes it
+  through Web3.js, verifies the generated `sol_log_64_` transaction log
+  contains the stable `AmountEvent` tag and scalar `amount` field, and proves
+  the program-owned state account recorded the same value.
 
 Remaining priority slices:
 
@@ -830,9 +836,11 @@ Remaining priority slices:
    implementations through the same Web3.js harness. The key comparison points
    are account order, signer/writable checks, CPI instruction data, and
    observable state changes.
-2. Logs, return data, sysvars, crypto, and memory helpers (3-5 days): expose
-   `sol_log*`, `sol_set_return_data`, `sol_get_return_data`, clock/rent sysvar
-   reads, `sol_sha256`/`sol_keccak256`/`sol_blake3`, and
+2. Richer return data, sysvars, crypto, logs, and memory helpers (3-5 days):
+   extend the current scalar `sol_log_64_` event path to string/base64/
+   Anchor-style and indexed event forms; expose `sol_get_return_data`,
+   typed return payload helpers beyond `u64`, clock/rent sysvar reads,
+   `sol_sha256`/`sol_keccak256`/`sol_blake3`, and
    `sol_memcpy`/`sol_memcmp`/`sol_memset`, with JavaScript reference checks.
 3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures
    through `runtime.allocator`, emit actual downward bump-pointer allocation
@@ -851,9 +859,9 @@ Remaining priority slices:
    richer SPL/Token-2022 helper coverage, and diagnostics that map generated
    assembly failures back to SDK declarations.
 
-The fastest credible route to a more complete SDK is therefore: first close
-the remaining alpha slice around basic logs/return data, then use the beta
-slices to remove remaining architecture shortcuts before adding
+The fastest credible route to a more complete SDK is therefore: the alpha
+observability baseline is now in place, so next close the richer beta syscall
+and return-data slices, then remove remaining architecture shortcuts before adding
 Anchor/Pinocchio-class ergonomics.
 
 ## Workstream 8: Move Source Generation POC (Aptos first)
