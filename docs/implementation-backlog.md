@@ -509,12 +509,12 @@ Tasks:
 - Add `--solana-elf` CLI mode: emit `.s` then invoke `sbpf build`.
 - Generate instruction manifest (`manifest.toml`) alongside the `.s`.
 - Create `Examples/Solana/Counter.lean` + manifest.
-- Run `sbpf test` (Mollusk) and optionally `solana-test-validator --bpf-program`.
+- Run `sbpf test` (Mollusk) and a Surfpool/Web3.js live deployment smoke.
 
 Acceptance criteria:
 
 - Counter scenario (initialize, increment, get) passes `sbpf test`.
-- `solana-test-validator` smoke passes (optional, gated on tool availability).
+- Surfpool/Web3.js live smoke passes (optional, gated on tool availability).
 - Capability checker rejects IR modules using unsupported capabilities with a
   clear diagnostic citing target id and capability id.
 - Same portable IR Counter module lowers to both EVM and Solana.
@@ -584,8 +584,26 @@ partial progress is visible before the full acceptance criteria close:
       body while preserving the Solana input pointer in `r1`. Covered by
       `Tests/SolanaSdk.lean`, `Tests/SolanaSdkManifest.lean`, and
       `scripts/solana/sdk-smoke.sh` with `sbpf build` when available.
-- [ ] Optional `solana-test-validator --bpf-program` smoke (V-GATE-SOLANA-04,
-      gated on tool availability).
+- [x] Surfpool/Web3.js live deployment smoke (V-GATE-SOLANA-04). The optional
+      `scripts/solana/surfpool-web3-smoke.sh` gate builds the Counter ELF,
+      starts Surfpool, deploys with the Solana CLI, creates a program-owned
+      counter account via `@solana/web3.js`, invokes initialize/increment/get,
+      checks account data 0→1→2, and validates `get` return data. The script
+      rebuilds the generated sbpf project with `--arch v0` for Solana CLI
+      deploy compatibility and uses `--use-rpc` for Surfpool.
+
+Next Solana SDK completion items:
+
+- Complete syscall-backed SDK families: PDA seed packing and validation,
+  System Program CPI, SPL Token CPI, logs/events, sysvars, crypto hashes,
+  memory helpers, and return-data reads.
+- Add Rust/Pinocchio reference fixtures for the same account schema and compare
+  ProofForge-generated behavior against those reference programs through the
+  same Web3.js harness.
+- Generalize `--solana-elf` to expose sbpf arch/profile options instead of the
+  live smoke rebuilding with `sbpf build --arch v0`.
+- Move from Phase 1 single-account manifests to generated multi-account
+  schemas with signer/writable/owner constraints per entrypoint.
 
 ## Workstream 8: Move Source Generation POC (Aptos first)
 

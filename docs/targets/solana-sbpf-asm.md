@@ -92,9 +92,29 @@ The sBPF assembly grammar (from the blueshift `sbpf.pest` PEG grammar):
 | `sol_get_clock_sysvar` / `sol_get_rent_sysvar` / `sol_get_epoch_schedule_sysvar` / `sol_get_last_restart_slot_sysvar` | (ptr) → r0 | Sysvar reads |
 | `sol_get_return_data` | (buffer, len, program_id_ptr) → r0 | Cross-call return data |
 | `sol_set_return_data` | (buffer, len) | Return data / results |
-| `sol_sha` / `sol_keccak` / `sol_blake` | (dst, src, len) | Cryptographic hashing |
+| `sol_sha256` / `sol_keccak256` / `sol_blake3` | (dst, src, len) | Cryptographic hashing |
 | `sol_panic_` | () → ! | Abort |
 | `sol_remaining_compute_units` | () → u64 | Compute unit budget query |
+
+### Syscall coverage plan
+
+ProofForge treats Solana syscalls as target-extension capabilities, not
+portable IR primitives. Each syscall family should move through the same
+evidence ladder: SDK/API shape → capability metadata → sBPF AST helper →
+assembly smoke → `sbpf build` → Mollusk/runtime test → Surfpool/Web3.js live
+test when the syscall changes observable chain behavior.
+
+| Family | Current status | Next validation |
+|---|---|---|
+| Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
+| PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; `sol_create_program_address` appears in assembly and builds | Pack real seed byte slices, validate output account/pubkey, add Web3.js PDA fixture |
+| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; assembly builds | Pack `SolInstruction`, account infos, signer seeds, then compare System Program/SPL Token CPI behavior against Rust |
+| Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Documented only | Lower `events.emit` to structured logs and assert logs via Web3.js transaction metadata |
+| Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | Documented only | Use internally for account/data packing helpers; unit-test generated assembly and runtime copies |
+| Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | Documented only | Map `env.block`/rent-like SDK reads to syscalls and validate returned fields |
+| Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | Documented only | Lower `crypto.hash` variants and compare against JS reference hashes |
+| Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | Documented only | Add diagnostics/profiling helpers and explicit failure tests |
+| Return-data read (`sol_get_return_data`) | Documented only | Use in CPI return handling after CPI packing lands |
 
 ## Solana Contract Model
 
@@ -505,11 +525,14 @@ the dispatch adapter), producing the final memory reference:
 |---|---|---|
 | `sbpf` | latest from blueshift-gg/sbpf | Assembler, linker, test runner, disassembler, debugger |
 | `cargo` | (for `cargo install`) | Build sbpf from git |
-| `solana-test-validator` | (optional) | On-chain deployment smoke |
+| `surfpool` | 0.10+ | Local simnet for live deploy/invoke smoke |
+| `solana` CLI | 3.x | Program deploy, airdrop, RPC checks |
+| `node` / `npm` / `@solana/web3.js` | Node 18+ / Web3.js 1.x | Standard JS client invocation |
 | `mollusk` | (bundled in sbpf) | Fast local test runner |
 
-CI should make Solana tests optional (gated on `sbpf` being installed) following
-the same pattern as others (`solc`, `foundry`, `dargo` per `validation-gates.md`).
+CI should make Solana tests optional (gated on `sbpf`, Surfpool, Solana CLI,
+and Node tooling) following the same pattern as others (`solc`, `foundry`,
+`dargo` per `validation-gates.md`).
 
 ## Test Strategy
 
@@ -527,7 +550,7 @@ the same pattern as others (`solc`, `foundry`, `dargo` per `validation-gates.md`
 - `initialize`: write `u64(0)` to account data at fixed offset.
 - `increment`: read, add 1, write.
 - `sbpf test` with Mollusk.
-- `solana-test-validator --bpf-program` smoke.
+- Surfpool/Web3.js live deploy/invoke smoke.
 
 ### Spike 3: Multiple instruction types, typed returns
 
@@ -559,7 +582,7 @@ the same pattern as others (`solc`, `foundry`, `dargo` per `validation-gates.md`
 | V-GATE-SOLANA-01 | `--emit-sbpf-asm` produces valid `.s` accepted by `sbpf build` (no assembly errors). |
 | V-GATE-SOLANA-02 | `sbpf build` produces a valid ELF that `sbpf disassemble` round‑trips. |
 | V-GATE-SOLANA-03 | Counter scenario (initialize, increment, get) passes `sbpf test` with Mollusk. |
-| V-GATE-SOLANA-04 | Counter scenario passes `solana-test-validator --bpf-program` smoke (gate optional if solana-test-validator not installed). |
+| V-GATE-SOLANA-04 | Counter scenario deploys to Surfpool and passes Web3.js initialize/increment/get behavior checks. |
 | V-GATE-SOLANA-05 | Capability checker rejects IR modules using unsupported capabilities with a clear diagnostic mentioning the target id. |
 | V-GATE-SOLANA-06 | `proof-forge-artifact.json` includes `target: "solana-sbpf-asm"`, `irVersion`, and entrypoint list. |
 | V-GATE-SOLANA-07 | `sbpf debug --elf --input` works interactively (developer ergonomics gate — not CI). |
@@ -641,7 +664,7 @@ def solanaSbpfAsm : TargetProfile := {
 | Risk | Severity | Mitigation |
 |---|---|---|
 | sBPF codegen is a full compiler backend — scope may exceed Phase 1 budget | High | Spike 1 validates the toolchain round‑trip in a few hundred LoC. Counter scenario limits scope to scalar storage + dispatch + `sbpf test`. |
-| Account layout changes across Solana runtime versions break fixed offsets | Medium | Compute offsets from the manifest at codegen time (not hardcoded). Rely on the blueshift runtime for testing; on‑chain testing is optional (`solana-test-validator`). |
+| Account layout changes across Solana runtime versions break fixed offsets | Medium | Compute offsets from the manifest at codegen time (not hardcoded). Keep both Mollusk and Surfpool/Web3.js gates so harness-only assumptions are caught. |
 | 10240‑byte MAX_DATA_INCREASE padding per account blows up code size | Low | The padding is in the input buffer, not the generated code. Code only references offsets relative to the input base pointer. |
 | Borsh serialization is complex to implement in sBPF | Medium | Defer to Phase 2+. Use zero‑copy struct layouts (known C‑struct equivalents) for Phase 1; Borsh path is a follow‑on spike. |
 | Register allocator for nontrivial expressions | Medium | Phase 1 uses a fixed‑scratch‑register convention (no spills). If expressions exceed 5 scratch registers, add a simple stack‑spill pass. |

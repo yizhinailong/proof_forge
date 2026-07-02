@@ -53,7 +53,7 @@
   - **V-GATE-SOLANA-01** — `--emit-sbpf-asm` 产生可被 `sbpf build` 接受的有效 `.s`。脚本：`scripts/solana/emit-asm-smoke.sh`（可运行，Phase 0 完成）。
   - **V-GATE-SOLANA-02** — `sbpf build` 产生有效 ELF，且 `sbpf disassemble` 可以 round-trip。脚本：`scripts/solana/emit-asm-smoke.sh`（可运行，Phase 0 完成）。
   - **V-GATE-SOLANA-03** — Counter 场景（initialize、increment、get）通过 `sbpf test` (Mollusk)。脚本：`scripts/solana/counter-smoke.sh`（Phase 1 完成；4 项 Mollusk 断言：initialize→0、increment 0→1、increment 5→6、get→return_data）。生成的 `.s` 现在包含账户校验 prologue（writable + owner 检查），并伴随 `manifest.toml`；由 `scripts/solana/build-examples.sh` 保持 `Examples/Solana/Counter.golden.s` 与 `Counter.manifest.toml` 同步。
-  - **V-GATE-SOLANA-04** — Counter 场景通过 `solana-test-validator --bpf-program` 冒烟测试（可选，取决于 `solana-test-validator` 是否可用）。
+  - **V-GATE-SOLANA-04** — Counter 场景通过 Surfpool 本地 simnet 部署和 Web3.js 行为冒烟。脚本：`scripts/solana/surfpool-web3-smoke.sh`（可选，取决于 `surfpool`、Solana CLI、`sbpf`、Node 和 npm 是否可用）。脚本会构建 Counter ELF、启动 Surfpool、用 `solana program deploy --use-rpc` 部署、通过 `@solana/web3.js` 创建 program-owned counter account、调用 initialize/increment/get、验证 account data 0→1→2，并检查 `get` return data。
   - **V-GATE-SOLANA-05** — 能力检查器以包含 target id 和 capability id 的清晰诊断拒绝不支持能力。脚本：`scripts/solana/diagnostic-smoke.sh` 运行 `Tests/SolanaDiagnostics.lean`，断言 8 个 `crosscall.invoke` 家族拒绝用例均输出预期消息 `target \`solana-sbpf-asm\` does not support capability \`crosscall.invoke\`: ...`。（Phase 1 完成）。
   - **V-GATE-SOLANA-06** — `proof-forge-artifact.json` 包含 `target: "solana-sbpf-asm"`、`irVersion` 和 entrypoint 列表。
   - **V-GATE-SOLANA-07** — `sbpf debug --elf --input` 可交互工作（开发者体验门禁，不进入 CI）。
@@ -77,4 +77,4 @@
 
 ## 可选外部工具
 
-当前的 CI 安装了 Foundry stable 和 `solc` 0.8.30。本地机器可能没有 `solc`、`cast`、`forge`、`psyup`、`dargo`、`sbpf` 或 `solana-test-validator`。缺失 EVM 工具会阻塞 EVM 工具链门禁，但不会阻塞 `lake build`。缺失 Psy 工具只会阻塞 Psy smoke 的 Dargo 部分；source generation 和 golden diff 会在脚本退出前先运行。
+当前的 CI 安装了 Foundry stable 和 `solc` 0.8.30。本地机器可能没有 `solc`、`cast`、`forge`、`psyup`、`dargo`、`sbpf`、`surfpool`、Solana CLI、Node 或 npm。缺失 EVM 工具会阻塞 EVM 工具链门禁，但不会阻塞 `lake build`。缺失 Psy 工具只会阻塞 Psy smoke 的 Dargo 部分；source generation 和 golden diff 会在脚本退出前先运行。

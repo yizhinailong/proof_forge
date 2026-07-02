@@ -228,12 +228,12 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - 添加 `--solana-elf` CLI 模式：发射 `.s` 后调用 `sbpf build`。
 - 与 `.s` 一起生成 instruction manifest (`manifest.toml`)。
 - 创建 `Examples/Solana/Counter.lean` + manifest。
-- 运行 `sbpf test` (Mollusk)，并可选运行 `solana-test-validator --bpf-program`。
+- 运行 `sbpf test` (Mollusk)，并运行 Surfpool/Web3.js live deployment 冒烟。
 
 验收标准：
 
 - Counter 场景（initialize、increment、get）通过 `sbpf test`。
-- `solana-test-validator` 冒烟测试通过（可选，取决于工具是否可用）。
+- Surfpool/Web3.js live smoke 通过（可选，取决于工具是否可用）。
 - 能力检查器用清晰诊断拒绝使用不支持能力的 IR 模块，诊断包含 target id 和 capability id。
 - 同一个 portable IR Counter 模块可以降级到 EVM 和 Solana。
 - 制品元数据记录 `target: "solana-sbpf-asm"`、`irVersion`、entrypoints 和使用的 capabilities。
@@ -256,7 +256,14 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] `Examples/Solana/Counter.lean` + manifest 作为自包含示例。包含跟踪的 `Counter.golden.s`、`Counter.manifest.toml`，以及 CI 可运行的 `scripts/solana/build-examples.sh` 负责发射并做 diff。
 - [x] 能力检查器以清晰诊断拒绝不支持的能力/目标组合，诊断含 target id 和 capability id。`Tests/SolanaDiagnostics.lean` 与 `scripts/solana/diagnostic-smoke.sh` 覆盖 8 个 `crosscall.invoke` 家族用例，作为 V-GATE-SOLANA-05 的基础。
 - [x] Solana SDK target extension 将 `ProofForge.Solana` 的 PDA/CPI API 路由到 capability plan metadata，生成 `manifest.toml` 的 extension definition 与 entrypoint action section，并在 handler 中、IR body 之前注入 helper call（`sol_pda_derive_<name>`、`sol_cpi_<name>`），同时保存/恢复 Solana input 指针 `r1`。覆盖：`Tests/SolanaSdk.lean`、`Tests/SolanaSdkManifest.lean`、`scripts/solana/sdk-smoke.sh`（可用时执行 `sbpf build`）。
-- [ ] 可选 `solana-test-validator --bpf-program` 冒烟（V-GATE-SOLANA-04，取决于工具是否可用）。
+- [x] Surfpool/Web3.js live deployment 冒烟（V-GATE-SOLANA-04）。可选门禁 `scripts/solana/surfpool-web3-smoke.sh` 会构建 Counter ELF、启动 Surfpool、用 Solana CLI 部署、通过 `@solana/web3.js` 创建 program-owned counter account、调用 initialize/increment/get、检查 account data 0→1→2，并验证 `get` return data。该脚本为了兼容 Solana CLI 部署，会把生成的 sbpf project 用 `--arch v0` 重建，并对 Surfpool 使用 `--use-rpc`。
+
+后续 Solana SDK 补齐项：
+
+- 补完整个 syscall-backed SDK 家族：PDA seed packing 与验证、System Program CPI、SPL Token CPI、logs/events、sysvars、crypto hashes、memory helpers，以及 return-data read。
+- 为同一套 account schema 增加 Rust/Pinocchio reference fixture，并通过同一个 Web3.js harness 对比 ProofForge 生成程序与参考程序的行为。
+- 泛化 `--solana-elf`，把 sbpf arch/profile 变成正式参数，而不是由 live smoke 再执行 `sbpf build --arch v0`。
+- 从 Phase 1 单账户 manifest 推进到生成 multi-account schema，并为每个 entrypoint 表达 signer/writable/owner 约束。
 
 ## 工作流 8: Move 源代码生成 POC（Aptos 优先）
 

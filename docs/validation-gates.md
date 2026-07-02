@@ -92,8 +92,13 @@ The following gates are `Planned` and do not exist in CI or as scripts:
     tracked `Examples/Solana/Counter.golden.s` / `Counter.manifest.toml` are
     kept in sync by `scripts/solana/build-examples.sh`.
   - **V-GATE-SOLANA-04** — Counter scenario passes
-    `solana-test-validator --bpf-program` smoke (optional, gated on
-    `solana-test-validator` availability).
+    a Surfpool local simnet deployment and Web3.js behavior smoke. Script:
+    `scripts/solana/surfpool-web3-smoke.sh` (optional, gated on `surfpool`,
+    Solana CLI, `sbpf`, Node, and npm). The script builds the Counter ELF,
+    starts Surfpool, deploys with `solana program deploy --use-rpc`, creates a
+    program-owned counter account through `@solana/web3.js`, invokes
+    initialize/increment/get, validates account data 0→1→2, and checks
+    `get` return data.
   - **V-GATE-SOLANA-05** — Capability checker rejects IR modules using
     unsupported capabilities with a clear diagnostic citing target id and
     capability id. Script: `scripts/solana/diagnostic-smoke.sh` runs
@@ -152,8 +157,8 @@ If no runnable local command exists, the target remains `Research`.
 ## Optional external tools
 
 Current CI installs Foundry stable and `solc` 0.8.30. Local machines may not
-have `solc`, `cast`, `forge`, `psyup`, `dargo`, `sbpf`, or
-`solana-test-validator`. Missing EVM tools block EVM toolchain gates but not
+have `solc`, `cast`, `forge`, `psyup`, `dargo`, `sbpf`, `surfpool`, Solana
+CLI, Node, or npm. Missing EVM tools block EVM toolchain gates but not
 `lake build`. Missing Psy tools block only the Psy
 smoke Dargo portions; source generation and golden diff still run before each
 script exits.
