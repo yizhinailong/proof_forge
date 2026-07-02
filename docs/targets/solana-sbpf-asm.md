@@ -128,7 +128,7 @@ test when the syscall changes observable chain behavior.
 |---|---|---|
 | Return data (`sol_set_return_data`, `sol_get_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get`; `runtime.return_data` SDK entrypoint actions now lower state-backed return-data buffers through `sol_set_return_data`, read return-data buffers/program ids through `sol_get_return_data`, and have Surfpool/Web3.js coverage for empty reads, set-return simulation output, and same-instruction set/get roundtrips | Add typed return payload helpers beyond `u64` and CPI return-value handling |
 | PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; typed seed descriptors cover literal/UTF-8 bytes, account pubkeys, bump seeds, and scalar instruction-data seeds; Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; derived pubkeys can be validated against declared PDA accounts; assembly builds | Add Web3.js PDA fixture against `PublicKey.findProgramAddressSync`, then add `sol_try_find_program_address` support |
-| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; System transfer/create-account plus SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` have Surfpool/Web3.js live behavior gates; System transfer now has a checked-in Pinocchio reference contract/manifest gate plus a dual-deploy live-equivalence harness gated on Solana rustc availability | Make the Pinocchio live gate pass in CI/local toolchains and extend to Token-2022 |
+| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; System transfer/create-account plus SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` have Surfpool/Web3.js live behavior gates; System transfer, System `create_account`, and SPL Token `transfer_checked` now have checked-in Pinocchio reference contract/manifest gates, and System transfer has a dual-deploy live-equivalence harness gated on Solana rustc availability | Make the Pinocchio live gate pass in CI/local toolchains, add create_account and SPL Token live-equivalence, and extend to Token-2022 |
 | Sysvars (`sol_get_clock_sysvar`, `sol_get_rent_sysvar`, `sol_get_epoch_schedule_sysvar`, `sol_get_epoch_rewards_sysvar`, `sol_get_sysvar`) | Clock.slot, Rent.lamports_per_byte_year, EpochSchedule's five RPC-exposed fields, EpochRewards' scalar/word-view fields, and feature-gated LastRestartSlot.last_restart_slot are exposed as Solana-only SDK target-extension helpers, route through capability metadata, render manifest/artifact action metadata, build to ELF, and have Surfpool/Web3.js smoke scripts | Add generic account-passed sysvar reads, plus Rust/Pinocchio reference comparisons |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations plus explicit typed account declarations; manifest, artifact JSON (`solanaExtensions.accounts`), fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
@@ -745,6 +745,8 @@ and Node tooling) following the same pattern as others (`solc`, `foundry`,
 | V-GATE-SOLANA-22 | `just solana-return-data-compute-web3` deploys a generated ReturnDataCompute program on Surfpool and verifies `sol_set_return_data`, `sol_get_return_data`, `sol_remaining_compute_units`, and `sol_log_compute_units_` through Web3.js. |
 | V-GATE-SOLANA-10R | `just solana-pinocchio-system-transfer-equivalence` emits the generated System transfer CPI artifact and compares its ABI/account/CPI/state-write contract against a checked-in Pinocchio reference manifest/source. |
 | V-GATE-SOLANA-10L | `just solana-pinocchio-system-transfer-live-equivalence` builds/deploys the ProofForge and Pinocchio System transfer programs on Surfpool and compares the same Web3.js transfer scenario against both. |
+| V-GATE-SOLANA-11R | `just solana-pinocchio-system-create-account-equivalence` emits the generated System `create_account` CPI artifact and compares its ABI/account/CPI/state-write contract against a checked-in Pinocchio reference manifest/source. |
+| V-GATE-SOLANA-12R | `just solana-pinocchio-spl-token-transfer-equivalence` emits the generated SPL Token `transfer_checked` CPI artifact and compares its ABI/account/CPI/state-write contract against a checked-in Pinocchio Token reference manifest/source. |
 
 ## Lean Module Layout
 
@@ -871,10 +873,12 @@ Phase 3 is split into verifiable SDK completeness levels rather than one large
 The alpha line is the point where a developer should be able to write and
 deploy simple Solana programs without hand-written assembly patches. The beta
 line is the point where ProofForge output can be compared against reference
-Rust/Pinocchio programs for the same account schema. The System transfer
-reference contract is the first static equivalence anchor for that line, and
-the live harness is already wired to build/deploy both ELFs when Solana rustc
-is available. The final framework line adds the higher-level
+Rust/Pinocchio programs for the same account schema. The System transfer,
+System `create_account`, and SPL Token `transfer_checked` reference contracts
+are the first static equivalence anchors for that line, and the System transfer
+live harness is already wired to build/deploy both ELFs when Solana rustc is
+available. The
+final framework line adds the higher-level
 ergonomics expected from Anchor-like and Pinocchio-style workflows without
 moving Solana-specific details into portable IR.
 
