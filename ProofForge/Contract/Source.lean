@@ -103,6 +103,7 @@ scoped syntax "account " ident " readonly " "owner " term : contractItem
 scoped syntax "account " ident " writable" : contractItem
 scoped syntax "account " ident " writable " "owner " term : contractItem
 scoped syntax "pda " ident " seeds " "[" solanaSeed,* "]" " bump " ident " account " ident " signer" : contractItem
+scoped syntax "cpi " ident " system_transfer" "(" ident ", " ident ", " ident ")" : contractItem
 scoped syntax "cpi " ident " spl_token_transfer_checked" "(" ident ", " ident ", " ident ", " ident ", " ident ")" " decimals" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" : contractItem
 scoped syntax "use " term : contractItem
@@ -118,6 +119,7 @@ scoped syntax ident " := " term ";" : entryStmt
 scoped syntax "emit " ident term ";" : entryStmt
 scoped syntax "return " term ";" : entryStmt
 scoped syntax "derive " "pda " ident " seeds " "[" solanaSeed,* "]" " bump " ident " account " ident " signer;" : entryStmt
+scoped syntax "invoke " ident " system_transfer" "(" ident ", " ident ", " ident ")" ";" : entryStmt
 scoped syntax "invoke " ident " spl_token_transfer_checked" "(" ident ", " ident ", " ident ", " ident ", " ident ")" " decimals" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" ";" : entryStmt
 scoped syntax "do " term ";" : entryStmt
@@ -235,6 +237,13 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
               (bump? := some $bumpRef)
               (account? := some $accountRef)
               (isSigner := true) *> $acc)
+    | `(entryStmt| invoke $call:ident system_transfer($fromAccount:ident, $toAccount:ident, $lamportsSource:ident);) =>
+        let callLit := identNameLit call
+        let fromLit := identNameLit fromAccount
+        let toLit := identNameLit toAccount
+        let lamportsLit := identNameLit lamportsSource
+        acc ←
+          `(ProofForge.Solana.invokeSystemTransfer $callLit $fromLit $toLit $lamportsLit *> $acc)
     | `(entryStmt| invoke $call:ident spl_token_transfer_checked($source:ident, $mint:ident, $destination:ident, $authority:ident, $amountRef:ident) decimals($decimalValue:term) signer_seeds [$signerSeedItems:solanaSignerSeed,*];) =>
         let signerSeedArray ← lowerSolanaSignerSeeds signerSeedItems
         acc ←
@@ -311,6 +320,14 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
             (account? := some $accountRef)
             (isSigner := true))
       return { action? := some action, binder := mkPdaLet name }
+  | `(contractItem| cpi $call:ident system_transfer($fromAccount:ident, $toAccount:ident, $lamportsSource:ident)) =>
+      let callLit := identNameLit call
+      let fromLit := identNameLit fromAccount
+      let toLit := identNameLit toAccount
+      let lamportsLit := identNameLit lamportsSource
+      let action ←
+        `(ProofForge.Solana.systemTransfer $callLit $fromLit $toLit $lamportsLit)
+      return { action? := some action }
   | `(contractItem| cpi $call:ident spl_token_transfer_checked($source:ident, $mint:ident, $destination:ident, $authority:ident, $amountRef:ident) decimals($decimalValue:term) signer_seeds [$signerSeedItems:solanaSignerSeed,*]) =>
       let signerSeedArray ← lowerSolanaSignerSeeds signerSeedItems
       let action ←

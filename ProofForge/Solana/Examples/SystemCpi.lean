@@ -1,30 +1,16 @@
-import ProofForge.Contract.Builder
-import ProofForge.Solana
+import ProofForge.Contract.Source
 
 namespace ProofForge.Solana.Examples.SystemCpi
 
-open ProofForge.Contract.Builder
-open ProofForge.Solana
+open ProofForge.Contract.Source
 
-def spec : ProofForge.Contract.ContractSpec :=
-  build "SolanaSystemCpi" do
-    scalarState "last_transfer_lamports" .u64
+contract_source SolanaSystemCpi do
+  state last_transfer_lamports : .u64
 
-    systemTransfer
-      "lamport_transfer"
-      "payer"
-      "recipient"
-      "lamports"
+  cpi lamport_transfer system_transfer(payer, recipient, lamports)
 
-    entrySelectorWithParams "transfer" "01" #[("lamports", .u64)] .unit do
-      invokeSystemTransfer
-        "lamport_transfer"
-        "payer"
-        "recipient"
-        "lamports"
-      effect (storageScalarWrite "last_transfer_lamports" (localVar "lamports"))
-
-def module : ProofForge.IR.Module :=
-  spec.module
+  entry transfer(lamports : .u64) do
+    invoke lamport_transfer system_transfer(payer, recipient, lamports);
+    last_transfer_lamports := lamports;
 
 end ProofForge.Solana.Examples.SystemCpi

@@ -1016,8 +1016,11 @@ Current boundary:
   is still a v1 macro frontend over the existing `ContractSpec` builder rather
   than a complete standalone Learn parser. It covers portable scalar state,
   entry/query bodies, events, arithmetic, and first Solana account/PDA/CPI
-  declarations. The next source-syntax gap is to broaden the Solana forms
-  beyond the current SPL Token transfer-checked path to System CPI, additional
+  declarations. `ProofForge.Solana.Examples.SystemCpi` now also uses
+  source-level `cpi ... system_transfer(...)` / `invoke ... system_transfer(...)`
+  forms while retaining the existing Pinocchio reference-equivalence artifact
+  contract. The next source-syntax gap is to broaden the Solana forms beyond
+  System transfer and SPL Token transfer-checked to create-account, additional
   SPL Token ops, sysvars, logs, memory, crypto, and richer Pinocchio-style
   account validation ergonomics while the target extension layer derives
   chain-specific

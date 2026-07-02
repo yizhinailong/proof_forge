@@ -560,12 +560,15 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 - `ProofForge.Contract.Source` 已经是第一层面向源码的语法，但它仍是基于
   现有 `ContractSpec` builder 的 v1 macro frontend，而不是完整独立的 Learn
   parser。它目前覆盖 portable scalar state、entry/query body、event 和
-  arithmetic，也覆盖了第一批 Solana account/PDA/CPI declaration。下一步
-  source-syntax 缺口是把 Solana 形式从当前 SPL Token transfer-checked 路径
-  扩展到 System CPI、更多 SPL Token ops、sysvar、log、memory、crypto，以及
-  更接近 Pinocchio 的 account validation ergonomics；同时由 target extension
-  层在编译阶段派生 selector、instruction tag、IDL/client metadata 和 package
-  artifact。
+  arithmetic，也覆盖了第一批 Solana account/PDA/CPI declaration。
+  `ProofForge.Solana.Examples.SystemCpi` 现在也使用 source-level
+  `cpi ... system_transfer(...)` / `invoke ... system_transfer(...)` 形式，同时
+  保持现有 Pinocchio reference-equivalence artifact contract。下一步
+  source-syntax 缺口是把 Solana 形式从 System transfer 和 SPL Token
+  transfer-checked 扩展到 create-account、更多 SPL Token ops、sysvar、log、
+  memory、crypto，以及更接近 Pinocchio 的 account validation ergonomics；
+  同时由 target extension 层在编译阶段派生 selector、instruction tag、
+  IDL/client metadata 和 package artifact。
 
 剩余优先切片：
 
