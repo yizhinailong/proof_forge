@@ -211,6 +211,11 @@ SDK helpers），`.learn` 只在需要等价性回归时跟进，且不再新增
 
 ## 九、行动清单（按优先级）
 
+> 本清单已落入工程 backlog：见
+> [implementation-backlog.md 的 Workstream 24](../implementation-backlog.md)
+> （Architecture Convergence and Branch Consolidation），含 NEAR（lookdown）
+> 分支试合并得到的具体冲突清单与两步合并方案。
+
 1. **P0 收敛分支**：合入 `solana-supprot` 残余；按"先 IR/registry、后
    后端"两步合入 `lookdown`；把 aleo/cloudflare 分支上的 decisions /
    capability-registry 增量摘回 main。

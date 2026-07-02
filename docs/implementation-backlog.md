@@ -1827,8 +1827,129 @@ Acceptance criteria:
 - Documentation clearly says Solana does not default to a per-token SPL
   contract; it uses SPL Token / Token-2022 programs by plan and CPI.
 
+## Workstream 24: Architecture Convergence and Branch Consolidation
+
+Goal: land the findings of the
+[2026-07 architecture review](zh/architecture-review-2026-07.md) so that the
+shared core (portable IR, capability registry, target registry, decision log)
+evolves only on `main`, and long-lived per-chain branches are merged back or
+retired.
+
+### 24.1 Branch policy (P0)
+
+Tasks:
+
+- Record in `decisions.md` and `development-standards.md`: chains are
+  directories and target ids, not branches; changes to `ProofForge/IR/*`,
+  `ProofForge/Target/*`, `ProofForge/Contract/{Spec,Intent,Source}*`,
+  `docs/capability-registry.md`, `docs/decisions.md`, and
+  `docs/portable-ir.md` land on `main` in standalone PRs and must not ride in
+  long-lived chain feature branches.
+- Record the i18n rule: branches do not touch `docs/zh/*.zh.md` or
+  `scripts/i18n/manifest.json`; translation sync runs on `main` only.
+- Merge the 2 remaining `DaviRain-Su/solana-supprot` commits (Pinocchio
+  references) and retire that branch.
+
+Acceptance criteria:
+
+- Both policy docs state the branch and i18n rules.
+- `solana-supprot` is fully merged or explicitly closed.
+
+### 24.2 NEAR (`lookdown`) branch merge (P0)
+
+The `lookdown` branch carries the whole Wasm/NEAR backend (EmitWat, Wasm
+AST/printer, near-sandbox smokes, offline host runtime) and is ~115 commits
+ahead of / ~40 behind `main`. A dry-run merge (`git merge-tree`, 2026-07-02)
+shows 8 textual conflicts plus known semantic conflicts. Merge in two steps:
+
+Step A — shared-core changes first, as standalone PRs onto `main`:
+
+- `ProofForge/IR/Contract.lean` `Statement.release` constructor and
+  `Module.allocator` field, plus `IR/Allocator.lean`, `IR/Ownership.lean`,
+  `IR/Semantics.lean`.
+- `ProofForge/Target/Registry.lean` allocator fields
+  (`deploymentAllocator?`, `offlineAllocators`) and `wasm-near` profile
+  updates. Decide in the same PR whether the existing Solana allocator
+  selection (`Tests/SolanaAllocator.lean`) is unified under this abstraction
+  or stays target-local, and record the outcome in `decisions.md`.
+- Renumber `lookdown` decision entries: its D-025/D-026/D-027 collide with
+  `main`'s D-025 (solana-sbpf-asm route), D-026 (canonical Solana route,
+  already cross-referenced by D-004), and D-027 (CPI/PDA layering). The NEAR
+  decisions (near-sdk-rs v0, wasm-near capability set, EmitWat canonical)
+  become D-029+ and cross-references in `docs/targets/wasm-near.md`,
+  `docs/targets/wasm-family.md`, and their zh mirrors are updated.
+
+Step B — backend merge:
+
+- Merge EmitWat backend, Wasm compiler modules, NEAR smokes, and
+  `runtime/offline-host` under the `wasm-near` target id (Experimental).
+- Resolve the remaining textual conflicts: `ProofForge/Backend.lean` and
+  `ProofForge/Cli.lean` (both sides added imports/CLI modes),
+  `Tests/EvmCoverage.tsv` (both sides added rows),
+  `docs/capability-registry.md`, `docs/decisions.md`, and the i18n pair
+  `docs/zh/capability-registry.zh.md` / `docs/zh/decisions.zh.md` plus
+  `scripts/i18n/manifest.json` (regenerate via the translation script on
+  `main` after merge instead of hand-merging hashes).
+- Post-merge semantic verification: `main`-side Statement consumers added
+  after the fork point (`Backend/Solana/SbpfAsm.lean`, `Contract/Learn.lean`,
+  `Contract/Surface.lean`, `Contract/Builder.lean`) never saw `release`;
+  catch-all arms make them compile, so run `lake build` plus the EVM, Solana,
+  and Psy gates and add explicit `release` diagnostics where a generic
+  "unsupported statement" error would otherwise leak through.
+
+Acceptance criteria:
+
+- `wasm-near` builds from `main` with its smoke gates in CI.
+- `docs/decisions.md` has one linear decision log with no duplicate ids.
+- `lookdown` is retired.
+
+### 24.3 Remaining branch reconciliation (P1)
+
+Tasks:
+
+- Extract the `decisions.md` / `capability-registry.md` deltas from
+  `DaviRain-Su/aleo-support` and `DaviRain-Su/cloudflare-support` back to
+  `main` so the authoritative docs describe all in-flight targets, even if
+  the backends stay unmerged for now.
+- Decide whether the Cloudflare Workers TypeScript backend keeps a registry
+  entry; if kept, give it a distinct target family (no consensus, no on-chain
+  state) so it does not dilute capability semantics.
+
+### 24.4 Naming and surface cleanup (P1)
+
+Tasks:
+
+- Decide the public SDK name (recommendation: ProofForge SDK; avoid "LEAN",
+  which collides with the Lean language and the legacy Learn DSL) and record
+  it in `decisions.md`.
+- Schedule the `Lean.Evm` → `ProofForge.*` namespace rename flagged in the
+  README (`Lean.Evm` shadows the Lean compiler's own `Lean` namespace).
+- Enforce the Learn freeze from [authoring-model.md](authoring-model.md):
+  new capabilities land in the Lean SDK (`contract_source` / Token helpers)
+  first; `.learn` gains no Learn-only syntax. If Learn is instead promoted to
+  a product surface, that requires an RFC superseding the authoring model.
+
+### 24.5 EVM product pipeline decision (P1)
+
+Tasks:
+
+- Amend RFC 0004 to state that `ContractSpec` → EVM Plan → Yul is the EVM
+  product pipeline, and that the LCNF → `EmitYul` route is a Lean-native
+  experimental path with no feature-parity obligation.
+
+### 24.6 Phase completion criterion (P2)
+
+Tasks:
+
+- Record in `decisions.md`: the current phase's completion standard is the
+  shared scenario (Counter, then ValueVault) passing on `evm`,
+  `solana-sbpf-asm`, and `wasm-near`; until then, new research targets add
+  docs only — no registry or capability-file changes.
+
 ## Suggested Order
 
+0. Architecture convergence and branch consolidation (Workstream 24) — 24.1
+   and 24.2 before any new backend work on branches.
 1. Target registry (Workstream 1).
 2. Portable IR + shared Counter scenario (Workstream 1.5).
 3. EVM artifact metadata and deploy manifest (Workstreams 2–3).
