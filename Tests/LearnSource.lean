@@ -2,6 +2,7 @@ import ProofForge.Backend.Solana.Package
 import ProofForge.Contract.Examples.Counter
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Learn
+import ProofForge.Solana.Examples.SplTokenOpsCpi
 import ProofForge.Solana.Examples.SystemCpi
 import ProofForge.Solana.Examples.SystemCreateAccountCpi
 import ProofForge.Solana.Examples.Vault
@@ -86,6 +87,13 @@ def main : IO UInt32 := do
     ProofForge.Solana.Examples.SystemCreateAccountCpi.spec
   requireSameText "SystemCreateAccountCpi Learn manifest"
     learnCreateAccountManifest sourceCreateAccountManifest
+  let splTokenOps ← parseSpec "Examples/Learn/SplTokenOpsCpi.learn"
+  requireSameModule "SplTokenOpsCpi" splTokenOps.module
+    ProofForge.Solana.Examples.SplTokenOpsCpi.module
+  let learnTokenOpsManifest ← packageFile "learn-spl-token-ops-cpi" "manifest.toml" splTokenOps
+  let sourceTokenOpsManifest ← packageFile "source-spl-token-ops-cpi" "manifest.toml"
+    ProofForge.Solana.Examples.SplTokenOpsCpi.spec
+  requireSameText "SplTokenOpsCpi Learn manifest" learnTokenOpsManifest sourceTokenOpsManifest
   IO.println "learn-source: ok"
   return 0
 

@@ -19,6 +19,13 @@ The intended user experience is Learn-first. `contract_source` is useful because
 it is executable inside the current Lean/Lake repo and proves the lowering path,
 but it is not the final language parser.
 
+The string-heavy `ContractSpec` and Builder examples should therefore be read
+as compiler fixtures, not as the product surface. They describe the same
+program shape that the compiler consumes after parsing, capability routing, and
+target-extension expansion. Application authors should increasingly see
+language syntax in `.learn` files, while tests keep the Builder fixtures as the
+reviewed expected IR.
+
 ## Source Principles
 
 - Portable contracts should express business logic without target-specific
@@ -42,7 +49,10 @@ but it is not the final language parser.
 `ContractSpec`/portable IR boundary used by `contract_source`. The parser covers
 the portable scalar/event subset plus the first Solana target-extension forms
 for accounts, PDA derivation, System Program transfer/create-account CPI, and
-SPL Token transfer CPI.
+SPL Token transfer, mint, burn, approve, and revoke CPI. It also accepts
+selector-bearing entrypoints such as `entry mint selector "04"(amount: u64)`,
+so Solana instruction tags can be represented in Learn source instead of only
+in Builder fixtures.
 `ProofForge.Contract.Source` remains the executable embedded syntax layer and
 covers:
 
@@ -55,8 +65,8 @@ covers:
 - Solana PDA declarations and derivation statements;
 - Solana System Program `transfer` and `create_account` CPI declarations and
   invocation statements;
-- Solana SPL Token `transfer_checked` CPI declarations and invocation
-  statements.
+- Solana SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and
+  `revoke` CPI declarations and invocation statements.
 
 Examples such as `ProofForge.Contract.Examples.ValueVault` should be read as
 v1 source examples, not as the final `.learn` grammar. They exist to keep the
@@ -83,7 +93,8 @@ need to manually switch between these internals when the contract is portable.
 ## Next Implementation Steps
 
 1. Expand the Learn parser beyond the current Vault/System CPI Solana subset to
-   cover Token-2022, sysvars, logs, memory, crypto, and return-data helpers.
+   cover Token-2022, sysvars, logs, memory, crypto, return-data helpers, and
+   the remaining framework-level account/data declarations.
 2. Gradually replace string-bearing Solana declarations with typed account,
    owner, program, and capability references.
 3. Keep backend artifact checks unchanged so the new Learn syntax proves the

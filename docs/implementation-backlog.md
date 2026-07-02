@@ -1007,6 +1007,13 @@ Completed developer-surface slices:
   lower to the same IR modules and generated manifests as the existing
   `ProofForge.Solana.Examples.SystemCpi` and
   `ProofForge.Solana.Examples.SystemCreateAccountCpi` source examples.
+- Learn SPL Token ops syntax:
+  `SplTokenOpsCpi.learn` now covers selector-bearing Learn entrypoints plus
+  `spl_token_mint_to`, `spl_token_burn`, `spl_token_approve`, and
+  `spl_token_revoke` declarations/invocations. `Tests/LearnSource.lean` proves
+  the Learn file lowers to the same IR module and generated manifest as
+  `ProofForge.Solana.Examples.SplTokenOpsCpi`, keeping the string-heavy Builder
+  code as an internal expected fixture rather than the user-facing syntax.
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
@@ -1046,12 +1053,13 @@ Current boundary:
 
 - `ProofForge.Contract.Learn` is now the first standalone Learn parser/lowering
   seed. It covers the portable Counter/ValueVault subset and the Vault-level
-  Solana account/PDA/SPL Token transfer CPI subset, plus System Program
-  transfer/create-account CPI. `ProofForge.Contract.Source` remains the richer
+  Solana account/PDA/SPL Token transfer CPI subset, System Program
+  transfer/create-account CPI, and SPL Token mint/burn/approve/revoke CPI.
+  `ProofForge.Contract.Source` remains the richer
   embedded macro frontend for examples not yet expressed in Learn. The next
   authoring gap is to extend Learn parsing to typed target-extension forms for
-  additional SPL Token ops, Token-2022, sysvars, logs, memory, crypto, return
-  data, and richer Pinocchio-style account
+  Token-2022, sysvars, logs, memory, crypto, return data, and richer
+  Pinocchio-style account
   validation ergonomics while the target extension layer derives chain-specific
   selectors, instruction tags, IDL/client metadata, and package artifacts during
   compilation.

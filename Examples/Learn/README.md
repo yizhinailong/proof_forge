@@ -15,9 +15,13 @@ lives in `ProofForge.Contract.Source` through the `contract_source` syntax:
 - `SystemCpi.learn` mirrors `ProofForge.Solana.Examples.SystemCpi`.
 - `SystemCreateAccountCpi.learn` mirrors
   `ProofForge.Solana.Examples.SystemCreateAccountCpi`.
+- `SplTokenOpsCpi.learn` mirrors
+  `ProofForge.Solana.Examples.SplTokenOpsCpi` and exercises selector-bearing
+  SPL Token mint, burn, approve, and revoke CPI syntax.
 
 `Tests/LearnSource.lean` checks that these files lower to the same IR modules as
 the macro-generated examples, and checks that the Solana target-extension form
 renders the same manifest as the embedded source example. The next
 implementation step is broadening the parser to Token-2022, sysvars, logs,
-memory, crypto, and return-data helpers.
+memory, crypto, return-data helpers, and typed account/program references that
+further reduce string-bearing declarations in user-facing Learn source.

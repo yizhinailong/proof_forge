@@ -10,6 +10,7 @@ open ProofForge.IR
 inductive Token where
   | ident (value : String)
   | number (value : Nat)
+  | string (value : String)
   | symbol (value : String)
   deriving Repr
 
@@ -52,6 +53,14 @@ inductive SolanaItem where
   | systemCreateAccount (name payer newAccount lamportsSource spaceSource owner : String)
   | splTokenTransferChecked (name source mint destination authority amountSource : String)
       (decimals : Nat) (signerSeeds : Array SolanaSignerSeed)
+  | splTokenMintTo (name mint destination authority amountSource : String)
+      (signerSeeds : Array SolanaSignerSeed)
+  | splTokenBurn (name source mint authority amountSource : String)
+      (signerSeeds : Array SolanaSignerSeed)
+  | splTokenApprove (name source delegate owner amountSource : String)
+      (signerSeeds : Array SolanaSignerSeed)
+  | splTokenRevoke (name source owner : String)
+      (signerSeeds : Array SolanaSignerSeed)
   deriving Repr
 
 inductive Stmt where
@@ -64,6 +73,14 @@ inductive Stmt where
   | solanaInvokeSystemCreateAccount (name payer newAccount lamportsSource spaceSource owner : String)
   | solanaInvokeSplTokenTransferChecked (name source mint destination authority amountSource : String)
       (decimals : Nat) (signerSeeds : Array SolanaSignerSeed)
+  | solanaInvokeSplTokenMintTo (name mint destination authority amountSource : String)
+      (signerSeeds : Array SolanaSignerSeed)
+  | solanaInvokeSplTokenBurn (name source mint authority amountSource : String)
+      (signerSeeds : Array SolanaSignerSeed)
+  | solanaInvokeSplTokenApprove (name source delegate owner amountSource : String)
+      (signerSeeds : Array SolanaSignerSeed)
+  | solanaInvokeSplTokenRevoke (name source owner : String)
+      (signerSeeds : Array SolanaSignerSeed)
   | return (value : Expr)
   deriving Repr
 
@@ -75,6 +92,7 @@ inductive MethodKind where
 structure MethodDecl where
   kind : MethodKind
   name : String
+  selector? : Option String := none
   params : Array ParamDecl
   returns : ValueType
   body : Array Stmt
@@ -116,6 +134,14 @@ private partial def takeWhile (pred : Char → Bool) (chars : List Char)
       else
         (String.ofList acc.reverse, chars)
 
+private partial def takeStringLiteral (chars : List Char) (acc : List Char) :
+    Except String (String × List Char) :=
+  match chars with
+  | [] => .error "unterminated string literal"
+  | '"' :: rest => .ok (String.ofList acc.reverse, rest)
+  | '\\' :: '"' :: rest => takeStringLiteral rest ('"' :: acc)
+  | ch :: rest => takeStringLiteral rest (ch :: acc)
+
 private partial def lexChars (chars : List Char) (tokens : Array Token) :
     Except String (Array Token) :=
   match chars with
@@ -126,6 +152,10 @@ private partial def lexChars (chars : List Char) (tokens : Array Token) :
       else if ch == '/' && rest.head? == some '/' then
         let (_, tail) := takeWhile (fun c => c != '\n') rest []
         lexChars tail tokens
+      else if ch == '"' then
+        match takeStringLiteral rest [] with
+        | .ok (value, tail) => lexChars tail (tokens.push (.string value))
+        | .error err => .error err
       else if isIdentStart ch then
         let (text, tail) := takeWhile isIdentContinue rest [ch]
         lexChars tail (tokens.push (.ident text))
@@ -183,6 +213,16 @@ private def expectIdent : ParserM String := do
       pure value
   | _ => failAt "expected identifier"
 
+private def expectText : ParserM String := do
+  match (← peek?) with
+  | some (.ident value) =>
+      advance
+      pure value
+  | some (.string value) =>
+      advance
+      pure value
+  | _ => failAt "expected identifier or string"
+
 private def expectKeyword (keyword : String) : ParserM Unit := do
   let value ← expectIdent
   if value == keyword then
@@ -237,6 +277,12 @@ private partial def parseParams : ParserM (Array ParamDecl) := do
   expectSymbol "("
   parseFieldDecls
 
+private partial def parseOptionalSelector : ParserM (Option String) := do
+  if (← consumeKeyword "selector") then
+    pure (some (← expectText))
+  else
+    pure none
+
 private partial def parseIdentArgs : ParserM (Array String) := do
   expectSymbol "("
   if (← consumeSymbol ")") then
@@ -270,7 +316,7 @@ private partial def parseSolanaSeeds : ParserM (Array SolanaSeed) := do
     let mut seeds := #[]
     let parseOne : ParserM SolanaSeed := do
       let kind ← expectIdent
-      let value ← expectIdent
+      let value ← expectText
       match kind with
       | "literal" => pure (.literal value)
       | "account" => pure (.account value)
@@ -402,7 +448,7 @@ private partial def parseSolanaCpiDecl (name instruction : String) : ParserM Sol
   | "system_create_account" =>
       expectArgs "system_create_account" args 4
       expectKeyword "owner"
-      let owner ← expectIdent
+      let owner ← expectText
       pure (.systemCreateAccount name args[0]! args[1]! args[2]! args[3]! owner)
   | "spl_token_transfer_checked" =>
       expectArgs "spl_token_transfer_checked" args 5
@@ -410,6 +456,22 @@ private partial def parseSolanaCpiDecl (name instruction : String) : ParserM Sol
       let signerSeeds ← parseOptionalSignerSeeds
       pure (.splTokenTransferChecked name args[0]! args[1]! args[2]! args[3]! args[4]!
         decimals signerSeeds)
+  | "spl_token_mint_to" =>
+      expectArgs "spl_token_mint_to" args 4
+      let signerSeeds ← parseOptionalSignerSeeds
+      pure (.splTokenMintTo name args[0]! args[1]! args[2]! args[3]! signerSeeds)
+  | "spl_token_burn" =>
+      expectArgs "spl_token_burn" args 4
+      let signerSeeds ← parseOptionalSignerSeeds
+      pure (.splTokenBurn name args[0]! args[1]! args[2]! args[3]! signerSeeds)
+  | "spl_token_approve" =>
+      expectArgs "spl_token_approve" args 4
+      let signerSeeds ← parseOptionalSignerSeeds
+      pure (.splTokenApprove name args[0]! args[1]! args[2]! args[3]! signerSeeds)
+  | "spl_token_revoke" =>
+      expectArgs "spl_token_revoke" args 2
+      let signerSeeds ← parseOptionalSignerSeeds
+      pure (.splTokenRevoke name args[0]! args[1]! signerSeeds)
   | other => failAt s!"unsupported Solana CPI instruction `{other}`"
 
 private partial def parseSolanaItem : ParserM SolanaItem := do
@@ -424,7 +486,7 @@ private partial def parseSolanaItem : ParserM SolanaItem := do
       let access ← parseAccountAccess
       let owner ←
         if (← consumeKeyword "owner") then
-          expectIdent
+          expectText
         else
           pure "any"
       pure (.account name access owner)
@@ -460,7 +522,7 @@ private partial def parseSolanaStmt : ParserM Stmt := do
         | "system_create_account" =>
             expectArgs "system_create_account" args 4
             expectKeyword "owner"
-            let owner ← expectIdent
+            let owner ← expectText
             pure (.solanaInvokeSystemCreateAccount name args[0]! args[1]! args[2]! args[3]! owner)
         | "spl_token_transfer_checked" =>
             expectArgs "spl_token_transfer_checked" args 5
@@ -468,6 +530,22 @@ private partial def parseSolanaStmt : ParserM Stmt := do
             let signerSeeds ← parseOptionalSignerSeeds
             pure (.solanaInvokeSplTokenTransferChecked name args[0]! args[1]! args[2]! args[3]!
               args[4]! decimals signerSeeds)
+        | "spl_token_mint_to" =>
+            expectArgs "spl_token_mint_to" args 4
+            let signerSeeds ← parseOptionalSignerSeeds
+            pure (.solanaInvokeSplTokenMintTo name args[0]! args[1]! args[2]! args[3]! signerSeeds)
+        | "spl_token_burn" =>
+            expectArgs "spl_token_burn" args 4
+            let signerSeeds ← parseOptionalSignerSeeds
+            pure (.solanaInvokeSplTokenBurn name args[0]! args[1]! args[2]! args[3]! signerSeeds)
+        | "spl_token_approve" =>
+            expectArgs "spl_token_approve" args 4
+            let signerSeeds ← parseOptionalSignerSeeds
+            pure (.solanaInvokeSplTokenApprove name args[0]! args[1]! args[2]! args[3]! signerSeeds)
+        | "spl_token_revoke" =>
+            expectArgs "spl_token_revoke" args 2
+            let signerSeeds ← parseOptionalSignerSeeds
+            pure (.solanaInvokeSplTokenRevoke name args[0]! args[1]! signerSeeds)
         | other => failAt s!"unsupported Solana invoke instruction `{other}`"
       consumeOptionalSemicolon
       pure stmt
@@ -525,6 +603,7 @@ private partial def parseMethod (kind : MethodKind) : ParserM MethodDecl := do
   | .entry => expectKeyword "entry"
   | .query => expectKeyword "query"
   let name ← expectIdent
+  let selector? ← parseOptionalSelector
   let params ← parseParams
   let returns ←
     match kind with
@@ -533,7 +612,7 @@ private partial def parseMethod (kind : MethodKind) : ParserM MethodDecl := do
         expectSymbol ":"
         parseType
   let body ← parseStmtBlock
-  pure { kind, name, params, returns, body }
+  pure { kind, name, selector? := selector?, params, returns, body }
 
 private partial def parseItems (state bindings : Array FieldDecl) (events : Array EventDecl)
     (solanaItems : Array SolanaItem) (methods : Array MethodDecl) :
@@ -643,6 +722,18 @@ private def lowerSolanaItem (item : SolanaItem) :
   | .splTokenTransferChecked name source mint destination authority amountSource decimals signerSeeds =>
       pure (ProofForge.Solana.splTokenTransferChecked name source mint destination authority amountSource
         decimals (signerSeeds := lowerSolanaSignerSeeds signerSeeds))
+  | .splTokenMintTo name mint destination authority amountSource signerSeeds =>
+      pure (ProofForge.Solana.splTokenMintTo name mint destination authority amountSource
+        (signerSeeds := lowerSolanaSignerSeeds signerSeeds))
+  | .splTokenBurn name source mint authority amountSource signerSeeds =>
+      pure (ProofForge.Solana.splTokenBurn name source mint authority amountSource
+        (signerSeeds := lowerSolanaSignerSeeds signerSeeds))
+  | .splTokenApprove name source delegate owner amountSource signerSeeds =>
+      pure (ProofForge.Solana.splTokenApprove name source delegate owner amountSource
+        (signerSeeds := lowerSolanaSignerSeeds signerSeeds))
+  | .splTokenRevoke name source owner signerSeeds =>
+      pure (ProofForge.Solana.splTokenRevoke name source owner
+        (signerSeeds := lowerSolanaSignerSeeds signerSeeds))
 
 private def lowerStmtAction (stateNames : Array String)
     (state : ProofForge.Contract.Builder.EntryM Unit × LowerEnv) (stmt : Stmt) :
@@ -687,6 +778,22 @@ private def lowerStmtAction (stateNames : Array String)
       let stmtAction := ProofForge.Solana.invokeSplTokenTransferChecked name source mint destination authority
         amountSource decimals (signerSeeds := lowerSolanaSignerSeeds signerSeeds)
       .ok (action *> stmtAction, env)
+  | .solanaInvokeSplTokenMintTo name mint destination authority amountSource signerSeeds =>
+      let stmtAction := ProofForge.Solana.invokeSplTokenMintTo name mint destination authority amountSource
+        (signerSeeds := lowerSolanaSignerSeeds signerSeeds)
+      .ok (action *> stmtAction, env)
+  | .solanaInvokeSplTokenBurn name source mint authority amountSource signerSeeds =>
+      let stmtAction := ProofForge.Solana.invokeSplTokenBurn name source mint authority amountSource
+        (signerSeeds := lowerSolanaSignerSeeds signerSeeds)
+      .ok (action *> stmtAction, env)
+  | .solanaInvokeSplTokenApprove name source delegate owner amountSource signerSeeds =>
+      let stmtAction := ProofForge.Solana.invokeSplTokenApprove name source delegate owner amountSource
+        (signerSeeds := lowerSolanaSignerSeeds signerSeeds)
+      .ok (action *> stmtAction, env)
+  | .solanaInvokeSplTokenRevoke name source owner signerSeeds =>
+      let stmtAction := ProofForge.Solana.invokeSplTokenRevoke name source owner
+        (signerSeeds := lowerSolanaSignerSeeds signerSeeds)
+      .ok (action *> stmtAction, env)
   | .return value =>
       let value ← lowerExpr env value
       let stmtAction := ProofForge.Contract.Builder.ret value
@@ -698,7 +805,7 @@ private def lowerMethodAction (stateNames bindingNames : Array String) (method :
   let paramNames := method.params.map (fun param => param.name)
   let env : LowerEnv := { stateNames, locals := bindingNames ++ paramNames }
   let (bodyAction, _) ← method.body.foldlM (lowerStmtAction stateNames) (pure (), env)
-  .ok (ProofForge.Contract.Builder.entryWithParams method.name params method.returns bodyAction)
+  .ok (ProofForge.Contract.Builder.entryFull method.name method.selector? method.returns params bodyAction)
 
 def lowerContract (decl : ContractDecl) : Except String ContractSpec := do
   let stateNames := decl.state.map (fun item => item.name)
