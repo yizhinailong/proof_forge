@@ -127,6 +127,14 @@ def main : IO UInt32 := do
         "package assembly missing entrypoint PDA helper call"
       require (contains asmFile.contents "sol_cpi_token_transfer:")
         "package assembly missing CPI helper label"
+      require (contains asmFile.contents "solana.cpi.program_id spl_token account[6] from input account")
+        "package assembly missing CPI program account binding"
+      require (contains asmFile.contents "solana.cpi.account_meta source key_ptr account[2]")
+        "package assembly missing source account meta binding"
+      require (contains asmFile.contents "solana.cpi.account_info source account[2]")
+        "package assembly missing source account info binding"
+      require (contains asmFile.contents "solana.cpi.account_info destination account[4]")
+        "package assembly missing destination account info binding"
       require (contains asmFile.contents "call sol_invoke_signed_c")
         "package assembly missing CPI syscall"
       require (contains asmFile.contents "call sol_cpi_token_transfer")

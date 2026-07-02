@@ -108,7 +108,7 @@ test when the syscall changes observable chain behavior.
 |---|---|---|
 | Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get` | Add typed return payload helpers beyond `u64` |
 | PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; static ASCII seed byte buffers and Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; assembly builds | Add typed UTF-8/account-pubkey/bump seed packing, validate output account/pubkey, add Web3.js PDA fixture |
-| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; assembly builds | Pack `SolInstruction`, account infos, signer seeds, then compare System Program/SPL Token CPI behavior against Rust |
+| CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer and generic CPI helpers pack C `SolInstruction`, `SolAccountMeta[]`, bound `SolAccountInfo[]`, and signer seed tables; assembly builds | Lower real System/SPL Token instruction data, then compare CPI behavior against Rust/Pinocchio |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
 | Runtime allocator | SDK metadata, target routing, manifest output, artifact JSON, and assembly metadata comments exist for Solana's default bump allocator and `noAllocator` | Lower actual dynamic allocation / heap-backed data structures through the selected allocator model |
 | Logs/events (`sol_log_`, `sol_log_64_`, `sol_log_pubkey`) | Documented only | Lower `events.emit` to structured logs and assert logs via Web3.js transaction metadata |
@@ -457,17 +457,18 @@ signer seeds, and instruction-data sources into the capability plan, manifest,
 and artifact metadata.
 
 `system.transfer` now also emits the C ABI packing skeleton for
-`sol_invoke_signed_c`: system program id bytes, C `SolAccountMeta[]`, the
+`sol_invoke_signed_c`: program id bytes, C `SolAccountMeta[]`, the
 `u32 discriminator=2 + u64 lamports` instruction-data layout, C
-`SolInstruction`, placeholder `SolAccountInfo[]`, optional signer seed tables,
-and the syscall register contract. The account info fields still use
-compile-time placeholder buffers because Phase 1 has not generated a real
-multi-account input layout yet.
+`SolInstruction`, bound `SolAccountInfo[]`, optional signer seed tables, and
+the syscall register contract. Program ids, account meta pubkeys, and
+`SolAccountInfo` key/lamports/data/owner/rent/flag fields are sourced from the
+generated multi-account input layout when the account appears in the module
+schema; placeholders remain only as a fallback for unbound accounts and for
+instruction data values that are not lowered yet.
 
-Remaining work: replace placeholder account infos with multi-account layout
-offsets, add dynamic per-entrypoint account parsing, add `system.create_account`
-and SPL Token instruction-data packing, return-data decoding, and runtime tests
-that exercise a live CPI path.
+Remaining work: lower dynamic lamports and SPL Token instruction-data bytes,
+add dynamic per-entrypoint account parsing, add `system.create_account`,
+return-data decoding, and runtime tests that exercise a live CPI path.
 
 PDA helper lowering:
 1. Allocate stack space for seed data + result buffer (32 byte).

@@ -1,12 +1,14 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Backend.Solana.Asm
+import ProofForge.Backend.Solana.StateLayout
 import ProofForge.Backend.Solana.Syscalls
 import ProofForge.Target.Plan
 
 namespace ProofForge.Backend.Solana.Extension
 
 open ProofForge.Backend.Solana.Asm
+open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Target
 
 structure AccountMeta where
@@ -61,6 +63,11 @@ structure ProgramExtensions where
   cpis : Array CpiInvoke := #[]
   pdaActions : Array PdaAction := #[]
   cpiActions : Array CpiAction := #[]
+  deriving Repr, Inhabited
+
+structure CpiAccountBinding where
+  name : String
+  layout : AccountInputLayout
   deriving Repr, Inhabited
 
 def metadataValue? (metadata : Array TargetMetadata) (key : String) : Option String :=
@@ -346,6 +353,31 @@ def zeroStackQuad (base : Reg) (off : Nat) : AstNode :=
 def loadImm (dst : Reg) (value : Nat) : AstNode :=
   .instruction { opcode := .mov64, dst := some dst, imm := some (.num value) }
 
+def cpiAccountBinding? (bindings : Array CpiAccountBinding) (name : String) :
+    Option CpiAccountBinding :=
+  bindings.find? (fun binding => binding.name == name)
+
+def inputPtr (dst : Reg) (off : Nat) : Array AstNode := #[
+  .instruction { opcode := .mov64, dst := some dst, src := some .r1 },
+  .instruction { opcode := .add64, dst := some dst, imm := some (.num off) }
+]
+
+def copyInputPubkeyToStack (name : String) (srcOff stackOff : Nat) : Array AstNode :=
+  #[
+    .comment s!"solana.cpi.program_id {name} from input account"
+  ] ++
+  stackPtr .r8 stackOff ++
+  inputPtr .r7 srcOff ++ #[
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
+    storeReg .stxdw .r8 0 .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 8) },
+    storeReg .stxdw .r8 8 .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 16) },
+    storeReg .stxdw .r8 16 .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 24) },
+    storeReg .stxdw .r8 24 .r3
+  ]
+
 def lowerZero32 (base : Reg) : Array AstNode := #[
   zeroStackQuad base 0,
   zeroStackQuad base 8,
@@ -359,6 +391,24 @@ def lowerCpiSystemProgramId : Array AstNode :=
   ] ++
   stackPtr .r8 cpiProgramIdOffset ++
   lowerZero32 .r8
+
+def lowerCpiFallbackProgramId (program : String) : Array AstNode :=
+  #[
+    .comment s!"solana.cpi.program_id {program} fallback placeholder"
+  ] ++
+  stackPtr .r8 cpiProgramIdOffset ++
+  lowerZero32 .r8
+
+def lowerCpiProgramId (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
+  match cpiAccountBinding? bindings cpi.program with
+  | some binding =>
+      copyInputPubkeyToStack s!"{cpi.program} account[{binding.layout.index}]"
+        binding.layout.keyOff cpiProgramIdOffset
+  | none =>
+      if cpi.program == "system_program" then
+        lowerCpiSystemProgramId
+      else
+        lowerCpiFallbackProgramId cpi.program
 
 def lowerCpiPlaceholderPubkey (idx : Nat) (name : String) : Array AstNode :=
   let offset := cpiPlaceholderPubkeyOffset + idx * 32
@@ -376,32 +426,44 @@ def lowerCpiPlaceholderLamports (idx : Nat) : Array AstNode :=
     zeroStackQuad .r8 0
   ]
 
-def lowerCpiPlaceholders (cpi : CpiInvoke) : Array AstNode :=
+def lowerCpiFallbackPlaceholders (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
   cpi.accounts.mapIdx (fun idx account =>
-    lowerCpiPlaceholderPubkey idx account.name ++
-    lowerCpiPlaceholderLamports idx)
+    match cpiAccountBinding? bindings account.name with
+    | some _ => #[]
+    | none =>
+        lowerCpiPlaceholderPubkey idx account.name ++
+        lowerCpiPlaceholderLamports idx)
     |>.foldl (fun acc nodes => acc ++ nodes) #[]
 
-def lowerCpiAccountMeta (idx : Nat) (account : AccountMeta) : Array AstNode :=
+def lowerCpiAccountMeta (bindings : Array CpiAccountBinding) (idx : Nat)
+    (account : AccountMeta) : Array AstNode :=
   let metaOffset := idx * 16
   let pubkeyOffset := cpiPlaceholderPubkeyOffset + idx * 32
-  #[
-    .comment s!"solana.cpi.account_meta {account.name}"
-  ] ++
+  let pubkeyPtr :=
+    match cpiAccountBinding? bindings account.name with
+    | some binding =>
+        #[
+          .comment s!"solana.cpi.account_meta {account.name} key_ptr account[{binding.layout.index}]"
+        ] ++
+        inputPtr .r8 binding.layout.keyOff
+    | none =>
+        #[
+          .comment s!"solana.cpi.account_meta {account.name} placeholder"
+        ] ++
+        stackPtr .r8 pubkeyOffset
   stackPtr .r7 cpiAccountMetaOffset ++ #[
     .instruction { opcode := .add64, dst := some .r7, imm := some (.num metaOffset) }
-  ] ++
-  stackPtr .r8 pubkeyOffset ++ #[
+  ] ++ pubkeyPtr ++ #[
     storeReg .stxdw .r7 0 .r8,
     storeImm .stb .r7 8 (cpiAccountWritable account),
     storeImm .stb .r7 9 (cpiAccountSigner account)
   ]
 
-def lowerCpiAccountMetas (cpi : CpiInvoke) : Array AstNode :=
-  cpi.accounts.mapIdx lowerCpiAccountMeta
+def lowerCpiAccountMetas (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
+  cpi.accounts.mapIdx (lowerCpiAccountMeta bindings)
     |>.foldl (fun acc nodes => acc ++ nodes) #[]
 
-def lowerCpiAccountInfo (idx : Nat) (account : AccountMeta) : Array AstNode :=
+def lowerCpiAccountInfoFallback (idx : Nat) (account : AccountMeta) : Array AstNode :=
   let infoOffset := idx * 56
   let pubkeyOffset := cpiPlaceholderPubkeyOffset + idx * 32
   let lamportsOffset := cpiPlaceholderLamportsOffset + idx * 8
@@ -427,8 +489,47 @@ def lowerCpiAccountInfo (idx : Nat) (account : AccountMeta) : Array AstNode :=
     storeImm .stb .r6 50 0
   ]
 
-def lowerCpiAccountInfos (cpi : CpiInvoke) : Array AstNode :=
-  cpi.accounts.mapIdx lowerCpiAccountInfo
+def lowerCpiAccountInfoBound (idx : Nat) (account : AccountMeta)
+    (binding : CpiAccountBinding) : Array AstNode :=
+  let infoOffset := idx * 56
+  let layout := binding.layout
+  #[
+    .comment s!"solana.cpi.account_info {account.name} account[{layout.index}]"
+  ] ++
+  stackPtr .r6 cpiAccountInfoOffset ++ #[
+    .instruction { opcode := .add64, dst := some .r6, imm := some (.num infoOffset) }
+  ] ++
+  inputPtr .r8 layout.keyOff ++ #[
+    storeReg .stxdw .r6 0 .r8
+  ] ++
+  inputPtr .r8 layout.lamportsOff ++ #[
+    storeReg .stxdw .r6 8 .r8,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num layout.dataLenOff) },
+    storeReg .stxdw .r6 16 .r3
+  ] ++
+  inputPtr .r8 layout.dataStart ++ #[
+    storeReg .stxdw .r6 24 .r8
+  ] ++
+  inputPtr .r8 layout.ownerOff ++ #[
+    storeReg .stxdw .r6 32 .r8,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num layout.rentEpochOff) },
+    storeReg .stxdw .r6 40 .r3,
+    .instruction { opcode := .ldxb, dst := some .r3, src := some .r1, off := some (.num layout.signerOff) },
+    storeReg .stxb .r6 48 .r3,
+    .instruction { opcode := .ldxb, dst := some .r3, src := some .r1, off := some (.num layout.writableOff) },
+    storeReg .stxb .r6 49 .r3,
+    .instruction { opcode := .ldxb, dst := some .r3, src := some .r1, off := some (.num layout.executableOff) },
+    storeReg .stxb .r6 50 .r3
+  ]
+
+def lowerCpiAccountInfo (bindings : Array CpiAccountBinding) (idx : Nat)
+    (account : AccountMeta) : Array AstNode :=
+  match cpiAccountBinding? bindings account.name with
+  | some binding => lowerCpiAccountInfoBound idx account binding
+  | none => lowerCpiAccountInfoFallback idx account
+
+def lowerCpiAccountInfos (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
+  cpi.accounts.mapIdx (lowerCpiAccountInfo bindings)
     |>.foldl (fun acc nodes => acc ++ nodes) #[]
 
 def lowerCpiSignerSeed (cpiName : String) (idx : Nat) (seed : String) : Array AstNode :=
@@ -517,46 +618,41 @@ def lowerCpiCall (cpi : CpiInvoke) : Array AstNode :=
     .instruction { opcode := .exit }
   ]
 
-def lowerSystemTransferCpi (cpi : CpiInvoke) : Array AstNode :=
+def lowerSystemTransferCpi (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
   #[
     .comment "solana.cpi.pack system.transfer"
   ] ++
-  lowerCpiSystemProgramId ++
-  lowerCpiPlaceholders cpi ++
-  lowerCpiAccountMetas cpi ++
+  lowerCpiProgramId bindings cpi ++
+  lowerCpiFallbackPlaceholders bindings cpi ++
+  lowerCpiAccountMetas bindings cpi ++
   lowerSystemTransferData ++
   lowerCpiInstructionRecord cpi 12 ++
-  lowerCpiAccountInfos cpi ++
+  lowerCpiAccountInfos bindings cpi ++
   lowerCpiSignerSeeds cpi ++
   lowerCpiCall cpi
 
-def lowerGenericCpiInvoke (cpi : CpiInvoke) : Array AstNode :=
+def lowerGenericCpiInvoke (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
   #[
-    .comment "generic CPI placeholder packing; protocol-specific ABI packing pending"
+    .comment "generic CPI C ABI packing; protocol-specific instruction data pending"
   ] ++
-  stackPtr .r1 cpiInstructionOffset ++
-  stackPtr .r2 cpiAccountInfoOffset ++ #[
-    .instruction { opcode := .mov64, dst := some .r3, imm := some (.num cpi.accounts.size) }
-  ] ++
+  lowerCpiProgramId bindings cpi ++
+  lowerCpiFallbackPlaceholders bindings cpi ++
+  lowerCpiAccountMetas bindings cpi ++
+  lowerCpiInstructionRecord cpi 0 ++
+  lowerCpiAccountInfos bindings cpi ++
   lowerCpiSignerSeeds cpi ++
-  lowerCpiSignerArgs cpi ++ #[
-    .comment "r1=instruction_ptr r2=account_infos_ptr r3=num_accounts r4=signer_seeds_ptr r5=num_signers",
-    callSyscall ProofForge.Backend.Solana.Syscalls.sol_invoke_signed_c,
-    .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_cpi") },
-    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
-    .instruction { opcode := .exit }
-  ]
+  lowerCpiCall cpi
 
-def lowerCpiInvoke (cpi : CpiInvoke) : Array AstNode :=
+def lowerCpiInvoke (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
   #[
     .blankLine,
     .comment s!"solana.cpi {cpi.name}: {cpi.program}.{cpi.instruction}",
     .label cpi.label
   ] ++
   if cpi.protocol? == some "system" && cpi.dataLayout? == some "system.transfer" then
-    lowerSystemTransferCpi cpi
+    lowerSystemTransferCpi bindings cpi
   else
-    lowerGenericCpiInvoke cpi
+    lowerGenericCpiInvoke bindings cpi
 
 def lowerPdaAction (action : PdaAction) : Array AstNode :=
   #[
@@ -601,7 +697,8 @@ def lowerRuntimeAllocator (allocator : RuntimeAllocator) : Array AstNode := #[
 def lowerRuntimeAllocators (extensions : ProgramExtensions) : Array AstNode :=
   extensions.allocators.foldl (fun acc allocator => acc ++ lowerRuntimeAllocator allocator) #[]
 
-def lowerProgramExtensions (extensions : ProgramExtensions) : Array AstNode :=
+def lowerProgramExtensionsWithAccountBindings
+    (bindings : Array CpiAccountBinding) (extensions : ProgramExtensions) : Array AstNode :=
   if !hasExtensions extensions then
     #[]
   else if !hasSyscallExtensions extensions then
@@ -611,8 +708,11 @@ def lowerProgramExtensions (extensions : ProgramExtensions) : Array AstNode :=
     #[.blankLine, .comment "Solana SDK target extension syscall helpers"] ++
     lowerRuntimeAllocators extensions ++
     extensions.pdas.foldl (fun acc pda => acc ++ lowerPdaDerive pda) #[] ++
-    extensions.cpis.foldl (fun acc cpi => acc ++ lowerCpiInvoke cpi) #[] ++
+    extensions.cpis.foldl (fun acc cpi => acc ++ lowerCpiInvoke bindings cpi) #[] ++
     lowerExtensionErrors
+
+def lowerProgramExtensions (extensions : ProgramExtensions) : Array AstNode :=
+  lowerProgramExtensionsWithAccountBindings #[] extensions
 
 def lowerPlan (plan : CapabilityPlan) : Array AstNode :=
   lowerProgramExtensions (ProgramExtensions.fromPlan plan)

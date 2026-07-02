@@ -702,11 +702,12 @@ partial progress is visible before the full acceptance criteria close:
       `proof-forge-artifact.json`. Covered by `Tests/SolanaSdkManifest.lean`,
       `Tests/SolanaCpiPacking.lean`, and `scripts/solana/sdk-smoke.sh`.
 - [x] System Program transfer CPI packing skeleton emits the C ABI shape for
-      `sol_invoke_signed_c`: system program id bytes, C `SolAccountMeta[]`,
+      `sol_invoke_signed_c`: program id bytes, C `SolAccountMeta[]`,
       `system.transfer` instruction data (`u32` discriminator + `u64`
-      lamports placeholder), C `SolInstruction`, placeholder
-      `SolAccountInfo[]`, signer seed tables, and syscall register setup.
-      Covered by `Tests/SolanaCpiPacking.lean`.
+      lamports placeholder), C `SolInstruction`, `SolAccountInfo[]` entries
+      bound to the generated multi-account input layout, signer seed tables,
+      and syscall register setup. Covered by `Tests/SolanaCpiPacking.lean`,
+      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
 
 Next Solana SDK completion items:
 
@@ -714,10 +715,9 @@ Next Solana SDK completion items:
   bump/instruction-data seeds; validate the resulting PDA against account
   pubkeys; add Web3.js fixtures that compare derived addresses with
   `PublicKey.findProgramAddressSync`.
-- System Program CPI runtime completion: replace placeholder account
-  pubkeys/lamports/data pointers with the generated multi-account input layout,
-  add `system.create_account` packing, and validate balances/owners through
-  Web3.js.
+- System Program CPI runtime completion: lower the lamports source into the
+  instruction data, add `system.create_account` packing, and validate
+  balances/owners through Web3.js.
 - SPL Token CPI runtime packing: lower `spl-token.transfer_checked`,
   `mint_to`, `burn`, `approve`, and `revoke` metadata into standard token
   instruction bytes, then check behavior against the standard token program.

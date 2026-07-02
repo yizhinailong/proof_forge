@@ -63,10 +63,14 @@ def main : IO UInt32 := do
         "assembly missing system.transfer packing marker"
       require (contains asm "solana.cpi.program_id system_program")
         "assembly missing system program id packing marker"
-      require (contains asm "solana.cpi.account_meta payer")
+      require (contains asm "solana.cpi.account_meta payer key_ptr account[1]")
         "assembly missing payer account meta packing"
-      require (contains asm "solana.cpi.account_info recipient placeholder")
+      require (contains asm "solana.cpi.account_info payer account[1]")
+        "assembly missing payer account info binding"
+      require (contains asm "solana.cpi.account_info recipient account[2]")
         "assembly missing recipient account info packing"
+      require (!contains asm "solana.cpi.account_info recipient placeholder")
+        "recipient account info should use input account layout, not placeholder"
       require (contains asm "solana.cpi.data system.transfer: u32 discriminator=2, u64 lamports placeholder")
         "assembly missing system transfer data packing marker"
       require (contains asm "stxw [r8+0], r3")

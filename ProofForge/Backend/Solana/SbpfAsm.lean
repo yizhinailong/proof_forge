@@ -513,15 +513,40 @@ partial def lowerEntrypoint (ctx : LowerCtx) (instrDataLenOff : Nat)
 -- Module → AST nodes
 -- ============================================================================
 
-partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
-    Except LowerError (Array AstNode) := do
-  validateCapabilities module
+structure ModuleInputSchema where
+  accounts : Array AccountEntry
+  inputLayout : InputLayout
+  deriving Inhabited
+
+def buildModuleInputSchema (module : IR.Module) (extensions : ProgramExtensions) :
+    ModuleInputSchema :=
   let instructions := buildInstructionsWithExtensions module extensions
   let accounts :=
     match instructions[0]? with
     | some instruction => instruction.accounts
     | none => buildDefaultAccounts module
   let inputLayout := computeInputLayout (accountDataSizes module accounts)
+  { accounts, inputLayout }
+
+def buildCpiAccountBindings (accounts : Array AccountEntry)
+    (layouts : Array AccountInputLayout) : Array CpiAccountBinding := Id.run do
+  let mut bindings := #[]
+  let mut idx := 0
+  for account in accounts do
+    match layouts[idx]? with
+    | some layout =>
+        bindings := bindings.push { name := account.name, layout }
+    | none =>
+        pure ()
+    idx := idx + 1
+  return bindings
+
+partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
+    Except LowerError (Array AstNode) := do
+  validateCapabilities module
+  let schema := buildModuleInputSchema module extensions
+  let accounts := schema.accounts
+  let inputLayout := schema.inputLayout
   let stateDataOff ←
     match inputLayout.accounts[0]? with
     | some accountLayout => .ok accountLayout.dataStart
@@ -603,8 +628,12 @@ def renderModule (module : IR.Module) : Except LowerError String := do
 def lowerModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.CapabilityPlan) :
     Except LowerError (Array AstNode) := do
   let extensions := ProgramExtensions.fromPlan plan
+  let schema := buildModuleInputSchema module extensions
+  let accountBindings := buildCpiAccountBindings schema.accounts schema.inputLayout.accounts
   let nodes ← lowerModuleCore module extensions
-  .ok (nodes ++ ProofForge.Backend.Solana.Extension.lowerProgramExtensions extensions)
+  .ok (nodes ++
+    ProofForge.Backend.Solana.Extension.lowerProgramExtensionsWithAccountBindings
+      accountBindings extensions)
 
 def renderModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.CapabilityPlan) :
     Except LowerError String := do
