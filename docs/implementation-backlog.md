@@ -973,6 +973,13 @@ Completed beta scaffolding slices:
   state-write contract against the reference manifest/source. With
   `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1`, the same gate typechecks the
   reference against `pinocchio-system`.
+- Pinocchio System create-account live-equivalence harness:
+  `scripts/solana/pinocchio-system-create-account-live-equivalence.sh` is
+  wired to build the ProofForge ELF and the checked-in Pinocchio reference ELF,
+  deploy both programs to one Surfpool instance, invoke the same Web3.js
+  create-account scenario for each, and compare lamports/space inputs plus
+  both state writes. The harness currently skips when `cargo-build-sbf` cannot
+  find Solana rustc/platform-tools.
 - Pinocchio SPL Token transfer reference contract:
   `references/solana/pinocchio/spl-token-transfer` contains a checked-in
   no-allocator Pinocchio reference for the same SPL Token `transfer_checked`
@@ -1138,9 +1145,9 @@ Remaining priority slices:
 1. Rust/Pinocchio equivalence fixtures (2-4 days): make the System transfer
    live-equivalence harness pass in CI/local environments by installing Solana
    rustc/platform-tools reliably, then extend live dual-deploy equivalence to
-   the System create-account and SPL Token transfer_checked references. The
-   key comparison points are account order, signer/writable checks, CPI
-   instruction data, and observable state changes.
+   the SPL Token transfer_checked reference. The key comparison points are
+   account order, signer/writable checks, CPI instruction data, and observable
+   state changes.
 2. Richer structured logs, account data, and typed return helpers (3-5 days):
    extend the current scalar `sol_log_64_`/`sol_log_data` event path to
    string logs, Anchor-style discriminator/Borsh payloads, and indexed event
