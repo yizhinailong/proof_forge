@@ -1344,7 +1344,8 @@ mutual
         let nextEnv ← liftExceptString <| lowerExceptString <|
           ProofForge.Backend.Evm.IR.addLocal env name type true
         return (#[], nextEnv)
-    | .assign _ _ | .assignOp _ _ _ | .assert _ _ | .assertEq _ _ _ | .return _ =>
+    | .assign _ _ | .assignOp _ _ _ | .assert _ _ | .assertEq _ _ _ | .return _
+    | .release _ =>
         return (#[], env)
     | .effect (.eventEmit name fields) => do
         let event ← eventAbi cast module env name #[] fields
