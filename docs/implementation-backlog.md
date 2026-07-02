@@ -1711,10 +1711,11 @@ Tasks:
 
 - Done: add RFC 0006, `ProofForge.Contract.Token.TokenSpec`, target token
   plans, and `Tests/TokenSpec.lean`.
-- Done: add Learn token intent source syntax, `ProofForge.Contract.Token.Learn`,
+- Done: add legacy Learn token intent source syntax,
+  `ProofForge.Contract.Token.Learn`,
   `Examples/Learn/ProofToken.learn`, `Examples/Learn/FeeToken.learn`,
   `Tests/TokenLearn.lean`, and `proof-forge --learn-token --target <id>` plan
-  emission so application authors do not hand-write `TokenSpec`.
+  emission as a compatibility path into `TokenSpec`.
 - Done: add the first EVM ERC-20 artifact emitter for Learn token sources:
   `ProofForge.Contract.Token.Evm`, `Tests/TokenEvm.lean`, standard ERC-20
   selectors/events in metadata, Yul generation, and `solc --strict-assembly`
@@ -1726,29 +1727,72 @@ Tasks:
   learn-token-evm-vm` to deploy the generated ERC-20 creation bytecode in an
   EthereumJS VM and validate standard ERC-20 calls, Transfer/Approval topics,
   and insufficient-balance revert behavior.
+- Done: implement Solana SPL Token / Token-2022 deployment plan rendering at
+  the Lean `TokenSpec` layer. `solanaTokenDeploymentPlan` now records mint
+  account creation, associated token accounts, `mint_to`, `transfer_checked`,
+  `approve`, `burn`, `revoke`, authority changes, Token-2022 extension
+  initialization, Solana program ids, and source documentation references.
+- Done: route Token-2022 features such as `transfer_fee`,
+  `non_transferable`, `confidential_transfer`, and `transfer_hook` to
+  Token-2022 extension metadata rather than custom per-token programs. The
+  planner rejects the documented incompatible `transfer_fee` +
+  `non_transferable` combination.
+- Done: extend `scripts/portable/learn-token-smoke.sh` so the legacy `.learn`
+  input path reuses the Lean `TokenSpec` plan, emits both SPL Token and
+  Token-2022 structured plan JSON, and validates the plan offline with
+  `@solana/spl-token` / `@solana/web3.js` instruction builders.
+- Done: add `scripts/solana/token-plan-web3-smoke.sh` / `just
+  solana-token-plan-web3` to execute the structured legacy SPL Token plan on
+  Surfpool. The live runner creates the mint and associated token accounts,
+  mints initial supply, executes the planned `mint_to`, `transfer_checked`,
+  `approve`, `burn`, `revoke`, and mint-authority `set_authority` operations,
+  and validates balances, supply, delegate state, and authority revocation with
+  Web3.js reads.
+- Done: add `scripts/solana/token-2022-transfer-fee-web3-smoke.sh` / `just
+  solana-token-2022-transfer-fee-web3` to execute the structured Token-2022
+  transfer-fee plan on Surfpool. The live runner initializes `TransferFeeConfig`,
+  creates Token-2022 associated token accounts, mints initial supply, executes
+  `TransferCheckedWithFee`, validates the source balance, recipient net balance,
+  and recipient withheld fee, directly withdraws withheld fees from a token
+  account, then runs a second transfer, harvests withheld fees to the mint,
+  withdraws them from the mint, and validates the fee receiver balance plus
+  cleared account/mint withheld amounts with Web3.js reads.
+- Done: add `ProofForge.Contract.Token.Examples.SoulboundToken`,
+  `Tests/TokenPlanEmit.lean`,
+  `scripts/solana/token-2022-non-transferable-web3-smoke.sh`, and `just
+  solana-token-2022-non-transferable-web3` to execute a Lean `.lean`
+  TokenSpec-backed Token-2022 non-transferable plan on Surfpool. The live
+  runner initializes `NonTransferable`, creates Token-2022 associated token
+  accounts, mints initial supply, verifies mint/account extensions, proves
+  `TransferChecked` is rejected, then burns the token and validates balances
+  and supply with Web3.js reads.
 - Implement EVM ERC-20 lowering: ABI/selectors, balance/allowance storage,
   total supply, transfer/approve/transferFrom, mint/burn options, events, and
   broader Foundry/Web3 behavior tests.
-- Implement Solana SPL Token plan rendering: mint creation, associated token
-  account creation, mint_to, transfer_checked, approve, burn, authority changes,
-  and Web3.js validation through `@solana/spl-token`.
-- Route Token-2022 features such as transfer fees, non-transferable tokens,
-  confidential transfer, and transfer hooks to Token-2022 extension
-  initialization rather than custom per-token programs.
+- Continue Surfpool live validation for Token-2022 extension plans beyond the
+  transfer-fee initialization, checked-transfer, direct withdraw, and
+  harvest-to-mint withdraw paths plus non-transferable transfer rejection:
+  confidential transfer setup and transfer-hook routing.
 - Add optional Solana wrapper/authority/transfer-hook program generation for
   custom policies such as capped supply or custom transfer restrictions.
-- Emit token-specific artifact metadata that records standard, target,
-  operations, extension set, deployment accounts, tool versions, and validation
-  results.
+- Extend token-specific artifact metadata with live deployment accounts, tool
+  versions, and validation-run results once the Surfpool plan runner lands.
 
 Acceptance criteria:
 
-- A single Learn token source lowers to a deterministic `TokenSpec` and has
-  deterministic EVM and Solana token plans.
+- A Lean-authored `TokenSpec` has deterministic EVM and Solana token plans; the
+  legacy Learn token source lowers to the same `TokenSpec` boundary.
 - EVM output emits ERC-20 Yul/bytecode and passes ERC-20 behavior tests using
   standard Web3/Foundry calls.
-- Solana output creates a mint and token accounts, mints supply, transfers
-  tokens, and validates balances with `@solana/spl-token` on Surfpool.
+- Solana output renders structured SPL Token / Token-2022 plans, validates the
+  instruction builders offline with `@solana/spl-token`, and now executes the
+  legacy SPL Token plan plus the Token-2022 transfer-fee and non-transferable
+  plans on Surfpool to create mints and token accounts, mint supply, transfer
+  tokens where allowed, validate balances, verify withheld transfer fees,
+  collect those fees through both direct account withdraw and harvest-to-mint
+  plus mint withdraw, reject non-transferable `TransferChecked`, and burn
+  non-transferable supply. Confidential transfer and transfer-hook behavior
+  remains follow-up.
 - Documentation clearly says Solana does not default to a per-token SPL
   contract; it uses SPL Token / Token-2022 programs by plan and CPI.
 

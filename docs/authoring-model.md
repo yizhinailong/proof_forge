@@ -11,33 +11,33 @@ The current stack has three authoring layers:
 
 | Layer | Status | Purpose |
 |---|---|---|
-| Learn source | Implemented v0 standalone parser and CLI entrypoint | User-facing contract language. A developer writes portable contract logic once and selects a target such as EVM, Solana, Move, or Wasm at build time. |
-| `contract_source` | Implemented v1 embedded source syntax | Transitional Lean macro frontend. It lets the repo express portable state, entrypoints, events, arithmetic, and first Solana account/PDA/CPI declarations without hand-building `ContractSpec` strings. |
+| Lean embedded SDK / `contract_source` | Implemented v1 embedded source syntax | Current authoring surface. It lets the repo express portable state, entrypoints, events, arithmetic, SDK intents, and Solana account/PDA/CPI declarations in Lean syntax without hand-building `ContractSpec` strings. |
+| Legacy `.learn` parser | Implemented v0 standalone parser and CLI compatibility entrypoint | Compatibility/smoke-test input that lowers into the same compiler-owned `ContractSpec` / `TokenSpec` boundary. It should not grow into a second product language. |
 | `ContractSpec` / IR | Internal compiler artifact | Stable bridge into target routing, capability checks, backend lowering, AST/printer stages, manifests, IDL, clients, and deployable packages. |
 
-The intended user experience is Learn-first. `contract_source` is useful because
-it is executable inside the current Lean/Lake repo and proves the lowering path,
-but it is not the final language parser. `proof-forge --learn --target <id>`
-now lets smoke tests and users start from `.learn` source and choose the chain
-backend at compile time instead of from a built-in fixture or a hand-written
-`ContractSpec`. The target-specific `--learn-yul`, `--learn-bytecode`, and
-`--learn-sbpf` commands remain lower-level convenience paths.
-The same rule applies to protocol SDK intents: `proof-forge --learn-token
---target <id>` parses a Learn `token ... { ... }` declaration before lowering
-it to the compiler-owned `TokenSpec` boundary and target-specific token plan.
+The intended user experience is Lean-first for the current repo: developers use
+Lean syntax and SDK helpers, and the compiler lowers those values into
+`ContractSpec`, `TokenSpec`, portable IR, and target-extension plans. The
+standalone `.learn` parser remains useful as a compatibility harness because it
+exercises the same lowering boundary from files, but new SDK work should land in
+the Lean/SDK layer first. `proof-forge --learn --target <id>` and
+`proof-forge --learn-token --target <id>` are therefore legacy CLI paths that
+reuse the same compiler-owned boundaries instead of defining a separate product
+language.
 
 The string-heavy `ContractSpec` and Builder examples should therefore be read
 as compiler fixtures, not as the product surface. They describe the same
 program shape that the compiler consumes after parsing, capability routing, and
-target-extension expansion. Application authors should increasingly see
-language syntax in `.learn` files, while tests keep the Builder fixtures as the
-reviewed expected IR.
+target-extension expansion. Application authors should see Lean SDK syntax and
+typed helpers; tests may keep Builder and `.learn` fixtures as reviewed
+equivalence inputs.
 
 It is still normal for the compiler-owned source AST and IR boundary to store
 identifiers as strings after parsing. That representation is not the authoring
-model. The product direction is that users write Learn syntax, the parser checks
-names and references, and only then does the compiler materialize string names
-inside `ContractSpec`, manifests, IDL, clients, and backend ASTs.
+model. The product direction is that users write Lean SDK syntax, typed helpers
+check names and references where possible, and only then does the compiler
+materialize string names inside `ContractSpec`, manifests, IDL, clients, and
+backend ASTs.
 
 ## Source Principles
 
@@ -57,13 +57,38 @@ inside `ContractSpec`, manifests, IDL, clients, and backend ASTs.
 
 ## Current Syntax Boundary
 
-`ProofForge.Contract.Learn` now parses the checked-in `.learn` examples under
+`ProofForge.Contract.Source` is the current executable Lean syntax layer and
+covers:
+
+- portable scalar state;
+- entrypoints and queries with typed parameters;
+- local bindings, assignment, return, event emission, and checked arithmetic
+  syntax;
+- Solana allocator selection;
+- Solana account constraints, including writable and signer declarations;
+- Solana PDA declarations and derivation statements;
+- Solana System Program `transfer` and `create_account` CPI declarations and
+  invocation statements;
+- Solana SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and
+  `revoke` CPI declarations and invocation statements;
+- Solana log, return-data, compute-unit, memory, crypto, and sysvar helper
+  statements.
+
+`ProofForge.Contract.Token` is the current token SDK planning boundary.
+Lean-authored `TokenSpec` values route to ERC-20 on EVM or to structured Solana
+SPL Token / Token-2022 deployment plans. The Solana plan records mint account
+creation, associated token accounts, `mint_to`, `transfer_checked`, `approve`,
+`burn`, `revoke`, authority changes, Token-2022 extension initialization, and
+Token-2022 transfer-fee collection flows such as direct withheld-fee withdraw
+and harvest-to-mint plus withdraw-from-mint, plus non-transferable token
+initialization that rejects `TransferChecked` while still allowing burn. It
+also records the Solana program ids needed by Web3.js or client generation.
+
+`ProofForge.Contract.Learn` still parses the checked-in `.learn` examples under
 `Examples/Learn/` into a small source AST and lowers that AST to the same
 `ContractSpec`/portable IR boundary used by `contract_source`. The CLI can route
 a `.learn` input through `--target evm` for EVM bytecode metadata or
-`--target solana-sbpf-asm` for Solana sBPF assembly packages; the portable
-ValueVault smoke now uses
-`Examples/Learn/ValueVault.learn` as the source of record. The parser covers the
+`--target solana-sbpf-asm` for Solana sBPF assembly packages. The parser covers the
 portable scalar/event subset plus the first Solana target-extension forms for
 accounts, PDA derivation, System Program transfer/create-account CPI, and SPL
 Token transfer, mint, burn, approve, and revoke CPI. It also accepts
@@ -83,37 +108,20 @@ user-facing spec plumbing.
 such as `Examples/Learn/ProofToken.learn` and `Examples/Learn/FeeToken.learn`.
 `--learn-token --target evm` now emits ERC-20 Yul, bytecode, and artifact
 metadata with standard ERC-20 selectors and Transfer/Approval topics, while
-`--learn-token --target solana-sbpf-asm` emits an SPL Token plan or switches
-to Token-2022 when features such as `transfer_fee` require Token Extensions.
-`ProofForge.Contract.Source` remains the executable embedded syntax layer and
-covers:
-
-- portable scalar state;
-- entrypoints and queries with typed parameters;
-- local bindings, assignment, return, event emission, and checked arithmetic
-  syntax;
-- Solana allocator selection;
-- Solana account constraints, including writable and signer declarations;
-- Solana PDA declarations and derivation statements;
-- Solana System Program `transfer` and `create_account` CPI declarations and
-  invocation statements;
-- Solana SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and
-  `revoke` CPI declarations and invocation statements;
-- Solana log, return-data, compute-unit, memory, crypto, and sysvar helper
-  statements.
+`--learn-token --target solana-sbpf-asm` reuses `TokenSpec` to emit the same
+structured SPL Token / Token-2022 plan used by Lean-authored token specs.
 
 Examples such as `ProofForge.Contract.Examples.ValueVault` should be read as
-v1 source examples, not as the final `.learn` grammar. They exist to keep the
-compiler pipeline executable while the standalone Learn parser is introduced.
-The matching `.learn` file is the product-language example; the Lean file is the
-reviewed embedded fixture used to prove lowering equivalence.
+v1 Lean source examples, not as a staging area for a second `.learn` grammar.
+The matching `.learn` files are legacy compatibility examples used to prove
+lowering equivalence.
 
 ## Target Routing
 
 The build target chooses the lowering path:
 
 ```text
-Learn source
+Lean SDK syntax / contract_source
   -> source AST
   -> ContractSpec / portable IR
   -> target resolver + capability routing
@@ -128,12 +136,11 @@ need to manually switch between these internals when the contract is portable.
 
 ## Next Implementation Steps
 
-1. Expand the Learn parser beyond the current Vault/System CPI Solana subset to
-   cover richer Token-2022 setup flows and the remaining framework-level
-   account/data declarations.
+1. Keep new SDK Alpha/Beta work in Lean SDK syntax and compiler-owned planning
+   layers, then let legacy `.learn` inputs reuse those layers only when useful
+   for compatibility tests.
 2. Gradually replace string-bearing Solana declarations with typed account,
-   owner, program, and capability references in the source grammar while
-   keeping string names inside compiler artifacts only.
-3. Extend `--learn --target <id>` emission beyond EVM and Solana sBPF as Wasm,
-   Move, and other target backends grow from routing plans into package
-   emitters.
+   owner, program, and capability references in Lean helpers while keeping
+   string names inside compiler artifacts only.
+3. Extend target package emission beyond EVM and Solana sBPF as Wasm, Move, and
+   other target backends grow from routing plans into package emitters.

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Learn token SDK smoke.
+# Legacy Learn token SDK smoke.
 #
-# This gate exercises the Learn token intent form across target routing:
+# This gate exercises the existing Learn token parser across target routing:
 #   - EVM: Learn token -> ERC-20 Yul -> solc bytecode -> artifact metadata.
-#   - Solana: Learn token -> Token-2022 plan JSON when an extension is used.
+#   - Solana: Learn token -> TokenSpec -> SPL Token / Token-2022 plan JSON.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -12,9 +12,11 @@ cd "$REPO_ROOT"
 OUT_DIR="${PROOF_FORGE_LEARN_TOKEN_OUT:-build/portable/learn-token}"
 EVM_DIR="$OUT_DIR/evm"
 SOLANA_DIR="$OUT_DIR/solana"
+NODE_PROJECT="$SOLANA_DIR/web3"
 
 PROOF_TOKEN="Examples/Learn/ProofToken.learn"
 FEE_TOKEN="Examples/Learn/FeeToken.learn"
+WEB3_TEMPLATE="Tests/solana/token_plan_web3_smoke.mjs"
 
 fail() {
   echo "FAIL: $1" >&2
@@ -94,15 +96,55 @@ else
   echo "SKIP: solc not on PATH; EVM ERC-20 token bytecode check skipped"
 fi
 
-echo "=== Learn token step 2: emit Solana Token-2022 plan ==="
-SOLANA_PLAN="$SOLANA_DIR/FeeToken.solana-token-plan.json"
+echo "=== Learn token step 2: emit Solana SPL Token plan ==="
+SOLANA_SPL_PLAN="$SOLANA_DIR/ProofToken.solana-token-plan.json"
 lake env proof-forge --learn-token --target solana-sbpf-asm \
-  -o "$SOLANA_PLAN" \
+  -o "$SOLANA_SPL_PLAN" \
+  "$PROOF_TOKEN" \
+  || fail "proof-forge --learn-token --target solana-sbpf-asm failed"
+
+require_file "$SOLANA_SPL_PLAN"
+python3 - "$SOLANA_SPL_PLAN" <<'PY'
+import json
+import sys
+
+plan = json.load(open(sys.argv[1]))
+assert plan["format"] == "proof-forge-token-plan-v0"
+assert plan["sourceKind"] == "learn-token-source"
+assert plan["target"] == "solana-sbpf-asm"
+assert plan["targetFamily"] == "solana"
+assert plan["standard"] == "spl-token"
+assert plan["artifactKind"] == "solana-spl-token-plan"
+assert "spl-token.transfer_checked" in plan["operations"]
+assert plan["solana"]["programs"]["token"] == "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+names = [instruction["name"] for instruction in plan["solana"]["instructions"]]
+for name in [
+    "create_mint_account",
+    "initialize_mint",
+    "create_owner_ata",
+    "mint_to_initial_supply",
+    "mint_to",
+    "transfer_checked",
+    "approve_delegate",
+    "burn",
+    "revoke_delegate",
+    "set_mint_authority",
+]:
+    assert name in names
+assert plan["solana"]["extensions"] == []
+assert plan["validation"]["planGeneration"] == "passed"
+print("solana spl-token plan: ok")
+PY
+
+echo "=== Learn token step 3: emit Solana Token-2022 plan ==="
+SOLANA_TOKEN_2022_PLAN="$SOLANA_DIR/FeeToken.solana-token-plan.json"
+lake env proof-forge --learn-token --target solana-sbpf-asm \
+  -o "$SOLANA_TOKEN_2022_PLAN" \
   "$FEE_TOKEN" \
   || fail "proof-forge --learn-token --target solana-sbpf-asm failed"
 
-require_file "$SOLANA_PLAN"
-python3 - "$SOLANA_PLAN" <<'PY'
+require_file "$SOLANA_TOKEN_2022_PLAN"
+python3 - "$SOLANA_TOKEN_2022_PLAN" <<'PY'
 import json
 import sys
 
@@ -114,8 +156,39 @@ assert plan["targetFamily"] == "solana"
 assert plan["standard"] == "spl-token-2022"
 assert plan["artifactKind"] == "solana-token-2022-plan"
 assert "token-2022.extension.transfer_fee" in plan["operations"]
+assert plan["solana"]["programs"]["token"] == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+extensions = [extension["extension"] for extension in plan["solana"]["extensions"]]
+assert "transfer_fee_config" in extensions
+names = [instruction["name"] for instruction in plan["solana"]["instructions"]]
+assert "initialize_transfer_fee_config" in names
+assert names.index("initialize_transfer_fee_config") < names.index("initialize_mint")
+for name in [
+    "transfer_checked_with_fee",
+    "withdraw_withheld_tokens_from_accounts",
+    "harvest_withheld_tokens_to_mint",
+    "withdraw_withheld_tokens_from_mint",
+]:
+    assert name in names
 assert plan["validation"]["planGeneration"] == "passed"
-print("solana token plan: ok")
+print("solana token-2022 plan: ok")
 PY
+
+if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+  echo "=== Learn token step 4: validate Solana token plans with @solana/spl-token ==="
+  rm -rf "$NODE_PROJECT"
+  mkdir -p "$NODE_PROJECT"
+  cp "$WEB3_TEMPLATE" "$NODE_PROJECT/token_plan_web3_smoke.mjs"
+  (
+    cd "$NODE_PROJECT"
+    npm init -y >/dev/null 2>&1
+    npm install --silent @solana/web3.js@^1.98.0 @solana/spl-token@^0.4.14
+  ) || fail "npm install @solana/web3.js @solana/spl-token failed"
+  node "$NODE_PROJECT/token_plan_web3_smoke.mjs" "$SOLANA_SPL_PLAN" \
+    || fail "Solana SPL Token plan Web3.js validation failed"
+  node "$NODE_PROJECT/token_plan_web3_smoke.mjs" "$SOLANA_TOKEN_2022_PLAN" \
+    || fail "Solana Token-2022 plan Web3.js validation failed"
+else
+  echo "SKIP: node or npm not on PATH; Solana token plan Web3.js validation skipped"
+fi
 
 echo "learn-token-smoke: PASS"

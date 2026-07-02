@@ -1,25 +1,22 @@
-# Learn Source Examples
+# Legacy Learn Parser Examples
 
-These files are grammar seeds for the standalone Learn authoring layer.
+These files are compatibility fixtures for the standalone `.learn` parser.
 `ProofForge.Contract.Learn` parses the current portable subset into a source AST
-and lowers it into `ContractSpec` and portable IR. The product-facing entrypoint
-is now the `.learn` file plus a compile-time target:
-`proof-forge --learn --target solana-sbpf-asm input.learn` emits Solana sBPF
-assembly, manifest, IDL, TypeScript client, and artifact metadata from the
-source language without requiring a hand-written Lean `ContractSpec`.
+and lowers it into the same `ContractSpec` and portable IR boundary used by the
+Lean `contract_source` syntax. The current authoring surface remains Lean SDK
+syntax; these files exist so the old file-based parser keeps exercising the
+compiler pipeline.
 
-They are intentionally not Lean files. The executable embedded equivalent still
-lives in `ProofForge.Contract.Source` through the `contract_source` syntax:
-
-Treat these `.learn` files as the product-facing contract syntax. The
-string-heavy `ContractSpec`, Builder, and `ProofForge.Solana.Examples.*`
-fixtures are expected-IR/reference fixtures for tests; they are not the surface
-application developers should author by hand. The Learn parser may represent
-identifiers as strings internally after parsing, but lowering now checks Solana
-CPI/PDA/state/account references before those names reach compiler artifacts.
-The portable ValueVault smoke deliberately routes `Examples/Learn/ValueVault.learn`
-through the CLI so regressions in the source-language path are caught before
-backend package generation is considered passing.
+The executable embedded equivalent lives in `ProofForge.Contract.Source`
+through the `contract_source` syntax. The string-heavy `ContractSpec`, Builder,
+and `ProofForge.Solana.Examples.*` fixtures are expected-IR/reference fixtures
+for tests; they are not the surface application developers should author by
+hand. The legacy parser may represent identifiers as strings internally after
+parsing, but lowering checks Solana CPI/PDA/state/account references before
+those names reach compiler artifacts. The portable ValueVault smoke deliberately
+routes `Examples/Learn/ValueVault.learn` through the CLI so regressions in this
+compatibility path are caught before backend package generation is considered
+passing.
 For CPI declarations, account operands must first be introduced with
 `solana account ...`; writable and signer requirements are checked against that
 declaration. Scalar instruction parameters and state values remain ordinary
@@ -52,12 +49,11 @@ Learn values.
 `Tests/LearnSource.lean` checks that these files lower to the same IR modules as
 the macro-generated examples, and checks that the Solana target-extension form
 renders the same manifest as the embedded source example. The next
-implementation step is broadening the parser to Token-2022 and typed
-account/program references that further reduce string-bearing declarations in
-user-facing Learn source.
+implementation step is keeping new SDK work in the Lean SDK layer while the
+legacy parser reuses the same compiler-owned boundaries.
 
-Token SDK examples use a separate Learn intent form rather than a hand-written
-Lean `TokenSpec`:
+Token SDK compatibility examples use a separate Learn intent form that lowers
+to the same Lean `TokenSpec` boundary:
 
 - `ProofToken.learn` describes one fungible token once and can be routed with
   `proof-forge --learn-token --target evm` to ERC-20 Yul, bytecode, and
@@ -66,5 +62,5 @@ Lean `TokenSpec`:
   `--target solana-sbpf-asm` selects a Token-2022 plan instead of a legacy SPL
   Token plan.
 
-This is intentionally source syntax first. `TokenSpec` remains the internal
-compiler boundary used after parsing, target routing, and validation.
+`TokenSpec` remains the internal compiler boundary used after parsing, target
+routing, and validation.

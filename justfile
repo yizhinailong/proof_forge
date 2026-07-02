@@ -64,6 +64,18 @@ learn-token-smoke:
 learn-token-evm-vm:
     scripts/evm/learn-token-erc20-vm-smoke.sh
 
+# Run a live Solana SPL Token plan smoke on Surfpool with Web3.js.
+solana-token-plan-web3:
+    scripts/solana/token-plan-web3-smoke.sh
+
+# Run a live Solana Token-2022 transfer-fee plan smoke on Surfpool with Web3.js.
+solana-token-2022-transfer-fee-web3:
+    scripts/solana/token-2022-transfer-fee-web3-smoke.sh
+
+# Run a live Solana Token-2022 non-transferable plan smoke on Surfpool with Web3.js.
+solana-token-2022-non-transferable-web3:
+    scripts/solana/token-2022-non-transferable-web3-smoke.sh
+
 # Run Solana PDA typed-seed Web3.js derivation smoke. Skips when Node/npm are unavailable.
 solana-pda-web3:
     scripts/solana/pda-web3-smoke.sh

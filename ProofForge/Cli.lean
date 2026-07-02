@@ -2400,10 +2400,89 @@ def tokenSpecJson (decl : ProofForge.Contract.Token.Learn.TokenDecl) : String :=
     ("features", tokenFeatureIdsJson decl.spec)
   ]
 
+def tokenSolanaAccountJson
+    (account : ProofForge.Contract.Token.SolanaTokenAccountPlan) : String :=
+  jsonObject #[
+    ("name", jsonString account.name),
+    ("role", jsonString account.role),
+    ("ownerProgram", jsonStringOption account.ownerProgram?),
+    ("signer", jsonBool account.signer),
+    ("writable", jsonBool account.writable),
+    ("derivation", jsonStringOption account.derivation?)
+  ]
+
+def tokenSolanaInstructionParamJson
+    (param : ProofForge.Contract.Token.SolanaTokenInstructionParam) : String :=
+  jsonObject #[
+    ("name", jsonString param.name),
+    ("type", jsonString param.type),
+    ("source", jsonString param.source)
+  ]
+
+def tokenSolanaInstructionJson
+    (instruction : ProofForge.Contract.Token.SolanaTokenInstructionPlan) : String :=
+  jsonObject #[
+    ("order", toString instruction.order),
+    ("name", jsonString instruction.name),
+    ("operation", jsonString instruction.operation),
+    ("programId", jsonString instruction.programId),
+    ("accounts", jsonStringArray instruction.accounts),
+    ("params", jsonArray (instruction.params.map tokenSolanaInstructionParamJson)),
+    ("feature", jsonStringOption instruction.feature?),
+    ("token2022Only", jsonBool instruction.token2022Only)
+  ]
+
+def tokenSolanaExtensionJson
+    (extension : ProofForge.Contract.Token.SolanaTokenExtensionPlan) : String :=
+  jsonObject #[
+    ("feature", jsonString extension.feature),
+    ("extension", jsonString extension.extension),
+    ("scope", jsonString extension.scope),
+    ("initInstruction", jsonString extension.initInstruction),
+    ("requiresConfig", jsonBool extension.requiresConfig),
+    ("notes", jsonStringArray extension.notes)
+  ]
+
+def tokenSolanaAuthorityChangeJson
+    (change : ProofForge.Contract.Token.SolanaTokenAuthorityChangePlan) : String :=
+  jsonObject #[
+    ("name", jsonString change.name),
+    ("authorityType", jsonString change.authorityType),
+    ("currentAuthority", jsonString change.currentAuthority),
+    ("newAuthority", jsonString change.newAuthority),
+    ("operation", jsonString change.operation),
+    ("reason", jsonString change.reason)
+  ]
+
+def tokenSolanaReferenceJson
+    (reference : ProofForge.Contract.Token.SolanaTokenReference) : String :=
+  jsonObject #[
+    ("label", jsonString reference.label),
+    ("url", jsonString reference.url)
+  ]
+
+def tokenSolanaDeploymentPlanJson
+    (deployment : ProofForge.Contract.Token.SolanaTokenDeploymentPlan) : String :=
+  jsonObject #[
+    ("standard", jsonString deployment.standard.id),
+    ("programs", jsonObject #[
+      ("token", jsonString deployment.tokenProgramId),
+      ("associatedToken", jsonString deployment.associatedTokenProgramId),
+      ("system", jsonString deployment.systemProgramId),
+      ("rentSysvar", jsonString deployment.rentSysvarId)
+    ]),
+    ("accounts", jsonArray (deployment.accounts.map tokenSolanaAccountJson)),
+    ("instructions", jsonArray (deployment.instructions.map tokenSolanaInstructionJson)),
+    ("extensions", jsonArray (deployment.extensions.map tokenSolanaExtensionJson)),
+    ("authorityChanges", jsonArray (deployment.authorityChanges.map tokenSolanaAuthorityChangeJson)),
+    ("references", jsonArray (deployment.references.map tokenSolanaReferenceJson))
+  ]
+
 def tokenPlanJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
     (profile : ProofForge.Target.TargetProfile)
     (plan : ProofForge.Contract.Token.TokenPlan)
-    (sourceArtifact : String) : String :=
+    (sourceArtifact : String)
+    (solanaDeployment? : Option ProofForge.Contract.Token.SolanaTokenDeploymentPlan := none) : String :=
   jsonObject #[
     ("format", jsonString "proof-forge-token-plan-v0"),
     ("sourceKind", jsonString "learn-token-source"),
@@ -2415,6 +2494,9 @@ def tokenPlanJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
     ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
     ("operations", jsonStringArray plan.operations),
     ("notes", jsonStringArray plan.notes),
+    ("solana", match solanaDeployment? with
+      | some deployment => tokenSolanaDeploymentPlanJson deployment
+      | none => "null"),
     ("artifacts", jsonObject #[
       ("source", sourceArtifact)
     ]),
@@ -3716,7 +3798,14 @@ def compileLearnTokenPlan (opts : CliOptions)
     (plan : ProofForge.Contract.Token.TokenPlan) : IO UInt32 := do
   let output := opts.output?.getD (defaultLearnTokenPlanOutput decl profile)
   let sourceArtifact ← artifactEntryJson input
-  writeTextFile output (tokenPlanJson decl profile plan sourceArtifact ++ "\n")
+  let solanaDeployment? ←
+    if profile.family == ProofForge.Target.TargetFamily.solana then
+      match ProofForge.Contract.Token.solanaTokenDeploymentPlan decl.spec with
+      | .ok deployment => pure (some deployment)
+      | .error err => throw <| IO.userError err
+    else
+      pure none
+  writeTextFile output (tokenPlanJson decl profile plan sourceArtifact solanaDeployment? ++ "\n")
   IO.println s!"wrote {output}"
   return 0
 

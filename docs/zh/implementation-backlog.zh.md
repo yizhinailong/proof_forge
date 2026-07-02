@@ -1046,11 +1046,11 @@ EVM 上生成 ERC-20 合约，还是在 Solana 上生成 SPL Token / Token-2022
 
 - 已完成：增加 RFC 0006、`ProofForge.Contract.Token.TokenSpec`、target
   token plan，以及 `Tests/TokenSpec.lean`。
-- 已完成：增加 Learn token intent source syntax、
+- 已完成：增加 legacy Learn token intent source syntax、
   `ProofForge.Contract.Token.Learn`、`Examples/Learn/ProofToken.learn`、
   `Examples/Learn/FeeToken.learn`、`Tests/TokenLearn.lean`，以及
-  `proof-forge --learn-token --target <id>` plan emission，让应用开发者不需要
-  手写 `TokenSpec`。
+  `proof-forge --learn-token --target <id>` plan emission，作为兼容路径进入
+  `TokenSpec`。
 - 已完成：为 Learn token source 增加第一版 EVM ERC-20 artifact emitter：
   `ProofForge.Contract.Token.Evm`、`Tests/TokenEvm.lean`、metadata 中的标准
   ERC-20 selector/event、Yul generation，以及通过 `--learn-token --target evm`
@@ -1062,27 +1062,66 @@ EVM 上生成 ERC-20 合约，还是在 Solana 上生成 SPL Token / Token-2022
   learn-token-evm-vm`，在 EthereumJS VM 中部署生成的 ERC-20 creation
   bytecode，并验证标准 ERC-20 调用、Transfer/Approval topic，以及余额不足
   revert 行为。
+- 已完成：在 Lean `TokenSpec` 层实现 Solana SPL Token / Token-2022 deployment
+  plan rendering。`solanaTokenDeploymentPlan` 现在会记录 mint account 创建、
+  associated token account、`mint_to`、`transfer_checked`、`approve`、`burn`、
+  `revoke`、authority change、Token-2022 extension 初始化、Solana program id
+  和来源文档引用。
+- 已完成：将 `transfer_fee`、`non_transferable`、`confidential_transfer`、
+  `transfer_hook` 等 Token-2022 功能路由到 Token-2022 extension metadata，
+  而不是默认生成 custom per-token program。planner 会拒绝文档中不兼容的
+  `transfer_fee` + `non_transferable` 组合。
+- 已完成：扩展 `scripts/portable/learn-token-smoke.sh`，让 legacy `.learn`
+  输入路径复用 Lean `TokenSpec` plan，发射 SPL Token 与 Token-2022 两种结构化
+  plan JSON，并通过 `@solana/spl-token` / `@solana/web3.js` instruction
+  builder 做离线验证。
+- 已完成：增加 `scripts/solana/token-plan-web3-smoke.sh` / `just
+  solana-token-plan-web3`，在 Surfpool 上执行结构化 legacy SPL Token plan。
+  live runner 会创建 mint 和 associated token account、mint initial supply，
+  执行计划中的 `mint_to`、`transfer_checked`、`approve`、`burn`、`revoke` 和
+  mint-authority `set_authority`，并通过 Web3.js 读取验证 balance、supply、
+  delegate state 和 authority revoke。
+- 已完成：增加 `scripts/solana/token-2022-transfer-fee-web3-smoke.sh` / `just
+  solana-token-2022-transfer-fee-web3`，在 Surfpool 上执行结构化 Token-2022
+  transfer-fee plan。live runner 会初始化 `TransferFeeConfig`，创建 Token-2022
+  associated token account，mint initial supply，执行
+  `TransferCheckedWithFee`，验证 source balance、recipient net balance 和
+  recipient withheld fee，直接从 token account withdraw withheld fee；随后执行第二次
+  transfer，将 withheld fee harvest 到 mint，再从 mint withdraw，并通过 Web3.js
+  读取验证 fee receiver balance 与已清空的 account/mint withheld amount。
+- 已完成：增加 `ProofForge.Contract.Token.Examples.SoulboundToken`、
+  `Tests/TokenPlanEmit.lean`、
+  `scripts/solana/token-2022-non-transferable-web3-smoke.sh` 和 `just
+  solana-token-2022-non-transferable-web3`，在 Surfpool 上执行由 Lean `.lean`
+  TokenSpec 支撑的 Token-2022 non-transferable plan。live runner 会初始化
+  `NonTransferable`，创建 Token-2022 associated token account，mint initial
+  supply，验证 mint/account extension，证明 `TransferChecked` 被拒绝，然后 burn
+  token，并通过 Web3.js 读取验证 balance 和 supply。
 - 实现 EVM ERC-20 降级：ABI/selectors、balance/allowance storage、total
   supply、transfer/approve/transferFrom、mint/burn 选项、events，以及
   更广的 Foundry/Web3 行为测试。
-- 实现 Solana SPL Token plan 渲染：mint 创建、associated token account
-  创建、mint_to、transfer_checked、approve、burn、authority 变更，并通过
-  `@solana/spl-token` 做 Web3.js 验证。
-- 将 transfer fee、non-transferable、confidential transfer、transfer hook
-  等 Token-2022 功能路由到 Token-2022 extension 初始化，而不是默认生成
-  custom per-token program。
+- 继续为 transfer-fee initialization、checked-transfer、direct withdraw 和
+  harvest-to-mint withdraw path 以及 non-transferable transfer rejection 之外的
+  Token-2022 extension plan 增加 Surfpool live validation：confidential
+  transfer setup 和 transfer-hook routing。
 - 为 capped supply 或 custom transfer restriction 等自定义策略增加可选的
   Solana wrapper/authority/transfer-hook program 生成。
-- 输出 token-specific artifact metadata，记录 standard、target、operations、
-  extension set、deployment accounts、tool versions 和 validation results。
+- 在 Surfpool plan runner 落地后，继续扩展 token-specific artifact metadata，
+  记录 live deployment accounts、tool versions 和 validation-run results。
 
 验收标准：
 
-- 同一个 Learn token source 会降低到确定性的 `TokenSpec`，并生成确定性的
-  EVM 与 Solana token plans。
+- Lean-authored `TokenSpec` 会生成确定性的 EVM 与 Solana token plans；legacy
+  Learn token source 会降低到同一个 `TokenSpec` 边界。
 - EVM 输出会发射 ERC-20 Yul/bytecode，并通过标准 Web3/Foundry ERC-20 行为测试。
-- Solana 输出能在 Surfpool 上创建 mint 和 token accounts、mint 初始供应、
-  transfer tokens，并用 `@solana/spl-token` 验证 balances。
+- Solana 输出会渲染结构化 SPL Token / Token-2022 plan，用
+  `@solana/spl-token` 离线验证 instruction builder，并已在 Surfpool 上执行
+  legacy SPL Token plan 以及 Token-2022 transfer-fee 与 non-transferable plan：
+  创建 mint 和 token accounts、mint supply、在允许时 transfer tokens、验证
+  balances，验证 withheld transfer fees，通过 direct account withdraw 与
+  harvest-to-mint 后从 mint withdraw 两条路径收取这些费用，拒绝
+  non-transferable `TransferChecked`，并 burn non-transferable supply。
+  confidential transfer 与 transfer-hook 行为仍是后续工作。
 - 文档明确说明 Solana 默认不是 per-token SPL 合约，而是通过 plan 和 CPI
   使用 SPL Token / Token-2022 programs。
 

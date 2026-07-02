@@ -47,8 +47,9 @@ The internal compiler boundary is `ProofForge.Contract.Token.TokenSpec`:
 }
 ```
 
-Application authors should not hand-write that Lean object. The Learn source
-entrypoint is:
+Application authors should normally use Lean SDK helpers or a generated
+`TokenSpec` value rather than hand-building backend artifacts. The legacy
+`.learn` compatibility parser can still produce the same boundary from:
 
 ```learn
 token ProofToken {
@@ -61,10 +62,10 @@ token ProofToken {
 }
 ```
 
-`proof-forge --learn-token --target <id> input.learn` parses this source form,
-then lowers it to `TokenSpec` and routes by target. The `evm` route emits
-ERC-20 Yul, bytecode, and artifact metadata; the Solana route currently emits
-the SPL Token / Token-2022 plan.
+`proof-forge --learn-token --target <id> input.learn` parses this legacy source
+form, then lowers it to `TokenSpec` and routes by target. The `evm` route emits
+ERC-20 Yul, bytecode, and artifact metadata; the Solana route emits a
+structured SPL Token / Token-2022 plan.
 
 `planForTarget` maps the same `TokenSpec` to target-specific plans:
 
@@ -137,10 +138,29 @@ Solana uses existing capabilities such as `account.explicit`, `crosscall.cpi`,
    bytecode now has an EthereumJS VM behavior gate for standard ERC-20 calls
    and event topics. Remaining work: broader Foundry/Web3 coverage and stronger
    access-control policies for optional minting.
-4. Add Solana SPL Token plan rendering and Web3.js `@solana/spl-token`
-   validation.
-5. Add Token-2022 feature routing.
-6. Add optional Solana wrapper/transfer-hook generation for custom policies.
+4. **Done:** add Solana SPL Token / Token-2022 plan rendering at the Lean
+   `TokenSpec` layer, including mint account creation, associated token
+   accounts, `mint_to`, `transfer_checked`, `approve`, `burn`, `revoke`,
+   authority changes, extension initialization, program ids, and documentation
+   references.
+5. **Done:** add Token-2022 feature routing for `transfer_fee`,
+   `non_transferable`, `confidential_transfer`, and `transfer_hook`, plus a
+   planner diagnostic for the incompatible `transfer_fee` +
+   `non_transferable` combination documented by Solana.
+6. **Done:** add offline Web3.js validation for the generated Solana token
+   plans using `@solana/spl-token` instruction builders.
+7. **Done:** add Surfpool live execution for the legacy SPL Token plan itself:
+   mint creation, associated token account creation, initial `mint_to`,
+   planned `mint_to`, `transfer_checked`, `approve`, `burn`, `revoke`, and
+   mint-authority `set_authority`, with Web3.js balance/supply/delegate checks.
+8. **Partially done:** add Surfpool live execution for Token-2022 extension
+   plans. Transfer-fee initialization and `TransferCheckedWithFee` now have a
+   Surfpool/Web3.js gate, including direct withheld-fee withdraw and
+   harvest-to-mint plus withdraw-from-mint flows. Non-transferable tokens now
+   have a Lean `.lean` source gate that verifies `NonTransferable`
+   initialization, rejected `TransferChecked`, and burn behavior. Confidential
+   transfer setup and transfer-hook routing remain follow-up.
+9. Add optional Solana wrapper/transfer-hook generation for custom policies.
 
 [eip20]: https://eips.ethereum.org/EIPS/eip-20
 [solana-tokens]: https://solana.com/docs/tokens
