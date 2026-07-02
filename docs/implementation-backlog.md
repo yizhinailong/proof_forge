@@ -1000,10 +1000,12 @@ Completed developer-surface slices:
   subset, lowers that AST to `ContractSpec`/portable IR, and proves that
   `Counter.learn` and `ValueVault.learn` produce the same IR modules as the
   current `contract_source` examples. The CLI now accepts `.learn` files
-  directly through `--learn-yul`, `--learn-bytecode`, and `--learn-sbpf`.
+  through `--learn --target evm` and `--learn --target solana-sbpf-asm`, with
+  `--learn-yul`, `--learn-bytecode`, and `--learn-sbpf` retained as lower-level
+  convenience paths.
   `scripts/portable/value-vault-smoke.sh` uses
   `Examples/Learn/ValueVault.learn` as the source of record and proves that the
-  Learn-authored contract can emit EVM Yul/bytecode metadata and Solana sBPF
+  Learn-authored contract can route to EVM Yul/bytecode metadata and Solana sBPF
   assembly/manifest/IDL/client artifacts without hand-authoring `ContractSpec`.
 - Learn Solana target-extension syntax:
   `ProofForge.Contract.Learn` now parses `SolanaVault.learn` forms for
@@ -1102,10 +1104,11 @@ Current boundary:
   compiler-owned identifiers rather than unchecked user-authored specs.
   `ProofForge.Contract.Source` remains the richer embedded macro frontend for
   examples not yet expressed in Learn, but portable ValueVault artifact emission
-  now starts from `.learn`. The next authoring gap is to extend Learn parsing
-  to typed target-extension forms for Token-2022, typed account/data
-  references, and richer Pinocchio-style account validation ergonomics, then add
-  target-selection sugar above the current per-target `--learn-*` modes.
+  now starts from `.learn` and dispatches by compile-time target id. The next
+  authoring gap is to extend Learn parsing to typed target-extension forms for
+  Token-2022, typed account/data references, and richer Pinocchio-style account
+  validation ergonomics, then broaden `--learn --target <id>` package emission
+  beyond EVM and Solana sBPF.
 
 Remaining priority slices:
 

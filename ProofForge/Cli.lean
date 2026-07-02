@@ -100,6 +100,7 @@ inductive EmitMode where
   | learnYul
   | learnBytecode
   | learnSbpf
+  | learnTarget
   | abiScalarIrYul
   | abiScalarIrBytecode
   | assertIrYul
@@ -325,8 +326,13 @@ structure CliOptions where
   evmConstructorParams : Array ConstructorParamSpec := #[]
   evmConstructorValues : Array ConstructorValueSpec := #[]
   solanaSbpfArch : String := "v3"
+  targetId? : Option String := none
   mode : EmitMode := .yul
   deriving Inhabited
+
+def CliOptions.emitsEvmDeployManifest (opts : CliOptions) : Bool :=
+  opts.mode.emitsEvmDeployManifest ||
+    (opts.mode == .learnTarget && opts.targetId? == some ProofForge.Target.evm.id)
 
 def usage : String :=
   String.intercalate "\n" [
@@ -337,6 +343,9 @@ def usage : String :=
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-value-vault-ir-yul [-o output.yul]",
     "  proof-forge --emit-value-vault-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
+    "  proof-forge --learn --target evm [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
+    "  proof-forge --learn --target solana-sbpf-asm [-o output.s] [--artifact-output file] input.learn",
+    "  proof-forge --learn-target <target-id> [target options] input.learn",
     "  proof-forge --learn-yul [-o output.yul] input.learn",
     "  proof-forge --learn-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin] input.learn",
     "  proof-forge --learn-sbpf [-o output.s] [--artifact-output file] input.learn",
@@ -1918,13 +1927,17 @@ def writeEvmSdkArtifactMetadata
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
       let hasRunnableInput := opts.input?.isSome || opts.mode.hasBuiltInFixture
-      if opts.evmChainProfile?.isSome && !opts.mode.emitsEvmDeployManifest then
+      if opts.targetId?.isSome && opts.mode != .learnTarget then
+        .error "--target only applies to --learn mode"
+      else if opts.mode == .learnTarget && opts.targetId?.isNone then
+        .error "--learn requires --target <target-id>"
+      else if opts.evmChainProfile?.isSome && !opts.emitsEvmDeployManifest then
         .error "--evm-chain-profile only applies to EVM bytecode modes that emit proof-forge-deploy.json"
-      else if !opts.evmConstructorArgsHex.isEmpty && !opts.mode.emitsEvmDeployManifest then
+      else if !opts.evmConstructorArgsHex.isEmpty && !opts.emitsEvmDeployManifest then
         .error "--evm-constructor-args-hex only applies to EVM bytecode modes that emit proof-forge-deploy.json"
-      else if !opts.evmConstructorParams.isEmpty && !opts.mode.emitsEvmDeployManifest then
+      else if !opts.evmConstructorParams.isEmpty && !opts.emitsEvmDeployManifest then
         .error "--evm-constructor-param only applies to EVM bytecode modes that emit proof-forge-deploy.json"
-      else if !opts.evmConstructorValues.isEmpty && !opts.mode.emitsEvmDeployManifest then
+      else if !opts.evmConstructorValues.isEmpty && !opts.emitsEvmDeployManifest then
         .error "--evm-constructor-arg only applies to EVM bytecode modes that emit proof-forge-deploy.json"
       else
         match finalizeConstructorOptions opts with
@@ -1947,6 +1960,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with yulOutput? := some (FilePath.mk path) }
   | "--artifact-output" :: path :: rest, opts =>
       parseArgs rest { opts with artifactOutput? := some (FilePath.mk path) }
+  | "--target" :: targetId :: rest, opts =>
+      parseArgs rest { opts with targetId? := some targetId }
+  | "--target" :: [], _ =>
+      .error "missing value for --target"
   | "--evm-chain-profile" :: profile :: rest, opts =>
       parseArgs rest { opts with evmChainProfile? := some profile }
   | "--evm-constructor-args-hex" :: hex :: rest, opts => do
@@ -1973,6 +1990,12 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .evmBytecode }
   | "--bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .evmBytecode }
+  | "--learn" :: rest, opts =>
+      parseArgs rest { opts with mode := .learnTarget }
+  | "--learn-target" :: targetId :: rest, opts =>
+      parseArgs rest { opts with mode := .learnTarget, targetId? := some targetId }
+  | "--learn-target" :: [], _ =>
+      .error "missing value for --learn-target"
   | "--emit-counter-ir-yul" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrYul }
   | "--emit-counter-ir-bytecode" :: rest, opts =>
@@ -2304,6 +2327,15 @@ def learnSourceModuleName (input : FilePath) (spec : ProofForge.Contract.Contrac
 def defaultLearnOutput (subdir extension : String) (spec : ProofForge.Contract.ContractSpec) :
     FilePath :=
   FilePath.mk s!"build/{subdir}/{spec.name}.{extension}"
+
+def learnTargetProfile (opts : CliOptions) : IO ProofForge.Target.TargetProfile := do
+  let some targetId := opts.targetId?
+    | throw <| IO.userError "--learn requires --target <target-id>"
+  match ProofForge.Target.find? targetId with
+  | some profile => pure profile
+  | none =>
+      let known := String.intercalate ", " ProofForge.Target.knownIds.toList
+      throw <| IO.userError s!"unknown Learn target `{targetId}`; known targets: {known}"
 
 def renderLearnEvmYul (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) :
     IO (String × ProofForge.IR.Module) := do
@@ -3452,6 +3484,16 @@ def compileLearnSbpf (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileLearnTarget (opts : CliOptions) : IO UInt32 := do
+  let profile ← learnTargetProfile opts
+  if profile.id == ProofForge.Target.evm.id then
+    compileLearnBytecode opts
+  else if profile.id == ProofForge.Target.solanaSbpfAsm.id then
+    compileLearnSbpf opts
+  else
+    throw <| IO.userError
+      s!"Learn target emission for `{profile.id}` is not implemented yet; currently implemented targets: evm, solana-sbpf-asm"
+
 def compileSolanaElf (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/Counter.so")
   let projectName := match output.fileName with
@@ -3781,6 +3823,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .learnYul => compileLearnYul opts
   | .learnBytecode => compileLearnBytecode opts
   | .learnSbpf => compileLearnSbpf opts
+  | .learnTarget => compileLearnTarget opts
   | .abiScalarIrYul => compileAbiScalarIrYul opts
   | .abiScalarIrBytecode => compileAbiScalarIrBytecode opts
   | .assertIrYul => compileAssertIrYul opts

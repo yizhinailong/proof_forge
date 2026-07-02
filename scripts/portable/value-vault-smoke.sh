@@ -76,12 +76,12 @@ fi
 
 if command -v solc >/dev/null 2>&1 && command -v cast >/dev/null 2>&1; then
   echo "=== Portable ValueVault step 3: emit EVM bytecode and metadata ==="
-  lake env proof-forge --learn-bytecode \
+  lake env proof-forge --learn --target evm \
     --yul-output "$EVM_BYTECODE_YUL" \
     --artifact-output "$EVM_ARTIFACT" \
     -o "$EVM_BIN" \
     "$LEARN_SOURCE" \
-    || fail "proof-forge --learn-bytecode failed"
+    || fail "proof-forge --learn --target evm failed"
   require_file "$EVM_BIN"
   require_file "$EVM_ARTIFACT"
   python3 "$REPO_ROOT/scripts/evm/validate-artifact-metadata.py" \
@@ -110,11 +110,11 @@ else
 fi
 
 echo "=== Portable ValueVault step 4: emit Solana sBPF assembly ==="
-lake env proof-forge --learn-sbpf \
+lake env proof-forge --learn --target solana-sbpf-asm \
   -o "$SOLANA_ASM" \
   --artifact-output "$SOLANA_ARTIFACT" \
   "$LEARN_SOURCE" \
-  || fail "proof-forge --learn-sbpf failed"
+  || fail "proof-forge --learn --target solana-sbpf-asm failed"
 require_file "$SOLANA_ASM"
 require_file "$SOLANA_MANIFEST"
 require_file "$SOLANA_IDL"

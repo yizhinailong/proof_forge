@@ -16,9 +16,10 @@ ProofForge 不应该要求应用开发者直接编写 `ContractSpec` 对象。
 
 预期用户体验是 Learn-first。`contract_source` 有价值，是因为它能在当前
 Lean/Lake 仓库里直接执行并证明 lowering path；但它不是最终语言 parser。
-`--learn-sbpf`、`--learn-yul` 和 `--learn-bytecode` 这类 CLI mode 现在允许
-smoke test 与用户从 `.learn` 源码开始，而不是从 built-in fixture 或手写
-`ContractSpec` 开始。
+`proof-forge --learn --target <id>` 现在允许 smoke test 与用户从 `.learn`
+源码开始，并在编译阶段选择链后端，而不是从 built-in fixture 或手写
+`ContractSpec` 开始。target-specific 的 `--learn-yul`、`--learn-bytecode` 和
+`--learn-sbpf` 仍作为较低层的便捷路径保留。
 
 因此，带有较多字符串的 `ContractSpec` 与 Builder 示例应被看作编译器 fixture，
 不是产品 surface。它们描述的是源码经过 parsing、capability routing 和
@@ -48,8 +49,9 @@ expected IR。
 
 `ProofForge.Contract.Learn` 现在会解析 `Examples/Learn/` 下 checked-in 的
 `.learn` 示例，生成一个小型 source AST，并将该 AST 降低到 `contract_source`
-共用的 `ContractSpec`/portable IR 边界。CLI 可以从 `.learn` 输入直接发射
-EVM Yul/bytecode metadata 和 Solana sBPF assembly package；portable
+共用的 `ContractSpec`/portable IR 边界。CLI 可以通过 `--target evm` 把
+`.learn` 输入路由到 EVM bytecode metadata，也可以通过
+`--target solana-sbpf-asm` 路由到 Solana sBPF assembly package；portable
 ValueVault smoke 现在使用 `Examples/Learn/ValueVault.learn` 作为 source of
 record。parser 目前覆盖 portable scalar/event 子集，以及第一批 Solana
 target-extension form：account、PDA derivation、System Program
@@ -110,5 +112,5 @@ Yul、bytecode、ABI metadata 和 deployment file。当合约本身是 portable 
    以及剩余框架级 account/data declaration。
 2. 逐步用 typed account、owner、program 和 capability reference 替代带字符串的
    source grammar 中的 Solana declaration，同时只在编译器制品内部保留字符串名称。
-3. 在现有 per-target CLI mode 之上增加 target-selection sugar，让用户写一份
-   `.learn` 源码，然后通过 build target flag 选择 EVM、Solana、Move 或 Wasm。
+3. 随着 Wasm、Move 和其他 target 后端从 routing plan 走到 package emitter，
+   继续扩展 `--learn --target <id>` 的发射覆盖。

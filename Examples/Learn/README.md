@@ -3,8 +3,9 @@
 These files are grammar seeds for the standalone Learn authoring layer.
 `ProofForge.Contract.Learn` parses the current portable subset into a source AST
 and lowers it into `ContractSpec` and portable IR. The product-facing entrypoint
-is now the `.learn` file: `proof-forge --learn-sbpf input.learn` emits Solana
-sBPF assembly, manifest, IDL, TypeScript client, and artifact metadata from the
+is now the `.learn` file plus a compile-time target:
+`proof-forge --learn --target solana-sbpf-asm input.learn` emits Solana sBPF
+assembly, manifest, IDL, TypeScript client, and artifact metadata from the
 source language without requiring a hand-written Lean `ContractSpec`.
 
 They are intentionally not Lean files. The executable embedded equivalent still

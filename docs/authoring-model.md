@@ -17,10 +17,11 @@ The current stack has three authoring layers:
 
 The intended user experience is Learn-first. `contract_source` is useful because
 it is executable inside the current Lean/Lake repo and proves the lowering path,
-but it is not the final language parser. CLI modes such as `--learn-sbpf`,
-`--learn-yul`, and `--learn-bytecode` now let smoke tests and users start from
-`.learn` source instead of from a built-in fixture or a hand-written
-`ContractSpec`.
+but it is not the final language parser. `proof-forge --learn --target <id>`
+now lets smoke tests and users start from `.learn` source and choose the chain
+backend at compile time instead of from a built-in fixture or a hand-written
+`ContractSpec`. The target-specific `--learn-yul`, `--learn-bytecode`, and
+`--learn-sbpf` commands remain lower-level convenience paths.
 
 The string-heavy `ContractSpec` and Builder examples should therefore be read
 as compiler fixtures, not as the product surface. They describe the same
@@ -55,9 +56,10 @@ inside `ContractSpec`, manifests, IDL, clients, and backend ASTs.
 
 `ProofForge.Contract.Learn` now parses the checked-in `.learn` examples under
 `Examples/Learn/` into a small source AST and lowers that AST to the same
-`ContractSpec`/portable IR boundary used by `contract_source`. The CLI can emit
-EVM Yul/bytecode metadata and Solana sBPF assembly packages directly from a
-`.learn` input; the portable ValueVault smoke now uses
+`ContractSpec`/portable IR boundary used by `contract_source`. The CLI can route
+a `.learn` input through `--target evm` for EVM bytecode metadata or
+`--target solana-sbpf-asm` for Solana sBPF assembly packages; the portable
+ValueVault smoke now uses
 `Examples/Learn/ValueVault.learn` as the source of record. The parser covers the
 portable scalar/event subset plus the first Solana target-extension forms for
 accounts, PDA derivation, System Program transfer/create-account CPI, and SPL
@@ -123,6 +125,6 @@ need to manually switch between these internals when the contract is portable.
 2. Gradually replace string-bearing Solana declarations with typed account,
    owner, program, and capability references in the source grammar while
    keeping string names inside compiler artifacts only.
-3. Add target-selection sugar above the per-target CLI modes so users can write
-   one `.learn` source and choose EVM, Solana, Move, or Wasm with a build target
-   flag.
+3. Extend `--learn --target <id>` emission beyond EVM and Solana sBPF as Wasm,
+   Move, and other target backends grow from routing plans into package
+   emitters.
