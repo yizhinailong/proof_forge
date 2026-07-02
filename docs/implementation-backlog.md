@@ -1014,6 +1014,14 @@ Completed developer-surface slices:
   the Learn file lowers to the same IR module and generated manifest as
   `ProofForge.Solana.Examples.SplTokenOpsCpi`, keeping the string-heavy Builder
   code as an internal expected fixture rather than the user-facing syntax.
+- Learn log/return-data/compute-unit syntax:
+  `LogEvent.learn` and `ReturnDataCompute.learn` now cover Solana pubkey/data
+  log helper statements, return-data set/get statements, and remaining
+  compute-unit read/log statements. `Tests/LearnSource.lean` proves both Learn
+  files lower to the same IR modules and generated manifests as
+  `ProofForge.Solana.Examples.LogEvent` and
+  `ProofForge.Solana.Examples.ReturnDataCompute`, moving another syscall-facing
+  SDK slice from Builder-only fixtures into user-facing Learn source.
 - Solana typed account surface:
   `ProofForge.Solana.Surface` now adds `account_ref`, `pda_ref`, and `cpi_ref`
   declarations plus typed PDA seed, account constraint, and SPL/System CPI
@@ -1054,12 +1062,12 @@ Current boundary:
 - `ProofForge.Contract.Learn` is now the first standalone Learn parser/lowering
   seed. It covers the portable Counter/ValueVault subset and the Vault-level
   Solana account/PDA/SPL Token transfer CPI subset, System Program
-  transfer/create-account CPI, and SPL Token mint/burn/approve/revoke CPI.
+  transfer/create-account CPI, SPL Token mint/burn/approve/revoke CPI, and
+  Solana log/return-data/compute-unit helper statements.
   `ProofForge.Contract.Source` remains the richer
   embedded macro frontend for examples not yet expressed in Learn. The next
   authoring gap is to extend Learn parsing to typed target-extension forms for
-  Token-2022, sysvars, logs, memory, crypto, return data, and richer
-  Pinocchio-style account
+  Token-2022, sysvars, memory, crypto, and richer Pinocchio-style account
   validation ergonomics while the target extension layer derives chain-specific
   selectors, instruction tags, IDL/client metadata, and package artifacts during
   compilation.
@@ -1072,15 +1080,14 @@ Remaining priority slices:
    create-account and SPL Token account schemas. The key comparison points are
    account order, signer/writable checks, CPI instruction data, and observable
    state changes.
-2. Richer return data, sysvars, crypto, logs, and memory helpers (3-5 days):
+2. Richer sysvars, crypto, logs, and memory helpers (3-5 days):
    extend the current scalar `sol_log_64_`/`sol_log_data` event path to
    string logs, Anchor-style discriminator/Borsh payloads, and indexed event
-   forms; add CPI return-value handling and
-   validation for `sol_get_return_data`, typed return payload helpers beyond `u64`,
-   additional Clock/Rent fields and generic account-passed sysvar reads,
-   portable `Expr.hash` routing where the hash semantics match the target, and
-   broader account/data packing helpers that reuse the new memory syscall path,
-   with JavaScript reference checks.
+   forms; add typed return payload helpers beyond `u64`, additional Clock/Rent
+   fields and generic account-passed sysvar reads, portable `Expr.hash` routing
+   where the hash semantics match the target, and broader account/data packing
+   helpers that reuse the new memory syscall path, with JavaScript reference
+   checks.
 3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures
    through `runtime.allocator`, emit actual downward bump-pointer allocation
    code when needed, and reject allocation-using structures under

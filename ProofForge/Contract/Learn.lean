@@ -81,6 +81,13 @@ inductive Stmt where
       (signerSeeds : Array SolanaSignerSeed)
   | solanaInvokeSplTokenRevoke (name source owner : String)
       (signerSeeds : Array SolanaSignerSeed)
+  | solanaSetReturnData (name sourceState : String) (bytes : Nat)
+  | solanaGetReturnData (name destinationState : String) (maxBytes : Nat)
+      (lengthState? : Option String) (programIdStates : Array String)
+  | solanaRemainingComputeUnits (name outputState : String)
+  | solanaLogRemainingComputeUnits (name : String)
+  | solanaLogAccountPubkey (name account : String)
+  | solanaLogStateData (name sourceState : String) (bytes : Nat)
   | return (value : Expr)
   deriving Repr
 
@@ -295,6 +302,18 @@ private partial def parseIdentArgs : ParserM (Array String) := do
     expectSymbol ")"
     pure args
 
+private partial def parseIdentList : ParserM (Array String) := do
+  expectSymbol "["
+  if (← consumeSymbol "]") then
+    pure #[]
+  else
+    let mut items := #[]
+    items := items.push (← expectIdent)
+    while (← consumeSymbol ",") do
+      items := items.push (← expectIdent)
+    expectSymbol "]"
+    pure items
+
 private def expectArgs (name : String) (args : Array String) (size : Nat) : ParserM Unit :=
   if args.size == size then
     pure ()
@@ -368,6 +387,67 @@ private partial def parsePdaTail : ParserM (Array SolanaSeed × String × String
   let account ← expectIdent
   let isSigner ← consumeKeyword "signer"
   pure (seeds, bump, account, isSigner)
+
+private partial def parseReturnDataStmt : ParserM Stmt := do
+  let op ← expectIdent
+  match op with
+  | "set" =>
+      let name ← expectIdent
+      let args ← parseIdentArgs
+      expectArgs "return_data set" args 1
+      expectKeyword "bytes"
+      let bytes ← expectNumber
+      pure (.solanaSetReturnData name args[0]! bytes)
+  | "get" =>
+      let name ← expectIdent
+      let args ← parseIdentArgs
+      expectArgs "return_data get" args 1
+      expectKeyword "max_bytes"
+      let maxBytes ← expectNumber
+      let lengthState? ←
+        if (← consumeKeyword "length") then
+          pure (some (← expectIdent))
+        else
+          pure none
+      let programIdStates ←
+        if (← consumeKeyword "program_id_states") then
+          parseIdentList
+        else
+          pure #[]
+      pure (.solanaGetReturnData name args[0]! maxBytes lengthState? programIdStates)
+  | other => failAt s!"unsupported Solana return_data op `{other}`"
+
+private partial def parseComputeUnitsStmt : ParserM Stmt := do
+  let op ← expectIdent
+  match op with
+  | "remaining" =>
+      let name ← expectIdent
+      let args ← parseIdentArgs
+      expectArgs "compute_units remaining" args 1
+      pure (.solanaRemainingComputeUnits name args[0]!)
+  | "log_remaining" =>
+      let name ← expectIdent
+      let args ← parseIdentArgs
+      expectArgs "compute_units log_remaining" args 0
+      pure (.solanaLogRemainingComputeUnits name)
+  | other => failAt s!"unsupported Solana compute_units op `{other}`"
+
+private partial def parseLogStmt : ParserM Stmt := do
+  let op ← expectIdent
+  match op with
+  | "pubkey" =>
+      let name ← expectIdent
+      let args ← parseIdentArgs
+      expectArgs "log pubkey" args 1
+      pure (.solanaLogAccountPubkey name args[0]!)
+  | "data" =>
+      let name ← expectIdent
+      let args ← parseIdentArgs
+      expectArgs "log data" args 1
+      expectKeyword "bytes"
+      let bytes ← expectNumber
+      pure (.solanaLogStateData name args[0]! bytes)
+  | other => failAt s!"unsupported Solana log op `{other}`"
 
 mutual
 private partial def parseExpr : ParserM Expr :=
@@ -547,6 +627,18 @@ private partial def parseSolanaStmt : ParserM Stmt := do
             let signerSeeds ← parseOptionalSignerSeeds
             pure (.solanaInvokeSplTokenRevoke name args[0]! args[1]! signerSeeds)
         | other => failAt s!"unsupported Solana invoke instruction `{other}`"
+      consumeOptionalSemicolon
+      pure stmt
+  | "return_data" =>
+      let stmt ← parseReturnDataStmt
+      consumeOptionalSemicolon
+      pure stmt
+  | "compute_units" =>
+      let stmt ← parseComputeUnitsStmt
+      consumeOptionalSemicolon
+      pure stmt
+  | "log" =>
+      let stmt ← parseLogStmt
       consumeOptionalSemicolon
       pure stmt
   | other => failAt s!"unsupported Solana statement `{other}`"
@@ -793,6 +885,25 @@ private def lowerStmtAction (stateNames : Array String)
   | .solanaInvokeSplTokenRevoke name source owner signerSeeds =>
       let stmtAction := ProofForge.Solana.invokeSplTokenRevoke name source owner
         (signerSeeds := lowerSolanaSignerSeeds signerSeeds)
+      .ok (action *> stmtAction, env)
+  | .solanaSetReturnData name sourceState bytes =>
+      let stmtAction := ProofForge.Solana.setReturnDataFromState name sourceState bytes
+      .ok (action *> stmtAction, env)
+  | .solanaGetReturnData name destinationState maxBytes lengthState? programIdStates =>
+      let stmtAction := ProofForge.Solana.getReturnDataToState name destinationState maxBytes
+        (lengthState? := lengthState?) (programIdStates := programIdStates)
+      .ok (action *> stmtAction, env)
+  | .solanaRemainingComputeUnits name outputState =>
+      let stmtAction := ProofForge.Solana.remainingComputeUnitsToState name outputState
+      .ok (action *> stmtAction, env)
+  | .solanaLogRemainingComputeUnits name =>
+      let stmtAction := ProofForge.Solana.logRemainingComputeUnits name
+      .ok (action *> stmtAction, env)
+  | .solanaLogAccountPubkey name account =>
+      let stmtAction := ProofForge.Solana.logAccountPubkey name account
+      .ok (action *> stmtAction, env)
+  | .solanaLogStateData name sourceState bytes =>
+      let stmtAction := ProofForge.Solana.logStateData name sourceState bytes
       .ok (action *> stmtAction, env)
   | .return value =>
       let value ← lowerExpr env value

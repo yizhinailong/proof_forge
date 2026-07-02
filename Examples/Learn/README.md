@@ -18,10 +18,15 @@ lives in `ProofForge.Contract.Source` through the `contract_source` syntax:
 - `SplTokenOpsCpi.learn` mirrors
   `ProofForge.Solana.Examples.SplTokenOpsCpi` and exercises selector-bearing
   SPL Token mint, burn, approve, and revoke CPI syntax.
+- `LogEvent.learn` mirrors `ProofForge.Solana.Examples.LogEvent` and
+  exercises Solana log helper syntax for pubkey and data logs.
+- `ReturnDataCompute.learn` mirrors
+  `ProofForge.Solana.Examples.ReturnDataCompute` and exercises Solana return
+  data plus remaining-compute-unit helper syntax.
 
 `Tests/LearnSource.lean` checks that these files lower to the same IR modules as
 the macro-generated examples, and checks that the Solana target-extension form
 renders the same manifest as the embedded source example. The next
-implementation step is broadening the parser to Token-2022, sysvars, logs,
-memory, crypto, return-data helpers, and typed account/program references that
-further reduce string-bearing declarations in user-facing Learn source.
+implementation step is broadening the parser to Token-2022, sysvars, memory,
+crypto helpers, and typed account/program references that further reduce
+string-bearing declarations in user-facing Learn source.

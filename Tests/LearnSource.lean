@@ -2,6 +2,8 @@ import ProofForge.Backend.Solana.Package
 import ProofForge.Contract.Examples.Counter
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Learn
+import ProofForge.Solana.Examples.LogEvent
+import ProofForge.Solana.Examples.ReturnDataCompute
 import ProofForge.Solana.Examples.SplTokenOpsCpi
 import ProofForge.Solana.Examples.SystemCpi
 import ProofForge.Solana.Examples.SystemCreateAccountCpi
@@ -94,6 +96,21 @@ def main : IO UInt32 := do
   let sourceTokenOpsManifest ← packageFile "source-spl-token-ops-cpi" "manifest.toml"
     ProofForge.Solana.Examples.SplTokenOpsCpi.spec
   requireSameText "SplTokenOpsCpi Learn manifest" learnTokenOpsManifest sourceTokenOpsManifest
+  let logEvent ← parseSpec "Examples/Learn/LogEvent.learn"
+  requireSameModule "LogEvent" logEvent.module ProofForge.Solana.Examples.LogEvent.module
+  let learnLogEventManifest ← packageFile "learn-log-event" "manifest.toml" logEvent
+  let sourceLogEventManifest ← packageFile "source-log-event" "manifest.toml"
+    ProofForge.Solana.Examples.LogEvent.spec
+  requireSameText "LogEvent Learn manifest" learnLogEventManifest sourceLogEventManifest
+  let returnDataCompute ← parseSpec "Examples/Learn/ReturnDataCompute.learn"
+  requireSameModule "ReturnDataCompute" returnDataCompute.module
+    ProofForge.Solana.Examples.ReturnDataCompute.module
+  let learnReturnDataComputeManifest ← packageFile "learn-return-data-compute" "manifest.toml"
+    returnDataCompute
+  let sourceReturnDataComputeManifest ← packageFile "source-return-data-compute" "manifest.toml"
+    ProofForge.Solana.Examples.ReturnDataCompute.spec
+  requireSameText "ReturnDataCompute Learn manifest" learnReturnDataComputeManifest
+    sourceReturnDataComputeManifest
   IO.println "learn-source: ok"
   return 0
 
