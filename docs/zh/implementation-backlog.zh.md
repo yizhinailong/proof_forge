@@ -333,8 +333,10 @@ blueshift-gg/sbpf 工具链生成可加载 ELF。该路线取代旧的 sbpf-link
 - [x] Return-data 和 compute-budget target extension 现在将 Solana-only SDK
   action 通过 `runtime.return_data` 与 `runtime.compute_units` capability
   metadata 路由。Return-data action 会把 state-backed byte slice 降为
-  `sol_set_return_data`；compute-budget action 会把 feature-gated
-  `sol_remaining_compute_units` syscall 的结果写入 state。生成的 manifest
+  `sol_set_return_data`，也可以通过 `sol_get_return_data` 读取最近一次 CPI
+  的 return-data buffer 与 program id；compute-budget action 会把
+  feature-gated `sol_remaining_compute_units` syscall 的结果写入 state，
+  profiling action 会降为 `sol_log_compute_units_`。生成的 manifest
   会记录 `[[solana.entrypoint_return_data]]` 与
   `[[solana.entrypoint_compute_units]]`。覆盖：
   `Tests/SolanaReturnDataCompute.lean`。
@@ -363,8 +365,9 @@ Token `mint_to`/`burn`/`approve`/`revoke` CPI validation，加上通过
 `sol_get_epoch_schedule_sysvar` 验证的、当前 RPC 暴露的全部
 `EpochSchedule` 字段：`slots_per_epoch`、`leader_schedule_slot_offset`、
 `warmup`、`first_normal_epoch` 和 `first_normal_slot`。Lean/package 级 SDK 覆盖
-现在还包括把 `runtime.return_data` 降为 `sol_set_return_data`，以及把
-feature-gated `runtime.compute_units` 降为 `sol_remaining_compute_units`。
+现在还包括把 `runtime.return_data` 降为 `sol_set_return_data` 与
+`sol_get_return_data`，以及把 `runtime.compute_units` 降为 feature-gated
+`sol_remaining_compute_units` 和 profiling log `sol_log_compute_units_`。
 下面估算默认一名工程师持续在这个分支推进，当前 direct-assembly 架构保持稳定，并且本地
 `sbpf`/Surfpool/Solana CLI 工具链可用。
 
@@ -419,7 +422,8 @@ feature-gated `runtime.compute_units` 降为 `sol_remaining_compute_units`。
   `Tests/SolanaReturnDataCompute.lean` 会证明 `runtime.return_data` 与
   `runtime.compute_units` 通过 Solana-only capability metadata 路由、在 EVM
   上被拒绝，并且会生成 manifest section 与 sBPF helper call，覆盖
-  `sol_set_return_data` 和 feature-gated `sol_remaining_compute_units`。
+  `sol_set_return_data`、`sol_get_return_data`、feature-gated
+  `sol_remaining_compute_units` 和 `sol_log_compute_units_`。
 - Live SHA-256/Keccak-256 syscall fixture：`scripts/solana/crypto-hash-web3-smoke.sh`
   会在 Surfpool 上构建并部署生成的 Solana-only `crypto.hash` 程序，通过
   Web3.js 调用 `set_preimage`、`hash_preimage` 和 `keccak_preimage`，并证明
@@ -463,8 +467,8 @@ feature-gated `runtime.compute_units` 降为 `sol_remaining_compute_units`。
    CPI instruction data 和可观察 state change。
 2. 更丰富的 return data、sysvars、crypto、logs 与 memory helpers（3-5 天）：
    将当前 scalar `sol_log_64_` event 路径扩展到 string/base64/Anchor-style
-   与 indexed event 形态；暴露 `sol_get_return_data`、`u64` 之外的 typed
-   return payload helper、restart-slot sysvar reads、
+   与 indexed event 形态；为 `sol_get_return_data` 增加 live/CPI 验证、
+   `u64` 之外的 typed return payload helper、restart-slot sysvar reads、
    其他非 EpochSchedule sysvar 字段、`sol_blake3`、语义匹配时的 portable `Expr.hash` 路由、
    以及复用新 memory syscall 路径的更广 account/data packing helper，并与
    JavaScript reference 对比。

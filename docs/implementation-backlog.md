@@ -713,9 +713,11 @@ partial progress is visible before the full acceptance criteria close:
 - [x] Return-data and compute-budget target extensions now route Solana-only
       SDK actions through `runtime.return_data` and `runtime.compute_units`
       capability metadata. Return-data actions lower state-backed byte slices
-      to `sol_set_return_data`; compute-budget actions lower the feature-gated
-      `sol_remaining_compute_units` syscall and write the observed remaining CU
-      value into state. The generated manifest records
+      to `sol_set_return_data` and can read the most recent CPI return-data
+      buffer/program id through `sol_get_return_data`; compute-budget actions
+      lower the feature-gated `sol_remaining_compute_units` syscall and write
+      the observed remaining CU value into state, and profiling actions lower
+      `sol_log_compute_units_`. The generated manifest records
       `[[solana.entrypoint_return_data]]` and
       `[[solana.entrypoint_compute_units]]`. Covered by
       `Tests/SolanaReturnDataCompute.lean`.
@@ -804,8 +806,10 @@ It also covers live validation for all current RPC-exposed `EpochSchedule`
 fields through `sol_get_epoch_schedule_sysvar`: `slots_per_epoch`,
 `leader_schedule_slot_offset`, `warmup`, `first_normal_epoch`, and
 `first_normal_slot`. Lean/package-level SDK coverage now includes
-`runtime.return_data` lowering to `sol_set_return_data` and the feature-gated
-`runtime.compute_units` lowering to `sol_remaining_compute_units`.
+`runtime.return_data` lowering to `sol_set_return_data` and
+`sol_get_return_data`, plus `runtime.compute_units` lowering to feature-gated
+`sol_remaining_compute_units` and profiling logs through
+`sol_log_compute_units_`.
 The estimates below assume one engineer working on this branch,
 the current direct-assembly architecture staying stable, and local
 `sbpf`/Surfpool/Solana CLI tooling remaining available.
@@ -869,7 +873,8 @@ Completed alpha slices:
   `Tests/SolanaReturnDataCompute.lean` proves `runtime.return_data` and
   `runtime.compute_units` route through Solana-only capability metadata, rejects
   on EVM, and render manifest sections plus sBPF helper calls for
-  `sol_set_return_data` and feature-gated `sol_remaining_compute_units`.
+  `sol_set_return_data`, `sol_get_return_data`, feature-gated
+  `sol_remaining_compute_units`, and `sol_log_compute_units_`.
 - Live SHA-256/Keccak-256 syscall fixture:
   `scripts/solana/crypto-hash-web3-smoke.sh` builds and deploys a generated
   Solana-only `crypto.hash` program on Surfpool, invokes `set_preimage`,
@@ -917,9 +922,10 @@ Remaining priority slices:
    state changes.
 2. Richer return data, sysvars, crypto, logs, and memory helpers (3-5 days):
    extend the current scalar `sol_log_64_` event path to string/base64/
-   Anchor-style and indexed event forms; expose `sol_get_return_data`,
-   typed return payload helpers beyond `u64`, restart-slot sysvar reads,
-   additional non-EpochSchedule sysvar fields, `sol_blake3`, portable `Expr.hash` routing where the hash
+   Anchor-style and indexed event forms; add live/CPI validation for
+   `sol_get_return_data`, typed return payload helpers beyond `u64`,
+   restart-slot sysvar reads, additional non-EpochSchedule sysvar fields,
+   `sol_blake3`, portable `Expr.hash` routing where the hash
    semantics match the target, and broader account/data packing helpers that
    reuse the new memory syscall path, with JavaScript reference checks.
 3. Runtime allocation lowering (1-2 days): route heap-backed SDK structures

@@ -429,6 +429,20 @@ def renderReturnDataAction (action : ReturnDataAction) : String :=
   "source_state = " ++ tomlString action.sourceState ++ "\n" ++
   "bytes = " ++ toString action.bytes ++ "\n"
 
+def renderReturnDataReadAction (action : ReturnDataReadAction) : String :=
+  let optionalFields :=
+    (match action.lengthState? with
+    | some state => s!"length_state = {tomlString state}\n"
+    | none => "")
+  "[[solana.entrypoint_return_data]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "return_data = " ++ tomlString action.name ++ "\n" ++
+  "op = \"get\"\n" ++
+  "destination_state = " ++ tomlString action.destinationState ++ "\n" ++
+  "max_bytes = " ++ toString action.maxBytes ++ "\n" ++
+  optionalFields ++
+  "program_id_states = " ++ tomlStringArray action.programIdStates ++ "\n"
+
 def renderComputeUnitsAction (action : ComputeUnitsAction) : String :=
   "[[solana.entrypoint_compute_units]]\n" ++
   "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
@@ -436,6 +450,12 @@ def renderComputeUnitsAction (action : ComputeUnitsAction) : String :=
   "op = \"remaining\"\n" ++
   "output_state = " ++ tomlString action.outputState ++ "\n" ++
   "feature_gated = " ++ tomlBool action.featureGated ++ "\n"
+
+def renderComputeUnitsLogAction (action : ComputeUnitsLogAction) : String :=
+  "[[solana.entrypoint_compute_units]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "compute_units = " ++ tomlString action.name ++ "\n" ++
+  "op = \"log_remaining\"\n"
 
 def renderActions (extensions : ProgramExtensions) : String :=
   if !hasEntrypointActions extensions then
@@ -448,7 +468,9 @@ def renderActions (extensions : ProgramExtensions) : String :=
       extensions.cryptoHashActions.map renderCryptoHashAction ++
       extensions.sysvarActions.map renderSysvarAction ++
       extensions.returnDataActions.map renderReturnDataAction ++
-      extensions.computeUnitsActions.map renderComputeUnitsAction
+      extensions.returnDataReadActions.map renderReturnDataReadAction ++
+      extensions.computeUnitsActions.map renderComputeUnitsAction ++
+      extensions.computeUnitsLogActions.map renderComputeUnitsLogAction
     "\n# Solana SDK entrypoint actions\n" ++
     String.intercalate "\n" actionBlocks.toList
 

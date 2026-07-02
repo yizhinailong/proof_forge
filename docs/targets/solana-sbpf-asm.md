@@ -123,7 +123,7 @@ test when the syscall changes observable chain behavior.
 
 | Family | Current status | Next validation |
 |---|---|---|
-| Return data (`sol_set_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get`; `runtime.return_data` SDK entrypoint actions now lower state-backed return-data buffers through `sol_set_return_data` | Add typed return payload helpers beyond `u64` and live Web3.js coverage for SDK return-data actions |
+| Return data (`sol_set_return_data`, `sol_get_return_data`) | Implemented for IR `return`; covered by Mollusk and Surfpool/Web3.js Counter `get`; `runtime.return_data` SDK entrypoint actions now lower state-backed return-data buffers through `sol_set_return_data` and can read the most recent CPI return-data buffer/program id through `sol_get_return_data` | Add typed return payload helpers beyond `u64`, live Web3.js coverage for SDK return-data actions, and CPI return-value handling |
 | PDA (`sol_create_program_address`, `sol_try_find_program_address`) | SDK metadata and helper emission exist; typed seed descriptors cover literal/UTF-8 bytes, account pubkeys, bump seeds, and scalar instruction-data seeds; Solana `Slice { ptr, len }` tables are packed before `sol_create_program_address`; derived pubkeys can be validated against declared PDA accounts; assembly builds | Add Web3.js PDA fixture against `PublicKey.findProgramAddressSync`, then add `sol_try_find_program_address` support |
 | CPI (`sol_invoke_signed_c`, `sol_invoke_signed_rust`) | SDK metadata, entry actions, and helper emission exist; System Program transfer/create-account and SPL Token helpers pack C `SolInstruction`, standard instruction data bytes, `SolAccountMeta[]`, bound `SolAccountInfo[]`, signer seed tables, and decoded scalar entrypoint parameters; System transfer/create-account plus SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` have Surfpool/Web3.js live behavior gates; System transfer now has a checked-in Pinocchio reference contract/manifest gate plus a dual-deploy live-equivalence harness gated on Solana rustc availability | Make the Pinocchio live gate pass in CI/local toolchains and extend to Token-2022 |
 | Account schema | Module-wide multi-account schemas are generated from state/PDA/CPI declarations; manifest, artifact JSON, fixed `INSTRUCTION_DATA` offsets, and signer/writable/program-owner validation use the same schema | Replace the module-wide fixed schema with dynamic per-entrypoint account parsing before dispatch |
@@ -132,8 +132,7 @@ test when the syscall changes observable chain behavior.
 | Memory (`sol_memcpy_`, `sol_memmove_`, `sol_memset_`, `sol_memcmp_`) | `runtime.memory` target extension lowers entrypoint actions to `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`; Surfpool/Web3.js verifies account byte effects | Use memory helpers for broader account/data packing and compare against Rust/Pinocchio fixtures |
 | Sysvars (`sol_get_clock_sysvar`, rent, epoch schedule, restart slot) | `contextRead checkpointId` lowers to `sol_get_clock_sysvar` and reads `Clock.slot`; Solana-only `sysvar` target-extension actions lower `Rent.lamports_per_byte_year` to `sol_get_rent_sysvar` and all current RPC-exposed `EpochSchedule` fields to `sol_get_epoch_schedule_sysvar`; Surfpool/Web3.js verifies recorded values against transaction metadata, sysvar account data, or RPC `getEpochSchedule()` | Add restart-slot reads; expose typed SDK accessors for additional Clock/Rent fields and other sysvars |
 | Crypto (`sol_sha256`, `sol_keccak256`, `sol_blake3`) | SHA-256 and Keccak-256 target-extension actions lower to `sol_sha256`/`sol_keccak256` and have Surfpool/Web3.js reference hash gates | Add `sol_blake3` variant and portable `Expr.hash` lowering |
-| Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | `runtime.compute_units` SDK entrypoint actions lower the feature-gated `sol_remaining_compute_units` syscall and store the result in state; panic/log-compute-units helpers remain documented only | Add diagnostics/profiling helpers, live feature-gate-aware tests, and explicit panic failure tests |
-| Return-data read (`sol_get_return_data`) | Documented only | Use in CPI return handling after CPI packing lands |
+| Compute/panic (`sol_log_compute_units_`, `sol_remaining_compute_units`, `sol_panic_`) | `runtime.compute_units` SDK entrypoint actions lower the feature-gated `sol_remaining_compute_units` syscall and store the result in state; profiling actions lower `sol_log_compute_units_`; panic helpers remain documented only | Add live feature-gate-aware tests and explicit panic failure tests |
 
 Implementation note: `sol_get_epoch_schedule_sysvar` returns the runtime struct
 layout, not the compact 33-byte sysvar-account serialization. The live
@@ -574,8 +573,8 @@ The target profile must accept or reject each IR capability. The proposed
 | `account.explicit` | ✓ | The core abstraction |
 | `runtime.allocator` | ✓ | Bump allocator or no-allocator contract recorded as target-extension metadata |
 | `runtime.memory` | ✓ | Solana-only entrypoint actions lower to memory syscalls and stay outside portable IR |
-| `runtime.return_data` | ✓ | Solana-only entrypoint actions lower state-backed buffers to `sol_set_return_data` |
-| `runtime.compute_units` | Partial | Feature-gated `sol_remaining_compute_units` helper emission exists; live cluster availability must be checked before relying on it |
+| `runtime.return_data` | ✓ | Solana-only entrypoint actions lower state-backed buffers to `sol_set_return_data` and read CPI return buffers through `sol_get_return_data` |
+| `runtime.compute_units` | Partial | Feature-gated `sol_remaining_compute_units` helper emission plus `sol_log_compute_units_` profiling logs exist; live cluster availability must be checked before relying on remaining-CU reads |
 
 ## CLI and Build Integration
 

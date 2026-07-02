@@ -155,10 +155,22 @@ structure ReturnDataAction where
   bytes : Nat
   deriving Repr
 
+structure ReturnDataReadAction where
+  name : String
+  destinationState : String
+  maxBytes : Nat
+  lengthState? : Option String := none
+  programIdStates : Array String := #[]
+  deriving Repr
+
 structure ComputeUnitsAction where
   name : String
   outputState : String
   featureGated : Bool := true
+  deriving Repr
+
+structure ComputeUnitsLogAction where
+  name : String
   deriving Repr
 
 def kv (key value : String) : TargetMetadata := {
@@ -337,6 +349,17 @@ def ReturnDataAction.metadata (action : ReturnDataAction) : Array TargetMetadata
     natKv "solana.return_data.bytes" action.bytes
   ]
 
+def ReturnDataReadAction.metadata (action : ReturnDataReadAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "return_data",
+    kv "solana.return_data.name" action.name,
+    kv "solana.return_data.op" "get",
+    kv "solana.return_data.destination_state" action.destinationState,
+    natKv "solana.return_data.max_bytes" action.maxBytes,
+    kv "solana.return_data.program_id_states" (joinWith "," action.programIdStates)
+  ] ++
+  maybeKv "solana.return_data.length_state" action.lengthState?
+
 def ComputeUnitsAction.metadata (action : ComputeUnitsAction) : Array TargetMetadata :=
   #[
     kv "solana.extension" "compute_units",
@@ -344,6 +367,13 @@ def ComputeUnitsAction.metadata (action : ComputeUnitsAction) : Array TargetMeta
     kv "solana.compute_units.op" "remaining",
     kv "solana.compute_units.output_state" action.outputState,
     kv "solana.compute_units.feature_gated" (boolValue action.featureGated)
+  ]
+
+def ComputeUnitsLogAction.metadata (action : ComputeUnitsLogAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "compute_units",
+    kv "solana.compute_units.name" action.name,
+    kv "solana.compute_units.op" "log_remaining"
   ]
 
 def systemProgram : String :=
@@ -707,6 +737,40 @@ def setReturnDataFromState (name sourceState : String) (bytes : Nat) :
     bytes := bytes
   }
 
+def returnDataReadEntry (action : ReturnDataReadAction) :
+    ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .storageScalar
+    "solana.return_data.destination_state"
+    (source? := some action.destinationState)
+    (metadata := action.metadata)
+  match action.lengthState? with
+  | some state =>
+      ProofForge.Contract.Builder.entryCapability .storageScalar
+        "solana.return_data.length_state"
+        (source? := some state)
+        (metadata := action.metadata)
+  | none => pure ()
+  for state in action.programIdStates do
+    ProofForge.Contract.Builder.entryCapability .storageScalar
+      "solana.return_data.program_id_state"
+      (source? := some state)
+      (metadata := action.metadata)
+  ProofForge.Contract.Builder.entryCapability .runtimeReturnData
+    "solana.return_data.get"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def getReturnDataToState (name destinationState : String) (maxBytes : Nat)
+    (lengthState? : Option String := none) (programIdStates : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  returnDataReadEntry {
+    name := name
+    destinationState := destinationState
+    maxBytes := maxBytes
+    lengthState? := lengthState?
+    programIdStates := programIdStates
+  }
+
 def computeUnitsEntry (action : ComputeUnitsAction) : ProofForge.Contract.Builder.EntryM Unit := do
   ProofForge.Contract.Builder.entryCapability .storageScalar
     "solana.compute_units.output_state"
@@ -723,6 +787,19 @@ def remainingComputeUnitsToState (name outputState : String) (featureGated : Boo
     name := name
     outputState := outputState
     featureGated := featureGated
+  }
+
+def computeUnitsLogEntry (action : ComputeUnitsLogAction) :
+    ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .runtimeComputeUnits
+    "solana.compute_units.log_remaining"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def logRemainingComputeUnits (name : String := "log_remaining_compute_units") :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  computeUnitsLogEntry {
+    name := name
   }
 
 def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do
