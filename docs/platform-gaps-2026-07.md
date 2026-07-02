@@ -56,16 +56,29 @@ deprecation policy. Cheap to write now, near-impossible to retrofit.
 ## Gap 3: Resource budgets as first-class gates — Workstream 31
 
 **Why now.** The Tier-0 parity gate (D-034) is defined as "shared scenario
-passes on three targets" — but a contract that passes Mollusk while
-consuming 1.3M compute units is not actually deployable (Solana's default
-budget is 200k CU/instruction), and EVM/NEAR gas is currently listed under
-"not covered" in every validation gate. Declaring parity without budgets
-risks declaring fake parity, and codegen quality regressions have no
-tripwire.
+passes on three targets" — behavior only. A hypothetical contract could
+pass Mollusk while exceeding Solana's default budget (200k CU/instruction),
+and EVM/NEAR gas is currently listed under "not covered" in every
+validation gate. Declaring parity without budgets risks declaring fake
+parity, and codegen quality regressions have no tripwire.
 
-**Current state.** `runtime.compute_units` helpers exist on Solana (read/log
-CU); no gate asserts a budget on any target; testkit RFC does not mention
-budgets.
+**Current state (measured 2026-07-02).** The direct-assembly route is in
+fact extremely cheap today — Mollusk-measured Counter baseline
+(`--solana-elf`, 1336-byte ELF, loader v3, Mollusk 0.13.4):
+
+| Entrypoint | Compute units |
+|---|---:|
+| `initialize` | 56 |
+| `increment` | 63 |
+| `get` (writes return data) | 163 |
+
+That is Pinocchio-class efficiency (hand-optimized native Rust territory;
+Anchor equivalents typically cost an order of magnitude more), which is
+precisely the advantage a budget gate should lock in: today's numbers are
+the baseline, and aggregates/maps/CPI-heavy lowering added later must not
+silently erode them. `runtime.compute_units` helpers exist on Solana
+(read/log CU), but no gate asserts a budget on any target and the testkit
+RFC does not mention budgets yet.
 
 **Recommendation.** Extend the testkit scenario schema (before M2/M3 land)
 with optional per-step budgets: `expect.budget = { evm_gas = N,
