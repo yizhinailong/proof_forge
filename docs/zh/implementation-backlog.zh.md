@@ -566,6 +566,13 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   `ProofForge.Solana.Examples.LogEvent`、
   `ProofForge.Solana.Examples.ReturnDataCompute` 一致，把另一个 syscall-facing
   SDK 切片从 Builder-only fixture 推到用户面对的 Learn source。
+- Learn memory/crypto/sysvar syntax：
+  `Memory.learn`、`Crypto.learn`、`Rent.learn`、`EpochSchedule.learn`、
+  `EpochRewards.learn`、`LastRestartSlot.learn` 和 `Clock.learn` 现在覆盖
+  Solana memory helper、SHA-256/Keccak-256/BLAKE3 helper，以及用户面对的
+  Learn source 中的 sysvar/context read。`Tests/LearnSource.lean` 会证明这些
+  Learn 文件降低出的 IR module 和 generated manifest 与对应的
+  `ProofForge.Solana.Examples.*` fixture 一致。
 - Solana typed account surface：
   `ProofForge.Solana.Surface` 现在增加了 `account_ref`、`pda_ref` 和
   `cpi_ref` 声明，以及 typed PDA seed、account constraint 和 SPL/System
@@ -607,11 +614,11 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   seed。它覆盖 portable Counter/ValueVault 子集，以及 Vault-level Solana
   account/PDA/SPL Token transfer CPI 子集、System Program
   transfer/create-account CPI、SPL Token mint/burn/approve/revoke CPI，以及
-  Solana log/return-data/compute-unit helper statement。
+  Solana log/return-data/compute-unit/memory/crypto/sysvar helper statement。
   `ProofForge.Contract.Source` 仍是尚未表达为
   Learn 的示例所使用的 embedded macro frontend。下一步 authoring 缺口是把
-  Learn parser 扩展到 Token-2022、sysvar、memory、crypto，
-  以及更接近 Pinocchio 的 account validation ergonomics；
+  Learn parser 扩展到 Token-2022、typed account/data reference，以及更接近
+  Pinocchio 的 account validation ergonomics；
   同时由 target extension 层在编译阶段派生 selector、instruction tag、IDL/client
   metadata 和 package artifact。
 
@@ -622,13 +629,12 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
    通过；然后为 create-account 和 SPL Token account schema 增加对应
    reference program。关键比较点是 account order、signer/writable check、
    CPI instruction data 和可观察 state change。
-2. 更丰富的 sysvars、crypto、logs 与 memory helpers（3-5 天）：
+2. 更丰富的 structured log、account data 与 typed return helper（3-5 天）：
    将当前 scalar `sol_log_64_`/`sol_log_data` event 路径扩展到 string log、
-   Anchor-style discriminator/Borsh payload 与 indexed event 形态；增加
-   `u64` 之外的 typed return payload helper、更多 Clock/Rent 字段、generic
-   account-passed sysvar 读取、语义匹配时的 portable `Expr.hash`
-   路由，以及复用新 memory syscall 路径的更广 account/data packing helper，
-   并与 JavaScript reference 对比。
+   Anchor-style discriminator/Borsh payload 与 indexed event 形态；增加 `u64`
+   之外的 typed return payload helper、语义匹配时的 portable `Expr.hash`
+   路由，以及复用新 memory/syscall 路径的更广 account/data packing helper，并与
+   JavaScript reference 对比。
 3. Runtime allocation lowering（1-2 天）：后续 heap-backed SDK structure 通过
    `runtime.allocator` 路由；需要动态分配时生成真实 downward bump-pointer
    allocation code；在 `noAllocator` 下拒绝使用分配的结构。

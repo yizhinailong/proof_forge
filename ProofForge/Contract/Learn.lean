@@ -88,6 +88,14 @@ inductive Stmt where
   | solanaLogRemainingComputeUnits (name : String)
   | solanaLogAccountPubkey (name account : String)
   | solanaLogStateData (name sourceState : String) (bytes : Nat)
+  | solanaMemoryMemcpy (name dstState srcState : String) (bytes : Nat)
+  | solanaMemoryMemmove (name dstState srcState : String) (bytes : Nat)
+  | solanaMemoryMemcmp (name lhsState rhsState resultState : String) (bytes : Nat)
+  | solanaMemoryMemset (name dstState : String) (value bytes : Nat)
+  | solanaCryptoHash (op : ProofForge.Solana.CryptoHashOp) (name inputState : String)
+      (bytes : Nat) (outputStates : Array String)
+  | solanaSysvarRead (kind : ProofForge.Solana.SysvarKind)
+      (field : ProofForge.Solana.SysvarField) (name outputState : String)
   | return (value : Expr)
   deriving Repr
 
@@ -449,6 +457,94 @@ private partial def parseLogStmt : ParserM Stmt := do
       pure (.solanaLogStateData name args[0]! bytes)
   | other => failAt s!"unsupported Solana log op `{other}`"
 
+private partial def parseMemoryStmt : ParserM Stmt := do
+  let op ← expectIdent
+  let name ← expectIdent
+  let args ← parseIdentArgs
+  match op with
+  | "memcpy" =>
+      expectArgs "memory memcpy" args 2
+      expectKeyword "bytes"
+      let bytes ← expectNumber
+      pure (.solanaMemoryMemcpy name args[0]! args[1]! bytes)
+  | "memmove" =>
+      expectArgs "memory memmove" args 2
+      expectKeyword "bytes"
+      let bytes ← expectNumber
+      pure (.solanaMemoryMemmove name args[0]! args[1]! bytes)
+  | "memcmp" =>
+      expectArgs "memory memcmp" args 3
+      expectKeyword "bytes"
+      let bytes ← expectNumber
+      pure (.solanaMemoryMemcmp name args[0]! args[1]! args[2]! bytes)
+  | "memset" =>
+      expectArgs "memory memset" args 1
+      expectKeyword "value"
+      let value ← expectNumber
+      expectKeyword "bytes"
+      let bytes ← expectNumber
+      pure (.solanaMemoryMemset name args[0]! value bytes)
+  | other => failAt s!"unsupported Solana memory op `{other}`"
+
+private def parseCryptoHashOp (op : String) : ParserM ProofForge.Solana.CryptoHashOp := do
+  match op with
+  | "sha256" => pure .sha256
+  | "keccak256" => pure .keccak256
+  | "blake3" => pure .blake3
+  | other => failAt s!"unsupported Solana crypto hash op `{other}`"
+
+private partial def parseCryptoStmt : ParserM Stmt := do
+  let op ← parseCryptoHashOp (← expectIdent)
+  let name ← expectIdent
+  let args ← parseIdentArgs
+  expectArgs "crypto hash" args 1
+  expectKeyword "bytes"
+  let bytes ← expectNumber
+  expectKeyword "output"
+  let outputStates ← parseIdentList
+  pure (.solanaCryptoHash op name args[0]! bytes outputStates)
+
+private def parseSysvarKind (value : String) : ParserM ProofForge.Solana.SysvarKind := do
+  match value with
+  | "rent" => pure .rent
+  | "epoch_schedule" => pure .epochSchedule
+  | "epoch_rewards" => pure .epochRewards
+  | "last_restart_slot" => pure .lastRestartSlot
+  | other => failAt s!"unsupported Solana sysvar kind `{other}`"
+
+private def parseSysvarField (value : String) : ParserM ProofForge.Solana.SysvarField := do
+  match value with
+  | "lamports_per_byte_year" => pure .rentLamportsPerByteYear
+  | "slots_per_epoch" => pure .epochScheduleSlotsPerEpoch
+  | "leader_schedule_slot_offset" => pure .epochScheduleLeaderScheduleSlotOffset
+  | "warmup" => pure .epochScheduleWarmup
+  | "first_normal_epoch" => pure .epochScheduleFirstNormalEpoch
+  | "first_normal_slot" => pure .epochScheduleFirstNormalSlot
+  | "distribution_starting_block_height" => pure .epochRewardsDistributionStartingBlockHeight
+  | "num_partitions" => pure .epochRewardsNumPartitions
+  | "parent_blockhash_word0" => pure .epochRewardsParentBlockhashWord0
+  | "parent_blockhash_word1" => pure .epochRewardsParentBlockhashWord1
+  | "parent_blockhash_word2" => pure .epochRewardsParentBlockhashWord2
+  | "parent_blockhash_word3" => pure .epochRewardsParentBlockhashWord3
+  | "total_points_low" => pure .epochRewardsTotalPointsLow
+  | "total_points_high" => pure .epochRewardsTotalPointsHigh
+  | "total_rewards" => pure .epochRewardsTotalRewards
+  | "distributed_rewards" => pure .epochRewardsDistributedRewards
+  | "active" => pure .epochRewardsActive
+  | "last_restart_slot" => pure .lastRestartSlot
+  | other => failAt s!"unsupported Solana sysvar field `{other}`"
+
+private partial def parseSysvarStmt : ParserM Stmt := do
+  let kind ← parseSysvarKind (← expectIdent)
+  let field ← parseSysvarField (← expectIdent)
+  if field.kind == kind then
+    let name ← expectIdent
+    let args ← parseIdentArgs
+    expectArgs "sysvar read" args 1
+    pure (.solanaSysvarRead kind field name args[0]!)
+  else
+    failAt s!"Solana sysvar field `{field.id}` does not belong to `{kind.id}`"
+
 mutual
 private partial def parseExpr : ParserM Expr :=
   parseAddSub
@@ -639,6 +735,18 @@ private partial def parseSolanaStmt : ParserM Stmt := do
       pure stmt
   | "log" =>
       let stmt ← parseLogStmt
+      consumeOptionalSemicolon
+      pure stmt
+  | "memory" =>
+      let stmt ← parseMemoryStmt
+      consumeOptionalSemicolon
+      pure stmt
+  | "crypto" =>
+      let stmt ← parseCryptoStmt
+      consumeOptionalSemicolon
+      pure stmt
+  | "sysvar" =>
+      let stmt ← parseSysvarStmt
       consumeOptionalSemicolon
       pure stmt
   | other => failAt s!"unsupported Solana statement `{other}`"
@@ -904,6 +1012,35 @@ private def lowerStmtAction (stateNames : Array String)
       .ok (action *> stmtAction, env)
   | .solanaLogStateData name sourceState bytes =>
       let stmtAction := ProofForge.Solana.logStateData name sourceState bytes
+      .ok (action *> stmtAction, env)
+  | .solanaMemoryMemcpy name dstState srcState bytes =>
+      let stmtAction := ProofForge.Solana.memcpyState name dstState srcState bytes
+      .ok (action *> stmtAction, env)
+  | .solanaMemoryMemmove name dstState srcState bytes =>
+      let stmtAction := ProofForge.Solana.memmoveState name dstState srcState bytes
+      .ok (action *> stmtAction, env)
+  | .solanaMemoryMemcmp name lhsState rhsState resultState bytes =>
+      let stmtAction := ProofForge.Solana.memcmpState name lhsState rhsState resultState bytes
+      .ok (action *> stmtAction, env)
+  | .solanaMemoryMemset name dstState value bytes =>
+      let stmtAction := ProofForge.Solana.memsetState name dstState value bytes
+      .ok (action *> stmtAction, env)
+  | .solanaCryptoHash .sha256 name inputState bytes outputStates =>
+      let stmtAction := ProofForge.Solana.sha256StateToStates name inputState bytes outputStates
+      .ok (action *> stmtAction, env)
+  | .solanaCryptoHash .keccak256 name inputState bytes outputStates =>
+      let stmtAction := ProofForge.Solana.keccak256StateToStates name inputState bytes outputStates
+      .ok (action *> stmtAction, env)
+  | .solanaCryptoHash .blake3 name inputState bytes outputStates =>
+      let stmtAction := ProofForge.Solana.blake3StateToStates name inputState bytes outputStates
+      .ok (action *> stmtAction, env)
+  | .solanaSysvarRead kind field name outputState =>
+      let stmtAction := ProofForge.Solana.sysvarEntry {
+        name := name
+        kind := kind
+        field := field
+        outputState := outputState
+      }
       .ok (action *> stmtAction, env)
   | .return value =>
       let value ← lowerExpr env value

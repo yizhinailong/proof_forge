@@ -54,7 +54,9 @@ selector-bearing entrypoints such as `entry mint selector "04"(amount: u64)`,
 so Solana instruction tags can be represented in Learn source instead of only
 in Builder fixtures. Learn statements now also cover the Solana log helpers for
 pubkey/data logs, return-data set/get helpers, and remaining-compute-unit read
-or log helpers.
+or log helpers. The same source layer covers Solana memory helpers, SHA-256,
+Keccak-256, and BLAKE3 hash helpers, and sysvar/context reads for Clock, Rent,
+EpochSchedule, EpochRewards, and LastRestartSlot fixture coverage.
 `ProofForge.Contract.Source` remains the executable embedded syntax layer and
 covers:
 
@@ -69,7 +71,8 @@ covers:
   invocation statements;
 - Solana SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, and
   `revoke` CPI declarations and invocation statements;
-- Solana log, return-data, and compute-unit helper statements.
+- Solana log, return-data, compute-unit, memory, crypto, and sysvar helper
+  statements.
 
 Examples such as `ProofForge.Contract.Examples.ValueVault` should be read as
 v1 source examples, not as the final `.learn` grammar. They exist to keep the
@@ -96,8 +99,8 @@ need to manually switch between these internals when the contract is portable.
 ## Next Implementation Steps
 
 1. Expand the Learn parser beyond the current Vault/System CPI Solana subset to
-   cover Token-2022, sysvars, memory, crypto helpers, and the remaining
-   framework-level account/data declarations.
+   cover Token-2022 and the remaining framework-level account/data
+   declarations.
 2. Gradually replace string-bearing Solana declarations with typed account,
    owner, program, and capability references.
 3. Keep backend artifact checks unchanged so the new Learn syntax proves the

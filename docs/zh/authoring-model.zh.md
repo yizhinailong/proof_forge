@@ -47,7 +47,9 @@ burn、approve 和 revoke CPI。它也支持带 selector 的 entrypoint，例如
 `entry mint selector "04"(amount: u64)`，因此 Solana instruction tag 可以在
 Learn 源码中表达，而不是只存在于 Builder fixture。Learn statement 现在也覆盖
 Solana pubkey/data log、return-data set/get，以及 remaining-compute-unit read/log
-helper。
+helper。同一 source 层也覆盖 Solana memory helper、SHA-256、Keccak-256、BLAKE3
+hash helper，以及 Clock、Rent、EpochSchedule、EpochRewards 和 LastRestartSlot
+fixture coverage 所需的 sysvar/context read。
 `ProofForge.Contract.Source` 仍是可执行的 embedded syntax layer，覆盖：
 
 - portable scalar state；
@@ -60,7 +62,8 @@ helper。
   invocation statement；
 - Solana SPL Token `transfer_checked`、`mint_to`、`burn`、`approve` 和
   `revoke` CPI declaration 和 invocation statement；
-- Solana log、return-data 和 compute-unit helper statement。
+- Solana log、return-data、compute-unit、memory、crypto 和 sysvar helper
+  statement。
 
 `ProofForge.Contract.Examples.ValueVault` 这样的示例应被理解为 v1 source
 example，而不是最终 `.learn` grammar。它们存在的目的，是在 standalone Learn
@@ -86,8 +89,8 @@ Yul、bytecode、ABI metadata 和 deployment file。当合约本身是 portable 
 
 ## 下一步实现
 
-1. 将 Learn parser 从当前 Vault/System CPI Solana 子集扩展到 Token-2022、
-   sysvar、memory、crypto helper，以及剩余框架级 account/data declaration。
+1. 将 Learn parser 从当前 Vault/System CPI Solana 子集扩展到 Token-2022
+   以及剩余框架级 account/data declaration。
 2. 逐步用 typed account、owner、program 和 capability reference 替代带字符串的
    Solana declaration。
 3. 保持 backend artifact check 不变，让新的 Learn 语法证明能生成同样的 EVM/Solana package output。

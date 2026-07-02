@@ -23,10 +23,17 @@ lives in `ProofForge.Contract.Source` through the `contract_source` syntax:
 - `ReturnDataCompute.learn` mirrors
   `ProofForge.Solana.Examples.ReturnDataCompute` and exercises Solana return
   data plus remaining-compute-unit helper syntax.
+- `Memory.learn` mirrors `ProofForge.Solana.Examples.Memory` and exercises
+  Solana memory helper syntax.
+- `Crypto.learn` mirrors `ProofForge.Solana.Examples.Crypto` and exercises
+  SHA-256, Keccak-256, and BLAKE3 hash helper syntax.
+- `Clock.learn`, `Rent.learn`, `EpochSchedule.learn`, `EpochRewards.learn`,
+  and `LastRestartSlot.learn` mirror the corresponding Solana examples and
+  exercise Learn sysvar/context syntax.
 
 `Tests/LearnSource.lean` checks that these files lower to the same IR modules as
 the macro-generated examples, and checks that the Solana target-extension form
 renders the same manifest as the embedded source example. The next
-implementation step is broadening the parser to Token-2022, sysvars, memory,
-crypto helpers, and typed account/program references that further reduce
-string-bearing declarations in user-facing Learn source.
+implementation step is broadening the parser to Token-2022 and typed
+account/program references that further reduce string-bearing declarations in
+user-facing Learn source.
