@@ -2,326 +2,151 @@
 
 Lean-first multi-chain smart contract platform.
 
-ProofForge's long-term goal is one verified Lean contract codebase that can be
-compiled, tested, and deployed across multiple blockchain target families. The
-current repository contains the EVM backend baseline and the first design docs
-for expanding toward Solana/sBPF, Wasm-family chains, Move-family chains, and a
-future cloud deployment platform.
+ProofForge's goal is one verified Lean contract codebase that can be compiled,
+tested, and deployed across multiple blockchain target families. Contracts are
+written against a chain-neutral Contract Intent API; the compiler lowers them
+to a portable IR, routes capabilities per target, and emits chain-native
+artifacts. Unsupported target capabilities are rejected at compile time
+instead of silently changing semantics.
 
-See [RFC 0001](docs/rfcs/0001-multichain-platform.md) for the multi-chain
-architecture and roadmap.
-See [RFC 0002](docs/rfcs/0002-target-implementation-design.md) for target
-profiles, backend implementation details, and proposed build pipelines.
-See [docs/INDEX.md](docs/INDEX.md) for the full documentation map.
+Start here:
 
-中文分析文档：
+- [docs/INDEX.md](docs/INDEX.md) — full documentation map.
+- [RFC 0001](docs/rfcs/0001-multichain-platform.md) — multi-chain architecture
+  and roadmap; [RFC 0002](docs/rfcs/0002-target-implementation-design.md) —
+  target implementation design.
+- [Design decisions](docs/decisions.md) — settled choices (D-001…D-033).
+- [Formal verification roadmap](docs/formal-verification.md) — existing proof
+  anchors and staged theorem targets.
 
-- [ProofForge 多链愿景可行性分析](docs/zh/feasibility-analysis.md)
-- [ProofForge 多链技术实现方案](docs/zh/technical-implementation-plan.md)
-- [ProofForge 多链方案 Review 清单](docs/zh/review-checklist.md)
+中文文档：
 
-## Current Implementation
+- [中文文档索引](docs/zh/README.md)
+- [架构评审（2026-07）：统一 SDK 输入与分支收敛](docs/zh/architecture-review-2026-07.md)
+- [多链愿景可行性分析](docs/zh/feasibility-analysis.md)
 
-This package keeps the current EVM/Yul backend outside the Lean 4 source tree.
-It adds:
+## Backend Status
 
-- `ProofForge.Evm`: a small EVM contract SDK using `@[extern "lean_evm_*"]`
-  primitives.
-- `ProofForge.Compiler.Yul`: a Yul AST and printer.
-- `ProofForge.Compiler.LCNF.EmitYul`: an LCNF-to-Yul emitter.
-- `proof-forge`: a CLI that compiles a Lean file to Yul or EVM runtime
-  bytecode without patching `lean`.
+All backends live on `main` (chains are directories and target ids, not
+branches). Lifecycle stages follow [docs/targets/README.md](docs/targets/README.md).
 
-The implemented target today is EVM. Solana/sBPF, Wasm-family, and Move-family
-targets are design goals, not current compiler outputs.
+| Target id | Pipeline | Stage | Local validation |
+|---|---|---|---|
+| `evm` | Lean / portable IR → Yul → `solc` → bytecode | Baseline (mature) | golden Yul, diagnostics, Foundry runtime smoke, Anvil deploy |
+| `solana-sbpf-asm` | portable IR → sBPF assembly → `sbpf` → ELF | Experimental | Mollusk tests, Surfpool/Web3.js live smokes, Pinocchio equivalence gates |
+| `wasm-near` | portable IR → `EmitWat` (Wasm AST → WAT) → `wat2wasm` | Experimental | 45-case diagnostics, IR coverage manifests, formal trace obligations, offline host smoke |
+| `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental (restricted subset) | golden sources, diagnostics, `dargo` execute smokes |
+| `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Research spike | Counter/PureMath golden fixtures and smokes |
+| `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Research (off-chain host, D-033) | `tsc` type-check, `wrangler` dry-run |
 
-Recommended local command runner:
+The multi-chain Token SDK (`TokenSpec`, [RFC 0006](docs/rfcs/0006-multichain-token-sdk.md))
+routes one token intent to ERC-20 bytecode on EVM or SPL Token / Token-2022
+deployment plans on Solana.
+
+## Getting Started
+
+Install `just` from [casey/just](https://github.com/casey/just); the root
+`justfile` is the developer-facing command catalog and CI entrypoint.
 
 ```sh
-just --list
-just build
-just check
-just evm-smoke abi-scalar
-just evm-all
+just --list        # all recipes
+just build         # lake build
+just check         # fast static gates (Lean + EVM + Psy)
+just evm-all       # full EVM gates: examples, Foundry smoke, Anvil deploy
+just ci            # the full CI sequence locally
 ```
 
-The root `justfile` is the developer-facing command catalog and CI entrypoint.
-The underlying validation logic remains in `scripts/`, so direct script calls
-stay supported for debugging and target-specific documentation. Install `just`
-from [casey/just](https://github.com/casey/just) if it is not already
-available.
-
-Build:
+Build directly with Lake:
 
 ```sh
 lake build
 ```
 
-Compile the example:
+Compile the EVM Counter example to runtime bytecode:
 
 ```sh
 lake env proof-forge --evm-bytecode --root . --module contract \
   -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
 ```
 
-For Yul-only output:
+Emit artifacts for other targets from built-in portable IR fixtures:
 
 ```sh
-lake env proof-forge --root . -o build/counter.yul Examples/Evm/Contracts/Counter.lean
-```
-
-Validate the generated Yul if `solc` is installed:
-
-```sh
-solc --strict-assembly build/counter.yul --bin
-```
-
-Build the EVM contract examples migrated from the Lean fork:
-
-```sh
-scripts/evm/build-examples.sh
-```
-
-This path expects Foundry (`cast`/`forge`) and `solc` on `PATH`.
-
-Compile one EVM contract directly to runtime bytecode:
-
-```sh
-lake env proof-forge --evm-bytecode --root . --module contract \
-  -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
-```
-
-Run Foundry smoke tests:
-
-```sh
-scripts/evm/foundry-smoke.sh
-```
-
-The smoke runner uses Forge's local EVM test runner and `vm.etch` to execute
-the generated runtime bytecode.
-
-Generate and validate the current Psy/DPN Counter IR spike:
-
-```sh
+lake env proof-forge --emit-counter-emitwat -o build/wasm-near   # NEAR Wasm
+lake env proof-forge --solana-elf -o build/solana/counter.so     # Solana ELF
 lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
-scripts/psy/counter-smoke.sh
+lake env proof-forge --emit-counter-ir-leo -o build/aleo         # Aleo Leo
+lake env proof-forge --emit-counter-ir-ts -o build/ts/Counter.ts # CF Workers
 ```
 
-Validate the Psy/DPN expression predicate fixture, which exercises equality,
-inequality, ordering comparisons, and boolean composition:
+The complete, per-target list of runnable validation commands and their tool
+prerequisites (Foundry, `solc`, `sbpf`, `wat2wasm`, `dargo`, `leo`,
+`wrangler`, …) lives in [docs/validation-gates.md](docs/validation-gates.md).
+Cloud/agent environment notes are in [AGENTS.md](AGENTS.md).
 
-```sh
-lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionPredicateProbe.psy
-scripts/psy/expression-predicate-smoke.sh
+## Architecture
+
+```text
+Lean SDK syntax / contract_source        (user-facing, chain-neutral)
+  -> source AST
+  -> ContractSpec / portable IR          (compiler-owned boundary)
+  -> target resolver + capability routing (--target)
+  -> target semantic AST / plan
+  -> printer / assembler / package emitter
 ```
 
-Validate the Psy/DPN arithmetic fixture, which exercises subtraction,
-multiplication, and nested arithmetic precedence:
+- **Contract Intent API** — the default SDK surface: state, entrypoints,
+  events, caller/value access, checked arithmetic, assertions, and proofs,
+  without importing a destination-chain module.
+- **Target Extension SDKs** — explicit chain-native semantics when a contract
+  needs them (Solana accounts/PDA/CPI, allocator selection, …). Extensions
+  lower through capability ids and target metadata, never by adding
+  chain-only constructors to the portable IR (D-027).
+- **Target adapters** — ABI, packaging, test-runner, and deployment logic per
+  chain family; `--target` selects the adapter, and unsupported intents are
+  rejected before artifact generation (D-028).
 
-```sh
-lake env proof-forge --emit-arithmetic-ir-psy -o build/psy/ArithmeticProbe.psy
-scripts/psy/arithmetic-smoke.sh
-```
-
-Validate the Psy/DPN `u32` arithmetic fixture, which mirrors the core shape of
-upstream `u32_test.psy`:
-
-```sh
-lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProbe.psy
-scripts/psy/u32-arithmetic-smoke.sh
-```
-
-Validate the Psy/DPN bitwise fixture, which exercises Felt and `u32`
-`&`, `|`, `^`, `<<`, and `>>` lowering:
-
-```sh
-lake env proof-forge --emit-bitwise-ir-psy -o build/psy/BitwiseProbe.psy
-scripts/psy/bitwise-smoke.sh
-```
-
-Validate the Psy/DPN U32 hash packing fixture, which exercises `[u32; 8]`
-limb arrays, U32 ABI parameters, casts to Felt, and dynamic `Hash`
-construction:
-
-```sh
-lake env proof-forge --emit-u32-hash-packing-ir-psy -o build/psy/U32HashPackingProbe.psy
-scripts/psy/u32-hash-packing-smoke.sh
-```
-
-Validate the Psy/DPN conditional fixture, which exercises statement-level
-`if/else` lowering:
-
-```sh
-lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
-scripts/psy/conditional-smoke.sh
-```
-
-Validate the Psy/DPN context fixture, which exercises parameter lowering and
-Psy context reads:
-
-```sh
-lake env proof-forge --emit-context-ir-psy -o build/psy/ContextProbe.psy
-scripts/psy/context-smoke.sh
-```
-
-Validate the Psy/DPN hash fixture, which exercises `crypto.hash` through
-Psy `hash` and `hash_two_to_one`:
-
-```sh
-lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
-scripts/psy/hash-smoke.sh
-```
-
-Validate the Psy/DPN map fixture, which exercises fixed-capacity
-`Map<Hash, Hash, N>` storage through Psy `contains`, `get`, `insert`, and
-`set`:
-
-```sh
-lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
-scripts/psy/map-smoke.sh
-```
-
-Validate the Psy/DPN assertion fixture, which exercises IR-level `assert` and
-`assert_eq` lowering:
-
-```sh
-lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
-scripts/psy/assert-smoke.sh
-```
-
-Validate the Psy/DPN bounded-loop fixture, which exercises static `for`
-lowering:
-
-```sh
-lake env proof-forge --emit-loop-ir-psy -o build/psy/LoopProbe.psy
-scripts/psy/loop-smoke.sh
-```
-
-Validate the Psy/DPN fixed-array fixture, which exercises array literals,
-indexing, and fixed array storage:
-
-```sh
-lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
-scripts/psy/array-smoke.sh
-```
-
-Validate the Psy/DPN struct fixture, which exercises struct literals, field
-access, and scalar storage structs:
-
-```sh
-lake env proof-forge --emit-struct-ir-psy -o build/psy/StructProbe.psy
-scripts/psy/struct-smoke.sh
-```
-
-Validate the Psy/DPN struct-array fixture, which exercises arrays of structs
-and fixed storage arrays of structs:
-
-```sh
-lake env proof-forge --emit-struct-array-ir-psy -o build/psy/StructArrayProbe.psy
-scripts/psy/struct-array-smoke.sh
-```
-
-Validate the Psy/DPN ABI aggregate fixture, which exercises ABI-facing struct
-parameters, fixed-array parameters, and struct return values:
-
-```sh
-lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.psy
-scripts/psy/abi-aggregate-smoke.sh
-```
-
-Validate the Psy/DPN nested aggregate fixture, which exercises mutable local
-arrays of structs, nested fixed arrays, and field-path assignment:
-
-```sh
-lake env proof-forge --emit-nested-aggregate-ir-psy -o build/psy/NestedAggregateProbe.psy
-scripts/psy/nested-aggregate-smoke.sh
-```
-
-Validate the Psy/DPN storage nested aggregate fixture, which exercises nested
-storage paths across `#[ref]` struct fields and storage arrays:
-
-```sh
-lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
-scripts/psy/storage-nested-aggregate-smoke.sh
-```
-
-Validate the Psy/DPN unsupported-shape diagnostics:
-
-```sh
-scripts/psy/diagnostic-smoke.sh
-```
-
-Each Dargo-backed Psy smoke writes and validates both
-`target/proof-forge-deploy.json` and `target/proof-forge-artifact.json` next to
-the Dargo outputs. The deploy manifest records compiled DPN method ids, ABI,
-deployer, state-tree height, source/circuit/ABI hashes, and the current
-upstream `gen_deploy_json` gap.
-
-The Psy smoke expects `dargo` on `PATH`. The preferred installer is `psyup`:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/QEDProtocol/psyup/main/install.sh | bash
-```
-
-On macOS arm64, `psyup` latest may not currently publish a matching toolchain
-tarball. `psyup install 0.1.0` is known to provide
-`psy-toolchain-v0.1.0-aarch64-apple-darwin.tar.gz`.
+See [docs/authoring-model.md](docs/authoring-model.md) for the authoring
+layers (the legacy `.learn` parser is a frozen compatibility surface, not a
+second product language) and [docs/portable-ir.md](docs/portable-ir.md) for
+the IR spec.
 
 ## Development Docs
 
 - [Development standards](docs/development-standards.md)
 - [Validation gates](docs/validation-gates.md)
-- [EVM target notes](docs/targets/evm.md)
+- [Implementation backlog](docs/implementation-backlog.md) — Workstream 24
+  (post-consolidation follow-ups) and Workstream 25 (formal verification)
+  are the current priority.
 - [Capability registry](docs/capability-registry.md)
+- [Shared scenario: Counter](docs/shared-scenario.md) — the cross-target
+  acceptance test; the current phase goal is passing it on `evm`,
+  `solana-sbpf-asm`, and `wasm-near`.
+- Target notes: [docs/targets/](docs/targets/README.md)
 
-## Module naming
+## Module Naming
 
 - **Lake module:** `ProofForge.Evm` (import in contract files).
 - **Lean namespace:** `Lean.Evm` (use via `open Lean.Evm` in examples).
 
-This split comes from the Lean fork migration; new code should keep both names
-until a rename is scheduled.
+This split comes from the Lean fork migration. The rename to a uniform
+`ProofForge.*` namespace is tracked in the backlog (Workstream 24), because
+`Lean.Evm` shadows the Lean compiler's own `Lean` namespace.
 
-## Platform Direction
+## Roadmap
 
-ProofForge uses a chain-neutral Contract Intent API over a portable core plus
-target-routed capabilities model:
-
-- Contract Intent API: the default user-facing SDK for declaring state,
-  entrypoints, events, caller/value access, assertions, and proofs without
-  importing a destination-chain module.
-- Portable core: business logic, state-machine transitions, math, and proofs.
-- Target-routed capabilities: lower-level semantic operations such as storage,
-  caller, value transfer, events, cross-contract calls, account/object/resource
-  access, and chain environment reads. A selected target resolves portable
-  intents into a capability plan; capability ids are the adapter/extension
-  protocol and diagnostic surface, not the primary SDK surface.
-- Target adapters: ABI, packaging, test runner, and deployment logic for each
-  chain family. `--target` chooses the adapter; unsupported intents or
-  capabilities are rejected before artifact generation.
-
-Planned target families:
-
-- EVM: current baseline through Yul, `solc`, and Foundry.
-- Solana/sBPF: planned backend for Solana's account and instruction model.
-- Wasm family: planned adapters for NEAR, CosmWasm, and Polkadot/ink-style
-  contracts.
-- Move family: research track for Sui and Aptos.
-- Bitcoin ecosystem: research-only for now; not an early direct L1 backend.
-
-Future CLI direction:
-
-```sh
-proof-forge build --target evm
-proof-forge build --target wasm-near        # planned reference target
-proof-forge build --target wasm-cosmwasm    # planned first new Wasm spike
-proof-forge build --target solana-sbpf-asm
-proof-forge build --target move-aptos       # planned first Move POC
-proof-forge build --target move-sui         # planned follow-up Move target
+```text
+Phase 0: EVM baseline                      (done)
+Phase 1: target registry + portable IR     (done)
+Phase 2+: parallel backend spikes          (Solana, NEAR, Psy on main;
+                                            Aleo, CF Workers research)
+Current:  shared-scenario parity on evm + solana-sbpf-asm + wasm-near,
+          consolidation follow-ups (Workstream 24),
+          formal verification roadmap (Workstream 25)
+Later:    Move family (Aptos first), cloud platform (after two+ targets
+          reach Experimental with shared-scenario parity; D-010)
 ```
 
-`proof-forge build --target ...` is planned; the implemented command remains
-`proof-forge --evm-bytecode`.
-
-Canonical target ids: [docs/decisions.md](docs/decisions.md). The filename
-`docs/targets/solana-sbf.md` is a historical alias for the Solana target notes.
+Canonical target ids and the full decision log: [docs/decisions.md](docs/decisions.md).
+The filename `docs/targets/solana-sbf.md` is a historical alias for the
+Solana target notes; the canonical route is `solana-sbpf-asm` (D-026).
