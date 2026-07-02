@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-02
 
+### EVM Nested Map Storage Paths
+
+Commit: feature commit for EVM nested map storage paths
+
+Summary:
+
+- Extended EVM portable IR storage-path type checking so map-backed state
+  accepts one or more consecutive `mapKey` segments when every key expression
+  matches the map key type.
+- Lowered nested map value slots by folding the existing Solidity-style
+  mapping helper, for example `keccak256(inner || keccak256(outer || slot))`.
+- Lowered nested map write and compound assignment paths so the final key's
+  ProofForge-managed presence slot is marked alongside the value slot.
+- Extended `EvmMapProbe` with U64 nested map path lifecycle and dynamic-key
+  coverage, and extended `EvmTypedMapProbe` with U32 nested map path coverage
+  plus dispatcher range-guard checks.
+- Kept mixed map/aggregate storage paths as explicit diagnostics rather than
+  silently lowering partial paths.
+
+Validation run:
+
+```sh
+lake build proof-forge
+just evm-smoke map
+just evm-smoke typed-map
+just evm-diagnostics
+just evm-coverage
+just docs-check
+just diff-check
+```
+
+Known limitations:
+
+- Nested map paths currently model EVM nested mapping slots over a single
+  declared `Map<K, V, N>` state by using consecutive keys of the same key type.
+- Mixed map/array/struct aggregate paths and non-word or aggregate map
+  key/value shapes remain explicit unsupported surfaces.
+
+Next step:
+
+- Continue shrinking the remaining EVM storage surface around aggregate storage
+  paths and broader ABI-facing storage-backed values.
+
 ### EVM Nested Fixed-Array Event Aggregates
 
 Commit: feature commit for EVM nested fixed-array event aggregates

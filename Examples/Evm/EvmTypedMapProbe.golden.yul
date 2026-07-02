@@ -106,6 +106,23 @@ object "EvmTypedMapProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xcb239774 {
+      if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 4294967295) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 4294967295) {
+        revert(0, 0)
+      }
+      let _r := f_EvmTypedMapProbe_nested_path_score(calldataload(4), calldataload(36), calldataload(68))
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
@@ -173,6 +190,21 @@ object "EvmTypedMapProbe" {
       __proof_forge_map_assign_add(0, 9, 5)
       __proof_forge_map_assign_mul(0, 9, 2)
       result := sload(__proof_forge_map_slot(0, 9))
+    }
+    function f_EvmTypedMapProbe_nested_path_score(outer, inner, value) -> result {
+      {
+        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, outer), inner)
+        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, outer), inner)
+        sstore(_slot, value)
+        sstore(_presence_slot, 1)
+      }
+      {
+        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, outer), inner)
+        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, outer), inner)
+        sstore(_slot, add(sload(_slot), 5))
+        sstore(_presence_slot, 1)
+      }
+      result := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, outer), inner))
     }
     function __proof_forge_map_slot(slot, key) -> result {
       mstore(0, key)

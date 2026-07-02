@@ -372,6 +372,12 @@ Tasks:
   value/presence-slot validation for U64/U32/Bool/Hash maps, zero-valued
   present-key coverage, metadata validation, and explicit diagnostics for
   statement-position misuse.
+- Done: add EVM IR nested map storage paths over consecutive `mapKey`
+  segments, folding Solidity-style mapping slots for value storage and
+  ProofForge-managed presence slots for final keys, with `EvmMapProbe` and
+  `EvmTypedMapProbe` golden Yul, solc bytecode, Foundry raw-slot validation,
+  U32 dispatcher guard coverage, metadata validation, and explicit diagnostics
+  for mixed map/aggregate storage paths.
 - Done: add EVM IR `U64` fixed storage array lowering as contiguous storage
   slots with runtime bounds checks, with `EvmStorageArrayProbe` golden Yul,
   solc bytecode, Foundry runtime/raw-slot validation, metadata capability

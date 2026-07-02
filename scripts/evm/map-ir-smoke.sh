@@ -50,6 +50,8 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint contains_balance:4c136189 \
   --expect-entrypoint path_lifecycle:84c21205 \
   --expect-entrypoint path_assign_lifecycle:bce9e77b \
+  --expect-entrypoint nested_path_lifecycle:13a524e0 \
+  --expect-entrypoint nested_path_dynamic:ce6fd7c0 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmMapProbe.bin")"
@@ -105,6 +107,16 @@ contract ProofForgeIRMapSmokeTest {
     function mapPresenceSlot(uint256 key) internal pure returns (bytes32) {
         bytes32 presenceBase = keccak256(abi.encode(uint256(1), MAP_PRESENCE_DOMAIN));
         return keccak256(abi.encode(key, uint256(presenceBase)));
+    }
+
+    function nestedMapSlot(uint256 outer, uint256 inner) internal pure returns (bytes32) {
+        return keccak256(abi.encode(inner, uint256(mapSlot(outer))));
+    }
+
+    function nestedMapPresenceSlot(uint256 outer, uint256 inner) internal pure returns (bytes32) {
+        bytes32 parentSlot = mapSlot(outer);
+        bytes32 presenceBase = keccak256(abi.encode(uint256(parentSlot), MAP_PRESENCE_DOMAIN));
+        return keccak256(abi.encode(inner, uint256(presenceBase)));
     }
 
     function readStorage(address target, bytes32 slot) internal view returns (uint256) {
@@ -183,6 +195,26 @@ contract ProofForgeIRMapSmokeTest {
         assertEq(callU256(probe, abi.encodeWithSignature("path_assign_lifecycle()")), 58);
         assertEq(readStorage(probe, mapSlot(3003)), 58);
         assertEq(readStorage(probe, mapPresenceSlot(3003)), 1);
+    }
+
+    function testIRNestedMapStoragePathUsesSolidityNestedMappingSlots() public {
+        address probe = address(uint160(0xE116));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_path_lifecycle()")), 95);
+        assertEq(readStorage(probe, nestedMapSlot(4004, 5005)), 95);
+        assertEq(readStorage(probe, nestedMapPresenceSlot(4004, 5005)), 1);
+        assertEq(readStorage(probe, mapSlot(4004)), 0);
+        assertEq(readStorage(probe, mapPresenceSlot(4004)), 0);
+    }
+
+    function testIRNestedMapStoragePathAcceptsDynamicKeys() public {
+        address probe = address(uint160(0xE117));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_path_dynamic(uint256,uint256,uint256)", 7007, 8008, 9090)), 9090);
+        assertEq(readStorage(probe, nestedMapSlot(7007, 8008)), 9090);
+        assertEq(readStorage(probe, nestedMapPresenceSlot(7007, 8008)), 1);
     }
 
     function testIRMapRejectsUnknownSelector() public {

@@ -220,7 +220,7 @@ Mapped to [capability-registry](../capability-registry.md) ids:
 | Capability id | SDK / IR surface |
 |---|---|
 | `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, flat scalar storage struct field read/write, and whole flat scalar storage struct read/write |
-| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and single-segment map storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
+| `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and one-or-more-segment consecutive `mapKey` storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks; word and flat-struct storage arrays can feed fixed-array ABI returns and event aggregate fields through storage reads |
 | `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, static and dynamic nested scalar local fixed-array reads, static and dynamic nested scalar local leaf assignment/compound assignment, nested whole local fixed-array assignment with RHS snapshotting, local fixed arrays and nested local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns over U64/U32/Hash leaves, nested scalar fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, storage-backed fixed-array ABI returns from word arrays and fixed arrays of flat structs, nested fixed-array typed crosscall arguments/returns whose leaves are scalar words or flat structs, scalar fixed-array event data fields, fixed-array event fields whose elements are flat structs, and nested fixed-array event fields whose leaves are scalar words or flat structs, including non-indexed data flattening and indexed topic hashing from local values, storage array reads, and storage array struct field reads; zero-length ABI arrays, nested local arrays with unsupported aggregate/non-flat leaves, nested crosscall fixed arrays with non-flat struct or unsupported leaves, and unsupported element shapes still reject explicitly |
 | `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns including Hash/bytes32 fields, fixed arrays of flat structs in ABI-facing parameters/returns, storage-backed fixed-array-of-flat-struct ABI returns, flat event data fields and indexed event topic hashing from local values, storage scalar struct reads, storage array struct field reads inside fixed arrays, and nested fixed-array event fields whose leaves are flat structs; flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
@@ -529,11 +529,13 @@ uses a ProofForge-managed presence mapping rooted at
 present even when their stored value is zero. The smoke checks golden Yul
 reproducibility, `solc --strict-assembly` bytecode generation, metadata
 capabilities (`storage.scalar`, `storage.map`, `assertions.check`), ABI
-get/set/insert/contains behavior, single-segment `mapKey` storage path reads,
-writes, and compound assignment, raw Foundry `vm.load` value and presence
-storage slots, and unknown-selector revert behavior. EVM IR v0 still keeps map
-paths scoped to a single `mapKey`; nested map/aggregate storage paths remain
-explicit diagnostics.
+get/set/insert/contains behavior, single-segment and nested consecutive
+`mapKey` storage path reads, writes, and compound assignment, raw Foundry
+`vm.load` value and presence storage slots, and unknown-selector revert
+behavior. Nested map value slots fold the same Solidity-style mapping helper,
+for example `keccak256(inner || keccak256(outer || slot))`; nested presence
+slots use the parent value slot as the presence root before hashing the final
+key. Mixed map/aggregate storage paths remain explicit diagnostics.
 
 `EvmTypedMapProbe` extends the same mapping slot layout to word key/value maps.
 It validates `U32`, `Bool`, and `Hash` map keys and values using the same
@@ -544,9 +546,11 @@ capabilities (`storage.scalar`, `storage.map`, `assertions.check`), ABI
 dispatcher guards for `U32` and `Bool` map parameters, statement and expression
 map writes, previous-value returns, `Hash`/`bytes32` map values,
 single-segment `mapKey` path reads/writes, numeric `U32` map-path compound
-assignment, typed `contains`, raw Foundry `vm.load` value and presence storage
-slots, and unknown-selector revert behavior. Nested map paths and aggregate or
-non-word key/value shapes remain explicit diagnostics.
+assignment, nested `U32` mapKey path read/write/compound assignment with
+dispatcher range guards, typed `contains`, raw Foundry `vm.load` value and
+presence storage slots, and unknown-selector revert behavior. Aggregate or
+non-word key/value shapes and mixed map/aggregate storage paths remain explicit
+diagnostics.
 
 `EvmStorageArrayProbe` validates portable IR `U64` fixed storage arrays through
 contiguous EVM storage slots. Array state occupies `length` slots, so state

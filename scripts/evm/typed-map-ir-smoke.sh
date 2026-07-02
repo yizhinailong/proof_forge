@@ -52,6 +52,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint set_root:86370059 \
   --expect-entrypoint contains_root:1f24b6db \
   --expect-entrypoint path_assign_score:a82c9bea \
+  --expect-entrypoint nested_path_score:cb239774 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmTypedMapProbe.bin")"
@@ -111,6 +112,16 @@ contract ProofForgeIRTypedMapSmokeTest {
     function mapPresenceSlot(uint256 key, uint256 slotIndex) internal pure returns (bytes32) {
         bytes32 presenceBase = keccak256(abi.encode(slotIndex, MAP_PRESENCE_DOMAIN));
         return keccak256(abi.encode(key, uint256(presenceBase)));
+    }
+
+    function nestedMapSlot(uint256 outer, uint256 inner, uint256 slotIndex) internal pure returns (bytes32) {
+        return keccak256(abi.encode(inner, uint256(mapSlot(outer, slotIndex))));
+    }
+
+    function nestedMapPresenceSlot(uint256 outer, uint256 inner, uint256 slotIndex) internal pure returns (bytes32) {
+        bytes32 parentSlot = mapSlot(outer, slotIndex);
+        bytes32 presenceBase = keccak256(abi.encode(uint256(parentSlot), MAP_PRESENCE_DOMAIN));
+        return keccak256(abi.encode(inner, uint256(presenceBase)));
     }
 
     function mapSlotBool(bool key, uint256 slotIndex) internal pure returns (bytes32) {
@@ -256,6 +267,30 @@ contract ProofForgeIRTypedMapSmokeTest {
         assertEq(callU256(probe, abi.encodeWithSignature("path_assign_score()")), 30);
         assertEq(readStorage(probe, mapSlot(9, 0)), 30);
         assertEq(readStorage(probe, mapPresenceSlot(9, 0)), 1);
+    }
+
+    function testIRU32NestedMapStoragePathUsesTypedGuardsAndSlots() public {
+        address probe = address(uint160(0xB456));
+        deployRuntime(hex"$probe_hex", probe);
+
+        uint256 maxU32 = uint256(type(uint32).max);
+        assertEq(callU256(probe, abi.encodeWithSignature("nested_path_score(uint32,uint32,uint32)", 1000, 1001, 41)), 46);
+        assertEq(readStorage(probe, nestedMapSlot(1000, 1001, 0)), 46);
+        assertEq(readStorage(probe, nestedMapPresenceSlot(1000, 1001, 0)), 1);
+        assertEq(readStorage(probe, mapSlot(1000, 0)), 0);
+        assertEq(readStorage(probe, mapPresenceSlot(1000, 0)), 0);
+
+        (bool badOuterOk,) =
+            probe.call(abi.encodeWithSelector(bytes4(0xcb239774), maxU32 + 1, uint256(1), uint256(2)));
+        assertFalse(badOuterOk);
+
+        (bool badInnerOk,) =
+            probe.call(abi.encodeWithSelector(bytes4(0xcb239774), uint256(1), maxU32 + 1, uint256(2)));
+        assertFalse(badInnerOk);
+
+        (bool badValueOk,) =
+            probe.call(abi.encodeWithSelector(bytes4(0xcb239774), uint256(1), uint256(2), maxU32 + 1));
+        assertFalse(badValueOk);
     }
 
     function testIRTypedMapRejectsUnknownSelector() public {

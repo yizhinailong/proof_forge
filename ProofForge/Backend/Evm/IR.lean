@@ -351,6 +351,15 @@ def validateDistinctEventFieldName (eventName : String) (seen : Array String) (f
   else
     .ok (seen.push fieldName)
 
+def storagePathMapKeys? (path : Array StoragePathSegment) : Option (Array ProofForge.IR.Expr) :=
+  if path.isEmpty then
+    none
+  else
+    path.foldl (init := some #[]) fun acc segment =>
+      match acc, segment with
+      | some keys, .mapKey key => some (keys.push key)
+      | _, _ => none
+
 def validateIndexedEventFieldCount (eventName : String) (count : Nat) : Except LowerError Unit :=
   if count > 3 then
     .error { message := s!"event `{eventName}` has {count} indexed field(s); EVM IR v0 supports at most 3 indexed fields" }
@@ -1214,13 +1223,15 @@ mutual
       (path : Array StoragePathSegment) : Except LowerError ValueType := do
     let state ← stateDeclOf module stateId "storage path"
     match state.kind, state.type, path.toList with
-    | .map keyType _, _, [StoragePathSegment.mapKey key] => do
-        ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
+    | .map keyType _, _, _ => do
+        let some keys := storagePathMapKeys? path
+          | if path.isEmpty then
+              .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+            else
+              .error { message := "EVM IR v0 supports map storage paths only as one or more mapKey segments" }
+        for key in keys do
+          ensureType s!"map `{stateId}` key" keyType (← inferExprType module env key)
         .ok state.type
-    | .map _ _, _, [] =>
-        .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
-    | .map _ _, _, _ =>
-        .error { message := "EVM IR v0 supports only single-segment mapKey storage paths" }
     | .scalar, .structType _, [StoragePathSegment.field fieldName] => do
         let (_, field) ← requireStructStateField module stateId fieldName
         .ok field.type
@@ -1735,6 +1746,42 @@ mutual
     let (slot, _, _) ← requireStorageMapState module stateId
     .ok (Lean.Compiler.Yul.call mapSetReturnFunctionName #[slotExpr slot, ← lowerExpr module env key, ← lowerExpr module env value])
 
+  partial def lowerMapPathValueSlotExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (keys : Array ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let (slot, _, _) ← requireStorageMapState module stateId
+    if keys.isEmpty then
+      .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+    let mut current := slotExpr slot
+    for key in keys do
+      current := Lean.Compiler.Yul.call mapSlotFunctionName #[current, ← lowerExpr module env key]
+    .ok current
+
+  partial def lowerMapPathPresenceSlotExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (keys : Array ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let (slot, _, _) ← requireStorageMapState module stateId
+    if keys.isEmpty then
+      .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+    match keys.toList.reverse with
+    | [] => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+    | last :: parentKeysReversed =>
+        let mut parent := slotExpr slot
+        for key in parentKeysReversed.reverse do
+          parent := Lean.Compiler.Yul.call mapSlotFunctionName #[parent, ← lowerExpr module env key]
+        .ok (Lean.Compiler.Yul.call mapPresenceSlotFunctionName #[parent, ← lowerExpr module env last])
+
+  partial def lowerMapPathReadExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (keys : Array ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerMapPathValueSlotExpr module env stateId keys])
+
   partial def lowerArraySlotExpr
       (module : Module)
       (env : TypeEnv)
@@ -1801,7 +1848,11 @@ mutual
         | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
         | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
         | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.read" }
-    | _ => .error { message := "EVM IR v0 supports storage paths as mapKey, index, field, or index followed by field" }
+    | _ => do
+        match storagePathMapKeys? path with
+        | some keys => lowerMapPathReadExpr module env stateId keys
+        | none =>
+            .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 
   partial def validateFixedArrayIndexExprPath
       (module : Module)
@@ -2651,6 +2702,25 @@ def lowerMapWriteStmt
   let (slot, _, _) ← requireStorageMapState module stateId
   .ok (.exprStmt (Lean.Compiler.Yul.call mapWriteFunctionName #[slotExpr slot, ← lowerExpr module env key, ← lowerExpr module env value]))
 
+def lowerMapPathWriteStmt
+    (module : Module)
+    (env : TypeEnv)
+    (stateId : String)
+    (keys : Array ProofForge.IR.Expr)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  .ok (.block { statements := #[
+    .varDecl #[{ name := "_slot" }] (some (← lowerMapPathValueSlotExpr module env stateId keys)),
+    .varDecl #[{ name := "_presence_slot" }] (some (← lowerMapPathPresenceSlotExpr module env stateId keys)),
+    .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+      Lean.Compiler.Yul.Expr.id "_slot",
+      ← lowerExpr module env value
+    ]),
+    .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+      Lean.Compiler.Yul.Expr.id "_presence_slot",
+      Lean.Compiler.Yul.Expr.num 1
+    ])
+  ]})
+
 def lowerArrayWriteStmt
     (module : Module)
     (env : TypeEnv)
@@ -2761,7 +2831,11 @@ def lowerStoragePathWriteStmt
       | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
       | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
       | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.write" }
-  | _ => .error { message := "EVM IR v0 supports storage paths as mapKey, index, field, or index followed by field" }
+  | _ => do
+      match storagePathMapKeys? path with
+      | some keys => lowerMapPathWriteStmt module env stateId keys value
+      | none =>
+          .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 
 def lowerStoragePathAssignOpStmt
     (module : Module)
@@ -2807,7 +2881,25 @@ def lowerStoragePathAssignOpStmt
       | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
       | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
       | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.assign_op" }
-  | _ => .error { message := "EVM IR v0 supports storage paths as mapKey, index, field, or index followed by field" }
+  | _ => do
+      match storagePathMapKeys? path with
+      | some keys => do
+          let storageSlot ← lowerMapPathValueSlotExpr module env stateId keys
+          let presenceSlot ← lowerMapPathPresenceSlotExpr module env stateId keys
+          .ok (.block { statements := #[
+            .varDecl #[{ name := "_slot" }] (some storageSlot),
+            .varDecl #[{ name := "_presence_slot" }] (some presenceSlot),
+            .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+              Lean.Compiler.Yul.Expr.id "_slot",
+              lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module env value)
+            ]),
+            .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+              Lean.Compiler.Yul.Expr.id "_presence_slot",
+              Lean.Compiler.Yul.Expr.num 1
+            ])
+          ]})
+      | none =>
+          .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 
 def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Statement
   | .storageScalarRead _ =>

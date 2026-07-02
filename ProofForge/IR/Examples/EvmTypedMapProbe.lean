@@ -43,6 +43,9 @@ def hashLit (a b c d : Nat) : Expr :=
 def mapPath (key : Expr) : Array StoragePathSegment :=
   #[.mapKey key]
 
+def nestedMapPath (outer inner : Expr) : Array StoragePathSegment :=
+  #[.mapKey outer, .mapKey inner]
+
 def rootA : Expr :=
   hashLit 1 2 3 4
 
@@ -188,6 +191,22 @@ def pathAssignScore : Entrypoint := {
   ]
 }
 
+def nestedPathScore : Entrypoint := {
+  name := "nested_path_score"
+  selector? := some "cb239774"
+  params := #[
+    ("outer", .u32),
+    ("inner", .u32),
+    ("value", .u32)
+  ]
+  returns := .u32
+  body := #[
+    .effect (.storagePathWrite "scores" (nestedMapPath (.local "outer") (.local "inner")) (.local "value")),
+    .effect (.storagePathAssignOp "scores" (nestedMapPath (.local "outer") (.local "inner")) .add (u32 5)),
+    .return (.effect (.storagePathRead "scores" (nestedMapPath (.local "outer") (.local "inner"))))
+  ]
+}
+
 def module : Module := {
   name := "EvmTypedMapProbe"
   state := #[stateScores, stateFlags, stateRoots, stateAfter]
@@ -202,7 +221,8 @@ def module : Module := {
     readRoot,
     setRoot,
     containsRoot,
-    pathAssignScore
+    pathAssignScore,
+    nestedPathScore
   ]
 }
 

@@ -317,7 +317,7 @@ def storagePathEmptyModule : Module :=
 
 def storagePathNestedMapModule : Module :=
   selectedMapModule "BadStoragePathNestedMap" <| selectedReturnEntrypoint "bad" .u64 #[
-    .return (.effect (.storagePathRead "balances" #[.mapKey (.literal (.u64 1)), .mapKey (.literal (.u64 2))]))
+    .return (.effect (.storagePathRead "balances" #[.mapKey (.literal (.u64 1)), .field "amount"]))
   ]
 
 def storagePathFieldModule : Module :=
@@ -542,7 +542,7 @@ def storagePathAssignExprModule : Module :=
 
 def storagePathAssignNestedModule : Module :=
   selectedMapModule "BadStoragePathAssignNested" <| selectedEntrypoint "bad" #[
-    .effect (.storagePathAssignOp "balances" #[.mapKey (.literal (.u64 1)), .mapKey (.literal (.u64 2))] .add (.literal (.u64 3)))
+    .effect (.storagePathAssignOp "balances" #[.mapKey (.literal (.u64 1)), .field "amount"] .add (.literal (.u64 3)))
   ]
 
 def compoundAssignmentTargetModule : Module :=
@@ -688,19 +688,19 @@ def cases : Array (String × Module × String) := #[
     "storage path state `balances` is map storage; first segment must be a map key"
   ),
   (
-    "storage path nested map unsupported",
+    "storage path mixed map unsupported",
     storagePathNestedMapModule,
-    "EVM IR v0 supports only single-segment mapKey storage paths"
+    "EVM IR v0 supports map storage paths only as one or more mapKey segments"
   ),
   (
     "storage path field unsupported",
     storagePathFieldModule,
-    "EVM IR v0 supports only single-segment mapKey storage paths"
+    "EVM IR v0 supports map storage paths only as one or more mapKey segments"
   ),
   (
     "storage path index unsupported",
     storagePathIndexModule,
-    "EVM IR v0 supports only single-segment mapKey storage paths"
+    "EVM IR v0 supports map storage paths only as one or more mapKey segments"
   ),
   (
     "storage array path nested index unsupported",
@@ -713,9 +713,9 @@ def cases : Array (String × Module × String) := #[
     "storage.path.assign_op is a statement effect, not an expression"
   ),
   (
-    "storage path assign_op nested map unsupported",
+    "storage path assign_op mixed map unsupported",
     storagePathAssignNestedModule,
-    "EVM IR v0 supports only single-segment mapKey storage paths"
+    "EVM IR v0 supports map storage paths only as one or more mapKey segments"
   ),
   (
     "context read used as statement",
