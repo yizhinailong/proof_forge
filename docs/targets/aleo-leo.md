@@ -1,12 +1,27 @@
 # Aleo Leo Target
 
-Status: **Research (docs-first candidate)**
+Status: **Spike (local smoke exists — `scripts/aleo/counter-smoke.sh`)**
 
 Candidate target id: **`aleo-leo`**
 
-This note records the first ProofForge classification for Aleo. It does not add
-a Lean target profile yet. The purpose is to decide how Aleo's ZK application
-model fits the target system before changing the registry or compiler.
+This note records the first ProofForge classification for Aleo and the
+implemented Road 1 spike. It does not add a Lean target profile yet; the spike
+validates the Leo source-generation boundary before any code registry changes.
+
+Primary deliverables:
+
+- `ProofForge.Backend.Aleo.IR` lowers the portable IR `Counter` fixture to Leo.
+- `proof-forge --emit-counter-ir-leo` emits `Counter.leo`.
+- `Examples/Aleo/Counter.golden.leo` is the tracked golden fixture.
+- `scripts/aleo/counter-smoke.sh` generates a Leo package, runs `leo build` and
+  `leo test`, writes `proof-forge-artifact.json`, and validates the metadata.
+- `ProofForge.Compiler.Leo.Emit` additionally supports pure entrypoints with
+  parameters/return values and control-flow statements (`assert`, `if/else`,
+  `boundedFor`, `assign`, `assignOp`).
+- `proof-forge --emit-pure-math-ir-leo` emits `PureMath.leo`.
+- `Examples/Aleo/PureMath.golden.leo` is the tracked golden fixture.
+- `scripts/aleo/pure-math-smoke.sh` validates the PureMath fixture end-to-end.
+
 
 Primary sources:
 
@@ -21,6 +36,42 @@ Primary sources:
 - [leo build](https://docs.aleo.org/build/leo/documentation/cli/cli_build)
 - [leo execute](https://docs.aleo.org/build/leo/documentation/cli/cli_execute)
 - [leo test](https://docs.aleo.org/build/leo/documentation/cli/cli_test)
+
+## Local Smoke
+
+The Road 1 spike is validated end-to-end by:
+
+```bash
+./scripts/aleo/counter-smoke.sh
+```
+
+Prerequisites:
+
+- Lean toolchain from `lean-toolchain` and a built `proof-forge` binary.
+- `python3` for package/manifest helpers.
+- `leo` CLI on `PATH` (tested with Leo 4.0.2); if `leo` is missing, the script
+  reports the generated `Counter.leo` and exits with code `127`.
+
+What it proves:
+
+- Portable IR `ProofForge.IR.Examples.Counter` lowers to a Leo 4.0 program with
+  a public `mapping`, `@noupgrade constructor`, and `fn ... -> Final` entry
+  points whose `final` blocks read/write the mapping.
+- Generated Leo source matches the tracked golden fixture
+  `Examples/Aleo/Counter.golden.leo`.
+- `leo build` produces Aleo Instructions (`build/main.aleo`) and ABI JSON
+  (`build/abi.json`).
+- `leo test` passes.
+- `proof-forge-artifact.json` is produced and schema-validated.
+
+What it does not prove:
+
+- Private records, transitions, or proof generation.
+- Direct Aleo Instructions generation.
+- Devnet deployment or execute transactions.
+- Cross-target equivalence with EVM/Psy Counter semantics.
+- A standalone `.avm` bytecode file; the current `leo build` output embeds VM
+  artifacts in the compiled package rather than emitting a separate file.
 
 ## Classification
 
@@ -222,3 +273,34 @@ Aleo can leave Research only when we have:
   devnode;
 - one reproducible local command or script that validates a tiny Leo program
   package, even if proving-heavy gates are optional in CI.
+
+**Status:** The Road 1 spike satisfies the reproducible local command and
+artifact manifest schema criteria. The remaining criteria (target profile,
+full capability proposal, devnet validation) stay open until private records
+and transitions are reviewed.
+
+## Research Exit Plan
+
+A detailed design spec covering Research exit + Road 1 spike is in
+[docs/superpowers/specs/2026-07-01-aleo-leo-design.md](../../superpowers/specs/2026-07-01-aleo-leo-design.md).
+
+The spec finalizes:
+
+- Target family: `zk-app-sourcegen`.
+- Canonical capabilities for the first spike:
+  `lang.leo`, `vm.aleo_avm`, `artifact.avm`, `artifact.aleo_abi`,
+  `execution.finalize`, `state.mapping`, `input.public`, `output.public`,
+  `test.leo`.
+- Research-only capabilities for future spikes:
+  `ir.aleo_instructions`, `proof.prover_key`, `proof.verifier_key`,
+  `execution.transition`, `state.record`, `state.storage`, `input.private`,
+  `output.private`, `program.import`, `program.upgrade`, `transaction.execute`,
+  `transaction.deploy`, `fee.credits`, `test.aleo_devnet`.
+- Artifact manifest schema for `aleo-leo-package`.
+- Toolchain decision: `leo build` + `leo test` primary; prove/execute optional.
+- Spike scope: Road 1 only, public mapping Counter from
+  `ProofForge.IR.Examples.Counter`.
+
+The Road 1 spike is implemented; code registry changes
+(`ProofForge.Target.Capability` / `ProofForge.Target.Registry`) remain deferred
+until the proof/finalization split and private-record roadmap are reviewed.

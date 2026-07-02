@@ -95,6 +95,7 @@ flowchart TB
 - [Tezos Michelson/LIGO 目标说明](zh/targets/tezos-michelson-ligo.zh.md)
 - [Starknet Cairo 目标说明](zh/targets/starknet-cairo.zh.md)
 - [Aleo Leo 目标说明](zh/targets/aleo-leo.zh.md)
+- [Aleo Leo 设计规格](zh/superpowers/specs/2026-07-01-aleo-leo-design.zh.md)
 - [TON TVM 目标说明](zh/targets/ton-tvm.zh.md)
 - [Bitcoin Script/Miniscript 目标说明](zh/targets/bitcoin-script-miniscript.zh.md)
 - [Zcash Shielded 目标说明](zh/targets/zcash-shielded.zh.md)

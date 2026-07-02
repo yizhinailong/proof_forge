@@ -39,6 +39,7 @@
 | D-029 | 2026-07-01 | 采用 Rust `near-sdk-rs` source generation 作为仓库内 `wasm-near` v0 后端 | 仓库中没有 EmitZig/Zig host bridge 源码；portable IR → near-sdk-rs package → cargo wasm32 现在即可验证 NEAR 语义，并为后续恢复 Zig host-bridge 路径保留空间。（2026-07 分支收敛合并时由 NEAR 分支的 D-025 重编号。） |
 | D-030 | 2026-07-01 | `wasm-near` v0 支持 `Hash` map keys、`.assertions.check` 和 `.account.explicit` | 现有 `MapProbe` 需要 Hash keys 和 `assertEq`，`ContextProbe` 需要 `contractId`；`.crosscall.invoke` 在 sourcegen v0 中仍不支持。（由 NEAR 分支的 D-026 重编号。） |
 | D-031 | 2026-07-01 | 采用 **`EmitWat`**（portable IR → Wasm AST → WAT text → `wat2wasm`）作为 Wasm 家族的 canonical backend；将 Rust `near-sdk-rs` sourcegen 降级为**冻结的 v0 stopgap** | `EmitWat` 对齐仓库内 **portable-IR → Yul** renderer `Backend/Evm/IR.lean`（所有 `--emit-*-ir-yul` CLI mode 使用的路径），而不是单独的 LCNF-based `Compiler/LCNF/EmitYul.lean`。portable IR 已经抽象掉 Lean 对象（只有 `u32`/`u64`/`bool`/`hash` 标量 + storage effects），因此 `EmitWat` 不需要 Lean runtime port、object-model boxing 或 GC，避开了 Rust 路线的 `near-sdk` macro coupling（E0119 Borsh / missing-`&self` cargo-check failures）以及阻塞旧 `EmitZig` 计划的 Lean-runtime-to-Wasm port。共享层：`Compiler/Wasm/AST.lean` + `Printer.lean` + IR→AST lowering（并行于 `Compiler/Yul/AST.lean` + `Printer.lean`）；可复用 `Backend/WasmNear/IR.lean` 和 `Backend/Evm/IR.lean` 的 validation。按链区分：host imports + ABI serialization。关键 spike risk：NEAR argument (de)serialization（JSON/Borsh），这是 EVM backend 不会遇到的（EVM 使用 calldata）。（由 NEAR 分支的 D-027 重编号。） |
+| D-032 | 2026-07-01 | 批准 **`aleo-leo`** Research 退出设计：Leo-first 的 `zk-app-sourcegen` 边界、Road 1 规范能力、制品清单 schema 以及 `leo build`/`leo test` 工具链 | Aleo 的 proof/finalization split 需要独立于 `psy-dpn` 风格电路 sourcegen 的自有 sourcegen 家族；代码注册表变更仍延后到 Road 1 spike 成功后。（2026-07 分支收敛合并时由 Aleo 分支的 D-025 重编号。） |
 
 ## 目标家族分类
 
@@ -54,7 +55,7 @@
 | eUTXO validator sourcegen research | `cardano-plutus-aiken`（候选，仅文档） | 可移植 IR → Aiken package → UPLC/Plutus validator artifacts + Plutus blueprint + transaction scenario metadata |
 | Michelson sourcegen research | `tezos-michelson-ligo`（候选，仅文档） | 可移植 IR → LIGO package → Michelson contract + parameter/storage schema + operation/view/event manifests |
 | Cairo sourcegen research | `starknet-cairo`（候选，仅文档） | 可移植 IR → Cairo/Scarb package → Sierra/CASM artifacts + ABI/class-hash/deployment metadata |
-| Aleo ZK app sourcegen research | `aleo-leo`（候选，仅文档） | 可移植 IR → Leo package → Aleo Instructions → Aleo VM bytecode + ABI/prover/verifier artifacts + execute/deploy metadata |
+| Aleo ZK app sourcegen（`zk-app-sourcegen`） | `aleo-leo`（候选，仅文档） | 可移植 IR → Leo package → Aleo Instructions → Aleo VM bytecode + ABI/prover/verifier artifacts + execute/deploy metadata |
 | TVM sourcegen research | `ton-tvm`（候选，仅文档） | 可移植 IR → Tolk 或更底层 TON source → TVM/BOC artifact + TL-B/message manifests |
 | Bitcoin script policy research | `bitcoin-script-miniscript`（候选，仅文档） | 可移植 IR → policy/Miniscript/descriptor package → Script/Tapscript output + PSBT/regtest validation metadata |
 | Privacy UTXO ZK payment research | `zcash-shielded`（候选，仅文档） | 可移植 IR → shielded transaction/proving manifest → Zcash transaction with Sapling/Orchard proof bundle + zcashd/library validation metadata |

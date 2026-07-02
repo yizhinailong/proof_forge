@@ -16,6 +16,7 @@ import ProofForge.Contract.Token.Evm
 import ProofForge.Contract.Token.Learn
 import ProofForge.Backend.WasmNear
 import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.Aleo.IR
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
@@ -31,6 +32,7 @@ import ProofForge.IR.Examples.ConditionalProbe
 import ProofForge.IR.Examples.ControlFlowAssertProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.CrosscallProbe
+import ProofForge.IR.Examples.PureMath
 import ProofForge.IR.Examples.EventProbe
 import ProofForge.IR.Examples.EvmAbiAggregateProbe
 import ProofForge.IR.Examples.EvmArrayValueProbe
@@ -200,6 +202,8 @@ inductive EmitMode where
   | contextEmitWat
   | hashEmitWat
   | mapEmitWat
+  | counterIrLeo
+  | pureMathIrLeo
   deriving BEq, Inhabited
 
 def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
@@ -327,7 +331,9 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .counterEmitWat
   | .contextEmitWat
   | .hashEmitWat
-  | .mapEmitWat => true
+  | .mapEmitWat
+  | .counterIrLeo
+  | .pureMathIrLeo => true
   | _ => false
 
 structure CliOptions where
@@ -468,6 +474,7 @@ def usage : String :=
     "  proof-forge --emit-context-ir-wasm-near -o output-dir",
     "  proof-forge --emit-hash-ir-wasm-near -o output-dir",
     "  proof-forge --emit-map-ir-wasm-near -o output-dir",
+    "  proof-forge --emit-counter-ir-leo [-o output.leo]",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
@@ -2242,6 +2249,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .hashEmitWat }
   | "--emit-map-emitwat" :: rest, opts =>
       parseArgs rest { opts with mode := .mapEmitWat }
+  | "--emit-counter-ir-leo" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrLeo }
+  | "--emit-pure-math-ir-leo" :: rest, opts =>
+      parseArgs rest { opts with mode := .pureMathIrLeo }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -4240,6 +4251,26 @@ def compileSbpfAsm (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileCounterIrLeo (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/aleo/Counter.leo")
+  match ProofForge.Backend.Aleo.IR.renderModule ProofForge.IR.Examples.Counter.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compilePureMathIrLeo (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/aleo/PureMath.leo")
+  match ProofForge.Backend.Aleo.IR.renderModule ProofForge.IR.Examples.PureMath.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
@@ -4367,6 +4398,8 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .contextEmitWat => compileContextEmitWat opts
   | .hashEmitWat => compileHashEmitWat opts
   | .mapEmitWat => compileMapEmitWat opts
+  | .counterIrLeo => compileCounterIrLeo opts
+  | .pureMathIrLeo => compilePureMathIrLeo opts
 
 end ProofForge.Cli
 

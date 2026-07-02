@@ -220,7 +220,8 @@ explicit representation before a target profile is added.
 
 ### Aleo Leo
 
-See [Aleo Leo target](targets/aleo-leo.md).
+See [Aleo Leo target](targets/aleo-leo.md) and
+[docs/superpowers/specs/2026-07-01-aleo-leo-design.md](superpowers/specs/2026-07-01-aleo-leo-design.md).
 
 Aleo overlaps with source-generation and ZK targets, but its contract model has
 an explicit proof/finalization split. Private execution creates transitions and
@@ -229,30 +230,45 @@ program ids, imports, Aleo Instructions, Aleo VM bytecode, ABI, prover/verifier
 artifacts, fees, and devnet validation need explicit representation before a
 target profile is added.
 
-| Candidate id | Portable meaning | Why it is separate |
+#### Canonical capabilities (Road 1 spike)
+
+These capabilities are accepted for the first `aleo-leo` spike and are listed in
+Aleo artifact metadata produced by `scripts/aleo/counter-smoke.sh`. They are
+**not** added to `ProofForge.Target.Capability` until the target profile and
+proof/finalization split are reviewed.
+
+| Capability id | Portable meaning | Why it is separate |
 |---|---|---|
 | `lang.leo` | Target emits Leo source packages | Leo is the first stable sourcegen boundary |
-| `ir.aleo_instructions` | Build emits or consumes Aleo Instructions | Lower-level Aleo compiler target distinct from Leo |
 | `vm.aleo_avm` | Target runs on the Aleo VM | Avoids ambiguity with Algorand AVM |
 | `artifact.avm` | Build emits Aleo VM bytecode | Deployment artifact is target-native |
 | `artifact.aleo_abi` | Build emits Aleo ABI metadata | ABI shape follows Aleo program interfaces |
+| `execution.finalize` | Program has public on-chain finalization logic | Finalization is public and validator-executed |
+| `state.mapping` | Public state is held in mappings | Mappings are on-chain public key-value state |
+| `input.public` | Function input is public data | Public inputs are visible in transaction context |
+| `output.public` | Function output is public | Public outputs need explicit metadata |
+| `test.leo` | Validation uses Leo tests | Local validation is target tooling |
+
+#### Research candidate capabilities (future spikes)
+
+These remain candidates until private records, transitions, proofs, imports,
+deployment, or devnet validation are scoped.
+
+| Candidate id | Portable meaning | Why it is separate |
+|---|---|---|
+| `ir.aleo_instructions` | Build emits or consumes Aleo Instructions | Lower-level Aleo compiler target distinct from Leo |
 | `proof.prover_key` | Build or execute flow produces prover artifacts | Proof generation has target-owned artifacts |
 | `proof.verifier_key` | Build or deploy flow records verifier artifacts | Verification keys are part of deployment/execution metadata |
 | `execution.transition` | Entry execution produces a transition and proof | Transition is the Aleo function-call unit |
-| `execution.finalize` | Program has public on-chain finalization logic | Finalization is public and validator-executed |
 | `state.record` | Private state is held in encrypted records | Records are UTXO-like and not EVM storage |
-| `state.mapping` | Public state is held in mappings | Mappings are on-chain public key-value state |
 | `state.storage` | Public state may use storage variables or storage vectors | Aleo storage differs from mappings and private records |
 | `input.private` | Function input is private proof-context data | Privacy is part of the function signature |
-| `input.public` | Function input is public data | Public inputs are visible in transaction context |
 | `output.private` | Function output is private by default | Output visibility is target semantics |
-| `output.public` | Function output is public | Public outputs need explicit metadata |
 | `program.import` | Program imports and calls another Aleo program | Cross-program calls produce composed transitions/finalization |
 | `program.upgrade` | Deployment may support explicit program upgrades | Upgrade rules are program/deploy metadata |
 | `transaction.execute` | Validation can produce an execute transaction | Execute transactions carry transitions and proofs |
 | `transaction.deploy` | Validation can produce or inspect a deploy transaction | Deploy publishes program code and verification metadata |
 | `fee.credits` | Fees are paid in Aleo Credits, publicly or privately | Fee visibility and source affect privacy and validation |
-| `test.leo` | Validation uses Leo tests | Local validation is target tooling |
 | `test.aleo_devnet` | Validation uses Leo devnet or devnode-backed flows | Network-backed smoke differs from local compile/test |
 
 The existing `zk.circuit` capability is not enough for Aleo. It may describe
