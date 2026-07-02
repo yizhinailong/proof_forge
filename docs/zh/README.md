@@ -60,6 +60,7 @@ python3 scripts/translate-docs.py --model glm-4.7
 
 ## 原生中文文档
 
+- [架构评审（2026-07）：统一 SDK 输入与分支收敛](architecture-review-2026-07.md)
 - [多链愿景可行性分析](feasibility-analysis.md)
 - [多链技术实现方案](technical-implementation-plan.md) — 摘要版，工程细节见 RFC 0002
 - [多链方案 Review 清单](review-checklist.md)
