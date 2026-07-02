@@ -96,6 +96,10 @@ solana-pinocchio-system-create-account-equivalence:
 solana-pinocchio-spl-token-transfer-equivalence:
     scripts/solana/pinocchio-spl-token-transfer-equivalence.sh
 
+# Compare the generated SPL Token mint_to/burn/approve/revoke CPI artifact with the Pinocchio reference contract.
+solana-pinocchio-spl-token-ops-equivalence:
+    scripts/solana/pinocchio-spl-token-ops-equivalence.sh
+
 # Build/deploy ProofForge and Pinocchio System transfer programs and compare behavior on Surfpool.
 solana-pinocchio-system-transfer-live-equivalence:
     scripts/solana/pinocchio-system-transfer-live-equivalence.sh
@@ -107,6 +111,10 @@ solana-pinocchio-system-create-account-live-equivalence:
 # Build/deploy ProofForge and Pinocchio SPL Token transfer_checked programs and compare behavior on Surfpool.
 solana-pinocchio-spl-token-transfer-live-equivalence:
     scripts/solana/pinocchio-spl-token-transfer-live-equivalence.sh
+
+# Build/deploy ProofForge and Pinocchio SPL Token mint_to/burn/approve/revoke programs and compare behavior on Surfpool.
+solana-pinocchio-spl-token-ops-live-equivalence:
+    scripts/solana/pinocchio-spl-token-ops-live-equivalence.sh
 
 # Repair/install the Solana SBF rustc/platform-tools used by the Pinocchio live gate.
 solana-pinocchio-install-sbf-tools:

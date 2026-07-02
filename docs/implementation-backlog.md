@@ -999,6 +999,24 @@ Completed beta scaffolding slices:
   source/destination token balance deltas plus the amount state write. The
   harness currently skips when `cargo-build-sbf` cannot find Solana rustc/
   platform-tools.
+- Pinocchio SPL Token ops reference contract:
+  `references/solana/pinocchio/spl-token-ops` contains a checked-in
+  no-allocator Pinocchio reference for the same SPL Token
+  `mint_to`/`burn`/`approve`/`revoke` account schema as
+  `ProofForge.Solana.Examples.SplTokenOpsCpi`. The gate
+  `scripts/solana/pinocchio-spl-token-ops-equivalence.sh` emits the ProofForge
+  SPL Token ops CPI artifact and compares its four instruction tags, parameter
+  ABI, account order, signer/writable constraints, CPI protocol/data layout,
+  SPL Token instruction contract, and state-write contract against the
+  reference manifest/source. With `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1`, the
+  same gate typechecks the reference against `pinocchio-token`.
+- Pinocchio SPL Token ops live-equivalence harness:
+  `scripts/solana/pinocchio-spl-token-ops-live-equivalence.sh` is wired to
+  build the ProofForge ELF and the checked-in Pinocchio Token ops reference
+  ELF, deploy both programs to one Surfpool instance, invoke the same Web3.js +
+  `@solana/spl-token` mint/burn/approve/revoke scenario for each, and compare
+  token effects plus all four amount/marker state writes. The harness currently
+  skips when `cargo-build-sbf` cannot find Solana rustc/platform-tools.
 
 Completed developer-surface slices:
 
@@ -1158,7 +1176,7 @@ Remaining priority slices:
 1. Rust/Pinocchio equivalence fixtures (2-4 days): make the Pinocchio live
    equivalence harnesses pass in CI/local environments by installing Solana
    rustc/platform-tools reliably, then extend static and live reference
-   coverage to Token-2022 and broader SPL helper paths. The key comparison
+   coverage to Token-2022 and remaining SPL helper paths. The key comparison
    points are account order, signer/writable checks, CPI instruction data, and
    observable state changes.
 2. Richer structured logs, account data, and typed return helpers (3-5 days):
@@ -1177,9 +1195,9 @@ Remaining priority slices:
    instruction-data offsets no longer depend on every entrypoint sharing the
    same account list.
 5. Token-2022 and richer SPL coverage (3-5 days per iteration): add checked
-   mint/burn/approve variants, authority changes, associated-token account
-   setup flows, and Token-2022 extension routes without moving those details
-   into portable IR.
+   Token-2022 extension routes, authority changes, associated-token account
+   setup flows, and remaining SPL variants without moving those details into
+   portable IR.
 6. Developer ergonomics and framework surface (3-5 days per iteration): extend
    the new surface layer toward Lean `.lean`/Lean SDK contract syntax with richer
    typed account/data wrappers, richer generated client APIs, broader

@@ -540,6 +540,24 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
   transfer_checked scenario 调用，以及 source/destination token balance delta
   和 amount state write 对比。若 `cargo-build-sbf` 找不到 Solana rustc/
   platform-tools，该 harness 会 skip。
+- Pinocchio SPL Token ops reference contract：
+  `references/solana/pinocchio/spl-token-ops` 提供了一个 checked-in
+  no-allocator Pinocchio reference，对齐
+  `ProofForge.Solana.Examples.SplTokenOpsCpi` 的 SPL Token
+  `mint_to`/`burn`/`approve`/`revoke` account schema。
+  `scripts/solana/pinocchio-spl-token-ops-equivalence.sh` 会 emit ProofForge
+  SPL Token ops CPI artifact，并将四个 instruction tag、parameter ABI、
+  account order、signer/writable constraint、CPI protocol/data layout、SPL
+  Token instruction contract 和 state-write contract 与 reference
+  manifest/source 对比。设置 `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1` 时，同一
+  gate 还会用 `pinocchio-token` typecheck 该 reference。
+- Pinocchio SPL Token ops live-equivalence harness：
+  `scripts/solana/pinocchio-spl-token-ops-live-equivalence.sh` 已接好
+  ProofForge ELF 与 checked-in Pinocchio Token ops reference ELF 的构建、同一
+  Surfpool instance 部署、同一 Web3.js + `@solana/spl-token`
+  mint/burn/approve/revoke scenario 调用，以及 token effect 和四个
+  amount/marker state write 对比。若 `cargo-build-sbf` 找不到 Solana rustc/
+  platform-tools，该 harness 会 skip。
 
 已完成的开发者 surface 切片：
 
@@ -690,7 +708,7 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
 
 1. Rust/Pinocchio equivalence fixture（2-4 天）：在 CI/local 环境稳定安装
    Solana rustc/platform-tools，让 Pinocchio live-equivalence harness
-   稳定通过，然后把 static/live reference coverage 扩展到 Token-2022 和更广
+   稳定通过，然后把 static/live reference coverage 扩展到 Token-2022 和剩余
    SPL helper。关键比较点是 account order、signer/writable check、CPI
    instruction data 和可观察 state change。
 2. 更丰富的 structured log、account data 与 typed return helper（3-5 天）：
@@ -706,9 +724,8 @@ feature-gated `sol_remaining_compute_units` state write 和 profiling log
    account parsing 替换当前 module-wide fixed schema，使 instruction-data offset
    不再依赖所有 entrypoint 使用同一套账户列表。
 5. Token-2022 与更丰富的 SPL coverage（每轮 3-5 天）：增加 checked
-   mint/burn/approve variants、authority changes、associated-token account
-   setup flows，以及 Token-2022 extension routes，同时不把这些细节上移到
-   portable IR。
+   Token-2022 extension routes、authority changes、associated-token account
+   setup flows，以及剩余 SPL variants，同时不把这些细节上移到 portable IR。
 6. Developer ergonomics 和框架层体验（每轮 3-5 天）：把新的 surface 层继续推进到
    Lean `.lean`/Lean SDK contract syntax，并继续补更丰富的 typed account/data
    wrapper、更丰富的 generated client API、更完整 SPL/Token-2022 helper 覆盖，以及能把
