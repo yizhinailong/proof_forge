@@ -90,20 +90,25 @@ def CryptoHashOp.id : CryptoHashOp -> String
 
 inductive SysvarKind where
   | rent
+  | epochSchedule
   deriving BEq, DecidableEq, Repr
 
 def SysvarKind.id : SysvarKind -> String
   | .rent => "rent"
+  | .epochSchedule => "epoch_schedule"
 
 inductive SysvarField where
   | rentLamportsPerByteYear
+  | epochScheduleSlotsPerEpoch
   deriving BEq, DecidableEq, Repr
 
 def SysvarField.id : SysvarField -> String
   | .rentLamportsPerByteYear => "lamports_per_byte_year"
+  | .epochScheduleSlotsPerEpoch => "slots_per_epoch"
 
 def SysvarField.kind : SysvarField -> SysvarKind
   | .rentLamportsPerByteYear => .rent
+  | .epochScheduleSlotsPerEpoch => .epochSchedule
 
 structure MemoryAction where
   name : String
@@ -594,6 +599,15 @@ def rentLamportsPerByteYearToState (name outputState : String) :
     name := name
     kind := .rent
     field := .rentLamportsPerByteYear
+    outputState := outputState
+  }
+
+def epochScheduleSlotsPerEpochToState (name outputState : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  sysvarEntry {
+    name := name
+    kind := .epochSchedule
+    field := .epochScheduleSlotsPerEpoch
     outputState := outputState
   }
 

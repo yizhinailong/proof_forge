@@ -791,6 +791,8 @@ checkpointId`, plus live `runtime.memory` validation through `sol_memcpy_`,
 `sol_memmove_`, `sol_memcmp_`, and `sol_memset_`, plus live Solana-only
 `crypto.hash` validation through `sol_sha256` and `sol_keccak256`, plus live
 `Rent.lamports_per_byte_year` sysvar validation through `sol_get_rent_sysvar`.
+It also covers live `EpochSchedule.slots_per_epoch` validation through
+`sol_get_epoch_schedule_sysvar`.
 The estimates below assume one engineer working on this branch,
 the current direct-assembly architecture staying stable, and local
 `sbpf`/Surfpool/Solana CLI tooling remaining available.
@@ -860,6 +862,11 @@ Completed alpha slices:
   and deploys a generated Solana-only `sysvar` target-extension program on
   Surfpool, invokes `record_rent` through Web3.js, and proves the recorded
   `Rent.lamports_per_byte_year` matches the Rent sysvar account data.
+- Live EpochSchedule sysvar fixture:
+  `scripts/solana/epoch-schedule-sysvar-web3-smoke.sh` builds and deploys a
+  generated Solana-only `sysvar` target-extension program on Surfpool, invokes
+  `record_epoch_schedule` through Web3.js, and proves the recorded
+  `EpochSchedule.slots_per_epoch` matches RPC `getEpochSchedule().slotsPerEpoch`.
 
 Remaining priority slices:
 
@@ -871,7 +878,7 @@ Remaining priority slices:
 2. Richer return data, sysvars, crypto, logs, and memory helpers (3-5 days):
    extend the current scalar `sol_log_64_` event path to string/base64/
    Anchor-style and indexed event forms; expose `sol_get_return_data`,
-   typed return payload helpers beyond `u64`, epoch schedule/restart-slot sysvar reads,
+   typed return payload helpers beyond `u64`, restart-slot sysvar reads,
    `sol_blake3`, portable `Expr.hash` routing where the hash
    semantics match the target, and broader account/data packing helpers that
    reuse the new memory syscall path, with JavaScript reference checks.

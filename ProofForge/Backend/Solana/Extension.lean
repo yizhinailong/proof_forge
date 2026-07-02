@@ -86,23 +86,29 @@ def CryptoHashOp.syscall : CryptoHashOp -> String
 
 inductive SysvarKind where
   | rent
+  | epochSchedule
   deriving BEq, DecidableEq, Repr, Inhabited
 
 def SysvarKind.id : SysvarKind -> String
   | .rent => "rent"
+  | .epochSchedule => "epoch_schedule"
 
 def SysvarKind.syscall : SysvarKind -> String
   | .rent => ProofForge.Backend.Solana.Syscalls.sol_get_rent_sysvar
+  | .epochSchedule => ProofForge.Backend.Solana.Syscalls.sol_get_epoch_schedule_sysvar
 
 inductive SysvarField where
   | rentLamportsPerByteYear
+  | epochScheduleSlotsPerEpoch
   deriving BEq, DecidableEq, Repr, Inhabited
 
 def SysvarField.id : SysvarField -> String
   | .rentLamportsPerByteYear => "lamports_per_byte_year"
+  | .epochScheduleSlotsPerEpoch => "slots_per_epoch"
 
 def SysvarField.kind : SysvarField -> SysvarKind
   | .rentLamportsPerByteYear => .rent
+  | .epochScheduleSlotsPerEpoch => .epochSchedule
 
 structure MemoryAction where
   name : String
@@ -256,10 +262,12 @@ def cryptoHashOpFromString? : String -> Option CryptoHashOp
 
 def sysvarKindFromString? : String -> Option SysvarKind
   | "rent" => some .rent
+  | "epoch_schedule" => some .epochSchedule
   | _ => none
 
 def sysvarFieldFromString? : String -> Option SysvarField
   | "lamports_per_byte_year" => some .rentLamportsPerByteYear
+  | "slots_per_epoch" => some .epochScheduleSlotsPerEpoch
   | _ => none
 
 def PdaDerive.definition (pda : PdaDerive) : PdaDerive :=
@@ -1601,12 +1609,24 @@ def lowerSysvarOutputStatePtr (bindings : Array CpiValueBinding) (action : Sysva
 
 def lowerSysvarFieldRead (valueBindings : Array CpiValueBinding)
     (action : SysvarReadAction) : Array AstNode :=
-  match action.kind, action.field with
-  | .rent, .rentLamportsPerByteYear =>
+  match action.field with
+  | .rentLamportsPerByteYear =>
       stackPtr .r1 sysvarResultOffset ++ #[
-        callSyscall action.kind.syscall,
+        callSyscall SysvarKind.rent.syscall,
         .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_sysvar") },
         .comment "read Rent.lamports_per_byte_year from sysvar buffer"
+      ] ++
+      stackPtr .r5 sysvarResultOffset ++ #[
+        .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 0) }
+      ] ++
+      lowerSysvarOutputStatePtr valueBindings action .r5 .r7 ++ #[
+        storeReg .stxdw .r5 0 .r3
+      ]
+  | .epochScheduleSlotsPerEpoch =>
+      stackPtr .r1 sysvarResultOffset ++ #[
+        callSyscall SysvarKind.epochSchedule.syscall,
+        .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_sysvar") },
+        .comment "read EpochSchedule.slots_per_epoch from sysvar buffer"
       ] ++
       stackPtr .r5 sysvarResultOffset ++ #[
         .instruction { opcode := .ldxdw, dst := some .r3, src := some .r5, off := some (.num 0) }

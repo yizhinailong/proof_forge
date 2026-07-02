@@ -78,6 +78,10 @@ solana-clock-sysvar-web3:
 solana-rent-sysvar-web3:
     scripts/solana/rent-sysvar-web3-smoke.sh
 
+# Run a live Solana EpochSchedule sysvar smoke on Surfpool with Web3.js.
+solana-epoch-schedule-sysvar-web3:
+    scripts/solana/epoch-schedule-sysvar-web3-smoke.sh
+
 # Run a live Solana memory syscall smoke on Surfpool with Web3.js.
 solana-memory-web3:
     scripts/solana/memory-web3-smoke.sh

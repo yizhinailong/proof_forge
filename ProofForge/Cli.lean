@@ -62,6 +62,7 @@ import ProofForge.Solana.Examples.SplTokenOpsCpi
 import ProofForge.Solana.Examples.LogEvent
 import ProofForge.Solana.Examples.Clock
 import ProofForge.Solana.Examples.Rent
+import ProofForge.Solana.Examples.EpochSchedule
 import ProofForge.Solana.Examples.Memory
 import ProofForge.Solana.Examples.Crypto
 
@@ -164,6 +165,7 @@ inductive EmitMode where
   | solanaLogEventElf
   | solanaClockSysvarElf
   | solanaRentSysvarElf
+  | solanaEpochScheduleSysvarElf
   | solanaMemoryElf
   | solanaCryptoHashElf
   | sbpfAsm
@@ -274,6 +276,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaLogEventElf
   | .solanaClockSysvarElf
   | .solanaRentSysvarElf
+  | .solanaEpochScheduleSysvarElf
   | .solanaMemoryElf
   | .solanaCryptoHashElf
   | .sbpfAsm => true
@@ -383,6 +386,7 @@ def usage : String :=
     "  proof-forge --solana-log-event-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-clock-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-rent-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-epoch-schedule-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-memory-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-crypto-hash-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
@@ -1947,6 +1951,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaClockSysvarElf }
   | "--solana-rent-sysvar-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaRentSysvarElf }
+  | "--solana-epoch-schedule-sysvar-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaEpochScheduleSysvarElf }
   | "--solana-memory-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaMemoryElf }
   | "--solana-crypto-hash-elf" :: rest, opts =>
@@ -3208,6 +3214,13 @@ def compileSolanaRentSysvarElf (opts : CliOptions) : IO UInt32 :=
     "solana-rent-sysvar-elf"
     ProofForge.Solana.Examples.Rent.spec
 
+def compileSolanaEpochScheduleSysvarElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/EpochSchedule.so")
+    "epoch-schedule-sysvar"
+    "solana-epoch-schedule-sysvar-elf"
+    ProofForge.Solana.Examples.EpochSchedule.spec
+
 def compileSolanaMemoryElf (opts : CliOptions) : IO UInt32 :=
   compileSolanaSpecElf opts
     (FilePath.mk "build/solana/Memory.so")
@@ -3366,6 +3379,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaLogEventElf => compileSolanaLogEventElf opts
   | .solanaClockSysvarElf => compileSolanaClockSysvarElf opts
   | .solanaRentSysvarElf => compileSolanaRentSysvarElf opts
+  | .solanaEpochScheduleSysvarElf => compileSolanaEpochScheduleSysvarElf opts
   | .solanaMemoryElf => compileSolanaMemoryElf opts
   | .solanaCryptoHashElf => compileSolanaCryptoHashElf opts
   | .sbpfAsm => compileSbpfAsm opts

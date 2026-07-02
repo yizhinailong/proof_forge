@@ -2,6 +2,7 @@ import ProofForge.Backend.Solana.Package
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Solana.Examples.Clock
 import ProofForge.Solana.Examples.Rent
+import ProofForge.Solana.Examples.EpochSchedule
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
 
@@ -99,6 +100,50 @@ def main : IO UInt32 := do
         "assembly missing rent sysvar state write"
   | .error err =>
       throw <| IO.userError s!"Solana rent sysvar package render failed: {err.render}"
+
+  let epochScheduleSpec := ProofForge.Solana.Examples.EpochSchedule.spec
+  let epochSchedulePlan ←
+    match resolveSpec solanaSbpfAsm epochScheduleSpec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError s!"Solana epoch schedule sysvar routing failed: {err.render}"
+
+  require (hasCapability epochSchedulePlan .envBlock)
+    "Solana epoch schedule sysvar plan missing env.block capability"
+  require (hasCapability epochSchedulePlan .storageScalar)
+    "Solana epoch schedule sysvar plan missing storage.scalar capability"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec "solana-epoch-schedule-sysvar" epochScheduleSpec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "epoch schedule sysvar package missing sBPF assembly"
+      let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
+        | throw <| IO.userError "epoch schedule sysvar package missing manifest.toml"
+      let asm := asmFile.contents
+      let manifest := manifestFile.contents
+      require (contains manifest "name = \"record_epoch_schedule\"")
+        "epoch schedule sysvar manifest missing record_epoch_schedule entrypoint"
+      require (contains manifest "[[solana.entrypoint_sysvar]]")
+        "epoch schedule sysvar manifest missing entrypoint sysvar action"
+      require (contains manifest "sysvar = \"read_epoch_schedule\"")
+        "epoch schedule sysvar manifest missing read_epoch_schedule action"
+      require (contains manifest "kind = \"epoch_schedule\"")
+        "epoch schedule sysvar manifest missing epoch_schedule kind"
+      require (contains manifest "field = \"slots_per_epoch\"")
+        "epoch schedule sysvar manifest missing slots_per_epoch field"
+      require (contains manifest "output_state = \"slots_per_epoch\"")
+        "epoch schedule sysvar manifest missing slots_per_epoch output state"
+      require (contains asm "solana.sysvar.epoch_schedule read_epoch_schedule: field=slots_per_epoch")
+        "assembly missing epoch schedule sysvar marker"
+      require (contains asm "call sol_get_epoch_schedule_sysvar")
+        "assembly missing sol_get_epoch_schedule_sysvar syscall"
+      require (contains asm "error_sysvar")
+        "assembly missing epoch schedule sysvar failure branch"
+      require (contains asm ".equ SLOTS_PER_EPOCH_DATA")
+        "assembly missing slots_per_epoch offset symbol"
+      require (contains asm "stxdw [r5+0], r3")
+        "assembly missing epoch schedule sysvar state write"
+  | .error err =>
+      throw <| IO.userError s!"Solana epoch schedule sysvar package render failed: {err.render}"
 
   IO.println "solana-sysvars: ok"
   return 0
