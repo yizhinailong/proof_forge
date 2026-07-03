@@ -1289,7 +1289,11 @@ shell/Node harness；参见
   `Examples/WasmNear/Counter.golden.wat`，并让同一个 Counter scenario 通过
   `matches_file` 断言生成的 EmitWat 输出，因此 Counter 现在已经对
   `wasm-near`、`evm` 和 `solana-sbpf-asm` 都具备 scenario-declared source
-  equality。
+  equality。当前 ValueVault Wasm/NEAR golden 切片新增
+  `Examples/WasmNear/ValueVault.golden.wat`，并让
+  `testkit/scenarios/value-vault.toml` 通过 `matches_file` 断言生成的 EmitWat
+  输出；它的 EVM Yul 与 Solana sBPF/manifest artifact 仍保留为
+  scenario-declared source-shape 检查，等完整快照稳定后再升级。
 
 验收标准：
 

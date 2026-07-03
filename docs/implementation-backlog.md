@@ -2073,7 +2073,12 @@ Tasks (one milestone per implementing branch):
   Wasm/NEAR golden slice adds `Examples/WasmNear/Counter.golden.wat` and makes
   the same Counter scenario assert generated EmitWat output through
   `matches_file`, so Counter now has scenario-declared source equality for
-  `wasm-near`, `evm`, and `solana-sbpf-asm`.
+  `wasm-near`, `evm`, and `solana-sbpf-asm`. The current ValueVault
+  Wasm/NEAR golden slice adds `Examples/WasmNear/ValueVault.golden.wat` and
+  makes `testkit/scenarios/value-vault.toml` assert generated EmitWat output
+  through `matches_file`, while its EVM Yul and Solana sBPF/manifest artifacts
+  remain scenario-declared source-shape checks until their full snapshots are
+  reviewed.
 
 Acceptance criteria:
 

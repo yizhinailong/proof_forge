@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit Wasm ValueVault Golden
+
+Commit: feature commit for unified testkit Wasm ValueVault golden
+
+Summary:
+
+- Added `Examples/WasmNear/ValueVault.golden.wat` as the portable ValueVault
+  WAT golden for the `wasm-near` EmitWat path.
+- Upgraded `testkit/scenarios/value-vault.toml` so its `wasm-near` artifact
+  checks full generated-source equality through `matches_file`, while keeping
+  focused substring checks for important imports, exports, and event logging.
+- ValueVault now has scenario-declared Wasm/NEAR WAT source equality in the
+  unified testkit; its EVM Yul and Solana sBPF/manifest artifacts still use
+  source-shape checks until their full golden snapshots are reviewed.
+
+Validation run:
+
+```sh
+lake env lean --run Tests/EmitWatValueVault.lean
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml --workspace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target wasm-near
+just testkit
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- ValueVault EVM Yul and Solana sBPF/manifest comparisons are still
+  scenario-declared source-shape checks instead of complete golden equality.
+- Local `just testkit` skips the ValueVault EVM runtime branch when Foundry
+  `cast` is unavailable; CI covers that branch with Foundry installed.
+
+Next step:
+
+- Add full ValueVault source goldens for EVM Yul and Solana sBPF/manifest once
+  their emitted artifacts are stable enough to review as snapshots.
+
 ### Unified Testkit Wasm Counter Golden
 
 Commit: feature commit for unified testkit Wasm Counter golden

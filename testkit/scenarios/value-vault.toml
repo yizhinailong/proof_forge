@@ -7,6 +7,7 @@ capabilities = ["storage.scalar", "entrypoint.external", "events.emit", "env.blo
 [[artifact]]
 target = "wasm-near"
 name = "wat"
+matches_file = "Examples/WasmNear/ValueVault.golden.wat"
 contains = [
   '(import "env" "block_index"',
   '(func $deposit (export "deposit")',
