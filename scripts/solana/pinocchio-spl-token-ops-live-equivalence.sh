@@ -48,38 +48,8 @@ BURN_AMOUNT="${PROOF_FORGE_SOLANA_TOKEN_BURN_AMOUNT:-75000000}"
 APPROVE_AMOUNT="${PROOF_FORGE_SOLANA_TOKEN_APPROVE_AMOUNT:-333000000}"
 SURFPOOL_PID=""
 
-fail() { echo "FAIL: $1" >&2; exit 1; }
-skip() { echo "SKIP: $1" >&2; exit 2; }
-
-rustupCargoAvailable() {
-  [ -x "$HOME/.cargo/bin/cargo" ] &&
-    PATH="$HOME/.cargo/bin:$PATH" cargo +"$SOLANA_RUSTUP_TOOLCHAIN" --version >/dev/null 2>&1
-}
-
-printSbfToolchainHint() {
-  cat >&2 <<EOF
-Pinocchio reference SBF build needs Solana rustc/platform-tools.
-Suggested repair:
-  PATH="\$HOME/.cargo/bin:\$PATH" cargo-build-sbf --install-only --force-tools-install --tools-version v1.52
-Then rerun:
-  PROOF_FORGE_PINOCCHIO_USE_RUSTUP=1 scripts/solana/pinocchio-spl-token-ops-live-equivalence.sh
-EOF
-}
-
-cleanup() {
-  if [ -n "$SURFPOOL_PID" ] && kill -0 "$SURFPOOL_PID" >/dev/null 2>&1; then
-    kill "$SURFPOOL_PID" >/dev/null 2>&1 || true
-    for _ in $(seq 1 10); do
-      if ! kill -0 "$SURFPOOL_PID" >/dev/null 2>&1; then
-        wait "$SURFPOOL_PID" >/dev/null 2>&1 || true
-        return
-      fi
-      sleep 1
-    done
-    kill -9 "$SURFPOOL_PID" >/dev/null 2>&1 || true
-    wait "$SURFPOOL_PID" >/dev/null 2>&1 || true
-  fi
-}
+PINOCCHIO_LIVE_SCRIPT="scripts/solana/pinocchio-spl-token-ops-live-equivalence.sh"
+. "$REPO_ROOT/scripts/solana/pinocchio-live-common.sh"
 trap cleanup EXIT
 
 command -v lake >/dev/null 2>&1 || fail "lake not on PATH"
@@ -106,44 +76,7 @@ lake env proof-forge emit --target solana-sbpf-asm --fixture spl-token-ops-cpi -
 [ -f "$PROOF_FORGE_ARTIFACT" ] || fail "ProofForge artifact not produced: $PROOF_FORGE_ARTIFACT"
 
 echo "=== Pinocchio SPL Token ops live equivalence step 2: build Pinocchio reference ELF ==="
-use_no_rustup_override=0
-case "${PROOF_FORGE_PINOCCHIO_USE_RUSTUP:-auto}" in
-  1|true|yes|auto)
-    if rustupCargoAvailable; then
-      export PATH="$HOME/.cargo/bin:$PATH"
-      echo "  using rustup Solana toolchain: $SOLANA_RUSTUP_TOOLCHAIN"
-    elif [ "${PROOF_FORGE_PINOCCHIO_USE_RUSTUP:-auto}" = "auto" ]; then
-      use_no_rustup_override=1
-      echo "  rustup Solana toolchain unavailable; trying PATH rustc with --no-rustup-override"
-    else
-      printSbfToolchainHint
-      skip "rustup Solana toolchain unavailable: $SOLANA_RUSTUP_TOOLCHAIN"
-    fi
-    ;;
-  0|false|no)
-    use_no_rustup_override=1
-    ;;
-  *)
-    fail "invalid PROOF_FORGE_PINOCCHIO_USE_RUSTUP value: ${PROOF_FORGE_PINOCCHIO_USE_RUSTUP:-}"
-    ;;
-esac
-buildPinocchioReference() {
-  if [ "$use_no_rustup_override" = "1" ]; then
-    "$CARGO_BUILD_SBF_BIN" --no-rustup-override \
-      --manifest-path "$REFERENCE_DIR/Cargo.toml" \
-      --no-default-features \
-      --features bpf-entrypoint \
-      --sbf-out-dir "$PINOCCHIO_BUILD_DIR" \
-      --arch "$SBPF_ARCH"
-  else
-    "$CARGO_BUILD_SBF_BIN" \
-      --manifest-path "$REFERENCE_DIR/Cargo.toml" \
-      --no-default-features \
-      --features bpf-entrypoint \
-      --sbf-out-dir "$PINOCCHIO_BUILD_DIR" \
-      --arch "$SBPF_ARCH"
-  fi
-}
+selectPinocchioSbfBuildMode
 if ! buildPinocchioReference \
     > "$OUT_DIR/pinocchio-build.stdout.log" \
     2> "$OUT_DIR/pinocchio-build.stderr.log"; then
@@ -154,9 +87,7 @@ if ! buildPinocchioReference \
   printSbfToolchainHint
   skip "Pinocchio reference SBF build failed"
 fi
-PINOCCHIO_BUILT_ELF="$(find "$PINOCCHIO_BUILD_DIR" -maxdepth 1 -type f -name '*.so' | head -n 1)"
-[ -n "$PINOCCHIO_BUILT_ELF" ] || fail "Pinocchio ELF not found in $PINOCCHIO_BUILD_DIR"
-cp "$PINOCCHIO_BUILT_ELF" "$PINOCCHIO_ELF"
+copyPinocchioReferenceElf "$PINOCCHIO_ELF"
 
 echo "=== Pinocchio SPL Token ops live equivalence step 3: generate local keypairs ==="
 "$KEYGEN" new --no-bip39-passphrase --silent -o "$PAYER_KEYPAIR" --force \

@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Solana Pinocchio Live Harness Shared Helper
+
+Commit: feature commit for Pinocchio live harness hardening
+
+Summary:
+
+- Added a shared `scripts/solana/pinocchio-live-common.sh` helper for the five
+  Pinocchio live dual-deploy harnesses.
+- Centralized Solana rustup/toolchain detection, `cargo-build-sbf` invocation,
+  SBF repair hints, Pinocchio ELF discovery, skip/fail handling, and Surfpool
+  cleanup.
+- Kept each harness-specific fixture, port, deployment, Web3.js scenario, and
+  result comparison local to the existing live script.
+
+Validation run:
+
+```sh
+bash -n scripts/solana/pinocchio-live-common.sh scripts/solana/pinocchio-*-live-equivalence.sh
+just solana-pinocchio-reference-equivalence
+SURFPOOL=/nonexistent-proof-forge-surfpool scripts/solana/pinocchio-system-transfer-live-equivalence.sh
+```
+
+Known limitations:
+
+- This hardens the live harness implementation path but does not make the live
+  dual-deploy gates mandatory in CI yet; that still depends on stable Solana
+  rustc/platform-tools, Surfpool, Solana CLI, `sbpf`, Node, and npm
+  availability in the runner.
+
+Next step:
+
+- Add a CI/profiled live-equivalence lane once the Solana SBF toolchain install
+  path is deterministic enough for GitHub Actions, then extend reference
+  coverage toward Token-2022.
+
 ### Gate G0 Closed
 
 Commit: documentation sign-off commit
