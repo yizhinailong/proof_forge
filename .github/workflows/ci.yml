@@ -247,3 +247,43 @@ jobs:
 
       - name: Run TypeScript / Cloudflare Workers smoke
         run: ./scripts/ts/counter-ir-smoke.sh
+
+  cosmwasm-smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just@1.48.0
+
+      - name: Install Lean
+        run: |
+          toolchain="$(cat lean-toolchain)"
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain "$toolchain"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Install wabt (wat2wasm)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wabt
+          wat2wasm --version
+
+      - name: Install cosmwasm-check
+        run: |
+          cargo install cosmwasm-check
+          cosmwasm-check --version
+
+      - name: Build proof-forge
+        run: just build
+
+      - name: Run CosmWasm Counter smoke
+        run: just cosmwasm-counter-smoke
