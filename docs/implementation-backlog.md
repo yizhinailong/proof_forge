@@ -2376,7 +2376,11 @@ starts as an RFC, not code; sequencing hooks are listed in the gap doc.
     a `PF:{id}:{code}` prefix. ✅ Implemented.
   - M3: Extend testkit schema and harnesses with `expect.error` so a
     scenario step can assert the exact `assertion_id`/`user_code` on
-    failure.
+    failure. ✅ Implemented: `testkit/scenarios/error-ref.toml` verifies
+    assertion ids across `wasm-near`, `evm`, and `solana-sbpf-asm`; the
+    `error-ref-user-code` scenario additionally asserts exact EVM/NEAR
+    `user_code` values. Solana intentionally remains assertion-id only because
+    its runtime encoding is `ProgramError::Custom(assertion_id)`.
   - M4: Define target-neutral `ContractSpec` JSON schema and generate
     Solana IDL/client, EVM ABI wrapper, and NEAR wrapper sketches from it.
 

@@ -7757,3 +7757,30 @@ Result:
 
 - Target adapter build, upgrade-policy smoke, and target library build passed
   locally before the full repo validation pass.
+
+### Testkit Runtime Error Expectations
+
+Commit: pending
+
+Summary:
+
+- Added `testkit/scenarios/error-ref-user-code.toml`, a focused EVM +
+  Wasm-NEAR scenario that reuses the portable `error-ref` fixture and asserts
+  exact `assertion_id` plus `user_code` values for both failing entrypoints.
+- Kept Solana in the existing three-target `error-ref` scenario as
+  assertion-id-only, matching its runtime encoding as
+  `ProgramError::Custom(assertion_id)`.
+- Updated the Workstream 33 backlog status so M3 is recorded as implemented
+  with testkit evidence.
+
+Validation run:
+
+```sh
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario error-ref-user-code --trace
+```
+
+Result:
+
+- EVM and Wasm-NEAR both reported and matched `Counter::Overflow` and
+  `Counter::ExactMatch` user codes.
+- The two-target normalized trace parity check passed.
