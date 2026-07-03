@@ -61,6 +61,7 @@ DOC_MAP: dict[str, str] = {
     "README.md": "docs/zh/README-root.zh.md",
     "CONTRIBUTING.md": "docs/zh/CONTRIBUTING.zh.md",
     "docs/INDEX.md": "docs/zh/INDEX.zh.md",
+    "docs/gate-status.md": "docs/zh/gate-status.zh.md",
     "docs/decisions.md": "docs/zh/decisions.zh.md",
     "docs/capability-registry.md": "docs/zh/capability-registry.zh.md",
     "docs/portable-ir.md": "docs/zh/portable-ir.zh.md",

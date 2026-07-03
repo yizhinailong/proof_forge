@@ -40,6 +40,27 @@ budget-as-gate quality signal.
 | `aleo-leo` | Research spike per D-032; continues on its own track |
 | `wasm-cloudflare-workers` | Off-chain host demo (D-033); no expansion planned |
 
+### Tier-0 completion checklist (D-044, current focus)
+
+The three priority targets are not yet "fully OK". **Implementation priority:
+`solana-sbpf-asm` → `evm` → `wasm-near`.** No new-chain advancement (Tier 1
+M3/M4/registry stage, Tier 2 start) until the items below are all green. Per-gate
+status is tracked in [gate-status.md](gate-status.md).
+
+| Item | Target | Status | Owner |
+|---|---|---|---|
+| Counter behavior parity (3 targets) | all | ✅ met | testkit |
+| ValueVault behavior parity (3 targets) | all | ✅ met | testkit |
+| Counter budgets `solana_cu`/`evm_gas` | solana, evm | ✅ met | testkit scenarios |
+| NEAR gas budget implementation | wasm-near | ❌ missing | harness-near + RFC 0010 |
+| ValueVault budget baselines (3 targets) | all | ❌ missing | testkit scenarios |
+| EVM semantic-plan migration | evm | 🟡 in progress | Workstream 3 |
+| Solana Pinocchio CI equivalence | solana | 🟡 in progress | Workstream 7 |
+
+The roadmap text above describes NEAR gas as an "info-only proxy"; D-040 makes
+all three budgets a required part of the gate, so NEAR gas must move from
+info-only to a real budget assertion to close Gate G0.
+
 ## Tier 1 — next two targets
 
 ### 1a. `wasm-cosmwasm` — the EmitWat generality proof
@@ -57,6 +78,10 @@ spike. The consolidation strengthened the case — EmitWat now exists, and
 - Milestones: M1 host-import + region ABI in EmitWat; M2 Counter artifact
   passes `cosmwasm-check`; M3 testkit scenario green + cross-target
   equivalence vs `wasm-near`; M4 registry stage → Experimental.
+
+**Frozen at M2 (D-044):** the landed CosmWasm Counter spike (WAT emitter +
+smoke + VM lifecycle) does not advance to M3/M4/registry stage until Gate G0
+closes (Tier-0 completion checklist above).
 
 Exit meaning: if the same EmitWat core serves two Wasm hosts with only
 import/ABI adapters swapped, the Wasm-family architecture claim is proven,
@@ -92,6 +117,11 @@ design dependency.
   state, entrypoints, events); M2 `aptos move test` gate + golden fixture;
   M3 testkit integration (CLI-wrapped executor); M4 capability matrix row
   flips from planned to validated; Sui follows only after Aptos exits.
+
+**Frozen at M2 (D-044):** the landed Aptos Move Counter sourcegen spike
+(printer + golden + `aptos move compile/test` gate + state-id fidelity B1)
+does not advance to M3 (testkit integration) or M4 (capability row validated /
+`move-sui` start) until Gate G0 closes.
 
 ## Tier 2 — conditional targets (enabler listed per target)
 
