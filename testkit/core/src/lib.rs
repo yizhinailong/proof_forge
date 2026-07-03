@@ -236,6 +236,12 @@ pub struct Expectation {
     pub return_value: Option<ReturnExpectation>,
     #[serde(default, rename = "return")]
     pub return_: Option<ReturnExpectation>,
+    #[serde(default)]
+    pub allocations: Option<u64>,
+    #[serde(default)]
+    pub reuses: Option<u64>,
+    #[serde(default)]
+    pub deallocations: Option<u64>,
 }
 
 impl Expectation {
@@ -264,6 +270,9 @@ pub struct CallOutcome {
     pub return_u64: Option<u64>,
     pub return_u32: Option<u32>,
     pub return_bool: Option<bool>,
+    pub allocations: Option<u64>,
+    pub reuses: Option<u64>,
+    pub deallocations: Option<u64>,
     pub raw_line: String,
 }
 
@@ -1352,6 +1361,36 @@ pub fn assert_expectations(case: &ScenarioCase, outcomes: &[CallOutcome]) -> Res
                         outcome,
                     )?;
                 }
+                if let Some(expected) = expect.allocations {
+                    ensure!(
+                        outcome.allocations == Some(expected),
+                        "scenario `{}` call `{}` expected allocations={}, got {:?}",
+                        case.manifest.scenario.name,
+                        step.call,
+                        expected,
+                        outcome.allocations
+                    );
+                }
+                if let Some(expected) = expect.reuses {
+                    ensure!(
+                        outcome.reuses == Some(expected),
+                        "scenario `{}` call `{}` expected reuses={}, got {:?}",
+                        case.manifest.scenario.name,
+                        step.call,
+                        expected,
+                        outcome.reuses
+                    );
+                }
+                if let Some(expected) = expect.deallocations {
+                    ensure!(
+                        outcome.deallocations == Some(expected),
+                        "scenario `{}` call `{}` expected deallocations={}, got {:?}",
+                        case.manifest.scenario.name,
+                        step.call,
+                        expected,
+                        outcome.deallocations
+                    );
+                }
             }
             index += 1;
         }
@@ -1625,6 +1664,9 @@ pub fn parse_offline_host_outcomes(stdout: &str) -> Result<Vec<CallOutcome>> {
             return_u64: None,
             return_u32: None,
             return_bool: None,
+            allocations: None,
+            reuses: None,
+            deallocations: None,
             raw_line: line.to_string(),
         };
         for token in details.split_whitespace() {
@@ -1641,6 +1683,9 @@ pub fn parse_offline_host_outcomes(stdout: &str) -> Result<Vec<CallOutcome>> {
                 "return_u64" => outcome.return_u64 = Some(value.parse()?),
                 "return_u32" => outcome.return_u32 = Some(value.parse()?),
                 "return_bool" => outcome.return_bool = Some(value.parse()?),
+                "allocations" => outcome.allocations = Some(value.parse()?),
+                "reuses" => outcome.reuses = Some(value.parse()?),
+                "deallocations" => outcome.deallocations = Some(value.parse()?),
                 _ => {}
             }
         }
@@ -1726,6 +1771,9 @@ mod tests {
                 1 => Some(true),
                 _ => None,
             }),
+            allocations: None,
+            reuses: None,
+            deallocations: None,
             raw_line: String::new(),
         }
     }

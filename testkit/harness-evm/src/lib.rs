@@ -364,6 +364,9 @@ fn outcome_from_output(sequence: u32, call: &str, output: &[u8]) -> CallOutcome 
         return_u64,
         return_u32,
         return_bool,
+        allocations: None,
+        reuses: None,
+        deallocations: None,
         raw_line,
     }
 }

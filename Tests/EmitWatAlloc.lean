@@ -24,4 +24,5 @@ def main : IO UInt32 := do
   let r3 ← render emitWatSumMinimalMallocModule "emitwat-alloc-minimal.wat"
   let r4 ← render emitWatSumNearAllocatorModule "emitwat-alloc-near.wat"
   let r5 ← render emitWatReleaseMinimalMallocModule "emitwat-release-minimal.wat"
-  if r1 == 0 && r2 == 0 && r3 == 0 && r4 == 0 && r5 == 0 then pure 0 else pure 1
+  let r6 ← render emitWatReleaseExternalModule "emitwat-release-external.wat"
+  if r1 == 0 && r2 == 0 && r3 == 0 && r4 == 0 && r5 == 0 && r6 == 0 then pure 0 else pure 1

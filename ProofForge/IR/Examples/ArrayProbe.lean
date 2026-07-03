@@ -132,6 +132,12 @@ def emitWatSumJemallocModule : Module := {
   entrypoints := #[sumLiteral],
   allocator := ProofForge.IR.AllocatorConfig.hostJemallocShape
 }
+def emitWatReleaseExternalModule : Module := {
+  name := "ArrayProbe",
+  state := #[],
+  entrypoints := #[releaseThenSum],
+  allocator := ProofForge.IR.AllocatorConfig.hostJemallocShape
+}
 
 
 def module : Module := {

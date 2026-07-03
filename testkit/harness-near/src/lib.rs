@@ -96,6 +96,12 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<PathBuf> {
             "ValueVault",
             "build/wasm-near/emitwat-value-vault.wat",
         ),
+        "alloc-release" => emit_wat_fixture(
+            repo_root,
+            "Tests/EmitWatAlloc.lean",
+            "ArrayProbe",
+            "build/wasm-near/emitwat-release-external.wat",
+        ),
         fixture => bail!("wasm-near testkit harness does not support fixture `{fixture}` yet"),
     }
 }

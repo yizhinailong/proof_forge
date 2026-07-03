@@ -483,6 +483,9 @@ fn outcome_from_return_data(sequence: u32, call: &str, return_data: &[u8]) -> Ca
         return_u64,
         return_u32,
         return_bool,
+        allocations: None,
+        reuses: None,
+        deallocations: None,
         raw_line,
     }
 }
