@@ -37,6 +37,30 @@ receive CI/security maintenance, but no additional chain should advance its
 registry stage, capability surface, testkit harness, or CI coverage before Gate
 P0 closes.
 
+## Review disposition (2026-07-04)
+
+A July 2026 architecture/product review raised six risks. The current backlog
+disposition is:
+
+| Review item | Current disposition | Backlog action |
+|---|---|---|
+| R1: RFC 0009 and D-039 lagged behind the landed CLI M1 work | Closed on current `main`: RFC 0009 is accepted with M1 landed, and D-039 now ratifies the compatibility-layer implementation instead of claiming a pre-code freeze | Keep RFC 0009 and CLI migration docs synchronized as M3/M4 moves scripts and testkit from legacy flags to target-first commands |
+| R2: too many half-finished workstreams are active | Accepted as a planning risk | Do not open more chain implementation scope before Gate P0 closes; focus the active implementation lane on NEAR/Wasm P0-3, then finish CLI M3/M4 cleanup |
+| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, NEAR trace obligations, and EVM FV-4 executable Yul trace anchors exist, but full IR-to-artifact semantic preservation is not done | After P0-3, extend FV-2 IR semantics for maps, arrays, structs, and aggregates, then connect those IR traces to the EVM/NEAR artifact obligations |
+| R4: capability granularity is too coarse | Do not churn capability ids in the current phase; storage is already split into scalar/map/array/PDA, and Solana account semantics are modeled separately from storage patterns | Treat cross-target runtime differences as budget/diagnostic obligations: each target must reject unsupported shapes explicitly and pin resource budgets for supported ones |
+| R5: docs-first target notes create hidden sunk cost | Closed at the scheduling layer: D-045 and the target roadmap restrict product hardening to `solana-sbpf-asm`, `evm`, and `wasm-near`; other targets are maintenance-only, frozen, or docs-only parked | Keep research notes as inventory, but block registry stage, capability-surface, testkit, and CI expansion for non-primary targets until Gate P0 closes |
+| R6: Lean/toolchain onboarding friction | Partially closed: `docs/onboarding.md` exists and names the core toolchain and per-target tools, but editor workspace config, templates, and scaffolding remain open DX work | Add VS Code/Cursor workspace recommendations and a minimal project template after the NEAR/Wasm P0-3 closure, unless onboarding friction blocks P0 work earlier |
+
+The immediate engineering order after this review is therefore:
+
+1. Close NEAR/Wasm P0-3 with target-first local execution and deploy metadata
+   evidence.
+2. Finish the CLI M3/M4 migration from legacy flags to target-first invocations.
+3. Resume formal verification work by extending FV-2 IR semantics and connecting
+   it to the existing EVM/NEAR trace obligations.
+4. Address the remaining DX items (`.vscode` recommendations, project template,
+   and scaffolding) once they no longer compete with the P0 closure.
+
 ## Workstream 1: Target Registry
 
 Goal: make target selection explicit before adding more backends.

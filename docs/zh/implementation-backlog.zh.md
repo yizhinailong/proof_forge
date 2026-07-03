@@ -32,6 +32,26 @@
 可以做 CI/安全维护，但在 Gate P0 关闭前，不应推进任何额外链的 registry stage、
 能力表面、testkit harness 或 CI 覆盖。
 
+## 评审处置（2026-07-04）
+
+2026 年 7 月的架构/产品评审提出了六项风险。当前 backlog 的处置如下：
+
+| 评审项 | 当前处置 | Backlog 动作 |
+|---|---|---|
+| R1：RFC 0009 和 D-039 滞后于已经落地的 CLI M1 工作 | 当前 `main` 已关闭：RFC 0009 已标记为 Accepted，并说明 M1 已落地；D-039 也已经改为追认 compatibility-layer 实现，而不是宣称代码前冻结 | 随着 M3/M4 把脚本和 testkit 从 legacy flags 迁到 target-first 命令，持续同步 RFC 0009 和 CLI 迁移文档 |
+| R2：同时存在过多半成品工作流 | 接受为排期风险 | Gate P0 关闭前不打开更多链实现范围；当前实现主线集中到 NEAR/Wasm P0-3，之后再完成 CLI M3/M4 清理 |
+| R3：尚无端到端证明把用户不变量连接到生成制品 | 部分接受：已有源级证明、NEAR trace obligations、EVM FV-4 可执行 Yul trace anchors，但完整 IR-to-artifact 语义保持还没有完成 | P0-3 后扩展 FV-2 IR 语义，覆盖 maps、arrays、structs 和 aggregates，再把这些 IR trace 连接到现有 EVM/NEAR 制品义务 |
+| R4：capability 粒度太粗 | 当前阶段不 churn capability id；storage 已经拆成 scalar/map/array/PDA，Solana account 语义也已与 storage pattern 分离建模 | 把跨目标运行时差异交给预算和诊断义务：每个 target 必须显式拒绝不支持形状，并为支持形状锁定资源预算 |
+| R5：docs-first target notes 形成隐藏沉没成本 | 排期层面已关闭：D-045 和 target roadmap 把产品硬化限制在 `solana-sbpf-asm`、`evm`、`wasm-near`；其他目标是 maintenance-only、frozen 或 docs-only parked | 保留 research notes 作为库存，但在 Gate P0 关闭前阻止非主目标推进 registry stage、capability surface、testkit 和 CI 扩展 |
+| R6：Lean/工具链入门摩擦 | 部分关闭：`docs/onboarding.md` 已存在并列出核心工具链和各目标工具；但 editor workspace config、templates 和 scaffolding 仍是开放 DX 工作 | 在 NEAR/Wasm P0-3 关闭后补 VS Code/Cursor workspace recommendations 和最小项目模板，除非入门摩擦提前阻塞 P0 工作 |
+
+因此，这次评审之后的直接工程顺序是：
+
+1. 关闭 NEAR/Wasm P0-3：补齐 target-first 本地执行和部署元数据证据。
+2. 完成 CLI M3/M4：把 legacy flags 迁移到 target-first 调用。
+3. 继续形式化验证：扩展 FV-2 IR 语义，并连接到现有 EVM/NEAR trace obligations。
+4. 处理剩余 DX 项：`.vscode` recommendations、项目模板和脚手架；前提是它们不与 P0 关闭抢资源。
+
 ## 工作流 1：目标注册表
 
 目标：在添加更多后端之前使目标选择显式化。
