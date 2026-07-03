@@ -2069,7 +2069,11 @@ Tasks (one milestone per implementing branch):
   The current EVM golden slice adds `Examples/Evm/Counter.golden.yul` as the
   portable IR Counter Yul golden and makes `testkit/scenarios/counter.toml`
   assert the generated EVM Yul through `matches_file`; the older Lean SDK
-  contract golden stays under `Examples/Evm/Contracts/`.
+  contract golden stays under `Examples/Evm/Contracts/`. The current
+  Wasm/NEAR golden slice adds `Examples/WasmNear/Counter.golden.wat` and makes
+  the same Counter scenario assert generated EmitWat output through
+  `matches_file`, so Counter now has scenario-declared source equality for
+  `wasm-near`, `evm`, and `solana-sbpf-asm`.
 
 Acceptance criteria:
 

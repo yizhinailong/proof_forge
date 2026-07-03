@@ -5,6 +5,11 @@ targets = ["wasm-near", "evm", "solana-sbpf-asm"]
 capabilities = ["storage.scalar", "entrypoint.external"]
 
 [[artifact]]
+target = "wasm-near"
+name = "wat"
+matches_file = "Examples/WasmNear/Counter.golden.wat"
+
+[[artifact]]
 target = "solana-sbpf-asm"
 name = "sbpf-asm"
 matches_file = "Examples/Solana/Counter.golden.s"

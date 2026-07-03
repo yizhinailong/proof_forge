@@ -1285,7 +1285,11 @@ shell/Node harness；参见
   当前 EVM golden 切片新增 `Examples/Evm/Counter.golden.yul` 作为 portable
   IR Counter 的 Yul golden，并让 `testkit/scenarios/counter.toml` 通过
   `matches_file` 断言生成的 EVM Yul 源码；旧 Lean SDK contract golden
-  仍保留在 `Examples/Evm/Contracts/` 下。
+  仍保留在 `Examples/Evm/Contracts/` 下。当前 Wasm/NEAR golden 切片新增
+  `Examples/WasmNear/Counter.golden.wat`，并让同一个 Counter scenario 通过
+  `matches_file` 断言生成的 EmitWat 输出，因此 Counter 现在已经对
+  `wasm-near`、`evm` 和 `solana-sbpf-asm` 都具备 scenario-declared source
+  equality。
 
 验收标准：
 

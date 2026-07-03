@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit Wasm Counter Golden
+
+Commit: feature commit for unified testkit Wasm Counter golden
+
+Summary:
+
+- Added `Examples/WasmNear/Counter.golden.wat` as the portable IR Counter WAT
+  golden for the `wasm-near` EmitWat path.
+- Moved the `wasm-near` Counter WAT equality check into
+  `testkit/scenarios/counter.toml` through a scenario-declared
+  `[[artifact]]` `matches_file` expectation.
+- Counter now has target-source golden equality in the unified testkit for all
+  three priority targets: `wasm-near` WAT, `evm` Yul, and
+  `solana-sbpf-asm` assembly plus manifest.
+
+Validation run:
+
+```sh
+lake env lean --run Tests/EmitWatSmoke.lean
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml --workspace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --target wasm-near
+just testkit
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- ValueVault still uses scenario-declared WAT/Yul substring checks because it
+  does not yet have committed portable-source goldens.
+
+Next step:
+
+- Add source goldens for ValueVault once its cross-target emitted source shape
+  is stable enough to review as a snapshot.
+
 ### Unified Testkit EVM Counter Golden
 
 Commit: feature commit for unified testkit EVM Counter golden
