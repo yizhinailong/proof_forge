@@ -21,6 +21,7 @@ Process: proposals start as Draft, move to **Accepted** when recorded in
 | [0008](0008-allocator-abstraction.md) | Draft | Chain-decoupled allocator abstraction across EVM, Solana, and NEAR |
 | [0009](0009-cli-product-surface.md) | Draft | CLI product surface: `build|emit|check --target <id> --fixture <id>` |
 | [0010](0010-resource-budgets-as-gates.md) | Draft | Resource budgets as testkit gates (gas / CU / near-gas) |
+| [0011](0011-runtime-error-model-and-client-generation.md) | Draft | Portable runtime error model + unified client generation |
 
 ## Related
 
