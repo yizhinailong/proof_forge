@@ -1,8 +1,10 @@
 import ProofForge.Contract.Builder
+import ProofForge.Contract.Client
 import ProofForge.Contract.Examples
 import ProofForge.Contract.Intent
 import ProofForge.Contract.Learn
 import ProofForge.Contract.Spec
+import ProofForge.Contract.Spec.Json
 import ProofForge.Contract.Source
 import ProofForge.Contract.Surface
 import ProofForge.Contract.Token
