@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-03
 
+### EVM ValueVault Executable Yul Trace Obligation
+
+Commit: feature commit for FV-4 ValueVault executable Yul trace obligation
+
+Summary:
+
+- Extended `ProofForge.IR.Semantics` with entrypoint argument binding, U32/U64
+  `sub`/`mul`/`div`/`mod`, `checkpointId`, and event field evaluation as a
+  no-op state effect.
+- Extended `ProofForge.Backend.Evm.YulSemantics` with calldata argument words,
+  calldata size, `number`, `keccak256`, and `log0` through `log4` execution as
+  focused FV-4 primitives.
+- Added `value_vault_evm_yul_executable_trace_ok`, which runs the shared
+  ValueVault scenario through the generated selector-dispatched Yul subset and
+  compares observable return words against the scalar IR trace.
+
+Validation run:
+
+```sh
+lake build ProofForge.IR.Semantics
+lake build ProofForge.Backend.Evm.YulSemantics
+lake env lean ProofForge/Backend/Evm/Refinement.lean
+lake build ProofForge.Backend.Evm
+scripts/i18n/check-sync.sh
+git diff --check
+just check
+```
+
+Known limitations:
+
+- This is still a focused FV-4 slice, not a full EVM or libyul semantics. Event
+  logs are modeled as no-op after field evaluation, block number is fixed at
+  zero, `keccak256` returns a deterministic placeholder for the non-observable
+  log/topic paths used here, and assertions/maps/arrays/aggregates are not
+  covered yet.
+
+Next step:
+
+- Extend executable obligations from scalar storage to assertion, map, array,
+  struct, and aggregate probes, then connect ValueVault user invariants to the
+  IR semantics.
+
 ### EVM Counter Executable Yul Trace Obligation
 
 Commit: feature commit for FV-4 executable Yul trace obligation

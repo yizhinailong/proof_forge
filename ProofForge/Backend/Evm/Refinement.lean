@@ -1,5 +1,6 @@
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.YulSemantics
+import ProofForge.Contract.Examples.ValueVault
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Semantics
 
@@ -10,10 +11,10 @@ open ProofForge.IR
 /-! Refinement scaffolding for the IR -> EVM/Yul path.
 
 This mirrors the NEAR trace-obligation pattern without claiming a full EVM or
-Yul semantics yet. The first obligation fixes the observable Counter trace at
-the IR boundary and checks that the generated EVM Yul surface exposes every
-entrypoint needed by that trace through selector dispatch and top-level Yul
-function definitions.
+Yul semantics yet. The obligations fix observable IR traces for the shared
+Counter and ValueVault scenarios, check that generated EVM Yul exposes every
+entrypoint needed by those traces, and execute the focused Yul subset to compare
+observable return words.
 -/
 
 inductive ObservableReturn where
@@ -30,10 +31,16 @@ structure ObservableStep where
   returnValue : ObservableReturn
   deriving Repr, BEq, DecidableEq
 
+structure TraceCall where
+  entrypoint : Entrypoint
+  args : Array ProofForge.IR.Semantics.Value := #[]
+  evmArgs : Array Nat := #[]
+  deriving Repr
+
 structure TraceObligation where
   name : String
   module : Module
-  entrypoints : Array Entrypoint
+  calls : Array TraceCall
   expected : Array ObservableStep
   deriving Repr
 
@@ -75,30 +82,32 @@ def observableReturnFromEvmWords (expectedType : ValueType) (words : Array Nat) 
   | _, [] => .error s!"entrypoint expected `{expectedType.name}` but returned no EVM words"
   | _, _ => .error s!"entrypoint expected `{expectedType.name}` but returned {words.size} EVM word(s)"
 
-def runEntrypointObservable (state : ProofForge.IR.Semantics.State) (entrypoint : Entrypoint) :
+def runEntrypointObservable (state : ProofForge.IR.Semantics.State) (call : TraceCall) :
     Except String (ProofForge.IR.Semantics.State × ObservableStep) := do
+  let entrypoint := call.entrypoint
   let selector ←
     match entrypoint.selector? with
     | some selector => .ok selector
     | none => .error s!"entrypoint `{entrypoint.name}` has no EVM selector metadata"
-  let (nextState, result?) ← ProofForge.IR.Semantics.runEntrypoint state entrypoint
+  let (nextState, result?) ←
+    ProofForge.IR.Semantics.runEntrypointWithArgs state entrypoint call.args
   let returnValue ← observableReturn entrypoint.returns result?
   .ok (nextState, { entrypointName := entrypoint.name, selector, returnValue })
 
-def runTraceList : List Entrypoint → ProofForge.IR.Semantics.State →
+def runTraceList : List TraceCall → ProofForge.IR.Semantics.State →
     Except String (ProofForge.IR.Semantics.State × Array ObservableStep)
   | [], state => .ok (state, #[])
-  | entrypoint :: rest, state => do
-      let (nextState, step) ← runEntrypointObservable state entrypoint
+  | call :: rest, state => do
+      let (nextState, step) ← runEntrypointObservable state call
       let (finalState, steps) ← runTraceList rest nextState
       .ok (finalState, #[step] ++ steps)
 
-def runTrace (entrypoints : Array Entrypoint) : Except String (Array ObservableStep) := do
-  let (_, steps) ← runTraceList entrypoints.toList ProofForge.IR.Semantics.State.empty
+def runTrace (calls : Array TraceCall) : Except String (Array ObservableStep) := do
+  let (_, steps) ← runTraceList calls.toList ProofForge.IR.Semantics.State.empty
   .ok steps
 
 def TraceObligation.irTraceOk (obligation : TraceObligation) : Bool :=
-  match runTrace obligation.entrypoints with
+  match runTrace obligation.calls with
   | .ok actual => actual == obligation.expected
   | .error _ => false
 
@@ -195,21 +204,23 @@ end YulSurface
 def TraceObligation.evmYulSurfaceOk (obligation : TraceObligation) : Bool :=
   match ProofForge.Backend.Evm.IR.lowerModule obligation.module with
   | .ok object =>
-      obligation.entrypoints.all (YulSurface.entrypointOk obligation.module object)
+      obligation.calls.all fun call =>
+        YulSurface.entrypointOk obligation.module object call.entrypoint
   | .error _ => false
 
 def runEvmEntrypointObservable
     (object : Lean.Compiler.Yul.Object)
     (storage : ProofForge.Backend.Evm.YulSemantics.WordBindings)
-    (entrypoint : Entrypoint) :
+    (call : TraceCall) :
     Except String (ProofForge.Backend.Evm.YulSemantics.WordBindings × ObservableStep) := do
+  let entrypoint := call.entrypoint
   let selectorString ←
     match entrypoint.selector? with
     | some selector => .ok selector
     | none => .error s!"entrypoint `{entrypoint.name}` has no EVM selector metadata"
   let selector ← ProofForge.Backend.Evm.YulSemantics.parseHexNat selectorString
   let (nextStorage, returnWords) ←
-    ProofForge.Backend.Evm.YulSemantics.runSelector object storage selector
+    ProofForge.Backend.Evm.YulSemantics.runSelectorWithArgs object storage selector call.evmArgs
   let returnValue ← observableReturnFromEvmWords entrypoint.returns returnWords
   .ok (nextStorage, {
     entrypointName := entrypoint.name
@@ -219,32 +230,32 @@ def runEvmEntrypointObservable
 
 def runEvmTraceList
     (object : Lean.Compiler.Yul.Object) :
-    List Entrypoint → ProofForge.Backend.Evm.YulSemantics.WordBindings →
+    List TraceCall → ProofForge.Backend.Evm.YulSemantics.WordBindings →
       Except String (ProofForge.Backend.Evm.YulSemantics.WordBindings × Array ObservableStep)
   | [], storage => .ok (storage, #[])
-  | entrypoint :: rest, storage => do
-      let (nextStorage, step) ← runEvmEntrypointObservable object storage entrypoint
+  | call :: rest, storage => do
+      let (nextStorage, step) ← runEvmEntrypointObservable object storage call
       let (finalStorage, steps) ← runEvmTraceList object rest nextStorage
       .ok (finalStorage, #[step] ++ steps)
 
-def runEvmTrace (object : Lean.Compiler.Yul.Object) (entrypoints : Array Entrypoint) :
+def runEvmTrace (object : Lean.Compiler.Yul.Object) (calls : Array TraceCall) :
     Except String (Array ObservableStep) := do
-  let (_, steps) ← runEvmTraceList object entrypoints.toList []
+  let (_, steps) ← runEvmTraceList object calls.toList []
   .ok steps
 
 def TraceObligation.evmYulTraceOk (obligation : TraceObligation) : Bool :=
   match ProofForge.Backend.Evm.IR.lowerModule obligation.module with
   | .ok object =>
-      match runEvmTrace object obligation.entrypoints with
+      match runEvmTrace object obligation.calls with
       | .ok actual => actual == obligation.expected
       | .error _ => false
   | .error _ => false
 
-def counterTraceEntrypoints : Array Entrypoint := #[
-  ProofForge.IR.Examples.Counter.initializeEntrypoint,
-  ProofForge.IR.Examples.Counter.get,
-  ProofForge.IR.Examples.Counter.increment,
-  ProofForge.IR.Examples.Counter.get
+def counterTraceCalls : Array TraceCall := #[
+  { entrypoint := ProofForge.IR.Examples.Counter.initializeEntrypoint },
+  { entrypoint := ProofForge.IR.Examples.Counter.get },
+  { entrypoint := ProofForge.IR.Examples.Counter.increment },
+  { entrypoint := ProofForge.IR.Examples.Counter.get }
 ]
 
 def counterExpectedTrace : Array ObservableStep := #[
@@ -257,8 +268,77 @@ def counterExpectedTrace : Array ObservableStep := #[
 def counterTraceObligation : TraceObligation := {
   name := "Counter.initialize-get-increment-get"
   module := ProofForge.IR.Examples.Counter.module
-  entrypoints := counterTraceEntrypoints
+  calls := counterTraceCalls
   expected := counterExpectedTrace
+}
+
+def valueVaultSelector? : String → Option String
+  | "initialize" => some "fe4b84df"
+  | "deposit" => some "b6b55f25"
+  | "charge_fee" => some "be168a46"
+  | "release" => some "37bdc99b"
+  | "snapshot" => some "9711715a"
+  | "get_balance" => some "c1cfb99a"
+  | "get_net_value" => some "d43f79a2"
+  | _ => none
+
+def hydrateValueVaultEntrypoint (entrypoint : Entrypoint) : Entrypoint :=
+  match valueVaultSelector? entrypoint.name with
+  | some selector => { entrypoint with selector? := some selector }
+  | none => entrypoint
+
+def valueVaultEvmModule : Module :=
+  let module := ProofForge.Contract.Examples.ValueVault.module
+  { module with entrypoints := module.entrypoints.map hydrateValueVaultEntrypoint }
+
+def missingEntrypoint (name : String) : Entrypoint := {
+  name := name
+  body := #[]
+}
+
+def entrypointByName (module : Module) (name : String) : Entrypoint :=
+  (module.entrypoints.find? fun entrypoint => entrypoint.name == name).getD
+    (missingEntrypoint name)
+
+def valueVaultEntrypoint (name : String) : Entrypoint :=
+  entrypointByName valueVaultEvmModule name
+
+def irU64 (value : Nat) : ProofForge.IR.Semantics.Value :=
+  .u64 value
+
+def valueVaultTraceCalls : Array TraceCall := #[
+  { entrypoint := valueVaultEntrypoint "initialize", args := #[irU64 100], evmArgs := #[100] },
+  { entrypoint := valueVaultEntrypoint "get_balance" },
+  { entrypoint := valueVaultEntrypoint "deposit", args := #[irU64 25], evmArgs := #[25] },
+  { entrypoint := valueVaultEntrypoint "get_balance" },
+  { entrypoint := valueVaultEntrypoint "charge_fee", args := #[irU64 100, irU64 250], evmArgs := #[100, 250] },
+  { entrypoint := valueVaultEntrypoint "get_balance" },
+  { entrypoint := valueVaultEntrypoint "get_net_value" },
+  { entrypoint := valueVaultEntrypoint "release", args := #[irU64 23], evmArgs := #[23] },
+  { entrypoint := valueVaultEntrypoint "get_balance" },
+  { entrypoint := valueVaultEntrypoint "snapshot" },
+  { entrypoint := valueVaultEntrypoint "get_net_value" }
+]
+
+def valueVaultExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "initialize", selector := "fe4b84df", returnValue := .none },
+  { entrypointName := "get_balance", selector := "c1cfb99a", returnValue := .u64 100 },
+  { entrypointName := "deposit", selector := "b6b55f25", returnValue := .none },
+  { entrypointName := "get_balance", selector := "c1cfb99a", returnValue := .u64 125 },
+  { entrypointName := "charge_fee", selector := "be168a46", returnValue := .none },
+  { entrypointName := "get_balance", selector := "c1cfb99a", returnValue := .u64 223 },
+  { entrypointName := "get_net_value", selector := "d43f79a2", returnValue := .u64 221 },
+  { entrypointName := "release", selector := "37bdc99b", returnValue := .none },
+  { entrypointName := "get_balance", selector := "c1cfb99a", returnValue := .u64 200 },
+  { entrypointName := "snapshot", selector := "9711715a", returnValue := .u64 200 },
+  { entrypointName := "get_net_value", selector := "d43f79a2", returnValue := .u64 198 }
+]
+
+def valueVaultTraceObligation : TraceObligation := {
+  name := "ValueVault.testkit-scenario"
+  module := valueVaultEvmModule
+  calls := valueVaultTraceCalls
+  expected := valueVaultExpectedTrace
 }
 
 theorem counter_ir_observable_trace_ok :
@@ -271,6 +351,18 @@ theorem counter_evm_yul_surface_trace_entrypoints :
 
 theorem counter_evm_yul_executable_trace_ok :
     counterTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem value_vault_ir_observable_trace_ok :
+    valueVaultTraceObligation.irTraceOk = true := by
+  native_decide
+
+theorem value_vault_evm_yul_surface_trace_entrypoints :
+    valueVaultTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem value_vault_evm_yul_executable_trace_ok :
+    valueVaultTraceObligation.evmYulTraceOk = true := by
   native_decide
 
 end ProofForge.Backend.Evm.Refinement

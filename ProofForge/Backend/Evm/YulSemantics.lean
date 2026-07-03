@@ -7,9 +7,10 @@ open Lean.Compiler.Yul
 /-! A narrow executable Yul model for EVM refinement obligations.
 
 This is intentionally small: it covers the Yul subset generated for the shared
-Counter scenario and fails explicitly for unsupported constructs. It is not a
-general EVM interpreter; its job is to make FV-4 obligations stronger than
-surface-shape checks while keeping the trusted model reviewable.
+Counter and ValueVault scenarios and fails explicitly for unsupported
+constructs. It is not a general EVM interpreter; its job is to make FV-4
+obligations stronger than surface-shape checks while keeping the trusted model
+reviewable.
 -/
 
 abbrev Word := Nat
@@ -56,6 +57,8 @@ structure Runtime where
   memory : WordBindings := []
   locals : NamedBindings := []
   calldata : WordBindings := []
+  calldataSize : Nat := 4
+  blockNumber : Word := 0
   deriving Repr, BEq, DecidableEq
 
 structure FunctionDef where
@@ -198,12 +201,24 @@ def memoryWords (rt : Runtime) (offset size : Nat) : Array Word :=
 def selectorCalldataWord (selector : Nat) : Word :=
   selector * twoPow 224
 
-def callRuntime (selector : Nat) (storage : WordBindings) : Runtime := {
+def calldataArgBindings (args : Array Word) : WordBindings := Id.run do
+  let mut bindings : WordBindings := []
+  for h : idx in [0:args.size] do
+    bindings := insertWord (4 + idx * 32) args[idx] bindings
+  bindings
+
+def callRuntimeWithArgs (selector : Nat) (storage : WordBindings) (args : Array Word) :
+    Runtime := {
   storage
   memory := []
   locals := []
-  calldata := [(0, selectorCalldataWord selector)]
+  calldata := insertWord 0 (selectorCalldataWord selector) (calldataArgBindings args)
+  calldataSize := 4 + args.size * 32
+  blockNumber := 0
 }
+
+def callRuntime (selector : Nat) (storage : WordBindings) : Runtime :=
+  callRuntimeWithArgs selector storage #[]
 
 mutual
   partial def evalExpr (ctx : Context) (rt : Runtime) : Expr →
@@ -308,7 +323,28 @@ mutual
         let (rt, value) ← evalWord ctx rt valueExpr
         .ok (rt.writeMemory offset value, #[])
     | "calldatasize", [] =>
-        .ok (rt, #[4])
+        .ok (rt, #[rt.calldataSize])
+    | "number", [] =>
+        .ok (rt, #[rt.blockNumber])
+    | "keccak256", [offset, size] => do
+        let (rt, _) ← evalWord ctx rt offset
+        let (rt, _) ← evalWord ctx rt size
+        .ok (rt, #[0])
+    | "log0", [offset, size] => do
+        let (rt, _) ← evalArgs ctx rt #[offset, size]
+        .ok (rt, #[])
+    | "log1", [offset, size, topic0] => do
+        let (rt, _) ← evalArgs ctx rt #[offset, size, topic0]
+        .ok (rt, #[])
+    | "log2", [offset, size, topic0, topic1] => do
+        let (rt, _) ← evalArgs ctx rt #[offset, size, topic0, topic1]
+        .ok (rt, #[])
+    | "log3", [offset, size, topic0, topic1, topic2] => do
+        let (rt, _) ← evalArgs ctx rt #[offset, size, topic0, topic1, topic2]
+        .ok (rt, #[])
+    | "log4", [offset, size, topic0, topic1, topic2, topic3] => do
+        let (rt, _) ← evalArgs ctx rt #[offset, size, topic0, topic1, topic2, topic3]
+        .ok (rt, #[])
     | _, _ =>
         .error s!"unsupported Yul builtin `{name}` with {args.size} argument(s)"
 
@@ -432,13 +468,18 @@ mutual
     | none => .ok (rt, .running)
 end
 
-def runSelector (object : Object) (storage : WordBindings) (selector : Nat) :
+def runSelectorWithArgs (object : Object) (storage : WordBindings) (selector : Nat)
+    (args : Array Word) :
     Except String (WordBindings × Array Word) := do
   let ctx := Context.ofObject object
-  let (rt, control) ← execBlock ctx (callRuntime selector storage) object.code
+  let (rt, control) ← execBlock ctx (callRuntimeWithArgs selector storage args) object.code
   match control with
   | .returned words => .ok (rt.storage, words)
   | .running => .error "Yul dispatcher finished without returning"
   | .leave => .error "Yul dispatcher left without returning"
+
+def runSelector (object : Object) (storage : WordBindings) (selector : Nat) :
+    Except String (WordBindings × Array Word) :=
+  runSelectorWithArgs object storage selector #[]
 
 end ProofForge.Backend.Evm.YulSemantics
