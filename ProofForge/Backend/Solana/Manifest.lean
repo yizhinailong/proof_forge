@@ -510,6 +510,19 @@ def renderComputeUnitsLogAction (action : ComputeUnitsLogAction) : String :=
   "compute_units = " ++ tomlString action.name ++ "\n" ++
   "op = \"log_remaining\"\n"
 
+def renderComputeBudgetAdvice (action : ComputeBudgetAdvice) : String :=
+  let optionalFields :=
+    (match action.unitLimit? with
+    | some units => s!"unit_limit = {units}\n"
+    | none => "") ++
+    (match action.unitPriceMicroLamports? with
+    | some price => s!"unit_price_micro_lamports = {price}\n"
+    | none => "")
+  "[[solana.entrypoint_compute_budget]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "compute_budget = " ++ tomlString action.name ++ "\n" ++
+  optionalFields
+
 def renderPubkeyLogAction (action : PubkeyLogAction) : String :=
   "[[solana.entrypoint_log]]\n" ++
   "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
@@ -525,8 +538,12 @@ def renderDataLogAction (action : DataLogAction) : String :=
   "source_state = " ++ tomlString action.sourceState ++ "\n" ++
   "bytes = " ++ toString action.bytes ++ "\n"
 
+def hasManifestActions (extensions : ProgramExtensions) : Bool :=
+  hasEntrypointActions extensions ||
+    extensions.computeBudgetActions.size > 0
+
 def renderActions (extensions : ProgramExtensions) : String :=
-  if !hasEntrypointActions extensions then
+  if !hasManifestActions extensions then
     ""
   else
     let actionBlocks :=
@@ -539,6 +556,7 @@ def renderActions (extensions : ProgramExtensions) : String :=
       extensions.returnDataReadActions.map renderReturnDataReadAction ++
       extensions.computeUnitsActions.map renderComputeUnitsAction ++
       extensions.computeUnitsLogActions.map renderComputeUnitsLogAction ++
+      extensions.computeBudgetActions.map renderComputeBudgetAdvice ++
       extensions.pubkeyLogActions.map renderPubkeyLogAction ++
       extensions.dataLogActions.map renderDataLogAction
     "\n# Solana SDK entrypoint actions\n" ++
@@ -550,13 +568,13 @@ def renderExtensions (extensions : ProgramExtensions) : String :=
   else
     "\n# Solana SDK target extension metadata\n" ++
     String.intercalate "\n" (extensions.accounts.map renderDeclaredAccount).toList ++
-    (if extensions.accounts.size > 0 && (extensions.allocators.size > 0 || extensions.pdas.size > 0 || extensions.cpis.size > 0 || hasEntrypointActions extensions) then "\n" else "") ++
+    (if extensions.accounts.size > 0 && (extensions.allocators.size > 0 || extensions.pdas.size > 0 || extensions.cpis.size > 0 || hasManifestActions extensions) then "\n" else "") ++
     String.intercalate "\n" (extensions.allocators.map renderAllocator).toList ++
-    (if extensions.allocators.size > 0 && (extensions.pdas.size > 0 || extensions.cpis.size > 0 || hasEntrypointActions extensions) then "\n" else "") ++
+    (if extensions.allocators.size > 0 && (extensions.pdas.size > 0 || extensions.cpis.size > 0 || hasManifestActions extensions) then "\n" else "") ++
     String.intercalate "\n" (extensions.pdas.map renderPda).toList ++
-    (if extensions.pdas.size > 0 && (extensions.cpis.size > 0 || hasEntrypointActions extensions) then "\n" else "") ++
+    (if extensions.pdas.size > 0 && (extensions.cpis.size > 0 || hasManifestActions extensions) then "\n" else "") ++
     String.intercalate "\n" (extensions.cpis.map renderCpi).toList ++
-    (if extensions.cpis.size > 0 && hasEntrypointActions extensions then "\n" else "") ++
+    (if extensions.cpis.size > 0 && hasManifestActions extensions then "\n" else "") ++
     renderActions extensions
 
 /-- Default account schema for portable IR modules without Solana SDK target

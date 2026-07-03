@@ -65,6 +65,7 @@ solana-lean:
     lake env lean --run Tests/SolanaMemory.lean
     lake env lean --run Tests/SolanaCrypto.lean
     lake env lean --run Tests/SolanaReturnDataCompute.lean
+    lake env lean --run Tests/SolanaComputeBudgetInstruction.lean
     lake env lean --run Tests/SolanaPdaSeeds.lean
     lake env lean --run Tests/LearnSource.lean
     lake env lean --run Tests/LearnDiagnostics.lean

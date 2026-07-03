@@ -2449,11 +2449,15 @@ means a real developer cannot write a common contract pattern.
   storage packing, batch operations, factory deployment template, AMM,
   Pausable auth, ReentrancyGuard stdlib
 
-### Solana SDK blockers (5 P0, 7 P1)
+### Solana SDK blockers (5 tracked P0, 1 closed, 7 P1)
 
 - P0: Account constraint enforcement (owner=executable/arbitrary validation,
   close account, user-facing realloc API)
-- P0: ComputeBudgetInstruction (set compute unit limit, priority fees)
+- ✅ P0: ComputeBudgetInstruction (set compute unit limit, priority fees)
+  landed as transaction-side compute-budget advice in Solana manifests, IDL,
+  generated TypeScript clients, and package metadata. The helper emits
+  `ComputeBudgetProgram` pre-instructions from the selected entrypoint; it is
+  intentionally not lowered as an in-program syscall.
 - P0: Token-2022 direct sBPF CPI lowering (transfer_fee, non_transferable)
 - P1: Memo/Stake/Vote CPI, confidential_transfer, transfer_hook,
   Pinocchio reference ≥10, Metaplex NFT, Anchor-style derive macro,

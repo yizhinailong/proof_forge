@@ -242,6 +242,13 @@ structure ComputeUnitsLogAction where
   entrypoint : String
   deriving Repr, Inhabited
 
+structure ComputeBudgetAdvice where
+  name : String
+  unitLimit? : Option Nat := none
+  unitPriceMicroLamports? : Option Nat := none
+  entrypoint : String
+  deriving Repr, Inhabited
+
 structure PubkeyLogAction where
   name : String
   account : String
@@ -338,6 +345,7 @@ structure ProgramExtensions where
   returnDataReadActions : Array ReturnDataReadAction := #[]
   computeUnitsActions : Array ComputeUnitsAction := #[]
   computeUnitsLogActions : Array ComputeUnitsLogAction := #[]
+  computeBudgetActions : Array ComputeBudgetAdvice := #[]
   pubkeyLogActions : Array PubkeyLogAction := #[]
   dataLogActions : Array DataLogAction := #[]
   deriving Repr, Inhabited
@@ -617,6 +625,15 @@ def ProgramExtensions.pushComputeUnitsLogAction (acc : ProgramExtensions)
   else
     { acc with computeUnitsLogActions := acc.computeUnitsLogActions.push action }
 
+def ProgramExtensions.pushComputeBudgetAdvice (acc : ProgramExtensions)
+    (action : ComputeBudgetAdvice) : ProgramExtensions :=
+  if acc.computeBudgetActions.any (fun existing =>
+      existing.name == action.name &&
+      existing.entrypoint == action.entrypoint) then
+    acc
+  else
+    { acc with computeBudgetActions := acc.computeBudgetActions.push action }
+
 def ProgramExtensions.pushPubkeyLogAction (acc : ProgramExtensions)
     (action : PubkeyLogAction) : ProgramExtensions :=
   if acc.pubkeyLogActions.any (fun existing =>
@@ -680,6 +697,10 @@ def ProgramExtensions.addComputeUnits (acc : ProgramExtensions)
 def ProgramExtensions.addComputeUnitsLog (acc : ProgramExtensions)
     (action : ComputeUnitsLogAction) : ProgramExtensions :=
   acc.pushComputeUnitsLogAction action
+
+def ProgramExtensions.addComputeBudget (acc : ProgramExtensions)
+    (action : ComputeBudgetAdvice) : ProgramExtensions :=
+  acc.pushComputeBudgetAdvice action
 
 def ProgramExtensions.addPubkeyLog (acc : ProgramExtensions)
     (action : PubkeyLogAction) : ProgramExtensions :=
@@ -908,6 +929,23 @@ def computeUnitsLogFromCall? (call : CapabilityCall) : Option ComputeUnitsLogAct
   else
     none
 
+def computeBudgetFromCall? (call : CapabilityCall) : Option ComputeBudgetAdvice :=
+  if call.capability == .runtimeComputeUnits &&
+      metadataValue? call.metadata "solana.extension" == some "compute_budget" &&
+      metadataValue? call.metadata "solana.compute_budget.op" == some "instruction" then
+    match entrypoint? call with
+    | some entrypoint =>
+        some {
+          name := metadataValue? call.metadata "solana.compute_budget.name" |>.getD call.operation
+          unitLimit? := natFromMetadata? call.metadata "solana.compute_budget.unit_limit"
+          unitPriceMicroLamports? :=
+            natFromMetadata? call.metadata "solana.compute_budget.unit_price_micro_lamports"
+          entrypoint := entrypoint
+        }
+    | none => none
+  else
+    none
+
 def pubkeyLogFromCall? (call : CapabilityCall) : Option PubkeyLogAction :=
   if call.capability == .eventsEmit &&
       metadataValue? call.metadata "solana.extension" == some "log" &&
@@ -987,6 +1025,10 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
         | some action => acc.addComputeUnitsLog action
         | none => acc
       let acc :=
+        match computeBudgetFromCall? call with
+        | some action => acc.addComputeBudget action
+        | none => acc
+      let acc :=
         match pubkeyLogFromCall? call with
         | some action => acc.addPubkeyLog action
         | none => acc
@@ -1007,6 +1049,7 @@ def hasExtensions (extensions : ProgramExtensions) : Bool :=
     extensions.returnDataReadActions.size > 0 ||
     extensions.computeUnitsActions.size > 0 ||
     extensions.computeUnitsLogActions.size > 0 ||
+    extensions.computeBudgetActions.size > 0 ||
     extensions.pubkeyLogActions.size > 0 ||
     extensions.dataLogActions.size > 0
 

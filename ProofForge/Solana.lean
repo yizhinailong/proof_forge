@@ -255,6 +255,12 @@ structure ComputeUnitsLogAction where
   name : String
   deriving Repr
 
+structure ComputeBudgetAdvice where
+  name : String
+  unitLimit? : Option Nat := none
+  unitPriceMicroLamports? : Option Nat := none
+  deriving Repr
+
 structure PubkeyLogAction where
   name : String
   account : String
@@ -503,6 +509,15 @@ def ComputeUnitsLogAction.metadata (action : ComputeUnitsLogAction) : Array Targ
     kv "solana.compute_units.name" action.name,
     kv "solana.compute_units.op" "log_remaining"
   ]
+
+def ComputeBudgetAdvice.metadata (advice : ComputeBudgetAdvice) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "compute_budget",
+    kv "solana.compute_budget.name" advice.name,
+    kv "solana.compute_budget.op" "instruction"
+  ] ++
+  maybeNatKv "solana.compute_budget.unit_limit" advice.unitLimit? ++
+  maybeNatKv "solana.compute_budget.unit_price_micro_lamports" advice.unitPriceMicroLamports?
 
 def PubkeyLogAction.metadata (action : PubkeyLogAction) : Array TargetMetadata :=
   #[
@@ -1083,6 +1098,22 @@ def logRemainingComputeUnits (name : String := "log_remaining_compute_units") :
     ProofForge.Contract.Builder.EntryM Unit :=
   computeUnitsLogEntry {
     name := name
+  }
+
+def computeBudgetEntry (advice : ComputeBudgetAdvice) :
+    ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .runtimeComputeUnits
+    "solana.compute_budget.instruction"
+    (source? := some advice.name)
+    (metadata := advice.metadata)
+
+def requestComputeBudget (name : String := "compute_budget")
+    (unitLimit? : Option Nat := none) (unitPriceMicroLamports? : Option Nat := none) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  computeBudgetEntry {
+    name := name
+    unitLimit? := unitLimit?
+    unitPriceMicroLamports? := unitPriceMicroLamports?
   }
 
 def pubkeyLogEntry (action : PubkeyLogAction) :

@@ -47,6 +47,10 @@ def jsonStringOption : Option String → String
   | some value => jsonString value
   | none => "null"
 
+def jsonNatOption : Option Nat → String
+  | some value => toString value
+  | none => "null"
+
 def pushUnique (values : Array String) (value : String) : Array String :=
   if values.any (fun existing => existing == value) then values else values.push value
 
@@ -122,7 +126,19 @@ def entrypointReturnJson (module : Module) (name : String) : String :=
   | some ep => jsonString ep.returns.name
   | none => jsonString "Unit"
 
-def instructionJson (module : Module) (instruction : InstructionEntry) : String :=
+def computeBudgetJson (action : ComputeBudgetAdvice) : String :=
+  jsonObject #[
+    ("name", jsonString action.name),
+    ("unitLimit", jsonNatOption action.unitLimit?),
+    ("unitPriceMicroLamports", jsonNatOption action.unitPriceMicroLamports?)
+  ]
+
+def computeBudgetForEntrypoint (extensions : ProgramExtensions) (entrypoint : String) :
+    Array ComputeBudgetAdvice :=
+  extensions.computeBudgetActions.filter (fun action => action.entrypoint == entrypoint)
+
+def instructionJson (module : Module) (extensions : ProgramExtensions)
+    (instruction : InstructionEntry) : String :=
   jsonObject #[
     ("name", jsonString instruction.name),
     ("tag", toString instruction.tag),
@@ -130,6 +146,7 @@ def instructionJson (module : Module) (instruction : InstructionEntry) : String 
     ("minDataLen", toString instruction.minDataLen),
     ("accounts", jsonArray (instruction.accounts.map accountJson)),
     ("params", jsonArray (instruction.params.map paramJson)),
+    ("computeBudget", jsonArray ((computeBudgetForEntrypoint extensions instruction.name).map computeBudgetJson)),
     ("returns", entrypointReturnJson module instruction.name)
   ]
 
@@ -222,10 +239,19 @@ def cpiActionJson (action : CpiAction) : String :=
     ("cpi", jsonString action.name)
   ]
 
+def computeBudgetActionJson (action : ComputeBudgetAdvice) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("computeBudget", jsonString action.name),
+    ("unitLimit", jsonNatOption action.unitLimit?),
+    ("unitPriceMicroLamports", jsonNatOption action.unitPriceMicroLamports?)
+  ]
+
 def actionsJson (extensions : ProgramExtensions) : String :=
   jsonObject #[
     ("pdas", jsonArray (extensions.pdaActions.map pdaActionJson)),
-    ("cpis", jsonArray (extensions.cpiActions.map cpiActionJson))
+    ("cpis", jsonArray (extensions.cpiActions.map cpiActionJson)),
+    ("computeBudget", jsonArray (extensions.computeBudgetActions.map computeBudgetActionJson))
   ]
 
 def capabilitiesJson (plan : CapabilityPlan) : String :=
@@ -241,7 +267,7 @@ def renderWithInstructions (module : Module) (instructions : Array InstructionEn
     ("capabilities", jsonStringArray (dedupStrings capabilities)),
     ("structs", jsonArray (module.structs.map structJson)),
     ("state", jsonArray (module.state.map stateJson)),
-    ("instructions", jsonArray (instructions.map (instructionJson module))),
+    ("instructions", jsonArray (instructions.map (instructionJson module extensions))),
     ("accounts", jsonArray (buildModuleAccounts module extensions |>.map accountJson)),
     ("declaredAccounts", jsonArray (extensions.accounts.map declaredAccountJson)),
     ("allocators", jsonArray (extensions.allocators.map allocatorJson)),

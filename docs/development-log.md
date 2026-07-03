@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Solana Compute-Budget Transaction Advice
+
+Commit: this commit
+
+Summary:
+
+- Added a Solana SDK `ComputeBudgetAdvice` path that routes through
+  `runtime.compute_units` capability metadata without adding a portable IR
+  node or pretending the contract can raise its own transaction budget.
+- Extended Solana package metadata so `manifest.toml`, the generated IDL, and
+  generated TypeScript clients expose per-entrypoint compute-unit limit and
+  priority-fee advice.
+- Added generated client helpers that prepend `ComputeBudgetProgram`
+  instructions before the ProofForge program instruction for the selected
+  entrypoint.
+- Added `Tests/SolanaComputeBudgetInstruction.lean` and wired it into
+  `just solana-lean`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Solana.Extension ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Idl ProofForge.Backend.Solana.Client ProofForge.Solana
+lake env lean --run Tests/SolanaComputeBudgetInstruction.lean
+```
+
+Known limitations:
+
+- This closes the transaction-side ComputeBudgetInstruction blocker. The
+  existing in-program `runtime.compute_units` syscall coverage remains the
+  separate path for reading/logging remaining compute units.
+- The generated client emits budget pre-instructions from metadata; live
+  Surfpool/Web3 transaction-budget behavior can be added as a follow-up smoke
+  once the broader SDK client ergonomics pass starts.
+
+Next step:
+
+- Continue Solana-first SDK P0 hardening with account constraint ergonomics
+  (`close`/`realloc`) or Token-2022 direct sBPF CPI lowering.
+
 ### FV-4 EVM Event-Log Trace Obligations
 
 Commit: this commit

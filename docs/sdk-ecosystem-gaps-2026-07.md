@@ -102,7 +102,7 @@ missing.
 | SPL Token mint_to/burn/approve/revoke | Covered | Live Surfpool + Pinocchio reference | — |
 | SPL Token set_authority | Covered | Live Surfpool + Pinocchio reference | — |
 | Memo / Stake / Vote / Config | Missing | Extension lowering stops at System + SPL Token | P1 |
-| ComputeBudgetInstruction | Missing | No compute-budget / priority-fee surface | P0 |
+| ComputeBudgetInstruction | Covered | Solana manifest/IDL/client/package metadata exposes per-entrypoint compute-unit limit and priority-fee advice; generated TS clients emit `ComputeBudgetProgram` pre-instructions | — |
 
 ### Token-2022 extensions
 
@@ -195,9 +195,9 @@ economics) is almost entirely missing.
 
 **EVM (5 P0):** ERC-20 completion, ERC-721 NFT, ERC-165, AccessControl roles, Constructor dynamic args
 
-**Solana (5 P0):** Account constraint enforcement, Close account, Reallocation API, ComputeBudgetInstruction, Token-2022 direct sBPF CPI (transfer_fee + non_transferable)
+**Solana (4 open P0, 1 closed P0):** Account constraint enforcement, Close account, Reallocation API, Token-2022 direct sBPF CPI (transfer_fee + non_transferable). ComputeBudgetInstruction is closed through transaction-side budget advice.
 
 **NEAR (6 P0):** Promise API (create/then/and/batch), Callback handling, NEP-141 FT, signer_account_id, attached_deposit, Aggregate ABI (structs/arrays in entrypoint params)
 
-Total: 16 P0 blockers across three chains. These must close before "any
+Total: 15 open P0 blockers across three chains. These must close before "any
 contract can be written and deployed" is true for any chain.
