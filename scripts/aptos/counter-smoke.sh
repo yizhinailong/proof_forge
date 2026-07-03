@@ -21,9 +21,9 @@ mkdir -p "$OUTPUT_DIR"
 lake env proof-forge --emit-counter-ir-aptos -o "$OUTPUT_DIR"
 
 echo "[aptos-smoke] compiling Move package"
-aptos move compile --package-dir "$OUTPUT_DIR" --named-addresses "proof_forge=${ADDRESS}"
+aptos move compile --package-dir "$OUTPUT_DIR" --named-addresses "proof_forge=${ADDRESS}" --skip-fetch-latest-git-deps
 
 echo "[aptos-smoke] running Move unit tests"
-aptos move test --package-dir "$OUTPUT_DIR" --named-addresses "proof_forge=${ADDRESS}"
+aptos move test --package-dir "$OUTPUT_DIR" --named-addresses "proof_forge=${ADDRESS}" --skip-fetch-latest-git-deps
 
 echo "[aptos-smoke] Aptos Counter smoke completed successfully"

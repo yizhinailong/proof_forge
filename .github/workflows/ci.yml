@@ -287,3 +287,34 @@ jobs:
 
       - name: Run CosmWasm Counter smoke
         run: just cosmwasm-counter-smoke
+
+  aptos-smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just@1.48.0
+
+      - name: Install Lean
+        run: |
+          toolchain="$(cat lean-toolchain)"
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain "$toolchain"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install Aptos CLI
+        run: |
+          curl -sSfL https://aptos.dev/scripts/install_cli.sh | sh
+          aptos --version
+
+      - name: Build proof-forge
+        run: just build
+
+      - name: Run Aptos Counter smoke
+        run: just aptos-counter-smoke

@@ -1,0 +1,9 @@
+[package]
+name = "counter"
+version = "0.0.1"
+
+[addresses]
+proof_forge = "_"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework", rev = "main" }

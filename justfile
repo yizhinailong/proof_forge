@@ -20,6 +20,10 @@ cosmwasm-counter-smoke:
 aptos-counter-smoke:
     scripts/aptos/counter-smoke.sh
 
+# Emit and diff tracked Aptos Move example artifacts.
+aptos-build-examples:
+    scripts/aptos/build-examples.sh
+
 # Check the EVM semantic plan smoke.
 evm-plan:
     lake build ProofForge.Backend.Evm.Plan
