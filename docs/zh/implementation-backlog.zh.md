@@ -1256,8 +1256,11 @@ shell/Node harness；参见
   `Tests/solana/*_mollusk.rs.tpl` 的逻辑吸收为库代码；Counter 在三条目标链上通过。
   当前状态：Counter 已通过 `testkit/harness-solana` 接入 `mollusk-svm`，
   覆盖 golden assembly、manifest、artifact metadata、sBPF ELF build、有状态场景执行，
-  并在 `sbpf` 和 `solana-keygen` 可用时进行三目标 trace parity。
-  M3 剩余工作：加入 ValueVault 场景。
+  并在 `sbpf` 和 `solana-keygen` 可用时进行三目标 trace parity。ValueVault
+  现在由 `testkit/scenarios/value-vault.toml`、typed scalar scenario args、
+  `runtime/offline-host --inputs-hex`、NEAR/Wasm EmitWat fixture、
+  Solana ValueVault sBPF/Mollusk harness，以及在 Foundry `cast` 可用于
+  selector hydration 时的 EVM/revm harness 覆盖。
 - M4：把 golden-file 比较和逐 fixture 行为脚本迁移进 scenario step；
   逐步退役重复 shell 脚本；把逐 fixture CI 步骤折叠进 testkit run。
   live/链真实门禁（Foundry、Anvil deploy、Surfpool、near-sandbox、dargo、leo）

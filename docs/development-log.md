@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit ValueVault Scenario
+
+Commit: feature commit for unified testkit ValueVault scenario
+
+Summary:
+
+- Added typed scalar scenario args to `testkit/core`, so one TOML scenario can
+  describe portable `u64`/`u32`/`bool` call parameters while each target
+  harness performs its own ABI encoding.
+- Extended `runtime/offline-host` with `--inputs-hex`, allowing the
+  deterministic NEAR/Wasm host to run a stateful call sequence whose calls use
+  different Borsh input payloads.
+- Added `testkit/scenarios/value-vault.toml` covering
+  `initialize -> deposit -> charge_fee -> release -> snapshot` plus balance
+  and net-value queries.
+- Wired ValueVault into `wasm-near` through `Tests/EmitWatValueVault.lean`,
+  into `solana-sbpf-asm` through the existing ValueVault sBPF emitter plus
+  Mollusk, and into `evm` through the revm harness when Foundry `cast` is
+  available for selector hydration.
+
+Validation run:
+
+```sh
+lake env lean --run Tests/EmitWatValueVault.lean
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target wasm-near
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target evm
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target solana-sbpf-asm
+```
+
+Known limitations:
+
+- ValueVault's EVM branch still depends on `cast` because the current
+  Contract SDK EVM path hydrates ABI selectors through Foundry; when `cast` is
+  absent, the harness reports a target skip instead of hiding the dependency.
+- Testkit validates call order and portable return values. Event payloads,
+  account/log traces, gas/compute budgets, and live deployment remain in the
+  existing target-specific gates.
+
+Next step:
+
+- Start M4 by migrating more golden-source and artifact checks into scenario
+  fixtures while keeping Foundry/Anvil, Surfpool, near-sandbox, dargo, and leo
+  as chain-authentic gates.
+
 ### Unified Testkit M3 Solana Harness
 
 Commit: feature commit for unified testkit Solana harness

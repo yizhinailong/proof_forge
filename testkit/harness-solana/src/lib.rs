@@ -13,8 +13,10 @@ use solana_account::Account;
 use solana_address::Address;
 use solana_instruction::{AccountMeta, Instruction};
 
-const PROJECT_NAME: &str = "proofforge-counter";
+const COUNTER_PROJECT_NAME: &str = "proofforge-counter";
+const VALUE_VAULT_PROJECT_NAME: &str = "proofforge-value-vault";
 const COUNTER_DATA_LEN: usize = 8;
+const VALUE_VAULT_DATA_LEN: usize = 48;
 
 pub struct SolanaHarness;
 
@@ -52,6 +54,7 @@ impl ChainHarness for SolanaHarness {
 
         match case.manifest.scenario.fixture.as_str() {
             "counter" => run_counter_scenario(case, repo_root, &sbpf, &keygen),
+            "value-vault" => run_value_vault_scenario(case, repo_root, &sbpf, &keygen),
             fixture => {
                 bail!("solana-sbpf-asm testkit harness does not support fixture `{fixture}` yet")
             }
@@ -66,25 +69,47 @@ fn run_counter_scenario(
     keygen: &str,
 ) -> Result<HarnessRun> {
     let artifact = build_counter_fixture(repo_root, sbpf, keygen)?;
+    run_state_account_scenario(case, artifact, COUNTER_DATA_LEN)
+}
+
+fn run_value_vault_scenario(
+    case: &ScenarioCase,
+    repo_root: &Path,
+    sbpf: &str,
+    keygen: &str,
+) -> Result<HarnessRun> {
+    let artifact = build_value_vault_fixture(repo_root, sbpf, keygen)?;
+    run_state_account_scenario(case, artifact, VALUE_VAULT_DATA_LEN)
+}
+
+fn run_state_account_scenario(
+    case: &ScenarioCase,
+    artifact: SolanaFixtureArtifact,
+    account_data_len: usize,
+) -> Result<HarnessRun> {
     let tags = load_instruction_tags(&artifact.manifest_path)?;
     let pid = program_id(&artifact.keypair_path)?;
     let mollusk = mollusk(pid, &artifact.program_path)?;
-    let counter = Address::new_unique();
-    let mut counter_account = Account::new(0, COUNTER_DATA_LEN, &pid);
+    let state = Address::new_unique();
+    let mut state_account = Account::new(0, account_data_len, &pid);
 
     let mut outcomes = Vec::new();
     let mut sequence = 1u32;
     for step in &case.manifest.steps {
-        if step.input_hex.is_some() {
-            bail!("solana-sbpf-asm testkit harness does not yet support per-step input_hex");
-        }
         let tag = tags
             .get(&step.call)
             .with_context(|| format!("Solana manifest does not contain call `{}`", step.call))?;
+        let mut instruction_data = vec![*tag];
+        instruction_data.extend(step.portable_input_bytes_le().with_context(|| {
+            format!(
+                "failed to encode solana-sbpf-asm instruction data for call `{}`",
+                step.call
+            )
+        })?);
         for _ in 0..step.repeat.unwrap_or(1) {
             let result = mollusk.process_instruction(
-                &ix(pid, *tag, counter),
-                &[(counter, counter_account.clone())],
+                &ix(pid, instruction_data.clone(), state),
+                &[(state, state_account.clone())],
             );
             ensure!(
                 result.raw_result.is_ok(),
@@ -92,10 +117,10 @@ fn run_counter_scenario(
                 step.call,
                 result.raw_result
             );
-            counter_account = result
-                .get_account(&counter)
+            state_account = result
+                .get_account(&state)
                 .with_context(|| {
-                    format!("Solana call `{}` did not return counter account", step.call)
+                    format!("Solana call `{}` did not return state account", step.call)
                 })?
                 .clone();
             outcomes.push(outcome_from_return_data(
@@ -159,15 +184,24 @@ fn build_counter_fixture(
         manifest_path.display()
     );
     assert_golden_asm(repo_root, &asm_path)?;
-    validate_artifact_metadata(&artifact_path)?;
-    validate_manifest(&manifest_path)?;
+    validate_artifact_metadata(
+        &artifact_path,
+        "counter-ir-sbpf",
+        "portable-ir",
+        &["storage.scalar", "account.explicit", "control.conditional"],
+    )?;
+    validate_manifest(
+        &manifest_path,
+        "counter",
+        &[("initialize", 0), ("increment", 1), ("get", 2)],
+    )?;
 
     let project_dir = out_dir.join("sbpf-project");
     let keypair_path = project_dir
         .join("deploy")
-        .join(format!("{PROJECT_NAME}-keypair.json"));
-    let program_path = project_dir.join("deploy").join(PROJECT_NAME);
-    scaffold_sbpf_project(&project_dir, &asm_path, keygen)?;
+        .join(format!("{COUNTER_PROJECT_NAME}-keypair.json"));
+    let program_path = project_dir.join("deploy").join(COUNTER_PROJECT_NAME);
+    scaffold_sbpf_project(&project_dir, COUNTER_PROJECT_NAME, &asm_path, keygen)?;
 
     let mut sbpf_build = Command::new(sbpf);
     sbpf_build.current_dir(&project_dir).arg("build");
@@ -187,7 +221,100 @@ fn build_counter_fixture(
     })
 }
 
-fn scaffold_sbpf_project(project_dir: &Path, asm_path: &Path, keygen: &str) -> Result<()> {
+fn build_value_vault_fixture(
+    repo_root: &Path,
+    sbpf: &str,
+    keygen: &str,
+) -> Result<SolanaFixtureArtifact> {
+    let out_dir = repo_root.join("build/testkit/solana/value-vault");
+    fs::create_dir_all(&out_dir)
+        .with_context(|| format!("failed to create `{}`", out_dir.display()))?;
+
+    let mut build = Command::new("lake");
+    build.current_dir(repo_root).args(["build", "proof-forge"]);
+    run_required(&mut build, "lake build proof-forge")?;
+
+    let asm_path = out_dir.join("ValueVault.s");
+    let artifact_path = out_dir.join("proof-forge-artifact.json");
+    let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
+    let mut emit = Command::new(&proof_forge);
+    emit.current_dir(repo_root).args([
+        "--emit-value-vault-ir-sbpf",
+        "-o",
+        path_str(&asm_path)?,
+        "--artifact-output",
+        path_str(&artifact_path)?,
+    ]);
+    run_required(&mut emit, "proof-forge --emit-value-vault-ir-sbpf")?;
+
+    ensure!(
+        asm_path.exists(),
+        "ValueVault Solana emission did not create `{}`",
+        asm_path.display()
+    );
+    ensure!(
+        artifact_path.exists(),
+        "ValueVault Solana emission did not create `{}`",
+        artifact_path.display()
+    );
+    let manifest_path = out_dir.join("manifest.toml");
+    ensure!(
+        manifest_path.exists(),
+        "ValueVault Solana emission did not create `{}`",
+        manifest_path.display()
+    );
+    assert_value_vault_asm(&asm_path)?;
+    validate_artifact_metadata(
+        &artifact_path,
+        "value-vault-ir-sbpf",
+        "contract-sdk",
+        &["env.block", "storage.scalar", "events.emit"],
+    )?;
+    validate_manifest(
+        &manifest_path,
+        "valuevault",
+        &[
+            ("initialize", 0),
+            ("deposit", 1),
+            ("charge_fee", 2),
+            ("release", 3),
+            ("snapshot", 4),
+            ("get_balance", 5),
+            ("get_net_value", 6),
+        ],
+    )?;
+
+    let project_dir = out_dir.join("sbpf-project");
+    let keypair_path = project_dir
+        .join("deploy")
+        .join(format!("{VALUE_VAULT_PROJECT_NAME}-keypair.json"));
+    let program_path = project_dir.join("deploy").join(VALUE_VAULT_PROJECT_NAME);
+    scaffold_sbpf_project(&project_dir, VALUE_VAULT_PROJECT_NAME, &asm_path, keygen)?;
+
+    let mut sbpf_build = Command::new(sbpf);
+    sbpf_build.current_dir(&project_dir).arg("build");
+    run_required(&mut sbpf_build, "sbpf build")?;
+
+    let elf_path = program_path.with_extension("so");
+    ensure!(
+        elf_path.exists(),
+        "Solana sbpf build did not create `{}`",
+        elf_path.display()
+    );
+
+    Ok(SolanaFixtureArtifact {
+        manifest_path,
+        keypair_path,
+        program_path,
+    })
+}
+
+fn scaffold_sbpf_project(
+    project_dir: &Path,
+    project_name: &str,
+    asm_path: &Path,
+    keygen: &str,
+) -> Result<()> {
     match fs::remove_dir_all(project_dir) {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {}
@@ -197,13 +324,13 @@ fn scaffold_sbpf_project(project_dir: &Path, asm_path: &Path, keygen: &str) -> R
         }
     }
 
-    let src_dir = project_dir.join("src").join(PROJECT_NAME);
+    let src_dir = project_dir.join("src").join(project_name);
     let deploy_dir = project_dir.join("deploy");
     fs::create_dir_all(&src_dir)
         .with_context(|| format!("failed to create `{}`", src_dir.display()))?;
     fs::create_dir_all(&deploy_dir)
         .with_context(|| format!("failed to create `{}`", deploy_dir.display()))?;
-    fs::copy(asm_path, src_dir.join(format!("{PROJECT_NAME}.s"))).with_context(|| {
+    fs::copy(asm_path, src_dir.join(format!("{project_name}.s"))).with_context(|| {
         format!(
             "failed to copy `{}` into `{}`",
             asm_path.display(),
@@ -212,7 +339,7 @@ fn scaffold_sbpf_project(project_dir: &Path, asm_path: &Path, keygen: &str) -> R
     })?;
     fs::write(
         project_dir.join("Cargo.toml"),
-        format!("[package]\nname = \"{PROJECT_NAME}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+        format!("[package]\nname = \"{project_name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
     )
     .with_context(|| {
         format!(
@@ -221,7 +348,7 @@ fn scaffold_sbpf_project(project_dir: &Path, asm_path: &Path, keygen: &str) -> R
         )
     })?;
 
-    let keypair_path = deploy_dir.join(format!("{PROJECT_NAME}-keypair.json"));
+    let keypair_path = deploy_dir.join(format!("{project_name}-keypair.json"));
     let mut keygen_cmd = Command::new(keygen);
     keygen_cmd.args([
         "new",
@@ -252,8 +379,8 @@ fn mollusk(pid: Address, program_path: &Path) -> Result<Mollusk> {
     Ok(mollusk)
 }
 
-fn ix(pid: Address, tag: u8, counter: Address) -> Instruction {
-    Instruction::new_with_bytes(pid, &[tag], vec![AccountMeta::new(counter, false)])
+fn ix(pid: Address, data: Vec<u8>, state: Address) -> Instruction {
+    Instruction::new_with_bytes(pid, &data, vec![AccountMeta::new(state, false)])
 }
 
 fn outcome_from_return_data(sequence: u32, call: &str, return_data: &[u8]) -> CallOutcome {
@@ -305,7 +432,31 @@ fn assert_golden_asm(repo_root: &Path, asm_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn validate_artifact_metadata(path: &Path) -> Result<()> {
+fn assert_value_vault_asm(asm_path: &Path) -> Result<()> {
+    let asm = fs::read_to_string(asm_path)
+        .with_context(|| format!("failed to read `{}`", asm_path.display()))?;
+    for needle in [
+        "solana.event.emit ValueDeposited",
+        "solana.event.emit ValueSnapshot",
+        "call sol_log_64_",
+        "call sol_get_clock_sysvar",
+        "stxdw [r1+136]",
+    ] {
+        ensure!(
+            asm.contains(needle),
+            "ValueVault Solana assembly `{}` missing `{needle}`",
+            asm_path.display()
+        );
+    }
+    Ok(())
+}
+
+fn validate_artifact_metadata(
+    path: &Path,
+    expected_fixture: &str,
+    expected_source_kind: &str,
+    required_capabilities: &[&str],
+) -> Result<()> {
     let text =
         fs::read_to_string(path).with_context(|| format!("failed to read `{}`", path.display()))?;
     let artifact: ArtifactMetadata = serde_json::from_str(&text)
@@ -329,23 +480,23 @@ fn validate_artifact_metadata(path: &Path) -> Result<()> {
         artifact.artifact_kind
     );
     ensure!(
-        artifact.fixture == "counter-ir-sbpf",
+        artifact.fixture == expected_fixture,
         "Solana artifact `{}` has fixture `{}`",
         path.display(),
         artifact.fixture
     );
     ensure!(
-        artifact.source_kind == "portable-ir",
+        artifact.source_kind == expected_source_kind,
         "Solana artifact `{}` has sourceKind `{}`",
         path.display(),
         artifact.source_kind
     );
-    for capability in ["storage.scalar", "account.explicit", "control.conditional"] {
+    for capability in required_capabilities {
         ensure!(
             artifact
                 .capabilities
                 .iter()
-                .any(|candidate| candidate == capability),
+                .any(|candidate| candidate == *capability),
             "Solana artifact `{}` missing capability `{capability}`",
             path.display()
         );
@@ -359,7 +510,11 @@ fn validate_artifact_metadata(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn validate_manifest(path: &Path) -> Result<()> {
+fn validate_manifest(
+    path: &Path,
+    expected_program_name: &str,
+    expected_tags: &[(&str, u8)],
+) -> Result<()> {
     let text =
         fs::read_to_string(path).with_context(|| format!("failed to read `{}`", path.display()))?;
     let manifest: SolanaManifest =
@@ -371,15 +526,15 @@ fn validate_manifest(path: &Path) -> Result<()> {
         manifest.target
     );
     ensure!(
-        manifest.program.name == "counter",
+        manifest.program.name == expected_program_name,
         "Solana manifest `{}` has program name `{}`",
         path.display(),
         manifest.program.name
     );
     let tags = load_instruction_tags(path)?;
-    for (name, tag) in [("initialize", 0), ("increment", 1), ("get", 2)] {
+    for (name, tag) in expected_tags {
         ensure!(
-            tags.get(name) == Some(&tag),
+            tags.get(*name) == Some(tag),
             "Solana manifest `{}` missing instruction `{name}` tag {tag}",
             path.display()
         );

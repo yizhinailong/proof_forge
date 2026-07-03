@@ -2616,6 +2616,7 @@ name = "proof-forge-testkit-harness-near"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "hex",
  "proof-forge-testkit-core",
 ]
 

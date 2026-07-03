@@ -1,10 +1,11 @@
 use std::collections::HashMap;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use anyhow::{bail, ensure, Context as _, Result};
-use proof_forge_testkit_core::{CallOutcome, ChainHarness, HarnessRun, ScenarioCase};
+use proof_forge_testkit_core::{CallOutcome, ChainHarness, HarnessRun, ScenarioCase, Step};
 use revm::{
     bytecode::Bytecode,
     context::TxEnv,
@@ -39,6 +40,15 @@ impl ChainHarness for EvmHarness {
     }
 
     fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<HarnessRun> {
+        if case.manifest.scenario.fixture == "value-vault" {
+            let cast = tool("CAST", "cast");
+            if !command_available(&cast) {
+                return Ok(HarnessRun::skipped(
+                    "cast not on PATH (set CAST or install Foundry)",
+                ));
+            }
+        }
+
         let artifact = build_fixture(case, repo_root)?;
         let selectors = load_selectors(&artifact.metadata_path)?;
         let bytecode = read_bytecode(&artifact.bytecode_path)?;
@@ -66,7 +76,7 @@ impl ChainHarness for EvmHarness {
                 })?
                 .clone();
             for _ in 0..step.repeat.unwrap_or(1) {
-                let calldata = calldata_for_step(&selector, step.input_hex.as_deref())?;
+                let calldata = calldata_for_step(&selector, step)?;
                 let tx = TxEnv::builder()
                     .caller(CALLER_ADDRESS)
                     .gas_limit(CALL_GAS_LIMIT)
@@ -107,6 +117,7 @@ struct EvmFixtureArtifact {
 fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<EvmFixtureArtifact> {
     match case.manifest.scenario.fixture.as_str() {
         "counter" => build_counter_fixture(repo_root),
+        "value-vault" => build_value_vault_fixture(repo_root),
         fixture => bail!("EVM testkit harness does not support fixture `{fixture}` yet"),
     }
 }
@@ -176,17 +187,82 @@ fn build_counter_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     })
 }
 
+fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
+    let out_dir = repo_root.join("build/testkit/evm/value-vault");
+    fs::create_dir_all(&out_dir)
+        .with_context(|| format!("failed to create `{}`", out_dir.display()))?;
+
+    let build = Command::new("lake")
+        .current_dir(repo_root)
+        .args(["build", "proof-forge"])
+        .output()
+        .context("failed to build proof-forge executable")?;
+    if !build.status.success() {
+        bail!(
+            "lake build proof-forge failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&build.stdout),
+            String::from_utf8_lossy(&build.stderr)
+        );
+    }
+
+    let bytecode_path = out_dir.join("ValueVault.bin");
+    let yul_path = out_dir.join("ValueVault.yul");
+    let metadata_path = out_dir.join("ValueVault.proof-forge-artifact.json");
+    let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
+    let cast = tool("CAST", "cast");
+    let output = Command::new(&proof_forge)
+        .current_dir(repo_root)
+        .args([
+            "--emit-value-vault-ir-bytecode",
+            "--cast",
+            &cast,
+            "--yul-output",
+            path_str(&yul_path)?,
+            "--artifact-output",
+            path_str(&metadata_path)?,
+            "-o",
+            path_str(&bytecode_path)?,
+        ])
+        .output()
+        .with_context(|| format!("failed to run `{}`", proof_forge.display()))?;
+    if !output.status.success() {
+        bail!(
+            "ValueVault EVM bytecode emission failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    ensure!(
+        bytecode_path.exists(),
+        "ValueVault EVM bytecode emission did not create `{}`",
+        bytecode_path.display()
+    );
+    ensure!(
+        metadata_path.exists(),
+        "ValueVault EVM bytecode emission did not create `{}`",
+        metadata_path.display()
+    );
+
+    Ok(EvmFixtureArtifact {
+        bytecode_path,
+        metadata_path,
+    })
+}
+
 fn read_bytecode(path: &Path) -> Result<Vec<u8>> {
     let text =
         fs::read_to_string(path).with_context(|| format!("failed to read `{}`", path.display()))?;
     decode_hex(text.trim()).with_context(|| format!("failed to decode `{}`", path.display()))
 }
 
-fn calldata_for_step(selector: &[u8; 4], input_hex: Option<&str>) -> Result<Vec<u8>> {
+fn calldata_for_step(selector: &[u8; 4], step: &Step) -> Result<Vec<u8>> {
     let mut calldata = selector.to_vec();
-    if let Some(input_hex) = input_hex {
-        calldata.extend(decode_hex(input_hex).context("failed to decode EVM input_hex")?);
-    }
+    calldata.extend(step.evm_abi_input_bytes().with_context(|| {
+        format!(
+            "failed to encode EVM calldata arguments for call `{}`",
+            step.call
+        )
+    })?);
     Ok(calldata)
 }
 
@@ -256,8 +332,8 @@ fn load_selectors(path: &Path) -> Result<HashMap<String, [u8; 4]>> {
         artifact.target
     );
     ensure!(
-        artifact.source_kind == "portable-ir",
-        "EVM artifact `{}` has sourceKind `{}`",
+        artifact.source_kind == "portable-ir" || artifact.source_kind == "contract-sdk",
+        "EVM artifact `{}` has unsupported sourceKind `{}`",
         path.display(),
         artifact.source_kind
     );
@@ -285,6 +361,26 @@ fn selector_bytes(selector: &str) -> Result<[u8; 4]> {
         bytes.len()
     );
     Ok(bytes.try_into().expect("selector length checked"))
+}
+
+fn command_available(command: &str) -> bool {
+    Command::new(command)
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+fn tool(env_key: &str, default: &str) -> String {
+    env::var(env_key).unwrap_or_else(|_| default.to_string())
+}
+
+fn path_str(path: &Path) -> Result<&str> {
+    path.to_str()
+        .ok_or_else(|| anyhow::anyhow!("non-UTF-8 path `{}`", path.display()))
 }
 
 #[derive(Debug, Deserialize)]

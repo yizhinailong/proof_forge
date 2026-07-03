@@ -6,4 +6,5 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+hex.workspace = true
 proof-forge-testkit-core = { path = "../core" }

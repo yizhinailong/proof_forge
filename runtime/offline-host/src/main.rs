@@ -22,6 +22,7 @@ struct Config {
     repeat: u32,
     heap_base: u32,
     input: Vec<u8>,
+    inputs: Option<Vec<Vec<u8>>>,
     current_account_id: Vec<u8>,
     predecessor_account_id: Vec<u8>,
     block_index: u64,
@@ -36,6 +37,7 @@ impl Config {
         let mut repeat = 1;
         let mut heap_base = DEFAULT_HEAP_BASE;
         let mut input = Vec::new();
+        let mut inputs = None;
         let mut current_account_id = b"proof-forge.testnet".to_vec();
         let mut predecessor_account_id = b"alice.testnet".to_vec();
         let mut block_index = 0;
@@ -61,6 +63,9 @@ impl Config {
                 }
                 "--input-hex" => {
                     input = parse_hex(&take_arg(&mut args, "--input-hex")?)?;
+                }
+                "--inputs-hex" => {
+                    inputs = Some(parse_hex_sequence(&take_arg(&mut args, "--inputs-hex")?)?);
                 }
                 "--input-file" => {
                     let path = take_arg(&mut args, "--input-file")?;
@@ -88,12 +93,26 @@ impl Config {
             bail!("expected <module.wat|module.wasm> and at least one <export>");
         }
 
+        if inputs.is_some() && !input.is_empty() {
+            bail!("--inputs-hex cannot be combined with --input-hex or --input-file");
+        }
+        if let Some(call_inputs) = &inputs {
+            let expected = positionals.len() - 1;
+            if call_inputs.len() != expected {
+                bail!(
+                    "--inputs-hex provided {} item(s), but the export sequence has {expected} call(s)",
+                    call_inputs.len()
+                );
+            }
+        }
+
         Ok(Self {
             module_path: PathBuf::from(&positionals[0]),
             exports: positionals[1..].to_vec(),
             repeat,
             heap_base,
             input,
+            inputs,
             current_account_id,
             predecessor_account_id,
             block_index,
@@ -117,6 +136,7 @@ fn print_usage() {
            --repeat N                    call the export sequence N times (default: 1)\n\
            --heap-base N                 first host-managed wasm heap offset (default: 60000)\n\
            --input-hex HEX               Borsh input bytes, hex encoded\n\
+           --inputs-hex HEX[,HEX...]      one Borsh input blob per export in the sequence\n\
            --input-file PATH             Borsh input bytes from a file\n\
            --current-account-id ID       current_account_id stub value\n\
            --predecessor-account-id ID   predecessor_account_id stub value\n\
@@ -144,6 +164,10 @@ fn parse_hex(input: &str) -> Result<Vec<u8>> {
     Ok(out)
 }
 
+fn parse_hex_sequence(input: &str) -> Result<Vec<Vec<u8>>> {
+    input.split(',').map(parse_hex).collect()
+}
+
 fn run(config: Config) -> Result<()> {
     let engine = Engine::default();
     let bytes = load_wasm_or_wat(&config.module_path)?;
@@ -153,6 +177,10 @@ fn run(config: Config) -> Result<()> {
     let mut linker = Linker::new(&engine);
     define_host_imports(&mut linker)?;
 
+    let call_inputs = config
+        .inputs
+        .clone()
+        .unwrap_or_else(|| vec![config.input.clone(); config.exports.len()]);
     let host = HostState::new(
         config.heap_base,
         config.input,
@@ -181,7 +209,8 @@ fn run(config: Config) -> Result<()> {
     );
 
     for sequence_index in 1..=config.repeat {
-        for (export, entry) in &entries {
+        for (call_index, (export, entry)) in entries.iter().enumerate() {
+            store.data_mut().input = call_inputs[call_index].clone();
             store.data_mut().begin_call();
             entry
                 .call(&mut store, ())

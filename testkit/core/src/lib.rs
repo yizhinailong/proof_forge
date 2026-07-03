@@ -35,8 +35,101 @@ pub struct Step {
     pub repeat: Option<u32>,
     #[serde(default)]
     pub input_hex: Option<String>,
+    #[serde(default, rename = "arg")]
+    pub args: Vec<StepArg>,
     #[serde(default)]
     pub expect: Option<Expectation>,
+}
+
+impl Step {
+    pub fn portable_input_bytes_le(&self) -> Result<Vec<u8>> {
+        if let Some(input_hex) = &self.input_hex {
+            ensure!(
+                self.args.is_empty(),
+                "step `{}` cannot combine input_hex with typed args",
+                self.call
+            );
+            return decode_hex_bytes(input_hex);
+        }
+
+        let mut bytes = Vec::new();
+        for arg in &self.args {
+            bytes.extend(arg.encode_le()?);
+        }
+        Ok(bytes)
+    }
+
+    pub fn evm_abi_input_bytes(&self) -> Result<Vec<u8>> {
+        if let Some(input_hex) = &self.input_hex {
+            ensure!(
+                self.args.is_empty(),
+                "step `{}` cannot combine input_hex with typed args",
+                self.call
+            );
+            return decode_hex_bytes(input_hex);
+        }
+
+        let mut bytes = Vec::new();
+        for arg in &self.args {
+            bytes.extend(arg.encode_evm_word()?);
+        }
+        Ok(bytes)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct StepArg {
+    #[serde(default, rename = "u64")]
+    pub u64_value: Option<u64>,
+    #[serde(default, rename = "u32")]
+    pub u32_value: Option<u32>,
+    #[serde(default)]
+    pub bool: Option<bool>,
+}
+
+impl StepArg {
+    fn validate(&self) -> Result<()> {
+        let count = usize::from(self.u64_value.is_some())
+            + usize::from(self.u32_value.is_some())
+            + usize::from(self.bool.is_some());
+        ensure!(
+            count == 1,
+            "typed step args must specify exactly one of `u64`, `u32`, or `bool`"
+        );
+        Ok(())
+    }
+
+    fn encode_le(&self) -> Result<Vec<u8>> {
+        self.validate()?;
+        if let Some(value) = self.u64_value {
+            return Ok(value.to_le_bytes().to_vec());
+        }
+        if let Some(value) = self.u32_value {
+            return Ok(value.to_le_bytes().to_vec());
+        }
+        if let Some(value) = self.bool {
+            return Ok(vec![u8::from(value)]);
+        }
+        unreachable!("StepArg::validate checked exactly one value")
+    }
+
+    fn encode_evm_word(&self) -> Result<Vec<u8>> {
+        self.validate()?;
+        let mut word = vec![0u8; 32];
+        if let Some(value) = self.u64_value {
+            word[24..32].copy_from_slice(&value.to_be_bytes());
+            return Ok(word);
+        }
+        if let Some(value) = self.u32_value {
+            word[28..32].copy_from_slice(&value.to_be_bytes());
+            return Ok(word);
+        }
+        if let Some(value) = self.bool {
+            word[31] = u8::from(value);
+            return Ok(word);
+        }
+        unreachable!("StepArg::validate checked exactly one value")
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -151,6 +244,20 @@ pub fn discover_scenarios(dir: &Path) -> Result<Vec<ScenarioCase>> {
                 manifest.scenario.name,
                 step.call
             );
+            ensure!(
+                !(step.input_hex.is_some() && !step.args.is_empty()),
+                "scenario `{}` step `{}` cannot combine input_hex with typed [[step.arg]] entries",
+                manifest.scenario.name,
+                step.call
+            );
+            for arg in &step.args {
+                arg.validate().with_context(|| {
+                    format!(
+                        "scenario `{}` step `{}` has an invalid typed arg",
+                        manifest.scenario.name, step.call
+                    )
+                })?;
+            }
         }
         scenarios.push(ScenarioCase { path, manifest });
     }
@@ -489,11 +596,28 @@ pub fn parse_offline_host_outcomes(stdout: &str) -> Result<Vec<CallOutcome>> {
     Ok(outcomes)
 }
 
-fn normalize_hex(value: &str) -> String {
+pub fn normalize_hex(value: &str) -> String {
     value
         .strip_prefix("0x")
         .unwrap_or(value)
         .to_ascii_lowercase()
+}
+
+pub fn decode_hex_bytes(value: &str) -> Result<Vec<u8>> {
+    let normalized = normalize_hex(value);
+    ensure!(
+        normalized.len() % 2 == 0,
+        "hex value must contain an even number of digits"
+    );
+    let mut out = Vec::with_capacity(normalized.len() / 2);
+    for chunk in normalized.as_bytes().chunks_exact(2) {
+        let byte = std::str::from_utf8(chunk).context("hex input was not valid UTF-8")?;
+        out.push(
+            u8::from_str_radix(byte, 16)
+                .with_context(|| format!("invalid hex byte `{byte}` in value `{value}`"))?,
+        );
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -520,6 +644,7 @@ mod tests {
             call: call.to_string(),
             repeat: None,
             input_hex: None,
+            args: Vec::new(),
             expect: expected_u64.map(|value| Expectation {
                 return_value: None,
                 return_: Some(ReturnExpectation {

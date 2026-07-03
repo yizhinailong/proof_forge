@@ -1,0 +1,62 @@
+[scenario]
+name = "value-vault"
+fixture = "value-vault"
+targets = ["wasm-near", "evm", "solana-sbpf-asm"]
+capabilities = ["storage.scalar", "entrypoint.external", "events.emit", "env.block"]
+
+[[step]]
+call = "initialize"
+[[step.arg]]
+u64 = 100
+
+[[step]]
+call = "get_balance"
+[step.expect.return]
+u64 = 100
+
+[[step]]
+call = "deposit"
+[[step.arg]]
+u64 = 25
+
+[[step]]
+call = "get_balance"
+[step.expect.return]
+u64 = 125
+
+[[step]]
+call = "charge_fee"
+[[step.arg]]
+u64 = 100
+[[step.arg]]
+u64 = 250
+
+[[step]]
+call = "get_balance"
+[step.expect.return]
+u64 = 223
+
+[[step]]
+call = "get_net_value"
+[step.expect.return]
+u64 = 221
+
+[[step]]
+call = "release"
+[[step.arg]]
+u64 = 23
+
+[[step]]
+call = "get_balance"
+[step.expect.return]
+u64 = 200
+
+[[step]]
+call = "snapshot"
+[step.expect.return]
+u64 = 200
+
+[[step]]
+call = "get_net_value"
+[step.expect.return]
+u64 = 198

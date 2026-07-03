@@ -7,13 +7,19 @@ smokes.
 Current scope:
 
 - scenario discovery from `testkit/scenarios/*.toml`
-- `wasm-near` Counter execution through the existing deterministic
-  `runtime/offline-host` wasmtime host
+- typed scalar scenario args (`u64`, `u32`, `bool`) that each harness encodes
+  into its native ABI (`Borsh`/little-endian input for `wasm-near`, ABI words
+  for `evm`, and `[tag] + little-endian args` for `solana-sbpf-asm`)
+- `wasm-near` Counter and ValueVault execution through the existing
+  deterministic `runtime/offline-host` wasmtime host
 - `evm` Counter execution through an in-process `revm` harness that emits the
   portable IR Counter runtime bytecode, loads its artifact metadata selectors,
-  and executes the same scenario steps as EVM transactions
-- normalized observable trace parity between `wasm-near` and `evm` when both
-  targets are selected for the same scenario
+  and executes the same scenario steps as EVM transactions; ValueVault is
+  wired through the same harness when Foundry `cast` is available for selector
+  hydration
+- `solana-sbpf-asm` Counter and ValueVault execution through `mollusk-svm`
+  when `sbpf` and `solana-keygen` are available
+- normalized observable trace parity across every selected target that ran
 - `just testkit` and a CI gate
 
 The testkit intentionally does not remove existing shell gates. Foundry and
@@ -31,6 +37,7 @@ Run only one target:
 ```sh
 cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --target evm
 cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --target wasm-near
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault
 ```
 
 List scenarios without executing them:

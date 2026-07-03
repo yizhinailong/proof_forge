@@ -2037,8 +2037,11 @@ Tasks (one milestone per implementing branch):
   all three targets. Status: Counter is now wired through `mollusk-svm` in
   `testkit/harness-solana`, including golden assembly, manifest, artifact
   metadata, sBPF ELF build, stateful scenario execution, and three-target
-  trace parity when `sbpf` and `solana-keygen` are available. Remaining M3
-  work: add the ValueVault scenario.
+  trace parity when `sbpf` and `solana-keygen` are available. ValueVault is
+  now covered by `testkit/scenarios/value-vault.toml`, typed scalar scenario
+  args, `runtime/offline-host --inputs-hex`, the NEAR/Wasm EmitWat fixture,
+  the Solana ValueVault sBPF/Mollusk harness, and the EVM/revm harness when
+  Foundry `cast` is available for selector hydration.
 - M4: migrate golden-file comparisons and per-fixture behavior scripts into
   scenario steps; retire duplicated shell scripts; collapse the per-fixture
   CI steps into the testkit run. Live/chain-authentic gates (Foundry, Anvil
