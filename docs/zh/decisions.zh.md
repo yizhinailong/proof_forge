@@ -44,6 +44,7 @@
 | D-039 | 2026-07-03 | 在 testkit M4 绑定到旧版 flag 之前，将 CLI 产品形态规划为 `proof-forge build|emit|check --target <id> [--fixture <id>]` | RFC 0009 定义了 target-first 的界面、fixture 注册表以及旧版 flag 的别名/弃用计划。实现按 RFC 评审后分阶段进行；在工作流 29 M1 之前不做代码改动 |
 | D-040 | 2026-07-03 | 将资源预算（EVM gas、Solana CU、NEAR gas）作为 Tier-0 一致性门控的必选项 | Tier-0 共享场景一致性（D-034）不能只比较行为；RFC 0010 定义了 testkit 场景中的可选 per-step budget 基线 + 容差带，避免宣告虚假一致性并锁定当前 Solana 直接汇编路线的低 CU 优势 |
 | D-041 | 2026-07-03 | 采用可移植运行时错误模型（`assertion_id` + 可选 `user_code`）和统一的 `ContractSpec` 客户端 schema | 每个目标以原生形式编码同一错误 id（EVM revert、Solana custom error、NEAR panic payload、Psy assertion index）；testkit 可断言 `expect.error`。目标中立的 `ContractSpec` JSON 泛化现有 Solana IDL，在 testkit M3 之后为各链 TS 客户端生成提供输入 |
+| D-042 | 2026-07-03 | 为可移植 IR、制品/部署 JSON schema、能力 id 以及 SDK/CLI 采用版本控制与兼容性策略 | IR 使用 `major.minor`：新构造函数为 minor，语义变化为 major；制品/部署 schema 使用整数 `schemaVersion` 并遵循宽容读取规则；能力 id 仅追加；SDK/CLI 在 1.0 前后遵循类 semver 规则。RFC 0012 定义完整策略 |
 
 ## 目标家族分类| 目标家族 | 目标 | 后端模式 |
 |---|---|---|
