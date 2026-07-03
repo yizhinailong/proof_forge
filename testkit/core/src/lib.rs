@@ -231,6 +231,51 @@ impl StepArg {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct BudgetExpectation {
+    #[serde(default)]
+    pub solana_cu: Option<BudgetValue>,
+    #[serde(default)]
+    pub evm_gas: Option<BudgetValue>,
+    #[serde(default)]
+    pub near_gas: Option<BudgetValue>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum BudgetValue {
+    Exact(u64),
+    Baseline { baseline: u64, tolerance: f64 },
+}
+
+impl BudgetValue {
+    pub fn baseline(&self) -> u64 {
+        match self {
+            BudgetValue::Exact(value) => *value,
+            BudgetValue::Baseline { baseline, .. } => *baseline,
+        }
+    }
+
+    pub fn tolerance(&self) -> f64 {
+        match self {
+            BudgetValue::Exact(_) => 0.0,
+            BudgetValue::Baseline { tolerance, .. } => *tolerance,
+        }
+    }
+
+    pub fn max_allowed(&self) -> u64 {
+        let baseline = self.baseline() as f64;
+        (baseline * (1.0 + self.tolerance())) as u64
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct BudgetOutcome {
+    pub solana_cu: Option<u64>,
+    pub evm_gas: Option<u64>,
+    pub near_gas: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct Expectation {
     #[serde(default)]
     pub return_value: Option<ReturnExpectation>,
@@ -242,6 +287,8 @@ pub struct Expectation {
     pub reuses: Option<u64>,
     #[serde(default)]
     pub deallocations: Option<u64>,
+    #[serde(default)]
+    pub budget: Option<BudgetExpectation>,
 }
 
 impl Expectation {
@@ -273,6 +320,7 @@ pub struct CallOutcome {
     pub allocations: Option<u64>,
     pub reuses: Option<u64>,
     pub deallocations: Option<u64>,
+    pub budget: Option<BudgetOutcome>,
     pub raw_line: String,
 }
 
@@ -1326,7 +1374,7 @@ fn display_toml_value(value: &TomlValue) -> String {
     }
 }
 
-pub fn assert_expectations(case: &ScenarioCase, outcomes: &[CallOutcome]) -> Result<()> {
+pub fn assert_expectations(case: &ScenarioCase, target_id: &str, outcomes: &[CallOutcome]) -> Result<()> {
     let expected_len: usize = case
         .manifest
         .steps
@@ -1390,6 +1438,15 @@ pub fn assert_expectations(case: &ScenarioCase, outcomes: &[CallOutcome]) -> Res
                         expected,
                         outcome.deallocations
                     );
+                }
+                if let Some(expected) = &expect.budget {
+                    assert_budget(
+                        &case.manifest.scenario.name,
+                        target_id,
+                        &step.call,
+                        expected,
+                        outcome,
+                    )?;
                 }
             }
             index += 1;
@@ -1642,6 +1699,65 @@ fn assert_return(
     Ok(())
 }
 
+fn assert_budget(
+    scenario: &str,
+    target_id: &str,
+    call: &str,
+    expected: &BudgetExpectation,
+    outcome: &CallOutcome,
+) -> Result<()> {
+    let budget = outcome.budget.unwrap_or_default();
+    if target_id == "solana-sbpf-asm" {
+        if let Some(expected) = &expected.solana_cu {
+            let actual = budget.solana_cu.with_context(|| {
+                format!("scenario `{scenario}` call `{call}` expected solana_cu budget but harness did not report one")
+            })?;
+            let max_allowed = expected.max_allowed();
+            ensure!(
+                actual <= max_allowed,
+                "scenario `{scenario}` call `{call}` solana_cu budget exceeded: baseline={}, tolerance={}, max_allowed={}, got={}",
+                expected.baseline(),
+                expected.tolerance(),
+                max_allowed,
+                actual
+            );
+        }
+    }
+    if target_id == "evm" {
+        if let Some(expected) = &expected.evm_gas {
+            let actual = budget.evm_gas.with_context(|| {
+                format!("scenario `{scenario}` call `{call}` expected evm_gas budget but harness did not report one")
+            })?;
+            let max_allowed = expected.max_allowed();
+            ensure!(
+                actual <= max_allowed,
+                "scenario `{scenario}` call `{call}` evm_gas budget exceeded: baseline={}, tolerance={}, max_allowed={}, got={}",
+                expected.baseline(),
+                expected.tolerance(),
+                max_allowed,
+                actual
+            );
+        }
+    }
+    if target_id == "wasm-near" {
+        if let Some(expected) = &expected.near_gas {
+            let actual = budget.near_gas.with_context(|| {
+                format!("scenario `{scenario}` call `{call}` expected near_gas budget but harness did not report one")
+            })?;
+            let max_allowed = expected.max_allowed();
+            ensure!(
+                actual <= max_allowed,
+                "scenario `{scenario}` call `{call}` near_gas budget exceeded: baseline={}, tolerance={}, max_allowed={}, got={}",
+                expected.baseline(),
+                expected.tolerance(),
+                max_allowed,
+                actual
+            );
+        }
+    }
+    Ok(())
+}
+
 pub fn parse_offline_host_outcomes(stdout: &str) -> Result<Vec<CallOutcome>> {
     let mut outcomes = Vec::new();
     for line in stdout.lines() {
@@ -1667,8 +1783,10 @@ pub fn parse_offline_host_outcomes(stdout: &str) -> Result<Vec<CallOutcome>> {
             allocations: None,
             reuses: None,
             deallocations: None,
+            budget: None,
             raw_line: line.to_string(),
         };
+        let mut budget = BudgetOutcome::default();
         for token in details.split_whitespace() {
             let Some((key, value)) = token.split_once('=') else {
                 continue;
@@ -1686,8 +1804,14 @@ pub fn parse_offline_host_outcomes(stdout: &str) -> Result<Vec<CallOutcome>> {
                 "allocations" => outcome.allocations = Some(value.parse()?),
                 "reuses" => outcome.reuses = Some(value.parse()?),
                 "deallocations" => outcome.deallocations = Some(value.parse()?),
+                "solana_cu" => budget.solana_cu = Some(value.parse()?),
+                "evm_gas" => budget.evm_gas = Some(value.parse()?),
+                "near_gas" => budget.near_gas = Some(value.parse()?),
                 _ => {}
             }
+        }
+        if budget != BudgetOutcome::default() {
+            outcome.budget = Some(budget);
         }
         outcomes.push(outcome);
     }

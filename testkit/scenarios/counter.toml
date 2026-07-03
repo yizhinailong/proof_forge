@@ -366,16 +366,24 @@ artifact = "init-code"
 
 [[step]]
 call = "initialize"
+[step.expect.budget]
+solana_cu = { baseline = 56, tolerance = 0.05 }
 
 [[step]]
 call = "get"
 [step.expect.return]
 u64 = 0
+[step.expect.budget]
+solana_cu = { baseline = 163, tolerance = 0.05 }
 
 [[step]]
 call = "increment"
+[step.expect.budget]
+solana_cu = { baseline = 63, tolerance = 0.05 }
 
 [[step]]
 call = "get"
 [step.expect.return]
 u64 = 1
+[step.expect.budget]
+solana_cu = { baseline = 163, tolerance = 0.05 }

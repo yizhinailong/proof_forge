@@ -214,10 +214,10 @@ fn run_state_account_scenario(
                     format!("Solana call `{}` did not return state account", step.call)
                 })?
                 .clone();
-            outcomes.push(outcome_from_return_data(
+            outcomes.push(outcome_from_mollusk_result(
                 sequence,
                 &step.call,
-                &result.return_data,
+                &result,
             ));
             sequence += 1;
         }
@@ -452,7 +452,12 @@ fn ix(pid: Address, data: Vec<u8>, state: Address) -> Instruction {
     Instruction::new_with_bytes(pid, &data, vec![AccountMeta::new(state, false)])
 }
 
-fn outcome_from_return_data(sequence: u32, call: &str, return_data: &[u8]) -> CallOutcome {
+fn outcome_from_mollusk_result(
+    sequence: u32,
+    call: &str,
+    result: &mollusk_svm::result::InstructionResult,
+) -> CallOutcome {
+    let return_data = &result.return_data;
     let return_hex = if return_data.is_empty() {
         None
     } else {
@@ -460,7 +465,7 @@ fn outcome_from_return_data(sequence: u32, call: &str, return_data: &[u8]) -> Ca
     };
     let return_u64 = if return_data.len() == 8 {
         Some(u64::from_le_bytes(
-            return_data.try_into().expect("return_data length checked"),
+            return_data.as_slice().try_into().expect("return_data length checked"),
         ))
     } else {
         None
@@ -471,9 +476,14 @@ fn outcome_from_return_data(sequence: u32, call: &str, return_data: &[u8]) -> Ca
         Some(1) => Some(true),
         _ => None,
     };
+    let compute_units = result.compute_units_consumed;
     let raw_line = match &return_hex {
-        Some(hex) => format!("solana-sbpf-asm call {sequence}:{call}: return_hex={hex}"),
-        None => format!("solana-sbpf-asm call {sequence}:{call}: return_hex="),
+        Some(hex) => format!(
+            "solana-sbpf-asm call {sequence}:{call}: return_hex={hex} solana_cu={compute_units}"
+        ),
+        None => format!(
+            "solana-sbpf-asm call {sequence}:{call}: return_hex= solana_cu={compute_units}"
+        ),
     };
 
     CallOutcome {
@@ -486,6 +496,11 @@ fn outcome_from_return_data(sequence: u32, call: &str, return_data: &[u8]) -> Ca
         allocations: None,
         reuses: None,
         deallocations: None,
+        budget: Some(proof_forge_testkit_core::BudgetOutcome {
+            solana_cu: Some(compute_units),
+            evm_gas: None,
+            near_gas: None,
+        }),
         raw_line,
     }
 }

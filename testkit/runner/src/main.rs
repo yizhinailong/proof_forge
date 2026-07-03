@@ -194,7 +194,7 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
             };
             match harness.run_scenario(case, repo_root)? {
                 HarnessRun::Passed(outcomes) => {
-                    assert_expectations(case, &outcomes)?;
+                    assert_expectations(case, target, &outcomes)?;
                     println!(
                         "scenario {} target {}: ok ({} call outcome(s))",
                         case.manifest.scenario.name,

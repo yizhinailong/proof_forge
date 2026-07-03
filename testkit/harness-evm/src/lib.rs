@@ -367,6 +367,7 @@ fn outcome_from_output(sequence: u32, call: &str, output: &[u8]) -> CallOutcome 
         allocations: None,
         reuses: None,
         deallocations: None,
+        budget: None,
         raw_line,
     }
 }
