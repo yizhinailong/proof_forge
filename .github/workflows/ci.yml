@@ -321,3 +321,5 @@ jobs:
 
       - name: Run Aptos Counter smoke
         run: just aptos-counter-smoke
+        env:
+          PROOF_FORGE_APTOS_TIMEOUT: "600"
