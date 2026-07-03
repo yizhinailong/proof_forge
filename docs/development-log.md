@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-2 Aggregate/Storage IR Semantics Slice
+
+Commit: this commit
+
+Summary:
+
+- Reviewed the six-item architecture review disposition against current `main`.
+  R1 and R5 are already aligned in the accepted RFC 0009 / D-039 docs and the
+  primary-chain target scope, so this slice focuses on R3 rather than reopening
+  capability ids or target portfolio policy.
+- Extended `ProofForge.IR.Semantics` beyond scalar values with executable
+  fixed-array, struct, storage-array, storage-struct-field, nested storage-path,
+  and aggregate ABI value traces.
+- Added decide-checked FV-2 theorem anchors for `ArrayProbe`,
+  `EvmMapProbe`, `EvmStorageStructProbe`, and `EvmAbiAggregateProbe`, and wired
+  them into `Tests/NearWasmFormal.lean`.
+- Updated the formal roadmap/backlog/gate notes to say the first FV-2
+  aggregate/storage slice has landed, while full IR-to-artifact semantic
+  preservation remains open.
+
+Validation run:
+
+```sh
+lake build ProofForge.IR.Semantics
+lake env lean Tests/NearWasmFormal.lean
+lake build ProofForge.Backend.Evm.Refinement
+```
+
+Known limitations:
+
+- `storageMapInsert` / `storageMapSet` in expression position still return the
+  old value without threading state through nested expression evaluation. Full
+  map insert/set lifecycle traces need a state-threaded expression evaluator.
+- The new FV-2 traces are not yet connected to the EVM FV-4 Yul obligations;
+  they only establish the IR-side executable semantics slice.
+
+Next step:
+
+- Add state-threaded expression evaluation for effectful expressions, then
+  wire covered aggregate/storage IR traces into the EVM/NEAR artifact
+  obligations.
+
 ### Review Disposition Docs Tightening
 
 Commit: this commit

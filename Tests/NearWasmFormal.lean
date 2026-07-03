@@ -12,6 +12,34 @@ theorem release_then_sum_ownership_ok :
 
 #check ProofForge.IR.Semantics.counter_trace_gets_one
 #check ProofForge.IR.Semantics.counter_exports_match_near_entrypoints
+#check ProofForge.IR.Semantics.array_sum_literal_trace_returns_sixty
+#check ProofForge.IR.Semantics.array_storage_lifecycle_trace_returns_thirty_one
+#check ProofForge.IR.Semantics.array_predicates_trace_returns_one
+#check ProofForge.IR.Semantics.abi_sum_pair_trace_returns_forty_two
+#check ProofForge.IR.Semantics.abi_make_array_trace_returns_array
+#check ProofForge.IR.Semantics.map_path_lifecycle_trace_returns_seventy_seven
+#check ProofForge.IR.Semantics.map_path_assign_lifecycle_trace_returns_fifty_eight
+#check ProofForge.IR.Semantics.map_nested_path_lifecycle_trace_returns_ninety_five
+#check ProofForge.IR.Semantics.map_nested_path_dynamic_trace_returns_argument_value
+#check ProofForge.IR.Semantics.storage_struct_path_lifecycle_trace_returns_forty_eight
+#check ProofForge.IR.Semantics.storage_struct_lifecycle_trace_returns_eighteen
+#check ProofForge.IR.Semantics.storage_struct_array_lifecycle_trace_returns_twelve
+#check ProofForge.IR.Semantics.storage_struct_array_path_lifecycle_trace_returns_twenty_three
+#check ProofForge.IR.Semantics.storage_struct_whole_write_trace_returns_seventy
+#check ProofForge.IR.Semantics.storage_struct_whole_return_trace_returns_point
+#check ProofForge.IR.Semantics.storage_struct_self_write_trace_returns_seven_hundred_five
+#check ProofForge.IR.Semantics.storage_struct_return_points_trace_returns_array
+#check ProofForge.IR.Semantics.abi_sum_array_trace_returns_fifteen
+#check ProofForge.IR.Semantics.abi_sum_matrix_trace_returns_ten
+#check ProofForge.IR.Semantics.abi_sum_pair_array_trace_returns_ten
+#check ProofForge.IR.Semantics.abi_make_pair_trace_returns_struct
+#check ProofForge.IR.Semantics.abi_make_pair_array_trace_returns_struct_array
+#check ProofForge.IR.Semantics.abi_make_matrix_trace_returns_nested_array
+#check ProofForge.IR.Semantics.abi_sum_small_trace_returns_nineteen
+#check ProofForge.IR.Semantics.abi_sum_small_matrix_trace_returns_ten
+#check ProofForge.IR.Semantics.abi_and_flags_trace_returns_false
+#check ProofForge.IR.Semantics.abi_echo_hash_pair_trace_returns_right_hash
+#check ProofForge.IR.Semantics.abi_make_hash_array_trace_returns_hash_array
 #check ProofForge.Tests.NearWasmFormal.release_then_sum_ownership_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_ir_observable_trace_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_exports_trace_entrypoints
@@ -19,5 +47,5 @@ theorem release_then_sum_ownership_ok :
 end ProofForge.Tests.NearWasmFormal
 
 def main : IO UInt32 := do
-  IO.println "near-wasm-formal: counter scalar IR semantics checked"
+  IO.println "near-wasm-formal: scalar and FV-2 aggregate/storage IR semantics checked"
   return 0

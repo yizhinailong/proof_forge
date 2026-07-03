@@ -40,7 +40,7 @@
 |---|---|---|
 | R1：RFC 0009 和 D-039 滞后于已经落地的 CLI M1 工作 | 当前 `main` 已关闭：RFC 0009 已标记为 Accepted，并说明 M1 已落地；D-039 也已经改为追认 compatibility-layer 实现，而不是宣称代码前冻结 | 随着 M3/M4 把脚本和 testkit 从 legacy flags 迁到 target-first 命令，持续同步 RFC 0009 和 CLI 迁移文档 |
 | R2：同时存在过多半成品工作流 | 接受为排期风险 | Gate P0 关闭前不打开更多链实现范围；当前实现主线集中到 NEAR/Wasm P0-3，之后再完成 CLI M3/M4 清理 |
-| R3：尚无端到端证明把用户不变量连接到生成制品 | 部分接受：已有源级证明、NEAR trace obligations、EVM FV-4 可执行 Yul trace anchors，但完整 IR-to-artifact 语义保持还没有完成 | P0-3 后扩展 FV-2 IR 语义，覆盖 maps、arrays、structs 和 aggregates，再把这些 IR trace 连接到现有 EVM/NEAR 制品义务 |
+| R3：尚无端到端证明把用户不变量连接到生成制品 | 部分接受：已有源级证明、NEAR trace obligations、EVM FV-4 可执行 Yul trace anchors，以及第一批 FV-2 aggregate/storage IR traces；但完整 IR-to-artifact 语义保持还没有完成 | 继续 FV-2：补 state-threaded expression evaluation 和完整 map insert/set lifecycle traces，然后把这些 IR trace 连接到现有 EVM/NEAR 制品义务 |
 | R4：capability 粒度太粗 | 当前阶段不 churn capability id；storage 已经拆成 scalar/map/array/PDA，Solana account 语义也已与 storage pattern 分离建模 | 把跨目标运行时差异交给预算和诊断义务：每个 target 必须显式拒绝不支持形状，并为支持形状锁定资源预算 |
 | R5：docs-first target notes 形成隐藏沉没成本 | 排期层面已关闭：D-045 和 target roadmap 把产品硬化限制在 `solana-sbpf-asm`、`evm`、`wasm-near`；其他目标是 maintenance-only、frozen 或 docs-only parked | 保留 research notes 作为库存，但在 Gate P0 关闭前阻止非主目标推进 registry stage、capability surface、testkit 和 CI 扩展 |
 | R6：Lean/工具链入门摩擦 | 部分关闭：`docs/onboarding.md` 已存在并列出核心工具链和各目标工具；但 editor workspace config、templates 和 scaffolding 仍是开放 DX 工作 | 在 NEAR/Wasm P0-3 关闭后补 VS Code/Cursor workspace recommendations 和最小项目模板，除非入门摩擦提前阻塞 P0 工作 |
@@ -49,7 +49,9 @@
 
 1. 关闭 NEAR/Wasm P0-3：补齐 target-first 本地执行和部署元数据证据。
 2. 完成 CLI M3/M4：把 legacy flags 迁移到 target-first 调用。
-3. 继续形式化验证：扩展 FV-2 IR 语义，并连接到现有 EVM/NEAR trace obligations。
+3. 继续形式化验证：FV-2 已落地第一批 aggregate/storage executable trace
+   slice；下一步补 state-threaded expression evaluation，并把覆盖到的 IR
+   traces 连接到现有 EVM/NEAR obligations。
 4. 处理剩余 DX 项：`.vscode` recommendations、项目模板和脚手架；前提是它们不与 P0 关闭抢资源。
 
 ## 工作流 1：目标注册表
@@ -938,9 +940,13 @@
 任务（完整说明请参见路线图）：
 
 - FV-1：证明 `resolveSpec` 的能力路由稳健性、拒绝完备性以及 Solana 目标扩展隔离（将 D-027/D-028 作为定理）。
-- FV-2：将 `ProofForge/IR/Semantics.lean` 扩展到标量子集之外（映射、数组、结构体、`ifElse`、`boundedFor`、事件），并证明确定性以及有界循环终止性。
+- FV-2：将 `ProofForge/IR/Semantics.lean` 扩展到标量子集之外。已完成：
+  第一批 fixed arrays、struct values、aggregate ABI params/returns、storage
+  arrays、storage struct fields 和 nested storage paths 的可执行
+  aggregate/storage slice。剩余：为 effectful expressions 线程化 state，覆盖完整
+  map insert/set lifecycle，加上 `ifElse`、`boundedFor` 和 events，然后证明确定性以及有界循环终止性。
 - FV-3：证明 `IR/Ownership.lean` 检查器相对于释放感知语义（无释放后使用、无重复释放）是稳健的，为三种不同的 `release` 降级（EmitWat 分配器、EVM/Psy 拒绝、TS no-op）提供依据。
-- FV-4：已在 `Backend/Evm/Refinement.lean` 中落地 EVM Counter、ValueVault 和 EvmExpressionProbe 可执行追踪义务，并由 `Backend/Evm/YulSemantics.lean` 支撑。这些义务镜像 `Backend/WasmNear/Refinement.lean` 的 scalar IR trace，检查 selector-dispatched Yul surface，并执行聚焦的已发射 Yul 子集（`calldataload`、`calldatasize`、`sstore`、`sload`、标量算术、`exp`、bitwise/shift operators、comparisons、casts、assertions、`number`、确定性的 memory-sensitive `keccak256` surrogate、`log0`-`log4`、`mstore`、`return`），将可观察 EVM return words 与 IR trace 对比。ValueVault 覆盖 calldata 参数、多入口标量存储更新、区块号上下文读取、事件字段求值以及 return words；EvmExpressionProbe 覆盖 assertion success paths、`assertEq`、predicate expressions、U32/U64 arithmetic、casts、bitwise operators 和 shifts。新增的 EVM-only 可执行义务覆盖 `EvmMapProbe`（map value/presence slots 和嵌套 map paths）、`EvmTypedStorageProbe`（typed storage arrays 和 hash array reads）、`EvmStorageStructProbe`（storage structs 和 flat struct arrays）以及 `EvmAbiAggregateProbe`（aggregate ABI params/returns）。下一步：把 FV-2 的 IR 语义扩展到 map、array、struct 和 aggregate values，这样这些 EVM-only obligations 才能进一步连接回 IR traces；在解释器存在之前，让 Psy/Solana 保持在差异门控上。
+- FV-4：已在 `Backend/Evm/Refinement.lean` 中落地 EVM Counter、ValueVault 和 EvmExpressionProbe 可执行追踪义务，并由 `Backend/Evm/YulSemantics.lean` 支撑。这些义务镜像 `Backend/WasmNear/Refinement.lean` 的 scalar IR trace，检查 selector-dispatched Yul surface，并执行聚焦的已发射 Yul 子集（`calldataload`、`calldatasize`、`sstore`、`sload`、标量算术、`exp`、bitwise/shift operators、comparisons、casts、assertions、`number`、确定性的 memory-sensitive `keccak256` surrogate、`log0`-`log4`、`mstore`、`return`），将可观察 EVM return words 与 IR trace 对比。ValueVault 覆盖 calldata 参数、多入口标量存储更新、区块号上下文读取、事件字段求值以及 return words；EvmExpressionProbe 覆盖 assertion success paths、`assertEq`、predicate expressions、U32/U64 arithmetic、casts、bitwise operators 和 shifts。新增的 EVM-only 可执行义务覆盖 `EvmMapProbe`（map value/presence slots 和嵌套 map paths）、`EvmTypedStorageProbe`（typed storage arrays 和 hash array reads）、`EvmStorageStructProbe`（storage structs 和 flat struct arrays）以及 `EvmAbiAggregateProbe`（aggregate ABI params/returns）。第一批 FV-2 IR aggregate/storage traces 已覆盖其中很多形状，但 EVM-only obligations 仍需进一步与这些 IR traces 对比。下一步：补 state-threaded expression evaluation，使 expression-position map insert/set lifecycles 可以建模，然后把已覆盖的 IR traces 接入 EVM/NEAR 制品义务；在解释器存在之前，让 Psy/Solana 保持在差异门控上。
 - FV-5：在 IR 值域中统一陈述检查算术溢出/除法语义，并将溢出分支添加到后端义务中。
 - FV-6：证明配对测试夹具子集的 `.learn` 与 `contract_source` 降级等价性（可判定的 `ContractSpec` 相等性）。
 - FV-7：证明 Token SDK 计划不变性（全特性路由、已文档化的不兼容诊断、计划良构性）。

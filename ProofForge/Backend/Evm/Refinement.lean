@@ -375,9 +375,11 @@ def expressionTraceObligation : TraceObligation := {
 }
 
 /-! The following obligations intentionally exercise EVM/Yul execution only.
-    Their IR-side executable semantics is FV-2 work: the current
-    `ProofForge.IR.Semantics` model is still scalar-only and does not yet model
-    maps, arrays, structs, or aggregate ABI values. -/
+    `ProofForge.IR.Semantics` now has an FV-2 slice for arrays, structs,
+    storage paths, and aggregate ABI values, but these obligations are not yet
+    wired to compare against those IR traces. Expression-position map writes
+    still need state-threaded IR evaluation before the full map lifecycle can
+    become an IR-backed trace. -/
 
 def evmMapTraceCalls : Array TraceCall := #[
   { entrypoint := ProofForge.IR.Examples.EvmMapProbe.mapLifecycle },
