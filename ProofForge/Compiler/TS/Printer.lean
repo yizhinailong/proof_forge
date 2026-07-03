@@ -61,6 +61,9 @@ def printBinOp : BinOp → String
   | .mul => "*"
   | .div => "/"
   | .mod => "%"
+  | .bitXor => "^"
+  | .shiftLeft => "<<"
+  | .shiftRight => ">>"
 
 /-- Render a parameter with its type annotation. -/
 def printParam (p : Param) : String :=
@@ -131,10 +134,26 @@ mutual
         match elseBody? with
         | some elseBody => head ++ then_ ++ " else " ++ printBlock depth elseBody ++ "\n"
         | none => head ++ then_ ++ "\n"
+    | .forLoop init cond step body =>
+        let head := indent depth ++ s!"for ({printForClause init}; {printExpr cond}; {printForClause step}) "
+        head ++ printBlock depth body ++ "\n"
     | .return e =>
         line depth s!"return {printExpr e};"
     | .throw e =>
         line depth s!"throw {printExpr e};"
+
+  /-- Render a `for`-loop init or step clause without a trailing newline/indent. -/
+  partial def printForClause (s : Stmt) : String :=
+    match s with
+    | .letDecl name type? init =>
+        let ann := match type? with | some t => ": " ++ printType t | none => ""
+        s!"let {name}{ann} = {printExpr init}"
+    | .constDecl name type? init =>
+        let ann := match type? with | some t => ": " ++ printType t | none => ""
+        s!"const {name}{ann} = {printExpr init}"
+    | .assign target value => s!"{printExpr target} = {printExpr value}"
+    | .exprStmt e => printExpr e
+    | _ => (printStmt 0 s).trimAscii.toString
 end
 
 /-- Render a top-level declaration. -/

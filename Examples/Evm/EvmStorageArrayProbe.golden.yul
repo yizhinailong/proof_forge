@@ -47,7 +47,7 @@ object "EvmStorageArrayProbe" {
       sstore(__proof_forge_array_slot(1, 3, 0), 7)
       sstore(__proof_forge_array_slot(1, 3, 1), 11)
       sstore(__proof_forge_array_slot(1, 3, 2), 13)
-      result := add(add(sload(__proof_forge_array_slot(1, 3, 0)), sload(__proof_forge_array_slot(1, 3, 1))), sload(__proof_forge_array_slot(1, 3, 2)))
+      result := __pf_checked_add(__pf_checked_add(sload(__proof_forge_array_slot(1, 3, 0)), sload(__proof_forge_array_slot(1, 3, 1))), sload(__proof_forge_array_slot(1, 3, 2)))
     }
     function f_EvmStorageArrayProbe_read_value(index) -> result {
       result := sload(__proof_forge_array_slot(1, 3, index))
@@ -66,13 +66,13 @@ object "EvmStorageArrayProbe" {
     function f_EvmStorageArrayProbe_path_lifecycle() -> result {
       sstore(__proof_forge_array_slot(1, 3, 0), 21)
       sstore(__proof_forge_array_slot(1, 3, 1), 22)
-      result := add(sload(__proof_forge_array_slot(1, 3, 0)), sload(__proof_forge_array_slot(1, 3, 1)))
+      result := __pf_checked_add(sload(__proof_forge_array_slot(1, 3, 0)), sload(__proof_forge_array_slot(1, 3, 1)))
     }
     function f_EvmStorageArrayProbe_path_assign_lifecycle() -> result {
       sstore(__proof_forge_array_slot(1, 3, 2), 10)
       {
         let _slot := __proof_forge_array_slot(1, 3, 2)
-        sstore(_slot, add(sload(_slot), 5))
+        sstore(_slot, __pf_checked_add(sload(_slot), 5))
       }
       result := sload(__proof_forge_array_slot(1, 3, 2))
     }
@@ -81,6 +81,28 @@ object "EvmStorageArrayProbe" {
         revert(0, 0)
       }
       result := add(slot, index)
+    }
+    function __pf_checked_add(a, b) -> r {
+      if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := add(a, b)
+    }
+    function __pf_checked_sub(a, b) -> r {
+      if gt(b, a) {
+        revert(0, 0)
+      }
+      r := sub(a, b)
+    }
+    function __pf_checked_mul(a, b) -> r {
+      if iszero(a) {
+        r := 0
+        leave
+      }
+      if gt(a, div(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := mul(a, b)
     }
   }
 }

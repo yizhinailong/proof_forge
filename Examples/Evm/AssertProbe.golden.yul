@@ -13,7 +13,7 @@ object "AssertProbe" {
       revert(0, 0)
     }
     function f_AssertProbe_checked_sum(a, b) -> result {
-      let total := add(a, b)
+      let total := __pf_checked_add(a, b)
       let ok := 1
       if iszero(ok) {
         revert(0, 0)
@@ -22,6 +22,28 @@ object "AssertProbe" {
         revert(0, 0)
       }
       result := total
+    }
+    function __pf_checked_add(a, b) -> r {
+      if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := add(a, b)
+    }
+    function __pf_checked_sub(a, b) -> r {
+      if gt(b, a) {
+        revert(0, 0)
+      }
+      r := sub(a, b)
+    }
+    function __pf_checked_mul(a, b) -> r {
+      if iszero(a) {
+        r := 0
+        leave
+      }
+      if gt(a, div(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := mul(a, b)
     }
   }
 }

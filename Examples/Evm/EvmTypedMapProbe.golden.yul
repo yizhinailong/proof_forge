@@ -155,8 +155,8 @@ object "EvmTypedMapProbe" {
       if iszero(eq(sload(__proof_forge_map_slot(2, 6277101735386680764516354157049543343084444891548699590660)), 31385508676933403821220641317563962861421152075426748694536)) {
         revert(0, 0)
       }
-      let sum := add(sload(__proof_forge_map_slot(0, 7)), sload(__proof_forge_map_slot(0, 8)))
-      result := add(sum, sload(__proof_forge_map_slot(1, 1)))
+      let sum := __pf_checked_add(sload(__proof_forge_map_slot(0, 7)), sload(__proof_forge_map_slot(0, 8)))
+      result := __pf_checked_add(sum, sload(__proof_forge_map_slot(1, 1)))
     }
     function f_EvmTypedMapProbe_read_score(key) -> result {
       result := sload(__proof_forge_map_slot(0, key))
@@ -201,7 +201,7 @@ object "EvmTypedMapProbe" {
       {
         let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, outer), inner)
         let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, outer), inner)
-        sstore(_slot, add(sload(_slot), 5))
+        sstore(_slot, __pf_checked_add(sload(_slot), 5))
         sstore(_presence_slot, 1)
       }
       result := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, outer), inner))
@@ -232,13 +232,35 @@ object "EvmTypedMapProbe" {
     }
     function __proof_forge_map_assign_add(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
-      sstore(_slot, add(sload(_slot), value))
+      sstore(_slot, __pf_checked_add(sload(_slot), value))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_assign_mul(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
-      sstore(_slot, mul(sload(_slot), value))
+      sstore(_slot, __pf_checked_mul(sload(_slot), value))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
+    }
+    function __pf_checked_add(a, b) -> r {
+      if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := add(a, b)
+    }
+    function __pf_checked_sub(a, b) -> r {
+      if gt(b, a) {
+        revert(0, 0)
+      }
+      r := sub(a, b)
+    }
+    function __pf_checked_mul(a, b) -> r {
+      if iszero(a) {
+        r := 0
+        leave
+      }
+      if gt(a, div(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := mul(a, b)
     }
   }
 }

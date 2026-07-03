@@ -890,6 +890,10 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
     .blankLine,
     .label "error_instruction_data",
     .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 9) },
+    .instruction { opcode := .exit },
+    .blankLine,
+    .label "error_pda_bump",
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 11) },
     .instruction { opcode := .exit }
   ]
   if moduleNeedsSyscallError module then

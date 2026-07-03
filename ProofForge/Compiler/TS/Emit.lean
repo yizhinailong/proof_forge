@@ -32,7 +32,7 @@ structure EmitState where
   fresh : Nat := 0
   deriving Inhabited
 
-abbrev EmitTSM := StateT EmitState Id
+abbrev EmitTSM := ExceptT String (StateT EmitState Id)
 
 @[inline]
 def emit (s : Stmt) : EmitTSM Unit :=
@@ -141,23 +141,50 @@ mutual
     | .boolNot v => do let e ← emitExpr .bool v; pure (.paren (.binary .eq e (.bool false)))
     | .cast v target => emitExpr target v
     | .effect e => emitEffectExpr expected e
-    | _ => panic! "EmitTS: unsupported expression"
+    | .bitAnd lhs rhs => emitBitwiseOp .and lhs rhs
+    | .bitOr lhs rhs => emitBitwiseOp .or lhs rhs
+    | .bitXor lhs rhs => emitBitwiseOp .bitXor lhs rhs
+    | .shiftLeft lhs rhs => emitShiftOp true lhs rhs
+    | .shiftRight lhs rhs => emitShiftOp false lhs rhs
+    | .pow _ _ => throw "EmitTS: pow is not supported by the TS backend"
+    | .arrayLit _ _ | .arrayGet _ _ | .structLit _ _ | .field _ _
+    | .hashValue _ _ _ _ | .hash _ | .hashTwoToOne _ _ | .nativeValue
+    | .crosscallInvoke _ _ _ | .crosscallInvokeTyped _ _ _ _
+    | .crosscallInvokeValueTyped _ _ _ _ _ | .crosscallInvokeStaticTyped _ _ _ _
+    | .crosscallInvokeDelegateTyped _ _ _ _ | .crosscallCreate _ _
+    | .crosscallCreate2 _ _ _ =>
+        throw "EmitTS: unsupported expression"
 
   partial def emitBinOp (expected : ValueType) (op : BinOp) (lhs rhs : ProofForge.IR.Expr) : EmitTSM ProofForge.Compiler.TS.Expr := do
     let l ← emitExpr expected lhs
     let r ← emitExpr expected rhs
     pure (.binary op l r)
 
+  -- Comparison operands default to u64 for the Counter-shaped subset.
   partial def emitCmpOp (op : BinOp) (lhs rhs : ProofForge.IR.Expr) : EmitTSM ProofForge.Compiler.TS.Expr := do
-    let l ← emitExpr expected lhs
-    let r ← emitExpr expected rhs
+    let l ← emitExpr .u64 lhs
+    let r ← emitExpr .u64 rhs
     pure (.binary op l r)
-  where expected := ValueType.u64 -- comparison operands default to u64 for Counter
 
   partial def emitBoolOp (op : BinOp) (lhs rhs : ProofForge.IR.Expr) : EmitTSM ProofForge.Compiler.TS.Expr := do
     let l ← emitExpr .bool lhs
     let r ← emitExpr .bool rhs
     pure (.binary op l r)
+
+  /-- Bitwise operators. `.bitXor` maps to the TS `^` operator (BinOp.bitXor),
+      not `&` as the previous buggy mapping did. -/
+  partial def emitBitwiseOp (op : BinOp) (lhs rhs : ProofForge.IR.Expr) : EmitTSM ProofForge.Compiler.TS.Expr := do
+    let l ← emitExpr .u64 lhs
+    let r ← emitExpr .u64 rhs
+    pure (.binary op l r)
+
+  /-- Shift operators. `shiftLeft` -> `<<`, `shiftRight` -> `>>` (on bigint),
+      not `*`/`/` as the previous buggy mapping did. -/
+  partial def emitShiftOp (left : Bool) (lhs rhs : ProofForge.IR.Expr) : EmitTSM ProofForge.Compiler.TS.Expr := do
+    let base ← emitExpr .u64 lhs
+    let amount ← emitExpr .u64 rhs
+    let op := if left then BinOp.shiftLeft else BinOp.shiftRight
+    pure (.binary op base amount)
 
   /-- Lower an IR effect that appears in expression position. -/
   partial def emitEffectExpr (expected : ValueType) : Effect → EmitTSM ProofForge.Compiler.TS.Expr
@@ -165,7 +192,7 @@ mutual
         let tmp ← freshName "_sv"
         emit (.constDecl tmp (some (.optional .string)) (kvGetExpr stateId))
         pure (fromStoredString expected (.coalesce (.ident tmp) (.str "0")))
-    | _ => panic! "EmitTS: unsupported effect expression"
+    | _ => throw "EmitTS: unsupported effect expression"
 end
 
 -- ---------------------------------------------------------------------------
@@ -193,8 +220,8 @@ mutual
         let tsOp := match op with
           | .add => BinOp.add | .sub => BinOp.sub | .mul => BinOp.mul
           | .div => BinOp.div | .mod => BinOp.mod
-          | .bitAnd => BinOp.and | .bitOr => BinOp.or | .bitXor => BinOp.and
-          | .shiftLeft => BinOp.mul | .shiftRight => BinOp.div
+          | .bitAnd => BinOp.and | .bitOr => BinOp.or | .bitXor => BinOp.bitXor
+          | .shiftLeft => BinOp.shiftLeft | .shiftRight => BinOp.shiftRight
         emit (.assign t (.binary tsOp t v))
     | .effect (.storageScalarWrite stateId value) => do
         let v ← emitExpr (inferType value) value
@@ -204,10 +231,14 @@ mutual
         emit (.constDecl tmp (some (.optional .string)) (kvGetExpr stateId))
         let cur := fromStoredString .u64 (.coalesce (.ident tmp) (.str "0"))
         let v ← emitExpr .u64 value
-        let tsOp := match op with | .add => BinOp.add | .sub => BinOp.sub | _ => BinOp.add
+        let tsOp := match op with
+          | .add => BinOp.add | .sub => BinOp.sub | .mul => BinOp.mul
+          | .div => BinOp.div | .mod => BinOp.mod
+          | .bitAnd => BinOp.and | .bitOr => BinOp.or | .bitXor => BinOp.bitXor
+          | .shiftLeft => BinOp.shiftLeft | .shiftRight => BinOp.shiftRight
         let next := .binary tsOp cur v
         emit (.exprStmt (kvPutExpr stateId (toStoredString .u64 next)))
-    | .effect e => panic! s!"EmitTS: unsupported statement effect {repr e}"
+    | .effect e => throw s!"EmitTS: unsupported statement effect {repr e}"
     | .assert cond msg _ => do
         let c ← emitExpr .bool cond
         emit (.ifStmt (.paren (.binary .eq c (.bool false)))
@@ -218,11 +249,15 @@ mutual
         let thenStmts ← captureStmts (thenBody.forM emitStmt)
         let elseStmts ← captureStmts (elseBody.forM emitStmt)
         emit (.ifStmt c thenStmts (if elseStmts.isEmpty then none else some elseStmts))
-    | .boundedFor indexName start stopExclusive _body => do
-        let init := Expr.call2 (.ident "range") (Expr.num start) (Expr.num stopExclusive)
-        emit (.exprStmt (.call2 (.member init "forEach")
-          (.ident indexName)
-          (.objectLit #[])))
+    | .boundedFor indexName start stopExclusive body => do
+        -- Lower to a `for (let i = start; i < stop; i++) { ...body }` loop.
+        -- Previously the body was dropped (`_body`) and an empty `forEach` was
+        -- emitted, producing code that silently did nothing.
+        let bodyStmts ← captureStmts (body.forM emitStmt)
+        let init := Stmt.letDecl indexName (some .number) (Expr.num start)
+        let cond := Expr.binary .lt (.ident indexName) (Expr.num stopExclusive)
+        let step := Stmt.assign (.ident indexName) (.binary .add (.ident indexName) (Expr.num 1))
+        emit (.forLoop init cond step bodyStmts)
     | .assertEq lhs rhs msg _ => do
         let l ← emitExpr .u64 lhs
         let r ← emitExpr .u64 rhs
@@ -269,10 +304,9 @@ def routeForEntrypoint (ep : Entrypoint) : String × String :=
 
 /-- Lower an IR entrypoint to a top-level async function returning a response
     body string. -/
-def emitEntrypoint (ep : Entrypoint) : TopLevel :=
+def emitEntrypoint (ep : Entrypoint) : Except String TopLevel := do
   let paramEnv : Param := { name := "env", type := .named "Env" }
-  let (_, st) := (emitStmts ep.body).run { stmts := #[] }
-  let body := st.stmts
+  let (body, _) ← emitStmts ep.body { stmts := #[] }
   -- Unit entrypoints that don't explicitly return need a default empty response.
   let hasReturn := body.any fun s => match s with | .return _ => true | _ => false
   let body :=
@@ -280,10 +314,13 @@ def emitEntrypoint (ep : Entrypoint) : TopLevel :=
       body.push (.return (.str ""))
     else
       body
-  TopLevel.fn true ep.name #[paramEnv] (some (.promise .string)) body
+  pure (TopLevel.fn true ep.name #[paramEnv] (some (.promise .string)) body)
 where
-  emitStmts (stmts : Array Statement) : EmitTSM Unit :=
-    stmts.forM emitStmt
+  emitStmts (stmts : Array Statement) (st : EmitState) : Except String (Array Stmt × EmitState) :=
+    let result : Except String Unit × EmitState := (stmts.forM emitStmt).run st
+    match result with
+    | (.ok _, finalSt) => .ok (finalSt.stmts, finalSt)
+    | (.error msg, _) => .error msg
 
 /-- Build the flat if statements that dispatch to entrypoint functions. -/
 def buildRouterBody (entrypoints : Array Entrypoint) : Array Stmt :=
@@ -313,12 +350,13 @@ def emitRouter (entrypoints : Array Entrypoint) : Array TopLevel :=
   let exportDefault := TopLevel.exportDefault (.objectLit #[("fetch", .ident "fetch")])
   #[fetchFn, exportDefault]
 
-/-- Lower a full IR module to a TS module. -/
-def emitModule (m : ProofForge.IR.Module) : ProofForge.Compiler.TS.Module :=
+/-- Lower a full IR module to a TS module. Returns an error string if any IR
+    construct is not supported by the TS backend (instead of panicking). -/
+def emitModule (m : ProofForge.IR.Module) : Except String ProofForge.Compiler.TS.Module := do
   let envInterface : TopLevel :=
     .exportInterface "Env" #[(kvBindingName, .named "KVNamespace")]
-  let funcs := m.entrypoints.map emitEntrypoint
+  let funcs ← m.entrypoints.mapM emitEntrypoint
   let routerItems := emitRouter m.entrypoints
-  { items := #[envInterface] ++ funcs ++ routerItems }
+  pure { items := #[envInterface] ++ funcs ++ routerItems }
 
 end ProofForge.Compiler.TS.Emit

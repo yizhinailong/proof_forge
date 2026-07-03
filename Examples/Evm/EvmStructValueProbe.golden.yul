@@ -48,7 +48,7 @@ object "EvmStructValueProbe" {
       let __proof_forge_struct_p_x := 7
       let __proof_forge_struct_p_y := 13
       let head := __proof_forge_struct_p_x
-      result := add(head, __proof_forge_struct_p_y)
+      result := __pf_checked_add(head, __proof_forge_struct_p_y)
     }
     function f_EvmStructValueProbe_direct_literal_field() -> result {
       result := 6
@@ -75,8 +75,8 @@ object "EvmStructValueProbe" {
       let __proof_forge_struct_p_x := 7
       let __proof_forge_struct_p_y := 13
       __proof_forge_struct_p_x := 9
-      __proof_forge_struct_p_y := add(__proof_forge_struct_p_y, 5)
-      result := add(__proof_forge_struct_p_x, __proof_forge_struct_p_y)
+      __proof_forge_struct_p_y := __pf_checked_add(__proof_forge_struct_p_y, 5)
+      result := __pf_checked_add(__proof_forge_struct_p_x, __proof_forge_struct_p_y)
     }
     function f_EvmStructValueProbe_mutable_mixed_fields() -> result {
       let __proof_forge_struct_flags_enabled := 0
@@ -94,7 +94,7 @@ object "EvmStructValueProbe" {
       if iszero(eq(__proof_forge_struct_roots_next, 56493915618480126877924928478078382379757859259304797798412)) {
         revert(0, 0)
       }
-      result := add(__proof_forge_struct_flags_enabled, __proof_forge_struct_small_b)
+      result := __pf_checked_add(__proof_forge_struct_flags_enabled, __proof_forge_struct_small_b)
     }
     function f_EvmStructValueProbe_whole_struct_assign() -> result {
       let __proof_forge_struct_p_x := 1
@@ -113,7 +113,29 @@ object "EvmStructValueProbe" {
         __proof_forge_struct_p_x := __proof_forge_assign_struct_p_x
         __proof_forge_struct_p_y := __proof_forge_assign_struct_p_y
       }
-      result := add(__proof_forge_struct_p_x, mul(__proof_forge_struct_p_y, 10))
+      result := __pf_checked_add(__proof_forge_struct_p_x, __pf_checked_mul(__proof_forge_struct_p_y, 10))
+    }
+    function __pf_checked_add(a, b) -> r {
+      if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := add(a, b)
+    }
+    function __pf_checked_sub(a, b) -> r {
+      if gt(b, a) {
+        revert(0, 0)
+      }
+      r := sub(a, b)
+    }
+    function __pf_checked_mul(a, b) -> r {
+      if iszero(a) {
+        r := 0
+        leave
+      }
+      if gt(a, div(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := mul(a, b)
     }
   }
 }

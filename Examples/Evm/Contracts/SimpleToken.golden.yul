@@ -52,21 +52,30 @@ object "Contract" {
     function lean_obj_tag(o) -> t {
       t := and(mload(o), 255)
       if and(o, 1) {
-        t := shr(1, o)
+        let v := shr(1, o)
+        t := iszero(iszero(v))
       }
     }
     function f_Nat_add(a, b) -> r {
+      if gt(shr(1, a), sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, shr(1, b))) {
+        revert(0, 0)
+      }
       r := or(shl(1, add(shr(1, a), shr(1, b))), 1)
     }
     function f_Nat_sub(a, b) -> r {
-      r := or(shl(1, 0), 1)
-      if iszero(lt(shr(1, a), shr(1, b))) {
-        let va := shr(1, a)
-        let vb := shr(1, b)
-        r := or(shl(1, sub(va, vb)), 1)
+      if gt(shr(1, b), shr(1, a)) {
+        revert(0, 0)
       }
+      r := or(shl(1, sub(shr(1, a), shr(1, b))), 1)
     }
     function f_Nat_mul(a, b) -> r {
+      if iszero(shr(1, a)) {
+        r := or(shl(1, 0), 1)
+        leave
+      }
+      if gt(shr(1, a), div(115792089237316195423570985008687907853269984665640564039457584007913129639935, shr(1, b))) {
+        revert(0, 0)
+      }
       r := or(shl(1, mul(shr(1, a), shr(1, b))), 1)
     }
     function f_Nat_decEq(a, b) -> r {
