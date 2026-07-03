@@ -2034,7 +2034,11 @@ Tasks (one milestone per implementing branch):
   traces).
 - M3: `harness-solana` on mollusk-svm — absorb the
   `Tests/solana/*_mollusk.rs.tpl` logic as library code; Counter green on
-  all three targets; ValueVault scenario added.
+  all three targets. Status: Counter is now wired through `mollusk-svm` in
+  `testkit/harness-solana`, including golden assembly, manifest, artifact
+  metadata, sBPF ELF build, stateful scenario execution, and three-target
+  trace parity when `sbpf` and `solana-keygen` are available. Remaining M3
+  work: add the ValueVault scenario.
 - M4: migrate golden-file comparisons and per-fixture behavior scripts into
   scenario steps; retire duplicated shell scripts; collapse the per-fixture
   CI steps into the testkit run. Live/chain-authentic gates (Foundry, Anvil
@@ -2043,8 +2047,9 @@ Tasks (one milestone per implementing branch):
 
 Acceptance criteria:
 
-- One scenario file drives all three priority targets; adding a covered
-  feature requires no new script, recipe, or CI step.
+- One scenario file drives all three priority targets when optional Solana
+  tooling is available; adding a covered feature requires no new script,
+  recipe, or CI step.
 - A scenario using an unsupported capability asserts compile-time rejection
   with a diagnostic (never silently skips a target).
 - Runner is deterministic and network-free by default; `revm`,

@@ -4,11 +4,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proof_forge_testkit_core::{
-    assert_expectations, assert_trace_equivalence, discover_scenarios, ChainHarness, ScenarioCase,
-    TargetTrace,
+    assert_expectations, assert_trace_equivalence, discover_scenarios, ChainHarness, HarnessRun,
+    ScenarioCase, TargetTrace,
 };
 use proof_forge_testkit_harness_evm::EvmHarness;
 use proof_forge_testkit_harness_near::NearHarness;
+use proof_forge_testkit_harness_solana::SolanaHarness;
 
 fn main() -> Result<()> {
     let args = Args::parse(env::args().skip(1))?;
@@ -117,6 +118,7 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
 
     println!("testkit: discovered {} scenario(s)", selected.len());
     let mut target_runs = 0usize;
+    let mut skipped_runs = 0usize;
     for case in selected {
         let targets: Vec<&str> = case
             .manifest
@@ -141,16 +143,26 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
                     case.manifest.scenario.name
                 );
             };
-            let outcomes = harness.run_scenario(case, repo_root)?;
-            assert_expectations(case, &outcomes)?;
-            println!(
-                "scenario {} target {}: ok ({} call outcome(s))",
-                case.manifest.scenario.name,
-                target,
-                outcomes.len()
-            );
-            runs.push((target.to_string(), outcomes));
-            target_runs += 1;
+            match harness.run_scenario(case, repo_root)? {
+                HarnessRun::Passed(outcomes) => {
+                    assert_expectations(case, &outcomes)?;
+                    println!(
+                        "scenario {} target {}: ok ({} call outcome(s))",
+                        case.manifest.scenario.name,
+                        target,
+                        outcomes.len()
+                    );
+                    runs.push((target.to_string(), outcomes));
+                    target_runs += 1;
+                }
+                HarnessRun::Skipped { reason } => {
+                    println!(
+                        "scenario {} target {}: skipped ({reason})",
+                        case.manifest.scenario.name, target
+                    );
+                    skipped_runs += 1;
+                }
+            }
         }
 
         let traces: Vec<TargetTrace<'_>> = runs
@@ -169,7 +181,11 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
             );
         }
     }
-    println!("testkit: ok ({target_runs} target run(s))");
+    if skipped_runs > 0 {
+        println!("testkit: ok ({target_runs} target run(s), {skipped_runs} skipped)");
+    } else {
+        println!("testkit: ok ({target_runs} target run(s))");
+    }
     Ok(())
 }
 
@@ -179,5 +195,7 @@ fn harnesses() -> HashMap<&'static str, Box<dyn ChainHarness>> {
     harnesses.insert(evm.target_id(), Box::new(evm));
     let near = NearHarness::new();
     harnesses.insert(near.target_id(), Box::new(near));
+    let solana = SolanaHarness::new();
+    harnesses.insert(solana.target_id(), Box::new(solana));
     harnesses
 }

@@ -1,7 +1,7 @@
 [scenario]
 name = "counter"
 fixture = "counter"
-targets = ["wasm-near", "evm"]
+targets = ["wasm-near", "evm", "solana-sbpf-asm"]
 capabilities = ["storage.scalar", "entrypoint.external"]
 
 [[step]]

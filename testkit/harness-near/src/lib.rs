@@ -3,7 +3,7 @@ use std::process::Command;
 
 use anyhow::{bail, ensure, Context, Result};
 use proof_forge_testkit_core::{
-    parse_offline_host_outcomes, CallOutcome, ChainHarness, ScenarioCase,
+    parse_offline_host_outcomes, ChainHarness, HarnessRun, ScenarioCase,
 };
 
 pub struct NearHarness;
@@ -25,7 +25,7 @@ impl ChainHarness for NearHarness {
         "wasm-near"
     }
 
-    fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<Vec<CallOutcome>> {
+    fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<HarnessRun> {
         let artifact = build_fixture(case, repo_root)?;
         let mut args = vec!["run".to_string(), artifact.display().to_string()];
         for step in &case.manifest.steps {
@@ -60,6 +60,7 @@ impl ChainHarness for NearHarness {
         }
 
         parse_offline_host_outcomes(&String::from_utf8_lossy(&output.stdout))
+            .map(HarnessRun::passed)
     }
 }
 

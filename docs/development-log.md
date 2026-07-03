@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit M3 Solana Harness
+
+Commit: feature commit for unified testkit Solana harness
+
+Summary:
+
+- Added `testkit/harness-solana`, backed by `mollusk-svm`, as the third RFC
+  0007 target harness for the portable Counter scenario.
+- The Solana harness emits Counter sBPF assembly, checks the tracked golden
+  assembly, validates `manifest.toml` and `proof-forge-artifact.json`, builds
+  a standard `sbpf` ELF project, and executes the stateful
+  `initialize -> get -> increment -> get` scenario through Mollusk.
+- Extended the testkit runner with explicit harness skip reporting so
+  optional chain toolchains such as `sbpf`/`solana-keygen` can be absent
+  without masking failures in always-available targets.
+- Extended `testkit/scenarios/counter.toml` so Counter now targets
+  `wasm-near`, `evm`, and `solana-sbpf-asm`, with normalized trace parity
+  across all executed targets.
+
+Validation run:
+
+```sh
+scripts/solana/counter-smoke.sh
+cargo fmt --manifest-path testkit/Cargo.toml --all
+cargo check --manifest-path testkit/Cargo.toml
+cargo test --manifest-path testkit/Cargo.toml -p proof-forge-testkit-core
+cargo test --manifest-path testkit/Cargo.toml -p proof-forge-testkit-harness-solana
+just testkit
+SBPF=/nonexistent-proof-forge-sbpf just testkit
+```
+
+Known limitations:
+
+- The Solana testkit harness currently supports the portable IR Counter
+  fixture only.
+- `solana-sbpf-asm` is skipped with a clear reason when `sbpf` or
+  `solana-keygen` is unavailable.
+- This is a Mollusk in-process runtime gate, not a Surfpool/Web3 live
+  deployment gate.
+
+Next step:
+
+- Add the portable ValueVault scenario to the testkit and run it across the
+  targets whose capability plans support the fixture.
+
 ### Unified Testkit M2 Trace Parity
 
 Commit: feature commit for unified testkit trace parity

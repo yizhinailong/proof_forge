@@ -1237,6 +1237,41 @@ EVM 上生成 ERC-20 合约，还是在 Solana 上生成 SPL Token / Token-2022
 - 文档明确说明 Solana 默认不是 per-token SPL 合约，而是通过 plan 和 CPI
   使用 SPL Token / Token-2022 programs。
 
+## 工作流 26：统一 Rust Test Framework（testkit）
+
+目标：用一个声明式场景格式和 Rust 进程内 executor，替换分散在各链上的
+shell/Node harness；参见
+[RFC 0007](../rfcs/0007-unified-rust-test-framework.md)。
+
+任务（每个实现分支对应一个里程碑）：
+
+- M1：创建 `testkit/` Cargo workspace（`core` + scenario TOML model、
+  discovery、reporting）；把 `runtime/offline-host` 接入 `harness-near`
+  （wasmtime + NEAR host shim，保留 allocator counter）；Counter 场景在
+  `wasm-near` 上通过；增加 `just testkit` 和一个 CI 步骤。
+- M2：基于 revm 的 `harness-evm`：加载发射出的 runtime bytecode，通过
+  `.evm-methods` selector dispatch，解码返回 word；Counter 在 `evm` 上通过；
+  增加第一版跨目标等价断言（`evm` 与 `wasm-near` observable trace）。
+- M3：基于 `mollusk-svm` 的 `harness-solana`：把
+  `Tests/solana/*_mollusk.rs.tpl` 的逻辑吸收为库代码；Counter 在三条目标链上通过。
+  当前状态：Counter 已通过 `testkit/harness-solana` 接入 `mollusk-svm`，
+  覆盖 golden assembly、manifest、artifact metadata、sBPF ELF build、有状态场景执行，
+  并在 `sbpf` 和 `solana-keygen` 可用时进行三目标 trace parity。
+  M3 剩余工作：加入 ValueVault 场景。
+- M4：把 golden-file 比较和逐 fixture 行为脚本迁移进 scenario step；
+  逐步退役重复 shell 脚本；把逐 fixture CI 步骤折叠进 testkit run。
+  live/链真实门禁（Foundry、Anvil deploy、Surfpool、near-sandbox、dargo、leo）
+  仍保留为独立的 scheduled 或 labeled job。
+
+验收标准：
+
+- 当可选 Solana 工具链可用时，一个 scenario 文件驱动三条优先目标链；
+  新增已覆盖特性不需要再新增脚本、recipe 或 CI 步骤。
+- 使用不支持能力的 scenario 能断言编译期拒绝，且诊断需要包含 target id 和
+  capability id。
+- testkit 输出能按 target 报告 pass/skip/fail，并能输出规范化 trace 差异。
+- legacy smoke 脚本只保留两类：外部链真实验证，以及迁移期间的兼容 wrapper。
+
 ## 建议顺序
 
 1. 目标注册表（工作流 1）。

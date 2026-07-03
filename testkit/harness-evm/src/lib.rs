@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{bail, ensure, Context as _, Result};
-use proof_forge_testkit_core::{CallOutcome, ChainHarness, ScenarioCase};
+use proof_forge_testkit_core::{CallOutcome, ChainHarness, HarnessRun, ScenarioCase};
 use revm::{
     bytecode::Bytecode,
     context::TxEnv,
@@ -38,7 +38,7 @@ impl ChainHarness for EvmHarness {
         "evm"
     }
 
-    fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<Vec<CallOutcome>> {
+    fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<HarnessRun> {
         let artifact = build_fixture(case, repo_root)?;
         let selectors = load_selectors(&artifact.metadata_path)?;
         let bytecode = read_bytecode(&artifact.bytecode_path)?;
@@ -95,7 +95,7 @@ impl ChainHarness for EvmHarness {
             }
         }
 
-        Ok(outcomes)
+        Ok(HarnessRun::passed(outcomes))
     }
 }
 

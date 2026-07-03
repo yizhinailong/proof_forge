@@ -78,7 +78,25 @@ pub struct CallOutcome {
 
 pub trait ChainHarness {
     fn target_id(&self) -> &'static str;
-    fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<Vec<CallOutcome>>;
+    fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<HarnessRun>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HarnessRun {
+    Passed(Vec<CallOutcome>),
+    Skipped { reason: String },
+}
+
+impl HarnessRun {
+    pub fn passed(outcomes: Vec<CallOutcome>) -> Self {
+        Self::Passed(outcomes)
+    }
+
+    pub fn skipped(reason: impl Into<String>) -> Self {
+        Self::Skipped {
+            reason: reason.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
