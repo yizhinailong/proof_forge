@@ -101,6 +101,7 @@ equals = "passed"
 [[artifact]]
 target = "solana-sbpf-asm"
 name = "sbpf-asm"
+matches_file = "Examples/Solana/ValueVault.golden.s"
 contains = [
   'solana.event.emit ValueDeposited',
   'solana.event.emit ValueSnapshot',
@@ -112,6 +113,7 @@ contains = [
 [[artifact]]
 target = "solana-sbpf-asm"
 name = "manifest"
+matches_file = "Examples/Solana/ValueVault.manifest.toml"
 contains = [
   'name = "deposit"',
   'name = "charge_fee"',

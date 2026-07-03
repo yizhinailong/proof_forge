@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit Solana ValueVault Golden
+
+Commit: feature commit for unified testkit Solana ValueVault golden
+
+Summary:
+
+- Added `Examples/Solana/ValueVault.golden.s` and
+  `Examples/Solana/ValueVault.manifest.toml` as the reviewed Solana
+  source/manifest snapshots for the portable ValueVault scenario.
+- Upgraded `testkit/scenarios/value-vault.toml` so the `solana-sbpf-asm`
+  assembly and manifest artifacts check full generated-file equality through
+  `matches_file`, while retaining focused substring checks for event lowering,
+  syscall usage, storage layout, instruction names, and argument encodings.
+- ValueVault now has scenario-declared source equality for `wasm-near` WAT and
+  `solana-sbpf-asm` assembly/manifest; EVM Yul remains the only ValueVault
+  source artifact still using source-shape checks.
+
+Validation run:
+
+```sh
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target solana-sbpf-asm
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml --workspace
+just testkit
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- ValueVault EVM Yul still uses scenario-declared source-shape checks instead
+  of complete golden equality.
+- Local `just testkit` skips the ValueVault EVM runtime branch when Foundry
+  `cast` is unavailable; CI covers that branch with Foundry installed.
+
+Next step:
+
+- Add a full ValueVault EVM Yul golden once selector hydration is available in
+  the validation environment used to refresh the snapshot.
+
 ### Unified Testkit Wasm ValueVault Golden
 
 Commit: feature commit for unified testkit Wasm ValueVault golden
@@ -46,7 +86,7 @@ git diff --check
 
 Known limitations:
 
-- ValueVault EVM Yul and Solana sBPF/manifest comparisons are still
+- ValueVault EVM Yul and Solana sBPF/manifest comparisons were still
   scenario-declared source-shape checks instead of complete golden equality.
 - Local `just testkit` skips the ValueVault EVM runtime branch when Foundry
   `cast` is unavailable; CI covers that branch with Foundry installed.

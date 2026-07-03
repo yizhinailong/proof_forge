@@ -2076,9 +2076,12 @@ Tasks (one milestone per implementing branch):
   `wasm-near`, `evm`, and `solana-sbpf-asm`. The current ValueVault
   Wasm/NEAR golden slice adds `Examples/WasmNear/ValueVault.golden.wat` and
   makes `testkit/scenarios/value-vault.toml` assert generated EmitWat output
-  through `matches_file`, while its EVM Yul and Solana sBPF/manifest artifacts
-  remain scenario-declared source-shape checks until their full snapshots are
-  reviewed.
+  through `matches_file`. The current ValueVault Solana golden slice adds
+  `Examples/Solana/ValueVault.golden.s` and
+  `Examples/Solana/ValueVault.manifest.toml`, making the same scenario assert
+  generated sBPF assembly and manifest output through `matches_file`; EVM Yul
+  is now the only ValueVault source artifact still using scenario-declared
+  source-shape checks until its full snapshot is reviewed.
 
 Acceptance criteria:
 

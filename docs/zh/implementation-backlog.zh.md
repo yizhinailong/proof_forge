@@ -1292,8 +1292,11 @@ shell/Node harness；参见
   equality。当前 ValueVault Wasm/NEAR golden 切片新增
   `Examples/WasmNear/ValueVault.golden.wat`，并让
   `testkit/scenarios/value-vault.toml` 通过 `matches_file` 断言生成的 EmitWat
-  输出；它的 EVM Yul 与 Solana sBPF/manifest artifact 仍保留为
-  scenario-declared source-shape 检查，等完整快照稳定后再升级。
+  输出。当前 ValueVault Solana golden 切片新增
+  `Examples/Solana/ValueVault.golden.s` 和
+  `Examples/Solana/ValueVault.manifest.toml`，并让同一个 scenario 通过
+  `matches_file` 断言生成的 sBPF assembly 与 manifest 输出；现在只有 EVM Yul
+  仍保留为 scenario-declared source-shape 检查，等完整快照稳定后再升级。
 
 验收标准：
 
