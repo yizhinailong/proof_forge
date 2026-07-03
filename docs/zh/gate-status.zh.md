@@ -24,7 +24,9 @@ D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、
 [testkit](../../testkit/)（RFC 0007）中通过 `evm`、`solana-sbpf-asm` 和
 `wasm-near`，同时满足行为一致性和资源预算（D-040 / RFC 0010）。
 
-**状态：Open**（验收标准已在本地实现；关闭仍等待当前提交的远端 CI/sign-off 证据）
+**状态：Closed**
+
+**Closed: 2026-07-03**
 
 ### 验收标准
 
@@ -35,21 +37,25 @@ D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、
 | G0-3 | Counter 资源预算：`solana_cu`、`evm_gas`、`near_gas` | ✅ met | `testkit/scenarios/counter.toml` 已锁定三种预算；`CAST="$PWD/build/tools/cast-shim" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --trace` |
 | G0-4 | ValueVault 在 3 个 target 上的资源预算 | ✅ met | `testkit/scenarios/value-vault.toml` 已为全部 11 次调用锁定 `solana_cu`、`evm_gas` 和 `near_gas`；`CAST="$PWD/build/tools/cast-shim" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --trace` |
 | G0-5 | Unsupported-capability 诊断一致性 | ✅ met | `just testkit` → `unsupported-crosscall ... diagnostic crosscall.invoke unsupported: ok` |
-| G0-6 | `just check` 绿灯（build + lint + gates） | ✅ met | `CAST="$PWD/build/tools/cast-shim" just check` 已在本地通过；远端 CI `28655651561`（`12a007b`）也在 CI baseline 修复后全部成功 |
+| G0-6 | `just check` 绿灯（build + lint + gates） | ✅ met | `CAST="$PWD/build/tools/cast-shim" just check` 已在本地通过；远端 CI `28658576786`（`0c52fb8`）也已全部成功，包括 `Run unified testkit`、`Check Solana light gates`、Foundry smoke 和 Anvil deploy smoke |
 
-### 关闭 Gate G0 的剩余工作
+### Gate G0 关闭后的 carry-over 工作
 
-1. 在当前 closing commit 上重新跑远端 CI，并把成功 run 记录到 Sign-off 后再标记
-   Gate G0 closed。
-2. （Gate 的非阻塞 carry-over，但属于 Tier-0 hardening track）EVM semantic-plan
-   migration（Workstream 3：ExprPlan/StmtPlan/EntrypointPlan/EventPlan/
-   CrosscallPlan/MetadataPlan）和 Solana Pinocchio live-equivalence CI
-   hardening（Workstream 7）。
+Gate G0 关闭的是共享行为/资源预算切片。它**不等于**关闭 Gate P0。剩余的主三链
+生产级硬化继续保持 active：
+
+1. EVM semantic-plan migration（Workstream 3：ExprPlan/StmtPlan/
+   EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan）。
+2. Solana Pinocchio live dual-deploy equivalence 的 CI/toolchain 稳定化以及
+   更广 reference 覆盖（Workstream 7）。
+3. NEAR/Wasm target-first 本地执行/部署元数据签署。
 
 ### Sign-off
 
-尚未关闭。G0-1 到 G0-6 已实现；关闭仍需要在此记录当前提交以及成功的
-`just testkit` + `just check`/CI 证据。
+Gate G0 已在 2026-07-03 于 commit `0c52fb8` 关闭；GitHub CI run
+`28658576786` 已全部成功。该 closing run 验证了当前 `just check` CI 面，包括
+unified testkit、Solana light gates、EVM Foundry/Anvil gates，以及冻结的非主链
+spike smoke jobs。
 
 ---
 
@@ -65,7 +71,7 @@ D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、
 
 | # | 标准 | 状态 | 证据 |
 |---|---|---|---|
-| P0-1 | Solana 直接 sBPF 后端达到生产级 | 🟡 in progress | Gate G0 行为/预算一致性已满足；Pinocchio reference-equivalence 已纳入 `just solana-light`；剩余硬化是工作流 7 的 live dual-deploy CI/toolchain 稳定化以及更广 reference 覆盖 |
+| P0-1 | Solana 直接 sBPF 后端达到生产级 | 🟡 in progress | Gate G0 行为/预算一致性已关闭；Pinocchio reference-equivalence 已纳入 `just solana-light`；剩余硬化是工作流 7 的 live dual-deploy CI/toolchain 稳定化以及更广 reference 覆盖 |
 | P0-2 | Ethereum/EVM 后端达到生产级 | 🟡 in progress | Foundry 和 Anvil CI 已绿；剩余硬化包括工作流 3 的 EVM semantic-plan migration |
 | P0-3 | NEAR/Wasm 后端达到生产级 | 🟡 in progress | EmitWat/NEAR 诊断、IR 覆盖、offline host smoke 和预算基线已绿；剩余硬化是完整 target-first 本地执行/部署元数据签署 |
 | P0-4 | 额外链推进保持冻结 | ✅ met | D-044/D-045 冻结 Aptos/CosmWasm 超过 M1/M2 的推进，并在 P0 关闭前保持其他目标 docs-first |

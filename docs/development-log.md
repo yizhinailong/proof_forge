@@ -17,6 +17,38 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Gate G0 Closed
+
+Commit: documentation sign-off commit
+
+Summary:
+
+- Closed Gate G0 in the gate ledger after recording the successful current
+  remote CI run for commit `0c52fb8`.
+- Clarified that Gate G0 closes only the shared behavior/resource-budget slice;
+  Gate P0 remains open for the production-grade Solana, EVM, and NEAR/Wasm
+  completion covenant.
+- Updated the target roadmap so Tier-1/new-chain advancement stays frozen on
+  Gate P0, not the now-closed G0 slice.
+
+Validation run:
+
+```sh
+gh run watch 28658576786 --exit-status
+```
+
+Known limitations:
+
+- P0 is still open. Solana live dual-deploy equivalence, EVM semantic-plan
+  migration, and NEAR/Wasm target-first local execution/deploy metadata
+  sign-off remain the next production-hardening tracks.
+
+Next step:
+
+- Continue P0 in implementation order: Solana live Pinocchio dual-deploy
+  hardening first, then EVM semantic-plan migration, then NEAR/Wasm
+  target-first deploy metadata sign-off.
+
 ### Solana Pinocchio Reference Equivalence In CI Light Gate
 
 Commit: feature commit for Solana Pinocchio reference equivalence

@@ -27,15 +27,15 @@ must reach production-grade completeness before any additional chain advances
 beyond docs-only research or frozen spike maintenance. The sign-off ledger is
 Gate P0 in [gate-status.md](gate-status.md).
 
-**Tier-0 parity gate (Gate G0, the first required slice of D-045):** the shared scenario
-(Counter, then ValueVault) passes in testkit (RFC 0007) on `evm`,
-`solana-sbpf-asm`, and `wasm-near`, and the Counter scenario asserts
-per-target resource budgets (RFC 0010): Solana CU, EVM gas, and an
-info-only NEAR gas proxy. Gate G0 closes the behavior/budget parity slice, but
-D-045 keeps Tier 1 frozen until the remaining primary-chain hardening is also
-signed off. Every later target reuses the artifacts this work hardens: the
-portable IR surface, capability routing, EmitWat, the scenario harness, target
-artifact metadata, and budget-as-gate quality signal.
+**Tier-0 parity gate (Gate G0, the first required slice of D-045):** the shared
+scenarios (Counter and ValueVault) pass in testkit (RFC 0007) on `evm`,
+`solana-sbpf-asm`, and `wasm-near`, with per-target resource budgets (RFC 0010):
+Solana CU, EVM gas, and NEAR gas. Gate G0 is closed in
+[gate-status.md](gate-status.md), which closes the behavior/budget parity
+slice. D-045 still keeps Tier 1 frozen until the remaining primary-chain
+production hardening is also signed off. Every later target reuses the artifacts
+this work hardens: the portable IR surface, capability routing, EmitWat, the
+scenario harness, target artifact metadata, and budget-as-gate quality signal.
 
 ## Tier 0 — active (no new planning needed)
 
@@ -62,12 +62,13 @@ tracked in [gate-status.md](gate-status.md).
 | Counter budgets `solana_cu`/`evm_gas`/`near_gas` | all | ✅ met | testkit scenarios |
 | NEAR gas budget implementation | wasm-near | ✅ met | testkit scenarios |
 | ValueVault budget baselines (3 targets) | all | ✅ met | testkit scenarios |
+| Gate G0 sign-off | all | ✅ closed | gate-status |
 | EVM semantic-plan migration | evm | 🟡 in progress | Workstream 3 |
 | Solana Pinocchio CI equivalence | solana | 🟡 reference suite in `solana-light`; live dual-deploy pending | Workstream 7 |
 
-The roadmap text above describes NEAR gas as an "info-only proxy"; D-040 makes
-all three budgets a required part of the gate, so NEAR gas must move from
-info-only to a real budget assertion to close Gate G0.
+Gate G0 is closed, but it is not the product completion gate. Gate P0 remains
+open until `solana-sbpf-asm`, `evm`, and `wasm-near` each satisfy the
+production-grade DoD in D-045.
 
 ## Tier 1 — next two targets
 
@@ -87,9 +88,9 @@ spike. The consolidation strengthened the case — EmitWat now exists, and
   passes `cosmwasm-check`; M3 testkit scenario green + cross-target
   equivalence vs `wasm-near`; M4 registry stage → Experimental.
 
-**Frozen at M2 (D-044):** the landed CosmWasm Counter spike (WAT emitter +
-smoke + VM lifecycle) does not advance to M3/M4/registry stage until Gate G0
-closes (Tier-0 completion checklist above).
+**Frozen at M2 (D-045):** the landed CosmWasm Counter spike (WAT emitter +
+smoke + VM lifecycle) does not advance to M3/M4/registry stage until Gate P0
+closes, even though Gate G0 has closed.
 
 Exit meaning: if the same EmitWat core serves two Wasm hosts with only
 import/ABI adapters swapped, the Wasm-family architecture claim is proven,

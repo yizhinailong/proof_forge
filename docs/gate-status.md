@@ -28,8 +28,9 @@ current phase's Definition of Done is satisfied, with auditable evidence.
 in [testkit](../testkit/) (RFC 0007) on `evm`, `solana-sbpf-asm`, and
 `wasm-near` — behavior parity *and* resource budgets (D-040 / RFC 0010).
 
-**Status: Open** (acceptance criteria are implemented locally; closing waits
-for the current commit's remote CI/sign-off evidence)
+**Status: Closed**
+
+**Closed: 2026-07-03**
 
 ### Acceptance criteria
 
@@ -40,21 +41,25 @@ for the current commit's remote CI/sign-off evidence)
 | G0-3 | Counter resource budgets: `solana_cu`, `evm_gas`, `near_gas` | ✅ met | `testkit/scenarios/counter.toml` pins all three budgets; `CAST="$PWD/build/tools/cast-shim" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --trace` |
 | G0-4 | ValueVault resource budgets on 3 targets | ✅ met | `testkit/scenarios/value-vault.toml` pins `solana_cu`, `evm_gas`, and `near_gas` for all 11 calls; `CAST="$PWD/build/tools/cast-shim" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --trace` |
 | G0-5 | Unsupported-capability diagnostic parity | ✅ met | `just testkit` → `unsupported-crosscall ... diagnostic crosscall.invoke unsupported: ok` |
-| G0-6 | `just check` green (build + lint + gates) | ✅ met | `CAST="$PWD/build/tools/cast-shim" just check` passed locally; remote CI `28655651561` (`12a007b`) also completed successfully after the CI baseline fixes |
+| G0-6 | `just check` green (build + lint + gates) | ✅ met | `CAST="$PWD/build/tools/cast-shim" just check` passed locally; remote CI `28658576786` (`0c52fb8`) completed successfully, including `Run unified testkit`, `Check Solana light gates`, Foundry smokes, and Anvil deploy smoke |
 
-### Remaining work to close Gate G0
+### Carry-over work after Gate G0
 
-1. Re-run remote CI on the current closing commit and record the successful run
-   in Sign-off before marking Gate G0 closed.
-2. (Carry-over, non-blocking for the gate but on the Tier-0 hardening track)
-   EVM semantic-plan migration (Workstream 3: ExprPlan/StmtPlan/
-   EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan) and Solana Pinocchio
-   live-equivalence CI hardening (Workstream 7).
+Gate G0 closes the shared behavior/resource-budget slice. It does **not** close
+Gate P0. The remaining primary-chain production hardening stays active:
+
+1. EVM semantic-plan migration (Workstream 3: ExprPlan/StmtPlan/
+   EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan).
+2. Solana Pinocchio live dual-deploy equivalence CI/toolchain hardening and
+   broader reference coverage (Workstream 7).
+3. NEAR/Wasm target-first local execution/deploy metadata sign-off.
 
 ### Sign-off
 
-Not yet closed. G0-1 through G0-6 are implemented; closing requires recording
-the current commit and successful `just testkit` + `just check`/CI evidence.
+Gate G0 closed on 2026-07-03 at commit `0c52fb8` after GitHub CI run
+`28658576786` completed successfully. The closing run validates the current
+`just check` CI surface, including the unified testkit, Solana light gates,
+EVM Foundry/Anvil gates, and the smoke jobs for the frozen non-primary spikes.
 
 ---
 
@@ -71,7 +76,7 @@ frozen spike maintenance (D-045).
 
 | # | Criterion | Status | Evidence |
 |---|---|---|---|
-| P0-1 | Solana direct sBPF backend is production-grade | 🟡 in progress | Gate G0 behavior/budget parity is met; Pinocchio reference-equivalence is now included in `just solana-light`; remaining hardening is live dual-deploy CI/toolchain stability and broader reference coverage in Workstream 7 |
+| P0-1 | Solana direct sBPF backend is production-grade | 🟡 in progress | Gate G0 behavior/budget parity is closed; Pinocchio reference-equivalence is now included in `just solana-light`; remaining hardening is live dual-deploy CI/toolchain stability and broader reference coverage in Workstream 7 |
 | P0-2 | Ethereum/EVM backend is production-grade | 🟡 in progress | Foundry and Anvil CI are green; remaining hardening includes the EVM semantic-plan migration in Workstream 3 |
 | P0-3 | NEAR/Wasm backend is production-grade | 🟡 in progress | EmitWat/NEAR diagnostics, IR coverage, offline host smoke, and budget baselines are green; remaining hardening is full target-first local execution/deploy metadata sign-off |
 | P0-4 | Additional-chain advancement is frozen | ✅ met | D-044/D-045 freeze Aptos/CosmWasm advancement past M1/M2 and keep other targets docs-first until P0 closes |

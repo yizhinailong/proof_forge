@@ -120,7 +120,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/gate-status.md": {
-    "sha256": "790564c881acf011aa754dc90341d6c1fbb4746507d7ab9abef8fe070fe83ae2",
+    "sha256": "962acdfcca0c6400c8804bd8201c52d458898170f353bcbc33ef48d507d59050",
     "zh": "docs/zh/gate-status.zh.md",
     "model": "gemini-3-flash-preview"
   }
