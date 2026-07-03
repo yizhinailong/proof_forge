@@ -1,139 +1,210 @@
 /-! Allocator abstraction for the ProofForge IR.
 
 The IR is target-agnostic; how composite values (arrays, structs, path
-temporaries) are allocated in the target's address space is a mode chosen
-per-module, not a hardcoded runtime detail. Every backend (EmitWat, Psy, …)
-reads `Module.allocator` and lowers the matching allocator helpers.
+temporaries) are allocated in the target's address space is modeled once as a
+chain-neutral `AllocatorModel` (strategy / region / release triple), then bound
+per target. Every backend reads `Module.allocator` and lowers the matching
+allocator helpers.
+
+See `docs/rfcs/0008-allocator-abstraction.md` for the full design and per-target
+bindings (EVM bump-over-call-scratch, Solana heap, NEAR/CosmWasm Wasm linear
+memory).
 
 ## Strategy families
 
-* **No-free deployment** (`bump`, `bumpReset`): `dealloc` is a no-op. These are
-  useful when a module has no explicit `release` statements, because allocated
-  temporaries are never freed and any reuse-capable allocator would degrade to
-  a slower bump.
-  - `bump`      — linear frontier, no reset. Cheapest; can accumulate across calls.
-  - `bumpReset` — bump + reset the frontier to `heapBase` at each entrypoint
-                  boundary. Zero-cost leak prevention for long-lived instances.
+* `bump` / `bumpReset` — no-free deployment strategies. `dealloc` is a no-op.
+  These are useful when a module has no explicit `release` statements.
+  - `bump`      — linear frontier, no reset.
+  - `bumpReset` — bump + reset the frontier to the region base at each
+    entrypoint boundary.
 
-* **Chain deployment reuse** (`nearWeeModel`, `minimalMalloc`,
-  `cosmWasmRegion`): the allocator is part of the final chain artifact. NEAR's
-  Rust SDK path links `wee_alloc` into the final wasm; EmitWat's direct-WAT
-  equivalent is generated wasm allocator code that returns linear-memory
-  offsets and grows memory with `memory.grow`. `cosmWasmRegion` is the
-  chain-specific allocate/deallocate export ABI used by CosmWasm adapters.
-  Backends that support `Statement.release` lower it to the matching
-  deallocator; unsupported backends reject release explicitly.
+* `freeList` — reuse-capable deployment strategy. Supports `Statement.release`
+  by returning memory to a free list. NEAR's `nearWeeModel` and the direct-WAT
+  `minimalMalloc` both bind to this family; they differ only in historical
+  naming, not in the abstract model.
 
-* **Offline experiments** (`hostBump`, `hostJemallocShape`,
-  `hostMimallocShape`): `alloc` + `dealloc` are paired through an imported
-  allocator ABI and are not chain-deployable on NEAR. These are for local
-  simulation or wasm-link experiments only.
-  - EmitWat (wasm) imports `pf_alloc` + `pf_dealloc`. `pf_alloc` must return an
-    offset in the module's wasm linear memory, never a native host pointer. The
-    offline host can manage that linear memory directly for simulation.
-  - A real C allocator such as jemalloc must be compiled into wasm and linked
-    into the same address space before it can be used by guest wasm.
-  - Psy (C++) can link the real library (jemalloc / mimalloc / …) directly.
+* `hostImport` — chain or host provides an allocator ABI. CosmWasm's exported
+  `allocate`/`deallocate` region ABI binds here; offline experiments also use
+  host-provided allocators, distinguished by `hostProvided = true`.
 
-`AllocatorConfig.requiresHost` distinguishes offline imported allocators so
-backends can decide import-vs-internal and chain-deployability in one place. -/
+## Release semantics
+
+* `none`  — `Statement.release` is rejected by the backend.
+* `noop`  — `Statement.release` is allowed but lowers to nothing. EVM uses this
+  once ownership soundness (FV-3) justifies it; Solana uses it today.
+* `reuse` — `Statement.release` lowers to a real deallocator (free-list, host
+  import, etc.).
+
+## Out of scope (intentionally chain-specific)
+
+Persistent-state models (EVM storage, Solana accounts, NEAR storage) are not
+part of the allocator abstraction. -/
 
 namespace ProofForge.IR
 
-inductive ChainAllocator where
-  /-- No-free: linear frontier, no reset. -/
+/-- Semantic allocation family. -/
+inductive AllocatorStrategy where
   | bump
-  /-- No-free: linear frontier, reset to `heapBase` at each entrypoint boundary. -/
   | bumpReset
-  /-- NEAR deployment model: allocator lives in the final wasm artifact. In Rust
-      sourcegen this maps to near-sdk's default `wee_alloc`; in direct WAT it
-      lowers to ProofForge's wasm-internal allocator shape. -/
-  | nearWeeModel
-  /-- Wasm-internal first-fit allocator for direct WAT output. -/
-  | minimalMalloc
-  /-- CosmWasm deployment ABI: exported `allocate`/`deallocate` region allocator. -/
-  | cosmWasmRegion
-  deriving Repr, BEq
+  | freeList
+  | hostImport
+  deriving Repr, BEq, Inhabited
 
-/-- Offline-only allocator experiments. These are not chain deployment
-    strategies unless the allocator is linked into the final artifact. -/
-inductive ExperimentAllocator where
-  | hostBump
-  | hostJemallocShape
-  | hostMimallocShape
-  deriving Repr, BEq
+def AllocatorStrategy.id : AllocatorStrategy → String
+  | .bump => "bump"
+  | .bumpReset => "bump_reset"
+  | .freeList => "free_list"
+  | .hostImport => "host_import"
 
-inductive AllocatorMode where
-  | chainDeployment (allocator : ChainAllocator)
-  | offlineExperiment (allocator : ExperimentAllocator)
-  deriving Repr, BEq
+/-- Address-space region facts. `size?` is the fixed bound when known; `growable`
+allows `memory.grow`/page expansion. -/
+structure AllocatorRegion where
+  base : Nat := 60000
+  size? : Option Nat := none
+  growable : Bool := true
+  deriving Repr, BEq, Inhabited
 
-def ChainAllocator.id : ChainAllocator → String
-  | .bump => "alloc.bump"
-  | .bumpReset => "alloc.bump_reset"
-  | .nearWeeModel => "alloc.near_wee_model"
-  | .minimalMalloc => "alloc.minimal_malloc"
-  | .cosmWasmRegion => "alloc.cosmwasm_region"
+/-- What `Statement.release` means for this module/target binding. -/
+inductive AllocatorRelease where
+  | none
+  | noop
+  | reuse
+  deriving Repr, BEq, Inhabited
 
-def ExperimentAllocator.id : ExperimentAllocator → String
-  | .hostBump => "alloc.offline.host_bump"
-  | .hostJemallocShape => "alloc.offline.host_jemalloc_shape"
-  | .hostMimallocShape => "alloc.offline.host_mimalloc_shape"
+def AllocatorRelease.id : AllocatorRelease → String
+  | .none => "none"
+  | .noop => "noop"
+  | .reuse => "reuse"
 
-/-- Human-readable id for diagnostics / config output. -/
-def AllocatorMode.id : AllocatorMode → String
-  | .chainDeployment allocator => allocator.id
-  | .offlineExperiment allocator => allocator.id
+/-- Chain-neutral allocator model: strategy × region × release. `hostProvided`
+is true when `alloc`/`dealloc` come from a host import (offline experiments);
+chain-deployed bindings are wasm-internal or chain-exported and set this to
+false. -/
+structure AllocatorModel where
+  strategy : AllocatorStrategy
+  region : AllocatorRegion
+  release : AllocatorRelease
+  hostProvided : Bool := false
+  deriving Repr, BEq, Inhabited
 
-/-- Per-module allocator configuration. Backends read `mode` to emit the
-    matching alloc/dealloc helpers and `heapBase` as the linear-memory base for
-    the bump region (ignored by host-provided strategies). -/
+def AllocatorModel.id (model : AllocatorModel) : String :=
+  let base := s!"base={model.region.base}"
+  let host := if model.hostProvided then ";host" else ""
+  s!"alloc.{model.strategy.id}.{model.release.id};{base}{host}"
+
+/-- Per-module allocator configuration. Backends read `model` and the derived
+helpers below to emit the matching alloc/dealloc helpers. -/
 structure AllocatorConfig where
-  mode : AllocatorMode := .chainDeployment .bump
-  heapBase : Nat := 60000
-  deriving Repr
+  model : AllocatorModel := { strategy := .bump, region := {}, release := .none }
+  deriving Repr, BEq, Inhabited
 
 /-- Default configuration: a plain bump allocator at offset 60000. -/
-def defaultAllocator : AllocatorConfig := {  }
+def defaultAllocator : AllocatorConfig := { model := { strategy := .bump, region := {}, release := .none } }
 
-/-- Backward-compatible shorthand for diagnostics and metadata. -/
-def AllocatorConfig.id (cfg : AllocatorConfig) : String :=
-  cfg.mode.id
+-- Preset constructors that map the old Wasm-flavored enum names onto the shared
+-- strategy/region/release triple. These keep existing target profiles and test
+-- fixtures compiling while expressing the same facts in the unified model.
 
-/-- True for offline imported allocator experiments: the backend must supply
-    alloc/dealloc via imports. These are not chain-deployable on NEAR. -/
-def AllocatorConfig.requiresHost : AllocatorConfig → Bool :=
-  fun cfg => match cfg.mode with
-  | .offlineExperiment _ => true
-  | .chainDeployment _ => false
+def AllocatorConfig.bump (heapBase : Nat := 60000) : AllocatorConfig :=
+  { model := {
+      strategy := .bump,
+      region := { base := heapBase, growable := true },
+      release := .none
+    } }
 
-/-- True for strategies whose allocator is emitted inside the wasm module and
-    therefore need no host allocator import. These are chain-deployable on NEAR. -/
-def AllocatorConfig.isWasmInternal : AllocatorConfig → Bool :=
-  fun cfg => !cfg.requiresHost
+def AllocatorConfig.bumpReset (heapBase : Nat := 60000) : AllocatorConfig :=
+  { model := {
+      strategy := .bumpReset,
+      region := { base := heapBase, growable := true },
+      release := .none
+    } }
 
-def AllocatorConfig.chainAllocator? (cfg : AllocatorConfig) : Option ChainAllocator :=
-  match cfg.mode with
-  | .chainDeployment allocator => some allocator
-  | .offlineExperiment _ => none
+def AllocatorConfig.nearWeeModel (heapBase : Nat := 60000) : AllocatorConfig :=
+  { model := {
+      strategy := .freeList,
+      region := { base := heapBase, growable := true },
+      release := .reuse
+    } }
 
-def AllocatorConfig.experimentAllocator? (cfg : AllocatorConfig) : Option ExperimentAllocator :=
-  match cfg.mode with
-  | .offlineExperiment allocator => some allocator
-  | .chainDeployment _ => none
+def AllocatorConfig.minimalMalloc (heapBase : Nat := 60000) : AllocatorConfig :=
+  { model := {
+      strategy := .freeList,
+      region := { base := heapBase, growable := true },
+      release := .reuse
+    } }
+
+def AllocatorConfig.cosmWasmRegion (heapBase : Nat := 60000) : AllocatorConfig :=
+  { model := {
+      strategy := .hostImport,
+      region := { base := heapBase, growable := true },
+      release := .reuse
+    } }
+
+def AllocatorConfig.hostBump (heapBase : Nat := 60000) : AllocatorConfig :=
+  { model := {
+      strategy := .bump,
+      region := { base := heapBase, growable := true },
+      release := .none,
+      hostProvided := true
+    } }
+
+def AllocatorConfig.hostJemallocShape (heapBase : Nat := 60000) : AllocatorConfig :=
+  { model := {
+      strategy := .freeList,
+      region := { base := heapBase, growable := true },
+      release := .reuse,
+      hostProvided := true
+    } }
+
+def AllocatorConfig.hostMimallocShape (heapBase : Nat := 60000) : AllocatorConfig :=
+  { model := {
+      strategy := .freeList,
+      region := { base := heapBase, growable := true },
+      release := .reuse,
+      hostProvided := true
+    } }
+
+/-- EVM binding: bump over call-scratch memory, release rejected until FV-3. -/
+def AllocatorConfig.evm (scratchBase : Nat := 0) : AllocatorConfig :=
+  { model := {
+      strategy := .bump,
+      region := { base := scratchBase, growable := false },
+      release := .none
+    } }
+
+-- Backward-compatible accessors derived from the unified model.
+
+def AllocatorConfig.heapBase (cfg : AllocatorConfig) : Nat :=
+  cfg.model.region.base
+
+def AllocatorConfig.requiresHost (cfg : AllocatorConfig) : Bool :=
+  cfg.model.hostProvided
+
+def AllocatorConfig.isWasmInternal (cfg : AllocatorConfig) : Bool :=
+  !cfg.model.hostProvided
 
 def AllocatorConfig.usesEntryReset (cfg : AllocatorConfig) : Bool :=
-  cfg.chainAllocator? == some .bumpReset
+  cfg.model.strategy == .bumpReset
 
 def AllocatorConfig.usesMinimalMallocShape (cfg : AllocatorConfig) : Bool :=
-  match cfg.chainAllocator? with
-  | some .nearWeeModel | some .minimalMalloc => true
-  | _ => false
+  cfg.model.strategy == .freeList && !cfg.model.hostProvided
 
 def AllocatorConfig.isCosmWasmRegion (cfg : AllocatorConfig) : Bool :=
-  cfg.chainAllocator? == some .cosmWasmRegion
+  cfg.model.strategy == .hostImport
 
 def AllocatorConfig.isOfflineJemallocShape (cfg : AllocatorConfig) : Bool :=
-  cfg.experimentAllocator? == some .hostJemallocShape
+  cfg.model.hostProvided && cfg.model.strategy == .freeList
+
+/-- Human-readable id for diagnostics / config output. Preserves the historical
+IDs for the preset constructors where possible. -/
+def AllocatorConfig.id (cfg : AllocatorConfig) : String :=
+  match cfg.model.strategy, cfg.model.release, cfg.model.hostProvided with
+  | .bump, .none, false => "alloc.bump"
+  | .bumpReset, .none, false => "alloc.bump_reset"
+  | .freeList, .reuse, false => "alloc.near_wee_model"
+  | .hostImport, .reuse, false => "alloc.cosmwasm_region"
+  | .bump, .none, true => "alloc.offline.host_bump"
+  | .freeList, .reuse, true => "alloc.offline.host_jemalloc_shape"
+  | _, _, _ => cfg.model.id
 
 end ProofForge.IR

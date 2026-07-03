@@ -43,8 +43,8 @@ structure TargetProfile where
   family : TargetFamily
   artifactKind : ArtifactKind
   capabilities : CapabilitySet
-  deploymentAllocator? : Option ProofForge.IR.ChainAllocator := none
-  offlineAllocators : Array ProofForge.IR.ExperimentAllocator := #[]
+  deploymentAllocator? : Option ProofForge.IR.AllocatorConfig := none
+  offlineAllocators : Array ProofForge.IR.AllocatorConfig := #[]
   requiredTools : Array String := #[]
   /-- Host bridge for Wasm-family targets. Ignored for non-Wasm families. -/
   hostBridge? : Option HostBridge := none
@@ -95,8 +95,8 @@ def wasmNear : TargetProfile := {
   id := "wasm-near"
   family := .wasmHost
   artifactKind := .wasm
-  deploymentAllocator? := some .nearWeeModel
-  offlineAllocators := #[.hostBump]
+  deploymentAllocator? := some (ProofForge.IR.AllocatorConfig.nearWeeModel)
+  offlineAllocators := #[ProofForge.IR.AllocatorConfig.hostBump]
   capabilities := #[
     .storageScalar,
     .storageMap,
@@ -116,8 +116,8 @@ def wasmCosmWasm : TargetProfile := {
   id := "wasm-cosmwasm"
   family := .wasmHost
   artifactKind := .wasm
-  deploymentAllocator? := some .cosmWasmRegion
-  offlineAllocators := #[.hostBump]
+  deploymentAllocator? := some (ProofForge.IR.AllocatorConfig.cosmWasmRegion)
+  offlineAllocators := #[ProofForge.IR.AllocatorConfig.hostBump]
   capabilities := #[
     .storageScalar,
     .storageMap,

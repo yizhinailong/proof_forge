@@ -22,11 +22,11 @@ def main : IO UInt32 := do
     "robinhood-chain-testnet must not be registered as a compiler target"
 
   let nearProfile ← requireSome (find? "wasm-near") "missing wasm-near target profile"
-  require (nearProfile.deploymentAllocator? == some ProofForge.IR.ChainAllocator.nearWeeModel)
+  require (nearProfile.deploymentAllocator? == some (ProofForge.IR.AllocatorConfig.nearWeeModel))
     "wasm-near deployment allocator must stay on the NEAR wasm-internal profile"
-  require (nearProfile.offlineAllocators == #[ProofForge.IR.ExperimentAllocator.hostBump])
+  require (nearProfile.offlineAllocators == #[ProofForge.IR.AllocatorConfig.hostBump])
     "wasm-near offline allocator surface must stay host-bump only"
-  require (!nearProfile.offlineAllocators.contains ProofForge.IR.ExperimentAllocator.hostJemallocShape)
+  require (!nearProfile.offlineAllocators.contains (ProofForge.IR.AllocatorConfig.hostJemallocShape))
     "wasm-near must not advertise jemalloc-shaped host allocation"
   require (nearProfile.hostBridge? == some HostBridge.near)
     "wasm-near must declare the NEAR host bridge"

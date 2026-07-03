@@ -91,13 +91,13 @@ def emitWatSumResetModule : Module := {
   name := "ArrayProbe",
   state := #[],
   entrypoints := #[sumLiteral],
-  allocator := { mode := .chainDeployment .bumpReset }
+  allocator := ProofForge.IR.AllocatorConfig.bumpReset
 }
 def emitWatSumExternalModule : Module := {
   name := "ArrayProbe",
   state := #[],
   entrypoints := #[sumLiteral],
-  allocator := { mode := .offlineExperiment .hostBump }
+  allocator := ProofForge.IR.AllocatorConfig.hostBump
 }
 /-- Direct-WAT wasm-internal allocator: allocator code is emitted into the WAT
     module and returns wasm linear-memory offsets. -/
@@ -105,7 +105,7 @@ def emitWatSumMinimalMallocModule : Module := {
   name := "ArrayProbe",
   state := #[],
   entrypoints := #[sumLiteral],
-  allocator := { mode := .chainDeployment .minimalMalloc }
+  allocator := ProofForge.IR.AllocatorConfig.minimalMalloc
 }
 /-- NEAR deployment allocator profile: conceptually matches near-sdk's wasm
     allocator placement model and lowers to the direct-WAT internal allocator. -/
@@ -113,13 +113,13 @@ def emitWatSumNearAllocatorModule : Module := {
   name := "ArrayProbe",
   state := #[],
   entrypoints := #[sumLiteral],
-  allocator := { mode := .chainDeployment .nearWeeModel }
+  allocator := ProofForge.IR.AllocatorConfig.nearWeeModel
 }
 def emitWatReleaseMinimalMallocModule : Module := {
   name := "ArrayProbe",
   state := #[],
   entrypoints := #[releaseThenSum],
-  allocator := { mode := .chainDeployment .minimalMalloc }
+  allocator := ProofForge.IR.AllocatorConfig.minimalMalloc
 }
 /-- A reuse-capable strategy: same lowering surface as `external` (`pf_alloc` /
     `pf_dealloc` imports). The imported allocator must return offsets in wasm
@@ -130,7 +130,7 @@ def emitWatSumJemallocModule : Module := {
   name := "ArrayProbe",
   state := #[],
   entrypoints := #[sumLiteral],
-  allocator := { mode := .offlineExperiment .hostJemallocShape }
+  allocator := ProofForge.IR.AllocatorConfig.hostJemallocShape
 }
 
 
