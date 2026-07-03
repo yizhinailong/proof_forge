@@ -16,7 +16,7 @@ The NEAR work contributed the first three formal anchors, now on `main`:
 |---|---|---|
 | Executable IR semantics (scalar subset) | `ProofForge/IR/Semantics.lean` | A small-step/trace interpreter for the scalar IR subset that proofs can reference; used by the NEAR trace obligations |
 | Ownership rules | `ProofForge/IR/Ownership.lean`, `Tests/IROwnership.lean` | Checker for `release`/owned-local discipline (no use-after-release, branch consistency), currently validated by tests |
-| Backend trace obligations | `ProofForge/Backend/WasmNear/Refinement.lean`, `ProofForge/Backend/Evm/Refinement.lean`, `ProofForge/Backend/Evm/YulSemantics.lean`, `Tests/NearWasmFormal.lean` | `TraceObligation` with `decide`-checked theorems: the Counter, ValueVault, and EvmExpressionProbe IR traces match expected observable values, EmitWat exports cover the trace entrypoints, the EVM Yul surface contains selector-dispatched functions for the same traces, and the focused emitted Yul subset executes to the same observable EVM return traces |
+| Backend trace obligations | `ProofForge/Backend/WasmNear/Refinement.lean`, `ProofForge/Backend/Evm/Refinement.lean`, `ProofForge/Backend/Evm/YulSemantics.lean`, `Tests/NearWasmFormal.lean` | `TraceObligation` with `decide`-checked theorems: the Counter, ValueVault, and EvmExpressionProbe IR traces match expected observable values, EmitWat exports cover the trace entrypoints, the EVM Yul surface contains selector-dispatched functions for the same traces, and the focused emitted Yul subset executes scalar, map, typed-array storage, storage-struct, and aggregate ABI traces to expected observable return words |
 
 These are the right shape: small executable definitions plus decidable
 theorems, checked in CI without external tools.
@@ -76,7 +76,7 @@ scenario (Counter first, ValueVault second):
 | Backend | Obligation shape | Feasibility |
 |---|---|---|
 | `wasm-near` / EmitWat | Exists (exports + IR trace); extend to Wasm-level evaluation of the emitted WAT through the offline host | High — offline host already executes the artifact deterministically |
-| `evm` (IR → Yul plan) | Counter, ValueVault, and EvmExpressionProbe obligations exist for IR trace + selector-dispatched Yul surface + executable Yul-subset trace (`calldataload`, `calldatasize`, `sstore`, `sload`, scalar arithmetic, `exp`, bitwise/shift operators, comparisons, casts, assertions, `number`, `keccak256`, `log0`-`log4`, `mstore`, `return`); next, extend beyond scalar/assertion coverage into maps, arrays, structs, and aggregate return/state shapes | Medium — the focused Yul-subset interpreter is in Lean; expanding coverage keeps `solc` out of the trusted path but not out of the build |
+| `evm` (IR → Yul plan) | Counter, ValueVault, and EvmExpressionProbe obligations exist for IR trace + selector-dispatched Yul surface + executable Yul-subset trace (`calldataload`, `calldatasize`, `sstore`, `sload`, scalar arithmetic, `exp`, bitwise/shift operators, comparisons, casts, assertions, `number`, deterministic memory-sensitive `keccak256` surrogate, `log0`-`log4`, `mstore`, `return`). Additional executable EVM-only obligations now cover `EvmMapProbe`, `EvmTypedStorageProbe`, `EvmStorageStructProbe`, and `EvmAbiAggregateProbe` for maps, presence slots, typed storage arrays, storage structs, and aggregate ABI params/returns. IR-side map/array/struct semantics remains FV-2 work. | Medium — the focused Yul-subset interpreter is in Lean; expanding coverage keeps `solc` out of the trusted path but not out of the build |
 | `psy-dpn` | Compare `dargo execute` result vectors against IR trace outputs (differential gate, not a theorem) | Already close: smoke scripts assert `result_vm` values today |
 | `solana-sbpf-asm` | Differential testing via Mollusk/Surfpool first; assembly-level semantics is a research track, not a near-term proof | Low for proofs, high for differential gates |
 | `wasm-cloudflare-workers` | Differential HTTP-level gate only (off-chain host, D-033) | Not a proof target |
@@ -138,9 +138,10 @@ first proof surface users see. Start with ValueVault as the worked example.
 1. FV-1 capability soundness (structural, unblocks nothing, high trust value).
 2. FV-2 semantics extension + determinism (foundation).
 3. FV-3 ownership soundness (justifies the merged `release` lowerings).
-4. FV-4 EVM Yul-subset trace obligations for Counter, ValueVault, and
-   EvmExpressionProbe: done for selector-dispatched scalar-storage and
-   assertion/expression paths; next expand the interpreter and obligations
-   toward maps, arrays, structs, and aggregate return/state shapes.
+4. FV-4 EVM Yul-subset trace obligations: scalar IR traces are done for
+   Counter, ValueVault, and EvmExpressionProbe; executable EVM-only obligations
+   now also cover maps, typed storage arrays, storage structs, and aggregate ABI
+   params/returns. Next, move the IR semantics side of those aggregate/storage
+   shapes into FV-2 so the same obligations can compare against IR traces.
 5. FV-6 authoring-surface equivalence for the fixture subset.
 6. FV-5 / FV-7 as the respective surfaces stabilize; FV-8 once FV-2 lands.

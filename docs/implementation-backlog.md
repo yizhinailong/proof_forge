@@ -2045,14 +2045,20 @@ Tasks (see the roadmap for full statements):
   selector-dispatched Yul surface, and execute the focused emitted Yul subset
   (`calldataload`, `calldatasize`, `sstore`, `sload`, scalar arithmetic,
   `exp`, bitwise/shift operators, comparisons, casts, assertions, `number`,
-  `keccak256`, `log0`-`log4`, `mstore`, `return`) to compare observable EVM
-  return words against the IR trace. ValueVault covers calldata arguments,
-  multi-entry scalar storage updates, block-number context reads, event field
-  evaluation, and return words; EvmExpressionProbe covers assertion success
-  paths, `assertEq`, predicate expressions, U32/U64 arithmetic, casts, bitwise
-  operators, and shifts. Next: extend the interpreter and obligations toward
-  maps, arrays, structs, and aggregate return/state shapes; keep Psy/Solana on
-  differential gates until interpreters exist.
+  deterministic memory-sensitive `keccak256` surrogate, `log0`-`log4`,
+  `mstore`, `return`) to compare observable EVM return words against the IR
+  trace. ValueVault covers calldata arguments, multi-entry scalar storage
+  updates, block-number context reads, event field evaluation, and return words;
+  EvmExpressionProbe covers assertion success paths, `assertEq`, predicate
+  expressions, U32/U64 arithmetic, casts, bitwise operators, and shifts.
+  Additional EVM-only executable obligations now cover `EvmMapProbe`
+  (map value/presence slots and nested map paths), `EvmTypedStorageProbe`
+  (typed storage arrays and hash array reads), `EvmStorageStructProbe`
+  (storage structs and arrays of flat structs), and `EvmAbiAggregateProbe`
+  (aggregate ABI params/returns). Next: extend FV-2 IR semantics to maps,
+  arrays, structs, and aggregate values so these EVM-only obligations can be
+  tied back to IR traces; keep Psy/Solana on differential gates until their
+  interpreters exist.
 - FV-5: state checked-arithmetic overflow/division semantics once in the IR
   value domain and add the overflow branch to backend obligations.
 - FV-6: prove `.learn`-vs-`contract_source` lowering equivalence for the

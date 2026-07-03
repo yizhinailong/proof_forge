@@ -198,6 +198,22 @@ def memoryWords (rt : Runtime) (offset size : Nat) : Array Word :=
       words := words.push (rt.readMemory (offset + idx * 32))
     words
 
+def pseudoKeccakStep (acc word : Word) : Word :=
+  (acc * 1315423911 + word + 2654435761) % twoPow 256
+
+/-- Deterministic, memory-sensitive surrogate for `keccak256`.
+
+The FV-4 interpreter is not a cryptographic EVM model. For storage-layout
+obligations it only needs generated map/hash helper calls to be deterministic
+and to distinguish the memory words they hash, so this deliberately small
+surrogate keeps the executable model reviewable while avoiding the old
+all-zero hash collision.
+-/
+def pseudoKeccak (rt : Runtime) (offset size : Nat) : Word :=
+  let words := memoryWords rt offset size
+  words.foldl pseudoKeccakStep
+    ((offset + 1) * 16777619 + (size + 1) * 1099511628211)
+
 def selectorCalldataWord (selector : Nat) : Word :=
   selector * twoPow 224
 
@@ -331,9 +347,9 @@ mutual
     | "number", [] =>
         .ok (rt, #[rt.blockNumber])
     | "keccak256", [offset, size] => do
-        let (rt, _) ← evalWord ctx rt offset
-        let (rt, _) ← evalWord ctx rt size
-        .ok (rt, #[0])
+        let (rt, offset) ← evalWord ctx rt offset
+        let (rt, size) ← evalWord ctx rt size
+        .ok (rt, #[pseudoKeccak rt offset size])
     | "log0", [offset, size] => do
         let (rt, _) ← evalArgs ctx rt #[offset, size]
         .ok (rt, #[])

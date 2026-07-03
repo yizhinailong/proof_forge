@@ -1,7 +1,11 @@
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.YulSemantics
 import ProofForge.Contract.Examples.ValueVault
+import ProofForge.IR.Examples.EvmAbiAggregateProbe
 import ProofForge.IR.Examples.EvmExpressionProbe
+import ProofForge.IR.Examples.EvmMapProbe
+import ProofForge.IR.Examples.EvmStorageStructProbe
+import ProofForge.IR.Examples.EvmTypedStorageProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Semantics
 
@@ -24,6 +28,7 @@ inductive ObservableReturn where
   | u32 (value : Nat)
   | u64 (value : Nat)
   | hash (a b c d : Nat)
+  | words (values : Array Nat)
   deriving Repr, BEq, DecidableEq
 
 structure ObservableStep where
@@ -79,6 +84,8 @@ def observableReturnFromEvmWords (expectedType : ValueType) (words : Array Nat) 
         .error "EVM U32 return word exceeds U32 range"
   | .u64, [value] => .ok (.u64 value)
   | .hash, [word] => .ok (unpackHashWord word)
+  | .fixedArray _ _, words => .ok (.words words.toArray)
+  | .structType _, words => .ok (.words words.toArray)
   | .unit, _ => .error s!"entrypoint expected `Unit` but returned {words.size} word(s)"
   | _, [] => .error s!"entrypoint expected `{expectedType.name}` but returned no EVM words"
   | _, _ => .error s!"entrypoint expected `{expectedType.name}` but returned {words.size} EVM word(s)"
@@ -367,6 +374,198 @@ def expressionTraceObligation : TraceObligation := {
   expected := expressionExpectedTrace
 }
 
+/-! The following obligations intentionally exercise EVM/Yul execution only.
+    Their IR-side executable semantics is FV-2 work: the current
+    `ProofForge.IR.Semantics` model is still scalar-only and does not yet model
+    maps, arrays, structs, or aggregate ABI values. -/
+
+def evmMapTraceCalls : Array TraceCall := #[
+  { entrypoint := ProofForge.IR.Examples.EvmMapProbe.mapLifecycle },
+  { entrypoint := ProofForge.IR.Examples.EvmMapProbe.getSeedBalance },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmMapProbe.containsBalance
+    evmArgs := #[1001]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmMapProbe.upsertBalance
+    evmArgs := #[7007, 123]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmMapProbe.readBalance
+    evmArgs := #[7007]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmMapProbe.setBalance
+    evmArgs := #[7007, 456]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmMapProbe.readBalance
+    evmArgs := #[7007]
+  },
+  { entrypoint := ProofForge.IR.Examples.EvmMapProbe.pathLifecycle },
+  { entrypoint := ProofForge.IR.Examples.EvmMapProbe.pathAssignLifecycle },
+  { entrypoint := ProofForge.IR.Examples.EvmMapProbe.nestedPathLifecycle },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmMapProbe.nestedPathDynamic
+    evmArgs := #[6006, 7007, 888]
+  }
+]
+
+def evmMapExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "map_lifecycle", selector := "3bb39394", returnValue := .u64 55 },
+  { entrypointName := "get_seed_balance", selector := "541be503", returnValue := .u64 55 },
+  { entrypointName := "contains_balance", selector := "4c136189", returnValue := .bool true },
+  { entrypointName := "upsert_balance", selector := "e1de6ac8", returnValue := .u64 0 },
+  { entrypointName := "read_balance", selector := "68eb1eef", returnValue := .u64 123 },
+  { entrypointName := "set_balance", selector := "b41d1f5c", returnValue := .none },
+  { entrypointName := "read_balance", selector := "68eb1eef", returnValue := .u64 456 },
+  { entrypointName := "path_lifecycle", selector := "84c21205", returnValue := .u64 77 },
+  { entrypointName := "path_assign_lifecycle", selector := "bce9e77b", returnValue := .u64 58 },
+  { entrypointName := "nested_path_lifecycle", selector := "13a524e0", returnValue := .u64 95 },
+  { entrypointName := "nested_path_dynamic", selector := "ce6fd7c0", returnValue := .u64 888 }
+]
+
+def evmMapTraceObligation : TraceObligation := {
+  name := "EvmMapProbe.map-storage-trace"
+  module := ProofForge.IR.Examples.EvmMapProbe.module
+  calls := evmMapTraceCalls
+  expected := evmMapExpectedTrace
+}
+
+def evmMapContainsTraceCalls : Array TraceCall := #[
+  { entrypoint := ProofForge.IR.Examples.EvmMapProbe.containsLifecycle },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmMapProbe.containsBalance
+    evmArgs := #[1001]
+  }
+]
+
+def evmMapContainsExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "contains_lifecycle", selector := "a0c7a60a", returnValue := .u64 99 },
+  { entrypointName := "contains_balance", selector := "4c136189", returnValue := .bool true }
+]
+
+def evmMapContainsTraceObligation : TraceObligation := {
+  name := "EvmMapProbe.presence-trace"
+  module := ProofForge.IR.Examples.EvmMapProbe.module
+  calls := evmMapContainsTraceCalls
+  expected := evmMapContainsExpectedTrace
+}
+
+def typedStorageTraceCalls : Array TraceCall := #[
+  { entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.boolScalarLifecycle },
+  { entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.typedArrayLifecycle },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.readFlag
+    evmArgs := #[0]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.readFlag
+    evmArgs := #[1]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.readRoot
+    evmArgs := #[1]
+  },
+  { entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.pathAssignU32 }
+]
+
+def typedStorageExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "bool_scalar_lifecycle", selector := "06422075", returnValue := .bool true },
+  { entrypointName := "typed_array_lifecycle", selector := "9f3c504b", returnValue := .u64 32 },
+  { entrypointName := "read_flag", selector := "afbe1175", returnValue := .bool true },
+  { entrypointName := "read_flag", selector := "afbe1175", returnValue := .bool false },
+  { entrypointName := "read_root", selector := "4994f441", returnValue := .hash 5 6 7 8 },
+  { entrypointName := "path_assign_u32", selector := "5ab2cb77", returnValue := .u64 30 }
+]
+
+def typedStorageTraceObligation : TraceObligation := {
+  name := "EvmTypedStorageProbe.array-storage-trace"
+  module := ProofForge.IR.Examples.EvmTypedStorageProbe.module
+  calls := typedStorageTraceCalls
+  expected := typedStorageExpectedTrace
+}
+
+def storageStructTraceCalls : Array TraceCall := #[
+  { entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.structLifecycle },
+  { entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.pathLifecycle },
+  { entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.arrayStructLifecycle },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.readPointX
+    evmArgs := #[1]
+  },
+  { entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.typedSum },
+  { entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.rootValue },
+  { entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.wholeStructWriteSum },
+  { entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.selfStructStorageWrite }
+]
+
+def storageStructExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "struct_lifecycle", selector := "93ddf147", returnValue := .u64 18 },
+  { entrypointName := "path_lifecycle", selector := "84c21205", returnValue := .u64 48 },
+  { entrypointName := "array_struct_lifecycle", selector := "2d84bb06", returnValue := .u64 12 },
+  { entrypointName := "read_point_x", selector := "db006782", returnValue := .u64 7 },
+  { entrypointName := "typed_sum", selector := "2ec467be", returnValue := .u64 34 },
+  { entrypointName := "root_value", selector := "c42f8c06", returnValue := .hash 1 2 3 4 },
+  { entrypointName := "whole_struct_write_sum", selector := "c1e31e63", returnValue := .u64 70 },
+  { entrypointName := "self_struct_storage_write", selector := "696ddaa7", returnValue := .u64 705 }
+]
+
+def storageStructTraceObligation : TraceObligation := {
+  name := "EvmStorageStructProbe.struct-storage-trace"
+  module := ProofForge.IR.Examples.EvmStorageStructProbe.module
+  calls := storageStructTraceCalls
+  expected := storageStructExpectedTrace
+}
+
+def abiAggregateTraceCalls : Array TraceCall := #[
+  {
+    entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.sumPair
+    evmArgs := #[7, 11]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.sumArray
+    evmArgs := #[2, 3, 5]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.sumMatrix
+    evmArgs := #[1, 2, 3, 4]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.sumPairArray
+    evmArgs := #[1, 2, 3, 4]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.makePair
+    evmArgs := #[13, 21]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.makeArray
+    evmArgs := #[3, 5, 8]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.makeMatrix
+    evmArgs := #[1, 2, 3, 4]
+  }
+]
+
+def abiAggregateExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "sum_pair", selector := "25508e13", returnValue := .u64 18 },
+  { entrypointName := "sum_array", selector := "eb353b80", returnValue := .u64 10 },
+  { entrypointName := "sum_matrix", selector := "da76e471", returnValue := .u64 10 },
+  { entrypointName := "sum_pair_array", selector := "10e4c1da", returnValue := .u64 10 },
+  { entrypointName := "make_pair", selector := "ef51ff62", returnValue := .words #[13, 21] },
+  { entrypointName := "make_array", selector := "ffac5c16", returnValue := .words #[3, 5, 8] },
+  { entrypointName := "make_matrix", selector := "b61c11b8", returnValue := .words #[1, 2, 3, 4] }
+]
+
+def abiAggregateTraceObligation : TraceObligation := {
+  name := "EvmAbiAggregateProbe.abi-aggregate-trace"
+  module := ProofForge.IR.Examples.EvmAbiAggregateProbe.module
+  calls := abiAggregateTraceCalls
+  expected := abiAggregateExpectedTrace
+}
+
 theorem counter_ir_observable_trace_ok :
     counterTraceObligation.irTraceOk = true := by
   native_decide
@@ -401,6 +600,46 @@ theorem expression_evm_yul_surface_trace_entrypoints :
 
 theorem expression_evm_yul_executable_trace_ok :
     expressionTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem evm_map_yul_surface_trace_entrypoints :
+    evmMapTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem evm_map_yul_executable_trace_ok :
+    evmMapTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem evm_map_contains_yul_surface_trace_entrypoints :
+    evmMapContainsTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem evm_map_contains_yul_executable_trace_ok :
+    evmMapContainsTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem typed_storage_yul_surface_trace_entrypoints :
+    typedStorageTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem typed_storage_yul_executable_trace_ok :
+    typedStorageTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem storage_struct_yul_surface_trace_entrypoints :
+    storageStructTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem storage_struct_yul_executable_trace_ok :
+    storageStructTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem abi_aggregate_yul_surface_trace_entrypoints :
+    abiAggregateTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem abi_aggregate_yul_executable_trace_ok :
+    abiAggregateTraceObligation.evmYulTraceOk = true := by
   native_decide
 
 end ProofForge.Backend.Evm.Refinement

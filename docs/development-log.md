@@ -15,6 +15,46 @@ Each entry should include:
 - known limitations
 - next step
 
+## 2026-07-04
+
+### EVM FV-4 Aggregate/Storage Trace Expansion
+
+Commit: pending
+
+Summary:
+
+- Extended `ProofForge.Backend.Evm.YulSemantics` with a deterministic
+  memory-sensitive `keccak256` surrogate so the focused FV-4 interpreter can
+  execute generated map value and presence-slot helpers without collapsing every
+  hashed storage slot to `0`.
+- Extended `ProofForge.Backend.Evm.Refinement` with decide-checked executable
+  EVM/Yul obligations for `EvmMapProbe`, `EvmTypedStorageProbe`,
+  `EvmStorageStructProbe`, and `EvmAbiAggregateProbe`.
+- Added observable multi-word return support for aggregate ABI returns, covering
+  flat struct and fixed-array return data in the executable Yul subset.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.YulSemantics
+lake build ProofForge.Backend.Evm.Refinement
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- These new obligations are EVM/Yul executable checks against expected
+  observable return words. They do not yet prove map/array/struct IR semantics,
+  because `ProofForge.IR.Semantics` remains scalar-only; that is still FV-2.
+
+Next step:
+
+- Extend FV-2 IR semantics for maps, arrays, structs, and aggregate values so
+  the new EVM-only obligations can be connected back to IR traces.
+
 ## 2026-07-03
 
 ### Solana Pinocchio Live CI Lane
