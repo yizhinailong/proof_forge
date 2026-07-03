@@ -51,6 +51,7 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.Backend.Evm.Refinement.evm_map_contains_ir_observable_trace_ok
 #check ProofForge.Backend.Evm.Refinement.conditional_ir_observable_trace_ok
 #check ProofForge.Backend.Evm.Refinement.loop_ir_observable_trace_ok
+#check ProofForge.Backend.Evm.Refinement.event_ir_observable_trace_ok
 #check ProofForge.Backend.Evm.Refinement.typed_storage_ir_observable_trace_ok
 #check ProofForge.Backend.Evm.Refinement.storage_struct_ir_observable_trace_ok
 #check ProofForge.Backend.Evm.Refinement.abi_aggregate_ir_observable_trace_ok

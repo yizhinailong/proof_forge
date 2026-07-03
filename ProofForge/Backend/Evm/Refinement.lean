@@ -8,6 +8,7 @@ import ProofForge.IR.Examples.EvmLoopProbe
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmStorageStructProbe
 import ProofForge.IR.Examples.EvmTypedStorageProbe
+import ProofForge.IR.Examples.EventProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Semantics
 
@@ -33,10 +34,17 @@ inductive ObservableReturn where
   | words (values : Array Nat)
   deriving Repr, BEq, DecidableEq
 
+structure ObservableEventLog where
+  eventName : String
+  topics : Array Nat := #[]
+  dataWords : Array Nat := #[]
+  deriving Repr, BEq, DecidableEq
+
 structure ObservableStep where
   entrypointName : String
   selector : String
   returnValue : ObservableReturn
+  logs : Array ObservableEventLog := #[]
   deriving Repr, BEq, DecidableEq
 
 structure TraceCall where
@@ -74,6 +82,112 @@ partial def observableWordsFromValue (value : ProofForge.IR.Semantics.Value) :
       for field in fields do
         words := words ++ (← observableWordsFromValue field.snd)
       .ok words
+
+partial def observableIndexedWordsFromValue (value : ProofForge.IR.Semantics.Value) :
+    Except String (Array Nat) := do
+  match value with
+  | .array _ | .struct _ _ => do
+      let words ← observableWordsFromValue value
+      .ok #[ProofForge.Backend.Evm.YulSemantics.pseudoKeccakWords words]
+  | _ =>
+      observableWordsFromValue value
+
+partial def eventSignatureTypeFromValue (value : ProofForge.IR.Semantics.Value) :
+    Except String String := do
+  match value with
+  | .bool _ => .ok "bool"
+  | .u32 _ => .ok "uint32"
+  | .u64 _ => .ok "uint64"
+  | .hash _ _ _ _ => .ok "bytes32"
+  | .array [] =>
+      .error "event fixed-array signature requires at least one element"
+  | .array (first :: rest) => do
+      let elementType ← eventSignatureTypeFromValue first
+      for value in rest do
+        let currentType ← eventSignatureTypeFromValue value
+        if currentType != elementType then
+          .error "event fixed-array signature requires homogeneous element types"
+      .ok (elementType ++ s!"[{rest.length + 1}]")
+  | .struct _ fields => do
+      if fields.isEmpty then
+        .error "event struct signature requires at least one field"
+      let mut fieldTypes := #[]
+      for field in fields do
+        fieldTypes := fieldTypes.push (← eventSignatureTypeFromValue field.snd)
+      .ok ("(" ++ String.intercalate "," fieldTypes.toList ++ ")")
+  | .unit =>
+      .error "event signature does not support Unit fields"
+
+def pseudoKeccakMemoryWords (words : Array Nat) (size : Nat) : Nat :=
+  words.foldl ProofForge.Backend.Evm.YulSemantics.pseudoKeccakStep
+    ((0 + 1) * 16777619 + (size + 1) * 1099511628211)
+
+def eventSignatureTopic (signature : String) : Nat :=
+  let (words, length) := ProofForge.Backend.Evm.IR.packedUtf8Words signature
+  pseudoKeccakMemoryWords words length
+
+def eventSignatureFromValues (name : String) (indexed data : Array ProofForge.IR.Semantics.Value) :
+    Except String String := do
+  let mut typeNames := #[]
+  for value in indexed ++ data do
+    typeNames := typeNames.push (← eventSignatureTypeFromValue value)
+  .ok (name ++ "(" ++ String.intercalate "," typeNames.toList ++ ")")
+
+def observableEventLogFromIr (log : ProofForge.IR.Semantics.EventLog) :
+    Except String ObservableEventLog := do
+  let mut indexedWords := #[]
+  for value in log.indexed do
+    indexedWords := indexedWords ++ (← observableIndexedWordsFromValue value)
+  let mut dataWords := #[]
+  for value in log.data do
+    dataWords := dataWords ++ (← observableWordsFromValue value)
+  let signature ← eventSignatureFromValues log.name log.indexed log.data
+  .ok {
+    eventName := log.name
+    topics := #[eventSignatureTopic signature] ++ indexedWords
+    dataWords
+  }
+
+def arrayDrop {α : Type} (values : Array α) (n : Nat) : Array α :=
+  values.toList.drop n |>.toArray
+
+def observableEventLogsFromIr (logs : Array ProofForge.IR.Semantics.EventLog) :
+    Except String (Array ObservableEventLog) := do
+  let mut observed := #[]
+  for log in logs do
+    observed := observed.push (← observableEventLogFromIr log)
+  .ok observed
+
+def observableEventLogFromEvmLog (log : ProofForge.Backend.Evm.YulSemantics.Log) :
+    ObservableEventLog := {
+  eventName := ""
+  topics := log.topics
+  dataWords := log.data
+}
+
+def observableEventLogsFromEvmLogs
+    (logs : Array ProofForge.Backend.Evm.YulSemantics.Log) :
+    Array ObservableEventLog :=
+  logs.map observableEventLogFromEvmLog
+
+def all2List {α β : Type} (p : α → β → Bool) : List α → List β → Bool
+  | [], [] => true
+  | lhs :: lhsRest, rhs :: rhsRest => p lhs rhs && all2List p lhsRest rhsRest
+  | _, _ => false
+
+def all2Array {α β : Type} (p : α → β → Bool) (lhs : Array α) (rhs : Array β) :
+    Bool :=
+  all2List p lhs.toList rhs.toList
+
+def ObservableEventLog.evmCompatible (actual expected : ObservableEventLog) : Bool :=
+  actual.topics == expected.topics &&
+    actual.dataWords == expected.dataWords
+
+def ObservableStep.evmCompatible (actual expected : ObservableStep) : Bool :=
+  actual.entrypointName == expected.entrypointName &&
+    actual.selector == expected.selector &&
+    actual.returnValue == expected.returnValue &&
+    all2Array ObservableEventLog.evmCompatible actual.logs expected.logs
 
 def observableReturn (expectedType : ValueType) (value? : Option ProofForge.IR.Semantics.Value) :
     Except String ObservableReturn :=
@@ -129,7 +243,8 @@ def runEntrypointObservable (state : ProofForge.IR.Semantics.State) (call : Trac
   let (nextState, result?) ←
     ProofForge.IR.Semantics.runEntrypointWithArgs state entrypoint call.args
   let returnValue ← observableReturn entrypoint.returns result?
-  .ok (nextState, { entrypointName := entrypoint.name, selector, returnValue })
+  let logs ← observableEventLogsFromIr (arrayDrop nextState.logs state.logs.size)
+  .ok (nextState, { entrypointName := entrypoint.name, selector, returnValue, logs })
 
 def runTraceList : List TraceCall → ProofForge.IR.Semantics.State →
     Except String (ProofForge.IR.Semantics.State × Array ObservableStep)
@@ -256,13 +371,15 @@ def runEvmEntrypointObservable
     | some selector => .ok selector
     | none => .error s!"entrypoint `{entrypoint.name}` has no EVM selector metadata"
   let selector ← ProofForge.Backend.Evm.YulSemantics.parseHexNat selectorString
-  let (nextStorage, returnWords) ←
-    ProofForge.Backend.Evm.YulSemantics.runSelectorWithArgs object storage selector call.evmArgs
+  let (nextStorage, returnWords, logs) ←
+    ProofForge.Backend.Evm.YulSemantics.runSelectorWithArgsWithLogs
+      object storage selector call.evmArgs
   let returnValue ← observableReturnFromEvmWords entrypoint.returns returnWords
   .ok (nextStorage, {
     entrypointName := entrypoint.name
     selector := selectorString
     returnValue
+    logs := observableEventLogsFromEvmLogs logs
   })
 
 def runEvmTraceList
@@ -284,7 +401,7 @@ def TraceObligation.evmYulTraceOk (obligation : TraceObligation) : Bool :=
   match ProofForge.Backend.Evm.IR.lowerModule obligation.module with
   | .ok object =>
       match runEvmTrace object obligation.calls with
-      | .ok actual => actual == obligation.expected
+      | .ok actual => all2Array ObservableStep.evmCompatible actual obligation.expected
       | .error _ => false
   | .error _ => false
 
@@ -352,6 +469,12 @@ def irBool (value : Bool) : ProofForge.IR.Semantics.Value :=
 def irHash (a b c d : Nat) : ProofForge.IR.Semantics.Value :=
   .hash a b c d
 
+def evmHashWord (a b c d : Nat) : Nat :=
+  a * ProofForge.Backend.Evm.YulSemantics.twoPow 192 +
+    b * ProofForge.Backend.Evm.YulSemantics.twoPow 128 +
+    c * ProofForge.Backend.Evm.YulSemantics.twoPow 64 +
+    d
+
 def irArray (values : List ProofForge.IR.Semantics.Value) : ProofForge.IR.Semantics.Value :=
   .array values
 
@@ -361,6 +484,15 @@ def irStruct (typeName : String) (fields : List (String × ProofForge.IR.Semanti
 
 def irPair (left right : Nat) : ProofForge.IR.Semantics.Value :=
   irStruct "Pair" [("left", irU64 left), ("right", irU64 right)]
+
+def eventLog (name signature : String) (indexed data : Array Nat) : ObservableEventLog := {
+  eventName := name
+  topics := #[eventSignatureTopic signature] ++ indexed
+  dataWords := data
+}
+
+def aggregateTopic (words : Array Nat) : Nat :=
+  ProofForge.Backend.Evm.YulSemantics.pseudoKeccakWords words
 
 def valueVaultTraceCalls : Array TraceCall := #[
   { entrypoint := valueVaultEntrypoint "initialize", args := #[irU64 100], evmArgs := #[100] },
@@ -377,16 +509,41 @@ def valueVaultTraceCalls : Array TraceCall := #[
 ]
 
 def valueVaultExpectedTrace : Array ObservableStep := #[
-  { entrypointName := "initialize", selector := "fe4b84df", returnValue := .none },
+  {
+    entrypointName := "initialize"
+    selector := "fe4b84df"
+    returnValue := .none
+    logs := #[eventLog "VaultInitialized" "VaultInitialized(uint64,uint64)" #[] #[100, 0]]
+  },
   { entrypointName := "get_balance", selector := "c1cfb99a", returnValue := .u64 100 },
-  { entrypointName := "deposit", selector := "b6b55f25", returnValue := .none },
+  {
+    entrypointName := "deposit"
+    selector := "b6b55f25"
+    returnValue := .none
+    logs := #[eventLog "ValueDeposited" "ValueDeposited(uint64,uint64,uint64)" #[] #[25, 125, 2]]
+  },
   { entrypointName := "get_balance", selector := "c1cfb99a", returnValue := .u64 125 },
-  { entrypointName := "charge_fee", selector := "be168a46", returnValue := .none },
+  {
+    entrypointName := "charge_fee"
+    selector := "be168a46"
+    returnValue := .none
+    logs := #[eventLog "ValueCharged" "ValueCharged(uint64,uint64,uint64,uint64)" #[] #[100, 2, 98, 223]]
+  },
   { entrypointName := "get_balance", selector := "c1cfb99a", returnValue := .u64 223 },
   { entrypointName := "get_net_value", selector := "d43f79a2", returnValue := .u64 221 },
-  { entrypointName := "release", selector := "37bdc99b", returnValue := .none },
+  {
+    entrypointName := "release"
+    selector := "37bdc99b"
+    returnValue := .none
+    logs := #[eventLog "ValueReleased" "ValueReleased(uint64,uint64,uint64)" #[] #[23, 200, 23]]
+  },
   { entrypointName := "get_balance", selector := "c1cfb99a", returnValue := .u64 200 },
-  { entrypointName := "snapshot", selector := "9711715a", returnValue := .u64 200 },
+  {
+    entrypointName := "snapshot"
+    selector := "9711715a"
+    returnValue := .u64 200
+    logs := #[eventLog "ValueSnapshot" "ValueSnapshot(uint64,uint64,uint64,uint64)" #[] #[200, 23, 2, 0]]
+  },
   { entrypointName := "get_net_value", selector := "d43f79a2", returnValue := .u64 198 }
 ]
 
@@ -466,11 +623,90 @@ def loopTraceObligation : TraceObligation := {
   expected := loopExpectedTrace
 }
 
+def eventTraceCalls : Array TraceCall := #[
+  {
+    entrypoint := ProofForge.IR.Examples.EventProbe.emitValueEvent
+    args := #[irU64 42]
+    evmArgs := #[42]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EventProbe.emitIndexedEvent
+    args := #[irU64 7, irU64 99]
+    evmArgs := #[7, 99]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EventProbe.emitTwoIndexedEvent
+    args := #[irU64 1, irU64 2, irU64 3]
+    evmArgs := #[1, 2, 3]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EventProbe.emitTypedScalarEvent
+    args := #[irBool true, irU32 7, irHash 1 2 3 4]
+    evmArgs := #[1, 7, evmHashWord 1 2 3 4]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EventProbe.emitPairEvent
+    args := #[irU64 5, irU64 8]
+    evmArgs := #[5, 8]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EventProbe.emitIndexedPairEvent
+    args := #[irU64 5, irU64 8, irU64 13]
+    evmArgs := #[5, 8, 13]
+  }
+]
+
+def eventExpectedTrace : Array ObservableStep := #[
+  {
+    entrypointName := "emit_value_event"
+    selector := "2ae8cae3"
+    returnValue := .none
+    logs := #[eventLog "ValueEvent" "ValueEvent(uint64)" #[] #[42]]
+  },
+  {
+    entrypointName := "emit_indexed_event"
+    selector := "bc07d04f"
+    returnValue := .none
+    logs := #[eventLog "IndexedValue" "IndexedValue(uint64,uint64)" #[7] #[99]]
+  },
+  {
+    entrypointName := "emit_two_indexed_event"
+    selector := "2d00700c"
+    returnValue := .none
+    logs := #[eventLog "IndexedTwoValues" "IndexedTwoValues(uint64,uint64,uint64)" #[1, 2] #[3]]
+  },
+  {
+    entrypointName := "emit_typed_scalar_event"
+    selector := "989413a3"
+    returnValue := .none
+    logs := #[eventLog "TypedScalarEvent" "TypedScalarEvent(bool,uint32,bytes32)" #[] #[1, 7, evmHashWord 1 2 3 4]]
+  },
+  {
+    entrypointName := "emit_pair_event"
+    selector := "35361bda"
+    returnValue := .none
+    logs := #[eventLog "PairEvent" "PairEvent((uint64,uint64))" #[] #[5, 8]]
+  },
+  {
+    entrypointName := "emit_indexed_pair_event"
+    selector := "e027f054"
+    returnValue := .none
+    logs := #[eventLog "IndexedPair" "IndexedPair((uint64,uint64),uint64)" #[aggregateTopic #[5, 8]] #[13]]
+  }
+]
+
+def eventTraceObligation : TraceObligation := {
+  name := "EventProbe.scalar-and-aggregate-log-trace"
+  module := ProofForge.IR.Examples.EventProbe.evmModule
+  calls := eventTraceCalls
+  expected := eventExpectedTrace
+}
+
 /-! The following obligations extend the same IR-vs-emitted-Yul executable
     trace pattern across stateful maps, typed storage, storage aggregates, and
-    ABI-facing aggregate values. Event-log observability is intentionally left
-    for the next FV-2/FV-4 slice; event effects currently evaluate fields and
-    executable Yul accepts `log0`-`log4`, but logs are not trace items yet. -/
+    ABI-facing aggregate values. Event-log observability now covers EventProbe
+    scalar events, multi-topic indexed events, typed scalar payloads, struct
+    data, and hashed aggregate indexed topics. -/
 
 def evmMapTraceCalls : Array TraceCall := #[
   { entrypoint := ProofForge.IR.Examples.EvmMapProbe.mapLifecycle },
@@ -735,6 +971,18 @@ theorem loop_evm_yul_surface_trace_entrypoints :
 
 theorem loop_evm_yul_executable_trace_ok :
     loopTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem event_ir_observable_trace_ok :
+    eventTraceObligation.irTraceOk = true := by
+  native_decide
+
+theorem event_evm_yul_surface_trace_entrypoints :
+    eventTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem event_evm_yul_executable_trace_ok :
+    eventTraceObligation.evmYulTraceOk = true := by
   native_decide
 
 theorem evm_map_ir_observable_trace_ok :

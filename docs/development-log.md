@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-4 EVM Event-Log Trace Obligations
+
+Commit: this commit
+
+Summary:
+
+- Extended `ProofForge.IR.Semantics.State` with observable event logs, so
+  `eventEmit` and `eventEmitIndexed` now record evaluated indexed/data fields
+  instead of acting only as field-evaluation no-ops.
+- Extended the focused EVM/Yul executable model so `log0` through `log4`
+  record topic and memory data words while preserving the existing selector
+  execution API for older obligations.
+- Added EVM refinement log comparison for ValueVault business events and
+  EventProbe scalar, typed scalar, multi-topic indexed, struct-data, and
+  hashed aggregate-indexed event cases, including signature-derived `topic0`
+  under the focused interpreter's deterministic pseudo-keccak model.
+- Added a CI-visible theorem anchor for the EventProbe IR trace.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Known limitations:
+
+- The focused Yul model compares emitted log topics/data against the IR trace,
+  including signature-derived `topic0`, but it still uses the existing
+  deterministic pseudo-keccak surrogate rather than claiming cryptographic EVM
+  `keccak256` correctness.
+- Event declarations remain represented through `eventEmit` effects rather
+  than a richer first-class event schema in the portable IR.
+
+Next step:
+
+- Deepen the Wasm/NEAR side from export coverage toward artifact-level
+  execution obligations, then move FV-2 from executable traces toward
+  determinism/progress statements.
+
 ### FV-4 EVM Control-Flow Obligations
 
 Commit: this commit

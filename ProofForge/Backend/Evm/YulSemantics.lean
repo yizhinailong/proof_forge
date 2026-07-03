@@ -52,6 +52,11 @@ def insertWord (key : Nat) (value : Word) : WordBindings → WordBindings
       else
         (slot, oldValue) :: insertWord key value rest
 
+structure Log where
+  topics : Array Word := #[]
+  data : Array Word := #[]
+  deriving Repr, BEq, DecidableEq
+
 structure Runtime where
   storage : WordBindings := []
   memory : WordBindings := []
@@ -59,6 +64,7 @@ structure Runtime where
   calldata : WordBindings := []
   calldataSize : Nat := 4
   blockNumber : Word := 0
+  logs : Array Log := #[]
   deriving Repr, BEq, DecidableEq
 
 structure FunctionDef where
@@ -98,6 +104,9 @@ def Runtime.writeMemory (rt : Runtime) (offset : Nat) (value : Word) : Runtime :
 
 def Runtime.readCalldata (rt : Runtime) (offset : Nat) : Word :=
   lookupWord offset rt.calldata
+
+def Runtime.pushLog (rt : Runtime) (topics data : Array Word) : Runtime :=
+  { rt with logs := rt.logs.push { topics, data } }
 
 def decimalDigit? (c : Char) : Option Nat :=
   if '0' <= c && c <= '9' then
@@ -214,6 +223,11 @@ def pseudoKeccak (rt : Runtime) (offset size : Nat) : Word :=
   words.foldl pseudoKeccakStep
     ((offset + 1) * 16777619 + (size + 1) * 1099511628211)
 
+def pseudoKeccakWords (words : Array Word) : Word :=
+  let size := words.size * 32
+  words.foldl pseudoKeccakStep
+    ((0 + 1) * 16777619 + (size + 1) * 1099511628211)
+
 def selectorCalldataWord (selector : Nat) : Word :=
   selector * twoPow 224
 
@@ -231,6 +245,7 @@ def callRuntimeWithArgs (selector : Nat) (storage : WordBindings) (args : Array 
   calldata := insertWord 0 (selectorCalldataWord selector) (calldataArgBindings args)
   calldataSize := 4 + args.size * 32
   blockNumber := 0
+  logs := #[]
 }
 
 def callRuntime (selector : Nat) (storage : WordBindings) : Runtime :=
@@ -350,23 +365,30 @@ mutual
         let (rt, offset) ← evalWord ctx rt offset
         let (rt, size) ← evalWord ctx rt size
         .ok (rt, #[pseudoKeccak rt offset size])
-    | "log0", [offset, size] => do
-        let (rt, _) ← evalArgs ctx rt #[offset, size]
-        .ok (rt, #[])
-    | "log1", [offset, size, topic0] => do
-        let (rt, _) ← evalArgs ctx rt #[offset, size, topic0]
-        .ok (rt, #[])
-    | "log2", [offset, size, topic0, topic1] => do
-        let (rt, _) ← evalArgs ctx rt #[offset, size, topic0, topic1]
-        .ok (rt, #[])
-    | "log3", [offset, size, topic0, topic1, topic2] => do
-        let (rt, _) ← evalArgs ctx rt #[offset, size, topic0, topic1, topic2]
-        .ok (rt, #[])
-    | "log4", [offset, size, topic0, topic1, topic2, topic3] => do
-        let (rt, _) ← evalArgs ctx rt #[offset, size, topic0, topic1, topic2, topic3]
-        .ok (rt, #[])
+    | "log0", [offset, size] =>
+        evalLog ctx rt #[offset, size] 0
+    | "log1", [offset, size, topic0] =>
+        evalLog ctx rt #[offset, size, topic0] 1
+    | "log2", [offset, size, topic0, topic1] =>
+        evalLog ctx rt #[offset, size, topic0, topic1] 2
+    | "log3", [offset, size, topic0, topic1, topic2] =>
+        evalLog ctx rt #[offset, size, topic0, topic1, topic2] 3
+    | "log4", [offset, size, topic0, topic1, topic2, topic3] =>
+        evalLog ctx rt #[offset, size, topic0, topic1, topic2, topic3] 4
     | _, _ =>
         .error s!"unsupported Yul builtin `{name}` with {args.size} argument(s)"
+
+  partial def evalLog (ctx : Context) (rt : Runtime) (args : Array Expr) (topicCount : Nat) :
+      Except String (Runtime × Array Word) := do
+    let (rt, values) ← evalArgs ctx rt args
+    if values.size != topicCount + 2 then
+      .error s!"Yul log expected {topicCount + 2} evaluated argument(s), got {values.size}"
+    let some offset := values[0]?
+      | .error "Yul log missing memory offset"
+    let some size := values[1]?
+      | .error "Yul log missing memory size"
+    let topics := values.toList.drop 2 |>.toArray
+    .ok (rt.pushLog topics (memoryWords rt offset size), #[])
 
   partial def evalCall (ctx : Context) (rt : Runtime) (name : String) (args : Array Expr) :
       Except String (Runtime × Array Word) := do
@@ -385,6 +407,7 @@ mutual
     .ok ({ rtAfterArgs with
       storage := functionRuntime.storage
       memory := functionRuntime.memory
+      logs := functionRuntime.logs
     }, returnValues)
 
   partial def execExprStmt (ctx : Context) (rt : Runtime) : Expr →
@@ -517,15 +540,21 @@ mutual
       | .leave | .returned _ => .ok (rt, control)
 end
 
-def runSelectorWithArgs (object : Object) (storage : WordBindings) (selector : Nat)
+def runSelectorWithArgsWithLogs (object : Object) (storage : WordBindings) (selector : Nat)
     (args : Array Word) :
-    Except String (WordBindings × Array Word) := do
+    Except String (WordBindings × Array Word × Array Log) := do
   let ctx := Context.ofObject object
   let (rt, control) ← execBlock ctx (callRuntimeWithArgs selector storage args) object.code
   match control with
-  | .returned words => .ok (rt.storage, words)
+  | .returned words => .ok (rt.storage, words, rt.logs)
   | .running => .error "Yul dispatcher finished without returning"
   | .leave => .error "Yul dispatcher left without returning"
+
+def runSelectorWithArgs (object : Object) (storage : WordBindings) (selector : Nat)
+    (args : Array Word) :
+    Except String (WordBindings × Array Word) := do
+  let (storage, words, _) ← runSelectorWithArgsWithLogs object storage selector args
+  .ok (storage, words)
 
 def runSelector (object : Object) (storage : WordBindings) (selector : Nat) :
     Except String (WordBindings × Array Word) :=

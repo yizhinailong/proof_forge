@@ -51,6 +51,12 @@ inductive Value where
   | struct (typeName : String) (fields : List (String × Value))
   deriving Repr, BEq
 
+structure EventLog where
+  name : String
+  indexed : Array Value := #[]
+  data : Array Value := #[]
+  deriving Repr, BEq
+
 def maxU32 : Nat := 4294967295
 
 abbrev Bindings := List (String × Value)
@@ -78,6 +84,7 @@ def listGet? {α : Type} : List α → Nat → Option α
 
 structure State where
   storage : Bindings := []
+  logs : Array EventLog := #[]
   deriving Repr, BEq
 
 structure Frame where
@@ -116,6 +123,10 @@ def State.write (state : State) (name : String) (value : Value) : State :=
             (fun storage field => insert (fieldKey name field.fst) field.snd storage)
             state.storage }
   | _ => state
+
+def State.recordEvent (state : State) (name : String)
+    (indexed data : Array Value) : State :=
+  { state with logs := state.logs.push { name, indexed, data } }
 
 def State.readStructField (state : State) (stateId fieldName : String) : Option Value :=
   match state.read (fieldKey stateId fieldName) with
@@ -522,21 +533,23 @@ partial def evalEffect (state : State) (frame : Frame) : Effect → Except Strin
       .ok (state, .u64 0)
   | .contextRead field =>
       .error s!"context field `{field.name}` is not supported by the scalar semantics model"
-  | .eventEmit _ fields => do
-      let nextState ← evalEventFields state frame fields
-      .ok (nextState, .unit)
-  | .eventEmitIndexed _ indexedFields dataFields => do
-      let nextState ← evalEventFields state frame indexedFields
-      let nextState ← evalEventFields nextState frame dataFields
-      .ok (nextState, .unit)
+  | .eventEmit name fields => do
+      let (nextState, data) ← evalEventFields state frame fields
+      .ok (nextState.recordEvent name #[] data, .unit)
+  | .eventEmitIndexed name indexedFields dataFields => do
+      let (nextState, indexed) ← evalEventFields state frame indexedFields
+      let (nextState, data) ← evalEventFields nextState frame dataFields
+      .ok (nextState.recordEvent name indexed data, .unit)
 
 partial def evalEventFields (state : State) (frame : Frame) (fields : Array (String × Expr)) :
-    Except String State := do
+    Except String (State × Array Value) := do
   let mut nextState := state
+  let mut values := #[]
   for field in fields do
-    let (stateAfterField, _) ← evalExpr nextState frame field.snd
+    let (stateAfterField, value) ← evalExpr nextState frame field.snd
     nextState := stateAfterField
-  pure nextState
+    values := values.push value
+  pure (nextState, values)
 end
 
 def execEffectStmt (state : State) (frame : Frame) : Effect → Except String State
