@@ -2088,7 +2088,10 @@ Tasks (one milestone per implementing branch):
   `[[artifact.file]]` checks, makes scenarios assert that JSON metadata file
   entries point at harness-produced artifacts and match path, byte size, and
   SHA-256 hash, and exposes EVM init-code/deploy-manifest outputs as testkit
-  artifacts.
+  artifacts. The current cross-artifact JSON slice adds nested
+  `[[artifact.jsonArtifact]]` checks, validates that Solana ValueVault metadata
+  embeds the same IDL JSON as the generated IDL artifact, and moves the
+  ValueVault IDL/client schema-shape checks into scenario TOML.
 
 Acceptance criteria:
 

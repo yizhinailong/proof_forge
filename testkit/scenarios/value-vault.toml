@@ -264,6 +264,64 @@ artifact = "idl"
 path = "artifacts.solanaClientTs"
 artifact = "client"
 
+[[artifact.jsonArtifact]]
+path = "solanaIdl"
+artifact = "idl"
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "idl"
+
+[[artifact.json]]
+path = "schema"
+equals = "proof-forge.solana.idl.v0"
+
+[[artifact.json]]
+path = "name"
+equals = "ValueVault"
+
+[[artifact.json]]
+path = "target"
+equals = "solana-sbpf-asm"
+
+[[artifact.json]]
+path = "instructions[0].name"
+equals = "initialize"
+
+[[artifact.json]]
+path = "instructions[1].name"
+equals = "deposit"
+
+[[artifact.json]]
+path = "instructions[2].name"
+equals = "charge_fee"
+
+[[artifact.json]]
+path = "instructions[3].name"
+equals = "release"
+
+[[artifact.json]]
+path = "instructions[4].name"
+equals = "snapshot"
+
+[[artifact.json]]
+path = "instructions[5].name"
+equals = "get_balance"
+
+[[artifact.json]]
+path = "instructions[6].name"
+equals = "get_net_value"
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "client"
+contains = [
+  'export const IDL = ',
+  'encodeInstructionData',
+  'accountMetas',
+  'createInstruction',
+]
+
 [[step]]
 call = "initialize"
 [[step.arg]]

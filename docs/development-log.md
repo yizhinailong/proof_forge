@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit JSON Artifact Equality Checks
+
+Commit: feature commit for unified testkit JSON artifact equality checks
+
+Summary:
+
+- Added nested `[[artifact.jsonArtifact]]` scenario checks that compare a JSON
+  value embedded in one artifact with another harness-produced JSON artifact.
+- Updated the Solana ValueVault scenario so metadata must embed the same IDL
+  JSON as the generated `idl` artifact.
+- Moved ValueVault Solana IDL/client shape checks into scenario TOML through
+  structured JSON assertions and text contains checks.
+
+Validation run:
+
+```sh
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml --workspace
+CAST="$PWD/build/tools/cast-shim" just testkit
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- JSON equality checks currently compare JSON values only; non-JSON artifacts
+  still use `matches_file`, `contains`, structured TOML checks, or file-reference
+  metadata checks.
+
+Next step:
+
+- Continue migrating duplicate per-target schema checks into scenario-declared
+  artifact expectations where the harness already exposes the generated files.
+
 ### Unified Testkit Artifact File Metadata Checks
 
 Commit: feature commit for unified testkit artifact file metadata checks

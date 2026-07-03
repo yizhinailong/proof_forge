@@ -1302,7 +1302,10 @@ shell/Node harness；参见
   equality。当前 metadata file-reference 切片新增嵌套 `[[artifact.file]]`
   检查，让 scenario 断言 JSON metadata file entry 指向 harness 生成的 artifact，
   并匹配 path、byte size 和 SHA-256 hash；同时把 EVM init-code/deploy-manifest
-  输出暴露为 testkit artifact。
+  输出暴露为 testkit artifact。当前 cross-artifact JSON 切片新增嵌套
+  `[[artifact.jsonArtifact]]` 检查，验证 Solana ValueVault metadata 内嵌的
+  IDL JSON 与生成的 IDL artifact 完全一致，并把 ValueVault IDL/client
+  schema-shape 检查迁移到 scenario TOML。
 
 验收标准：
 

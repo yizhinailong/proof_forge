@@ -18,7 +18,8 @@ Current scope:
   and `[[artifact.toml]]` checks for target metadata and manifests; nested
   `[[artifact.file]]` checks validate that JSON metadata file entries point at
   the harness artifact named by the scenario and match its path, byte size, and
-  SHA-256 hash
+  SHA-256 hash; nested `[[artifact.jsonArtifact]]` checks validate that a JSON
+  value embedded in one artifact exactly matches another JSON artifact
 - scenario-declared negative diagnostics through `[[diagnostic]]` entries;
   the first diagnostic-only scenario verifies that Solana rejects the portable
   `crosscall.invoke` capability with the expected target/capability message
