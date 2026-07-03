@@ -55,6 +55,12 @@ cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --tar
 cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault
 ```
 
+Print the raw per-call trace lines used for budget baselines:
+
+```sh
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target solana-sbpf-asm --trace
+```
+
 List scenarios without executing them:
 
 ```sh

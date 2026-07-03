@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-03
 
+### ValueVault Solana Budget Baselines
+
+Commit: feature commit for ValueVault Solana budget baselines
+
+Summary:
+
+- Added `--trace` to the unified testkit runner so budget work can print the
+  raw per-call harness lines already stored in `CallOutcome.raw_line`.
+- Fixed the EVM ValueVault testkit harness so the `CAST` environment override
+  is passed through to `proof-forge emit --cast`, matching the availability
+  check that decides whether the EVM branch can run locally.
+- Fixed the target-first `proof-forge emit --target evm --fixture ... --format
+  bytecode` compatibility mapper so it forwards `--cast` to the legacy EVM
+  bytecode flags instead of silently falling back to `cast`.
+- Pinned Counter `near_gas` baselines and all ValueVault `solana_cu`,
+  `evm_gas`, and `near_gas` baselines in the testkit scenarios.
+- Updated the Gate G0 ledger to reflect the repaired remote CI baseline and
+  the now-implemented budget acceptance criteria; formal closure still waits
+  for the current commit's remote CI/sign-off record.
+
+Validation run:
+
+```sh
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- --help
+.lake/build/bin/proof-forge emit --target evm --fixture value-vault --format bytecode --cast build/tools/cast-shim --yul-output /tmp/pf-vv.yul --artifact-output /tmp/pf-vv.json -o /tmp/pf-vv.bin
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target solana-sbpf-asm --trace
+CAST="$PWD/build/tools/cast-shim" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --trace
+```
+
+Known limitations:
+
+- The testkit budget baselines are deterministic harness baselines; live-chain
+  budget gates remain a separate Solana/Foundry hardening concern.
+
+Next step:
+
+- Run the current commit through CI, then record Gate G0 sign-off or continue
+  the non-blocking Tier-0 hardening items: Solana Pinocchio CI equivalence and
+  EVM semantic-plan migration.
+
 ### Unified Testkit Deploy Manifest Schema Checks
 
 Commit: feature commit for unified testkit deploy manifest schema checks

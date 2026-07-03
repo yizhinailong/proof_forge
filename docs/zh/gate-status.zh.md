@@ -23,37 +23,31 @@ D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、
 [testkit](../../testkit/)（RFC 0007）中通过 `evm`、`solana-sbpf-asm` 和
 `wasm-near`，同时满足行为一致性和资源预算（D-040 / RFC 0010）。
 
-**状态：Open**（行为大体满足；预算和当前验证基线仍不完整）
+**状态：Open**（验收标准已在本地实现；关闭仍等待当前提交的远端 CI/sign-off 证据）
 
 ### 验收标准
 
 | # | 标准 | 状态 | 证据 |
 |---|---|---|---|
 | G0-1 | Counter 在 3 个 target 上行为一致 | ✅ met | `just testkit` → `counter trace parity: ok (3 target(s))` |
-| G0-2 | ValueVault 在 3 个 target 上行为一致 | 🟡 partial | 先前 `just testkit` 证据覆盖了三个 target；当前本地证据在缺少 Foundry `cast` 时可能跳过 EVM 分支，因此仍需记录一次工具齐全的 clean run |
-| G0-3 | Counter 资源预算：`solana_cu`、`evm_gas`、`near_gas` | 🟡 partial | `testkit/scenarios/counter.toml` 已有 `solana_cu` + `evm_gas` baseline；**任何场景都尚未实现 `near_gas`** |
-| G0-4 | ValueVault 在 3 个 target 上的资源预算 | ❌ unmet | `testkit/scenarios/value-vault.toml` **没有 `[step.expect.budget]` block** |
+| G0-2 | ValueVault 在 3 个 target 上行为一致 | ✅ met | 远端 CI `28655651561`（`12a007b`）的 `build-test` → `Run unified testkit` 在安装 Foundry/cast 后成功 |
+| G0-3 | Counter 资源预算：`solana_cu`、`evm_gas`、`near_gas` | ✅ met | `testkit/scenarios/counter.toml` 已锁定三种预算；`CAST="$PWD/build/tools/cast-shim" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --trace` |
+| G0-4 | ValueVault 在 3 个 target 上的资源预算 | ✅ met | `testkit/scenarios/value-vault.toml` 已为全部 11 次调用锁定 `solana_cu`、`evm_gas` 和 `near_gas`；`CAST="$PWD/build/tools/cast-shim" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --trace` |
 | G0-5 | Unsupported-capability 诊断一致性 | ✅ met | `just testkit` → `unsupported-crosscall ... diagnostic crosscall.invoke unsupported: ok` |
-| G0-6 | `just check` 绿灯（build + lint + gates） | ❌ unmet | 最新远端 `main` CI（`28654051741`，`cd0b049`）在 `just build` 失败；本地 docs sync 也需要修复后才可以宣称 green |
+| G0-6 | `just check` 绿灯（build + lint + gates） | ✅ met | `CAST="$PWD/build/tools/cast-shim" just check` 已在本地通过；远端 CI `28655651561`（`12a007b`）也在 CI baseline 修复后全部成功 |
 
 ### 关闭 Gate G0 的剩余工作
 
-1. **恢复验证基线**：提交缺失的 `ProofForge/Target/HostBridge.lean`，避免根目录
-   `target/` ignore 规则误伤 `ProofForge/Target/*`，修复 Rust toolchain action，
-   并且只有在实际跑绿后才重新记录 `just check` / CI 证据。
-2. **NEAR gas budget 实现**（RFC 0010）：把 `near_gas`（burnt gas / gas used）
-   接入 `harness-near` outcome，并给每个 Counter 和 ValueVault step 添加
-   `near_gas` baseline + tolerance。最高优先级，因为这是唯一完全缺失的预算维度。
-3. **ValueVault budget baselines**：为三个 target 上的所有 ValueVault step
-   测量并锁定 `solana_cu`、`evm_gas`，以及在实现后锁定 `near_gas`。
-4. （Gate 的非阻塞 carry-over，但属于 Tier-0 hardening track）EVM semantic-plan
+1. 在当前 closing commit 上重新跑远端 CI，并把成功 run 记录到 Sign-off 后再标记
+   Gate G0 closed。
+2. （Gate 的非阻塞 carry-over，但属于 Tier-0 hardening track）EVM semantic-plan
    migration（Workstream 3：ExprPlan/StmtPlan/EntrypointPlan/EventPlan/
    CrosscallPlan/MetadataPlan）和 Solana Pinocchio CI equivalence（Workstream 7）。
 
 ### Sign-off
 
-尚未关闭。关闭需要 G0-1 到 G0-6 全部为 ✅，并在此记录 closing commit 以及
-`just testkit` + `just check` 证据。
+尚未关闭。G0-1 到 G0-6 已实现；关闭仍需要在此记录当前提交以及成功的
+`just testkit` + `just check`/CI 证据。
 
 ---
 

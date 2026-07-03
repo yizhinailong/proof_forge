@@ -26,42 +26,33 @@ current phase's Definition of Done is satisfied, with auditable evidence.
 in [testkit](../testkit/) (RFC 0007) on `evm`, `solana-sbpf-asm`, and
 `wasm-near` — behavior parity *and* resource budgets (D-040 / RFC 0010).
 
-**Status: Open** (behavior largely met; budgets and the current validation
-baseline are incomplete)
+**Status: Open** (acceptance criteria are implemented locally; closing waits
+for the current commit's remote CI/sign-off evidence)
 
 ### Acceptance criteria
 
 | # | Criterion | Status | Evidence |
 |---|---|---|---|
 | G0-1 | Counter behavior parity on 3 targets | ✅ met | `just testkit` → `counter trace parity: ok (3 target(s))` |
-| G0-2 | ValueVault behavior parity on 3 targets | 🟡 partial | Prior `just testkit` evidence covered three targets; current local evidence may skip the EVM branch when Foundry `cast` is unavailable, so a clean all-tools run still needs to be recorded |
-| G0-3 | Counter resource budgets: `solana_cu`, `evm_gas`, `near_gas` | 🟡 partial | `testkit/scenarios/counter.toml` has `solana_cu` + `evm_gas` baselines; **`near_gas` not implemented in any scenario** |
-| G0-4 | ValueVault resource budgets on 3 targets | ❌ unmet | `testkit/scenarios/value-vault.toml` has **no `[step.expect.budget]` blocks** |
+| G0-2 | ValueVault behavior parity on 3 targets | ✅ met | Remote CI `28655651561` (`12a007b`) `build-test` → `Run unified testkit` succeeded with Foundry/cast installed |
+| G0-3 | Counter resource budgets: `solana_cu`, `evm_gas`, `near_gas` | ✅ met | `testkit/scenarios/counter.toml` pins all three budgets; `CAST="$PWD/build/tools/cast-shim" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --trace` |
+| G0-4 | ValueVault resource budgets on 3 targets | ✅ met | `testkit/scenarios/value-vault.toml` pins `solana_cu`, `evm_gas`, and `near_gas` for all 11 calls; `CAST="$PWD/build/tools/cast-shim" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --trace` |
 | G0-5 | Unsupported-capability diagnostic parity | ✅ met | `just testkit` → `unsupported-crosscall ... diagnostic crosscall.invoke unsupported: ok` |
-| G0-6 | `just check` green (build + lint + gates) | ❌ unmet | Latest remote CI on `main` (`28654051741`, `cd0b049`) fails in `just build`; local docs sync also required repair before this record can claim green |
+| G0-6 | `just check` green (build + lint + gates) | ✅ met | `CAST="$PWD/build/tools/cast-shim" just check` passed locally; remote CI `28655651561` (`12a007b`) also completed successfully after the CI baseline fixes |
 
 ### Remaining work to close Gate G0
 
-1. **Restore the validation baseline**: commit the missing
-   `ProofForge/Target/HostBridge.lean`, keep `ProofForge/Target/*` from being
-   ignored by the root `target/` ignore rule, repair the Rust toolchain action,
-   and re-record `just check` / CI evidence only after the run is green.
-2. **NEAR gas budget implementation** (RFC 0010): wire `near_gas` (burnt gas /
-   gas used) into the `harness-near` outcome and add a `near_gas` baseline +
-   tolerance to every Counter and ValueVault step. Highest priority — this is
-   the only budget dimension entirely missing.
-3. **ValueVault budget baselines**: measure and pin `solana_cu`, `evm_gas`,
-   (and `near_gas` once implemented) for all ValueVault steps across the three
-   targets.
-4. (Carry-over, non-blocking for the gate but on the Tier-0 hardening track)
+1. Re-run remote CI on the current closing commit and record the successful run
+   in Sign-off before marking Gate G0 closed.
+2. (Carry-over, non-blocking for the gate but on the Tier-0 hardening track)
    EVM semantic-plan migration (Workstream 3: ExprPlan/StmtPlan/
    EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan) and Solana Pinocchio
    CI equivalence (Workstream 7).
 
 ### Sign-off
 
-Not yet closed. Closing requires G0-1 through G0-6 all ✅, recorded here with
-the closing commit and `just testkit` + `just check` evidence.
+Not yet closed. G0-1 through G0-6 are implemented; closing requires recording
+the current commit and successful `just testkit` + `just check`/CI evidence.
 
 ---
 

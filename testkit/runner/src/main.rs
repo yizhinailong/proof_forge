@@ -29,6 +29,7 @@ struct Args {
     scenario: Option<String>,
     target: Option<String>,
     scenario_dir: PathBuf,
+    trace: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,6 +47,7 @@ impl Args {
         let mut scenario = None;
         let mut target = None;
         let mut scenario_dir = PathBuf::from("testkit/scenarios");
+        let mut trace = false;
 
         let mut args = args.into_iter().peekable();
         while let Some(arg) = args.next() {
@@ -57,6 +59,7 @@ impl Args {
                 "--scenarios-dir" => {
                     scenario_dir = PathBuf::from(take_arg(&mut args, "--scenarios-dir")?);
                 }
+                "--trace" => trace = true,
                 "-h" | "--help" => {
                     print_usage();
                     std::process::exit(0);
@@ -70,6 +73,7 @@ impl Args {
             scenario,
             target,
             scenario_dir,
+            trace,
         })
     }
 }
@@ -84,7 +88,7 @@ where
 
 fn print_usage() {
     eprintln!(
-        "usage: proof-forge-testkit [run|list] [--scenario NAME] [--target ID] [--scenarios-dir DIR]"
+        "usage: proof-forge-testkit [run|list] [--scenario NAME] [--target ID] [--scenarios-dir DIR] [--trace]"
     );
 }
 
@@ -194,6 +198,11 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
             };
             match harness.run_scenario(case, repo_root)? {
                 HarnessRun::Passed(outcomes) => {
+                    if args.trace {
+                        for outcome in &outcomes {
+                            println!("{}", outcome.raw_line);
+                        }
+                    }
                     assert_expectations(case, target, &outcomes)?;
                     println!(
                         "scenario {} target {}: ok ({} call outcome(s))",

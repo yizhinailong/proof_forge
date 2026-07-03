@@ -87,12 +87,7 @@ impl ChainHarness for EvmHarness {
                 path: path,
             });
         }
-        assert_artifact_expectations(
-            case,
-            self.target_id(),
-            repo_root,
-            &artifacts,
-        )?;
+        assert_artifact_expectations(case, self.target_id(), repo_root, &artifacts)?;
         let selectors = load_selectors(&artifact.metadata_path)?;
         let bytecode = read_bytecode(&artifact.bytecode_path)?;
 
@@ -137,7 +132,9 @@ impl ChainHarness for EvmHarness {
                     .with_context(|| format!("EVM call `{}` failed before execution", step.call))?;
                 let gas_used = result.tx_gas_used();
                 let outcome = match result {
-                    revm::context_interface::result::ExecutionResult::Success { output, .. } => {
+                    revm::context_interface::result::ExecutionResult::Success {
+                        output, ..
+                    } => {
                         outcome_from_output(sequence, &step.call, output.data().as_ref(), gas_used)
                     }
                     revm::context_interface::result::ExecutionResult::Revert { output, .. } => {
@@ -281,8 +278,9 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     let init_code_path = out_dir.join("ValueVault.init.bin");
     let deploy_manifest_path = out_dir.join("ValueVault.proof-forge-deploy.json");
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
-    let output = Command::new(&proof_forge)
-        .current_dir(repo_root)
+    let cast = tool("CAST", "cast");
+    let mut emit = Command::new(&proof_forge);
+    emit.current_dir(repo_root)
         .args([
             "emit",
             "--target",
@@ -298,6 +296,8 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
             "-o",
             path_str(&bytecode_path)?,
         ])
+        .args(["--cast", cast.as_str()]);
+    let output = emit
         .output()
         .with_context(|| format!("failed to run `{}`", proof_forge.display()))?;
     if !output.status.success() {
@@ -502,11 +502,15 @@ fn outcome_from_revert(sequence: u32, call: &str, output: &[u8], gas_used: u64) 
     let error = decode_revert_error(output);
     let error_str = error
         .as_ref()
-        .map(|e| format!("assertion_id={} user_code={}", e.assertion_id, e.user_code.as_deref().unwrap_or("")))
+        .map(|e| {
+            format!(
+                "assertion_id={} user_code={}",
+                e.assertion_id,
+                e.user_code.as_deref().unwrap_or("")
+            )
+        })
         .unwrap_or_else(|| "revert".to_string());
-    let raw_line = format!(
-        "evm call {sequence}:{call}: error={error_str} evm_gas={gas_used}"
-    );
+    let raw_line = format!("evm call {sequence}:{call}: error={error_str} evm_gas={gas_used}");
 
     CallOutcome {
         sequence,
@@ -542,7 +546,11 @@ fn decode_revert_error(output: &[u8]) -> Option<proof_forge_testkit_core::ErrorO
     if offset.checked_add(32)? as usize > output.len() {
         return None;
     }
-    let len = u64::from_be_bytes(output[(offset as usize + 24)..(offset as usize + 32)].try_into().ok()?);
+    let len = u64::from_be_bytes(
+        output[(offset as usize + 24)..(offset as usize + 32)]
+            .try_into()
+            .ok()?,
+    );
     let data_start = (offset as usize).checked_add(32)?;
     let data_end = data_start.checked_add(len as usize)?;
     if data_end > output.len() {

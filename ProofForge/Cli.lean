@@ -2591,7 +2591,7 @@ def newCommandArgsToLegacy (args : List String) : Except String (List String) :=
       if let some artifact := state.artifactOut? then legacy := legacy ++ ["--artifact-output", artifact]
       if let some profile := state.evmChainProfile? then legacy := legacy ++ ["--evm-chain-profile", profile]
       if flag.endsWith "-bytecode" then
-        legacy := legacy ++ ["--solc", state.solc]
+        legacy := legacy ++ ["--solc", state.solc, "--cast", state.cast]
       Except.ok legacy
   | "check" :: _ => Except.error "proof-forge check is not yet implemented"
   | _ => Except.error "expected build, emit, or check"

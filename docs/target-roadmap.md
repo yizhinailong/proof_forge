@@ -51,9 +51,9 @@ status is tracked in [gate-status.md](gate-status.md).
 |---|---|---|---|
 | Counter behavior parity (3 targets) | all | ✅ met | testkit |
 | ValueVault behavior parity (3 targets) | all | ✅ met | testkit |
-| Counter budgets `solana_cu`/`evm_gas` | solana, evm | ✅ met | testkit scenarios |
-| NEAR gas budget implementation | wasm-near | ❌ missing | harness-near + RFC 0010 |
-| ValueVault budget baselines (3 targets) | all | ❌ missing | testkit scenarios |
+| Counter budgets `solana_cu`/`evm_gas`/`near_gas` | all | ✅ met | testkit scenarios |
+| NEAR gas budget implementation | wasm-near | ✅ met | testkit scenarios |
+| ValueVault budget baselines (3 targets) | all | ✅ met | testkit scenarios |
 | EVM semantic-plan migration | evm | 🟡 in progress | Workstream 3 |
 | Solana Pinocchio CI equivalence | solana | 🟡 in progress | Workstream 7 |
 
