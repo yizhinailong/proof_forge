@@ -2,6 +2,9 @@ import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Evm.ToYul
+import ProofForge.Backend.Evm.Validate
+import ProofForge.Backend.Evm.Lower
+import ProofForge.Backend.Evm.Metadata
 import ProofForge.IR.Contract
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
@@ -5680,23 +5683,138 @@ def lowerModuleWithPlan
   let helpers := helpers ++ plannedStructArrayHelperFunctions plan
   let helpers := helpers ++ plannedHashHelperFunctions plan
   let helpers := helpers ++ plannedCheckedArithmeticHelperFunctions module
-  let helpers := helpers ++ (← crosscallHelperFunctions module (← moduleCrosscallHelperSpecs module))
-  let helpers := helpers ++ (← createHelperFunctions (moduleCreateHelperSpecs module))
-  let helpers := helpers ++ localArrayGetHelperFunctions (← moduleLocalArrayGetLengths module)
-  let helpers := helpers ++ nestedLocalArrayGetHelperFunctions (← moduleNestedLocalArrayGetShapes module)
+  let crosscallSpecs ← moduleCrosscallHelperSpecs module
+  let helpers := helpers ++ (← crosscallHelperFunctions module crosscallSpecs)
+  let createSpecs := moduleCreateHelperSpecs module
+  let helpers := helpers ++ (← createHelperFunctions createSpecs)
+  let localArrayGetLengths ← moduleLocalArrayGetLengths module
+  let helpers := helpers ++ localArrayGetHelperFunctions localArrayGetLengths
+  let nestedLocalArrayGetShapes ← moduleNestedLocalArrayGetShapes module
+  let helpers := helpers ++ nestedLocalArrayGetHelperFunctions nestedLocalArrayGetShapes
   .ok {
     name := module.name
     code := { statements := #[dispatch] ++ functions ++ helpers }
   }
 
-def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object := do
+/-- Build the full EVM semantic plan for `module` before lowering to Yul.
+
+The plan is constructed by `Lower.buildFullModulePlan`, which populates
+`EntrypointPlan` nodes (selector, ABI params, return shape), `EventPlan` nodes
+(signature, field layout), and `MetadataPlan`. Helper specs (crosscall, create,
+local-array-get, nested-local-array-get) and the checked-arithmetic flag are
+discovered from the IR and recorded on the plan so `ToYul` and metadata passes
+can consume them without re-discovering facts from rendered Yul. -/
+
+def toPlanCrosscallMode (mode : CrosscallMode) : ProofForge.Backend.Evm.Plan.CrosscallMode :=
+  match mode with
+  | .call => .call
+  | .callValue => .callValue
+  | .staticcall => .staticcall
+  | .delegatecall => .delegatecall
+
+def toPlanCrosscallSpec (spec : CrosscallHelperSpec) : ProofForge.Backend.Evm.Plan.CrosscallHelperSpec :=
+  { arity := spec.arity, returnType := spec.returnType, mode := toPlanCrosscallMode spec.mode }
+
+def toPlanCreateMode (mode : CreateMode) : ProofForge.Backend.Evm.Plan.CreateMode :=
+  match mode with
+  | .create => .create
+  | .create2 => .create2
+
+def toPlanCreateSpec (spec : CreateHelperSpec) : ProofForge.Backend.Evm.Plan.CreateHelperSpec :=
+  { mode := toPlanCreateMode spec.mode, initCodeHex := spec.initCodeHex }
+
+def buildSemanticPlan (module : Module) : Except LowerError ProofForge.Backend.Evm.Plan.ModulePlan := do
   let plan ←
+    match ProofForge.Backend.Evm.Lower.buildFullModulePlan module with
+    | .ok p => .ok p
+    | .error err => .error { message := err.message }
+  let crosscallSpecs ← moduleCrosscallHelperSpecs module
+  let createSpecs := moduleCreateHelperSpecs module
+  let localArrayGetLengths ← moduleLocalArrayGetLengths module
+  let nestedLocalArrayGetShapes ← moduleNestedLocalArrayGetShapes module
+  let usesCheckedArithmetic := moduleUsesCheckedArithmetic module
+  .ok { plan with
+    crosscalls := crosscallSpecs.map toPlanCrosscallSpec
+    creates := createSpecs.map toPlanCreateSpec
+    localArrayGetLengths := localArrayGetLengths
+    nestedLocalArrayGetShapes := nestedLocalArrayGetShapes
+    usesCheckedArithmetic := usesCheckedArithmetic
+  }
+
+/-- Build the semantic plan best-effort, catching plan-construction errors so
+    diagnostic smokes that intentionally feed unsupported shapes still render
+    the expected diagnostic message rather than aborting at plan time. -/
+
+def buildSemanticPlanBestEffort (module : Module) : ProofForge.Backend.Evm.Plan.ModulePlan :=
+  match buildSemanticPlan module with
+  | .ok plan => plan
+  | .error _ =>
     match ProofForge.Backend.Evm.Plan.buildModulePlan module with
-    | .ok plan => .ok plan
-    | .error err => .error (planError err)
-  lowerModuleWithPlan module plan
+    | .ok plan => plan
+    | .error _ => {
+      name := module.name
+      targetPlan := { targetId := Target.evm.id, calls := #[] }
+      storage := ProofForge.Backend.Evm.Plan.storageLayout module
+      helpers := #[]
+      mapAssignOps := #[]
+      entrypoints := #[]
+      events := #[]
+      crosscalls := #[]
+      creates := #[]
+      localArrayGetLengths := #[]
+      nestedLocalArrayGetShapes := #[]
+      usesCheckedArithmetic := false
+      metadata := {
+        moduleName := module.name
+        entrypoints := #[]
+        events := #[]
+        capabilities := #[]
+      }
+    }
+
+def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object := do
+  let fullPlan := buildSemanticPlanBestEffort module
+  lowerModuleWithPlan module fullPlan
 
 def renderModule (module : Module) : Except LowerError String := do
   .ok (Lean.Compiler.Yul.Printer.render (← lowerModule module))
+
+/-- Render the EVM semantic plan for inspection without producing Yul. -/
+
+def renderSemanticPlan (module : Module) : Except LowerError String := do
+  let plan ← buildSemanticPlan module
+  let mut parts : Array String := #[]
+  parts := parts.push s!"module: {plan.name}"
+  parts := parts.push s!"target: {plan.targetPlan.targetId}"
+  let capIds := plan.capabilities.map (·.id)
+  parts := parts.push s!"capabilities: {String.intercalate ", " capIds.toList}"
+  parts := parts.push "storage:"
+  for state in plan.storage.states do
+    parts := parts.push s!"  {state.id}: slot {state.slot}, span {state.span}"
+  parts := parts.push "entrypoints:"
+  for ep in plan.entrypoints do
+    parts := parts.push s!"  {ep.name}: selector 0x{ep.selector}, {ep.params.size} param(s), returns {ep.returns.returnType.name}"
+  parts := parts.push "events:"
+  for ev in plan.events do
+    parts := parts.push s!"  {ev.name}: {ev.signature}, {ev.fields.size} field(s)"
+  parts := parts.push s!"crosscalls: {plan.crosscalls.size}"
+  parts := parts.push s!"creates: {plan.creates.size}"
+  parts := parts.push s!"localArrayGetLengths: {plan.localArrayGetLengths}"
+  parts := parts.push s!"usesCheckedArithmetic: {plan.usesCheckedArithmetic}"
+  let helperNames := plan.helpers.map ProofForge.Backend.Evm.Plan.Helper.name
+  parts := parts.push s!"helpers: {String.intercalate ", " helperNames.toList}"
+  .ok (String.intercalate "\n" parts.toList)
+
+/-- Build artifact metadata from the semantic plan (RFC 0004 Metadata pass). -/
+
+def buildPlanArtifactMetadata (module : Module) : Except LowerError ProofForge.Backend.Evm.Metadata.ArtifactMetadata := do
+  let plan ← buildSemanticPlan module
+  .ok (ProofForge.Backend.Evm.Metadata.buildArtifactMetadata plan)
+
+/-- Build deploy metadata from the semantic plan (RFC 0004 Metadata pass). -/
+
+def buildPlanDeployMetadata (module : Module) : Except LowerError ProofForge.Backend.Evm.Metadata.DeployMetadata := do
+  let plan ← buildSemanticPlan module
+  .ok (ProofForge.Backend.Evm.Metadata.buildDeployMetadata plan)
 
 end ProofForge.Backend.Evm.IR

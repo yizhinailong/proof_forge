@@ -56,4 +56,18 @@ def storageSlotExpr
   | .mapPresenceSlot rootSlot keys =>
       lowerMapPresenceSlotExpr mkError lowerExpr rootSlot keys
 
+/-! ## Plan-driven helper requirements
+
+`StorageSlotPlan.requiredHelpers` lets the plan declare which EVM helper functions
+a given slot plan needs, without `ToYul` re-discovering them from Yul text. -/
+
+def slotHelperRequirements (slot : StorageSlotPlan) : HelperSet :=
+  slot.requiredHelpers
+
+def storageLayoutHelpers (layout : StorageLayout) : HelperSet :=
+  layout.states.foldl (init := #[]) fun acc state =>
+    match state.kind with
+    | .map _ _ => HelperSet.insert (HelperSet.insert acc Helper.mapSlot) Helper.mapPresenceSlot
+    | _ => acc
+
 end ProofForge.Backend.Evm.ToYul

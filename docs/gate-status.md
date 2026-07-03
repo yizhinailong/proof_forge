@@ -48,8 +48,8 @@ in [testkit](../testkit/) (RFC 0007) on `evm`, `solana-sbpf-asm`, and
 Gate G0 closes the shared behavior/resource-budget slice. It does **not** close
 Gate P0. The remaining primary-chain production hardening stays active:
 
-1. EVM semantic-plan migration (Workstream 3: ExprPlan/StmtPlan/
-   EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan).
+1. ~~EVM semantic-plan migration (Workstream 3: ExprPlan/StmtPlan/
+   EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan).~~ ✅ Landed — see P0-2.
 2. Solana Pinocchio live dual-deploy equivalence CI/toolchain hardening and
    broader reference coverage (Workstream 7).
 3. NEAR/Wasm target-first local execution/deploy metadata sign-off.
@@ -77,7 +77,7 @@ frozen spike maintenance (D-045).
 | # | Criterion | Status | Evidence |
 |---|---|---|---|
 | P0-1 | Solana direct sBPF backend is production-grade | 🟡 in progress | Gate G0 behavior/budget parity is closed; Pinocchio reference-equivalence is included in `just solana-light`; the 2026-07-03 Agave/Solana CLI ELF compatibility blocker was fixed by forwarding target-first `--solana-sbpf-arch v0` into the legacy ELF builder, producing loader-compatible v0 ELFs (`e_flags = 0`, valid section table) from `emit --target solana-sbpf-asm --format elf`; local `just solana-pinocchio-live-equivalence` now passes all five Surfpool dual-deploy scenarios (System transfer/create_account, SPL Token transfer/ops/authority) with `5 passed, 0 skipped, 0 failed`; `.github/workflows/ci.yml` now includes a mandatory `solana-pinocchio-live` job that installs Agave/Solana CLI, SBF platform-tools, `sbpf`, Surfpool, Node/npm, builds ProofForge, and runs the aggregate live suite without allow-skip. Remaining P0 hardening is to observe the remote CI run and finish broader production-grade Solana sign-off. |
-| P0-2 | Ethereum/EVM backend is production-grade | 🟡 in progress | Foundry and Anvil CI are green; remaining hardening includes the EVM semantic-plan migration in Workstream 3 |
+| P0-2 | Ethereum/EVM backend is production-grade | ✅ met | EVM semantic-plan migration landed (RFC 0004): `Plan.lean` now defines `ExprPlan`, `StmtPlan`, `EntrypointPlan`, `EventPlan`, `CrosscallPlan`, `MetadataPlan`; `Validate.lean` holds pure validation/type-inference; `Lower.lean` constructs the populated `ModulePlan` (entrypoints, events, crosscalls, creates, checked-arithmetic flag); `Metadata.lean` produces plan-driven artifact/deploy metadata; `IR.lean` is the compatibility facade that builds the full semantic plan before Yul generation. Gates: `just evm-plan`, `just evm-semantic-plan`, `just evm-all` (diagnostics 58 cases, 99 IR coverage entries, 19 IR smokes + Foundry + Anvil deploy), `just check` all green |
 | P0-3 | NEAR/Wasm backend is production-grade | 🟡 in progress | EmitWat/NEAR diagnostics, IR coverage, offline host smoke, and budget baselines are green; remaining hardening is full target-first local execution/deploy metadata sign-off |
 | P0-4 | Additional-chain advancement is frozen | ✅ met | D-044/D-045 freeze Aptos/CosmWasm advancement past M1/M2 and keep other targets docs-first until P0 closes |
 

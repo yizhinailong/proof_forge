@@ -339,12 +339,191 @@ def helperMapAssignOps (helpers : HelperSet) : Array AssignOp :=
       | _ => acc)
     #[]
 
+/-! ## CrosscallMode / CreateMode: planned call kinds -/
+
+inductive CrosscallMode where
+  | call
+  | callValue
+  | staticcall
+  | delegatecall
+  deriving BEq, Repr
+
+inductive CreateMode where
+  | create
+  | create2
+  deriving BEq, Repr
+
+/-! ## ExprPlan: target-semantic expression plan
+
+The `ExprPlan` layer represents EVM expressions *after* validation and helper
+discovery but *before* final Yul AST construction. Each constructor names an EVM
+concept (e.g. `mapSlot`, `checkedAdd`, `crosscall`) rather than a raw Yul
+builtin. The `ToYul` pass decides which Yul builtins or helper calls realize
+each plan node. -/
+
+mutual
+  inductive ExprPlan where
+    | literalWord (value : Nat)
+    | local (name : String)
+    | calldataWord (paramIndex : Nat)
+    | storageLoad (slot : StorageSlotPlan)
+    | builtin (name : String) (args : Array ExprPlan)
+    | helperCall (helper : Helper) (args : Array ExprPlan)
+    | checkedArith (op : AssignOp) (lhs rhs : ExprPlan)
+    | hashPack (a b c d : ExprPlan)
+    | context (field : ContextField)
+    | crosscall (mode : CrosscallMode) (target methodId : ExprPlan)
+        (callValue? : Option ExprPlan) (args : Array ExprPlan) (returnType : ValueType)
+    | create (mode : CreateMode) (callValue : ExprPlan) (salt? : Option ExprPlan)
+        (initCodeHex : String)
+    | cast (source : ExprPlan) (target : ValueType)
+    | localAbiWords (name : String) (type : ValueType)
+    | localCrosscallWords (name : String) (type : ValueType)
+    | structField (base : ExprPlan) (fieldName : String)
+    | arrayGet (array index : ExprPlan)
+    | localArrayGet (name : String) (path : Array ExprPlan)
+    | arrayLit (elementType : ValueType) (values : Array ExprPlan)
+    | structLit (typeName : String) (fields : Array (String × ExprPlan))
+    | hashValue (a b c d : ExprPlan)
+    | hash (preimage : ExprPlan)
+    | hashTwoToOne (lhs rhs : ExprPlan)
+    | nativeValue
+    | effect (effect : EffectPlan)
+    deriving Repr
+
+  inductive EffectPlan where
+    | storageScalarRead (stateId : String)
+    | storageScalarWrite (stateId : String) (value : ExprPlan)
+    | storageScalarAssignOp (stateId : String) (op : AssignOp) (value : ExprPlan)
+    | storageMapContains (stateId : String) (key : ExprPlan)
+    | storageMapGet (stateId : String) (key : ExprPlan)
+    | storageMapInsert (stateId : String) (key value : ExprPlan)
+    | storageMapSet (stateId : String) (key value : ExprPlan)
+    | storageArrayRead (stateId : String) (index : ExprPlan)
+    | storageArrayWrite (stateId : String) (index value : ExprPlan)
+    | storageArrayStructFieldRead (stateId : String) (index : ExprPlan) (fieldName : String)
+    | storageArrayStructFieldWrite (stateId : String) (index : ExprPlan) (fieldName : String) (value : ExprPlan)
+    | storageStructFieldRead (stateId fieldName : String)
+    | storageStructFieldWrite (stateId fieldName : String) (value : ExprPlan)
+    | storagePathRead (stateId : String) (path : Array StoragePathSegment)
+    | storagePathWrite (stateId : String) (path : Array StoragePathSegment) (value : ExprPlan)
+    | storagePathAssignOp (stateId : String) (path : Array StoragePathSegment) (op : AssignOp) (value : ExprPlan)
+    | contextRead (field : ContextField)
+    | eventEmit (event : EventPlan) (dataFields : Array ExprPlan)
+    | eventEmitIndexed (event : EventPlan) (indexedFields dataFields : Array ExprPlan)
+    deriving Repr
+
+  inductive EventFieldPlan where
+    | mk (name : String) (type : ValueType) (indexed : Bool)
+    deriving Repr
+
+  inductive EventPlan where
+    | mk (name : String) (signature : String) (fields : Array EventFieldPlan)
+    deriving Repr
+end
+
+instance : Inhabited EventFieldPlan := ⟨.mk "" .unit false⟩
+instance : Inhabited EventPlan := ⟨.mk "" "" #[]⟩
+
+def EventFieldPlan.name : EventFieldPlan → String
+  | .mk name _ _ => name
+
+def EventFieldPlan.type : EventFieldPlan → ValueType
+  | .mk _ type _ => type
+
+def EventFieldPlan.indexed : EventFieldPlan → Bool
+  | .mk _ _ indexed => indexed
+
+def EventPlan.name : EventPlan → String
+  | .mk name _ _ => name
+
+def EventPlan.signature : EventPlan → String
+  | .mk _ signature _ => signature
+
+def EventPlan.fields : EventPlan → Array EventFieldPlan
+  | .mk _ _ fields => fields
+
+/-! ## CrosscallHelperSpec / CreateHelperSpec: helper function specs (no ExprPlan) -/
+
+structure CrosscallHelperSpec where
+  arity : Nat
+  returnType : ValueType
+  mode : CrosscallMode := .call
+  deriving BEq, Repr
+
+structure CreateHelperSpec where
+  mode : CreateMode
+  initCodeHex : String
+  deriving BEq, Repr
+
+/-! ## StmtPlan: target-semantic statement plan -/
+
+inductive StmtPlan where
+  | letBind (name : String) (type : ValueType) (value : ExprPlan)
+  | letMutBind (name : String) (type : ValueType) (value : ExprPlan)
+  | assign (target : ExprPlan) (value : ExprPlan)
+  | assignOp (target : ExprPlan) (op : AssignOp) (value : ExprPlan)
+  | effect (effect : EffectPlan)
+  | assert (condition : ExprPlan) (message : String) (errorRef? : Option ProofForge.IR.ErrorRef)
+  | assertEq (lhs rhs : ExprPlan) (message : String) (errorRef? : Option ProofForge.IR.ErrorRef)
+  | release (name : String)
+  | ifElse (condition : ExprPlan) (thenBody elseBody : Array StmtPlan)
+  | boundedFor (indexName : String) (start stopExclusive : Nat) (body : Array StmtPlan)
+  | return (value : ExprPlan)
+  deriving Repr
+
+/-! ## EntrypointPlan: planned EVM entrypoint with selector and ABI -/
+
+structure AbiParamPlan where
+  name : String
+  type : ValueType
+  wordTypes : Array ValueType
+  deriving Repr
+
+instance : Inhabited AbiParamPlan := ⟨{ name := "", type := .unit, wordTypes := #[] }⟩
+
+structure ReturnPlan where
+  returnType : ValueType
+  wordTypes : Array ValueType
+  deriving Repr
+
+instance : Inhabited ReturnPlan := ⟨{ returnType := .unit, wordTypes := #[] }⟩
+
+structure EntrypointPlan where
+  name : String
+  selector : String
+  params : Array AbiParamPlan
+  returns : ReturnPlan
+  body : Array StmtPlan
+  deriving Repr
+
+instance : Inhabited EntrypointPlan := ⟨{ name := "", selector := "", params := #[], returns := default, body := #[] }⟩
+
+/-! ## MetadataPlan: planned artifact/deploy metadata inputs -/
+
+structure MetadataPlan where
+  moduleName : String
+  entrypoints : Array EntrypointPlan
+  events : Array EventPlan
+  capabilities : Array Capability
+  deriving Repr
+
+/-! ## ModulePlan: the complete EVM semantic plan -/
+
 structure ModulePlan where
   name : String
   targetPlan : CapabilityPlan
   storage : StorageLayout
   helpers : HelperSet
   mapAssignOps : Array AssignOp
+  entrypoints : Array EntrypointPlan
+  events : Array EventPlan
+  crosscalls : Array CrosscallHelperSpec
+  creates : Array CreateHelperSpec
+  localArrayGetLengths : Array Nat
+  nestedLocalArrayGetShapes : Array (Array Nat)
+  usesCheckedArithmetic : Bool
+  metadata : MetadataPlan
   deriving Repr
 
 def ModulePlan.capabilities (plan : ModulePlan) : Array Capability :=
@@ -367,20 +546,29 @@ def buildModulePlanWithTargetPlan (module : Module) (targetPlan : CapabilityPlan
       storage := storageLayout module
       helpers
       mapAssignOps := helperMapAssignOps helpers
+      entrypoints := #[]
+      events := #[]
+      crosscalls := #[]
+      creates := #[]
+      localArrayGetLengths := #[]
+      nestedLocalArrayGetShapes := #[]
+      usesCheckedArithmetic := false
+      metadata := {
+        moduleName := module.name
+        entrypoints := #[]
+        events := #[]
+        capabilities := targetPlan.capabilities
+      }
     }
 
-def buildModulePlan (module : Module) : Except PlanError ModulePlan := do
-  let targetPlan ←
-    match resolveModule Target.evm module with
-    | .ok plan => .ok plan
-    | .error err => .error (PlanError.fromDiagnostic err)
-  buildModulePlanWithTargetPlan module targetPlan
+def buildModulePlan (module : Module) : Except PlanError ModulePlan :=
+  match resolveModule Target.evm module with
+  | .ok targetPlan => buildModulePlanWithTargetPlan module targetPlan
+  | .error err => .error (PlanError.fromDiagnostic err)
 
-def buildSpecPlan (spec : ProofForge.Contract.ContractSpec) : Except PlanError ModulePlan := do
-  let targetPlan ←
-    match resolveSpec Target.evm spec with
-    | .ok plan => .ok plan
-    | .error err => .error (PlanError.fromDiagnostic err)
-  buildModulePlanWithTargetPlan spec.module targetPlan
+def buildSpecPlan (spec : ProofForge.Contract.ContractSpec) : Except PlanError ModulePlan :=
+  match resolveSpec Target.evm spec with
+  | .ok targetPlan => buildModulePlanWithTargetPlan spec.module targetPlan
+  | .error err => .error (PlanError.fromDiagnostic err)
 
 end ProofForge.Backend.Evm.Plan
