@@ -24,6 +24,10 @@ aptos-counter-smoke:
 aptos-build-examples:
     scripts/aptos/build-examples.sh
 
+# Run Aptos unsupported-shape diagnostic smoke.
+aptos-diagnostics:
+    lake env lean --run Tests/AptosDiagnostics.lean
+
 # Check the EVM semantic plan smoke.
 evm-plan:
     lake build ProofForge.Backend.Evm.Plan

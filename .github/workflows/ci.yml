@@ -316,5 +316,8 @@ jobs:
       - name: Build proof-forge
         run: just build
 
+      - name: Run Aptos diagnostics
+        run: just aptos-diagnostics
+
       - name: Run Aptos Counter smoke
         run: just aptos-counter-smoke
