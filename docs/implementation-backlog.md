@@ -1285,15 +1285,18 @@ Goal: avoid pretending Move is another Lean runtime target.
 
 Tasks:
 
-- Define a Move-compatible subset of the portable IR.
-- Generate one **Aptos** Move counter package (Sui follows in a separate slice).
-- Run `aptos move compile/test`.
+- Done: define a Move-compatible subset of the portable IR (see [move-family.md](targets/move-family.md)).
+- Done: generate one **Aptos** Move counter package via `proof-forge --emit-counter-ir-aptos`.
+- Done: generate `Move.toml`, `sources/counter.move`, and `tests/counter_tests.move`.
+- Done: add golden fixtures and `scripts/aptos/build-examples.sh` diff gate.
+- Done: add `Tests/AptosDiagnostics.lean` so unsupported capabilities fail before codegen.
+- In CI: run `aptos move compile/test` (the AptosFramework git dependency fetch is slow and may time out locally; the CI job uses a 10-minute timeout).
 - Document verifier restrictions that must feed back into IR design.
 
 Acceptance criteria:
 
-- Generated Aptos Move source compiles.
-- Generated package has tests.
+- Generated Aptos Move source shape is locked by golden fixtures and diff gate.
+- Generated package has unit tests (`tests/counter_tests.move`).
 - Unsupported Lean constructs fail before codegen.
 - Follow-up Sui object POC is documented as a separate milestone.
 
