@@ -613,8 +613,66 @@ def lowerProgramOwnerValidation (layout : AccountInputLayout) : Array AstNode :=
     .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") }
   ]
 
+def lowerPubkeyPtrEqualityCheck (actual expected : Reg) : Array AstNode := #[
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some actual, off := some (.num 0) },
+  .instruction { opcode := .ldxdw, dst := some .r6, src := some expected, off := some (.num 0) },
+  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some actual, off := some (.num 8) },
+  .instruction { opcode := .ldxdw, dst := some .r6, src := some expected, off := some (.num 8) },
+  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some actual, off := some (.num 16) },
+  .instruction { opcode := .ldxdw, dst := some .r6, src := some expected, off := some (.num 16) },
+  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") },
+  .instruction { opcode := .ldxdw, dst := some .r5, src := some actual, off := some (.num 24) },
+  .instruction { opcode := .ldxdw, dst := some .r6, src := some expected, off := some (.num 24) },
+  .instruction { opcode := .jne, dst := some .r5, src := some .r6, off := some (.sym "error_owner") }
+]
+
+def lowerExecutableOwnerValidation (layout : AccountInputLayout) : Array AstNode :=
+  inputAccountFieldPtr .r7 layout layout.executableOff ++ #[
+    .instruction { opcode := .ldxb, dst := some .r2, src := some .r7, off := some (.num 0) },
+    .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "error_owner") }
+  ]
+
+def lowerNamedOwnerValidation (layout ownerLayout : AccountInputLayout) : Array AstNode :=
+  inputAccountFieldPtr .r7 layout layout.ownerOff ++
+  inputAccountFieldPtr .r4 ownerLayout ownerLayout.keyOff ++
+  lowerPubkeyPtrEqualityCheck .r7 .r4
+
+def accountLayoutByName? : List AccountEntry -> List AccountInputLayout -> String ->
+    Option AccountInputLayout
+  | [], _, _ => none
+  | _, [], _ => none
+  | account :: accounts, layout :: layouts, name =>
+      if account.name == name then
+        some layout
+      else
+        accountLayoutByName? accounts layouts name
+
+def lowerOwnerValidationFor (allAccounts : Array AccountEntry)
+    (allLayouts : Array AccountInputLayout) (account : AccountEntry)
+    (layout : AccountInputLayout) : Except LowerError (Array AstNode) := do
+  if account.owner == "any" || account.owner.isEmpty then
+    .ok #[]
+  else if account.owner == "program" then
+    .ok <| #[.comment s!"account.validation[{account.index}:{account.name}]: owner=program"] ++
+      lowerProgramOwnerValidation layout
+  else if account.owner == "executable" then
+    .ok <| #[.comment s!"account.validation[{account.index}:{account.name}]: owner=executable"] ++
+      lowerExecutableOwnerValidation layout
+  else
+    match accountLayoutByName? allAccounts.toList allLayouts.toList account.owner with
+    | some ownerLayout =>
+        .ok <| #[.comment s!"account.validation[{account.index}:{account.name}]: owner={account.owner}"] ++
+          lowerNamedOwnerValidation layout ownerLayout
+    | none =>
+        .error {
+          message := s!"unknown Solana owner account `{account.owner}` for account `{account.name}`"
+        }
+
 def lowerAccountValidationFor (account : AccountEntry)
-    (layout : AccountInputLayout) : Array AstNode :=
+    (layout : AccountInputLayout) (allAccounts : Array AccountEntry)
+    (allLayouts : Array AccountInputLayout) : Except LowerError (Array AstNode) := do
   let signerCheck :=
     if account.signer then
       #[
@@ -635,30 +693,28 @@ def lowerAccountValidationFor (account : AccountEntry)
       ]
     else
       #[]
-  let ownerCheck :=
-    if account.owner == "program" then
-      #[.comment s!"account.validation[{account.index}:{account.name}]: owner=program"] ++
-        lowerProgramOwnerValidation layout
-    else
-      #[]
-  signerCheck ++ writableCheck ++ ownerCheck
+  let ownerCheck ← lowerOwnerValidationFor allAccounts allLayouts account layout
+  .ok <| signerCheck ++ writableCheck ++ ownerCheck
 
 /-- Account-validation prologue for the generated fixed account schema. The
 owner check uses the runtime instruction-data pointer saved from entrypoint
 register `r9`, so it stays correct under account-data direct mapping. -/
-def lowerAccountValidation :
-    List AccountEntry -> List AccountInputLayout -> Array AstNode
-  | [], _ => #[]
-  | _, [] => #[]
-  | account :: accounts, layout :: layouts =>
-      lowerAccountValidationFor account layout ++
-      lowerAccountValidation accounts layouts
+def lowerAccountValidation (allAccounts : Array AccountEntry)
+    (allLayouts : Array AccountInputLayout) :
+    List AccountEntry -> List AccountInputLayout -> Except LowerError (Array AstNode)
+  | [], _ => .ok #[]
+  | _, [] => .ok #[]
+  | account :: accounts, layout :: layouts => do
+      let head ← lowerAccountValidationFor account layout allAccounts allLayouts
+      let tail ← lowerAccountValidation allAccounts allLayouts accounts layouts
+      .ok <| head ++ tail
 
 def lowerAccountValidations (accounts : Array AccountEntry)
-    (layouts : Array AccountInputLayout) : Array AstNode :=
-  #[
+    (layouts : Array AccountInputLayout) : Except LowerError (Array AstNode) := do
+  let validation ← lowerAccountValidation accounts layouts accounts.toList layouts.toList
+  .ok <| #[
     .comment "account.validation: generated account schema"
-  ] ++ lowerAccountValidation accounts.toList layouts.toList
+  ] ++ validation
 
 def lowerInstructionDataLengthCheck (requiredLen : Nat) : Array AstNode :=
   if requiredLen <= 1 then
@@ -703,7 +759,8 @@ partial def lowerEntrypoint (ctx : LowerCtx)
     .label s!"sol_{ep.name}",
     .blankLine
   ]
-  nodes := nodes ++ lowerAccountValidations accounts accountLayouts
+  let accountValidationNodes ← lowerAccountValidations accounts accountLayouts
+  nodes := nodes ++ accountValidationNodes
   nodes := nodes ++ lowerInstructionDataLengthCheck (instructionDataMinLen ep)
   let (ctx, paramNodes) ← lowerEntrypointParamDecoding ctx ep
   nodes := nodes ++ paramNodes

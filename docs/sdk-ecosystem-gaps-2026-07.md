@@ -86,7 +86,7 @@ missing.
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
 | PDA derivation | Covered | `Surface.lean` typed seeds; `pda-web3-smoke.sh` validates | — |
-| Account constraints (signer/writable/owner) | Partial | Signer + writable lowered; owner check only fires for `owner == "program"` — executable/arbitrary owners are metadata-only | P0 |
+| Account constraints (signer/writable/owner) | Covered | Signer/writable checks lower to the sBPF prologue; owner checks now cover current-program ownership, executable program accounts, and named owner-account references, with missing owner references rejected during lowering | — |
 | Multi-account schemas | Covered | Manifest composes state + PDA + CPI + declared accounts | — |
 | Close account | Missing | No close-account action (only `set_authority` enum) | P0 |
 | Reallocation | Partial | Backend reserves `MAX_PERMITTED_DATA_INCREASE`; no user-facing realloc API | P0 |
@@ -195,9 +195,9 @@ economics) is almost entirely missing.
 
 **EVM (5 P0):** ERC-20 completion, ERC-721 NFT, ERC-165, AccessControl roles, Constructor dynamic args
 
-**Solana (4 open P0, 1 closed P0):** Account constraint enforcement, Close account, Reallocation API, Token-2022 direct sBPF CPI (transfer_fee + non_transferable). ComputeBudgetInstruction is closed through transaction-side budget advice.
+**Solana (3 open P0, 2 closed P0):** Close account, Reallocation API, Token-2022 direct sBPF CPI (transfer_fee + non_transferable). Account constraint owner validation and ComputeBudgetInstruction are closed.
 
 **NEAR (6 P0):** Promise API (create/then/and/batch), Callback handling, NEP-141 FT, signer_account_id, attached_deposit, Aggregate ABI (structs/arrays in entrypoint params)
 
-Total: 15 open P0 blockers across three chains. These must close before "any
+Total: 14 open P0 blockers across three chains. These must close before "any
 contract can be written and deployed" is true for any chain.

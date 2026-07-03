@@ -59,6 +59,7 @@ solana-lean:
     lake env lean --run Tests/SolanaDiagnostics.lean
     lake env lean --run Tests/SolanaSdk.lean
     lake env lean --run Tests/SolanaSdkManifest.lean
+    lake env lean --run Tests/SolanaAccountConstraints.lean
     lake env lean --run Tests/SolanaCpiPacking.lean
     lake env lean --run Tests/SolanaLogs.lean
     lake env lean --run Tests/SolanaSysvars.lean

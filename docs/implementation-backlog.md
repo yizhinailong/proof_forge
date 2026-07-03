@@ -2449,10 +2449,12 @@ means a real developer cannot write a common contract pattern.
   storage packing, batch operations, factory deployment template, AMM,
   Pausable auth, ReentrancyGuard stdlib
 
-### Solana SDK blockers (5 tracked P0, 1 closed, 7 P1)
+### Solana SDK blockers (5 tracked P0, 2 closed, 7 P1)
 
-- P0: Account constraint enforcement (owner=executable/arbitrary validation,
-  close account, user-facing realloc API)
+- P0: Account constraint enforcement. ✅ Owner validation now lowers
+  `owner=program`, `owner=executable`, and named owner-account references into
+  the sBPF prologue with explicit diagnostics for unknown owner references.
+  Remaining: close account and user-facing realloc API.
 - ✅ P0: ComputeBudgetInstruction (set compute unit limit, priority fees)
   landed as transaction-side compute-budget advice in Solana manifests, IDL,
   generated TypeScript clients, and package metadata. The helper emits

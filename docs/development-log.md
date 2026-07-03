@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Solana Owner Constraint Lowering
+
+Commit: this commit
+
+Summary:
+
+- Extended the Solana sBPF account-validation prologue beyond signer/writable
+  and current-program owner checks.
+- Added executable-account owner validation for `owner = "executable"` using
+  the serialized account executable flag.
+- Added named owner-account validation: arbitrary owner strings now resolve to
+  another declared account in the same Solana account schema and compare the
+  target account owner pubkey against that owner account key.
+- Added an explicit lowering diagnostic for unknown owner-account references
+  instead of silently skipping the check.
+- Added `Tests/SolanaAccountConstraints.lean` and wired it into
+  `just solana-lean`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Solana.SbpfAsm
+lake env lean --run Tests/SolanaAccountConstraints.lean
+```
+
+Known limitations:
+
+- This closes the signer/writable/owner account-constraint row. The broader
+  Solana SDK P0 still has close-account and user-facing realloc API work open.
+
+Next step:
+
+- Continue Solana-first SDK P0 hardening with close-account or realloc
+  ergonomics, then Token-2022 direct sBPF CPI lowering.
+
 ### Solana Compute-Budget Transaction Advice
 
 Commit: this commit
