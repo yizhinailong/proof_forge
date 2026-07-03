@@ -109,7 +109,7 @@ sbpf --version
 
 echo "=== install/check Surfpool ${SURFPOOL_TAG} ==="
 if ! tool_version_contains surfpool "${SURFPOOL_TAG#v}"; then
-  cargo install --git "$SURFPOOL_REPO" --tag "$SURFPOOL_TAG" --package surfpool-cli --locked --force
+  cargo install --git "$SURFPOOL_REPO" --tag "$SURFPOOL_TAG" --locked --force surfpool-cli
 fi
 surfpool --version
 
