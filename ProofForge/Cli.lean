@@ -374,7 +374,11 @@ def CliOptions.emitsEvmDeployManifest (opts : CliOptions) : Bool :=
 
 def EmitMode.acceptsTarget : EmitMode → Bool
   | .learnTarget
-  | .learnTokenTarget => true
+  | .learnTokenTarget
+  | .counterEmitWat
+  | .contextEmitWat
+  | .hashEmitWat
+  | .mapEmitWat => true
   | _ => false
 
 def usage : String :=
@@ -483,7 +487,10 @@ def usage : String :=
     "  proof-forge --solana-return-data-compute-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --emit-sbpf-asm [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-counter-ir-wasm-near -o output-dir",
-    "  proof-forge --emit-counter-emitwat -o output-dir        (canonical: IR → WAT → wasm)",
+    "  proof-forge --emit-counter-emitwat [-o output-dir] [--target wasm-near|wasm-cosmwasm]",
+    "  proof-forge --emit-context-emitwat [-o output-dir] [--target wasm-near|wasm-cosmwasm]",
+    "  proof-forge --emit-hash-emitwat [-o output-dir] [--target wasm-near|wasm-cosmwasm]",
+    "  proof-forge --emit-map-emitwat [-o output-dir] [--target wasm-near|wasm-cosmwasm]",
     "  proof-forge --emit-context-ir-wasm-near -o output-dir",
     "  proof-forge --emit-hash-ir-wasm-near -o output-dir",
     "  proof-forge --emit-map-ir-wasm-near -o output-dir",
@@ -1995,7 +2002,7 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
       let hasRunnableInput := opts.input?.isSome || opts.mode.hasBuiltInFixture
       if opts.targetId?.isSome && !opts.mode.acceptsTarget then
-        .error "--target only applies to --learn and --learn-token modes"
+        .error "--target only applies to --learn, --learn-token, and emitwat modes"
       else if opts.mode == .learnTarget && opts.targetId?.isNone then
         .error "--learn requires --target <target-id>"
       else if opts.mode == .learnTokenTarget && opts.targetId?.isNone then
@@ -2333,12 +2340,22 @@ def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO U
 def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Module) : IO UInt32 := do
   let some output := opts.output?
     | throw <| IO.userError "emitwat mode requires -o output directory"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule mod with
+  let isCosmWasm := opts.targetId? == some ProofForge.Target.wasmCosmWasm.id
+  let renderResult : Except String String :=
+    if isCosmWasm then
+      match ProofForge.Backend.CosmWasm.EmitWat.renderModule mod with
+      | .ok wat => .ok wat
+      | .error e => .error e.message
+    else
+      match ProofForge.Backend.WasmNear.EmitWat.renderModule mod with
+      | .ok wat => .ok wat
+      | .error e => .error e.message
+  match renderResult with
   | .ok wat =>
       writeWatPackage output name wat
       return 0
-  | .error e =>
-      throw <| IO.userError e.message
+  | .error msg =>
+      throw <| IO.userError msg
 
 def compileCounterEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "counter" ProofForge.IR.Examples.Counter.module
 def compileContextEmitWat  (opts : CliOptions) : IO UInt32 := compileEmitWat opts "context" ProofForge.IR.Examples.ContextProbe.module

@@ -72,11 +72,17 @@ def returnBoolName : String := "__pf_return_bool"
 -- Host imports
 def hostImport (name : String) (params results : Array ValType) : Import :=
   { module_ := "env", name := name, funcName := name, type := { params := params, results := results } }
-def nearImports : Array Import :=
-  #[ hostImport "storage_read"  #[.i64, .i64, .i64] #[.i64],
-     hostImport "storage_write" #[.i64, .i64, .i64, .i64, .i64] #[.i64],
-     hostImport "read_register" #[.i64, .i64] #[],
-     hostImport "value_return"  #[.i64, .i64] #[] ]
+
+def valTypeOfString : String → ValType
+  | "i32" => .i32 | "i64" => .i64 | _ => .i32
+
+def hostFunctionImport (hf : ProofForge.Target.HostFunction) : Import :=
+  hostImport hf.name (hf.params.map valTypeOfString) (hf.results.map valTypeOfString)
+
+def bridgeBaseImports (bridge : ProofForge.Target.HostBridge) : Array Import :=
+  bridge.hostFunctions.map hostFunctionImport
+
+def nearImports : Array Import := bridgeBaseImports .near
 
 -- Helpers (per scalar type)
 def readFunc (vt : ValueType) : Func :=
@@ -1487,7 +1493,9 @@ def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
     else #[]
   .ok { name := ep.name, locals := locals, body := { insns := resetPrefix ++ paramPrologue ++ bodyInsns }, exportName := ep.name }
 
-def lowerModule (mod : ProofForge.IR.Module) : Except EmitError ProofForge.Compiler.Wasm.Module := do
+def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := .near) : Except EmitError ProofForge.Compiler.Wasm.Module := do
+  if bridge == .cosmWasm then
+    err "EmitWat: CosmWasm bridge lowering is implemented in Backend.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
   if mod.allocator.isCosmWasmRegion then
     err "EmitWat: alloc.cosmwasm_region is for the CosmWasm adapter, not wasm-near EmitWat"
   let scalars := stateLayout mod
@@ -1534,12 +1542,12 @@ def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
     if emitWatCapabilities.contains c then .ok ()
     else .error { message := s!"EmitWat: capability `{c.id}` is not supported by the EmitWat backend" }) ()
 
-def renderModule (mod : ProofForge.IR.Module) : Except EmitError String := do
+def renderModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := .near) : Except EmitError String := do
   checkCapabilities mod
   match ProofForge.IR.Ownership.checkModule mod with
   | .ok _ => pure ()
   | .error error => err s!"EmitWat: {error.render}"
-  let m ← lowerModule mod
+  let m ← lowerModule mod bridge
   .ok (Printer.render m)
 
 
