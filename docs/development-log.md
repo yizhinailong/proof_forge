@@ -6690,3 +6690,35 @@ Result:
 Known limitations:
 
 - Runtime behavior remains covered by `scripts/evm/foundry-smoke.sh`.
+
+### CI Baseline Repair + Upgrade Policy Resolver
+
+Commit: pending
+
+Summary:
+
+- Fixed the root `target/` ignore rule so `ProofForge/Target/HostBridge.lean`
+  is no longer silently ignored on case-insensitive filesystems, while keeping
+  Rust build output ignored in known target directories.
+- Replaced the missing GitHub Actions Rust setup action with
+  `dtolnay/rust-toolchain@stable`.
+- Wired `ContractSpec.upgradePolicy?` into target resolution so unsupported
+  target/policy combinations fail before code generation, and supported
+  policies emit `upgrade.policy.*` metadata.
+- Added a focused upgrade-policy smoke covering EVM, Solana, NEAR, Psy, JSON
+  serialization, and escaping.
+- Corrected the Gate G0 ledger so it no longer claims `just check` is green
+  before CI and docs sync evidence are actually green.
+
+Validation run:
+
+```sh
+lake build ProofForge.Target.Adapter
+lake env lean --run Tests/UpgradePolicy.lean
+lake build ProofForge.Target
+```
+
+Result:
+
+- Target adapter build, upgrade-policy smoke, and target library build passed
+  locally before the full repo validation pass.

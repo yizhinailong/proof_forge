@@ -2241,6 +2241,10 @@ starts as an RFC, not code; sequencing hooks are listed in the gap doc.
   honestly per chain (Solana upgrade authority, EVM immutable/proxy, NEAR
   account keys, Aleo `@noupgrade`) or rejected; unsigned-transaction
   signing boundary; live-gate key conventions.
+  M1 is implemented: `ContractSpec.upgradePolicy?` is serialized in
+  ContractSpec JSON, the target resolver rejects unsupported target/policy
+  combinations before code generation, and resolved plans emit
+  `upgrade.policy.*` artifact metadata for supported policies.
 - **Workstream 33 — Runtime error model + client generation.** Portable
   error codes with per-target encodings and `expect.error` scenario
   vocabulary (plan with Workstream 31's schema change); then a

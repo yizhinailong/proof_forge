@@ -31,7 +31,8 @@
 | D-024 | 2026-07-01 | 将 Robinhood Chain 建模为 **`robinhood-chain-testnet`**，即 `evm` 下的 EVM 兼容链 profile，而非新的编译器目标 | Robinhood Chain 执行 EVM 兼容的 Arbitrum Orbit L2 合约；ProofForge 的 EVM 后端涵盖字节码生成，而链 profile 记录链 id、RPC、浏览器、验证器、rollup 和部署元数据 |
 | D-025 | 2026-07-01 | 添加 **`solana-sbpf-asm`** 作为探索中的新 Solana 路径（直接 sBPF 汇编代码生成）；保留 `solana-sbpf-linker` 作为备选 | 直接从可移植 IR 生成 sBPF 汇编避免了完整的 Lean Zig 运行时链接风险；blueshift-gg/sbpf 工具链处理汇编和链接。参见 [RFC 0005](rfcs/0005-solana-sbpf-assembly-backend.md) 和 [设计文档](targets/solana-sbpf-asm.md)。 |
 | D-026 | 2026-07-01 | **采用 `solana-sbpf-asm` 作为规范的 Solana 路径；取代 `solana-sbpf-linker`** | 直接汇编路径避免了 Lean 运行时链接风险，提供了对计算单元和栈的完全控制，并镜像了 EVM/Yul 模式。`solana-sbpf-linker` 仅作为历史参考保留 —— 代码生成应以汇编路径为目标。 |
-| D-027 | 2026-07-01 | **CPI 和 PDA 效应保留在 Solana 特有的层中，而非可移植 IR 中** | `cpiInvoke`、`cpiInvokeSigned` 和 `pdaDerive` 是 Solana 特有的概念（Solana 的账户传递 CPI + PDA 派生在 EVM、Wasm 或 Move 上没有类似物）。它们属于 `ProofForge.Backend.Solana.Effects` 或 Solana SDK 模块，受 `crosscall.cpi` 和 `storage.pda` 能力限制。可移植 IR (`ProofForge.IR.Contract.Effect`) 保持链中立 —— 仅当 ≥2 个目标家族共享相同的语义形状时才添加新的构造函数。 || D-028 | 2026-07-02 | **用户合约面向链中立的 Contract Intent API；选定的目标将 intent 解析为能力计划** | 默认 SDK 界面不应暴露目标链。用户编写可移植的合约 intent，然后 `--target` 选择目标适配器，该适配器将这些 intent 路由到低层级的能力实现，检查支持情况/运行时约束，并发射目标制品。能力 id 仍是目标适配器和目标扩展 SDK 使用的内部协议；它们不是主要面向用户的 API。 |
+| D-027 | 2026-07-01 | **CPI 和 PDA 效应保留在 Solana 特有的层中，而非可移植 IR 中** | `cpiInvoke`、`cpiInvokeSigned` 和 `pdaDerive` 是 Solana 特有的概念（Solana 的账户传递 CPI + PDA 派生在 EVM、Wasm 或 Move 上没有类似物）。它们属于 `ProofForge.Backend.Solana.Effects` 或 Solana SDK 模块，受 `crosscall.cpi` 和 `storage.pda` 能力限制。可移植 IR (`ProofForge.IR.Contract.Effect`) 保持链中立 —— 仅当 ≥2 个目标家族共享相同的语义形状时才添加新的构造函数。 |
+| D-028 | 2026-07-02 | **用户合约面向链中立的 Contract Intent API；选定的目标将 intent 解析为能力计划** | 默认 SDK 界面不应暴露目标链。用户编写可移植的合约 intent，然后 `--target` 选择目标适配器，该适配器将这些 intent 路由到低层级的能力实现，检查支持情况/运行时约束，并发射目标制品。能力 id 仍是目标适配器和目标扩展 SDK 使用的内部协议；它们不是主要面向用户的 API。 |
 | D-029 | 2026-07-01 | 采用 Rust `near-sdk-rs` 源代码生成作为仓库内的 `wasm-near` v0 后端 | EmitZig/Zig 宿主桥接源码不在仓库中；可移植 IR → near-sdk-rs 包 → cargo wasm32 现在验证 NEAR 语义，并保留 Zig 宿主桥接路径以便以后恢复。（在 2026-07 分支合并期间，从 NEAR 分支的 D-025 重新编号。） |
 | D-030 | 2026-07-01 | `wasm-near` v0 支持 `Hash` map 键、`.assertions.check` 和 `.account.explicit` | 现有 `MapProbe`（Hash 键，`assertEq`）和 `ContextProbe` (`contractId`) fixture 所需；`.crosscall.invoke` 在源代码生成 v0 中仍不受支持。（从 NEAR 分支的 D-026 重新编号。） |
 | D-031 | 2026-07-01 | 采用 **`EmitWat`**（可移植 IR → Wasm AST → WAT 文本 → `wat2wasm`）作为规范的 Wasm 家族后端；将 Rust `near-sdk-rs` 源代码生成降级为**冻结的 v0 权宜方案** | `EmitWat` 镜像了仓库内的 **可移植 IR → Yul** 渲染器 `Backend/Evm/IR.lean`（由每个 `--emit-*-ir-yul` CLI 模式使用），而*不是*独立的基于 LCNF 的 `Compiler/LCNF/EmitYul.lean`。因为可移植 IR 已经抽象了 Lean 对象（仅限 `u32`/`u64`/`bool`/`hash` 标量 + 存储效应），`EmitWat` 不需要 Lean 运行时移植、对象模型装箱或 GC —— 既避免了 Rust 路线的 `near-sdk` 宏耦合（E0119 Borsh / 缺失 `&self` 的 cargo-check 失败），也避免了阻塞先前 `EmitZig` 计划的 Lean-runtime-to-Wasm 移植。共享层：`Compiler/Wasm/AST.lean` + `Printer.lean` + IR→AST 降级（平行于 `Compiler/Yul/AST.lean` + `Printer.lean`）；来自 `Backend/WasmNear/IR.lean` 和 `Backend/Evm/IR.lean` 的可重用验证。每条链：宿主导入 + ABI 序列化。关键 spike 风险：NEAR 参数（反）序列化（JSON/Borsh），EVM 后端不面临此问题（EVM 使用 calldata）。（从 NEAR 分支的 D-027 重新编号。） |
@@ -46,10 +47,13 @@
 | D-041 | 2026-07-03 | 采用可移植运行时错误模型（`assertion_id` + 可选 `user_code`）和统一的 `ContractSpec` 客户端 schema | 每个目标以原生形式编码同一错误 id（EVM revert、Solana custom error、NEAR panic payload、Psy assertion index）；testkit 可断言 `expect.error`。目标中立的 `ContractSpec` JSON 泛化现有 Solana IDL，在 testkit M3 之后为各链 TS 客户端生成提供输入 |
 | D-042 | 2026-07-03 | 为可移植 IR、制品/部署 JSON schema、能力 id 以及 SDK/CLI 采用版本控制与兼容性策略 | IR 使用 `major.minor`：新构造函数为 minor，语义变化为 major；制品/部署 schema 使用整数 `schemaVersion` 并遵循宽容读取规则；能力 id 仅追加；SDK/CLI 在 1.0 前后遵循类 semver 规则。RFC 0012 定义完整策略 |
 | D-043 | 2026-07-03 | 添加 `upgradePolicy` intent（`immutable | authority(keyRef) | governance(ref)`）并将签名保持在编译器之外 | 每个目标诚实地降级该策略或在编译时拒绝；EVM v0 仅支持 `immutable`；Solana 支持 `immutable` 和 `authority`；NEAR 将 `immutable`/`authority` 作为账户密钥策略。ProofForge 仅发出未签名交易/清单；密钥保管保留在钱包/KMS/CI 密钥中。RFC 0013 定义完整生命周期与签名边界 |
+| D-044 | 2026-07-03 | **Tier-0 完成优先：** 按 `solana-sbpf-asm`、`evm`、`wasm-near` 的实现优先级完成完整 DoD —— 行为一致性和资源预算（D-040）—— 然后再推进任何新链 | 将 D-035/D-040 操作化。在 Gate G0 带预算关闭之前，已经落地的 Aptos/CosmWasm spike 冻结在当前 M1/M2 状态（不推进 registry stage、不推进 M3/M4、不启动 Tier-2）；不落地新的 target registry/capability 代码。D-034/工作流 28 中旧的“并行开启 Tier-1”表述，在当前阶段由该 completion-first rule 取代。逐项状态见 [target-roadmap](target-roadmap.md) 的 Tier-0 completion checklist 和 [gate-status](gate-status.md)。 |
 
-## 目标家族分类| 目标家族 | 目标 | 后端模式 |
+## 目标家族分类
+
+| 目标家族 | 目标 | 后端模式 |
 |---|---|---|
-| 直接编译器 | `evm` | Lean → LCNF → Yul → solc |
+| 直接编译器 | `evm` | ContractSpec / 可移植 IR → EVM semantic plan → Yul AST/source → solc；旧的 Lean → LCNF → Yul 路径仅作为 research/equivalence 路径保留 |
 | EVM 兼容链 profile | `robinhood-chain-testnet` | 复用 `evm` 字节码/ABI 输出；添加 chain id、RPC、浏览器、验证器、rollup 以及部署元数据 |
 | Wasm 宿主 | `wasm-near`, `wasm-cosmwasm`, `wasm-cloudflare-workers` (链下宿主, D-033), `wasm-stellar-soroban` (候选, 仅文档), `wasm-icp-canister` (候选, 仅文档) | 可移植 IR → **`EmitWat`** (Wasm AST → WAT) → `wat2wasm` + 逐链宿主导入；Rust/CDK 源代码生成仅作为冻结的 v0 临时方案使用 (D-031, [wasm-family](targets/wasm-family.md))；Cloudflare Workers 目前使用 TypeScript 源代码生成 |
 | 二进制工具链 | `solana-sbpf-linker`, `solana-zig-fork` | Lean → EmitZig → bitcode → sbpf-linker (历史参考；被 D-026 取代) |
@@ -69,11 +73,16 @@
 
 ## 路线图摘要
 
+**已由** [target-roadmap](target-roadmap.md) 中的 tier/gate 模型（D-034）和
+Tier-0 completion-first rule（D-044）取代。下面的历史 phase 标签只保留用于
+追溯，不用于排期。权威顺序是 tier 模型（Tier 0 active → Gate G0 → Tier 1 →
+Gate G2 → …），Gate G0 状态记录在 [gate-status](gate-status.md)。
+
 ```text
 Phase 0: EVM baseline (done)
 Phase 1: Target registry + portable IR + artifact metadata + capability errors
-Phase 2: Parallel spikes — CosmWasm (wasm-cosmwasm) + Solana (solana-sbpf-linker)
-Phase 3: Move sourcegen — Aptos POC first, then Sui
+Phase 2: Parallel spikes — CosmWasm (wasm-cosmwasm) + Solana (solana-sbpf-linker)   [superseded: Solana is solana-sbpf-asm per D-026]
+Phase 3: Move sourcegen — Aptos POC first, then Sui                                  [frozen at Aptos M1/M2 spike per D-044 until Tier-0 DoD]
 Phase 3.5: Psy DPN sourcegen research spike
 Research lane: Kaspa Toccata covenant/based-app target note before registry changes
 Research lane: Stellar Soroban Wasm-host target note before registry changes
@@ -87,7 +96,7 @@ Research lane: TON TVM/Tolk target note before registry changes
 Research lane: Bitcoin Script/Miniscript spending-policy target note before registry changes
 Research lane: Zcash shielded privacy payment target note before registry changes
 Research lane: Bitcoin Cash CashScript target note before registry changes
-Phase 4: Cross-target shared scenario hardening
+Phase 4: Cross-target shared scenario hardening   [= Gate G0, D-035/D-040/D-044]
 Phase 5: Cloud platform
 ```
 
@@ -127,3 +136,5 @@ Phase 5: Cloud platform
 - Milestone 3 = Solana 作为唯一的第二个目标 —— 已由并行的 CosmWasm + Solana (D-003) 取代。
 - CLI id `solana-sbf` —— 使用 `solana-sbpf-asm` (D-026)。
 - Move POC 同时生成 Sui 和 Aptos 包 —— Aptos 优先 (D-007)。
+- D-034 “在 Gate G0 后并行开启 Tier-1（cosmwasm + aptos）” —— 当前阶段由 Tier-0 completion-first（D-044）优先：先把 `solana-sbpf-asm`/`evm`/`wasm-near` 做到完整 DoD（行为 + 预算），再推进任何 Tier-1 spike 超过当前状态。
+- decisions.md “Roadmap Summary” 的 Phase 0–5 模型 —— 已由 [target-roadmap](target-roadmap.md) 中的 tier/gate 模型（D-034）取代；上文仅为追溯保留。

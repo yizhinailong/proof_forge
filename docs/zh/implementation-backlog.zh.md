@@ -939,7 +939,31 @@
 
 目标：执行 [target-roadmap.md](target-roadmap.md) (D-034) 中的分层组合。是门控，而非日期；每个实现分支一个里程碑。
 
-任务：- Gate G0 (Tier-0 退出): testkit M3 (工作流 26) 加上在 `evm`, `solana-sbpf-asm`, `wasm-near` 上的共享场景一致性。
+**Completion-first rule（D-044，2026-07-03）：** 先按实现优先级完成三个 Tier-0 target
+—— `solana-sbpf-asm`、`evm`、`wasm-near` —— 达到完整 DoD（行为一致性以及
+D-040 所要求的资源预算），然后才允许推进任何新链。逐项状态记录在
+[gate-status.md](gate-status.md)。
+
+### Tier-0 完成（当前最高优先级，阻塞下面所有内容）
+
+- NEAR gas budget 实现（RFC 0010）：把 `near_gas` 接入
+  `testkit/harness-near` outcome，并给每个 Counter 和 ValueVault step 添加
+  `near_gas` baseline + tolerance。这是唯一完全缺失的预算维度。
+- ValueVault budget baselines：为三个 target 上的所有 ValueVault step 测量并
+  锁定 `solana_cu`、`evm_gas`，以及实现后的 `near_gas`，写入
+  `testkit/scenarios/value-vault.toml`。
+- EVM semantic-plan migration（工作流 3）：ExprPlan、StmtPlan、EntrypointPlan、
+  EventPlan、CrosscallPlan、MetadataPlan，然后退役旧的 `IR.lean -> Yul`
+  lowering。它不阻塞 Gate G0 的预算项，但属于 EVM hardening track。
+- Solana Pinocchio CI equivalence（工作流 7）：通过可靠安装 Solana
+  rustc/platform-tools，让 live-equivalence harnesses 在 CI 中通过。
+- 冻结已经落地的 Aptos/CosmWasm spike 在当前 M1/M2 状态：Gate G0 关闭前不推进
+  Tier-1 M3/M4、不推进 registry stage、不启动 Tier-2。
+
+任务（Gate G0 关闭后）：
+
+- Gate G0 (Tier-0 退出): testkit M3 (工作流 26) 加上在 `evm`, `solana-sbpf-asm`,
+  `wasm-near` 上的共享场景一致性，**包含 D-040 预算**。
 - Tier 1a `wasm-cosmwasm`: M1 CosmWasm 宿主导入 + EmitWat 中的 region-allocator ABI (来自 RFC 0008 的 `cosmWasmRegion` 绑定); M2 Counter 制品通过 `cosmwasm-check`; M3 testkit `harness-cosmwasm` 场景通过，且与 `wasm-near` 具有跨目标等价性; M4 注册表阶段 → Experimental。
 - Tier 1b `move-aptos` (与 1a 并行): M1 IR → 针对 Counter 子集的 Move 模块打印器; M2 `aptos move test` 门控 + 黄金固定装置; M3 testkit CLI 封装的执行器; M4 能力行已验证; `move-sui` 仅在 M4 之后。
 - Tier 2 (每个都在其启用条件之后，见路线图): `wasm-stellar-soroban` 在 CosmWasm M4 之后; `wasm-icp-canister` 在任何代码之前额外需要一份 async/inter-canister 设计笔记; `starknet-cairo` 是 Aptos M4 之后第一个源代码生成路径选择; `ton-tvm`, `algorand-avm`, `cardano-plutus-aiken`, `tezos-michelson-ligo` 遵循“一次仅一个活跃的 sourcegen-spike”规则。
@@ -947,6 +971,9 @@
 
 验收标准:
 
+- **Tier-0 completion-first (D-044)：** `solana-sbpf-asm`、`evm`、`wasm-near`
+  达到完整 DoD —— 行为一致性和 D-040 资源预算 —— 之后才能推进任何 Tier-1；
+  已落地的 Aptos/CosmWasm spike 保持冻结在 M1/M2。
 - Gate G0 之前没有 Tier-1 代码落地; 在其列出的启用条件之前没有 Tier-2 目标启动; 任何时候最多只有一个 sourcegen spike 处于活跃状态。
 - 策略家族目标永远不会出现在合约家族的能力行中; 当 Tier 3 开启时，它们在能力注册表中获得一个单独的 `policy.*` 章节。
 
@@ -958,14 +985,23 @@
 - **工作流 30 — 版本控制和兼容性策略。** 涵盖 IR 版本规则 (与 coverage-manifest 门控挂钩)、制品/部署 schema 稳定性、仅追加的能力 id 以及 SDK 弃用策略的 RFC。
 - **工作流 31 — 资源预算作为门控。** 扩展 testkit 场景 schema (在 M2/M3 之前)，增加每步 gas/CU/near-gas 预算基准和容差带; 一致性 (D-034 Gate G0) 要求预算，而不仅仅是行为。锁定的 Solana Counter 基准测量值 (Mollusk 0.13.4, 2026-07-02): initialize 56 CU, increment 63 CU, get-with-return-data 163 CU, 1336 字节 ELF。
 - **工作流 32 — 部署生命周期、升级、签名。** 针对升级策略意图 (`immutable | authority | governance`) 的 RFC，该意图根据每条链诚实地降级 (Solana 升级权限、EVM 不可变/代理、NEAR 账户密钥、Aleo `@noupgrade`) 或被拒绝; 未签名交易签名边界; live-gate 密钥约定。
+  M1 已实现：`ContractSpec.upgradePolicy?` 会序列化进 ContractSpec JSON，target
+  resolver 会在代码生成前拒绝不支持的 target/policy 组合，已解析 plan 会为支持的策略
+  发出 `upgrade.policy.*` 制品 metadata。
 - **工作流 33 — 运行时错误模型 + 客户端生成。** 具有每目标编码和 `expect.error` 场景词汇的可移植错误代码 (与工作流 31 的 schema 变更一起规划); 然后是一个客户端 schema 层，将 Solana IDL/TS 客户端生成推广到所有目标 (实现等待 testkit M3)。
 
 ## 建议顺序
 
-工作流 1, 1.5, 2–3, 6–7 (注册表、可移植 IR、EVM 制品元数据、Solana asm) 已基本完成; 剩余的每目标细节存在于每个工作流中。后续顺序遵循 [target-roadmap.md](target-roadmap.md) (D-034) 的层级门控:0. 架构收敛后续工作 (工作流 24) 以及来自形式化验证路线图 (工作流 25) 的 FV-1/FV-2。与此同时，来自差距分析的规划优先 RFC：CLI 界面 (29，在 testkit M4 之前)，预算 + 错误词汇表 (31/33，在 testkit M2/M3 冻结场景模式之前)，版本控制和部署生命周期 (30/32，docs-agent 并行轨道)。
+工作流 1, 1.5, 2–3, 6–7 (注册表、可移植 IR、EVM 制品元数据、Solana asm) 已基本完成; 剩余的每目标细节存在于每个工作流中。后续顺序遵循 [target-roadmap.md](target-roadmap.md) (D-034) 的层级门控:
+
+0. 架构收敛后续工作 (工作流 24) 以及来自形式化验证路线图 (工作流 25) 的 FV-1/FV-2。与此同时，来自差距分析的规划优先 RFC：CLI 界面 (29，在 testkit M4 之前)，预算 + 错误词汇表 (31/33，在 testkit M2/M3 冻结场景模式之前)，版本控制和部署生命周期 (30/32，docs-agent 并行轨道)。
 1. **并行：** 统一 testkit (工作流 26) 和分配器统一 (工作流 27) —— testkit M1/M2 对分配器 M1/M2 没有依赖；分配器 M4 在 testkit M3 之后落地。
-2. Gate G0：通过 testkit 在 `evm` + `solana-sbpf-asm` + `wasm-near` 上实现共享场景一致性 (结束当前阶段；D-034)。
-3. **并行第 1 层级：** `wasm-cosmwasm` (工作流 5/28) 和 `move-aptos` (工作流 8/28)。
+2. **Gate G0（Tier-0 completion-first，D-044）：** 按实现优先级完成
+   `solana-sbpf-asm`、`evm`、`wasm-near`，达到完整 DoD：通过 testkit 实现共享场景
+   行为一致性，且满足 D-040 资源预算（`solana_cu` + `evm_gas` + `near_gas`，
+   最后一项仍完全缺失）。Gate 关闭前，已落地的 Aptos/CosmWasm spike 冻结在 M1/M2。
+   逐项状态见 [gate-status.md](gate-status.md)。
+3. **并行第 1 层级（仅在 Gate G0 关闭后）：** `wasm-cosmwasm` (工作流 5/28) 和 `move-aptos` (工作流 8/28)。
 4. 每个赋能者的第 2 层级：CosmWasm 之后是 Soroban；Aptos 之后是 Sui 和源代码生成通道 (首选 Starknet)；ICP 额外排在异步设计笔记之后；一次进行一个源代码生成 spike (工作流 12–19/22, 28)。
 5. Gate G2 的 Bitcoin 策略家族 (工作流 11/15/20/21, 28) —— 首先是 miniscript，然后是其后的 CashScript/Zcash/Kaspa。
 6. 多链 Token SDK 后续工作 (工作流 23) 同步继续，剩余的实时门控 CI 矩阵 (工作流 9) 随每个目标而增长。

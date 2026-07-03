@@ -79,6 +79,10 @@ def dedupStrings (values : Array String) : Array String :=
   values.foldl pushUnique #[]
 
 def render (spec : ContractSpec) : String :=
+  let upgradePolicyField :=
+    match spec.upgradePolicy? with
+    | some policy => ("upgradePolicy", UpgradePolicy.json policy)
+    | none => ("upgradePolicy", "null")
   jsonObject #[
     ("schema", jsonString "proof-forge.contract-spec.v0"),
     ("name", jsonString spec.name),
@@ -86,7 +90,8 @@ def render (spec : ContractSpec) : String :=
     ("state", jsonArray (spec.module.state.map stateJson)),
     ("entrypoints", jsonArray (spec.module.entrypoints.map entrypointJson)),
     ("capabilities", jsonStringArray (dedupStrings (spec.module.capabilities.map fun c => c.id))),
-    ("intents", jsonArray (spec.intents.map intentJson))
+    ("intents", jsonArray (spec.intents.map intentJson)),
+    upgradePolicyField
   ]
 
 end ProofForge.Contract.Spec.Json

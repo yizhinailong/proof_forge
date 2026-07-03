@@ -1,6 +1,9 @@
 .lake/
 build/
-target/
+/target/
+runtime/offline-host/target/
+testkit/target/
+tools/cosmwasm-vm-runner/target/
 *.bin
 *.yul
 !Examples/Evm/*.golden.yul

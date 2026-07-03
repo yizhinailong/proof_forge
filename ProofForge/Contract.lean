@@ -10,3 +10,5 @@ import ProofForge.Contract.Surface
 import ProofForge.Contract.Token
 import ProofForge.Contract.Token.Evm
 import ProofForge.Contract.Token.Learn
+import ProofForge.Contract.UpgradePolicy
+import ProofForge.Contract.UpgradePolicy.Lower

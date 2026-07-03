@@ -1,5 +1,6 @@
 import Init.Data.Array.Basic
 import ProofForge.Contract.Intent
+import ProofForge.Contract.UpgradePolicy
 import ProofForge.IR.Contract
 
 namespace ProofForge.Contract
@@ -10,6 +11,7 @@ structure ContractSpec where
   name : String
   module : ProofForge.IR.Module
   intents : Array Intent := #[]
+  upgradePolicy? : Option UpgradePolicy := none
   deriving Repr
 
 def moduleIntent (module : ProofForge.IR.Module) : Intent := {
