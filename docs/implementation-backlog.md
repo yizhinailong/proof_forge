@@ -770,12 +770,13 @@ partial progress is visible before the full acceptance criteria close:
       `scripts/solana/pda-web3-smoke.sh`.
 - [x] Standard Solana protocol SDK helpers now cover System Program
       transfer/create-account and SPL Token transfer_checked/mint_to/burn/
-      approve/revoke/set_authority. They route through target capability
+      approve/revoke/close_account/set_authority. They route through target capability
       metadata with
       `solana.cpi.protocol`, canonical `data_layout`, account metas, signer
       seeds, and instruction-data source names, and are included in the
       generated manifest plus artifact JSON. Covered by `Tests/SolanaSdk.lean`,
-      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+      `Tests/SolanaSdkManifest.lean`, `Tests/SolanaCpiPacking.lean`, and
+      `scripts/solana/sdk-smoke.sh`.
 - [x] Runtime allocator target extension now models Solana's default
       downward-bump allocator (`heap_start = "0x300000000"`,
       `heap_bytes = 32768`) plus a `noAllocator`/deny-dynamic option aligned
@@ -817,9 +818,10 @@ partial progress is visible before the full acceptance criteria close:
       payload. System transfer/create-account use bincode-style `u32`
       discriminators plus `u64` lamports/space and owner pubkey fields; SPL
       Token `transfer_checked`, `mint_to`, `burn`, `approve`, and `revoke` use
-      the standard token instruction tags and amount/decimals layouts, while
-      `set_authority` packs instruction tag `6`, authority type `MintTokens`,
-      and a new-authority pubkey sourced from a readonly input account. Value
+      the standard token instruction tags and amount/decimals layouts,
+      `close_account` packs instruction tag `9`, and `set_authority` packs
+      instruction tag `6`, authority type `MintTokens`, and a new-authority
+      pubkey sourced from a readonly input account. Value
       sources can bind to generated scalar state offsets, numeric literals, or
       decoded scalar entrypoint parameters. The CPI helper also packs program id
       bytes, C `SolAccountMeta[]`,
@@ -1218,6 +1220,11 @@ Completed developer-surface slices:
   the Learn file lowers to the same IR module and generated manifest as
   `ProofForge.Solana.Examples.SplTokenOpsCpi`, keeping the string-heavy Builder
   code as an internal expected fixture rather than the user-facing syntax.
+- Learn SPL Token close-account syntax:
+  `SplTokenCloseAccountCpi.learn` now covers `spl_token_close_account`
+  declarations/invocations and proves the same module/manifest boundary as
+  `ProofForge.Solana.Examples.SplTokenCloseAccountCpi` through
+  `Tests/LearnSource.lean`.
 - Learn log/return-data/compute-unit syntax:
   `LogEvent.learn` and `ReturnDataCompute.learn` now cover Solana pubkey/data
   log helper statements, return-data set/get statements, and remaining
@@ -1249,8 +1256,9 @@ Completed developer-surface slices:
   `contract_source` items such as `allocator bump`, `account ... writable`,
   `pda ... seeds [...]`, `cpi ... spl_token_transfer_checked(...)`, `derive
   pda ...`, `invoke ... spl_token_transfer_checked(...)`, and the same
-  first-class source-syntax path now covers `spl_token_set_authority(...)`
-  instead of raw account/PDA/CPI strings or `use`/`do` helper plumbing. The
+  first-class source-syntax path now covers `spl_token_close_account(...)` and
+  `spl_token_set_authority(...)` instead of raw account/PDA/CPI strings or
+  `use`/`do` helper plumbing. The
   target extension
   emits declared account constraints into `manifest.toml`,
   `proof-forge-artifact.json` (`solanaExtensions.accounts`), and the generated
@@ -1270,6 +1278,18 @@ Completed developer-surface slices:
   forms in a Lean `.lean` fixture, and the generated artifact, Surfpool/Web3.js
   behavior gate, and Pinocchio reference gates all validate the same lowering
   boundary.
+- SPL Token close-account source syntax:
+  `ProofForge.Contract.Source` now exposes source-level
+  `cpi ... spl_token_close_account(...) signer_seeds [...]` and
+  `invoke ... spl_token_close_account(...) signer_seeds [...]` forms.
+  `ProofForge.Solana.Examples.SplTokenCloseAccountCpi` uses those forms in a
+  Lean `.lean` fixture; `Tests/SolanaCpiPacking.lean` validates manifest account
+  schemas, `spl-token.close_account` metadata, instruction tag `9`, one-byte
+  CPI data length, and the generated CPI helper call. The fixture is available
+  through target-first CLI as `emit --target solana-sbpf-asm --fixture
+  spl-token-close-account-cpi --format s|elf` and through the matching legacy
+  compatibility flags. Live Surfpool/Pinocchio equivalence for this specific
+  SPL helper remains a follow-up gate.
 - Target-stage ABI selector hydration:
   the Learn/ValueVault CLI emit paths derive EVM selectors from each
   entrypoint's Solidity ABI signature with `cast sig` immediately before EVM
@@ -2449,12 +2469,19 @@ means a real developer cannot write a common contract pattern.
   storage packing, batch operations, factory deployment template, AMM,
   Pausable auth, ReentrancyGuard stdlib
 
-### Solana SDK blockers (5 tracked P0, 2 closed, 7 P1)
+### Solana SDK blockers (5 tracked P0, 3 closed, 7 P1)
 
 - P0: Account constraint enforcement. ✅ Owner validation now lowers
   `owner=program`, `owner=executable`, and named owner-account references into
   the sBPF prologue with explicit diagnostics for unknown owner references.
-  Remaining: close account and user-facing realloc API.
+  Remaining: user-facing realloc API.
+- ✅ P0: SPL Token close-account CPI now has builder helpers, typed
+  `contract_source` syntax, legacy Learn syntax, manifest/artifact metadata,
+  and sBPF instruction-data packing for tag `9`, covered by
+  `Tests/SolanaCpiPacking.lean`, `Tests/LearnSource.lean`, and
+  `Tests/CliTargetFirst.lean`. A live Surfpool/Pinocchio equivalence gate for
+  close-account is still tracked as a validation expansion rather than a
+  blocker for the source/lowering surface.
 - ✅ P0: ComputeBudgetInstruction (set compute unit limit, priority fees)
   landed as transaction-side compute-budget advice in Solana manifests, IDL,
   generated TypeScript clients, and package metadata. The helper emits

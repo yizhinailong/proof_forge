@@ -190,6 +190,11 @@ def tokenCpiAccountDataSize? (cpi : CpiInvoke) (account : AccountEntry) : Option
         some SPL_TOKEN_ACCOUNT_DATA_SIZE
       else
         none
+  | some "spl-token.close_account" =>
+      if cpiAccountIs? cpi 0 account.name then
+        some SPL_TOKEN_ACCOUNT_DATA_SIZE
+      else
+        none
   | some "spl-token.set_authority" =>
       match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.authority_type" with
       | some "account_owner"

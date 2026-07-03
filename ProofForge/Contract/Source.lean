@@ -111,6 +111,8 @@ scoped syntax "cpi " ident " system_transfer" "(" ident ", " ident ", " ident ")
 scoped syntax "cpi " ident " system_create_account" "(" ident ", " ident ", " ident ", " ident ")" " owner " term : contractItem
 scoped syntax "cpi " ident " spl_token_transfer_checked" "(" ident ", " ident ", " ident ", " ident ", " ident ")" " decimals" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" : contractItem
+scoped syntax "cpi " ident " spl_token_close_account" "(" ident ", " ident ", " ident ")"
+  " signer_seeds " "[" solanaSignerSeed,* "]" : contractItem
 scoped syntax "cpi " ident " spl_token_set_authority" "(" ident ", " ident ", " ident ")" " authority_type" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" : contractItem
 scoped syntax "use " term : contractItem
@@ -129,6 +131,8 @@ scoped syntax "derive " "pda " ident " seeds " "[" solanaSeed,* "]" " bump " ide
 scoped syntax "invoke " ident " system_transfer" "(" ident ", " ident ", " ident ")" ";" : entryStmt
 scoped syntax "invoke " ident " system_create_account" "(" ident ", " ident ", " ident ", " ident ")" " owner " term ";" : entryStmt
 scoped syntax "invoke " ident " spl_token_transfer_checked" "(" ident ", " ident ", " ident ", " ident ", " ident ")" " decimals" "(" term ")"
+  " signer_seeds " "[" solanaSignerSeed,* "]" ";" : entryStmt
+scoped syntax "invoke " ident " spl_token_close_account" "(" ident ", " ident ", " ident ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" ";" : entryStmt
 scoped syntax "invoke " ident " spl_token_set_authority" "(" ident ", " ident ", " ident ")" " authority_type" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" ";" : entryStmt
@@ -269,6 +273,12 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
           `(ProofForge.Solana.Surface.invokeSplTokenTransferChecked
               $call $source $mint $destination $authority $amountRef $decimalValue
               (signerSeeds := $signerSeedArray) *> $acc)
+    | `(entryStmt| invoke $call:ident spl_token_close_account($tokenAccount:ident, $destination:ident, $authority:ident) signer_seeds [$signerSeedItems:solanaSignerSeed,*];) =>
+        let signerSeedArray ← lowerSolanaSignerSeeds signerSeedItems
+        acc ←
+          `(ProofForge.Solana.Surface.invokeSplTokenCloseAccount
+              $call $tokenAccount $destination $authority
+              (signerSeeds := $signerSeedArray) *> $acc)
     | `(entryStmt| invoke $call:ident spl_token_set_authority($tokenAccount:ident, $authority:ident, $newAuthority:ident) authority_type($authorityType:term) signer_seeds [$signerSeedItems:solanaSignerSeed,*];) =>
         let signerSeedArray ← lowerSolanaSignerSeeds signerSeedItems
         acc ←
@@ -381,6 +391,13 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
       let action ←
         `(ProofForge.Solana.Surface.splTokenTransferChecked
             $call $source $mint $destination $authority $amountRef $decimalValue
+            (signerSeeds := $signerSeedArray))
+      return { action? := some action, binder := mkCpiLet call }
+  | `(contractItem| cpi $call:ident spl_token_close_account($tokenAccount:ident, $destination:ident, $authority:ident) signer_seeds [$signerSeedItems:solanaSignerSeed,*]) =>
+      let signerSeedArray ← lowerSolanaSignerSeeds signerSeedItems
+      let action ←
+        `(ProofForge.Solana.Surface.splTokenCloseAccount
+            $call $tokenAccount $destination $authority
             (signerSeeds := $signerSeedArray))
       return { action? := some action, binder := mkCpiLet call }
   | `(contractItem| cpi $call:ident spl_token_set_authority($tokenAccount:ident, $authority:ident, $newAuthority:ident) authority_type($authorityType:term) signer_seeds [$signerSeedItems:solanaSignerSeed,*]) =>

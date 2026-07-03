@@ -88,7 +88,7 @@ missing.
 | PDA derivation | Covered | `Surface.lean` typed seeds; `pda-web3-smoke.sh` validates | — |
 | Account constraints (signer/writable/owner) | Covered | Signer/writable checks lower to the sBPF prologue; owner checks now cover current-program ownership, executable program accounts, and named owner-account references, with missing owner references rejected during lowering | — |
 | Multi-account schemas | Covered | Manifest composes state + PDA + CPI + declared accounts | — |
-| Close account | Missing | No close-account action (only `set_authority` enum) | P0 |
+| Close account | Covered | `spl_token_close_account` builder/surface/Learn syntax and CLI fixture routes lower to `spl-token.close_account` metadata and sBPF instruction tag `9`; live Surfpool/Pinocchio equivalence remains a validation follow-up | — |
 | Reallocation | Partial | Backend reserves `MAX_PERMITTED_DATA_INCREASE`; no user-facing realloc API | P0 |
 | Address lookup tables | Missing | No ALT support in client or examples | P2 |
 
@@ -195,9 +195,9 @@ economics) is almost entirely missing.
 
 **EVM (5 P0):** ERC-20 completion, ERC-721 NFT, ERC-165, AccessControl roles, Constructor dynamic args
 
-**Solana (3 open P0, 2 closed P0):** Close account, Reallocation API, Token-2022 direct sBPF CPI (transfer_fee + non_transferable). Account constraint owner validation and ComputeBudgetInstruction are closed.
+**Solana (2 open P0, 3 closed P0):** Reallocation API and Token-2022 direct sBPF CPI (transfer_fee + non_transferable) remain open. Account constraint owner validation, SPL Token close-account lowering, and ComputeBudgetInstruction are closed.
 
 **NEAR (6 P0):** Promise API (create/then/and/batch), Callback handling, NEP-141 FT, signer_account_id, attached_deposit, Aggregate ABI (structs/arrays in entrypoint params)
 
-Total: 14 open P0 blockers across three chains. These must close before "any
+Total: 13 open P0 blockers across three chains. These must close before "any
 contract can be written and deployed" is true for any chain.

@@ -1890,6 +1890,14 @@ def lowerSplTokenRevokeData : Array AstNode :=
     storeImm .stb .r8 0 5
   ]
 
+def lowerSplTokenCloseAccountData : Array AstNode :=
+  #[
+    .comment "solana.cpi.data spl-token.close_account: u8 instruction=9"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 9
+  ]
+
 def splTokenAuthorityType (cpi : CpiInvoke) : Nat :=
   match cpiMetadataValue? cpi "solana.cpi.authority_type" with
   | some "mint_tokens" => 0
@@ -1945,6 +1953,8 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
       (lowerSplTokenAmountData valueBindings cpi "spl-token.approve" 4 9, 9)
   | some "spl-token.revoke" =>
       (lowerSplTokenRevokeData, 1)
+  | some "spl-token.close_account" =>
+      (lowerSplTokenCloseAccountData, 1)
   | some "spl-token.set_authority" =>
       (lowerSplTokenSetAuthorityData accountBindings cpi, 35)
   | _ =>

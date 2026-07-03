@@ -62,6 +62,7 @@ def ids : Array String := #[
   "solana-return-data-compute",
   "spl-token-transfer-cpi",
   "spl-token-ops-cpi",
+  "spl-token-close-account-cpi",
   "spl-token-authority-cpi",
   "system-cpi",
   "system-create-account-cpi",

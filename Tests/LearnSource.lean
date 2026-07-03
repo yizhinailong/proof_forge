@@ -11,6 +11,7 @@ import ProofForge.Solana.Examples.LogEvent
 import ProofForge.Solana.Examples.Memory
 import ProofForge.Solana.Examples.Rent
 import ProofForge.Solana.Examples.ReturnDataCompute
+import ProofForge.Solana.Examples.SplTokenCloseAccountCpi
 import ProofForge.Solana.Examples.SplTokenOpsCpi
 import ProofForge.Solana.Examples.SystemCpi
 import ProofForge.Solana.Examples.SystemCreateAccountCpi
@@ -103,6 +104,15 @@ def main : IO UInt32 := do
   let sourceTokenOpsManifest ← packageFile "source-spl-token-ops-cpi" "manifest.toml"
     ProofForge.Solana.Examples.SplTokenOpsCpi.spec
   requireSameText "SplTokenOpsCpi Learn manifest" learnTokenOpsManifest sourceTokenOpsManifest
+  let splTokenCloseAccount ← parseSpec "Examples/Learn/SplTokenCloseAccountCpi.learn"
+  requireSameModule "SplTokenCloseAccountCpi" splTokenCloseAccount.module
+    ProofForge.Solana.Examples.SplTokenCloseAccountCpi.module
+  let learnTokenCloseManifest ← packageFile "learn-spl-token-close-account-cpi" "manifest.toml"
+    splTokenCloseAccount
+  let sourceTokenCloseManifest ← packageFile "source-spl-token-close-account-cpi" "manifest.toml"
+    ProofForge.Solana.Examples.SplTokenCloseAccountCpi.spec
+  requireSameText "SplTokenCloseAccountCpi Learn manifest"
+    learnTokenCloseManifest sourceTokenCloseManifest
   let logEvent ← parseSpec "Examples/Learn/LogEvent.learn"
   requireSameModule "LogEvent" logEvent.module ProofForge.Solana.Examples.LogEvent.module
   let learnLogEventManifest ← packageFile "learn-log-event" "manifest.toml" logEvent

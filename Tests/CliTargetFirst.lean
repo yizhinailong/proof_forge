@@ -47,6 +47,12 @@ def main : IO UInt32 := do
     ["emit", "--target", "solana-sbpf-asm", "--fixture", "spl-token-ops-cpi"]
     ["--emit-solana-spl-token-ops-cpi-sbpf"]
   requireLegacy
+    ["emit", "--target", "solana-sbpf-asm", "--fixture", "spl-token-close-account-cpi", "--format", "s"]
+    ["--emit-solana-spl-token-close-account-cpi-sbpf"]
+  requireLegacy
+    ["emit", "--target", "solana-sbpf-asm", "--fixture", "spl-token-close-account-cpi", "--format", "elf"]
+    ["--solana-spl-token-close-account-cpi-elf"]
+  requireLegacy
     ["emit", "--target", "solana-sbpf-asm", "--fixture", "counter", "--format", "elf"]
     ["--solana-elf"]
   requireLegacy

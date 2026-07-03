@@ -62,6 +62,8 @@ inductive SolanaItem where
       (signerSeeds : Array SolanaSignerSeed)
   | splTokenRevoke (name source owner : String)
       (signerSeeds : Array SolanaSignerSeed)
+  | splTokenCloseAccount (name account destination authority : String)
+      (signerSeeds : Array SolanaSignerSeed)
   deriving Repr
 
 inductive Stmt where
@@ -81,6 +83,8 @@ inductive Stmt where
   | solanaInvokeSplTokenApprove (name source delegate owner amountSource : String)
       (signerSeeds : Array SolanaSignerSeed)
   | solanaInvokeSplTokenRevoke (name source owner : String)
+      (signerSeeds : Array SolanaSignerSeed)
+  | solanaInvokeSplTokenCloseAccount (name account destination authority : String)
       (signerSeeds : Array SolanaSignerSeed)
   | solanaSetReturnData (name sourceState : String) (bytes : Nat)
   | solanaGetReturnData (name destinationState : String) (maxBytes : Nat)
@@ -666,6 +670,10 @@ private partial def parseSolanaCpiDecl (name instruction : String) : ParserM Sol
       expectArgs "spl_token_revoke" args 2
       let signerSeeds ← parseOptionalSignerSeeds
       pure (.splTokenRevoke name args[0]! args[1]! signerSeeds)
+  | "spl_token_close_account" =>
+      expectArgs "spl_token_close_account" args 3
+      let signerSeeds ← parseOptionalSignerSeeds
+      pure (.splTokenCloseAccount name args[0]! args[1]! args[2]! signerSeeds)
   | other => failAt s!"unsupported Solana CPI instruction `{other}`"
 
 private partial def parseSolanaItem : ParserM SolanaItem := do
@@ -735,6 +743,10 @@ private partial def parseSolanaStmt : ParserM Stmt := do
             expectArgs "spl_token_revoke" args 2
             let signerSeeds ← parseOptionalSignerSeeds
             pure (.solanaInvokeSplTokenRevoke name args[0]! args[1]! signerSeeds)
+        | "spl_token_close_account" =>
+            expectArgs "spl_token_close_account" args 3
+            let signerSeeds ← parseOptionalSignerSeeds
+            pure (.solanaInvokeSplTokenCloseAccount name args[0]! args[1]! args[2]! signerSeeds)
         | other => failAt s!"unsupported Solana invoke instruction `{other}`"
       consumeOptionalSemicolon
       pure stmt
@@ -929,6 +941,7 @@ private def cpiName? : SolanaItem → Option String
   | .splTokenBurn name _ _ _ _ _ => some name
   | .splTokenApprove name _ _ _ _ _ => some name
   | .splTokenRevoke name _ _ _ => some name
+  | .splTokenCloseAccount name _ _ _ _ => some name
   | _ => none
 
 private def pdaSignature? : SolanaItem → Option String
@@ -951,6 +964,8 @@ private def cpiSignature? : SolanaItem → Option String
       some s!"spl_token_approve({joined #[source, delegate, owner, amountSource]});signer_seeds={signerSeedSignature signerSeeds}"
   | .splTokenRevoke _ source owner signerSeeds =>
       some s!"spl_token_revoke({joined #[source, owner]});signer_seeds={signerSeedSignature signerSeeds}"
+  | .splTokenCloseAccount _ account destination authority signerSeeds =>
+      some s!"spl_token_close_account({joined #[account, destination, authority]});signer_seeds={signerSeedSignature signerSeeds}"
   | _ => none
 
 private def cpiInvocationSignature? : Stmt → Option String
@@ -968,6 +983,8 @@ private def cpiInvocationSignature? : Stmt → Option String
       some s!"spl_token_approve({joined #[source, delegate, owner, amountSource]});signer_seeds={signerSeedSignature signerSeeds}"
   | .solanaInvokeSplTokenRevoke _ source owner signerSeeds =>
       some s!"spl_token_revoke({joined #[source, owner]});signer_seeds={signerSeedSignature signerSeeds}"
+  | .solanaInvokeSplTokenCloseAccount _ account destination authority signerSeeds =>
+      some s!"spl_token_close_account({joined #[account, destination, authority]});signer_seeds={signerSeedSignature signerSeeds}"
   | _ => none
 
 private def cpiInvocationName? : Stmt → Option String
@@ -978,6 +995,7 @@ private def cpiInvocationName? : Stmt → Option String
   | .solanaInvokeSplTokenBurn name _ _ _ _ _ => some name
   | .solanaInvokeSplTokenApprove name _ _ _ _ _ => some name
   | .solanaInvokeSplTokenRevoke name _ _ _ => some name
+  | .solanaInvokeSplTokenCloseAccount name _ _ _ _ => some name
   | _ => none
 
 private def buildSolanaRefs (items : Array SolanaItem) : SolanaRefs :=
@@ -988,7 +1006,8 @@ private def buildSolanaRefs (items : Array SolanaItem) : SolanaRefs :=
           { refs with accounts := refs.accounts.push { name, access, signerPolicy, owner } }
       | .pda .. => { refs with pdaItems := refs.pdaItems.push item }
       | .systemTransfer .. | .systemCreateAccount .. | .splTokenTransferChecked ..
-      | .splTokenMintTo .. | .splTokenBurn .. | .splTokenApprove .. | .splTokenRevoke .. =>
+      | .splTokenMintTo .. | .splTokenBurn .. | .splTokenApprove .. | .splTokenRevoke ..
+      | .splTokenCloseAccount .. =>
           { refs with cpiItems := refs.cpiItems.push item }
       | .allocatorBump => refs)
     {}
@@ -1150,6 +1169,11 @@ private def validateSolanaItemRefs (refs : SolanaRefs) (knownValueNames : Array 
         if signerSeeds.isEmpty then #[owner] else #[]
       requireKnownAccount refs owner
       validateSignerSeeds refs knownValueNames signerSeeds
+  | .splTokenCloseAccount _ account destination authority signerSeeds =>
+      validateAccountMetas refs #[account, destination] <|
+        if signerSeeds.isEmpty then #[authority] else #[]
+      requireKnownAccount refs authority
+      validateSignerSeeds refs knownValueNames signerSeeds
   | _ => pure ()
 
 private def validateStmtRefs (refs : SolanaRefs) (stateNames : Array String)
@@ -1182,6 +1206,9 @@ private def validateStmtRefs (refs : SolanaRefs) (stateNames : Array String)
       requireKnownName "value" knownValueNames amountSource
       validateSignerSeeds refs knownValueNames signerSeeds
   | .solanaInvokeSplTokenRevoke _ _ _ signerSeeds =>
+      validateCpiInvocation refs stmt
+      validateSignerSeeds refs knownValueNames signerSeeds
+  | .solanaInvokeSplTokenCloseAccount _ _ _ _ signerSeeds =>
       validateCpiInvocation refs stmt
       validateSignerSeeds refs knownValueNames signerSeeds
   | .solanaSetReturnData _ sourceState _ =>
@@ -1280,6 +1307,9 @@ private def lowerSolanaItem (item : SolanaItem) :
   | .splTokenRevoke name source owner signerSeeds =>
       pure (ProofForge.Solana.splTokenRevoke name source owner
         (signerSeeds := lowerSolanaSignerSeeds signerSeeds))
+  | .splTokenCloseAccount name account destination authority signerSeeds =>
+      pure (ProofForge.Solana.splTokenCloseAccount name account destination authority
+        (signerSeeds := lowerSolanaSignerSeeds signerSeeds))
 
 private def lowerStmtAction (refs : SolanaRefs) (stateNames : Array String)
     (state : ProofForge.Contract.Builder.EntryM Unit × LowerEnv) (stmt : Stmt) :
@@ -1339,6 +1369,10 @@ private def lowerStmtAction (refs : SolanaRefs) (stateNames : Array String)
       .ok (action *> stmtAction, env)
   | .solanaInvokeSplTokenRevoke name source owner signerSeeds =>
       let stmtAction := ProofForge.Solana.invokeSplTokenRevoke name source owner
+        (signerSeeds := lowerSolanaSignerSeeds signerSeeds)
+      .ok (action *> stmtAction, env)
+  | .solanaInvokeSplTokenCloseAccount name account destination authority signerSeeds =>
+      let stmtAction := ProofForge.Solana.invokeSplTokenCloseAccount name account destination authority
         (signerSeeds := lowerSolanaSignerSeeds signerSeeds)
       .ok (action *> stmtAction, env)
   | .solanaSetReturnData name sourceState bytes =>

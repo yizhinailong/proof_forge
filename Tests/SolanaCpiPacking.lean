@@ -2,6 +2,7 @@ import ProofForge.Backend.Solana.Package
 import ProofForge.Contract.Builder
 import ProofForge.Solana
 import ProofForge.Solana.Examples.SplTokenAuthorityCpi
+import ProofForge.Solana.Examples.SplTokenCloseAccountCpi
 import ProofForge.Solana.Examples.SplTokenOpsCpi
 
 namespace ProofForge.Tests.SolanaCpiPacking
@@ -269,6 +270,44 @@ def main : IO UInt32 := do
         "assembly missing revoke entrypoint CPI helper call"
   | .error err =>
       throw <| IO.userError s!"Solana token-ops CPI packing render failed: {err.render}"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec
+      "token-close-cpi" ProofForge.Solana.Examples.SplTokenCloseAccountCpi.spec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "token-close package missing sBPF assembly"
+      let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
+        | throw <| IO.userError "token-close package missing manifest.toml"
+      let asm := asmFile.contents
+      let manifest := manifestFile.contents
+      require (contains manifest "name = \"close_account\"")
+        "token close manifest missing close_account entrypoint"
+      require (contains manifest "{ name = \"last_close_marker\", index = 0, signer = false, writable = true, owner = \"program\" },")
+        "token close manifest missing state account schema"
+      require (contains manifest "{ name = \"token_account\", index = 1, signer = false, writable = true, owner = \"any\" },")
+        "token close manifest missing token account schema"
+      require (contains manifest "{ name = \"destination\", index = 2, signer = false, writable = true, owner = \"any\" },")
+        "token close manifest missing destination account schema"
+      require (contains manifest "{ name = \"authority\", index = 3, signer = true, writable = false, owner = \"any\" },")
+        "token close manifest missing authority account schema"
+      require (contains manifest "{ name = \"spl_token\", index = 4, signer = false, writable = false, owner = \"executable\" }")
+        "token close manifest missing SPL Token account schema"
+      require (contains manifest "instruction = \"close_account\"")
+        "token close manifest missing close_account CPI"
+      require (contains manifest "data_layout = \"spl-token.close_account\"")
+        "token close manifest missing close_account data layout"
+      require (contains asm "sol_cpi_token_close:")
+        "assembly missing SPL Token close_account helper label"
+      require (contains asm "solana.cpi.data spl-token.close_account: u8 instruction=9")
+        "assembly missing SPL Token close_account data packing"
+      require (contains asm "mov64 r3, 1")
+        "assembly missing close_account SPL Token data length"
+      require (contains asm "stb [r8+0], 9")
+        "assembly missing close_account instruction tag store"
+      require (contains asm "call sol_cpi_token_close")
+        "assembly missing close_account entrypoint CPI helper call"
+  | .error err =>
+      throw <| IO.userError s!"Solana token-close CPI packing render failed: {err.render}"
 
   match ProofForge.Backend.Solana.Package.renderPackageForSpec
       "token-authority-cpi" ProofForge.Solana.Examples.SplTokenAuthorityCpi.spec with

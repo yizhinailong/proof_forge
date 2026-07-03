@@ -203,6 +203,7 @@ rewrites to the new command surface. Examples:
 | `--emit-solana-system-create-account-cpi-sbpf` | `emit --target solana-sbpf-asm --fixture system-create-account-cpi --format s` |
 | `--emit-solana-spl-token-transfer-cpi-sbpf` | `emit --target solana-sbpf-asm --fixture spl-token-transfer-cpi --format s` |
 | `--emit-solana-spl-token-ops-cpi-sbpf` | `emit --target solana-sbpf-asm --fixture spl-token-ops-cpi --format s` |
+| `--emit-solana-spl-token-close-account-cpi-sbpf` | `emit --target solana-sbpf-asm --fixture spl-token-close-account-cpi --format s` |
 | `--emit-solana-spl-token-authority-cpi-sbpf` | `emit --target solana-sbpf-asm --fixture spl-token-authority-cpi --format s` |
 | `--learn --target evm` | `build --target evm` on a `.learn` input |
 | `--learn-yul` | `build --target evm --format yul` on a `.learn` input |

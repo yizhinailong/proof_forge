@@ -689,6 +689,21 @@ def splTokenRevokeCall (name source owner : String) (tokenProgram : String := sp
   extraMetadata := tokenMetadata tokenProgram
 }
 
+def splTokenCloseAccountCall (name account destination authority : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "close_account"
+  accounts := #[
+    writableAccount account,
+    writableAccount destination,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "spl-token.close_account"
+  extraMetadata := tokenMetadata tokenProgram
+}
+
 def splTokenSetAuthorityCall (name account authority authorityType newAuthority : String)
     (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) : CpiCall := {
   name := name
@@ -1302,6 +1317,18 @@ def invokeSplTokenRevoke (name source owner : String) (tokenProgram : String := 
     (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
   cpiEntry (splTokenRevokeCall name source owner (tokenProgram := tokenProgram)
     (signerSeeds := signerSeeds))
+
+def splTokenCloseAccount (name account destination authority : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenCloseAccountCall name account destination authority
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def invokeSplTokenCloseAccount (name account destination authority : String)
+    (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenCloseAccountCall name account destination authority
+    (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
 
 def splTokenSetAuthority (name account authority authorityType newAuthority : String)
     (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :

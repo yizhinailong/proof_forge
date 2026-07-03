@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Solana SPL Token Close-Account Lowering
+
+Commit: this commit
+
+Summary:
+
+- Added SPL Token `close_account` CPI helpers to the Solana builder API and
+  typed source surface.
+- Added `contract_source` and legacy `.learn` syntax for
+  `spl_token_close_account(...)` declarations and invocations.
+- Lowered `spl-token.close_account` instruction data to the standard one-byte
+  SPL Token tag `9` and preserved token-account data-size metadata for the
+  closed account.
+- Added `ProofForge.Solana.Examples.SplTokenCloseAccountCpi`,
+  `Examples/Learn/SplTokenCloseAccountCpi.learn`, and package-rendering checks
+  for manifest account schemas, data-layout metadata, data length, instruction
+  tag store, and helper calls.
+- Added legacy and target-first CLI fixture routes for
+  `spl-token-close-account-cpi` in sBPF assembly and ELF formats.
+
+Validation run:
+
+```sh
+lake build ProofForge.Solana ProofForge.Solana.Surface ProofForge.Contract.Source ProofForge.Contract.Learn ProofForge.Backend.Solana.SbpfAsm ProofForge.Solana.Examples.SplTokenCloseAccountCpi
+lake env lean --run Tests/SolanaCpiPacking.lean
+lake env lean --run Tests/LearnSource.lean
+lake env proof-forge emit --target solana-sbpf-asm --fixture spl-token-close-account-cpi --format s -o /tmp/proof-forge-spl-token-close-account.s --artifact-output /tmp/proof-forge-spl-token-close-account.json
+```
+
+Known limitations:
+
+- This closes the source/lowering side of the close-account P0. A dedicated
+  Surfpool/Web3.js behavior gate and Pinocchio reference-equivalence gate for
+  close-account are still follow-up validation expansions.
+
+Next step:
+
+- Continue Solana-first SDK P0 hardening with the user-facing realloc API, then
+  Token-2022 direct sBPF CPI lowering.
+
 ### Solana Owner Constraint Lowering
 
 Commit: this commit
@@ -45,12 +85,12 @@ lake env lean --run Tests/SolanaAccountConstraints.lean
 Known limitations:
 
 - This closes the signer/writable/owner account-constraint row. The broader
-  Solana SDK P0 still has close-account and user-facing realloc API work open.
+  Solana SDK P0 still has user-facing realloc API work open.
 
 Next step:
 
-- Continue Solana-first SDK P0 hardening with close-account or realloc
-  ergonomics, then Token-2022 direct sBPF CPI lowering.
+- Continue Solana-first SDK P0 hardening with realloc ergonomics, then
+  Token-2022 direct sBPF CPI lowering.
 
 ### Solana Compute-Budget Transaction Advice
 

@@ -70,7 +70,8 @@ covers:
 - Solana System Program `transfer` and `create_account` CPI declarations and
   invocation statements;
 - Solana SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, `revoke`,
-  and `set_authority` CPI declarations and invocation statements;
+  `close_account`, and `set_authority` CPI declarations and invocation
+  statements;
 - Solana log, return-data, compute-unit, memory, crypto, and sysvar helper
   statements.
 

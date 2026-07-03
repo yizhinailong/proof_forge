@@ -57,8 +57,8 @@ backend AST 里。
 - Solana PDA declaration 和 derivation statement；
 - Solana System Program `transfer` 与 `create_account` CPI declaration 和
   invocation statement；
-- Solana SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke`
-  和 `set_authority` CPI declaration 和 invocation statement；
+- Solana SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke`、
+  `close_account` 和 `set_authority` CPI declaration 和 invocation statement；
 - Solana log、return-data、compute-unit、memory、crypto 和 sysvar helper
   statement。
 
