@@ -3,6 +3,8 @@ import ProofForge.Backend.Evm.YulSemantics
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.IR.Examples.EvmAbiAggregateProbe
 import ProofForge.IR.Examples.EvmExpressionProbe
+import ProofForge.IR.Examples.ConditionalProbe
+import ProofForge.IR.Examples.EvmLoopProbe
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmStorageStructProbe
 import ProofForge.IR.Examples.EvmTypedStorageProbe
@@ -420,12 +422,55 @@ def expressionTraceObligation : TraceObligation := {
   expected := expressionExpectedTrace
 }
 
-/-! The following obligations intentionally exercise EVM/Yul execution only.
-    `ProofForge.IR.Semantics` now has an FV-2 slice for arrays, structs,
-    storage paths, and aggregate ABI values, but these obligations are not yet
-    wired to compare against those IR traces. Expression-position map writes
-    still need state-threaded IR evaluation before the full map lifecycle can
-    become an IR-backed trace. -/
+def conditionalTraceCalls : Array TraceCall := #[
+  { entrypoint := ProofForge.IR.Examples.ConditionalProbe.conditionalLifecycle }
+]
+
+def conditionalExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "conditional_lifecycle", selector := "f3380744", returnValue := .u64 10 }
+]
+
+def conditionalTraceObligation : TraceObligation := {
+  name := "ConditionalProbe.if-else-storage-trace"
+  module := ProofForge.IR.Examples.ConditionalProbe.module
+  calls := conditionalTraceCalls
+  expected := conditionalExpectedTrace
+}
+
+def loopTraceCalls : Array TraceCall := #[
+  { entrypoint := ProofForge.IR.Examples.EvmLoopProbe.countToThree },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmLoopProbe.chooseWithEarlyReturn
+    args := #[irBool true]
+    evmArgs := #[1]
+  },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmLoopProbe.chooseWithEarlyReturn
+    args := #[irBool false]
+    evmArgs := #[0]
+  },
+  { entrypoint := ProofForge.IR.Examples.EvmLoopProbe.loopEarlyReturn }
+]
+
+def loopExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "count_to_three", selector := "c4eff2de", returnValue := .u64 3 },
+  { entrypointName := "choose_with_early_return", selector := "d9b42937", returnValue := .u64 11 },
+  { entrypointName := "choose_with_early_return", selector := "d9b42937", returnValue := .u64 99 },
+  { entrypointName := "loop_early_return", selector := "d11c9505", returnValue := .u64 0 }
+]
+
+def loopTraceObligation : TraceObligation := {
+  name := "EvmLoopProbe.bounded-loop-and-early-return-trace"
+  module := ProofForge.IR.Examples.EvmLoopProbe.module
+  calls := loopTraceCalls
+  expected := loopExpectedTrace
+}
+
+/-! The following obligations extend the same IR-vs-emitted-Yul executable
+    trace pattern across stateful maps, typed storage, storage aggregates, and
+    ABI-facing aggregate values. Event-log observability is intentionally left
+    for the next FV-2/FV-4 slice; event effects currently evaluate fields and
+    executable Yul accepts `log0`-`log4`, but logs are not trace items yet. -/
 
 def evmMapTraceCalls : Array TraceCall := #[
   { entrypoint := ProofForge.IR.Examples.EvmMapProbe.mapLifecycle },
@@ -666,6 +711,30 @@ theorem expression_evm_yul_surface_trace_entrypoints :
 
 theorem expression_evm_yul_executable_trace_ok :
     expressionTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem conditional_ir_observable_trace_ok :
+    conditionalTraceObligation.irTraceOk = true := by
+  native_decide
+
+theorem conditional_evm_yul_surface_trace_entrypoints :
+    conditionalTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem conditional_evm_yul_executable_trace_ok :
+    conditionalTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem loop_ir_observable_trace_ok :
+    loopTraceObligation.irTraceOk = true := by
+  native_decide
+
+theorem loop_evm_yul_surface_trace_entrypoints :
+    loopTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem loop_evm_yul_executable_trace_ok :
+    loopTraceObligation.evmYulTraceOk = true := by
   native_decide
 
 theorem evm_map_ir_observable_trace_ok :

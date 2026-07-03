@@ -443,8 +443,8 @@ mutual
         execSwitch ctx rt value cases
     | .funcDef _ _ _ _ =>
         .ok (rt, .running)
-    | .forLoop _ _ _ _ =>
-        .error "for loops are not supported by the FV-4 Yul subset"
+    | .forLoop pre cond post body =>
+        execForLoop ctx rt pre cond post body
     | .break =>
         .error "break is not supported by the FV-4 Yul subset"
     | .continue =>
@@ -486,6 +486,35 @@ mutual
     match findMatching cases.toList <|> findDefault cases.toList with
     | some selected => execBlock ctx rt selected.body
     | none => .ok (rt, .running)
+
+  partial def execForLoop
+      (ctx : Context)
+      (rt : Runtime)
+      (pre : Block)
+      (cond : Expr)
+      (post body : Block) : Except String (Runtime × Control) := do
+    let (rt, control) ← execBlock ctx rt pre
+    match control with
+    | .running => execForLoopBody ctx rt cond post body
+    | .leave | .returned _ => .ok (rt, control)
+
+  partial def execForLoopBody
+      (ctx : Context)
+      (rt : Runtime)
+      (cond : Expr)
+      (post body : Block) : Except String (Runtime × Control) := do
+    let (rt, condition) ← evalWord ctx rt cond
+    if condition == 0 then
+      .ok (rt, .running)
+    else
+      let (rt, control) ← execBlock ctx rt body
+      match control with
+      | .running =>
+          let (rt, postControl) ← execBlock ctx rt post
+          match postControl with
+          | .running => execForLoopBody ctx rt cond post body
+          | .leave | .returned _ => .ok (rt, postControl)
+      | .leave | .returned _ => .ok (rt, control)
 end
 
 def runSelectorWithArgs (object : Object) (storage : WordBindings) (selector : Nat)

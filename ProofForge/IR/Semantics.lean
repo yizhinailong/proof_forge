@@ -544,7 +544,8 @@ def execEffectStmt (state : State) (frame : Frame) : Effect → Except String St
       let (nextState, _) ← evalEffect state frame effect
       .ok nextState
 
-def execStmt (state : State) (frame : Frame) : Statement →
+mutual
+partial def execStmt (state : State) (frame : Frame) : Statement →
     Except String (State × Frame × Option Value)
   | .letBind name _ value => do
       let (nextState, evaluated) ← evalExpr state frame value
@@ -567,18 +568,41 @@ def execStmt (state : State) (frame : Frame) : Statement →
         .ok (stateAfterRhs, frame, none)
       else
         .error s!"assertion failed: {message}"
+  | .ifElse condition thenBody elseBody => do
+      let (nextState, conditionValue) ← evalExpr state frame condition
+      let selectedBody := if ← truthy conditionValue then thenBody else elseBody
+      let (branchState, returnValue?) ← execStatements selectedBody.toList nextState frame
+      .ok (branchState, frame, returnValue?)
+  | .boundedFor indexName start stopExclusive body =>
+      execBoundedFor indexName start stopExclusive body state frame
   | .return value => do
       let (nextState, returnValue) ← evalExpr state frame value
       .ok (nextState, frame, some returnValue)
   | _ => .error "statement is not supported by the scalar semantics model"
 
-def execStatements : List Statement → State → Frame → Except String (State × Option Value)
+partial def execStatements : List Statement → State → Frame → Except String (State × Option Value)
   | [], state, _frame => .ok (state, none)
   | statement :: rest, state, frame => do
       let (nextState, nextFrame, returnValue?) ← execStmt state frame statement
       match returnValue? with
       | some returnValue => .ok (nextState, some returnValue)
       | none => execStatements rest nextState nextFrame
+
+partial def execBoundedFor
+    (indexName : String)
+    (index stopExclusive : Nat)
+    (body : Array Statement)
+    (state : State)
+    (frame : Frame) : Except String (State × Frame × Option Value) := do
+  if index < stopExclusive then
+    let loopFrame := frame.write indexName (.u32 index)
+    let (nextState, returnValue?) ← execStatements body.toList state loopFrame
+    match returnValue? with
+    | some value => .ok (nextState, frame, some value)
+    | none => execBoundedFor indexName (index + 1) stopExclusive body nextState frame
+  else
+    .ok (state, frame, none)
+end
 
 def runEntrypointWithArgs (state : State) (entrypoint : Entrypoint) (args : Array Value) :
     Except String (State × Option Value) := do

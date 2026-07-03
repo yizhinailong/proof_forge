@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-4 EVM Control-Flow Obligations
+
+Commit: this commit
+
+Summary:
+
+- Extended `ProofForge.IR.Semantics` with executable `ifElse` and
+  `boundedFor` semantics, including branch-local early-return propagation and
+  loop-index binding.
+- Extended the focused EVM/Yul executable model with bounded `for` execution,
+  preserving `leave`/`return` control propagation through loop bodies and
+  updates.
+- Added EVM refinement obligations for `ConditionalProbe` and `EvmLoopProbe`
+  so IR traces and emitted-Yul executable traces now agree for if/else storage
+  updates, bounded loops, branch-local early returns, and loop-body early
+  returns.
+- Added CI-visible theorem anchors for the new control-flow obligations and
+  updated the formal backlog to leave observable event-log traces as the next
+  FV-2/FV-4 slice.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Refinement
+```
+
+Known limitations:
+
+- Event effects are still evaluated for field expressions and executable Yul
+  `log0`-`log4` calls are still accepted, but event logs are not yet modeled as
+  first-class observable trace items.
+- The Yul model remains a focused interpreter for generated ProofForge Yul, not
+  a general EVM/Yul semantics.
+
+Next step:
+
+- Add observable event-log traces to the IR semantics and EVM/Yul executable
+  obligation, then use EventProbe to compare emitted log topics/data against
+  the IR trace.
+
 ### CLI M3 Target-First Gate Consolidation
 
 Commit: this commit
