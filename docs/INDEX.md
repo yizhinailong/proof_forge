@@ -5,16 +5,18 @@ contains the EVM baseline plus Solana (sBPF assembly), NEAR (EmitWat), Psy/DPN,
 Aleo Leo, and Cloudflare Workers backends behind one portable IR and capability
 registry, following the 2026-07 branch consolidation.
 
-**Current phase:** Phases 0–1 complete (EVM baseline, target registry,
-portable IR, artifact metadata). Current goals: shared-scenario parity on
-`evm` + `solana-sbpf-asm` + `wasm-near`, consolidation follow-ups
-(backlog Workstream 24), and the formal verification roadmap (Workstream 25).
+**Current phase:** Gate G0 is closed for shared-scenario behavior/resource
+budget parity on `evm` + `solana-sbpf-asm` + `wasm-near`. Gate P0 remains
+open: finish the primary chains in implementation order
+`solana-sbpf-asm` -> `evm` -> `wasm-near` to production-grade quality before
+advancing any additional chain beyond docs-only research or frozen spike
+maintenance.
 
 ## Documentation Map
 
 | If you are… | Start here | Then read |
 |---|---|---|
-| New contributor | This page + [README](../README.md) | [EVM target notes](targets/evm.md), [backlog](implementation-backlog.md) |
+| New contributor | This page + [README](../README.md) + [Onboarding](onboarding.md) | [Validation gates](validation-gates.md), [backlog](implementation-backlog.md) |
 | Implementing a backend | [RFC 0002](rfcs/0002-target-implementation-design.md) | [decisions](decisions.md), [portable IR](portable-ir.md), target notes |
 | Reviewing design | [review-checklist](review-checklist.md) | RFCs, [capability registry](capability-registry.md), [shared scenario](shared-scenario.md) |
 | Strategy / 中文读者 | [zh/README](zh/README.md) | [可行性分析](zh/feasibility-analysis.md), [decisions](decisions.md) |
@@ -65,6 +67,8 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 ## Engineering
 
 - [Development standards](development-standards.md): contributor rules and source-of-truth map.
+- [Onboarding](onboarding.md): local setup path, editor notes, and the minimum
+  validation loop for new contributors.
 - [Development log](development-log.md): milestone log with validation notes and next steps.
 - [Authoring model](authoring-model.md): Learn source, `contract_source`, and internal `ContractSpec` boundaries.
 - [Validation gates](validation-gates.md): runnable gates and tool prerequisites.

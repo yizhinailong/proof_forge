@@ -2,13 +2,16 @@
 
 ProofForge 是一个 Lean 优先的多链智能合约平台。经过 2026-07 分支收敛，主干在同一套可移植 IR 和 capability registry 之上包含 EVM 基线，以及 Solana（sBPF assembly）、NEAR（EmitWat）、Psy/DPN、Aleo Leo 和 Cloudflare Workers 后端。
 
-**当前阶段：** Phase 0–1 已完成（EVM 基线、目标注册表、可移植 IR、制品元数据）。当前目标：shared scenario 在 `evm` + `solana-sbpf-asm` + `wasm-near` 上对齐、合并收敛跟进（backlog Workstream 24）、形式化验证路线图（Workstream 25）。
+**当前阶段：** Gate G0 已经关闭，`evm` + `solana-sbpf-asm` + `wasm-near`
+在 shared scenario 的行为一致性和资源预算切片上已经达标。Gate P0 仍然开放：
+必须按 `solana-sbpf-asm` -> `evm` -> `wasm-near` 的实现顺序，把主三链做到生产级质量，
+然后才能把任何额外链推进到 docs-only research 或冻结 spike 维护之外。
 
 ## 文档地图
 
 | 如果你是... | 从这里开始 | 然后阅读 |
 |---|---|---|
-| 新贡献者 | 本页面 + [README](../README.md) | [EVM 目标说明](targets/evm.md), [待办事项](implementation-backlog.md) |
+| 新贡献者 | 本页面 + [README](../README.md) + [入职指南](onboarding.zh.md) | [验证门禁](validation-gates.md), [待办事项](implementation-backlog.md) |
 | 实现后端 | [RFC 0002](rfcs/0002-target-implementation-design.md) | [决策](decisions.md), [可移植 IR](portable-ir.md), 目标说明 |
 | 评审设计 | [评审清单](review-checklist.md) | RFCs, [能力注册表](capability-registry.md), [共享场景](shared-scenario.md) |
 | 策略 / 中文读者 | [zh/README](zh/README.md) | [可行性分析](zh/feasibility-analysis.md), [决策](decisions.md) |
@@ -55,6 +58,7 @@ flowchart TB
 ## 工程
 
 - [开发标准](development-standards.md)：贡献者规则和单一真值源映射。
+- [入职指南](onboarding.zh.md)：本地环境、编辑器说明和新贡献者最小验证循环。
 - [开发日志](development-log.md)：带有验证说明和后续步骤的里程碑日志。
 - [Authoring model](authoring-model.zh.md)：Learn source、`contract_source` 与内部 `ContractSpec` 边界。
 - [验证门禁](validation-gates.md)：可运行的门禁和工具先决条件。

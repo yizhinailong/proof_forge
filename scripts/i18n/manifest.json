@@ -10,8 +10,13 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "5638d65016f3c5f9b4b41c448f507d672d3802cfde46ec35121e2aa0e9ea1efc",
+    "sha256": "f3375d5935d60f059440d3653ece5b61a95db00ccb5e0a65d68d314719feb5db",
     "zh": "docs/zh/INDEX.zh.md",
+    "model": "gemini-3-flash-preview"
+  },
+  "docs/onboarding.md": {
+    "sha256": "57554cc56c55cf18770b3fdc8737fdcf1e73d359ed5c51949f9194e1fe5ae9ec",
+    "zh": "docs/zh/onboarding.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/authoring-model.md": {

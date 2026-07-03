@@ -54,6 +54,7 @@ python3 scripts/translate-docs.py --model glm-4.7
 - [Shared scenario](../shared-scenario.md) / [中文](shared-scenario.zh.md)
 - [Implementation backlog](../implementation-backlog.md) / [中文](implementation-backlog.zh.md)
 - [Development standards](../development-standards.md) / [中文](development-standards.zh.md)
+- [Contributor onboarding](../onboarding.md) / [中文](onboarding.zh.md)
 - [Validation gates](../validation-gates.md) / [中文](validation-gates.zh.md)
 - [Review checklist](../review-checklist.md) / [中文](review-checklist.zh.md)
 - [Target notes](../targets/README.md) / [中文](targets-README.zh.md)
@@ -61,6 +62,7 @@ python3 scripts/translate-docs.py --model glm-4.7
 ## 原生中文文档
 
 - [架构评审（2026-07）：统一 SDK 输入与分支收敛](architecture-review-2026-07.md)
+- [贡献者入职指南](onboarding.zh.md)
 - [多链愿景可行性分析](feasibility-analysis.md)
 - [多链技术实现方案](technical-implementation-plan.md) — 摘要版，工程细节见 RFC 0002
 - [多链方案 Review 清单](review-checklist.md)
