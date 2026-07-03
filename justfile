@@ -33,6 +33,11 @@ evm-plan:
     lake build ProofForge.Backend.Evm.Plan
     lake env lean --run Tests/EvmPlan.lean
 
+# Check the EVM semantic plan (entrypoints, events, metadata) smoke.
+evm-semantic-plan:
+    lake build ProofForge.Backend.Evm.IR
+    lake env lean --run Tests/EvmSemanticPlan.lean
+
 # Run Solana target, SDK, and diagnostics tests that need only the Lean toolchain.
 solana-lean:
     lake build
@@ -225,7 +230,7 @@ testkit-list:
     cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry evm-plan solana-light docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
+check: build target-registry evm-plan evm-semantic-plan solana-light docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
@@ -390,10 +395,10 @@ evm-ir-smokes:
     done
 
 # Run all EVM gates that CI tracks locally.
-evm-all: evm-diagnostics evm-coverage evm-ir-smokes evm-build-examples evm-foundry evm-anvil-deploy
+evm-all: evm-diagnostics evm-coverage evm-semantic-plan evm-ir-smokes evm-build-examples evm-foundry evm-anvil-deploy
 
 # Run the current GitHub CI build-test sequence locally.
-ci: build target-registry evm-plan solana-light docs-check testkit psy-golden-sources psy-diagnostics psy-coverage evm-all
+ci: build target-registry evm-plan evm-semantic-plan solana-light docs-check testkit psy-golden-sources psy-diagnostics psy-coverage evm-all
 
 # Check for whitespace errors before committing.
 diff-check:

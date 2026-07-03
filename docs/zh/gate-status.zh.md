@@ -44,8 +44,8 @@ D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、
 Gate G0 关闭的是共享行为/资源预算切片。它**不等于**关闭 Gate P0。剩余的主三链
 生产级硬化继续保持 active：
 
-1. EVM semantic-plan migration（Workstream 3：ExprPlan/StmtPlan/
-   EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan）。
+1. ~~EVM semantic-plan migration（Workstream 3：ExprPlan/StmtPlan/
+   EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan）。~~ ✅ 已落地 — 见 P0-2。
 2. Solana Pinocchio live dual-deploy equivalence 的 CI/toolchain 稳定化以及
    更广 reference 覆盖（Workstream 7）。
 3. NEAR/Wasm target-first 本地执行/部署元数据签署。
@@ -72,7 +72,7 @@ spike smoke jobs。
 | # | 标准 | 状态 | 证据 |
 |---|---|---|---|
 | P0-1 | Solana 直接 sBPF 后端达到生产级 | 🟡 in progress | Gate G0 行为/预算一致性已关闭；Pinocchio reference-equivalence 已纳入 `just solana-light`；剩余硬化是工作流 7 的 live dual-deploy CI/toolchain 稳定化以及更广 reference 覆盖 |
-| P0-2 | Ethereum/EVM 后端达到生产级 | 🟡 in progress | Foundry 和 Anvil CI 已绿；剩余硬化包括工作流 3 的 EVM semantic-plan migration |
+| P0-2 | Ethereum/EVM 后端达到生产级 | ✅ met | EVM semantic-plan 迁移已落地（RFC 0004）：`Plan.lean` 现定义 `ExprPlan`、`StmtPlan`、`EntrypointPlan`、`EventPlan`、`CrosscallPlan`、`MetadataPlan`；`Validate.lean` 承载纯校验/类型推断；`Lower.lean` 构建已填充的 `ModulePlan`（entrypoints、events、crosscalls、creates、checked-arithmetic 标记）；`Metadata.lean` 从计划生成 artifact/deploy 元数据；`IR.lean` 是兼容门面，在 Yul 生成前构建完整 semantic plan。门禁：`just evm-plan`、`just evm-semantic-plan`、`just evm-all`（诊断 58 case、99 IR 覆盖条目、19 IR smoke + Foundry + Anvil deploy）、`just check` 全绿 |
 | P0-3 | NEAR/Wasm 后端达到生产级 | 🟡 in progress | EmitWat/NEAR 诊断、IR 覆盖、offline host smoke 和预算基线已绿；剩余硬化是完整 target-first 本地执行/部署元数据签署 |
 | P0-4 | 额外链推进保持冻结 | ✅ met | D-044/D-045 冻结 Aptos/CosmWasm 超过 M1/M2 的推进，并在 P0 关闭前保持其他目标 docs-first |
 
