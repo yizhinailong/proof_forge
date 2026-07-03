@@ -14,51 +14,49 @@ milestones that map one-to-one onto implementing branches.
 ## Tier model
 
 ```text
-Tier 0  Primary-chain hardening on main today
-Tier 1  Next: opens when the primary-chain completion gate passes
+Tier 0  Primary-chain hardening on main today (Gate P0 closed)
+Tier 1  Next: open for scheduling after CLI M3/M4 cleanup
 Tier 2  Conditional: opens when its listed enabler lands
 Tier 3  Parked research: docs stay current, no registry/code work
 ```
 
 **Primary-chain completion covenant (D-045):** product implementation capacity
-is reserved for the three priority chains, in order:
+was reserved for the three priority chains, in order:
 `solana-sbpf-asm` → `evm` (Ethereum) → `wasm-near` (NEAR/Wasm). These targets
-must reach production-grade completeness before any additional chain advances
-beyond docs-only research or frozen spike maintenance. The sign-off ledger is
-Gate P0 in [gate-status.md](gate-status.md).
+have reached production-grade completeness as of Gate P0. The sign-off ledger
+is Gate P0 in [gate-status.md](gate-status.md). After this closure, additional
+chain work is no longer blocked by D-045, but the implementation backlog still
+puts CLI M3/M4 target-first migration before Tier-1 M3/M4 advancement.
 
 **Tier-0 parity gate (Gate G0, the first required slice of D-045):** the shared
 scenarios (Counter and ValueVault) pass in testkit (RFC 0007) on `evm`,
 `solana-sbpf-asm`, and `wasm-near`, with per-target resource budgets (RFC 0010):
 Solana CU, EVM gas, and NEAR gas. Gate G0 is closed in
 [gate-status.md](gate-status.md), which closes the behavior/budget parity
-slice. D-045 still keeps Tier 1 frozen until the remaining primary-chain
-production hardening is also signed off. Every later target reuses the artifacts
-this work hardens: the portable IR surface, capability routing, EmitWat, the
-scenario harness, target artifact metadata, and budget-as-gate quality signal.
+slice. Gate P0 is also closed, so Tier 1 can be scheduled after the remaining
+CLI M3/M4 migration work. Every later target reuses the artifacts this work
+hardens: the portable IR surface, capability routing, EmitWat, the scenario
+harness, target artifact metadata, and budget-as-gate quality signal.
 
-## Tier 0 — primary-chain hardening (current focus)
+## Tier 0 — primary-chain hardening (closed)
 
-Only the first three rows below are allowed to receive product implementation
-work before Gate P0 closes. The remaining rows are already-landed inventory:
-they may receive CI stability, security, or documentation maintenance, but they
-must not drive new registry, capability, testkit, or CI expansion while the
-primary-chain completion covenant is open.
+Gate P0 is closed. The first three rows below are the completed primary-chain
+hardening targets. The remaining rows are already-landed inventory; they stay
+maintenance-only unless a later gate or explicit backlog slice promotes them.
 
 | Target | State |
 |---|---|
 | `solana-sbpf-asm` | **Primary priority 1.** Production-grade P0-1 signed off; direct assembly, loader-compatible ELF packaging, Pinocchio live CI equivalence, and Surfpool dual-deploy gates are green |
 | `evm` | **Primary priority 2.** Production-grade P0-2 signed off; semantic-plan migration landed, with EVM smokes, Foundry, Anvil, and FV-4 trace anchors green |
-| `wasm-near` | **Primary priority 3.** Experimental; EmitWat canonical (D-031) |
-| `psy-dpn` | Maintenance-only Experimental subset; no capability/testkit expansion until P0 closes |
-| `aleo-leo` | Maintenance-only Research spike per D-032; no new implementation lane until P0 closes |
-| `wasm-cloudflare-workers` | Maintenance-only off-chain host demo (D-033); no expansion planned before P0 |
+| `wasm-near` | **Primary priority 3.** Production-grade P0-3 signed off; EmitWat canonical, target-first local execution, artifact/deploy metadata, diagnostics, budget baselines, and CI gates are green |
+| `psy-dpn` | Maintenance-only Experimental subset until a new product lane explicitly schedules it |
+| `aleo-leo` | Maintenance-only Research spike per D-032 until a new ZK-app lane is scheduled |
+| `wasm-cloudflare-workers` | Maintenance-only off-chain host demo (D-033); no product expansion currently scheduled |
 
 ### Tier-0 completion checklist (D-044, current focus)
 
-The three priority targets are not yet "fully OK". **Implementation priority:
-`solana-sbpf-asm` → `evm` → `wasm-near`.** No new-chain advancement (Tier 1
-M3/M4/registry stage, Tier 2 start) until Gate P0 is closed. Per-gate status is
+The three priority targets are now signed off. The historical implementation
+priority was `solana-sbpf-asm` → `evm` → `wasm-near`; per-gate status is
 tracked in [gate-status.md](gate-status.md).
 
 | Item | Target | Status | Owner |
@@ -71,10 +69,12 @@ tracked in [gate-status.md](gate-status.md).
 | Gate G0 sign-off | all | ✅ closed | gate-status |
 | EVM semantic-plan migration | evm | ✅ met | Workstream 3 / P0-2 |
 | Solana Pinocchio CI equivalence | solana | ✅ met | Workstream 7 / P0-1 |
+| NEAR target-first local execution/deploy metadata | wasm-near | ✅ met | P0-3 / `just near-target-first` |
 
-Gate G0 is closed, but it is not the product completion gate. P0-1
-(`solana-sbpf-asm`) and P0-2 (`evm`) are signed off; Gate P0 remains open until
-`wasm-near` satisfies the production-grade DoD in D-045.
+Gate G0 and Gate P0 are closed. The next product hardening slice is the CLI
+M3/M4 migration from legacy flags to target-first invocations; Tier-1 M3/M4
+work should be scheduled after that cleanup unless a higher-priority stability
+or security issue appears.
 
 ## Tier 1 — next two targets
 
@@ -94,9 +94,9 @@ spike. The consolidation strengthened the case — EmitWat now exists, and
   passes `cosmwasm-check`; M3 testkit scenario green + cross-target
   equivalence vs `wasm-near`; M4 registry stage → Experimental.
 
-**Frozen at M2 (D-045):** the landed CosmWasm Counter spike (WAT emitter +
-smoke + VM lifecycle) does not advance to M3/M4/registry stage until Gate P0
-closes, even though Gate G0 has closed.
+**Ready for a scheduled M3/M4 slice:** the landed CosmWasm Counter spike (WAT
+emitter + smoke + VM lifecycle) may advance after the CLI M3/M4 target-first
+cleanup, because Gate P0 has closed.
 
 Exit meaning: if the same EmitWat core serves two Wasm hosts with only
 import/ABI adapters swapped, the Wasm-family architecture claim is proven,
@@ -133,10 +133,10 @@ design dependency.
   M3 testkit integration (CLI-wrapped executor); M4 capability matrix row
   flips from planned to validated; Sui follows only after Aptos exits.
 
-**Frozen at M2 (D-044):** the landed Aptos Move Counter sourcegen spike
-(printer + golden + `aptos move compile/test` gate + state-id fidelity B1)
-does not advance to M3 (testkit integration) or M4 (capability row validated /
-`move-sui` start) until Gate P0 closes.
+**Ready for a scheduled M3/M4 slice:** the landed Aptos Move Counter sourcegen
+spike (printer + golden + `aptos move compile/test` gate + state-id fidelity
+B1) may advance after the CLI M3/M4 target-first cleanup. `move-sui` still
+waits for Aptos M4.
 
 ## Tier 2 — conditional targets (enabler listed per target)
 
@@ -297,9 +297,9 @@ flowchart LR
 
 ```text
 Gate G0: behavior + budget parity on evm/solana/wasm-near   (closed slice)
-Gate P0: production sign-off for solana-sbpf-asm -> evm -> wasm-near
-  ├── opens 1a wasm-cosmwasm  (M1..M4)
-  └── opens 1b move-aptos     (M1..M4, parallel)
+Gate P0: production sign-off for solana-sbpf-asm -> evm -> wasm-near  (closed)
+  ├── after CLI M3/M4: schedule 1a wasm-cosmwasm  (M3..M4)
+  └── after CLI M3/M4: schedule 1b move-aptos     (M3..M4, parallel)
 Gate G1a: cosmwasm M4  -> opens wasm-stellar-soroban; ICP needs +async design note
 Gate G1b: aptos M4     -> opens move-sui; opens sourcegen lane (starknet first pick)
 Gate G2:  both Tier-1 exits -> opens Bitcoin policy family (miniscript first)

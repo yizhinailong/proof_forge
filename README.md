@@ -29,16 +29,16 @@ Start here:
 
 All backends live on `main` (chains are directories and target ids, not
 branches). Lifecycle stages follow [docs/targets/README.md](docs/targets/README.md).
-Current product implementation is governed by the primary-chain completion
-covenant (D-045): finish `solana-sbpf-asm`, then `evm`, then `wasm-near` to
-production-grade quality before advancing any additional chain beyond
-docs-only research or frozen spike maintenance.
+The primary-chain completion covenant (D-045) is closed: `solana-sbpf-asm`,
+`evm`, and `wasm-near` have production-grade local/CI gates. The next hardening
+lane is the CLI M3/M4 migration from legacy flags to
+`proof-forge build|emit|check --target ...` before Tier-1 M3/M4 work.
 
 | Target id | Pipeline | Stage | Local validation |
 |---|---|---|---|
 | `evm` | Lean / portable IR → Yul → `solc` → bytecode | Baseline (mature) | golden Yul, diagnostics, Foundry runtime smoke, Anvil deploy |
 | `solana-sbpf-asm` | portable IR → sBPF assembly → `sbpf` → ELF | Experimental | Mollusk tests, Surfpool/Web3.js live smokes, Pinocchio equivalence gates |
-| `wasm-near` | portable IR → `EmitWat` (Wasm AST → WAT) → `wat2wasm` | Experimental | 45-case diagnostics, IR coverage manifests, formal trace obligations, offline host smoke |
+| `wasm-near` | portable IR → `EmitWat` (Wasm AST → WAT) → `wat2wasm` | Experimental | diagnostics, IR coverage manifests, formal trace obligations, target-first smoke, offline host smoke, artifact/deploy metadata |
 | `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental (restricted subset) | golden sources, diagnostics, `dargo` execute smokes |
 | `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Research spike | Counter/PureMath golden fixtures and smokes |
 | `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Research (off-chain host, D-033) | `tsc` type-check, `wrangler` dry-run |

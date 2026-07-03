@@ -17,6 +17,40 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Primary-Chain Gate P0 Sign-off
+
+Commit: this commit
+
+Summary:
+
+- Closed Gate P0 after the final NEAR/Wasm target-first smoke landed and the
+  remote CI run for commit `466b320` completed successfully.
+- Recorded P0-3 as met: `wasm-near` now has target-first local execution,
+  artifact metadata, deploy metadata, diagnostics, budget baselines, offline
+  host execution, and CI coverage.
+- Updated the roadmap/backlog boundary so the next active implementation lane
+  is CLI M3/M4 migration before scheduling Tier-1 M3/M4 work.
+
+Validation run:
+
+```sh
+just check
+gh run view 28677055773 --json status,conclusion,headSha,url,jobs
+```
+
+Known limitations:
+
+- Gate P0 is a production-hardening sign-off for the three primary local
+  backends. It does not mean every target is fully feature-complete, and it
+  does not remove the need for CLI M3/M4 cleanup or FV-2 semantic preservation
+  work.
+
+Next step:
+
+- Migrate scripts and testkit callers from legacy flags to
+  `proof-forge build|emit|check --target ...` before advancing CosmWasm/Aptos
+  M3/M4.
+
 ### Wasm-NEAR Target-First Metadata Smoke
 
 Commit: this commit

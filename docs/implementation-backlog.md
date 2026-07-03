@@ -27,15 +27,13 @@ the three priority chains in this order:
 2. `evm` — Ethereum/EVM backend and deployment lane.
 3. `wasm-near` — NEAR on the Wasm-family backend.
 
-This is stronger than a research-roadmap preference. It is a product
-precondition tracked as Gate P0 in [gate-status.md](gate-status.md). "Complete"
-means target-first build/emission, local execution or deployment smoke,
-artifact/deploy metadata, capability diagnostics, resource budgets, CI
-coverage, and maintained docs for each of the three chains. New chains may
-receive docs-first research notes, and already-landed non-primary spikes may
-receive CI/security maintenance, but no additional chain should advance its
-registry stage, capability surface, testkit harness, or CI coverage before Gate
-P0 closes.
+This is stronger than a research-roadmap preference. It was tracked as Gate P0
+in [gate-status.md](gate-status.md), and Gate P0 is now closed. "Complete" means
+target-first build/emission, local execution or deployment smoke,
+artifact/deploy metadata, capability diagnostics, resource budgets, CI coverage,
+and maintained docs for each of the three chains. New-chain implementation work
+is no longer blocked by D-045, but this backlog still schedules CLI M3/M4
+target-first migration before Tier-1 M3/M4 advancement.
 
 ## Review disposition (2026-07-04)
 
@@ -45,16 +43,16 @@ disposition is:
 | Review item | Current disposition | Backlog action |
 |---|---|---|
 | R1: RFC 0009 and D-039 lagged behind the landed CLI M1 work | Closed on current `main`: RFC 0009 is accepted with M1 landed, and D-039 now ratifies the compatibility-layer implementation instead of claiming a pre-code freeze | Keep RFC 0009 and CLI migration docs synchronized as M3/M4 moves scripts and testkit from legacy flags to target-first commands |
-| R2: too many half-finished workstreams are active | Accepted as a planning risk | Do not open more chain implementation scope before Gate P0 closes; focus the active implementation lane on NEAR/Wasm P0-3, then finish CLI M3/M4 cleanup |
-| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, NEAR trace obligations, and EVM FV-4 executable Yul trace anchors exist, but full IR-to-artifact semantic preservation is not done | After P0-3, extend FV-2 IR semantics for maps, arrays, structs, and aggregates, then connect those IR traces to the EVM/NEAR artifact obligations |
+| R2: too many half-finished workstreams are active | Accepted as a planning risk | Gate P0 is closed; focus the next active implementation lane on CLI M3/M4 cleanup before opening Tier-1 M3/M4 work |
+| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, NEAR trace obligations, and EVM FV-4 executable Yul trace anchors exist, but full IR-to-artifact semantic preservation is not done | After CLI M3/M4 cleanup, extend FV-2 IR semantics for maps, arrays, structs, and aggregates, then connect those IR traces to the EVM/NEAR artifact obligations |
 | R4: capability granularity is too coarse | Do not churn capability ids in the current phase; storage is already split into scalar/map/array/PDA, and Solana account semantics are modeled separately from storage patterns | Treat cross-target runtime differences as budget/diagnostic obligations: each target must reject unsupported shapes explicitly and pin resource budgets for supported ones |
-| R5: docs-first target notes create hidden sunk cost | Closed at the scheduling layer: D-045 and the target roadmap restrict product hardening to `solana-sbpf-asm`, `evm`, and `wasm-near`; other targets are maintenance-only, frozen, or docs-only parked | Keep research notes as inventory, but block registry stage, capability-surface, testkit, and CI expansion for non-primary targets until Gate P0 closes |
+| R5: docs-first target notes create hidden sunk cost | Closed at the scheduling layer: D-045 and the target roadmap restricted product hardening to `solana-sbpf-asm`, `evm`, and `wasm-near` until Gate P0 closed | Keep research notes as inventory; schedule Tier-1 M3/M4 explicitly after CLI M3/M4 cleanup rather than letting old research notes create automatic implementation scope |
 | R6: Lean/toolchain onboarding friction | Partially closed: `docs/onboarding.md` exists and names the core toolchain and per-target tools, but editor workspace config, templates, and scaffolding remain open DX work | Add VS Code/Cursor workspace recommendations and a minimal project template after the NEAR/Wasm P0-3 closure, unless onboarding friction blocks P0 work earlier |
 
 The immediate engineering order after this review is therefore:
 
-1. Close NEAR/Wasm P0-3 with target-first local execution and deploy metadata
-   evidence.
+1. ~~Close NEAR/Wasm P0-3 with target-first local execution and deploy metadata
+   evidence.~~ ✅ Closed by Gate P0 sign-off.
 2. Finish the CLI M3/M4 migration from legacy flags to target-first invocations.
 3. Resume formal verification work by extending FV-2 IR semantics and connecting
    it to the existing EVM/NEAR trace obligations.
@@ -2263,16 +2261,16 @@ advancement. Per-criterion status lives in [gate-status.md](gate-status.md).
   `solana-pinocchio-live` job: install Agave/Solana CLI, SBF platform-tools,
   `sbpf`, Surfpool, Node/npm; build ProofForge; run all five live
   dual-deploy scenarios without allow-skip.
-- Freeze the landed Aptos/CosmWasm spikes at their current M1/M2 state: no
-  Tier-1 M3/M4, no registry stage, no Tier-2 start, until Gate P0 closes.
+- Gate P0 is closed. The landed Aptos/CosmWasm spikes can now be scheduled for
+  M3/M4, but the next active implementation lane remains CLI M3/M4 cleanup.
 
 Tasks:
 
 - Done: Gate G0 (Tier-0 behavior/budget slice) is closed. Evidence lives in
   [gate-status.md](gate-status.md).
-- Gate P0 (primary-chain sign-off): Gate G0 plus production-grade hardening
-  from D-045. Solana P0-1 and EVM P0-2 are signed off; the remaining blocker is
-  NEAR/Wasm P0-3 target-first local execution/deploy metadata sign-off.
+- Done: Gate P0 (primary-chain sign-off) is closed. Gate G0 plus the
+  production-grade hardening from D-045 are signed off for Solana P0-1, EVM
+  P0-2, and NEAR/Wasm P0-3.
 - Tier 1a `wasm-cosmwasm`: M1 CosmWasm host imports + region-allocator ABI
   in EmitWat (the `cosmWasmRegion` binding from RFC 0008); M2 Counter
   artifact passes `cosmwasm-check`; M3 testkit `harness-cosmwasm` scenario
@@ -2298,10 +2296,11 @@ Tasks:
 
 Acceptance criteria:
 
-- **Primary-chain completion covenant (D-045):** `solana-sbpf-asm`, `evm`,
-  `wasm-near` reach production-grade DoD before any Tier-1 advancement; the
-  landed Aptos/CosmWasm spikes stay frozen at M1/M2.
-- No Tier-1 code lands before Gate P0; no Tier-2 target starts before its
+- **Primary-chain completion covenant (D-045):** ✅ closed. `solana-sbpf-asm`,
+  `evm`, and `wasm-near` reached production-grade DoD; Tier-1 advancement is
+  now gated by explicit scheduling and the CLI M3/M4 cleanup.
+- No Tier-1 code lands before the CLI M3/M4 target-first cleanup is scheduled
+  and reviewed; no Tier-2 target starts before its
   listed enabler; at most one sourcegen spike is active at any time.
 - Policy-family targets never appear in contract-family capability rows;
   they get a separate `policy.*` section in the capability registry when
@@ -2375,15 +2374,10 @@ workstream. The forward order follows the tier gates of
 1. **Parallel:** unified testkit (Workstream 26) and allocator unification
    (Workstream 27) — testkit M1/M2 has no dependency on allocator M1/M2;
    allocator M4 lands after testkit M3.
-2. **Gate P0 (primary-chain completion covenant, D-045):** finish
-   `solana-sbpf-asm`, `evm`, `wasm-near` — in that implementation priority —
-   to production-grade DoD. Gate G0 is the behavior/resource-budget slice; Gate
-   P0 also includes the already-signed-off Solana P0-1 Pinocchio live CI
-   equivalence and EVM P0-2 semantic-plan/FV-4 evidence, plus the remaining
-   NEAR/Wasm local execution, artifact, diagnostic, and CI sign-off. The landed
-   Aptos/CosmWasm spikes stay frozen at M1/M2 until this
-   closes. Per-criterion status: [gate-status.md](gate-status.md).
-3. **Parallel Tier 1 (only after Gate P0 closes):** `wasm-cosmwasm`
+2. **CLI M3/M4 target-first migration:** move scripts/testkit callers off the
+   legacy flag zoo and onto `proof-forge build|emit|check --target ...`, then
+   remove legacy flags only after the compatibility window.
+3. **Parallel Tier 1 (after CLI M3/M4 cleanup):** `wasm-cosmwasm`
    (Workstreams 5/28) and `move-aptos` (Workstreams 8/28).
 4. Tier 2 per enabler: Soroban after CosmWasm; Sui and the sourcegen lane
    (Starknet first pick) after Aptos; ICP additionally behind an async

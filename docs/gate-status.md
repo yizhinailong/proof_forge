@@ -1,6 +1,6 @@
 # Gate Completion Records
 
-Status: **Live (2026-07-03)**
+Status: **Live (2026-07-04)**
 
 This page is the authoritative per-gate completion ledger for the tiered
 portfolio ([target-roadmap](target-roadmap.md), D-034). Each Gate has one
@@ -52,7 +52,8 @@ Gate P0. The remaining primary-chain production hardening stays active:
    EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan).~~ ✅ Landed — see P0-2.
 2. ~~Solana Pinocchio live dual-deploy equivalence CI/toolchain hardening and
    broader reference coverage (Workstream 7).~~ ✅ Landed — see P0-1.
-3. NEAR/Wasm target-first local execution/deploy metadata sign-off.
+3. ~~NEAR/Wasm target-first local execution/deploy metadata sign-off.~~ ✅
+   Landed — see P0-3.
 
 ### Sign-off
 
@@ -70,7 +71,9 @@ implementation order — `solana-sbpf-asm`, `evm` (Ethereum), and `wasm-near`
 (NEAR/Wasm) — before any additional chain advances beyond docs-only research or
 frozen spike maintenance (D-045).
 
-**Status: Open**
+**Status: Closed**
+
+**Closed: 2026-07-04**
 
 ### Acceptance criteria
 
@@ -78,31 +81,32 @@ frozen spike maintenance (D-045).
 |---|---|---|---|
 | P0-1 | Solana direct sBPF backend is production-grade | ✅ met | Gate G0 behavior/budget parity is closed; Pinocchio reference-equivalence is included in `just solana-light`; the Agave/Solana CLI ELF compatibility blocker was fixed by forwarding target-first `--solana-sbpf-arch v0` into the legacy ELF builder, producing loader-compatible v0 ELFs (`e_flags = 0`, valid section table) from `emit --target solana-sbpf-asm --format elf`; local `just solana-pinocchio-live-equivalence` passes all five Surfpool dual-deploy scenarios (System transfer/create_account, SPL Token transfer/ops/authority) with `5 passed, 0 skipped, 0 failed`; GitHub CI run `28675037861` at commit `3b2719a` completed successfully, including the mandatory `solana-pinocchio-live` job. That job installed Agave/Solana CLI, SBF platform-tools, `sbpf`, Surfpool, Node/npm, built ProofForge, and ran the aggregate live suite without allow-skip. |
 | P0-2 | Ethereum/EVM backend is production-grade | ✅ met | EVM semantic-plan migration landed (RFC 0004): `Plan.lean` now defines `ExprPlan`, `StmtPlan`, `EntrypointPlan`, `EventPlan`, `CrosscallPlan`, `MetadataPlan`; `Validate.lean` holds pure validation/type-inference; `Lower.lean` constructs the populated `ModulePlan` (entrypoints, events, crosscalls, creates, checked-arithmetic flag); `Metadata.lean` produces plan-driven artifact/deploy metadata; `IR.lean` is the compatibility facade that builds the full semantic plan before Yul generation. Gates: `just evm-plan`, `just evm-semantic-plan`, `just evm-all` (diagnostics 58 cases, 99 IR coverage entries, 19 IR smokes + Foundry + Anvil deploy), `just check` all green. FV-4 additionally includes decide-checked executable EVM/Yul trace obligations for Counter, ValueVault, EvmExpressionProbe, EvmMapProbe, EvmTypedStorageProbe, EvmStorageStructProbe, and EvmAbiAggregateProbe, covering scalar traces plus map slots, typed storage arrays, storage structs, and aggregate ABI params/returns. FV-2 IR semantics for aggregate/storage shapes remains future formal-roadmap work, not a P0-2 sign-off blocker. |
-| P0-3 | NEAR/Wasm backend is production-grade | 🟡 in progress | EmitWat/NEAR diagnostics, IR coverage, offline host smoke, and budget baselines are green; remaining hardening is full target-first local execution/deploy metadata sign-off |
-| P0-4 | Additional-chain advancement is frozen | ✅ met | D-044/D-045 freeze Aptos/CosmWasm advancement past M1/M2 and keep other targets docs-first until P0 closes |
+| P0-3 | NEAR/Wasm backend is production-grade | ✅ met | EmitWat/NEAR diagnostics, IR coverage, formal anchors, offline host smoke, and budget baselines are green. Commit `466b320` adds target-first `check`, `emit`, and `build` coverage for `wasm-near`, writes `proof-forge-artifact.json` plus `proof-forge-deploy.json`, validates WAT/optional Wasm hashes, ABI entrypoints, capabilities, fixture/module ids, and local offline-host deployment mode with `scripts/near/validate-emitwat-metadata.py`, and executes the generated Counter WAT through `runtime/offline-host`. Evidence: local `just near-target-first` and `just check`; GitHub CI run `28677055773` at commit `466b320` completed successfully, including `Run Wasm-NEAR target-first smoke`, `Run EmitWat offline host smoke`, `Run unified testkit`, Foundry/Anvil, and the mandatory `solana-pinocchio-live` job. |
+| P0-4 | Additional-chain advancement stayed frozen through P0 | ✅ met | D-044/D-045 froze Aptos/CosmWasm advancement past M1/M2 and kept other targets docs-first until P0 closed. After closure, Tier-1 work is eligible for scheduling, but the backlog puts CLI M3/M4 cleanup first. |
 
 ### Sign-off
 
-Not yet closed. Solana and Ethereum/EVM are signed off; NEAR/Wasm still needs
-target-first local execution/deploy metadata evidence before Gate P0 can close.
-Gate G0 evidence is necessary but not sufficient.
+Gate P0 closed on 2026-07-04 at commit `466b320` after GitHub CI run
+`28677055773` completed successfully. The closing run adds the missing
+NEAR/Wasm target-first local execution/deploy metadata evidence and revalidates
+the existing Solana, EVM, frozen-spike, and shared testkit gates.
 
 ---
 
-## Gate G1a — CosmWasm M4 (frozen, D-044)
+## Gate G1a — CosmWasm M4 (not started)
 
-**Status: Frozen.** Per D-044/D-045, the `wasm-cosmwasm` spike stays at its
-current M1/M2 state until Gate P0 closes. No registry-stage advancement, no
-M3/M4.
+**Status: Not started.** Gate P0 is closed, so the D-045 freeze no longer
+blocks scheduling. The next implementation step is still controlled by the
+backlog: finish the CLI M3/M4 target-first migration before advancing this
+spike to M3/M4.
 
-## Gate G1b — Aptos M4 (frozen, D-044)
+## Gate G1b — Aptos M4 (not started)
 
-**Status: Frozen.** Per D-044/D-045, the `move-aptos` spike stays at its current
-M1/M2 state (Counter printer + golden + test gate, B1 state-id fidelity) until
-Gate P0 closes. No M3 (testkit CLI-wrapped executor), no M4 (registry stage →
-Experimental), no `move-sui` start.
+**Status: Not started.** Gate P0 is closed, so the D-045 freeze no longer
+blocks scheduling. The next implementation step is still controlled by the
+backlog: finish the CLI M3/M4 target-first migration before advancing this
+spike to M3/M4 or starting `move-sui`.
 
 ## Gate G2 — both Tier-1 exits (not started)
 
-**Status: Not started.** Opens only after G1a *and* G1b close, which themselves
-require Gate P0 to close first (D-045).
+**Status: Not started.** Opens only after G1a *and* G1b close.

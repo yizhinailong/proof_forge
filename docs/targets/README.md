@@ -35,50 +35,47 @@ target registry and portable IR integration.
 ## Portfolio Scheduling Boundary
 
 The sections below are an inventory of target notes, not a scheduling
-authority. The current product implementation backlog is constrained by the
-primary-chain completion covenant (D-045): finish `solana-sbpf-asm`, `evm`,
-and `wasm-near` to production-grade quality, in that order, before any
-additional chain advances beyond docs-only research or frozen spike
-maintenance.
+authority. The primary-chain completion covenant (D-045) is closed: ProofForge
+has signed off `solana-sbpf-asm`, `evm`, and `wasm-near` to production-grade
+local/CI gates. The current backlog still puts CLI M3/M4 target-first migration
+before Tier-1 M3/M4 advancement.
 
 Use this page to answer "what exists in the repository?" Use
 [target-roadmap.md](../target-roadmap.md) and
 [gate-status.md](../gate-status.md) to answer "what may receive product
 implementation work next?"
 
-## Active Product Targets (Gate P0)
+## Completed Primary Product Targets (Gate P0)
 
-Only these three targets may receive product hardening work until Gate P0
-closes. The order below is the implementation priority from D-045.
+These three targets completed the D-045 implementation priority.
 
 | Target | Stage | Scheduling status |
 |---|---|---|
-| [Solana sBPF Asm](solana-sbpf-asm.md) | Experimental | Priority 1; direct assembly route (`solana-sbpf-asm`), live deploy / Pinocchio equivalence hardening tracked as P0-1. |
-| [EVM](evm.md) | Experimental | Priority 2; Yul/`solc`/Foundry baseline, EVM-compatible chain profiles remain deployment metadata under `evm`; semantic-plan hardening tracked as P0-2. |
-| [Wasm-NEAR](wasm-near.md) | Experimental | Priority 3; EmitWat route with diagnostics, IR coverage, formal trace anchors, and offline host smoke; local execution/deploy metadata sign-off tracked as P0-3. |
+| [Solana sBPF Asm](solana-sbpf-asm.md) | Experimental | Priority 1 signed off; direct assembly route (`solana-sbpf-asm`), live deploy, and Pinocchio equivalence gates are green. |
+| [EVM](evm.md) | Experimental | Priority 2 signed off; Yul/`solc`/Foundry/Anvil gates, EVM-compatible deployment metadata, semantic-plan hardening, and FV-4 anchors are green. |
+| [Wasm-NEAR](wasm-near.md) | Experimental | Priority 3 signed off; EmitWat route, diagnostics, IR coverage, formal trace anchors, target-first local execution, artifact/deploy metadata, and offline host smoke are green. |
 
 ## Maintenance-Only Landed Inventory
 
-These backends already have useful code or smoke coverage, but D-045 freezes
-new registry stage, capability surface, testkit coverage, CI expansion, and
-product scope until Gate P0 closes. Allowed work is limited to CI stability,
-security fixes, and documentation maintenance.
+These backends already have useful code or smoke coverage, but they are not
+next unless a roadmap gate or explicit backlog slice promotes them. Allowed work
+is limited to CI stability, security fixes, and documentation maintenance.
 
-| Target | Stage | Frozen scope |
+| Target | Stage | Scheduling status |
 |---|---|---|
-| [Psy DPN](psy-dpn.md) | Experimental subset | Generated `.psy`/Dargo path stays maintained; no capability-completion push before P0. |
-| [Aleo Leo](aleo-leo.md) | Research spike | Counter/PureMath sourcegen and smokes stay maintained; no new ZK-app lane before P0. |
-| [Cloudflare Workers](cloudflare-workers.md) | Research off-chain host | TypeScript Worker demo stays as an off-chain host reference; no product expansion before P0. |
+| [Psy DPN](psy-dpn.md) | Experimental subset | Generated `.psy`/Dargo path stays maintained; no capability-completion push until a ZK/circuit lane is scheduled. |
+| [Aleo Leo](aleo-leo.md) | Research spike | Counter/PureMath sourcegen and smokes stay maintained; no new ZK-app lane is currently scheduled. |
+| [Cloudflare Workers](cloudflare-workers.md) | Research off-chain host | TypeScript Worker demo stays as an off-chain host reference; no product expansion is currently scheduled. |
 
-## Frozen Tier-1 Spikes
+## Tier-1 Candidates
 
-These are the first targets after Gate P0, but they do not advance while the
-primary-chain covenant is open.
+These are the first targets after Gate P0. They should advance only after the
+CLI M3/M4 target-first migration is scheduled and reviewed.
 
 | Target | Stage | Resume condition |
 |---|---|---|
-| CosmWasm | Frozen M1/M2 spike | Resume M3/M4 only after Gate P0 closes; reuses the Wasm-family EmitWat host-adapter path. |
-| Aptos Move | Frozen M1/M2 spike | Resume M3/M4 only after Gate P0 closes; remains the first Move sourcegen proof before Sui. |
+| CosmWasm | M1/M2 spike | Resume M3/M4 after CLI M3/M4 cleanup; reuses the Wasm-family EmitWat host-adapter path. |
+| Aptos Move | M1/M2 spike | Resume M3/M4 after CLI M3/M4 cleanup; remains the first Move sourcegen proof before Sui. |
 
 ## Docs-Only Parked Research
 
