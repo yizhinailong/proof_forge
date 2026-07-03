@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, ensure, Context, Result};
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
+use sha2::{Digest, Sha256};
 use toml::Value as TomlValue;
 
 #[derive(Debug, Clone)]
@@ -47,6 +48,8 @@ pub struct ArtifactExpectation {
     pub json_checks: Vec<StructuredArtifactCheck>,
     #[serde(default, rename = "toml")]
     pub toml_checks: Vec<StructuredArtifactCheck>,
+    #[serde(default, rename = "file")]
+    pub file_checks: Vec<FileArtifactCheck>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -56,6 +59,12 @@ pub struct StructuredArtifactCheck {
     pub equals: Option<TomlValue>,
     #[serde(default)]
     pub contains: Option<TomlValue>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FileArtifactCheck {
+    pub path: String,
+    pub artifact: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -370,7 +379,8 @@ pub fn discover_scenarios(dir: &Path) -> Result<Vec<ScenarioCase>> {
                 artifact.matches_file.is_some()
                     || !artifact.contains.is_empty()
                     || !artifact.json_checks.is_empty()
-                    || !artifact.toml_checks.is_empty(),
+                    || !artifact.toml_checks.is_empty()
+                    || !artifact.file_checks.is_empty(),
                 "scenario `{}` artifact expectation `{}` for target `{}` has no checks",
                 manifest.scenario.name,
                 artifact.name,
@@ -391,6 +401,14 @@ pub fn discover_scenarios(dir: &Path) -> Result<Vec<ScenarioCase>> {
                     &artifact.target,
                     &artifact.name,
                     "toml",
+                    check,
+                )?;
+            }
+            for check in &artifact.file_checks {
+                validate_file_artifact_check(
+                    &manifest.scenario.name,
+                    &artifact.target,
+                    &artifact.name,
                     check,
                 )?;
             }
@@ -514,7 +532,7 @@ pub fn assert_artifact_expectations(
             }
         }
 
-        if !expectation.json_checks.is_empty() {
+        if !expectation.json_checks.is_empty() || !expectation.file_checks.is_empty() {
             let text = fs::read_to_string(artifact.path).with_context(|| {
                 format!(
                     "scenario `{}` target `{target_id}` failed to read JSON artifact `{}`",
@@ -535,6 +553,18 @@ pub fn assert_artifact_expectations(
                     target_id,
                     expectation.name.as_str(),
                     artifact.path,
+                    &json,
+                    check,
+                )?;
+            }
+            for check in &expectation.file_checks {
+                assert_json_file_artifact_check(
+                    &case.manifest.scenario.name,
+                    target_id,
+                    expectation.name.as_str(),
+                    artifact.path,
+                    repo_root,
+                    artifacts,
                     &json,
                     check,
                 )?;
@@ -591,6 +621,24 @@ fn validate_structured_artifact_check(
     Ok(())
 }
 
+fn validate_file_artifact_check(
+    scenario: &str,
+    target: &str,
+    artifact: &str,
+    check: &FileArtifactCheck,
+) -> Result<()> {
+    ensure!(
+        !check.path.trim().is_empty(),
+        "scenario `{scenario}` file artifact check for target `{target}` artifact `{artifact}` has an empty metadata path"
+    );
+    ensure!(
+        !check.artifact.trim().is_empty(),
+        "scenario `{scenario}` file artifact check for target `{target}` artifact `{artifact}` path `{}` has an empty artifact name",
+        check.path
+    );
+    Ok(())
+}
+
 fn assert_json_artifact_check(
     scenario: &str,
     target_id: &str,
@@ -626,6 +674,115 @@ fn assert_json_artifact_check(
             artifact_path.display()
         );
     }
+    Ok(())
+}
+
+fn assert_json_file_artifact_check(
+    scenario: &str,
+    target_id: &str,
+    metadata_artifact_name: &str,
+    metadata_artifact_path: &Path,
+    repo_root: &Path,
+    artifacts: &[ArtifactOutput<'_>],
+    json: &JsonValue,
+    check: &FileArtifactCheck,
+) -> Result<()> {
+    let entry = json_path(json, &check.path).with_context(|| {
+        format!(
+            "scenario `{scenario}` target `{target_id}` JSON artifact `{metadata_artifact_name}` missing file entry `{}` in `{}`",
+            check.path,
+            metadata_artifact_path.display()
+        )
+    })?;
+    let entry = entry.as_object().with_context(|| {
+        format!(
+            "scenario `{scenario}` target `{target_id}` JSON artifact `{metadata_artifact_name}` file entry `{}` is not an object in `{}`",
+            check.path,
+            metadata_artifact_path.display()
+        )
+    })?;
+    let expected_artifact = artifacts
+        .iter()
+        .find(|artifact| artifact.name == check.artifact)
+        .with_context(|| {
+            let names = artifacts
+                .iter()
+                .map(|artifact| artifact.name)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "scenario `{scenario}` target `{target_id}` JSON artifact `{metadata_artifact_name}` file entry `{}` references artifact `{}`, available artifacts: [{names}]",
+                check.path, check.artifact
+            )
+        })?;
+    ensure!(
+        expected_artifact.path.exists(),
+        "scenario `{scenario}` target `{target_id}` artifact `{}` referenced by metadata file entry `{}` does not exist at `{}`",
+        check.artifact,
+        check.path,
+        expected_artifact.path.display()
+    );
+
+    let declared_path = entry
+        .get("path")
+        .and_then(JsonValue::as_str)
+        .with_context(|| {
+            format!(
+                "scenario `{scenario}` target `{target_id}` JSON artifact `{metadata_artifact_name}` file entry `{}` is missing string field `path`",
+                check.path
+            )
+        })?;
+    let declared_path = resolve_artifact_path(repo_root, declared_path);
+    ensure!(
+        same_existing_path(&declared_path, expected_artifact.path)?,
+        "scenario `{scenario}` target `{target_id}` JSON artifact `{metadata_artifact_name}` file entry `{}` path `{}` does not match artifact `{}` at `{}`",
+        check.path,
+        declared_path.display(),
+        check.artifact,
+        expected_artifact.path.display()
+    );
+
+    let declared_bytes = entry
+        .get("bytes")
+        .and_then(JsonValue::as_u64)
+        .with_context(|| {
+            format!(
+                "scenario `{scenario}` target `{target_id}` JSON artifact `{metadata_artifact_name}` file entry `{}` is missing integer field `bytes`",
+                check.path
+            )
+        })?;
+    let actual_bytes = expected_artifact
+        .path
+        .metadata()
+        .with_context(|| {
+            format!(
+                "failed to stat scenario `{scenario}` target `{target_id}` artifact `{}` at `{}`",
+                check.artifact,
+                expected_artifact.path.display()
+            )
+        })?
+        .len();
+    ensure!(
+        declared_bytes == actual_bytes,
+        "scenario `{scenario}` target `{target_id}` JSON artifact `{metadata_artifact_name}` file entry `{}` bytes expected {actual_bytes}, got {declared_bytes}",
+        check.path
+    );
+
+    let declared_sha256 = entry
+        .get("sha256")
+        .and_then(JsonValue::as_str)
+        .with_context(|| {
+            format!(
+                "scenario `{scenario}` target `{target_id}` JSON artifact `{metadata_artifact_name}` file entry `{}` is missing string field `sha256`",
+                check.path
+            )
+        })?;
+    let actual_sha256 = sha256_hex(expected_artifact.path)?;
+    ensure!(
+        declared_sha256 == actual_sha256,
+        "scenario `{scenario}` target `{target_id}` JSON artifact `{metadata_artifact_name}` file entry `{}` sha256 expected {actual_sha256}, got {declared_sha256}",
+        check.path
+    );
     Ok(())
 }
 
@@ -665,6 +822,28 @@ fn assert_toml_artifact_check(
         );
     }
     Ok(())
+}
+
+fn resolve_artifact_path(repo_root: &Path, path: &str) -> PathBuf {
+    let path = PathBuf::from(path);
+    if path.is_absolute() {
+        path
+    } else {
+        repo_root.join(path)
+    }
+}
+
+fn same_existing_path(left: &Path, right: &Path) -> Result<bool> {
+    let left = fs::canonicalize(left)
+        .with_context(|| format!("failed to canonicalize `{}`", left.display()))?;
+    let right = fs::canonicalize(right)
+        .with_context(|| format!("failed to canonicalize `{}`", right.display()))?;
+    Ok(left == right)
+}
+
+fn sha256_hex(path: &Path) -> Result<String> {
+    let data = fs::read(path).with_context(|| format!("failed to read `{}`", path.display()))?;
+    Ok(format!("{:x}", Sha256::digest(data)))
 }
 
 fn json_path<'a>(root: &'a JsonValue, path: &str) -> Result<&'a JsonValue> {
@@ -1218,9 +1397,17 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let json_path = root.join("artifact.json");
         let toml_path = root.join("manifest.toml");
+        let source_path = root.join("source.wat");
+        fs::write(&source_path, "(module)\n").unwrap();
+        let source_sha256 = sha256_hex(&source_path).unwrap();
         fs::write(
             &json_path,
-            r#"{"target":"solana-sbpf-asm","capabilities":["storage.scalar"],"validation":{"manifestGeneration":"passed"}}"#,
+            format!(
+                r#"{{"target":"solana-sbpf-asm","capabilities":["storage.scalar"],"validation":{{"manifestGeneration":"passed"}},"artifacts":{{"source":{{"path":{},"sha256":{},"bytes":{}}}}}}}"#,
+                serde_json::to_string(source_path.to_str().unwrap()).unwrap(),
+                serde_json::to_string(&source_sha256).unwrap(),
+                fs::metadata(&source_path).unwrap().len()
+            ),
         )
         .unwrap();
         fs::write(
@@ -1253,6 +1440,10 @@ mod tests {
                         contains: None,
                     },
                 ],
+                file_checks: vec![FileArtifactCheck {
+                    path: "artifacts.source".to_string(),
+                    artifact: "source".to_string(),
+                }],
                 toml_checks: Vec::new(),
             },
             ArtifactExpectation {
@@ -1261,6 +1452,7 @@ mod tests {
                 matches_file: None,
                 contains: Vec::new(),
                 json_checks: Vec::new(),
+                file_checks: Vec::new(),
                 toml_checks: vec![
                     StructuredArtifactCheck {
                         path: "target".to_string(),
@@ -1289,6 +1481,10 @@ mod tests {
                 ArtifactOutput {
                     name: "metadata",
                     path: &json_path,
+                },
+                ArtifactOutput {
+                    name: "source",
+                    path: &source_path,
                 },
                 ArtifactOutput {
                     name: "manifest",

@@ -2084,7 +2084,11 @@ Tasks (one milestone per implementing branch):
   `Examples/Evm/ValueVault.golden.yul` and makes the same scenario assert
   generated EVM Yul through `matches_file`, so ValueVault now has
   scenario-declared source equality for `wasm-near`, `solana-sbpf-asm`, and
-  `evm`.
+  `evm`. The current metadata file-reference slice adds nested
+  `[[artifact.file]]` checks, makes scenarios assert that JSON metadata file
+  entries point at harness-produced artifacts and match path, byte size, and
+  SHA-256 hash, and exposes EVM init-code/deploy-manifest outputs as testkit
+  artifacts.
 
 Acceptance criteria:
 

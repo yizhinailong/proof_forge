@@ -1299,7 +1299,10 @@ shell/Node harness；参见
   ValueVault EVM golden 切片新增 `Examples/Evm/ValueVault.golden.yul`，并让同一个
   scenario 通过 `matches_file` 断言生成的 EVM Yul 输出；因此 ValueVault 现在已经对
   `wasm-near`、`solana-sbpf-asm` 和 `evm` 都具备 scenario-declared source
-  equality。
+  equality。当前 metadata file-reference 切片新增嵌套 `[[artifact.file]]`
+  检查，让 scenario 断言 JSON metadata file entry 指向 harness 生成的 artifact，
+  并匹配 path、byte size 和 SHA-256 hash；同时把 EVM init-code/deploy-manifest
+  输出暴露为 testkit artifact。
 
 验收标准：
 

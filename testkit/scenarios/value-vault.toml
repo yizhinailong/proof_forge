@@ -99,6 +99,22 @@ equals = "passed"
 path = "validation.bytecodeGeneration"
 equals = "passed"
 
+[[artifact.file]]
+path = "artifacts.yul"
+artifact = "yul"
+
+[[artifact.file]]
+path = "artifacts.bytecode"
+artifact = "bytecode"
+
+[[artifact.file]]
+path = "artifacts.initCode"
+artifact = "init-code"
+
+[[artifact.file]]
+path = "artifacts.deployManifest"
+artifact = "deploy-manifest"
+
 [[artifact]]
 target = "solana-sbpf-asm"
 name = "sbpf-asm"
@@ -231,6 +247,22 @@ contains = "events.emit"
 [[artifact.json]]
 path = "validation.manifestGeneration"
 equals = "passed"
+
+[[artifact.file]]
+path = "artifacts.sbpfAsm"
+artifact = "sbpf-asm"
+
+[[artifact.file]]
+path = "artifacts.manifestToml"
+artifact = "manifest"
+
+[[artifact.file]]
+path = "artifacts.solanaIdl"
+artifact = "idl"
+
+[[artifact.file]]
+path = "artifacts.solanaClientTs"
+artifact = "client"
 
 [[step]]
 call = "initialize"

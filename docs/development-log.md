@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit Artifact File Metadata Checks
+
+Commit: feature commit for unified testkit artifact file metadata checks
+
+Summary:
+
+- Added nested `[[artifact.file]]` scenario checks that validate JSON metadata
+  file entries against harness-produced artifacts by path, byte size, and
+  SHA-256 hash.
+- Extended the EVM testkit harness to expose generated `init-code` and
+  `deploy-manifest` artifacts alongside Yul, bytecode, and metadata, so EVM
+  metadata references can be asserted declaratively.
+- Updated Counter and ValueVault scenarios so EVM and Solana metadata now prove
+  their generated artifact references through the shared testkit runner.
+
+Validation run:
+
+```sh
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml --workspace
+CAST="$PWD/build/tools/cast-shim" just testkit
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- `[[artifact.file]]` currently validates JSON metadata entries; TOML file
+  reference validation can be added if a target manifest needs the same
+  path/bytes/hash relation.
+
+Next step:
+
+- Use the shared metadata file-reference checks to retire more duplicated
+  per-target artifact hash validation from fixture-specific scripts where the
+  testkit already owns the generated artifacts.
+
 ### Unified Testkit EVM ValueVault Golden
 
 Commit: feature commit for unified testkit EVM ValueVault golden

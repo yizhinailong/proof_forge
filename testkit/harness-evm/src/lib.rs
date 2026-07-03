@@ -70,6 +70,14 @@ impl ChainHarness for EvmHarness {
                     name: "yul",
                     path: &artifact.yul_path,
                 },
+                ArtifactOutput {
+                    name: "init-code",
+                    path: &artifact.init_code_path,
+                },
+                ArtifactOutput {
+                    name: "deploy-manifest",
+                    path: &artifact.deploy_manifest_path,
+                },
             ],
         )?;
         let selectors = load_selectors(&artifact.metadata_path)?;
@@ -135,6 +143,8 @@ struct EvmFixtureArtifact {
     bytecode_path: PathBuf,
     metadata_path: PathBuf,
     yul_path: PathBuf,
+    init_code_path: PathBuf,
+    deploy_manifest_path: PathBuf,
 }
 
 fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<EvmFixtureArtifact> {
@@ -166,6 +176,8 @@ fn build_counter_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     let bytecode_path = out_dir.join("Counter.bin");
     let yul_path = out_dir.join("Counter.yul");
     let metadata_path = out_dir.join("Counter.proof-forge-artifact.json");
+    let init_code_path = out_dir.join("Counter.init.bin");
+    let deploy_manifest_path = out_dir.join("Counter.proof-forge-deploy.json");
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
     let output = Command::new(&proof_forge)
         .current_dir(repo_root)
@@ -203,11 +215,23 @@ fn build_counter_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
         "Counter EVM bytecode emission did not create `{}`",
         metadata_path.display()
     );
+    ensure!(
+        init_code_path.exists(),
+        "Counter EVM bytecode emission did not create `{}`",
+        init_code_path.display()
+    );
+    ensure!(
+        deploy_manifest_path.exists(),
+        "Counter EVM bytecode emission did not create `{}`",
+        deploy_manifest_path.display()
+    );
 
     Ok(EvmFixtureArtifact {
         bytecode_path,
         metadata_path,
         yul_path,
+        init_code_path,
+        deploy_manifest_path,
     })
 }
 
@@ -232,6 +256,8 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     let bytecode_path = out_dir.join("ValueVault.bin");
     let yul_path = out_dir.join("ValueVault.yul");
     let metadata_path = out_dir.join("ValueVault.proof-forge-artifact.json");
+    let init_code_path = out_dir.join("ValueVault.init.bin");
+    let deploy_manifest_path = out_dir.join("ValueVault.proof-forge-deploy.json");
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
     let cast = tool("CAST", "cast");
     let output = Command::new(&proof_forge)
@@ -266,11 +292,23 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
         "ValueVault EVM bytecode emission did not create `{}`",
         metadata_path.display()
     );
+    ensure!(
+        init_code_path.exists(),
+        "ValueVault EVM bytecode emission did not create `{}`",
+        init_code_path.display()
+    );
+    ensure!(
+        deploy_manifest_path.exists(),
+        "ValueVault EVM bytecode emission did not create `{}`",
+        deploy_manifest_path.display()
+    );
 
     Ok(EvmFixtureArtifact {
         bytecode_path,
         metadata_path,
         yul_path,
+        init_code_path,
+        deploy_manifest_path,
     })
 }
 

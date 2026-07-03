@@ -91,6 +91,14 @@ contains = "control.conditional"
 path = "validation.manifestGeneration"
 equals = "passed"
 
+[[artifact.file]]
+path = "artifacts.sbpfAsm"
+artifact = "sbpf-asm"
+
+[[artifact.file]]
+path = "artifacts.manifestToml"
+artifact = "manifest"
+
 [[artifact]]
 target = "evm"
 name = "yul"
@@ -143,6 +151,22 @@ equals = "passed"
 [[artifact.json]]
 path = "validation.bytecodeGeneration"
 equals = "passed"
+
+[[artifact.file]]
+path = "artifacts.yul"
+artifact = "yul"
+
+[[artifact.file]]
+path = "artifacts.bytecode"
+artifact = "bytecode"
+
+[[artifact.file]]
+path = "artifacts.initCode"
+artifact = "init-code"
+
+[[artifact.file]]
+path = "artifacts.deployManifest"
+artifact = "deploy-manifest"
 
 [[step]]
 call = "initialize"
