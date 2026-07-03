@@ -18,6 +18,7 @@ import ProofForge.Backend.WasmNear
 import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Backend.Aleo.IR
 import ProofForge.Backend.CosmWasm.EmitWat
+import ProofForge.Backend.Move.Aptos
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.Compiler.TS.AST
 import ProofForge.Compiler.TS.Printer
@@ -212,6 +213,7 @@ inductive EmitMode where
   | counterIrLeo
   | pureMathIrLeo
   | counterIrCosmWasm
+  | counterIrAptos
   deriving BEq, Inhabited
 
 def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
@@ -344,7 +346,8 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .counterIrLeo
   | .pureMathIrLeo
   | .counterIrTs
-  | .counterIrCosmWasm => true
+  | .counterIrCosmWasm
+  | .counterIrAptos => true
   | _ => false
 
 structure CliOptions where
@@ -496,6 +499,7 @@ def usage : String :=
     "  proof-forge --emit-map-ir-wasm-near -o output-dir",
     "  proof-forge --emit-counter-ir-leo [-o output.leo]",
     "  proof-forge --emit-counter-ir-cosmwasm [-o output.wat]   (CosmWasm Counter spike)",
+    "  proof-forge --emit-counter-ir-aptos [-o output-dir]       (Aptos Move Counter spike)",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
@@ -2288,6 +2292,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .pureMathIrLeo }
   | "--emit-counter-ir-cosmwasm" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrCosmWasm }
+  | "--emit-counter-ir-aptos" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrAptos }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -4341,6 +4347,23 @@ def compileCounterIrCosmWasm (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.message
 
+def writePackageFiles (outputDir : FilePath) (pkg : Array ProofForge.Backend.Move.Aptos.PackageFile) : IO Unit := do
+  for file in pkg do
+    let path := outputDir / file.path
+    if let some parent := path.parent then
+      IO.FS.createDirAll parent
+    writeTextFile path file.content
+
+def compileCounterIrAptos (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/aptos/counter")
+  match ProofForge.Backend.Move.Aptos.renderPackage ProofForge.IR.Examples.Counter.module with
+  | .ok pkg =>
+      writePackageFiles output pkg
+      IO.println s!"wrote Aptos package to {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.message
+
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
@@ -4473,6 +4496,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .counterIrLeo => compileCounterIrLeo opts
   | .pureMathIrLeo => compilePureMathIrLeo opts
   | .counterIrCosmWasm => compileCounterIrCosmWasm opts
+  | .counterIrAptos => compileCounterIrAptos opts
 
 end ProofForge.Cli
 

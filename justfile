@@ -16,6 +16,10 @@ target-registry:
 cosmwasm-counter-smoke:
     scripts/cosmwasm/counter-smoke.sh
 
+# Run the Aptos Move Counter sourcegen smoke through aptos move compile/test.
+aptos-counter-smoke:
+    scripts/aptos/counter-smoke.sh
+
 # Check the EVM semantic plan smoke.
 evm-plan:
     lake build ProofForge.Backend.Evm.Plan
