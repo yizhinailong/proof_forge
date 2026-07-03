@@ -1272,6 +1272,8 @@ shell/Node harness；参见
   `[[artifact.json]]` 与 `[[artifact.toml]]` 检查，让 Solana Counter 和
   ValueVault 的 metadata/manifest 字段、instruction 名称和 tag、capability
   membership 以及 validation 状态，都由 scenario runner 以声明式方式断言。
+  后续切片删除了 Solana harness 内部重复的 metadata/manifest 语义 validator，
+  在 `testkit/harness-solana` 中只保留运行时 dispatch 所需的解析。
 
 验收标准：
 

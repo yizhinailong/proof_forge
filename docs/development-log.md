@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit Solana Harness Thinning
+
+Commit: feature commit for Solana testkit artifact validation thinning
+
+Summary:
+
+- Removed duplicated Solana harness metadata and manifest semantic validators
+  after their checks were moved into scenario-declared
+  `[[artifact.json]]`/`[[artifact.toml]]` expectations.
+- Kept Solana harness parsing of `manifest.toml` instruction tags because that
+  is runtime dispatch data, not a review-only artifact expectation.
+- Dropped the direct `serde_json` dependency from `testkit/harness-solana`.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo check --manifest-path testkit/Cargo.toml -p proof-forge-testkit-harness-solana
+cargo test --manifest-path testkit/Cargo.toml --workspace
+scripts/i18n/check-sync.sh
+git diff --check
+just testkit
+lake build
+```
+
+Known limitations:
+
+- The scenario still needs optional `sbpf` and `solana-keygen` before Solana
+  artifact expectations execute.
+- Duplicated shell gates still exist; this only removes duplicated Solana
+  harness-internal artifact semantics.
+
+Next step:
+
+- Continue moving pure artifact assertions out of target harnesses and then
+  thin duplicated shell-only golden gates once `just testkit` covers them.
+
 ### Unified Testkit Structured Artifact Assertions
 
 Commit: feature commit for unified testkit structured artifact assertions

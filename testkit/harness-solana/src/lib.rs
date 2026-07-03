@@ -219,18 +219,6 @@ fn build_counter_fixture(
         "Counter Solana emission did not create `{}`",
         manifest_path.display()
     );
-    validate_artifact_metadata(
-        &artifact_path,
-        "counter-ir-sbpf",
-        "portable-ir",
-        &["storage.scalar", "account.explicit", "control.conditional"],
-    )?;
-    validate_manifest(
-        &manifest_path,
-        "counter",
-        &[("initialize", 0), ("increment", 1), ("get", 2)],
-    )?;
-
     let project_dir = out_dir.join("sbpf-project");
     let keypair_path = project_dir
         .join("deploy")
@@ -302,26 +290,6 @@ fn build_value_vault_fixture(
         "ValueVault Solana emission did not create `{}`",
         manifest_path.display()
     );
-    validate_artifact_metadata(
-        &artifact_path,
-        "value-vault-ir-sbpf",
-        "contract-sdk",
-        &["env.block", "storage.scalar", "events.emit"],
-    )?;
-    validate_manifest(
-        &manifest_path,
-        "valuevault",
-        &[
-            ("initialize", 0),
-            ("deposit", 1),
-            ("charge_fee", 2),
-            ("release", 3),
-            ("snapshot", 4),
-            ("get_balance", 5),
-            ("get_net_value", 6),
-        ],
-    )?;
-
     let project_dir = out_dir.join("sbpf-project");
     let keypair_path = project_dir
         .join("deploy")
@@ -460,97 +428,6 @@ fn outcome_from_return_data(sequence: u32, call: &str, return_data: &[u8]) -> Ca
     }
 }
 
-fn validate_artifact_metadata(
-    path: &Path,
-    expected_fixture: &str,
-    expected_source_kind: &str,
-    required_capabilities: &[&str],
-) -> Result<()> {
-    let text =
-        fs::read_to_string(path).with_context(|| format!("failed to read `{}`", path.display()))?;
-    let artifact: ArtifactMetadata = serde_json::from_str(&text)
-        .with_context(|| format!("failed to parse `{}`", path.display()))?;
-    ensure!(
-        artifact.target == "solana-sbpf-asm",
-        "Solana artifact `{}` has target `{}`",
-        path.display(),
-        artifact.target
-    );
-    ensure!(
-        artifact.target_family == "solana",
-        "Solana artifact `{}` has targetFamily `{}`",
-        path.display(),
-        artifact.target_family
-    );
-    ensure!(
-        artifact.artifact_kind == "solana-elf",
-        "Solana artifact `{}` has artifactKind `{}`",
-        path.display(),
-        artifact.artifact_kind
-    );
-    ensure!(
-        artifact.fixture == expected_fixture,
-        "Solana artifact `{}` has fixture `{}`",
-        path.display(),
-        artifact.fixture
-    );
-    ensure!(
-        artifact.source_kind == expected_source_kind,
-        "Solana artifact `{}` has sourceKind `{}`",
-        path.display(),
-        artifact.source_kind
-    );
-    for capability in required_capabilities {
-        ensure!(
-            artifact
-                .capabilities
-                .iter()
-                .any(|candidate| candidate == *capability),
-            "Solana artifact `{}` missing capability `{capability}`",
-            path.display()
-        );
-    }
-    ensure!(
-        artifact.validation.manifest_generation == "passed",
-        "Solana artifact `{}` has manifestGeneration `{}`",
-        path.display(),
-        artifact.validation.manifest_generation
-    );
-    Ok(())
-}
-
-fn validate_manifest(
-    path: &Path,
-    expected_program_name: &str,
-    expected_tags: &[(&str, u8)],
-) -> Result<()> {
-    let text =
-        fs::read_to_string(path).with_context(|| format!("failed to read `{}`", path.display()))?;
-    let manifest: SolanaManifest =
-        toml::from_str(&text).with_context(|| format!("failed to parse `{}`", path.display()))?;
-    ensure!(
-        manifest.target == "solana-sbpf-asm",
-        "Solana manifest `{}` has target `{}`",
-        path.display(),
-        manifest.target
-    );
-    ensure!(
-        manifest.program.name == expected_program_name,
-        "Solana manifest `{}` has program name `{}`",
-        path.display(),
-        manifest.program.name
-    );
-    let tags = load_instruction_tags(path)?;
-    for (name, tag) in expected_tags {
-        ensure!(
-            tags.get(*name) == Some(tag),
-            "Solana manifest `{}` missing instruction `{name}` tag {tag}",
-            path.display()
-        );
-    }
-    Ok(())
-}
-
 fn load_instruction_tags(path: &Path) -> Result<HashMap<String, u8>> {
     let text =
         fs::read_to_string(path).with_context(|| format!("failed to read `{}`", path.display()))?;
@@ -611,35 +488,8 @@ fn path_str(path: &Path) -> Result<&str> {
 }
 
 #[derive(Debug, Deserialize)]
-struct ArtifactMetadata {
-    target: String,
-    #[serde(rename = "targetFamily")]
-    target_family: String,
-    #[serde(rename = "artifactKind")]
-    artifact_kind: String,
-    fixture: String,
-    #[serde(rename = "sourceKind")]
-    source_kind: String,
-    capabilities: Vec<String>,
-    validation: ArtifactValidation,
-}
-
-#[derive(Debug, Deserialize)]
-struct ArtifactValidation {
-    #[serde(rename = "manifestGeneration")]
-    manifest_generation: String,
-}
-
-#[derive(Debug, Deserialize)]
 struct SolanaManifest {
-    target: String,
-    program: ManifestProgram,
     instruction: Vec<ManifestInstruction>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ManifestProgram {
-    name: String,
 }
 
 #[derive(Debug, Deserialize)]

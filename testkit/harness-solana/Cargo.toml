@@ -10,7 +10,6 @@ hex.workspace = true
 mollusk-svm.workspace = true
 proof-forge-testkit-core = { path = "../core" }
 serde.workspace = true
-serde_json.workspace = true
 solana-account.workspace = true
 solana-address.workspace = true
 solana-instruction.workspace = true

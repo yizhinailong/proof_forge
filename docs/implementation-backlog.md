@@ -2054,7 +2054,9 @@ Tasks (one milestone per implementing branch):
   `[[artifact.json]]` and `[[artifact.toml]]` checks so Solana Counter and
   ValueVault metadata/manifest fields, instruction names/tags, capability
   membership, and validation status are asserted declaratively by the scenario
-  runner.
+  runner. The follow-up slice removes the duplicated Solana harness-internal
+  metadata/manifest semantic validators and leaves only runtime dispatch parsing
+  in `testkit/harness-solana`.
 
 Acceptance criteria:
 
