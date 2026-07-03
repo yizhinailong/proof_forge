@@ -18,7 +18,7 @@ fi
 echo "[aptos-smoke] generating Aptos Counter package"
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
-lake env proof-forge --emit-counter-ir-aptos -o "$OUTPUT_DIR"
+lake env proof-forge emit --target move-aptos --fixture counter --format aptos -o "$OUTPUT_DIR"
 
 # Run a command with a configurable timeout (default 4 min); print a skip message on timeout.
 run_with_timeout() {

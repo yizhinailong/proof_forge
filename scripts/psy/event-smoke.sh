@@ -28,7 +28,7 @@ fi
 mkdir -p "$OUT_DIR" "$PROJECT_DIR"
 
 lake build proof-forge >/dev/null
-"$ROOT/.lake/build/bin/proof-forge" --emit-event-ir-psy -o "$PSY_FILE"
+"$ROOT/.lake/build/bin/proof-forge" emit --target psy-dpn --fixture event -o "$PSY_FILE"
 
 if [[ -f "$GOLDEN_FILE" ]]; then
   diff -u "$GOLDEN_FILE" "$PSY_FILE"

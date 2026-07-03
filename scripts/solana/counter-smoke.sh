@@ -60,9 +60,9 @@ echo "=== V-GATE-SOLANA-03 step 1: emit Counter IR -> sBPF ==="
 ASM_OUTPUT="$OUT_DIR/Counter.s"
 ARTIFACT_OUTPUT="$OUT_DIR/proof-forge-artifact.json"
 
-lake env proof-forge --emit-counter-ir-sbpf -o "$ASM_OUTPUT" \
+lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format s -o "$ASM_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --emit-counter-ir-sbpf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture counter failed"
 
 [ -f "$ASM_OUTPUT" ] || fail "assembly file not written: $ASM_OUTPUT"
 echo "  emitted: $ASM_OUTPUT"

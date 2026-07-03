@@ -25,7 +25,7 @@ lake build proof-forge
 
 info "generating Aleo Counter Leo source via ProofForge CLI"
 mkdir -p "${BUILD_DIR}"
-lake exe proof-forge --emit-counter-ir-leo -o "${LEO_FILE}"
+lake exe proof-forge emit --target aleo-leo --fixture counter --format leo -o "${LEO_FILE}"
 
 if [ ! -s "${LEO_FILE}" ]; then
     die "generated Leo source is empty"

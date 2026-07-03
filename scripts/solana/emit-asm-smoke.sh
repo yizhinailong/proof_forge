@@ -48,10 +48,10 @@ echo "=== V-GATE-SOLANA-01: emit sbpf asm ==="
 ASM_OUTPUT="$OUT_DIR/entrypoint.s"
 ARTIFACT_OUTPUT="$OUT_DIR/proof-forge-artifact.json"
 
-lake env proof-forge --emit-sbpf-asm \
+lake env proof-forge emit --target solana-sbpf-asm --fixture canned-entrypoint --format s \
   -o "$ASM_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --emit-sbpf-asm failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture canned-entrypoint failed"
 
 [ -f "$ASM_OUTPUT" ] || fail "assembly file not written: $ASM_OUTPUT"
 [ -f "$ARTIFACT_OUTPUT" ] || fail "artifact metadata not written: $ARTIFACT_OUTPUT"

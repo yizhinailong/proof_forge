@@ -35,10 +35,10 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
 echo "=== Solana SDK step 1: emit SDK fixture ==="
-lake env proof-forge --emit-solana-sdk-sbpf \
+lake env proof-forge emit --target solana-sbpf-asm --fixture solana-sdk --format s \
   -o "$ASM_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --emit-solana-sdk-sbpf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture solana-sdk failed"
 
 [ -f "$ASM_OUTPUT" ] || fail "assembly file not written: $ASM_OUTPUT"
 [ -f "$MANIFEST_OUTPUT" ] || fail "manifest not written: $MANIFEST_OUTPUT"

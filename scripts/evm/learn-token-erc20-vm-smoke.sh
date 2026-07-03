@@ -27,12 +27,12 @@ EVM_BIN="$OUT_DIR/ProofToken.erc20.bin"
 EVM_ARTIFACT="$OUT_DIR/ProofToken.erc20.artifact.json"
 
 echo "=== Learn token EVM VM step 1: emit ERC-20 artifact ==="
-lake env proof-forge --learn-token --target evm \
+lake env proof-forge build --target evm --token \
   --yul-output "$EVM_YUL" \
   --artifact-output "$EVM_ARTIFACT" \
   -o "$EVM_BIN" \
   Examples/Learn/ProofToken.learn \
-  || fail "proof-forge --learn-token --target evm failed"
+  || fail "proof-forge build --target evm --token failed"
 
 test -s "$EVM_BIN" || fail "empty EVM bytecode: $EVM_BIN"
 test -s "$EVM_ARTIFACT" || fail "missing EVM artifact: $EVM_ARTIFACT"

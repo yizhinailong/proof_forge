@@ -62,8 +62,8 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$NODE_PROJECT" "$SURFPOOL_LOG_DIR"
 
 echo "=== V-GATE-SOLANA-04 step 1: build Counter ELF ==="
-lake env proof-forge --solana-elf --solana-sbpf-arch "$SBPF_ARCH" -o "$ELF_OUTPUT" --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --solana-elf failed"
+lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format elf --solana-sbpf-arch "$SBPF_ARCH" -o "$ELF_OUTPUT" --artifact-output "$ARTIFACT_OUTPUT" \
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture counter --format elf failed"
 [ -f "$ELF_OUTPUT" ] || fail "ELF not produced: $ELF_OUTPUT"
 
 echo "=== V-GATE-SOLANA-04 step 2: generate local keypairs ==="

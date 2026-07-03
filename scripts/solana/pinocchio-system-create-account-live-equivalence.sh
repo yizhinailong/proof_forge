@@ -93,10 +93,10 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$PINOCCHIO_BUILD_DIR" "$NODE_PROJECT" "$SURFPOOL_LOG_DIR"
 
 echo "=== Pinocchio create_account live equivalence step 1: build ProofForge fixture ELF ==="
-lake env proof-forge --solana-system-create-account-cpi-elf --solana-sbpf-arch "$SBPF_ARCH" \
+lake env proof-forge emit --target solana-sbpf-asm --fixture system-create-account-cpi --format elf --solana-sbpf-arch "$SBPF_ARCH" \
   -o "$PROOF_FORGE_ELF" \
   --artifact-output "$PROOF_FORGE_ARTIFACT" \
-  || fail "proof-forge --solana-system-create-account-cpi-elf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture system-create-account-cpi --format elf failed"
 [ -f "$PROOF_FORGE_ELF" ] || fail "ProofForge ELF not produced: $PROOF_FORGE_ELF"
 
 echo "=== Pinocchio create_account live equivalence step 2: build Pinocchio reference ELF ==="

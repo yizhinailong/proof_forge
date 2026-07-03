@@ -31,10 +31,10 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
 echo "=== Pinocchio SPL Token ops equivalence step 1: emit ProofForge fixture ==="
-lake env proof-forge --solana-spl-token-ops-cpi-elf --solana-sbpf-arch "$SBPF_ARCH" \
+lake env proof-forge emit --target solana-sbpf-asm --fixture spl-token-ops-cpi --format elf --solana-sbpf-arch "$SBPF_ARCH" \
   -o "$ELF_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --solana-spl-token-ops-cpi-elf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture spl-token-ops-cpi --format elf failed"
 [ -f "$ARTIFACT_OUTPUT" ] || fail "artifact not produced: $ARTIFACT_OUTPUT"
 
 echo "=== Pinocchio SPL Token ops equivalence step 2: compare contracts ==="

@@ -31,10 +31,10 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
 echo "=== Pinocchio System create_account equivalence step 1: emit ProofForge fixture ==="
-lake env proof-forge --solana-system-create-account-cpi-elf --solana-sbpf-arch "$SBPF_ARCH" \
+lake env proof-forge emit --target solana-sbpf-asm --fixture system-create-account-cpi --format elf --solana-sbpf-arch "$SBPF_ARCH" \
   -o "$ELF_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --solana-system-create-account-cpi-elf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture system-create-account-cpi --format elf failed"
 [ -f "$ARTIFACT_OUTPUT" ] || fail "artifact not produced: $ARTIFACT_OUTPUT"
 
 echo "=== Pinocchio System create_account equivalence step 2: compare contracts ==="

@@ -98,10 +98,10 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$PINOCCHIO_BUILD_DIR" "$NODE_PROJECT" "$SURFPOOL_LOG_DIR"
 
 echo "=== Pinocchio SPL Token ops live equivalence step 1: build ProofForge fixture ELF ==="
-lake env proof-forge --solana-spl-token-ops-cpi-elf --solana-sbpf-arch "$SBPF_ARCH" \
+lake env proof-forge emit --target solana-sbpf-asm --fixture spl-token-ops-cpi --format elf --solana-sbpf-arch "$SBPF_ARCH" \
   -o "$PROOF_FORGE_ELF" \
   --artifact-output "$PROOF_FORGE_ARTIFACT" \
-  || fail "proof-forge --solana-spl-token-ops-cpi-elf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture spl-token-ops-cpi --format elf failed"
 [ -f "$PROOF_FORGE_ELF" ] || fail "ProofForge ELF not produced: $PROOF_FORGE_ELF"
 [ -f "$PROOF_FORGE_ARTIFACT" ] || fail "ProofForge artifact not produced: $PROOF_FORGE_ARTIFACT"
 

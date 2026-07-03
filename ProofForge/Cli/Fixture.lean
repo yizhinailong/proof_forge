@@ -49,6 +49,8 @@ def ids : Array String := #[
   "u32-storage-array",
   "pure-math",
   "control",
+  "canned-entrypoint",
+  "solana-sdk",
   "solana-clock-sysvar",
   "solana-rent-sysvar",
   "solana-epoch-schedule-sysvar",
@@ -82,6 +84,7 @@ inductive Format where
   | leo
   | cosmwasm
   | aptos
+  | elf
   deriving BEq, Inhabited, Repr
 
 def Format.id : Format → String
@@ -94,6 +97,7 @@ def Format.id : Format → String
   | .leo => "leo"
   | .cosmwasm => "cosmwasm"
   | .aptos => "aptos"
+  | .elf => "elf"
 
 def parseFormat? (s : String) : Option Format :=
   match s with
@@ -106,6 +110,7 @@ def parseFormat? (s : String) : Option Format :=
   | "leo" => some .leo
   | "cosmwasm" => some .cosmwasm
   | "aptos" => some .aptos
+  | "elf" | "so" => some .elf
   | _ => none
 
 /-- Target ids that participate in the new `build|emit|check` surface. This is
@@ -151,7 +156,7 @@ def supportsFormat (targetId fixtureId : String) (format : Format) : Bool :=
   | "solana-sbpf-asm", "value-vault", _ => true
   | "solana-sbpf-asm", "control", _ => true
   | "solana-sbpf-asm", f, _ =>
-      f.startsWith "solana-" || f.startsWith "spl-token-" || f.startsWith "system-" || f == "log-event"
+      f.startsWith "solana-" || f.startsWith "spl-token-" || f.startsWith "system-" || f == "log-event" || f == "canned-entrypoint"
   | "wasm-near", "counter", _ => true
   | "wasm-near", "context", _ => true
   | "wasm-near", "hash", _ => true

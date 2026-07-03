@@ -65,9 +65,9 @@ echo "=== V-GATE-SOLANA-08 step 1: emit control IR -> sBPF ==="
 ASM_OUTPUT="$OUT_DIR/ControlFlowAssertProbe.s"
 ARTIFACT_OUTPUT="$OUT_DIR/control-artifact.json"
 
-lake env proof-forge --emit-control-ir-sbpf -o "$ASM_OUTPUT" \
+lake env proof-forge emit --target solana-sbpf-asm --fixture control --format s -o "$ASM_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --emit-control-ir-sbpf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture control failed"
 
 [ -f "$ASM_OUTPUT" ] || fail "assembly file not written: $ASM_OUTPUT"
 

@@ -2356,6 +2356,7 @@ structure NewCommandParseState where
   evmConstructorArgsHex : String := ""
   solanaSbpfArch : String := "v3"
   methodsFile? : Option String := none
+  token : Bool := false
   input? : Option String := none
   legacyPrefix : List String := []
   deriving Inhabited
@@ -2427,6 +2428,8 @@ partial def parseNewOptions : List String → NewCommandParseState → Except St
   | "--methods-file" :: rest, state => do
       let (path, rest) ← takeOption rest "--methods-file"
       parseNewOptions rest { state with methodsFile? := some path }
+  | "--token" :: rest, state =>
+      parseNewOptions rest { state with token := true }
   | arg :: rest, state =>
       if arg.startsWith "-" then
         .error s!"unknown option: {arg}\n{usage}"
@@ -2435,60 +2438,95 @@ partial def parseNewOptions : List String → NewCommandParseState → Except St
       else
         parseNewOptions rest { state with input? := some arg }
 
-def buildLegacyFlag (target : String) (input? : Option String) : Except String String :=
-  match target with
-  | "evm" => Except.ok "--evm-bytecode"
-  | "wasm-near" =>
+def buildLegacyFlag (target : String) (input? : Option String) (format? : Option String := none) (token : Bool := false) : Except String String :=
+  let isLearn := match input? with | some input => input.endsWith ".learn" | none => false
+  match target, isLearn, format?, token with
+  | "evm", true, some "yul", false => Except.ok "--learn-yul"
+  | "evm", true, some "yul", true => Except.error "proof-forge build --target evm --token --format yul is not yet implemented"
+  | "evm", true, some "bytecode", true => Except.ok "--learn-token"
+  | "evm", true, some "bytecode", false => Except.ok "--learn"
+  | "evm", true, none, true => Except.ok "--learn-token"
+  | "evm", true, none, false => Except.ok "--learn"
+  | "evm", false, _, _ => Except.ok "--evm-bytecode"
+  | "wasm-near", true, _, _ =>
+      Except.error "proof-forge build --target wasm-near from .learn source is not yet implemented"
+  | "wasm-near", false, _, _ =>
       if input?.isSome then
-        Except.error "proof-forge build --target wasm-near from Lean source is not yet implemented; use --emit-counter-ir-wasm-near or --emit-counter-emitwat"
+        Except.error "proof-forge build --target wasm-near from Lean source is not yet implemented; use --emit-counter-emitwat"
       else
-        Except.ok "--emit-counter-ir-wasm-near"
-  | "wasm-cosmwasm" =>
-      if input?.isSome then
-        Except.error "proof-forge build --target wasm-cosmwasm from Lean source is not yet implemented; use --emit-counter-ir-cosmwasm"
-      else
-        Except.ok "--emit-counter-ir-cosmwasm"
-  | "solana-sbpf-asm" =>
-      if input?.isSome then
-        Except.error "proof-forge build --target solana-sbpf-asm from Lean source is not yet implemented; use --emit-counter-ir-sbpf"
-      else
-        Except.ok "--emit-counter-ir-sbpf"
-  | "psy-dpn" =>
-      if input?.isSome then
-        Except.error "proof-forge build --target psy-dpn from Lean source is not yet implemented; use --emit-counter-ir-psy"
-      else
-        Except.ok "--emit-counter-ir-psy"
-  | "aleo-leo" =>
-      if input?.isSome then
-        Except.error "proof-forge build --target aleo-leo from Lean source is not yet implemented; use --emit-counter-ir-leo"
-      else
-        Except.ok "--emit-counter-ir-leo"
-  | "move-aptos" =>
-      if input?.isSome then
-        Except.error "proof-forge build --target move-aptos from Lean source is not yet implemented; use --emit-counter-ir-aptos"
-      else
-        Except.ok "--emit-counter-ir-aptos"
-  | other => Except.error s!"unknown target '{other}'"
+        Except.ok "--emit-counter-emitwat"
+  | "wasm-cosmwasm", true, _, _ =>
+      Except.error "proof-forge build --target wasm-cosmwasm from .learn source is not yet implemented"
+  | "wasm-cosmwasm", false, _, _ => Except.ok "--emit-counter-ir-cosmwasm"
+  | "solana-sbpf-asm", true, _, true => Except.ok "--learn-token"
+  | "solana-sbpf-asm", true, _, false => Except.ok "--learn"
+  | "solana-sbpf-asm", false, some "s", _ => Except.ok "--emit-counter-ir-sbpf"
+  | "solana-sbpf-asm", false, none, _ => Except.ok "--emit-counter-ir-sbpf"
+  | "solana-sbpf-asm", false, some fmt, _ => Except.error s!"proof-forge build --target solana-sbpf-asm does not support format '{fmt}' from Lean source"
+  | "psy-dpn", true, _, _ =>
+      Except.error "proof-forge build --target psy-dpn from .learn source is not yet implemented"
+  | "psy-dpn", false, _, _ => Except.ok "--emit-counter-ir-psy"
+  | "aleo-leo", true, _, _ =>
+      Except.error "proof-forge build --target aleo-leo from .learn source is not yet implemented"
+  | "aleo-leo", false, _, _ => Except.ok "--emit-counter-ir-leo"
+  | "move-aptos", true, _, _ =>
+      Except.error "proof-forge build --target move-aptos from .learn source is not yet implemented"
+  | "move-aptos", false, _, _ => Except.ok "--emit-counter-ir-aptos"
+  | other, _, _, _ => Except.error s!"unknown target '{other}'"
 
 def emitLegacyFlag (target fixture : String) (format? : Option String) : Except String String :=
   let format := format?.getD ""
   match target, fixture, format with
   | "evm", f, "yul" => Except.ok s!"--emit-{f}-ir-yul"
   | "evm", f, "bytecode" => Except.ok s!"--emit-{f}-ir-bytecode"
-  | "solana-sbpf-asm", "counter", _ => Except.ok "--emit-counter-ir-sbpf"
+  | "solana-sbpf-asm", "counter", fmt =>
+      if fmt == some "elf" || fmt == some "so" then
+        Except.ok "--solana-elf"
+      else
+        Except.ok "--emit-counter-ir-sbpf"
   | "solana-sbpf-asm", "value-vault", _ => Except.ok "--emit-value-vault-ir-sbpf"
   | "solana-sbpf-asm", "control", _ => Except.ok "--emit-control-ir-sbpf"
-  | "wasm-near", "counter", _ => Except.ok "--emit-counter-ir-wasm-near"
-  | "wasm-near", "context", _ => Except.ok "--emit-context-ir-wasm-near"
-  | "wasm-near", "hash", _ => Except.ok "--emit-hash-ir-wasm-near"
-  | "wasm-near", "map", _ => Except.ok "--emit-map-ir-wasm-near"
+  | "solana-sbpf-asm", "solana-sdk", _ => Except.ok "--emit-solana-sdk-sbpf"
+  | "solana-sbpf-asm", "canned-entrypoint", _ => Except.ok "--emit-sbpf-asm"
+  | "solana-sbpf-asm", f, fmt =>
+      if f.startsWith "solana-" then
+        if fmt == some "s" then
+          Except.error s!"emit --target solana-sbpf-asm --fixture {f} --format s is not yet mapped to a legacy flag; use --format elf"
+        else
+          Except.ok s!"--solana-{f.drop 7}-elf"
+      else if f.startsWith "spl-token-" then
+        if fmt == some "s" then
+          Except.error s!"emit --target solana-sbpf-asm --fixture {f} --format s is not yet mapped to a legacy flag; use --format elf"
+        else
+          Except.ok s!"--solana-spl-token-{f.drop 10}-elf"
+      else if f.startsWith "system-" then
+        if fmt == some "s" then
+          Except.error s!"emit --target solana-sbpf-asm --fixture {f} --format s is not yet mapped to a legacy flag; use --format elf"
+        else
+          Except.ok s!"--solana-system-{f.drop 7}-elf"
+      else if f == "log-event" then
+        if fmt == some "s" then
+          Except.error s!"emit --target solana-sbpf-asm --fixture {f} --format s is not yet mapped to a legacy flag; use --format elf"
+        else
+          Except.ok "--solana-log-event-elf"
+      else
+        Except.error s!"emit --target solana-sbpf-asm --fixture {f} is not yet mapped to a legacy flag"
+  | "wasm-near", f, "wat" =>
+      if f == "counter" || f == "context" || f == "hash" || f == "map" then
+        Except.ok s!"--emit-{f}-emitwat"
+      else
+        Except.error s!"emit --target wasm-near --fixture {f} --format wat is not yet mapped to a legacy flag"
   | "wasm-near", f, _ =>
       if f == "counter" || f == "context" || f == "hash" || f == "map" then
         Except.ok s!"--emit-{f}-ir-wasm-near"
       else
         Except.error s!"emit --target wasm-near --fixture {f} is not yet mapped"
   | "wasm-cosmwasm", "counter", _ => Except.ok "--emit-counter-ir-cosmwasm"
-  | "psy-dpn", "counter", _ => Except.ok "--emit-counter-ir-psy"
+  | "psy-dpn", f, _ =>
+      if ProofForge.Cli.Fixture.supportsFormat "psy-dpn" f .psy then
+        Except.ok s!"--emit-{f}-ir-psy"
+      else
+        Except.error s!"emit --target psy-dpn --fixture {f} is not yet mapped to a legacy flag"
   | "aleo-leo", "counter", _ => Except.ok "--emit-counter-ir-leo"
   | "aleo-leo", "pure-math", _ => Except.ok "--emit-pure-math-ir-leo"
   | "move-aptos", "counter", _ => Except.ok "--emit-counter-ir-aptos"
@@ -2500,7 +2538,7 @@ def newCommandArgsToLegacy (args : List String) : Except String (List String) :=
   | "build" :: rest => do
       let state ← parseNewOptions rest {}
       let target ← match state.target? with | some t => Except.ok t | none => Except.error "build requires --target <id>"
-      let flag ← buildLegacyFlag target state.input?
+      let flag ← buildLegacyFlag target state.input? state.format? state.token
       let mut legacy := [flag]
       if let some out := state.out? then legacy := legacy ++ ["-o", out]
       if let some root := state.root? then legacy := legacy ++ ["--root", root]
@@ -2517,6 +2555,8 @@ def newCommandArgsToLegacy (args : List String) : Except String (List String) :=
         legacy := legacy ++ ["--evm-constructor-args-hex", state.evmConstructorArgsHex]
       if flag == "--evm-bytecode" then
         legacy := legacy ++ ["--solc", state.solc, "--cast", state.cast]
+      if flag == "--learn" || flag == "--learn-token" then
+        legacy := legacy ++ ["--target", target]
       if let some input := state.input? then legacy := legacy ++ [input]
       Except.ok legacy
   | "emit" :: rest => do

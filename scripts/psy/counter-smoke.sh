@@ -29,7 +29,7 @@ fi
 mkdir -p "$OUT_DIR"
 
 lake build proof-forge >/dev/null
-"$ROOT/.lake/build/bin/proof-forge" --emit-counter-ir-psy -o "$PSY_FILE"
+"$ROOT/.lake/build/bin/proof-forge" emit --target psy-dpn --fixture counter -o "$PSY_FILE"
 
 if [[ -f "$GOLDEN_FILE" ]]; then
   diff -u "$GOLDEN_FILE" "$PSY_FILE"

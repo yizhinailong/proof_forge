@@ -46,12 +46,12 @@ if command -v solc >/dev/null 2>&1; then
   EVM_BIN="$EVM_DIR/ProofToken.erc20.bin"
   EVM_ARTIFACT="$EVM_DIR/ProofToken.erc20.artifact.json"
 
-  lake env proof-forge --learn-token --target evm \
+  lake env proof-forge build --target evm --token \
     --yul-output "$EVM_YUL" \
     --artifact-output "$EVM_ARTIFACT" \
     -o "$EVM_BIN" \
     "$PROOF_TOKEN" \
-    || fail "proof-forge --learn-token --target evm failed"
+    || fail "proof-forge build --target evm --token failed"
 
   require_file "$EVM_YUL"
   require_file "$EVM_BIN"
@@ -98,10 +98,10 @@ fi
 
 echo "=== Learn token step 2: emit Solana SPL Token plan ==="
 SOLANA_SPL_PLAN="$SOLANA_DIR/ProofToken.solana-token-plan.json"
-lake env proof-forge --learn-token --target solana-sbpf-asm \
+lake env proof-forge build --target solana-sbpf-asm --token \
   -o "$SOLANA_SPL_PLAN" \
   "$PROOF_TOKEN" \
-  || fail "proof-forge --learn-token --target solana-sbpf-asm failed"
+  || fail "proof-forge build --target solana-sbpf-asm --token failed"
 
 require_file "$SOLANA_SPL_PLAN"
 python3 - "$SOLANA_SPL_PLAN" <<'PY'
@@ -138,10 +138,10 @@ PY
 
 echo "=== Learn token step 3: emit Solana Token-2022 plan ==="
 SOLANA_TOKEN_2022_PLAN="$SOLANA_DIR/FeeToken.solana-token-plan.json"
-lake env proof-forge --learn-token --target solana-sbpf-asm \
+lake env proof-forge build --target solana-sbpf-asm --token \
   -o "$SOLANA_TOKEN_2022_PLAN" \
   "$FEE_TOKEN" \
-  || fail "proof-forge --learn-token --target solana-sbpf-asm failed"
+  || fail "proof-forge build --target solana-sbpf-asm --token failed"
 
 require_file "$SOLANA_TOKEN_2022_PLAN"
 python3 - "$SOLANA_TOKEN_2022_PLAN" <<'PY'

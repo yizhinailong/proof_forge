@@ -26,7 +26,7 @@ lake build proof-forge
 
 info "generating CosmWasm Counter WAT via ProofForge CLI"
 mkdir -p "${BUILD_DIR}"
-lake exe proof-forge --emit-counter-ir-cosmwasm -o "${WAT_FILE}"
+lake exe proof-forge emit --target wasm-cosmwasm --fixture counter --format wat -o "${WAT_FILE}"
 
 if [ ! -s "${WAT_FILE}" ]; then
     die "generated WAT is empty"

@@ -65,10 +65,10 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$NODE_PROJECT" "$SURFPOOL_LOG_DIR"
 
 echo "=== Solana Token-2022 transfer-fee live step 1: emit structured token plan ==="
-lake env proof-forge --learn-token --target solana-sbpf-asm \
+lake env proof-forge build --target solana-sbpf-asm --token \
   -o "$TOKEN_PLAN" \
   "$TOKEN_SOURCE" \
-  || fail "proof-forge --learn-token --target solana-sbpf-asm failed"
+  || fail "proof-forge build --target solana-sbpf-asm --token failed"
 [ -f "$TOKEN_PLAN" ] || fail "token plan not written: $TOKEN_PLAN"
 
 python3 - "$TOKEN_PLAN" <<'PY'

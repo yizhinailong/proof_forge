@@ -253,7 +253,7 @@ psy-golden-sources:
     )
     for spec in "${fixtures[@]}"; do
       IFS=: read -r flag fixture <<< "$spec"
-      lake env proof-forge "--emit-${flag}-ir-psy" -o "build/psy/${fixture}.psy"
+      lake env proof-forge emit --target psy-dpn --fixture "${flag}" -o "build/psy/${fixture}.psy"
       diff -u "Examples/Psy/${fixture}.golden.psy" "build/psy/${fixture}.psy"
     done
 

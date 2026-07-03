@@ -11,7 +11,7 @@ cd "$REPO_ROOT"
 echo "=== Aptos ${EXAMPLE} IR -> Move ==="
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
-lake env proof-forge --emit-counter-ir-aptos -o "$BUILD_DIR"
+lake env proof-forge emit --target move-aptos --fixture counter --format aptos -o "$BUILD_DIR"
 
 for f in Move.toml sources/counter.move tests/counter_tests.move; do
   if ! diff -u "Examples/Aptos/${EXAMPLE}/golden/$(basename "$f")" "$BUILD_DIR/$f"; then

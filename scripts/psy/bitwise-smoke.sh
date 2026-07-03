@@ -30,7 +30,7 @@ fi
 mkdir -p "$OUT_DIR"
 
 lake build proof-forge >/dev/null
-"$ROOT/.lake/build/bin/proof-forge" --emit-bitwise-ir-psy -o "$PSY_FILE"
+"$ROOT/.lake/build/bin/proof-forge" emit --target psy-dpn --fixture bitwise -o "$PSY_FILE"
 
 if [[ -f "$GOLDEN_FILE" ]]; then
   diff -u "$GOLDEN_FILE" "$PSY_FILE"

@@ -67,10 +67,10 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$NODE_PROJECT" "$SURFPOOL_LOG_DIR"
 
 echo "=== Solana log event step 1: build fixture ELF ==="
-lake env proof-forge --solana-log-event-elf --solana-sbpf-arch "$SBPF_ARCH" \
+lake env proof-forge emit --target solana-sbpf-asm --fixture log-event --format elf --solana-sbpf-arch "$SBPF_ARCH" \
   -o "$ELF_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --solana-log-event-elf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture log-event --format elf failed"
 [ -f "$ELF_OUTPUT" ] || fail "ELF not produced: $ELF_OUTPUT"
 
 python3 - "$ARTIFACT_OUTPUT" <<'PY'
