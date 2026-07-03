@@ -71,7 +71,7 @@ spike smoke jobs。
 
 | # | 标准 | 状态 | 证据 |
 |---|---|---|---|
-| P0-1 | Solana 直接 sBPF 后端达到生产级 | 🟡 in progress | Gate G0 行为/预算一致性已关闭；Pinocchio reference-equivalence 已纳入 `just solana-light`；剩余硬化是工作流 7 的 live dual-deploy CI/toolchain 稳定化以及更广 reference 覆盖 |
+| P0-1 | Solana 直接 sBPF 后端达到生产级 | 🟡 in progress | Gate G0 行为/预算一致性已关闭；Pinocchio reference-equivalence 已纳入 `just solana-light`；2026-07-03 的 Agave/Solana CLI ELF 兼容阻塞已通过把 target-first `--solana-sbpf-arch v0` 透传到 legacy ELF builder 修复，现在 `emit --target solana-sbpf-asm --format elf` 会生成 loader-compatible v0 ELF（`e_flags = 0`，带有效 section table）；本地 `just solana-pinocchio-live-equivalence` 已通过全部五个 Surfpool dual-deploy 场景（System transfer/create_account、SPL Token transfer/ops/authority），结果为 `5 passed, 0 skipped, 0 failed`；`.github/workflows/ci.yml` 现在包含强制 `solana-pinocchio-live` job，会安装 Agave/Solana CLI、SBF platform-tools、`sbpf`、Surfpool、Node/npm，构建 ProofForge，并在不允许 skip 的情况下运行 aggregate live suite。剩余 P0 硬化是观察远端 CI run，并完成更广义的 Solana 生产级签署。 |
 | P0-2 | Ethereum/EVM 后端达到生产级 | ✅ met | EVM semantic-plan 迁移已落地（RFC 0004）：`Plan.lean` 现定义 `ExprPlan`、`StmtPlan`、`EntrypointPlan`、`EventPlan`、`CrosscallPlan`、`MetadataPlan`；`Validate.lean` 承载纯校验/类型推断；`Lower.lean` 构建已填充的 `ModulePlan`（entrypoints、events、crosscalls、creates、checked-arithmetic 标记）；`Metadata.lean` 从计划生成 artifact/deploy 元数据；`IR.lean` 是兼容门面，在 Yul 生成前构建完整 semantic plan。门禁：`just evm-plan`、`just evm-semantic-plan`、`just evm-all`（诊断 58 case、99 IR 覆盖条目、19 IR smoke + Foundry + Anvil deploy）、`just check` 全绿 |
 | P0-3 | NEAR/Wasm 后端达到生产级 | 🟡 in progress | EmitWat/NEAR 诊断、IR 覆盖、offline host smoke 和预算基线已绿；剩余硬化是完整 target-first 本地执行/部署元数据签署 |
 | P0-4 | 额外链推进保持冻结 | ✅ met | D-044/D-045 冻结 Aptos/CosmWasm 超过 M1/M2 的推进，并在 P0 关闭前保持其他目标 docs-first |

@@ -165,6 +165,72 @@ jobs:
       - name: Run Anvil deploy smoke
         run: just evm-anvil-deploy
 
+  solana-pinocchio-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      PROOF_FORGE_AGAVE_RELEASE: v3.1.12
+      PROOF_FORGE_SBF_TOOLS_VERSION: v1.52
+      PROOF_FORGE_SURFPOOL_TAG: v0.10.8
+      PROOF_FORGE_SBPF_REV: d835bc6e638e4f55b88f31a31bbc92e3a2e0a5ba
+      PROOF_FORGE_SBPF_VERSION: 0.2.2
+      PROOF_FORGE_PINOCCHIO_USE_RUSTUP: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just@1.48.0
+
+      - name: Install Lean
+        run: |
+          toolchain="$(cat lean-toolchain)"
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain "$toolchain"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install Rust stable
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler libudev-dev
+
+      - name: Install Solana live toolchain
+        run: scripts/solana/install-pinocchio-live-ci-tools.sh
+
+      - name: Tool versions
+        run: |
+          lean --version
+          lake --version
+          rustc --version
+          cargo --version
+          solana --version
+          solana-keygen --version
+          cargo-build-sbf --version
+          sbpf --version
+          surfpool --version
+          node --version
+          npm --version
+          just --version
+
+      - name: Build proof-forge
+        run: just build
+
+      - name: Run Solana Pinocchio live equivalence
+        run: just solana-pinocchio-live-equivalence
+
   aleo-smoke:
     runs-on: ubuntu-latest
     continue-on-error: true

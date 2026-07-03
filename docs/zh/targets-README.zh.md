@@ -27,38 +27,72 @@
 
 ## 目标组合排期边界
 
-下表是 target note 的库存清单，不是排期授权。当前产品实现 backlog 受主三链完成规约
+下面这些分组是 target note 的库存清单，不是排期授权。当前产品实现 backlog 受主三链完成规约
 (D-045) 约束：先按顺序把 `solana-sbpf-asm`、`evm` 和 `wasm-near`
 做到生产级完善，然后任何额外链才能推进到 docs-only research 或冻结 spike 维护之外。
-已有的非主链条目（例如 `psy-dpn`、`aleo-leo` 和 `wasm-cloudflare-workers`）
-可以做 CI 稳定性、安全或文档维护，但在 Gate P0 关闭前，不得扩展 registry stage、
-capability surface、testkit coverage 或产品范围。
 
-## 当前目标状态
+用本页回答“仓库里已经有哪些目标说明？”；用
+[target-roadmap.md](../target-roadmap.md) 和
+[gate-status.md](../gate-status.md) 回答“下一步哪些目标可以获得产品实现投入？”
 
-| 目标 | 阶段 | 说明 |
+## 活跃产品目标（Gate P0）
+
+在 Gate P0 关闭前，只有这三个 target 可以获得产品硬化工作。下面顺序就是 D-045
+规定的实现优先级。
+
+| 目标 | 阶段 | 排期状态 |
 |---|---|---|
-| [EVM](evm.md) | Experimental | 通过 Yul、`solc`、Foundry smoke 建立基线；包含 EVM-compatible chain profile `robinhood-chain-testnet`。 |
-| [NEAR](targets/wasm-near.zh.md) | Spike | Rust `near-sdk-rs` sourcegen 后端；CLI emit modes、IR lowering、package generation。 |
-| CosmWasm | Research | 强力的 Wasm Spike 候选；复用 NEAR 的经验。 |
-| [Stellar Soroban](targets/stellar-soroban.zh.md) | Research | 文档优先的 Wasm-host 候选，使用 Soroban/Stellar CLI 工具链；尚未进入代码 registry。 |
-| [Internet Computer](targets/internet-computer.zh.md) | Research | 文档优先的 Wasm canister 候选，包含 Candid、cycles、stable memory 和 canister lifecycle；尚未进入代码 registry。 |
-| [Algorand AVM](targets/algorand-avm.zh.md) | Research | 文档优先的 AVM/TEAL source/package-generation 候选，包含 app programs、LogicSig、ARC-4 ABI、storage、resource references 和 transaction-group 语义；尚未进入代码 registry。 |
-| Solana sBPF-linker | Research（已取代） | Solana 历史参考路径（`solana-sbpf-linker` id）；已被 `solana-sbpf-asm` (D-026) 取代。 |
-| Solana sBPF Asm | Research | direct-assembly 路线（`solana-sbpf-asm` id），Lean → IR → sbpf asm → sbpf toolchain → ELF。见 [设计文档](solana-sbpf-asm.md)、[RFC 0005](../rfcs/0005-solana-sbpf-assembly-backend.md)。 |
-| Solana Zig fork | Research | 来自 `solana-sdk-mono` 的备选参考。 |
-| Sui Move | Research | 源代码生成；遵循 Aptos POC。 |
-| Aptos Move | Research | 首个 Move POC 目标。 |
-| [Cardano Plutus/Aiken](targets/cardano-plutus-aiken.zh.md) | Research | 文档优先的 eUTXO validator sourcegen 候选，通过 Aiken、UPLC、Plutus blueprints、datum/redeemer/script-context schemas 和 transaction-building validation。 |
-| [Tezos Michelson/LIGO](targets/tezos-michelson-ligo.zh.md) | Research | 文档优先的 Michelson sourcegen 候选，通过 LIGO、typed storage、entrypoints、views/events、operation lists 和 sandbox/test validation。 |
-| [Starknet Cairo](targets/starknet-cairo.zh.md) | Research | 文档优先的 Cairo/Sierra/CASM sourcegen 候选，包含 Scarb、ABI/class hash metadata、Starknet storage/events 和 Starknet Foundry/devnet validation。 |
-| [Aleo Leo](targets/aleo-leo.zh.md) | Research | 文档优先的 ZK application sourcegen 候选，包含 Leo、Aleo Instructions、Aleo VM bytecode、private records、public finalization、prover/verifier artifacts 和 Leo CLI/devnet validation。 |
-| [TON TVM](targets/ton-tvm.zh.md) | Research | 文档优先的 TVM/Tolk sourcegen 候选，包含 cells、messages、get methods、actions 和 TVM gas。 |
-| [Bitcoin Script/Miniscript](targets/bitcoin-script-miniscript.zh.md) | Research | 文档优先的 Bitcoin base-layer spending-policy 候选，通过 Script、Miniscript、descriptors、PSBT、Taproot/Tapscript 和 Bitcoin Core regtest validation。 |
-| [Zcash Shielded](targets/zcash-shielded.zh.md) | Research | 文档优先的 privacy UTXO/ZK payment 候选，包含 transparent Zcash flows、Sapling/Orchard shielded notes、nullifiers、anchors、value-balance constraints 和 zcashd/library validation。 |
-| [Bitcoin Cash CashScript](targets/bitcoin-cash-cashscript.zh.md) | Research | 文档优先的 UTXO script/covenant sourcegen 候选，通过 CashScript 与 BCH transaction-builder 验证。 |
-| Psy DPN | Experimental | 通过生成的 `.psy`、Dargo 冒烟测试和制品元数据校验实现的窄范围 ZK 电路源代码生成目标。 |
-| [Kaspa Toccata](targets/kaspa-toccata.zh.md) | Research | 文档优先的 UTXO covenant / based-app 目标候选；尚未进入代码 registry。 |
+| [Solana sBPF Asm](../targets/solana-sbpf-asm.md) | Experimental | 第一优先级；direct assembly 路线（`solana-sbpf-asm`），live deploy / Pinocchio equivalence 硬化作为 P0-1 追踪。 |
+| [EVM](targets/evm.zh.md) | Experimental | 第二优先级；Yul/`solc`/Foundry 基线，EVM-compatible chain profiles 仍作为 `evm` 下的部署元数据；semantic-plan 硬化作为 P0-2 追踪。 |
+| [Wasm-NEAR](targets/wasm-near.zh.md) | Experimental | 第三优先级；EmitWat 路线已具备诊断、IR coverage、formal trace anchors 和 offline host smoke；本地执行/部署元数据签署作为 P0-3 追踪。 |
+
+## 维护冻结的已落地库存
+
+这些 backend 已经有有用的代码或 smoke 覆盖，但 D-045 在 Gate P0 关闭前冻结新的
+registry stage、capability surface、testkit coverage、CI 扩展和产品范围。允许的工作仅限
+CI 稳定性、安全修复和文档维护。
+
+| 目标 | 阶段 | 冻结范围 |
+|---|---|---|
+| [Psy DPN](../targets/psy-dpn.md) | Experimental subset | 生成 `.psy`/Dargo 的路径保持维护；P0 前不推进 capability-completion。 |
+| [Aleo Leo](targets/aleo-leo.zh.md) | Research spike | Counter/PureMath sourcegen 和 smoke 保持维护；P0 前不开新的 ZK-app 实现路线。 |
+| [Cloudflare Workers](../targets/cloudflare-workers.md) | Research off-chain host | TypeScript Worker demo 作为 off-chain host 参考保留；P0 前不做产品扩展。 |
+
+## 冻结的 Tier-1 Spike
+
+这些是 Gate P0 之后最先恢复的目标，但主三链规约打开期间不得继续推进。
+
+| 目标 | 阶段 | 恢复条件 |
+|---|---|---|
+| CosmWasm | Frozen M1/M2 spike | 仅在 Gate P0 关闭后恢复 M3/M4；复用 Wasm-family 的 EmitWat host-adapter 路线。 |
+| Aptos Move | Frozen M1/M2 spike | 仅在 Gate P0 关闭后恢复 M3/M4；仍然是 Sui 之前第一个 Move sourcegen proof。 |
+
+## Docs-Only Parked Research
+
+这些说明保留研究结果，但不是当前执行队列。只有对应 roadmap enabler 打开并排入具体
+spike 后，才会从 docs-only 状态恢复。
+
+| 目标 | 家族 | 当前边界 |
+|---|---|---|
+| [Stellar Soroban](targets/stellar-soroban.zh.md) | Wasm host | CosmWasm 证明 host-adapter split 后才打开。 |
+| [Internet Computer](targets/internet-computer.zh.md) | Wasm host | 需要 Wasm-host split，再加 async/inter-canister design note。 |
+| Sui Move | Move/object sourcegen | 在 Aptos 证明 Move printer 和 sourcegen lane 后跟进。 |
+| [Algorand AVM](targets/algorand-avm.zh.md) | Source package generation | 停在后续 sourcegen-lane exit 之后。 |
+| [Cardano Plutus/Aiken](targets/cardano-plutus-aiken.zh.md) | eUTXO validator sourcegen | 停在后续 sourcegen-lane exit 之后。 |
+| [Tezos Michelson/LIGO](targets/tezos-michelson-ligo.zh.md) | Source package generation | 停在后续 sourcegen-lane exit 之后。 |
+| [Starknet Cairo](targets/starknet-cairo.zh.md) | Cairo/Sierra/CASM sourcegen | Aptos 之后的首个非 Move sourcegen 候选，但仍受 P0 阻塞。 |
+| [TON TVM](targets/ton-tvm.zh.md) | TVM sourcegen | 停在后续 sourcegen-lane exit 之后。 |
+| [Bitcoin Script/Miniscript](targets/bitcoin-script-miniscript.zh.md) | Policy family | 只有单独的 `policy.*` 路线排期后才打开。 |
+| [Zcash Shielded](targets/zcash-shielded.zh.md) | Privacy UTXO / ZK payment | 跟随可工作的 Bitcoin policy lane。 |
+| [Bitcoin Cash CashScript](targets/bitcoin-cash-cashscript.zh.md) | UTXO script/covenant sourcegen | 跟随 Bitcoin policy lane。 |
+| [Kaspa Toccata](targets/kaspa-toccata.zh.md) | UTXO covenant / based app | 停在 policy/ZK lane 决策之后。 |
+
+## 已取代或参考路线
+
+| 路线 | 状态 | 说明 |
+|---|---|---|
+| Solana sBPF-linker | 已取代 | 历史 `solana-sbpf-linker` 路线；已被 `solana-sbpf-asm` (D-026) 取代。 |
+| Solana Zig fork | 仅参考 | 来自 `solana-sdk-mono` 的外部参考；不是产品路线。 |
 
 ## 文档
 

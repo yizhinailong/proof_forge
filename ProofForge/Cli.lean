@@ -2399,7 +2399,7 @@ structure NewCommandParseState where
   evmConstructorParams : Array ConstructorParamSpec := #[]
   evmConstructorValues : Array ConstructorValueSpec := #[]
   evmConstructorArgsHex : String := ""
-  solanaSbpfArch : String := "v3"
+  solanaSbpfArch? : Option String := none
   methodsFile? : Option String := none
   token : Bool := false
   input? : Option String := none
@@ -2467,7 +2467,7 @@ partial def parseNewOptions : List String → NewCommandParseState → Except St
   | "--solana-sbpf-arch" :: rest, state => do
       let (arch, rest) ← takeOption rest "--solana-sbpf-arch"
       if arch == "v0" || arch == "v3" then
-        parseNewOptions rest { state with solanaSbpfArch := arch }
+        parseNewOptions rest { state with solanaSbpfArch? := some arch }
       else
         .error s!"invalid --solana-sbpf-arch '{arch}', expected v0 or v3"
   | "--methods-file" :: rest, state => do
@@ -2603,6 +2603,9 @@ def newCommandArgsToLegacy (args : List String) : Except String (List String) :=
         legacy := legacy ++ ["--solc", state.solc, "--cast", state.cast]
       if flag == "--learn" || flag == "--learn-token" then
         legacy := legacy ++ ["--target", target]
+      if target == "solana-sbpf-asm" then
+        if let some arch := state.solanaSbpfArch? then
+          legacy := legacy ++ ["--solana-sbpf-arch", arch]
       if let some input := state.input? then legacy := legacy ++ [input]
       Except.ok legacy
   | "emit" :: rest => do
@@ -2617,6 +2620,9 @@ def newCommandArgsToLegacy (args : List String) : Except String (List String) :=
       if let some profile := state.evmChainProfile? then legacy := legacy ++ ["--evm-chain-profile", profile]
       if flag.endsWith "-bytecode" then
         legacy := legacy ++ ["--solc", state.solc, "--cast", state.cast]
+      if target == "solana-sbpf-asm" then
+        if let some arch := state.solanaSbpfArch? then
+          legacy := legacy ++ ["--solana-sbpf-arch", arch]
       Except.ok legacy
   | "check" :: _ => Except.error "proof-forge check is not yet implemented"
   | _ => Except.error "expected build, emit, or check"

@@ -17,6 +17,139 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Solana Pinocchio Live CI Lane
+
+Commit: pending
+
+Summary:
+
+- Added a mandatory GitHub Actions `solana-pinocchio-live` job for the P0
+  Solana hardening lane.
+- Added `scripts/solana/install-pinocchio-live-ci-tools.sh` to install/check
+  Agave/Solana CLI `v3.1.12`, SBF platform-tools `v1.52`, pinned `sbpf`,
+  Surfpool `v0.10.8`, and Node/npm before running the aggregate live suite.
+- Hardened the Pinocchio live helper so it can fall back to Agave
+  platform-tools rust/cargo with `--no-rustup-override` when rustup
+  `+toolchain` dispatch is unavailable.
+- Updated Gate P0 evidence so P0-1 now records the new mandatory CI lane,
+  while keeping the gate open until a remote run is observed and the broader
+  Solana production sign-off is complete.
+
+Validation run:
+
+```sh
+bash -n scripts/solana/install-pinocchio-live-ci-tools.sh \
+  scripts/solana/pinocchio-live-common.sh \
+  scripts/solana/pinocchio-live-equivalence.sh \
+  scripts/solana/pinocchio-*-live-equivalence.sh
+CARGO_BUILD_SBF_BIN=cargo-build-sbf \
+  SOLANA_RUSTUP_TOOLCHAIN=1.89.0-sbpf-solana-v1.52 \
+  bash -c '. scripts/solana/pinocchio-live-common.sh; platformToolsRustBin'
+```
+
+Known limitations:
+
+- The local installer self-check was interrupted after entering the SBF
+  platform-tools install path because the command produced no progress output
+  for over 90 seconds on this machine. The CI job still covers the fresh-install
+  path with a 15-minute timeout around `cargo-build-sbf --install-only`.
+- P0 remains open until the new remote CI job completes successfully.
+
+Next step:
+
+- Push this lane, watch the first remote `solana-pinocchio-live` run, and fix
+  any platform-specific install failure before moving to the next P0 slice.
+
+### Solana Target-First v0 ELF Live Deploy Fix
+
+Commit: feature commit for Solana target-first ELF arch propagation
+
+Summary:
+
+- Fixed the target-first CLI compatibility layer so
+  `proof-forge emit --target solana-sbpf-asm --format elf
+  --solana-sbpf-arch v0` forwards the requested architecture into the legacy
+  Solana ELF builder instead of silently falling back to the default v3 build.
+- Confirmed the fixed target-first path now emits the same loader-compatible
+  v0 ELF shape as the direct legacy flag: `e_flags = 0`, valid section table,
+  and Agave `solana-sbpf 0.13.1` parse/load success.
+- Re-ran the full local ProofForge-vs-Pinocchio live dual-deploy suite. All
+  five Surfpool scenarios deployed both generated ProofForge and Pinocchio
+  reference programs and matched observable state.
+
+Validation run:
+
+```sh
+lake build proof-forge
+lake env lean Tests/CliTargetFirst.lean
+lake env proof-forge emit --target solana-sbpf-asm --fixture system-cpi \
+  --format elf --solana-sbpf-arch v0 \
+  -o build/solana-compat-check-fixed/new-v0.so \
+  --artifact-output build/solana-compat-check-fixed/new-v0.json
+cargo run --manifest-path /tmp/proofforge-elf-check-013/Cargo.toml -- \
+  build/solana-compat-check-fixed/new-v0.so
+just solana-pinocchio-system-transfer-live-equivalence
+just solana-pinocchio-live-equivalence
+```
+
+Known limitations:
+
+- This resolves the local Agave loader compatibility blocker, but Gate P0 is
+  still open. The live Pinocchio suite is not yet mandatory in CI, and broader
+  Solana production-grade sign-off remains tracked under Gate P0.
+
+Next step:
+
+- Promote the live Pinocchio suite into a reliable CI lane once Solana
+  rustc/platform-tools, Surfpool, Node/npm, and port isolation are stable
+  enough for mandatory remote execution.
+
+### Solana Pinocchio Live Deploy Blocker Triage
+
+Commit: documentation commit for Solana live deploy blocker triage
+
+Summary:
+
+- Ran the aggregate Pinocchio live dual-deploy gate locally with Surfpool,
+  Agave `solana-cli 3.1.12`, `cargo-build-sbf 3.1.12`, and `sbpf 0.2.2`
+  available.
+- Confirmed the live suite does not currently fail because of missing tools:
+  all five child gates build the ProofForge ELF and Pinocchio reference ELF,
+  start Surfpool, then fail at ProofForge `solana program deploy --use-rpc`
+  with `Failed to parse ELF file: invalid file header`.
+- Triage against Agave's embedded `solana-sbpf 0.13.1` showed the generated
+  ProofForge ELF is not Solana CLI loader-compatible: blueshift `sbpf build
+  --arch v0` emits a one-segment bare ELF with no section table and
+  `e_flags = 3`, which makes Agave use its strict v3 parser. That parser
+  requires `EM_SBPF`, four program headers, a valid section-header index, and
+  function-start markers. Reflagging the bytecode as v0 is also invalid because
+  the v3/static-call bytecode then fails relocation with
+  `RelativeJumpOutOfBounds`.
+- Recorded the blocker in Gate P0 and Workstream 7 so Solana P0 does not read
+  as a generic CI/toolchain-install task.
+
+Validation run:
+
+```sh
+just solana-pinocchio-live-equivalence
+cargo run --manifest-path /tmp/proofforge-elf-check-013/Cargo.toml -- \
+  build/solana-pinocchio-system-transfer-live/proofforge-system-transfer-live-sbpf-project/deploy/proofforge-system-transfer-live.so \
+  build/solana-pinocchio-system-transfer-live/pinocchio-system-transfer-reference.so
+```
+
+Known limitations:
+
+- This is a blocker triage and documentation pass. It does not yet add the
+  Solana loader-compatible ELF packaging path, and the live dual-deploy suite
+  remains non-mandatory for CI.
+
+Next step:
+
+- Implement an explicit Solana CLI loader-compatibility path: either emit and
+  package through the standard Solana platform-tools format, or extend the
+  direct assembler pipeline to produce the strict v3 headers and function-start
+  markers accepted by Agave.
+
 ### Review Follow-up: RFC, Portfolio, and Gate State Alignment
 
 Commit: feature commit for review follow-up documentation alignment
