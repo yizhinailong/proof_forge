@@ -1,6 +1,6 @@
 {
   "README.md": {
-    "sha256": "5acea031e8f73fdeb5ca9b575eb708e1701d204ddfbda9ec0981b939732cb163",
+    "sha256": "59ad980fdd51ff0300b68133fb90c17cec8193cfb2be6304c23b5eaa863a0db3",
     "zh": "docs/zh/README-root.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -10,7 +10,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "f3375d5935d60f059440d3653ece5b61a95db00ccb5e0a65d68d314719feb5db",
+    "sha256": "82bf57f7782c13282e189322bbab5f1d24327523874a7f754c8f3c0461b46dd9",
     "zh": "docs/zh/INDEX.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -91,12 +91,12 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/README.md": {
-    "sha256": "b1605e2ba899709ca61d5fcf82313f2c01e1edf6e39828564bd8402bd32e5084",
+    "sha256": "c435968be0998d3b641ad707d48001d1b3b67f71753d1e5010a463debafe5935",
     "zh": "docs/zh/targets-README.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/evm.md": {
-    "sha256": "ec468ddad123211c1923a7a53b345abba4a8fabef662e565711c303114be1640",
+    "sha256": "290bd68883caa5d2dd2df8f46ea32bd3c8d5a3c4d933e6f7a5c73fc85886751d",
     "zh": "docs/zh/targets/evm.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -116,12 +116,12 @@
     "model": "gemini-3-flash-preview"
   },
   "Examples/Evm/README.md": {
-    "sha256": "fbfc1d03889851fb52631f44c9d832772c73ab5840438713646a7c42f351da49",
+    "sha256": "d8d208e254179bac0baae8e005beb2102d1f0077eb7d1a45d42ce56b922b8a20",
     "zh": "docs/zh/examples-evm-README.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/wasm-near.md": {
-    "sha256": "3360c519cce7233de6e39e36ec6c7adb62bb2e0ccb539a190fd43f6d5ab68b2e",
+    "sha256": "755f7de287647e05437c21e5860387fadd628e69fb3c19c6bd44e5cd603c0b2e",
     "zh": "docs/zh/targets/wasm-near.zh.md",
     "model": "gemini-3-flash-preview"
   },

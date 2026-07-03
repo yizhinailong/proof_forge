@@ -378,7 +378,7 @@ This is intentionally source-like and reviewable. The current implementation is
 `ProofForge.Backend.Psy.IR.renderModule`, exposed through:
 
 ```sh
-lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
+lake env proof-forge emit --target psy-dpn --fixture counter --format psy -o build/psy/Counter.psy
 ```
 
 The checked-in golden source is `Examples/Psy/Counter.golden.psy`.

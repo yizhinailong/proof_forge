@@ -57,7 +57,7 @@ deployment command，把所选 profile 的 RPC metadata 传给 wallet/broadcast 
 ```sh
 lake build
 
-lake env proof-forge --evm-bytecode --root . --module contract \
+lake env proof-forge build --target evm --root . --module contract \
   --artifact-output build/evm/Counter.proof-forge-artifact.json \
   -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
 
@@ -87,64 +87,23 @@ scripts/evm/abi-aggregate-ir-smoke.sh
 
 ## CLI 模式
 
-默认 Yul 模式：
+Target-first Lean SDK build：
 
 ```sh
-proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean
-```
-
-EVM 字节码模式：
-
-```sh
-proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
+proof-forge build --target evm [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
 ```
 
 Portable IR EVM fixture 模式：
 
 ```sh
-proof-forge --emit-counter-ir-yul [-o output.yul]
-proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-abi-scalar-ir-yul [-o output.yul]
-proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-assert-ir-yul [-o output.yul]
-proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-assignment-ir-yul [-o output.yul]
-proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-assign-op-ir-yul [-o output.yul]
-proof-forge --emit-evm-assign-op-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-conditional-ir-yul [-o output.yul]
-proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-loop-ir-yul [-o output.yul]
-proof-forge --emit-evm-loop-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-context-ir-yul [-o output.yul]
-proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-event-ir-yul [-o output.yul]
-proof-forge --emit-evm-event-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-crosscall-ir-yul [-o output.yul]
-proof-forge --emit-evm-crosscall-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-expression-ir-yul [-o output.yul]
-proof-forge --emit-evm-expression-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-hash-ir-yul [-o output.yul]
-proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-map-ir-yul [-o output.yul]
-proof-forge --emit-evm-map-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-storage-array-ir-yul [-o output.yul]
-proof-forge --emit-evm-storage-array-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-storage-struct-ir-yul [-o output.yul]
-proof-forge --emit-evm-storage-struct-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-typed-storage-ir-yul [-o output.yul]
-proof-forge --emit-evm-typed-storage-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-array-value-ir-yul [-o output.yul]
-proof-forge --emit-evm-array-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-struct-array-value-ir-yul [-o output.yul]
-proof-forge --emit-evm-struct-array-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-struct-value-ir-yul [-o output.yul]
-proof-forge --emit-evm-struct-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-abi-aggregate-ir-yul [-o output.yul]
-proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge emit --target evm --fixture counter --format yul [-o output.yul]
+proof-forge emit --target evm --fixture counter --format bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge emit --target evm --fixture <fixture-id> --format yul [-o output.yul]
+proof-forge emit --target evm --fixture <fixture-id> --format bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
 
-`--bytecode` 是 `--evm-bytecode` 的别名。
+完整 fixture 列表可通过 `proof-forge --list-fixtures` 查看。`--evm-bytecode`、`--bytecode`
+和 `--emit-*-ir-yul` 等 legacy aliases 会在 RFC 0009 兼容窗口内保留，但新的脚本和文档应使用 target-first 界面。
 
 `--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--evm-chain-profile <id>` 会把已知 EVM chain profile（例如 `robinhood-chain-testnet`）记录到生成的 deploy manifest 中，但不会签名或广播交易。`--evm-constructor-param <name:type>` 会在 `abi.constructor.params` 中记录静态 word constructor ABI schema；支持的 schema 类型是 `uint256`、`uint64`、`uint32`、`bool`、`bytes32` 和 `address`。`--evm-constructor-arg <name=value>` 会根据声明的 schema ABI-encode 一个 typed constructor value：无符号整数可以是十进制或 `0x` 前缀 hex，`bool` 接受 `true`、`false`、`1` 或 `0`，`bytes32` 必须正好是 32 个 hex byte，`address` 必须正好是 20 个 hex byte 并左填充到一个 ABI word。typed constructor args 不能和 `--evm-constructor-args-hex` 混用。`--evm-constructor-args-hex <hex>` 会把一段 ABI-encoded constructor argument blob 追加到生成的 `.init.bin` creation bytecode，并在 `proof-forge-deploy.json` 中记录规范化 hex、byte length、SHA-256 和 source flag。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`，并在 metadata 文件旁写入 `proof-forge-deploy.json`。当 smoke 脚本传入类似 `Counter.proof-forge-artifact.json` 的 fixture 专属 metadata 路径时，deploy manifest 会写成 `Counter.proof-forge-deploy.json`。
 

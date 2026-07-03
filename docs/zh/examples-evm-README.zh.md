@@ -18,7 +18,7 @@
 scripts/evm/build-examples.sh
 ```
 
-这通过 `proof-forge --evm-bytecode` (Lean -> EmitYul -> Yul -> `solc --strict-assembly` -> 字节码) 将每个 `.lean` 合约编译为 EVM 字节码。它还会把生成的 Yul 与同级 `.golden.yul` fixture 做 diff，并校验 ProofForge artifact/deploy metadata。它需要在 `PATH` 上安装 Foundry (`cast`/`forge`) 和 `solc`。
+这通过 `proof-forge build --target evm` (Lean -> EmitYul -> Yul -> `solc --strict-assembly` -> 字节码) 将每个 `.lean` 合约编译为 EVM 字节码。它还会把生成的 Yul 与同级 `.golden.yul` fixture 做 diff，并校验 ProofForge artifact/deploy metadata。它需要在 `PATH` 上安装 Foundry (`cast`/`forge`) 和 `solc`。
 
 ## 运行 Foundry 冒烟测试
 
@@ -30,7 +30,7 @@ scripts/evm/foundry-smoke.sh
 
 ## 当前 EVM 支持情况
 
-目前的开发进度足以通过 `proof-forge --evm-bytecode` 编写和部署小型 Lean EVM 合约：
+目前的开发进度足以通过 `proof-forge build --target evm` 编写和部署小型 Lean EVM 合约：
 
 - 合约方法：通过 4 字节函数选择器进行选择器分派（`.evm-methods` 文件）。
 - 存储：`Storage.load`/`store` (sload/sstore)，`Storage.mapLoad`/`mapStore`（通过 keccak256 实现映射）。

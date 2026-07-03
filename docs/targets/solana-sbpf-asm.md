@@ -604,17 +604,19 @@ The target profile must accept or reject each IR capability. The proposed
 
 ## CLI and Build Integration
 
-### New CLI flag
+### Target-first CLI
 
 ```text
-proof-forge --solana-elf [--root DIR] [--manifest manifest.toml] [--solana-sbpf-arch v0|v3] [-o output.so] input.lean
+proof-forge emit --target solana-sbpf-asm --fixture counter --format s [-o output.s] [--artifact-output file]
+proof-forge emit --target solana-sbpf-asm --fixture counter --format elf [--solana-sbpf-arch v0|v3] [-o output.so] [--artifact-output file]
 ```
 
 Also:
-- `--emit-sbpf-asm` — emit `.s` without invoking `sbpf build` (development).
-- `--emit-sbpf-elf` or `--solana-elf` — emit `.s` then invoke `sbpf build`.
 - `--solana-sbpf-arch v0|v3` — pass the selected sbpf architecture to
   `sbpf build --arch`; artifacts record the value under `toolchain.sbpf.arch`.
+- Legacy aliases such as `--emit-sbpf-asm` and `--solana-elf` remain available
+  during the RFC 0009 compatibility window, but executable callers should use
+  the target-first surface.
 
 ### Build pipeline steps
 
@@ -735,7 +737,7 @@ and Node tooling) following the same pattern as others (`solc`, `foundry`,
 
 | Gate | Criterion |
 |---|---|
-| V-GATE-SOLANA-01 | `--emit-sbpf-asm` produces valid `.s` accepted by `sbpf build` (no assembly errors). |
+| V-GATE-SOLANA-01 | `emit --target solana-sbpf-asm --fixture canned-entrypoint --format s` produces valid `.s` accepted by `sbpf build` (no assembly errors). |
 | V-GATE-SOLANA-02 | `sbpf build` produces a valid ELF that `sbpf disassemble` round‑trips. |
 | V-GATE-SOLANA-03 | Counter scenario (initialize, increment, get) passes `sbpf test` with Mollusk. |
 | V-GATE-SOLANA-04 | Counter scenario deploys to Surfpool and passes Web3.js initialize/increment/get behavior checks. |

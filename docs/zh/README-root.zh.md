@@ -25,15 +25,15 @@ ProofForge 的目标是：一份经过验证的 Lean 合约代码库，可以在
 
 所有后端都在 `main` 上（"链"是目录和 target id，不是分支）。生命周期阶段见
 [docs/targets/README.md](../targets/README.md)。
-当前产品实现受主三链完成规约 (D-045) 约束：先按顺序把
-`solana-sbpf-asm`、`evm`、`wasm-near` 做到生产级完善，然后任何额外链才能推进到
-docs-only research 或冻结 spike 维护之外。
+主三链完成规约 (D-045) 已关闭：`solana-sbpf-asm`、`evm` 和 `wasm-near`
+已经具备生产级本地/CI 门禁。下一条硬化主线是 CLI M3/M4，把 legacy flags
+迁移到 `proof-forge build|emit|check --target ...`，然后再推进 Tier-1 M3/M4 工作。
 
 | Target id | 管线 | 阶段 | 本地验证 |
 |---|---|---|---|
 | `evm` | Lean / portable IR → Yul → `solc` → bytecode | 基线（成熟） | golden Yul、诊断、Foundry 运行时冒烟、Anvil 部署 |
 | `solana-sbpf-asm` | portable IR → sBPF assembly → `sbpf` → ELF | Experimental | Mollusk 测试、Surfpool/Web3.js live 冒烟、Pinocchio 等价性门禁 |
-| `wasm-near` | portable IR → `EmitWat`（Wasm AST → WAT）→ `wat2wasm` | Experimental | 45 例诊断、IR 覆盖清单、形式化 trace obligation、离线宿主冒烟 |
+| `wasm-near` | portable IR → `EmitWat`（Wasm AST → WAT）→ `wat2wasm` | Experimental | 诊断、IR 覆盖清单、形式化 trace obligation、target-first 冒烟、离线宿主冒烟、artifact/deploy metadata |
 | `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental（受限子集） | golden source、诊断、`dargo` execute 冒烟 |
 | `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Research spike | Counter/PureMath golden fixture 与冒烟 |
 | `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Research（链下宿主，D-033） | `tsc` 类型检查、`wrangler` dry-run |
@@ -64,18 +64,18 @@ lake build
 把 EVM Counter 示例编译为运行时 bytecode：
 
 ```sh
-lake env proof-forge --evm-bytecode --root . --module contract \
+lake env proof-forge build --target evm --root . --module contract \
   -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
 ```
 
 从内置的 portable IR fixture 产出其他目标的制品：
 
 ```sh
-lake env proof-forge --emit-counter-emitwat -o build/wasm-near   # NEAR Wasm
-lake env proof-forge --solana-elf -o build/solana/counter.so     # Solana ELF
-lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
-lake env proof-forge --emit-counter-ir-leo -o build/aleo         # Aleo Leo
-lake env proof-forge --emit-counter-ir-ts -o build/ts/Counter.ts # CF Workers
+lake env proof-forge emit --target wasm-near --fixture counter --format wat -o build/wasm-near
+lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format elf -o build/solana/counter.so
+lake env proof-forge emit --target psy-dpn --fixture counter --format psy -o build/psy/Counter.psy
+lake env proof-forge emit --target aleo-leo --fixture counter --format leo -o build/aleo
+lake env proof-forge emit --target wasm-cloudflare-workers --fixture counter --format ts -o build/ts/Counter.ts
 ```
 
 各目标完整的可运行验证命令及工具前置条件（Foundry、`solc`、`sbpf`、

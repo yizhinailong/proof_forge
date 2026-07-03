@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Review Disposition Docs Tightening
+
+Commit: this commit
+
+Summary:
+
+- Rechecked the July 2026 review disposition against current `main`: RFC 0009
+  and D-039 are already aligned with the landed CLI M1 work, so this slice did
+  not reopen that decision.
+- Tightened public docs around the Gate P0 boundary: `docs/INDEX.md`, Chinese
+  root README, and target-note indexes now agree that the primary-chain
+  covenant is closed and the next active lane is CLI M3/M4 target-first
+  migration before Tier-1 M3/M4 work.
+- Continued the CLI M3 documentation pass by moving public EVM, Solana, NEAR,
+  Psy/DPN, Aleo, and Cloudflare examples to
+  `proof-forge build|emit --target ...` forms while retaining legacy aliases
+  only as compatibility-window notes.
+
+Validation run:
+
+```sh
+rg -n -- '--evm-bytecode|--emit-counter-ir|--emit-pure-math-ir|--solana-elf|--emit-counter-emitwat' README.md AGENTS.md Examples docs/INDEX.md docs/zh/INDEX.zh.md docs/targets docs/zh/targets docs/zh/examples-evm-README.zh.md docs/zh/README-root.zh.md
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Historical design/background notes still mention legacy aliases where the
+  alias itself is the topic.
+- `docs/validation-gates.md` was not rewritten in this slice because the
+  current gate table already includes the target-first NEAR lane and the
+  Chinese validation-gates translation has unrelated in-progress edits.
+
+Next step:
+
+- Finish executable CLI M3/M4 migration, then schedule FV-2 semantic
+  preservation work before opening Tier-1 M3/M4 implementation.
+
 ### CLI M3 Target-First Regression Guard
 
 Commit: this commit

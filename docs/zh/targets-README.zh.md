@@ -27,45 +27,45 @@
 
 ## 目标组合排期边界
 
-下面这些分组是 target note 的库存清单，不是排期授权。当前产品实现 backlog 受主三链完成规约
-(D-045) 约束：先按顺序把 `solana-sbpf-asm`、`evm` 和 `wasm-near`
-做到生产级完善，然后任何额外链才能推进到 docs-only research 或冻结 spike 维护之外。
+下面这些分组是 target note 的库存清单，不是排期授权。主三链完成规约 (D-045)
+已经关闭：ProofForge 已经把 `solana-sbpf-asm`、`evm` 和 `wasm-near`
+签署到生产级本地/CI 门禁。当前 backlog 仍然要求先完成 CLI M3/M4 target-first
+迁移，再推进 Tier-1 M3/M4。
 
 用本页回答“仓库里已经有哪些目标说明？”；用
 [target-roadmap.md](../target-roadmap.md) 和
 [gate-status.md](../gate-status.md) 回答“下一步哪些目标可以获得产品实现投入？”
 
-## 活跃产品目标（Gate P0）
+## 已完成的主产品目标（Gate P0）
 
-在 Gate P0 关闭前，只有这三个 target 可以获得产品硬化工作。下面顺序就是 D-045
-规定的实现优先级。
+这三个 target 已完成 D-045 规定的实现优先级。
 
 | 目标 | 阶段 | 排期状态 |
 |---|---|---|
-| [Solana sBPF Asm](../targets/solana-sbpf-asm.md) | Experimental | 第一优先级；direct assembly 路线（`solana-sbpf-asm`），live deploy / Pinocchio equivalence 硬化作为 P0-1 追踪。 |
-| [EVM](targets/evm.zh.md) | Experimental | 第二优先级；Yul/`solc`/Foundry 基线，EVM-compatible chain profiles 仍作为 `evm` 下的部署元数据；semantic-plan 硬化作为 P0-2 追踪。 |
-| [Wasm-NEAR](targets/wasm-near.zh.md) | Experimental | 第三优先级；EmitWat 路线已具备诊断、IR coverage、formal trace anchors 和 offline host smoke；本地执行/部署元数据签署作为 P0-3 追踪。 |
+| [Solana sBPF Asm](../targets/solana-sbpf-asm.md) | Experimental | 第一优先级已签署；direct assembly 路线（`solana-sbpf-asm`）、live deploy 与 Pinocchio equivalence 门禁为绿色。 |
+| [EVM](targets/evm.zh.md) | Experimental | 第二优先级已签署；Yul/`solc`/Foundry/Anvil 门禁、EVM-compatible deployment metadata、semantic-plan 硬化和 FV-4 anchors 为绿色。 |
+| [Wasm-NEAR](targets/wasm-near.zh.md) | Experimental | 第三优先级已签署；EmitWat 路线、诊断、IR coverage、formal trace anchors、target-first 本地执行、artifact/deploy metadata 和 offline host smoke 为绿色。 |
 
 ## 维护冻结的已落地库存
 
-这些 backend 已经有有用的代码或 smoke 覆盖，但 D-045 在 Gate P0 关闭前冻结新的
-registry stage、capability surface、testkit coverage、CI 扩展和产品范围。允许的工作仅限
-CI 稳定性、安全修复和文档维护。
+这些 backend 已经有有用的代码或 smoke 覆盖，但目前不是下一条产品实现主线。
+允许的工作限于 CI 稳定性、安全修复和文档维护，除非后续 gate 或明确 backlog slice
+把它们提升为 active scope。
 
 | 目标 | 阶段 | 冻结范围 |
 |---|---|---|
-| [Psy DPN](../targets/psy-dpn.md) | Experimental subset | 生成 `.psy`/Dargo 的路径保持维护；P0 前不推进 capability-completion。 |
-| [Aleo Leo](targets/aleo-leo.zh.md) | Research spike | Counter/PureMath sourcegen 和 smoke 保持维护；P0 前不开新的 ZK-app 实现路线。 |
-| [Cloudflare Workers](../targets/cloudflare-workers.md) | Research off-chain host | TypeScript Worker demo 作为 off-chain host 参考保留；P0 前不做产品扩展。 |
+| [Psy DPN](../targets/psy-dpn.md) | Experimental subset | 生成 `.psy`/Dargo 的路径保持维护；不推进 capability-completion，除非安排新的 ZK/circuit lane。 |
+| [Aleo Leo](targets/aleo-leo.zh.md) | Research spike | Counter/PureMath sourcegen 和 smoke 保持维护；当前不安排新的 ZK-app 实现路线。 |
+| [Cloudflare Workers](../targets/cloudflare-workers.md) | Research off-chain host | TypeScript Worker demo 作为 off-chain host 参考保留；当前不做产品扩展。 |
 
-## 冻结的 Tier-1 Spike
+## Tier-1 候选
 
-这些是 Gate P0 之后最先恢复的目标，但主三链规约打开期间不得继续推进。
+这些是 Gate P0 之后最先恢复的目标，但应先完成 CLI M3/M4 target-first 迁移并经过评审。
 
 | 目标 | 阶段 | 恢复条件 |
 |---|---|---|
-| CosmWasm | Frozen M1/M2 spike | 仅在 Gate P0 关闭后恢复 M3/M4；复用 Wasm-family 的 EmitWat host-adapter 路线。 |
-| Aptos Move | Frozen M1/M2 spike | 仅在 Gate P0 关闭后恢复 M3/M4；仍然是 Sui 之前第一个 Move sourcegen proof。 |
+| CosmWasm | M1/M2 spike | CLI M3/M4 cleanup 之后恢复 M3/M4；复用 Wasm-family 的 EmitWat host-adapter 路线。 |
+| Aptos Move | M1/M2 spike | CLI M3/M4 cleanup 之后恢复 M3/M4；仍然是 Sui 之前第一个 Move sourcegen proof。 |
 
 ## Docs-Only Parked Research
 
@@ -80,7 +80,7 @@ spike 后，才会从 docs-only 状态恢复。
 | [Algorand AVM](targets/algorand-avm.zh.md) | Source package generation | 停在后续 sourcegen-lane exit 之后。 |
 | [Cardano Plutus/Aiken](targets/cardano-plutus-aiken.zh.md) | eUTXO validator sourcegen | 停在后续 sourcegen-lane exit 之后。 |
 | [Tezos Michelson/LIGO](targets/tezos-michelson-ligo.zh.md) | Source package generation | 停在后续 sourcegen-lane exit 之后。 |
-| [Starknet Cairo](targets/starknet-cairo.zh.md) | Cairo/Sierra/CASM sourcegen | Aptos 之后的首个非 Move sourcegen 候选，但仍受 P0 阻塞。 |
+| [Starknet Cairo](targets/starknet-cairo.zh.md) | Cairo/Sierra/CASM sourcegen | Aptos 与 sourcegen-lane exit 之后的首个非 Move sourcegen 候选。 |
 | [TON TVM](targets/ton-tvm.zh.md) | TVM sourcegen | 停在后续 sourcegen-lane exit 之后。 |
 | [Bitcoin Script/Miniscript](targets/bitcoin-script-miniscript.zh.md) | Policy family | 只有单独的 `policy.*` 路线排期后才打开。 |
 | [Zcash Shielded](targets/zcash-shielded.zh.md) | Privacy UTXO / ZK payment | 跟随可工作的 Bitcoin policy lane。 |

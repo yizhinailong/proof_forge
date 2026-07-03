@@ -13,13 +13,13 @@ A minimal counter program in portable IR with three entrypoints:
 - `increment` — reads `count`, adds one, and writes it back.
 - `get` — returns `count` through `sol_set_return_data`.
 
-The example is compiled by the same backend fixture used by
-`--emit-counter-ir-sbpf`. Running that command also writes a `manifest.toml`
-sidecar describing the instruction tags and the single writable account owned
-by the program.
+The example is compiled by the same backend fixture used by the target-first
+`emit --target solana-sbpf-asm --fixture counter` command. Running that command
+also writes a `manifest.toml` sidecar describing the instruction tags and the
+single writable account owned by the program.
 
 ```sh
-lake env proof-forge --emit-counter-ir-sbpf \
+lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format s \
   -o build/solana/Counter.s \
   --artifact-output build/solana/proof-forge-artifact.json
 ```
@@ -27,7 +27,7 @@ lake env proof-forge --emit-counter-ir-sbpf \
 To build the Solana ELF (requires `sbpf` on `PATH`):
 
 ```sh
-lake env proof-forge --solana-elf -o build/solana/Counter.so
+lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format elf -o build/solana/Counter.so
 ```
 
 The runtime half is exercised by `scripts/solana/counter-smoke.sh`, which

@@ -144,13 +144,14 @@ Map set helpers（`__pf_map_set_u64`、`__pf_map_set_bool`、`__pf_map_set_hash`
 ## CLI Modes
 
 ```sh
-proof-forge --emit-counter-ir-wasm-near -o build/wasm-near/Counter
-proof-forge --emit-context-ir-wasm-near -o build/wasm-near/ContextProbe
-proof-forge --emit-hash-ir-wasm-near -o build/wasm-near/HashProbe
-proof-forge --emit-map-ir-wasm-near -o build/wasm-near/MapProbe
+proof-forge emit --target wasm-near --fixture counter --format wat -o build/wasm-near/Counter
+proof-forge emit --target wasm-near --fixture context --format wat -o build/wasm-near/ContextProbe
+proof-forge emit --target wasm-near --fixture hash --format wat -o build/wasm-near/HashProbe
+proof-forge emit --target wasm-near --fixture map --format wat -o build/wasm-near/MapProbe
 ```
 
-`-o` 对 wasm-near modes 是必需的，并被解释为 package output directory（不是单个文件）。现有 EVM/Psy 的 `-o` 行为不变。
+`-o` 对 Wasm-NEAR target-first package emission 是必需的，并被解释为 package output directory（不是单个文件）。Legacy
+`--emit-*-ir-wasm-near` aliases 会在 RFC 0009 过渡期内作为兼容 shim 保留。
 
 ## Implementation Files
 
@@ -163,7 +164,7 @@ proof-forge --emit-map-ir-wasm-near -o build/wasm-near/MapProbe
 | `ProofForge/Compiler/Wasm/AST.lean` / `Printer.lean` | Wasm AST + WAT printer |
 | `Tests/EmitWat{Smoke,Features,Map,Hash,Context,Params,Event,Hashmap,Arith}.lean` | Per-probe renderers |
 | `Examples/near/spike/emitwat-{regression,hashmap-smoke,arith-smoke}.cjs` | Deploy + Borsh-decode smoke tests |
-| `ProofForge/Cli.lean` | `--emit-{counter,context,hash,map}-emitwat` modes、`writeWatPackage`、`compileEmitWat` |
+| `ProofForge/Cli.lean` | `emit --target wasm-near --fixture ... --format wat` routing、`writeWatPackage`、`compileEmitWat` |
 
 **Frozen v0 reference (Rust sourcegen):**
 
@@ -186,7 +187,7 @@ proof-forge --emit-map-ir-wasm-near -o build/wasm-near/MapProbe
 lake build
 
 # Generate a Counter package
-lake env proof-forge --emit-counter-ir-wasm-near -o build/wasm-near/Counter
+lake env proof-forge emit --target wasm-near --fixture counter --format wat -o build/wasm-near/Counter
 
 # Build the Wasm artifact
 cd build/wasm-near/Counter && cargo build --target wasm32-unknown-unknown --release

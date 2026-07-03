@@ -69,18 +69,18 @@ lake build
 Compile the EVM Counter example to runtime bytecode:
 
 ```sh
-lake env proof-forge --evm-bytecode --root . --module contract \
+lake env proof-forge build --target evm --root . --module contract \
   -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
 ```
 
 Emit artifacts for other targets from built-in portable IR fixtures:
 
 ```sh
-lake env proof-forge --emit-counter-emitwat -o build/wasm-near   # NEAR Wasm
-lake env proof-forge --solana-elf -o build/solana/counter.so     # Solana ELF
-lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
-lake env proof-forge --emit-counter-ir-leo -o build/aleo         # Aleo Leo
-lake env proof-forge --emit-counter-ir-ts -o build/ts/Counter.ts # CF Workers
+lake env proof-forge emit --target wasm-near --fixture counter --format wat -o build/wasm-near
+lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format elf -o build/solana/counter.so
+lake env proof-forge emit --target psy-dpn --fixture counter --format psy -o build/psy/Counter.psy
+lake env proof-forge emit --target aleo-leo --fixture counter --format leo -o build/aleo
+lake env proof-forge emit --target wasm-cloudflare-workers --fixture counter --format ts -o build/ts/Counter.ts
 ```
 
 The complete, per-target list of runnable validation commands and their tool

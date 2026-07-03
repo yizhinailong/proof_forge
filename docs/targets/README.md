@@ -91,7 +91,7 @@ spike is scheduled.
 | [Algorand AVM](algorand-avm.md) | Source package generation | Parked behind a later sourcegen-lane exit. |
 | [Cardano Plutus/Aiken](cardano-plutus-aiken.md) | eUTXO validator sourcegen | Parked behind a later sourcegen-lane exit. |
 | [Tezos Michelson/LIGO](tezos-michelson-ligo.md) | Source package generation | Parked behind a later sourcegen-lane exit. |
-| [Starknet Cairo](starknet-cairo.md) | Cairo/Sierra/CASM sourcegen | Candidate for the first non-Move sourcegen pick after Aptos, but still blocked by P0. |
+| [Starknet Cairo](starknet-cairo.md) | Cairo/Sierra/CASM sourcegen | Candidate for the first non-Move sourcegen pick after Aptos and the sourcegen-lane exit. |
 | [TON TVM](ton-tvm.md) | TVM sourcegen | Parked behind a later sourcegen-lane exit. |
 | [Bitcoin Script/Miniscript](bitcoin-script-miniscript.md) | Policy family | Opens only when the separate `policy.*` lane is scheduled. |
 | [Zcash Shielded](zcash-shielded.md) | Privacy UTXO / ZK payment | Follows a working Bitcoin policy lane. |

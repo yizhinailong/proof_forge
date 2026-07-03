@@ -70,7 +70,7 @@ chain.
 ```sh
 lake build
 
-lake env proof-forge --evm-bytecode --root . --module contract \
+lake env proof-forge build --target evm --root . --module contract \
   --artifact-output build/evm/Counter.proof-forge-artifact.json \
   -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
 
@@ -99,64 +99,25 @@ scripts/evm/abi-aggregate-ir-smoke.sh
 
 ## CLI modes
 
-Default Yul mode:
+Target-first Lean SDK build:
 
 ```sh
-proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean
+proof-forge build --target evm [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
 ```
 
-EVM bytecode mode:
+Portable IR fixture modes:
 
 ```sh
-proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
+proof-forge emit --target evm --fixture counter --format yul [-o output.yul]
+proof-forge emit --target evm --fixture counter --format bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
+proof-forge emit --target evm --fixture <fixture-id> --format yul [-o output.yul]
+proof-forge emit --target evm --fixture <fixture-id> --format bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
 ```
 
-Portable IR EVM fixture modes:
-
-```sh
-proof-forge --emit-counter-ir-yul [-o output.yul]
-proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-abi-scalar-ir-yul [-o output.yul]
-proof-forge --emit-abi-scalar-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-assert-ir-yul [-o output.yul]
-proof-forge --emit-assert-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-assignment-ir-yul [-o output.yul]
-proof-forge --emit-assignment-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-assign-op-ir-yul [-o output.yul]
-proof-forge --emit-evm-assign-op-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-conditional-ir-yul [-o output.yul]
-proof-forge --emit-conditional-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-loop-ir-yul [-o output.yul]
-proof-forge --emit-evm-loop-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-context-ir-yul [-o output.yul]
-proof-forge --emit-context-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-event-ir-yul [-o output.yul]
-proof-forge --emit-evm-event-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-crosscall-ir-yul [-o output.yul]
-proof-forge --emit-evm-crosscall-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-expression-ir-yul [-o output.yul]
-proof-forge --emit-evm-expression-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-hash-ir-yul [-o output.yul]
-proof-forge --emit-evm-hash-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-map-ir-yul [-o output.yul]
-proof-forge --emit-evm-map-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-storage-array-ir-yul [-o output.yul]
-proof-forge --emit-evm-storage-array-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-storage-struct-ir-yul [-o output.yul]
-proof-forge --emit-evm-storage-struct-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-typed-storage-ir-yul [-o output.yul]
-proof-forge --emit-evm-typed-storage-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-array-value-ir-yul [-o output.yul]
-proof-forge --emit-evm-array-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-struct-array-value-ir-yul [-o output.yul]
-proof-forge --emit-evm-struct-array-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-struct-value-ir-yul [-o output.yul]
-proof-forge --emit-evm-struct-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-proof-forge --emit-evm-abi-aggregate-ir-yul [-o output.yul]
-proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]
-```
-
-`--bytecode` is an alias for `--evm-bytecode`.
+The complete fixture list is available through `proof-forge --list-fixtures`.
+Legacy aliases such as `--evm-bytecode`, `--bytecode`, and
+`--emit-*-ir-yul` remain available during the RFC 0009 compatibility window,
+but new scripts and docs should use the target-first surface.
 
 `--solc <path>` and `--cast <path>` override external tool paths.
 `--evm-chain-profile <id>` records a known EVM chain profile, such as

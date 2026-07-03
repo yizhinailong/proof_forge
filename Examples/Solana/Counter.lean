@@ -8,7 +8,7 @@ there is no Solana-specific surface syntax yet, so the example builds the
 `ProofForge.IR.Contract.Module` that the sBPF backend lowers to `.s`.
 
 Compile to sBPF assembly:
-  lake env proof-forge --emit-counter-ir-sbpf \
+  lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format s \
     -o build/solana/Counter.s \
     --artifact-output build/solana/proof-forge-artifact.json
 
@@ -17,7 +17,7 @@ Phase 1 fixture mirrors this module. A `manifest.toml` is written alongside
 the `.s` describing the instruction dispatch and the single writable account.
 
 Build the Solana ELF (requires `sbpf` on PATH):
-  lake env proof-forge --solana-elf -o build/solana/Counter.so
+  lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format elf -o build/solana/Counter.so
 -/
 
 import ProofForge.IR.Contract

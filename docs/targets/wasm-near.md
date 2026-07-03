@@ -199,14 +199,16 @@ Emitted when `.cryptoHash` is used:
 ## CLI Modes
 
 ```
-proof-forge --emit-counter-ir-wasm-near -o build/wasm-near/Counter
-proof-forge --emit-context-ir-wasm-near -o build/wasm-near/ContextProbe
-proof-forge --emit-hash-ir-wasm-near -o build/wasm-near/HashProbe
-proof-forge --emit-map-ir-wasm-near -o build/wasm-near/MapProbe
+proof-forge emit --target wasm-near --fixture counter --format wat -o build/wasm-near/Counter
+proof-forge emit --target wasm-near --fixture context --format wat -o build/wasm-near/ContextProbe
+proof-forge emit --target wasm-near --fixture hash --format wat -o build/wasm-near/HashProbe
+proof-forge emit --target wasm-near --fixture map --format wat -o build/wasm-near/MapProbe
 ```
 
-`-o` is required for wasm-near modes and is interpreted as a package output
-directory (not a single file). Existing EVM/Psy `-o` behavior is unchanged.
+`-o` is required for Wasm-NEAR target-first package emission and is interpreted
+as a package output directory (not a single file). Legacy
+`--emit-*-ir-wasm-near` aliases remain compatibility shims during the RFC 0009
+transition.
 
 ## Implementation Files
 
@@ -219,7 +221,7 @@ directory (not a single file). Existing EVM/Psy `-o` behavior is unchanged.
 | `ProofForge/Compiler/Wasm/AST.lean` / `Printer.lean` | Wasm AST + WAT printer |
 | `Tests/EmitWat{Smoke,Features,Map,Hash,Context,Params,Event,Hashmap,Arith}.lean` | Per-probe renderers |
 | `Examples/near/spike/emitwat-{regression,hashmap-smoke,arith-smoke}.cjs` | Deploy + Borsh-decode smoke tests |
-| `ProofForge/Cli.lean` | `--emit-{counter,context,hash,map}-emitwat` modes, `writeWatPackage`, `compileEmitWat` |
+| `ProofForge/Cli.lean` | `emit --target wasm-near --fixture ... --format wat` routing, `writeWatPackage`, `compileEmitWat` |
 
 **Frozen v0 reference (Rust sourcegen):**
 
@@ -242,7 +244,7 @@ directory (not a single file). Existing EVM/Psy `-o` behavior is unchanged.
 lake build
 
 # Generate a Counter package
-lake env proof-forge --emit-counter-ir-wasm-near -o build/wasm-near/Counter
+lake env proof-forge emit --target wasm-near --fixture counter --format wat -o build/wasm-near/Counter
 
 # Build the Wasm artifact
 cd build/wasm-near/Counter && cargo build --target wasm32-unknown-unknown --release

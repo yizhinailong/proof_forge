@@ -5,12 +5,11 @@ contains the EVM baseline plus Solana (sBPF assembly), NEAR (EmitWat), Psy/DPN,
 Aleo Leo, and Cloudflare Workers backends behind one portable IR and capability
 registry, following the 2026-07 branch consolidation.
 
-**Current phase:** Gate G0 is closed for shared-scenario behavior/resource
-budget parity on `evm` + `solana-sbpf-asm` + `wasm-near`. Gate P0 remains
-open: finish the primary chains in implementation order
-`solana-sbpf-asm` -> `evm` -> `wasm-near` to production-grade quality before
-advancing any additional chain beyond docs-only research or frozen spike
-maintenance.
+**Current phase:** Gate P0 is closed for the three primary product chains:
+`solana-sbpf-asm`, `evm`, and `wasm-near`. The next hardening lane is the
+CLI M3/M4 migration from legacy flags to
+`proof-forge build|emit|check --target ...`; Tier-1 M3/M4 work waits behind
+that cleanup.
 
 ## Documentation Map
 
@@ -114,16 +113,17 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - The target registry (`ProofForge/Target/Registry.lean`), portable IR
   (`ProofForge/IR/Contract.lean`), capability routing, and
   `proof-forge-artifact.json` emission are implemented.
-- EVM: `proof-forge --evm-bytecode` compiles Lean contracts through LCNF,
+- EVM: `proof-forge build --target evm` compiles Lean contracts through LCNF,
   Yul, and `solc --strict-assembly`; portable-IR contracts lower through the
   EVM semantic plan (`Backend/Evm/Plan.lean`). Foundry and Anvil smokes
   validate runtime behavior.
-- Solana: `--solana-elf` and related modes emit sBPF assembly and ELF
-  packages, validated by Mollusk, Surfpool/Web3.js, and Pinocchio
-  equivalence gates.
-- NEAR: `--emit-*-emitwat` lowers portable IR through the Wasm AST to WAT,
-  with formal trace obligations (`Tests/NearWasmFormal.lean`) and an offline
-  host smoke.
+- Solana: `proof-forge emit --target solana-sbpf-asm --format s|elf` emits
+  sBPF assembly and ELF packages, validated by Mollusk, Surfpool/Web3.js, and
+  Pinocchio equivalence gates.
+- NEAR: `proof-forge emit|build --target wasm-near --format wat` lowers
+  portable IR through the Wasm AST to WAT, with formal trace obligations
+  (`Tests/NearWasmFormal.lean`), target-first metadata, and an offline host
+  smoke.
 - Psy/DPN, Aleo Leo, and Cloudflare Workers emit target sources from
   portable IR fixtures; see [validation-gates.md](validation-gates.md) for
   each gate's tool prerequisites.

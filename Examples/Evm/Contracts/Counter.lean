@@ -7,7 +7,7 @@ A minimal EVM counter contract written against `Lean.Evm`.
 Demonstrates: storage read/write, selector dispatch, increment logic.
 
 Compile:
-`lake env proof-forge --evm-bytecode --root . --module contract -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean`
+`lake env proof-forge build --target evm --root . --module contract -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean`
 -/
 import ProofForge.Evm
 open Lean.Evm
