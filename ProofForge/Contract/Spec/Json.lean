@@ -72,6 +72,12 @@ def intentJson (intent : ProofForge.Contract.Intent) : String :=
     ("label", jsonString intent.label)
   ]
 
+def pushUnique (values : Array String) (value : String) : Array String :=
+  if values.any (fun existing => existing == value) then values else values.push value
+
+def dedupStrings (values : Array String) : Array String :=
+  values.foldl pushUnique #[]
+
 def render (spec : ContractSpec) : String :=
   jsonObject #[
     ("schema", jsonString "proof-forge.contract-spec.v0"),
@@ -79,7 +85,7 @@ def render (spec : ContractSpec) : String :=
     ("irVersion", jsonString "portable-ir-v0"),
     ("state", jsonArray (spec.module.state.map stateJson)),
     ("entrypoints", jsonArray (spec.module.entrypoints.map entrypointJson)),
-    ("capabilities", jsonStringArray (spec.module.capabilities.map fun c => c.id)),
+    ("capabilities", jsonStringArray (dedupStrings (spec.module.capabilities.map fun c => c.id))),
     ("intents", jsonArray (spec.intents.map intentJson))
   ]
 

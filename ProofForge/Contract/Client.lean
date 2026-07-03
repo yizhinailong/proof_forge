@@ -44,11 +44,10 @@ def abiJson (module : Module) : String :=
 
 def evmEntrypointWrapper (entrypoint : Entrypoint) : String :=
   let params := String.intercalate ", " (entrypoint.params.map fun p => p.fst ++ ": " ++ typeToTs p.snd).toList
-  let argsNames := String.intercalate ", " (entrypoint.params.map fun p => p.fst).toList
-  let argsObj := if entrypoint.params.isEmpty then "{}" else "{" ++ argsNames ++ "}"
+  let argsArray := "[" ++ String.intercalate ", " (entrypoint.params.map fun p => p.fst).toList ++ "]"
   let method := if entrypoint.returns == .unit then "sendTransaction" else "call"
   "\nexport async function " ++ entrypoint.name ++ "(" ++ params ++ "): Promise<void> {\n" ++
-  "  const data = iface.encodeFunctionData(\"" ++ entrypoint.name ++ "\", [" ++ argsObj ++ "]);\n" ++
+  "  const data = iface.encodeFunctionData(\"" ++ entrypoint.name ++ "\", " ++ argsArray ++ ");\n" ++
   "  const tx = await contract." ++ method ++ "(data);\n" ++
   "  await tx.wait();\n" ++
   "}\n"
@@ -75,8 +74,7 @@ def renderEvmAbiWrapper (spec : ContractSpec) : String :=
 
 def nearEntrypointWrapper (entrypoint : Entrypoint) : String :=
   let params := String.intercalate ", " (entrypoint.params.map fun p => p.fst ++ ": " ++ typeToTs p.snd).toList
-  let argsNames := String.intercalate ", " (entrypoint.params.map fun p => p.fst).toList
-  let argsObj := if entrypoint.params.isEmpty then "{}" else "{" ++ argsNames ++ "}"
+  let argsObj := "{" ++ String.intercalate ", " (entrypoint.params.map fun p => "\"" ++ p.fst ++ "\": " ++ p.fst).toList ++ "}"
   "\nexport async function " ++ entrypoint.name ++ "(" ++ params ++ "): Promise<void> {\n" ++
   "  await account.functionCall({ contractId, methodName: \"" ++ entrypoint.name ++ "\", args: " ++ argsObj ++ " });\n" ++
   "}\n"

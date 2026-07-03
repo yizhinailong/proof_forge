@@ -10,8 +10,10 @@ import ProofForge.Backend.Solana.Package
 import ProofForge.Backend.Solana.Extension
 import ProofForge.Backend.Solana.Idl
 import ProofForge.Backend.Solana.Client
+import ProofForge.Contract.Client
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Learn
+import ProofForge.Contract.Spec.Json
 import ProofForge.Contract.Token.Evm
 import ProofForge.Contract.Token.Learn
 import ProofForge.Backend.WasmNear
@@ -2792,6 +2794,17 @@ def compileErrorRefIrBytecode (opts : CliOptions) : IO UInt32 := do
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (FilePath.mk "build/ir/ErrorRefProbe.bin")
   writeTextFile output (bytecode ++ "\n")
+  let spec := ProofForge.Contract.ContractSpec.fromIR ProofForge.IR.Examples.ErrorRefProbe.module
+  let specOutput := match output.parent with
+    | some parent => parent / "ErrorRefProbe.contract-spec.json"
+    | none => FilePath.mk "ErrorRefProbe.contract-spec.json"
+  writeTextFile specOutput (ProofForge.Contract.Spec.Json.render spec ++ "\n")
+  IO.println s!"wrote {specOutput}"
+  let evmClientOutput := match output.parent with
+    | some parent => parent / "proof-forge-evm-abi.ts"
+    | none => FilePath.mk "proof-forge-evm-abi.ts"
+  writeTextFile evmClientOutput (ProofForge.Contract.Client.renderEvmAbiWrapper spec ++ "\n")
+  IO.println s!"wrote {evmClientOutput}"
   writeEvmIrArtifactMetadata opts "ErrorRefProbe" "ProofForge.IR.Examples.ErrorRefProbe" ProofForge.IR.Examples.ErrorRefProbe.module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
