@@ -216,21 +216,34 @@ fn run(config: Config) -> Result<()> {
         for (call_index, (export, entry)) in entries.iter().enumerate() {
             store.data_mut().input = call_inputs[call_index].clone();
             store.data_mut().begin_call();
-            entry
-                .call(&mut store, ())
-                .with_context(|| format!("call {sequence_index}:{export} trapped"))?;
+            let trap = entry.call(&mut store, ()).err();
             let consumed_fuel = initial_fuel - store.get_fuel().unwrap_or(0);
             let state = store.data();
-            println!(
-                "call {sequence_index}:{export}: {} heap_next={} allocations={} reuses={} deallocations={} storage_keys={} logs={} near_gas={consumed_fuel}",
-                describe_return(&state.return_value),
-                state.allocator.next,
-                state.allocator.allocations,
-                state.allocator.reuses,
-                state.allocator.deallocations,
-                state.storage.len(),
-                state.logs.len()
-            );
+            if let Some(message) = &state.panic_message {
+                let error = parse_panic_error(message);
+                println!(
+                    "call {sequence_index}:{export}: error={error} heap_next={} allocations={} reuses={} deallocations={} storage_keys={} logs={} near_gas={consumed_fuel}",
+                    state.allocator.next,
+                    state.allocator.allocations,
+                    state.allocator.reuses,
+                    state.allocator.deallocations,
+                    state.storage.len(),
+                    state.logs.len()
+                );
+            } else if let Some(err) = trap {
+                return Err(err).with_context(|| format!("call {sequence_index}:{export} trapped"));
+            } else {
+                println!(
+                    "call {sequence_index}:{export}: {} heap_next={} allocations={} reuses={} deallocations={} storage_keys={} logs={} near_gas={consumed_fuel}",
+                    describe_return(&state.return_value),
+                    state.allocator.next,
+                    state.allocator.allocations,
+                    state.allocator.reuses,
+                    state.allocator.deallocations,
+                    state.storage.len(),
+                    state.logs.len()
+                );
+            }
             for log in &state.logs {
                 println!("  log: {log}");
             }
@@ -238,6 +251,19 @@ fn run(config: Config) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn parse_panic_error(message: &str) -> String {
+    let Some(rest) = message.strip_prefix("PF:") else {
+        return format!("panic={message}");
+    };
+    let Some((id, code)) = rest.split_once(':') else {
+        return format!("panic={message}");
+    };
+    match code.is_empty() {
+        true => format!("assertion_id={id}"),
+        false => format!("assertion_id={id} user_code={code}"),
+    }
 }
 
 fn load_wasm_or_wat(path: &Path) -> Result<Vec<u8>> {
@@ -261,6 +287,7 @@ struct HostState {
     predecessor_account_id: Vec<u8>,
     block_index: u64,
     allocator: LinearMemoryAllocator,
+    panic_message: Option<String>,
 }
 
 impl HostState {
@@ -281,6 +308,7 @@ impl HostState {
             predecessor_account_id,
             block_index,
             allocator: LinearMemoryAllocator::new(heap_base),
+            panic_message: None,
         }
     }
 
@@ -288,6 +316,7 @@ impl HostState {
         self.registers.clear();
         self.return_value.clear();
         self.logs.clear();
+        self.panic_message = None;
     }
 }
 
@@ -460,7 +489,8 @@ fn define_host_imports(linker: &mut Linker<HostState>) -> Result<()> {
         |mut caller: Caller<'_, HostState>, len: i64, ptr: i64| -> Result<()> {
             let bytes = read_memory(&mut caller, ptr, len)?;
             let message = String::from_utf8_lossy(&bytes).into_owned();
-            bail!("panic: {message}")
+            caller.data_mut().panic_message = Some(message);
+            bail!("contract panicked")
         },
     )?;
 

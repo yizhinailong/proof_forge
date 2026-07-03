@@ -1,0 +1,147 @@
+[scenario]
+name = "error-ref"
+fixture = "error-ref"
+targets = ["wasm-near", "evm", "solana-sbpf-asm"]
+capabilities = ["storage.scalar", "assertions"]
+
+[[artifact]]
+target = "wasm-near"
+name = "wat"
+contains = [
+  '(func $initialize (export "initialize")',
+  '(func $guarded_increment (export "guarded_increment")',
+  '(func $exact_increment (export "exact_increment")',
+]
+
+[[artifact]]
+target = "evm"
+name = "yul"
+contains = [
+  'function f_ErrorRefProbe_initialize',
+  'function f_ErrorRefProbe_guarded_increment',
+  'function f_ErrorRefProbe_exact_increment',
+]
+
+[[artifact]]
+target = "evm"
+name = "metadata"
+
+[[artifact.json]]
+path = "schemaVersion"
+kind = "integer"
+equals = 1
+
+[[artifact.json]]
+path = "target"
+kind = "string"
+non_empty = true
+
+[[artifact.json]]
+path = "fixture"
+equals = "ErrorRefProbe"
+
+[[artifact.json]]
+path = "sourceModule"
+kind = "string"
+non_empty = true
+
+[[artifact.json]]
+path = "capabilities"
+kind = "array"
+non_empty = true
+length = 2
+
+[[artifact.json]]
+path = "capabilities"
+contains = "storage.scalar"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "assertions.check"
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "sbpf-asm"
+contains = [
+  'initialize:',
+  'guarded_increment:',
+  'exact_increment:',
+]
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "manifest"
+contains = [
+  'name = "initialize"',
+  'name = "guarded_increment"',
+  'name = "exact_increment"',
+]
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "metadata"
+
+[[artifact.json]]
+path = "schemaVersion"
+kind = "integer"
+equals = 1
+
+[[artifact.json]]
+path = "target"
+kind = "string"
+non_empty = true
+
+[[artifact.json]]
+path = "fixture"
+equals = "error-ref-ir-sbpf"
+
+[[artifact.json]]
+path = "sourceModule"
+kind = "string"
+non_empty = true
+
+[[artifact.json]]
+path = "capabilities"
+kind = "array"
+non_empty = true
+length = 3
+
+[[artifact.json]]
+path = "capabilities"
+contains = "storage.scalar"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "account.explicit"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "assertions.check"
+
+[[step]]
+call = "initialize"
+
+[[step]]
+call = "guarded_increment"
+
+[[step]]
+call = "guarded_increment"
+
+[[step]]
+call = "guarded_increment"
+
+[[step]]
+call = "guarded_increment"
+
+[[step]]
+call = "guarded_increment"
+
+[[step]]
+call = "guarded_increment"
+[step.expect.error]
+assertion_id = 1
+
+[[step]]
+call = "exact_increment"
+[step.expect.error]
+assertion_id = 2

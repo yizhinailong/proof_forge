@@ -102,6 +102,12 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<PathBuf> {
             "ArrayProbe",
             "build/wasm-near/emitwat-release-external.wat",
         ),
+        "error-ref" => emit_wat_fixture(
+            repo_root,
+            "Tests/EmitWatErrorRef.lean",
+            "ErrorRefProbe",
+            "build/wasm-near/emitwat-error-ref.wat",
+        ),
         fixture => bail!("wasm-near testkit harness does not support fixture `{fixture}` yet"),
     }
 }

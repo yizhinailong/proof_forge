@@ -38,6 +38,7 @@ import ProofForge.IR.Examples.ConditionalProbe
 import ProofForge.IR.Examples.ControlFlowAssertProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.CrosscallProbe
+import ProofForge.IR.Examples.ErrorRefProbe
 import ProofForge.IR.Examples.PureMath
 import ProofForge.IR.Examples.EventProbe
 import ProofForge.IR.Examples.EvmAbiAggregateProbe
@@ -111,6 +112,10 @@ inductive EmitMode where
   | counterIrBytecode
   | valueVaultIrYul
   | valueVaultIrBytecode
+  | errorRefIrYul
+  | errorRefIrBytecode
+  | errorRefIrSbpf
+  | errorRefEmitWat
   | learnYul
   | learnBytecode
   | learnSbpf
@@ -222,6 +227,7 @@ def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
   | .evmBytecode
   | .counterIrBytecode
   | .valueVaultIrBytecode
+  | .errorRefIrBytecode
   | .learnBytecode
   | .abiScalarIrBytecode
   | .assertIrBytecode
@@ -250,6 +256,10 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .counterIrBytecode
   | .valueVaultIrYul
   | .valueVaultIrBytecode
+  | .errorRefIrYul
+  | .errorRefIrBytecode
+  | .errorRefIrSbpf
+  | .errorRefEmitWat
   | .abiScalarIrYul
   | .abiScalarIrBytecode
   | .assertIrYul
@@ -2121,6 +2131,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .valueVaultIrYul }
   | "--emit-value-vault-ir-bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .valueVaultIrBytecode }
+  | "--emit-error-ref-ir-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .errorRefIrYul }
+  | "--emit-error-ref-ir-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .errorRefIrBytecode }
   | "--learn-yul" :: rest, opts =>
       parseArgs rest { opts with mode := .learnYul }
   | "--learn-bytecode" :: rest, opts =>
@@ -2263,6 +2277,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .counterIrSbpf }
   | "--emit-value-vault-ir-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .valueVaultIrSbpf }
+  | "--emit-error-ref-ir-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .errorRefIrSbpf }
   | "--emit-control-ir-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .controlIrSbpf }
   | "--emit-solana-sdk-sbpf" :: rest, opts =>
@@ -2313,6 +2329,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .mapIrWasmNear }
   | "--emit-counter-emitwat" :: rest, opts =>
       parseArgs rest { opts with mode := .counterEmitWat }
+  | "--emit-error-ref-emitwat" :: rest, opts =>
+      parseArgs rest { opts with mode := .errorRefEmitWat }
   | "--emit-context-emitwat" :: rest, opts =>
       parseArgs rest { opts with mode := .contextEmitWat }
   | "--emit-hash-emitwat" :: rest, opts =>
@@ -2485,6 +2503,7 @@ def emitLegacyFlag (target fixture : String) (format? : Option String) : Except 
       else
         Except.ok "--emit-counter-ir-sbpf"
   | "solana-sbpf-asm", "value-vault", _ => Except.ok "--emit-value-vault-ir-sbpf"
+  | "solana-sbpf-asm", "error-ref", _ => Except.ok "--emit-error-ref-ir-sbpf"
   | "solana-sbpf-asm", "control", _ => Except.ok "--emit-control-ir-sbpf"
   | "solana-sbpf-asm", "solana-sdk", _ => Except.ok "--emit-solana-sdk-sbpf"
   | "solana-sbpf-asm", "canned-entrypoint", _ => Except.ok "--emit-sbpf-asm"
@@ -2512,12 +2531,12 @@ def emitLegacyFlag (target fixture : String) (format? : Option String) : Except 
       else
         Except.error s!"emit --target solana-sbpf-asm --fixture {f} is not yet mapped to a legacy flag"
   | "wasm-near", f, "wat" =>
-      if f == "counter" || f == "context" || f == "hash" || f == "map" then
+      if f == "counter" || f == "error-ref" || f == "context" || f == "hash" || f == "map" then
         Except.ok s!"--emit-{f}-emitwat"
       else
         Except.error s!"emit --target wasm-near --fixture {f} --format wat is not yet mapped to a legacy flag"
   | "wasm-near", f, _ =>
-      if f == "counter" || f == "context" || f == "hash" || f == "map" then
+      if f == "counter" || f == "error-ref" || f == "context" || f == "hash" || f == "map" then
         Except.ok s!"--emit-{f}-ir-wasm-near"
       else
         Except.error s!"emit --target wasm-near --fixture {f} is not yet mapped"
@@ -2671,6 +2690,7 @@ def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Modu
       throw <| IO.userError msg
 
 def compileCounterEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "counter" ProofForge.IR.Examples.Counter.module
+def compileErrorRefEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "error-ref" ProofForge.IR.Examples.ErrorRefProbe.module
 def compileContextEmitWat  (opts : CliOptions) : IO UInt32 := compileEmitWat opts "context" ProofForge.IR.Examples.ContextProbe.module
 def compileHashEmitWat     (opts : CliOptions) : IO UInt32 := compileEmitWat opts "hash" ProofForge.IR.Examples.HashProbe.module
 def compileMapEmitWat      (opts : CliOptions) : IO UInt32 := compileEmitWat opts "map" ProofForge.IR.Examples.MapProbe.emitWatModule
@@ -2726,6 +2746,16 @@ def compileCounterIrYul (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileErrorRefIrYul (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/ir/ErrorRefProbe.yul")
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.ErrorRefProbe.module with
+  | .ok yul =>
+      writeTextFile output yul
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 def renderCounterIrYul : IO String := do
   match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.Counter.module with
   | .ok yul => return yul
@@ -2747,6 +2777,22 @@ def compileCounterIrBytecode (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/ir/Counter.bin")
   writeTextFile output (bytecode ++ "\n")
   writeEvmIrArtifactMetadata opts "Counter" "ProofForge.IR.Examples.Counter" ProofForge.IR.Examples.Counter.module yulOutput output
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
+def renderErrorRefIrYul : IO String := do
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.ErrorRefProbe.module with
+  | .ok yul => return yul
+  | .error err => throw <| IO.userError err.render
+
+def compileErrorRefIrBytecode (opts : CliOptions) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/ErrorRefProbe.yul")
+  let yul ← renderErrorRefIrYul
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (FilePath.mk "build/ir/ErrorRefProbe.bin")
+  writeTextFile output (bytecode ++ "\n")
+  writeEvmIrArtifactMetadata opts "ErrorRefProbe" "ProofForge.IR.Examples.ErrorRefProbe" ProofForge.IR.Examples.ErrorRefProbe.module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
@@ -4008,6 +4054,53 @@ def compileCounterIrSbpf (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileErrorRefIrSbpf (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/solana/ErrorRefProbe.s")
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule ProofForge.IR.Examples.ErrorRefProbe.module with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifest output ProofForge.IR.Examples.ErrorRefProbe.module
+      IO.println s!"wrote {manifestOutput}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString "error-ref-ir-sbpf"),
+        ("sourceKind", jsonString "portable-ir"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString "ErrorRefProbe"),
+        ("capabilities", jsonStringArray #["storage.scalar", "account.explicit", "assertions.check"]),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("sbpfBuild", jsonString "pending"),
+          ("sbpfDisassembleRoundtrip", jsonString "pending"),
+          ("manifestGeneration", jsonString "passed")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
 def compileControlIrSbpf (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/solana/ControlFlowAssertProbe.s")
   match ProofForge.Backend.Solana.SbpfAsm.renderModule ProofForge.IR.Examples.ControlFlowAssertProbe.module with
@@ -4700,6 +4793,10 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .counterIrBytecode => compileCounterIrBytecode opts
   | .valueVaultIrYul => compileValueVaultIrYul opts
   | .valueVaultIrBytecode => compileValueVaultIrBytecode opts
+  | .errorRefIrYul => compileErrorRefIrYul opts
+  | .errorRefIrBytecode => compileErrorRefIrBytecode opts
+  | .errorRefIrSbpf => compileErrorRefIrSbpf opts
+  | .errorRefEmitWat => compileErrorRefEmitWat opts
   | .learnYul => compileLearnYul opts
   | .learnBytecode => compileLearnBytecode opts
   | .learnSbpf => compileLearnSbpf opts

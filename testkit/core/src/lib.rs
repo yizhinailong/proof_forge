@@ -289,12 +289,21 @@ pub struct Expectation {
     pub deallocations: Option<u64>,
     #[serde(default)]
     pub budget: Option<BudgetExpectation>,
+    #[serde(default)]
+    pub error: Option<ErrorExpectation>,
 }
 
 impl Expectation {
     fn expected_return(&self) -> Option<&ReturnExpectation> {
         self.return_value.as_ref().or(self.return_.as_ref())
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ErrorExpectation {
+    pub assertion_id: u32,
+    #[serde(default)]
+    pub user_code: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -321,7 +330,14 @@ pub struct CallOutcome {
     pub reuses: Option<u64>,
     pub deallocations: Option<u64>,
     pub budget: Option<BudgetOutcome>,
+    pub error: Option<ErrorOutcome>,
     pub raw_line: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErrorOutcome {
+    pub assertion_id: u32,
+    pub user_code: Option<String>,
 }
 
 pub trait ChainHarness {
@@ -1448,6 +1464,15 @@ pub fn assert_expectations(case: &ScenarioCase, target_id: &str, outcomes: &[Cal
                         outcome,
                     )?;
                 }
+                if let Some(expected) = &expect.error {
+                    assert_error(
+                        &case.manifest.scenario.name,
+                        target_id,
+                        &step.call,
+                        expected,
+                        outcome,
+                    )?;
+                }
             }
             index += 1;
         }
@@ -1758,6 +1783,35 @@ fn assert_budget(
     Ok(())
 }
 
+fn assert_error(
+    scenario: &str,
+    target_id: &str,
+    call: &str,
+    expected: &ErrorExpectation,
+    outcome: &CallOutcome,
+) -> Result<()> {
+    let Some(error) = &outcome.error else {
+        bail!(
+            "scenario `{scenario}` call `{call}` on `{target_id}` expected error assertion_id={} but call succeeded",
+            expected.assertion_id
+        );
+    };
+    ensure!(
+        error.assertion_id == expected.assertion_id,
+        "scenario `{scenario}` call `{call}` on `{target_id}` expected assertion_id={}, got {}",
+        expected.assertion_id,
+        error.assertion_id
+    );
+    if let Some(expected_code) = &expected.user_code {
+        let actual_code = error.user_code.as_deref().unwrap_or("");
+        ensure!(
+            actual_code == expected_code,
+            "scenario `{scenario}` call `{call}` on `{target_id}` expected user_code=`{expected_code}`, got `{actual_code}`"
+        );
+    }
+    Ok(())
+}
+
 pub fn parse_offline_host_outcomes(stdout: &str) -> Result<Vec<CallOutcome>> {
     let mut outcomes = Vec::new();
     for line in stdout.lines() {
@@ -1784,11 +1838,16 @@ pub fn parse_offline_host_outcomes(stdout: &str) -> Result<Vec<CallOutcome>> {
             reuses: None,
             deallocations: None,
             budget: None,
+            error: None,
             raw_line: line.to_string(),
         };
         let mut budget = BudgetOutcome::default();
-        for token in details.split_whitespace() {
+        let tokens: Vec<&str> = details.split_whitespace().collect();
+        let mut idx = 0;
+        while idx < tokens.len() {
+            let token = tokens[idx];
             let Some((key, value)) = token.split_once('=') else {
+                idx += 1;
                 continue;
             };
             match key {
@@ -1807,8 +1866,23 @@ pub fn parse_offline_host_outcomes(stdout: &str) -> Result<Vec<CallOutcome>> {
                 "solana_cu" => budget.solana_cu = Some(value.parse()?),
                 "evm_gas" => budget.evm_gas = Some(value.parse()?),
                 "near_gas" => budget.near_gas = Some(value.parse()?),
+                "error" => {
+                    if let Some(id_str) = value.strip_prefix("assertion_id=") {
+                        let assertion_id: u32 = id_str.parse()?;
+                        let mut user_code = None;
+                        if idx + 1 < tokens.len() {
+                            let next = tokens[idx + 1];
+                            if let Some(code) = next.strip_prefix("user_code=") {
+                                user_code = Some(code.to_string());
+                                idx += 1;
+                            }
+                        }
+                        outcome.error = Some(ErrorOutcome { assertion_id, user_code });
+                    }
+                }
                 _ => {}
             }
+            idx += 1;
         }
         if budget != BudgetOutcome::default() {
             outcome.budget = Some(budget);
@@ -1898,6 +1972,8 @@ mod tests {
             allocations: None,
             reuses: None,
             deallocations: None,
+            budget: None,
+            error: None,
             raw_line: String::new(),
         }
     }

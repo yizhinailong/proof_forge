@@ -49,6 +49,7 @@ def ids : Array String := #[
   "u32-storage-array",
   "pure-math",
   "control",
+  "error-ref",
   "canned-entrypoint",
   "solana-sdk",
   "solana-clock-sysvar",
@@ -145,6 +146,7 @@ def supportsFormat (targetId fixtureId : String) (format : Format) : Bool :=
   match targetId, fixtureId, format with
   | "evm", "counter", _ => true
   | "evm", "value-vault", _ => true
+  | "evm", "error-ref", _ => true
   | "evm", "context", _ => true
   | "evm", "hash", _ => true
   | "evm", "map", _ => true
@@ -154,10 +156,12 @@ def supportsFormat (targetId fixtureId : String) (format : Format) : Bool :=
   | "evm", f, _ => f.startsWith "evm-" || f == "abi-scalar"
   | "solana-sbpf-asm", "counter", _ => true
   | "solana-sbpf-asm", "value-vault", _ => true
+  | "solana-sbpf-asm", "error-ref", _ => true
   | "solana-sbpf-asm", "control", _ => true
   | "solana-sbpf-asm", f, _ =>
       f.startsWith "solana-" || f.startsWith "spl-token-" || f.startsWith "system-" || f == "log-event" || f == "canned-entrypoint"
   | "wasm-near", "counter", _ => true
+  | "wasm-near", "error-ref", _ => true
   | "wasm-near", "context", _ => true
   | "wasm-near", "hash", _ => true
   | "wasm-near", "map", _ => true
@@ -181,6 +185,7 @@ def capabilitiesFor (id : String) : Array ProofForge.Target.Capability :=
   match id with
   | "counter" => #[.storageScalar, .callerSender, .envBlock, .controlConditional, .controlBoundedLoop]
   | "value-vault" => #[.storageScalar, .storageMap, .callerSender, .envBlock, .controlConditional]
+  | "error-ref" => #[.storageScalar, .assertions]
   | "context" => #[.callerSender, .envBlock, .valueNative]
   | "hash" | "hash-storage" | "u32-hash-packing" => #[.cryptoHash]
   | "map" => #[.storageMap]

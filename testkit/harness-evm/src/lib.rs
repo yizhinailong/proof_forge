@@ -122,16 +122,19 @@ impl ChainHarness for EvmHarness {
                 let result = evm
                     .transact_commit(tx)
                     .with_context(|| format!("EVM call `{}` failed before execution", step.call))?;
-                ensure!(
-                    result.is_success(),
-                    "EVM call `{}` did not succeed: {result:?}",
-                    step.call
-                );
                 let gas_used = result.tx_gas_used();
-                let output = result.into_output().ok_or_else(|| {
-                    anyhow::anyhow!("EVM call `{}` halted without output", step.call)
-                })?;
-                outcomes.push(outcome_from_output(sequence, &step.call, output.as_ref(), gas_used));
+                let outcome = match result {
+                    revm::context_interface::result::ExecutionResult::Success { output, .. } => {
+                        outcome_from_output(sequence, &step.call, output.data().as_ref(), gas_used)
+                    }
+                    revm::context_interface::result::ExecutionResult::Revert { output, .. } => {
+                        outcome_from_revert(sequence, &step.call, output.as_ref(), gas_used)
+                    }
+                    revm::context_interface::result::ExecutionResult::Halt { reason, .. } => {
+                        bail!("EVM call `{}` halted: {reason}", step.call);
+                    }
+                };
+                outcomes.push(outcome);
                 sequence += 1;
             }
         }
@@ -152,6 +155,7 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<EvmFixtureArti
     match case.manifest.scenario.fixture.as_str() {
         "counter" => build_counter_fixture(repo_root),
         "value-vault" => build_value_vault_fixture(repo_root),
+        "error-ref" => build_error_ref_fixture(repo_root),
         fixture => bail!("EVM testkit harness does not support fixture `{fixture}` yet"),
     }
 }
@@ -316,6 +320,86 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     })
 }
 
+fn build_error_ref_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
+    let out_dir = repo_root.join("build/testkit/evm/error-ref");
+    fs::create_dir_all(&out_dir)
+        .with_context(|| format!("failed to create `{}`", out_dir.display()))?;
+
+    let build = Command::new("lake")
+        .current_dir(repo_root)
+        .args(["build", "proof-forge"])
+        .output()
+        .context("failed to build proof-forge executable")?;
+    if !build.status.success() {
+        bail!(
+            "lake build proof-forge failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&build.stdout),
+            String::from_utf8_lossy(&build.stderr)
+        );
+    }
+
+    let bytecode_path = out_dir.join("ErrorRefProbe.bin");
+    let yul_path = out_dir.join("ErrorRefProbe.yul");
+    let metadata_path = out_dir.join("ErrorRefProbe.proof-forge-artifact.json");
+    let init_code_path = out_dir.join("ErrorRefProbe.init.bin");
+    let deploy_manifest_path = out_dir.join("ErrorRefProbe.proof-forge-deploy.json");
+    let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
+    let output = Command::new(&proof_forge)
+        .current_dir(repo_root)
+        .args([
+            "emit",
+            "--target",
+            "evm",
+            "--fixture",
+            "error-ref",
+            "--format",
+            "bytecode",
+            "--yul-output",
+            path_str(&yul_path)?,
+            "--artifact-output",
+            path_str(&metadata_path)?,
+            "-o",
+            path_str(&bytecode_path)?,
+        ])
+        .output()
+        .with_context(|| format!("failed to run `{}`", proof_forge.display()))?;
+    if !output.status.success() {
+        bail!(
+            "ErrorRefProbe EVM bytecode emission failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    ensure!(
+        bytecode_path.exists(),
+        "ErrorRefProbe EVM bytecode emission did not create `{}`",
+        bytecode_path.display()
+    );
+    ensure!(
+        metadata_path.exists(),
+        "ErrorRefProbe EVM bytecode emission did not create `{}`",
+        metadata_path.display()
+    );
+    ensure!(
+        init_code_path.exists(),
+        "ErrorRefProbe EVM bytecode emission did not create `{}`",
+        init_code_path.display()
+    );
+    ensure!(
+        deploy_manifest_path.exists(),
+        "ErrorRefProbe EVM bytecode emission did not create `{}`",
+        deploy_manifest_path.display()
+    );
+
+    Ok(EvmFixtureArtifact {
+        bytecode_path,
+        metadata_path,
+        yul_path,
+        init_code_path,
+        deploy_manifest_path,
+    })
+}
+
 fn read_bytecode(path: &Path) -> Result<Vec<u8>> {
     let text =
         fs::read_to_string(path).with_context(|| format!("failed to read `{}`", path.display()))?;
@@ -376,8 +460,66 @@ fn outcome_from_output(sequence: u32, call: &str, output: &[u8], gas_used: u64) 
             evm_gas: Some(gas_used),
             near_gas: None,
         }),
+        error: None,
         raw_line,
     }
+}
+
+fn outcome_from_revert(sequence: u32, call: &str, output: &[u8], gas_used: u64) -> CallOutcome {
+    let error = decode_revert_error(output);
+    let error_str = error
+        .as_ref()
+        .map(|e| format!("assertion_id={} user_code={}", e.assertion_id, e.user_code.as_deref().unwrap_or("")))
+        .unwrap_or_else(|| "revert".to_string());
+    let raw_line = format!(
+        "evm call {sequence}:{call}: error={error_str} evm_gas={gas_used}"
+    );
+
+    CallOutcome {
+        sequence,
+        call: call.to_string(),
+        return_hex: None,
+        return_u64: None,
+        return_u32: None,
+        return_bool: None,
+        allocations: None,
+        reuses: None,
+        deallocations: None,
+        budget: Some(proof_forge_testkit_core::BudgetOutcome {
+            solana_cu: None,
+            evm_gas: Some(gas_used),
+            near_gas: None,
+        }),
+        error,
+        raw_line,
+    }
+}
+
+fn decode_revert_error(output: &[u8]) -> Option<proof_forge_testkit_core::ErrorOutcome> {
+    // Expect ABI encoding of (uint32 assertion_id, string user_code):
+    // word 0: assertion_id (right-aligned in 32 bytes)
+    // word 1: offset to string data (in bytes, typically 64)
+    // word at offset: string length
+    // following words: string data
+    if output.len() < 96 {
+        return None;
+    }
+    let assertion_id = u32::from_be_bytes(output[28..32].try_into().ok()?);
+    let offset = u64::from_be_bytes(output[56..64].try_into().ok()?);
+    if offset.checked_add(32)? as usize > output.len() {
+        return None;
+    }
+    let len = u64::from_be_bytes(output[(offset as usize + 24)..(offset as usize + 32)].try_into().ok()?);
+    let data_start = (offset as usize).checked_add(32)?;
+    let data_end = data_start.checked_add(len as usize)?;
+    if data_end > output.len() {
+        return None;
+    }
+    let user_code = String::from_utf8(output[data_start..data_end].to_vec()).ok();
+    Some(proof_forge_testkit_core::ErrorOutcome {
+        assertion_id,
+        user_code,
+    })
 }
 
 fn word_to_u64(word: &[u8]) -> Option<u64> {

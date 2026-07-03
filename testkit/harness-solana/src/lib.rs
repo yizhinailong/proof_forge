@@ -14,12 +14,14 @@ use proof_forge_testkit_core::{
 use serde::Deserialize;
 use solana_account::Account;
 use solana_address::Address;
-use solana_instruction::{AccountMeta, Instruction};
+use solana_instruction::{error::InstructionError, AccountMeta, Instruction};
 
 const COUNTER_PROJECT_NAME: &str = "proofforge-counter";
 const VALUE_VAULT_PROJECT_NAME: &str = "proofforge-value-vault";
+const ERROR_REF_PROJECT_NAME: &str = "proofforge-error-ref";
 const COUNTER_DATA_LEN: usize = 8;
 const VALUE_VAULT_DATA_LEN: usize = 48;
+const ERROR_REF_DATA_LEN: usize = 8;
 
 pub struct SolanaHarness;
 
@@ -58,6 +60,7 @@ impl ChainHarness for SolanaHarness {
         match case.manifest.scenario.fixture.as_str() {
             "counter" => run_counter_scenario(case, repo_root, &sbpf, &keygen),
             "value-vault" => run_value_vault_scenario(case, repo_root, &sbpf, &keygen),
+            "error-ref" => run_error_ref_scenario(case, repo_root, &sbpf, &keygen),
             fixture => {
                 bail!("solana-sbpf-asm testkit harness does not support fixture `{fixture}` yet")
             }
@@ -144,6 +147,16 @@ fn run_value_vault_scenario(
     run_state_account_scenario(case, repo_root, artifact, VALUE_VAULT_DATA_LEN)
 }
 
+fn run_error_ref_scenario(
+    case: &ScenarioCase,
+    repo_root: &Path,
+    sbpf: &str,
+    keygen: &str,
+) -> Result<HarnessRun> {
+    let artifact = build_error_ref_fixture(repo_root, sbpf, keygen)?;
+    run_state_account_scenario(case, repo_root, artifact, ERROR_REF_DATA_LEN)
+}
+
 fn run_state_account_scenario(
     case: &ScenarioCase,
     repo_root: &Path,
@@ -202,22 +215,20 @@ fn run_state_account_scenario(
                 &ix(pid, instruction_data.clone(), state),
                 &[(state, state_account.clone())],
             );
-            ensure!(
-                result.raw_result.is_ok(),
-                "Solana call `{}` did not succeed: {:?}",
-                step.call,
-                result.raw_result
-            );
-            state_account = result
-                .get_account(&state)
-                .with_context(|| {
-                    format!("Solana call `{}` did not return state account", step.call)
-                })?
-                .clone();
+            let error = extract_solana_error(&result.raw_result);
+            if error.is_none() {
+                state_account = result
+                    .get_account(&state)
+                    .with_context(|| {
+                        format!("Solana call `{}` did not return state account", step.call)
+                    })?
+                    .clone();
+            }
             outcomes.push(outcome_from_mollusk_result(
                 sequence,
                 &step.call,
                 &result,
+                error,
             ));
             sequence += 1;
         }
@@ -390,6 +401,83 @@ fn build_value_vault_fixture(
     })
 }
 
+fn build_error_ref_fixture(
+    repo_root: &Path,
+    sbpf: &str,
+    keygen: &str,
+) -> Result<SolanaFixtureArtifact> {
+    let out_dir = repo_root.join("build/testkit/solana/error-ref");
+    fs::create_dir_all(&out_dir)
+        .with_context(|| format!("failed to create `{}`", out_dir.display()))?;
+
+    let mut build = Command::new("lake");
+    build.current_dir(repo_root).args(["build", "proof-forge"]);
+    run_required(&mut build, "lake build proof-forge")?;
+
+    let asm_path = out_dir.join("ErrorRefProbe.s");
+    let artifact_path = out_dir.join("proof-forge-artifact.json");
+    let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
+    let mut emit = Command::new(&proof_forge);
+    emit.current_dir(repo_root).args([
+        "emit",
+        "--target",
+        "solana-sbpf-asm",
+        "--fixture",
+        "error-ref",
+        "--format",
+        "s",
+        "-o",
+        path_str(&asm_path)?,
+        "--artifact-output",
+        path_str(&artifact_path)?,
+    ]);
+    run_required(&mut emit, "proof-forge emit --target solana-sbpf-asm --fixture error-ref")?;
+
+    ensure!(
+        asm_path.exists(),
+        "ErrorRefProbe Solana emission did not create `{}`",
+        asm_path.display()
+    );
+    ensure!(
+        artifact_path.exists(),
+        "ErrorRefProbe Solana emission did not create `{}`",
+        artifact_path.display()
+    );
+    let manifest_path = out_dir.join("manifest.toml");
+    ensure!(
+        manifest_path.exists(),
+        "ErrorRefProbe Solana emission did not create `{}`",
+        manifest_path.display()
+    );
+    let project_dir = out_dir.join("sbpf-project");
+    let keypair_path = project_dir
+        .join("deploy")
+        .join(format!("{ERROR_REF_PROJECT_NAME}-keypair.json"));
+    let program_path = project_dir.join("deploy").join(ERROR_REF_PROJECT_NAME);
+    scaffold_sbpf_project(&project_dir, ERROR_REF_PROJECT_NAME, &asm_path, keygen)?;
+
+    let mut sbpf_build = Command::new(sbpf);
+    sbpf_build.current_dir(&project_dir).arg("build");
+    run_required(&mut sbpf_build, "sbpf build")?;
+
+    let elf_path = program_path.with_extension("so");
+    ensure!(
+        elf_path.exists(),
+        "Solana sbpf build did not create `{}`",
+        elf_path.display()
+    );
+
+    Ok(SolanaFixtureArtifact {
+        asm_path,
+        manifest_path,
+        metadata_path: artifact_path,
+        idl_path: None,
+        client_path: None,
+        keypair_path,
+        program_path,
+    })
+}
+
 fn scaffold_sbpf_project(
     project_dir: &Path,
     project_name: &str,
@@ -464,10 +552,23 @@ fn ix(pid: Address, data: Vec<u8>, state: Address) -> Instruction {
     Instruction::new_with_bytes(pid, &data, vec![AccountMeta::new(state, false)])
 }
 
+fn extract_solana_error(raw_result: &Result<(), InstructionError>) -> Option<proof_forge_testkit_core::ErrorOutcome> {
+    match raw_result {
+        Err(InstructionError::Custom(code)) => {
+            Some(proof_forge_testkit_core::ErrorOutcome {
+                assertion_id: *code,
+                user_code: None,
+            })
+        }
+        _ => None,
+    }
+}
+
 fn outcome_from_mollusk_result(
     sequence: u32,
     call: &str,
     result: &mollusk_svm::result::InstructionResult,
+    error: Option<proof_forge_testkit_core::ErrorOutcome>,
 ) -> CallOutcome {
     let return_data = &result.return_data;
     let return_hex = if return_data.is_empty() {
@@ -489,13 +590,20 @@ fn outcome_from_mollusk_result(
         _ => None,
     };
     let compute_units = result.compute_units_consumed;
-    let raw_line = match &return_hex {
-        Some(hex) => format!(
-            "solana-sbpf-asm call {sequence}:{call}: return_hex={hex} solana_cu={compute_units}"
-        ),
-        None => format!(
-            "solana-sbpf-asm call {sequence}:{call}: return_hex= solana_cu={compute_units}"
-        ),
+    let raw_line = if let Some(error) = &error {
+        format!(
+            "solana-sbpf-asm call {sequence}:{call}: error=assertion_id={} solana_cu={compute_units}",
+            error.assertion_id
+        )
+    } else {
+        match &return_hex {
+            Some(hex) => format!(
+                "solana-sbpf-asm call {sequence}:{call}: return_hex={hex} solana_cu={compute_units}"
+            ),
+            None => format!(
+                "solana-sbpf-asm call {sequence}:{call}: return_hex= solana_cu={compute_units}"
+            ),
+        }
     };
 
     CallOutcome {
@@ -513,6 +621,7 @@ fn outcome_from_mollusk_result(
             evm_gas: None,
             near_gas: None,
         }),
+        error,
         raw_line,
     }
 }
