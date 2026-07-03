@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # V-GATE-SOLANA-01 + V-GATE-SOLANA-02: Solana sBPF assembly toolchain round-trip.
 #
-# Emits a canned entrypoint.s via proof-forge --emit-sbpf-asm, assembles it
+# Emits a canned entrypoint.s via
+# `proof-forge emit --target solana-sbpf-asm --fixture canned-entrypoint`,
+# assembles it
 # into a Solana eBPF ELF with the sbpf toolchain, and verifies the disassembler
 # round-trips the ELF back to matching assembly.
 #

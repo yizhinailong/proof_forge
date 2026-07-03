@@ -2536,7 +2536,11 @@ def emitLegacyFlag (target fixture : String) (format? : Option String) : Except 
         Except.ok "--solana-elf"
       else
         Except.ok "--emit-counter-ir-sbpf"
-  | "solana-sbpf-asm", "value-vault", _ => Except.ok "--emit-value-vault-ir-sbpf"
+  | "solana-sbpf-asm", "value-vault", fmt =>
+      if fmt == "elf" || fmt == "so" then
+        Except.ok "--value-vault-solana-elf"
+      else
+        Except.ok "--emit-value-vault-ir-sbpf"
   | "solana-sbpf-asm", "error-ref", _ => Except.ok "--emit-error-ref-ir-sbpf"
   | "solana-sbpf-asm", "control", _ => Except.ok "--emit-control-ir-sbpf"
   | "solana-sbpf-asm", "solana-sdk", _ => Except.ok "--emit-solana-sdk-sbpf"

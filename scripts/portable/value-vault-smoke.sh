@@ -242,10 +242,10 @@ PY
 if [ "${PROOF_FORGE_VALUE_VAULT_ELF:-0}" = "1" ]; then
   command -v sbpf >/dev/null 2>&1 || fail "PROOF_FORGE_VALUE_VAULT_ELF=1 requires sbpf on PATH"
   echo "=== Portable ValueVault step 6: build Solana ELF ==="
-  lake env proof-forge --value-vault-solana-elf \
+  lake env proof-forge emit --target solana-sbpf-asm --fixture value-vault --format elf \
     -o "$SOLANA_ELF" \
     --artifact-output "$SOLANA_DIR/ValueVault.elf.proof-forge-artifact.json" \
-    || fail "proof-forge --value-vault-solana-elf failed"
+    || fail "proof-forge emit --target solana-sbpf-asm --fixture value-vault --format elf failed"
   require_file "$SOLANA_ELF"
 else
   echo "SKIP: set PROOF_FORGE_VALUE_VAULT_ELF=1 to build the optional Solana ELF"

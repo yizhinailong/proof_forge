@@ -37,6 +37,15 @@ def main : IO UInt32 := do
   requireLegacy
     ["emit", "--target", "solana-sbpf-asm", "--fixture", "counter", "--format", "elf"]
     ["--solana-elf"]
+  requireLegacy
+    ["emit", "--target", "solana-sbpf-asm", "--fixture", "solana-sdk", "--format", "s"]
+    ["--emit-solana-sdk-sbpf"]
+  requireLegacy
+    ["emit", "--target", "solana-sbpf-asm", "--fixture", "value-vault", "--format", "s"]
+    ["--emit-value-vault-ir-sbpf"]
+  requireLegacy
+    ["emit", "--target", "solana-sbpf-asm", "--fixture", "value-vault", "--format", "elf"]
+    ["--value-vault-solana-elf"]
 
   IO.println "cli-target-first: ok"
   return 0

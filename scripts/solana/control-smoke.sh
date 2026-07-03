@@ -3,7 +3,7 @@
 # runtime smoke.
 #
 # Emits the ControlFlowAssertProbe sBPF assembly via
-# `proof-forge --emit-control-ir-sbpf`, assembles it into a Solana eBPF ELF
+# `proof-forge emit --target solana-sbpf-asm --fixture control`, assembles it into a Solana eBPF ELF
 # with the sbpf toolchain, and verifies the program's runtime behavior with
 # the Mollusk SVM test harness, covering the control-flow + assertion
 # statement types Workstream 7 lowers from the portable IR:

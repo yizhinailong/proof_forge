@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-04
 
+### CLI M3 Target-First Solana Slice
+
+Commit: this commit
+
+Summary:
+
+- Added target-first mapping for the portable ValueVault Solana ELF path:
+  `emit --target solana-sbpf-asm --fixture value-vault --format elf` now routes
+  to the existing ValueVault ELF builder instead of requiring
+  `--value-vault-solana-elf`.
+- Migrated the Solana PDA Web3.js smoke to the target-first SDK fixture command:
+  `emit --target solana-sbpf-asm --fixture solana-sdk --format s`.
+- Migrated the optional Solana ELF branch in the portable ValueVault smoke to
+  target-first CLI and extended the CLI mapping smoke so this does not regress.
+
+Validation run:
+
+```sh
+lake build ProofForge.Cli
+lake env lean Tests/CliTargetFirst.lean
+scripts/solana/pda-web3-smoke.sh
+PROOF_FORGE_VALUE_VAULT_ELF=1 scripts/portable/value-vault-smoke.sh
+```
+
+Known limitations:
+
+- This is an M3 migration slice, not the full M3/M4 cleanup. Two example files
+  still show legacy commands, and the legacy parser remains during the
+  compatibility window.
+
+Next step:
+
+- Continue migrating remaining examples/docs and then retire legacy flag
+  aliases after the compatibility window defined by RFC 0009.
+
 ### Primary-Chain Gate P0 Sign-off
 
 Commit: this commit

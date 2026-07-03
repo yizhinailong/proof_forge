@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # V-GATE-SOLANA-03: ProofForge Counter IR -> sBPF -> Mollusk runtime smoke.
 #
-# Emits the Counter sBPF assembly via `proof-forge --emit-counter-ir-sbpf`,
+# Emits the Counter sBPF assembly via
+# `proof-forge emit --target solana-sbpf-asm --fixture counter`,
 # assembles it into a Solana eBPF ELF with the sbpf toolchain, and verifies
 # the program's runtime behavior against the Counter IR contract using the
 # Mollusk SVM test harness:

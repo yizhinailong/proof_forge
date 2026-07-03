@@ -36,10 +36,10 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$NODE_PROJECT"
 
 echo "=== Solana PDA Web3.js step 1: emit SDK fixture ==="
-lake env proof-forge --emit-solana-sdk-sbpf \
+lake env proof-forge emit --target solana-sbpf-asm --fixture solana-sdk --format s \
   -o "$ASM_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --emit-solana-sdk-sbpf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture solana-sdk failed"
 
 [ -f "$ARTIFACT_OUTPUT" ] || fail "artifact metadata not written: $ARTIFACT_OUTPUT"
 
