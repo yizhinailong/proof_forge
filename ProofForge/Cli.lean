@@ -4077,6 +4077,12 @@ def compileErrorRefIrSbpf (opts : CliOptions) : IO UInt32 := do
       IO.println s!"wrote {output}"
       let manifestOutput ← writeSbpfManifest output ProofForge.IR.Examples.ErrorRefProbe.module
       IO.println s!"wrote {manifestOutput}"
+      let spec := ProofForge.Contract.ContractSpec.fromIR ProofForge.IR.Examples.ErrorRefProbe.module
+      let specOutput := match output.parent with
+        | some parent => parent / "ErrorRefProbe.contract-spec.json"
+        | none => FilePath.mk "ErrorRefProbe.contract-spec.json"
+      writeTextFile specOutput (ProofForge.Contract.Spec.Json.render spec ++ "\n")
+      IO.println s!"wrote {specOutput}"
       let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
       if let some parent := metadataOutput.parent then
         IO.FS.createDirAll parent

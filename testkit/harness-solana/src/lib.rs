@@ -189,6 +189,12 @@ fn run_state_account_scenario(
             path: client_path,
         });
     }
+    if let Some(contract_spec_path) = &artifact.contract_spec_path {
+        outputs.push(ArtifactOutput {
+            name: "contract-spec",
+            path: contract_spec_path,
+        });
+    }
     assert_artifact_expectations(case, "solana-sbpf-asm", repo_root, &outputs)?;
 
     let tags = load_instruction_tags(&artifact.manifest_path)?;
@@ -243,6 +249,7 @@ struct SolanaFixtureArtifact {
     metadata_path: PathBuf,
     idl_path: Option<PathBuf>,
     client_path: Option<PathBuf>,
+    contract_spec_path: Option<PathBuf>,
     keypair_path: PathBuf,
     program_path: PathBuf,
 }
@@ -319,6 +326,7 @@ fn build_counter_fixture(
         metadata_path: artifact_path,
         idl_path: None,
         client_path: None,
+        contract_spec_path: None,
         keypair_path,
         program_path,
     })
@@ -396,6 +404,7 @@ fn build_value_vault_fixture(
         metadata_path: artifact_path,
         idl_path: Some(out_dir.join("proof-forge-idl.json")),
         client_path: Some(out_dir.join("proof-forge-client.ts")),
+        contract_spec_path: None,
         keypair_path,
         program_path,
     })
@@ -449,6 +458,12 @@ fn build_error_ref_fixture(
         "ErrorRefProbe Solana emission did not create `{}`",
         manifest_path.display()
     );
+    let contract_spec_path = out_dir.join("ErrorRefProbe.contract-spec.json");
+    ensure!(
+        contract_spec_path.exists(),
+        "ErrorRefProbe Solana emission did not create `{}`",
+        contract_spec_path.display()
+    );
     let project_dir = out_dir.join("sbpf-project");
     let keypair_path = project_dir
         .join("deploy")
@@ -473,6 +488,7 @@ fn build_error_ref_fixture(
         metadata_path: artifact_path,
         idl_path: None,
         client_path: None,
+        contract_spec_path: Some(contract_spec_path),
         keypair_path,
         program_path,
     })

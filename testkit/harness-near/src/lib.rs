@@ -9,6 +9,12 @@ use proof_forge_testkit_core::{
 
 pub struct NearHarness;
 
+struct NearFixtureArtifact {
+    wat_path: PathBuf,
+    contract_spec_path: Option<PathBuf>,
+    near_wrapper_path: Option<PathBuf>,
+}
+
 impl NearHarness {
     pub fn new() -> Self {
         Self
@@ -28,16 +34,29 @@ impl ChainHarness for NearHarness {
 
     fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<HarnessRun> {
         let artifact = build_fixture(case, repo_root)?;
+        let mut outputs = vec![ArtifactOutput {
+            name: "wat",
+            path: &artifact.wat_path,
+        }];
+        if let Some(ref path) = artifact.contract_spec_path {
+            outputs.push(ArtifactOutput {
+                name: "contract-spec",
+                path: path,
+            });
+        }
+        if let Some(ref path) = artifact.near_wrapper_path {
+            outputs.push(ArtifactOutput {
+                name: "near-wrapper",
+                path: path,
+            });
+        }
         assert_artifact_expectations(
             case,
             self.target_id(),
             repo_root,
-            &[ArtifactOutput {
-                name: "wat",
-                path: &artifact,
-            }],
+            &outputs,
         )?;
-        let mut args = vec!["run".to_string(), artifact.display().to_string()];
+        let mut args = vec!["run".to_string(), artifact.wat_path.display().to_string()];
         let mut inputs = Vec::new();
         let mut has_inputs = false;
         for step in &case.manifest.steps {
@@ -82,31 +101,39 @@ impl ChainHarness for NearHarness {
     }
 }
 
-fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<PathBuf> {
+fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<NearFixtureArtifact> {
     match case.manifest.scenario.fixture.as_str() {
         "counter" => emit_wat_fixture(
             repo_root,
             "Tests/EmitWatSmoke.lean",
             "Counter",
             "build/wasm-near/emitwat-counter.wat",
+            None,
+            None,
         ),
         "value-vault" => emit_wat_fixture(
             repo_root,
             "Tests/EmitWatValueVault.lean",
             "ValueVault",
             "build/wasm-near/emitwat-value-vault.wat",
+            None,
+            None,
         ),
         "alloc-release" => emit_wat_fixture(
             repo_root,
             "Tests/EmitWatAlloc.lean",
             "ArrayProbe",
             "build/wasm-near/emitwat-release-external.wat",
+            None,
+            None,
         ),
         "error-ref" => emit_wat_fixture(
             repo_root,
             "Tests/EmitWatErrorRef.lean",
             "ErrorRefProbe",
             "build/wasm-near/emitwat-error-ref.wat",
+            Some("build/wasm-near/emitwat-error-ref.contract-spec.json"),
+            Some("build/wasm-near/proof-forge-near.ts"),
         ),
         fixture => bail!("wasm-near testkit harness does not support fixture `{fixture}` yet"),
     }
@@ -117,7 +144,9 @@ fn emit_wat_fixture(
     emitter: &str,
     fixture_name: &str,
     artifact_path: &str,
-) -> Result<PathBuf> {
+    contract_spec_path: Option<&str>,
+    near_wrapper_path: Option<&str>,
+) -> Result<NearFixtureArtifact> {
     let output = Command::new("lake")
         .current_dir(repo_root)
         .args(["env", "lean", "--run", emitter])
@@ -130,11 +159,31 @@ fn emit_wat_fixture(
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    let artifact = repo_root.join(artifact_path);
+    let wat_path = repo_root.join(artifact_path);
     ensure!(
-        artifact.exists(),
+        wat_path.exists(),
         "{fixture_name} WAT emission did not create `{}`",
-        artifact.display()
+        wat_path.display()
     );
-    Ok(artifact)
+    let contract_spec_path = contract_spec_path.map(|p| repo_root.join(p));
+    if let Some(ref path) = contract_spec_path {
+        ensure!(
+            path.exists(),
+            "{fixture_name} WAT emission did not create `{}`",
+            path.display()
+        );
+    }
+    let near_wrapper_path = near_wrapper_path.map(|p| repo_root.join(p));
+    if let Some(ref path) = near_wrapper_path {
+        ensure!(
+            path.exists(),
+            "{fixture_name} WAT emission did not create `{}`",
+            path.display()
+        );
+    }
+    Ok(NearFixtureArtifact {
+        wat_path,
+        contract_spec_path,
+        near_wrapper_path,
+    })
 }

@@ -53,32 +53,45 @@ impl ChainHarness for EvmHarness {
         }
 
         let artifact = build_fixture(case, repo_root)?;
+        let mut artifacts = vec![
+            ArtifactOutput {
+                name: "bytecode",
+                path: &artifact.bytecode_path,
+            },
+            ArtifactOutput {
+                name: "metadata",
+                path: &artifact.metadata_path,
+            },
+            ArtifactOutput {
+                name: "yul",
+                path: &artifact.yul_path,
+            },
+            ArtifactOutput {
+                name: "init-code",
+                path: &artifact.init_code_path,
+            },
+            ArtifactOutput {
+                name: "deploy-manifest",
+                path: &artifact.deploy_manifest_path,
+            },
+        ];
+        if let Some(ref path) = artifact.contract_spec_path {
+            artifacts.push(ArtifactOutput {
+                name: "contract-spec",
+                path: path,
+            });
+        }
+        if let Some(ref path) = artifact.evm_abi_path {
+            artifacts.push(ArtifactOutput {
+                name: "evm-abi",
+                path: path,
+            });
+        }
         assert_artifact_expectations(
             case,
             self.target_id(),
             repo_root,
-            &[
-                ArtifactOutput {
-                    name: "bytecode",
-                    path: &artifact.bytecode_path,
-                },
-                ArtifactOutput {
-                    name: "metadata",
-                    path: &artifact.metadata_path,
-                },
-                ArtifactOutput {
-                    name: "yul",
-                    path: &artifact.yul_path,
-                },
-                ArtifactOutput {
-                    name: "init-code",
-                    path: &artifact.init_code_path,
-                },
-                ArtifactOutput {
-                    name: "deploy-manifest",
-                    path: &artifact.deploy_manifest_path,
-                },
-            ],
+            &artifacts,
         )?;
         let selectors = load_selectors(&artifact.metadata_path)?;
         let bytecode = read_bytecode(&artifact.bytecode_path)?;
@@ -149,6 +162,8 @@ struct EvmFixtureArtifact {
     yul_path: PathBuf,
     init_code_path: PathBuf,
     deploy_manifest_path: PathBuf,
+    contract_spec_path: Option<PathBuf>,
+    evm_abi_path: Option<PathBuf>,
 }
 
 fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<EvmFixtureArtifact> {
@@ -237,6 +252,8 @@ fn build_counter_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
         yul_path,
         init_code_path,
         deploy_manifest_path,
+        contract_spec_path: None,
+        evm_abi_path: None,
     })
 }
 
@@ -317,6 +334,8 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
         yul_path,
         init_code_path,
         deploy_manifest_path,
+        contract_spec_path: None,
+        evm_abi_path: None,
     })
 }
 
@@ -343,6 +362,8 @@ fn build_error_ref_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     let metadata_path = out_dir.join("ErrorRefProbe.proof-forge-artifact.json");
     let init_code_path = out_dir.join("ErrorRefProbe.init.bin");
     let deploy_manifest_path = out_dir.join("ErrorRefProbe.proof-forge-deploy.json");
+    let contract_spec_path = out_dir.join("ErrorRefProbe.contract-spec.json");
+    let evm_abi_path = out_dir.join("proof-forge-evm-abi.ts");
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
     let output = Command::new(&proof_forge)
         .current_dir(repo_root)
@@ -390,6 +411,16 @@ fn build_error_ref_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
         "ErrorRefProbe EVM bytecode emission did not create `{}`",
         deploy_manifest_path.display()
     );
+    ensure!(
+        contract_spec_path.exists(),
+        "ErrorRefProbe EVM bytecode emission did not create `{}`",
+        contract_spec_path.display()
+    );
+    ensure!(
+        evm_abi_path.exists(),
+        "ErrorRefProbe EVM bytecode emission did not create `{}`",
+        evm_abi_path.display()
+    );
 
     Ok(EvmFixtureArtifact {
         bytecode_path,
@@ -397,6 +428,8 @@ fn build_error_ref_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
         yul_path,
         init_code_path,
         deploy_manifest_path,
+        contract_spec_path: Some(contract_spec_path),
+        evm_abi_path: Some(evm_abi_path),
     })
 }
 
