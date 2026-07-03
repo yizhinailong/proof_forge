@@ -906,7 +906,7 @@
 - FV-1：证明 `resolveSpec` 的能力路由稳健性、拒绝完备性以及 Solana 目标扩展隔离（将 D-027/D-028 作为定理）。
 - FV-2：将 `ProofForge/IR/Semantics.lean` 扩展到标量子集之外（映射、数组、结构体、`ifElse`、`boundedFor`、事件），并证明确定性以及有界循环终止性。
 - FV-3：证明 `IR/Ownership.lean` 检查器相对于释放感知语义（无释放后使用、无重复释放）是稳健的，为三种不同的 `release` 降级（EmitWat 分配器、EVM/Psy 拒绝、TS no-op）提供依据。
-- FV-4：添加一个镜像 `Backend/WasmNear/Refinement.lean` 的 EVM Counter 追踪义务，由 Yul 子集解释器支持；在解释器存在之前，让 Psy/Solana 保持在差异门控上。
+- FV-4：已在 `Backend/Evm/Refinement.lean` 中落地初始 EVM Counter surface obligation，镜像 `Backend/WasmNear/Refinement.lean`，覆盖 scalar IR trace 和 selector-dispatched Yul entrypoints。下一步：用覆盖 storage read/write 和 return word 的 Yul 子集解释器支撑它；在解释器存在之前，让 Psy/Solana 保持在差异门控上。
 - FV-5：在 IR 值域中统一陈述检查算术溢出/除法语义，并将溢出分支添加到后端义务中。
 - FV-6：证明配对测试夹具子集的 `.learn` 与 `contract_source` 降级等价性（可判定的 `ContractSpec` 相等性）。
 - FV-7：证明 Token SDK 计划不变性（全特性路由、已文档化的不兼容诊断、计划良构性）。

@@ -17,6 +17,38 @@ Each entry should include:
 
 ## 2026-07-03
 
+### EVM Counter Formal Trace Surface Obligation
+
+Commit: feature commit for FV-4 EVM surface obligation
+
+Summary:
+
+- Added `ProofForge.Backend.Evm.Refinement` with a `TraceObligation` for the
+  Counter `initialize -> get -> increment -> get` scenario.
+- Reused the scalar IR executable semantics to prove the expected observable
+  trace (`0` then `1`) with `native_decide`.
+- Added an EVM/Yul surface obligation that checks generated Yul has the
+  selector-dispatched top-level functions required by the same trace.
+- Imported the module from `ProofForge.Backend.Evm`, so the theorem is checked
+  by the existing `just build` CI path.
+
+Validation run:
+
+```sh
+lake env lean ProofForge/Backend/Evm/Refinement.lean
+```
+
+Known limitations:
+
+- This is the first FV-4 EVM anchor, not a full EVM refinement theorem. It does
+  not yet interpret Yul storage operations or return words.
+
+Next step:
+
+- Add a tiny Yul-subset interpreter for Counter-shaped Yul (`sstore`, `sload`,
+  `add`, selector-dispatched calls, `return`) and compare its observable trace
+  against the IR trace.
+
 ### Review Alignment: CLI RFC And Primary-Chain Portfolio Freeze
 
 Commit: feature commit for review alignment

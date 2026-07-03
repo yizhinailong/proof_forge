@@ -2020,9 +2020,11 @@ Tasks (see the roadmap for full statements):
   semantics (no use-after-release, no double release), justifying the three
   divergent `release` lowerings (EmitWat allocator, EVM/Psy reject, TS
   no-op).
-- FV-4: add an EVM Counter trace obligation mirroring
-  `Backend/WasmNear/Refinement.lean`, backed by a Yul-subset interpreter;
-  keep Psy/Solana on differential gates until interpreters exist.
+- FV-4: Done initial EVM Counter surface obligation in
+  `Backend/Evm/Refinement.lean`, mirroring `Backend/WasmNear/Refinement.lean`
+  for the scalar IR trace and selector-dispatched Yul entrypoints. Next:
+  back it with a Yul-subset interpreter for storage reads/writes and return
+  words; keep Psy/Solana on differential gates until interpreters exist.
 - FV-5: state checked-arithmetic overflow/division semantics once in the IR
   value domain and add the overflow branch to backend obligations.
 - FV-6: prove `.learn`-vs-`contract_source` lowering equivalence for the
