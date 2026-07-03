@@ -47,6 +47,70 @@ contains = [
   '{ name = "fee_bps", type = "U64", offset = 9, byte_size = 8, encoding = "le-u64" }',
 ]
 
+[[artifact.toml]]
+path = "target"
+equals = "solana-sbpf-asm"
+
+[[artifact.toml]]
+path = "program.name"
+equals = "valuevault"
+
+[[artifact.toml]]
+path = "instruction[0].name"
+equals = "initialize"
+
+[[artifact.toml]]
+path = "instruction[0].tag"
+equals = 0
+
+[[artifact.toml]]
+path = "instruction[1].name"
+equals = "deposit"
+
+[[artifact.toml]]
+path = "instruction[1].tag"
+equals = 1
+
+[[artifact.toml]]
+path = "instruction[2].name"
+equals = "charge_fee"
+
+[[artifact.toml]]
+path = "instruction[2].tag"
+equals = 2
+
+[[artifact.toml]]
+path = "instruction[3].name"
+equals = "release"
+
+[[artifact.toml]]
+path = "instruction[3].tag"
+equals = 3
+
+[[artifact.toml]]
+path = "instruction[4].name"
+equals = "snapshot"
+
+[[artifact.toml]]
+path = "instruction[4].tag"
+equals = 4
+
+[[artifact.toml]]
+path = "instruction[5].name"
+equals = "get_balance"
+
+[[artifact.toml]]
+path = "instruction[5].tag"
+equals = 5
+
+[[artifact.toml]]
+path = "instruction[6].name"
+equals = "get_net_value"
+
+[[artifact.toml]]
+path = "instruction[6].tag"
+equals = 6
+
 [[artifact]]
 target = "solana-sbpf-asm"
 name = "metadata"
@@ -55,6 +119,42 @@ contains = [
   '"sourceKind":"contract-sdk"',
   '"target":"solana-sbpf-asm"',
 ]
+
+[[artifact.json]]
+path = "target"
+equals = "solana-sbpf-asm"
+
+[[artifact.json]]
+path = "targetFamily"
+equals = "solana"
+
+[[artifact.json]]
+path = "artifactKind"
+equals = "solana-elf"
+
+[[artifact.json]]
+path = "fixture"
+equals = "value-vault-ir-sbpf"
+
+[[artifact.json]]
+path = "sourceKind"
+equals = "contract-sdk"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "env.block"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "storage.scalar"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "events.emit"
+
+[[artifact.json]]
+path = "validation.manifestGeneration"
+equals = "passed"
 
 [[step]]
 call = "initialize"

@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit Structured Artifact Assertions
+
+Commit: feature commit for unified testkit structured artifact assertions
+
+Summary:
+
+- Extended `testkit/core` artifact expectations with nested
+  `[[artifact.json]]` and `[[artifact.toml]]` checks.
+- Structured checks support dot paths plus array indexes, for example
+  `validation.manifestGeneration` and `instruction[1].tag`.
+- Added scenario-declared structured checks for Solana Counter and ValueVault
+  artifact metadata, manifest target/program fields, instruction names, tags,
+  capabilities, and manifest-generation validation status.
+- Kept the Solana harness runtime parsing in place for instruction dispatch and
+  metadata loading while moving the reviewable expectations into scenario TOML.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all
+cargo test --manifest-path testkit/Cargo.toml -p proof-forge-testkit-core
+cargo check --manifest-path testkit/Cargo.toml
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+just testkit
+```
+
+Known limitations:
+
+- Structured checks currently support equality and containment for JSON/TOML
+  values. They do not yet provide unordered array matching or predicate filters
+  such as `instruction[name=deposit]`.
+- Target harnesses still own runtime-critical parsing and some semantic
+  validation until those checks can be represented safely in the scenario
+  language.
+
+Next step:
+
+- Migrate the remaining metadata/manifest semantic checks out of target
+  harnesses where they are pure artifact expectations, then begin thinning
+  duplicated shell-only golden gates.
+
 ### Unified Testkit M4 Artifact Expectations
 
 Commit: feature commit for unified testkit artifact expectations

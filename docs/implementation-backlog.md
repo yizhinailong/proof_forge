@@ -2050,7 +2050,11 @@ Tasks (one milestone per implementing branch):
   scenario-declared `[[artifact]]` expectations. Counter's Solana golden
   assembly/manifest checks and ValueVault's WAT/Yul/sBPF/manifest/metadata
   source-shape checks now live in scenario TOML instead of hardcoded
-  fixture-specific harness branches.
+  fixture-specific harness branches. The second slice adds nested
+  `[[artifact.json]]` and `[[artifact.toml]]` checks so Solana Counter and
+  ValueVault metadata/manifest fields, instruction names/tags, capability
+  membership, and validation status are asserted declaratively by the scenario
+  runner.
 
 Acceptance criteria:
 

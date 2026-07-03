@@ -1268,7 +1268,10 @@ shell/Node harness；参见
   scenario-declared `[[artifact]]` expectation 落地。Counter 的 Solana
   golden assembly/manifest 检查，以及 ValueVault 的 WAT/Yul/sBPF/manifest/
   metadata source-shape 检查，现在都写在 scenario TOML 中，不再作为
-  fixture-specific harness 分支硬编码。
+  fixture-specific harness 分支硬编码。第二段切片加入嵌套的
+  `[[artifact.json]]` 与 `[[artifact.toml]]` 检查，让 Solana Counter 和
+  ValueVault 的 metadata/manifest 字段、instruction 名称和 tag、capability
+  membership 以及 validation 状态，都由 scenario runner 以声明式方式断言。
 
 验收标准：
 

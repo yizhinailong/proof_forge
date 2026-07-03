@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, ensure, Context, Result};
 use serde::Deserialize;
+use serde_json::Value as JsonValue;
+use toml::Value as TomlValue;
 
 #[derive(Debug, Clone)]
 pub struct ScenarioCase {
@@ -38,6 +40,19 @@ pub struct ArtifactExpectation {
     pub matches_file: Option<PathBuf>,
     #[serde(default)]
     pub contains: Vec<String>,
+    #[serde(default, rename = "json")]
+    pub json_checks: Vec<StructuredArtifactCheck>,
+    #[serde(default, rename = "toml")]
+    pub toml_checks: Vec<StructuredArtifactCheck>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct StructuredArtifactCheck {
+    pub path: String,
+    #[serde(default)]
+    pub equals: Option<TomlValue>,
+    #[serde(default)]
+    pub contains: Option<TomlValue>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -289,12 +304,33 @@ pub fn discover_scenarios(dir: &Path) -> Result<Vec<ScenarioCase>> {
                 manifest.scenario.name
             );
             ensure!(
-                artifact.matches_file.is_some() || !artifact.contains.is_empty(),
+                artifact.matches_file.is_some()
+                    || !artifact.contains.is_empty()
+                    || !artifact.json_checks.is_empty()
+                    || !artifact.toml_checks.is_empty(),
                 "scenario `{}` artifact expectation `{}` for target `{}` has no checks",
                 manifest.scenario.name,
                 artifact.name,
                 artifact.target
             );
+            for check in &artifact.json_checks {
+                validate_structured_artifact_check(
+                    &manifest.scenario.name,
+                    &artifact.target,
+                    &artifact.name,
+                    "json",
+                    check,
+                )?;
+            }
+            for check in &artifact.toml_checks {
+                validate_structured_artifact_check(
+                    &manifest.scenario.name,
+                    &artifact.target,
+                    &artifact.name,
+                    "toml",
+                    check,
+                )?;
+            }
         }
         scenarios.push(ScenarioCase { path, manifest });
     }
@@ -378,9 +414,285 @@ pub fn assert_artifact_expectations(
                 );
             }
         }
+
+        if !expectation.json_checks.is_empty() {
+            let text = fs::read_to_string(artifact.path).with_context(|| {
+                format!(
+                    "scenario `{}` target `{target_id}` failed to read JSON artifact `{}`",
+                    case.manifest.scenario.name,
+                    artifact.path.display()
+                )
+            })?;
+            let json: JsonValue = serde_json::from_str(&text).with_context(|| {
+                format!(
+                    "scenario `{}` target `{target_id}` artifact `{}` is not valid JSON",
+                    case.manifest.scenario.name,
+                    artifact.path.display()
+                )
+            })?;
+            for check in &expectation.json_checks {
+                assert_json_artifact_check(
+                    &case.manifest.scenario.name,
+                    target_id,
+                    expectation.name.as_str(),
+                    artifact.path,
+                    &json,
+                    check,
+                )?;
+            }
+        }
+
+        if !expectation.toml_checks.is_empty() {
+            let text = fs::read_to_string(artifact.path).with_context(|| {
+                format!(
+                    "scenario `{}` target `{target_id}` failed to read TOML artifact `{}`",
+                    case.manifest.scenario.name,
+                    artifact.path.display()
+                )
+            })?;
+            let toml: TomlValue = toml::from_str(&text).with_context(|| {
+                format!(
+                    "scenario `{}` target `{target_id}` artifact `{}` is not valid TOML",
+                    case.manifest.scenario.name,
+                    artifact.path.display()
+                )
+            })?;
+            for check in &expectation.toml_checks {
+                assert_toml_artifact_check(
+                    &case.manifest.scenario.name,
+                    target_id,
+                    expectation.name.as_str(),
+                    artifact.path,
+                    &toml,
+                    check,
+                )?;
+            }
+        }
     }
 
     Ok(())
+}
+
+fn validate_structured_artifact_check(
+    scenario: &str,
+    target: &str,
+    artifact: &str,
+    format: &str,
+    check: &StructuredArtifactCheck,
+) -> Result<()> {
+    ensure!(
+        !check.path.trim().is_empty(),
+        "scenario `{scenario}` {format} artifact check for target `{target}` artifact `{artifact}` has an empty path"
+    );
+    ensure!(
+        check.equals.is_some() || check.contains.is_some(),
+        "scenario `{scenario}` {format} artifact check for target `{target}` artifact `{artifact}` path `{}` has no assertion",
+        check.path
+    );
+    Ok(())
+}
+
+fn assert_json_artifact_check(
+    scenario: &str,
+    target_id: &str,
+    artifact_name: &str,
+    artifact_path: &Path,
+    json: &JsonValue,
+    check: &StructuredArtifactCheck,
+) -> Result<()> {
+    let actual = json_path(json, &check.path).with_context(|| {
+        format!(
+            "scenario `{scenario}` target `{target_id}` JSON artifact `{artifact_name}` missing path `{}` in `{}`",
+            check.path,
+            artifact_path.display()
+        )
+    })?;
+    if let Some(expected) = &check.equals {
+        ensure!(
+            json_equals_toml(actual, expected),
+            "scenario `{scenario}` target `{target_id}` JSON artifact `{artifact_name}` path `{}` expected {}, got {} in `{}`",
+            check.path,
+            display_toml_value(expected),
+            actual,
+            artifact_path.display()
+        );
+    }
+    if let Some(expected) = &check.contains {
+        ensure!(
+            json_contains_toml(actual, expected),
+            "scenario `{scenario}` target `{target_id}` JSON artifact `{artifact_name}` path `{}` expected to contain {}, got {} in `{}`",
+            check.path,
+            display_toml_value(expected),
+            actual,
+            artifact_path.display()
+        );
+    }
+    Ok(())
+}
+
+fn assert_toml_artifact_check(
+    scenario: &str,
+    target_id: &str,
+    artifact_name: &str,
+    artifact_path: &Path,
+    toml: &TomlValue,
+    check: &StructuredArtifactCheck,
+) -> Result<()> {
+    let actual = toml_path(toml, &check.path).with_context(|| {
+        format!(
+            "scenario `{scenario}` target `{target_id}` TOML artifact `{artifact_name}` missing path `{}` in `{}`",
+            check.path,
+            artifact_path.display()
+        )
+    })?;
+    if let Some(expected) = &check.equals {
+        ensure!(
+            actual == expected,
+            "scenario `{scenario}` target `{target_id}` TOML artifact `{artifact_name}` path `{}` expected {}, got {} in `{}`",
+            check.path,
+            display_toml_value(expected),
+            display_toml_value(actual),
+            artifact_path.display()
+        );
+    }
+    if let Some(expected) = &check.contains {
+        ensure!(
+            toml_contains_toml(actual, expected),
+            "scenario `{scenario}` target `{target_id}` TOML artifact `{artifact_name}` path `{}` expected to contain {}, got {} in `{}`",
+            check.path,
+            display_toml_value(expected),
+            display_toml_value(actual),
+            artifact_path.display()
+        );
+    }
+    Ok(())
+}
+
+fn json_path<'a>(root: &'a JsonValue, path: &str) -> Result<&'a JsonValue> {
+    let mut current = root;
+    for segment in path.split('.') {
+        let (key, index) = parse_path_segment(segment)?;
+        current = current
+            .as_object()
+            .and_then(|object| object.get(key))
+            .with_context(|| format!("missing JSON object key `{key}`"))?;
+        if let Some(index) = index {
+            current = current
+                .as_array()
+                .and_then(|array| array.get(index))
+                .with_context(|| format!("missing JSON array index `{index}` at `{key}`"))?;
+        }
+    }
+    Ok(current)
+}
+
+fn toml_path<'a>(root: &'a TomlValue, path: &str) -> Result<&'a TomlValue> {
+    let mut current = root;
+    for segment in path.split('.') {
+        let (key, index) = parse_path_segment(segment)?;
+        current = current
+            .get(key)
+            .with_context(|| format!("missing TOML table key `{key}`"))?;
+        if let Some(index) = index {
+            current = current
+                .as_array()
+                .and_then(|array| array.get(index))
+                .with_context(|| format!("missing TOML array index `{index}` at `{key}`"))?;
+        }
+    }
+    Ok(current)
+}
+
+fn parse_path_segment(segment: &str) -> Result<(&str, Option<usize>)> {
+    ensure!(
+        !segment.is_empty(),
+        "artifact check path contains an empty segment"
+    );
+    let Some(open) = segment.find('[') else {
+        return Ok((segment, None));
+    };
+    ensure!(
+        segment.ends_with(']'),
+        "artifact check path segment `{segment}` has an unterminated array index"
+    );
+    ensure!(
+        segment[open + 1..segment.len() - 1].find('[').is_none(),
+        "artifact check path segment `{segment}` has more than one array index"
+    );
+    let key = &segment[..open];
+    ensure!(
+        !key.is_empty(),
+        "artifact check path segment `{segment}` has an empty key before array index"
+    );
+    let index_text = &segment[open + 1..segment.len() - 1];
+    let index = index_text.parse::<usize>().with_context(|| {
+        format!("artifact check path segment `{segment}` has invalid array index")
+    })?;
+    Ok((key, Some(index)))
+}
+
+fn json_equals_toml(actual: &JsonValue, expected: &TomlValue) -> bool {
+    match expected {
+        TomlValue::String(value) => actual.as_str() == Some(value.as_str()),
+        TomlValue::Integer(value) => {
+            actual.as_i64() == Some(*value)
+                || (*value >= 0 && actual.as_u64() == Some(*value as u64))
+        }
+        TomlValue::Float(value) => actual.as_f64() == Some(*value),
+        TomlValue::Boolean(value) => actual.as_bool() == Some(*value),
+        TomlValue::Array(values) => {
+            let Some(actual_values) = actual.as_array() else {
+                return false;
+            };
+            actual_values.len() == values.len()
+                && actual_values
+                    .iter()
+                    .zip(values)
+                    .all(|(actual, expected)| json_equals_toml(actual, expected))
+        }
+        TomlValue::Table(values) => {
+            let Some(actual_values) = actual.as_object() else {
+                return false;
+            };
+            values.iter().all(|(key, expected)| {
+                actual_values
+                    .get(key)
+                    .is_some_and(|actual| json_equals_toml(actual, expected))
+            })
+        }
+        TomlValue::Datetime(value) => actual.as_str() == Some(value.to_string().as_str()),
+    }
+}
+
+fn json_contains_toml(actual: &JsonValue, expected: &TomlValue) -> bool {
+    if let (Some(actual), Some(expected)) = (actual.as_str(), expected.as_str()) {
+        return actual.contains(expected);
+    }
+    if let Some(array) = actual.as_array() {
+        return array.iter().any(|value| json_equals_toml(value, expected));
+    }
+    false
+}
+
+fn toml_contains_toml(actual: &TomlValue, expected: &TomlValue) -> bool {
+    if let (Some(actual), Some(expected)) = (actual.as_str(), expected.as_str()) {
+        return actual.contains(expected);
+    }
+    if let Some(array) = actual.as_array() {
+        return array.iter().any(|value| value == expected);
+    }
+    false
+}
+
+fn display_toml_value(value: &TomlValue) -> String {
+    match value {
+        TomlValue::String(value) => format!("{value:?}"),
+        TomlValue::Integer(value) => value.to_string(),
+        TomlValue::Float(value) => value.to_string(),
+        TomlValue::Boolean(value) => value.to_string(),
+        TomlValue::Datetime(value) => value.to_string(),
+        TomlValue::Array(_) | TomlValue::Table(_) => value.to_string(),
+    }
 }
 
 pub fn assert_expectations(case: &ScenarioCase, outcomes: &[CallOutcome]) -> Result<()> {
@@ -793,6 +1105,100 @@ mod tests {
             }),
             raw_line: String::new(),
         }
+    }
+
+    #[test]
+    fn artifact_expectations_support_structured_json_and_toml() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("proof-forge-testkit-structured-artifacts-{nonce}"));
+        fs::create_dir_all(&root).unwrap();
+        let json_path = root.join("artifact.json");
+        let toml_path = root.join("manifest.toml");
+        fs::write(
+            &json_path,
+            r#"{"target":"solana-sbpf-asm","capabilities":["storage.scalar"],"validation":{"manifestGeneration":"passed"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            &toml_path,
+            "target = \"solana-sbpf-asm\"\n\n[[instruction]]\nname = \"initialize\"\ntag = 0\n",
+        )
+        .unwrap();
+
+        let mut case = scenario(vec![step("initialize", None)]);
+        case.manifest.artifacts = vec![
+            ArtifactExpectation {
+                target: "solana-sbpf-asm".to_string(),
+                name: "metadata".to_string(),
+                matches_file: None,
+                contains: Vec::new(),
+                json_checks: vec![
+                    StructuredArtifactCheck {
+                        path: "target".to_string(),
+                        equals: Some(TomlValue::String("solana-sbpf-asm".to_string())),
+                        contains: None,
+                    },
+                    StructuredArtifactCheck {
+                        path: "capabilities".to_string(),
+                        equals: None,
+                        contains: Some(TomlValue::String("storage.scalar".to_string())),
+                    },
+                    StructuredArtifactCheck {
+                        path: "validation.manifestGeneration".to_string(),
+                        equals: Some(TomlValue::String("passed".to_string())),
+                        contains: None,
+                    },
+                ],
+                toml_checks: Vec::new(),
+            },
+            ArtifactExpectation {
+                target: "solana-sbpf-asm".to_string(),
+                name: "manifest".to_string(),
+                matches_file: None,
+                contains: Vec::new(),
+                json_checks: Vec::new(),
+                toml_checks: vec![
+                    StructuredArtifactCheck {
+                        path: "target".to_string(),
+                        equals: Some(TomlValue::String("solana-sbpf-asm".to_string())),
+                        contains: None,
+                    },
+                    StructuredArtifactCheck {
+                        path: "instruction[0].name".to_string(),
+                        equals: Some(TomlValue::String("initialize".to_string())),
+                        contains: None,
+                    },
+                    StructuredArtifactCheck {
+                        path: "instruction[0].tag".to_string(),
+                        equals: Some(TomlValue::Integer(0)),
+                        contains: None,
+                    },
+                ],
+            },
+        ];
+
+        assert_artifact_expectations(
+            &case,
+            "solana-sbpf-asm",
+            &root,
+            &[
+                ArtifactOutput {
+                    name: "metadata",
+                    path: &json_path,
+                },
+                ArtifactOutput {
+                    name: "manifest",
+                    path: &toml_path,
+                },
+            ],
+        )
+        .unwrap();
+
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

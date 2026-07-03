@@ -14,6 +14,78 @@ target = "solana-sbpf-asm"
 name = "manifest"
 matches_file = "Examples/Solana/Counter.manifest.toml"
 
+[[artifact.toml]]
+path = "target"
+equals = "solana-sbpf-asm"
+
+[[artifact.toml]]
+path = "program.name"
+equals = "counter"
+
+[[artifact.toml]]
+path = "instruction[0].name"
+equals = "initialize"
+
+[[artifact.toml]]
+path = "instruction[0].tag"
+equals = 0
+
+[[artifact.toml]]
+path = "instruction[1].name"
+equals = "increment"
+
+[[artifact.toml]]
+path = "instruction[1].tag"
+equals = 1
+
+[[artifact.toml]]
+path = "instruction[2].name"
+equals = "get"
+
+[[artifact.toml]]
+path = "instruction[2].tag"
+equals = 2
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "metadata"
+
+[[artifact.json]]
+path = "target"
+equals = "solana-sbpf-asm"
+
+[[artifact.json]]
+path = "targetFamily"
+equals = "solana"
+
+[[artifact.json]]
+path = "artifactKind"
+equals = "solana-elf"
+
+[[artifact.json]]
+path = "fixture"
+equals = "counter-ir-sbpf"
+
+[[artifact.json]]
+path = "sourceKind"
+equals = "portable-ir"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "storage.scalar"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "account.explicit"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "control.conditional"
+
+[[artifact.json]]
+path = "validation.manifestGeneration"
+equals = "passed"
+
 [[step]]
 call = "initialize"
 
