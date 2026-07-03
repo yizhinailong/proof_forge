@@ -46,7 +46,15 @@ need_cmd() {
 tool_version_contains() {
   local tool="$1"
   local expected="$2"
-  command -v "$tool" >/dev/null 2>&1 && "$tool" --version 2>&1 | grep -F "$expected" >/dev/null
+  local version_output
+  command -v "$tool" >/dev/null 2>&1 || return 1
+  version_output="$("$tool" --version 2>&1 || true)"
+  printf '%s\n' "$version_output" | grep -F "$expected" >/dev/null
+}
+
+print_tool_version() {
+  local tool="$1"
+  "$tool" --version 2>&1 || true
 }
 
 append_path() {
@@ -105,13 +113,23 @@ echo "=== install/check sbpf ${SBPF_VERSION} ==="
 if ! tool_version_contains sbpf "$SBPF_VERSION"; then
   cargo install --git "$SBPF_REPO" --rev "$SBPF_REV" --locked --force sbpf
 fi
-sbpf --version
+tool_version_contains sbpf "$SBPF_VERSION" || {
+  print_tool_version sbpf
+  echo "installed sbpf version does not contain expected version: $SBPF_VERSION" >&2
+  exit 1
+}
+print_tool_version sbpf
 
 echo "=== install/check Surfpool ${SURFPOOL_TAG} ==="
 if ! tool_version_contains surfpool "${SURFPOOL_TAG#v}"; then
   cargo install --git "$SURFPOOL_REPO" --tag "$SURFPOOL_TAG" --locked --force surfpool-cli
 fi
-surfpool --version
+tool_version_contains surfpool "${SURFPOOL_TAG#v}" || {
+  print_tool_version surfpool
+  echo "installed Surfpool version does not contain expected version: ${SURFPOOL_TAG#v}" >&2
+  exit 1
+}
+print_tool_version surfpool
 
 echo "=== Node/npm versions ==="
 need_cmd node
