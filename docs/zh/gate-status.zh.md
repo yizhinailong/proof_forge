@@ -1,6 +1,6 @@
 # Gate 完成记录
 
-状态：**Live (2026-07-03)**
+状态：**Live (2026-07-04)**
 
 本页是分层目标组合的逐 Gate 完成台账（[target-roadmap](../target-roadmap.md)，
 D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、证据和签署日期。
@@ -48,7 +48,7 @@ Gate G0 关闭的是共享行为/资源预算切片。它**不等于**关闭 Gat
    EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan）。~~ ✅ 已落地 — 见 P0-2。
 2. ~~Solana Pinocchio live dual-deploy equivalence 的 CI/toolchain 稳定化以及
    更广 reference 覆盖（Workstream 7）。~~ ✅ 已落地 — 见 P0-1。
-3. NEAR/Wasm target-first 本地执行/部署元数据签署。
+3. ~~NEAR/Wasm target-first 本地执行/部署元数据签署。~~ ✅ 已落地 — 见 P0-3。
 
 ### Sign-off
 
@@ -65,35 +65,39 @@ spike smoke jobs。
 `solana-sbpf-asm`、`evm`（Ethereum）和 `wasm-near`（NEAR/Wasm）。在此之前，
 任何额外链都不能推进到 docs-only research 或冻结 spike 维护之外（D-045）。
 
-**状态：Open**
+**状态：Closed**
+
+**Closed: 2026-07-04**
 
 ### 验收标准
 
 | # | 标准 | 状态 | 证据 |
 |---|---|---|---|
 | P0-1 | Solana 直接 sBPF 后端达到生产级 | ✅ met | Gate G0 行为/预算一致性已关闭；Pinocchio reference-equivalence 已纳入 `just solana-light`；Agave/Solana CLI ELF 兼容阻塞已通过把 target-first `--solana-sbpf-arch v0` 透传到 legacy ELF builder 修复，现在 `emit --target solana-sbpf-asm --format elf` 会生成 loader-compatible v0 ELF（`e_flags = 0`，带有效 section table）；本地 `just solana-pinocchio-live-equivalence` 通过全部五个 Surfpool dual-deploy 场景（System transfer/create_account、SPL Token transfer/ops/authority），结果为 `5 passed, 0 skipped, 0 failed`；GitHub CI run `28675037861` 在 commit `3b2719a` 全部成功，其中强制 `solana-pinocchio-live` job 安装 Agave/Solana CLI、SBF platform-tools、`sbpf`、Surfpool、Node/npm，构建 ProofForge，并在不允许 skip 的情况下运行 aggregate live suite。 |
-| P0-2 | Ethereum/EVM 后端达到生产级 | ✅ met | EVM semantic-plan 迁移已落地（RFC 0004）：`Plan.lean` 现定义 `ExprPlan`、`StmtPlan`、`EntrypointPlan`、`EventPlan`、`CrosscallPlan`、`MetadataPlan`；`Validate.lean` 承载纯校验/类型推断；`Lower.lean` 构建已填充的 `ModulePlan`（entrypoints、events、crosscalls、creates、checked-arithmetic 标记）；`Metadata.lean` 从计划生成 artifact/deploy 元数据；`IR.lean` 是兼容门面，在 Yul 生成前构建完整 semantic plan。门禁：`just evm-plan`、`just evm-semantic-plan`、`just evm-all`（诊断 58 case、99 IR 覆盖条目、19 IR smoke + Foundry + Anvil deploy）、`just check` 全绿。FV-4 还包含可由 `decide` 检查的 EVM/Yul 可执行追踪义务，覆盖 Counter、ValueVault、EvmExpressionProbe、EvmMapProbe、EvmTypedStorageProbe、EvmStorageStructProbe 和 EvmAbiAggregateProbe，即标量 trace、map slots、typed storage arrays、storage structs 以及 aggregate ABI params/returns。FV-2 现在已有 IR aggregate/storage 和 map lifecycle executable trace slices，覆盖 arrays、structs、storage paths、aggregate ABI values，以及 state-threaded map insert/set expressions；把这些 traces 接入 EVM obligations 仍是后续形式化路线图工作，不阻塞 P0-2 签署。 |
-| P0-3 | NEAR/Wasm 后端达到生产级 | 🟡 in progress | EmitWat/NEAR 诊断、IR 覆盖、offline host smoke 和预算基线已绿；剩余硬化是完整 target-first 本地执行/部署元数据签署 |
-| P0-4 | 额外链推进保持冻结 | ✅ met | D-044/D-045 冻结 Aptos/CosmWasm 超过 M1/M2 的推进，并在 P0 关闭前保持其他目标 docs-first |
+| P0-2 | Ethereum/EVM 后端达到生产级 | ✅ met | EVM semantic-plan 迁移已落地（RFC 0004）：`Plan.lean` 现定义 `ExprPlan`、`StmtPlan`、`EntrypointPlan`、`EventPlan`、`CrosscallPlan`、`MetadataPlan`；`Validate.lean` 承载纯校验/类型推断；`Lower.lean` 构建已填充的 `ModulePlan`（entrypoints、events、crosscalls、creates、checked-arithmetic 标记）；`Metadata.lean` 从计划生成 artifact/deploy 元数据；`IR.lean` 是兼容门面，在 Yul 生成前构建完整 semantic plan。门禁：`just evm-plan`、`just evm-semantic-plan`、`just evm-all`（诊断 58 case、99 IR 覆盖条目、19 IR smoke + Foundry + Anvil deploy）、`just check` 全绿。FV-4 还包含可由 `decide` 检查的 EVM/Yul 可执行追踪义务，覆盖 Counter、ValueVault、EvmExpressionProbe、EvmMapProbe、EvmTypedStorageProbe、EvmStorageStructProbe 和 EvmAbiAggregateProbe，即标量 trace、map slots、typed storage arrays、storage structs 以及 aggregate ABI params/returns。FV-2 现在已有 IR aggregate/storage 和 map lifecycle executable trace slices，覆盖 arrays、structs、storage paths、aggregate ABI values，以及 state-threaded map insert/set expressions；P0 后形式化硬化已经通过 `*_ir_observable_trace_ok` 锚点把覆盖到的 EVM map/storage/aggregate IR traces 接入这些 obligations。 |
+| P0-3 | NEAR/Wasm 后端达到生产级 | ✅ met | EmitWat/NEAR 诊断、IR 覆盖、形式化锚点、offline host smoke 和预算基线均已通过。Commit `466b320` 为 `wasm-near` 添加 target-first `check`、`emit` 和 `build` 覆盖，写出 `proof-forge-artifact.json` 与 `proof-forge-deploy.json`，通过 `scripts/near/validate-emitwat-metadata.py` 验证 WAT/可选 Wasm hash、ABI entrypoints、capabilities、fixture/module ids 和本地 offline-host 部署模式，并通过 `runtime/offline-host` 执行生成的 Counter WAT。证据：本地 `just near-target-first` 与 `just check`；GitHub CI run `28677055773` 在 commit `466b320` 全部成功，包括 `Run Wasm-NEAR target-first smoke`、`Run EmitWat offline host smoke`、`Run unified testkit`、Foundry/Anvil 和强制 `solana-pinocchio-live` job。 |
+| P0-4 | 额外链推进保持冻结 | ✅ met | D-044/D-045 冻结 Aptos/CosmWasm 超过 M1/M2 的推进，并在 P0 关闭前保持其他目标 docs-first。关闭后 Tier-1 可以排期，但 backlog 仍要求先完成 CLI M3/M4 清理。 |
 
 ### Sign-off
 
-尚未关闭。Solana 和 Ethereum/EVM 已签署；NEAR/Wasm 仍需要 target-first
-本地执行/部署元数据证据，Gate P0 才能关闭。Gate G0 证据是必要条件，但不是充分条件。
+Gate P0 已在 2026-07-04 于 commit `466b320` 关闭；GitHub CI run
+`28677055773` 已全部成功。该 closing run 补齐了 NEAR/Wasm target-first
+本地执行/部署元数据证据，并重新验证了现有 Solana、EVM、冻结 spike 和共享
+testkit gates。
 
 ---
 
-## Gate G1a — CosmWasm M4（冻结，D-044）
+## Gate G1a — CosmWasm M4（未开始）
 
-**状态：Frozen。** 根据 D-044/D-045，`wasm-cosmwasm` spike 在 Gate P0 关闭前
-保持在当前 M1/M2 状态。不得推进 registry stage，不得推进 M3/M4。
+**状态：Not started。** Gate P0 已关闭，因此 D-045 freeze 不再阻塞排期。
+下一步仍受 backlog 控制：在把该 spike 推进到 M3/M4 之前，先完成 CLI M3/M4
+target-first migration。
 
-## Gate G1b — Aptos M4（冻结，D-044）
+## Gate G1b — Aptos M4（未开始）
 
-**状态：Frozen。** 根据 D-044/D-045，`move-aptos` spike 在 Gate P0 关闭前保持在
-当前 M1/M2 状态（Counter printer + golden + test gate，B1 state-id fidelity）。
-不得推进 M3（testkit CLI-wrapped executor）、M4（registry stage → Experimental），
-也不得启动 `move-sui`。
+**状态：Not started。** Gate P0 已关闭，因此 D-045 freeze 不再阻塞排期。
+下一步仍受 backlog 控制：先完成 CLI M3/M4 target-first migration，再推进该
+spike 到 M3/M4 或启动 `move-sui`。
 
 ## Gate G2 — 两个 Tier-1 退出（未开始）
 

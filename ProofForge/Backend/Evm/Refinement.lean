@@ -50,6 +50,29 @@ structure TraceObligation where
   expected : Array ObservableStep
   deriving Repr
 
+partial def observableWordsFromValue (value : ProofForge.IR.Semantics.Value) :
+    Except String (Array Nat) :=
+  match value with
+  | .unit => .ok #[]
+  | .bool value => .ok #[if value then 1 else 0]
+  | .u32 value => .ok #[value]
+  | .u64 value => .ok #[value]
+  | .hash a b c d =>
+      .ok #[a * ProofForge.Backend.Evm.YulSemantics.twoPow 192 +
+        b * ProofForge.Backend.Evm.YulSemantics.twoPow 128 +
+        c * ProofForge.Backend.Evm.YulSemantics.twoPow 64 +
+        d]
+  | .array values => do
+      let mut words := #[]
+      for value in values do
+        words := words ++ (← observableWordsFromValue value)
+      .ok words
+  | .struct _ fields => do
+      let mut words := #[]
+      for field in fields do
+        words := words ++ (← observableWordsFromValue field.snd)
+      .ok words
+
 def observableReturn (expectedType : ValueType) (value? : Option ProofForge.IR.Semantics.Value) :
     Except String ObservableReturn :=
   match expectedType, value? with
@@ -59,6 +82,10 @@ def observableReturn (expectedType : ValueType) (value? : Option ProofForge.IR.S
   | .u32, some (.u32 value) => .ok (.u32 value)
   | .u64, some (.u64 value) => .ok (.u64 value)
   | .hash, some (.hash a b c d) => .ok (.hash a b c d)
+  | .fixedArray _ _, some value => do
+      .ok (.words (← observableWordsFromValue value))
+  | .structType _, some value => do
+      .ok (.words (← observableWordsFromValue value))
   | _, none => .error s!"entrypoint expected `{expectedType.name}` but returned no value"
   | _, some _ => .error s!"entrypoint returned a value that does not match `{expectedType.name}`"
 
@@ -314,6 +341,25 @@ def valueVaultEntrypoint (name : String) : Entrypoint :=
 def irU64 (value : Nat) : ProofForge.IR.Semantics.Value :=
   .u64 value
 
+def irU32 (value : Nat) : ProofForge.IR.Semantics.Value :=
+  .u32 value
+
+def irBool (value : Bool) : ProofForge.IR.Semantics.Value :=
+  .bool value
+
+def irHash (a b c d : Nat) : ProofForge.IR.Semantics.Value :=
+  .hash a b c d
+
+def irArray (values : List ProofForge.IR.Semantics.Value) : ProofForge.IR.Semantics.Value :=
+  .array values
+
+def irStruct (typeName : String) (fields : List (String × ProofForge.IR.Semantics.Value)) :
+    ProofForge.IR.Semantics.Value :=
+  .struct typeName fields
+
+def irPair (left right : Nat) : ProofForge.IR.Semantics.Value :=
+  irStruct "Pair" [("left", irU64 left), ("right", irU64 right)]
+
 def valueVaultTraceCalls : Array TraceCall := #[
   { entrypoint := valueVaultEntrypoint "initialize", args := #[irU64 100], evmArgs := #[100] },
   { entrypoint := valueVaultEntrypoint "get_balance" },
@@ -386,22 +432,27 @@ def evmMapTraceCalls : Array TraceCall := #[
   { entrypoint := ProofForge.IR.Examples.EvmMapProbe.getSeedBalance },
   {
     entrypoint := ProofForge.IR.Examples.EvmMapProbe.containsBalance
+    args := #[irU64 1001]
     evmArgs := #[1001]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmMapProbe.upsertBalance
+    args := #[irU64 7007, irU64 123]
     evmArgs := #[7007, 123]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmMapProbe.readBalance
+    args := #[irU64 7007]
     evmArgs := #[7007]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmMapProbe.setBalance
+    args := #[irU64 7007, irU64 456]
     evmArgs := #[7007, 456]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmMapProbe.readBalance
+    args := #[irU64 7007]
     evmArgs := #[7007]
   },
   { entrypoint := ProofForge.IR.Examples.EvmMapProbe.pathLifecycle },
@@ -409,6 +460,7 @@ def evmMapTraceCalls : Array TraceCall := #[
   { entrypoint := ProofForge.IR.Examples.EvmMapProbe.nestedPathLifecycle },
   {
     entrypoint := ProofForge.IR.Examples.EvmMapProbe.nestedPathDynamic
+    args := #[irU64 6006, irU64 7007, irU64 888]
     evmArgs := #[6006, 7007, 888]
   }
 ]
@@ -438,6 +490,7 @@ def evmMapContainsTraceCalls : Array TraceCall := #[
   { entrypoint := ProofForge.IR.Examples.EvmMapProbe.containsLifecycle },
   {
     entrypoint := ProofForge.IR.Examples.EvmMapProbe.containsBalance
+    args := #[irU64 1001]
     evmArgs := #[1001]
   }
 ]
@@ -459,14 +512,17 @@ def typedStorageTraceCalls : Array TraceCall := #[
   { entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.typedArrayLifecycle },
   {
     entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.readFlag
+    args := #[irU64 0]
     evmArgs := #[0]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.readFlag
+    args := #[irU64 1]
     evmArgs := #[1]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.readRoot
+    args := #[irU64 1]
     evmArgs := #[1]
   },
   { entrypoint := ProofForge.IR.Examples.EvmTypedStorageProbe.pathAssignU32 }
@@ -494,6 +550,7 @@ def storageStructTraceCalls : Array TraceCall := #[
   { entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.arrayStructLifecycle },
   {
     entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.readPointX
+    args := #[irU64 1]
     evmArgs := #[1]
   },
   { entrypoint := ProofForge.IR.Examples.EvmStorageStructProbe.typedSum },
@@ -523,30 +580,37 @@ def storageStructTraceObligation : TraceObligation := {
 def abiAggregateTraceCalls : Array TraceCall := #[
   {
     entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.sumPair
+    args := #[irPair 7 11]
     evmArgs := #[7, 11]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.sumArray
+    args := #[irArray [irU64 2, irU64 3, irU64 5]]
     evmArgs := #[2, 3, 5]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.sumMatrix
+    args := #[irArray [irArray [irU64 1, irU64 2], irArray [irU64 3, irU64 4]]]
     evmArgs := #[1, 2, 3, 4]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.sumPairArray
+    args := #[irArray [irPair 1 2, irPair 3 4]]
     evmArgs := #[1, 2, 3, 4]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.makePair
+    args := #[irU64 13, irU64 21]
     evmArgs := #[13, 21]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.makeArray
+    args := #[irU64 3, irU64 5, irU64 8]
     evmArgs := #[3, 5, 8]
   },
   {
     entrypoint := ProofForge.IR.Examples.EvmAbiAggregateProbe.makeMatrix
+    args := #[irU64 1, irU64 2, irU64 3, irU64 4]
     evmArgs := #[1, 2, 3, 4]
   }
 ]
@@ -604,12 +668,20 @@ theorem expression_evm_yul_executable_trace_ok :
     expressionTraceObligation.evmYulTraceOk = true := by
   native_decide
 
+theorem evm_map_ir_observable_trace_ok :
+    evmMapTraceObligation.irTraceOk = true := by
+  native_decide
+
 theorem evm_map_yul_surface_trace_entrypoints :
     evmMapTraceObligation.evmYulSurfaceOk = true := by
   native_decide
 
 theorem evm_map_yul_executable_trace_ok :
     evmMapTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem evm_map_contains_ir_observable_trace_ok :
+    evmMapContainsTraceObligation.irTraceOk = true := by
   native_decide
 
 theorem evm_map_contains_yul_surface_trace_entrypoints :
@@ -620,6 +692,10 @@ theorem evm_map_contains_yul_executable_trace_ok :
     evmMapContainsTraceObligation.evmYulTraceOk = true := by
   native_decide
 
+theorem typed_storage_ir_observable_trace_ok :
+    typedStorageTraceObligation.irTraceOk = true := by
+  native_decide
+
 theorem typed_storage_yul_surface_trace_entrypoints :
     typedStorageTraceObligation.evmYulSurfaceOk = true := by
   native_decide
@@ -628,12 +704,20 @@ theorem typed_storage_yul_executable_trace_ok :
     typedStorageTraceObligation.evmYulTraceOk = true := by
   native_decide
 
+theorem storage_struct_ir_observable_trace_ok :
+    storageStructTraceObligation.irTraceOk = true := by
+  native_decide
+
 theorem storage_struct_yul_surface_trace_entrypoints :
     storageStructTraceObligation.evmYulSurfaceOk = true := by
   native_decide
 
 theorem storage_struct_yul_executable_trace_ok :
     storageStructTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem abi_aggregate_ir_observable_trace_ok :
+    abiAggregateTraceObligation.irTraceOk = true := by
   native_decide
 
 theorem abi_aggregate_yul_surface_trace_entrypoints :

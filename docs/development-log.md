@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-4 EVM IR-Backed Aggregate/Storage Obligations
+
+Commit: this commit
+
+Summary:
+
+- Rechecked the architecture review disposition against current `main`. R1 is
+  already closed by RFC 0009/D-039, and R5 is already handled by D-045/Gate P0
+  plus the target roadmap, so this slice focuses on the still-valid R3 proof
+  gap.
+- Connected the covered FV-2 IR map/storage/aggregate traces to EVM refinement
+  obligations for `EvmMapProbe`, `EvmTypedStorageProbe`,
+  `EvmStorageStructProbe`, and `EvmAbiAggregateProbe`.
+- Added aggregate observable-return expansion for IR arrays and structs in
+  `ProofForge.Backend.Evm.Refinement`, and fixed whole-struct storage writes in
+  `ProofForge.IR.Semantics` so direct field keys stay consistent after a full
+  struct overwrite.
+- Added CI-visible theorem anchors for the new EVM `*_ir_observable_trace_ok`
+  checks through `Tests/NearWasmFormal.lean`.
+- Synchronized the formal roadmap, backlog, gate notes, and the Chinese
+  gate-status page so they no longer describe this EVM wiring as future work.
+
+Validation run:
+
+```sh
+lake build ProofForge.IR.Semantics
+lake build ProofForge.Backend.Evm.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- This is still an executable trace obligation, not a full proof about `solc`,
+  EVM bytecode, or chain runtime execution.
+- FV-2 still needs control-flow and observable-event trace semantics, and
+  NEAR/Wasm still needs deeper artifact-level execution obligations beyond the
+  existing export/trace anchors.
+
+Next step:
+
+- Extend FV-2 over `ifElse`, `boundedFor`, and observable events, then connect
+  user-level invariants such as ValueVault solvency to the covered IR semantics.
+
 ### FV-2 State-Threaded Map Lifecycle Semantics
 
 Commit: this commit

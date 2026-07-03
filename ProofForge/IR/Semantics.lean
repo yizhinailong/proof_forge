@@ -91,9 +91,6 @@ def Frame.empty : Frame := {}
 def State.read (state : State) (name : String) : Option Value :=
   lookup name state.storage
 
-def State.write (state : State) (name : String) (value : Value) : State :=
-  { state with storage := insert name value state.storage }
-
 def fieldKey (base fieldName : String) : String :=
   s!"{base}.{fieldName}"
 
@@ -108,6 +105,17 @@ def mapKey (base key : String) : String :=
 
 def mapPresentKey (base key : String) : String :=
   s!"{mapKey base key}.present"
+
+def State.write (state : State) (name : String) (value : Value) : State :=
+  let state := { state with storage := insert name value state.storage }
+  match value with
+  | .struct _ fields =>
+      { state with
+        storage :=
+          fields.foldl
+            (fun storage field => insert (fieldKey name field.fst) field.snd storage)
+            state.storage }
+  | _ => state
 
 def State.readStructField (state : State) (stateId fieldName : String) : Option Value :=
   match state.read (fieldKey stateId fieldName) with
