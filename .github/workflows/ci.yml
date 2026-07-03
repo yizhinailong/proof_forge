@@ -54,6 +54,9 @@ jobs:
       - name: Check ContractSpec JSON schema
         run: just contract-spec-json
 
+      - name: Check generated contract clients
+        run: just contract-client
+
       - name: Check EVM semantic plan
         run: just evm-plan
 

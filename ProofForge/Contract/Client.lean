@@ -1,4 +1,4 @@
-import ProofForge.Contract.Spec
+import ProofForge.Contract.Spec.Json
 import ProofForge.IR.Contract
 
 namespace ProofForge.Contract.Client
@@ -42,6 +42,56 @@ def abiEntryJson (entrypoint : Entrypoint) : String :=
 def abiJson (module : Module) : String :=
   "[" ++ String.intercalate "," (module.entrypoints.map abiEntryJson).toList ++ "]"
 
+def errorCatalogJson (spec : ContractSpec) : String :=
+  ProofForge.Contract.Spec.Json.jsonArray
+    (ProofForge.Contract.Spec.Json.errorCatalog spec.module |>.map
+      ProofForge.Contract.Spec.Json.errorCatalogEntryJson)
+
+def errorCatalogueTs (spec : ContractSpec) : String :=
+  String.intercalate "\n" [
+    "export const ERRORS = " ++ errorCatalogJson spec ++ " as const;",
+    "export type ProofForgeError = (typeof ERRORS)[number];",
+    "",
+    "export function errorByAssertionId(assertionId: number): ProofForgeError | undefined {",
+    "  return ERRORS.find((item) => item.assertionId === assertionId);",
+    "}"
+  ]
+
+def evmErrorHelpersTs (spec : ContractSpec) : String :=
+  String.intercalate "\n" [
+    errorCatalogueTs spec,
+    "",
+    "export function decodeProofForgeRevert(error: unknown): ProofForgeError | undefined {",
+    "  const candidate = error as { data?: unknown; error?: { data?: unknown } };",
+    "  const data = typeof candidate?.data === \"string\"",
+    "    ? candidate.data",
+    "    : typeof candidate?.error?.data === \"string\"",
+    "      ? candidate.error.data",
+    "      : undefined;",
+    "  if (!data) return undefined;",
+    "  try {",
+    "    const [assertionId, userCode] = ethers.AbiCoder.defaultAbiCoder().decode([\"uint32\", \"string\"], data) as [bigint, string];",
+    "    const id = Number(assertionId);",
+    "    return ERRORS.find((item) => item.assertionId === id && (!item.userCode || item.userCode === userCode)) ?? errorByAssertionId(id);",
+    "  } catch {",
+    "    return undefined;",
+    "  }",
+    "}"
+  ]
+
+def nearErrorHelpersTs (spec : ContractSpec) : String :=
+  String.intercalate "\n" [
+    errorCatalogueTs spec,
+    "",
+    "export function parseProofForgePanic(message: string): ProofForgeError | undefined {",
+    "  const match = /PF:(\\d+):([^\\s]+)/.exec(message);",
+    "  if (!match) return undefined;",
+    "  const assertionId = Number(match[1]);",
+    "  const userCode = match[2];",
+    "  return ERRORS.find((item) => item.assertionId === assertionId && (!item.userCode || item.userCode === userCode)) ?? errorByAssertionId(assertionId);",
+    "}"
+  ]
+
 def evmEntrypointWrapper (entrypoint : Entrypoint) : String :=
   let params := String.intercalate ", " (entrypoint.params.map fun p => p.fst ++ ": " ++ typeToTs p.snd).toList
   let argsArray := "[" ++ String.intercalate ", " (entrypoint.params.map fun p => p.fst).toList ++ "]"
@@ -60,6 +110,8 @@ def renderEvmAbiWrapper (spec : ContractSpec) : String :=
     "import { ethers } from \"ethers\";",
     "",
     "export const ABI = " ++ abiJson spec.module ++ " as const;",
+    "",
+    evmErrorHelpersTs spec,
     "",
     "let contract: ethers.Contract;",
     "let iface: ethers.Interface;",
@@ -85,6 +137,8 @@ def renderNearWrapper (spec : ContractSpec) : String :=
     "/* ProofForge generated NEAR wrapper. */",
     "/* eslint-disable @typescript-eslint/no-explicit-any */",
     "import { Account } from \"near-api-js\";",
+    "",
+    nearErrorHelpersTs spec,
     "",
     "let contractId: string;",
     "let account: Account;",

@@ -7839,3 +7839,31 @@ just contract-spec-json
 Result:
 
 - ContractSpec JSON schema tests passed locally.
+
+### Contract Client Error Catalogue Helpers
+
+Commit: pending
+
+Summary:
+
+- Embedded the target-neutral ContractSpec `ERRORS` catalogue into generated
+  EVM and NEAR TypeScript wrapper sketches.
+- Added `errorByAssertionId` to both wrappers, `decodeProofForgeRevert` for
+  the EVM ABI-encoded `(uint32,string)` revert payload, and
+  `parseProofForgePanic` for NEAR's `PF:{id}:{code}` panic prefix.
+- Added `Tests/ContractClient.lean`, `just contract-client`, and a CI step for
+  generated wrapper checks.
+- Updated Workstream 33 M4 status to show EVM/NEAR wrapper consumption as
+  implemented while keeping Solana IDL/client consumption open.
+
+Validation run:
+
+```sh
+lake build ProofForge.Contract.Client
+lake env lean --run Tests/ContractClient.lean
+just contract-client
+```
+
+Result:
+
+- Generated client wrapper checks passed locally.

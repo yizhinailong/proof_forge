@@ -2387,8 +2387,12 @@ starts as an RFC, not code; sequencing hooks are listed in the gap doc.
     `errors` catalogue derived from portable `ErrorRef` assertions, including
     `assertionId`, optional `userCode`, fallback `message`, and owning
     `entrypoints`. `Tests/ContractSpecJson.lean` and `just contract-spec-json`
-    guard the schema. Remaining M4 work is to make the Solana/EVM/NEAR client
-    wrappers consume this schema consistently.
+    guard the schema. Second slice implemented: generated EVM and NEAR wrapper
+    sketches now embed the same `ERRORS` catalogue and expose assertion-id
+    lookup plus native error parsing helpers (`decodeProofForgeRevert`,
+    `parseProofForgePanic`). Remaining M4 work is to make the Solana IDL/client
+    consume the same portable error schema and deepen the wrappers beyond
+    sketches.
 
 ## Suggested Order
 
