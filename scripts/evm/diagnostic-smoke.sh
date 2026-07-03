@@ -22,8 +22,7 @@ run_cli_diagnostic() {
   mkdir -p "$out_dir"
 
   set +e
-  lake env proof-forge \
-    --evm-bytecode \
+  lake env proof-forge build --target evm \
     --root . \
     --module contract \
     --yul-output "$out_dir/Counter.yul" \

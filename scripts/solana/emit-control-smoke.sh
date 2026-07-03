@@ -38,9 +38,10 @@ ASM_OUTPUT2="$OUT_DIR/ControlFlowAssertProbe.repro.s"
 ARTIFACT_OUTPUT="$OUT_DIR/control-artifact.json"
 
 # Fresh emit (overwrites prior run).
-lake env proof-forge --emit-control-ir-sbpf -o "$ASM_OUTPUT" \
+lake env proof-forge emit --target solana-sbpf-asm --fixture control --format s \
+  -o "$ASM_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --emit-control-ir-sbpf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture control failed"
 
 [ -f "$ASM_OUTPUT" ]   || fail "assembly file not written: $ASM_OUTPUT"
 [ -f "$ARTIFACT_OUTPUT" ] || fail "artifact metadata not written: $ARTIFACT_OUTPUT"
@@ -76,7 +77,8 @@ grep -qE "jeq r3, r2, sol_lbl_" "$ASM_OUTPUT"   || fail "missing eq comparison (
 grep -qE "jlt r3, r2, sol_lbl_" "$ASM_OUTPUT"  || fail "missing lt comparison (.lt lowering)"
 
 # --- Reproducibility -----------------------------------------------------
-lake env proof-forge --emit-control-ir-sbpf -o "$ASM_OUTPUT2" \
+lake env proof-forge emit --target solana-sbpf-asm --fixture control --format s \
+  -o "$ASM_OUTPUT2" \
   --artifact-output "$OUT_DIR/control-artifact.repro.json" \
   || fail "second emission failed"
 

@@ -30,9 +30,10 @@ GOLDEN_MANIFEST="$REPO_ROOT/Examples/Solana/Counter.manifest.toml"
 [ -f "$GOLDEN_MANIFEST" ] || fail "golden manifest not found: $GOLDEN_MANIFEST"
 
 echo "=== Solana Counter IR -> sBPF ==="
-lake env proof-forge --emit-counter-ir-sbpf -o "$ASM_OUTPUT" \
+lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format s \
+  -o "$ASM_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge --emit-counter-ir-sbpf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture counter failed"
 
 [ -f "$ASM_OUTPUT" ] || fail "assembly file not written: $ASM_OUTPUT"
 [ -f "$OUT_DIR/manifest.toml" ] || fail "manifest not written: $OUT_DIR/manifest.toml"

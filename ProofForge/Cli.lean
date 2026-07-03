@@ -2351,6 +2351,9 @@ structure NewCommandParseState where
   solc : String := "solc"
   cast : String := "cast"
   evmChainProfile? : Option String := none
+  evmConstructorParams : Array ConstructorParamSpec := #[]
+  evmConstructorValues : Array ConstructorValueSpec := #[]
+  evmConstructorArgsHex : String := ""
   solanaSbpfArch : String := "v3"
   methodsFile? : Option String := none
   input? : Option String := none
@@ -2400,6 +2403,21 @@ partial def parseNewOptions : List String → NewCommandParseState → Except St
   | "--evm-chain-profile" :: rest, state => do
       let (profile, rest) ← takeOption rest "--evm-chain-profile"
       parseNewOptions rest { state with evmChainProfile? := some profile }
+  | "--evm-constructor-param" :: rest, state => do
+      let (spec, rest) ← takeOption rest "--evm-constructor-param"
+      match spec.splitOn ":" with
+      | [name, abiType] =>
+          parseNewOptions rest { state with evmConstructorParams := state.evmConstructorParams.push { name := name, abiType := abiType } }
+      | _ => .error s!"invalid --evm-constructor-param '{spec}', expected name:type"
+  | "--evm-constructor-arg" :: rest, state => do
+      let (spec, rest) ← takeOption rest "--evm-constructor-arg"
+      match spec.splitOn "=" with
+      | [name, value] =>
+          parseNewOptions rest { state with evmConstructorValues := state.evmConstructorValues.push { name := name, value := value } }
+      | _ => .error s!"invalid --evm-constructor-arg '{spec}', expected name=value"
+  | "--evm-constructor-args-hex" :: rest, state => do
+      let (hex, rest) ← takeOption rest "--evm-constructor-args-hex"
+      parseNewOptions rest { state with evmConstructorArgsHex := hex }
   | "--solana-sbpf-arch" :: rest, state => do
       let (arch, rest) ← takeOption rest "--solana-sbpf-arch"
       if arch == "v0" || arch == "v3" then
@@ -2511,6 +2529,12 @@ def newCommandArgsToLegacy (args : List String) : Except String (List String) :=
       if let some artifact := state.artifactOut? then legacy := legacy ++ ["--artifact-output", artifact]
       if let some profile := state.evmChainProfile? then legacy := legacy ++ ["--evm-chain-profile", profile]
       if let some methods := state.methodsFile? then legacy := legacy ++ ["--methods-file", methods]
+      for param in state.evmConstructorParams do
+        legacy := legacy ++ ["--evm-constructor-param", s!"{param.name}:{param.abiType}"]
+      for value in state.evmConstructorValues do
+        legacy := legacy ++ ["--evm-constructor-arg", s!"{value.name}={value.value}"]
+      if state.evmConstructorArgsHex != "" then
+        legacy := legacy ++ ["--evm-constructor-args-hex", state.evmConstructorArgsHex]
       if flag == "--evm-bytecode" then
         legacy := legacy ++ ["--solc", state.solc, "--cast", state.cast]
       if let some input := state.input? then legacy := legacy ++ [input]
