@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Wasm-NEAR Target-First Metadata Smoke
+
+Commit: this commit
+
+Summary:
+
+- Fixed the target-first Wasm-NEAR `check` path so WAT fixtures are validated by
+  the actual EmitWat backend instead of a generic fixture capability table.
+- Extended target-first `build --target wasm-near --fixture ... --format wat`
+  so it honors the selected fixture for Counter, ErrorRef, Context, Hash, and
+  Map probes.
+- Added EmitWat artifact and deploy metadata for target-first WAT output,
+  including ABI entrypoints, capability ids, WAT/optional Wasm hashes, and the
+  local offline-host deployment mode.
+- Added `just near-target-first`, which checks Counter and Context target-first
+  paths, validates metadata/deploy manifests, and runs the generated Counter WAT
+  through `runtime/offline-host`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Cli
+lake build proof-forge
+just near-target-first
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- The deploy manifest records a local offline-host execution mode; it does not
+  create a live `near-sandbox` account deployment, public NEAR deployment, or
+  wallet/key-management flow.
+- Gate P0-3 should only be signed off after the GitHub Actions run for this
+  commit is observed green.
+
+Next step:
+
+- Observe the remote CI run, then update gate status and the target roadmap to
+  close NEAR/Wasm P0-3 if the new mandatory smoke stays green.
+
 ### EVM FV-4 Aggregate/Storage Trace Expansion
 
 Commit: `3b2719a`

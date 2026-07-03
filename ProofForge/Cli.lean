@@ -2483,41 +2483,48 @@ partial def parseNewOptions : List String → NewCommandParseState → Except St
       else
         parseNewOptions rest { state with input? := some arg }
 
-def buildLegacyFlag (target : String) (input? : Option String) (format? : Option String := none) (token : Bool := false) : Except String String :=
+def buildLegacyFlag (target : String) (input? : Option String) (fixture? : Option String := none) (format? : Option String := none) (token : Bool := false) : Except String String :=
   let isLearn := match input? with | some input => input.endsWith ".learn" | none => false
-  match target, isLearn, format?, token with
-  | "evm", true, some "yul", false => Except.ok "--learn-yul"
-  | "evm", true, some "yul", true => Except.error "proof-forge build --target evm --token --format yul is not yet implemented"
-  | "evm", true, some "bytecode", true => Except.ok "--learn-token"
-  | "evm", true, some "bytecode", false => Except.ok "--learn"
-  | "evm", true, none, true => Except.ok "--learn-token"
-  | "evm", true, none, false => Except.ok "--learn"
-  | "evm", false, _, _ => Except.ok "--evm-bytecode"
-  | "wasm-near", true, _, _ =>
+  match target, isLearn, fixture?, format?, token with
+  | "evm", true, _, some "yul", false => Except.ok "--learn-yul"
+  | "evm", true, _, some "yul", true => Except.error "proof-forge build --target evm --token --format yul is not yet implemented"
+  | "evm", true, _, some "bytecode", true => Except.ok "--learn-token"
+  | "evm", true, _, some "bytecode", false => Except.ok "--learn"
+  | "evm", true, _, none, true => Except.ok "--learn-token"
+  | "evm", true, _, none, false => Except.ok "--learn"
+  | "evm", false, _, _, _ => Except.ok "--evm-bytecode"
+  | "wasm-near", true, _, _, _ =>
       Except.error "proof-forge build --target wasm-near from .learn source is not yet implemented"
-  | "wasm-near", false, _, _ =>
+  | "wasm-near", false, fixture?, format?, _ =>
       if input?.isSome then
         Except.error "proof-forge build --target wasm-near from Lean source is not yet implemented; use --emit-counter-emitwat"
       else
-        Except.ok "--emit-counter-emitwat"
-  | "wasm-cosmwasm", true, _, _ =>
+        if format?.isSome && format? != some "wat" then
+          Except.error s!"proof-forge build --target wasm-near does not support format '{format?.getD ""}'; use --format wat"
+        else
+          let fixture := fixture?.getD "counter"
+          if fixture == "counter" || fixture == "error-ref" || fixture == "context" || fixture == "hash" || fixture == "map" then
+            Except.ok s!"--emit-{fixture}-emitwat"
+          else
+            Except.error s!"proof-forge build --target wasm-near --fixture {fixture} is not yet implemented"
+  | "wasm-cosmwasm", true, _, _, _ =>
       Except.error "proof-forge build --target wasm-cosmwasm from .learn source is not yet implemented"
-  | "wasm-cosmwasm", false, _, _ => Except.ok "--emit-counter-ir-cosmwasm"
-  | "solana-sbpf-asm", true, _, true => Except.ok "--learn-token"
-  | "solana-sbpf-asm", true, _, false => Except.ok "--learn"
-  | "solana-sbpf-asm", false, some "s", _ => Except.ok "--emit-counter-ir-sbpf"
-  | "solana-sbpf-asm", false, none, _ => Except.ok "--emit-counter-ir-sbpf"
-  | "solana-sbpf-asm", false, some fmt, _ => Except.error s!"proof-forge build --target solana-sbpf-asm does not support format '{fmt}' from Lean source"
-  | "psy-dpn", true, _, _ =>
+  | "wasm-cosmwasm", false, _, _, _ => Except.ok "--emit-counter-ir-cosmwasm"
+  | "solana-sbpf-asm", true, _, _, true => Except.ok "--learn-token"
+  | "solana-sbpf-asm", true, _, _, false => Except.ok "--learn"
+  | "solana-sbpf-asm", false, _, some "s", _ => Except.ok "--emit-counter-ir-sbpf"
+  | "solana-sbpf-asm", false, _, none, _ => Except.ok "--emit-counter-ir-sbpf"
+  | "solana-sbpf-asm", false, _, some fmt, _ => Except.error s!"proof-forge build --target solana-sbpf-asm does not support format '{fmt}' from Lean source"
+  | "psy-dpn", true, _, _, _ =>
       Except.error "proof-forge build --target psy-dpn from .learn source is not yet implemented"
-  | "psy-dpn", false, _, _ => Except.ok "--emit-counter-ir-psy"
-  | "aleo-leo", true, _, _ =>
+  | "psy-dpn", false, _, _, _ => Except.ok "--emit-counter-ir-psy"
+  | "aleo-leo", true, _, _, _ =>
       Except.error "proof-forge build --target aleo-leo from .learn source is not yet implemented"
-  | "aleo-leo", false, _, _ => Except.ok "--emit-counter-ir-leo"
-  | "move-aptos", true, _, _ =>
+  | "aleo-leo", false, _, _, _ => Except.ok "--emit-counter-ir-leo"
+  | "move-aptos", true, _, _, _ =>
       Except.error "proof-forge build --target move-aptos from .learn source is not yet implemented"
-  | "move-aptos", false, _, _ => Except.ok "--emit-counter-ir-aptos"
-  | other, _, _, _ => Except.error s!"unknown target '{other}'"
+  | "move-aptos", false, _, _, _ => Except.ok "--emit-counter-ir-aptos"
+  | other, _, _, _, _ => Except.error s!"unknown target '{other}'"
 
 def emitLegacyFlag (target fixture : String) (format? : Option String) : Except String String :=
   let format := format?.getD ""
@@ -2584,7 +2591,7 @@ def newCommandArgsToLegacy (args : List String) : Except String (List String) :=
   | "build" :: rest => do
       let state ← parseNewOptions rest {}
       let target ← match state.target? with | some t => Except.ok t | none => Except.error "build requires --target <id>"
-      let flag ← buildLegacyFlag target state.input? state.format? state.token
+      let flag ← buildLegacyFlag target state.input? state.fixture? state.format? state.token
       let mut legacy := [flag]
       if let some out := state.out? then legacy := legacy ++ ["-o", out]
       if let some root := state.root? then legacy := legacy ++ ["--root", root]
@@ -2627,6 +2634,15 @@ def newCommandArgsToLegacy (args : List String) : Except String (List String) :=
   | "check" :: _ => Except.error "proof-forge check is not yet implemented"
   | _ => Except.error "expected build, emit, or check"
 
+def emitWatFixtureModule? (fixtureId : String) : Option ProofForge.IR.Module :=
+  match fixtureId with
+  | "counter" => some ProofForge.IR.Examples.Counter.module
+  | "error-ref" => some ProofForge.IR.Examples.ErrorRefProbe.module
+  | "context" => some ProofForge.IR.Examples.ContextProbe.module
+  | "hash" => some ProofForge.IR.Examples.HashProbe.module
+  | "map" => some ProofForge.IR.Examples.MapProbe.emitWatModule
+  | _ => none
+
 def toolOnPath (tool : String) : IO Bool := do
   try
     let r ← IO.Process.output { cmd := "which", args := #[tool] }
@@ -2655,10 +2671,18 @@ unsafe def checkCommand (opts : CliOptions) : IO UInt32 := do
           | none => throw <| IO.userError s!"no default format for --target {targetId} --fixture {fixtureId}"
     if !ProofForge.Cli.Fixture.supportsFormat targetId fixtureId format then
       throw <| IO.userError s!"fixture '{fixtureId}' does not support format '{format.id}' for target '{targetId}'"
-    let caps := ProofForge.Cli.Fixture.capabilitiesFor fixtureId
-    match ProofForge.Target.requireCapabilities profile caps with
-    | .ok _ => pure ()
-    | .error err => throw <| IO.userError err.render
+    if targetId == ProofForge.Target.wasmNear.id && format == .wat then
+      let module ← match emitWatFixtureModule? fixtureId with
+        | some module => pure module
+        | none => throw <| IO.userError s!"fixture '{fixtureId}' is not mapped to the wasm-near EmitWat backend"
+      match ProofForge.Backend.WasmNear.EmitWat.renderModule module with
+      | .ok _ => pure ()
+      | .error err => throw <| IO.userError err.message
+    else
+      let caps := ProofForge.Cli.Fixture.capabilitiesFor fixtureId
+      match ProofForge.Target.requireCapabilities profile caps with
+      | .ok _ => pure ()
+      | .error err => throw <| IO.userError err.render
   for tool in profile.requiredTools do
     if !(← toolOnPath tool) then
       IO.eprintln s!"warning: required tool '{tool}' not found on PATH for target '{targetId}'"
@@ -2688,7 +2712,128 @@ def writeNearPackage (outputDir : FilePath) (pkg : ProofForge.Backend.WasmNear.I
 
 /-! ### EmitWat output (canonical IR → WAT → wasm) -/
 
-def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO Unit := do
+def emitWatEntrypointJson (entrypoint : ProofForge.IR.Entrypoint) : String :=
+  jsonObject #[
+    ("name", jsonString entrypoint.name),
+    ("params", jsonArray (entrypoint.params.map fun param =>
+      jsonObject #[
+        ("name", jsonString param.fst),
+        ("type", valueTypeJson param.snd)
+      ])),
+    ("returns", valueTypeJson entrypoint.returns)
+  ]
+
+def defaultEmitWatArtifactOutput (outputDir : FilePath) : FilePath :=
+  outputDir / "proof-forge-artifact.json"
+
+def emitWatTargetId (opts : CliOptions) : String :=
+  opts.targetId?.getD ProofForge.Target.wasmNear.id
+
+def emitWatDeployManifestKind (targetId : String) : String :=
+  if targetId == ProofForge.Target.wasmNear.id then
+    "proof-forge-wasm-near-deploy-manifest"
+  else
+    "proof-forge-wasm-host-deploy-manifest"
+
+def optionalExistingArtifactEntryJson (path? : Option FilePath) : IO (Option String) := do
+  match path? with
+  | none => return none
+  | some path =>
+      if ← path.pathExists then
+        return some (← artifactEntryJson path)
+      else
+        return none
+
+def writeEmitWatDeployManifest
+    (deployOutput : FilePath)
+    (targetId fixture : String)
+    (module : ProofForge.IR.Module)
+    (watArtifact : String)
+    (wasmArtifact? : Option String) : IO Unit := do
+  let mut artifactFields : Array (String × String) := #[("wat", watArtifact)]
+  if let some wasmArtifact := wasmArtifact? then
+    artifactFields := artifactFields.push ("wasm", wasmArtifact)
+  let manifest := jsonObject #[
+    ("schemaVersion", "1"),
+    ("kind", jsonString (emitWatDeployManifestKind targetId)),
+    ("target", jsonString targetId),
+    ("targetFamily", jsonString "wasmHost"),
+    ("artifactKind", jsonString "wasm-deploy"),
+    ("fixture", jsonString fixture),
+    ("sourceKind", jsonString "portable-ir"),
+    ("irVersion", jsonString "portable-ir-v0"),
+    ("sourceModule", jsonString module.name),
+    ("capabilities", jsonStringArray (moduleCapabilityIds module)),
+    ("abi", jsonObject #[
+      ("entrypoints", jsonArray (module.entrypoints.map emitWatEntrypointJson))
+    ]),
+    ("artifacts", jsonObject artifactFields),
+    ("deployment", jsonObject #[
+      ("mode", jsonString "local-offline-host"),
+      ("status", jsonString "not-broadcast"),
+      ("localExecutor", jsonString "runtime/offline-host"),
+      ("nearAccountId", "null"),
+      ("nearSandbox", jsonString "not-generated"),
+      ("note", jsonString "EmitWat target-first output is locally executable through runtime/offline-host; NEAR account deployment is not generated by this manifest.")
+    ])
+  ]
+  if let some parent := deployOutput.parent then
+    IO.FS.createDirAll parent
+  IO.FS.writeFile deployOutput (manifest ++ "\n")
+
+def writeEmitWatArtifactMetadata
+    (opts : CliOptions)
+    (targetId fixture : String)
+    (module : ProofForge.IR.Module)
+    (outputDir watPath : FilePath)
+    (wasmPath? : Option FilePath) : IO Unit := do
+  let metadataOutput := opts.artifactOutput?.getD (defaultEmitWatArtifactOutput outputDir)
+  let deployOutput := defaultDeployManifestOutput metadataOutput
+  let watArtifact ← artifactEntryJson watPath
+  let wasmArtifact? ← optionalExistingArtifactEntryJson wasmPath?
+  writeEmitWatDeployManifest deployOutput targetId fixture module watArtifact wasmArtifact?
+  let deployArtifact ← artifactEntryJson deployOutput
+  let mut artifactFields : Array (String × String) := #[
+    ("wat", watArtifact),
+    ("deployManifest", deployArtifact)
+  ]
+  if let some wasmArtifact := wasmArtifact? then
+    artifactFields := artifactFields.push ("wasm", wasmArtifact)
+  let wat2wasmStatus := if wasmArtifact?.isSome then "passed" else "skipped"
+  let metadata := jsonObject #[
+    ("schemaVersion", "1"),
+    ("target", jsonString targetId),
+    ("targetFamily", jsonString "wasmHost"),
+    ("artifactKind", jsonString "wasm"),
+    ("fixture", jsonString fixture),
+    ("sourceKind", jsonString "portable-ir"),
+    ("irVersion", jsonString "portable-ir-v0"),
+    ("sourceModule", jsonString module.name),
+    ("capabilities", jsonStringArray (moduleCapabilityIds module)),
+    ("toolchain", jsonObject #[
+      ("wat2wasm", jsonObject #[
+        ("path", jsonString "wat2wasm"),
+        ("version", "null")
+      ])
+    ]),
+    ("abi", jsonObject #[
+      ("entrypoints", jsonArray (module.entrypoints.map emitWatEntrypointJson))
+    ]),
+    ("artifacts", jsonObject artifactFields),
+    ("validation", jsonObject #[
+      ("emitWat", jsonString "passed"),
+      ("watGeneration", jsonString "passed"),
+      ("wat2wasm", jsonString wat2wasmStatus),
+      ("deployManifest", jsonString "passed"),
+      ("offlineHost", jsonString "pending")
+    ])
+  ]
+  if let some parent := metadataOutput.parent then
+    IO.FS.createDirAll parent
+  IO.FS.writeFile metadataOutput (metadata ++ "\n")
+  IO.println s!"wrote {metadataOutput}"
+
+def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO (FilePath × Option FilePath) := do
   IO.FS.createDirAll outputDir
   let watPath := outputDir / s!"{name}.wat"
   IO.FS.writeFile watPath wat
@@ -2697,10 +2842,13 @@ def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO U
     let r ← IO.Process.output { cmd := "wat2wasm", args := #[watPath.toString, "-o", wasmPath.toString] }
     if r.exitCode == 0 then
       IO.println s!"wrote EmitWat {name}.wat + {name}.wasm to {outputDir}"
+      return (watPath, some wasmPath)
     else
       IO.eprintln s!"wat2wasm exit {r.exitCode}: {r.stderr.trimAscii} (WAT at {watPath})"
+      return (watPath, none)
   catch _ =>
     IO.println s!"wrote EmitWat {name}.wat to {watPath} (wat2wasm unavailable; install wabt to build wasm)"
+    return (watPath, none)
 
 def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Module) : IO UInt32 := do
   let some output := opts.output?
@@ -2717,7 +2865,8 @@ def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Modu
       | .error e => .error e.message
   match renderResult with
   | .ok wat =>
-      writeWatPackage output name wat
+      let (watPath, wasmPath?) ← writeWatPackage output name wat
+      writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name mod output watPath wasmPath?
       return 0
   | .error msg =>
       throw <| IO.userError msg

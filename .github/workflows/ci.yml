@@ -78,6 +78,9 @@ jobs:
       - name: Run EmitWat offline host smoke
         run: scripts/near/emitwat-ci-smoke.sh
 
+      - name: Run Wasm-NEAR target-first smoke
+        run: just near-target-first
+
       - name: Run unified testkit
         run: just testkit
 

@@ -90,6 +90,10 @@ learn-token-evm-vm:
 solana-token-plan-web3:
     scripts/solana/token-plan-web3-smoke.sh
 
+# Run the Wasm-NEAR target-first CLI, metadata, deploy-manifest, and offline-host smoke.
+near-target-first:
+    scripts/near/target-first-smoke.sh
+
 # Run a live Solana Token-2022 transfer-fee plan smoke on Surfpool with Web3.js.
 solana-token-2022-transfer-fee-web3:
     scripts/solana/token-2022-transfer-fee-web3-smoke.sh
@@ -230,7 +234,7 @@ testkit-list:
     cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry evm-plan evm-semantic-plan solana-light docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
+check: build target-registry evm-plan evm-semantic-plan solana-light near-target-first docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
