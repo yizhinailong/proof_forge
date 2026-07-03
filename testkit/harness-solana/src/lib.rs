@@ -254,13 +254,19 @@ fn build_counter_fixture(
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
     let mut emit = Command::new(&proof_forge);
     emit.current_dir(repo_root).args([
-        "--emit-counter-ir-sbpf",
+        "emit",
+        "--target",
+        "solana-sbpf-asm",
+        "--fixture",
+        "counter",
+        "--format",
+        "s",
         "-o",
         path_str(&asm_path)?,
         "--artifact-output",
         path_str(&artifact_path)?,
     ]);
-    run_required(&mut emit, "proof-forge --emit-counter-ir-sbpf")?;
+    run_required(&mut emit, "proof-forge emit --target solana-sbpf-asm --fixture counter")?;
 
     ensure!(
         asm_path.exists(),
@@ -325,13 +331,19 @@ fn build_value_vault_fixture(
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
     let mut emit = Command::new(&proof_forge);
     emit.current_dir(repo_root).args([
-        "--emit-value-vault-ir-sbpf",
+        "emit",
+        "--target",
+        "solana-sbpf-asm",
+        "--fixture",
+        "value-vault",
+        "--format",
+        "s",
         "-o",
         path_str(&asm_path)?,
         "--artifact-output",
         path_str(&artifact_path)?,
     ]);
-    run_required(&mut emit, "proof-forge --emit-value-vault-ir-sbpf")?;
+    run_required(&mut emit, "proof-forge emit --target solana-sbpf-asm --fixture value-vault")?;
 
     ensure!(
         asm_path.exists(),

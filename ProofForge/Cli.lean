@@ -351,6 +351,17 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .counterIrAptos => true
   | _ => false
 
+def EmitMode.isLegacyAlias : EmitMode → Bool
+  | .yul => false
+  | _ => true
+
+def EmitMode.deprecationNote : EmitMode → Option String
+  | mode =>
+      if mode.isLegacyAlias then
+        some "Deprecation warning: this legacy flag is deprecated and will be removed in a future release. Use the target-first CLI surface (`proof-forge build|emit|check --target <id> ...`). See RFC 0009."
+      else
+        none
+
 inductive Command where
   | build
   | emit
@@ -381,6 +392,7 @@ structure CliOptions where
   fixture? : Option String := none
   format? : Option String := none
   mode : EmitMode := .yul
+  fromNewSurface : Bool := false
   deriving Inhabited
 
 def CliOptions.emitsEvmDeployManifest (opts : CliOptions) : Bool :=
@@ -4720,11 +4732,13 @@ unsafe def main (args : List String) : IO UInt32 := do
       match ProofForge.Cli.newCommandArgsToLegacy args with
       | Except.ok legacyArgs =>
         match ProofForge.Cli.parseArgs legacyArgs {} with
-        | Except.ok opts => Except.ok { opts with cmd :=
-            match args with
-            | "build" :: _ => ProofForge.Cli.Command.build
-            | "emit" :: _ => ProofForge.Cli.Command.emit
-            | _ => ProofForge.Cli.Command.check }
+        | Except.ok opts => Except.ok { opts with
+            cmd :=
+              match args with
+              | "build" :: _ => ProofForge.Cli.Command.build
+              | "emit" :: _ => ProofForge.Cli.Command.emit
+              | _ => ProofForge.Cli.Command.check,
+            fromNewSurface := true }
         | Except.error msg => Except.error msg
       | Except.error msg => Except.error msg
     | _ => ProofForge.Cli.parseArgs args {}
@@ -4738,6 +4752,9 @@ unsafe def main (args : List String) : IO UInt32 := do
         IO.println (String.intercalate "\n" ProofForge.Cli.Fixture.ids.toList)
         return 0
       | _ =>
+        if !opts.fromNewSurface then
+          if let some note := ProofForge.Cli.EmitMode.deprecationNote opts.mode then
+            IO.eprintln note
         if opts.evmChainProfile?.isSome then
           discard <| ProofForge.Cli.resolveEvmChainProfile? opts.evmChainProfile?
         ProofForge.Cli.compileFile opts

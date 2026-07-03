@@ -183,19 +183,19 @@ fn build_counter_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     let output = Command::new(&proof_forge)
         .current_dir(repo_root)
         .args([
-            "--emit-counter-ir-bytecode",
+            "emit",
+            "--target",
+            "evm",
+            "--fixture",
+            "counter",
+            "--format",
+            "bytecode",
             "--yul-output",
-            yul_path
-                .to_str()
-                .ok_or_else(|| anyhow::anyhow!("non-UTF-8 Yul path"))?,
+            path_str(&yul_path)?,
             "--artifact-output",
-            metadata_path
-                .to_str()
-                .ok_or_else(|| anyhow::anyhow!("non-UTF-8 metadata path"))?,
+            path_str(&metadata_path)?,
             "-o",
-            bytecode_path
-                .to_str()
-                .ok_or_else(|| anyhow::anyhow!("non-UTF-8 bytecode path"))?,
+            path_str(&bytecode_path)?,
         ])
         .output()
         .with_context(|| format!("failed to run `{}`", proof_forge.display()))?;
@@ -260,13 +260,16 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     let init_code_path = out_dir.join("ValueVault.init.bin");
     let deploy_manifest_path = out_dir.join("ValueVault.proof-forge-deploy.json");
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
-    let cast = tool("CAST", "cast");
     let output = Command::new(&proof_forge)
         .current_dir(repo_root)
         .args([
-            "--emit-value-vault-ir-bytecode",
-            "--cast",
-            &cast,
+            "emit",
+            "--target",
+            "evm",
+            "--fixture",
+            "value-vault",
+            "--format",
+            "bytecode",
             "--yul-output",
             path_str(&yul_path)?,
             "--artifact-output",
