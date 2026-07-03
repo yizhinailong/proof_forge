@@ -2473,28 +2473,8 @@ def buildLegacyFlag (target : String) (input? : Option String) : Except String S
 def emitLegacyFlag (target fixture : String) (format? : Option String) : Except String String :=
   let format := format?.getD ""
   match target, fixture, format with
-  | "evm", "counter", "yul" => Except.ok "--emit-counter-ir-yul"
-  | "evm", "counter", "bytecode" => Except.ok "--emit-counter-ir-bytecode"
-  | "evm", "value-vault", "yul" => Except.ok "--emit-value-vault-ir-yul"
-  | "evm", "value-vault", "bytecode" => Except.ok "--emit-value-vault-ir-bytecode"
-  | "evm", "context", "yul" => Except.ok "--emit-context-ir-yul"
-  | "evm", "context", "bytecode" => Except.ok "--emit-context-ir-bytecode"
-  | "evm", "hash", "yul" => Except.ok "--emit-hash-ir-yul"
-  | "evm", "hash", "bytecode" => Except.ok "--emit-hash-ir-bytecode"
-  | "evm", "map", "yul" => Except.ok "--emit-map-ir-yul"
-  | "evm", "map", "bytecode" => Except.ok "--emit-map-ir-bytecode"
-  | "evm", f, "yul" =>
-      if f.startsWith "evm-" then
-        let suffix := f.drop 4
-        Except.ok s!"--emit-{suffix}-ir-yul"
-      else
-        Except.error s!"emit --target evm --fixture {f} --format yul is not yet mapped to a legacy flag"
-  | "evm", f, "bytecode" =>
-      if f.startsWith "evm-" then
-        let suffix := f.drop 4
-        Except.ok s!"--emit-{suffix}-ir-bytecode"
-      else
-        Except.error s!"emit --target evm --fixture {f} --format bytecode is not yet mapped to a legacy flag"
+  | "evm", f, "yul" => Except.ok s!"--emit-{f}-ir-yul"
+  | "evm", f, "bytecode" => Except.ok s!"--emit-{f}-ir-bytecode"
   | "solana-sbpf-asm", "counter", _ => Except.ok "--emit-counter-ir-sbpf"
   | "solana-sbpf-asm", "value-vault", _ => Except.ok "--emit-value-vault-ir-sbpf"
   | "solana-sbpf-asm", "control", _ => Except.ok "--emit-control-ir-sbpf"
@@ -2548,6 +2528,7 @@ def newCommandArgsToLegacy (args : List String) : Except String (List String) :=
       if let some out := state.out? then legacy := legacy ++ ["-o", out]
       if let some yul := state.yulOut? then legacy := legacy ++ ["--yul-output", yul]
       if let some artifact := state.artifactOut? then legacy := legacy ++ ["--artifact-output", artifact]
+      if let some profile := state.evmChainProfile? then legacy := legacy ++ ["--evm-chain-profile", profile]
       if flag.endsWith "-bytecode" then
         legacy := legacy ++ ["--solc", state.solc]
       Except.ok legacy

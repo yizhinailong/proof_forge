@@ -25,7 +25,7 @@ fi
 
 mkdir -p "$OUT_DIR"
 lake build proof-forge >/dev/null
-"$ROOT/.lake/build/bin/proof-forge" --emit-evm-struct-value-ir-bytecode \
+"$ROOT/.lake/build/bin/proof-forge" emit --target evm --fixture evm-struct-value --format bytecode \
   --yul-output "$OUT_DIR/EvmStructValueProbe.yul" \
   --artifact-output "$METADATA_FILE" \
   -o "$OUT_DIR/EvmStructValueProbe.bin"

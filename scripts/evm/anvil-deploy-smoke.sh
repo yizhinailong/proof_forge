@@ -78,7 +78,8 @@ if [[ -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
     proof_forge=(lake env proof-forge)
   fi
   proof_forge_args=(
-    --evm-bytecode
+    build
+    --target evm
     --root .
     --module contract
     --yul-output "$OUT_DIR/Counter.yul"

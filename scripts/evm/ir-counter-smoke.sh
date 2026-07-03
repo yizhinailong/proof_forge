@@ -23,7 +23,7 @@ if ! command -v solc >/dev/null 2>&1; then
 fi
 
 mkdir -p "$OUT_DIR"
-"$ROOT/.lake/build/bin/proof-forge" --emit-counter-ir-bytecode \
+"$ROOT/.lake/build/bin/proof-forge" emit --target evm --fixture counter --format bytecode \
   --yul-output "$OUT_DIR/Counter.yul" \
   --artifact-output "$METADATA_FILE" \
   -o "$OUT_DIR/Counter.bin"

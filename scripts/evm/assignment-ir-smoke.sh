@@ -25,7 +25,7 @@ fi
 
 mkdir -p "$OUT_DIR"
 lake build proof-forge >/dev/null
-"$ROOT/.lake/build/bin/proof-forge" --emit-assignment-ir-bytecode \
+"$ROOT/.lake/build/bin/proof-forge" emit --target evm --fixture assignment --format bytecode \
   --yul-output "$OUT_DIR/AssignmentProbe.yul" \
   --artifact-output "$METADATA_FILE" \
   -o "$OUT_DIR/AssignmentProbe.bin"

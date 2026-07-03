@@ -43,7 +43,7 @@ while IFS= read -r -d '' lean_file; do
   metadata="$OUT_DIR/$name.proof-forge-artifact.json"
   if (
     cd "$ROOT"
-    "${proof_forge[@]}" --evm-bytecode --root . --module contract --yul-output "$yul_out" --artifact-output "$metadata" -o "$out" "$lean_file"
+    "${proof_forge[@]}" build --target evm --root . --module contract --yul-output "$yul_out" --artifact-output "$metadata" -o "$out" "$lean_file"
     if [[ ! -f "$golden" ]]; then
       echo "build-examples: missing golden Yul: $golden" >&2
       exit 1

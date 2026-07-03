@@ -25,7 +25,7 @@ fi
 
 mkdir -p "$OUT_DIR"
 lake build proof-forge >/dev/null
-"$ROOT/.lake/build/bin/proof-forge" --emit-abi-scalar-ir-bytecode \
+"$ROOT/.lake/build/bin/proof-forge" emit --target evm --fixture abi-scalar --format bytecode \
   --yul-output "$OUT_DIR/AbiScalarProbe.yul" \
   --artifact-output "$METADATA_FILE" \
   --evm-chain-profile robinhood-chain-testnet \
