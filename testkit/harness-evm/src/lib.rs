@@ -127,10 +127,11 @@ impl ChainHarness for EvmHarness {
                     "EVM call `{}` did not succeed: {result:?}",
                     step.call
                 );
+                let gas_used = result.tx_gas_used();
                 let output = result.into_output().ok_or_else(|| {
                     anyhow::anyhow!("EVM call `{}` halted without output", step.call)
                 })?;
-                outcomes.push(outcome_from_output(sequence, &step.call, output.as_ref()));
+                outcomes.push(outcome_from_output(sequence, &step.call, output.as_ref(), gas_used));
                 sequence += 1;
             }
         }
@@ -338,7 +339,7 @@ fn decode_hex(value: &str) -> Result<Vec<u8>> {
     hex::decode(normalized).context("invalid hex")
 }
 
-fn outcome_from_output(sequence: u32, call: &str, output: &[u8]) -> CallOutcome {
+fn outcome_from_output(sequence: u32, call: &str, output: &[u8], gas_used: u64) -> CallOutcome {
     let return_hex = if output.is_empty() {
         None
     } else {
@@ -353,8 +354,8 @@ fn outcome_from_output(sequence: u32, call: &str, output: &[u8]) -> CallOutcome 
     let return_u32 = return_u64.and_then(|value| u32::try_from(value).ok());
     let return_bool = word.and_then(word_to_bool);
     let raw_line = match &return_hex {
-        Some(hex) => format!("evm call {sequence}:{call}: return_hex={hex}"),
-        None => format!("evm call {sequence}:{call}: return_hex="),
+        Some(hex) => format!("evm call {sequence}:{call}: return_hex={hex} evm_gas={gas_used}"),
+        None => format!("evm call {sequence}:{call}: return_hex= evm_gas={gas_used}"),
     };
 
     CallOutcome {
@@ -367,7 +368,11 @@ fn outcome_from_output(sequence: u32, call: &str, output: &[u8]) -> CallOutcome 
         allocations: None,
         reuses: None,
         deallocations: None,
-        budget: None,
+        budget: Some(proof_forge_testkit_core::BudgetOutcome {
+            solana_cu: None,
+            evm_gas: Some(gas_used),
+            near_gas: None,
+        }),
         raw_line,
     }
 }
