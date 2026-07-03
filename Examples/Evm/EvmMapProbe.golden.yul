@@ -155,7 +155,7 @@ object "EvmMapProbe" {
       {
         let _slot := __proof_forge_map_slot(__proof_forge_map_slot(1, 4004), 5005)
         let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(1, 4004), 5005)
-        sstore(_slot, add(sload(_slot), 7))
+        sstore(_slot, __pf_checked_add(sload(_slot), 7))
         sstore(_presence_slot, 1)
       }
       result := sload(__proof_forge_map_slot(__proof_forge_map_slot(1, 4004), 5005))
@@ -195,17 +195,17 @@ object "EvmMapProbe" {
     }
     function __proof_forge_map_assign_add(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
-      sstore(_slot, add(sload(_slot), value))
+      sstore(_slot, __pf_checked_add(sload(_slot), value))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_assign_sub(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
-      sstore(_slot, sub(sload(_slot), value))
+      sstore(_slot, __pf_checked_sub(sload(_slot), value))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_assign_mul(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
-      sstore(_slot, mul(sload(_slot), value))
+      sstore(_slot, __pf_checked_mul(sload(_slot), value))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_assign_div(slot, key, value) {
@@ -242,6 +242,28 @@ object "EvmMapProbe" {
       let _slot := __proof_forge_map_slot(slot, key)
       sstore(_slot, shr(value, sload(_slot)))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
+    }
+    function __pf_checked_add(a, b) -> r {
+      if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := add(a, b)
+    }
+    function __pf_checked_sub(a, b) -> r {
+      if gt(b, a) {
+        revert(0, 0)
+      }
+      r := sub(a, b)
+    }
+    function __pf_checked_mul(a, b) -> r {
+      if iszero(a) {
+        r := 0
+        leave
+      }
+      if gt(a, div(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := mul(a, b)
     }
   }
 }

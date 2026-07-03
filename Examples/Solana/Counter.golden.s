@@ -194,3 +194,7 @@ error_owner:
 error_instruction_data:
   mov64 r0, 9
   exit
+
+error_pda_bump:
+  mov64 r0, 11
+  exit

@@ -65,9 +65,9 @@ object "ValueVault" {
     }
     function f_ValueVault_deposit(amount) {
       let current := sload(0)
-      let next := add(current, amount)
+      let next := __pf_checked_add(current, amount)
       let ops := sload(5)
-      let next_ops := add(ops, 1)
+      let next_ops := __pf_checked_add(ops, 1)
       sstore(0, next)
       sstore(3, amount)
       sstore(5, next_ops)
@@ -82,14 +82,14 @@ object "ValueVault" {
       }
     }
     function f_ValueVault_charge_fee(gross, fee_bps) {
-      let fee := div(mul(gross, fee_bps), 10000)
-      let net := sub(gross, fee)
+      let fee := div(__pf_checked_mul(gross, fee_bps), 10000)
+      let net := __pf_checked_sub(gross, fee)
       let current := sload(0)
-      let next := add(current, net)
+      let next := __pf_checked_add(current, net)
       let current_fees := sload(2)
-      let next_fees := add(current_fees, fee)
+      let next_fees := __pf_checked_add(current_fees, fee)
       let ops := sload(5)
-      let next_ops := add(ops, 1)
+      let next_ops := __pf_checked_add(ops, 1)
       sstore(0, next)
       sstore(2, next_fees)
       sstore(3, net)
@@ -107,11 +107,11 @@ object "ValueVault" {
     }
     function f_ValueVault_release(amount) {
       let current := sload(0)
-      let next := sub(current, amount)
+      let next := __pf_checked_sub(current, amount)
       let released_before := sload(1)
-      let released_next := add(released_before, amount)
+      let released_next := __pf_checked_add(released_before, amount)
       let ops := sload(5)
-      let next_ops := add(ops, 1)
+      let next_ops := __pf_checked_add(ops, 1)
       sstore(0, next)
       sstore(1, released_next)
       sstore(3, amount)
@@ -150,7 +150,29 @@ object "ValueVault" {
     function f_ValueVault_get_net_value() -> result {
       let balance_now := sload(0)
       let fees_now := sload(2)
-      result := sub(balance_now, fees_now)
+      result := __pf_checked_sub(balance_now, fees_now)
+    }
+    function __pf_checked_add(a, b) -> r {
+      if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := add(a, b)
+    }
+    function __pf_checked_sub(a, b) -> r {
+      if gt(b, a) {
+        revert(0, 0)
+      }
+      r := sub(a, b)
+    }
+    function __pf_checked_mul(a, b) -> r {
+      if iszero(a) {
+        r := 0
+        leave
+      }
+      if gt(a, div(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := mul(a, b)
     }
   }
 }

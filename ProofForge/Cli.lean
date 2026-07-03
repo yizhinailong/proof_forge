@@ -2790,11 +2790,15 @@ def renderCounterIrYul : IO String := do
 
 def compileCounterIrTs (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/ts/Counter.ts")
-  let tsModule := ProofForge.Compiler.TS.Emit.emitModule ProofForge.IR.Examples.Counter.module
-  let source := ProofForge.Compiler.TS.Printer.render tsModule
-  writeTextFile output source
-  IO.println s!"wrote {output}"
-  return 0
+  match ProofForge.Compiler.TS.Emit.emitModule ProofForge.IR.Examples.Counter.module with
+  | .ok tsModule =>
+    let source := ProofForge.Compiler.TS.Printer.render tsModule
+    writeTextFile output source
+    IO.println s!"wrote {output}"
+    return 0
+  | .error msg =>
+    IO.eprintln s!"compileCounterIrTs: {msg}"
+    return 1
 
 def compileCounterIrBytecode (opts : CliOptions) : IO UInt32 := do
   let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/Counter.yul")

@@ -73,18 +73,18 @@ object "EvmTypedStorageProbe" {
       if iszero(eq(sload(__proof_forge_array_slot(6, 2, 1)), 31385508676933403821220641317563962861421152075426748694536)) {
         revert(0, 0)
       }
-      let sum := add(add(sload(__proof_forge_array_slot(1, 3, 0)), sload(__proof_forge_array_slot(1, 3, 1))), sload(__proof_forge_array_slot(1, 3, 2)))
-      result := add(sum, sload(__proof_forge_array_slot(4, 2, 0)))
+      let sum := __pf_checked_add(__pf_checked_add(sload(__proof_forge_array_slot(1, 3, 0)), sload(__proof_forge_array_slot(1, 3, 1))), sload(__proof_forge_array_slot(1, 3, 2)))
+      result := __pf_checked_add(sum, sload(__proof_forge_array_slot(4, 2, 0)))
     }
     function f_EvmTypedStorageProbe_path_assign_u32() -> result {
       sstore(__proof_forge_array_slot(1, 3, 0), 10)
       {
         let _slot := __proof_forge_array_slot(1, 3, 0)
-        sstore(_slot, add(sload(_slot), 5))
+        sstore(_slot, __pf_checked_add(sload(_slot), 5))
       }
       {
         let _slot := __proof_forge_array_slot(1, 3, 0)
-        sstore(_slot, mul(sload(_slot), 2))
+        sstore(_slot, __pf_checked_mul(sload(_slot), 2))
       }
       result := sload(__proof_forge_array_slot(1, 3, 0))
     }
@@ -102,6 +102,28 @@ object "EvmTypedStorageProbe" {
         revert(0, 0)
       }
       result := add(slot, index)
+    }
+    function __pf_checked_add(a, b) -> r {
+      if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := add(a, b)
+    }
+    function __pf_checked_sub(a, b) -> r {
+      if gt(b, a) {
+        revert(0, 0)
+      }
+      r := sub(a, b)
+    }
+    function __pf_checked_mul(a, b) -> r {
+      if iszero(a) {
+        r := 0
+        leave
+      }
+      if gt(a, div(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := mul(a, b)
     }
   }
 }

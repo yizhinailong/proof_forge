@@ -71,23 +71,23 @@ object "EvmStorageStructProbe" {
       sstore(3, 222)
       sstore(1, 7)
       sstore(2, 11)
-      result := add(sload(1), sload(2))
+      result := __pf_checked_add(sload(1), sload(2))
     }
     function f_EvmStorageStructProbe_path_lifecycle() -> result {
       sstore(1, 21)
       sstore(2, 22)
       {
         let _slot := 1
-        sstore(_slot, add(sload(_slot), 5))
+        sstore(_slot, __pf_checked_add(sload(_slot), 5))
       }
-      result := add(sload(1), sload(2))
+      result := __pf_checked_add(sload(1), sload(2))
     }
     function f_EvmStorageStructProbe_array_struct_lifecycle() -> result {
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 0, 0), 3)
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 1, 0), 5)
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 0, 1), 7)
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 1, 1), 11)
-      result := add(sload(__proof_forge_struct_array_slot(4, 2, 2, 0, 1)), sload(__proof_forge_struct_array_slot(4, 2, 2, 1, 0)))
+      result := __pf_checked_add(sload(__proof_forge_struct_array_slot(4, 2, 2, 0, 1)), sload(__proof_forge_struct_array_slot(4, 2, 2, 1, 0)))
     }
     function f_EvmStorageStructProbe_return_points() -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 0, 0), 29)
@@ -103,15 +103,15 @@ object "EvmStorageStructProbe" {
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 0, 1), 13)
       {
         let _slot := __proof_forge_struct_array_slot(4, 2, 2, 0, 1)
-        sstore(_slot, add(sload(_slot), 2))
+        sstore(_slot, __pf_checked_add(sload(_slot), 2))
       }
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 1, 0), 8)
-      result := add(sload(__proof_forge_struct_array_slot(4, 2, 2, 0, 1)), sload(__proof_forge_struct_array_slot(4, 2, 2, 1, 0)))
+      result := __pf_checked_add(sload(__proof_forge_struct_array_slot(4, 2, 2, 0, 1)), sload(__proof_forge_struct_array_slot(4, 2, 2, 1, 0)))
     }
     function f_EvmStorageStructProbe_typed_sum() -> result {
       sstore(8, 1)
       sstore(9, 33)
-      result := add(sload(8), sload(9))
+      result := __pf_checked_add(sload(8), sload(9))
     }
     function f_EvmStorageStructProbe_root_value() -> result {
       sstore(10, 6277101735386680764516354157049543343084444891548699590660)
@@ -126,7 +126,7 @@ object "EvmStorageStructProbe" {
       }
       let __proof_forge_struct_snapshot_x := sload(1)
       let __proof_forge_struct_snapshot_y := sload(2)
-      result := add(__proof_forge_struct_snapshot_x, __proof_forge_struct_snapshot_y)
+      result := __pf_checked_add(__proof_forge_struct_snapshot_x, __proof_forge_struct_snapshot_y)
     }
     function f_EvmStorageStructProbe_whole_struct_return() -> __proof_forge_return_0, __proof_forge_return_1 {
       {
@@ -151,7 +151,7 @@ object "EvmStorageStructProbe" {
         sstore(1, __proof_forge_assign_storage_struct_current_x)
         sstore(2, __proof_forge_assign_storage_struct_current_y)
       }
-      result := add(mul(sload(1), 100), sload(2))
+      result := __pf_checked_add(__pf_checked_mul(sload(1), 100), sload(2))
     }
     function f_EvmStorageStructProbe_read_point_x(index) -> result {
       result := sload(__proof_forge_struct_array_slot(4, 2, 2, 0, index))
@@ -161,6 +161,28 @@ object "EvmStorageStructProbe" {
         revert(0, 0)
       }
       result := add(add(slot, mul(index, field_count)), field_offset)
+    }
+    function __pf_checked_add(a, b) -> r {
+      if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := add(a, b)
+    }
+    function __pf_checked_sub(a, b) -> r {
+      if gt(b, a) {
+        revert(0, 0)
+      }
+      r := sub(a, b)
+    }
+    function __pf_checked_mul(a, b) -> r {
+      if iszero(a) {
+        r := 0
+        leave
+      }
+      if gt(a, div(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := mul(a, b)
     }
   }
 }

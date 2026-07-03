@@ -34,15 +34,15 @@ object "EvmExpressionProbe" {
       revert(0, 0)
     }
     function f_EvmExpressionProbe_arithmetic_u64() -> result {
-      let delta := sub(9, 4)
+      let delta := __pf_checked_sub(9, 4)
       if iszero(eq(delta, 5)) {
         revert(0, 0)
       }
-      let sum := add(delta, 7)
+      let sum := __pf_checked_add(delta, 7)
       if iszero(eq(sum, 12)) {
         revert(0, 0)
       }
-      let product := mul(sum, 3)
+      let product := __pf_checked_mul(sum, 3)
       if iszero(eq(product, 36)) {
         revert(0, 0)
       }
@@ -58,7 +58,7 @@ object "EvmExpressionProbe" {
       if iszero(eq(powered, 32)) {
         revert(0, 0)
       }
-      result := add(add(powered, quotient), remainder)
+      result := __pf_checked_add(__pf_checked_add(powered, quotient), remainder)
     }
     function f_EvmExpressionProbe_bitwise_u64() -> result {
       let ored := or(20, 8)
@@ -118,7 +118,7 @@ object "EvmExpressionProbe" {
       if iszero(bool_ne) {
         revert(0, 0)
       }
-      result := add(add(add(a_is_seven, a_not_b), add(a_before_b, b_after_a)), add(add(any_ordered, not_equal), add(bool_eq, bool_ne)))
+      result := __pf_checked_add(__pf_checked_add(__pf_checked_add(a_is_seven, a_not_b), __pf_checked_add(a_before_b, b_after_a)), __pf_checked_add(__pf_checked_add(any_ordered, not_equal), __pf_checked_add(bool_eq, bool_ne)))
     }
     function f_EvmExpressionProbe_casts_and_u32(delta, flag) -> result {
       let delta64 := delta
@@ -127,11 +127,11 @@ object "EvmExpressionProbe" {
       let narrowed := 33
       let u32_bool := 1
       let u64_bool := 1
-      let word_sum := add(delta, 3)
+      let word_sum := __pf_checked_add(delta, 3)
       if iszero(eq(word_sum, 10)) {
         revert(0, 0)
       }
-      let word_product := mul(sub(word_sum, 1), 2)
+      let word_product := __pf_checked_mul(__pf_checked_sub(word_sum, 1), 2)
       if iszero(eq(word_product, 18)) {
         revert(0, 0)
       }
@@ -153,7 +153,29 @@ object "EvmExpressionProbe" {
       if iszero(u64_bool) {
         revert(0, 0)
       }
-      result := add(add(add(delta64, flag32), add(flag64, narrowed)), add(word_remainder, word_bits))
+      result := __pf_checked_add(__pf_checked_add(__pf_checked_add(delta64, flag32), __pf_checked_add(flag64, narrowed)), __pf_checked_add(word_remainder, word_bits))
+    }
+    function __pf_checked_add(a, b) -> r {
+      if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := add(a, b)
+    }
+    function __pf_checked_sub(a, b) -> r {
+      if gt(b, a) {
+        revert(0, 0)
+      }
+      r := sub(a, b)
+    }
+    function __pf_checked_mul(a, b) -> r {
+      if iszero(a) {
+        r := 0
+        leave
+      }
+      if gt(a, div(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
+        revert(0, 0)
+      }
+      r := mul(a, b)
     }
   }
 }

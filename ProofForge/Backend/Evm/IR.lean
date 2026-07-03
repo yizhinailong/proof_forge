@@ -396,6 +396,79 @@ def revertStmt : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.exprStmt
     (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
 
+/-- The 2^256 - 1 max word value, used for overflow checks. -/
+def maxUint256 : Nat := 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+/-- Helper names for checked arithmetic (Solidity 0.8-style overflow/underflow revert).
+    These are emitted once per module that uses them; see `checkedArithmeticHelperFunctions`. -/
+def checkedAddName : String := "__pf_checked_add"
+def checkedSubName : String := "__pf_checked_sub"
+def checkedMulName : String := "__pf_checked_mul"
+
+/-- Statement that reverts if `cond` is nonzero (truthy). -/
+def revertIfStmt (cond : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Statement :=
+  Lean.Compiler.Yul.Statement.ifStmt cond { statements := #[revertStmt] }
+
+/-- Lower-level checked-add expression: `__pf_checked_add(a, b)` reverts on overflow. -/
+def checkedAddExpr (lhs rhs : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.call checkedAddName #[lhs, rhs]
+
+/-- Lower-level checked-sub expression: reverts on underflow. -/
+def checkedSubExpr (lhs rhs : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.call checkedSubName #[lhs, rhs]
+
+/-- Lower-level checked-mul expression: reverts on overflow. -/
+def checkedMulExpr (lhs rhs : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.call checkedMulName #[lhs, rhs]
+
+/-- Whether `op` is an arithmetic op that needs checked helpers. -/
+def needsCheckedArithmetic (op : AssignOp) : Bool :=
+  match op with
+  | .add | .sub | .mul => true
+  | _ => false
+
+/-- The checked-arithmetic Yul function definitions emitted once per module.
+    Mirrors Solidity 0.8 semantics: `add`/`mul` revert on U256 overflow, `sub`
+    reverts on underflow. Bitwise/div/shift ops never overflow, so they keep
+    using the raw EVM builtins. -/
+def checkedArithmeticHelperFunctions : Array Lean.Compiler.Yul.Statement :=
+  let tn (n : String) := { name := n : Lean.Compiler.Yul.TypedName }
+  #[
+    Lean.Compiler.Yul.Statement.funcDef checkedAddName #[tn "a", tn "b"] #[tn "r"]
+      { statements := #[
+        -- overflow iff a > maxUint256 - b  (i.e. a + b > max)
+        revertIfStmt (Lean.Compiler.Yul.builtin "gt" #[
+          Lean.Compiler.Yul.Expr.id "a",
+          Lean.Compiler.Yul.builtin "sub" #[Lean.Compiler.Yul.Expr.num maxUint256, Lean.Compiler.Yul.Expr.id "b"]
+        ]),
+        Lean.Compiler.Yul.Statement.assignment #["r"]
+          (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "a", Lean.Compiler.Yul.Expr.id "b"])
+      ] },
+    Lean.Compiler.Yul.Statement.funcDef checkedSubName #[tn "a", tn "b"] #[tn "r"]
+      { statements := #[
+        -- underflow iff b > a
+        revertIfStmt (Lean.Compiler.Yul.builtin "gt" #[Lean.Compiler.Yul.Expr.id "b", Lean.Compiler.Yul.Expr.id "a"]),
+        Lean.Compiler.Yul.Statement.assignment #["r"]
+          (Lean.Compiler.Yul.builtin "sub" #[Lean.Compiler.Yul.Expr.id "a", Lean.Compiler.Yul.Expr.id "b"])
+      ] },
+    Lean.Compiler.Yul.Statement.funcDef checkedMulName #[tn "a", tn "b"] #[tn "r"]
+      { statements := #[
+        -- 0 * b = 0 is safe and avoids div-by-zero in the overflow check below.
+        Lean.Compiler.Yul.Statement.ifStmt (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "a"])
+          { statements := #[
+            Lean.Compiler.Yul.Statement.assignment #["r"] (Lean.Compiler.Yul.Expr.num 0),
+            Lean.Compiler.Yul.Statement.leave
+          ] },
+        -- overflow iff a > max / b  (i.e. a * b > max)
+        revertIfStmt (Lean.Compiler.Yul.builtin "gt" #[
+          Lean.Compiler.Yul.Expr.id "a",
+          Lean.Compiler.Yul.builtin "div" #[Lean.Compiler.Yul.Expr.num maxUint256, Lean.Compiler.Yul.Expr.id "b"]
+        ]),
+        Lean.Compiler.Yul.Statement.assignment #["r"]
+          (Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "a", Lean.Compiler.Yul.Expr.id "b"])
+      ] }
+  ]
+
 def nibbleToHex (n : Nat) : Char :=
   if n < 10 then Char.ofNat ('0'.toNat + n)
   else Char.ofNat ('a'.toNat + (n - 10))
@@ -715,7 +788,10 @@ def abiParamValidationStmts (module : Module) (entrypoint : Entrypoint) : Except
           statements.push <| Lean.Compiler.Yul.Statement.ifStmt
             (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 1])
             { statements := #[revertStmt] }
-      | _ => statements
+      -- U64 and Hash each occupy a full 32-byte word with no narrower
+      -- range to enforce; no extra validation is needed here. Struct/array
+      -- word types are rejected upstream by `abiValueWordTypes`.
+      | .u64 | .hash | .unit | .fixedArray _ _ | .structType _ => statements
   .ok statements
 
 def contextExpr : ContextField → Lean.Compiler.Yul.Expr
@@ -921,6 +997,9 @@ def lowerAssignOpExpr
   match op with
   | .shiftLeft | .shiftRight =>
       Lean.Compiler.Yul.builtin (assignOpBuiltinName op) #[value, target]
+  | .add => checkedAddExpr target value
+  | .sub => checkedSubExpr target value
+  | .mul => checkedMulExpr target value
   | _ =>
       Lean.Compiler.Yul.builtin (assignOpBuiltinName op) #[target, value]
 
@@ -2367,11 +2446,11 @@ mutual
     | .field base fieldName =>
         lowerLocalStructFieldExpr module env base fieldName
     | .add lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "add" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        .ok (checkedAddExpr (← lowerExpr module env lhs) (← lowerExpr module env rhs))
     | .sub lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "sub" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        .ok (checkedSubExpr (← lowerExpr module env lhs) (← lowerExpr module env rhs))
     | .mul lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "mul" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        .ok (checkedMulExpr (← lowerExpr module env lhs) (← lowerExpr module env rhs))
     | .div lhs rhs => do
         .ok (Lean.Compiler.Yul.builtin "div" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .mod lhs rhs => do
@@ -5524,6 +5603,69 @@ def plannedHashHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
   if plan.hasHelper .hashWord || plan.hasHelper .hashPair then hashHelperFunctions else #[]
 
+/-! Detect whether a module uses any `.add`/`.sub`/`.mul` `Expr` or compound
+    assignment op that would route to the checked-arithmetic helpers. Used to
+    avoid emitting the helpers when a module only uses div/mod/bitwise/shift. -/
+mutual
+  partial def effectUsesCheckedArithmetic : Effect → Bool
+    | .storageScalarWrite _ v => exprUsesCheckedArithmetic v
+    | .storageScalarAssignOp _ op v => needsCheckedArithmetic op || exprUsesCheckedArithmetic v
+    | .storageMapInsert _ _ v => exprUsesCheckedArithmetic v
+    | .storageMapSet _ _ v => exprUsesCheckedArithmetic v
+    | .storageArrayWrite _ _ v => exprUsesCheckedArithmetic v
+    | .storageArrayStructFieldWrite _ _ _ v => exprUsesCheckedArithmetic v
+    | .storageStructFieldWrite _ _ v => exprUsesCheckedArithmetic v
+    | .storagePathWrite _ _ v => exprUsesCheckedArithmetic v
+    | .storagePathAssignOp _ _ op v => needsCheckedArithmetic op || exprUsesCheckedArithmetic v
+    | .storageScalarRead _ | .storageMapContains _ _ | .storageMapGet _ _
+    | .storageArrayRead _ _ | .storageArrayStructFieldRead _ _ _
+    | .storageStructFieldRead _ _ | .storagePathRead _ _
+    | .contextRead _ | .eventEmit _ _ | .eventEmitIndexed _ _ _ => false
+
+  partial def exprUsesCheckedArithmetic : Expr → Bool
+    | .add _ _ | .sub _ _ | .mul _ _ => true
+    | .literal _ | .local _ | .nativeValue => false
+    | .arrayLit _ xs => xs.any exprUsesCheckedArithmetic
+    | .arrayGet a i => exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic i
+    | .structLit _ fs => fs.any (fun (_, v) => exprUsesCheckedArithmetic v)
+    | .field b _ => exprUsesCheckedArithmetic b
+    | .div l r | .mod l r | .pow l r
+    | .bitAnd l r | .bitOr l r | .bitXor l r
+    | .shiftLeft l r | .shiftRight l r => exprUsesCheckedArithmetic l || exprUsesCheckedArithmetic r
+    | .cast v _ => exprUsesCheckedArithmetic v
+    | .eq l r | .ne l r | .lt l r | .le l r | .gt l r | .ge l r
+    | .boolAnd l r | .boolOr l r => exprUsesCheckedArithmetic l || exprUsesCheckedArithmetic r
+    | .boolNot v => exprUsesCheckedArithmetic v
+    | .hashValue a b c d => exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b
+        || exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d
+    | .hash p => exprUsesCheckedArithmetic p
+    | .hashTwoToOne l r => exprUsesCheckedArithmetic l || exprUsesCheckedArithmetic r
+    | .crosscallInvoke t m args | .crosscallInvokeTyped t m args _
+    | .crosscallInvokeValueTyped t m _ args _
+    | .crosscallInvokeStaticTyped t m args _ | .crosscallInvokeDelegateTyped t m args _ =>
+        exprUsesCheckedArithmetic t || exprUsesCheckedArithmetic m || args.any exprUsesCheckedArithmetic
+    | .crosscallCreate v _ => exprUsesCheckedArithmetic v
+    | .crosscallCreate2 v s _ => exprUsesCheckedArithmetic v || exprUsesCheckedArithmetic s
+    | .effect e => effectUsesCheckedArithmetic e
+
+  partial def stmtUsesCheckedArithmetic : Statement → Bool
+    | .letBind _ _ v | .letMutBind _ _ v | .assign _ v | .assignOp _ _ v | .return v =>
+        exprUsesCheckedArithmetic v
+    | .assert _ _ _ | .assertEq _ _ _ _ | .release _ => false
+    | .effect e => effectUsesCheckedArithmetic e
+    | .ifElse c thenBody elseBody =>
+        exprUsesCheckedArithmetic c || thenBody.any stmtUsesCheckedArithmetic
+          || elseBody.any stmtUsesCheckedArithmetic
+    | .boundedFor _ _ _ body => body.any stmtUsesCheckedArithmetic
+end
+
+def moduleUsesCheckedArithmetic (module : Module) : Bool :=
+  module.entrypoints.any (fun ep => ep.body.any stmtUsesCheckedArithmetic)
+
+def plannedCheckedArithmeticHelperFunctions (module : Module) :
+    Array Lean.Compiler.Yul.Statement :=
+  if moduleUsesCheckedArithmetic module then checkedArithmeticHelperFunctions else #[]
+
 def lowerModuleWithPlan
     (module : Module)
     (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
@@ -5537,6 +5679,7 @@ def lowerModuleWithPlan
   let helpers := helpers ++ plannedArrayHelperFunctions plan
   let helpers := helpers ++ plannedStructArrayHelperFunctions plan
   let helpers := helpers ++ plannedHashHelperFunctions plan
+  let helpers := helpers ++ plannedCheckedArithmeticHelperFunctions module
   let helpers := helpers ++ (← crosscallHelperFunctions module (← moduleCrosscallHelperSpecs module))
   let helpers := helpers ++ (← createHelperFunctions (moduleCreateHelperSpecs module))
   let helpers := helpers ++ localArrayGetHelperFunctions (← moduleLocalArrayGetLengths module)

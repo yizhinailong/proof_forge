@@ -197,8 +197,12 @@ def main : IO UInt32 := do
         "package assembly missing vault seed byte store"
       require (contains asmFile.contents "solana.pda.seed vault[1] account authority pubkey")
         "package assembly missing authority account PDA seed packing"
-      require (contains asmFile.contents "solana.pda.seed vault[2] bump vault_bump missing placeholder=255")
-        "package assembly missing PDA bump seed packing"
+      -- A missing bump binding now reverts (error_pda_bump, code 11) instead
+      -- of silently emitting a 255 placeholder that would derive the wrong PDA.
+      require (contains asmFile.contents "solana.pda.seed vault[2] bump vault_bump missing (revert)")
+        "package assembly missing PDA bump revert on missing bump"
+      require (contains asmFile.contents "ja error_pda_bump")
+        "package assembly missing PDA bump revert jump"
       require (contains asmFile.contents "stxdw [r6+0], r5")
         "package assembly missing PDA seed slice ptr store"
       require (contains asmFile.contents "stxdw [r6+8], r3")

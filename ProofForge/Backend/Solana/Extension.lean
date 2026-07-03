@@ -701,7 +701,11 @@ def declaredAccountFromCall? (call : CapabilityCall) : Option DeclaredAccount :=
       name := name
       access := metadataValue? call.metadata "solana.account.access" |>.getD "readonly"
       signer := metadataValue? call.metadata "solana.account.signer" |>.getD "none"
-      owner := metadataValue? call.metadata "solana.account.owner" |>.getD "any"
+      -- Default owner is the current program (`"program"`), not `"any"`.
+      -- `"any"` skips the on-chain owner check entirely, which is unsafe as a
+      -- default for user-declared accounts: a missing `solana.account.owner`
+      -- metadata value used to silently disable owner verification.
+      owner := metadataValue? call.metadata "solana.account.owner" |>.getD "program"
       entrypoint? := entrypoint? call
     }
   else
@@ -1302,24 +1306,22 @@ def lowerPdaBumpSeed (bindings : Array CpiValueBinding) (pdaName : String)
         ] ++
         lowerPdaSeedTableEntry idx 1
       else
+        -- Out-of-range bump: revert instead of silently emitting a 255
+        -- placeholder that would derive the wrong PDA and likely cause the
+        -- program to act on an attacker-controlled account.
         #[
-          .comment s!"solana.pda.seed {pdaName}[{idx}] bump literal={bump} out-of-range placeholder=255"
-        ] ++
-        lowerPdaStackSeedPtr idx ++ #[
-          .instruction { opcode := .stb, dst := some .r5, off := some (.num 0), imm := some (.num 255) }
-        ] ++
-        lowerPdaSeedTableEntry idx 1
+          .comment s!"solana.pda.seed {pdaName}[{idx}] bump literal={bump} out-of-range (revert)",
+          .instruction { opcode := .ja, off := some (.sym "error_pda_bump") }
+        ]
   | none =>
       match cpiValueBinding? bindings source with
       | some binding => lowerPdaValueSeed pdaName idx "bump" source binding 1
       | none =>
+          -- Missing bump binding: revert instead of silently emitting 255.
           #[
-            .comment s!"solana.pda.seed {pdaName}[{idx}] bump {source} missing placeholder=255"
-          ] ++
-          lowerPdaStackSeedPtr idx ++ #[
-            .instruction { opcode := .stb, dst := some .r5, off := some (.num 0), imm := some (.num 255) }
-          ] ++
-          lowerPdaSeedTableEntry idx 1
+            .comment s!"solana.pda.seed {pdaName}[{idx}] bump {source} missing (revert)",
+            .instruction { opcode := .ja, off := some (.sym "error_pda_bump") }
+          ]
 
 def lowerPdaInstructionParamSeed (bindings : Array CpiValueBinding) (pdaName : String)
     (idx : Nat) (source : String) : Array AstNode :=

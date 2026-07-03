@@ -57,6 +57,10 @@ def yStr (s : String) : YExpr := Lean.Compiler.Yul.Expr.ident s
 def yCall (fn : String) (args : Array YExpr) : YExpr := Lean.Compiler.Yul.Expr.call fn args
 def yBuiltin (name : String) (args : Array YExpr) : YExpr := Lean.Compiler.Yul.Expr.builtin name args
 
+/-- 2^256 - 1, the EVM max word value, used for checked-arithmetic overflow checks. -/
+def maxUint256 : Nat :=
+  0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
 def sExprStmt (e : YExpr) : YStmt := Lean.Compiler.Yul.Statement.exprStmt e
 def sVarDecl (names : Array YTypedName) (value : Option YExpr) : YStmt := Lean.Compiler.Yul.Statement.varDecl names value
 def sAssignment (names : Array String) (value : YExpr) : YStmt := Lean.Compiler.Yul.Statement.assignment names value
@@ -505,31 +509,66 @@ def runtimeHelpers : Array YStmt :=
           yBuiltin "add" #[yStr "obj", yBuiltin "mul" #[yBuiltin "add" #[yStr "i", yNum 1], yNum 32]], yStr "v"])] },
     sFuncDef "lean_obj_tag" #[tn "o"] #[tn "t"]
       { statements := #[
-          -- Heap ctor default; overwritten if o is a boxed scalar.
+          -- Heap ctor default: tag is the low byte of the header word.
           sAssignment #["t"] (yBuiltin "and" #[yBuiltin "mload" #[yStr "o"], yNum 0xff]),
+          -- Boxed scalar: encoded as (n << 1) | 1 with the low bit set. The
+          -- constructor tag of a Lean Nat scalar is 0 for `.zero` and 1 for
+          -- `.succ _` (any positive value), NOT the unboxed numeric value.
+          -- Returning the unboxed value here caused match-on-Nat to dispatch
+          -- on the wrong constructor for every nonzero Nat.
           sIfStmt (yBuiltin "and" #[yStr "o", yNum 1])
-            { statements := #[sAssignment #["t"] (leanUnboxExpr (yStr "o"))] }
+            { statements := #[
+                -- unbox once, then map 0 -> tag 0 (Nat.zero), nonzero -> tag 1 (Nat.succ).
+                -- `iszero(v)` is 1 when v==0 and 0 when v!=0, so `iszero(iszero v)`
+                -- yields the desired 0/1 tag.
+                sVarDecl #[tn "v"] (some (leanUnboxExpr (yStr "o"))),
+                sAssignment #["t"] (yBuiltin "iszero" #[yBuiltin "iszero" #[yStr "v"]])
+              ] }
         ] },
     -- -----------------------------------------------------------------------
     -- Nat arithmetic (U256-capped scalar domain).
     -- Lean boxed scalars encode n as (n << 1) | 1; unbox is n >> 1.
     -- These are named to match the LCNF-emitted call sites (f_<mangled>).
     -- decEq/decLe/decLt return a Decidable ctor object: isTrue=tag 1, isFalse=tag 0.
+    --
+    -- Checked arithmetic: add/sub/mul revert on U256 overflow/underflow,
+    -- matching the IR EVM path (Backend/Evm/IR.lean checkedArithmeticHelperFunctions)
+    -- and Solidity 0.8 semantics. div/mod already revert on b == 0 below.
     -- -----------------------------------------------------------------------
     sFuncDef "f_Nat_add" #[tn "a", tn "b"] #[tn "r"]
-      { statements := #[sAssignment #["r"] (leanBoxExpr (yBuiltin "add" #[leanUnboxExpr (yStr "a"), leanUnboxExpr (yStr "b")]))] },
+      { statements := #[
+          -- overflow iff a > MAX - b  (i.e. a + b > MAX)
+          sIfStmt (yBuiltin "gt" #[
+              leanUnboxExpr (yStr "a"),
+              yBuiltin "sub" #[yNum maxUint256, leanUnboxExpr (yStr "b")]
+            ])
+            { statements := #[sExprStmt (yBuiltin "revert" #[yNum 0, yNum 0])] },
+          sAssignment #["r"] (leanBoxExpr (yBuiltin "add" #[leanUnboxExpr (yStr "a"), leanUnboxExpr (yStr "b")]))
+        ] },
     sFuncDef "f_Nat_sub" #[tn "a", tn "b"] #[tn "r"]
       { statements := #[
-          sAssignment #["r"] leanBoxZero,  -- default for underflow
-          sIfStmt (yBuiltin "iszero" #[yBuiltin "lt" #[leanUnboxExpr (yStr "a"), leanUnboxExpr (yStr "b")]])
-            { statements := #[
-                sVarDecl #[tn "va"] (some (leanUnboxExpr (yStr "a"))),
-                sVarDecl #[tn "vb"] (some (leanUnboxExpr (yStr "b"))),
-                sAssignment #["r"] (leanBoxExpr (yBuiltin "sub" #[yStr "va", yStr "vb"]))
-              ] }
+          -- Revert on underflow (b > a) instead of silently returning 0.
+          -- Matches the IR EVM path's checked subtraction semantics.
+          sIfStmt (yBuiltin "gt" #[leanUnboxExpr (yStr "b"), leanUnboxExpr (yStr "a")])
+            { statements := #[sExprStmt (yBuiltin "revert" #[yNum 0, yNum 0])] },
+          sAssignment #["r"] (leanBoxExpr (yBuiltin "sub" #[leanUnboxExpr (yStr "a"), leanUnboxExpr (yStr "b")]))
         ] },
     sFuncDef "f_Nat_mul" #[tn "a", tn "b"] #[tn "r"]
-      { statements := #[sAssignment #["r"] (leanBoxExpr (yBuiltin "mul" #[leanUnboxExpr (yStr "a"), leanUnboxExpr (yStr "b")]))] },
+      { statements := #[
+          -- 0 * b = 0 is safe and avoids div-by-zero in the overflow check.
+          sIfStmt (yBuiltin "iszero" #[leanUnboxExpr (yStr "a")])
+            { statements := #[
+                sAssignment #["r"] leanBoxZero,
+                sLeave
+              ] },
+          -- overflow iff a > MAX / b  (i.e. a * b > MAX)
+          sIfStmt (yBuiltin "gt" #[
+              leanUnboxExpr (yStr "a"),
+              yBuiltin "div" #[yNum maxUint256, leanUnboxExpr (yStr "b")]
+            ])
+            { statements := #[sExprStmt (yBuiltin "revert" #[yNum 0, yNum 0])] },
+          sAssignment #["r"] (leanBoxExpr (yBuiltin "mul" #[leanUnboxExpr (yStr "a"), leanUnboxExpr (yStr "b")]))
+        ] },
     sFuncDef "f_Nat_decEq" #[tn "a", tn "b"] #[tn "r"]
       { statements := #[
           sAssignment #["r"] leanBoxZero,  -- default: isFalse (tag 0)
@@ -689,10 +728,109 @@ def mainEntryStmts (localDecls : Array (Decl .impure)) : Array YStmt :=
   | none =>
       #[sExprStmt (yBuiltin "revert" #[yNum 0, yNum 0])]
 
+/-- Collect the `lean_evm_*` extern names referenced by a set of LCNF
+    declarations (via their `.extern` value). These are the SDK-path entry
+    points that EmitYul lowers directly to EVM opcodes. -/
+def collectEvmExternNames (decls : Array (Decl .impure)) : Array String :=
+  decls.foldl (init := #[]) fun names decl =>
+    match decl.value with
+    | .extern attrData =>
+      attrData.entries.foldl (init := names) fun acc entry =>
+        match entry with
+        | .standard _ name =>
+          if name.startsWith "lean_evm_" && !acc.contains name then acc.push name else acc
+        | _ => acc
+    | _ => names
+
+/-- A self-contained EVM capability tag used by the SDK-path gate below.
+    Mirrors `ProofForge.Target.Capability` but is kept local to avoid making
+    `EmitYul.lean` (a `module` file) depend on the non-`module` Target files.
+    The set of capabilities the EVM target advertises is duplicated from
+    `ProofForge.Target.Registry.evm`; if the registry changes, update this. -/
+inductive EvmCapability where
+  | storageScalar | storageMap | storageArray | callerSender | valueNative
+  | eventsEmit | crosscallInvoke | envBlock | controlConditional
+  | controlBoundedLoop | dataFixedArray | dataStruct | cryptoHash
+  | assertions | accountExplicit
+  deriving BEq
+
+def EvmCapability.label : EvmCapability → String
+  | .storageScalar => "storage.scalar"
+  | .storageMap => "storage.map"
+  | .storageArray => "storage.array"
+  | .callerSender => "caller.sender"
+  | .valueNative => "value.native"
+  | .eventsEmit => "events.emit"
+  | .crosscallInvoke => "crosscall.invoke"
+  | .envBlock => "env.block"
+  | .controlConditional => "control.conditional"
+  | .controlBoundedLoop => "control.bounded_loop"
+  | .dataFixedArray => "data.fixed_array"
+  | .dataStruct => "data.struct"
+  | .cryptoHash => "crypto.hash"
+  | .assertions => "assertions.check"
+  | .accountExplicit => "account.explicit"
+
+/-- Capabilities advertised by the EVM target profile
+    (mirrors `ProofForge.Target.Registry.evm.capabilities`). -/
+def evmTargetCapabilities : Array EvmCapability :=
+  #[.storageScalar, .storageMap, .storageArray, .callerSender, .valueNative,
+    .eventsEmit, .crosscallInvoke, .envBlock, .controlConditional,
+    .controlBoundedLoop, .dataFixedArray, .dataStruct, .cryptoHash,
+    .assertions, .accountExplicit]
+
+/-- Map a `lean_evm_*` extern name to the EVM capability it implies.
+    Externs not in this map are either pure EVM plumbing (memory/calldata/gas/
+    arithmetic) that every EVM contract needs, or not yet modelled — neither
+    blocks the gate. -/
+def evmExternCapability? (externName : String) : Option EvmCapability :=
+  match externName with
+  | "lean_evm_sload" | "lean_evm_sstore" => some .storageScalar
+  | "lean_evm_caller" => some .callerSender
+  | "lean_evm_callvalue" => some .valueNative
+  | "lean_evm_origin" => some .callerSender
+  | "lean_evm_number" | "lean_evm_timestamp" | "lean_evm_blockhash"
+  | "lean_evm_coinbase" | "lean_evm_gaslimit" | "lean_evm_basefee"
+  | "lean_evm_chainid" | "lean_evm_selfbalance" | "lean_evm_balance" => some .envBlock
+  | "lean_evm_extcodesize" | "lean_evm_extcodehash" => some .accountExplicit
+  | "lean_evm_log0" | "lean_evm_log1" | "lean_evm_log2" => some .eventsEmit
+  | "lean_evm_call" | "lean_evm_staticcall" | "lean_evm_delegatecall"
+  | "lean_evm_create" | "lean_evm_create2" => some .crosscallInvoke
+  | "lean_evm_selfdestruct" => some .crosscallInvoke
+  | "lean_evm_keccak256" => some .cryptoHash
+  | _ => none
+
+/-- Validate the capabilities used by a set of SDK `lean_evm_*` externs against
+    the EVM target profile. Returns the rendered error on rejection. This
+    closes the LCNF/SDK capability-bypass gap: a contract authored against
+    `Lean.Evm` that reaches for a capability the EVM target does not support
+    now fails here instead of silently emitting unguarded Yul. -/
+def validateEvmExternCapabilities (usedExterns : Array String) : Except String Unit :=
+  let usedCapabilities := usedExterns.foldl (init := #[]) fun caps op =>
+    match evmExternCapability? op with
+    | some c => if caps.contains c then caps else caps.push c
+    | none => caps
+  let unsupported := usedCapabilities.filter (fun c => !evmTargetCapabilities.contains c)
+  match unsupported.toList with
+  | [] => Except.ok ()
+  | c :: _ => Except.error
+      s!"target `evm` does not support capability `{EvmCapability.label c}`: capability is not present in the EVM target profile"
+
 def emitYulForDecls (modName : Lean.Name) (decls : Array Lean.Name) (emitMain : Bool := false) : CoreM String := do
   let (localDecls, otherModuleDecls) ← collectUsedDecls decls
   let indexMap := getImpureDeclIndices (← getEnv) decls
   let localDecls := localDecls.qsort fun l r => indexMap[l.name]! < indexMap[r.name]!
+  -- Capability gate: the SDK path (Lean.Evm externs lowered directly to Yul)
+  -- previously bypassed the ProofForge target/capability system. Collect the
+  -- `lean_evm_*` extern names used and validate them against the EVM target
+  -- profile so that authoring contracts that reach for capabilities the EVM
+  -- target does not advertise fails loudly here, not silently in emitted Yul.
+  let usedEvmExterns := collectEvmExternNames localDecls
+  match validateEvmExternCapabilities usedEvmExterns with
+  | .ok () => pure ()
+  | .error msg =>
+    throwError
+      s!"EmitYul: SDK contract uses capabilities not supported by the EVM target: {msg}\n  used lean_evm_* externs: {usedEvmExterns.toList}"
   let fns ← localDecls.toList.filterMapM fun decl => do
     let (opt, _) ← (emitDecl decl).run { localDecls, otherModuleDecls, modName } |>.run { stmts := #[], fresh := 0 }
     pure opt
@@ -705,6 +843,13 @@ def emitYulContract (modName : Lean.Name) (methods : Array MethodSpec) : CoreM S
   let (localDecls, otherModuleDecls) ← collectUsedDecls (← getLocalImpureDecls)
   let indexMap := getImpureDeclIndices (← getEnv) (← getLocalImpureDecls)
   let localDecls := localDecls.qsort fun l r => indexMap[l.name]! < indexMap[r.name]!
+  -- Capability gate (see `emitYulForDecls` for rationale).
+  let usedEvmExterns := collectEvmExternNames localDecls
+  match validateEvmExternCapabilities usedEvmExterns with
+  | .ok () => pure ()
+  | .error msg =>
+    throwError
+      s!"EmitYul: SDK contract uses capabilities not supported by the EVM target: {msg}\n  used lean_evm_* externs: {usedEvmExterns.toList}"
   let fns ← localDecls.toList.filterMapM fun decl => do
     let (opt, _) ← (emitDecl decl).run { localDecls, otherModuleDecls, modName } |>.run { stmts := #[], fresh := 0 }
     pure opt
