@@ -2383,16 +2383,17 @@ starts as an RFC, not code; sequencing hooks are listed in the gap doc.
     its runtime encoding is `ProgramError::Custom(assertion_id)`.
   - M4: Define target-neutral `ContractSpec` JSON schema and generate
     Solana IDL/client, EVM ABI wrapper, and NEAR wrapper sketches from it.
-    First slice implemented: `ContractSpec` JSON now emits a target-neutral
-    `errors` catalogue derived from portable `ErrorRef` assertions, including
-    `assertionId`, optional `userCode`, fallback `message`, and owning
-    `entrypoints`. `Tests/ContractSpecJson.lean` and `just contract-spec-json`
-    guard the schema. Second slice implemented: generated EVM and NEAR wrapper
-    sketches now embed the same `ERRORS` catalogue and expose assertion-id
-    lookup plus native error parsing helpers (`decodeProofForgeRevert`,
-    `parseProofForgePanic`). Remaining M4 work is to make the Solana IDL/client
-    consume the same portable error schema and deepen the wrappers beyond
-    sketches.
+    ✅ Implemented at the client-schema/sketch boundary: `ContractSpec` JSON now
+    emits a target-neutral `errors` catalogue derived from portable `ErrorRef`
+    assertions, including `assertionId`, optional `userCode`, fallback
+    `message`, and owning `entrypoints`; generated EVM and NEAR wrapper
+    sketches embed the same `ERRORS` catalogue and expose assertion-id lookup
+    plus native error parsing helpers (`decodeProofForgeRevert`,
+    `parseProofForgePanic`); Solana IDL/client output embeds the same error
+    catalogue and exposes assertion-id/custom-error lookup helpers. Guards:
+    `Tests/ContractSpecJson.lean`, `Tests/ContractClient.lean`, and
+    `Tests/SolanaSdkManifest.lean`. Deeper production client ergonomics moves
+    to the SDK ecosystem completeness backlog.
 
 ## Suggested Order
 

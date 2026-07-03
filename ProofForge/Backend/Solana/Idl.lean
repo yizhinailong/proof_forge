@@ -2,6 +2,7 @@ import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Backend.Solana.Extension
 import ProofForge.Backend.Solana.Manifest
+import ProofForge.Contract.Spec.Json
 import ProofForge.IR.Contract
 import ProofForge.Target.Plan
 
@@ -246,6 +247,8 @@ def renderWithInstructions (module : Module) (instructions : Array InstructionEn
     ("allocators", jsonArray (extensions.allocators.map allocatorJson)),
     ("pdas", jsonArray (extensions.pdas.map pdaJson)),
     ("cpis", jsonArray (extensions.cpis.map cpiJson)),
+    ("errors", jsonArray (ProofForge.Contract.Spec.Json.errorCatalog module |>.map
+      ProofForge.Contract.Spec.Json.errorCatalogEntryJson)),
     ("entrypointActions", actionsJson extensions)
   ]
 

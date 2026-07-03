@@ -7867,3 +7867,29 @@ just contract-client
 Result:
 
 - Generated client wrapper checks passed locally.
+
+### Solana Client Error Catalogue
+
+Commit: pending
+
+Summary:
+
+- Added the portable `errors` catalogue to Solana IDL output, reusing the
+  target-neutral ContractSpec error schema.
+- Exported `ERRORS`, `errorByAssertionId`, and `errorBySolanaCustomCode` from
+  the generated Solana TypeScript client.
+- Extended `Tests/SolanaSdkManifest.lean` so package IDL/client output exposes
+  empty error catalogues for contracts without `ErrorRef`, and ErrorRefProbe
+  exposes the two portable assertion errors.
+- Marked Workstream 33 M4 implemented at the client-schema/sketch boundary.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Solana.Idl ProofForge.Backend.Solana.Client
+lake env lean --run Tests/SolanaSdkManifest.lean
+```
+
+Result:
+
+- Solana IDL/client error catalogue checks passed locally.

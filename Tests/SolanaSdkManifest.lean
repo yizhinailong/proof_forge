@@ -1,6 +1,7 @@
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Package
 import ProofForge.Backend.Solana.Idl
+import ProofForge.IR.Examples.ErrorRefProbe
 import ProofForge.Solana.Examples.Vault
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
@@ -56,6 +57,8 @@ def main : IO UInt32 := do
     "IDL missing SPL Token data layout"
   require (contains idl "\"entrypointActions\"")
     "IDL missing entrypoint action metadata"
+  require (contains idl "\"errors\": []")
+    "IDL missing empty portable error catalogue"
   require (contains manifest "name = \"vault_account\"\naccess = \"writable\"\nsigner = \"none\"\nowner = \"program\"")
     "manifest missing declared vault_account constraints"
   require (contains manifest "name = \"spl_token\"\naccess = \"readonly\"\nsigner = \"none\"\nowner = \"executable\"")
@@ -147,8 +150,14 @@ def main : IO UInt32 := do
         "package IDL missing touch instruction"
       require (contains idlFile.contents "\"name\": \"token_transfer\"")
         "package IDL missing token_transfer CPI"
+      require (contains idlFile.contents "\"errors\": []")
+        "package IDL missing empty portable error catalogue"
       require (contains clientFile.contents "export const IDL = ")
         "package client missing embedded IDL"
+      require (contains clientFile.contents "export const ERRORS = IDL.errors")
+        "package client missing embedded error catalogue export"
+      require (contains clientFile.contents "errorBySolanaCustomCode")
+        "package client missing Solana custom error helper"
       require (contains clientFile.contents "encodeInstructionData")
         "package client missing instruction-data encoder"
       require (contains clientFile.contents "accountMetas")
@@ -243,6 +252,32 @@ def main : IO UInt32 := do
         "package assembly missing entrypoint CPI helper call"
   | .error err =>
       throw <| IO.userError s!"Solana SDK package render failed: {err.render}"
+
+  let errorModule := ProofForge.IR.Examples.ErrorRefProbe.module
+  let errorIdl := ProofForge.Backend.Solana.Idl.render errorModule
+  require (contains errorIdl "\"errors\": [")
+    "ErrorRefProbe Solana IDL missing portable errors catalogue"
+  require (contains errorIdl "\"assertionId\": 1")
+    "ErrorRefProbe Solana IDL missing assertion id 1"
+  require (contains errorIdl "\"userCode\": \"Counter::Overflow\"")
+    "ErrorRefProbe Solana IDL missing Counter::Overflow user code"
+  require (contains errorIdl "\"entrypoints\": [\"guarded_increment\"]")
+    "ErrorRefProbe Solana IDL missing guarded_increment error ownership"
+  require (contains errorIdl "\"assertionId\": 2")
+    "ErrorRefProbe Solana IDL missing assertion id 2"
+  require (contains errorIdl "\"userCode\": \"Counter::ExactMatch\"")
+    "ErrorRefProbe Solana IDL missing Counter::ExactMatch user code"
+  let errorClient := ProofForge.Backend.Solana.Client.render errorModule
+  require (contains errorClient "export const ERRORS = IDL.errors")
+    "ErrorRefProbe Solana client missing IDL error export"
+  require (contains errorClient "Counter::Overflow")
+    "ErrorRefProbe Solana client missing embedded Counter::Overflow error"
+  require (contains errorClient "errorByAssertionId")
+    "ErrorRefProbe Solana client missing assertion-id helper"
+  require (contains errorClient "errorBySolanaCustomCode")
+    "ErrorRefProbe Solana client missing custom error helper"
+  require (contains errorClient "0x100000000n")
+    "ErrorRefProbe Solana client missing encoded custom-error normalization"
 
   IO.println "solana-sdk-manifest: ok"
   return 0
