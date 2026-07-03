@@ -505,23 +505,48 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
     .ok (nodes, ctx)
   | .effect (.eventEmitIndexed _ _ _) =>
     .error { message := "Solana indexed event lowering is not supported in Phase 1; use eventEmit scalar fields" }
-  | .assert cond _ _ => do
+  | .assert cond _ errorRef? => do
     let (cn, ctx') ← lowerExpr ctx cond
-    .ok (cn ++ #[
-      .comment "control.assert",
-      .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "assert_fail") }
-    ], ctx')
-  | .assertEq lhs rhs _ _ => do
+    match errorRef? with
+    | none =>
+      .ok (cn ++ #[
+        .comment "control.assert",
+        .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "assert_fail") }
+      ], ctx')
+    | some ref =>
+      let customError := 4294967296 + ref.assertionId.toNat
+      .ok (cn ++ #[
+        .comment s!"control.assert error={ref.assertionId}",
+        .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 1), off := some (.sym s!"assert_ok_{ref.assertionId}") },
+        .instruction { opcode := .mov64, dst := some .r0, imm := some (.num customError) },
+        .instruction { opcode := .exit },
+        .label s!"assert_ok_{ref.assertionId}"
+      ], ctx')
+  | .assertEq lhs rhs _ errorRef? => do
     let (ln, ctx') ← lowerExpr ctx lhs
     let (scratch, ctx') := ctx'.allocScratch
     let (rn, ctx') ← lowerExpr ctx' rhs
-    .ok (ln ++ #[
-      .comment "control.assert_eq",
-      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratch), src := some .r2 }
-    ] ++ rn ++ #[
-      .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num scratch) },
-      .instruction { opcode := .jne, dst := some .r3, src := some .r2, off := some (.sym "assert_eq_fail") }
-    ], ctx')
+    match errorRef? with
+    | none =>
+      .ok (ln ++ #[
+        .comment "control.assert_eq",
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratch), src := some .r2 }
+      ] ++ rn ++ #[
+        .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num scratch) },
+        .instruction { opcode := .jne, dst := some .r3, src := some .r2, off := some (.sym "assert_eq_fail") }
+      ], ctx')
+    | some ref =>
+      let customError := 4294967296 + ref.assertionId.toNat
+      .ok (ln ++ #[
+        .comment s!"control.assert_eq error={ref.assertionId}",
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num scratch), src := some .r2 }
+      ] ++ rn ++ #[
+        .instruction { opcode := .ldxdw, dst := some .r3, src := some .r10, off := some (.num scratch) },
+        .instruction { opcode := .jeq, dst := some .r3, src := some .r2, off := some (.sym s!"assert_eq_ok_{ref.assertionId}") },
+        .instruction { opcode := .mov64, dst := some .r0, imm := some (.num customError) },
+        .instruction { opcode := .exit },
+        .label s!"assert_eq_ok_{ref.assertionId}"
+      ], ctx')
   | .ifElse cond thenBody elseBody => do
     let (cn, ctx) ← lowerExpr ctx cond
     let (elseLabel, ctx) := ctx.freshLabel

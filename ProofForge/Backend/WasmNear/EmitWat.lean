@@ -350,6 +350,7 @@ def hashPtrGlobal     : String := "hash_ptr"
 def sha256Import : Import := hostImport "sha256" #[.i64, .i64, .i64] #[]
 def logUtf8Import : Import := hostImport "log_utf8" #[.i64, .i64] #[]
 def inputImport : Import := hostImport "input" #[.i64] #[]
+def panicImport : Import := hostImport "panic" #[.i64, .i64] #[]
 def predecessorImport : Import := hostImport "predecessor_account_id" #[.i64] #[]
 def currentAcctImport : Import := hostImport "current_account_id" #[.i64] #[]
 def registerLenImport : Import := hostImport "register_len" #[.i64] #[.i64]
@@ -720,6 +721,25 @@ def stringPool (mod : ProofForge.IR.Module) : Array StringInfo :=
       (acc.push { str := s, ptr := offset, len := s.length }, offset + s.length + 1)
   result.fst
 
+def panicMessage (ref : ProofForge.IR.ErrorRef) : String :=
+  let code := ref.userCode?.getD ""
+  s!"PF:{ref.assertionId}:{code}"
+
+/-- Collect assertion error messages into a deduped pool placed after the event/field string pool. -/
+def panicPool (mod : ProofForge.IR.Module) (stringPoolEnd : Nat) : Array StringInfo :=
+  let base := stringPoolEnd
+  let raw : Array String := mod.entrypoints.foldl (init := #[]) fun acc ep =>
+    ep.body.foldl (init := acc) fun acc' s =>
+      match s with
+      | .assert _ _ (some ref) => acc'.push (panicMessage ref)
+      | .assertEq _ _ _ (some ref) => acc'.push (panicMessage ref)
+      | _ => acc'
+  let unique : Array String := raw.foldl (init := #[]) fun acc s => if acc.contains s then acc else acc.push s
+  let result : Array StringInfo × Nat :=
+    unique.foldl (init := (#[], base)) fun (acc, offset) s =>
+      (acc.push { str := s, ptr := offset, len := s.length }, offset + s.length + 1)
+  result.fst
+
 def findString? (pool : Array StringInfo) (s : String) : Option StringInfo :=
   pool.find? (fun si => si.str == s)
 
@@ -728,6 +748,7 @@ structure Ctx where
   scalars : Array StateInfo
   maps    : Array MapInfo
   strings : Array StringInfo
+  panics  : Array StringInfo
   structs : Array ProofForge.IR.StructDecl
   allocator : ProofForge.IR.AllocatorConfig
 
@@ -1417,11 +1438,19 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
               | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
         | _ => err s!"EmitWat: storageArrayStructFieldWrite expects a struct-valued array, got `{m.valueType.name}`"
   | .effect (.eventEmit name fields) => lowerEventEmit ctx env name fields
-  | .assert cond _ _ => do
+  | .assert cond _ errorRef? => do
     let (is, t) ← lowerExpr ctx env cond
     if t != .bool then err "EmitWat: assert condition must be Bool"
-    else .ok (is ++ #[.plain "i32.eqz", .if_ { insns := #[.unreachable] } { insns := #[] }])
-  | .assertEq a b _ _ => do
+    else
+      let failInsns := match errorRef? with
+        | none => #[.unreachable]
+        | some ref =>
+          let msg := panicMessage ref
+          match ctx.panics.find? (fun si => si.str == msg) with
+          | none => #[.unreachable]
+          | some si => #[.i64Const si.len, .i64Const si.ptr, .call "panic"]
+      .ok (is ++ #[.plain "i32.eqz", .if_ { insns := failInsns } { insns := #[] }])
+  | .assertEq a b _ errorRef? => do
     let (la, ta) ← lowerExpr ctx env a
     let (lb, tb) ← lowerExpr ctx env b
     if ta != tb then err "EmitWat: assertEq operands must share a type"
@@ -1430,8 +1459,15 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
         | .hash => #[.call hashEqName]
         | .fixedArray elemType len => #[.call (arrEqName elemType len)]
         | _ => #[.plain (widthOf ta ++ ".eq")]
+      let failInsns := match errorRef? with
+        | none => #[.unreachable]
+        | some ref =>
+          let msg := panicMessage ref
+          match ctx.panics.find? (fun si => si.str == msg) with
+          | none => #[.unreachable]
+          | some si => #[.i64Const si.len, .i64Const si.ptr, .call "panic"]
       .ok (la ++ lb ++ eqInsn ++ #[.plain "i32.eqz",
-                            .if_ { insns := #[.unreachable] } { insns := #[] }])
+                            .if_ { insns := failInsns } { insns := #[] }])
   | .release name => do
     let some vt ← pure (lookupLocal? env name) | err s!"EmitWat: release of unknown local `{name}`"
     match vt with
@@ -1501,7 +1537,9 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
   let scalars := stateLayout mod
   let maps := mapLayout mod
   let strs := stringPool mod
-  let ctx := { scalars := scalars, maps := maps, strings := strs, structs := mod.structs, allocator := mod.allocator : Ctx }
+  let stringPoolEnd := strs.foldl (init := STRING_BASE) fun acc s => max acc (s.ptr + s.len + 1)
+  let panics := panicPool mod stringPoolEnd
+  let ctx := { scalars := scalars, maps := maps, strings := strs, panics := panics, structs := mod.structs, allocator := mod.allocator : Ctx }
   let entryFuncs ← mod.entrypoints.mapM (lowerEntrypoint ctx)
   let scalarData := scalars.map fun s => { offset := s.keyPtr, bytes := s.id : DataSegment }
   let mapData := maps.map fun m => { offset := m.prefixPtr, bytes := m.id ++ ":" : DataSegment }
@@ -1509,7 +1547,9 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
     #[{ offset := TRUE_PTR, bytes := "true" }, { offset := FALSE_PTR, bytes := "false" }]
   let evtKeyData : DataSegment := { offset := EVT_KEY_PTR, bytes := "event" }
   let stringData := strs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
-  let baseImports := nearImports.push sha256Import |>.push logUtf8Import |>.push inputImport
+  let panicData := panics.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
+  let hasPanic := !panics.isEmpty
+  let baseImports := (nearImports.push sha256Import |>.push logUtf8Import |>.push inputImport) ++ (if hasPanic then #[panicImport] else #[])
   let isHost := mod.allocator.requiresHost
   let extraImports := if isHost then #[allocImport, deallocImport] else #[]
   let imports := baseImports ++ ctxImports ++ (if maps.isEmpty then #[] else #[storageHasKeyImport]) ++ extraImports
@@ -1524,7 +1564,7 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
   let globals := #[hashPtrGlobalDecl] ++ evtGlobals ++ arrPtrDecls
   .ok { imports := imports, globals := globals, funcs := funcs,
         memory := some { min := 1 },
-        dataSegments := scalarData ++ mapData ++ boolData ++ #[evtKeyData] ++ stringData }
+        dataSegments := scalarData ++ mapData ++ boolData ++ #[evtKeyData] ++ stringData ++ (if hasPanic then panicData else #[]) }
 
 /-- EmitWat supports the same capability surface as the Rust-v0 `wasmNear` profile:
     scalars, maps, caller, events, block, hash, assertions, account. Anything the

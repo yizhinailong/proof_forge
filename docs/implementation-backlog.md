@@ -2231,7 +2231,7 @@ starts as an RFC, not code; sequencing hooks are listed in the gap doc.
   - M2: Implement per-target error encodings for EVM, Solana, and NEAR:
     EVM reverts with `abi.encode(uint32 assertion_id, string user_code)`;
     Solana returns `ProgramError::Custom(assertion_id)`; NEAR panics with
-    a `PF:{id}:{code}` prefix.
+    a `PF:{id}:{code}` prefix. ✅ Implemented.
   - M3: Extend testkit schema and harnesses with `expect.error` so a
     scenario step can assert the exact `assertion_id`/`user_code` on
     failure.

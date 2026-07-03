@@ -456,6 +456,16 @@ fn define_host_imports(linker: &mut Linker<HostState>) -> Result<()> {
 
     linker.func_wrap(
         "env",
+        "panic",
+        |mut caller: Caller<'_, HostState>, len: i64, ptr: i64| -> Result<()> {
+            let bytes = read_memory(&mut caller, ptr, len)?;
+            let message = String::from_utf8_lossy(&bytes).into_owned();
+            bail!("panic: {message}")
+        },
+    )?;
+
+    linker.func_wrap(
+        "env",
         "storage_read",
         |mut caller: Caller<'_, HostState>,
          key_len: i64,

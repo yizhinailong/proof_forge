@@ -396,6 +396,46 @@ def revertStmt : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.exprStmt
     (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
 
+def nibbleToHex (n : Nat) : Char :=
+  if n < 10 then Char.ofNat ('0'.toNat + n)
+  else Char.ofNat ('a'.toNat + (n - 10))
+
+def byteToHex (b : UInt8) : String :=
+  let n := b.toNat
+  String.ofList [nibbleToHex (n / 16), nibbleToHex (n % 16)]
+
+def stringToHex (s : String) : String :=
+  s.toUTF8.toList.map byteToHex |>.foldl (· ++ ·) ""
+
+def errorRefRevertStmts (ref : ProofForge.IR.ErrorRef) : Array Lean.Compiler.Yul.Statement :=
+  let code := ref.userCode?.getD ""
+  let codeLen := code.length
+  let paddedLen := ((codeLen + 31) / 32) * 32
+  let totalSize := 96 + paddedLen
+  let headerStmts : Array Lean.Compiler.Yul.Statement := #[
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num ref.assertionId.toNat]),
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.num 64]),
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 64, Lean.Compiler.Yul.Expr.num codeLen])
+  ]
+  let chunks := if codeLen > 0 then hexChunks64 (stringToHex code) else #[]
+  let dataStmts := chunks.foldl (init := #[]) fun acc chunk =>
+    let idx := acc.size
+    acc.push <| .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[
+      Lean.Compiler.Yul.Expr.num (96 + idx * 32),
+      Lean.Compiler.Yul.Expr.lit (Lean.Compiler.Yul.Literal.hex ("0x" ++ rightPadHex64 chunk))
+    ])
+  headerStmts ++ dataStmts ++ #[
+    .exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num totalSize])
+  ]
+
+def lowerAssertStmt (condition : Lean.Compiler.Yul.Expr) (errorRef? : Option ProofForge.IR.ErrorRef) : Lean.Compiler.Yul.Statement :=
+  let revertStatements := match errorRef? with
+    | none => #[revertStmt]
+    | some ref => errorRefRevertStmts ref
+  Lean.Compiler.Yul.Statement.ifStmt
+    (Lean.Compiler.Yul.builtin "iszero" #[condition])
+    { statements := revertStatements }
+
 def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num (4 + paramIndex * 32)]
 
@@ -677,11 +717,6 @@ def abiParamValidationStmts (module : Module) (entrypoint : Entrypoint) : Except
             { statements := #[revertStmt] }
       | _ => statements
   .ok statements
-
-def lowerAssertStmt (condition : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Statement :=
-  Lean.Compiler.Yul.Statement.ifStmt
-    (Lean.Compiler.Yul.builtin "iszero" #[condition])
-    { statements := #[revertStmt] }
 
 def contextExpr : ContextField → Lean.Compiler.Yul.Expr
   | .userId => Lean.Compiler.Yul.builtin "caller" #[]
@@ -4168,11 +4203,11 @@ mutual
         .ok (← lowerAssignOpStmt module env target op value, env)
     | .effect effect => do
         .ok (#[← lowerEffectStmt module env effect], env)
-    | .assert condition _ _ => do
-        .ok (#[lowerAssertStmt (← lowerExpr module env condition)], env)
-    | .assertEq lhs rhs _ _ => do
+    | .assert condition _ errorRef? => do
+        .ok (#[lowerAssertStmt (← lowerExpr module env condition) errorRef?], env)
+    | .assertEq lhs rhs _ errorRef? => do
         let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]
-        .ok (#[lowerAssertStmt condition], env)
+        .ok (#[lowerAssertStmt condition errorRef?], env)
     | .release _ =>
         .error { message := "release statements are not supported by IR EVM v0" }
     | .ifElse condition thenBody elseBody => do
