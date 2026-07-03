@@ -38,6 +38,10 @@ evm-semantic-plan:
     lake build ProofForge.Backend.Evm.IR
     lake env lean --run Tests/EvmSemanticPlan.lean
 
+# Check that executable scripts/testkit callers use target-first CLI commands.
+cli-target-first:
+    python3 scripts/cli/check-target-first-migration.py
+
 # Run Solana target, SDK, and diagnostics tests that need only the Lean toolchain.
 solana-lean:
     lake build
@@ -234,7 +238,7 @@ testkit-list:
     cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry evm-plan evm-semantic-plan solana-light near-target-first docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
+check: build target-registry evm-plan evm-semantic-plan solana-light cli-target-first near-target-first docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:

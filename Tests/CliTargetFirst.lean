@@ -46,6 +46,9 @@ def main : IO UInt32 := do
   requireLegacy
     ["emit", "--target", "solana-sbpf-asm", "--fixture", "value-vault", "--format", "elf"]
     ["--value-vault-solana-elf"]
+  requireLegacy
+    ["emit", "--target", "wasm-cloudflare-workers", "--fixture", "counter", "--format", "ts"]
+    ["--emit-counter-ir-ts"]
 
   IO.println "cli-target-first: ok"
   return 0

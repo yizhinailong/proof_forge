@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-04
 
+### CLI M3 Target-First Regression Guard
+
+Commit: this commit
+
+Summary:
+
+- Added a `cli-target-first` check that scans executable caller surfaces
+  (`justfile`, `scripts/`, `testkit/`, and `Tests/`) and rejects direct
+  `proof-forge --legacy-flag` invocations. The check intentionally excludes
+  docs and generated build artifacts so it enforces runtime callers without
+  blocking historical notes.
+- Migrated the TypeScript / Cloudflare Workers Counter smoke from
+  `--emit-counter-ir-ts` to
+  `emit --target wasm-cloudflare-workers --fixture counter --format ts`.
+- Added the target-first Cloudflare Counter mapping to the CLI compatibility
+  layer and covered it in `Tests/CliTargetFirst.lean`.
+
+Validation run:
+
+```sh
+just cli-target-first
+lake build ProofForge.Cli
+lake env lean Tests/CliTargetFirst.lean
+scripts/ts/counter-ir-smoke.sh
+```
+
+Known limitations:
+
+- This guard proves executable caller migration discipline; it does not delete
+  the legacy parser or rewrite historical documentation examples.
+
+Next step:
+
+- Continue the M3 pass by migrating remaining examples/docs and only then
+  prepare the M4 legacy flag removal plan.
+
 ### CLI M3 Target-First Solana Slice
 
 Commit: this commit

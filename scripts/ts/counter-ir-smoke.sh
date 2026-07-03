@@ -12,7 +12,7 @@ TSC_BIN="${TSC:-tsc}"
 mkdir -p "$OUT_DIR"
 
 lake build proof-forge >/dev/null
-"$ROOT/.lake/build/bin/proof-forge" --emit-counter-ir-ts -o "$TS_FILE"
+"$ROOT/.lake/build/bin/proof-forge" emit --target wasm-cloudflare-workers --fixture counter --format ts -o "$TS_FILE"
 
 # Minimal Cloudflare Workers type stubs so the generated module type-checks
 # without requiring @cloudflare/workers-types to be installed globally.

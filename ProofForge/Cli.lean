@@ -2579,6 +2579,7 @@ def emitLegacyFlag (target fixture : String) (format? : Option String) : Except 
       else
         Except.error s!"emit --target wasm-near --fixture {f} is not yet mapped"
   | "wasm-cosmwasm", "counter", _ => Except.ok "--emit-counter-ir-cosmwasm"
+  | "wasm-cloudflare-workers", "counter", _ => Except.ok "--emit-counter-ir-ts"
   | "psy-dpn", f, _ =>
       if ProofForge.Cli.Fixture.supportsFormat "psy-dpn" f .psy then
         Except.ok s!"--emit-{f}-ir-psy"
