@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Solana Pinocchio Reference Equivalence In CI Light Gate
+
+Commit: feature commit for Solana Pinocchio reference equivalence
+
+Summary:
+
+- Added source-only target-first emission for the Solana ContractSpec CPI
+  fixtures (`system-cpi`, `system-create-account-cpi`, SPL Token transfer,
+  ops, and authority) so reference-equivalence checks can validate artifact
+  ABI/CPI metadata without requiring `sbpf`.
+- Added `just solana-pinocchio-reference-equivalence` and included it in
+  `just solana-light`, which is the default CI Solana gate.
+- Added a CLI mapping regression test for the new target-first `--format s`
+  routes and the existing `--format elf` routes.
+- Updated Pinocchio reference manifests with source fixture ids while keeping
+  ELF fixture ids for live dual-deploy gates.
+
+Validation run:
+
+```sh
+lake build proof-forge
+lake env lean Tests/CliTargetFirst.lean
+just solana-pinocchio-reference-equivalence
+```
+
+Known limitations:
+
+- This closes the CI-safe source/reference half of the Pinocchio track only.
+  Live dual-deploy equivalence still depends on Surfpool, Solana CLI, `sbpf`,
+  and stable `cargo-build-sbf`/Solana rustc platform tools.
+
+Next step:
+
+- Continue Workstream 7 by hardening the live Pinocchio dual-deploy harnesses
+  for reproducible local/CI toolchain installation.
+
 ### ValueVault Solana Budget Baselines
 
 Commit: feature commit for ValueVault Solana budget baselines

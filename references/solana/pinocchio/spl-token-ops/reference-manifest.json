@@ -4,6 +4,7 @@
   "program": "spl-token-ops",
   "source": "src/lib.rs",
   "proofForgeFixture": "solana-spl-token-ops-cpi-elf",
+  "proofForgeSourceFixture": "solana-spl-token-ops-cpi-sbpf",
   "entrypoints": [
     {
       "name": "mint",

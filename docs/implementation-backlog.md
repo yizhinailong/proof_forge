@@ -2192,8 +2192,10 @@ advancement. Per-criterion status lives in [gate-status.md](gate-status.md).
   EntrypointPlan, EventPlan, CrosscallPlan, MetadataPlan — then retire the old
   `IR.lean -> Yul` lowering. Non-blocking for Gate G0 budgets but on the EVM
   hardening track.
-- Solana Pinocchio CI equivalence (Workstream 7): make the live-equivalence
-  harnesses pass in CI by installing Solana rustc/platform-tools reliably.
+- Solana Pinocchio CI equivalence (Workstream 7): the source/reference
+  equivalence suite is included in `just solana-light`; remaining work is to
+  make the live-equivalence harnesses pass in CI by installing Solana rustc/
+  platform-tools reliably.
 - Freeze the landed Aptos/CosmWasm spikes at their current M1/M2 state: no
   Tier-1 M3/M4, no registry stage, no Tier-2 start, until Gate P0 closes.
 

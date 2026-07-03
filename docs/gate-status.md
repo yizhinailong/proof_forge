@@ -49,7 +49,7 @@ for the current commit's remote CI/sign-off evidence)
 2. (Carry-over, non-blocking for the gate but on the Tier-0 hardening track)
    EVM semantic-plan migration (Workstream 3: ExprPlan/StmtPlan/
    EntrypointPlan/EventPlan/CrosscallPlan/MetadataPlan) and Solana Pinocchio
-   CI equivalence (Workstream 7).
+   live-equivalence CI hardening (Workstream 7).
 
 ### Sign-off
 
@@ -71,7 +71,7 @@ frozen spike maintenance (D-045).
 
 | # | Criterion | Status | Evidence |
 |---|---|---|---|
-| P0-1 | Solana direct sBPF backend is production-grade | 🟡 in progress | Gate G0 behavior/budget parity is met; remaining hardening includes Solana Pinocchio CI equivalence and live/reference coverage in Workstream 7 |
+| P0-1 | Solana direct sBPF backend is production-grade | 🟡 in progress | Gate G0 behavior/budget parity is met; Pinocchio reference-equivalence is now included in `just solana-light`; remaining hardening is live dual-deploy CI/toolchain stability and broader reference coverage in Workstream 7 |
 | P0-2 | Ethereum/EVM backend is production-grade | 🟡 in progress | Foundry and Anvil CI are green; remaining hardening includes the EVM semantic-plan migration in Workstream 3 |
 | P0-3 | NEAR/Wasm backend is production-grade | 🟡 in progress | EmitWat/NEAR diagnostics, IR coverage, offline host smoke, and budget baselines are green; remaining hardening is full target-first local execution/deploy metadata sign-off |
 | P0-4 | Additional-chain advancement is frozen | ✅ met | D-044/D-045 freeze Aptos/CosmWasm advancement past M1/M2 and keep other targets docs-first until P0 closes |

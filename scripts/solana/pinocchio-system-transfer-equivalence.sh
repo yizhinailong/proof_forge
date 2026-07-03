@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ProofForge Solana System transfer Pinocchio reference-equivalence smoke.
 #
-# Emits the ProofForge System CPI fixture and compares its artifact ABI/CPI
-# contract against the checked-in Pinocchio reference manifest and source
-# constants. Optional Cargo checking is gated by
+# Emits the ProofForge System CPI source fixture and compares its artifact
+# ABI/CPI contract against the checked-in Pinocchio reference manifest and
+# source constants. Optional Cargo checking is gated by
 # PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1 to keep the default gate offline.
 set -euo pipefail
 
@@ -15,26 +15,24 @@ REFERENCE_DIR="$REPO_ROOT/references/solana/pinocchio/system-transfer"
 REFERENCE_MANIFEST="$REFERENCE_DIR/reference-manifest.json"
 REFERENCE_SOURCE="$REFERENCE_DIR/src/lib.rs"
 ARTIFACT_OUTPUT="$OUT_DIR/proof-forge-artifact.json"
-ELF_OUTPUT="$OUT_DIR/proofforge-system-cpi-reference.so"
-SBPF_ARCH="${PROOF_FORGE_SOLANA_SYSTEM_CPI_SBPF_ARCH:-v0}"
+ASM_OUTPUT="$OUT_DIR/proofforge-system-cpi-reference.s"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 skip() { echo "SKIP: $1" >&2; exit 2; }
 
 command -v lake >/dev/null 2>&1 || fail "lake not on PATH"
 command -v python3 >/dev/null 2>&1 || fail "python3 not on PATH"
-command -v sbpf >/dev/null 2>&1 || skip "sbpf not on PATH"
 [ -f "$REFERENCE_MANIFEST" ] || fail "reference manifest missing: $REFERENCE_MANIFEST"
 [ -f "$REFERENCE_SOURCE" ] || fail "reference source missing: $REFERENCE_SOURCE"
 
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
-echo "=== Pinocchio System transfer equivalence step 1: emit ProofForge fixture ==="
-lake env proof-forge emit --target solana-sbpf-asm --fixture system-cpi --format elf --solana-sbpf-arch "$SBPF_ARCH" \
-  -o "$ELF_OUTPUT" \
+echo "=== Pinocchio System transfer equivalence step 1: emit ProofForge source fixture ==="
+lake env proof-forge emit --target solana-sbpf-asm --fixture system-cpi --format s \
+  -o "$ASM_OUTPUT" \
   --artifact-output "$ARTIFACT_OUTPUT" \
-  || fail "proof-forge emit --target solana-sbpf-asm --fixture system-cpi --format elf failed"
+  || fail "proof-forge emit --target solana-sbpf-asm --fixture system-cpi --format s failed"
 [ -f "$ARTIFACT_OUTPUT" ] || fail "artifact not produced: $ARTIFACT_OUTPUT"
 
 echo "=== Pinocchio System transfer equivalence step 2: compare contracts ==="
@@ -51,12 +49,13 @@ source_path = pathlib.Path(sys.argv[3])
 artifact = json.loads(artifact_path.read_text())
 reference = json.loads(reference_path.read_text())
 source = source_path.read_text()
+expected_fixture = reference.get("proofForgeSourceFixture", reference["proofForgeFixture"])
 
 def require(condition, message):
     if not condition:
         raise SystemExit(message)
 
-require(artifact.get("fixture") == reference["proofForgeFixture"],
+require(artifact.get("fixture") == expected_fixture,
         f"fixture mismatch: {artifact.get('fixture')}")
 
 instructions = artifact.get("solanaInstructions", [])

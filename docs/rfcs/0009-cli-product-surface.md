@@ -188,6 +188,11 @@ rewrites to the new command surface. Examples:
 | `--emit-counter-ir-psy` | `emit --target psy-dpn --fixture counter --format psy` |
 | `--emit-counter-ir-sbpf` | `emit --target solana-sbpf-asm --fixture counter --format s` |
 | `--emit-counter-ir-wasm-near` | `emit --target wasm-near --fixture counter --format wat` |
+| `--emit-solana-system-cpi-sbpf` | `emit --target solana-sbpf-asm --fixture system-cpi --format s` |
+| `--emit-solana-system-create-account-cpi-sbpf` | `emit --target solana-sbpf-asm --fixture system-create-account-cpi --format s` |
+| `--emit-solana-spl-token-transfer-cpi-sbpf` | `emit --target solana-sbpf-asm --fixture spl-token-transfer-cpi --format s` |
+| `--emit-solana-spl-token-ops-cpi-sbpf` | `emit --target solana-sbpf-asm --fixture spl-token-ops-cpi --format s` |
+| `--emit-solana-spl-token-authority-cpi-sbpf` | `emit --target solana-sbpf-asm --fixture spl-token-authority-cpi --format s` |
 | `--learn --target evm` | `build --target evm` on a `.learn` input |
 | `--learn-yul` | `build --target evm --format yul` on a `.learn` input |
 | `--learn-sbpf` | `build --target solana-sbpf-asm` on a `.learn` input |

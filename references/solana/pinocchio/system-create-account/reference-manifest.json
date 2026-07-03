@@ -4,6 +4,7 @@
   "program": "system-create-account",
   "source": "src/lib.rs",
   "proofForgeFixture": "solana-system-create-account-cpi-elf",
+  "proofForgeSourceFixture": "solana-system-create-account-cpi-sbpf",
   "entrypoint": {
     "name": "create",
     "tag": 0,

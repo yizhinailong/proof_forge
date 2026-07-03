@@ -4,6 +4,7 @@
   "program": "system-transfer",
   "source": "src/lib.rs",
   "proofForgeFixture": "solana-system-cpi-elf",
+  "proofForgeSourceFixture": "solana-system-cpi-sbpf",
   "entrypoint": {
     "name": "transfer",
     "tag": 0,

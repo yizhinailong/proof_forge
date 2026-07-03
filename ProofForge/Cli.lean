@@ -194,6 +194,11 @@ inductive EmitMode where
   | valueVaultIrSbpf
   | controlIrSbpf
   | solanaSdkSbpf
+  | solanaSystemCpiSbpf
+  | solanaSystemCreateAccountCpiSbpf
+  | solanaSplTokenTransferCpiSbpf
+  | solanaSplTokenOpsCpiSbpf
+  | solanaSplTokenAuthorityCpiSbpf
   | solanaElf
   | valueVaultSolanaElf
   | solanaSystemCpiElf
@@ -332,6 +337,11 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .valueVaultIrSbpf
   | .controlIrSbpf
   | .solanaSdkSbpf
+  | .solanaSystemCpiSbpf
+  | .solanaSystemCreateAccountCpiSbpf
+  | .solanaSplTokenTransferCpiSbpf
+  | .solanaSplTokenOpsCpiSbpf
+  | .solanaSplTokenAuthorityCpiSbpf
   | .solanaElf
   | .valueVaultSolanaElf
   | .solanaSystemCpiElf
@@ -509,6 +519,11 @@ def usage : String :=
     "  proof-forge --emit-value-vault-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-control-ir-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-sdk-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-solana-system-cpi-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-solana-system-create-account-cpi-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-solana-spl-token-transfer-cpi-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-solana-spl-token-ops-cpi-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-solana-spl-token-authority-cpi-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --value-vault-solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-system-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
@@ -2285,6 +2300,16 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .controlIrSbpf }
   | "--emit-solana-sdk-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSdkSbpf }
+  | "--emit-solana-system-cpi-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSystemCpiSbpf }
+  | "--emit-solana-system-create-account-cpi-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSystemCreateAccountCpiSbpf }
+  | "--emit-solana-spl-token-transfer-cpi-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSplTokenTransferCpiSbpf }
+  | "--emit-solana-spl-token-ops-cpi-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSplTokenOpsCpiSbpf }
+  | "--emit-solana-spl-token-authority-cpi-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSplTokenAuthorityCpiSbpf }
   | "--solana-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaElf }
   | "--value-vault-solana-elf" :: rest, opts =>
@@ -2500,7 +2525,7 @@ def emitLegacyFlag (target fixture : String) (format? : Option String) : Except 
   | "evm", f, "yul" => Except.ok s!"--emit-{f}-ir-yul"
   | "evm", f, "bytecode" => Except.ok s!"--emit-{f}-ir-bytecode"
   | "solana-sbpf-asm", "counter", fmt =>
-      if fmt == some "elf" || fmt == some "so" then
+      if fmt == "elf" || fmt == "so" then
         Except.ok "--solana-elf"
       else
         Except.ok "--emit-counter-ir-sbpf"
@@ -2511,22 +2536,22 @@ def emitLegacyFlag (target fixture : String) (format? : Option String) : Except 
   | "solana-sbpf-asm", "canned-entrypoint", _ => Except.ok "--emit-sbpf-asm"
   | "solana-sbpf-asm", f, fmt =>
       if f.startsWith "solana-" then
-        if fmt == some "s" then
+        if fmt == "s" then
           Except.error s!"emit --target solana-sbpf-asm --fixture {f} --format s is not yet mapped to a legacy flag; use --format elf"
         else
           Except.ok s!"--solana-{f.drop 7}-elf"
       else if f.startsWith "spl-token-" then
-        if fmt == some "s" then
-          Except.error s!"emit --target solana-sbpf-asm --fixture {f} --format s is not yet mapped to a legacy flag; use --format elf"
+        if fmt == "s" || fmt == "" then
+          Except.ok s!"--emit-solana-spl-token-{f.drop 10}-sbpf"
         else
           Except.ok s!"--solana-spl-token-{f.drop 10}-elf"
       else if f.startsWith "system-" then
-        if fmt == some "s" then
-          Except.error s!"emit --target solana-sbpf-asm --fixture {f} --format s is not yet mapped to a legacy flag; use --format elf"
+        if fmt == "s" || fmt == "" then
+          Except.ok s!"--emit-solana-system-{f.drop 7}-sbpf"
         else
           Except.ok s!"--solana-system-{f.drop 7}-elf"
       else if f == "log-event" then
-        if fmt == some "s" then
+        if fmt == "s" then
           Except.error s!"emit --target solana-sbpf-asm --fixture {f} --format s is not yet mapped to a legacy flag; use --format elf"
         else
           Except.ok "--solana-log-event-elf"
@@ -4590,6 +4615,101 @@ def compileSolanaSpecElf (opts : CliOptions) (defaultOutput : FilePath)
   | .error err =>
       throw <| IO.userError err.render
 
+def compileSolanaSpecSbpf (opts : CliOptions) (defaultOutput : FilePath)
+    (fixture : String) (spec : ProofForge.Contract.ContractSpec) : IO UInt32 := do
+  let output := opts.output?.getD defaultOutput
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.render
+  match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan spec.module plan with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
+      IO.println s!"wrote {manifestOutput}"
+      let idlOutput ← writeSbpfIdlWithPlan output spec.module plan
+      IO.println s!"wrote {idlOutput}"
+      let clientOutput ← writeSbpfClientWithPlan output spec.module plan
+      IO.println s!"wrote {clientOutput}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let idlArtifact ← artifactEntryJson idlOutput
+      let clientArtifact ← artifactEntryJson clientOutput
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString fixture),
+        ("sourceKind", jsonString "contract-sdk"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString spec.name),
+        ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+        ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaInstructions", solanaInstructionsJson spec.module plan),
+        ("solanaExtensions", solanaExtensionsJson plan),
+        ("solanaIdl", ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact),
+          ("solanaIdl", idlArtifact),
+          ("solanaClientTs", clientArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("targetRouting", jsonString "passed"),
+          ("manifestGeneration", jsonString "passed"),
+          ("sbpfBuild", jsonString "pending"),
+          ("liveCpi", jsonString "pending")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def compileSolanaSystemCpiSbpf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecSbpf opts
+    (FilePath.mk "build/solana/SystemCpi.s")
+    "solana-system-cpi-sbpf"
+    ProofForge.Solana.Examples.SystemCpi.spec
+
+def compileSolanaSystemCreateAccountCpiSbpf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecSbpf opts
+    (FilePath.mk "build/solana/SystemCreateAccountCpi.s")
+    "solana-system-create-account-cpi-sbpf"
+    ProofForge.Solana.Examples.SystemCreateAccountCpi.spec
+
+def compileSolanaSplTokenTransferCpiSbpf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecSbpf opts
+    (FilePath.mk "build/solana/SplTokenTransferCheckedCpi.s")
+    "solana-spl-token-transfer-cpi-sbpf"
+    ProofForge.Solana.Examples.SplTokenTransferCheckedCpi.spec
+
+def compileSolanaSplTokenOpsCpiSbpf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecSbpf opts
+    (FilePath.mk "build/solana/SplTokenOpsCpi.s")
+    "solana-spl-token-ops-cpi-sbpf"
+    ProofForge.Solana.Examples.SplTokenOpsCpi.spec
+
+def compileSolanaSplTokenAuthorityCpiSbpf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecSbpf opts
+    (FilePath.mk "build/solana/SplTokenAuthorityCpi.s")
+    "solana-spl-token-authority-cpi-sbpf"
+    ProofForge.Solana.Examples.SplTokenAuthorityCpi.spec
+
 def compileValueVaultSolanaElf (opts : CliOptions) : IO UInt32 :=
   compileSolanaSpecElf opts
     (FilePath.mk "build/solana/ValueVault.so")
@@ -4891,6 +5011,11 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .valueVaultIrSbpf => compileValueVaultIrSbpf opts
   | .controlIrSbpf => compileControlIrSbpf opts
   | .solanaSdkSbpf => compileSolanaSdkSbpf opts
+  | .solanaSystemCpiSbpf => compileSolanaSystemCpiSbpf opts
+  | .solanaSystemCreateAccountCpiSbpf => compileSolanaSystemCreateAccountCpiSbpf opts
+  | .solanaSplTokenTransferCpiSbpf => compileSolanaSplTokenTransferCpiSbpf opts
+  | .solanaSplTokenOpsCpiSbpf => compileSolanaSplTokenOpsCpiSbpf opts
+  | .solanaSplTokenAuthorityCpiSbpf => compileSolanaSplTokenAuthorityCpiSbpf opts
   | .solanaElf => compileSolanaElf opts
   | .valueVaultSolanaElf => compileValueVaultSolanaElf opts
   | .solanaSystemCpiElf => compileSolanaSystemCpiElf opts

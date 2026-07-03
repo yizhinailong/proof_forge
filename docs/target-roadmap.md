@@ -63,7 +63,7 @@ tracked in [gate-status.md](gate-status.md).
 | NEAR gas budget implementation | wasm-near | ✅ met | testkit scenarios |
 | ValueVault budget baselines (3 targets) | all | ✅ met | testkit scenarios |
 | EVM semantic-plan migration | evm | 🟡 in progress | Workstream 3 |
-| Solana Pinocchio CI equivalence | solana | 🟡 in progress | Workstream 7 |
+| Solana Pinocchio CI equivalence | solana | 🟡 reference suite in `solana-light`; live dual-deploy pending | Workstream 7 |
 
 The roadmap text above describes NEAR gas as an "info-only proxy"; D-040 makes
 all three budgets a required part of the gate, so NEAR gas must move from

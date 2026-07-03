@@ -50,6 +50,7 @@ solana-lean:
     lake env lean --run Tests/SolanaPdaSeeds.lean
     lake env lean --run Tests/LearnSource.lean
     lake env lean --run Tests/LearnDiagnostics.lean
+    lake env lean Tests/CliTargetFirst.lean
     lake env lean --run Tests/TargetRouting.lean
     lake env lean --run Tests/ValueVaultExample.lean
     lake env lean --run Tests/TokenSpec.lean
@@ -119,6 +120,10 @@ solana-pinocchio-spl-token-ops-equivalence:
 # Compare the generated SPL Token set_authority CPI artifact with the Pinocchio reference contract.
 solana-pinocchio-spl-token-authority-equivalence:
     scripts/solana/pinocchio-spl-token-authority-equivalence.sh
+
+# Run all CI-safe Solana Pinocchio reference-equivalence gates.
+solana-pinocchio-reference-equivalence:
+    scripts/solana/pinocchio-reference-equivalence.sh
 
 # Build/deploy ProofForge and Pinocchio System transfer programs and compare behavior on Surfpool.
 solana-pinocchio-system-transfer-live-equivalence:
@@ -201,7 +206,7 @@ solana-emit-asm:
     scripts/solana/emit-asm-smoke.sh
 
 # Run all Solana gates that are safe for default CI.
-solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm
+solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-pinocchio-reference-equivalence
 
 # Check translated documentation freshness.
 docs-check:

@@ -43,7 +43,8 @@ D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、
    Gate G0 closed。
 2. （Gate 的非阻塞 carry-over，但属于 Tier-0 hardening track）EVM semantic-plan
    migration（Workstream 3：ExprPlan/StmtPlan/EntrypointPlan/EventPlan/
-   CrosscallPlan/MetadataPlan）和 Solana Pinocchio CI equivalence（Workstream 7）。
+   CrosscallPlan/MetadataPlan）和 Solana Pinocchio live-equivalence CI
+   hardening（Workstream 7）。
 
 ### Sign-off
 
@@ -64,7 +65,7 @@ D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、
 
 | # | 标准 | 状态 | 证据 |
 |---|---|---|---|
-| P0-1 | Solana 直接 sBPF 后端达到生产级 | 🟡 in progress | Gate G0 行为/预算一致性已满足；剩余硬化包括工作流 7 的 Solana Pinocchio CI equivalence 以及 live/reference 覆盖 |
+| P0-1 | Solana 直接 sBPF 后端达到生产级 | 🟡 in progress | Gate G0 行为/预算一致性已满足；Pinocchio reference-equivalence 已纳入 `just solana-light`；剩余硬化是工作流 7 的 live dual-deploy CI/toolchain 稳定化以及更广 reference 覆盖 |
 | P0-2 | Ethereum/EVM 后端达到生产级 | 🟡 in progress | Foundry 和 Anvil CI 已绿；剩余硬化包括工作流 3 的 EVM semantic-plan migration |
 | P0-3 | NEAR/Wasm 后端达到生产级 | 🟡 in progress | EmitWat/NEAR 诊断、IR 覆盖、offline host smoke 和预算基线已绿；剩余硬化是完整 target-first 本地执行/部署元数据签署 |
 | P0-4 | 额外链推进保持冻结 | ✅ met | D-044/D-045 冻结 Aptos/CosmWasm 超过 M1/M2 的推进，并在 P0 关闭前保持其他目标 docs-first |

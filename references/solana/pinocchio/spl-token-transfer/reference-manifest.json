@@ -4,6 +4,7 @@
   "program": "spl-token-transfer",
   "source": "src/lib.rs",
   "proofForgeFixture": "solana-spl-token-transfer-cpi-elf",
+  "proofForgeSourceFixture": "solana-spl-token-transfer-cpi-sbpf",
   "entrypoint": {
     "name": "transfer",
     "tag": 0,

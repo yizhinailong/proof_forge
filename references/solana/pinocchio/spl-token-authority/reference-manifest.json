@@ -2,6 +2,7 @@
   "schema": "proof-forge.solana.reference-equivalence.v0",
   "name": "pinocchio-spl-token-authority-reference",
   "proofForgeFixture": "solana-spl-token-authority-cpi-elf",
+  "proofForgeSourceFixture": "solana-spl-token-authority-cpi-sbpf",
   "entrypoints": [
     {
       "name": "set_authority",
