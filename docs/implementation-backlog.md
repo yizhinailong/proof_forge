@@ -2046,7 +2046,11 @@ Tasks (one milestone per implementing branch):
   scenario steps; retire duplicated shell scripts; collapse the per-fixture
   CI steps into the testkit run. Live/chain-authentic gates (Foundry, Anvil
   deploy, Surfpool, near-sandbox, dargo, leo) remain separate scheduled or
-  labeled jobs.
+  labeled jobs. Status: the first M4 slice is in place through
+  scenario-declared `[[artifact]]` expectations. Counter's Solana golden
+  assembly/manifest checks and ValueVault's WAT/Yul/sBPF/manifest/metadata
+  source-shape checks now live in scenario TOML instead of hardcoded
+  fixture-specific harness branches.
 
 Acceptance criteria:
 

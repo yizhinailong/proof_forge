@@ -7,7 +7,10 @@ use std::process::{Command, Output, Stdio};
 
 use anyhow::{bail, ensure, Context, Result};
 use mollusk_svm::Mollusk;
-use proof_forge_testkit_core::{CallOutcome, ChainHarness, HarnessRun, ScenarioCase};
+use proof_forge_testkit_core::{
+    assert_artifact_expectations, ArtifactOutput, CallOutcome, ChainHarness, HarnessRun,
+    ScenarioCase,
+};
 use serde::Deserialize;
 use solana_account::Account;
 use solana_address::Address;
@@ -69,7 +72,7 @@ fn run_counter_scenario(
     keygen: &str,
 ) -> Result<HarnessRun> {
     let artifact = build_counter_fixture(repo_root, sbpf, keygen)?;
-    run_state_account_scenario(case, artifact, COUNTER_DATA_LEN)
+    run_state_account_scenario(case, repo_root, artifact, COUNTER_DATA_LEN)
 }
 
 fn run_value_vault_scenario(
@@ -79,14 +82,43 @@ fn run_value_vault_scenario(
     keygen: &str,
 ) -> Result<HarnessRun> {
     let artifact = build_value_vault_fixture(repo_root, sbpf, keygen)?;
-    run_state_account_scenario(case, artifact, VALUE_VAULT_DATA_LEN)
+    run_state_account_scenario(case, repo_root, artifact, VALUE_VAULT_DATA_LEN)
 }
 
 fn run_state_account_scenario(
     case: &ScenarioCase,
+    repo_root: &Path,
     artifact: SolanaFixtureArtifact,
     account_data_len: usize,
 ) -> Result<HarnessRun> {
+    let mut outputs = vec![
+        ArtifactOutput {
+            name: "sbpf-asm",
+            path: &artifact.asm_path,
+        },
+        ArtifactOutput {
+            name: "manifest",
+            path: &artifact.manifest_path,
+        },
+        ArtifactOutput {
+            name: "metadata",
+            path: &artifact.metadata_path,
+        },
+    ];
+    if let Some(idl_path) = &artifact.idl_path {
+        outputs.push(ArtifactOutput {
+            name: "idl",
+            path: idl_path,
+        });
+    }
+    if let Some(client_path) = &artifact.client_path {
+        outputs.push(ArtifactOutput {
+            name: "client",
+            path: client_path,
+        });
+    }
+    assert_artifact_expectations(case, "solana-sbpf-asm", repo_root, &outputs)?;
+
     let tags = load_instruction_tags(&artifact.manifest_path)?;
     let pid = program_id(&artifact.keypair_path)?;
     let mollusk = mollusk(pid, &artifact.program_path)?;
@@ -136,7 +168,11 @@ fn run_state_account_scenario(
 }
 
 struct SolanaFixtureArtifact {
+    asm_path: PathBuf,
     manifest_path: PathBuf,
+    metadata_path: PathBuf,
+    idl_path: Option<PathBuf>,
+    client_path: Option<PathBuf>,
     keypair_path: PathBuf,
     program_path: PathBuf,
 }
@@ -183,7 +219,6 @@ fn build_counter_fixture(
         "Counter Solana emission did not create `{}`",
         manifest_path.display()
     );
-    assert_golden_asm(repo_root, &asm_path)?;
     validate_artifact_metadata(
         &artifact_path,
         "counter-ir-sbpf",
@@ -215,7 +250,11 @@ fn build_counter_fixture(
     );
 
     Ok(SolanaFixtureArtifact {
+        asm_path,
         manifest_path,
+        metadata_path: artifact_path,
+        idl_path: None,
+        client_path: None,
         keypair_path,
         program_path,
     })
@@ -263,7 +302,6 @@ fn build_value_vault_fixture(
         "ValueVault Solana emission did not create `{}`",
         manifest_path.display()
     );
-    assert_value_vault_asm(&asm_path)?;
     validate_artifact_metadata(
         &artifact_path,
         "value-vault-ir-sbpf",
@@ -303,7 +341,11 @@ fn build_value_vault_fixture(
     );
 
     Ok(SolanaFixtureArtifact {
+        asm_path,
         manifest_path,
+        metadata_path: artifact_path,
+        idl_path: Some(out_dir.join("proof-forge-idl.json")),
+        client_path: Some(out_dir.join("proof-forge-client.ts")),
         keypair_path,
         program_path,
     })
@@ -416,39 +458,6 @@ fn outcome_from_return_data(sequence: u32, call: &str, return_data: &[u8]) -> Ca
         return_bool,
         raw_line,
     }
-}
-
-fn assert_golden_asm(repo_root: &Path, asm_path: &Path) -> Result<()> {
-    let golden_path = repo_root.join("Examples/Solana/Counter.golden.s");
-    let expected = fs::read(&golden_path)
-        .with_context(|| format!("failed to read `{}`", golden_path.display()))?;
-    let actual =
-        fs::read(asm_path).with_context(|| format!("failed to read `{}`", asm_path.display()))?;
-    ensure!(
-        expected == actual,
-        "emitted Solana Counter assembly differs from `{}`",
-        golden_path.display()
-    );
-    Ok(())
-}
-
-fn assert_value_vault_asm(asm_path: &Path) -> Result<()> {
-    let asm = fs::read_to_string(asm_path)
-        .with_context(|| format!("failed to read `{}`", asm_path.display()))?;
-    for needle in [
-        "solana.event.emit ValueDeposited",
-        "solana.event.emit ValueSnapshot",
-        "call sol_log_64_",
-        "call sol_get_clock_sysvar",
-        "stxdw [r1+136]",
-    ] {
-        ensure!(
-            asm.contains(needle),
-            "ValueVault Solana assembly `{}` missing `{needle}`",
-            asm_path.display()
-        );
-    }
-    Ok(())
 }
 
 fn validate_artifact_metadata(

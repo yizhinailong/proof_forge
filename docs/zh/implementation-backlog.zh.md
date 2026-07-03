@@ -1264,7 +1264,11 @@ shell/Node harness；参见
 - M4：把 golden-file 比较和逐 fixture 行为脚本迁移进 scenario step；
   逐步退役重复 shell 脚本；把逐 fixture CI 步骤折叠进 testkit run。
   live/链真实门禁（Foundry、Anvil deploy、Surfpool、near-sandbox、dargo、leo）
-  仍保留为独立的 scheduled 或 labeled job。
+  仍保留为独立的 scheduled 或 labeled job。当前状态：第一段 M4 已通过
+  scenario-declared `[[artifact]]` expectation 落地。Counter 的 Solana
+  golden assembly/manifest 检查，以及 ValueVault 的 WAT/Yul/sBPF/manifest/
+  metadata source-shape 检查，现在都写在 scenario TOML 中，不再作为
+  fixture-specific harness 分支硬编码。
 
 验收标准：
 

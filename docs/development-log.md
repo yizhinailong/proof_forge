@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit M4 Artifact Expectations
+
+Commit: feature commit for unified testkit artifact expectations
+
+Summary:
+
+- Added top-level `[[artifact]]` scenario expectations to `testkit/core`,
+  with `target`, `name`, `matches_file`, and `contains` checks.
+- Wired all three harnesses to publish named artifacts back into the common
+  validator: `wat` for `wasm-near`, `yul`/`bytecode`/`metadata` for `evm`,
+  and `sbpf-asm`/`manifest`/`metadata`/`idl`/`client` for
+  `solana-sbpf-asm`.
+- Moved the Solana Counter golden assembly and manifest comparisons into
+  `testkit/scenarios/counter.toml`.
+- Moved ValueVault's WAT/Yul/sBPF/manifest/metadata source-shape checks into
+  `testkit/scenarios/value-vault.toml`, reducing hardcoded per-fixture
+  behavior in the harnesses.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+cargo test --manifest-path testkit/Cargo.toml -p proof-forge-testkit-core
+just testkit
+```
+
+Known limitations:
+
+- Artifact expectations currently cover whole-file equality and substring
+  checks only. Structured JSON/TOML assertions still live in target harnesses
+  and external validators.
+- The local EVM ValueVault artifact checks run only when Foundry `cast` is
+  available; CI covers that path.
+
+Next step:
+
+- Add structured artifact assertions for metadata and manifest fields, then
+  migrate more of `scripts/portable/value-vault-smoke.sh` and
+  `scripts/solana/counter-smoke.sh` into scenario-declared checks.
+
 ### Unified Testkit ValueVault Scenario
 
 Commit: feature commit for unified testkit ValueVault scenario

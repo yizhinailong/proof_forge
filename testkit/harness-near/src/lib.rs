@@ -3,7 +3,8 @@ use std::process::Command;
 
 use anyhow::{bail, ensure, Context, Result};
 use proof_forge_testkit_core::{
-    parse_offline_host_outcomes, ChainHarness, HarnessRun, ScenarioCase,
+    assert_artifact_expectations, parse_offline_host_outcomes, ArtifactOutput, ChainHarness,
+    HarnessRun, ScenarioCase,
 };
 
 pub struct NearHarness;
@@ -27,6 +28,15 @@ impl ChainHarness for NearHarness {
 
     fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<HarnessRun> {
         let artifact = build_fixture(case, repo_root)?;
+        assert_artifact_expectations(
+            case,
+            self.target_id(),
+            repo_root,
+            &[ArtifactOutput {
+                name: "wat",
+                path: &artifact,
+            }],
+        )?;
         let mut args = vec!["run".to_string(), artifact.display().to_string()];
         let mut inputs = Vec::new();
         let mut has_inputs = false;

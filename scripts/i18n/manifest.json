@@ -40,7 +40,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/implementation-backlog.md": {
-    "sha256": "7e28cabab3162e3f857d33d512a1b33910c05c2ffd6040f20316e8fa4a940834",
+    "sha256": "3b84ed235cb7e39baec80172d80586d9ecfa659a7fb8ca1bdd14c8ad8bb5cae2",
     "zh": "docs/zh/implementation-backlog.zh.md",
     "model": "gemini-3-flash-preview"
   },
@@ -55,7 +55,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/validation-gates.md": {
-    "sha256": "78a1616d66f433b66c539dc6287dc21cebdf21b34705f8d046c78b75773c4a0e",
+    "sha256": "dcdf6b5bfe675dedcd867d56a919b453e093ecb1a21bc360e7d5e5b145540cc4",
     "zh": "docs/zh/validation-gates.zh.md",
     "model": "gemini-3-flash-preview"
   },

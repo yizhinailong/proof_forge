@@ -10,6 +10,8 @@ Current scope:
 - typed scalar scenario args (`u64`, `u32`, `bool`) that each harness encodes
   into its native ABI (`Borsh`/little-endian input for `wasm-near`, ABI words
   for `evm`, and `[tag] + little-endian args` for `solana-sbpf-asm`)
+- scenario-declared artifact checks through `[[artifact]]` entries, including
+  golden-file equality (`matches_file`) and text contains checks (`contains`)
 - `wasm-near` Counter and ValueVault execution through the existing
   deterministic `runtime/offline-host` wasmtime host
 - `evm` Counter execution through an in-process `revm` harness that emits the

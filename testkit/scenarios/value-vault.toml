@@ -4,6 +4,58 @@ fixture = "value-vault"
 targets = ["wasm-near", "evm", "solana-sbpf-asm"]
 capabilities = ["storage.scalar", "entrypoint.external", "events.emit", "env.block"]
 
+[[artifact]]
+target = "wasm-near"
+name = "wat"
+contains = [
+  '(import "env" "block_index"',
+  '(func $deposit (export "deposit")',
+  '(func $snapshot (export "snapshot")',
+  'call $log_utf8',
+]
+
+[[artifact]]
+target = "evm"
+name = "yul"
+contains = [
+  'object "ValueVault"',
+  'function f_ValueVault_deposit',
+  'function f_ValueVault_snapshot',
+  'log1',
+  'number()',
+]
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "sbpf-asm"
+contains = [
+  'solana.event.emit ValueDeposited',
+  'solana.event.emit ValueSnapshot',
+  'call sol_log_64_',
+  'call sol_get_clock_sysvar',
+  'stxdw [r1+136]',
+]
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "manifest"
+contains = [
+  'name = "deposit"',
+  'name = "charge_fee"',
+  'name = "snapshot"',
+  '{ name = "amount", type = "U64", offset = 1, byte_size = 8, encoding = "le-u64" }',
+  '{ name = "fee_bps", type = "U64", offset = 9, byte_size = 8, encoding = "le-u64" }',
+]
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "metadata"
+contains = [
+  '"fixture":"value-vault-ir-sbpf"',
+  '"sourceKind":"contract-sdk"',
+  '"target":"solana-sbpf-asm"',
+]
+
 [[step]]
 call = "initialize"
 [[step.arg]]

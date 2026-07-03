@@ -16,6 +16,8 @@ pub struct ScenarioManifest {
     pub scenario: Scenario,
     #[serde(default, rename = "step")]
     pub steps: Vec<Step>,
+    #[serde(default, rename = "artifact")]
+    pub artifacts: Vec<ArtifactExpectation>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -26,6 +28,22 @@ pub struct Scenario {
     pub targets: Vec<String>,
     #[serde(default)]
     pub capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ArtifactExpectation {
+    pub target: String,
+    pub name: String,
+    #[serde(default)]
+    pub matches_file: Option<PathBuf>,
+    #[serde(default)]
+    pub contains: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ArtifactOutput<'a> {
+    pub name: &'a str,
+    pub path: &'a Path,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -259,9 +277,110 @@ pub fn discover_scenarios(dir: &Path) -> Result<Vec<ScenarioCase>> {
                 })?;
             }
         }
+        for artifact in &manifest.artifacts {
+            ensure!(
+                !artifact.target.trim().is_empty(),
+                "scenario `{}` has an artifact expectation with an empty target",
+                manifest.scenario.name
+            );
+            ensure!(
+                !artifact.name.trim().is_empty(),
+                "scenario `{}` has an artifact expectation with an empty name",
+                manifest.scenario.name
+            );
+            ensure!(
+                artifact.matches_file.is_some() || !artifact.contains.is_empty(),
+                "scenario `{}` artifact expectation `{}` for target `{}` has no checks",
+                manifest.scenario.name,
+                artifact.name,
+                artifact.target
+            );
+        }
         scenarios.push(ScenarioCase { path, manifest });
     }
     Ok(scenarios)
+}
+
+pub fn assert_artifact_expectations(
+    case: &ScenarioCase,
+    target_id: &str,
+    repo_root: &Path,
+    artifacts: &[ArtifactOutput<'_>],
+) -> Result<()> {
+    for expectation in case
+        .manifest
+        .artifacts
+        .iter()
+        .filter(|artifact| artifact.target == target_id)
+    {
+        let artifact = artifacts
+            .iter()
+            .find(|artifact| artifact.name == expectation.name)
+            .with_context(|| {
+                let names = artifacts
+                    .iter()
+                    .map(|artifact| artifact.name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "scenario `{}` target `{target_id}` expected artifact `{}`, available artifacts: [{names}]",
+                    case.manifest.scenario.name, expectation.name
+                )
+            })?;
+        ensure!(
+            artifact.path.exists(),
+            "scenario `{}` target `{target_id}` artifact `{}` does not exist at `{}`",
+            case.manifest.scenario.name,
+            expectation.name,
+            artifact.path.display()
+        );
+
+        if let Some(expected_path) = &expectation.matches_file {
+            let expected_path = repo_root.join(expected_path);
+            let expected = fs::read(&expected_path).with_context(|| {
+                format!(
+                    "scenario `{}` target `{target_id}` failed to read expected artifact `{}`",
+                    case.manifest.scenario.name,
+                    expected_path.display()
+                )
+            })?;
+            let actual = fs::read(artifact.path).with_context(|| {
+                format!(
+                    "scenario `{}` target `{target_id}` failed to read artifact `{}`",
+                    case.manifest.scenario.name,
+                    artifact.path.display()
+                )
+            })?;
+            ensure!(
+                expected == actual,
+                "scenario `{}` target `{target_id}` artifact `{}` differs from `{}`",
+                case.manifest.scenario.name,
+                expectation.name,
+                expected_path.display()
+            );
+        }
+
+        if !expectation.contains.is_empty() {
+            let text = fs::read_to_string(artifact.path).with_context(|| {
+                format!(
+                    "scenario `{}` target `{target_id}` artifact `{}` is not UTF-8 text",
+                    case.manifest.scenario.name,
+                    artifact.path.display()
+                )
+            })?;
+            for needle in &expectation.contains {
+                ensure!(
+                    text.contains(needle),
+                    "scenario `{}` target `{target_id}` artifact `{}` missing `{needle}` in `{}`",
+                    case.manifest.scenario.name,
+                    expectation.name,
+                    artifact.path.display()
+                );
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn assert_expectations(case: &ScenarioCase, outcomes: &[CallOutcome]) -> Result<()> {
@@ -635,6 +754,7 @@ mod tests {
                     capabilities: vec!["storage.scalar".to_string()],
                 },
                 steps,
+                artifacts: Vec::new(),
             },
         }
     }

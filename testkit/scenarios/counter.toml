@@ -4,6 +4,16 @@ fixture = "counter"
 targets = ["wasm-near", "evm", "solana-sbpf-asm"]
 capabilities = ["storage.scalar", "entrypoint.external"]
 
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "sbpf-asm"
+matches_file = "Examples/Solana/Counter.golden.s"
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "manifest"
+matches_file = "Examples/Solana/Counter.manifest.toml"
+
 [[step]]
 call = "initialize"
 

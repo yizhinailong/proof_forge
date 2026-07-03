@@ -5,7 +5,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use anyhow::{bail, ensure, Context as _, Result};
-use proof_forge_testkit_core::{CallOutcome, ChainHarness, HarnessRun, ScenarioCase, Step};
+use proof_forge_testkit_core::{
+    assert_artifact_expectations, ArtifactOutput, CallOutcome, ChainHarness, HarnessRun,
+    ScenarioCase, Step,
+};
 use revm::{
     bytecode::Bytecode,
     context::TxEnv,
@@ -50,6 +53,25 @@ impl ChainHarness for EvmHarness {
         }
 
         let artifact = build_fixture(case, repo_root)?;
+        assert_artifact_expectations(
+            case,
+            self.target_id(),
+            repo_root,
+            &[
+                ArtifactOutput {
+                    name: "bytecode",
+                    path: &artifact.bytecode_path,
+                },
+                ArtifactOutput {
+                    name: "metadata",
+                    path: &artifact.metadata_path,
+                },
+                ArtifactOutput {
+                    name: "yul",
+                    path: &artifact.yul_path,
+                },
+            ],
+        )?;
         let selectors = load_selectors(&artifact.metadata_path)?;
         let bytecode = read_bytecode(&artifact.bytecode_path)?;
 
@@ -112,6 +134,7 @@ impl ChainHarness for EvmHarness {
 struct EvmFixtureArtifact {
     bytecode_path: PathBuf,
     metadata_path: PathBuf,
+    yul_path: PathBuf,
 }
 
 fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<EvmFixtureArtifact> {
@@ -184,6 +207,7 @@ fn build_counter_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     Ok(EvmFixtureArtifact {
         bytecode_path,
         metadata_path,
+        yul_path,
     })
 }
 
@@ -246,6 +270,7 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     Ok(EvmFixtureArtifact {
         bytecode_path,
         metadata_path,
+        yul_path,
     })
 }
 
