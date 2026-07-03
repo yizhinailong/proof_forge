@@ -23,6 +23,7 @@ Process: proposals start as Draft, move to **Accepted** when recorded in
 | [0010](0010-resource-budgets-as-gates.md) | Draft | Resource budgets as testkit gates (gas / CU / near-gas) |
 | [0011](0011-runtime-error-model-and-client-generation.md) | Draft | Portable runtime error model + unified client generation |
 | [0012](0012-versioning-and-compatibility-policy.md) | Draft | Versioning and compatibility policy (IR, artifact schema, capability ids, SDK) |
+| [0013](0013-deployment-lifecycle-upgrades-and-signing.md) | Draft | Deployment lifecycle, upgrades, and signing boundary |
 
 ## Related
 
