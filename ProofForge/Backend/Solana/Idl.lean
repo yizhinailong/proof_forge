@@ -247,11 +247,22 @@ def computeBudgetActionJson (action : ComputeBudgetAdvice) : String :=
     ("unitPriceMicroLamports", jsonNatOption action.unitPriceMicroLamports?)
   ]
 
+def accountReallocActionJson (action : AccountReallocAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("realloc", jsonString action.name),
+    ("account", jsonString action.account),
+    ("newSize", toString action.newSize),
+    ("maxPermittedDataIncrease",
+      toString ProofForge.Backend.Solana.StateLayout.MAX_PERMITTED_DATA_INCREASE)
+  ]
+
 def actionsJson (extensions : ProgramExtensions) : String :=
   jsonObject #[
     ("pdas", jsonArray (extensions.pdaActions.map pdaActionJson)),
     ("cpis", jsonArray (extensions.cpiActions.map cpiActionJson)),
-    ("computeBudget", jsonArray (extensions.computeBudgetActions.map computeBudgetActionJson))
+    ("computeBudget", jsonArray (extensions.computeBudgetActions.map computeBudgetActionJson)),
+    ("accountReallocs", jsonArray (extensions.accountReallocActions.map accountReallocActionJson))
   ]
 
 def capabilitiesJson (plan : CapabilityPlan) : String :=

@@ -67,6 +67,7 @@ covers:
 - Solana allocator selection;
 - Solana account constraints, including writable and signer declarations;
 - Solana PDA declarations and derivation statements;
+- Solana account reallocation statements with static target lengths;
 - Solana System Program `transfer` and `create_account` CPI declarations and
   invocation statements;
 - Solana SPL Token `transfer_checked`, `mint_to`, `burn`, `approve`, `revoke`,
@@ -92,7 +93,8 @@ a `.learn` input through `--target evm` for EVM bytecode metadata or
 `--target solana-sbpf-asm` for Solana sBPF assembly packages. The parser covers the
 portable scalar/event subset plus the first Solana target-extension forms for
 accounts, PDA derivation, System Program transfer/create-account CPI, and SPL
-Token transfer, mint, burn, approve, and revoke CPI. It also accepts
+Token transfer, mint, burn, approve, revoke, close-account, and set-authority
+CPI. It also accepts
 selector-bearing entrypoints such as `entry mint selector "04"(amount: u64)`,
 so Solana instruction tags can be represented in Learn source instead of only
 in Builder fixtures. Learn statements now also cover the Solana log helpers for

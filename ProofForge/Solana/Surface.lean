@@ -227,4 +227,9 @@ def invokeSplTokenSetAuthority (call : CpiRef) (account authority newAuthority :
   ProofForge.Solana.invokeSplTokenSetAuthority call.name account.name authority.name authorityType
     newAuthority.name (tokenProgram := tokenProgram) (signerSeeds := signerSeeds)
 
+def reallocAccount (account : AccountRef) (newSize : Nat)
+    (name : String := "realloc_" ++ account.name) :
+    ProofForge.Contract.Surface.EntryM Unit :=
+  ProofForge.Solana.reallocAccount name account.name newSize
+
 end ProofForge.Solana.Surface

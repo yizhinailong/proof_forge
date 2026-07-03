@@ -2469,12 +2469,16 @@ means a real developer cannot write a common contract pattern.
   storage packing, batch operations, factory deployment template, AMM,
   Pausable auth, ReentrancyGuard stdlib
 
-### Solana SDK blockers (5 tracked P0, 3 closed, 7 P1)
+### Solana SDK blockers (5 tracked P0, 4 closed, 7 P1)
 
-- P0: Account constraint enforcement. ✅ Owner validation now lowers
+- ✅ P0: Account constraint enforcement. Owner validation now lowers
   `owner=program`, `owner=executable`, and named owner-account references into
-  the sBPF prologue with explicit diagnostics for unknown owner references.
-  Remaining: user-facing realloc API.
+  the sBPF prologue with explicit diagnostics for unknown owner references, and
+  `reallocAccount` plus `contract_source` `realloc account to N;` statements
+  now emit static account-data reallocation metadata, manifest/IDL action
+  records, and sBPF data-length stores guarded by
+  `MAX_PERMITTED_DATA_INCREASE`. Surfpool behavior remains a validation
+  expansion.
 - ✅ P0: SPL Token close-account CPI now has builder helpers, typed
   `contract_source` syntax, legacy Learn syntax, manifest/artifact metadata,
   and sBPF instruction-data packing for tag `9`, covered by

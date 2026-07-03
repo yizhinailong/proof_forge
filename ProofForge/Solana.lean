@@ -272,6 +272,12 @@ structure DataLogAction where
   bytes : Nat
   deriving Repr
 
+structure AccountReallocAction where
+  name : String
+  account : String
+  newSize : Nat
+  deriving Repr
+
 def kv (key value : String) : TargetMetadata := {
   key := key
   value := value
@@ -534,6 +540,14 @@ def DataLogAction.metadata (action : DataLogAction) : Array TargetMetadata :=
     kv "solana.log.op" "data",
     kv "solana.log.source_state" action.sourceState,
     natKv "solana.log.bytes" action.bytes
+  ]
+
+def AccountReallocAction.metadata (action : AccountReallocAction) : Array TargetMetadata :=
+  #[
+    kv "solana.extension" "account_realloc",
+    kv "solana.account_realloc.name" action.name,
+    kv "solana.account_realloc.account" action.account,
+    natKv "solana.account_realloc.new_size" action.newSize
   ]
 
 def systemProgram : String :=
@@ -1166,6 +1180,21 @@ def logStateData (name sourceState : String) (bytes : Nat) :
     name := name
     sourceState := sourceState
     bytes := bytes
+  }
+
+def accountReallocEntry (action : AccountReallocAction) :
+    ProofForge.Contract.Builder.EntryM Unit := do
+  ProofForge.Contract.Builder.entryCapability .accountExplicit
+    "solana.account.realloc"
+    (source? := some action.name)
+    (metadata := action.metadata)
+
+def reallocAccount (name account : String) (newSize : Nat) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  accountReallocEntry {
+    name := name
+    account := account
+    newSize := newSize
   }
 
 def cpi (call : CpiCall) : ProofForge.Contract.Builder.ModuleM Unit := do

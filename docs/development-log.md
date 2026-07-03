@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Solana Account Realloc API
+
+Commit: this commit
+
+Summary:
+
+- Added Solana account reallocation as a target-specific account action rather
+  than a portable IR node.
+- Added `ProofForge.Solana.reallocAccount`, typed
+  `ProofForge.Solana.Surface.reallocAccount`, and `contract_source`
+  `realloc account to N;` syntax for static account-data growth/shrink targets.
+- Realloc actions now emit `solana.account_realloc` metadata, automatically
+  require a writable program-owned account constraint, and appear in
+  `manifest.toml` plus the generated Solana IDL under `accountReallocs`.
+- Lowered the action to an sBPF helper that checks
+  `current_data_len + MAX_PERMITTED_DATA_INCREASE >= new_size` and writes the
+  serialized account `data_len` field, with a dedicated `error_realloc` path.
+- Added `ProofForge.Solana.Examples.AccountRealloc` and
+  `Tests/SolanaAccountRealloc.lean`, wired into `just solana-lean`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Solana ProofForge.Solana.Surface ProofForge.Contract.Source ProofForge.Backend.Solana.Extension ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Idl ProofForge.Solana.Examples.AccountRealloc
+lake env lean --run Tests/SolanaAccountRealloc.lean
+```
+
+Known limitations:
+
+- This closes the static source/lowering/API side of the realloc P0. Dynamic
+  target lengths, zero-initialization semantics, and a dedicated
+  Surfpool/Web3.js behavior gate remain follow-up validation expansions.
+
+Next step:
+
+- Continue Solana-first SDK P0 hardening with Token-2022 direct sBPF CPI
+  lowering for transfer-fee and non-transferable flows.
+
 ### Solana SPL Token Close-Account Lowering
 
 Commit: this commit

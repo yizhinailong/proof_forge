@@ -262,6 +262,13 @@ structure DataLogAction where
   entrypoint : String
   deriving Repr, Inhabited
 
+structure AccountReallocAction where
+  name : String
+  account : String
+  newSize : Nat
+  entrypoint : String
+  deriving Repr, Inhabited
+
 structure RuntimeAllocator where
   name : String
   config : ProofForge.IR.AllocatorConfig
@@ -348,6 +355,7 @@ structure ProgramExtensions where
   computeBudgetActions : Array ComputeBudgetAdvice := #[]
   pubkeyLogActions : Array PubkeyLogAction := #[]
   dataLogActions : Array DataLogAction := #[]
+  accountReallocActions : Array AccountReallocAction := #[]
   deriving Repr, Inhabited
 
 structure CpiAccountBinding where
@@ -654,6 +662,16 @@ def ProgramExtensions.pushDataLogAction (acc : ProgramExtensions)
   else
     { acc with dataLogActions := acc.dataLogActions.push action }
 
+def ProgramExtensions.pushAccountReallocAction (acc : ProgramExtensions)
+    (action : AccountReallocAction) : ProgramExtensions :=
+  if acc.accountReallocActions.any (fun existing =>
+      existing.name == action.name &&
+      existing.account == action.account &&
+      existing.entrypoint == action.entrypoint) then
+    acc
+  else
+    { acc with accountReallocActions := acc.accountReallocActions.push action }
+
 def ProgramExtensions.addPda (acc : ProgramExtensions) (pda : PdaDerive) : ProgramExtensions :=
   let acc := acc.pushPdaDefinition pda
   match pda.entrypoint? with
@@ -709,6 +727,10 @@ def ProgramExtensions.addPubkeyLog (acc : ProgramExtensions)
 def ProgramExtensions.addDataLog (acc : ProgramExtensions)
     (action : DataLogAction) : ProgramExtensions :=
   acc.pushDataLogAction action
+
+def ProgramExtensions.addAccountRealloc (acc : ProgramExtensions)
+    (action : AccountReallocAction) : ProgramExtensions :=
+  acc.pushAccountReallocAction action
 
 def ProgramExtensions.addDeclaredAccount (acc : ProgramExtensions)
     (account : DeclaredAccount) : ProgramExtensions :=
@@ -977,6 +999,21 @@ def dataLogFromCall? (call : CapabilityCall) : Option DataLogAction :=
   else
     none
 
+def accountReallocFromCall? (call : CapabilityCall) : Option AccountReallocAction :=
+  if call.capability == .accountExplicit &&
+      metadataValue? call.metadata "solana.extension" == some "account_realloc" then
+    match entrypoint? call with
+    | some entrypoint =>
+        some {
+          name := metadataValue? call.metadata "solana.account_realloc.name" |>.getD call.operation
+          account := metadataValue? call.metadata "solana.account_realloc.account" |>.getD ""
+          newSize := natFromMetadata? call.metadata "solana.account_realloc.new_size" |>.getD 0
+          entrypoint := entrypoint
+        }
+    | none => none
+  else
+    none
+
 def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
   plan.calls.foldl
     (fun acc call =>
@@ -1032,8 +1069,12 @@ def ProgramExtensions.fromPlan (plan : CapabilityPlan) : ProgramExtensions :=
         match pubkeyLogFromCall? call with
         | some action => acc.addPubkeyLog action
         | none => acc
-      match dataLogFromCall? call with
-      | some action => acc.addDataLog action
+      let acc :=
+        match dataLogFromCall? call with
+        | some action => acc.addDataLog action
+        | none => acc
+      match accountReallocFromCall? call with
+      | some action => acc.addAccountRealloc action
       | none => acc)
     {}
 
@@ -1051,7 +1092,8 @@ def hasExtensions (extensions : ProgramExtensions) : Bool :=
     extensions.computeUnitsLogActions.size > 0 ||
     extensions.computeBudgetActions.size > 0 ||
     extensions.pubkeyLogActions.size > 0 ||
-    extensions.dataLogActions.size > 0
+    extensions.dataLogActions.size > 0 ||
+    extensions.accountReallocActions.size > 0
 
 def hasSyscallExtensions (extensions : ProgramExtensions) : Bool :=
   extensions.pdas.size > 0 ||
@@ -1064,7 +1106,8 @@ def hasSyscallExtensions (extensions : ProgramExtensions) : Bool :=
     extensions.computeUnitsActions.size > 0 ||
     extensions.computeUnitsLogActions.size > 0 ||
     extensions.pubkeyLogActions.size > 0 ||
-    extensions.dataLogActions.size > 0
+    extensions.dataLogActions.size > 0 ||
+    extensions.accountReallocActions.size > 0
 
 def hasEntrypointActions (extensions : ProgramExtensions) : Bool :=
   extensions.pdaActions.size > 0 ||
@@ -1077,7 +1120,8 @@ def hasEntrypointActions (extensions : ProgramExtensions) : Bool :=
     extensions.computeUnitsActions.size > 0 ||
     extensions.computeUnitsLogActions.size > 0 ||
     extensions.pubkeyLogActions.size > 0 ||
-    extensions.dataLogActions.size > 0
+    extensions.dataLogActions.size > 0 ||
+    extensions.accountReallocActions.size > 0
 
 def labelPart (name : String) : String :=
   let chars := name.toList.map fun ch =>
@@ -1116,6 +1160,9 @@ def PubkeyLogAction.label (action : PubkeyLogAction) : String :=
 
 def DataLogAction.label (action : DataLogAction) : String :=
   "sol_log_data_" ++ labelPart action.name
+
+def AccountReallocAction.label (action : AccountReallocAction) : String :=
+  "sol_account_realloc_" ++ labelPart action.name
 
 def callSyscall (name : String) : AstNode :=
   .instruction { opcode := .call, imm := some (.sym name) }
@@ -2752,6 +2799,48 @@ def pushUniqueDataLogHelper (actions : Array DataLogAction)
 def uniqueDataLogHelpers (extensions : ProgramExtensions) : Array DataLogAction :=
   extensions.dataLogActions.foldl pushUniqueDataLogHelper #[]
 
+def pushUniqueAccountReallocHelper (actions : Array AccountReallocAction)
+    (action : AccountReallocAction) : Array AccountReallocAction :=
+  if actions.any (fun existing =>
+      existing.name == action.name &&
+      existing.account == action.account &&
+      existing.newSize == action.newSize) then
+    actions
+  else
+    actions.push action
+
+def uniqueAccountReallocHelpers (extensions : ProgramExtensions) : Array AccountReallocAction :=
+  extensions.accountReallocActions.foldl pushUniqueAccountReallocHelper #[]
+
+def lowerAccountReallocHelper (accountBindings : Array CpiAccountBinding)
+    (action : AccountReallocAction) : Array AstNode :=
+  match cpiAccountBinding? accountBindings action.account with
+  | some binding =>
+      #[
+        .blankLine,
+        .comment s!"solana.account.realloc {action.name}: account={action.account} new_size={action.newSize} max_increase={MAX_PERMITTED_DATA_INCREASE}",
+        .label action.label
+      ] ++
+      inputAccountFieldPtr .r7 binding.layout binding.layout.dataLenOff ++ #[
+        .instruction { opcode := .ldxdw, dst := some .r2, src := some .r7, off := some (.num 0) },
+        .instruction { opcode := .add64, dst := some .r2, imm := some (.num MAX_PERMITTED_DATA_INCREASE) },
+        .instruction { opcode := .jlt, dst := some .r2, imm := some (.num action.newSize), off := some (.sym "error_realloc") }
+      ] ++
+      inputAccountFieldPtr .r7 binding.layout binding.layout.dataLenOff ++ #[
+        loadImm .r2 action.newSize,
+        storeReg .stxdw .r7 0 .r2,
+        .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 0) },
+        .instruction { opcode := .exit }
+      ]
+  | none =>
+      #[
+        .blankLine,
+        .comment s!"solana.account.realloc {action.name}: missing account={action.account}",
+        .label action.label,
+        .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 1) },
+        .instruction { opcode := .exit }
+      ]
+
 def lowerPdaAction (action : PdaAction) : Array AstNode :=
   #[
     .comment s!"solana.pda.action {action.name}"
@@ -2766,6 +2855,11 @@ def lowerCpiAction (action : CpiAction) : Array AstNode :=
     instruction := ""
   }) "error_cpi"
 
+def lowerAccountReallocAction (action : AccountReallocAction) : Array AstNode :=
+  #[
+    .comment s!"solana.account.realloc.action {action.name}"
+  ] ++ callHelperPreservingInput action.label "error_realloc"
+
 def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String) : Array AstNode :=
   let pdaActions := extensions.pdaActions.filter (fun action => action.entrypoint == entrypoint)
   let cpiActions := extensions.cpiActions.filter (fun action => action.entrypoint == entrypoint)
@@ -2778,10 +2872,11 @@ def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String
   let computeUnitsLogActions := extensions.computeUnitsLogActions.filter (fun action => action.entrypoint == entrypoint)
   let pubkeyLogActions := extensions.pubkeyLogActions.filter (fun action => action.entrypoint == entrypoint)
   let dataLogActions := extensions.dataLogActions.filter (fun action => action.entrypoint == entrypoint)
+  let accountReallocActions := extensions.accountReallocActions.filter (fun action => action.entrypoint == entrypoint)
   if pdaActions.isEmpty && cpiActions.isEmpty && memoryActions.isEmpty && cryptoHashActions.isEmpty &&
       sysvarActions.isEmpty && returnDataActions.isEmpty && returnDataReadActions.isEmpty &&
       computeUnitsActions.isEmpty && computeUnitsLogActions.isEmpty && pubkeyLogActions.isEmpty &&
-      dataLogActions.isEmpty then
+      dataLogActions.isEmpty && accountReallocActions.isEmpty then
     #[]
   else
     #[.comment s!"Solana SDK target extension actions for {entrypoint}"] ++
@@ -2795,7 +2890,8 @@ def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String
     computeUnitsActions.foldl (fun acc action => acc ++ lowerComputeUnitsAction action) #[] ++
     computeUnitsLogActions.foldl (fun acc action => acc ++ lowerComputeUnitsLogAction action) #[] ++
     pubkeyLogActions.foldl (fun acc action => acc ++ lowerPubkeyLogAction action) #[] ++
-    dataLogActions.foldl (fun acc action => acc ++ lowerDataLogAction action) #[]
+    dataLogActions.foldl (fun acc action => acc ++ lowerDataLogAction action) #[] ++
+    accountReallocActions.foldl (fun acc action => acc ++ lowerAccountReallocAction action) #[]
 
 def lowerExtensionErrors : Array AstNode := #[
   .blankLine,
@@ -2813,6 +2909,10 @@ def lowerExtensionErrors : Array AstNode := #[
   .blankLine,
   .label "error_sysvar",
   .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 12) },
+  .instruction { opcode := .exit },
+  .blankLine,
+  .label "error_realloc",
+  .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 13) },
   .instruction { opcode := .exit }
 ]
 
@@ -2846,6 +2946,7 @@ def lowerProgramExtensionsWithBindings
     (uniqueComputeUnitsLogHelpers extensions).foldl (fun acc action => acc ++ lowerComputeUnitsLogHelper action) #[] ++
     (uniquePubkeyLogHelpers extensions).foldl (fun acc action => acc ++ lowerPubkeyLogHelper accountBindings action) #[] ++
     (uniqueDataLogHelpers extensions).foldl (fun acc action => acc ++ lowerDataLogHelper valueBindings action) #[] ++
+    (uniqueAccountReallocHelpers extensions).foldl (fun acc action => acc ++ lowerAccountReallocHelper accountBindings action) #[] ++
     lowerExtensionErrors
 
 def lowerProgramExtensionsWithAccountBindings

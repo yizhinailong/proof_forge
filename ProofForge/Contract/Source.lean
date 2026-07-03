@@ -136,6 +136,7 @@ scoped syntax "invoke " ident " spl_token_close_account" "(" ident ", " ident ",
   " signer_seeds " "[" solanaSignerSeed,* "]" ";" : entryStmt
 scoped syntax "invoke " ident " spl_token_set_authority" "(" ident ", " ident ", " ident ")" " authority_type" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" ";" : entryStmt
+scoped syntax "realloc " ident " to " term ";" : entryStmt
 scoped syntax "do " term ";" : entryStmt
 
 scoped syntax "literal_seed " str : solanaSeed
@@ -286,6 +287,9 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
               $call $tokenAccount $authority $newAuthority
               (authorityType := $authorityType)
               (signerSeeds := $signerSeedArray) *> $acc)
+    | `(entryStmt| realloc $accountRef:ident to $newSize:term;) =>
+        acc ←
+          `(ProofForge.Solana.Surface.reallocAccount $accountRef $newSize *> $acc)
     | `(entryStmt| do $action:term;) =>
         acc ← `($action *> $acc)
     | _ =>

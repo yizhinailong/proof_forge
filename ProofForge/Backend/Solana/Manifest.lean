@@ -223,6 +223,14 @@ def pubkeyLogAccount (action : PubkeyLogAction) : AccountEntry := {
   owner := "any"
 }
 
+def accountReallocAccount (action : AccountReallocAction) : AccountEntry := {
+  name := action.account
+  index := 0
+  signer := false
+  writable := true
+  owner := "program"
+}
+
 def pdaByName? (extensions : ProgramExtensions) (name : String) : Option PdaDerive :=
   extensions.pdas.find? (fun pda => pda.name == name)
 
@@ -291,6 +299,16 @@ def pushEntrypointPubkeyLogAccounts (extensions : ProgramExtensions) (entrypoint
         accounts)
     accounts
 
+def pushEntrypointAccountReallocAccounts (extensions : ProgramExtensions) (entrypoint : String)
+    (accounts : Array AccountEntry) : Array AccountEntry :=
+  extensions.accountReallocActions.foldl
+    (fun accounts action =>
+      if action.entrypoint == entrypoint && !action.account.isEmpty then
+        pushAccount accounts (accountReallocAccount action)
+      else
+        accounts)
+    accounts
+
 def pushDeclaredAccounts (accounts : Array AccountEntry)
     (declaredAccounts : Array DeclaredAccount) : Array AccountEntry :=
   declaredAccounts.foldl
@@ -313,6 +331,7 @@ def buildInstructionAccounts (module : Module) (extensions : ProgramExtensions)
   let accounts := pushEntrypointPdaAccounts extensions entrypoint accounts
   let accounts := pushEntrypointCpiAccounts extensions entrypoint accounts
   let accounts := pushEntrypointPubkeyLogAccounts extensions entrypoint accounts
+  let accounts := pushEntrypointAccountReallocAccounts extensions entrypoint accounts
   let accounts := pushEntrypointPdaSeedAccounts extensions entrypoint accounts
   pushDeclaredAccounts accounts extensions.accounts
 
@@ -326,6 +345,10 @@ def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Arr
   let accounts := extensions.pubkeyLogActions.foldl
     (fun accounts action =>
       if action.account.isEmpty then accounts else pushAccount accounts (pubkeyLogAccount action))
+    accounts
+  let accounts := extensions.accountReallocActions.foldl
+    (fun accounts action =>
+      if action.account.isEmpty then accounts else pushAccount accounts (accountReallocAccount action))
     accounts
   let accounts := extensions.pdas.foldl pushPdaSeedAccounts accounts
   pushDeclaredAccounts accounts extensions.accounts
@@ -538,6 +561,15 @@ def renderDataLogAction (action : DataLogAction) : String :=
   "source_state = " ++ tomlString action.sourceState ++ "\n" ++
   "bytes = " ++ toString action.bytes ++ "\n"
 
+def renderAccountReallocAction (action : AccountReallocAction) : String :=
+  "[[solana.entrypoint_realloc]]\n" ++
+  "entrypoint = " ++ tomlString action.entrypoint ++ "\n" ++
+  "realloc = " ++ tomlString action.name ++ "\n" ++
+  "account = " ++ tomlString action.account ++ "\n" ++
+  "new_size = " ++ toString action.newSize ++ "\n" ++
+  "max_permitted_data_increase = " ++
+    toString ProofForge.Backend.Solana.StateLayout.MAX_PERMITTED_DATA_INCREASE ++ "\n"
+
 def hasManifestActions (extensions : ProgramExtensions) : Bool :=
   hasEntrypointActions extensions ||
     extensions.computeBudgetActions.size > 0
@@ -558,7 +590,8 @@ def renderActions (extensions : ProgramExtensions) : String :=
       extensions.computeUnitsLogActions.map renderComputeUnitsLogAction ++
       extensions.computeBudgetActions.map renderComputeBudgetAdvice ++
       extensions.pubkeyLogActions.map renderPubkeyLogAction ++
-      extensions.dataLogActions.map renderDataLogAction
+      extensions.dataLogActions.map renderDataLogAction ++
+      extensions.accountReallocActions.map renderAccountReallocAction
     "\n# Solana SDK entrypoint actions\n" ++
     String.intercalate "\n" actionBlocks.toList
 

@@ -55,6 +55,7 @@ backend AST 里。
 - Solana allocator selection；
 - Solana account constraint，包括 writable 和 signer declaration；
 - Solana PDA declaration 和 derivation statement；
+- 带静态目标长度的 Solana account reallocation statement；
 - Solana System Program `transfer` 与 `create_account` CPI declaration 和
   invocation statement；
 - Solana SPL Token `transfer_checked`、`mint_to`、`burn`、`approve`、`revoke`、
@@ -79,7 +80,7 @@ mint withdraw），以及 non-transferable token 初始化（拒绝 `TransferChe
 portable scalar/event 子集，以及第一批 Solana
 target-extension form：account、PDA derivation、System Program
 transfer/create-account CPI，以及 SPL Token transfer、mint、burn、approve 和
-revoke CPI。它也支持带 selector 的 entrypoint，例如
+revoke、close-account 和 set-authority CPI。它也支持带 selector 的 entrypoint，例如
 `entry mint selector "04"(amount: u64)`，因此 Solana instruction tag 可以在
 Learn 源码中表达，而不是只存在于 Builder fixture。Learn statement 现在也覆盖
 Solana pubkey/data log、return-data set/get，以及 remaining-compute-unit read/log
