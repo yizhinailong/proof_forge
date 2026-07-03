@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-2 State-Threaded Map Lifecycle Semantics
+
+Commit: this commit
+
+Summary:
+
+- Refactored `ProofForge.IR.Semantics.evalExpr` so expression evaluation
+  returns both the next `State` and the computed `Value`, preserving left-to-right
+  effects through arrays, structs, storage path keys, assertions, events,
+  `let` bindings, and returns.
+- Made `storageMapInsert` and `storageMapSet` in expression position mutate
+  storage while returning the previous value, matching the IR fixtures that
+  model map upsert/set lifecycles.
+- Added decide-checked theorem anchors for `EvmMapProbe.mapLifecycle`,
+  `containsLifecycle`, and a parameterized insert/read/set/read sequence.
+- Updated the formal roadmap, gate notes, and backlog so FV-2 now records
+  state-threaded map lifecycle semantics as landed.
+
+Validation run:
+
+```sh
+lake build ProofForge.IR.Semantics
+lake env lean Tests/NearWasmFormal.lean
+lake build ProofForge.Backend.Evm.Refinement
+```
+
+Known limitations:
+
+- FV-2 still does not execute `ifElse` or `boundedFor` statements, and events
+  are checked for field evaluation only rather than emitted as observable trace
+  items.
+- The EVM FV-4 aggregate/map obligations still compare Yul execution against
+  expected return words; they are not yet wired to compare directly against the
+  newly expanded IR traces.
+
+Next step:
+
+- Connect the covered FV-2 map/aggregate/storage traces to the EVM refinement
+  obligations, then extend FV-2 statement execution over control flow and
+  observable events.
+
 ### FV-2 Aggregate/Storage IR Semantics Slice
 
 Commit: this commit

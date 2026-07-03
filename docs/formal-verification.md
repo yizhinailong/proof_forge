@@ -46,12 +46,12 @@ a machine-checked invariant.
 ### FV-2: IR semantics coverage and metatheory
 
 Extend `IR/Semantics.lean` from the scalar subset toward the checked IR
-surface. The first aggregate/storage slice is now in place for local fixed
+surface. The first aggregate/storage slices are now in place for local fixed
 arrays, struct values, aggregate ABI params/returns, storage arrays, storage
-struct fields, and storage paths (including nested map-key paths) through
-`decide`-checked traces in `Tests/NearWasmFormal.lean`. The remaining FV-2 work
-is to thread state through effectful expressions, then cover full map
-insert/set lifecycles, `ifElse`, `boundedFor`, and events as observable trace
+struct fields, storage paths (including nested map-key paths), and
+state-threaded effectful expressions for storage map insert/set lifecycles,
+through `decide`-checked traces in `Tests/NearWasmFormal.lean`. The remaining
+FV-2 work is to cover `ifElse`, `boundedFor`, and events as observable trace
 items, before stating:
 
 - **Determinism:** evaluation of a well-formed entrypoint body is
@@ -81,7 +81,7 @@ scenario (Counter first, ValueVault second):
 | Backend | Obligation shape | Feasibility |
 |---|---|---|
 | `wasm-near` / EmitWat | Exists (exports + IR trace); extend to Wasm-level evaluation of the emitted WAT through the offline host | High — offline host already executes the artifact deterministically |
-| `evm` (IR → Yul plan) | Counter, ValueVault, and EvmExpressionProbe obligations exist for IR trace + selector-dispatched Yul surface + executable Yul-subset trace (`calldataload`, `calldatasize`, `sstore`, `sload`, scalar arithmetic, `exp`, bitwise/shift operators, comparisons, casts, assertions, `number`, deterministic memory-sensitive `keccak256` surrogate, `log0`-`log4`, `mstore`, `return`). Additional executable EVM-only obligations now cover `EvmMapProbe`, `EvmTypedStorageProbe`, `EvmStorageStructProbe`, and `EvmAbiAggregateProbe` for maps, presence slots, typed storage arrays, storage structs, and aggregate ABI params/returns. The first IR-side aggregate/storage traces now exist, but these EVM-only obligations still need to be wired to compare against them; expression-position map writes remain open until FV-2 state-threaded expression evaluation lands. | Medium — the focused Yul-subset interpreter is in Lean; expanding coverage keeps `solc` out of the trusted path but not out of the build |
+| `evm` (IR → Yul plan) | Counter, ValueVault, and EvmExpressionProbe obligations exist for IR trace + selector-dispatched Yul surface + executable Yul-subset trace (`calldataload`, `calldatasize`, `sstore`, `sload`, scalar arithmetic, `exp`, bitwise/shift operators, comparisons, casts, assertions, `number`, deterministic memory-sensitive `keccak256` surrogate, `log0`-`log4`, `mstore`, `return`). Additional executable EVM-only obligations now cover `EvmMapProbe`, `EvmTypedStorageProbe`, `EvmStorageStructProbe`, and `EvmAbiAggregateProbe` for maps, presence slots, typed storage arrays, storage structs, and aggregate ABI params/returns. IR-side aggregate/storage traces now cover many of those shapes, including expression-position map insert/set lifecycles, but the EVM-only obligations still need to be wired to compare against them. | Medium — the focused Yul-subset interpreter is in Lean; expanding coverage keeps `solc` out of the trusted path but not out of the build |
 | `psy-dpn` | Compare `dargo execute` result vectors against IR trace outputs (differential gate, not a theorem) | Already close: smoke scripts assert `result_vm` values today |
 | `solana-sbpf-asm` | Differential testing via Mollusk/Surfpool first; assembly-level semantics is a research track, not a near-term proof | Low for proofs, high for differential gates |
 | `wasm-cloudflare-workers` | Differential HTTP-level gate only (off-chain host, D-033) | Not a proof target |
@@ -146,8 +146,8 @@ first proof surface users see. Start with ValueVault as the worked example.
 4. FV-4 EVM Yul-subset trace obligations: scalar IR traces are done for
    Counter, ValueVault, and EvmExpressionProbe; executable EVM-only obligations
    now also cover maps, typed storage arrays, storage structs, and aggregate ABI
-   params/returns. Next, connect the newly landed FV-2 aggregate/storage traces
-   to those EVM obligations, then add state-threaded expression evaluation for
-   full map insert/set lifecycle traces.
+   params/returns. Next, connect the FV-2 aggregate/storage and map lifecycle
+   traces to those EVM obligations, then extend FV-2 over control flow and
+   observable event traces.
 5. FV-6 authoring-surface equivalence for the fixture subset.
 6. FV-5 / FV-7 as the respective surfaces stabilize; FV-8 once FV-2 lands.

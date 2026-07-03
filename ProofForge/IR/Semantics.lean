@@ -270,222 +270,298 @@ def evalAssignOp (op : AssignOp) (lhs rhs : Value) : Except String Value :=
   | .shiftLeft => evalNumericBinary "assignShiftLeft" (fun lhs rhs => lhs * (2 ^ rhs)) lhs rhs
   | .shiftRight => evalNumericBinary "assignShiftRight" (fun lhs rhs => lhs / (2 ^ rhs)) lhs rhs
 
+abbrev ExprResult := State × Value
+
 mutual
-partial def evalExpr (state : State) (frame : Frame) : Expr → Except String Value
-  | .literal literal => literalValue literal
+partial def evalExpr (state : State) (frame : Frame) : Expr → Except String ExprResult
+  | .literal literal => do
+      let value ← literalValue literal
+      .ok (state, value)
   | .local name =>
       match frame.read name with
-      | some value => .ok value
+      | some value => .ok (state, value)
       | none => .error s!"unknown local `{name}`"
   | .arrayLit _ values => do
+      let mut nextState := state
       let mut evaluated := #[]
       for value in values do
-        evaluated := evaluated.push (← evalExpr state frame value)
-      .ok (.array evaluated.toList)
+        let (stateAfterValue, evaluatedValue) ← evalExpr nextState frame value
+        nextState := stateAfterValue
+        evaluated := evaluated.push evaluatedValue
+      .ok (nextState, .array evaluated.toList)
   | .arrayGet array index => do
-      let arrayValue ← evalExpr state frame array
-      let indexValue ← indexValue (← evalExpr state frame index)
-      arrayGetValue arrayValue indexValue
+      let (stateAfterArray, arrayValue) ← evalExpr state frame array
+      let (stateAfterIndex, rawIndex) ← evalExpr stateAfterArray frame index
+      let indexValue ← indexValue rawIndex
+      .ok (stateAfterIndex, ← arrayGetValue arrayValue indexValue)
   | .structLit typeName fields => do
+      let mut nextState := state
       let mut evaluated := #[]
       for field in fields do
-        evaluated := evaluated.push (field.fst, ← evalExpr state frame field.snd)
-      .ok (.struct typeName evaluated.toList)
+        let (stateAfterField, fieldValue) ← evalExpr nextState frame field.snd
+        nextState := stateAfterField
+        evaluated := evaluated.push (field.fst, fieldValue)
+      .ok (nextState, .struct typeName evaluated.toList)
   | .field base fieldName => do
-      structFieldValue (← evalExpr state frame base) fieldName
+      let (nextState, baseValue) ← evalExpr state frame base
+      .ok (nextState, ← structFieldValue baseValue fieldName)
   | .add lhs rhs => do
-      evalNumericBinary "add" (· + ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "add" (· + ·) lhsValue rhsValue)
   | .sub lhs rhs => do
-      evalNumericBinary "sub" (· - ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "sub" (· - ·) lhsValue rhsValue)
   | .mul lhs rhs => do
-      evalNumericBinary "mul" (· * ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "mul" (· * ·) lhsValue rhsValue)
   | .div lhs rhs => do
-      evalNumericBinary "div" (fun lhs rhs => if rhs == 0 then 0 else lhs / rhs)
-        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "div" (fun lhs rhs => if rhs == 0 then 0 else lhs / rhs)
+        lhsValue rhsValue)
   | .mod lhs rhs => do
-      evalNumericBinary "mod" (fun lhs rhs => if rhs == 0 then 0 else lhs % rhs)
-        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "mod" (fun lhs rhs => if rhs == 0 then 0 else lhs % rhs)
+        lhsValue rhsValue)
   | .pow lhs rhs => do
-      evalNumericBinary "pow" (fun lhs rhs => lhs ^ rhs)
-        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "pow" (fun lhs rhs => lhs ^ rhs)
+        lhsValue rhsValue)
   | .bitAnd lhs rhs => do
-      evalNumericBinary "bitAnd" Nat.land (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "bitAnd" Nat.land lhsValue rhsValue)
   | .bitOr lhs rhs => do
-      evalNumericBinary "bitOr" Nat.lor (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "bitOr" Nat.lor lhsValue rhsValue)
   | .bitXor lhs rhs => do
-      evalNumericBinary "bitXor" Nat.xor (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "bitXor" Nat.xor lhsValue rhsValue)
   | .shiftLeft lhs rhs => do
-      evalNumericBinary "shiftLeft" (fun lhs rhs => lhs * (2 ^ rhs))
-        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "shiftLeft" (fun lhs rhs => lhs * (2 ^ rhs))
+        lhsValue rhsValue)
   | .shiftRight lhs rhs => do
-      evalNumericBinary "shiftRight" (fun lhs rhs => lhs / (2 ^ rhs))
-        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericBinary "shiftRight" (fun lhs rhs => lhs / (2 ^ rhs))
+        lhsValue rhsValue)
   | .cast value targetType => do
-      castValue (← evalExpr state frame value) targetType
+      let (nextState, rawValue) ← evalExpr state frame value
+      .ok (nextState, ← castValue rawValue targetType)
   | .eq lhs rhs => do
-      evalEquality (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalEquality lhsValue rhsValue)
   | .ne lhs rhs => do
-      match ← evalEquality (← evalExpr state frame lhs) (← evalExpr state frame rhs) with
-      | .bool value => .ok (.bool (!value))
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      match ← evalEquality lhsValue rhsValue with
+      | .bool value => .ok (stateAfterRhs, .bool (!value))
       | _ => .error "equality returned a non-Bool value"
   | .lt lhs rhs => do
-      evalNumericPredicate "lt" (· < ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericPredicate "lt" (· < ·) lhsValue rhsValue)
   | .le lhs rhs => do
-      evalNumericPredicate "le" (· <= ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericPredicate "le" (· <= ·) lhsValue rhsValue)
   | .gt lhs rhs => do
-      evalNumericPredicate "gt" (· > ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericPredicate "gt" (· > ·) lhsValue rhsValue)
   | .ge lhs rhs => do
-      evalNumericPredicate "ge" (· >= ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalNumericPredicate "ge" (· >= ·) lhsValue rhsValue)
   | .boolAnd lhs rhs => do
-      evalBooleanBinary "boolAnd" (fun lhs rhs => lhs && rhs)
-        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalBooleanBinary "boolAnd" (fun lhs rhs => lhs && rhs)
+        lhsValue rhsValue)
   | .boolOr lhs rhs => do
-      evalBooleanBinary "boolOr" (fun lhs rhs => lhs || rhs)
-        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      .ok (stateAfterRhs, ← evalBooleanBinary "boolOr" (fun lhs rhs => lhs || rhs)
+        lhsValue rhsValue)
   | .boolNot value => do
-      match ← evalExpr state frame value with
-      | .bool value => .ok (.bool (!value))
+      let (nextState, rawValue) ← evalExpr state frame value
+      match rawValue with
+      | .bool value => .ok (nextState, .bool (!value))
       | _ => .error "boolNot expects Bool operand"
   | .effect effect => evalEffect state frame effect
   | _ => .error "expression is not supported by the scalar semantics model"
 
 partial def evalPathSegmentKey (state : State) (frame : Frame) : StoragePathSegment →
-    Except String String
-  | .field fieldName => .ok s!".{fieldName}"
+    Except String (State × String)
+  | .field fieldName => .ok (state, s!".{fieldName}")
   | .index indexExpr => do
-      let index ← indexValue (← evalExpr state frame indexExpr)
-      .ok s!"[{index}]"
+      let (nextState, rawIndex) ← evalExpr state frame indexExpr
+      let index ← indexValue rawIndex
+      .ok (nextState, s!"[{index}]")
   | .mapKey keyExpr => do
-      let key ← evalExpr state frame keyExpr
-      .ok ("{" ++ valueKey key ++ "}")
+      let (nextState, key) ← evalExpr state frame keyExpr
+      .ok (nextState, "{" ++ valueKey key ++ "}")
 
 partial def evalStoragePathKey (state : State) (frame : Frame) (stateId : String)
-    (path : Array StoragePathSegment) : Except String String := do
+    (path : Array StoragePathSegment) : Except String (State × String) := do
+  let mut nextState := state
   let mut key := stateId
   for segment in path do
-    key := key ++ (← evalPathSegmentKey state frame segment)
-  .ok key
+    let (stateAfterSegment, segmentKey) ← evalPathSegmentKey nextState frame segment
+    nextState := stateAfterSegment
+    key := key ++ segmentKey
+  .ok (nextState, key)
 
-partial def evalEffect (state : State) (frame : Frame) : Effect → Except String Value
+partial def evalEffect (state : State) (frame : Frame) : Effect → Except String ExprResult
   | .storageScalarRead name =>
       match state.read name with
-      | some value => .ok value
+      | some value => .ok (state, value)
       | none => .error s!"unknown scalar state `{name}`"
-  | .storageMapContains name keyExpr => do
-      let key := valueKey (← evalExpr state frame keyExpr)
-      .ok (.bool ((state.read (mapPresentKey name key)).isSome))
-  | .storageMapGet name keyExpr => do
-      let key := valueKey (← evalExpr state frame keyExpr)
-      match state.read (mapKey name key) with
-      | some value => .ok value
-      | none => .error s!"unknown map state `{name}` key `{key}`"
-  | .storageMapInsert name keyExpr valueExpr
-  | .storageMapSet name keyExpr valueExpr => do
-      let key := valueKey (← evalExpr state frame keyExpr)
-      let newValue ← evalExpr state frame valueExpr
-      .ok ((state.read (mapKey name key)).getD (zeroLike newValue))
-  | .storageArrayRead name indexExpr => do
-      let index ← indexValue (← evalExpr state frame indexExpr)
-      match state.read (arrayKey name index) with
-      | some value => .ok value
-      | none => .error s!"unknown array state `{name}` index {index}"
-  | .storageArrayStructFieldRead name indexExpr fieldName => do
-      let index ← indexValue (← evalExpr state frame indexExpr)
-      match state.read (arrayFieldKey name index fieldName) with
-      | some value => .ok value
-      | none => .error s!"unknown array struct field `{name}[{index}].{fieldName}`"
-  | .storageStructFieldRead name fieldName =>
-      match state.readStructField name fieldName with
-      | some value => .ok value
-      | none => .error s!"unknown struct field state `{name}.{fieldName}`"
-  | .storagePathRead name path => do
-      let key ← evalStoragePathKey state frame name path
-      match state.read key with
-      | some value => .ok value
-      | none => .error s!"unknown storage path `{key}`"
-  | .contextRead .checkpointId =>
-      .ok (.u64 0)
-  | .contextRead field =>
-      .error s!"context field `{field.name}` is not supported by the scalar semantics model"
-  | _ => .error "effect is not supported by the FV-2 executable semantics slice"
-end
-
-def evalEventFields (state : State) (frame : Frame) (fields : Array (String × Expr)) :
-    Except String Unit := do
-  for field in fields do
-    let _ ← evalExpr state frame field.snd
-  pure ()
-
-def execEffectStmt (state : State) (frame : Frame) : Effect → Except String State
-  | .storageScalarWrite name value => do
-      .ok (state.write name (← evalExpr state frame value))
-  | .storageScalarAssignOp name op value => do
+  | .storageScalarWrite name valueExpr => do
+      let (nextState, value) ← evalExpr state frame valueExpr
+      .ok (nextState.write name value, .unit)
+  | .storageScalarAssignOp name op valueExpr => do
       let current ←
         match state.read name with
         | some value => .ok value
         | none => .error s!"unknown scalar state `{name}`"
-      .ok (state.write name (← evalAssignOp op current (← evalExpr state frame value)))
+      let (nextState, rhs) ← evalExpr state frame valueExpr
+      let value ← evalAssignOp op current rhs
+      .ok (nextState.write name value, value)
+  | .storageMapContains name keyExpr => do
+      let (nextState, keyValue) ← evalExpr state frame keyExpr
+      let key := valueKey keyValue
+      .ok (nextState, .bool ((nextState.read (mapPresentKey name key)).isSome))
+  | .storageMapGet name keyExpr => do
+      let (nextState, keyValue) ← evalExpr state frame keyExpr
+      let key := valueKey keyValue
+      match nextState.read (mapKey name key) with
+      | some value => .ok (nextState, value)
+      | none => .error s!"unknown map state `{name}` key `{key}`"
   | .storageMapInsert name keyExpr valueExpr
   | .storageMapSet name keyExpr valueExpr => do
-      let key := valueKey (← evalExpr state frame keyExpr)
-      let value ← evalExpr state frame valueExpr
-      .ok ((state.write (mapKey name key) value).write (mapPresentKey name key) (.bool true))
+      let (stateAfterKey, keyValue) ← evalExpr state frame keyExpr
+      let key := valueKey keyValue
+      let (stateAfterValue, newValue) ← evalExpr stateAfterKey frame valueExpr
+      let oldValue := (stateAfterValue.read (mapKey name key)).getD (zeroLike newValue)
+      let nextState :=
+        (stateAfterValue.write (mapKey name key) newValue).write (mapPresentKey name key) (.bool true)
+      .ok (nextState, oldValue)
+  | .storageArrayRead name indexExpr => do
+      let (nextState, rawIndex) ← evalExpr state frame indexExpr
+      let index ← indexValue rawIndex
+      match nextState.read (arrayKey name index) with
+      | some value => .ok (nextState, value)
+      | none => .error s!"unknown array state `{name}` index {index}"
   | .storageArrayWrite name indexExpr valueExpr => do
-      let index ← indexValue (← evalExpr state frame indexExpr)
-      .ok (state.write (arrayKey name index) (← evalExpr state frame valueExpr))
+      let (stateAfterIndex, rawIndex) ← evalExpr state frame indexExpr
+      let index ← indexValue rawIndex
+      let (stateAfterValue, value) ← evalExpr stateAfterIndex frame valueExpr
+      .ok (stateAfterValue.write (arrayKey name index) value, .unit)
+  | .storageArrayStructFieldRead name indexExpr fieldName => do
+      let (nextState, rawIndex) ← evalExpr state frame indexExpr
+      let index ← indexValue rawIndex
+      match nextState.read (arrayFieldKey name index fieldName) with
+      | some value => .ok (nextState, value)
+      | none => .error s!"unknown array struct field `{name}[{index}].{fieldName}`"
   | .storageArrayStructFieldWrite name indexExpr fieldName valueExpr => do
-      let index ← indexValue (← evalExpr state frame indexExpr)
-      .ok (state.write (arrayFieldKey name index fieldName) (← evalExpr state frame valueExpr))
+      let (stateAfterIndex, rawIndex) ← evalExpr state frame indexExpr
+      let index ← indexValue rawIndex
+      let (stateAfterValue, value) ← evalExpr stateAfterIndex frame valueExpr
+      .ok (stateAfterValue.write (arrayFieldKey name index fieldName) value, .unit)
+  | .storageStructFieldRead name fieldName =>
+      match state.readStructField name fieldName with
+      | some value => .ok (state, value)
+      | none => .error s!"unknown struct field state `{name}.{fieldName}`"
   | .storageStructFieldWrite name fieldName valueExpr => do
-      .ok (state.write (fieldKey name fieldName) (← evalExpr state frame valueExpr))
+      let (nextState, value) ← evalExpr state frame valueExpr
+      .ok (nextState.write (fieldKey name fieldName) value, .unit)
+  | .storagePathRead name path => do
+      let (nextState, key) ← evalStoragePathKey state frame name path
+      match nextState.read key with
+      | some value => .ok (nextState, value)
+      | none => .error s!"unknown storage path `{key}`"
   | .storagePathWrite name path valueExpr => do
-      let key ← evalStoragePathKey state frame name path
-      let value ← evalExpr state frame valueExpr
-      let state := state.write key value
-      let state :=
+      let (stateAfterPath, key) ← evalStoragePathKey state frame name path
+      let (stateAfterValue, value) ← evalExpr stateAfterPath frame valueExpr
+      let nextState := stateAfterValue.write key value
+      let nextState :=
         if path.any (fun segment => match segment with | .mapKey _ => true | _ => false) then
-          state.write (key ++ ".present") (.bool true)
+          nextState.write (key ++ ".present") (.bool true)
         else
-          state
-      .ok state
+          nextState
+      .ok (nextState, .unit)
   | .storagePathAssignOp name path op valueExpr => do
-      let key ← evalStoragePathKey state frame name path
+      let (stateAfterPath, key) ← evalStoragePathKey state frame name path
       let current ←
-        match state.read key with
+        match stateAfterPath.read key with
         | some value => .ok value
         | none => .error s!"unknown storage path `{key}`"
-      .ok (state.write key (← evalAssignOp op current (← evalExpr state frame valueExpr)))
+      let (stateAfterValue, rhs) ← evalExpr stateAfterPath frame valueExpr
+      let value ← evalAssignOp op current rhs
+      .ok (stateAfterValue.write key value, value)
+  | .contextRead .checkpointId =>
+      .ok (state, .u64 0)
+  | .contextRead field =>
+      .error s!"context field `{field.name}` is not supported by the scalar semantics model"
   | .eventEmit _ fields => do
-      evalEventFields state frame fields
-      .ok state
+      let nextState ← evalEventFields state frame fields
+      .ok (nextState, .unit)
   | .eventEmitIndexed _ indexedFields dataFields => do
-      evalEventFields state frame indexedFields
-      evalEventFields state frame dataFields
-      .ok state
-  | _ => .error "statement effect is not supported by the scalar semantics model"
+      let nextState ← evalEventFields state frame indexedFields
+      let nextState ← evalEventFields nextState frame dataFields
+      .ok (nextState, .unit)
+
+partial def evalEventFields (state : State) (frame : Frame) (fields : Array (String × Expr)) :
+    Except String State := do
+  let mut nextState := state
+  for field in fields do
+    let (stateAfterField, _) ← evalExpr nextState frame field.snd
+    nextState := stateAfterField
+  pure nextState
+end
+
+def execEffectStmt (state : State) (frame : Frame) : Effect → Except String State
+  | effect => do
+      let (nextState, _) ← evalEffect state frame effect
+      .ok nextState
 
 def execStmt (state : State) (frame : Frame) : Statement →
     Except String (State × Frame × Option Value)
   | .letBind name _ value => do
-      let evaluated ← evalExpr state frame value
-      .ok (state, frame.write name evaluated, none)
+      let (nextState, evaluated) ← evalExpr state frame value
+      .ok (nextState, frame.write name evaluated, none)
   | .letMutBind name _ value => do
-      let evaluated ← evalExpr state frame value
-      .ok (state, frame.write name evaluated, none)
+      let (nextState, evaluated) ← evalExpr state frame value
+      .ok (nextState, frame.write name evaluated, none)
   | .effect effect => do
       .ok (← execEffectStmt state frame effect, frame, none)
   | .assert condition message _ => do
-      if ← truthy (← evalExpr state frame condition) then
-        .ok (state, frame, none)
+      let (nextState, conditionValue) ← evalExpr state frame condition
+      if ← truthy conditionValue then
+        .ok (nextState, frame, none)
       else
         .error s!"assertion failed: {message}"
   | .assertEq lhs rhs message _ => do
-      if (← evalExpr state frame lhs) == (← evalExpr state frame rhs) then
-        .ok (state, frame, none)
+      let (stateAfterLhs, lhsValue) ← evalExpr state frame lhs
+      let (stateAfterRhs, rhsValue) ← evalExpr stateAfterLhs frame rhs
+      if lhsValue == rhsValue then
+        .ok (stateAfterRhs, frame, none)
       else
         .error s!"assertion failed: {message}"
   | .return value => do
-      .ok (state, frame, some (← evalExpr state frame value))
+      let (nextState, returnValue) ← evalExpr state frame value
+      .ok (nextState, frame, some returnValue)
   | _ => .error "statement is not supported by the scalar semantics model"
 
 def execStatements : List Statement → State → Frame → Except String (State × Option Value)
@@ -576,6 +652,46 @@ def abiMakeArrayTrace : Except String (State × Option Value) :=
 
 theorem abi_make_array_trace_returns_array :
     resultValueMatches abiMakeArrayTrace (some (.array [.u64 1, .u64 2, .u64 3])) = true := by
+  native_decide
+
+def mapLifecycleTrace : Except String (State × Option Value) :=
+  runEntrypoint State.empty ProofForge.IR.Examples.EvmMapProbe.mapLifecycle
+
+theorem map_lifecycle_trace_returns_fifty_five :
+    resultValueMatches mapLifecycleTrace (some (.u64 55)) = true := by
+  native_decide
+
+def mapContainsLifecycleTrace : Except String (State × Option Value) :=
+  runEntrypoint State.empty ProofForge.IR.Examples.EvmMapProbe.containsLifecycle
+
+theorem map_contains_lifecycle_trace_returns_ninety_nine :
+    resultValueMatches mapContainsLifecycleTrace (some (.u64 99)) = true := by
+  native_decide
+
+def mapParameterizedLifecycleTrace : Except String (List (Option Value)) := do
+  let (stateAfterInsert, oldValue) ←
+    runEntrypointWithArgs State.empty ProofForge.IR.Examples.EvmMapProbe.upsertBalance
+      #[.u64 7007, .u64 123]
+  let (stateAfterRead, insertedValue) ←
+    runEntrypointWithArgs stateAfterInsert ProofForge.IR.Examples.EvmMapProbe.readBalance
+      #[.u64 7007]
+  let (stateAfterSet, _) ←
+    runEntrypointWithArgs stateAfterRead ProofForge.IR.Examples.EvmMapProbe.setBalance
+      #[.u64 7007, .u64 456]
+  let (_, setValue) ←
+    runEntrypointWithArgs stateAfterSet ProofForge.IR.Examples.EvmMapProbe.readBalance
+      #[.u64 7007]
+  .ok [oldValue, insertedValue, setValue]
+
+def valuesTraceMatches (result : Except String (List (Option Value))) (expected : List (Option Value)) :
+    Bool :=
+  match result with
+  | .ok actual => actual == expected
+  | .error _ => false
+
+theorem map_parameterized_lifecycle_trace_matches :
+    valuesTraceMatches mapParameterizedLifecycleTrace
+      [some (.u64 0), some (.u64 123), some (.u64 456)] = true := by
   native_decide
 
 def mapPathLifecycleTrace : Except String (State × Option Value) :=

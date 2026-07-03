@@ -17,6 +17,9 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.IR.Semantics.array_predicates_trace_returns_one
 #check ProofForge.IR.Semantics.abi_sum_pair_trace_returns_forty_two
 #check ProofForge.IR.Semantics.abi_make_array_trace_returns_array
+#check ProofForge.IR.Semantics.map_lifecycle_trace_returns_fifty_five
+#check ProofForge.IR.Semantics.map_contains_lifecycle_trace_returns_ninety_nine
+#check ProofForge.IR.Semantics.map_parameterized_lifecycle_trace_matches
 #check ProofForge.IR.Semantics.map_path_lifecycle_trace_returns_seventy_seven
 #check ProofForge.IR.Semantics.map_path_assign_lifecycle_trace_returns_fifty_eight
 #check ProofForge.IR.Semantics.map_nested_path_lifecycle_trace_returns_ninety_five

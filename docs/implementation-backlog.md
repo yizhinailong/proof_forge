@@ -44,7 +44,7 @@ disposition is:
 |---|---|---|
 | R1: RFC 0009 and D-039 lagged behind the landed CLI M1 work | Closed on current `main`: RFC 0009 is accepted with M1 landed, and D-039 now ratifies the compatibility-layer implementation instead of claiming a pre-code freeze | Keep RFC 0009 and CLI migration docs synchronized as M3/M4 moves scripts and testkit from legacy flags to target-first commands |
 | R2: too many half-finished workstreams are active | Accepted as a planning risk | Gate P0 is closed; focus the next active implementation lane on CLI M3/M4 cleanup before opening Tier-1 M3/M4 work |
-| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, NEAR trace obligations, EVM FV-4 executable Yul trace anchors, and the first FV-2 aggregate/storage IR traces exist, but full IR-to-artifact semantic preservation is not done | Continue FV-2 by adding state-threaded expression evaluation and full map insert/set lifecycle traces, then connect those IR traces to the EVM/NEAR artifact obligations |
+| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, NEAR trace obligations, EVM FV-4 executable Yul trace anchors, and FV-2 aggregate/storage plus map lifecycle IR traces exist, but full IR-to-artifact semantic preservation is not done | Connect the covered FV-2 IR traces to the EVM/NEAR artifact obligations, then extend FV-2 over control flow and observable event traces |
 | R4: capability granularity is too coarse | Do not churn capability ids in the current phase; storage is already split into scalar/map/array/PDA, and Solana account semantics are modeled separately from storage patterns | Treat cross-target runtime differences as budget/diagnostic obligations: each target must reject unsupported shapes explicitly and pin resource budgets for supported ones |
 | R5: docs-first target notes create hidden sunk cost | Closed at the scheduling layer: D-045 and the target roadmap restricted product hardening to `solana-sbpf-asm`, `evm`, and `wasm-near` until Gate P0 closed | Keep research notes as inventory; schedule Tier-1 M3/M4 explicitly after CLI M3/M4 cleanup rather than letting old research notes create automatic implementation scope |
 | R6: Lean/toolchain onboarding friction | Partially closed: `docs/onboarding.md` exists and names the core toolchain and per-target tools, but editor workspace config, templates, and scaffolding remain open DX work | Add VS Code/Cursor workspace recommendations and a minimal project template after the NEAR/Wasm P0-3 closure, unless onboarding friction blocks P0 work earlier |
@@ -54,9 +54,10 @@ The immediate engineering order after this review is therefore:
 1. ~~Close NEAR/Wasm P0-3 with target-first local execution and deploy metadata
    evidence.~~ ✅ Closed by Gate P0 sign-off.
 2. Finish the CLI M3/M4 migration from legacy flags to target-first invocations.
-3. Continue formal verification work: FV-2 has its first aggregate/storage
-   executable trace slice; next add state-threaded expression evaluation and
-   connect the covered IR traces to the existing EVM/NEAR obligations.
+3. Continue formal verification work: FV-2 now has aggregate/storage executable
+   traces plus state-threaded map insert/set lifecycle traces; next connect the
+   covered IR traces to the existing EVM/NEAR obligations and extend FV-2 over
+   control flow.
 4. Address the remaining DX items (`.vscode` recommendations, project template,
    and scaffolding) once they no longer compete with the P0 closure.
 
@@ -2055,11 +2056,11 @@ Tasks (see the roadmap for full statements):
   Solana target-extension isolation for `resolveSpec` (D-027/D-028 as
   theorems).
 - FV-2: extend `ProofForge/IR/Semantics.lean` beyond the scalar subset.
-  Done: first executable aggregate/storage slice for fixed arrays, struct
-  values, aggregate ABI params/returns, storage arrays, storage struct fields,
-  and nested storage paths. Remaining: state-thread effectful expressions,
-  cover full map insert/set lifecycles plus `ifElse`, `boundedFor`, and events,
-  then prove determinism plus bounded-loop termination.
+  Done: executable aggregate/storage slices for fixed arrays, struct values,
+  aggregate ABI params/returns, storage arrays, storage struct fields, nested
+  storage paths, and state-threaded effectful expressions covering map
+  insert/set lifecycles. Remaining: cover `ifElse`, `boundedFor`, and events as
+  observable traces, then prove determinism plus bounded-loop termination.
 - FV-3: prove the `IR/Ownership.lean` checker sound against release-aware
   semantics (no use-after-release, no double release), justifying the three
   divergent `release` lowerings (EmitWat allocator, EVM/Psy reject, TS
@@ -2081,12 +2082,12 @@ Tasks (see the roadmap for full statements):
   (map value/presence slots and nested map paths), `EvmTypedStorageProbe`
   (typed storage arrays and hash array reads), `EvmStorageStructProbe`
   (storage structs and arrays of flat structs), and `EvmAbiAggregateProbe`
-  (aggregate ABI params/returns). The first FV-2 IR aggregate/storage traces now
-  cover many of these shapes, but the EVM-only obligations still need to compare
-  against those IR traces. Next: add state-threaded expression evaluation so
-  expression-position map insert/set lifecycles can be modeled, then wire the
-  covered IR traces into the EVM/NEAR artifact obligations; keep Psy/Solana on
-  differential gates until their interpreters exist.
+  (aggregate ABI params/returns). FV-2 IR aggregate/storage and map lifecycle
+  traces now cover many of these shapes, but the EVM-only obligations still
+  need to compare against those IR traces. Next: wire the covered IR traces into
+  the EVM/NEAR artifact obligations, then extend FV-2 over control flow and
+  observable event traces; keep Psy/Solana on differential gates until their
+  interpreters exist.
 - FV-5: state checked-arithmetic overflow/division semantics once in the IR
   value domain and add the overflow branch to backend obligations.
 - FV-6: prove `.learn`-vs-`contract_source` lowering equivalence for the
