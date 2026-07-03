@@ -1,5 +1,6 @@
 import ProofForge.Backend.Solana.Asm
 import ProofForge.Backend.Solana.Extension
+import ProofForge.Backend.Solana.Idl
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Contract.Builder
 import ProofForge.Solana
@@ -50,7 +51,7 @@ def noAllocSpec : ProofForge.Contract.ContractSpec :=
 
 def requireAllocatorPlan
     (spec : ProofForge.Contract.ContractSpec)
-    (kind model heapBytes assemblyNeedle manifestNeedle : String) : IO Unit := do
+    (kind model heapBytes assemblyNeedle manifestNeedle releaseNeedle : String) : IO Unit := do
   let plan ←
     match resolveSpec solanaSbpfAsm spec with
     | .ok plan => pure plan
@@ -75,14 +76,21 @@ def requireAllocatorPlan
   let asm := ProofForge.Backend.Solana.Asm.renderNodes
     (ProofForge.Backend.Solana.Extension.lowerPlan plan)
   require (contains asm assemblyNeedle) "assembly missing allocator metadata"
+  let idl := ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan
+  require (contains idl "\"strategy\": \"bump\"") "idl missing shared strategy"
+  require (contains idl ("\"release\": \"" ++ releaseNeedle ++ "\"")) "idl missing shared release"
+  require (contains idl "\"base\": \"12884901888\"") "idl missing shared region base"
+  require (contains idl ("\"size\": \"" ++ heapBytes ++ "\"")) "idl missing shared region size"
 
 def main : IO UInt32 := do
   requireAllocatorPlan bumpSpec "bump" "downward-bump" "32768"
     "solana.allocator runtime: kind=bump model=downward-bump heap_start=0x300000000 heap_bytes=32768"
     "model = \"downward-bump\""
+    "noop"
   requireAllocatorPlan noAllocSpec "none" "deny-dynamic" "0"
     "solana.allocator runtime: kind=none model=deny-dynamic heap_start=0x300000000 heap_bytes=0"
     "model = \"deny-dynamic\""
+    "none"
 
   match resolveSpec evm bumpSpec with
   | .ok _ => throw <| IO.userError "EVM unexpectedly accepted Solana runtime allocator"

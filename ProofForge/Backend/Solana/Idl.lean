@@ -192,12 +192,20 @@ def cpiJson (cpi : CpiInvoke) : String :=
   ]
 
 def allocatorJson (allocator : RuntimeAllocator) : String :=
+  let region := allocator.config.model.region
   jsonObject #[
     ("name", jsonString allocator.name),
     ("kind", jsonString allocator.kind),
     ("model", jsonString allocator.model),
     ("heapStart", jsonString allocator.heapStart),
     ("heapBytes", jsonString allocator.heapBytes),
+    ("strategy", jsonString allocator.config.model.strategy.id),
+    ("release", jsonString allocator.config.model.release.id),
+    ("region", jsonObject #[
+      ("base", jsonString (toString region.base)),
+      ("size", jsonString allocator.heapBytes),
+      ("growable", jsonString (toString region.growable))
+    ]),
     ("entrypoint", jsonStringOption allocator.entrypoint?)
   ]
 

@@ -257,12 +257,62 @@ structure DataLogAction where
 
 structure RuntimeAllocator where
   name : String
-  kind : String
-  heapStart : String
-  heapBytes : String
-  model : String
+  config : ProofForge.IR.AllocatorConfig
   entrypoint? : Option String := none
   deriving Repr, Inhabited
+
+def hexDigitValue (c : Char) : Option Nat :=
+  if c.isDigit then some (c.toNat - '0'.toNat)
+  else if c ≥ 'a' && c ≤ 'f' then some (c.toNat - 'a'.toNat + 10)
+  else if c ≥ 'A' && c ≤ 'F' then some (c.toNat - 'A'.toNat + 10)
+  else none
+
+def parseHex? (s : String) : Option Nat :=
+  let chars := if s.startsWith "0x" then (s.drop 2).toString.toList else s.toList
+  chars.foldl (fun acc c => do
+    let n ← acc
+    let d ← hexDigitValue c
+    some (n * 16 + d)) (some 0)
+
+def toHex (n : Nat) : String :=
+  "0x" ++ String.ofList (Nat.toDigits 16 n)
+
+def RuntimeAllocator.kind (allocator : RuntimeAllocator) : String :=
+  match allocator.config.model.release, allocator.config.model.region.size? with
+  | .none, some 0 => "none"
+  | .none, _ => "none"
+  | .noop, _ =>
+      match allocator.config.model.strategy with
+      | .bump | .bumpReset => "bump"
+      | .freeList => "free_list"
+      | .hostImport => "host_import"
+  | .reuse, _ =>
+      match allocator.config.model.strategy with
+      | .freeList => "free_list"
+      | .hostImport => "host_import"
+      | _ => "bump"
+
+def RuntimeAllocator.model (allocator : RuntimeAllocator) : String :=
+  match allocator.config.model.release, allocator.config.model.region.size? with
+  | .none, some 0 => "deny-dynamic"
+  | .none, _ => "deny-dynamic"
+  | .noop, _ =>
+      match allocator.config.model.strategy with
+      | .bumpReset => "bump-reset"
+      | _ => "downward-bump"
+  | .reuse, _ =>
+      match allocator.config.model.strategy with
+      | .freeList => "wee-alloc"
+      | .hostImport => "cosmwasm-region"
+      | _ => "downward-bump"
+
+def RuntimeAllocator.heapStart (allocator : RuntimeAllocator) : String :=
+  toHex allocator.config.model.region.base
+
+def RuntimeAllocator.heapBytes (allocator : RuntimeAllocator) : String :=
+  match allocator.config.model.region.size? with
+  | some n => toString n
+  | none => "32768"
 
 structure PdaAction where
   name : String
@@ -659,12 +709,36 @@ def declaredAccountFromCall? (call : CapabilityCall) : Option DeclaredAccount :=
 
 def allocatorFromCall? (call : CapabilityCall) : Option RuntimeAllocator :=
   if call.capability == .runtimeAllocator then
+    let name := metadataValue? call.metadata "solana.allocator.name" |>.getD "runtime"
+    let kind := metadataValue? call.metadata "solana.allocator.kind" |>.getD "bump"
+    let heapStartStr := metadataValue? call.metadata "solana.allocator.heap_start" |>.getD "0x300000000"
+    let heapBytesStr := metadataValue? call.metadata "solana.allocator.heap_bytes" |>.getD "32768"
+    let modelStr := metadataValue? call.metadata "solana.allocator.model" |>.getD "downward-bump"
+    let base := parseHex? heapStartStr |>.getD 0x300000000
+    let size := heapBytesStr.toNat? |>.getD 32768
+    let (strategy, release) :=
+      match kind, modelStr with
+      | "none", "deny-dynamic" =>
+          (ProofForge.IR.AllocatorStrategy.bump, ProofForge.IR.AllocatorRelease.none)
+      | "bump", "bump-reset" =>
+          (ProofForge.IR.AllocatorStrategy.bumpReset, ProofForge.IR.AllocatorRelease.noop)
+      | "bump", _ =>
+          (ProofForge.IR.AllocatorStrategy.bump, ProofForge.IR.AllocatorRelease.noop)
+      | "free_list", _ =>
+          (ProofForge.IR.AllocatorStrategy.freeList, ProofForge.IR.AllocatorRelease.reuse)
+      | "host_import", _ =>
+          (ProofForge.IR.AllocatorStrategy.hostImport, ProofForge.IR.AllocatorRelease.reuse)
+      | _, _ =>
+          (ProofForge.IR.AllocatorStrategy.bump, ProofForge.IR.AllocatorRelease.noop)
     some {
-      name := metadataValue? call.metadata "solana.allocator.name" |>.getD "runtime"
-      kind := metadataValue? call.metadata "solana.allocator.kind" |>.getD "bump"
-      heapStart := metadataValue? call.metadata "solana.allocator.heap_start" |>.getD "0x300000000"
-      heapBytes := metadataValue? call.metadata "solana.allocator.heap_bytes" |>.getD "32768"
-      model := metadataValue? call.metadata "solana.allocator.model" |>.getD "downward-bump"
+      name := name
+      config := {
+        model := {
+          strategy := strategy
+          region := { base := base, size? := some size, growable := false }
+          release := release
+        }
+      }
       entrypoint? := entrypoint? call
     }
   else

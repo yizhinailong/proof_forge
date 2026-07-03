@@ -1,6 +1,7 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Contract.Builder
+import ProofForge.IR.Allocator
 
 namespace ProofForge.Solana
 
@@ -71,7 +72,30 @@ structure AllocatorConfig where
   kind : AllocatorKind := .bump
   heapStart : String := "0x300000000"
   heapBytes : Nat := 32768
-  deriving Repr
+  deriving Repr, Inhabited
+
+def AllocatorConfig.toIRConfig (config : AllocatorConfig) : ProofForge.IR.AllocatorConfig :=
+  let baseOpt :=
+    if config.heapStart.startsWith "0x" then
+      (config.heapStart.drop 2).toString.toNat?
+    else
+      config.heapStart.toNat?
+  let base := baseOpt.getD 0x300000000
+  let release :=
+    match config.kind with
+    | .bump => ProofForge.IR.AllocatorRelease.noop
+    | .noAllocator => ProofForge.IR.AllocatorRelease.none
+  let strategy :=
+    match config.kind with
+    | .bump => ProofForge.IR.AllocatorStrategy.bump
+    | .noAllocator => ProofForge.IR.AllocatorStrategy.bump
+  {
+    model := {
+      strategy := strategy
+      region := { base := base, size? := some config.heapBytes, growable := false }
+      release := release
+    }
+  }
 
 inductive MemoryOp where
   | memcpy

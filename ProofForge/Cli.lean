@@ -1529,12 +1529,20 @@ def solanaCpiJson (cpi : ProofForge.Backend.Solana.Extension.CpiInvoke) : String
   ]
 
 def solanaAllocatorJson (allocator : ProofForge.Backend.Solana.Extension.RuntimeAllocator) : String :=
+  let region := allocator.config.model.region
   jsonObject #[
     ("name", jsonString allocator.name),
     ("kind", jsonString allocator.kind),
     ("model", jsonString allocator.model),
     ("heapStart", jsonString allocator.heapStart),
-    ("heapBytes", jsonString allocator.heapBytes)
+    ("heapBytes", jsonString allocator.heapBytes),
+    ("strategy", jsonString allocator.config.model.strategy.id),
+    ("release", jsonString allocator.config.model.release.id),
+    ("region", jsonObject #[
+      ("base", jsonString (toString region.base)),
+      ("size", jsonString allocator.heapBytes),
+      ("growable", jsonString (toString region.growable))
+    ])
   ]
 
 def solanaPdaActionJson (action : ProofForge.Backend.Solana.Extension.PdaAction) : String :=
