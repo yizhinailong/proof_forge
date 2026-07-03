@@ -28,6 +28,12 @@ def main : IO UInt32 := do
     "wasm-near offline allocator surface must stay host-bump only"
   require (!nearProfile.offlineAllocators.contains ProofForge.IR.ExperimentAllocator.hostJemallocShape)
     "wasm-near must not advertise jemalloc-shaped host allocation"
+  require (nearProfile.hostBridge? == some HostBridge.near)
+    "wasm-near must declare the NEAR host bridge"
+
+  let cosmwasmProfile ← requireSome (find? "wasm-cosmwasm") "missing wasm-cosmwasm target profile"
+  require (cosmwasmProfile.hostBridge? == some HostBridge.cosmWasm)
+    "wasm-cosmwasm must declare the CosmWasm host bridge"
 
   let robinhood ← requireSome (findEvmChainProfile? "robinhood-chain-testnet")
     "missing Robinhood Chain testnet profile"

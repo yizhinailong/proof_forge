@@ -593,7 +593,7 @@ Acceptance criteria:
 - [x] `sbpf disassemble` produces assembly matching the input.
 - [x] `--emit-sbpf-asm` writes valid `.s` without assembly errors.
 - [x] `proof-forge-artifact.json` records `target: "solana-sbpf-asm"`.
-- [ ] `sbpf` installed to PATH via `cargo install` (currently built from source).
+- [x] `sbpf` installed to PATH via `cargo install`.
 
 Reference: [solana-sbpf-asm design doc](targets/solana-sbpf-asm.md),
 [RFC 0005](rfcs/0005-solana-sbpf-assembly-backend.md).
