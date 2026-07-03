@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-03
 
+### EVM Expression Assertion Executable Yul Trace Obligation
+
+Commit: feature commit for FV-4 EVM expression/assertion executable trace
+obligation
+
+Summary:
+
+- Extended `ProofForge.IR.Semantics` with predicate expressions, boolean
+  operators, casts, bitwise/shift operators, exponentiation, and assertion /
+  assertion-equality statement execution for the focused scalar subset.
+- Extended `ProofForge.Backend.Evm.YulSemantics` with `exp`, matching the Yul
+  emitted for EVM expression probes.
+- Added `expression_evm_yul_executable_trace_ok`, which runs
+  `EvmExpressionProbe` through the generated selector-dispatched Yul subset and
+  compares observable return words against the IR trace.
+
+Validation run:
+
+```sh
+lake build ProofForge.IR.Semantics
+lake build ProofForge.Backend.Evm.YulSemantics
+lake build ProofForge.Backend.Evm.Refinement
+lake build ProofForge.Backend.Evm
+scripts/i18n/check-sync.sh
+git diff --check
+just check
+```
+
+Known limitations:
+
+- This covers successful assertion/expression paths only. Revert/error traces,
+  maps, arrays, structs, aggregate returns, and full EVM word overflow semantics
+  are still future FV-4 slices.
+
+Next step:
+
+- Extend executable obligations to map storage and fixed-array storage probes,
+  then move into struct and aggregate return/state shapes.
+
 ### EVM ValueVault Executable Yul Trace Obligation
 
 Commit: feature commit for FV-4 ValueVault executable Yul trace obligation

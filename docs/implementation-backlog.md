@@ -2020,19 +2020,21 @@ Tasks (see the roadmap for full statements):
   semantics (no use-after-release, no double release), justifying the three
   divergent `release` lowerings (EmitWat allocator, EVM/Psy reject, TS
   no-op).
-- FV-4: Done EVM Counter and ValueVault executable trace obligations in
+- FV-4: Done EVM Counter, ValueVault, and EvmExpressionProbe executable trace obligations in
   `Backend/Evm/Refinement.lean`, backed by
   `Backend/Evm/YulSemantics.lean`. The obligations mirror
   `Backend/WasmNear/Refinement.lean` for scalar IR traces, check the
   selector-dispatched Yul surface, and execute the focused emitted Yul subset
   (`calldataload`, `calldatasize`, `sstore`, `sload`, scalar arithmetic,
-  `number`, `keccak256`, `log0`-`log4`, `mstore`, `return`) to compare
-  observable EVM return words against the IR trace. ValueVault covers
-  calldata arguments, multi-entry scalar storage updates, block-number context
-  reads, event field evaluation, and return words. Next: extend the
-  interpreter and obligations toward assertions, maps, arrays, structs, and
-  aggregate return/state shapes; keep Psy/Solana on differential gates until
-  interpreters exist.
+  `exp`, bitwise/shift operators, comparisons, casts, assertions, `number`,
+  `keccak256`, `log0`-`log4`, `mstore`, `return`) to compare observable EVM
+  return words against the IR trace. ValueVault covers calldata arguments,
+  multi-entry scalar storage updates, block-number context reads, event field
+  evaluation, and return words; EvmExpressionProbe covers assertion success
+  paths, `assertEq`, predicate expressions, U32/U64 arithmetic, casts, bitwise
+  operators, and shifts. Next: extend the interpreter and obligations toward
+  maps, arrays, structs, and aggregate return/state shapes; keep Psy/Solana on
+  differential gates until interpreters exist.
 - FV-5: state checked-arithmetic overflow/division semantics once in the IR
   value domain and add the overflow branch to backend obligations.
 - FV-6: prove `.learn`-vs-`contract_source` lowering equivalence for the

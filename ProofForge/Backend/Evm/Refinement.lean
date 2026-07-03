@@ -1,6 +1,7 @@
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.YulSemantics
 import ProofForge.Contract.Examples.ValueVault
+import ProofForge.IR.Examples.EvmExpressionProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Semantics
 
@@ -341,6 +342,31 @@ def valueVaultTraceObligation : TraceObligation := {
   expected := valueVaultExpectedTrace
 }
 
+def expressionTraceCalls : Array TraceCall := #[
+  { entrypoint := ProofForge.IR.Examples.EvmExpressionProbe.arithmeticU64 },
+  { entrypoint := ProofForge.IR.Examples.EvmExpressionProbe.bitwiseU64 },
+  { entrypoint := ProofForge.IR.Examples.EvmExpressionProbe.predicateMatrix },
+  {
+    entrypoint := ProofForge.IR.Examples.EvmExpressionProbe.castsAndU32
+    args := #[.u32 7, .bool true]
+    evmArgs := #[7, 1]
+  }
+]
+
+def expressionExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "arithmetic_u64", selector := "139ade38", returnValue := .u64 40 },
+  { entrypointName := "bitwise_u64", selector := "2e124ba8", returnValue := .u64 11 },
+  { entrypointName := "predicate_matrix", selector := "219a55f8", returnValue := .u64 8 },
+  { entrypointName := "casts_and_u32", selector := "555e000e", returnValue := .u64 50 }
+]
+
+def expressionTraceObligation : TraceObligation := {
+  name := "EvmExpressionProbe.expression-assertion-trace"
+  module := ProofForge.IR.Examples.EvmExpressionProbe.module
+  calls := expressionTraceCalls
+  expected := expressionExpectedTrace
+}
+
 theorem counter_ir_observable_trace_ok :
     counterTraceObligation.irTraceOk = true := by
   native_decide
@@ -363,6 +389,18 @@ theorem value_vault_evm_yul_surface_trace_entrypoints :
 
 theorem value_vault_evm_yul_executable_trace_ok :
     valueVaultTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+theorem expression_ir_observable_trace_ok :
+    expressionTraceObligation.irTraceOk = true := by
+  native_decide
+
+theorem expression_evm_yul_surface_trace_entrypoints :
+    expressionTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem expression_evm_yul_executable_trace_ok :
+    expressionTraceObligation.evmYulTraceOk = true := by
   native_decide
 
 end ProofForge.Backend.Evm.Refinement

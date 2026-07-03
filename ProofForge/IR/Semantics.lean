@@ -45,6 +45,8 @@ inductive Value where
   | hash (a b c d : Nat)
   deriving Repr, BEq, DecidableEq
 
+def maxU32 : Nat := 4294967295
+
 abbrev Bindings := List (String × Value)
 
 def lookup (name : String) : Bindings → Option Value
@@ -136,6 +138,55 @@ def evalNumericBinary (opName : String) (op : Nat → Nat → Nat) (lhs rhs : Va
   | .u32 lhsValue, .u32 rhsValue => .ok (.u32 (op lhsValue rhsValue))
   | _, _ => .error s!"{opName} expects matching numeric operands"
 
+def evalNumericPredicate (opName : String) (op : Nat → Nat → Bool) (lhs rhs : Value) :
+    Except String Value :=
+  match lhs, rhs with
+  | .u64 lhsValue, .u64 rhsValue => .ok (.bool (op lhsValue rhsValue))
+  | .u32 lhsValue, .u32 rhsValue => .ok (.bool (op lhsValue rhsValue))
+  | _, _ => .error s!"{opName} expects matching numeric operands"
+
+def evalEquality (lhs rhs : Value) : Except String Value :=
+  match lhs, rhs with
+  | .unit, .unit => .ok (.bool true)
+  | .bool lhsValue, .bool rhsValue => .ok (.bool (lhsValue == rhsValue))
+  | .u64 lhsValue, .u64 rhsValue => .ok (.bool (lhsValue == rhsValue))
+  | .u32 lhsValue, .u32 rhsValue => .ok (.bool (lhsValue == rhsValue))
+  | .hash a0 b0 c0 d0, .hash a1 b1 c1 d1 =>
+      .ok (.bool (a0 == a1 && b0 == b1 && c0 == c1 && d0 == d1))
+  | _, _ => .error "equality expects matching operands"
+
+def evalBooleanBinary (opName : String) (op : Bool → Bool → Bool) (lhs rhs : Value) :
+    Except String Value :=
+  match lhs, rhs with
+  | .bool lhsValue, .bool rhsValue => .ok (.bool (op lhsValue rhsValue))
+  | _, _ => .error s!"{opName} expects Bool operands"
+
+def castValue (value : Value) (targetType : ValueType) : Except String Value :=
+  match value, targetType with
+  | .bool value, .bool => .ok (.bool value)
+  | .bool value, .u32 => .ok (.u32 (if value then 1 else 0))
+  | .bool value, .u64 => .ok (.u64 (if value then 1 else 0))
+  | .u32 value, .u32 => .ok (.u32 value)
+  | .u32 value, .u64 => .ok (.u64 value)
+  | .u32 0, .bool => .ok (.bool false)
+  | .u32 1, .bool => .ok (.bool true)
+  | .u32 _, .bool => .error "U32 to Bool cast expects canonical 0 or 1"
+  | .u64 value, .u64 => .ok (.u64 value)
+  | .u64 value, .u32 =>
+      if value <= maxU32 then
+        .ok (.u32 value)
+      else
+        .error "U64 to U32 cast exceeds U32 range"
+  | .u64 0, .bool => .ok (.bool false)
+  | .u64 1, .bool => .ok (.bool true)
+  | .u64 _, .bool => .error "U64 to Bool cast expects canonical 0 or 1"
+  | .hash a b c d, .hash => .ok (.hash a b c d)
+  | _, _ => .error s!"cast to `{targetType.name}` is not supported by the scalar semantics model"
+
+def truthy : Value → Except String Bool
+  | .bool value => .ok value
+  | _ => .error "assertion condition expects Bool"
+
 def evalExpr (state : State) (frame : Frame) : Expr → Except String Value
   | .literal literal => literalValue literal
   | .local name =>
@@ -154,6 +205,47 @@ def evalExpr (state : State) (frame : Frame) : Expr → Except String Value
   | .mod lhs rhs => do
       evalNumericBinary "mod" (fun lhs rhs => if rhs == 0 then 0 else lhs % rhs)
         (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .pow lhs rhs => do
+      evalNumericBinary "pow" (fun lhs rhs => lhs ^ rhs)
+        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .bitAnd lhs rhs => do
+      evalNumericBinary "bitAnd" Nat.land (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .bitOr lhs rhs => do
+      evalNumericBinary "bitOr" Nat.lor (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .bitXor lhs rhs => do
+      evalNumericBinary "bitXor" Nat.xor (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .shiftLeft lhs rhs => do
+      evalNumericBinary "shiftLeft" (fun lhs rhs => lhs * (2 ^ rhs))
+        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .shiftRight lhs rhs => do
+      evalNumericBinary "shiftRight" (fun lhs rhs => lhs / (2 ^ rhs))
+        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .cast value targetType => do
+      castValue (← evalExpr state frame value) targetType
+  | .eq lhs rhs => do
+      evalEquality (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .ne lhs rhs => do
+      match ← evalEquality (← evalExpr state frame lhs) (← evalExpr state frame rhs) with
+      | .bool value => .ok (.bool (!value))
+      | _ => .error "equality returned a non-Bool value"
+  | .lt lhs rhs => do
+      evalNumericPredicate "lt" (· < ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .le lhs rhs => do
+      evalNumericPredicate "le" (· <= ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .gt lhs rhs => do
+      evalNumericPredicate "gt" (· > ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .ge lhs rhs => do
+      evalNumericPredicate "ge" (· >= ·) (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .boolAnd lhs rhs => do
+      evalBooleanBinary "boolAnd" (fun lhs rhs => lhs && rhs)
+        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .boolOr lhs rhs => do
+      evalBooleanBinary "boolOr" (fun lhs rhs => lhs || rhs)
+        (← evalExpr state frame lhs) (← evalExpr state frame rhs)
+  | .boolNot value => do
+      match ← evalExpr state frame value with
+      | .bool value => .ok (.bool (!value))
+      | _ => .error "boolNot expects Bool operand"
   | .effect effect => evalEffect state frame effect
   | _ => .error "expression is not supported by the scalar semantics model"
 
@@ -185,6 +277,16 @@ def execStmt (state : State) (frame : Frame) : Statement →
       .ok (state, frame.write name evaluated, none)
   | .effect effect => do
       .ok (← execEffectStmt state frame effect, frame, none)
+  | .assert condition message _ => do
+      if ← truthy (← evalExpr state frame condition) then
+        .ok (state, frame, none)
+      else
+        .error s!"assertion failed: {message}"
+  | .assertEq lhs rhs message _ => do
+      if (← evalExpr state frame lhs) == (← evalExpr state frame rhs) then
+        .ok (state, frame, none)
+      else
+        .error s!"assertion failed: {message}"
   | .return value => do
       .ok (state, frame, some (← evalExpr state frame value))
   | _ => .error "statement is not supported by the scalar semantics model"

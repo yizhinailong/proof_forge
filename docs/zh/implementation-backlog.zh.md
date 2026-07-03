@@ -906,7 +906,7 @@
 - FV-1：证明 `resolveSpec` 的能力路由稳健性、拒绝完备性以及 Solana 目标扩展隔离（将 D-027/D-028 作为定理）。
 - FV-2：将 `ProofForge/IR/Semantics.lean` 扩展到标量子集之外（映射、数组、结构体、`ifElse`、`boundedFor`、事件），并证明确定性以及有界循环终止性。
 - FV-3：证明 `IR/Ownership.lean` 检查器相对于释放感知语义（无释放后使用、无重复释放）是稳健的，为三种不同的 `release` 降级（EmitWat 分配器、EVM/Psy 拒绝、TS no-op）提供依据。
-- FV-4：已在 `Backend/Evm/Refinement.lean` 中落地 EVM Counter 和 ValueVault 可执行追踪义务，并由 `Backend/Evm/YulSemantics.lean` 支撑。这些义务镜像 `Backend/WasmNear/Refinement.lean` 的 scalar IR trace，检查 selector-dispatched Yul surface，并执行聚焦的已发射 Yul 子集（`calldataload`、`calldatasize`、`sstore`、`sload`、标量算术、`number`、`keccak256`、`log0`-`log4`、`mstore`、`return`），将可观察 EVM return words 与 IR trace 对比。ValueVault 覆盖 calldata 参数、多入口标量存储更新、区块号上下文读取、事件字段求值以及 return words。下一步：将解释器和义务扩展到 assertion、map、array、struct 和 aggregate return/state 形态；在解释器存在之前，让 Psy/Solana 保持在差异门控上。
+- FV-4：已在 `Backend/Evm/Refinement.lean` 中落地 EVM Counter、ValueVault 和 EvmExpressionProbe 可执行追踪义务，并由 `Backend/Evm/YulSemantics.lean` 支撑。这些义务镜像 `Backend/WasmNear/Refinement.lean` 的 scalar IR trace，检查 selector-dispatched Yul surface，并执行聚焦的已发射 Yul 子集（`calldataload`、`calldatasize`、`sstore`、`sload`、标量算术、`exp`、bitwise/shift operators、comparisons、casts、assertions、`number`、`keccak256`、`log0`-`log4`、`mstore`、`return`），将可观察 EVM return words 与 IR trace 对比。ValueVault 覆盖 calldata 参数、多入口标量存储更新、区块号上下文读取、事件字段求值以及 return words；EvmExpressionProbe 覆盖 assertion success paths、`assertEq`、predicate expressions、U32/U64 arithmetic、casts、bitwise operators 和 shifts。下一步：将解释器和义务扩展到 map、array、struct 和 aggregate return/state 形态；在解释器存在之前，让 Psy/Solana 保持在差异门控上。
 - FV-5：在 IR 值域中统一陈述检查算术溢出/除法语义，并将溢出分支添加到后端义务中。
 - FV-6：证明配对测试夹具子集的 `.learn` 与 `contract_source` 降级等价性（可判定的 `ContractSpec` 相等性）。
 - FV-7：证明 Token SDK 计划不变性（全特性路由、已文档化的不兼容诊断、计划良构性）。

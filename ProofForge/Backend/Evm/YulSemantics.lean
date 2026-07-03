@@ -273,6 +273,10 @@ mutual
         let (rt, lhs) ← evalWord ctx rt lhs
         let (rt, rhs) ← evalWord ctx rt rhs
         .ok (rt, #[if rhs == 0 then 0 else lhs % rhs])
+    | "exp", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[lhs ^ rhs])
     | "eq", [lhs, rhs] => do
         let (rt, lhs) ← evalWord ctx rt lhs
         let (rt, rhs) ← evalWord ctx rt rhs
