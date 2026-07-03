@@ -2409,3 +2409,49 @@ workstream. The forward order follows the tier gates of
    the remaining live-gate CI matrix (Workstream 9) grows with each target.
 7. Cloud platform design refresh (prerequisite: two+ targets at Experimental
    with shared-scenario parity; D-010).
+
+## SDK Ecosystem Completeness (post-P0 hardening)
+
+Gate P0 closure proved production-grade compiler correctness for the three
+primary chains. The next hardening phase is **SDK ecosystem completeness**:
+ensure a developer can write and deploy **any** contract on each chain, not
+just Counter and ValueVault. The full gap analysis lives in
+[sdk-ecosystem-gaps-2026-07.md](sdk-ecosystem-gaps-2026-07.md).
+
+**Principle:** Tier-1 targets (CosmWasm, Aptos) stay frozen until each primary
+chain's P0 SDK blockers are closed. "P0 SDK blocker" = a feature whose absence
+means a real developer cannot write a common contract pattern.
+
+### EVM SDK blockers (5 P0, 10 P1)
+
+- P0: ERC-20 completion (canonical selector surface, stdlib ERC-20 with
+  permit, EVM lowering of all token methods)
+- P0: ERC-721 NFT (ownerOf, safeTransferFrom, mint, burn, tokenURI)
+- P0: ERC-165 supportsInterface (required for NFT and token introspection)
+- P0: AccessControl roles (grant, revoke, hasRole, role-based modifiers)
+- P0: Constructor dynamic-type args (string, bytes, dynamic arrays)
+- P1: ERC-1155 multi-token, ERC-4626 vault, ERC-2612 permit, custom errors,
+  storage packing, batch operations, factory deployment template, AMM,
+  Pausable auth, ReentrancyGuard stdlib
+
+### Solana SDK blockers (5 P0, 7 P1)
+
+- P0: Account constraint enforcement (owner=executable/arbitrary validation,
+  close account, user-facing realloc API)
+- P0: ComputeBudgetInstruction (set compute unit limit, priority fees)
+- P0: Token-2022 direct sBPF CPI lowering (transfer_fee, non_transferable)
+- P1: Memo/Stake/Vote CPI, confidential_transfer, transfer_hook,
+  Pinocchio reference ≥10, Metaplex NFT, Anchor-style derive macro,
+  address lookup tables
+
+### NEAR SDK blockers (6 P0, 10 P1)
+
+- P0: Promise API (promise_create, promise_then, promise_and, batch actions,
+  promise_results, callback patterns)
+- P0: NEP-141 fungible token (ft_transfer, ft_balance_of, storage deposit)
+- P0: signer_account_id host import
+- P0: attached_deposit / native value host import
+- P0: Aggregate ABI (structs, dynamic arrays in entrypoint params)
+- P1: NEP-145 storage management, NEP-148 metadata, NEP-171 NFT,
+  keccak256/crypto, storage_remove, block_timestamp, gas accounting APIs,
+  real NEAR broadcast smoke, near-api-js view/gas/deposit client options
