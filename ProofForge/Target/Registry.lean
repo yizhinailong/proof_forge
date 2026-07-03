@@ -2,6 +2,7 @@ import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.IR.Allocator
 import ProofForge.Target.Capability
+import ProofForge.Target.HostBridge
 
 namespace ProofForge.Target
 
@@ -45,6 +46,8 @@ structure TargetProfile where
   deploymentAllocator? : Option ProofForge.IR.ChainAllocator := none
   offlineAllocators : Array ProofForge.IR.ExperimentAllocator := #[]
   requiredTools : Array String := #[]
+  /-- Host bridge for Wasm-family targets. Ignored for non-Wasm families. -/
+  hostBridge? : Option HostBridge := none
   deriving Repr
 
 structure EvmChainProfile where
@@ -105,6 +108,7 @@ def wasmNear : TargetProfile := {
     .accountExplicit,
     .assertions
   ]
+  hostBridge? := some .near
   requiredTools := #["rustup", "cargo", "near-cli"]
 }
 
@@ -124,6 +128,7 @@ def wasmCosmWasm : TargetProfile := {
     .envBlock,
     .cryptoHash
   ]
+  hostBridge? := some .cosmWasm
   -- M1 spike uses a direct WAT emitter; the Zig route is deferred to Workstream 4.
   requiredTools := #["wat2wasm", "cosmwasm-check"]
 }
