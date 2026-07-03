@@ -505,13 +505,13 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
     .ok (nodes, ctx)
   | .effect (.eventEmitIndexed _ _ _) =>
     .error { message := "Solana indexed event lowering is not supported in Phase 1; use eventEmit scalar fields" }
-  | .assert cond _ => do
+  | .assert cond _ _ => do
     let (cn, ctx') ← lowerExpr ctx cond
     .ok (cn ++ #[
       .comment "control.assert",
       .instruction { opcode := .jeq, dst := some .r2, imm := some (.num 0), off := some (.sym "assert_fail") }
     ], ctx')
-  | .assertEq lhs rhs _ => do
+  | .assertEq lhs rhs _ _ => do
     let (ln, ctx') ← lowerExpr ctx lhs
     let (scratch, ctx') := ctx'.allocScratch
     let (rn, ctx') ← lowerExpr ctx' rhs

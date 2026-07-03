@@ -1158,8 +1158,8 @@ partial def collectArrayLitsStmt (s : Statement) : Array (ValueType × Nat) :=
   | .letBind _ _ v | .letMutBind _ _ v => collectArrayLitsExpr v
   | .assign _ v | .assignOp _ _ v => collectArrayLitsExpr v
   | .effect eff => collectArrayLitsEffect eff
-  | .assert c _ => collectArrayLitsExpr c
-  | .assertEq a b _ => collectArrayLitsExpr a ++ collectArrayLitsExpr b
+  | .assert c _ _ => collectArrayLitsExpr c
+  | .assertEq a b _ _ => collectArrayLitsExpr a ++ collectArrayLitsExpr b
   | .ifElse c t e => collectArrayLitsExpr c ++ t.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[] ++ e.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[]
   | .boundedFor _ _ _ body => body.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[]
   | .release _ => #[]
@@ -1225,8 +1225,8 @@ partial def collectStructLitsStmt (s : Statement) : Array String :=
   | .letBind _ _ v | .letMutBind _ _ v => collectStructLitsExpr v
   | .assign _ v | .assignOp _ _ v => collectStructLitsExpr v
   | .effect eff => collectStructLitsEffect eff
-  | .assert c _ => collectStructLitsExpr c
-  | .assertEq a b _ => collectStructLitsExpr a ++ collectStructLitsExpr b
+  | .assert c _ _ => collectStructLitsExpr c
+  | .assertEq a b _ _ => collectStructLitsExpr a ++ collectStructLitsExpr b
   | .ifElse c t e => collectStructLitsExpr c ++ t.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[] ++ e.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[]
   | .boundedFor _ _ _ body => body.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[]
   | .release _ => #[]
@@ -1417,11 +1417,11 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
               | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
         | _ => err s!"EmitWat: storageArrayStructFieldWrite expects a struct-valued array, got `{m.valueType.name}`"
   | .effect (.eventEmit name fields) => lowerEventEmit ctx env name fields
-  | .assert cond _ => do
+  | .assert cond _ _ => do
     let (is, t) ← lowerExpr ctx env cond
     if t != .bool then err "EmitWat: assert condition must be Bool"
     else .ok (is ++ #[.plain "i32.eqz", .if_ { insns := #[.unreachable] } { insns := #[] }])
-  | .assertEq a b _ => do
+  | .assertEq a b _ _ => do
     let (la, ta) ← lowerExpr ctx env a
     let (lb, tb) ← lowerExpr ctx env b
     if ta != tb then err "EmitWat: assertEq operands must share a type"

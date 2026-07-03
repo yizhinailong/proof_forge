@@ -208,7 +208,7 @@ mutual
         let next := .binary tsOp cur v
         emit (.exprStmt (kvPutExpr stateId (toStoredString .u64 next)))
     | .effect e => panic! s!"EmitTS: unsupported statement effect {repr e}"
-    | .assert cond msg => do
+    | .assert cond msg _ => do
         let c ← emitExpr .bool cond
         emit (.ifStmt (.paren (.binary .eq c (.bool false)))
           #[.throw (.new (.ident "Error") #[.str msg])]
@@ -223,7 +223,7 @@ mutual
         emit (.exprStmt (.call2 (.member init "forEach")
           (.ident indexName)
           (.objectLit #[])))
-    | .assertEq lhs rhs msg => do
+    | .assertEq lhs rhs msg _ => do
         let l ← emitExpr .u64 lhs
         let r ← emitExpr .u64 rhs
         emit (.ifStmt (.paren (.binary .ne l r))

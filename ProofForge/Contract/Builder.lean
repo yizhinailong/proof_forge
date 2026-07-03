@@ -141,11 +141,11 @@ def assignOp (target : Expr) (op : AssignOp) (value : Expr) : EntryM Unit :=
 def effect (effect : Effect) : EntryM Unit :=
   pushStmt (.effect effect)
 
-def assert (condition : Expr) (message : String) : EntryM Unit :=
-  pushStmt (.assert condition message)
+def assert (condition : Expr) (message : String) (errorRef? : Option ProofForge.IR.ErrorRef := none) : EntryM Unit :=
+  pushStmt (.assert condition message errorRef?)
 
-def assertEq (lhs rhs : Expr) (message : String) : EntryM Unit :=
-  pushStmt (.assertEq lhs rhs message)
+def assertEq (lhs rhs : Expr) (message : String) (errorRef? : Option ProofForge.IR.ErrorRef := none) : EntryM Unit :=
+  pushStmt (.assertEq lhs rhs message errorRef?)
 
 def ifElse (condition : Expr) (thenBody elseBody : Array Statement) : EntryM Unit :=
   pushStmt (.ifElse condition thenBody elseBody)

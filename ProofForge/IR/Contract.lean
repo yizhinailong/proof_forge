@@ -167,14 +167,19 @@ mutual
     deriving Repr
 end
 
+structure ErrorRef where
+  assertionId : UInt32
+  userCode? : Option String := none
+  deriving Repr, BEq
+
 inductive Statement where
   | letBind (name : String) (type : ValueType) (value : Expr)
   | letMutBind (name : String) (type : ValueType) (value : Expr)
   | assign (target value : Expr)
   | assignOp (target : Expr) (op : AssignOp) (value : Expr)
   | effect (effect : Effect)
-  | assert (condition : Expr) (message : String)
-  | assertEq (lhs rhs : Expr) (message : String)
+  | assert (condition : Expr) (message : String) (errorRef? : Option ErrorRef := none)
+  | assertEq (lhs rhs : Expr) (message : String) (errorRef? : Option ErrorRef := none)
   /-- Release an owned heap-backed local. This is intentionally name-based
       rather than pointer-based so later IR checkers can prove no use-after-free
       and no double-release properties over local ownership. -/
@@ -338,8 +343,8 @@ def Statement.capabilities : Statement → Array ProofForge.Target.Capability
   | .assign target value => target.capabilities ++ value.capabilities
   | .assignOp target _ value => target.capabilities ++ value.capabilities
   | Statement.effect eff => #[eff.capability] ++ eff.capabilities
-  | .assert condition _ => #[.assertions] ++ condition.capabilities
-  | .assertEq lhs rhs _ => #[.assertions] ++ lhs.capabilities ++ rhs.capabilities
+  | .assert condition _ _ => #[.assertions] ++ condition.capabilities
+  | .assertEq lhs rhs _ _ => #[.assertions] ++ lhs.capabilities ++ rhs.capabilities
   | .release _ => #[]
   | .ifElse condition thenBody elseBody =>
       #[.controlConditional] ++ condition.capabilities ++

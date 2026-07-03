@@ -77,7 +77,7 @@ mutual
         .ok #[.expression (.call ⟨#["Mapping", "set"], #[], #[.identifier stateId, .literal (.integer .u64 0), v]⟩)]
     | .effect ef =>
         .error { message := s!"Leo emitter does not support effect statement: {repr ef}" }
-    | .assert cond _ => do
+    | .assert cond _ _ => do
         let c ← expr cond
         .ok #[.assert c none]
     | .ifElse cond thenBody elseBody => do
@@ -162,8 +162,8 @@ mutual
     | .letMutBind _ _ v => hasEffectExpr v
     | .assign t v => hasEffectExpr t || hasEffectExpr v
     | .assignOp t _ v => hasEffectExpr t || hasEffectExpr v
-    | .assert c _ => hasEffectExpr c
-    | .assertEq l r _ => hasEffectExpr l || hasEffectExpr r
+    | .assert c _ _ => hasEffectExpr c
+    | .assertEq l r _ _ => hasEffectExpr l || hasEffectExpr r
     | .ifElse c thenBody elseBody => hasEffectExpr c || hasEffect thenBody || hasEffect elseBody
     | .boundedFor _ _ _ body => hasEffect body
     | .return v => hasEffectExpr v

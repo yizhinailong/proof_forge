@@ -2222,6 +2222,22 @@ starts as an RFC, not code; sequencing hooks are listed in the gap doc.
   client-schema layer generalizing the Solana IDL/TS client generation to
   all targets (implementation waits for testkit M3).
 
+  Milestones:
+
+  - M1: Add `ErrorRef` (`assertion_id` + optional `user_code`) to the
+    portable IR `assert`/`assertEq` constructors and update every backend
+    pattern match to compile with the new shape. `message` remains the
+    fallback text. ✅ Implemented.
+  - M2: Implement per-target error encodings for EVM, Solana, and NEAR:
+    EVM reverts with `abi.encode(uint32 assertion_id, string user_code)`;
+    Solana returns `ProgramError::Custom(assertion_id)`; NEAR panics with
+    a `PF:{id}:{code}` prefix.
+  - M3: Extend testkit schema and harnesses with `expect.error` so a
+    scenario step can assert the exact `assertion_id`/`user_code` on
+    failure.
+  - M4: Define target-neutral `ContractSpec` JSON schema and generate
+    Solana IDL/client, EVM ABI wrapper, and NEAR wrapper sketches from it.
+
 ## Suggested Order
 
 Workstreams 1, 1.5, 2–3, 6–7 (registry, portable IR, EVM metadata, Solana

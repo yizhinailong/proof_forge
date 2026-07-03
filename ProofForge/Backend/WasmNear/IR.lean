@@ -288,7 +288,7 @@ mutual
     | .boundedFor indexName _ _ body => do
         validateRustIdentifier s!"loop index in entrypoint `{entrypointName}`" indexName
         validateBodyIdentifiers entrypointName body
-    | .assign _ _ | .assignOp _ _ _ | .effect _ | .assert _ _ | .assertEq _ _ _ | .release _ | .return _ =>
+    | .assign _ _ | .assignOp _ _ _ | .effect _ | .assert _ _ _ | .assertEq _ _ _ _ | .release _ | .return _ =>
         pure ()
 
   partial def validateBodyIdentifiers (entrypointName : String) (body : Array Statement) : Except LowerError Unit := do
@@ -507,10 +507,10 @@ mutual
     | .effect effect => do
         validateEffectStmtTypes module env effect
         .ok env
-    | .assert condition _ => do
+    | .assert condition _ _ => do
         ensureType "assert condition" .bool (← inferExprType module env condition)
         .ok env
-    | .assertEq lhs rhs _ => do
+    | .assertEq lhs rhs _ _ => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
         ensureType "assert_eq right operand" lhsType rhsType
@@ -905,9 +905,9 @@ mutual
         .error { message := "compound assignment target must be a local in wasm-near IR v0" }
     | .effect effect =>
         lowerEffectStmt module effect
-    | .assert condition message => do
+    | .assert condition message _ => do
         .ok #[s!"assert!({← lowerExpr module condition}, {stringLiteral message});"]
-    | .assertEq lhs rhs message => do
+    | .assertEq lhs rhs message _ => do
         .ok #[s!"assert_eq!({← lowerExpr module lhs}, {← lowerExpr module rhs}, {stringLiteral message});"]
     | .release _ =>
         .error { message := "release statements are not supported by wasm-near Rust sourcegen v0" }

@@ -927,11 +927,11 @@ mutual
     | .effect effect => do
         validateEffectStmt module env effect
         .ok env
-    | .assert condition _ => do
+    | .assert condition _ _ => do
         let conditionType ← inferExprType module env condition
         ensureType "assert condition" .bool conditionType
         .ok env
-    | .assertEq lhs rhs _ => do
+    | .assertEq lhs rhs _ _ => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
         ensureType "assert_eq right operand" lhsType rhsType
@@ -1263,9 +1263,9 @@ mutual
         .ok #[s!"{← lowerAssignTarget module target} {assignOpSymbol op} {← lowerExpr module value};"]
     | .effect effect =>
         lowerEffectStmt module effect
-    | .assert condition message => do
+    | .assert condition message _ => do
         .ok #[s!"assert({← lowerExpr module condition}, {stringLiteral message});"]
-    | .assertEq lhs rhs message => do
+    | .assertEq lhs rhs message _ => do
         .ok #[s!"assert_eq({← lowerExpr module lhs}, {← lowerExpr module rhs}, {stringLiteral message});"]
     | .release _ =>
         .error { message := "release statements are not supported by Psy IR v0" }
@@ -1326,8 +1326,8 @@ mutual
     | .assign _ _
     | .assignOp _ _ _
     | .effect _
-    | .assert _ _
-    | .assertEq _ _ _
+    | .assert _ _ _
+    | .assertEq _ _ _ _
     | .release _
     | .return _ =>
         pure ()

@@ -242,10 +242,10 @@ mutual
     | .effect effect => do
         checkEffect entrypoint env effect
         .ok env
-    | .assert condition _ => do
+    | .assert condition _ _ => do
         checkExpr entrypoint env condition
         .ok env
-    | .assertEq lhs rhs _ => do
+    | .assertEq lhs rhs _ _ => do
         checkExpr entrypoint env lhs
         checkExpr entrypoint env rhs
         .ok env

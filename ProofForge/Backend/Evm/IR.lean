@@ -1690,10 +1690,10 @@ mutual
     | .effect effect => do
         validateEffectStmtTypes module env effect
         .ok env
-    | .assert condition _ => do
+    | .assert condition _ _ => do
         ensureType "assert condition" .bool (← inferExprType module env condition)
         .ok env
-    | .assertEq lhs rhs _ => do
+    | .assertEq lhs rhs _ _ => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
         ensureType "assert_eq right operand" lhsType rhsType
@@ -4168,9 +4168,9 @@ mutual
         .ok (← lowerAssignOpStmt module env target op value, env)
     | .effect effect => do
         .ok (#[← lowerEffectStmt module env effect], env)
-    | .assert condition _ => do
+    | .assert condition _ _ => do
         .ok (#[lowerAssertStmt (← lowerExpr module env condition)], env)
-    | .assertEq lhs rhs _ => do
+    | .assertEq lhs rhs _ _ => do
         let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]
         .ok (#[lowerAssertStmt condition], env)
     | .release _ =>
@@ -4892,9 +4892,9 @@ mutual
         .ok (mergeCrosscallHelperSpecs targetSpecs valueSpecs, env)
     | .effect effect => do
         .ok (← crosscallHelperSpecsEffect module env effect, env)
-    | .assert condition _ => do
+    | .assert condition _ _ => do
         .ok (← crosscallHelperSpecsExpr module env condition, env)
-    | .assertEq lhs rhs _ => do
+    | .assertEq lhs rhs _ _ => do
         let lhsSpecs ← crosscallHelperSpecsExpr module env lhs
         let rhsSpecs ← crosscallHelperSpecsExpr module env rhs
         .ok (mergeCrosscallHelperSpecs lhsSpecs rhsSpecs, env)
@@ -5047,9 +5047,9 @@ mutual
         mergeCreateHelperSpecs (createHelperSpecsExpr target) (createHelperSpecsExpr value)
     | .effect effect =>
         createHelperSpecsEffect effect
-    | .assert condition _ =>
+    | .assert condition _ _ =>
         createHelperSpecsExpr condition
-    | .assertEq lhs rhs _ =>
+    | .assertEq lhs rhs _ _ =>
         mergeCreateHelperSpecs (createHelperSpecsExpr lhs) (createHelperSpecsExpr rhs)
     | .release _ =>
         #[]
@@ -5223,9 +5223,9 @@ mutual
         .ok (mergeNatSets (localArrayGetLengthsAssignTarget env target) (localArrayGetLengthsExpr env value), env)
     | .effect effect =>
         .ok (localArrayGetLengthsEffect env effect, env)
-    | .assert condition _ =>
+    | .assert condition _ _ =>
         .ok (localArrayGetLengthsExpr env condition, env)
-    | .assertEq lhs rhs _ =>
+    | .assertEq lhs rhs _ _ =>
         .ok (mergeNatSets (localArrayGetLengthsExpr env lhs) (localArrayGetLengthsExpr env rhs), env)
     | .release _ =>
         .ok (#[], env)
@@ -5367,9 +5367,9 @@ mutual
         .ok (mergeNatArraySets (nestedLocalArrayGetShapesAssignTarget env target) (nestedLocalArrayGetShapesExpr env value), env)
     | .effect effect =>
         .ok (nestedLocalArrayGetShapesEffect env effect, env)
-    | .assert condition _ =>
+    | .assert condition _ _ =>
         .ok (nestedLocalArrayGetShapesExpr env condition, env)
-    | .assertEq lhs rhs _ =>
+    | .assertEq lhs rhs _ _ =>
         .ok (mergeNatArraySets (nestedLocalArrayGetShapesExpr env lhs) (nestedLocalArrayGetShapesExpr env rhs), env)
     | .ifElse condition thenBody elseBody => do
         let (thenShapes, _) ← nestedLocalArrayGetShapesStatements module env thenBody
