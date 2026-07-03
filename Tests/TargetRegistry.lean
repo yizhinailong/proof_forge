@@ -18,6 +18,8 @@ def requireSome {α : Type} (value : Option α) (message : String) : IO α :=
 def main : IO UInt32 := do
   let evmProfile ← requireSome (find? "evm") "missing evm target profile"
   require (evmProfile.id == "evm") "evm target id mismatch"
+  require (evmProfile.deploymentAllocator? == some (ProofForge.IR.AllocatorConfig.evm))
+    "evm target must declare an explicit bump-over-scratch allocator binding"
   require (find? "robinhood-chain-testnet" |>.isNone)
     "robinhood-chain-testnet must not be registered as a compiler target"
 

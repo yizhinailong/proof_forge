@@ -71,6 +71,7 @@ def evm : TargetProfile := {
   id := "evm"
   family := .evm
   artifactKind := .evmBytecode
+  deploymentAllocator? := some (ProofForge.IR.AllocatorConfig.evm)
   capabilities := #[
     .storageScalar,
     .storageMap,
