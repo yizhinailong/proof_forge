@@ -145,6 +145,10 @@ solana-pinocchio-spl-token-ops-live-equivalence:
 solana-pinocchio-spl-token-authority-live-equivalence:
     scripts/solana/pinocchio-spl-token-authority-live-equivalence.sh
 
+# Run all Solana ProofForge-vs-Pinocchio live dual-deploy equivalence gates.
+solana-pinocchio-live-equivalence:
+    scripts/solana/pinocchio-live-equivalence.sh
+
 # Repair/install the Solana SBF rustc/platform-tools used by the Pinocchio live gate.
 solana-pinocchio-install-sbf-tools:
     PATH="$HOME/.cargo/bin:$PATH" cargo-build-sbf --install-only --force-tools-install --tools-version v1.52

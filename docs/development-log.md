@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Solana Pinocchio Live Equivalence Aggregate Gate
+
+Commit: feature commit for Pinocchio live aggregate gate
+
+Summary:
+
+- Added `scripts/solana/pinocchio-live-equivalence.sh` as one aggregate entrypoint
+  for the five ProofForge-vs-Pinocchio live dual-deploy gates.
+- Added `just solana-pinocchio-live-equivalence` so local and future profiled CI
+  lanes can run the full live suite through one command.
+- The aggregate gate runs every child harness, summarizes pass/skip/fail counts,
+  fails on any real child failure, and returns skip code `2` when prerequisites
+  are missing unless `PROOF_FORGE_PINOCCHIO_LIVE_ALLOW_SKIP=1` is explicitly set
+  for a probe lane.
+
+Validation run:
+
+```sh
+bash -n scripts/solana/pinocchio-live-equivalence.sh scripts/solana/pinocchio-*-live-equivalence.sh
+SURFPOOL=/nonexistent-proof-forge-surfpool scripts/solana/pinocchio-live-equivalence.sh
+PROOF_FORGE_PINOCCHIO_LIVE_ALLOW_SKIP=1 SURFPOOL=/nonexistent-proof-forge-surfpool scripts/solana/pinocchio-live-equivalence.sh
+```
+
+Known limitations:
+
+- This creates the suite entrypoint and strict skip semantics; it does not yet
+  install the Solana SBF toolchain in GitHub Actions or make live dual-deploy
+  mandatory in default CI.
+
+Next step:
+
+- Add a profiled CI job that installs/checks Surfpool, Solana CLI,
+  `cargo-build-sbf`, `sbpf`, Node, and npm, then runs the aggregate live suite
+  without `PROOF_FORGE_PINOCCHIO_LIVE_ALLOW_SKIP`.
+
 ### Solana Pinocchio Live Harness Shared Helper
 
 Commit: feature commit for Pinocchio live harness hardening
