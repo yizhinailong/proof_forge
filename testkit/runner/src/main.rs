@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proof_forge_testkit_core::{
-    assert_expectations, discover_scenarios, ChainHarness, ScenarioCase,
+    assert_expectations, assert_trace_equivalence, discover_scenarios, ChainHarness, ScenarioCase,
+    TargetTrace,
 };
 use proof_forge_testkit_harness_evm::EvmHarness;
 use proof_forge_testkit_harness_near::NearHarness;
@@ -132,6 +133,7 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
             );
         }
 
+        let mut runs = Vec::new();
         for target in targets {
             let Some(harness) = harnesses.get(target) else {
                 bail!(
@@ -147,7 +149,24 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
                 target,
                 outcomes.len()
             );
+            runs.push((target.to_string(), outcomes));
             target_runs += 1;
+        }
+
+        let traces: Vec<TargetTrace<'_>> = runs
+            .iter()
+            .map(|(target, outcomes)| TargetTrace {
+                target_id: target.as_str(),
+                outcomes,
+            })
+            .collect();
+        assert_trace_equivalence(case, &traces)?;
+        if traces.len() > 1 {
+            println!(
+                "scenario {} trace parity: ok ({} target(s))",
+                case.manifest.scenario.name,
+                traces.len()
+            );
         }
     }
     println!("testkit: ok ({target_runs} target run(s))");

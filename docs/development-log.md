@@ -17,6 +17,40 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit M2 Trace Parity
+
+Commit: feature commit for unified testkit trace parity
+
+Summary:
+
+- Added a normalized observable trace comparison layer to `testkit/core`.
+- The runner now executes every selected target for a scenario, validates each
+  target's declared expectations, then asserts cross-target parity for call
+  order and portable return values.
+- EVM ABI return words and NEAR typed host returns are compared through the
+  scenario's expected portable type, so target-specific hex encodings do not
+  become false parity failures.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml -p proof-forge-testkit-core
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run
+```
+
+Known limitations:
+
+- Trace parity currently covers call order and return values only; scenario
+  state reads, events, errors, and resource budgets are still follow-up schema
+  work before testkit M3/M4.
+- `solana-sbpf-asm` is not yet wired into testkit; it remains the M3 harness.
+
+Next step:
+
+- Add `harness-solana` on top of the existing Mollusk templates so the Counter
+  scenario runs across `evm`, `wasm-near`, and `solana-sbpf-asm`.
+
 ### Unified Testkit M2 EVM Harness
 
 Commit: feature commit for unified testkit EVM harness

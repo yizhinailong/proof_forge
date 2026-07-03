@@ -12,11 +12,13 @@ Current scope:
 - `evm` Counter execution through an in-process `revm` harness that emits the
   portable IR Counter runtime bytecode, loads its artifact metadata selectors,
   and executes the same scenario steps as EVM transactions
+- normalized observable trace parity between `wasm-near` and `evm` when both
+  targets are selected for the same scenario
 - `just testkit` and a CI gate
 
 The testkit intentionally does not remove existing shell gates. Foundry and
 Anvil remain the mature EVM runtime/deploy smokes; testkit is the portable
-scenario layer that will grow cross-target behavior comparison.
+scenario layer for deterministic cross-target behavior comparison.
 
 Run:
 
