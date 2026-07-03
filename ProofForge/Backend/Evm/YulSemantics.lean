@@ -1,0 +1,444 @@
+import ProofForge.Compiler.Yul.AST
+
+namespace ProofForge.Backend.Evm.YulSemantics
+
+open Lean.Compiler.Yul
+
+/-! A narrow executable Yul model for EVM refinement obligations.
+
+This is intentionally small: it covers the Yul subset generated for the shared
+Counter scenario and fails explicitly for unsupported constructs. It is not a
+general EVM interpreter; its job is to make FV-4 obligations stronger than
+surface-shape checks while keeping the trusted model reviewable.
+-/
+
+abbrev Word := Nat
+abbrev NamedBindings := List (String × Word)
+abbrev WordBindings := List (Nat × Word)
+
+def twoPow (n : Nat) : Nat :=
+  2 ^ n
+
+def lookupName (name : String) : NamedBindings → Option Word
+  | [] => none
+  | (key, value) :: rest =>
+      if key == name then
+        some value
+      else
+        lookupName name rest
+
+def insertName (name : String) (value : Word) : NamedBindings → NamedBindings
+  | [] => [(name, value)]
+  | (key, oldValue) :: rest =>
+      if key == name then
+        (key, value) :: rest
+      else
+        (key, oldValue) :: insertName name value rest
+
+def lookupWord (key : Nat) : WordBindings → Word
+  | [] => 0
+  | (slot, value) :: rest =>
+      if slot == key then
+        value
+      else
+        lookupWord key rest
+
+def insertWord (key : Nat) (value : Word) : WordBindings → WordBindings
+  | [] => [(key, value)]
+  | (slot, oldValue) :: rest =>
+      if slot == key then
+        (slot, value) :: rest
+      else
+        (slot, oldValue) :: insertWord key value rest
+
+structure Runtime where
+  storage : WordBindings := []
+  memory : WordBindings := []
+  locals : NamedBindings := []
+  calldata : WordBindings := []
+  deriving Repr, BEq, DecidableEq
+
+structure FunctionDef where
+  name : String
+  params : Array TypedName
+  returns : Array TypedName
+  body : Block
+
+structure Context where
+  functions : Array FunctionDef
+
+inductive Control where
+  | running
+  | leave
+  | returned (words : Array Word)
+  deriving Repr, BEq, DecidableEq
+
+def Runtime.readLocal (rt : Runtime) (name : String) : Except String Word :=
+  match lookupName name rt.locals with
+  | some value => .ok value
+  | none => .error s!"unknown Yul local `{name}`"
+
+def Runtime.writeLocal (rt : Runtime) (name : String) (value : Word) : Runtime :=
+  { rt with locals := insertName name value rt.locals }
+
+def Runtime.readStorage (rt : Runtime) (slot : Nat) : Word :=
+  lookupWord slot rt.storage
+
+def Runtime.writeStorage (rt : Runtime) (slot : Nat) (value : Word) : Runtime :=
+  { rt with storage := insertWord slot value rt.storage }
+
+def Runtime.readMemory (rt : Runtime) (offset : Nat) : Word :=
+  lookupWord offset rt.memory
+
+def Runtime.writeMemory (rt : Runtime) (offset : Nat) (value : Word) : Runtime :=
+  { rt with memory := insertWord offset value rt.memory }
+
+def Runtime.readCalldata (rt : Runtime) (offset : Nat) : Word :=
+  lookupWord offset rt.calldata
+
+def decimalDigit? (c : Char) : Option Nat :=
+  if '0' <= c && c <= '9' then
+    some (c.toNat - '0'.toNat)
+  else
+    none
+
+def hexDigit? (c : Char) : Option Nat :=
+  if '0' <= c && c <= '9' then
+    some (c.toNat - '0'.toNat)
+  else if 'a' <= c && c <= 'f' then
+    some (10 + c.toNat - 'a'.toNat)
+  else if 'A' <= c && c <= 'F' then
+    some (10 + c.toNat - 'A'.toNat)
+  else
+    none
+
+def parseDigits (base : Nat) (digit? : Char → Option Nat) (chars : List Char) :
+    Except String Nat :=
+  chars.foldlM
+    (fun acc c =>
+      match digit? c with
+      | some digit =>
+          if digit < base then
+            .ok (acc * base + digit)
+          else
+            .error s!"digit `{c}` is out of range for base {base}"
+      | none => .error s!"invalid digit `{c}`")
+    0
+
+def stripHexPrefix (value : String) : String :=
+  if value.startsWith "0x" || value.startsWith "0X" then
+    (value.drop 2).toString
+  else
+    value
+
+def parseDecimalNat (value : String) : Except String Nat :=
+  parseDigits 10 decimalDigit? value.toList
+
+def parseHexNat (value : String) : Except String Nat :=
+  parseDigits 16 hexDigit? (stripHexPrefix value).toList
+
+def parseLiteralWord : Literal → Except String Word
+  | { kind := .number, value } => parseDecimalNat value
+  | { kind := .hexNumber, value } => parseHexNat value
+  | { kind := .bool, value } =>
+      if value == "true" then .ok 1
+      else if value == "false" then .ok 0
+      else .error s!"invalid Yul bool literal `{value}`"
+  | { kind := .string, value := _ } =>
+      .error "string literals are not supported by the FV-4 Yul subset"
+  | { kind := .hexString, value := _ } =>
+      .error "hex string literals are not supported by the FV-4 Yul subset"
+
+def collectFunctions (object : Object) : Array FunctionDef :=
+  object.code.statements.foldl
+    (fun acc stmt =>
+      match stmt with
+      | .funcDef name params returns body =>
+          acc.push { name, params, returns, body }
+      | _ => acc)
+    #[]
+
+def Context.ofObject (object : Object) : Context := {
+  functions := collectFunctions object
+}
+
+def Context.findFunction? (ctx : Context) (name : String) : Option FunctionDef :=
+  ctx.functions.find? fun fn => fn.name == name
+
+def bindParams (params : Array TypedName) (args : Array Word) : Except String NamedBindings := do
+  if params.size != args.size then
+    .error s!"function expected {params.size} argument(s), got {args.size}"
+  let mut bindings : NamedBindings := []
+  for h : idx in [0:params.size] do
+    let some arg := args[idx]?
+      | .error s!"missing function argument {idx}"
+    bindings := insertName params[idx].name arg bindings
+  .ok bindings
+
+def initReturnBindings (returns : Array TypedName) (bindings : NamedBindings) : NamedBindings :=
+  returns.foldl (fun acc ret => insertName ret.name 0 acc) bindings
+
+def collectReturnValues (returns : Array TypedName) (locals : NamedBindings) :
+    Except String (Array Word) := do
+  let mut values := #[]
+  for ret in returns do
+    match lookupName ret.name locals with
+    | some value => values := values.push value
+    | none => .error s!"function return local `{ret.name}` was not assigned"
+  .ok values
+
+def memoryWords (rt : Runtime) (offset size : Nat) : Array Word :=
+  Id.run do
+    let count := (size + 31) / 32
+    let mut words := #[]
+    for _h : idx in [0:count] do
+      words := words.push (rt.readMemory (offset + idx * 32))
+    words
+
+def selectorCalldataWord (selector : Nat) : Word :=
+  selector * twoPow 224
+
+def callRuntime (selector : Nat) (storage : WordBindings) : Runtime := {
+  storage
+  memory := []
+  locals := []
+  calldata := [(0, selectorCalldataWord selector)]
+}
+
+mutual
+  partial def evalExpr (ctx : Context) (rt : Runtime) : Expr →
+      Except String (Runtime × Array Word)
+    | .lit literal => do
+        let value ← parseLiteralWord literal
+        .ok (rt, #[value])
+    | .ident name => do
+        let value ← rt.readLocal name
+        .ok (rt, #[value])
+    | .builtin name args => evalBuiltin ctx rt name args
+    | .call name args => evalCall ctx rt name args
+
+  partial def evalWord (ctx : Context) (rt : Runtime) (expr : Expr) :
+      Except String (Runtime × Word) := do
+    let (rt, values) ← evalExpr ctx rt expr
+    match values.toList with
+    | [value] => .ok (rt, value)
+    | [] => .error "expected one Yul word, got no values"
+    | _ => .error s!"expected one Yul word, got {values.size} values"
+
+  partial def evalArgs (ctx : Context) (rt : Runtime) (args : Array Expr) :
+      Except String (Runtime × Array Word) := do
+    let mut current := rt
+    let mut values := #[]
+    for arg in args do
+      let (next, value) ← evalWord ctx current arg
+      current := next
+      values := values.push value
+    .ok (current, values)
+
+  partial def evalBuiltin (ctx : Context) (rt : Runtime) (name : String) (args : Array Expr) :
+      Except String (Runtime × Array Word) := do
+    match name, args.toList with
+    | "add", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[lhs + rhs])
+    | "sub", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[lhs - rhs])
+    | "mul", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[lhs * rhs])
+    | "div", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[if rhs == 0 then 0 else lhs / rhs])
+    | "mod", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[if rhs == 0 then 0 else lhs % rhs])
+    | "eq", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[if lhs == rhs then 1 else 0])
+    | "lt", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[if lhs < rhs then 1 else 0])
+    | "gt", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[if lhs > rhs then 1 else 0])
+    | "iszero", [value] => do
+        let (rt, value) ← evalWord ctx rt value
+        .ok (rt, #[if value == 0 then 1 else 0])
+    | "and", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[Nat.land lhs rhs])
+    | "or", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[Nat.lor lhs rhs])
+    | "xor", [lhs, rhs] => do
+        let (rt, lhs) ← evalWord ctx rt lhs
+        let (rt, rhs) ← evalWord ctx rt rhs
+        .ok (rt, #[Nat.xor lhs rhs])
+    | "shl", [shift, value] => do
+        let (rt, shift) ← evalWord ctx rt shift
+        let (rt, value) ← evalWord ctx rt value
+        .ok (rt, #[value * twoPow shift])
+    | "shr", [shift, value] => do
+        let (rt, shift) ← evalWord ctx rt shift
+        let (rt, value) ← evalWord ctx rt value
+        .ok (rt, #[value / twoPow shift])
+    | "calldataload", [offset] => do
+        let (rt, offset) ← evalWord ctx rt offset
+        .ok (rt, #[rt.readCalldata offset])
+    | "sload", [slotExpr] => do
+        let (rt, slot) ← evalWord ctx rt slotExpr
+        .ok (rt, #[rt.readStorage slot])
+    | "sstore", [slotExpr, valueExpr] => do
+        let (rt, slot) ← evalWord ctx rt slotExpr
+        let (rt, value) ← evalWord ctx rt valueExpr
+        .ok (rt.writeStorage slot value, #[])
+    | "mstore", [offsetExpr, valueExpr] => do
+        let (rt, offset) ← evalWord ctx rt offsetExpr
+        let (rt, value) ← evalWord ctx rt valueExpr
+        .ok (rt.writeMemory offset value, #[])
+    | "calldatasize", [] =>
+        .ok (rt, #[4])
+    | _, _ =>
+        .error s!"unsupported Yul builtin `{name}` with {args.size} argument(s)"
+
+  partial def evalCall (ctx : Context) (rt : Runtime) (name : String) (args : Array Expr) :
+      Except String (Runtime × Array Word) := do
+    let some fn := ctx.findFunction? name
+      | .error s!"unknown Yul function `{name}`"
+    let (rtAfterArgs, argValues) ← evalArgs ctx rt args
+    let paramBindings ← bindParams fn.params argValues
+    let functionLocals := initReturnBindings fn.returns paramBindings
+    let functionRuntime := { rtAfterArgs with locals := functionLocals }
+    let (functionRuntime, control) ← execBlock ctx functionRuntime fn.body
+    match control with
+    | .running | .leave => pure ()
+    | .returned _ =>
+        .error s!"Yul function `{name}` performed an EVM return"
+    let returnValues ← collectReturnValues fn.returns functionRuntime.locals
+    .ok ({ rtAfterArgs with
+      storage := functionRuntime.storage
+      memory := functionRuntime.memory
+    }, returnValues)
+
+  partial def execExprStmt (ctx : Context) (rt : Runtime) : Expr →
+      Except String (Runtime × Control)
+    | .builtin "return" args =>
+        match args.toList with
+        | [offsetExpr, sizeExpr] => do
+            let (rt, offset) ← evalWord ctx rt offsetExpr
+            let (rt, size) ← evalWord ctx rt sizeExpr
+            .ok (rt, .returned (memoryWords rt offset size))
+        | _ => .error s!"Yul return expected 2 arguments, got {args.size}"
+    | .builtin "revert" _ =>
+        .error "Yul execution reverted"
+    | expr => do
+        let (rt, _) ← evalExpr ctx rt expr
+        .ok (rt, .running)
+
+  partial def assignValues (rt : Runtime) (names : Array String) (values : Array Word) :
+      Except String Runtime := do
+    if names.size != values.size then
+      .error s!"assignment expected {names.size} value(s), got {values.size}"
+    let mut current := rt
+    for h : idx in [0:names.size] do
+      let some value := values[idx]?
+        | .error s!"missing assignment value {idx}"
+      current := current.writeLocal names[idx] value
+    .ok current
+
+  partial def declareValues (rt : Runtime) (vars : Array TypedName) (values : Array Word) :
+      Except String Runtime :=
+    assignValues rt (vars.map (·.name)) values
+
+  partial def execStatement (ctx : Context) (rt : Runtime) : Statement →
+      Except String (Runtime × Control)
+    | .block block => execBlock ctx rt block
+    | .varDecl vars none =>
+        declareValues rt vars (vars.map fun _ => 0) |>.map fun rt => (rt, .running)
+    | .varDecl vars (some value) => do
+        let (rt, values) ← evalExpr ctx rt value
+        let rt ← declareValues rt vars values
+        .ok (rt, .running)
+    | .assignment names value => do
+        let (rt, values) ← evalExpr ctx rt value
+        let rt ← assignValues rt names values
+        .ok (rt, .running)
+    | .exprStmt expr =>
+        execExprStmt ctx rt expr
+    | .ifStmt condition body => do
+        let (rt, value) ← evalWord ctx rt condition
+        if value == 0 then
+          .ok (rt, .running)
+        else
+          execBlock ctx rt body
+    | .switchStmt selector cases => do
+        let (rt, value) ← evalWord ctx rt selector
+        execSwitch ctx rt value cases
+    | .funcDef _ _ _ _ =>
+        .ok (rt, .running)
+    | .forLoop _ _ _ _ =>
+        .error "for loops are not supported by the FV-4 Yul subset"
+    | .break =>
+        .error "break is not supported by the FV-4 Yul subset"
+    | .continue =>
+        .error "continue is not supported by the FV-4 Yul subset"
+    | .leave =>
+        .ok (rt, .leave)
+
+  partial def execStatements (ctx : Context) (rt : Runtime) : List Statement →
+      Except String (Runtime × Control)
+    | [] => .ok (rt, .running)
+    | stmt :: rest => do
+        let (rt, control) ← execStatement ctx rt stmt
+        match control with
+        | .running => execStatements ctx rt rest
+        | .leave | .returned _ => .ok (rt, control)
+
+  partial def execBlock (ctx : Context) (rt : Runtime) (block : Block) :
+      Except String (Runtime × Control) :=
+    execStatements ctx rt block.statements.toList
+
+  partial def execSwitch (ctx : Context) (rt : Runtime) (value : Word) (cases : Array Case) :
+      Except String (Runtime × Control) := do
+    let rec findMatching : List Case → Option Case
+      | [] => none
+      | case :: rest =>
+          match case.value with
+          | some literal =>
+              match parseLiteralWord literal with
+              | .ok caseValue =>
+                  if caseValue == value then some case else findMatching rest
+              | .error _ => findMatching rest
+          | none => findMatching rest
+    let rec findDefault : List Case → Option Case
+      | [] => none
+      | case :: rest =>
+          match case.value with
+          | none => some case
+          | some _ => findDefault rest
+    match findMatching cases.toList <|> findDefault cases.toList with
+    | some selected => execBlock ctx rt selected.body
+    | none => .ok (rt, .running)
+end
+
+def runSelector (object : Object) (storage : WordBindings) (selector : Nat) :
+    Except String (WordBindings × Array Word) := do
+  let ctx := Context.ofObject object
+  let (rt, control) ← execBlock ctx (callRuntime selector storage) object.code
+  match control with
+  | .returned words => .ok (rt.storage, words)
+  | .running => .error "Yul dispatcher finished without returning"
+  | .leave => .error "Yul dispatcher left without returning"
+
+end ProofForge.Backend.Evm.YulSemantics

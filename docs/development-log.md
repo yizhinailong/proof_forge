@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-03
 
+### EVM Counter Executable Yul Trace Obligation
+
+Commit: feature commit for FV-4 executable Yul trace obligation
+
+Summary:
+
+- Added `ProofForge.Backend.Evm.YulSemantics`, a narrow executable model for
+  the Counter-shaped generated Yul subset.
+- Covered selector calldata decoding, dispatcher `switch`, internal function
+  calls, local variables, `sstore`, `sload`, scalar arithmetic, `mstore`, and
+  EVM `return` words.
+- Extended `ProofForge.Backend.Evm.Refinement` with
+  `counter_evm_yul_executable_trace_ok`, which runs
+  `initialize -> get -> increment -> get` through the generated Yul dispatcher
+  and compares observable return words against the scalar IR trace.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.YulSemantics
+lake env lean ProofForge/Backend/Evm/Refinement.lean
+lake build ProofForge.Backend.Evm
+scripts/i18n/check-sync.sh
+git diff --check
+just check
+```
+
+Known limitations:
+
+- This is still a focused FV-4 slice, not a full EVM or libyul semantics. The
+  interpreter fails explicitly for unsupported Yul constructs and currently
+  covers the Counter path only.
+
+Next step:
+
+- Extend the Yul-subset interpreter and trace obligations toward ValueVault:
+  multi-entry scalar storage behavior first, then assertions, maps, arrays, and
+  aggregate return/state shapes.
+
 ### EVM Counter Formal Trace Surface Obligation
 
 Commit: feature commit for FV-4 EVM surface obligation

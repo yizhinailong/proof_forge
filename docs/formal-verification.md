@@ -16,7 +16,7 @@ The NEAR work contributed the first three formal anchors, now on `main`:
 |---|---|---|
 | Executable IR semantics (scalar subset) | `ProofForge/IR/Semantics.lean` | A small-step/trace interpreter for the scalar IR subset that proofs can reference; used by the NEAR trace obligations |
 | Ownership rules | `ProofForge/IR/Ownership.lean`, `Tests/IROwnership.lean` | Checker for `release`/owned-local discipline (no use-after-release, branch consistency), currently validated by tests |
-| Backend trace obligations | `ProofForge/Backend/WasmNear/Refinement.lean`, `ProofForge/Backend/Evm/Refinement.lean`, `Tests/NearWasmFormal.lean` | `TraceObligation` with `decide`-checked theorems: the Counter IR trace matches expected observable values, EmitWat exports cover the trace entrypoints, and the EVM Yul surface contains selector-dispatched functions for the same trace |
+| Backend trace obligations | `ProofForge/Backend/WasmNear/Refinement.lean`, `ProofForge/Backend/Evm/Refinement.lean`, `ProofForge/Backend/Evm/YulSemantics.lean`, `Tests/NearWasmFormal.lean` | `TraceObligation` with `decide`-checked theorems: the Counter IR trace matches expected observable values, EmitWat exports cover the trace entrypoints, the EVM Yul surface contains selector-dispatched functions for the same trace, and the Counter-shaped emitted Yul subset executes to the same observable EVM return trace |
 
 These are the right shape: small executable definitions plus decidable
 theorems, checked in CI without external tools.
@@ -76,7 +76,7 @@ scenario (Counter first, ValueVault second):
 | Backend | Obligation shape | Feasibility |
 |---|---|---|
 | `wasm-near` / EmitWat | Exists (exports + IR trace); extend to Wasm-level evaluation of the emitted WAT through the offline host | High — offline host already executes the artifact deterministically |
-| `evm` (IR → Yul plan) | Initial surface obligation exists (IR trace + selector-dispatched Yul functions); next, interpret the emitted Yul plan for the scenario (storage reads/writes, return words) and compare against the IR trace | Medium — needs a small Yul-subset interpreter in Lean; keeps `solc` out of the trusted path but not out of the build |
+| `evm` (IR → Yul plan) | Counter obligation exists for IR trace + selector-dispatched Yul surface + executable Yul-subset trace (`sstore`, `sload`, scalar arithmetic, `mstore`, `return`); next, extend the interpreter and obligations beyond Counter toward ValueVault and aggregate/state shapes | Medium — the first small Yul-subset interpreter is in Lean; expanding coverage keeps `solc` out of the trusted path but not out of the build |
 | `psy-dpn` | Compare `dargo execute` result vectors against IR trace outputs (differential gate, not a theorem) | Already close: smoke scripts assert `result_vm` values today |
 | `solana-sbpf-asm` | Differential testing via Mollusk/Surfpool first; assembly-level semantics is a research track, not a near-term proof | Low for proofs, high for differential gates |
 | `wasm-cloudflare-workers` | Differential HTTP-level gate only (off-chain host, D-033) | Not a proof target |
@@ -138,8 +138,8 @@ first proof surface users see. Start with ValueVault as the worked example.
 1. FV-1 capability soundness (structural, unblocks nothing, high trust value).
 2. FV-2 semantics extension + determinism (foundation).
 3. FV-3 ownership soundness (justifies the merged `release` lowerings).
-4. FV-4 EVM Yul-subset trace obligation for Counter: extend the current EVM
-   surface obligation with a small Yul-subset interpreter, proving the pattern
-   generalizes beyond NEAR.
+4. FV-4 EVM Yul-subset trace obligation for Counter: done for the
+   selector-dispatched Counter path; next expand the interpreter and obligations
+   toward ValueVault and the broader scalar/storage IR surface.
 5. FV-6 authoring-surface equivalence for the fixture subset.
 6. FV-5 / FV-7 as the respective surfaces stabilize; FV-8 once FV-2 lands.

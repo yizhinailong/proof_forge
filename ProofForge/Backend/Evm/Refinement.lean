@@ -1,4 +1,5 @@
 import ProofForge.Backend.Evm.IR
+import ProofForge.Backend.Evm.YulSemantics
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Semantics
 
@@ -47,6 +48,32 @@ def observableReturn (expectedType : ValueType) (value? : Option ProofForge.IR.S
   | .hash, some (.hash a b c d) => .ok (.hash a b c d)
   | _, none => .error s!"entrypoint expected `{expectedType.name}` but returned no value"
   | _, some _ => .error s!"entrypoint returned a value that does not match `{expectedType.name}`"
+
+def unpackHashWord (word : Nat) : ObservableReturn :=
+  let limb := ProofForge.Backend.Evm.YulSemantics.twoPow 64
+  let a := word / ProofForge.Backend.Evm.YulSemantics.twoPow 192
+  let b := (word / ProofForge.Backend.Evm.YulSemantics.twoPow 128) % limb
+  let c := (word / ProofForge.Backend.Evm.YulSemantics.twoPow 64) % limb
+  let d := word % limb
+  .hash a b c d
+
+def observableReturnFromEvmWords (expectedType : ValueType) (words : Array Nat) :
+    Except String ObservableReturn :=
+  match expectedType, words.toList with
+  | .unit, [] => .ok .none
+  | .bool, [0] => .ok (.bool false)
+  | .bool, [1] => .ok (.bool true)
+  | .bool, [_] => .error "EVM Bool return word must be 0 or 1"
+  | .u32, [value] =>
+      if value <= 4294967295 then
+        .ok (.u32 value)
+      else
+        .error "EVM U32 return word exceeds U32 range"
+  | .u64, [value] => .ok (.u64 value)
+  | .hash, [word] => .ok (unpackHashWord word)
+  | .unit, _ => .error s!"entrypoint expected `Unit` but returned {words.size} word(s)"
+  | _, [] => .error s!"entrypoint expected `{expectedType.name}` but returned no EVM words"
+  | _, _ => .error s!"entrypoint expected `{expectedType.name}` but returned {words.size} EVM word(s)"
 
 def runEntrypointObservable (state : ProofForge.IR.Semantics.State) (entrypoint : Entrypoint) :
     Except String (ProofForge.IR.Semantics.State × ObservableStep) := do
@@ -171,6 +198,48 @@ def TraceObligation.evmYulSurfaceOk (obligation : TraceObligation) : Bool :=
       obligation.entrypoints.all (YulSurface.entrypointOk obligation.module object)
   | .error _ => false
 
+def runEvmEntrypointObservable
+    (object : Lean.Compiler.Yul.Object)
+    (storage : ProofForge.Backend.Evm.YulSemantics.WordBindings)
+    (entrypoint : Entrypoint) :
+    Except String (ProofForge.Backend.Evm.YulSemantics.WordBindings × ObservableStep) := do
+  let selectorString ←
+    match entrypoint.selector? with
+    | some selector => .ok selector
+    | none => .error s!"entrypoint `{entrypoint.name}` has no EVM selector metadata"
+  let selector ← ProofForge.Backend.Evm.YulSemantics.parseHexNat selectorString
+  let (nextStorage, returnWords) ←
+    ProofForge.Backend.Evm.YulSemantics.runSelector object storage selector
+  let returnValue ← observableReturnFromEvmWords entrypoint.returns returnWords
+  .ok (nextStorage, {
+    entrypointName := entrypoint.name
+    selector := selectorString
+    returnValue
+  })
+
+def runEvmTraceList
+    (object : Lean.Compiler.Yul.Object) :
+    List Entrypoint → ProofForge.Backend.Evm.YulSemantics.WordBindings →
+      Except String (ProofForge.Backend.Evm.YulSemantics.WordBindings × Array ObservableStep)
+  | [], storage => .ok (storage, #[])
+  | entrypoint :: rest, storage => do
+      let (nextStorage, step) ← runEvmEntrypointObservable object storage entrypoint
+      let (finalStorage, steps) ← runEvmTraceList object rest nextStorage
+      .ok (finalStorage, #[step] ++ steps)
+
+def runEvmTrace (object : Lean.Compiler.Yul.Object) (entrypoints : Array Entrypoint) :
+    Except String (Array ObservableStep) := do
+  let (_, steps) ← runEvmTraceList object entrypoints.toList []
+  .ok steps
+
+def TraceObligation.evmYulTraceOk (obligation : TraceObligation) : Bool :=
+  match ProofForge.Backend.Evm.IR.lowerModule obligation.module with
+  | .ok object =>
+      match runEvmTrace object obligation.entrypoints with
+      | .ok actual => actual == obligation.expected
+      | .error _ => false
+  | .error _ => false
+
 def counterTraceEntrypoints : Array Entrypoint := #[
   ProofForge.IR.Examples.Counter.initializeEntrypoint,
   ProofForge.IR.Examples.Counter.get,
@@ -198,6 +267,10 @@ theorem counter_ir_observable_trace_ok :
 
 theorem counter_evm_yul_surface_trace_entrypoints :
     counterTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem counter_evm_yul_executable_trace_ok :
+    counterTraceObligation.evmYulTraceOk = true := by
   native_decide
 
 end ProofForge.Backend.Evm.Refinement
