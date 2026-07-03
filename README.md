@@ -15,7 +15,7 @@ Start here:
 - [RFC 0001](docs/rfcs/0001-multichain-platform.md) — multi-chain architecture
   and roadmap; [RFC 0002](docs/rfcs/0002-target-implementation-design.md) —
   target implementation design.
-- [Design decisions](docs/decisions.md) — settled choices (D-001…D-033).
+- [Design decisions](docs/decisions.md) — settled choices (D-001…D-045).
 - [Formal verification roadmap](docs/formal-verification.md) — existing proof
   anchors and staged theorem targets.
 
@@ -29,6 +29,10 @@ Start here:
 
 All backends live on `main` (chains are directories and target ids, not
 branches). Lifecycle stages follow [docs/targets/README.md](docs/targets/README.md).
+Current product implementation is governed by the primary-chain completion
+covenant (D-045): finish `solana-sbpf-asm`, then `evm`, then `wasm-near` to
+production-grade quality before advancing any additional chain beyond
+docs-only research or frozen spike maintenance.
 
 | Target id | Pipeline | Stage | Local validation |
 |---|---|---|---|

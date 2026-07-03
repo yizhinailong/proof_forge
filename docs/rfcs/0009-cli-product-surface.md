@@ -1,7 +1,15 @@
 # RFC 0009: CLI Product Surface
 
-Status: **Draft**
+Status: **Accepted — M1 landed, transition still open**
 Date: 2026-07-03
+
+Implementation status (2026-07-03): RFC 0009 is accepted as the durable CLI
+surface. The first milestone has already landed in code: `Command`/`CliOptions`
+exist, `build`/`emit` route through the compatibility layer, `check` is a real
+validation verb, `--list-targets` and `--list-fixtures` are wired, and legacy
+emit modes carry migration/deprecation metadata. The remaining work is the
+transition work in M3/M4: move scripts/testkit invocations onto the target-first
+surface and remove `EmitMode` only after the compatibility release window.
 
 ## Problem
 
@@ -250,15 +258,17 @@ add constructors to it. Once aliases are removed, `EmitMode` is deleted.
 
 ## Milestones
 
-1. **M1:** Define fixture registry, add `Command`/`CliOptions` refactor, and
-   implement `build`/`emit`/`check` for the three Tier-0 targets (`evm`,
-   `solana-sbpf-asm`, `wasm-near`). Keep legacy flags working as aliases.
-2. **M2:** Implement `--list-targets`, `--list-fixtures`, and deprecation
-   warnings for all legacy flags used in CI.
-3. **M3:** Migrate `scripts/`, `testkit/`, and `Tests/` invocations to the new
+1. **M1 — landed:** Define fixture registry, add `Command`/`CliOptions`
+   refactor, and implement `build`/`emit`/`check` for the three primary targets
+   (`evm`, `solana-sbpf-asm`, `wasm-near`). Keep legacy flags working as
+   aliases.
+2. **M2 — mostly landed:** Implement `--list-targets`, `--list-fixtures`, and
+   deprecation warnings for legacy flags used in CI. Remaining M2 work is only
+   parity cleanup where a legacy path lacks a stable target-first equivalent.
+3. **M3 — open:** Migrate `scripts/`, `testkit/`, and `Tests/` invocations to the new
    surface; testkit M4 binds only to `build`/`emit`/`check`.
-4. **M4:** Remove the `EmitMode` enum and legacy flag parser after one release
-   of deprecation warnings.
+4. **M4 — open:** Remove the `EmitMode` enum and legacy flag parser after one
+   release of deprecation warnings.
 
 ## Non-goals
 

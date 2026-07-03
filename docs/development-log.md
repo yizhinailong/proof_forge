@@ -17,6 +17,40 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Review Alignment: CLI RFC And Primary-Chain Portfolio Freeze
+
+Commit: feature commit for review alignment
+
+Summary:
+
+- Accepted RFC 0009 as the durable target-first CLI surface and recorded that
+  M1 has already landed through the compatibility layer; M3/M4 remain open.
+- Corrected D-039 so it no longer reads as a pre-code freeze after code already
+  exists, and added an explicit superseded-position note for that old wording.
+- Tightened the target portfolio wording: current product implementation is
+  limited to `solana-sbpf-asm` -> `evm` -> `wasm-near`; `psy-dpn`,
+  `aleo-leo`, and `wasm-cloudflare-workers` are maintenance-only inventory
+  until Gate P0 closes.
+
+Validation run:
+
+```sh
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- This is a documentation and governance correction. It does not implement the
+  missing end-to-end proof link between source-level invariants and generated
+  EVM/Wasm artifacts.
+
+Next step:
+
+- Start FV-4 as a separate implementation slice: add an EVM trace obligation
+  patterned after the existing NEAR trace obligation, then connect it to a
+  concrete generated Yul/bytecode fixture and CI gate.
+
 ### Solana Pinocchio Live Equivalence Aggregate Gate
 
 Commit: feature commit for Pinocchio live aggregate gate

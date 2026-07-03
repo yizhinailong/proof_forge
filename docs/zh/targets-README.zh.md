@@ -25,6 +25,15 @@
 
 **Experimental** 并不意味着“损坏”——EVM 已具备 CI 和 Foundry 冒烟测试，但缺乏目标注册表和可移植 IR 集成。
 
+## 目标组合排期边界
+
+下表是 target note 的库存清单，不是排期授权。当前产品实现 backlog 受主三链完成规约
+(D-045) 约束：先按顺序把 `solana-sbpf-asm`、`evm` 和 `wasm-near`
+做到生产级完善，然后任何额外链才能推进到 docs-only research 或冻结 spike 维护之外。
+已有的非主链条目（例如 `psy-dpn`、`aleo-leo` 和 `wasm-cloudflare-workers`）
+可以做 CI 稳定性、安全或文档维护，但在 Gate P0 关闭前，不得扩展 registry stage、
+capability surface、testkit coverage 或产品范围。
+
 ## 当前目标状态
 
 | 目标 | 阶段 | 说明 |

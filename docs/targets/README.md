@@ -32,6 +32,18 @@ Related: [Documentation index](../INDEX.md),
 **Experimental** does not mean "broken" — EVM has CI and Foundry smoke but lacks
 target registry and portable IR integration.
 
+## Portfolio Scheduling Boundary
+
+The table below is an inventory of target notes, not a scheduling authority.
+The current product implementation backlog is constrained by the primary-chain
+completion covenant (D-045): finish `solana-sbpf-asm`, `evm`, and `wasm-near`
+to production-grade quality, in that order, before any additional chain
+advances beyond docs-only research or frozen spike maintenance. Existing
+non-primary entries such as `psy-dpn`, `aleo-leo`, and
+`wasm-cloudflare-workers` may receive CI stability, security, or documentation
+maintenance, but they must not expand registry stage, capability surface,
+testkit coverage, or product scope until Gate P0 closes.
+
 ## Current Target Status
 
 | Target | Stage | Notes |

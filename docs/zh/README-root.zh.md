@@ -12,7 +12,7 @@ ProofForge 的目标是：一份经过验证的 Lean 合约代码库，可以在
 - [docs/INDEX.md](../INDEX.md) — 完整文档地图。
 - [RFC 0001](../rfcs/0001-multichain-platform.md) — 多链架构与路线图；
   [RFC 0002](../rfcs/0002-target-implementation-design.md) — 目标实现设计。
-- [Design decisions](../decisions.md) — 已定决策（D-001…D-033）。
+- [Design decisions](../decisions.md) — 已定决策（D-001…D-045）。
 - [形式化验证路线图](../formal-verification.md) — 现有证明锚点与分阶段定理目标。
 
 中文文档：
@@ -25,6 +25,9 @@ ProofForge 的目标是：一份经过验证的 Lean 合约代码库，可以在
 
 所有后端都在 `main` 上（"链"是目录和 target id，不是分支）。生命周期阶段见
 [docs/targets/README.md](../targets/README.md)。
+当前产品实现受主三链完成规约 (D-045) 约束：先按顺序把
+`solana-sbpf-asm`、`evm`、`wasm-near` 做到生产级完善，然后任何额外链才能推进到
+docs-only research 或冻结 spike 维护之外。
 
 | Target id | 管线 | 阶段 | 本地验证 |
 |---|---|---|---|

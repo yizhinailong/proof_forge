@@ -46,7 +46,7 @@
 | D-036 | 2026-07-02 | 在 IR/目标层下**统一分配器建模**为 `AllocatorModel` (策略/区域/释放)，保留 Solana `solana.allocator.*` 元数据键作为 Solana 特定的配置语法，并为 EVM 提供显式的 bump-over-scratch 绑定 | 解决工作流 24 分配器统一的开放问题；RFC 0008 定义了该三元组。持久状态模型 (EVM 存储, Solana 账户, NEAR 存储) 保持在分配器抽象之外。在所有权健全性 (FV-3) 证明经过检查的空操作合理之前，`Statement.release` 在 EVM 上保持拒绝状态 |
 | D-037 | 2026-07-02 | 将 **`wasm-cloudflare-workers`** 保留在 `wasmHost` 目标家族下作为 Research 离链宿主 | 它与 NEAR/CosmWasm 共享 Wasm 宿主后端模式 (EmitWat, 可移植核心 + 宿主桥接)；其离链状态通过阶段 (Research) 和能力集而非通过单独的家族来表达。在更多离链目标强制要求新分类之前，推迟建立独立的离链宿主家族 |
 | D-038 | 2026-07-03 | 将 **`evm` 目标 profile** 绑定到显式的 bump-over-call-scratch 分配器模型 (`AllocatorConfig.evm`: 策略 `bump`, 区域 call-scratch, `release = none`) | 记录 `EmitYul`/EVM 计划已经执行的操作：EVM 使用编译器选择偏移量的字寻址事务暂存内存，且从不释放。`Statement.release` 在 EVM v0 上保持拒绝状态。向 `release = noop` 的过渡以 FV-3 证明所有权检查使释放语义透明（无释放后使用、无重复释放）为门控，以便 EVM 追踪 (traces) 与具备重用能力的目标保持一致 |
-| D-039 | 2026-07-03 | 在 testkit M4 绑定到遗留标志之前，规划 `proof-forge build|emit|check --target <id> [--fixture <id>]` 的 CLI 产品界面 | RFC 0009 定义了目标优先界面、fixture 注册表以及遗留标志别名/弃用计划。实现在 RFC 评审后分阶段进行；在工作流 29 M1 之前不进行代码更改 |
+| D-039 | 2026-07-03 | 在 testkit M4 绑定到遗留标志之前，接受 `proof-forge build|emit|check --target <id> [--fixture <id>]` 的 CLI 产品界面 | RFC 0009 定义了目标优先界面、fixture 注册表以及遗留标志别名/弃用计划。2026-07-03 评审发现 M1 已通过兼容层落地（`Command`/`CliOptions`、`check`、list commands 以及 legacy alias metadata），因此本决策用于批准该界面并明确剩余 M3/M4 迁移，而不是作为代码前置冻结 |
 | D-040 | 2026-07-03 | 将资源预算 (EVM gas, Solana CU, NEAR gas) 作为 Tier-0 一致性门控的必要部分 | Tier-0 共享场景一致性 (D-034) 必须比较行为*以及*预算；RFC 0010 定义了 testkit 场景中带有容差范围的可选每步预算基准，防止虚假一致性并锁定当前 Solana 直接汇编的 CU 优势 |
 | D-041 | 2026-07-03 | 采用可移植运行时错误模型 (`assertion_id` + 可选 `user_code`) 和统一的 `ContractSpec` 客户端 schema | 每个目标以其原生形式编码相同的错误 id (EVM revert, Solana 自定义错误, NEAR panic 负载, Psy 断言索引)；testkit 断言 `expect.error`。目标中立的 `ContractSpec` JSON 泛化了现有的 Solana IDL，并在 testkit M3 之后提供给每条链的 TS 客户端 |
 | D-042 | 2026-07-03 | 为可移植 IR、制品/部署 JSON schema、能力 id 以及 SDK/CLI 采用版本控制和兼容性策略 | IR 使用 `major.minor`，其中新的构造函数为次要变更，语义变更为主要变更；制品/部署 schema 使用整数 `schemaVersion`，并遵循宽容读取规则；能力 id 为仅追加；SDK/CLI 在 1.0 版本前后遵循类 semver 规则。RFC 0012 定义了完整策略 |
@@ -143,4 +143,5 @@ Phase 5: Cloud platform
 - CLI id `solana-sbf` —— 使用 `solana-sbpf-asm` (D-026)。
 - Move POC 同时生成 Sui 和 Aptos 包 —— Aptos 优先 (D-007)。
 - D-034 “在 Gate G0 之后并行开启 Tier-1 (cosmwasm + aptos)” —— 对于当前阶段，Tier-0 完成优先 (D-044) 和主三链完成规约 (D-045) 具有更高优先级：在将任何 Tier-1 spike 推进到超过其当前状态之前，先完成 `solana-sbpf-asm`/`evm`/`wasm-near` 以达到生产级 DoD。
+- D-039 原始的“在 Workstream 29 M1 之前不进行代码更改”措辞 —— 2026-07-03 评审发现 M1 已经落地后已修正；RFC 0009 现在为 Accepted，M1 已实现，M3/M4 仍开放。
 - decisions.md “路线图摘要” 阶段 0–5 模型 —— 已被 [target-roadmap](target-roadmap.md) (D-034) 中的 tier/gate 模型取代；保留在上方仅用于追溯。

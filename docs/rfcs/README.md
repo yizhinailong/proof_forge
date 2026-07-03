@@ -19,7 +19,7 @@ Process: proposals start as Draft, move to **Accepted** when recorded in
 | [0006](0006-multichain-token-sdk.md) | Draft | Multi-chain Token SDK: ERC-20 on EVM, SPL Token / Token-2022 plans on Solana |
 | [0007](0007-unified-rust-test-framework.md) | Draft | Unified Rust test framework: declarative scenarios over revm/Mollusk/wasmtime harnesses |
 | [0008](0008-allocator-abstraction.md) | Draft | Chain-decoupled allocator abstraction across EVM, Solana, and NEAR |
-| [0009](0009-cli-product-surface.md) | Draft | CLI product surface: `build|emit|check --target <id> --fixture <id>` |
+| [0009](0009-cli-product-surface.md) | Accepted | CLI product surface: `build|emit|check --target <id> --fixture <id>`; M1 landed, M3/M4 transition open |
 | [0010](0010-resource-budgets-as-gates.md) | Draft | Resource budgets as testkit gates (gas / CU / near-gas) |
 | [0011](0011-runtime-error-model-and-client-generation.md) | Draft | Portable runtime error model + unified client generation |
 | [0012](0012-versioning-and-compatibility-policy.md) | Draft | Versioning and compatibility policy (IR, artifact schema, capability ids, SDK) |

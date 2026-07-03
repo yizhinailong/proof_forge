@@ -1989,16 +1989,17 @@ Tasks:
   `wasmHost` or moves to a distinct off-chain host family (no consensus, no
   on-chain state) so it does not dilute capability semantics; record in
   `decisions.md` alongside D-033.
-- Record the phase completion criterion in `decisions.md`: the current
-  phase's completion standard is the shared scenario (Counter, then
-  ValueVault) passing on `evm`, `solana-sbpf-asm`, and `wasm-near`; until
-  then, new research targets add docs only — no registry or capability-file
-  changes.
+- Done: record Gate G0 and the stricter Gate P0 primary-chain completion
+  covenant in `decisions.md`, `target-roadmap.md`, and `gate-status.md`. Gate
+  G0 closes the shared behavior/budget slice; until Gate P0 closes, new and
+  non-primary targets stay docs-only or maintenance-only — no registry,
+  capability, testkit, CI, or product-scope advancement.
 
 Acceptance criteria:
 
-- `docs/decisions.md` shows one linear decision log (D-001…D-033, no
-  duplicate ids) and records the allocator-unification outcome.
+- `docs/decisions.md` shows one linear decision log (D-001…D-045, no
+  duplicate ids), records the allocator-unification outcome, and aligns
+  D-039/RFC 0009 plus D-045/Gate P0 with the codebase's actual state.
 - Development standards contain the branch and i18n rules.
 - All four merged chain branches are deleted or archived.
 

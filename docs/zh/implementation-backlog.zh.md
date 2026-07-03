@@ -891,9 +891,9 @@
 - 命名清理：决定公开 SDK 名称，安排 `Lean.Evm` → `ProofForge.*` 命名空间重命名，并执行 Learn 冻结（[authoring-model](authoring-model.md)）。
 - 在 RFC 0004 中宣布 `ContractSpec` → EVM Plan → Yul 为 EVM 产品流水线；将 LCNF → `EmitYul` 标记为 Lean-native Experimental 路径。
 - 决定 `wasm-cloudflare-workers` 是保留其在 `wasmHost` 下的注册表条目，还是移动到独立的离线宿主家族（无共识，无链上状态），以免稀释能力语义；与 D-033 一起记录在 `decisions.md` 中。
-- 在 `decisions.md` 中记录阶段完成标准：当前阶段的完成标准是共享场景（Counter，然后是 ValueVault）在 `evm`、`solana-sbpf-asm` 和 `wasm-near` 上通过；在此之前，新的 Research 目标仅添加文档——不更改注册表或能力文件。
+- 已完成：在 `decisions.md`、`target-roadmap.md` 和 `gate-status.md` 中记录 Gate G0 以及更严格的 Gate P0 主三链完成规约。Gate G0 关闭共享行为/预算切片；在 Gate P0 关闭前，新的和非主链目标保持 docs-only 或 maintenance-only——不得推进 registry、capability、testkit、CI 或产品范围。
 
-验收标准：- `docs/decisions.md` 显示了一个线性决策日志（D-001…D-033，无重复 id）并记录了分配器统一结果。
+验收标准：- `docs/decisions.md` 显示了一个线性决策日志（D-001…D-045，无重复 id），记录了分配器统一结果，并使 D-039/RFC 0009 以及 D-045/Gate P0 与代码库实际状态保持一致。
 - 开发标准包含分支和 i18n 规则。
 - 所有四个已合并的链分支均已删除或归档。
 

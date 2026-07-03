@@ -14,7 +14,7 @@ milestones that map one-to-one onto implementing branches.
 ## Tier model
 
 ```text
-Tier 0  Active on main today
+Tier 0  Primary-chain hardening on main today
 Tier 1  Next: opens when the primary-chain completion gate passes
 Tier 2  Conditional: opens when its listed enabler lands
 Tier 3  Parked research: docs stay current, no registry/code work
@@ -37,16 +37,22 @@ production hardening is also signed off. Every later target reuses the artifacts
 this work hardens: the portable IR surface, capability routing, EmitWat, the
 scenario harness, target artifact metadata, and budget-as-gate quality signal.
 
-## Tier 0 — active (no new planning needed)
+## Tier 0 — primary-chain hardening (current focus)
+
+Only the first three rows below are allowed to receive product implementation
+work before Gate P0 closes. The remaining rows are already-landed inventory:
+they may receive CI stability, security, or documentation maintenance, but they
+must not drive new registry, capability, testkit, or CI expansion while the
+primary-chain completion covenant is open.
 
 | Target | State |
 |---|---|
-| `evm` | Baseline; product pipeline decision tracked in Workstream 24 |
-| `solana-sbpf-asm` | Experimental; live gates + Pinocchio equivalence growing |
-| `wasm-near` | Experimental; EmitWat canonical (D-031) |
-| `psy-dpn` | Experimental restricted subset; continues opportunistically |
-| `aleo-leo` | Research spike per D-032; continues on its own track |
-| `wasm-cloudflare-workers` | Off-chain host demo (D-033); no expansion planned |
+| `solana-sbpf-asm` | **Primary priority 1.** Experimental; live gates + Pinocchio equivalence growing |
+| `evm` | **Primary priority 2.** Baseline; semantic-plan migration tracked in Workstream 3 |
+| `wasm-near` | **Primary priority 3.** Experimental; EmitWat canonical (D-031) |
+| `psy-dpn` | Maintenance-only Experimental subset; no capability/testkit expansion until P0 closes |
+| `aleo-leo` | Maintenance-only Research spike per D-032; no new implementation lane until P0 closes |
+| `wasm-cloudflare-workers` | Maintenance-only off-chain host demo (D-033); no expansion planned before P0 |
 
 ### Tier-0 completion checklist (D-044, current focus)
 
@@ -258,8 +264,10 @@ placement:
 
 ```mermaid
 flowchart LR
-  T0["Tier 0 (active)<br/>evm · solana-sbpf-asm · wasm-near<br/>psy-dpn · aleo-leo · cf-workers"]
-  G0{"Gate G0<br/>testkit M3 +<br/>shared-scenario parity"}
+  T0["Tier 0 primary hardening<br/>solana-sbpf-asm → evm → wasm-near"]
+  AUX["Frozen maintenance inventory<br/>psy-dpn · aleo-leo · cf-workers"]
+  G0{"Gate G0 (closed)<br/>behavior + budget parity"}
+  P0{"Gate P0<br/>primary-chain production sign-off"}
   CW["Tier 1a<br/>wasm-cosmwasm"]
   AP["Tier 1b<br/>move-aptos"]
   G1a{"G1a: CosmWasm M4"}
@@ -274,7 +282,9 @@ flowchart LR
   ZC["bch / zcash / kaspa Roads 2-3"]
 
   T0 --> G0
-  G0 --> CW & AP
+  AUX -. maintenance only .-> P0
+  G0 --> P0
+  P0 --> CW & AP
   CW --> G1a --> SOR
   G1a -.-> ICP
   AP --> G1b --> SUI
@@ -286,7 +296,8 @@ flowchart LR
 ```
 
 ```text
-Gate G0: testkit M3 + shared-scenario parity on evm/solana/wasm-near   (Tier-0 exit)
+Gate G0: behavior + budget parity on evm/solana/wasm-near   (closed slice)
+Gate P0: production sign-off for solana-sbpf-asm -> evm -> wasm-near
   ├── opens 1a wasm-cosmwasm  (M1..M4)
   └── opens 1b move-aptos     (M1..M4, parallel)
 Gate G1a: cosmwasm M4  -> opens wasm-stellar-soroban; ICP needs +async design note
