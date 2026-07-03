@@ -7,16 +7,17 @@ you work on that target.
 
 ## Current Product Focus
 
-ProofForge is under the primary-chain completion covenant (D-045). Product
-implementation work is reserved for these targets, in this order:
+Gate P0 has closed for the primary-chain completion covenant (D-045). The three
+priority targets reached production-grade local/CI gates in this order:
 
 1. `solana-sbpf-asm`
 2. `evm`
 3. `wasm-near`
 
-Other target notes may receive documentation, security, or CI maintenance, but
-they should not gain new registry stage, capability surface, testkit coverage,
-or product scope until Gate P0 closes.
+The next hardening lane is the CLI M3/M4 migration from legacy flags to
+`proof-forge build|emit|check --target ...`. Tier-1 target work is eligible to
+be scheduled, but should wait behind that cleanup unless a security or CI
+maintenance issue takes priority.
 
 ## Required Tools
 
@@ -30,10 +31,30 @@ Install these for normal development:
 Recommended editor setup:
 
 - VS Code or Cursor with the official `leanprover.lean4` extension.
+- The repository includes `.vscode/extensions.json` and `.vscode/settings.json`
+  so the Lean extension, TOML syntax, and low-noise search/watch exclusions are
+  offered automatically.
 - Open the repository root, not a subdirectory, so Lake, imports, and
   `lean-toolchain` resolve consistently.
 - Let the extension use the repo toolchain through `elan`; do not override the
   Lean version per workspace.
+
+## Starter Template
+
+For the smallest authoring loop, start from the in-repository portable template:
+
+```sh
+lake env lean templates/portable-counter/Counter.lean
+```
+
+The template lives at
+[templates/portable-counter](../templates/portable-counter/README.md). It uses
+`ProofForge.Contract.Source` and does not import an EVM, Solana, or NEAR SDK.
+Target selection belongs to CLI configuration (`--target evm`,
+`--target solana-sbpf-asm`, `--target wasm-near`, ...). A standalone package
+scaffold and arbitrary `contract_source` file routing through all target-first
+`build` paths are still open DX/source-routing items; keep the template in-repo
+until the public SDK/package boundary is stable.
 
 ## First Local Pass
 

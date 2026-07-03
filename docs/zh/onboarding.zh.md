@@ -5,14 +5,16 @@
 
 ## 当前产品重点
 
-ProofForge 目前受主三链完成规约（D-045）约束。产品实现工作按以下顺序保留给三个 target：
+Gate P0 已经关闭，主三链完成规约（D-045）的三个优先 target 已经按以下顺序达到
+production-grade 的本地/CI 门禁：
 
 1. `solana-sbpf-asm`
 2. `evm`
 3. `wasm-near`
 
-其他 target 说明可以继续做文档、安全或 CI 维护，但在 Gate P0 关闭前，不应新增
-registry stage、capability surface、testkit coverage 或产品范围。
+下一条硬化主线是 CLI M3/M4：从 legacy flags 迁移到
+`proof-forge build|emit|check --target ...`。Tier-1 target 已经具备排期资格，
+但除非遇到安全或 CI 维护问题，否则应排在这次 CLI cleanup 之后。
 
 ## 必需工具
 
@@ -26,8 +28,24 @@ registry stage、capability surface、testkit coverage 或产品范围。
 推荐编辑器设置：
 
 - VS Code 或 Cursor，并安装官方 `leanprover.lean4` 扩展。
+- 仓库已经包含 `.vscode/extensions.json` 和 `.vscode/settings.json`，会自动推荐
+  Lean 扩展、TOML 语法支持，并排除 `.lake`、`build`、`target` 等噪声目录的搜索/监听。
 - 打开仓库根目录，而不是子目录，这样 Lake、import 和 `lean-toolchain` 才会稳定解析。
 - 让扩展通过 `elan` 使用仓库工具链；不要在 workspace 里手动覆盖 Lean 版本。
+
+## Starter 模板
+
+最小的编写循环可以从仓库内 portable 模板开始：
+
+```sh
+lake env lean templates/portable-counter/Counter.lean
+```
+
+模板位于 [templates/portable-counter](../../templates/portable-counter/README.md)。它使用
+`ProofForge.Contract.Source`，不导入 EVM、Solana 或 NEAR SDK。目标选择属于 CLI 配置：
+`--target evm`、`--target solana-sbpf-asm`、`--target wasm-near` 等。独立
+package scaffold 以及任意 `contract_source` 文件通过所有 target-first `build` 路径的路由
+仍是开放的 DX/source-routing 项；在公开 SDK/package 边界稳定前，模板先保持为仓库内模板。
 
 ## 第一次本地检查
 
