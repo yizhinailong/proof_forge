@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit EVM Counter Golden
+
+Commit: feature commit for unified testkit EVM Counter golden
+
+Summary:
+
+- Added `Examples/Evm/Counter.golden.yul` as the portable IR Counter Yul
+  golden, separate from the older Lean SDK contract golden under
+  `Examples/Evm/Contracts/`.
+- Moved the EVM Counter Yul equality check into
+  `testkit/scenarios/counter.toml` through a scenario-declared
+  `[[artifact]]` `matches_file` expectation.
+- Kept EVM runtime behavior in `testkit/harness-evm`; the harness now only
+  publishes the generated `yul` artifact and the common scenario validator owns
+  the source snapshot comparison.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml --workspace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --target evm
+just testkit
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- ValueVault still uses scenario-declared Yul substring checks because it does
+  not yet have a committed portable-source golden.
+
+Next step:
+
+- Add portable-source goldens for the remaining stable testkit fixtures, then
+  decide which old golden-only shell checks can be retired or moved to
+  scheduled chain-authentic gates.
+
 ### Unified Testkit Unsupported Capability Diagnostics
 
 Commit: feature commit for unified testkit diagnostic scenarios

@@ -2066,6 +2066,10 @@ Tasks (one milestone per implementing branch):
   `[[diagnostic]]` expectations and a diagnostic-only `unsupported-crosscall`
   scenario that proves `solana-sbpf-asm` rejects the portable
   `crosscall.invoke` capability with the expected target/capability message.
+  The current EVM golden slice adds `Examples/Evm/Counter.golden.yul` as the
+  portable IR Counter Yul golden and makes `testkit/scenarios/counter.toml`
+  assert the generated EVM Yul through `matches_file`; the older Lean SDK
+  contract golden stays under `Examples/Evm/Contracts/`.
 
 Acceptance criteria:
 

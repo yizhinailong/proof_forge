@@ -1282,6 +1282,10 @@ shell/Node harness；参见
   切片加入 scenario-declared `[[diagnostic]]` expectation，并增加
   diagnostic-only 的 `unsupported-crosscall` 场景，证明 `solana-sbpf-asm`
   会用预期的 target/capability 信息拒绝 portable `crosscall.invoke` capability。
+  当前 EVM golden 切片新增 `Examples/Evm/Counter.golden.yul` 作为 portable
+  IR Counter 的 Yul golden，并让 `testkit/scenarios/counter.toml` 通过
+  `matches_file` 断言生成的 EVM Yul 源码；旧 Lean SDK contract golden
+  仍保留在 `Examples/Evm/Contracts/` 下。
 
 验收标准：
 

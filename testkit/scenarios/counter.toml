@@ -88,6 +88,11 @@ equals = "passed"
 
 [[artifact]]
 target = "evm"
+name = "yul"
+matches_file = "Examples/Evm/Counter.golden.yul"
+
+[[artifact]]
+target = "evm"
 name = "metadata"
 
 [[artifact.json]]
