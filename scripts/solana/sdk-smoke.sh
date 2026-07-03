@@ -124,11 +124,13 @@ if len(instructions) != 2:
     raise SystemExit(f"artifact instruction schema count mismatch: {len(instructions)}")
 idl_instructions = idl.get("instructions", [])
 normalized_idl_instructions = [
-    {key: value for key, value in instruction.items() if key != "returns"}
+    {key: value for key, value in instruction.items() if key not in {"computeBudget", "returns"}}
     for instruction in idl_instructions
 ]
 if normalized_idl_instructions != instructions:
     raise SystemExit(f"IDL instructions mismatch: {idl_instructions}")
+if any(instruction.get("computeBudget") != [] for instruction in idl_instructions):
+    raise SystemExit(f"IDL instruction compute budget should be empty for SDK vault fixture: {idl_instructions}")
 if any(instruction.get("returns") != "Unit" for instruction in idl_instructions):
     raise SystemExit(f"IDL instruction return schema mismatch: {idl_instructions}")
 if any(instruction.get("minDataLen") != 1 for instruction in instructions):
