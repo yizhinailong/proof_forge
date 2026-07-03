@@ -1,3 +1,5 @@
+import ProofForge.Target
+
 namespace ProofForge.Cli.Fixture
 
 /-- Built-in fixture ids used by the target-first CLI surface. -/
@@ -167,5 +169,31 @@ def supportsFormat (targetId fixtureId : String) (format : Format) : Bool :=
   | "aleo-leo", "pure-math", .leo => true
   | "move-aptos", "counter", .aptos => true
   | _, _, _ => false
+
+/-- Conservative capability demand for a fixture. Used by `proof-forge check` to
+produce a clear diagnostic when a target profile lacks a required capability. -/
+def capabilitiesFor (id : String) : Array ProofForge.Target.Capability :=
+  match id with
+  | "counter" => #[.storageScalar, .callerSender, .envBlock, .controlConditional, .controlBoundedLoop]
+  | "value-vault" => #[.storageScalar, .storageMap, .callerSender, .envBlock, .controlConditional]
+  | "context" => #[.callerSender, .envBlock, .valueNative]
+  | "hash" | "hash-storage" | "u32-hash-packing" => #[.cryptoHash]
+  | "map" => #[.storageMap]
+  | "assert" => #[.assertions]
+  | "assignment" | "evm-assign-op" => #[.storageScalar]
+  | "conditional" => #[.controlConditional]
+  | "loop" | "evm-loop" => #[.controlBoundedLoop]
+  | "array" | "evm-array-value" | "u32-storage-array" | "evm-storage-array" => #[.dataFixedArray]
+  | "struct" | "evm-struct-value" | "evm-storage-struct" | "evm-struct-array-value" => #[.dataStruct]
+  | "crosscall" | "evm-crosscall" => #[.crosscallInvoke]
+  | "event" | "evm-event" => #[.eventsEmit]
+  | "bool-storage-scalar" | "bool-storage-array" | "u32-storage-scalar" => #[.storageScalar]
+  | "nested-aggregate" | "storage-nested-aggregate" => #[.dataFixedArray, .dataStruct]
+  | "control" => #[.controlConditional, .controlBoundedLoop]
+  | f =>
+      if f.startsWith "solana-" || f.startsWith "spl-token-" || f.startsWith "system-" || f == "log-event" then
+        #[.crosscallCpi, .storagePda, .runtimeMemory, .runtimeComputeUnits, .runtimeReturnData]
+      else
+        #[]
 
 end ProofForge.Cli.Fixture
