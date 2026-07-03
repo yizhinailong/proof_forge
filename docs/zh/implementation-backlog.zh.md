@@ -374,6 +374,20 @@
   `references/solana/pinocchio/system-transfer` 包含一个已签入的 no-allocator Pinocchio 参考，用于与 `ProofForge.Solana.Examples.SystemCpi` 相同的 System 转账账户 schema。Gate `scripts/solana/pinocchio-system-transfer-equivalence.sh` 发射 ProofForge System CPI 制品，并将其指令标签、参数 ABI、账户顺序、签名者/可写约束、CPI 协议/数据布局以及状态写入合约与参考清单/源代码进行比较。
 - Pinocchio System 转账实时等效性测试框架：
   `scripts/solana/pinocchio-system-transfer-live-equivalence.sh` 被配置为构建 ProofForge ELF 和已签入的 Pinocchio 参考 ELF，将这两个程序部署到一个 Surfpool 实例，分别为每个程序调用相同的 Web3.js 转账场景，并比较接收者 lamport 增量以及状态写入。当 `cargo-build-sbf` 找不到 Solana rustc/platform-tools 时，该测试框架目前会跳过。
+- Solana loader-compatible ELF packaging 阻塞：
+  2026-07-03 本地运行 `just solana-pinocchio-live-equivalence` 时，Surfpool、
+  Agave `solana-cli 3.1.12`、`cargo-build-sbf 3.1.12` 和 `sbpf 0.2.2`
+  都已安装，但五个 live dual-deploy 子 gate 全部在 ProofForge 程序部署阶段失败。
+  `solana program deploy --use-rpc` 在部署 Pinocchio 参考程序和执行 Web3.js 行为检查之前，
+  就以 `Failed to parse ELF file: invalid file header` 拒绝生成的 ProofForge ELF。
+  triage 显示，当前 blueshift `sbpf build --arch v0` 输出的是一个只有单个 segment、
+  没有 section table、且 `e_flags = 3` 的裸 ELF；Agave 内置的
+  `solana-sbpf 0.13.1` strict loader 需要 Solana-compatible 的 v3 layout：
+  `EM_SBPF`、四个 program header、有效的 section-header index，以及 function-start markers。
+  将这些字节硬改成 legacy v0 也不正确，因为字节码随后会在 relocation 阶段报
+  `RelativeJumpOutOfBounds`。所以下一个实现切片必须是显式的 Solana CLI loader
+  兼容路径：要么通过标准 Solana platform-tools 格式进行 emit/package，要么扩展当前
+  direct assembler pipeline，生成 Agave 可接受的 strict v3 header 和 function markers。
 - Pinocchio System 创建账户参考合约：
   `references/solana/pinocchio/system-create-account` 包含一个已签入的 no-allocator Pinocchio 参考，用于与 `ProofForge.Solana.Examples.SystemCreateAccountCpi` 相同的 System Program `create_account` 账户 schema。Gate `scripts/solana/pinocchio-system-create-account-equivalence.sh` 发射 ProofForge 创建账户 CPI 制品，并将其指令标签、双参数 ABI、账户顺序、签名者/可写约束、CPI 协议/数据布局、lamports/空间/所有者合约以及双字段状态写入合约与参考清单/源代码进行比较。通过 `PROOF_FORGE_PINOCCHIO_CARGO_CHECK=1`，同一个 gate 会根据 `pinocchio-system` 对参考进行类型检查。
 - Pinocchio System 创建账户实时等效性测试框架：

@@ -1022,6 +1022,24 @@ Completed beta scaffolding slices:
   scenario for each, and compare recipient lamport deltas plus state writes.
   The harness currently skips when `cargo-build-sbf` cannot find Solana rustc/
   platform-tools.
+- Solana loader-compatible ELF packaging blocker:
+  a 2026-07-03 local run of `just solana-pinocchio-live-equivalence` with
+  Surfpool, Agave `solana-cli 3.1.12`, `cargo-build-sbf 3.1.12`, and `sbpf
+  0.2.2` installed failed all five live dual-deploy children at ProofForge
+  program deployment. `solana program deploy --use-rpc` rejects the generated
+  ProofForge ELF with `Failed to parse ELF file: invalid file header` before
+  the Pinocchio reference deployment or Web3.js behavior checks run. Triage
+  showed the current blueshift `sbpf build --arch v0` output is a one-segment
+  bare ELF with no section table and `e_flags = 3`; Agave's embedded
+  `solana-sbpf 0.13.1` strict loader expects a Solana-compatible v3 layout
+  with `EM_SBPF`, four program headers, a valid section-header index, and
+  function-start markers. Reflagging the bytes as legacy v0 is not valid
+  either, because the bytecode then fails relocation with
+  `RelativeJumpOutOfBounds`. The next implementation slice is therefore an
+  explicit Solana CLI loader-compatibility path: either emit/package through
+  the standard Solana platform-tools format, or extend the direct assembler
+  pipeline to produce the strict v3 headers and function markers that Agave
+  accepts.
 - Pinocchio System create-account reference contract:
   `references/solana/pinocchio/system-create-account` contains a checked-in
   no-allocator Pinocchio reference for the same System Program

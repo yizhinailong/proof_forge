@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Solana Pinocchio Live Deploy Blocker Triage
+
+Commit: documentation commit for Solana live deploy blocker triage
+
+Summary:
+
+- Ran the aggregate Pinocchio live dual-deploy gate locally with Surfpool,
+  Agave `solana-cli 3.1.12`, `cargo-build-sbf 3.1.12`, and `sbpf 0.2.2`
+  available.
+- Confirmed the live suite does not currently fail because of missing tools:
+  all five child gates build the ProofForge ELF and Pinocchio reference ELF,
+  start Surfpool, then fail at ProofForge `solana program deploy --use-rpc`
+  with `Failed to parse ELF file: invalid file header`.
+- Triage against Agave's embedded `solana-sbpf 0.13.1` showed the generated
+  ProofForge ELF is not Solana CLI loader-compatible: blueshift `sbpf build
+  --arch v0` emits a one-segment bare ELF with no section table and
+  `e_flags = 3`, which makes Agave use its strict v3 parser. That parser
+  requires `EM_SBPF`, four program headers, a valid section-header index, and
+  function-start markers. Reflagging the bytecode as v0 is also invalid because
+  the v3/static-call bytecode then fails relocation with
+  `RelativeJumpOutOfBounds`.
+- Recorded the blocker in Gate P0 and Workstream 7 so Solana P0 does not read
+  as a generic CI/toolchain-install task.
+
+Validation run:
+
+```sh
+just solana-pinocchio-live-equivalence
+cargo run --manifest-path /tmp/proofforge-elf-check-013/Cargo.toml -- \
+  build/solana-pinocchio-system-transfer-live/proofforge-system-transfer-live-sbpf-project/deploy/proofforge-system-transfer-live.so \
+  build/solana-pinocchio-system-transfer-live/pinocchio-system-transfer-reference.so
+```
+
+Known limitations:
+
+- This is a blocker triage and documentation pass. It does not yet add the
+  Solana loader-compatible ELF packaging path, and the live dual-deploy suite
+  remains non-mandatory for CI.
+
+Next step:
+
+- Implement an explicit Solana CLI loader-compatibility path: either emit and
+  package through the standard Solana platform-tools format, or extend the
+  direct assembler pipeline to produce the strict v3 headers and function-start
+  markers accepted by Agave.
+
 ### Review Follow-up: RFC, Portfolio, and Gate State Alignment
 
 Commit: feature commit for review follow-up documentation alignment
