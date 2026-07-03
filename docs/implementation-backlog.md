@@ -2020,8 +2020,8 @@ Tasks (see the roadmap for full statements):
   semantics (no use-after-release, no double release), justifying the three
   divergent `release` lowerings (EmitWat allocator, EVM/Psy reject, TS
   no-op).
-- FV-4: Done EVM Counter, ValueVault, and EvmExpressionProbe executable trace obligations in
-  `Backend/Evm/Refinement.lean`, backed by
+- FV-4: EVM Counter, ValueVault, and EvmExpressionProbe executable trace
+  obligations are done in `Backend/Evm/Refinement.lean`, backed by
   `Backend/Evm/YulSemantics.lean`. The obligations mirror
   `Backend/WasmNear/Refinement.lean` for scalar IR traces, check the
   selector-dispatched Yul surface, and execute the focused emitted Yul subset
@@ -2195,12 +2195,13 @@ advancement. Per-criterion status lives in [gate-status.md](gate-status.md).
 
 ### Tier-0 completion (current top priority, blocks everything below)
 
-- NEAR gas budget implementation (RFC 0010): wire `near_gas` into
-  `testkit/harness-near` outcomes and add `near_gas` baselines + tolerances to
-  every Counter and ValueVault step. Only budget dimension entirely missing.
-- ValueVault budget baselines: measure and pin `solana_cu`, `evm_gas`, and
-  `near_gas` (once implemented) for all ValueVault steps across the three
-  targets in `testkit/scenarios/value-vault.toml`.
+- Done: NEAR budget reporting is wired through the testkit as a wasmtime-fuel
+  proxy, with Counter and ValueVault baselines pinned alongside Solana CU and
+  EVM gas. A precise NEAR host-gas model remains a P0 hardening refinement, not
+  a Gate G0 blocker.
+- Done: ValueVault budget baselines are pinned for `solana_cu`, `evm_gas`, and
+  `near_gas` across the three primary targets in
+  `testkit/scenarios/value-vault.toml`.
 - EVM semantic-plan migration (Workstream 3): ExprPlan, StmtPlan,
   EntrypointPlan, EventPlan, CrosscallPlan, MetadataPlan — then retire the old
   `IR.lean -> Yul` lowering. Non-blocking for Gate G0 budgets but on the EVM
@@ -2212,12 +2213,13 @@ advancement. Per-criterion status lives in [gate-status.md](gate-status.md).
 - Freeze the landed Aptos/CosmWasm spikes at their current M1/M2 state: no
   Tier-1 M3/M4, no registry stage, no Tier-2 start, until Gate P0 closes.
 
-Tasks (after Gate P0 closes):
+Tasks:
 
-- Gate G0 (Tier-0 exit): testkit M3 (Workstream 26) plus shared-scenario
-  parity on `evm`, `solana-sbpf-asm`, `wasm-near`, **including D-040 budgets**.
-- Gate P0 (primary-chain sign-off): Gate G0 plus the remaining production-grade
-  hardening for Solana, Ethereum/EVM, and NEAR/Wasm from D-045.
+- Done: Gate G0 (Tier-0 behavior/budget slice) is closed. Evidence lives in
+  [gate-status.md](gate-status.md).
+- Gate P0 (primary-chain sign-off): Gate G0 plus the remaining
+  production-grade hardening for Solana, Ethereum/EVM, and NEAR/Wasm from
+  D-045.
 - Tier 1a `wasm-cosmwasm`: M1 CosmWasm host imports + region-allocator ABI
   in EmitWat (the `cosmWasmRegion` binding from RFC 0008); M2 Counter
   artifact passes `cosmwasm-check`; M3 testkit `harness-cosmwasm` scenario
@@ -2257,10 +2259,12 @@ Acceptance criteria:
 These come from the [2026-07 gap analysis](platform-gaps-2026-07.md). Each
 starts as an RFC, not code; sequencing hooks are listed in the gap doc.
 
-- **Workstream 29 — CLI product surface.** RFC for
-  `proof-forge build|emit|check --target <id> --fixture <id>`, collapsing
-  the ~136 emit modes; legacy flags become aliases for one release. Must be
-  planned before testkit M4 binds to the current flags.
+- **Workstream 29 — CLI product surface.** RFC 0009 is accepted and M1 is
+  landed: `proof-forge build|emit|check --target <id> --fixture <id>` exists
+  through the compatibility layer, `check` is a real validation verb,
+  list commands are wired, and legacy flags have alias/deprecation metadata.
+  Remaining work is M3/M4: migrate scripts/testkit callers to the target-first
+  surface and delete the legacy flag zoo only after the compatibility window.
 - **Workstream 30 — Versioning and compatibility policy.** RFC covering IR
   version rules (tied to the coverage-manifest gate), artifact/deploy
   schema stability, append-only capability ids, and SDK deprecation policy.
@@ -2311,11 +2315,10 @@ workstream. The forward order follows the tier gates of
 [target-roadmap.md](target-roadmap.md) (D-034):
 
 0. Architecture convergence follow-ups (Workstream 24) and FV-1/FV-2 from
-   the formal verification roadmap (Workstream 25). In parallel, the
-   planning-first RFCs from the gap analysis: CLI surface (29, before
-   testkit M4), budgets + error vocabulary (31/33, before testkit M2/M3
-   freeze the scenario schema), versioning and deployment lifecycle
-   (30/32, docs-agent parallel track).
+   the formal verification roadmap (Workstream 25). In parallel, finish the
+   platform-hardening follow-through from the gap analysis: CLI M3/M4 migration
+   after RFC 0009 M1, runtime error vocabulary for testkit, and the versioning
+   / deployment lifecycle policies (30/32, docs-agent parallel track).
 1. **Parallel:** unified testkit (Workstream 26) and allocator unification
    (Workstream 27) — testkit M1/M2 has no dependency on allocator M1/M2;
    allocator M4 lands after testkit M3.

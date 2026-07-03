@@ -1,6 +1,6 @@
 # Platform Gap Analysis (2026-07)
 
-Status: **Draft planning survey**
+Status: **Draft planning survey; reviewed 2026-07-03**
 
 The current planning corpus covers architecture convergence (Workstream 24),
 formal verification (25), the unified testkit (26), allocator unification
@@ -21,16 +21,17 @@ the 2026-07 consolidation was concentrated in this file, and testkit M4
 (Workstream 26) is about to wire dozens of these modes into scenario
 harnesses. If the testkit binds to the flag zoo, the flag zoo becomes API.
 
-**Current state.** RFC 0001 and the README promise
-`proof-forge build --target <id>` as the stable interface; only
-`--learn`/`--learn-token` accept `--target` today.
+**Current state.** RFC 0009 is accepted and M1 has landed. The CLI now has
+`Command`/`CliOptions`, target-first `build`/`emit` routing through the
+compatibility layer, a real `check` verb, `--list-targets`,
+`--list-fixtures`, and legacy alias/deprecation metadata. D-039 records that
+this is a ratification of already-landed M1 code, not a pre-code freeze.
 
-**Recommendation.** RFC before testkit M4: a `build`/`emit`/`check` command
-surface where target id, input kind (Lean source, built-in fixture id,
-`.learn`), and artifact set are parameters, not modes. Fixture ids become a
-registry (`--fixture counter`), collapsing the per-fixture flags. Keep the
-legacy flags as thin aliases for one release, then delete. Testkit invokes
-only the new surface.
+**Recommendation.** Do not reopen the surface. Execute the remaining
+transition work: migrate scripts and testkit invocations to
+`proof-forge build|emit|check --target <id> --fixture <id>` for M3/M4, keep
+legacy flags as thin aliases for the compatibility window, and delete
+`EmitMode` only after CI and docs no longer depend on the flag zoo.
 
 ## Gap 2: Versioning and compatibility policy — Workstream 30
 
@@ -62,9 +63,13 @@ and EVM/NEAR gas is currently listed under "not covered" in every
 validation gate. Declaring parity without budgets risks declaring fake
 parity, and codegen quality regressions have no tripwire.
 
-**Current state (measured 2026-07-02).** The direct-assembly route is in
-fact extremely cheap today — Mollusk-measured Counter baseline
-(`--solana-elf`, 1336-byte ELF, loader v3, Mollusk 0.13.4):
+**Current state (updated 2026-07-03).** D-040 and RFC 0010 made budgets part
+of the Tier-0 gate. The testkit scenario schema now supports per-step budget
+baselines with tolerance bands, and Gate G0 is closed for Counter and
+ValueVault behavior/budget parity across `evm`, `solana-sbpf-asm`, and
+`wasm-near`.
+
+The original Solana direct-assembly baseline is still useful context:
 
 | Entrypoint | Compute units |
 |---|---:|
@@ -73,18 +78,17 @@ fact extremely cheap today — Mollusk-measured Counter baseline
 | `get` (writes return data) | 163 |
 
 That is Pinocchio-class efficiency (hand-optimized native Rust territory;
-Anchor equivalents typically cost an order of magnitude more), which is
-precisely the advantage a budget gate should lock in: today's numbers are
-the baseline, and aggregates/maps/CPI-heavy lowering added later must not
-silently erode them. `runtime.compute_units` helpers exist on Solana
-(read/log CU), but no gate asserts a budget on any target and the testkit
-RFC does not mention budgets yet.
+Anchor equivalents typically cost an order of magnitude more), and it is now
+locked by scenario budgets instead of living only in prose. The remaining
+work is P0 hardening: keep budget baselines current as maps, aggregates,
+CPI-heavy lowering, and NEAR host behavior expand; replace the current
+wasmtime-fuel NEAR proxy with a more precise host-gas model when that model
+is implemented.
 
-**Recommendation.** Extend the testkit scenario schema (before M2/M3 land)
-with optional per-step budgets: `expect.budget = { evm_gas = N,
-solana_cu = N, near_gas = N }`, recorded as baselines with a tolerance band
-rather than exact numbers. revm, Mollusk, and the NEAR host all expose the
-counters already. Budget regressions fail like behavior regressions.
+**Recommendation.** Treat budget regressions as product regressions for the
+three primary chains. New target work remains frozen by D-045 until Gate P0
+closes; after that, every target entering a shared scenario must add its
+native budget dimension before it can claim parity.
 
 ## Gap 4: Deployment lifecycle, upgrades, and signing — Workstream 32
 
@@ -166,11 +170,13 @@ and should be written once, then shared with client generation.
 
 ## Sequencing hooks
 
-- Gap 1 (CLI) must be planned **before testkit M4** (Workstream 26).
-- Gap 3 (budgets) must be planned **before testkit M2/M3** freeze the
-  scenario schema, and before the Tier-0 parity gate (D-034) is declared.
-- Gap 5 (errors) should land its scenario vocabulary together with Gap 3's
-  schema change to avoid two schema migrations.
+- Gap 1 (CLI) M1 is done; M3/M4 must migrate testkit and scripts before the
+  compatibility aliases are removed.
+- Gap 3 (budgets) is implemented for Gate G0; keep it active as a P0
+  regression gate and refine NEAR gas from fuel proxy to native model when
+  available.
+- Gap 5 (errors) should still land its scenario vocabulary before the
+  next broad testkit schema freeze.
 - Gaps 2 and 4 are independent of the testkit and can be planned in
   parallel by a docs-focused agent.
 - Gap 6 waits for testkit M3 by design.

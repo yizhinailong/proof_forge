@@ -17,6 +17,39 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Review Follow-up: RFC, Portfolio, and Gate State Alignment
+
+Commit: feature commit for review follow-up documentation alignment
+
+Summary:
+
+- Reconciled the post-review assessment with the current repository state:
+  RFC 0009/D-039 already reflect CLI M1 as landed, and D-045/Gate P0 already
+  freeze non-primary target advancement.
+- Updated the platform gap analysis so CLI and budget work no longer read as
+  unplanned or unimplemented after RFC 0009 M1, D-040, RFC 0010, and Gate G0.
+- Updated the implementation backlog so Gate G0 is treated as closed and the
+  remaining work is correctly scoped to Gate P0 production hardening and CLI
+  M3/M4 migration.
+
+Validation run:
+
+```sh
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- This is a documentation alignment pass. It does not implement new FV-4
+  storage/aggregate trace obligations or change target capability ids.
+
+Next step:
+
+- Continue P0 hardening in priority order, with the next EVM FV-4 slice focused
+  on map/fixed-array storage obligations unless Solana live-equivalence work
+  takes priority.
+
 ### EVM Expression Assertion Executable Yul Trace Obligation
 
 Commit: feature commit for FV-4 EVM expression/assertion executable trace
