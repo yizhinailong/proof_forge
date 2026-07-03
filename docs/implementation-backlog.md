@@ -2079,9 +2079,12 @@ Tasks (one milestone per implementing branch):
   through `matches_file`. The current ValueVault Solana golden slice adds
   `Examples/Solana/ValueVault.golden.s` and
   `Examples/Solana/ValueVault.manifest.toml`, making the same scenario assert
-  generated sBPF assembly and manifest output through `matches_file`; EVM Yul
-  is now the only ValueVault source artifact still using scenario-declared
-  source-shape checks until its full snapshot is reviewed.
+  generated sBPF assembly and manifest output through `matches_file`. The
+  current ValueVault EVM golden slice adds
+  `Examples/Evm/ValueVault.golden.yul` and makes the same scenario assert
+  generated EVM Yul through `matches_file`, so ValueVault now has
+  scenario-declared source equality for `wasm-near`, `solana-sbpf-asm`, and
+  `evm`.
 
 Acceptance criteria:
 

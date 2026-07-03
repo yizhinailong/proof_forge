@@ -18,6 +18,7 @@ contains = [
 [[artifact]]
 target = "evm"
 name = "yul"
+matches_file = "Examples/Evm/ValueVault.golden.yul"
 contains = [
   'object "ValueVault"',
   'function f_ValueVault_deposit',

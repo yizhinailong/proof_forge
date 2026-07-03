@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit EVM ValueVault Golden
+
+Commit: feature commit for unified testkit EVM ValueVault golden
+
+Summary:
+
+- Added `Examples/Evm/ValueVault.golden.yul` as the reviewed Yul source
+  snapshot for the portable ValueVault scenario.
+- Upgraded the `evm` Yul artifact in `testkit/scenarios/value-vault.toml` to
+  check full generated-file equality through `matches_file`, while retaining
+  focused substring checks for the contract object, entrypoints, logs, and
+  block context access.
+- ValueVault now has scenario-declared source equality for `wasm-near` WAT,
+  `evm` Yul, and `solana-sbpf-asm` assembly/manifest.
+
+Validation run:
+
+```sh
+.lake/build/bin/proof-forge --emit-value-vault-ir-yul --cast build/tools/cast-shim -o build/testkit/evm/value-vault/ValueVault.yul
+solc --strict-assembly build/testkit/evm/value-vault/ValueVault.yul --bin
+CAST="$PWD/build/tools/cast-shim" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target evm
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml --workspace
+just testkit
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Local `just testkit` skips the ValueVault EVM runtime branch unless Foundry
+  `cast` or a compatible `CAST` override is available; CI covers that branch
+  with Foundry installed.
+
+Next step:
+
+- Move the remaining Workstream 26 M4 declarative coverage toward metadata
+  hardening and retiring duplicate per-target script checks.
+
 ### Unified Testkit Solana ValueVault Golden
 
 Commit: feature commit for unified testkit Solana ValueVault golden
@@ -31,8 +70,8 @@ Summary:
   `matches_file`, while retaining focused substring checks for event lowering,
   syscall usage, storage layout, instruction names, and argument encodings.
 - ValueVault now has scenario-declared source equality for `wasm-near` WAT and
-  `solana-sbpf-asm` assembly/manifest; EVM Yul remains the only ValueVault
-  source artifact still using source-shape checks.
+  `solana-sbpf-asm` assembly/manifest. At this point, EVM Yul remained the
+  only ValueVault source artifact still using source-shape checks.
 
 Validation run:
 
@@ -47,8 +86,8 @@ git diff --check
 
 Known limitations:
 
-- ValueVault EVM Yul still uses scenario-declared source-shape checks instead
-  of complete golden equality.
+- At this point, ValueVault EVM Yul still used scenario-declared source-shape
+  checks instead of complete golden equality.
 - Local `just testkit` skips the ValueVault EVM runtime branch when Foundry
   `cast` is unavailable; CI covers that branch with Foundry installed.
 
