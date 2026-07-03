@@ -51,6 +51,9 @@ jobs:
       - name: Check target registry
         run: just target-registry
 
+      - name: Check ContractSpec JSON schema
+        run: just contract-spec-json
+
       - name: Check EVM semantic plan
         run: just evm-plan
 

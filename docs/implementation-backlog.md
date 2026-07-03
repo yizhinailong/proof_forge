@@ -2383,6 +2383,12 @@ starts as an RFC, not code; sequencing hooks are listed in the gap doc.
     its runtime encoding is `ProgramError::Custom(assertion_id)`.
   - M4: Define target-neutral `ContractSpec` JSON schema and generate
     Solana IDL/client, EVM ABI wrapper, and NEAR wrapper sketches from it.
+    First slice implemented: `ContractSpec` JSON now emits a target-neutral
+    `errors` catalogue derived from portable `ErrorRef` assertions, including
+    `assertionId`, optional `userCode`, fallback `message`, and owning
+    `entrypoints`. `Tests/ContractSpecJson.lean` and `just contract-spec-json`
+    guard the schema. Remaining M4 work is to make the Solana/EVM/NEAR client
+    wrappers consume this schema consistently.
 
 ## Suggested Order
 

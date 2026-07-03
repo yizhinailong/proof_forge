@@ -34,6 +34,9 @@ def jsonStringOption : Option String → String
 def jsonStringArray (values : Array String) : String :=
   jsonArray (values.map jsonString)
 
+def jsonUInt32 (value : UInt32) : String :=
+  toString value.toNat
+
 def valueTypeJson (type : ValueType) : String := jsonString type.name
 
 def paramJson (param : String × ValueType) : String :=
@@ -78,6 +81,60 @@ def pushUnique (values : Array String) (value : String) : Array String :=
 def dedupStrings (values : Array String) : Array String :=
   values.foldl pushUnique #[]
 
+structure ErrorCatalogEntry where
+  assertionId : UInt32
+  userCode? : Option String := none
+  message : String
+  entrypoints : Array String
+  deriving Repr
+
+def ErrorCatalogEntry.matches (entry : ErrorCatalogEntry) (ref : ErrorRef) (message : String) : Bool :=
+  entry.assertionId == ref.assertionId &&
+    entry.userCode? == ref.userCode? &&
+    entry.message == message
+
+def addErrorRef (entrypointName message : String) (ref : ErrorRef)
+    (entries : Array ErrorCatalogEntry) : Array ErrorCatalogEntry :=
+  let rec merge : List ErrorCatalogEntry → List ErrorCatalogEntry
+    | [] => [{
+        assertionId := ref.assertionId
+        userCode? := ref.userCode?
+        message
+        entrypoints := #[entrypointName]
+      }]
+    | entry :: rest =>
+        if entry.matches ref message then
+          { entry with entrypoints := pushUnique entry.entrypoints entrypointName } :: rest
+        else
+          entry :: merge rest
+  (merge entries.toList).toArray
+
+partial def collectStatementErrors (entrypointName : String)
+    (entries : Array ErrorCatalogEntry) : Statement → Array ErrorCatalogEntry
+  | .assert _ message (some ref) => addErrorRef entrypointName message ref entries
+  | .assertEq _ _ message (some ref) => addErrorRef entrypointName message ref entries
+  | .ifElse _ thenBody elseBody =>
+      let entries := thenBody.foldl (collectStatementErrors entrypointName) entries
+      elseBody.foldl (collectStatementErrors entrypointName) entries
+  | .boundedFor _ _ _ body =>
+      body.foldl (collectStatementErrors entrypointName) entries
+  | _ => entries
+
+def collectEntrypointErrors (entries : Array ErrorCatalogEntry)
+    (entrypoint : Entrypoint) : Array ErrorCatalogEntry :=
+  entrypoint.body.foldl (collectStatementErrors entrypoint.name) entries
+
+def errorCatalog (module : Module) : Array ErrorCatalogEntry :=
+  module.entrypoints.foldl collectEntrypointErrors #[]
+
+def errorCatalogEntryJson (entry : ErrorCatalogEntry) : String :=
+  jsonObject #[
+    ("assertionId", jsonUInt32 entry.assertionId),
+    ("userCode", jsonStringOption entry.userCode?),
+    ("message", jsonString entry.message),
+    ("entrypoints", jsonStringArray entry.entrypoints)
+  ]
+
 def render (spec : ContractSpec) : String :=
   let upgradePolicyField :=
     match spec.upgradePolicy? with
@@ -91,6 +148,7 @@ def render (spec : ContractSpec) : String :=
     ("entrypoints", jsonArray (spec.module.entrypoints.map entrypointJson)),
     ("capabilities", jsonStringArray (dedupStrings (spec.module.capabilities.map fun c => c.id))),
     ("intents", jsonArray (spec.intents.map intentJson)),
+    ("errors", jsonArray (errorCatalog spec.module |>.map errorCatalogEntryJson)),
     upgradePolicyField
   ]
 

@@ -12,6 +12,10 @@ build:
 target-registry:
     lake env lean --run Tests/TargetRegistry.lean
 
+# Check target-neutral ContractSpec JSON schema output.
+contract-spec-json:
+    lake env lean --run Tests/ContractSpecJson.lean
+
 # Run the CosmWasm Counter WAT emission smoke through wat2wasm and cosmwasm-check.
 cosmwasm-counter-smoke:
     scripts/cosmwasm/counter-smoke.sh
@@ -238,7 +242,7 @@ testkit-list:
     cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry evm-plan evm-semantic-plan solana-light cli-target-first near-target-first docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
+check: build target-registry contract-spec-json evm-plan evm-semantic-plan solana-light cli-target-first near-target-first docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:

@@ -7810,3 +7810,32 @@ Result:
 
 - The portable starter template loaded successfully.
 - Translation sync and whitespace checks passed.
+
+### ContractSpec Error Catalogue
+
+Commit: pending
+
+Summary:
+
+- Added a target-neutral `errors` catalogue to `ContractSpec` JSON output.
+  Entries are derived from portable IR `assert` / `assertEq` `ErrorRef`
+  metadata and include `assertionId`, optional `userCode`, fallback `message`,
+  and owning `entrypoints`.
+- Added `Tests/ContractSpecJson.lean` for Counter's empty error catalogue,
+  ErrorRefProbe's two user-code entries, and nested control-flow assertions.
+- Added `just contract-spec-json` and wired it into CI before backend-specific
+  semantic-plan checks.
+- Marked Workstream 33 M4 as partially implemented while keeping client
+  wrapper consumption open.
+
+Validation run:
+
+```sh
+lake build ProofForge.Contract.Spec.Json
+lake env lean --run Tests/ContractSpecJson.lean
+just contract-spec-json
+```
+
+Result:
+
+- ContractSpec JSON schema tests passed locally.
