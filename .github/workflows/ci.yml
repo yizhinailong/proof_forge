@@ -220,7 +220,7 @@ jobs:
           solana-keygen --version
           cargo-build-sbf --version
           sbpf --version
-          surfpool --version
+          surfpool --version || true
           node --version
           npm --version
           just --version
