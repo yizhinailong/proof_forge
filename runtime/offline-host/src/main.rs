@@ -169,7 +169,9 @@ fn parse_hex_sequence(input: &str) -> Result<Vec<Vec<u8>>> {
 }
 
 fn run(config: Config) -> Result<()> {
-    let engine = Engine::default();
+    let mut engine_config = wasmtime::Config::new();
+    engine_config.consume_fuel(true);
+    let engine = Engine::new(&engine_config).context("failed to create wasmtime engine")?;
     let bytes = load_wasm_or_wat(&config.module_path)?;
     let module = Module::from_binary(&engine, &bytes)
         .with_context(|| format!("failed to compile {}", config.module_path.display()))?;
@@ -189,6 +191,8 @@ fn run(config: Config) -> Result<()> {
         config.block_index,
     );
     let mut store = Store::new(&engine, host);
+    let initial_fuel: u64 = 10_000_000_000;
+    store.set_fuel(initial_fuel).context("failed to set fuel")?;
     let instance = linker
         .instantiate(&mut store, &module)
         .context("failed to instantiate module")?;
@@ -215,9 +219,10 @@ fn run(config: Config) -> Result<()> {
             entry
                 .call(&mut store, ())
                 .with_context(|| format!("call {sequence_index}:{export} trapped"))?;
+            let consumed_fuel = initial_fuel - store.get_fuel().unwrap_or(0);
             let state = store.data();
             println!(
-                "call {sequence_index}:{export}: {} heap_next={} allocations={} reuses={} deallocations={} storage_keys={} logs={}",
+                "call {sequence_index}:{export}: {} heap_next={} allocations={} reuses={} deallocations={} storage_keys={} logs={} near_gas={consumed_fuel}",
                 describe_return(&state.return_value),
                 state.allocator.next,
                 state.allocator.allocations,

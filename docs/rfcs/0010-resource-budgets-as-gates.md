@@ -1,7 +1,8 @@
 # RFC 0010: Resource Budgets as Gates
 
-Status: **Draft**
+Status: **Accepted**
 Date: 2026-07-03
+Implemented: 2026-07-03
 
 ## Problem
 

@@ -22,9 +22,12 @@ Tier 3  Parked research: docs stay current, no registry/code work
 
 **Tier-0 parity gate (the current phase goal):** the shared scenario
 (Counter, then ValueVault) passes in testkit (RFC 0007) on `evm`,
-`solana-sbpf-asm`, and `wasm-near`. Nothing in Tier 1 starts before this,
-because every later target reuses the artifacts this gate hardens: the
-portable IR surface, capability routing, EmitWat, and the scenario harness.
+`solana-sbpf-asm`, and `wasm-near`, and the Counter scenario asserts
+per-target resource budgets (RFC 0010): Solana CU, EVM gas, and an
+info-only NEAR gas proxy. Nothing in Tier 1 starts before this, because
+every later target reuses the artifacts this gate hardens: the portable
+IR surface, capability routing, EmitWat, the scenario harness, and the
+budget-as-gate quality signal.
 
 ## Tier 0 — active (no new planning needed)
 

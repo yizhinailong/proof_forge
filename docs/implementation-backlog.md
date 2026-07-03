@@ -2203,12 +2203,14 @@ starts as an RFC, not code; sequencing hooks are listed in the gap doc.
 - **Workstream 30 — Versioning and compatibility policy.** RFC covering IR
   version rules (tied to the coverage-manifest gate), artifact/deploy
   schema stability, append-only capability ids, and SDK deprecation policy.
-- **Workstream 31 — Resource budgets as gates.** Extend the testkit
-  scenario schema (before M2/M3) with per-step gas/CU/near-gas budget
-  baselines and tolerance bands; parity (D-034 Gate G0) requires budgets,
-  not just behavior. Measured Solana Counter baseline to lock in
-  (Mollusk 0.13.4, 2026-07-02): initialize 56 CU, increment 63 CU,
-  get-with-return-data 163 CU, 1336-byte ELF.
+- **Workstream 31 — Resource budgets as gates.** ✅ Implemented. The
+  testkit scenario schema supports per-step `solana_cu`, `evm_gas`, and
+  `near_gas` budgets with baselines and tolerance bands; the runner
+  reports measured budgets and fails on regression. Counter baselines
+  are locked for Solana CU and EVM gas; NEAR gas is reported as
+  wasmtime fuel (info-only proxy) until a precise host-gas model lands.
+  Gate G0 in `target-roadmap.md` and `validation-gates.md` now requires
+  budget assertions.
 - **Workstream 32 — Deployment lifecycle, upgrades, signing.** RFC for an
   upgrade-policy intent (`immutable | authority | governance`) lowered
   honestly per chain (Solana upgrade authority, EVM immutable/proxy, NEAR
