@@ -34,42 +34,79 @@ target registry and portable IR integration.
 
 ## Portfolio Scheduling Boundary
 
-The table below is an inventory of target notes, not a scheduling authority.
-The current product implementation backlog is constrained by the primary-chain
-completion covenant (D-045): finish `solana-sbpf-asm`, `evm`, and `wasm-near`
-to production-grade quality, in that order, before any additional chain
-advances beyond docs-only research or frozen spike maintenance. Existing
-non-primary entries such as `psy-dpn`, `aleo-leo`, and
-`wasm-cloudflare-workers` may receive CI stability, security, or documentation
-maintenance, but they must not expand registry stage, capability surface,
-testkit coverage, or product scope until Gate P0 closes.
+The sections below are an inventory of target notes, not a scheduling
+authority. The current product implementation backlog is constrained by the
+primary-chain completion covenant (D-045): finish `solana-sbpf-asm`, `evm`,
+and `wasm-near` to production-grade quality, in that order, before any
+additional chain advances beyond docs-only research or frozen spike
+maintenance.
 
-## Current Target Status
+Use this page to answer "what exists in the repository?" Use
+[target-roadmap.md](../target-roadmap.md) and
+[gate-status.md](../gate-status.md) to answer "what may receive product
+implementation work next?"
 
-| Target | Stage | Notes |
+## Active Product Targets (Gate P0)
+
+Only these three targets may receive product hardening work until Gate P0
+closes. The order below is the implementation priority from D-045.
+
+| Target | Stage | Scheduling status |
 |---|---|---|
-| [EVM](evm.md) | Experimental | Baseline through Yul, `solc`, Foundry smoke; includes EVM-compatible chain profile `robinhood-chain-testnet`. |
-| [NEAR](wasm-near.md) | Spike | Rust `near-sdk-rs` sourcegen backend; CLI emit modes, IR lowering, package generation. |
-| CosmWasm | Research | Strong Wasm spike candidate; reuses NEAR lessons. |
-| [Cloudflare Workers](cloudflare-workers.md) | Research | Wasm-host target for off-chain edge workers; non-blockchain capability reinterpretation. |
-| [Stellar Soroban](stellar-soroban.md) | Research | Docs-first Wasm-host candidate through Soroban/Stellar CLI tooling; not yet in the code registry. |
-| [Internet Computer](internet-computer.md) | Research | Docs-first Wasm canister candidate with Candid, cycles, stable memory, and canister lifecycle; not yet in the code registry. |
-| [Algorand AVM](algorand-avm.md) | Research | Docs-first AVM/TEAL source/package-generation candidate with app programs, LogicSig, ARC-4 ABI, storage, resource references, and transaction-group semantics; not yet in the code registry. |
-| Solana sBPF-linker | Research (superseded) | Historical reference Solana path (`solana-sbpf-linker` id); superseded by `solana-sbpf-asm` (D-026). |
-| Solana sBPF Asm | Research | Direct-assembly route (`solana-sbpf-asm` id), Lean → IR → sbpf asm → sbpf toolchain → ELF. See [design doc](solana-sbpf-asm.md), [RFC 0005](../rfcs/0005-solana-sbpf-assembly-backend.md). |
-| Solana Zig fork | Research | Fallback reference from `solana-sdk-mono`. |
-| Sui Move | Research | Source-generation; follows Aptos POC. |
-| Aptos Move | Research | First Move POC target. |
-| [Cardano Plutus/Aiken](cardano-plutus-aiken.md) | Research | Docs-first eUTXO validator sourcegen candidate through Aiken, UPLC, Plutus blueprints, datum/redeemer/script-context schemas, and transaction-building validation. |
-| [Tezos Michelson/LIGO](tezos-michelson-ligo.md) | Research | Docs-first Michelson sourcegen candidate through LIGO with typed storage, entrypoints, views/events, operation lists, and sandbox/test validation. |
-| [Starknet Cairo](starknet-cairo.md) | Research | Docs-first Cairo/Sierra/CASM sourcegen candidate with Scarb, ABI/class hash metadata, Starknet storage/events, and Starknet Foundry/devnet validation. |
-| [Aleo Leo](aleo-leo.md) | Research | Docs-first ZK application sourcegen candidate through Leo, Aleo Instructions, Aleo VM bytecode, private records, public finalization, prover/verifier artifacts, and Leo CLI/devnet validation. |
-| [TON TVM](ton-tvm.md) | Research | Docs-first TVM/Tolk sourcegen candidate with cells, messages, get methods, actions, and TVM gas. |
-| [Bitcoin Script/Miniscript](bitcoin-script-miniscript.md) | Research | Docs-first Bitcoin base-layer spending-policy candidate through Script, Miniscript, descriptors, PSBT, Taproot/Tapscript, and Bitcoin Core regtest validation. |
-| [Zcash Shielded](zcash-shielded.md) | Research | Docs-first privacy UTXO/ZK payment candidate through transparent Zcash flows, Sapling/Orchard shielded notes, nullifiers, anchors, value-balance constraints, and zcashd/library validation. |
-| [Bitcoin Cash CashScript](bitcoin-cash-cashscript.md) | Research | Docs-first UTXO script/covenant sourcegen candidate through CashScript and BCH transaction-builder validation. |
-| Psy DPN | Experimental | Narrow ZK circuit sourcegen target through generated `.psy`, Dargo smokes, and artifact metadata validation. |
-| [Kaspa Toccata](kaspa-toccata.md) | Research | Docs-first UTXO covenant/based-app target candidate; not yet in the code registry. |
+| [Solana sBPF Asm](solana-sbpf-asm.md) | Experimental | Priority 1; direct assembly route (`solana-sbpf-asm`), live deploy / Pinocchio equivalence hardening tracked as P0-1. |
+| [EVM](evm.md) | Experimental | Priority 2; Yul/`solc`/Foundry baseline, EVM-compatible chain profiles remain deployment metadata under `evm`; semantic-plan hardening tracked as P0-2. |
+| [Wasm-NEAR](wasm-near.md) | Experimental | Priority 3; EmitWat route with diagnostics, IR coverage, formal trace anchors, and offline host smoke; local execution/deploy metadata sign-off tracked as P0-3. |
+
+## Maintenance-Only Landed Inventory
+
+These backends already have useful code or smoke coverage, but D-045 freezes
+new registry stage, capability surface, testkit coverage, CI expansion, and
+product scope until Gate P0 closes. Allowed work is limited to CI stability,
+security fixes, and documentation maintenance.
+
+| Target | Stage | Frozen scope |
+|---|---|---|
+| [Psy DPN](psy-dpn.md) | Experimental subset | Generated `.psy`/Dargo path stays maintained; no capability-completion push before P0. |
+| [Aleo Leo](aleo-leo.md) | Research spike | Counter/PureMath sourcegen and smokes stay maintained; no new ZK-app lane before P0. |
+| [Cloudflare Workers](cloudflare-workers.md) | Research off-chain host | TypeScript Worker demo stays as an off-chain host reference; no product expansion before P0. |
+
+## Frozen Tier-1 Spikes
+
+These are the first targets after Gate P0, but they do not advance while the
+primary-chain covenant is open.
+
+| Target | Stage | Resume condition |
+|---|---|---|
+| CosmWasm | Frozen M1/M2 spike | Resume M3/M4 only after Gate P0 closes; reuses the Wasm-family EmitWat host-adapter path. |
+| Aptos Move | Frozen M1/M2 spike | Resume M3/M4 only after Gate P0 closes; remains the first Move sourcegen proof before Sui. |
+
+## Docs-Only Parked Research
+
+These notes preserve research results, but they are not an active execution
+queue. They stay docs-only until their roadmap enabler opens and a specific
+spike is scheduled.
+
+| Target | Family | Current boundary |
+|---|---|---|
+| [Stellar Soroban](stellar-soroban.md) | Wasm host | Opens after CosmWasm proves the host-adapter split. |
+| [Internet Computer](internet-computer.md) | Wasm host | Requires the Wasm-host split plus an async/inter-canister design note. |
+| Sui Move | Move/object sourcegen | Follows Aptos after the Move printer and sourcegen lane are proven. |
+| [Algorand AVM](algorand-avm.md) | Source package generation | Parked behind a later sourcegen-lane exit. |
+| [Cardano Plutus/Aiken](cardano-plutus-aiken.md) | eUTXO validator sourcegen | Parked behind a later sourcegen-lane exit. |
+| [Tezos Michelson/LIGO](tezos-michelson-ligo.md) | Source package generation | Parked behind a later sourcegen-lane exit. |
+| [Starknet Cairo](starknet-cairo.md) | Cairo/Sierra/CASM sourcegen | Candidate for the first non-Move sourcegen pick after Aptos, but still blocked by P0. |
+| [TON TVM](ton-tvm.md) | TVM sourcegen | Parked behind a later sourcegen-lane exit. |
+| [Bitcoin Script/Miniscript](bitcoin-script-miniscript.md) | Policy family | Opens only when the separate `policy.*` lane is scheduled. |
+| [Zcash Shielded](zcash-shielded.md) | Privacy UTXO / ZK payment | Follows a working Bitcoin policy lane. |
+| [Bitcoin Cash CashScript](bitcoin-cash-cashscript.md) | UTXO script/covenant sourcegen | Follows the Bitcoin policy lane. |
+| [Kaspa Toccata](kaspa-toccata.md) | UTXO covenant / based app | Parked behind the policy/ZK lane decision. |
+
+## Superseded or Reference Routes
+
+| Route | Status | Notes |
+|---|---|---|
+| Solana sBPF-linker | Superseded | Historical `solana-sbpf-linker` route; replaced by `solana-sbpf-asm` (D-026). |
+| Solana Zig fork | Reference only | External reference from `solana-sdk-mono`; not the product path. |
 
 ## Documents
 

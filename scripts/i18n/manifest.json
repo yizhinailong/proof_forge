@@ -90,7 +90,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/README.md": {
-    "sha256": "5b45abd7460c6cc9456c5f2ed0059c9bfadcb2d0e464c59422bb134c0b2fd724",
+    "sha256": "95041c3a679caf440aae8d51e7667d954a6af15094772c6bd87c9305985063c1",
     "zh": "docs/zh/targets-README.zh.md",
     "model": "gemini-3-flash-preview"
   },
