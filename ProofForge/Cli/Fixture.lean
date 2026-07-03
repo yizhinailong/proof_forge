@@ -1,0 +1,171 @@
+namespace ProofForge.Cli.Fixture
+
+/-- Built-in fixture ids used by the target-first CLI surface. -/
+def ids : Array String := #[
+  "counter",
+  "value-vault",
+  "context",
+  "hash",
+  "map",
+  "assert",
+  "assignment",
+  "conditional",
+  "arithmetic",
+  "bitwise",
+  "loop",
+  "array",
+  "struct",
+  "crosscall",
+  "event",
+  "expression-predicate",
+  "generic-entrypoint",
+  "bool-storage-scalar",
+  "bool-storage-array",
+  "hash-storage",
+  "nested-aggregate",
+  "storage-nested-aggregate",
+  "abi-aggregate",
+  "abi-scalar",
+  "evm-assign-op",
+  "evm-event",
+  "evm-crosscall",
+  "evm-expression",
+  "evm-hash",
+  "evm-loop",
+  "evm-map",
+  "evm-storage-array",
+  "evm-storage-struct",
+  "evm-typed-map",
+  "evm-typed-storage",
+  "evm-array-value",
+  "evm-struct-array-value",
+  "evm-struct-value",
+  "evm-abi-aggregate",
+  "u32-arithmetic",
+  "u32-hash-packing",
+  "u32-storage-scalar",
+  "u32-storage-array",
+  "pure-math",
+  "control",
+  "solana-clock-sysvar",
+  "solana-rent-sysvar",
+  "solana-epoch-schedule-sysvar",
+  "solana-epoch-rewards-sysvar",
+  "solana-last-restart-slot-sysvar",
+  "solana-memory",
+  "solana-crypto-hash",
+  "solana-return-data-compute",
+  "spl-token-transfer-cpi",
+  "spl-token-ops-cpi",
+  "spl-token-authority-cpi",
+  "system-cpi",
+  "system-create-account-cpi",
+  "log-event"
+]
+
+def isValidId (id : String) : Bool :=
+  ids.contains id
+
+def listIds : String :=
+  String.intercalate ", " ids.toList
+
+/-- Intermediate artifact format requested by `proof-forge emit`. -/
+inductive Format where
+  | yul
+  | bytecode
+  | wat
+  | s
+  | psy
+  | ts
+  | leo
+  | cosmwasm
+  | aptos
+  deriving BEq, Inhabited, Repr
+
+def Format.id : Format → String
+  | .yul => "yul"
+  | .bytecode => "bytecode"
+  | .wat => "wat"
+  | .s => "s"
+  | .psy => "psy"
+  | .ts => "ts"
+  | .leo => "leo"
+  | .cosmwasm => "cosmwasm"
+  | .aptos => "aptos"
+
+def parseFormat? (s : String) : Option Format :=
+  match s with
+  | "yul" => some .yul
+  | "bytecode" | "bin" => some .bytecode
+  | "wat" => some .wat
+  | "s" | "sbpf-asm" => some .s
+  | "psy" => some .psy
+  | "ts" => some .ts
+  | "leo" => some .leo
+  | "cosmwasm" => some .cosmwasm
+  | "aptos" => some .aptos
+  | _ => none
+
+/-- Target ids that participate in the new `build|emit|check` surface. This is
+a subset of `ProofForge.Target.Registry` focused on implemented compiler
+routes. -/
+def supportedTargetIds : Array String := #[
+  "evm",
+  "solana-sbpf-asm",
+  "wasm-near",
+  "wasm-cosmwasm",
+  "psy-dpn",
+  "aleo-leo",
+  "move-aptos"
+]
+
+/-- Default format for a (target, fixture) pair when `--format` is omitted. -/
+def defaultFormatFor (targetId fixtureId : String) : Option Format :=
+  match targetId with
+  | "evm" =>
+      if fixtureId == "counter" || fixtureId == "value-vault" then some .bytecode
+      else some .yul
+  | "solana-sbpf-asm" => some .s
+  | "wasm-near" | "wasm-cosmwasm" => some .wat
+  | "psy-dpn" => some .psy
+  | "aleo-leo" => some .leo
+  | "move-aptos" => some .aptos
+  | _ => none
+
+/-- Conservative whitelist of supported (target, fixture, format) triples.
+Unsupported triples fail early with a diagnostic. -/
+def supportsFormat (targetId fixtureId : String) (format : Format) : Bool :=
+  match targetId, fixtureId, format with
+  | "evm", "counter", _ => true
+  | "evm", "value-vault", _ => true
+  | "evm", "context", _ => true
+  | "evm", "hash", _ => true
+  | "evm", "map", _ => true
+  | "evm", "assert", _ => true
+  | "evm", "assignment", _ => true
+  | "evm", "conditional", _ => true
+  | "evm", f, _ => f.startsWith "evm-" || f == "abi-scalar"
+  | "solana-sbpf-asm", "counter", _ => true
+  | "solana-sbpf-asm", "value-vault", _ => true
+  | "solana-sbpf-asm", "control", _ => true
+  | "solana-sbpf-asm", f, _ =>
+      f.startsWith "solana-" || f.startsWith "spl-token-" || f.startsWith "system-" || f == "log-event"
+  | "wasm-near", "counter", _ => true
+  | "wasm-near", "context", _ => true
+  | "wasm-near", "hash", _ => true
+  | "wasm-near", "map", _ => true
+  | "wasm-cosmwasm", "counter", .wat => true
+  | "psy-dpn", f, .psy =>
+      f == "counter" || f == "crosscall" || f == "event" || f == "expression-predicate" ||
+      f == "generic-entrypoint" || f.startsWith "arithmetic" || f.startsWith "bitwise" ||
+      f.startsWith "bool-" || f.startsWith "conditional" || f.startsWith "context" ||
+      f.startsWith "hash" || f.startsWith "loop" || f.startsWith "map" ||
+      f == "assert" || f.startsWith "array" || f.startsWith "struct" ||
+      f.startsWith "abi-" || f.startsWith "nested-" || f.startsWith "storage-nested" ||
+      f.startsWith "u32-"
+  | "aleo-leo", "counter", .leo => true
+  | "aleo-leo", "pure-math", .leo => true
+  | "move-aptos", "counter", .aptos => true
+  | _, _, _ => false
+
+end ProofForge.Cli.Fixture

@@ -19,6 +19,7 @@ import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Backend.Aleo.IR
 import ProofForge.Backend.CosmWasm.EmitWat
 import ProofForge.Backend.Move.Aptos
+import ProofForge.Cli.Fixture
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.Compiler.TS.AST
 import ProofForge.Compiler.TS.Printer
@@ -350,7 +351,16 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .counterIrAptos => true
   | _ => false
 
+inductive Command where
+  | build
+  | emit
+  | check
+  | listTargets
+  | listFixtures
+  deriving BEq, Inhabited, Repr
+
 structure CliOptions where
+  cmd : Command := .build
   input? : Option FilePath := none
   output? : Option FilePath := none
   root? : Option FilePath := none
@@ -368,6 +378,8 @@ structure CliOptions where
   evmConstructorValues : Array ConstructorValueSpec := #[]
   solanaSbpfArch : String := "v3"
   targetId? : Option String := none
+  fixture? : Option String := none
+  format? : Option String := none
   mode : EmitMode := .yul
   deriving Inhabited
 
@@ -2313,6 +2325,197 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
         .error s!"multiple input files provided\n{usage}"
       else
         parseArgs rest { opts with input? := some (FilePath.mk arg) }
+
+structure NewCommandParseState where
+  target? : Option String := none
+  fixture? : Option String := none
+  format? : Option String := none
+  out? : Option String := none
+  yulOut? : Option String := none
+  artifactOut? : Option String := none
+  root? : Option String := none
+  module? : Option String := none
+  solc : String := "solc"
+  cast : String := "cast"
+  evmChainProfile? : Option String := none
+  solanaSbpfArch : String := "v3"
+  methodsFile? : Option String := none
+  input? : Option String := none
+  legacyPrefix : List String := []
+  deriving Inhabited
+
+def takeOption (args : List String) (name : String) : Except String (String × List String) :=
+  match args with
+  | value :: rest => .ok (value, rest)
+  | [] => .error s!"{name} requires a value"
+
+partial def parseNewOptions : List String → NewCommandParseState → Except String NewCommandParseState
+  | [], state => .ok state
+  | "--target" :: rest, state => do
+      let (target, rest) ← takeOption rest "--target"
+      parseNewOptions rest { state with target? := some target }
+  | "--fixture" :: rest, state => do
+      let (fixture, rest) ← takeOption rest "--fixture"
+      parseNewOptions rest { state with fixture? := some fixture }
+  | "--format" :: rest, state => do
+      let (format, rest) ← takeOption rest "--format"
+      parseNewOptions rest { state with format? := some format }
+  | "-o" :: rest, state => do
+      let (out, rest) ← takeOption rest "-o"
+      parseNewOptions rest { state with out? := some out }
+  | "--output" :: rest, state => do
+      let (out, rest) ← takeOption rest "--output"
+      parseNewOptions rest { state with out? := some out }
+  | "--root" :: rest, state => do
+      let (root, rest) ← takeOption rest "--root"
+      parseNewOptions rest { state with root? := some root }
+  | "--module" :: rest, state => do
+      let (module, rest) ← takeOption rest "--module"
+      parseNewOptions rest { state with module? := some module }
+  | "--yul-output" :: rest, state => do
+      let (path, rest) ← takeOption rest "--yul-output"
+      parseNewOptions rest { state with yulOut? := some path }
+  | "--artifact-output" :: rest, state => do
+      let (path, rest) ← takeOption rest "--artifact-output"
+      parseNewOptions rest { state with artifactOut? := some path }
+  | "--solc" :: rest, state => do
+      let (path, rest) ← takeOption rest "--solc"
+      parseNewOptions rest { state with solc := path }
+  | "--cast" :: rest, state => do
+      let (path, rest) ← takeOption rest "--cast"
+      parseNewOptions rest { state with cast := path }
+  | "--evm-chain-profile" :: rest, state => do
+      let (profile, rest) ← takeOption rest "--evm-chain-profile"
+      parseNewOptions rest { state with evmChainProfile? := some profile }
+  | "--solana-sbpf-arch" :: rest, state => do
+      let (arch, rest) ← takeOption rest "--solana-sbpf-arch"
+      if arch == "v0" || arch == "v3" then
+        parseNewOptions rest { state with solanaSbpfArch := arch }
+      else
+        .error s!"invalid --solana-sbpf-arch '{arch}', expected v0 or v3"
+  | "--methods-file" :: rest, state => do
+      let (path, rest) ← takeOption rest "--methods-file"
+      parseNewOptions rest { state with methodsFile? := some path }
+  | arg :: rest, state =>
+      if arg.startsWith "-" then
+        .error s!"unknown option: {arg}\n{usage}"
+      else if state.input?.isSome then
+        .error s!"multiple input files provided\n{usage}"
+      else
+        parseNewOptions rest { state with input? := some arg }
+
+def buildLegacyFlag (target : String) (input? : Option String) : Except String String :=
+  match target with
+  | "evm" => Except.ok "--evm-bytecode"
+  | "wasm-near" =>
+      if input?.isSome then
+        Except.error "proof-forge build --target wasm-near from Lean source is not yet implemented; use --emit-counter-ir-wasm-near or --emit-counter-emitwat"
+      else
+        Except.ok "--emit-counter-ir-wasm-near"
+  | "wasm-cosmwasm" =>
+      if input?.isSome then
+        Except.error "proof-forge build --target wasm-cosmwasm from Lean source is not yet implemented; use --emit-counter-ir-cosmwasm"
+      else
+        Except.ok "--emit-counter-ir-cosmwasm"
+  | "solana-sbpf-asm" =>
+      if input?.isSome then
+        Except.error "proof-forge build --target solana-sbpf-asm from Lean source is not yet implemented; use --emit-counter-ir-sbpf"
+      else
+        Except.ok "--emit-counter-ir-sbpf"
+  | "psy-dpn" =>
+      if input?.isSome then
+        Except.error "proof-forge build --target psy-dpn from Lean source is not yet implemented; use --emit-counter-ir-psy"
+      else
+        Except.ok "--emit-counter-ir-psy"
+  | "aleo-leo" =>
+      if input?.isSome then
+        Except.error "proof-forge build --target aleo-leo from Lean source is not yet implemented; use --emit-counter-ir-leo"
+      else
+        Except.ok "--emit-counter-ir-leo"
+  | "move-aptos" =>
+      if input?.isSome then
+        Except.error "proof-forge build --target move-aptos from Lean source is not yet implemented; use --emit-counter-ir-aptos"
+      else
+        Except.ok "--emit-counter-ir-aptos"
+  | other => Except.error s!"unknown target '{other}'"
+
+def emitLegacyFlag (target fixture : String) (format? : Option String) : Except String String :=
+  let format := format?.getD ""
+  match target, fixture, format with
+  | "evm", "counter", "yul" => Except.ok "--emit-counter-ir-yul"
+  | "evm", "counter", "bytecode" => Except.ok "--emit-counter-ir-bytecode"
+  | "evm", "value-vault", "yul" => Except.ok "--emit-value-vault-ir-yul"
+  | "evm", "value-vault", "bytecode" => Except.ok "--emit-value-vault-ir-bytecode"
+  | "evm", "context", "yul" => Except.ok "--emit-context-ir-yul"
+  | "evm", "context", "bytecode" => Except.ok "--emit-context-ir-bytecode"
+  | "evm", "hash", "yul" => Except.ok "--emit-hash-ir-yul"
+  | "evm", "hash", "bytecode" => Except.ok "--emit-hash-ir-bytecode"
+  | "evm", "map", "yul" => Except.ok "--emit-map-ir-yul"
+  | "evm", "map", "bytecode" => Except.ok "--emit-map-ir-bytecode"
+  | "evm", f, "yul" =>
+      if f.startsWith "evm-" then
+        let suffix := f.drop 4
+        Except.ok s!"--emit-{suffix}-ir-yul"
+      else
+        Except.error s!"emit --target evm --fixture {f} --format yul is not yet mapped to a legacy flag"
+  | "evm", f, "bytecode" =>
+      if f.startsWith "evm-" then
+        let suffix := f.drop 4
+        Except.ok s!"--emit-{suffix}-ir-bytecode"
+      else
+        Except.error s!"emit --target evm --fixture {f} --format bytecode is not yet mapped to a legacy flag"
+  | "solana-sbpf-asm", "counter", _ => Except.ok "--emit-counter-ir-sbpf"
+  | "solana-sbpf-asm", "value-vault", _ => Except.ok "--emit-value-vault-ir-sbpf"
+  | "solana-sbpf-asm", "control", _ => Except.ok "--emit-control-ir-sbpf"
+  | "wasm-near", "counter", _ => Except.ok "--emit-counter-ir-wasm-near"
+  | "wasm-near", "context", _ => Except.ok "--emit-context-ir-wasm-near"
+  | "wasm-near", "hash", _ => Except.ok "--emit-hash-ir-wasm-near"
+  | "wasm-near", "map", _ => Except.ok "--emit-map-ir-wasm-near"
+  | "wasm-near", f, _ =>
+      if f == "counter" || f == "context" || f == "hash" || f == "map" then
+        Except.ok s!"--emit-{f}-ir-wasm-near"
+      else
+        Except.error s!"emit --target wasm-near --fixture {f} is not yet mapped"
+  | "wasm-cosmwasm", "counter", _ => Except.ok "--emit-counter-ir-cosmwasm"
+  | "psy-dpn", "counter", _ => Except.ok "--emit-counter-ir-psy"
+  | "aleo-leo", "counter", _ => Except.ok "--emit-counter-ir-leo"
+  | "aleo-leo", "pure-math", _ => Except.ok "--emit-pure-math-ir-leo"
+  | "move-aptos", "counter", _ => Except.ok "--emit-counter-ir-aptos"
+  | t, f, fmt =>
+      Except.error s!"emit --target {t} --fixture {f} --format {fmt} is not yet mapped to a legacy flag"
+
+def newCommandArgsToLegacy (args : List String) : Except String (List String) := do
+  match args with
+  | "build" :: rest => do
+      let state ← parseNewOptions rest {}
+      let target ← match state.target? with | some t => Except.ok t | none => Except.error "build requires --target <id>"
+      let flag ← buildLegacyFlag target state.input?
+      let mut legacy := [flag]
+      if let some out := state.out? then legacy := legacy ++ ["-o", out]
+      if let some root := state.root? then legacy := legacy ++ ["--root", root]
+      if let some modName := state.module? then legacy := legacy ++ ["--module", modName]
+      if let some yul := state.yulOut? then legacy := legacy ++ ["--yul-output", yul]
+      if let some artifact := state.artifactOut? then legacy := legacy ++ ["--artifact-output", artifact]
+      if let some profile := state.evmChainProfile? then legacy := legacy ++ ["--evm-chain-profile", profile]
+      if let some methods := state.methodsFile? then legacy := legacy ++ ["--methods-file", methods]
+      if flag == "--evm-bytecode" then
+        legacy := legacy ++ ["--solc", state.solc, "--cast", state.cast]
+      if let some input := state.input? then legacy := legacy ++ [input]
+      Except.ok legacy
+  | "emit" :: rest => do
+      let state ← parseNewOptions rest {}
+      let target ← match state.target? with | some t => Except.ok t | none => Except.error "emit requires --target <id>"
+      let fixture ← match state.fixture? with | some f => Except.ok f | none => Except.error "emit requires --fixture <id>"
+      let flag ← emitLegacyFlag target fixture state.format?
+      let mut legacy := [flag]
+      if let some out := state.out? then legacy := legacy ++ ["-o", out]
+      if let some yul := state.yulOut? then legacy := legacy ++ ["--yul-output", yul]
+      if let some artifact := state.artifactOut? then legacy := legacy ++ ["--artifact-output", artifact]
+      if flag.endsWith "-bytecode" then
+        legacy := legacy ++ ["--solc", state.solc]
+      Except.ok legacy
+  | "check" :: _ => Except.error "proof-forge check is not yet implemented"
+  | _ => Except.error "expected build, emit, or check"
 
 def resolveMethods (opts : CliOptions) (input : FilePath) : IO (Array MethodSpec) := do
   if !opts.methods.isEmpty then
@@ -4509,11 +4712,35 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
 end ProofForge.Cli
 
 unsafe def main (args : List String) : IO UInt32 := do
-  match ProofForge.Cli.parseArgs args {} with
-  | .ok opts => do
-      if opts.evmChainProfile?.isSome then
-        discard <| ProofForge.Cli.resolveEvmChainProfile? opts.evmChainProfile?
-      ProofForge.Cli.compileFile opts
-  | .error msg =>
+  let parseResult : Except String ProofForge.Cli.CliOptions :=
+    match args with
+    | "--list-targets" :: _ => Except.ok { cmd := ProofForge.Cli.Command.listTargets }
+    | "--list-fixtures" :: _ => Except.ok { cmd := ProofForge.Cli.Command.listFixtures }
+    | "build" :: _ | "emit" :: _ | "check" :: _ =>
+      match ProofForge.Cli.newCommandArgsToLegacy args with
+      | Except.ok legacyArgs =>
+        match ProofForge.Cli.parseArgs legacyArgs {} with
+        | Except.ok opts => Except.ok { opts with cmd :=
+            match args with
+            | "build" :: _ => ProofForge.Cli.Command.build
+            | "emit" :: _ => ProofForge.Cli.Command.emit
+            | _ => ProofForge.Cli.Command.check }
+        | Except.error msg => Except.error msg
+      | Except.error msg => Except.error msg
+    | _ => ProofForge.Cli.parseArgs args {}
+  match parseResult with
+  | Except.ok opts => do
+      match opts.cmd with
+      | ProofForge.Cli.Command.listTargets =>
+        IO.println (String.intercalate "\n" ProofForge.Target.knownIds.toList)
+        return 0
+      | ProofForge.Cli.Command.listFixtures =>
+        IO.println (String.intercalate "\n" ProofForge.Cli.Fixture.ids.toList)
+        return 0
+      | _ =>
+        if opts.evmChainProfile?.isSome then
+          discard <| ProofForge.Cli.resolveEvmChainProfile? opts.evmChainProfile?
+        ProofForge.Cli.compileFile opts
+  | Except.error msg =>
       IO.eprintln msg
       return 1
