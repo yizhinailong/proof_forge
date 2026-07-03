@@ -6701,7 +6701,9 @@ Summary:
   is no longer silently ignored on case-insensitive filesystems, while keeping
   Rust build output ignored in known target directories.
 - Replaced the missing GitHub Actions Rust setup action with
-  `dtolnay/rust-toolchain@stable`.
+  `dtolnay/rust-toolchain@stable`, then pinned the CosmWasm smoke job to
+  Rust `1.88.0` and `cosmwasm-check 2.2.9 --locked` after latest
+  `cosmwasm-check` failed to link against newer Rust/Wasmer probestack symbols.
 - Wired `ContractSpec.upgradePolicy?` into target resolution so unsupported
   target/policy combinations fail before code generation, and supported
   policies emit `upgrade.policy.*` metadata.

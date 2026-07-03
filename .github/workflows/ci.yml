@@ -269,7 +269,7 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
 
       - name: Install wabt (wat2wasm)
         run: |
@@ -279,7 +279,7 @@ jobs:
 
       - name: Install cosmwasm-check
         run: |
-          cargo install cosmwasm-check
+          cargo install cosmwasm-check --version 2.2.9 --locked
           cosmwasm-check --version
 
       - name: Build proof-forge
