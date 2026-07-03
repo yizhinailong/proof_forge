@@ -72,8 +72,10 @@ jobs:
       - name: Check IR ownership rules
         run: lake env lean --run Tests/IROwnership.lean
 
-      - name: Check Wasm-NEAR formal semantics anchors
-        run: lake env lean --run Tests/NearWasmFormal.lean
+      - name: Check formal semantics anchors
+        run: |
+          lake build ProofForge.Backend.Evm.Refinement
+          lake env lean --run Tests/NearWasmFormal.lean
 
       - name: Run EmitWat offline host smoke
         run: scripts/near/emitwat-ci-smoke.sh
