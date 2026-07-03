@@ -19,6 +19,7 @@ Process: proposals start as Draft, move to **Accepted** when recorded in
 | [0006](0006-multichain-token-sdk.md) | Draft | Multi-chain Token SDK: ERC-20 on EVM, SPL Token / Token-2022 plans on Solana |
 | [0007](0007-unified-rust-test-framework.md) | Draft | Unified Rust test framework: declarative scenarios over revm/Mollusk/wasmtime harnesses |
 | [0008](0008-allocator-abstraction.md) | Draft | Chain-decoupled allocator abstraction across EVM, Solana, and NEAR |
+| [0009](0009-cli-product-surface.md) | Draft | CLI product surface: `build|emit|check --target <id> --fixture <id>` |
 
 ## Related
 

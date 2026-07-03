@@ -41,6 +41,7 @@
 | D-036 | 2026-07-02 | 在 IR/目标层将**分配器建模统一**在单个 `AllocatorModel` (strategy/region/release) 下，保留 Solana `solana.allocator.*` 制品元数据键作为 Solana 特定的配置语法，并为 EVM 提供显式的 bump-over-scratch 绑定 | 解决工作流 24 分配器统一的悬而未决问题；RFC 0008 定义了该三元组。持久状态模型（EVM 存储、Solana 账户、NEAR 存储）保持在分配器抽象之外。在所有权稳健性 (FV-3) 证明受检 no-op 的合理性之前，`Statement.release` 在 EVM 上仍被拒绝 |
 | D-037 | 2026-07-02 | 将 **`wasm-cloudflare-workers`** 保留在 `wasmHost` 目标家族下作为 Research 链下宿主 | 它与 NEAR/CosmWasm 共享 Wasm 宿主后端模式（EmitWat，可移植核心 + 宿主桥接）；其链下状态通过阶段 (Research) 和能力集来表达，而不是通过独立的家族。在更多链下目标迫使进行新分类之前，推迟建立独立的链下宿主家族 |
 | D-038 | 2026-07-03 | 将 **`evm` 目标 profile** 绑定到显式的 bump-over-call-scratch 分配器模型 (`AllocatorConfig.evm`：strategy 为 `bump`，region 为 call-scratch，`release = none`) | 记录 `EmitYul`/EVM plan 已有的行为：EVM 使用按交易划分的临时暂存内存（word 寻址、编译器选择偏移量）且从不释放。`Statement.release` 在 EVM v0 上仍被拒绝。向 `release = noop` 的过渡以 FV-3 为前提：必须证明所有权检查使 release 在语义上透明（无释放后使用、无重复释放），从而保证 EVM 执行轨迹与可复用目标保持一致 |
+| D-039 | 2026-07-03 | 在 testkit M4 绑定到旧版 flag 之前，将 CLI 产品形态规划为 `proof-forge build|emit|check --target <id> [--fixture <id>]` | RFC 0009 定义了 target-first 的界面、fixture 注册表以及旧版 flag 的别名/弃用计划。实现按 RFC 评审后分阶段进行；在工作流 29 M1 之前不做代码改动 |
 
 ## 目标家族分类| 目标家族 | 目标 | 后端模式 |
 |---|---|---|
