@@ -76,10 +76,15 @@
 - 可执行文件为 `proof-forge`，根位于 `ProofForge.Cli`，包含来自 `lakefile.lean` 第 16-19 行的 `supportInterpreter := true`。
 - 新编译的 Lean 模块必须由现有根导入或添加到 Lake 根中，文档才能声称它们是包的一部分。
 
-## 当前 EVM 规范
+## 作者侧接口规范
 
-- EVM 合约导入 `ProofForge.Evm` 和 `open Lean.Evm`。
-- 导出的合约入口使用 `@[export l_<Contract>_<method>]`，且必须匹配 `--method` CLI 标志或同级的 `.evm-methods` 文件。
+- 新的链无关合约使用 `ProofForge.Contract.Source`，并降低到 `ContractSpec` /
+  portable IR。不要仅为了选择输出链，就在 starter 模板中加入 `ProofForge.Evm`、
+  Solana、NEAR 或其他目标导入；目标选择属于 CLI（`--target <id>`）或包元数据。
+- EVM-native 示例在明确测试旧版 EVM SDK / LCNF 路径时，仍可以导入
+  `ProofForge.Evm` 并 `open Lean.Evm`。
+- EVM-native 导出的入口使用 `@[export l_<Contract>_<method>]`，且必须匹配
+  `--method` CLI 标志或同级的 `.evm-methods` 文件。
 - EVM 文档中的能力名称必须重用 `docs/capability-registry.md` id：`events.emit`、`crosscall.invoke`、`account.explicit`、`storage.pda`、`crosscall.cpi`。不要引入替代 id，例如 `events.log`、`cross_call.contract` 或 `account.container`。
 
 ## 计划行为标签

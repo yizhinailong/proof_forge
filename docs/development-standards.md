@@ -91,11 +91,16 @@ source-of-truth docs and states when they must be updated.
 - New compiled Lean modules must be imported by an existing root or added to
   Lake roots before docs may claim they are part of the package.
 
-## Current EVM conventions
+## Authoring surface conventions
 
-- EVM contracts import `ProofForge.Evm` and `open Lean.Evm`.
-- Exported contract entrypoints use `@[export l_<Contract>_<method>]` and must
-  match either `--method` CLI flags or a sibling `.evm-methods` file.
+- New chain-neutral contracts use `ProofForge.Contract.Source` and lower to
+  `ContractSpec` / portable IR. Do not add `ProofForge.Evm`, Solana, NEAR, or
+  other target imports to starter templates merely to select an output chain;
+  target selection belongs to the CLI (`--target <id>`) or package metadata.
+- EVM-native examples may still import `ProofForge.Evm` and `open Lean.Evm`
+  when they intentionally exercise the legacy EVM SDK / LCNF route.
+- EVM-native exported entrypoints use `@[export l_<Contract>_<method>]` and
+  must match either `--method` CLI flags or a sibling `.evm-methods` file.
 - Capability names in EVM docs must reuse `docs/capability-registry.md` ids:
   `events.emit`, `crosscall.invoke`, `account.explicit`, `storage.pda`,
   `crosscall.cpi`. Do not introduce alternate ids such as `events.log`,

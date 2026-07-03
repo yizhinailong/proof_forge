@@ -155,14 +155,17 @@ flowchart TB
   当前阶段目标是在 `evm` + `solana-sbpf-asm` + `wasm-near` 上跑通。
 - Target 说明：[docs/targets/](../targets/README.md)
 
-## 模块命名
+## 作者侧模块命名
 
-- **Lake module：** `ProofForge.Evm`（合约文件中 import）。
-- **Lean namespace：** `Lean.Evm`（示例中 `open Lean.Evm`）。
+- **可移植作者模块：** `ProofForge.Contract.Source`（新的链无关合约和模板默认使用）。
+- **目标选择：** `proof-forge --target <id>` 在构建/发射阶段选择 EVM、Solana、NEAR
+  或其他后端；可移植合约源码不应该为了选择输出链而导入目标链模块。
+- **EVM-native 模块：** `ProofForge.Evm` 及命名空间 `Lean.Evm` 仍保留给旧版
+  EVM 示例和明确只面向 EVM 的 adapter 工作。
 
-这一拆分来自 Lean fork 迁移。统一重命名到 `ProofForge.*` 命名空间已列入
-backlog（Workstream 24），因为 `Lean.Evm` 会遮蔽 Lean 编译器自身的 `Lean`
-命名空间。
+`Lean.Evm` 命名空间来自 Lean fork 迁移。统一重命名到 `ProofForge.*`
+命名空间已列入 backlog（Workstream 24），因为 `Lean.Evm` 会遮蔽 Lean
+编译器自身的 `Lean` 命名空间。
 
 ## 路线图
 

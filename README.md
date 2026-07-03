@@ -166,14 +166,19 @@ the IR spec.
   `solana-sbpf-asm`, and `wasm-near`.
 - Target notes: [docs/targets/](docs/targets/README.md)
 
-## Module Naming
+## Authoring Module Naming
 
-- **Lake module:** `ProofForge.Evm` (import in contract files).
-- **Lean namespace:** `Lean.Evm` (use via `open Lean.Evm` in examples).
+- **Portable authoring module:** `ProofForge.Contract.Source` (default for new
+  chain-neutral contracts and templates).
+- **Target selection:** `proof-forge --target <id>` chooses EVM, Solana, NEAR,
+  or another backend at build/emission time; portable contract sources should
+  not import a destination-chain module just to select an output chain.
+- **EVM-native module:** `ProofForge.Evm` with namespace `Lean.Evm` remains for
+  legacy EVM examples and explicit EVM-only adapter work.
 
-This split comes from the Lean fork migration. The rename to a uniform
-`ProofForge.*` namespace is tracked in the backlog (Workstream 24), because
-`Lean.Evm` shadows the Lean compiler's own `Lean` namespace.
+The `Lean.Evm` namespace comes from the Lean fork migration. The rename to a
+uniform `ProofForge.*` namespace is tracked in the backlog (Workstream 24),
+because `Lean.Evm` shadows the Lean compiler's own `Lean` namespace.
 
 ## Roadmap
 

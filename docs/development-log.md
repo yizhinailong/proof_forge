@@ -7784,3 +7784,29 @@ Result:
 - EVM and Wasm-NEAR both reported and matched `Counter::Overflow` and
   `Counter::ExactMatch` user codes.
 - The two-target normalized trace parity check passed.
+
+### Portable Starter Authoring Boundary
+
+Commit: pending
+
+Summary:
+
+- Clarified that new starter contracts should import
+  `ProofForge.Contract.Source` and stay chain-neutral.
+- Moved `ProofForge.Evm` / `Lean.Evm` wording to the EVM-native legacy/example
+  path instead of presenting it as the default contract authoring surface.
+- Updated the Chinese README and development-standards translations plus the
+  i18n manifest hashes.
+
+Validation run:
+
+```sh
+lake env lean templates/portable-counter/Counter.lean
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Result:
+
+- The portable starter template loaded successfully.
+- Translation sync and whitespace checks passed.
