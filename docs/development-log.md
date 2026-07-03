@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Solana Pinocchio Live CI Lane
+
+Commit: pending
+
+Summary:
+
+- Added a mandatory GitHub Actions `solana-pinocchio-live` job for the P0
+  Solana hardening lane.
+- Added `scripts/solana/install-pinocchio-live-ci-tools.sh` to install/check
+  Agave/Solana CLI `v3.1.12`, SBF platform-tools `v1.52`, pinned `sbpf`,
+  Surfpool `v0.10.8`, and Node/npm before running the aggregate live suite.
+- Hardened the Pinocchio live helper so it can fall back to Agave
+  platform-tools rust/cargo with `--no-rustup-override` when rustup
+  `+toolchain` dispatch is unavailable.
+- Updated Gate P0 evidence so P0-1 now records the new mandatory CI lane,
+  while keeping the gate open until a remote run is observed and the broader
+  Solana production sign-off is complete.
+
+Validation run:
+
+```sh
+bash -n scripts/solana/install-pinocchio-live-ci-tools.sh \
+  scripts/solana/pinocchio-live-common.sh \
+  scripts/solana/pinocchio-live-equivalence.sh \
+  scripts/solana/pinocchio-*-live-equivalence.sh
+CARGO_BUILD_SBF_BIN=cargo-build-sbf \
+  SOLANA_RUSTUP_TOOLCHAIN=1.89.0-sbpf-solana-v1.52 \
+  bash -c '. scripts/solana/pinocchio-live-common.sh; platformToolsRustBin'
+```
+
+Known limitations:
+
+- The local installer self-check was interrupted after entering the SBF
+  platform-tools install path because the command produced no progress output
+  for over 90 seconds on this machine. The CI job still covers the fresh-install
+  path with a 15-minute timeout around `cargo-build-sbf --install-only`.
+- P0 remains open until the new remote CI job completes successfully.
+
+Next step:
+
+- Push this lane, watch the first remote `solana-pinocchio-live` run, and fix
+  any platform-specific install failure before moving to the next P0 slice.
+
 ### Solana Target-First v0 ELF Live Deploy Fix
 
 Commit: feature commit for Solana target-first ELF arch propagation

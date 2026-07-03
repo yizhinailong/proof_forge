@@ -13,6 +13,19 @@ rustupCargoAvailable() {
     PATH="$HOME/.cargo/bin:$PATH" cargo +"$SOLANA_RUSTUP_TOOLCHAIN" --version >/dev/null 2>&1
 }
 
+platformToolsRustBin() {
+  local cargo_build_sbf_path
+  cargo_build_sbf_path="$(command -v "$CARGO_BUILD_SBF_BIN" 2>/dev/null || true)"
+  [ -n "$cargo_build_sbf_path" ] || return 1
+  printf '%s/platform-tools-sdk/sbf/dependencies/platform-tools/rust/bin\n' "$(dirname "$cargo_build_sbf_path")"
+}
+
+platformToolsCargoAvailable() {
+  local rust_bin
+  rust_bin="$(platformToolsRustBin)" || return 1
+  [ -x "$rust_bin/rustc" ] && [ -x "$rust_bin/cargo" ]
+}
+
 printSbfToolchainHint() {
   local script_path="${PINOCCHIO_LIVE_SCRIPT:-$0}"
   cat >&2 <<EOF
@@ -31,6 +44,10 @@ selectPinocchioSbfBuildMode() {
       if rustupCargoAvailable; then
         export PATH="$HOME/.cargo/bin:$PATH"
         echo "  using rustup Solana toolchain: $SOLANA_RUSTUP_TOOLCHAIN"
+      elif platformToolsCargoAvailable; then
+        use_no_rustup_override=1
+        export PATH="$(platformToolsRustBin):$PATH"
+        echo "  using Agave platform-tools rustc with --no-rustup-override"
       elif [ "${PROOF_FORGE_PINOCCHIO_USE_RUSTUP:-auto}" = "auto" ]; then
         use_no_rustup_override=1
         echo "  rustup Solana toolchain unavailable; trying PATH rustc with --no-rustup-override"
