@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proof_forge_testkit_core::{
-    assert_expectations, assert_trace_equivalence, discover_scenarios, ChainHarness, HarnessRun,
-    ScenarioCase, TargetTrace,
+    assert_expectations, assert_trace_equivalence, discover_scenarios, ChainHarness, DiagnosticRun,
+    HarnessRun, ScenarioCase, TargetTrace,
 };
 use proof_forge_testkit_harness_evm::EvmHarness;
 use proof_forge_testkit_harness_near::NearHarness;
@@ -105,10 +105,23 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
     let selected: Vec<&ScenarioCase> = scenarios
         .iter()
         .filter(|case| {
-            args.scenario
+            let scenario_matches = args
+                .scenario
                 .as_ref()
                 .map(|name| case.manifest.scenario.name == *name)
-                .unwrap_or(true)
+                .unwrap_or(true);
+            let target_matches = args
+                .target
+                .as_ref()
+                .map(|target| {
+                    case.manifest
+                        .scenario
+                        .targets
+                        .iter()
+                        .any(|candidate| candidate == target)
+                })
+                .unwrap_or(true);
+            scenario_matches && target_matches
         })
         .collect();
 
@@ -118,6 +131,7 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
 
     println!("testkit: discovered {} scenario(s)", selected.len());
     let mut target_runs = 0usize;
+    let mut diagnostic_runs = 0usize;
     let mut skipped_runs = 0usize;
     for case in selected {
         let targets: Vec<&str> = case
@@ -133,6 +147,41 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
                 "scenario `{}` has no targets after filtering",
                 case.manifest.scenario.name
             );
+        }
+
+        for diagnostic in case.manifest.diagnostics.iter().filter(|diagnostic| {
+            args.target
+                .as_deref()
+                .map(|target| diagnostic.target == target)
+                .unwrap_or(true)
+        }) {
+            let Some(harness) = harnesses.get(diagnostic.target.as_str()) else {
+                bail!(
+                    "scenario `{}` targets unsupported `{}`",
+                    case.manifest.scenario.name,
+                    diagnostic.target
+                );
+            };
+            match harness.run_diagnostic(case, diagnostic, repo_root)? {
+                DiagnosticRun::Passed => {
+                    println!(
+                        "scenario {} target {} diagnostic {}: ok",
+                        case.manifest.scenario.name, diagnostic.target, diagnostic.name
+                    );
+                    diagnostic_runs += 1;
+                }
+                DiagnosticRun::Skipped { reason } => {
+                    println!(
+                        "scenario {} target {} diagnostic {}: skipped ({reason})",
+                        case.manifest.scenario.name, diagnostic.target, diagnostic.name
+                    );
+                    skipped_runs += 1;
+                }
+            }
+        }
+
+        if case.manifest.steps.is_empty() {
+            continue;
         }
 
         let mut runs = Vec::new();
@@ -181,12 +230,19 @@ fn run_scenarios(repo_root: &Path, scenarios: &[ScenarioCase], args: &Args) -> R
             );
         }
     }
-    if skipped_runs > 0 {
-        println!("testkit: ok ({target_runs} target run(s), {skipped_runs} skipped)");
-    } else {
-        println!("testkit: ok ({target_runs} target run(s))");
-    }
+    print_summary(target_runs, diagnostic_runs, skipped_runs);
     Ok(())
+}
+
+fn print_summary(target_runs: usize, diagnostic_runs: usize, skipped_runs: usize) {
+    let mut parts = vec![format!("{target_runs} target run(s)")];
+    if diagnostic_runs > 0 {
+        parts.push(format!("{diagnostic_runs} diagnostic run(s)"));
+    }
+    if skipped_runs > 0 {
+        parts.push(format!("{skipped_runs} skipped"));
+    }
+    println!("testkit: ok ({})", parts.join(", "));
 }
 
 fn harnesses() -> HashMap<&'static str, Box<dyn ChainHarness>> {

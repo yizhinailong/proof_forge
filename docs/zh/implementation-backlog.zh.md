@@ -1278,7 +1278,10 @@ shell/Node harness；参见
   artifact expectation，都会在任何 harness 运行前失败。当前 EVM 切片把 EVM
   artifact metadata 的身份字段、capability、validation 状态和 ABI entrypoint
   名称期望迁移到 scenario-declared `[[artifact.json]]` 检查中，让
-  `testkit/harness-evm` 只负责 selector 解析和运行时执行。
+  `testkit/harness-evm` 只负责 selector 解析和运行时执行。当前 diagnostic
+  切片加入 scenario-declared `[[diagnostic]]` expectation，并增加
+  diagnostic-only 的 `unsupported-crosscall` 场景，证明 `solana-sbpf-asm`
+  会用预期的 target/capability 信息拒绝 portable `crosscall.invoke` capability。
 
 验收标准：
 

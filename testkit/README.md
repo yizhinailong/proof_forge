@@ -16,6 +16,9 @@ Current scope:
   golden-file equality (`matches_file`), text contains checks (`contains`),
   and structured JSON/TOML path assertions through nested `[[artifact.json]]`
   and `[[artifact.toml]]` checks for target metadata and manifests
+- scenario-declared negative diagnostics through `[[diagnostic]]` entries;
+  the first diagnostic-only scenario verifies that Solana rejects the portable
+  `crosscall.invoke` capability with the expected target/capability message
 - `wasm-near` Counter and ValueVault execution through the existing
   deterministic `runtime/offline-host` wasmtime host
 - `evm` Counter execution through an in-process `revm` harness that emits the

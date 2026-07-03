@@ -8,8 +8,8 @@ use std::process::{Command, Output, Stdio};
 use anyhow::{bail, ensure, Context, Result};
 use mollusk_svm::Mollusk;
 use proof_forge_testkit_core::{
-    assert_artifact_expectations, ArtifactOutput, CallOutcome, ChainHarness, HarnessRun,
-    ScenarioCase,
+    assert_artifact_expectations, ArtifactOutput, CallOutcome, ChainHarness, DiagnosticExpectation,
+    DiagnosticRun, HarnessRun, ScenarioCase,
 };
 use serde::Deserialize;
 use solana_account::Account;
@@ -63,6 +63,65 @@ impl ChainHarness for SolanaHarness {
             }
         }
     }
+
+    fn run_diagnostic(
+        &self,
+        case: &ScenarioCase,
+        diagnostic: &DiagnosticExpectation,
+        repo_root: &Path,
+    ) -> Result<DiagnosticRun> {
+        match diagnostic.name.as_str() {
+            "crosscall.invoke unsupported" => run_lean_diagnostic(
+                case,
+                diagnostic,
+                repo_root,
+                "Tests/TestkitSolanaCapabilityDiagnostic.lean",
+            ),
+            name => {
+                bail!("solana-sbpf-asm testkit harness does not support diagnostic `{name}` yet")
+            }
+        }
+    }
+}
+
+fn run_lean_diagnostic(
+    case: &ScenarioCase,
+    diagnostic: &DiagnosticExpectation,
+    repo_root: &Path,
+    file: &str,
+) -> Result<DiagnosticRun> {
+    let output = Command::new("lake")
+        .current_dir(repo_root)
+        .args(["env", "lean", "--run", file])
+        .output()
+        .with_context(|| format!("failed to run `{file}`"))?;
+    let combined = command_output_text(&output);
+    if !output.status.success() {
+        bail!(
+            "diagnostic `{}` failed for scenario `{}`\n{}",
+            diagnostic.name,
+            case.manifest.scenario.name,
+            combined
+        );
+    }
+    for needle in &diagnostic.contains {
+        ensure!(
+            combined.contains(needle),
+            "diagnostic `{}` for scenario `{}` missing `{needle}` in output:\n{}",
+            diagnostic.name,
+            case.manifest.scenario.name,
+            combined
+        );
+    }
+    Ok(DiagnosticRun::passed())
+}
+
+fn command_output_text(output: &Output) -> String {
+    format!(
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
 }
 
 fn run_counter_scenario(

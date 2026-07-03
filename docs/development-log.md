@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit Unsupported Capability Diagnostics
+
+Commit: feature commit for unified testkit diagnostic scenarios
+
+Summary:
+
+- Added `[[diagnostic]]` scenario expectations so testkit can run
+  diagnostic-only scenarios without pretending they have runtime steps.
+- Added `testkit/scenarios/unsupported-crosscall.toml`, which asserts that
+  `solana-sbpf-asm` rejects the portable `crosscall.invoke` capability with
+  the expected target/capability diagnostic.
+- Added `Tests/TestkitSolanaCapabilityDiagnostic.lean` as the Lean-side
+  diagnostic driver and wired `testkit/harness-solana` to execute it.
+- Updated runner target filtering and summary output so diagnostic-only
+  scenarios participate in `just testkit` but do not interfere with positive
+  target runs.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml --workspace
+lake env lean --run Tests/TestkitSolanaCapabilityDiagnostic.lean
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario unsupported-crosscall
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --target evm
+just testkit
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- The diagnostic scenario surface currently has one Solana capability case.
+  More target/compiler diagnostics can move in as each harness exposes a
+  small target-owned diagnostic driver.
+
+Next step:
+
+- Continue migrating deterministic artifact/source checks into scenario
+  declarations, then decide which existing standalone diagnostic smokes should
+  become additional `[[diagnostic]]` scenarios.
+
 ### Unified Testkit EVM Metadata Expectations
 
 Commit: feature commit for unified testkit EVM metadata expectations

@@ -2062,7 +2062,10 @@ Tasks (one milestone per implementing branch):
   artifact metadata identity, capability, validation, and ABI entrypoint-name
   expectations into scenario-declared `[[artifact.json]]` checks, leaving
   `testkit/harness-evm` responsible only for selector parsing and runtime
-  execution.
+  execution. The current diagnostic slice adds scenario-declared
+  `[[diagnostic]]` expectations and a diagnostic-only `unsupported-crosscall`
+  scenario that proves `solana-sbpf-asm` rejects the portable
+  `crosscall.invoke` capability with the expected target/capability message.
 
 Acceptance criteria:
 

@@ -1,0 +1,12 @@
+[scenario]
+name = "unsupported-crosscall"
+fixture = "unsupported-crosscall"
+targets = ["solana-sbpf-asm"]
+capabilities = ["crosscall.invoke"]
+
+[[diagnostic]]
+target = "solana-sbpf-asm"
+name = "crosscall.invoke unsupported"
+contains = [
+  "target `solana-sbpf-asm` does not support capability `crosscall.invoke`: capability is not present in the target profile",
+]

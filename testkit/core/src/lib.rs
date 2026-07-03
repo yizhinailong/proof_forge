@@ -21,6 +21,8 @@ pub struct ScenarioManifest {
     pub steps: Vec<Step>,
     #[serde(default, rename = "artifact")]
     pub artifacts: Vec<ArtifactExpectation>,
+    #[serde(default, rename = "diagnostic")]
+    pub diagnostics: Vec<DiagnosticExpectation>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -54,6 +56,14 @@ pub struct StructuredArtifactCheck {
     pub equals: Option<TomlValue>,
     #[serde(default)]
     pub contains: Option<TomlValue>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DiagnosticExpectation {
+    pub target: String,
+    pub name: String,
+    #[serde(default)]
+    pub contains: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -206,6 +216,19 @@ pub struct CallOutcome {
 pub trait ChainHarness {
     fn target_id(&self) -> &'static str;
     fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<HarnessRun>;
+    fn run_diagnostic(
+        &self,
+        case: &ScenarioCase,
+        diagnostic: &DiagnosticExpectation,
+        _repo_root: &Path,
+    ) -> Result<DiagnosticRun> {
+        bail!(
+            "target `{}` does not support diagnostic `{}` for scenario `{}`",
+            self.target_id(),
+            diagnostic.name,
+            case.manifest.scenario.name
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -217,6 +240,24 @@ pub enum HarnessRun {
 impl HarnessRun {
     pub fn passed(outcomes: Vec<CallOutcome>) -> Self {
         Self::Passed(outcomes)
+    }
+
+    pub fn skipped(reason: impl Into<String>) -> Self {
+        Self::Skipped {
+            reason: reason.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiagnosticRun {
+    Passed,
+    Skipped { reason: String },
+}
+
+impl DiagnosticRun {
+    pub fn passed() -> Self {
+        Self::Passed
     }
 
     pub fn skipped(reason: impl Into<String>) -> Self {
@@ -280,8 +321,8 @@ pub fn discover_scenarios(dir: &Path) -> Result<Vec<ScenarioCase>> {
             );
         }
         ensure!(
-            !manifest.steps.is_empty(),
-            "scenario `{}` has no steps",
+            !manifest.steps.is_empty() || !manifest.diagnostics.is_empty(),
+            "scenario `{}` has no steps or diagnostics",
             path.display()
         );
         for step in &manifest.steps {
@@ -352,6 +393,42 @@ pub fn discover_scenarios(dir: &Path) -> Result<Vec<ScenarioCase>> {
                     "toml",
                     check,
                 )?;
+            }
+        }
+        for diagnostic in &manifest.diagnostics {
+            ensure!(
+                !diagnostic.target.trim().is_empty(),
+                "scenario `{}` has a diagnostic expectation with an empty target",
+                manifest.scenario.name
+            );
+            ensure!(
+                targets.contains(diagnostic.target.as_str()),
+                "scenario `{}` diagnostic expectation `{}` references target `{}`, but scenario targets are [{}]",
+                manifest.scenario.name,
+                diagnostic.name,
+                diagnostic.target,
+                manifest.scenario.targets.join(", ")
+            );
+            ensure!(
+                !diagnostic.name.trim().is_empty(),
+                "scenario `{}` has a diagnostic expectation with an empty name",
+                manifest.scenario.name
+            );
+            ensure!(
+                !diagnostic.contains.is_empty(),
+                "scenario `{}` diagnostic expectation `{}` for target `{}` has no contains checks",
+                manifest.scenario.name,
+                diagnostic.name,
+                diagnostic.target
+            );
+            for needle in &diagnostic.contains {
+                ensure!(
+                    !needle.is_empty(),
+                    "scenario `{}` diagnostic expectation `{}` for target `{}` has an empty contains check",
+                    manifest.scenario.name,
+                    diagnostic.name,
+                    diagnostic.target
+                );
             }
         }
         scenarios.push(ScenarioCase { path, manifest });
@@ -1089,6 +1166,7 @@ mod tests {
                 },
                 steps,
                 artifacts: Vec::new(),
+                diagnostics: Vec::new(),
             },
         }
     }
@@ -1254,6 +1332,67 @@ call = "initialize"
         let err = discover_scenarios(&root).unwrap_err();
 
         assert!(err.to_string().contains("references target `rogue-target`"));
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn discover_scenarios_accepts_diagnostic_only_scenarios() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("proof-forge-testkit-diagnostic-only-{nonce}"));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("diagnostic.toml"),
+            r#"[scenario]
+name = "unsupported-crosscall"
+fixture = "unsupported-crosscall"
+targets = ["solana-sbpf-asm"]
+
+[[diagnostic]]
+target = "solana-sbpf-asm"
+name = "crosscall.invoke unsupported"
+contains = ["target `solana-sbpf-asm` does not support capability `crosscall.invoke`"]
+"#,
+        )
+        .unwrap();
+
+        let scenarios = discover_scenarios(&root).unwrap();
+
+        assert_eq!(scenarios.len(), 1);
+        assert!(scenarios[0].manifest.steps.is_empty());
+        assert_eq!(scenarios[0].manifest.diagnostics.len(), 1);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn discover_scenarios_rejects_empty_diagnostic_checks() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("proof-forge-testkit-empty-diagnostic-{nonce}"));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("bad.toml"),
+            r#"[scenario]
+name = "bad"
+fixture = "unsupported-crosscall"
+targets = ["solana-sbpf-asm"]
+
+[[diagnostic]]
+target = "solana-sbpf-asm"
+name = "crosscall.invoke unsupported"
+"#,
+        )
+        .unwrap();
+
+        let err = discover_scenarios(&root).unwrap_err();
+
+        assert!(err.to_string().contains("has no contains checks"));
         fs::remove_dir_all(&root).unwrap();
     }
 
