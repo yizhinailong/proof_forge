@@ -19,7 +19,7 @@ Each entry should include:
 
 ### EVM FV-4 Aggregate/Storage Trace Expansion
 
-Commit: pending
+Commit: `3b2719a`
 
 Summary:
 
@@ -59,7 +59,7 @@ Next step:
 
 ### Solana Pinocchio Live CI Lane
 
-Commit: pending
+Commit: `a9437c1`..`3b2719a`
 
 Summary:
 
@@ -91,14 +91,46 @@ Known limitations:
 
 - The local installer self-check was interrupted after entering the SBF
   platform-tools install path because the command produced no progress output
-  for over 90 seconds on this machine. The CI job still covers the fresh-install
-  path with a 15-minute timeout around `cargo-build-sbf --install-only`.
-- P0 remains open until the new remote CI job completes successfully.
+  for over 90 seconds on this machine. The CI job covers the fresh-install path
+  with a 15-minute timeout around `cargo-build-sbf --install-only`.
+- This entry predates the remote sign-off run; P0-1 is closed by the follow-up
+  entry below.
 
 Next step:
 
-- Push this lane, watch the first remote `solana-pinocchio-live` run, and fix
-  any platform-specific install failure before moving to the next P0 slice.
+- Keep the mandatory live lane green while the remaining Gate P0 work moves to
+  NEAR/Wasm P0-3.
+
+### Solana P0-1 Production Sign-off
+
+Commit: this commit
+
+Summary:
+
+- Marked Solana direct sBPF backend P0-1 as signed off in
+  `docs/gate-status.md`.
+- Synchronized the target portfolio roadmap and implementation backlog so
+  Solana P0-1 and EVM P0-2 are both treated as complete, leaving NEAR/Wasm
+  P0-3 as the remaining Gate P0 blocker.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build
+gh run view 28675037861 --json status,conclusion,headSha,url,jobs
+```
+
+Known limitations:
+
+- Gate P0 is still open until NEAR/Wasm has target-first local execution and
+  deploy metadata sign-off.
+
+Next step:
+
+- Start the NEAR/Wasm P0-3 hardening slice.
 
 ### Solana Target-First v0 ELF Live Deploy Fix
 

@@ -47,7 +47,7 @@ primary-chain completion covenant is open.
 
 | Target | State |
 |---|---|
-| `solana-sbpf-asm` | **Primary priority 1.** Experimental; live gates + Pinocchio equivalence growing |
+| `solana-sbpf-asm` | **Primary priority 1.** Production-grade P0-1 signed off; direct assembly, loader-compatible ELF packaging, Pinocchio live CI equivalence, and Surfpool dual-deploy gates are green |
 | `evm` | **Primary priority 2.** Production-grade P0-2 signed off; semantic-plan migration landed, with EVM smokes, Foundry, Anvil, and FV-4 trace anchors green |
 | `wasm-near` | **Primary priority 3.** Experimental; EmitWat canonical (D-031) |
 | `psy-dpn` | Maintenance-only Experimental subset; no capability/testkit expansion until P0 closes |
@@ -70,11 +70,11 @@ tracked in [gate-status.md](gate-status.md).
 | ValueVault budget baselines (3 targets) | all | ✅ met | testkit scenarios |
 | Gate G0 sign-off | all | ✅ closed | gate-status |
 | EVM semantic-plan migration | evm | ✅ met | Workstream 3 / P0-2 |
-| Solana Pinocchio CI equivalence | solana | 🟡 reference suite in `solana-light`; live dual-deploy pending | Workstream 7 |
+| Solana Pinocchio CI equivalence | solana | ✅ met | Workstream 7 / P0-1 |
 
-Gate G0 is closed, but it is not the product completion gate. Gate P0 remains
-open until `solana-sbpf-asm`, `evm`, and `wasm-near` each satisfy the
-production-grade DoD in D-045.
+Gate G0 is closed, but it is not the product completion gate. P0-1
+(`solana-sbpf-asm`) and P0-2 (`evm`) are signed off; Gate P0 remains open until
+`wasm-near` satisfies the production-grade DoD in D-045.
 
 ## Tier 1 — next two targets
 

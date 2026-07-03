@@ -2233,10 +2233,12 @@ advancement. Per-criterion status lives in [gate-status.md](gate-status.md).
   `just check`, Foundry, Anvil, and the FV-4 executable EVM/Yul trace anchors
   are green. Remaining EVM formal work is FV-2 aggregate/storage IR semantics,
   not a P0-2 blocker.
-- Solana Pinocchio CI equivalence (Workstream 7): the source/reference
-  equivalence suite is included in `just solana-light`; remaining work is to
-  make the live-equivalence harnesses pass in CI by installing Solana rustc/
-  platform-tools reliably.
+- Done: Solana Pinocchio CI equivalence (Workstream 7 / P0-1) is signed off.
+  The source/reference equivalence suite is included in `just solana-light`,
+  and GitHub CI run `28675037861` at commit `3b2719a` completed the mandatory
+  `solana-pinocchio-live` job: install Agave/Solana CLI, SBF platform-tools,
+  `sbpf`, Surfpool, Node/npm; build ProofForge; run all five live
+  dual-deploy scenarios without allow-skip.
 - Freeze the landed Aptos/CosmWasm spikes at their current M1/M2 state: no
   Tier-1 M3/M4, no registry stage, no Tier-2 start, until Gate P0 closes.
 
@@ -2244,9 +2246,9 @@ Tasks:
 
 - Done: Gate G0 (Tier-0 behavior/budget slice) is closed. Evidence lives in
   [gate-status.md](gate-status.md).
-- Gate P0 (primary-chain sign-off): Gate G0 plus the remaining
-  production-grade hardening for Solana, Ethereum/EVM, and NEAR/Wasm from
-  D-045.
+- Gate P0 (primary-chain sign-off): Gate G0 plus production-grade hardening
+  from D-045. Solana P0-1 and EVM P0-2 are signed off; the remaining blocker is
+  NEAR/Wasm P0-3 target-first local execution/deploy metadata sign-off.
 - Tier 1a `wasm-cosmwasm`: M1 CosmWasm host imports + region-allocator ABI
   in EmitWat (the `cosmWasmRegion` binding from RFC 0008); M2 Counter
   artifact passes `cosmwasm-check`; M3 testkit `harness-cosmwasm` scenario
@@ -2352,10 +2354,10 @@ workstream. The forward order follows the tier gates of
 2. **Gate P0 (primary-chain completion covenant, D-045):** finish
    `solana-sbpf-asm`, `evm`, `wasm-near` — in that implementation priority —
    to production-grade DoD. Gate G0 is the behavior/resource-budget slice; Gate
-   P0 also includes Solana Pinocchio CI equivalence, the already-signed-off
-   EVM P0-2 semantic-plan/FV-4 evidence, and NEAR/Wasm local execution,
-   artifact, diagnostic, and CI sign-off. The landed Aptos/CosmWasm spikes
-   stay frozen at M1/M2 until this
+   P0 also includes the already-signed-off Solana P0-1 Pinocchio live CI
+   equivalence and EVM P0-2 semantic-plan/FV-4 evidence, plus the remaining
+   NEAR/Wasm local execution, artifact, diagnostic, and CI sign-off. The landed
+   Aptos/CosmWasm spikes stay frozen at M1/M2 until this
    closes. Per-criterion status: [gate-status.md](gate-status.md).
 3. **Parallel Tier 1 (only after Gate P0 closes):** `wasm-cosmwasm`
    (Workstreams 5/28) and `move-aptos` (Workstreams 8/28).
