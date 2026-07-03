@@ -28,6 +28,10 @@ path = "program.name"
 equals = "counter"
 
 [[artifact.toml]]
+path = "instruction"
+length = 3
+
+[[artifact.toml]]
 path = "instruction[0].name"
 equals = "initialize"
 
@@ -77,6 +81,10 @@ equals = "portable-ir"
 
 [[artifact.json]]
 path = "capabilities"
+length = 3
+
+[[artifact.json]]
+path = "capabilities"
 contains = "storage.scalar"
 
 [[artifact.json]]
@@ -90,6 +98,10 @@ contains = "control.conditional"
 [[artifact.json]]
 path = "validation.manifestGeneration"
 equals = "passed"
+
+[[artifact.json]]
+path = "artifacts"
+length = 2
 
 [[artifact.file]]
 path = "artifacts.sbpfAsm"
@@ -130,7 +142,15 @@ equals = "portable-ir"
 
 [[artifact.json]]
 path = "capabilities"
+length = 1
+
+[[artifact.json]]
+path = "capabilities"
 contains = "storage.scalar"
+
+[[artifact.json]]
+path = "abi.entrypoints"
+length = 3
 
 [[artifact.json]]
 path = "abi.entrypoints[0].name"
@@ -151,6 +171,10 @@ equals = "passed"
 [[artifact.json]]
 path = "validation.bytecodeGeneration"
 equals = "passed"
+
+[[artifact.json]]
+path = "artifacts"
+length = 4
 
 [[artifact.file]]
 path = "artifacts.yul"

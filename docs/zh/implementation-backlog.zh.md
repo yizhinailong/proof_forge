@@ -1305,7 +1305,10 @@ shell/Node harness；参见
   输出暴露为 testkit artifact。当前 cross-artifact JSON 切片新增嵌套
   `[[artifact.jsonArtifact]]` 检查，验证 Solana ValueVault metadata 内嵌的
   IDL JSON 与生成的 IDL artifact 完全一致，并把 ValueVault IDL/client
-  schema-shape 检查迁移到 scenario TOML。
+  schema-shape 检查迁移到 scenario TOML。当前 structured-length 切片为嵌套
+  `[[artifact.json]]`/`[[artifact.toml]]` 检查新增 `length` 断言，并用它以声明式方式
+  固定 Counter 和 ValueVault 的 ABI entrypoint、event、capability、artifact、
+  manifest instruction、Solana instruction 与 IDL instruction 数量。
 
 验收标准：
 

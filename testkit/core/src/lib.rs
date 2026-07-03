@@ -61,6 +61,8 @@ pub struct StructuredArtifactCheck {
     pub equals: Option<TomlValue>,
     #[serde(default)]
     pub contains: Option<TomlValue>,
+    #[serde(default)]
+    pub length: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -645,7 +647,7 @@ fn validate_structured_artifact_check(
         "scenario `{scenario}` {format} artifact check for target `{target}` artifact `{artifact}` has an empty path"
     );
     ensure!(
-        check.equals.is_some() || check.contains.is_some(),
+        check.equals.is_some() || check.contains.is_some() || check.length.is_some(),
         "scenario `{scenario}` {format} artifact check for target `{target}` artifact `{artifact}` path `{}` has no assertion",
         check.path
     );
@@ -720,6 +722,21 @@ fn assert_json_artifact_check(
             check.path,
             display_toml_value(expected),
             actual,
+            artifact_path.display()
+        );
+    }
+    if let Some(expected) = check.length {
+        let actual_len = json_length(actual).with_context(|| {
+            format!(
+                "scenario `{scenario}` target `{target_id}` JSON artifact `{artifact_name}` path `{}` does not have a supported length in `{}`",
+                check.path,
+                artifact_path.display()
+            )
+        })?;
+        ensure!(
+            actual_len == expected,
+            "scenario `{scenario}` target `{target_id}` JSON artifact `{artifact_name}` path `{}` expected length {expected}, got {actual_len} in `{}`",
+            check.path,
             artifact_path.display()
         );
     }
@@ -931,6 +948,21 @@ fn assert_toml_artifact_check(
             artifact_path.display()
         );
     }
+    if let Some(expected) = check.length {
+        let actual_len = toml_length(actual).with_context(|| {
+            format!(
+                "scenario `{scenario}` target `{target_id}` TOML artifact `{artifact_name}` path `{}` does not have a supported length in `{}`",
+                check.path,
+                artifact_path.display()
+            )
+        })?;
+        ensure!(
+            actual_len == expected,
+            "scenario `{scenario}` target `{target_id}` TOML artifact `{artifact_name}` path `{}` expected length {expected}, got {actual_len} in `{}`",
+            check.path,
+            artifact_path.display()
+        );
+    }
     Ok(())
 }
 
@@ -1070,6 +1102,26 @@ fn toml_contains_toml(actual: &TomlValue, expected: &TomlValue) -> bool {
         return array.iter().any(|value| value == expected);
     }
     false
+}
+
+fn json_length(value: &JsonValue) -> Option<usize> {
+    if let Some(array) = value.as_array() {
+        return Some(array.len());
+    }
+    if let Some(object) = value.as_object() {
+        return Some(object.len());
+    }
+    value.as_str().map(str::len)
+}
+
+fn toml_length(value: &TomlValue) -> Option<usize> {
+    if let Some(array) = value.as_array() {
+        return Some(array.len());
+    }
+    if let Some(table) = value.as_table() {
+        return Some(table.len());
+    }
+    value.as_str().map(str::len)
 }
 
 fn display_toml_value(value: &TomlValue) -> String {
@@ -1545,16 +1597,19 @@ mod tests {
                         path: "target".to_string(),
                         equals: Some(TomlValue::String("solana-sbpf-asm".to_string())),
                         contains: None,
+                        length: None,
                     },
                     StructuredArtifactCheck {
                         path: "capabilities".to_string(),
                         equals: None,
                         contains: Some(TomlValue::String("storage.scalar".to_string())),
+                        length: Some(1),
                     },
                     StructuredArtifactCheck {
                         path: "validation.manifestGeneration".to_string(),
                         equals: Some(TomlValue::String("passed".to_string())),
                         contains: None,
+                        length: None,
                     },
                 ],
                 file_checks: vec![FileArtifactCheck {
@@ -1580,16 +1635,25 @@ mod tests {
                         path: "target".to_string(),
                         equals: Some(TomlValue::String("solana-sbpf-asm".to_string())),
                         contains: None,
+                        length: None,
+                    },
+                    StructuredArtifactCheck {
+                        path: "instruction".to_string(),
+                        equals: None,
+                        contains: None,
+                        length: Some(1),
                     },
                     StructuredArtifactCheck {
                         path: "instruction[0].name".to_string(),
                         equals: Some(TomlValue::String("initialize".to_string())),
                         contains: None,
+                        length: None,
                     },
                     StructuredArtifactCheck {
                         path: "instruction[0].tag".to_string(),
                         equals: Some(TomlValue::Integer(0)),
                         contains: None,
+                        length: None,
                     },
                 ],
             },

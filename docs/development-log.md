@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit Structured Length Checks
+
+Commit: feature commit for unified testkit structured length checks
+
+Summary:
+
+- Added `length` assertions to nested `[[artifact.json]]` and
+  `[[artifact.toml]]` scenario checks for arrays, objects/tables, and strings.
+- Updated Counter and ValueVault scenarios to pin generated ABI entrypoint,
+  event, capability, artifact, Solana manifest instruction, Solana metadata
+  instruction, and IDL instruction counts declaratively.
+- Extended the structured artifact unit test so JSON and TOML length checks are
+  covered in `proof-forge-testkit-core`.
+
+Validation run:
+
+```sh
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml --workspace
+CAST="$PWD/build/tools/cast-shim" just testkit
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- `length` asserts collection/string shape, not the semantic meaning of each
+  item; per-entry checks still need explicit `equals` or `contains` assertions.
+
+Next step:
+
+- Keep migrating old schema validators into scenario TOML, then remove duplicate
+  script-only assertions once the testkit owns the same generated artifacts.
+
 ### Unified Testkit JSON Artifact Equality Checks
 
 Commit: feature commit for unified testkit JSON artifact equality checks

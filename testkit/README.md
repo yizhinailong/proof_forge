@@ -15,7 +15,8 @@ Current scope:
 - scenario-declared artifact checks through `[[artifact]]` entries, including
   golden-file equality (`matches_file`), text contains checks (`contains`),
   and structured JSON/TOML path assertions through nested `[[artifact.json]]`
-  and `[[artifact.toml]]` checks for target metadata and manifests; nested
+  and `[[artifact.toml]]` checks for target metadata and manifests, including
+  `length` assertions for arrays, objects/tables, and strings; nested
   `[[artifact.file]]` checks validate that JSON metadata file entries point at
   the harness artifact named by the scenario and match its path, byte size, and
   SHA-256 hash; nested `[[artifact.jsonArtifact]]` checks validate that a JSON

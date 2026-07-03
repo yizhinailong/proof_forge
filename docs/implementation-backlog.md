@@ -2091,7 +2091,11 @@ Tasks (one milestone per implementing branch):
   artifacts. The current cross-artifact JSON slice adds nested
   `[[artifact.jsonArtifact]]` checks, validates that Solana ValueVault metadata
   embeds the same IDL JSON as the generated IDL artifact, and moves the
-  ValueVault IDL/client schema-shape checks into scenario TOML.
+  ValueVault IDL/client schema-shape checks into scenario TOML. The current
+  structured-length slice adds `length` assertions to nested
+  `[[artifact.json]]`/`[[artifact.toml]]` checks and uses them to pin Counter and
+  ValueVault ABI entrypoint, event, capability, artifact, manifest instruction,
+  Solana instruction, and IDL instruction counts declaratively.
 
 Acceptance criteria:
 
