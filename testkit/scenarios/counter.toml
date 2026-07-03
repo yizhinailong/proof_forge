@@ -21,14 +21,20 @@ matches_file = "Examples/Solana/Counter.manifest.toml"
 
 [[artifact.toml]]
 path = "target"
+kind = "string"
+non_empty = true
 equals = "solana-sbpf-asm"
 
 [[artifact.toml]]
 path = "program.name"
+kind = "string"
+non_empty = true
 equals = "counter"
 
 [[artifact.toml]]
 path = "instruction"
+kind = "array"
+non_empty = true
 length = 3
 
 [[artifact.toml]]
@@ -60,15 +66,26 @@ target = "solana-sbpf-asm"
 name = "metadata"
 
 [[artifact.json]]
+path = "schemaVersion"
+kind = "integer"
+equals = 1
+
+[[artifact.json]]
 path = "target"
+kind = "string"
+non_empty = true
 equals = "solana-sbpf-asm"
 
 [[artifact.json]]
 path = "targetFamily"
+kind = "string"
+non_empty = true
 equals = "solana"
 
 [[artifact.json]]
 path = "artifactKind"
+kind = "string"
+non_empty = true
 equals = "solana-elf"
 
 [[artifact.json]]
@@ -80,7 +97,19 @@ path = "sourceKind"
 equals = "portable-ir"
 
 [[artifact.json]]
+path = "irVersion"
+kind = "string"
+non_empty = true
+
+[[artifact.json]]
+path = "sourceModule"
+kind = "string"
+non_empty = true
+
+[[artifact.json]]
 path = "capabilities"
+kind = "array"
+non_empty = true
 length = 3
 
 [[artifact.json]]
@@ -101,6 +130,8 @@ equals = "passed"
 
 [[artifact.json]]
 path = "artifacts"
+kind = "object"
+non_empty = true
 length = 2
 
 [[artifact.file]]
@@ -121,7 +152,14 @@ target = "evm"
 name = "metadata"
 
 [[artifact.json]]
+path = "schemaVersion"
+kind = "integer"
+equals = 1
+
+[[artifact.json]]
 path = "target"
+kind = "string"
+non_empty = true
 equals = "evm"
 
 [[artifact.json]]
@@ -141,7 +179,19 @@ path = "sourceKind"
 equals = "portable-ir"
 
 [[artifact.json]]
+path = "irVersion"
+kind = "string"
+non_empty = true
+
+[[artifact.json]]
+path = "sourceModule"
+kind = "string"
+non_empty = true
+
+[[artifact.json]]
 path = "capabilities"
+kind = "array"
+non_empty = true
 length = 1
 
 [[artifact.json]]
@@ -150,6 +200,8 @@ contains = "storage.scalar"
 
 [[artifact.json]]
 path = "abi.entrypoints"
+kind = "array"
+non_empty = true
 length = 3
 
 [[artifact.json]]
@@ -174,6 +226,8 @@ equals = "passed"
 
 [[artifact.json]]
 path = "artifacts"
+kind = "object"
+non_empty = true
 length = 4
 
 [[artifact.file]]
@@ -191,6 +245,124 @@ artifact = "init-code"
 [[artifact.file]]
 path = "artifacts.deployManifest"
 artifact = "deploy-manifest"
+
+[[artifact]]
+target = "evm"
+name = "deploy-manifest"
+
+[[artifact.json]]
+path = "schemaVersion"
+kind = "integer"
+equals = 1
+
+[[artifact.json]]
+path = "kind"
+kind = "string"
+equals = "proof-forge-evm-deploy-manifest"
+
+[[artifact.json]]
+path = "target"
+kind = "string"
+equals = "evm"
+
+[[artifact.json]]
+path = "artifactKind"
+kind = "string"
+equals = "evm-initcode-deploy"
+
+[[artifact.json]]
+path = "contractName"
+kind = "string"
+equals = "Counter"
+
+[[artifact.json]]
+path = "sourceKind"
+kind = "string"
+equals = "portable-ir"
+
+[[artifact.json]]
+path = "irVersion"
+kind = "string"
+non_empty = true
+
+[[artifact.json]]
+path = "sourceModule"
+kind = "string"
+non_empty = true
+
+[[artifact.json]]
+path = "chainProfile"
+kind = "null"
+
+[[artifact.json]]
+path = "capabilities"
+kind = "array"
+non_empty = true
+length = 1
+
+[[artifact.json]]
+path = "capabilities"
+contains = "storage.scalar"
+
+[[artifact.json]]
+path = "abi.entrypoints"
+kind = "array"
+non_empty = true
+length = 3
+
+[[artifact.json]]
+path = "creation.mode"
+kind = "string"
+equals = "init-code"
+
+[[artifact.json]]
+path = "creation.constructorArgs"
+kind = "array"
+length = 0
+
+[[artifact.json]]
+path = "deployment.broadcast"
+kind = "string"
+equals = "not-generated"
+
+[[artifact.json]]
+path = "deployment.profileId"
+kind = "null"
+
+[[artifact.json]]
+path = "deployment.chainId"
+kind = "null"
+
+[[artifact.json]]
+path = "deployment.rpcUrls"
+kind = "array"
+length = 0
+
+[[artifact.json]]
+path = "deployment.reference"
+kind = "string"
+non_empty = true
+contains = "scripts/evm/foundry-smoke.sh"
+
+[[artifact.file]]
+path = "creation.initCode"
+artifact = "init-code"
+
+[[artifact.file]]
+path = "creation.runtimeBytecode"
+artifact = "bytecode"
+
+[[artifact.file]]
+path = "inputs.yul"
+artifact = "yul"
+
+[[artifact.file]]
+path = "inputs.bytecode"
+artifact = "bytecode"
+
+[[artifact.file]]
+path = "inputs.initCode"
+artifact = "init-code"
 
 [[step]]
 call = "initialize"

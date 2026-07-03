@@ -2095,7 +2095,13 @@ Tasks (one milestone per implementing branch):
   structured-length slice adds `length` assertions to nested
   `[[artifact.json]]`/`[[artifact.toml]]` checks and uses them to pin Counter and
   ValueVault ABI entrypoint, event, capability, artifact, manifest instruction,
-  Solana instruction, and IDL instruction counts declaratively.
+  Solana instruction, and IDL instruction counts declaratively. The current
+  structured-schema slice adds `exists`, `kind`, and `non_empty` checks for
+  nested JSON/TOML artifact assertions, then makes Counter and ValueVault
+  validate EVM deploy manifests as first-class scenario artifacts, including
+  init-code mode, absent chain profile, not-generated broadcast status, ABI and
+  capability shape, and file references back to generated Yul, bytecode, and
+  init-code artifacts.
 
 Acceptance criteria:
 

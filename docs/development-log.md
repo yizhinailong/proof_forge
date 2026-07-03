@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit Deploy Manifest Schema Checks
+
+Commit: feature commit for unified testkit deploy manifest schema checks
+
+Summary:
+
+- Added `exists`, `kind`, and `non_empty` assertions to nested
+  `[[artifact.json]]` and `[[artifact.toml]]` checks, so scenario TOML can
+  express presence, absence, type, and non-empty schema constraints without
+  fixture-specific scripts.
+- Updated Counter and ValueVault scenarios to validate EVM deploy manifests as
+  first-class artifacts, including init-code mode, absent chain profile,
+  not-generated broadcast status, ABI/capability counts, and deploy manifest
+  file references back to generated Yul, bytecode, and init-code artifacts.
+- Added targeted type/non-empty checks for key EVM and Solana metadata/manifest
+  paths that were previously only implicitly checked by equality or script
+  validators.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml -p proof-forge-testkit-core
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+CAST="$PWD/build/tools/cast-shim" just testkit
+```
+
+Known limitations:
+
+- `kind` and `non_empty` validate schema shape only; semantic relations across
+  artifacts still use `[[artifact.file]]` and `[[artifact.jsonArtifact]]`.
+
+Next step:
+
+- Continue moving script-only artifact metadata validators into scenario TOML,
+  then remove redundant script assertions once the unified testkit owns the same
+  artifacts.
+
 ### Unified Testkit Structured Length Checks
 
 Commit: feature commit for unified testkit structured length checks

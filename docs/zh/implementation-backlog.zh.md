@@ -1308,7 +1308,12 @@ shell/Node harness；参见
   schema-shape 检查迁移到 scenario TOML。当前 structured-length 切片为嵌套
   `[[artifact.json]]`/`[[artifact.toml]]` 检查新增 `length` 断言，并用它以声明式方式
   固定 Counter 和 ValueVault 的 ABI entrypoint、event、capability、artifact、
-  manifest instruction、Solana instruction 与 IDL instruction 数量。
+  manifest instruction、Solana instruction 与 IDL instruction 数量。当前
+  structured-schema 切片为嵌套 JSON/TOML artifact assertion 新增
+  `exists`、`kind` 和 `non_empty` 检查，并让 Counter 与 ValueVault 把 EVM
+  deploy manifest 作为一等 scenario artifact 校验，覆盖 init-code mode、
+  空 chain profile、not-generated broadcast 状态、ABI/capability shape，以及
+  回指生成 Yul、bytecode 和 init-code artifact 的文件引用。
 
 验收标准：
 

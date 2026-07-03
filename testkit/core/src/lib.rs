@@ -58,11 +58,46 @@ pub struct ArtifactExpectation {
 pub struct StructuredArtifactCheck {
     pub path: String,
     #[serde(default)]
+    pub exists: Option<bool>,
+    #[serde(default)]
+    pub kind: Option<StructuredValueKind>,
+    #[serde(default)]
+    pub non_empty: Option<bool>,
+    #[serde(default)]
     pub equals: Option<TomlValue>,
     #[serde(default)]
     pub contains: Option<TomlValue>,
     #[serde(default)]
     pub length: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum StructuredValueKind {
+    Array,
+    Object,
+    Table,
+    String,
+    Integer,
+    Float,
+    Bool,
+    Null,
+}
+
+impl fmt::Display for StructuredValueKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Self::Array => "array",
+            Self::Object => "object",
+            Self::Table => "table",
+            Self::String => "string",
+            Self::Integer => "integer",
+            Self::Float => "float",
+            Self::Bool => "bool",
+            Self::Null => "null",
+        };
+        f.write_str(name)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -647,10 +682,26 @@ fn validate_structured_artifact_check(
         "scenario `{scenario}` {format} artifact check for target `{target}` artifact `{artifact}` has an empty path"
     );
     ensure!(
-        check.equals.is_some() || check.contains.is_some() || check.length.is_some(),
+        check.exists.is_some()
+            || check.kind.is_some()
+            || check.non_empty.is_some()
+            || check.equals.is_some()
+            || check.contains.is_some()
+            || check.length.is_some(),
         "scenario `{scenario}` {format} artifact check for target `{target}` artifact `{artifact}` path `{}` has no assertion",
         check.path
     );
+    if check.exists == Some(false) {
+        ensure!(
+            check.kind.is_none()
+                && check.non_empty.is_none()
+                && check.equals.is_none()
+                && check.contains.is_none()
+                && check.length.is_none(),
+            "scenario `{scenario}` {format} artifact check for target `{target}` artifact `{artifact}` path `{}` cannot combine `exists = false` with value assertions",
+            check.path
+        );
+    }
     Ok(())
 }
 
@@ -698,13 +749,47 @@ fn assert_json_artifact_check(
     json: &JsonValue,
     check: &StructuredArtifactCheck,
 ) -> Result<()> {
-    let actual = json_path(json, &check.path).with_context(|| {
+    let actual = try_json_path(json, &check.path)?;
+    if check.exists == Some(false) {
+        ensure!(
+            actual.is_none(),
+            "scenario `{scenario}` target `{target_id}` JSON artifact `{artifact_name}` expected path `{}` to be absent in `{}`",
+            check.path,
+            artifact_path.display()
+        );
+        return Ok(());
+    }
+    let actual = actual.with_context(|| {
         format!(
             "scenario `{scenario}` target `{target_id}` JSON artifact `{artifact_name}` missing path `{}` in `{}`",
             check.path,
             artifact_path.display()
         )
     })?;
+    if let Some(expected) = check.kind {
+        ensure!(
+            json_kind_matches(actual, expected),
+            "scenario `{scenario}` target `{target_id}` JSON artifact `{artifact_name}` path `{}` expected kind {expected}, got {} in `{}`",
+            check.path,
+            json_kind_name(actual),
+            artifact_path.display()
+        );
+    }
+    if let Some(expected) = check.non_empty {
+        let actual_non_empty = json_non_empty(actual).with_context(|| {
+            format!(
+                "scenario `{scenario}` target `{target_id}` JSON artifact `{artifact_name}` path `{}` does not support `non_empty` in `{}`",
+                check.path,
+                artifact_path.display()
+            )
+        })?;
+        ensure!(
+            actual_non_empty == expected,
+            "scenario `{scenario}` target `{target_id}` JSON artifact `{artifact_name}` path `{}` expected non_empty {expected}, got {actual_non_empty} in `{}`",
+            check.path,
+            artifact_path.display()
+        );
+    }
     if let Some(expected) = &check.equals {
         ensure!(
             json_equals_toml(actual, expected),
@@ -921,13 +1006,47 @@ fn assert_toml_artifact_check(
     toml: &TomlValue,
     check: &StructuredArtifactCheck,
 ) -> Result<()> {
-    let actual = toml_path(toml, &check.path).with_context(|| {
+    let actual = try_toml_path(toml, &check.path)?;
+    if check.exists == Some(false) {
+        ensure!(
+            actual.is_none(),
+            "scenario `{scenario}` target `{target_id}` TOML artifact `{artifact_name}` expected path `{}` to be absent in `{}`",
+            check.path,
+            artifact_path.display()
+        );
+        return Ok(());
+    }
+    let actual = actual.with_context(|| {
         format!(
             "scenario `{scenario}` target `{target_id}` TOML artifact `{artifact_name}` missing path `{}` in `{}`",
             check.path,
             artifact_path.display()
         )
     })?;
+    if let Some(expected) = check.kind {
+        ensure!(
+            toml_kind_matches(actual, expected),
+            "scenario `{scenario}` target `{target_id}` TOML artifact `{artifact_name}` path `{}` expected kind {expected}, got {} in `{}`",
+            check.path,
+            toml_kind_name(actual),
+            artifact_path.display()
+        );
+    }
+    if let Some(expected) = check.non_empty {
+        let actual_non_empty = toml_non_empty(actual).with_context(|| {
+            format!(
+                "scenario `{scenario}` target `{target_id}` TOML artifact `{artifact_name}` path `{}` does not support `non_empty` in `{}`",
+                check.path,
+                artifact_path.display()
+            )
+        })?;
+        ensure!(
+            actual_non_empty == expected,
+            "scenario `{scenario}` target `{target_id}` TOML artifact `{artifact_name}` path `{}` expected non_empty {expected}, got {actual_non_empty} in `{}`",
+            check.path,
+            artifact_path.display()
+        );
+    }
     if let Some(expected) = &check.equals {
         ensure!(
             actual == expected,
@@ -989,38 +1108,43 @@ fn sha256_hex(path: &Path) -> Result<String> {
 }
 
 fn json_path<'a>(root: &'a JsonValue, path: &str) -> Result<&'a JsonValue> {
-    let mut current = root;
-    for segment in path.split('.') {
-        let (key, index) = parse_path_segment(segment)?;
-        current = current
-            .as_object()
-            .and_then(|object| object.get(key))
-            .with_context(|| format!("missing JSON object key `{key}`"))?;
-        if let Some(index) = index {
-            current = current
-                .as_array()
-                .and_then(|array| array.get(index))
-                .with_context(|| format!("missing JSON array index `{index}` at `{key}`"))?;
-        }
-    }
-    Ok(current)
+    try_json_path(root, path)?.with_context(|| format!("missing JSON path `{path}`"))
 }
 
-fn toml_path<'a>(root: &'a TomlValue, path: &str) -> Result<&'a TomlValue> {
+fn try_json_path<'a>(root: &'a JsonValue, path: &str) -> Result<Option<&'a JsonValue>> {
     let mut current = root;
     for segment in path.split('.') {
         let (key, index) = parse_path_segment(segment)?;
-        current = current
-            .get(key)
-            .with_context(|| format!("missing TOML table key `{key}`"))?;
+        let Some(next) = current.as_object().and_then(|object| object.get(key)) else {
+            return Ok(None);
+        };
+        current = next;
         if let Some(index) = index {
-            current = current
-                .as_array()
-                .and_then(|array| array.get(index))
-                .with_context(|| format!("missing TOML array index `{index}` at `{key}`"))?;
+            let Some(next) = current.as_array().and_then(|array| array.get(index)) else {
+                return Ok(None);
+            };
+            current = next;
         }
     }
-    Ok(current)
+    Ok(Some(current))
+}
+
+fn try_toml_path<'a>(root: &'a TomlValue, path: &str) -> Result<Option<&'a TomlValue>> {
+    let mut current = root;
+    for segment in path.split('.') {
+        let (key, index) = parse_path_segment(segment)?;
+        let Some(next) = current.get(key) else {
+            return Ok(None);
+        };
+        current = next;
+        if let Some(index) = index {
+            let Some(next) = current.as_array().and_then(|array| array.get(index)) else {
+                return Ok(None);
+            };
+            current = next;
+        }
+    }
+    Ok(Some(current))
 }
 
 fn parse_path_segment(segment: &str) -> Result<(&str, Option<usize>)> {
@@ -1122,6 +1246,64 @@ fn toml_length(value: &TomlValue) -> Option<usize> {
         return Some(table.len());
     }
     value.as_str().map(str::len)
+}
+
+fn json_non_empty(value: &JsonValue) -> Option<bool> {
+    json_length(value).map(|len| len > 0)
+}
+
+fn toml_non_empty(value: &TomlValue) -> Option<bool> {
+    toml_length(value).map(|len| len > 0)
+}
+
+fn json_kind_matches(value: &JsonValue, expected: StructuredValueKind) -> bool {
+    match expected {
+        StructuredValueKind::Array => value.is_array(),
+        StructuredValueKind::Object | StructuredValueKind::Table => value.is_object(),
+        StructuredValueKind::String => value.is_string(),
+        StructuredValueKind::Integer => value
+            .as_number()
+            .is_some_and(|number| number.is_i64() || number.is_u64()),
+        StructuredValueKind::Float => value.as_number().is_some_and(serde_json::Number::is_f64),
+        StructuredValueKind::Bool => value.is_boolean(),
+        StructuredValueKind::Null => value.is_null(),
+    }
+}
+
+fn toml_kind_matches(value: &TomlValue, expected: StructuredValueKind) -> bool {
+    match expected {
+        StructuredValueKind::Array => value.is_array(),
+        StructuredValueKind::Object | StructuredValueKind::Table => value.is_table(),
+        StructuredValueKind::String => value.is_str(),
+        StructuredValueKind::Integer => matches!(value, TomlValue::Integer(_)),
+        StructuredValueKind::Float => matches!(value, TomlValue::Float(_)),
+        StructuredValueKind::Bool => value.is_bool(),
+        StructuredValueKind::Null => false,
+    }
+}
+
+fn json_kind_name(value: &JsonValue) -> &'static str {
+    match value {
+        JsonValue::Array(_) => "array",
+        JsonValue::Object(_) => "object",
+        JsonValue::String(_) => "string",
+        JsonValue::Number(number) if number.is_i64() || number.is_u64() => "integer",
+        JsonValue::Number(_) => "float",
+        JsonValue::Bool(_) => "bool",
+        JsonValue::Null => "null",
+    }
+}
+
+fn toml_kind_name(value: &TomlValue) -> &'static str {
+    match value {
+        TomlValue::Array(_) => "array",
+        TomlValue::Table(_) => "table",
+        TomlValue::String(_) => "string",
+        TomlValue::Integer(_) => "integer",
+        TomlValue::Float(_) => "float",
+        TomlValue::Boolean(_) => "bool",
+        TomlValue::Datetime(_) => "datetime",
+    }
 }
 
 fn display_toml_value(value: &TomlValue) -> String {
@@ -1595,19 +1777,37 @@ mod tests {
                 json_checks: vec![
                     StructuredArtifactCheck {
                         path: "target".to_string(),
+                        exists: None,
+                        kind: Some(StructuredValueKind::String),
+                        non_empty: Some(true),
                         equals: Some(TomlValue::String("solana-sbpf-asm".to_string())),
                         contains: None,
                         length: None,
                     },
                     StructuredArtifactCheck {
                         path: "capabilities".to_string(),
+                        exists: None,
+                        kind: Some(StructuredValueKind::Array),
+                        non_empty: Some(true),
                         equals: None,
                         contains: Some(TomlValue::String("storage.scalar".to_string())),
                         length: Some(1),
                     },
                     StructuredArtifactCheck {
                         path: "validation.manifestGeneration".to_string(),
+                        exists: None,
+                        kind: Some(StructuredValueKind::String),
+                        non_empty: Some(true),
                         equals: Some(TomlValue::String("passed".to_string())),
+                        contains: None,
+                        length: None,
+                    },
+                    StructuredArtifactCheck {
+                        path: "validation.missingCheck".to_string(),
+                        exists: Some(false),
+                        kind: None,
+                        non_empty: None,
+                        equals: None,
                         contains: None,
                         length: None,
                     },
@@ -1633,24 +1833,36 @@ mod tests {
                 toml_checks: vec![
                     StructuredArtifactCheck {
                         path: "target".to_string(),
+                        exists: None,
+                        kind: Some(StructuredValueKind::String),
+                        non_empty: Some(true),
                         equals: Some(TomlValue::String("solana-sbpf-asm".to_string())),
                         contains: None,
                         length: None,
                     },
                     StructuredArtifactCheck {
                         path: "instruction".to_string(),
+                        exists: None,
+                        kind: Some(StructuredValueKind::Array),
+                        non_empty: Some(true),
                         equals: None,
                         contains: None,
                         length: Some(1),
                     },
                     StructuredArtifactCheck {
                         path: "instruction[0].name".to_string(),
+                        exists: None,
+                        kind: Some(StructuredValueKind::String),
+                        non_empty: Some(true),
                         equals: Some(TomlValue::String("initialize".to_string())),
                         contains: None,
                         length: None,
                     },
                     StructuredArtifactCheck {
                         path: "instruction[0].tag".to_string(),
+                        exists: None,
+                        kind: Some(StructuredValueKind::Integer),
+                        non_empty: None,
                         equals: Some(TomlValue::Integer(0)),
                         contains: None,
                         length: None,
