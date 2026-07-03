@@ -32,8 +32,9 @@ in [gate-status.md](gate-status.md), and Gate P0 is now closed. "Complete" means
 target-first build/emission, local execution or deployment smoke,
 artifact/deploy metadata, capability diagnostics, resource budgets, CI coverage,
 and maintained docs for each of the three chains. New-chain implementation work
-is no longer blocked by D-045, but this backlog still schedules CLI M3/M4
-target-first migration before Tier-1 M3/M4 advancement.
+is no longer blocked by D-045. CLI M3 target-first migration is now landed for
+executable callers; Tier-1 M3/M4 advancement still needs explicit scheduling
+and should not rely on old research notes as implicit implementation scope.
 
 ## Review disposition (2026-07-04)
 
@@ -42,18 +43,21 @@ disposition is:
 
 | Review item | Current disposition | Backlog action |
 |---|---|---|
-| R1: RFC 0009 and D-039 lagged behind the landed CLI M1 work | Closed on current `main`: RFC 0009 is accepted with M1 landed, and D-039 now ratifies the compatibility-layer implementation instead of claiming a pre-code freeze | Keep RFC 0009 and CLI migration docs synchronized as M3/M4 moves scripts and testkit from legacy flags to target-first commands |
-| R2: too many half-finished workstreams are active | Accepted as a planning risk | Gate P0 is closed; focus the next active implementation lane on CLI M3/M4 cleanup before opening Tier-1 M3/M4 work |
+| R1: RFC 0009 and D-039 lagged behind the landed CLI M1 work | Closed on current `main`: RFC 0009 is accepted with M1/M3 landed, and D-039 now ratifies the compatibility-layer implementation instead of claiming a pre-code freeze | Keep RFC 0009 and CLI migration docs synchronized as M4 legacy-alias removal is scheduled |
+| R2: too many half-finished workstreams are active | Accepted as a planning risk | Gate P0 is closed and CLI M3 is now guarded by `just cli-target-first`; keep M4 alias removal behind the compatibility window and avoid opening Tier-1 M3/M4 work implicitly |
 | R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, NEAR trace obligations, EVM FV-4 executable Yul trace anchors, and FV-2 aggregate/storage plus map lifecycle IR traces exist, but full IR-to-artifact semantic preservation is not done. The EVM map/storage/aggregate slice now connects covered FV-2 IR traces to executable Yul obligations. | Extend FV-2 over control flow and observable event traces, deepen NEAR from export coverage toward artifact execution obligations, and then connect user-level invariants to the covered IR semantics |
 | R4: capability granularity is too coarse | Do not churn capability ids in the current phase; storage is already split into scalar/map/array/PDA, and Solana account semantics are modeled separately from storage patterns | Treat cross-target runtime differences as budget/diagnostic obligations: each target must reject unsupported shapes explicitly and pin resource budgets for supported ones |
-| R5: docs-first target notes create hidden sunk cost | Closed at the scheduling layer: D-045 and the target roadmap restricted product hardening to `solana-sbpf-asm`, `evm`, and `wasm-near` until Gate P0 closed | Keep research notes as inventory; schedule Tier-1 M3/M4 explicitly after CLI M3/M4 cleanup rather than letting old research notes create automatic implementation scope |
+| R5: docs-first target notes create hidden sunk cost | Closed at the scheduling layer: D-045 and the target roadmap restricted product hardening to `solana-sbpf-asm`, `evm`, and `wasm-near` until Gate P0 closed | Keep research notes as inventory; schedule Tier-1 M3/M4 explicitly rather than letting old research notes create automatic implementation scope |
 | R6: Lean/toolchain onboarding friction | Partially closed: `docs/onboarding.md` exists and names the core toolchain and per-target tools, but editor workspace config, templates, and scaffolding remain open DX work | Add VS Code/Cursor workspace recommendations and a minimal project template after the NEAR/Wasm P0-3 closure, unless onboarding friction blocks P0 work earlier |
 
 The immediate engineering order after this review is therefore:
 
 1. ~~Close NEAR/Wasm P0-3 with target-first local execution and deploy metadata
    evidence.~~ ✅ Closed by Gate P0 sign-off.
-2. Finish the CLI M3/M4 migration from legacy flags to target-first invocations.
+2. ~~Finish the CLI M3 migration from legacy flags to target-first executable
+   invocations.~~ ✅ Landed; `just cli-target-first` scans executable callers
+   and runs the target-first mapping regression suite. M4 legacy flag removal
+   remains intentionally deferred until the RFC 0009 compatibility window.
 3. Continue formal verification work: FV-2 now has aggregate/storage executable
    traces plus state-threaded map insert/set lifecycle traces, and the covered
    EVM map/storage/aggregate obligations compare those IR traces against
@@ -2263,8 +2267,8 @@ advancement. Per-criterion status lives in [gate-status.md](gate-status.md).
   MetadataPlan now feed the plan-backed EVM lowering and artifact/deploy
   metadata path; `just evm-plan`, `just evm-semantic-plan`, `just evm-all`,
   `just check`, Foundry, Anvil, and the FV-4 executable EVM/Yul trace anchors
-  are green. Remaining EVM formal work is FV-2 aggregate/storage IR semantics,
-  not a P0-2 blocker.
+  are green. Remaining EVM formal work is FV-2 control-flow/event semantics
+  and deeper user-invariant-to-artifact obligations, not a P0-2 blocker.
 - Done: Solana Pinocchio CI equivalence (Workstream 7 / P0-1) is signed off.
   The source/reference equivalence suite is included in `just solana-light`,
   and GitHub CI run `28675037861` at commit `3b2719a` completed the mandatory
@@ -2272,7 +2276,8 @@ advancement. Per-criterion status lives in [gate-status.md](gate-status.md).
   `sbpf`, Surfpool, Node/npm; build ProofForge; run all five live
   dual-deploy scenarios without allow-skip.
 - Gate P0 is closed. The landed Aptos/CosmWasm spikes can now be scheduled for
-  M3/M4, but the next active implementation lane remains CLI M3/M4 cleanup.
+  M3/M4, but scheduling must be explicit; old docs-first research notes do not
+  automatically open implementation scope.
 
 Tasks:
 
@@ -2308,10 +2313,10 @@ Acceptance criteria:
 
 - **Primary-chain completion covenant (D-045):** ✅ closed. `solana-sbpf-asm`,
   `evm`, and `wasm-near` reached production-grade DoD; Tier-1 advancement is
-  now gated by explicit scheduling and the CLI M3/M4 cleanup.
-- No Tier-1 code lands before the CLI M3/M4 target-first cleanup is scheduled
-  and reviewed; no Tier-2 target starts before its
-  listed enabler; at most one sourcegen spike is active at any time.
+  now gated by explicit scheduling rather than implicit research-note carryover.
+- No Tier-1 code lands before an explicit scheduling decision is reviewed; no
+  Tier-2 target starts before its listed enabler; at most one sourcegen spike is
+  active at any time.
 - Policy-family targets never appear in contract-family capability rows;
   they get a separate `policy.*` section in the capability registry when
   Tier 3 opens.
@@ -2321,12 +2326,14 @@ Acceptance criteria:
 These come from the [2026-07 gap analysis](platform-gaps-2026-07.md). Each
 starts as an RFC, not code; sequencing hooks are listed in the gap doc.
 
-- **Workstream 29 — CLI product surface.** RFC 0009 is accepted and M1 is
+- **Workstream 29 — CLI product surface.** RFC 0009 is accepted and M1/M3 are
   landed: `proof-forge build|emit|check --target <id> --fixture <id>` exists
   through the compatibility layer, `check` is a real validation verb,
-  list commands are wired, and legacy flags have alias/deprecation metadata.
-  Remaining work is M3/M4: migrate scripts/testkit callers to the target-first
-  surface and delete the legacy flag zoo only after the compatibility window.
+  list commands are wired, legacy flags have alias/deprecation metadata, and
+  `just cli-target-first` now enforces that executable callers stay on the
+  target-first surface while `Tests/CliTargetFirst.lean` locks representative
+  mapping parity. Remaining work is M4: delete the legacy flag zoo only after
+  the compatibility window.
 - **Workstream 30 — Versioning and compatibility policy.** RFC covering IR
   version rules (tied to the coverage-manifest gate), artifact/deploy
   schema stability, append-only capability ids, and SDK deprecation policy.
@@ -2378,16 +2385,16 @@ workstream. The forward order follows the tier gates of
 
 0. Architecture convergence follow-ups (Workstream 24) and FV-1/FV-2 from
    the formal verification roadmap (Workstream 25). In parallel, finish the
-   platform-hardening follow-through from the gap analysis: CLI M3/M4 migration
-   after RFC 0009 M1, runtime error vocabulary for testkit, and the versioning
-   / deployment lifecycle policies (30/32, docs-agent parallel track).
+   platform-hardening follow-through from the gap analysis: CLI M4 legacy-alias
+   removal after the RFC 0009 compatibility window, runtime error vocabulary
+   for testkit, and the versioning / deployment lifecycle policies (30/32,
+   docs-agent parallel track).
 1. **Parallel:** unified testkit (Workstream 26) and allocator unification
    (Workstream 27) — testkit M1/M2 has no dependency on allocator M1/M2;
    allocator M4 lands after testkit M3.
-2. **CLI M3/M4 target-first migration:** move scripts/testkit callers off the
-   legacy flag zoo and onto `proof-forge build|emit|check --target ...`, then
-   remove legacy flags only after the compatibility window.
-3. **Parallel Tier 1 (after CLI M3/M4 cleanup):** `wasm-cosmwasm`
+2. **CLI target-first transition:** M3 caller migration is landed and guarded;
+   M4 removes legacy flags only after the compatibility window.
+3. **Parallel Tier 1 (after explicit scheduling):** `wasm-cosmwasm`
    (Workstreams 5/28) and `move-aptos` (Workstreams 8/28).
 4. Tier 2 per enabler: Soroban after CosmWasm; Sui and the sourcegen lane
    (Starknet first pick) after Aptos; ICP additionally behind an async

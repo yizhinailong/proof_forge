@@ -1,15 +1,18 @@
 # RFC 0009: CLI Product Surface
 
-Status: **Accepted — M1 landed, transition still open**
+Status: **Accepted — M1/M3 landed, M4 transition open**
 Date: 2026-07-03
 
-Implementation status (2026-07-03): RFC 0009 is accepted as the durable CLI
-surface. The first milestone has already landed in code: `Command`/`CliOptions`
-exist, `build`/`emit` route through the compatibility layer, `check` is a real
-validation verb, `--list-targets` and `--list-fixtures` are wired, and legacy
-emit modes carry migration/deprecation metadata. The remaining work is the
-transition work in M3/M4: move scripts/testkit invocations onto the target-first
-surface and remove `EmitMode` only after the compatibility release window.
+Implementation status (2026-07-04): RFC 0009 is accepted as the durable CLI
+surface. M1 has landed in code: `Command`/`CliOptions` exist, `build`/`emit`
+route through the compatibility layer, `check` is a real validation verb,
+`--list-targets` and `--list-fixtures` are wired, and legacy emit modes carry
+migration/deprecation metadata. M3 has also landed for executable callers:
+`just cli-target-first` scans `justfile`, `scripts/`, `testkit/`, and `Tests/`
+for direct legacy `proof-forge --flag` invocations and runs
+`Tests/CliTargetFirst.lean` to lock representative target-first mappings. The
+remaining transition work is M4: remove `EmitMode` and the legacy flag parser
+only after the compatibility release window.
 
 ## Problem
 
@@ -265,8 +268,10 @@ add constructors to it. Once aliases are removed, `EmitMode` is deleted.
 2. **M2 — mostly landed:** Implement `--list-targets`, `--list-fixtures`, and
    deprecation warnings for legacy flags used in CI. Remaining M2 work is only
    parity cleanup where a legacy path lacks a stable target-first equivalent.
-3. **M3 — open:** Migrate `scripts/`, `testkit/`, and `Tests/` invocations to the new
-   surface; testkit M4 binds only to `build`/`emit`/`check`.
+3. **M3 — landed:** `scripts/`, `testkit/`, and executable `Tests/`
+   invocations use the new surface; `just cli-target-first` enforces that
+   runtime callers stay on `build`/`emit`/`check` and that representative
+   target-first mappings keep their legacy-equivalent behavior.
 4. **M4 — open:** Remove the `EmitMode` enum and legacy flag parser after one
    release of deprecation warnings.
 

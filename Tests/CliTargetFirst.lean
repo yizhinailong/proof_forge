@@ -17,6 +17,18 @@ def requireLegacy (args expected : List String) : IO Unit :=
 
 def main : IO UInt32 := do
   requireLegacy
+    ["build", "--target", "evm", "--root", ".", "--module", "contract", "-o", "build/evm/Counter.bin", "Examples/Evm/Contracts/Counter.lean"]
+    ["--evm-bytecode", "-o", "build/evm/Counter.bin", "--root", ".", "--module", "contract", "--solc", "solc", "--cast", "cast", "Examples/Evm/Contracts/Counter.lean"]
+  requireLegacy
+    ["build", "--target", "evm", "--format", "yul", "-o", "build/evm/ValueVault.yul", "Examples/Learn/ValueVault.learn"]
+    ["--learn-yul", "-o", "build/evm/ValueVault.yul", "Examples/Learn/ValueVault.learn"]
+  requireLegacy
+    ["emit", "--target", "evm", "--fixture", "counter", "--format", "yul", "-o", "build/ir/Counter.yul"]
+    ["--emit-counter-ir-yul", "-o", "build/ir/Counter.yul"]
+  requireLegacy
+    ["emit", "--target", "evm", "--fixture", "evm-event", "--format", "bytecode", "--yul-output", "build/ir/EventProbe.yul", "--artifact-output", "build/ir/EventProbe.json", "-o", "build/ir/EventProbe.bin"]
+    ["--emit-evm-event-ir-bytecode", "-o", "build/ir/EventProbe.bin", "--yul-output", "build/ir/EventProbe.yul", "--artifact-output", "build/ir/EventProbe.json", "--solc", "solc", "--cast", "cast"]
+  requireLegacy
     ["emit", "--target", "solana-sbpf-asm", "--fixture", "system-cpi", "--format", "s"]
     ["--emit-solana-system-cpi-sbpf"]
   requireLegacy
@@ -46,6 +58,21 @@ def main : IO UInt32 := do
   requireLegacy
     ["emit", "--target", "solana-sbpf-asm", "--fixture", "value-vault", "--format", "elf"]
     ["--value-vault-solana-elf"]
+  requireLegacy
+    ["emit", "--target", "wasm-near", "--fixture", "counter", "--format", "wat", "-o", "build/wasm-near/counter"]
+    ["--emit-counter-emitwat", "-o", "build/wasm-near/counter"]
+  requireLegacy
+    ["build", "--target", "wasm-near", "--fixture", "context", "--format", "wat", "-o", "build/wasm-near/context"]
+    ["--emit-context-emitwat", "-o", "build/wasm-near/context"]
+  requireLegacy
+    ["emit", "--target", "psy-dpn", "--fixture", "assert", "--format", "psy", "-o", "build/psy/AssertProbe.psy"]
+    ["--emit-assert-ir-psy", "-o", "build/psy/AssertProbe.psy"]
+  requireLegacy
+    ["emit", "--target", "aleo-leo", "--fixture", "pure-math", "--format", "leo", "-o", "build/aleo/PureMath.leo"]
+    ["--emit-pure-math-ir-leo", "-o", "build/aleo/PureMath.leo"]
+  requireLegacy
+    ["emit", "--target", "move-aptos", "--fixture", "counter", "--format", "aptos", "-o", "build/aptos-counter"]
+    ["--emit-counter-ir-aptos", "-o", "build/aptos-counter"]
   requireLegacy
     ["emit", "--target", "wasm-cloudflare-workers", "--fixture", "counter", "--format", "ts"]
     ["--emit-counter-ir-ts"]

@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-04
 
+### CLI M3 Target-First Gate Consolidation
+
+Commit: this commit
+
+Summary:
+
+- Moved `Tests/CliTargetFirst.lean` into the `just cli-target-first` gate so
+  the CLI M3 check now covers both executable caller scanning and target-first
+  compatibility mapping parity.
+- Removed the CLI mapping smoke from the Solana-only Lean gate; the same test
+  now lives under the CLI product-surface gate where regressions belong.
+- Expanded `Tests/CliTargetFirst.lean` across representative EVM, Solana,
+  NEAR/Wasm, Psy/DPN, Aleo, Aptos, and Cloudflare target-first mappings.
+- Updated RFC 0009, the RFC index, and the implementation backlog to record
+  M3 as landed for executable callers while keeping M4 legacy flag removal
+  deferred until the compatibility window.
+
+Validation run:
+
+```sh
+just cli-target-first
+```
+
+Known limitations:
+
+- This does not remove the legacy `EmitMode` parser. RFC 0009 keeps that as
+  M4 work after one compatibility window.
+- Historical design notes can still mention legacy aliases when they are
+  documenting migration history.
+
+Next step:
+
+- Continue FV-2/FV-4 formal work over control-flow and observable event traces,
+  or explicitly schedule the RFC 0009 M4 legacy flag removal window.
+
 ### FV-4 EVM IR-Backed Aggregate/Storage Obligations
 
 Commit: this commit

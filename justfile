@@ -41,6 +41,7 @@ evm-semantic-plan:
 # Check that executable scripts/testkit callers use target-first CLI commands.
 cli-target-first:
     python3 scripts/cli/check-target-first-migration.py
+    lake env lean Tests/CliTargetFirst.lean
 
 # Run Solana target, SDK, and diagnostics tests that need only the Lean toolchain.
 solana-lean:
@@ -59,7 +60,6 @@ solana-lean:
     lake env lean --run Tests/SolanaPdaSeeds.lean
     lake env lean --run Tests/LearnSource.lean
     lake env lean --run Tests/LearnDiagnostics.lean
-    lake env lean Tests/CliTargetFirst.lean
     lake env lean --run Tests/TargetRouting.lean
     lake env lean --run Tests/ValueVaultExample.lean
     lake env lean --run Tests/TokenSpec.lean
