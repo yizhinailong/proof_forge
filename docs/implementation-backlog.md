@@ -18,6 +18,25 @@ Related docs:
 - [Target notes](targets/README.md)
 - [Validation gates](validation-gates.md)
 
+## Primary-chain completion covenant (D-045)
+
+Before adding implementation scope for more chains, ProofForge must complete
+the three priority chains in this order:
+
+1. `solana-sbpf-asm` — Solana direct sBPF assembly backend.
+2. `evm` — Ethereum/EVM backend and deployment lane.
+3. `wasm-near` — NEAR on the Wasm-family backend.
+
+This is stronger than a research-roadmap preference. It is a product
+precondition tracked as Gate P0 in [gate-status.md](gate-status.md). "Complete"
+means target-first build/emission, local execution or deployment smoke,
+artifact/deploy metadata, capability diagnostics, resource budgets, CI
+coverage, and maintained docs for each of the three chains. New chains may
+receive docs-first research notes, and already-landed non-primary spikes may
+receive CI/security maintenance, but no additional chain should advance its
+registry stage, capability surface, testkit harness, or CI coverage before Gate
+P0 closes.
+
 ## Workstream 1: Target Registry
 
 Goal: make target selection explicit before adding more backends.
@@ -2176,12 +2195,14 @@ advancement. Per-criterion status lives in [gate-status.md](gate-status.md).
 - Solana Pinocchio CI equivalence (Workstream 7): make the live-equivalence
   harnesses pass in CI by installing Solana rustc/platform-tools reliably.
 - Freeze the landed Aptos/CosmWasm spikes at their current M1/M2 state: no
-  Tier-1 M3/M4, no registry stage, no Tier-2 start, until Gate G0 closes.
+  Tier-1 M3/M4, no registry stage, no Tier-2 start, until Gate P0 closes.
 
-Tasks (after Gate G0 closes):
+Tasks (after Gate P0 closes):
 
 - Gate G0 (Tier-0 exit): testkit M3 (Workstream 26) plus shared-scenario
   parity on `evm`, `solana-sbpf-asm`, `wasm-near`, **including D-040 budgets**.
+- Gate P0 (primary-chain sign-off): Gate G0 plus the remaining production-grade
+  hardening for Solana, Ethereum/EVM, and NEAR/Wasm from D-045.
 - Tier 1a `wasm-cosmwasm`: M1 CosmWasm host imports + region-allocator ABI
   in EmitWat (the `cosmWasmRegion` binding from RFC 0008); M2 Counter
   artifact passes `cosmwasm-check`; M3 testkit `harness-cosmwasm` scenario
@@ -2207,10 +2228,10 @@ Tasks (after Gate G0 closes):
 
 Acceptance criteria:
 
-- **Tier-0 completion-first (D-044):** `solana-sbpf-asm`, `evm`, `wasm-near`
-  reach full DoD — behavior parity *and* D-040 resource budgets — before any
-  Tier-1 advancement; the landed Aptos/CosmWasm spikes stay frozen at M1/M2.
-- No Tier-1 code lands before Gate G0; no Tier-2 target starts before its
+- **Primary-chain completion covenant (D-045):** `solana-sbpf-asm`, `evm`,
+  `wasm-near` reach production-grade DoD before any Tier-1 advancement; the
+  landed Aptos/CosmWasm spikes stay frozen at M1/M2.
+- No Tier-1 code lands before Gate P0; no Tier-2 target starts before its
   listed enabler; at most one sourcegen spike is active at any time.
 - Policy-family targets never appear in contract-family capability rows;
   they get a separate `policy.*` section in the capability registry when
@@ -2283,13 +2304,14 @@ workstream. The forward order follows the tier gates of
 1. **Parallel:** unified testkit (Workstream 26) and allocator unification
    (Workstream 27) — testkit M1/M2 has no dependency on allocator M1/M2;
    allocator M4 lands after testkit M3.
-2. **Gate G0 (Tier-0 completion-first, D-044):** finish `solana-sbpf-asm`,
-   `evm`, `wasm-near` — in that implementation priority — to full DoD:
-   shared-scenario behavior parity **and** D-040 resource budgets
-   (`solana_cu` + `evm_gas` + `near_gas`, the last entirely missing) through
-   testkit. The landed Aptos/CosmWasm spikes stay frozen at M1/M2 until this
+2. **Gate P0 (primary-chain completion covenant, D-045):** finish
+   `solana-sbpf-asm`, `evm`, `wasm-near` — in that implementation priority —
+   to production-grade DoD. Gate G0 is the behavior/resource-budget slice; Gate
+   P0 also includes Solana Pinocchio CI equivalence, EVM semantic-plan
+   migration, and NEAR/Wasm local execution, artifact, diagnostic, and CI
+   sign-off. The landed Aptos/CosmWasm spikes stay frozen at M1/M2 until this
    closes. Per-criterion status: [gate-status.md](gate-status.md).
-3. **Parallel Tier 1 (only after Gate G0 closes):** `wasm-cosmwasm`
+3. **Parallel Tier 1 (only after Gate P0 closes):** `wasm-cosmwasm`
    (Workstreams 5/28) and `move-aptos` (Workstreams 8/28).
 4. Tier 2 per enabler: Soroban after CosmWasm; Sui and the sourcegen lane
    (Starknet first pick) after Aptos; ICP additionally behind an async

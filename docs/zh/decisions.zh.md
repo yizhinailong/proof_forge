@@ -51,7 +51,8 @@
 | D-041 | 2026-07-03 | 采用可移植运行时错误模型 (`assertion_id` + 可选 `user_code`) 和统一的 `ContractSpec` 客户端 schema | 每个目标以其原生形式编码相同的错误 id (EVM revert, Solana 自定义错误, NEAR panic 负载, Psy 断言索引)；testkit 断言 `expect.error`。目标中立的 `ContractSpec` JSON 泛化了现有的 Solana IDL，并在 testkit M3 之后提供给每条链的 TS 客户端 |
 | D-042 | 2026-07-03 | 为可移植 IR、制品/部署 JSON schema、能力 id 以及 SDK/CLI 采用版本控制和兼容性策略 | IR 使用 `major.minor`，其中新的构造函数为次要变更，语义变更为主要变更；制品/部署 schema 使用整数 `schemaVersion`，并遵循宽容读取规则；能力 id 为仅追加；SDK/CLI 在 1.0 版本前后遵循类 semver 规则。RFC 0012 定义了完整策略 |
 | D-043 | 2026-07-03 | 添加 `upgradePolicy` 意图（`immutable | authority(keyRef) | governance(ref)`），并将签名保持在编译器之外 | 每个目标诚实地降级策略，或在编译时拒绝；EVM v0 仅支持 `immutable`；Solana 支持 `immutable` 和 `authority`；NEAR 支持 `immutable` 和 `authority` 作为账户密钥策略。ProofForge 仅发射未签名的交易/清单；密钥托管保留在钱包/KMS/CI 密钥中。RFC 0013 定义了完整生命周期和签名边界 |
-| D-044 | 2026-07-03 | **Tier-0 优先完成：** 在进行任何新链推进之前，按实现优先级顺序完成 `solana-sbpf-asm`、`evm`、`wasm-near`，以达到完整的 DoD——包括行为一致性*以及*资源预算（D-040） | 落实 D-035/D-040。在 Gate G0 随预算关闭之前，已落地的 Aptos/CosmWasm spike 冻结在当前的 M1/M2 状态（无注册表阶段，无 M3/M4，不启动 Tier-2）；不落地任何新的目标注册表/能力代码。D-034/Workstream 28 中旧的“并行开启 Tier-1”措辞在当前阶段被此“完成优先”规则取代。参见 [target-roadmap](target-roadmap.md) Tier-0 完成检查清单和 [gate-status](gate-status.md) 以获取各标准状态。 |
+| D-044 | 2026-07-03 | **Tier-0 优先完成：** 在进行任何新链推进之前，按实现优先级顺序完成 `solana-sbpf-asm`、`evm`、`wasm-near`，以达到完整的 DoD——包括行为一致性*以及*资源预算（D-040） | 落实 D-035/D-040。在 Gate G0 随预算关闭之前，已落地的 Aptos/CosmWasm spike 冻结在当前的 M1/M2 状态（无注册表阶段，无 M3/M4，不启动 Tier-2）；D-045 会把该冻结延长到更严格的主三链签署 Gate P0。D-034/Workstream 28 中旧的“并行开启 Tier-1”措辞在当前阶段被此“完成优先”规则取代。参见 [target-roadmap](target-roadmap.md) Tier-0 完成检查清单和 [gate-status](gate-status.md) 以获取各标准状态。 |
+| D-045 | 2026-07-03 | **主三链完成规约：** 产品实现优先级为 `solana-sbpf-asm` → `evm`（Ethereum）→ `wasm-near`（NEAR/Wasm），这三条链必须达到生产级完善后，任何额外链才能推进到文档优先研究或冻结 spike 维护之外 | 这是高于单个工作流的产品级排序规则。“完成”意味着每条链都具备 target-first 构建/发射、本地执行或部署冒烟、制品/部署元数据、能力诊断、资源预算、CI 覆盖以及同步维护的文档。新目标仍可写文档优先研究说明，已落地的 Aptos/CosmWasm/Aleo/Psy/Cloudflare spike 可做 CI/安全维护，但在 [gate-status](gate-status.md) 记录主三链签署之前，不应为额外链落地新的注册表、能力、testkit 或 CI 推进。 |
 
 ## 目标家族分类
 
@@ -77,7 +78,11 @@
 
 ## 路线图摘要
 
-已被 [target-roadmap](target-roadmap.md) (D-034) 中的 Tier/Gate 模型以及 Tier-0 优先完成规则 (D-044) **取代**。下方的历史阶段标签仅用于追溯；请勿将其用于调度。权威的排序是 Tier 模型（Tier 0 激活 → Gate G0 → Tier 1 → Gate G2 → …），Gate G0 的状态在 [gate-status](gate-status.md) 中跟踪。
+已被 [target-roadmap](target-roadmap.md) (D-034) 中的 Tier/Gate 模型、Tier-0
+优先完成规则 (D-044) 以及主三链完成规约 (D-045) **取代**。下方的历史阶段标签
+仅用于追溯；请勿将其用于调度。权威的排序是以主三链签署为第一前置门禁的
+Tier 模型（Tier 0 激活 → Gate P0 → Tier 1 → Gate G2 → …），Gate 状态在
+[gate-status](gate-status.md) 中跟踪。
 
 ```text
 Phase 0: EVM baseline (done)
@@ -137,5 +142,5 @@ Phase 5: Cloud platform
 - 里程碑 3 = Solana 作为唯一的第二个目标 —— 已被并行的 CosmWasm + Solana (D-003) 取代。
 - CLI id `solana-sbf` —— 使用 `solana-sbpf-asm` (D-026)。
 - Move POC 同时生成 Sui 和 Aptos 包 —— Aptos 优先 (D-007)。
-- D-034 “在 Gate G0 之后并行开启 Tier-1 (cosmwasm + aptos)” —— 对于当前阶段，Tier-0 完成优先 (D-044) 具有更高优先级：在将任何 Tier-1 spike 推进到超过其当前状态之前，先完成 `solana-sbpf-asm`/`evm`/`wasm-near` 以达到完整的 DoD（行为 + 预算）。
+- D-034 “在 Gate G0 之后并行开启 Tier-1 (cosmwasm + aptos)” —— 对于当前阶段，Tier-0 完成优先 (D-044) 和主三链完成规约 (D-045) 具有更高优先级：在将任何 Tier-1 spike 推进到超过其当前状态之前，先完成 `solana-sbpf-asm`/`evm`/`wasm-near` 以达到生产级 DoD。
 - decisions.md “路线图摘要” 阶段 0–5 模型 —— 已被 [target-roadmap](target-roadmap.md) (D-034) 中的 tier/gate 模型取代；保留在上方仅用于追溯。

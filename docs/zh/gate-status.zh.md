@@ -5,7 +5,8 @@
 本页是分层目标组合的逐 Gate 完成台账（[target-roadmap](../target-roadmap.md)，
 D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、证据和签署日期。
 只有当所有标准都 **met** 时，Gate 才能 **closed**；任何一个未满足的标准都会
-阻塞下一层级（D-044 completion-first rule）。
+阻塞下一层级。Gate P0 记录主三链完成规约（D-045），它比 G0 的行为/预算切片
+更严格。
 
 不同于记录工程里程碑流水的 [development-log](../development-log.md)，本页记录
 的是*阶段边界*决策：当前阶段的 Definition of Done 是否已经满足，并且证据可审计。
@@ -51,14 +52,38 @@ D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、
 
 ---
 
+## Gate P0 — 主三链完成规约（当前产品前置条件）
+
+**Definition of Done：** ProofForge 必须按实现顺序完成三个优先链：
+`solana-sbpf-asm`、`evm`（Ethereum）和 `wasm-near`（NEAR/Wasm）。在此之前，
+任何额外链都不能推进到 docs-only research 或冻结 spike 维护之外（D-045）。
+
+**状态：Open**
+
+### 验收标准
+
+| # | 标准 | 状态 | 证据 |
+|---|---|---|---|
+| P0-1 | Solana 直接 sBPF 后端达到生产级 | 🟡 in progress | Gate G0 行为/预算一致性已满足；剩余硬化包括工作流 7 的 Solana Pinocchio CI equivalence 以及 live/reference 覆盖 |
+| P0-2 | Ethereum/EVM 后端达到生产级 | 🟡 in progress | Foundry 和 Anvil CI 已绿；剩余硬化包括工作流 3 的 EVM semantic-plan migration |
+| P0-3 | NEAR/Wasm 后端达到生产级 | 🟡 in progress | EmitWat/NEAR 诊断、IR 覆盖、offline host smoke 和预算基线已绿；剩余硬化是完整 target-first 本地执行/部署元数据签署 |
+| P0-4 | 额外链推进保持冻结 | ✅ met | D-044/D-045 冻结 Aptos/CosmWasm 超过 M1/M2 的推进，并在 P0 关闭前保持其他目标 docs-first |
+
+### Sign-off
+
+尚未关闭。关闭 P0 需要逐目标证据，证明 Solana、Ethereum/EVM 和 NEAR/Wasm
+满足 D-045 的生产级 DoD。Gate G0 证据是必要条件，但不是充分条件。
+
+---
+
 ## Gate G1a — CosmWasm M4（冻结，D-044）
 
-**状态：Frozen。** 根据 D-044，`wasm-cosmwasm` spike 在 Gate G0 关闭前保持在
-当前 M1/M2 状态。不得推进 registry stage，不得推进 M3/M4。
+**状态：Frozen。** 根据 D-044/D-045，`wasm-cosmwasm` spike 在 Gate P0 关闭前
+保持在当前 M1/M2 状态。不得推进 registry stage，不得推进 M3/M4。
 
 ## Gate G1b — Aptos M4（冻结，D-044）
 
-**状态：Frozen。** 根据 D-044，`move-aptos` spike 在 Gate G0 关闭前保持在
+**状态：Frozen。** 根据 D-044/D-045，`move-aptos` spike 在 Gate P0 关闭前保持在
 当前 M1/M2 状态（Counter printer + golden + test gate，B1 state-id fidelity）。
 不得推进 M3（testkit CLI-wrapped executor）、M4（registry stage → Experimental），
 也不得启动 `move-sui`。
@@ -66,4 +91,4 @@ D-034）。每个 Gate 都有一条记录，列出验收标准、逐项状态、
 ## Gate G2 — 两个 Tier-1 退出（未开始）
 
 **状态：Not started。** 只有在 G1a 和 G1b 都关闭后才开启；而它们本身都要求
-Gate G0 先关闭（D-044）。
+Gate P0 先关闭（D-045）。

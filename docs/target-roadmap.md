@@ -15,19 +15,27 @@ milestones that map one-to-one onto implementing branches.
 
 ```text
 Tier 0  Active on main today
-Tier 1  Next: opens when the Tier-0 parity gate passes
+Tier 1  Next: opens when the primary-chain completion gate passes
 Tier 2  Conditional: opens when its listed enabler lands
 Tier 3  Parked research: docs stay current, no registry/code work
 ```
 
-**Tier-0 parity gate (the current phase goal):** the shared scenario
+**Primary-chain completion covenant (D-045):** product implementation capacity
+is reserved for the three priority chains, in order:
+`solana-sbpf-asm` → `evm` (Ethereum) → `wasm-near` (NEAR/Wasm). These targets
+must reach production-grade completeness before any additional chain advances
+beyond docs-only research or frozen spike maintenance. The sign-off ledger is
+Gate P0 in [gate-status.md](gate-status.md).
+
+**Tier-0 parity gate (Gate G0, the first required slice of D-045):** the shared scenario
 (Counter, then ValueVault) passes in testkit (RFC 0007) on `evm`,
 `solana-sbpf-asm`, and `wasm-near`, and the Counter scenario asserts
 per-target resource budgets (RFC 0010): Solana CU, EVM gas, and an
-info-only NEAR gas proxy. Nothing in Tier 1 starts before this, because
-every later target reuses the artifacts this gate hardens: the portable
-IR surface, capability routing, EmitWat, the scenario harness, and the
-budget-as-gate quality signal.
+info-only NEAR gas proxy. Gate G0 closes the behavior/budget parity slice, but
+D-045 keeps Tier 1 frozen until the remaining primary-chain hardening is also
+signed off. Every later target reuses the artifacts this work hardens: the
+portable IR surface, capability routing, EmitWat, the scenario harness, target
+artifact metadata, and budget-as-gate quality signal.
 
 ## Tier 0 — active (no new planning needed)
 
@@ -44,8 +52,8 @@ budget-as-gate quality signal.
 
 The three priority targets are not yet "fully OK". **Implementation priority:
 `solana-sbpf-asm` → `evm` → `wasm-near`.** No new-chain advancement (Tier 1
-M3/M4/registry stage, Tier 2 start) until the items below are all green. Per-gate
-status is tracked in [gate-status.md](gate-status.md).
+M3/M4/registry stage, Tier 2 start) until Gate P0 is closed. Per-gate status is
+tracked in [gate-status.md](gate-status.md).
 
 | Item | Target | Status | Owner |
 |---|---|---|---|
@@ -121,7 +129,7 @@ design dependency.
 **Frozen at M2 (D-044):** the landed Aptos Move Counter sourcegen spike
 (printer + golden + `aptos move compile/test` gate + state-id fidelity B1)
 does not advance to M3 (testkit integration) or M4 (capability row validated /
-`move-sui` start) until Gate G0 closes.
+`move-sui` start) until Gate P0 closes.
 
 ## Tier 2 — conditional targets (enabler listed per target)
 

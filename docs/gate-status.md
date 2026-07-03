@@ -6,7 +6,9 @@ This page is the authoritative per-gate completion ledger for the tiered
 portfolio ([target-roadmap](target-roadmap.md), D-034). Each Gate has one
 record listing its acceptance criteria, per-criterion status, evidence, and
 sign-off date. A Gate is **closed** only when every criterion is **met**; a
-single unmet criterion blocks the next tier (D-044 completion-first rule).
+single unmet criterion blocks the next tier. Gate P0 records the
+primary-chain completion covenant (D-045), which is stricter than the G0
+behavior/budget slice.
 
 Unlike [development-log](development-log.md) (a stream of engineering
 milestones), this page records the *phase boundary* decisions: whether the
@@ -56,19 +58,46 @@ the current commit and successful `just testkit` + `just check`/CI evidence.
 
 ---
 
+## Gate P0 — Primary-chain completion covenant (current product prerequisite)
+
+**Definition of Done:** ProofForge must complete the three priority chains in
+implementation order — `solana-sbpf-asm`, `evm` (Ethereum), and `wasm-near`
+(NEAR/Wasm) — before any additional chain advances beyond docs-only research or
+frozen spike maintenance (D-045).
+
+**Status: Open**
+
+### Acceptance criteria
+
+| # | Criterion | Status | Evidence |
+|---|---|---|---|
+| P0-1 | Solana direct sBPF backend is production-grade | 🟡 in progress | Gate G0 behavior/budget parity is met; remaining hardening includes Solana Pinocchio CI equivalence and live/reference coverage in Workstream 7 |
+| P0-2 | Ethereum/EVM backend is production-grade | 🟡 in progress | Foundry and Anvil CI are green; remaining hardening includes the EVM semantic-plan migration in Workstream 3 |
+| P0-3 | NEAR/Wasm backend is production-grade | 🟡 in progress | EmitWat/NEAR diagnostics, IR coverage, offline host smoke, and budget baselines are green; remaining hardening is full target-first local execution/deploy metadata sign-off |
+| P0-4 | Additional-chain advancement is frozen | ✅ met | D-044/D-045 freeze Aptos/CosmWasm advancement past M1/M2 and keep other targets docs-first until P0 closes |
+
+### Sign-off
+
+Not yet closed. Closing P0 requires target-by-target evidence that Solana,
+Ethereum/EVM, and NEAR/Wasm satisfy the production-grade DoD in D-045. Gate G0
+evidence is necessary but not sufficient.
+
+---
+
 ## Gate G1a — CosmWasm M4 (frozen, D-044)
 
-**Status: Frozen.** Per D-044, the `wasm-cosmwasm` spike stays at its current
-M1/M2 state until Gate G0 closes. No registry-stage advancement, no M3/M4.
+**Status: Frozen.** Per D-044/D-045, the `wasm-cosmwasm` spike stays at its
+current M1/M2 state until Gate P0 closes. No registry-stage advancement, no
+M3/M4.
 
 ## Gate G1b — Aptos M4 (frozen, D-044)
 
-**Status: Frozen.** Per D-044, the `move-aptos` spike stays at its current
+**Status: Frozen.** Per D-044/D-045, the `move-aptos` spike stays at its current
 M1/M2 state (Counter printer + golden + test gate, B1 state-id fidelity) until
-Gate G0 closes. No M3 (testkit CLI-wrapped executor), no M4 (registry stage →
+Gate P0 closes. No M3 (testkit CLI-wrapped executor), no M4 (registry stage →
 Experimental), no `move-sui` start.
 
 ## Gate G2 — both Tier-1 exits (not started)
 
 **Status: Not started.** Opens only after G1a *and* G1b close, which themselves
-require Gate G0 to close first (D-044).
+require Gate P0 to close first (D-045).

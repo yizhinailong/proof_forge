@@ -53,7 +53,8 @@ See also: [Review checklist (English)](review-checklist.md),
 | D-041 | 2026-07-03 | Adopt a portable runtime error model (`assertion_id` + optional `user_code`) and a unified `ContractSpec` client schema | Each target encodes the same error id in its native form (EVM revert, Solana custom error, NEAR panic payload, Psy assertion index); testkit asserts `expect.error`. A target-neutral `ContractSpec` JSON generalizes the existing Solana IDL and feeds per-chain TS clients after testkit M3 |
 | D-042 | 2026-07-03 | Adopt a versioning and compatibility policy for the portable IR, artifact/deploy JSON schemas, capability ids, and the SDK/CLI | IR uses `major.minor` where new constructors are minor and semantic changes are major; artifact/deploy schemas use integer `schemaVersion` with a tolerant-reader rule; capability ids are append-only; SDK/CLI follows semver-ish rules pre- and post-1.0. RFC 0012 defines the full policy |
 | D-043 | 2026-07-03 | Add an `upgradePolicy` intent (`immutable | authority(keyRef) | governance(ref)`) and keep signing outside the compiler | Each target lowers the policy honestly or rejects it at compile time; EVM v0 supports only `immutable`; Solana supports `immutable` and `authority`; NEAR supports `immutable` and `authority` as account-key policy. ProofForge emits unsigned transactions/manifests only; key custody stays in wallets/KMS/CI secrets. RFC 0013 defines the full lifecycle and signing boundary |
-| D-044 | 2026-07-03 | **Tier-0 completion first:** finish `solana-sbpf-asm`, `evm`, `wasm-near` (in that implementation priority) to full DoD — behavior parity *and* resource budgets (D-040) — before any new-chain advancement | Operationalizes D-035/D-040. Until Gate G0 closes with budgets, the already-landed Aptos/CosmWasm spikes are frozen at their current M1/M2 state (no registry stage, no M3/M4, no Tier-2 start); no new target registry/capability code lands. The old "open Tier-1 in parallel" wording in D-034/Workstream 28 is superseded for the current phase by this completion-first rule. See [target-roadmap](target-roadmap.md) Tier-0 completion checklist and [gate-status](gate-status.md) for per-criterion status. |
+| D-044 | 2026-07-03 | **Tier-0 completion first:** finish `solana-sbpf-asm`, `evm`, `wasm-near` (in that implementation priority) to full DoD — behavior parity *and* resource budgets (D-040) — before any new-chain advancement | Operationalizes D-035/D-040. Until Gate G0 closes with budgets, the already-landed Aptos/CosmWasm spikes are frozen at their current M1/M2 state (no registry stage, no M3/M4, no Tier-2 start); D-045 extends that freeze through the stricter primary-chain sign-off Gate P0. The old "open Tier-1 in parallel" wording in D-034/Workstream 28 is superseded for the current phase by this completion-first rule. See [target-roadmap](target-roadmap.md) Tier-0 completion checklist and [gate-status](gate-status.md) for per-criterion status. |
+| D-045 | 2026-07-03 | **Primary-chain completion covenant:** product implementation priority is `solana-sbpf-asm` → `evm` (Ethereum) → `wasm-near` (NEAR/Wasm), and those three chains must be completed to production-grade quality before any additional chain advances beyond docs-only research or frozen spike maintenance | This is the product-level sequencing rule above individual workstreams. "Complete" means target-first build/emission, local execution or deployment smoke, artifact/deploy metadata, capability diagnostics, resource budgets, CI coverage, and maintained docs. New targets may still receive docs-first research notes, and already-landed Aptos/CosmWasm/Aleo/Psy/Cloudflare spikes may receive CI/security maintenance, but no new registry/capability/testkit/CI advancement for additional chains should land until the primary three-chain sign-off is recorded in [gate-status](gate-status.md). |
 
 ## Target Family Classification
 
@@ -79,11 +80,13 @@ See also: [Review checklist (English)](review-checklist.md),
 
 ## Roadmap Summary
 
-**Superseded** by the tier/gate model in [target-roadmap](target-roadmap.md) (D-034)
-and the Tier-0 completion-first rule (D-044). The historical phase labels below are
+**Superseded** by the tier/gate model in [target-roadmap](target-roadmap.md) (D-034),
+the Tier-0 completion-first rule (D-044), and the primary-chain completion
+covenant (D-045). The historical phase labels below are
 kept only for traceability; do not use them for scheduling. The authoritative
-sequencing is the tier model (Tier 0 active → Gate G0 → Tier 1 → Gate G2 → …)
-with Gate G0 status tracked in [gate-status](gate-status.md).
+sequencing is the tier model with the primary-chain sign-off gate first
+(Tier 0 active → Gate P0 → Tier 1 → Gate G2 → …), with Gate status tracked in
+[gate-status](gate-status.md).
 
 ```text
 Phase 0: EVM baseline (done)
@@ -143,5 +146,5 @@ These earlier doc positions are no longer authoritative:
 - Milestone 3 = Solana as the single second target — replaced by parallel CosmWasm + Solana (D-003).
 - CLI id `solana-sbf` — use `solana-sbpf-asm` (D-026).
 - Move POC generates both Sui and Aptos packages at once — Aptos first (D-007).
-- D-034 "open Tier-1 (cosmwasm + aptos) in parallel after Gate G0" — for the current phase, Tier-0 completion-first (D-044) takes precedence: finish `solana-sbpf-asm`/`evm`/`wasm-near` to full DoD (behavior + budgets) before advancing any Tier-1 spike past its current state.
+- D-034 "open Tier-1 (cosmwasm + aptos) in parallel after Gate G0" — for the current phase, Tier-0 completion-first (D-044) and the primary-chain completion covenant (D-045) take precedence: finish `solana-sbpf-asm`/`evm`/`wasm-near` to production-grade DoD before advancing any Tier-1 spike past its current state.
 - decisions.md "Roadmap Summary" Phase 0–5 model — superseded by the tier/gate model in [target-roadmap](target-roadmap.md) (D-034); kept above only for traceability.
