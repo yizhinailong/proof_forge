@@ -1275,7 +1275,10 @@ shell/Node harness；参见
   后续切片删除了 Solana harness 内部重复的 metadata/manifest 语义 validator，
   在 `testkit/harness-solana` 中只保留运行时 dispatch 所需的解析。下一段切片收紧了
   scenario discovery：空的 target id、重复的 target id，以及引用了未声明 target 的
-  artifact expectation，都会在任何 harness 运行前失败。
+  artifact expectation，都会在任何 harness 运行前失败。当前 EVM 切片把 EVM
+  artifact metadata 的身份字段、capability、validation 状态和 ABI entrypoint
+  名称期望迁移到 scenario-declared `[[artifact.json]]` 检查中，让
+  `testkit/harness-evm` 只负责 selector 解析和运行时执行。
 
 验收标准：
 

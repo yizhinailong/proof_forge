@@ -2058,7 +2058,11 @@ Tasks (one milestone per implementing branch):
   metadata/manifest semantic validators and leaves only runtime dispatch parsing
   in `testkit/harness-solana`. The next slice tightens scenario discovery so
   empty or duplicate target ids and artifact expectations for undeclared
-  targets fail before any harness runs.
+  targets fail before any harness runs. The current EVM slice moves EVM
+  artifact metadata identity, capability, validation, and ABI entrypoint-name
+  expectations into scenario-declared `[[artifact.json]]` checks, leaving
+  `testkit/harness-evm` responsible only for selector parsing and runtime
+  execution.
 
 Acceptance criteria:
 

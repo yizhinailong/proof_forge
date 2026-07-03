@@ -15,7 +15,7 @@ Current scope:
 - scenario-declared artifact checks through `[[artifact]]` entries, including
   golden-file equality (`matches_file`), text contains checks (`contains`),
   and structured JSON/TOML path assertions through nested `[[artifact.json]]`
-  and `[[artifact.toml]]` checks
+  and `[[artifact.toml]]` checks for target metadata and manifests
 - `wasm-near` Counter and ValueVault execution through the existing
   deterministic `runtime/offline-host` wasmtime host
 - `evm` Counter execution through an in-process `revm` harness that emits the

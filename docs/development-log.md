@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit EVM Metadata Expectations
+
+Commit: feature commit for unified testkit EVM metadata expectations
+
+Summary:
+
+- Added scenario-declared EVM metadata checks for Counter and ValueVault,
+  covering target identity, artifact kind, fixture/source kind, declared
+  capabilities, ABI entrypoint names, and bytecode-generation validation
+  status.
+- Removed the duplicated EVM harness metadata identity checks for
+  `target`/`sourceKind`; `testkit/harness-evm` now reads metadata only for
+  runtime selector dispatch.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml --workspace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --target evm
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target evm
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Local ValueVault EVM execution still skips when Foundry `cast` is not on
+  `PATH`; CI covers the full path where Foundry is installed.
+
+Next step:
+
+- Continue migrating the remaining shell-only golden/source checks that are
+  deterministic into scenario declarations, while keeping live Foundry/Anvil
+  deployment gates separate.
+
 ### Unified Testkit Scenario Target Validation
 
 Commit: feature commit for unified testkit scenario target validation

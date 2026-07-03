@@ -86,6 +86,54 @@ contains = "control.conditional"
 path = "validation.manifestGeneration"
 equals = "passed"
 
+[[artifact]]
+target = "evm"
+name = "metadata"
+
+[[artifact.json]]
+path = "target"
+equals = "evm"
+
+[[artifact.json]]
+path = "targetFamily"
+equals = "evm"
+
+[[artifact.json]]
+path = "artifactKind"
+equals = "evm-bytecode"
+
+[[artifact.json]]
+path = "fixture"
+equals = "Counter"
+
+[[artifact.json]]
+path = "sourceKind"
+equals = "portable-ir"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "storage.scalar"
+
+[[artifact.json]]
+path = "abi.entrypoints[0].name"
+equals = "initialize"
+
+[[artifact.json]]
+path = "abi.entrypoints[1].name"
+equals = "increment"
+
+[[artifact.json]]
+path = "abi.entrypoints[2].name"
+equals = "get"
+
+[[artifact.json]]
+path = "validation.solcStrictAssembly"
+equals = "passed"
+
+[[artifact.json]]
+path = "validation.bytecodeGeneration"
+equals = "passed"
+
 [[step]]
 call = "initialize"
 

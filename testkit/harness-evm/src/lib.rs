@@ -350,18 +350,6 @@ fn load_selectors(path: &Path) -> Result<HashMap<String, [u8; 4]>> {
         fs::read_to_string(path).with_context(|| format!("failed to read `{}`", path.display()))?;
     let artifact: ArtifactMetadata = serde_json::from_str(&text)
         .with_context(|| format!("failed to parse `{}`", path.display()))?;
-    ensure!(
-        artifact.target == "evm",
-        "EVM artifact `{}` has target `{}`",
-        path.display(),
-        artifact.target
-    );
-    ensure!(
-        artifact.source_kind == "portable-ir" || artifact.source_kind == "contract-sdk",
-        "EVM artifact `{}` has unsupported sourceKind `{}`",
-        path.display(),
-        artifact.source_kind
-    );
 
     let mut selectors = HashMap::new();
     for entrypoint in artifact.abi.entrypoints {
@@ -410,9 +398,6 @@ fn path_str(path: &Path) -> Result<&str> {
 
 #[derive(Debug, Deserialize)]
 struct ArtifactMetadata {
-    target: String,
-    #[serde(rename = "sourceKind")]
-    source_kind: String,
     abi: ArtifactAbi,
 }
 

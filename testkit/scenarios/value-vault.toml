@@ -26,6 +26,78 @@ contains = [
 ]
 
 [[artifact]]
+target = "evm"
+name = "metadata"
+
+[[artifact.json]]
+path = "target"
+equals = "evm"
+
+[[artifact.json]]
+path = "targetFamily"
+equals = "evm"
+
+[[artifact.json]]
+path = "artifactKind"
+equals = "evm-bytecode"
+
+[[artifact.json]]
+path = "fixture"
+equals = "ValueVault"
+
+[[artifact.json]]
+path = "sourceKind"
+equals = "contract-sdk"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "storage.scalar"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "events.emit"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "env.block"
+
+[[artifact.json]]
+path = "abi.entrypoints[0].name"
+equals = "initialize"
+
+[[artifact.json]]
+path = "abi.entrypoints[1].name"
+equals = "deposit"
+
+[[artifact.json]]
+path = "abi.entrypoints[2].name"
+equals = "charge_fee"
+
+[[artifact.json]]
+path = "abi.entrypoints[3].name"
+equals = "release"
+
+[[artifact.json]]
+path = "abi.entrypoints[4].name"
+equals = "snapshot"
+
+[[artifact.json]]
+path = "abi.entrypoints[5].name"
+equals = "get_balance"
+
+[[artifact.json]]
+path = "abi.entrypoints[6].name"
+equals = "get_net_value"
+
+[[artifact.json]]
+path = "validation.solcStrictAssembly"
+equals = "passed"
+
+[[artifact.json]]
+path = "validation.bytecodeGeneration"
+equals = "passed"
+
+[[artifact]]
 target = "solana-sbpf-asm"
 name = "sbpf-asm"
 contains = [
