@@ -1273,7 +1273,9 @@ shell/Node harness；参见
   ValueVault 的 metadata/manifest 字段、instruction 名称和 tag、capability
   membership 以及 validation 状态，都由 scenario runner 以声明式方式断言。
   后续切片删除了 Solana harness 内部重复的 metadata/manifest 语义 validator，
-  在 `testkit/harness-solana` 中只保留运行时 dispatch 所需的解析。
+  在 `testkit/harness-solana` 中只保留运行时 dispatch 所需的解析。下一段切片收紧了
+  scenario discovery：空的 target id、重复的 target id，以及引用了未声明 target 的
+  artifact expectation，都会在任何 harness 运行前失败。
 
 验收标准：
 

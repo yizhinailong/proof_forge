@@ -2056,7 +2056,9 @@ Tasks (one milestone per implementing branch):
   membership, and validation status are asserted declaratively by the scenario
   runner. The follow-up slice removes the duplicated Solana harness-internal
   metadata/manifest semantic validators and leaves only runtime dispatch parsing
-  in `testkit/harness-solana`.
+  in `testkit/harness-solana`. The next slice tightens scenario discovery so
+  empty or duplicate target ids and artifact expectations for undeclared
+  targets fail before any harness runs.
 
 Acceptance criteria:
 

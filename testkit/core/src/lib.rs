@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -265,6 +266,19 @@ pub fn discover_scenarios(dir: &Path) -> Result<Vec<ScenarioCase>> {
             "scenario `{}` has no targets",
             path.display()
         );
+        let mut targets = HashSet::with_capacity(manifest.scenario.targets.len());
+        for target in &manifest.scenario.targets {
+            ensure!(
+                !target.trim().is_empty(),
+                "scenario `{}` has an empty target id",
+                manifest.scenario.name
+            );
+            ensure!(
+                targets.insert(target.as_str()),
+                "scenario `{}` lists target `{target}` more than once",
+                manifest.scenario.name
+            );
+        }
         ensure!(
             !manifest.steps.is_empty(),
             "scenario `{}` has no steps",
@@ -297,6 +311,14 @@ pub fn discover_scenarios(dir: &Path) -> Result<Vec<ScenarioCase>> {
                 !artifact.target.trim().is_empty(),
                 "scenario `{}` has an artifact expectation with an empty target",
                 manifest.scenario.name
+            );
+            ensure!(
+                targets.contains(artifact.target.as_str()),
+                "scenario `{}` artifact expectation `{}` references target `{}`, but scenario targets are [{}]",
+                manifest.scenario.name,
+                artifact.name,
+                artifact.target,
+                manifest.scenario.targets.join(", ")
             );
             ensure!(
                 !artifact.name.trim().is_empty(),
@@ -1198,6 +1220,40 @@ mod tests {
         )
         .unwrap();
 
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn discover_scenarios_rejects_artifact_target_outside_scenario_targets() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "proof-forge-testkit-artifact-target-validation-{nonce}"
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("bad.toml"),
+            r#"[scenario]
+name = "bad"
+fixture = "counter"
+targets = ["wasm-near"]
+
+[[artifact]]
+target = "rogue-target"
+name = "wat"
+contains = ["module"]
+
+[[step]]
+call = "initialize"
+"#,
+        )
+        .unwrap();
+
+        let err = discover_scenarios(&root).unwrap_err();
+
+        assert!(err.to_string().contains("references target `rogue-target`"));
         fs::remove_dir_all(&root).unwrap();
     }
 

@@ -17,6 +17,39 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Unified Testkit Scenario Target Validation
+
+Commit: feature commit for unified testkit scenario target validation
+
+Summary:
+
+- Tightened scenario discovery so `testkit/core` rejects empty target ids,
+  duplicate target ids, and artifact expectations that reference a target not
+  declared in the scenario's `targets` list.
+- Added a negative unit test proving stale or mistyped artifact target
+  expectations fail during `discover_scenarios`, before any target harness
+  runs.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo test --manifest-path testkit/Cargo.toml -p proof-forge-testkit-core
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
+```
+
+Known limitations:
+
+- This only validates scenario configuration. Harness availability still
+  depends on optional target tools such as `cast`, `sbpf`, and
+  `solana-keygen`.
+
+Next step:
+
+- Continue moving pure artifact assertions out of target harnesses and into
+  scenario declarations until the remaining M4 shell-gate duplication is
+  isolated to live/network-authentic smoke tests.
+
 ### Unified Testkit Solana Harness Thinning
 
 Commit: feature commit for Solana testkit artifact validation thinning

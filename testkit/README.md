@@ -7,6 +7,8 @@ smokes.
 Current scope:
 
 - scenario discovery from `testkit/scenarios/*.toml`
+- scenario manifest validation that rejects empty or duplicate target ids and
+  artifact checks for targets not declared by the scenario
 - typed scalar scenario args (`u64`, `u32`, `bool`) that each harness encodes
   into its native ABI (`Borsh`/little-endian input for `wasm-near`, ABI words
   for `evm`, and `[tag] + little-endian args` for `solana-sbpf-asm`)
