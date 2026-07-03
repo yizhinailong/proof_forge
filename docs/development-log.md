@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-03
 
+### Solana Target-First v0 ELF Live Deploy Fix
+
+Commit: feature commit for Solana target-first ELF arch propagation
+
+Summary:
+
+- Fixed the target-first CLI compatibility layer so
+  `proof-forge emit --target solana-sbpf-asm --format elf
+  --solana-sbpf-arch v0` forwards the requested architecture into the legacy
+  Solana ELF builder instead of silently falling back to the default v3 build.
+- Confirmed the fixed target-first path now emits the same loader-compatible
+  v0 ELF shape as the direct legacy flag: `e_flags = 0`, valid section table,
+  and Agave `solana-sbpf 0.13.1` parse/load success.
+- Re-ran the full local ProofForge-vs-Pinocchio live dual-deploy suite. All
+  five Surfpool scenarios deployed both generated ProofForge and Pinocchio
+  reference programs and matched observable state.
+
+Validation run:
+
+```sh
+lake build proof-forge
+lake env lean Tests/CliTargetFirst.lean
+lake env proof-forge emit --target solana-sbpf-asm --fixture system-cpi \
+  --format elf --solana-sbpf-arch v0 \
+  -o build/solana-compat-check-fixed/new-v0.so \
+  --artifact-output build/solana-compat-check-fixed/new-v0.json
+cargo run --manifest-path /tmp/proofforge-elf-check-013/Cargo.toml -- \
+  build/solana-compat-check-fixed/new-v0.so
+just solana-pinocchio-system-transfer-live-equivalence
+just solana-pinocchio-live-equivalence
+```
+
+Known limitations:
+
+- This resolves the local Agave loader compatibility blocker, but Gate P0 is
+  still open. The live Pinocchio suite is not yet mandatory in CI, and broader
+  Solana production-grade sign-off remains tracked under Gate P0.
+
+Next step:
+
+- Promote the live Pinocchio suite into a reliable CI lane once Solana
+  rustc/platform-tools, Surfpool, Node/npm, and port isolation are stable
+  enough for mandatory remote execution.
+
 ### Solana Pinocchio Live Deploy Blocker Triage
 
 Commit: documentation commit for Solana live deploy blocker triage
