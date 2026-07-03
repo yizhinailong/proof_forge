@@ -3,3 +3,4 @@ import ProofForge.Backend.Psy.IR
 import ProofForge.Backend.Solana
 import ProofForge.Backend.WasmNear
 import ProofForge.Backend.Aleo
+import ProofForge.Backend.CosmWasm

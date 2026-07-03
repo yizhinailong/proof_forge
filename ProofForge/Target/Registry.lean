@@ -124,7 +124,8 @@ def wasmCosmWasm : TargetProfile := {
     .envBlock,
     .cryptoHash
   ]
-  requiredTools := #["zig", "cosmwasm-check"]
+  -- M1 spike uses a direct WAT emitter; the Zig route is deferred to Workstream 4.
+  requiredTools := #["wat2wasm", "cosmwasm-check"]
 }
 
 def wasmCloudflareWorkers : TargetProfile := {

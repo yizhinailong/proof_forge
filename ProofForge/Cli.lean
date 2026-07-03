@@ -17,6 +17,7 @@ import ProofForge.Contract.Token.Learn
 import ProofForge.Backend.WasmNear
 import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Backend.Aleo.IR
+import ProofForge.Backend.CosmWasm.EmitWat
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.Compiler.TS.AST
 import ProofForge.Compiler.TS.Printer
@@ -210,6 +211,7 @@ inductive EmitMode where
   | mapEmitWat
   | counterIrLeo
   | pureMathIrLeo
+  | counterIrCosmWasm
   deriving BEq, Inhabited
 
 def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
@@ -341,7 +343,8 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .mapEmitWat
   | .counterIrLeo
   | .pureMathIrLeo
-  | .counterIrTs => true
+  | .counterIrTs
+  | .counterIrCosmWasm => true
   | _ => false
 
 structure CliOptions where
@@ -485,6 +488,7 @@ def usage : String :=
     "  proof-forge --emit-hash-ir-wasm-near -o output-dir",
     "  proof-forge --emit-map-ir-wasm-near -o output-dir",
     "  proof-forge --emit-counter-ir-leo [-o output.leo]",
+    "  proof-forge --emit-counter-ir-cosmwasm [-o output.wat]   (CosmWasm Counter spike)",
     "",
     "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
@@ -2275,6 +2279,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .counterIrLeo }
   | "--emit-pure-math-ir-leo" :: rest, opts =>
       parseArgs rest { opts with mode := .pureMathIrLeo }
+  | "--emit-counter-ir-cosmwasm" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrCosmWasm }
   | "-h" :: _, _ =>
       .error usage
   | "--help" :: _, _ =>
@@ -4308,6 +4314,16 @@ def compilePureMathIrLeo (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+def compileCounterIrCosmWasm (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/cosmwasm/Counter.wat")
+  match ProofForge.Backend.CosmWasm.EmitWat.renderModule ProofForge.IR.Examples.Counter.module with
+  | .ok source =>
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.message
+
 unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
@@ -4439,6 +4455,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .mapEmitWat => compileMapEmitWat opts
   | .counterIrLeo => compileCounterIrLeo opts
   | .pureMathIrLeo => compilePureMathIrLeo opts
+  | .counterIrCosmWasm => compileCounterIrCosmWasm opts
 
 end ProofForge.Cli
 
