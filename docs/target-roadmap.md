@@ -48,7 +48,7 @@ primary-chain completion covenant is open.
 | Target | State |
 |---|---|
 | `solana-sbpf-asm` | **Primary priority 1.** Experimental; live gates + Pinocchio equivalence growing |
-| `evm` | **Primary priority 2.** Baseline; semantic-plan migration tracked in Workstream 3 |
+| `evm` | **Primary priority 2.** Production-grade P0-2 signed off; semantic-plan migration landed, with EVM smokes, Foundry, Anvil, and FV-4 trace anchors green |
 | `wasm-near` | **Primary priority 3.** Experimental; EmitWat canonical (D-031) |
 | `psy-dpn` | Maintenance-only Experimental subset; no capability/testkit expansion until P0 closes |
 | `aleo-leo` | Maintenance-only Research spike per D-032; no new implementation lane until P0 closes |
@@ -69,7 +69,7 @@ tracked in [gate-status.md](gate-status.md).
 | NEAR gas budget implementation | wasm-near | ✅ met | testkit scenarios |
 | ValueVault budget baselines (3 targets) | all | ✅ met | testkit scenarios |
 | Gate G0 sign-off | all | ✅ closed | gate-status |
-| EVM semantic-plan migration | evm | 🟡 in progress | Workstream 3 |
+| EVM semantic-plan migration | evm | ✅ met | Workstream 3 / P0-2 |
 | Solana Pinocchio CI equivalence | solana | 🟡 reference suite in `solana-light`; live dual-deploy pending | Workstream 7 |
 
 Gate G0 is closed, but it is not the product completion gate. Gate P0 remains

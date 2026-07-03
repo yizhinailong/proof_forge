@@ -2226,10 +2226,13 @@ advancement. Per-criterion status lives in [gate-status.md](gate-status.md).
 - Done: ValueVault budget baselines are pinned for `solana_cu`, `evm_gas`, and
   `near_gas` across the three primary targets in
   `testkit/scenarios/value-vault.toml`.
-- EVM semantic-plan migration (Workstream 3): ExprPlan, StmtPlan,
-  EntrypointPlan, EventPlan, CrosscallPlan, MetadataPlan — then retire the old
-  `IR.lean -> Yul` lowering. Non-blocking for Gate G0 budgets but on the EVM
-  hardening track.
+- Done: EVM semantic-plan migration (Workstream 3 / P0-2) is signed off.
+  ExprPlan, StmtPlan, EntrypointPlan, EventPlan, CrosscallPlan, and
+  MetadataPlan now feed the plan-backed EVM lowering and artifact/deploy
+  metadata path; `just evm-plan`, `just evm-semantic-plan`, `just evm-all`,
+  `just check`, Foundry, Anvil, and the FV-4 executable EVM/Yul trace anchors
+  are green. Remaining EVM formal work is FV-2 aggregate/storage IR semantics,
+  not a P0-2 blocker.
 - Solana Pinocchio CI equivalence (Workstream 7): the source/reference
   equivalence suite is included in `just solana-light`; remaining work is to
   make the live-equivalence harnesses pass in CI by installing Solana rustc/
@@ -2349,9 +2352,10 @@ workstream. The forward order follows the tier gates of
 2. **Gate P0 (primary-chain completion covenant, D-045):** finish
    `solana-sbpf-asm`, `evm`, `wasm-near` — in that implementation priority —
    to production-grade DoD. Gate G0 is the behavior/resource-budget slice; Gate
-   P0 also includes Solana Pinocchio CI equivalence, EVM semantic-plan
-   migration, and NEAR/Wasm local execution, artifact, diagnostic, and CI
-   sign-off. The landed Aptos/CosmWasm spikes stay frozen at M1/M2 until this
+   P0 also includes Solana Pinocchio CI equivalence, the already-signed-off
+   EVM P0-2 semantic-plan/FV-4 evidence, and NEAR/Wasm local execution,
+   artifact, diagnostic, and CI sign-off. The landed Aptos/CosmWasm spikes
+   stay frozen at M1/M2 until this
    closes. Per-criterion status: [gate-status.md](gate-status.md).
 3. **Parallel Tier 1 (only after Gate P0 closes):** `wasm-cosmwasm`
    (Workstreams 5/28) and `move-aptos` (Workstreams 8/28).
