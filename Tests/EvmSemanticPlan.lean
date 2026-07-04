@@ -312,6 +312,64 @@ def testScalarReturnPlanToYul : IO Unit := do
       require (args.size == 1) "storage scalar return plan-to-yul arg count"
   | _ => throw <| IO.userError "storage scalar return plan-to-yul must assign sload"
 
+def testScalarBindingStmtPlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
+  let directStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarBindingStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      (.letBind
+        "m"
+        .u64
+        (.checkedArith .add (.local "n") (.literalWord 1))))
+    "scalar let StmtPlan-to-Yul helper"
+  require (directStmts.size == 1) "scalar let StmtPlan-to-Yul helper statement count"
+  match directStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.call name args)) => do
+      match vars[0]? with
+      | some var => require (var.name == "m") "scalar let StmtPlan-to-Yul helper var name"
+      | none => throw <| IO.userError "scalar let StmtPlan-to-Yul helper missing var"
+      require (name == "__pf_checked_add") "scalar let StmtPlan-to-Yul helper checked add"
+      require (args.size == 2) "scalar let StmtPlan-to-Yul helper checked add arg count"
+  | _ => throw <| IO.userError "scalar let StmtPlan-to-Yul helper must lower to var decl"
+  let (letStmts, _) ← requireOk
+    (lowerStatement
+      ProofForge.IR.Examples.Counter.module
+      "scalar_binding"
+      .unit
+      env
+      false
+      (.letBind "m" .u64 (.add (.local "n") (.literal (.u64 1)))))
+    "scalar let statement plan-to-yul integration"
+  require (letStmts.size == 1) "scalar let statement plan-to-yul integration statement count"
+  match letStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.call name args)) => do
+      match vars[0]? with
+      | some var => require (var.name == "m") "scalar let statement plan-to-yul integration var name"
+      | none => throw <| IO.userError "scalar let statement plan-to-yul integration missing var"
+      require (name == "__pf_checked_add") "scalar let statement plan-to-yul integration checked add"
+      require (args.size == 2) "scalar let statement plan-to-yul integration checked add arg count"
+  | _ => throw <| IO.userError "scalar let statement plan-to-yul integration must lower to var decl"
+  let (letMutStmts, _) ← requireOk
+    (lowerStatement
+      ProofForge.IR.Examples.Counter.module
+      "scalar_binding"
+      .unit
+      #[]
+      false
+      (.letMutBind "m" .u64 (.effect (.storageScalarRead "count"))))
+    "scalar let mut statement plan-to-yul integration"
+  require (letMutStmts.size == 1) "scalar let mut statement plan-to-yul integration statement count"
+  match letMutStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.builtin name args)) => do
+      match vars[0]? with
+      | some var => require (var.name == "m") "scalar let mut statement plan-to-yul integration var name"
+      | none => throw <| IO.userError "scalar let mut statement plan-to-yul integration missing var"
+      require (name == "sload") "scalar let mut statement plan-to-yul integration storage read"
+      require (args.size == 1) "scalar let mut statement plan-to-yul integration sload arg count"
+  | _ => throw <| IO.userError "scalar let mut statement plan-to-yul integration must lower to var decl"
+
 def testScalarAssignmentPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := true }]
   let assignStmts ← requireOk
@@ -821,6 +879,7 @@ def main : IO UInt32 := do
   testScalarExprPlanToYul
   testScalarAssertPlanToYul
   testScalarReturnPlanToYul
+  testScalarBindingStmtPlanToYul
   testScalarAssignmentPlanToYul
   testScalarControlFlowPlanToYul
   testScalarEventPlanToYul

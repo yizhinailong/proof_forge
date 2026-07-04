@@ -282,6 +282,24 @@ partial def exprPlanExpr
   | .effect effect =>
       lowerEffect effect
 
+/-! ## StmtPlan-to-Yul helpers -/
+
+def scalarBindingStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .letBind name _ value
+  | .letMutBind name _ value => do
+      .ok #[
+        .varDecl
+          #[({ name := name } : Lean.Compiler.Yul.TypedName)]
+          (some (← exprPlanExpr mkError lowerExpr lowerEffect value))
+      ]
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul scalar binding lowering expected a let binding")
+
 /-! ## Plan-driven helper requirements
 
 `StorageSlotPlan.requiredHelpers` lets the plan declare which EVM helper functions

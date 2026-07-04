@@ -2813,6 +2813,35 @@ partial def lowerScalarPlanExprOrFallback
   else
     lowerExpr module env expr
 
+partial def lowerScalarBindingStmtPlanOrFallback
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (type : ValueType)
+    (isMutable : Bool)
+    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  if exprSupportsPlanScalarYul value then
+    let valuePlan ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    let stmtPlan :=
+      if isMutable then
+        ProofForge.Backend.Evm.Plan.StmtPlan.letMutBind name type valuePlan
+      else
+        ProofForge.Backend.Evm.Plan.StmtPlan.letBind name type valuePlan
+    ProofForge.Backend.Evm.ToYul.scalarBindingStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr module env expr)
+      (lowerPlanEffectExpr module env)
+      stmtPlan
+  else
+    .ok #[
+      .varDecl
+        #[({ name := name } : Lean.Compiler.Yul.TypedName)]
+        (some (← lowerExpr module env value))
+    ]
+
 partial def lowerEventStructDataWords
     (module : Module)
     (env : TypeEnv)
@@ -4481,7 +4510,7 @@ mutual
     | .letBind name type value => do
         ensureLocalScalarType "let binding" name type
         let nextEnv ← addLocal env name type false
-        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerScalarPlanExprOrFallback module env value))], nextEnv)
+        .ok (← lowerScalarBindingStmtPlanOrFallback module env name type false value, nextEnv)
     | .letMutBind name (.fixedArray elementType length) value => do
         let lowered ← lowerFixedArrayLetBinding module env name elementType length value
         let nextEnv ← addLocal env name (.fixedArray elementType length) true
@@ -4493,7 +4522,7 @@ mutual
     | .letMutBind name type value => do
         ensureLocalScalarType "mutable let binding" name type
         let nextEnv ← addLocal env name type true
-        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerScalarPlanExprOrFallback module env value))], nextEnv)
+        .ok (← lowerScalarBindingStmtPlanOrFallback module env name type true value, nextEnv)
     | .assign target value => do
         .ok (← lowerAssignStmt module env target value, env)
     | .assignOp target op value => do

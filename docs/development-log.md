@@ -17,6 +17,40 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Binding StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added a narrow `ToYul.scalarBindingStmtPlanStatements` helper that lowers
+  `StmtPlan.letBind` and `StmtPlan.letMutBind` into Yul `varDecl` statements.
+- Routed scalar `let` and `let mut` statement assembly through that helper for
+  supported scalar initializer expressions.
+- Kept unsupported aggregate or field initializer shapes on the compatibility
+  facade until broader `StmtPlan -> Yul` lowering exists.
+- Extended `Tests/EvmSemanticPlan.lean` to assert both the direct helper output
+  and the integrated `lowerStatement` path for checked arithmetic and
+  storage-read initializers.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- Only scalar binding statement assembly uses the `StmtPlan -> ToYul` helper.
+  Assignments, returns, control flow, storage effects, and event effects remain
+  in the compatibility facade.
+
+Next step:
+
+- Move the next scalar statement assembly shape, such as assert/assertEq or
+  return assignment, behind a `StmtPlan -> Yul` helper.
+
 ### EVM Whole-Struct Storage Write Plan-To-Yul Slice
 
 Commit: this commit
