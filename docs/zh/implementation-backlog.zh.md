@@ -40,7 +40,7 @@
 |---|---|---|
 | R1：RFC 0009 和 D-039 滞后于已经落地的 CLI M1 工作 | 当前 `main` 已关闭：RFC 0009 已标记为 Accepted，并说明 M1/M3 已落地；D-039 也已经改为追认 compatibility-layer 实现，而不是宣称代码前冻结 | 随着 M4 legacy-alias removal 被排期，持续同步 RFC 0009 和 CLI 迁移文档 |
 | R2：同时存在过多半成品工作流 | 接受为排期风险 | Gate P0 已关闭，CLI M3 已由 `just cli-target-first` 守住；M4 alias removal 继续放在兼容窗口之后，Tier-1 M3/M4 不应隐式打开 |
-| R3：尚无端到端证明把用户不变量连接到生成制品 | 部分接受：已有源级证明、FV-2 aggregate/storage/map/control-flow/event-log IR traces、第一批基于 IR 语义的 FV-8 ValueVault accounting/net-value invariant anchors、NEAR trace obligations 加 Counter 和 ValueVault EmitWat artifact-surface/offline-host execution-surface obligations、NEAR ValueVault backend-invariant state bridge、NEAR host import-signature 和 host-call frame obligations，以及 EVM FV-4 可执行 Yul trace anchors；但完整 IR-to-artifact 语义保持还没有完成。EVM map/storage/aggregate/control-flow/event 切片现在已经把覆盖到的 FV-2 IR traces 接到可执行 Yul obligations。 | 将 NEAR FV-4 从新的 backend-invariant/import/frame bridge 继续扩展到更丰富的 Wasm/offline-host 语义边界，再证明超出当前 state/IO、host-ABI 和 host-call-frame anchors 的语义保持 |
+| R3：尚无端到端证明把用户不变量连接到生成制品 | 部分接受：已有源级证明、FV-2 aggregate/storage/map/control-flow/event-log IR traces、第一批基于 IR 语义的 FV-8 ValueVault accounting/net-value invariant anchors、NEAR trace obligations 加 Counter 和 ValueVault EmitWat artifact-surface/offline-host execution-surface obligations、NEAR ValueVault backend-invariant state bridge、NEAR host import-signature、host-call frame 和 per-step storage-snapshot obligations，以及 EVM FV-4 可执行 Yul trace anchors；但完整 IR-to-artifact 语义保持还没有完成。EVM map/storage/aggregate/control-flow/event 切片现在已经把覆盖到的 FV-2 IR traces 接到可执行 Yul obligations。 | 将 NEAR FV-4 从新的 backend-invariant/import/frame/storage bridge 继续扩展到更丰富的 Wasm/offline-host 语义边界，再证明超出当前 state/IO、host-ABI、host-call-frame 和 storage-snapshot anchors 的语义保持 |
 | R4：capability 粒度太粗 | 当前阶段不 churn capability id；storage 已经拆成 scalar/map/array/PDA，Solana account 语义也已与 storage pattern 分离建模 | 把跨目标运行时差异交给预算和诊断义务：每个 target 必须显式拒绝不支持形状，并为支持形状锁定资源预算 |
 | R5：docs-first target notes 形成隐藏沉没成本 | 排期层面已关闭：D-045 和 target roadmap 在 Gate P0 关闭前把产品硬化限制在 `solana-sbpf-asm`、`evm`、`wasm-near` | 保留 research notes 作为库存；显式排期 Tier-1 M3/M4，而不是让旧 research notes 自动变成实现范围 |
 | R6：Lean/工具链入门摩擦 | 部分关闭：`docs/onboarding.md` 已存在并列出核心工具链和各目标工具；但 editor workspace config、templates 和 scaffolding 仍是开放 DX 工作 | 补 VS Code/Cursor workspace recommendations 和最小项目模板 |
@@ -65,17 +65,20 @@
    `storage_read`、`storage_write`、`value_return`、`log_utf8` 和
    `block_index` 固定 module name 以及参数/返回签名。NEAR artifact surface
    还会固定 `u64` storage read/write helpers、`value_return` 和 `log_utf8`
-   的 host-call frames，包括传给 host 的常量和内存缓冲区。FV-8 现在也有
-   第一个 ValueVault IR invariant anchor，覆盖共享 11 步场景的 return
-   trace、accounting、final storage 和 net-value 检查。最新的 NEAR FV-4
-   切片新增了可由 `native_decide` 检查的 backend-invariant state/import/frame
-   bridge：ValueVault offline-host 输入序列从 FV-8 场景输入派生，返回片段会
-   对齐 FV-8 expected returns，最终 offline-host state 会对齐 FV-8 scenario
-   state 以及 accounting/final-storage predicates，ValueVault 事件日志 JSON
-   片段会从 invariant final state 派生，并且 host import signatures 与
-   host-call frames 会在 WAT 打印前被固定。下一步把这条 bridge 从 state/IO、
-   host-ABI 和 host-call-frame equality 扩展到更丰富的 Wasm memory/host
-   语义边界。
+   的 host-call frames，包括传给 host 的常量和内存缓冲区。offline-host
+   surface 现在还会记录每一步的 storage snapshot，所以 Counter 和
+   ValueVault 必须在每个被检查的 entrypoint 之后匹配 storage 内容，而不只是
+   匹配最终 storage 或 key count。FV-8 现在也有第一个 ValueVault IR invariant
+   anchor，覆盖共享 11 步场景的 return trace、accounting、final storage 和
+   net-value 检查。最新的 NEAR FV-4 切片新增了可由 `native_decide` 检查的
+   backend-invariant state/import/frame/storage bridge：ValueVault offline-host
+   输入序列从 FV-8 场景输入派生，返回片段会对齐 FV-8 expected returns，最终
+   offline-host state 会对齐 FV-8 scenario state 以及 accounting/final-storage
+   predicates，ValueVault 事件日志 JSON 片段会从 invariant final state 派生，
+   每一步 offline-host storage snapshot 都被固定，并且 host import signatures
+   与 host-call frames 会在 WAT 打印前被固定。下一步把这条 bridge 从 state/IO、
+   host-ABI、host-call-frame 和 storage-snapshot equality 扩展到更丰富的
+   Wasm memory/host 语义边界。
 4. 处理剩余 DX 项：`.vscode` recommendations、项目模板和脚手架；前提是它们不与 P0 关闭抢资源。
 
 ## 工作流 1：目标注册表

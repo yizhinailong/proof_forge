@@ -353,6 +353,7 @@ structure OfflineHostIOExpectation where
   inputHex : String
   returnLineFragment : String
   storageKeys : Nat := 0
+  storageSnapshot : Array (String × ProofForge.IR.Semantics.Value) := #[]
   logCount : Nat := 0
   logLineFragments : Array String := #[]
   deriving Repr, BEq
@@ -431,6 +432,7 @@ def runOfflineHostExecutionStep
     inputHex := inputHex
     returnLineFragment := s!"call 1:{step.exportName}: {offlineHostReturnFragment returnValue}"
     storageKeys := nextState.storage.length
+    storageSnapshot := nextState.storage.toArray
     logCount := nextState.logs.size
     logLineFragments := logLineFragments
   })
@@ -501,6 +503,12 @@ def OfflineHostIOExpectation.returnSurfaceEq
     lhs.inputHex == rhs.inputHex &&
     lhs.returnLineFragment == rhs.returnLineFragment
 
+def OfflineHostIOExpectation.storageSnapshotEq
+    (lhs rhs : OfflineHostIOExpectation) : Bool :=
+  lhs.exportName == rhs.exportName &&
+    lhs.storageKeys == rhs.storageKeys &&
+    lhs.storageSnapshot == rhs.storageSnapshot
+
 def flattenOfflineHostLogLineFragments
     (io : Array OfflineHostIOExpectation) : Array String :=
   io.foldl (fun fragments step => fragments ++ step.logLineFragments) #[]
@@ -515,6 +523,23 @@ def offlineHostReturnSurfaceMatchesList :
 def offlineHostReturnSurfaceMatches
     (lhs rhs : Array OfflineHostIOExpectation) : Bool :=
   offlineHostReturnSurfaceMatchesList lhs.toList rhs.toList
+
+def offlineHostStorageSnapshotsMatchList :
+    List OfflineHostIOExpectation → List OfflineHostIOExpectation → Bool
+  | [], [] => true
+  | lhs :: lhsRest, rhs :: rhsRest =>
+      lhs.storageSnapshotEq rhs && offlineHostStorageSnapshotsMatchList lhsRest rhsRest
+  | _, _ => false
+
+def offlineHostStorageSnapshotsMatch
+    (lhs rhs : Array OfflineHostIOExpectation) : Bool :=
+  offlineHostStorageSnapshotsMatchList lhs.toList rhs.toList
+
+def OfflineHostExecutionObligation.storageSnapshotsOk
+    (obligation : OfflineHostExecutionObligation) : Bool :=
+  match runOfflineHostExecutionTrace obligation.artifactSurface.module obligation.steps with
+  | .ok actual => offlineHostStorageSnapshotsMatch actual obligation.expectedIO
+  | .error _ => false
 
 def offlineHostExpectedIOFromReturnsList :
     List OfflineHostExecutionStep → List (Option SemValue) →
@@ -716,6 +741,10 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   requiredDataSegments := #[(0, "count")]
 }
 
+def counterStorageSnapshot (count : Nat) :
+    Array (String × ProofForge.IR.Semantics.Value) :=
+  #[("count", .u64 count)]
+
 def counterOfflineHostExecutionObligation : OfflineHostExecutionObligation := {
   name := "Counter.EmitWat.offline-host-execution-surface"
   artifactSurface := counterArtifactSurfaceObligation
@@ -731,6 +760,7 @@ def counterOfflineHostExecutionObligation : OfflineHostExecutionObligation := {
       inputHex := ""
       returnLineFragment := "call 1:initialize: return=<none>"
       storageKeys := 1
+      storageSnapshot := counterStorageSnapshot 0
       logCount := 0
     },
     {
@@ -738,6 +768,7 @@ def counterOfflineHostExecutionObligation : OfflineHostExecutionObligation := {
       inputHex := ""
       returnLineFragment := "call 1:get: return_hex=0000000000000000 return_u64=0"
       storageKeys := 1
+      storageSnapshot := counterStorageSnapshot 0
       logCount := 0
     },
     {
@@ -745,6 +776,7 @@ def counterOfflineHostExecutionObligation : OfflineHostExecutionObligation := {
       inputHex := ""
       returnLineFragment := "call 1:increment: return=<none>"
       storageKeys := 1
+      storageSnapshot := counterStorageSnapshot 1
       logCount := 0
     },
     {
@@ -752,6 +784,7 @@ def counterOfflineHostExecutionObligation : OfflineHostExecutionObligation := {
       inputHex := ""
       returnLineFragment := "call 1:get: return_hex=0100000000000000 return_u64=1"
       storageKeys := 1
+      storageSnapshot := counterStorageSnapshot 1
       logCount := 0
     }
   ]
@@ -861,6 +894,17 @@ def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   ]
 }
 
+def valueVaultStorageSnapshot
+    (balance released fees lastValue lastCheckpoint operations : Nat) :
+    Array (String × ProofForge.IR.Semantics.Value) := #[
+  ("balance", .u64 balance),
+  ("released", .u64 released),
+  ("fees", .u64 fees),
+  ("last_value", .u64 lastValue),
+  ("last_checkpoint", .u64 lastCheckpoint),
+  ("operations", .u64 operations)
+]
+
 def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation := {
   name := "ValueVault.EmitWat.offline-host-execution-surface"
   artifactSurface := valueVaultArtifactSurfaceObligation
@@ -883,6 +927,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := "6400000000000000"
       returnLineFragment := "call 1:initialize: return=<none>"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 100 0 0 100 0 1
       logCount := 1
       logLineFragments := #[
         "log: {\"event\":\"VaultInitialized\",\"initial\":100,\"checkpoint\":0}"
@@ -893,6 +938,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := ""
       returnLineFragment := "call 1:get_balance: return_hex=6400000000000000 return_u64=100"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 100 0 0 100 0 1
       logCount := 1
     },
     {
@@ -900,6 +946,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := "1900000000000000"
       returnLineFragment := "call 1:deposit: return=<none>"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 125 0 0 25 0 2
       logCount := 2
       logLineFragments := #[
         "log: {\"event\":\"ValueDeposited\",\"amount\":25,\"balance\":125,\"operations\":2}"
@@ -910,6 +957,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := ""
       returnLineFragment := "call 1:get_balance: return_hex=7d00000000000000 return_u64=125"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 125 0 0 25 0 2
       logCount := 2
     },
     {
@@ -917,6 +965,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := "6400000000000000fa00000000000000"
       returnLineFragment := "call 1:charge_fee: return=<none>"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 223 0 2 98 0 3
       logCount := 3
       logLineFragments := #[
         "log: {\"event\":\"ValueCharged\",\"gross\":100,\"fee\":2,\"net\":98,\"balance\":223}"
@@ -927,6 +976,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := ""
       returnLineFragment := "call 1:get_balance: return_hex=df00000000000000 return_u64=223"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 223 0 2 98 0 3
       logCount := 3
     },
     {
@@ -934,6 +984,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := ""
       returnLineFragment := "call 1:get_net_value: return_hex=dd00000000000000 return_u64=221"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 223 0 2 98 0 3
       logCount := 3
     },
     {
@@ -941,6 +992,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := "1700000000000000"
       returnLineFragment := "call 1:release: return=<none>"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 200 23 2 23 0 4
       logCount := 4
       logLineFragments := #[
         "log: {\"event\":\"ValueReleased\",\"amount\":23,\"balance\":200,\"released\":23}"
@@ -951,6 +1003,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := ""
       returnLineFragment := "call 1:get_balance: return_hex=c800000000000000 return_u64=200"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 200 23 2 23 0 4
       logCount := 4
     },
     {
@@ -958,6 +1011,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := ""
       returnLineFragment := "call 1:snapshot: return_hex=c800000000000000 return_u64=200"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 200 23 2 23 0 4
       logCount := 5
       logLineFragments := #[
         "log: {\"event\":\"ValueSnapshot\",\"balance\":200,\"released\":23,\"fees\":2,\"checkpoint\":0}"
@@ -968,6 +1022,7 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       inputHex := ""
       returnLineFragment := "call 1:get_net_value: return_hex=c600000000000000 return_u64=198"
       storageKeys := 6
+      storageSnapshot := valueVaultStorageSnapshot 200 23 2 23 0 4
       logCount := 5
     }
   ]
@@ -991,6 +1046,7 @@ def valueVaultEmitWatBackendInvariantBridgeOk : Bool :=
     valueVaultOfflineHostExpectedIODerivesFromInvariantReturns &&
     valueVaultOfflineHostFinalStateDerivesFromInvariant
       ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs &&
+    valueVaultOfflineHostExecutionObligation.storageSnapshotsOk &&
     valueVaultOfflineHostLogFragmentsDeriveFromInvariantState
       ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs &&
     valueVaultOfflineHostExecutionObligation.ok
@@ -1029,6 +1085,10 @@ theorem counter_emitwat_offline_host_execution_surface_ok :
     counterOfflineHostExecutionObligation.ok = true := by
   native_decide
 
+theorem counter_emitwat_offline_host_storage_snapshots_ok :
+    counterOfflineHostExecutionObligation.storageSnapshotsOk = true := by
+  native_decide
+
 theorem value_vault_emitwat_artifact_surface_ok :
     valueVaultArtifactSurfaceObligation.ok = true := by
   native_decide
@@ -1043,6 +1103,10 @@ theorem value_vault_emitwat_host_frames_ok :
 
 theorem value_vault_emitwat_offline_host_execution_surface_ok :
     valueVaultOfflineHostExecutionObligation.ok = true := by
+  native_decide
+
+theorem value_vault_emitwat_offline_host_storage_snapshots_ok :
+    valueVaultOfflineHostExecutionObligation.storageSnapshotsOk = true := by
   native_decide
 
 theorem value_vault_emitwat_backend_invariant_bridge_ok :

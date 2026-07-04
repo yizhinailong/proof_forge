@@ -8480,3 +8480,30 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR EmitWat host call-frame checks passed locally.
+
+### NEAR Offline-Host Storage Snapshots
+
+Commit: pending
+
+Summary:
+
+- Added per-step `storageSnapshot` data to NEAR offline-host IO expectations.
+- Extended the offline-host trace runner so each checked Counter and ValueVault
+  entrypoint records the full IR storage contents after execution, not only the
+  number of storage keys.
+- Added `OfflineHostExecutionObligation.storageSnapshotsOk` plus
+  decide-checkable Counter and ValueVault storage-snapshot anchors.
+- Folded the ValueVault storage-snapshot check into the existing
+  backend-invariant bridge so the FV-8 scenario now constrains every checked
+  intermediate storage state as well as final storage.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR offline-host storage snapshot checks passed locally.
