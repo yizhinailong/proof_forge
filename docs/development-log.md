@@ -11601,3 +11601,45 @@ Result:
   before `ToYul`.
 - EVM semantic-plan, diagnostics, example bytecode generation, Foundry smoke
   tests, full Lake build, and whitespace checks passed locally.
+
+### EVM Aggregate Scalar Control-Flow Body Plan Slice
+
+Commit: e149ef7
+
+Summary:
+
+- Extended planned scalar control-flow body lowering so static local aggregate
+  scalar reads and assignment targets can stay in `StmtPlan` bodies.
+- Allowed supported planned body expressions and targets for static local fixed
+  array elements, local struct fields, and static local struct-array fields
+  that `ToYul.scalarAssignmentStmtPlanStatements` already knows how to print.
+- Added a validation guard before planned body construction so invalid
+  assignment mutability/type cases fall back to the existing diagnostic path
+  instead of bypassing statement validation.
+- Added semantic-plan tests for planned branch bodies that assign local struct
+  fields and static local-array elements, plus a guard check for immutable
+  struct-field assignment.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+just evm-semantic-plan
+just evm-diagnostics
+just evm-build-examples
+just evm-foundry
+just evm-coverage
+just evm-ir-smokes
+lake build
+git diff --check
+```
+
+Result:
+
+- Static aggregate scalar assignments inside planned control-flow bodies now
+  lower through `StmtPlan.assign` / `StmtPlan.assignOp -> ToYul`.
+- EVM semantic-plan, diagnostics, example bytecode generation, Foundry smoke,
+  coverage manifest, IR smokes, full Lake build, and whitespace checks passed
+  locally.
