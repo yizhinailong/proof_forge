@@ -821,6 +821,9 @@ def contextExpr : ContextField → Lean.Compiler.Yul.Expr
   | .gasLeft => Lean.Compiler.Yul.builtin "gasleft" #[]
   | .baseFee => Lean.Compiler.Yul.builtin "basefee" #[]
   | .prevRandao => Lean.Compiler.Yul.builtin "prevrandao" #[]
+  | .origin => Lean.Compiler.Yul.builtin "origin" #[]
+  | .coinbase => Lean.Compiler.Yul.builtin "coinbase" #[]
+  | .blockHash _ => Lean.Compiler.Yul.builtin "blockhash" #[]
 
 def mapShapeName (keyType valueType : ValueType) (capacity : Nat) : String :=
   s!"Map<{keyType.name}, {valueType.name}, {capacity}>"
@@ -1464,6 +1467,9 @@ mutual
         .error { message := "storage.path.write is a statement effect, not an expression" }
     | .storagePathAssignOp _ _ _ _ =>
         .error { message := "storage.path.assign_op is a statement effect, not an expression" }
+    | .contextRead .origin => .ok .hash
+    | .contextRead .coinbase => .ok .hash
+    | .contextRead (.blockHash _) => .ok .hash
     | .contextRead _ =>
         .ok .u64
     | .eventEmit _ _ =>
@@ -2624,6 +2630,8 @@ mutual
         .error { message := "storage.path.write is a statement effect, not an expression" }
     | .storagePathAssignOp _ _ _ _ =>
         .error { message := "storage.path.assign_op is a statement effect, not an expression" }
+    | .contextRead (.blockHash blockNumber) => do
+        .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerExpr module env blockNumber])
     | .contextRead field =>
         .ok (contextExpr field)
     | .eventEmit _ _ =>

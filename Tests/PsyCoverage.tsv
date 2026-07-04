@@ -16,6 +16,15 @@ Literal	hash4	lowered	literal emits Hash four-limb arrays and is covered by Hash
 ContextField	userId	lowered	contextFunction lowers to get_user_id and ContextProbe covers it.
 ContextField	contractId	lowered	contextFunction lowers to get_contract_id and ContextProbe covers it.
 ContextField	checkpointId	lowered	contextFunction lowers to get_checkpoint_id and ContextProbe covers it.
+ContextField	timestamp	unsupported	Psy IR v0 context read catch-all rejects timestamp with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	chainId	unsupported	Psy IR v0 context read catch-all rejects chainId with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	gasPrice	unsupported	Psy IR v0 context read catch-all rejects gasPrice with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	gasLeft	unsupported	Psy IR v0 context read catch-all rejects gasLeft with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	baseFee	unsupported	Psy IR v0 context read catch-all rejects baseFee with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	prevRandao	unsupported	Psy IR v0 context read catch-all rejects prevRandao with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	origin	unsupported	Psy IR v0 context read catch-all rejects origin with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	coinbase	unsupported	Psy IR v0 context read catch-all rejects coinbase with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	blockHash	unsupported	Psy IR v0 context read catch-all rejects blockHash with an explicit diagnostic; only userId, contractId, and checkpointId are available.
 AssignOp	add	lowered	assignOpSymbol lowers to += and assignOpBinarySymbol lowers to + for Felt-backed U32 storage arrays; U32ArithmeticProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
 AssignOp	sub	lowered	assignOpSymbol lowers to -= and assignOpBinarySymbol lowers to - for Felt-backed U32 storage arrays; U32ArithmeticProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
 AssignOp	mul	lowered	assignOpSymbol lowers to *= and assignOpBinarySymbol lowers to * for Felt-backed U32 storage arrays; U32ArithmeticProbe and U32StorageArrayProbe cover it.

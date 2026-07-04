@@ -70,6 +70,8 @@ structure Runtime where
   gasLeft : Word := 0
   baseFee : Word := 0
   prevRandao : Word := 0
+  origin : Word := 0
+  coinbase : Word := 0
   logs : Array Log := #[]
   deriving Repr, BEq, DecidableEq
 
@@ -257,6 +259,8 @@ def callRuntimeWithArgs (selector : Nat) (storage : WordBindings) (args : Array 
   gasLeft := 0
   baseFee := 0
   prevRandao := 0
+  origin := 0
+  coinbase := 0
   logs := #[]
 }
 
@@ -385,6 +389,13 @@ mutual
         .ok (rt, #[rt.baseFee])
     | "prevrandao", [] =>
         .ok (rt, #[rt.prevRandao])
+    | "origin", [] =>
+        .ok (rt, #[rt.origin])
+    | "coinbase", [] =>
+        .ok (rt, #[rt.coinbase])
+    | "blockhash", [blockNumber] => do
+        let (rt, _blockNumber) ← evalWord ctx rt blockNumber
+        .ok (rt, #[0])
     | "keccak256", [offset, size] => do
         let (rt, offset) ← evalWord ctx rt offset
         let (rt, size) ← evalWord ctx rt size

@@ -452,6 +452,9 @@ mutual
         .error { message := "storage.path.write is a statement effect, not an expression" }
     | .storagePathAssignOp _ _ _ _ =>
         .error { message := "storage.path.assign_op is not supported by wasm-near IR v0" }
+    | .contextRead .origin => .ok .hash
+    | .contextRead .coinbase => .ok .hash
+    | .contextRead (.blockHash _) => .ok .hash
     | .contextRead _ => .ok .u64
     | .eventEmit _ _ =>
         .error { message := "event.emit is a statement effect, not an expression" }

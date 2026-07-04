@@ -29,13 +29,27 @@ def contextExtras : Entrypoint := {
   ]
 }
 
+def contextHashes : Entrypoint := {
+  name := "context_hashes"
+  selector? := some "b59b9225"
+  returns := .fixedArray .hash 3
+  body := #[
+    .return <| .arrayLit .hash #[
+      .effect (.contextRead .origin),
+      .effect (.contextRead .coinbase),
+      .effect (.contextRead (.blockHash (.literal (.u64 1))))
+    ]
+  ]
+}
+
 def module : Module := {
   name := "ContextProbe"
   state := #[ProofForge.IR.Examples.ContextProbe.stateMarker]
   entrypoints := #[
     ProofForge.IR.Examples.ContextProbe.sumContext,
     nativeValue,
-    contextExtras
+    contextExtras,
+    contextHashes
   ]
 }
 
