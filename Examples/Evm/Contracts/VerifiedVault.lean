@@ -5,12 +5,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Portable VerifiedVault for the unified EVM entry path. Source-level financial
 proofs remain in `VerifiedVault.Spec`; codegen uses portable IR only.
 -/
-import ProofForge.Contract.Builder
+import ProofForge.Contract.Source
 
 namespace VerifiedVault
 
-open ProofForge.Contract.Builder
-open ProofForge.IR
+open ProofForge.Contract.Source
 
 namespace Spec
 
@@ -64,69 +63,60 @@ theorem withdraw_decreases_reserves {s next : State} {amount : Nat}
 
 end Spec
 
-def spec : ProofForge.Contract.ContractSpec :=
-  build "VerifiedVault" do
-    scalarState "owner" .u64
-    scalarState "initialized" .u64
-    scalarState "reserves" .u64
-    scalarState "totalShares" .u64
-    mapState "balances" .u64 .u64 256
-    scalarState "reentrancyLock" .u64
+contract_source VerifiedVault do
+  state «owner» : .u64
+  state initialized : .u64
+  state reserves : .u64
+  state totalShares : .u64
+  mapping balances from .u64 to .u64
+  state reentrancyLock : .u64
 
-    entry "init" do
-      letBind "flag" .u64 (storageScalarRead "initialized")
-      assert (eq (.local "flag") (u64 0)) "already initialized"
-      letBind "owner" .u64 (contextRead .userId)
-      effect (storageScalarWrite "owner" (.local "owner"))
-      effect (storageScalarWrite "initialized" (u64 1))
-      effect (storageScalarWrite "reserves" (u64 0))
-      effect (storageScalarWrite "totalShares" (u64 0))
+  entry init do
+    do ProofForge.Contract.Surface.requireZero initialized "already initialized";
+    «owner» := caller;
+    initialized := u64 1;
+    reserves := u64 0;
+    totalShares := u64 0;
 
-    entry "deposit" do
-      letBind "flag" .u64 (storageScalarRead "initialized")
-      assert (ne (.local "flag") (u64 0)) "not initialized"
-      letBind "depositor" .u64 (contextRead .userId)
-      letBind "amount" .u64 .nativeValue
-      assert (ne (.local "amount") (u64 0)) "zero deposit"
-      letBind "reserves" .u64 (storageScalarRead "reserves")
-      letBind "shares" .u64 (storageScalarRead "totalShares")
-      effect (storageScalarWrite "reserves" (add (.local "reserves") (.local "amount")))
-      effect (storageScalarWrite "totalShares" (add (.local "shares") (.local "amount")))
-      letBind "bal" .u64 (storageMapGet "balances" (.local "depositor"))
-      effect (storageMapSet "balances" (.local "depositor") (add (.local "bal") (.local "amount")))
+  entry deposit do
+    accepts_callvalue;
+    do ProofForge.Contract.Surface.requireNe (ProofForge.Contract.Surface.read initialized) (u64 0) "not initialized";
+    let depositor : .u64 := caller;
+    let amount : .u64 := nativeValue;
+    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref amount) "zero deposit";
+    let curReserves : .u64 := reserves;
+    reserves := curReserves +! amount;
+    let curShares : .u64 := totalShares;
+    totalShares := curShares +! amount;
+    let bal : .u64 := mapRead balances depositor;
+    do mapWrite balances depositor (bal +! amount);
 
-    entryWithParams "withdraw" #[("amount", .u64)] .unit do
-      letBind "flag" .u64 (storageScalarRead "initialized")
-      assert (ne (.local "flag") (u64 0)) "not initialized"
-      letBind "lock" .u64 (storageScalarRead "reentrancyLock")
-      assert (eq (.local "lock") (u64 0)) "reentrant"
-      effect (storageScalarWrite "reentrancyLock" (u64 1))
-      letBind "withdrawer" .u64 (contextRead .userId)
-      letBind "bal" .u64 (storageMapGet "balances" (.local "withdrawer"))
-      assert (le (.local "amount") (.local "bal")) "insufficient balance"
-      letBind "reserves" .u64 (storageScalarRead "reserves")
-      letBind "shares" .u64 (storageScalarRead "totalShares")
-      assert (le (.local "amount") (.local "reserves")) "insufficient reserves"
-      assert (le (.local "amount") (.local "shares")) "insufficient shares"
-      effect (storageScalarWrite "reserves" (sub (.local "reserves") (.local "amount")))
-      effect (storageScalarWrite "totalShares" (sub (.local "shares") (.local "amount")))
-      effect (storageMapSet "balances" (.local "withdrawer") (sub (.local "bal") (.local "amount")))
-      letBind "_sent" .u64 (.crosscallInvokeValueTyped (.local "withdrawer") (u64 0) (.local "amount") #[] .u64)
-      effect (storageScalarWrite "reentrancyLock" (u64 0))
+  entry withdraw (amount : .u64) do
+    do ProofForge.Contract.Surface.requireNe (ProofForge.Contract.Surface.read initialized) (u64 0) "not initialized";
+    do ProofForge.Contract.Surface.acquireLock reentrancyLock;
+    let withdrawer : .u64 := caller;
+    let bal : .u64 := mapRead balances withdrawer;
+    do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref bal) (ProofForge.Contract.Surface.ref amount) "insufficient balance";
+    let curReserves : .u64 := reserves;
+    do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref curReserves) (ProofForge.Contract.Surface.ref amount) "insufficient reserves";
+    let curShares : .u64 := totalShares;
+    do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref curShares) (ProofForge.Contract.Surface.ref amount) "insufficient shares";
+    reserves := curReserves -! amount;
+    totalShares := curShares -! amount;
+    do mapWrite balances withdrawer (bal -! amount);
+    sendto withdrawer amount;
+    do ProofForge.Contract.Surface.releaseLock reentrancyLock;
 
-    entryReturns "reserves" .u64 do
-      ret (storageScalarRead "reserves")
+  query reserves returns(.u64) do
+    return reserves;
 
-    entryReturns "totalShares" .u64 do
-      ret (storageScalarRead "totalShares")
+  query totalShares returns(.u64) do
+    return totalShares;
 
-    entryWithParams "balanceOf" #[("depositor", .u64)] .u64 do
-      ret (storageMapGet "balances" (.local "depositor"))
+  query balanceOf (depositor : .u64) returns(.u64) do
+    return mapRead balances depositor;
 
-    entryReturns "getOwner" .u64 do
-      ret (storageScalarRead "owner")
-
-def module : ProofForge.IR.Module :=
-  spec.module
+  query getOwner returns(.u64) do
+    return «owner»;
 
 end VerifiedVault

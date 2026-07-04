@@ -247,4 +247,13 @@ def acquireLock (lockSlot : ScalarRef) : EntryM Unit := do
 def releaseLock (lockSlot : ScalarRef) : EntryM Unit :=
   write lockSlot (u64 0)
 
+/-- Mark the current entry as value-bearing (`msg.value` / `callvalue`). -/
+def markPayable : EntryM Unit :=
+  ProofForge.Contract.Builder.entryCapability .valueNative "contract_source.payable"
+
+/-- Plain native transfer to an EOA or contract (EVM empty-calldata call with value). -/
+def nativeTransfer (recipient amount : ProofForge.IR.Expr) : EntryM Unit :=
+  ProofForge.Contract.Builder.letBind "_sent" .u64
+    (.crosscallInvokeValueTyped recipient (u64 0) amount #[] .u64)
+
 end ProofForge.Contract.Surface

@@ -64,6 +64,8 @@ covers:
 - entrypoints and queries with typed parameters;
 - local bindings, assignment, return, event emission, and checked arithmetic
   syntax;
+- EVM native-value entry markers (`accepts_callvalue;`), `nativeValue` reads, and
+  plain native transfers (`sendto recipient amount;`);
 - Solana allocator selection;
 - Solana account constraints, including writable and signer declarations;
 - Solana PDA declarations and derivation statements;

@@ -43,19 +43,16 @@ object "VerifiedVault" {
       revert(0, 0)
     }
     function f_VerifiedVault_init() {
-      let flag := sload(1)
-      if iszero(eq(flag, 0)) {
+      if iszero(eq(sload(1), 0)) {
         revert(0, 0)
       }
-      let owner := caller()
-      sstore(0, owner)
+      sstore(0, caller())
       sstore(1, 1)
       sstore(2, 0)
       sstore(3, 0)
     }
     function f_VerifiedVault_deposit() {
-      let flag := sload(1)
-      if iszero(iszero(eq(flag, 0))) {
+      if iszero(iszero(eq(sload(1), 0))) {
         revert(0, 0)
       }
       let depositor := caller()
@@ -63,38 +60,36 @@ object "VerifiedVault" {
       if iszero(iszero(eq(amount, 0))) {
         revert(0, 0)
       }
-      let reserves := sload(2)
-      let shares := sload(3)
-      sstore(2, __pf_checked_add(reserves, amount))
-      sstore(3, __pf_checked_add(shares, amount))
+      let curReserves := sload(2)
+      sstore(2, __pf_checked_add(curReserves, amount))
+      let curShares := sload(3)
+      sstore(3, __pf_checked_add(curShares, amount))
       let bal := sload(__proof_forge_map_slot(4, depositor))
       __proof_forge_map_write(4, depositor, __pf_checked_add(bal, amount))
     }
     function f_VerifiedVault_withdraw(amount) {
-      let flag := sload(1)
-      if iszero(iszero(eq(flag, 0))) {
+      if iszero(iszero(eq(sload(1), 0))) {
         revert(0, 0)
       }
-      let lock := sload(5)
-      if iszero(eq(lock, 0)) {
+      if iszero(eq(sload(5), 0)) {
         revert(0, 0)
       }
       sstore(5, 1)
       let withdrawer := caller()
       let bal := sload(__proof_forge_map_slot(4, withdrawer))
-      if iszero(iszero(gt(amount, bal))) {
+      if iszero(iszero(lt(bal, amount))) {
         revert(0, 0)
       }
-      let reserves := sload(2)
-      let shares := sload(3)
-      if iszero(iszero(gt(amount, reserves))) {
+      let curReserves := sload(2)
+      if iszero(iszero(lt(curReserves, amount))) {
         revert(0, 0)
       }
-      if iszero(iszero(gt(amount, shares))) {
+      let curShares := sload(3)
+      if iszero(iszero(lt(curShares, amount))) {
         revert(0, 0)
       }
-      sstore(2, __pf_checked_sub(reserves, amount))
-      sstore(3, __pf_checked_sub(shares, amount))
+      sstore(2, __pf_checked_sub(curReserves, amount))
+      sstore(3, __pf_checked_sub(curShares, amount))
       __proof_forge_map_write(4, withdrawer, __pf_checked_sub(bal, amount))
       let _sent := __proof_forge_native_transfer(withdrawer, amount)
       sstore(5, 0)
