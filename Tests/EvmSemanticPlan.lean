@@ -839,6 +839,65 @@ def testScalarExprPlanToYul : IO Unit := do
     "__proof_forge_local_array_get_3"
     4
     "dynamic local-array ExprPlan-to-Yul"
+  let structEnv : TypeEnv := #[
+    { name := "p", type := .structType "Point", isMutable := false }
+  ]
+  let structArrayEnv : TypeEnv := #[
+    { name := "people", type := .fixedArray (.structType "Person") 2, isMutable := false },
+    { name := "idx", type := .u64, isMutable := false }
+  ]
+  let staticLocalStructFieldExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      (.structField (.local "p") "x"))
+    "static local-struct field ExprPlan-to-Yul"
+  match staticLocalStructFieldExpr with
+  | Lean.Compiler.Yul.Expr.ident name =>
+      require (name == "__proof_forge_struct_p_x") "static local-struct field ExprPlan-to-Yul local name"
+  | _ => throw <| IO.userError "static local-struct field ExprPlan-to-Yul must lower to local identifier"
+  let staticStructArrayFieldExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      structArrayEnv
+      (.structField (.localArrayGet "people" #[.literalWord 1] #[2]) "age"))
+    "static local struct-array field ExprPlan-to-Yul"
+  match staticStructArrayFieldExpr with
+  | Lean.Compiler.Yul.Expr.ident name =>
+      require (name == "__proof_forge_array_struct_people_1_age") "static local struct-array field ExprPlan-to-Yul local name"
+  | _ => throw <| IO.userError "static local struct-array field ExprPlan-to-Yul must lower to local identifier"
+  let dynamicStructArrayFieldExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      structArrayEnv
+      (.structField (.localArrayGet "people" #[.local "idx"] #[2]) "score"))
+    "dynamic local struct-array field ExprPlan-to-Yul"
+  requireCallExpr
+    dynamicStructArrayFieldExpr
+    "__proof_forge_local_array_get_2"
+    3
+    "dynamic local struct-array field ExprPlan-to-Yul"
+  let directLocalStructFieldExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      (.field (.local "p") "y"))
+    "direct local struct-field read lowers through ToYul"
+  match directLocalStructFieldExpr with
+  | Lean.Compiler.Yul.Expr.ident name =>
+      require (name == "__proof_forge_struct_p_y") "direct local struct-field read ToYul local name"
+  | _ => throw <| IO.userError "direct local struct-field read must lower to local identifier"
+  let directDynamicStructArrayFieldExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      structArrayEnv
+      (.field (.arrayGet (.local "people") (.local "idx")) "score"))
+    "direct dynamic local struct-array field read lowers through ToYul"
+  requireCallExpr
+    directDynamicStructArrayFieldExpr
+    "__proof_forge_local_array_get_2"
+    3
+    "direct dynamic local struct-array field read ToYul"
   let dynamicPlan ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.buildExprPlan
       ProofForge.IR.Examples.EvmArrayValueProbe.module

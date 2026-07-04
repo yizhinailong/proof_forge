@@ -2154,19 +2154,15 @@ mutual
         .error {
           message := s!"struct field access local `{name}` fixed-array leaf expected flat struct, got `{other.name}`"
         }
-    if arrayIndexPathHasDynamic path then do
-      let leafPaths := nestedLocalArrayLeafPaths lengths
-      let mut args : Array Lean.Compiler.Yul.Expr := #[]
-      for index in path do
-        args := args.push (← lowerExpr module env index)
-      for leafPath in leafPaths do
-        args := args.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalPathFieldName name leafPath fieldName))
-      .ok (Lean.Compiler.Yul.call (nestedLocalArrayGetFunctionName lengths) args)
-    else do
-      let mut staticPath : Array Nat := #[]
-      for index in path do
-        staticPath := staticPath.push (← requireStaticArrayIndex "struct field fixed-array index" index)
-      .ok (Lean.Compiler.Yul.Expr.id (arrayStructLocalPathFieldName name staticPath fieldName))
+    lowerExprPlanExpr module env <|
+      .structField
+        (.localArrayGet name
+          (← path.mapM fun index =>
+            match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) index with
+            | .ok plan => .ok plan
+            | .error err => .error { message := err.message })
+          lengths)
+        fieldName
 
   partial def lowerLocalStructFieldExpr
       (module : Module)
@@ -2175,20 +2171,19 @@ mutual
       (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr :=
     match base with
     | .local name =>
-        .ok (Lean.Compiler.Yul.Expr.id (structLocalFieldName name fieldName))
+        lowerExprPlanExpr module env (.structField (.local name) fieldName)
     | .effect (.storageScalarRead stateId) =>
         lowerStructFieldReadExpr module stateId fieldName
     | .arrayGet (.local name) index => do
         let (_, length, _) ← requireLocalFixedStructArrayField module env "struct field access" name fieldName
-        match literalArrayIndex? index with
-        | some indexValue => do
-            ensureFixedArrayIndexInBounds "struct field fixed-array index" indexValue length
-            .ok (Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName name indexValue fieldName))
-        | none => do
-            let mut values : Array Lean.Compiler.Yul.Expr := #[]
-            for _h : idx in [0:length] do
-              values := values.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName name idx fieldName))
-            .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName length) (#[← lowerExpr module env index] ++ values))
+        if let some indexValue := literalArrayIndex? index then
+          ensureFixedArrayIndexInBounds "struct field fixed-array index" indexValue length
+        let indexPlan ←
+          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) index with
+          | .ok plan => .ok plan
+          | .error err => .error { message := err.message }
+        lowerExprPlanExpr module env <|
+          .structField (.localArrayGet name #[indexPlan] #[length]) fieldName
     | .structLit _ fields => do
         let some field := fields.find? fun field => field.fst == fieldName
           | .error { message := s!"struct literal has no field `{fieldName}`" }
@@ -2656,6 +2651,37 @@ mutual
         .error { message := "event.emit is a statement effect, not an expression" }
     | .eventEmitIndexed _ _ _ =>
         .error { message := "event.emit.indexed is a statement effect, not an expression" }
+
+  partial def lowerPlanEffectExpr
+      (module : Module)
+      (env : TypeEnv) :
+      ProofForge.Backend.Evm.Plan.EffectPlan → Except LowerError Lean.Compiler.Yul.Expr
+    | .storageScalarRead stateId => do
+        match ← scalarStateType module stateId with
+        | .structType _ =>
+            .error {
+              message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
+            }
+        | _ => pure ()
+        let storageSlot ← lowerScalarStorageSlotExpr module env stateId
+        .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
+    | .contextRead (.blockHash blockNumber) => do
+        .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerExpr module env blockNumber])
+    | .contextRead field =>
+        .ok (ProofForge.Backend.Evm.ToYul.contextExpr field)
+    | _ =>
+        .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
+
+  partial def lowerExprPlanExpr
+      (module : Module)
+      (env : TypeEnv)
+      (plan : ProofForge.Backend.Evm.Plan.ExprPlan) :
+      Except LowerError Lean.Compiler.Yul.Expr :=
+    ProofForge.Backend.Evm.ToYul.exprPlanExpr
+      toYulError
+      (fun expr => lowerExpr module env expr)
+      (lowerPlanEffectExpr module env)
+      plan
 end
 
 partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
@@ -2705,37 +2731,6 @@ partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
   | .crosscallCreate _ _
   | .crosscallCreate2 _ _ _
   | .effect _ => false
-
-partial def lowerPlanEffectExpr
-    (module : Module)
-    (env : TypeEnv) :
-    ProofForge.Backend.Evm.Plan.EffectPlan → Except LowerError Lean.Compiler.Yul.Expr
-  | .storageScalarRead stateId => do
-      match ← scalarStateType module stateId with
-      | .structType _ =>
-          .error {
-            message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
-          }
-      | _ => pure ()
-      let storageSlot ← lowerScalarStorageSlotExpr module env stateId
-      .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
-  | .contextRead (.blockHash blockNumber) => do
-      .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerExpr module env blockNumber])
-  | .contextRead field =>
-      .ok (ProofForge.Backend.Evm.ToYul.contextExpr field)
-  | _ =>
-      .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
-
-partial def lowerExprPlanExpr
-    (module : Module)
-    (env : TypeEnv)
-    (plan : ProofForge.Backend.Evm.Plan.ExprPlan) :
-    Except LowerError Lean.Compiler.Yul.Expr :=
-  ProofForge.Backend.Evm.ToYul.exprPlanExpr
-    toYulError
-    (fun expr => lowerExpr module env expr)
-    (lowerPlanEffectExpr module env)
-    plan
 
 partial def lowerExprViaPlan
     (module : Module)

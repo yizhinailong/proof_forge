@@ -150,6 +150,40 @@ def localArrayGetExpr
             valueArgs := valueArgs.push (Lean.Compiler.Yul.Expr.id (arrayLocalPathName name leafPath))
           .ok (Lean.Compiler.Yul.call (nestedLocalArrayGetFunctionName lengths) (pathArgs ++ valueArgs))
 
+def localStructFieldExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlan : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (base : ExprPlan)
+    (fieldName : String) : Except ε Lean.Compiler.Yul.Expr := do
+  match base with
+  | .local name =>
+      .ok (Lean.Compiler.Yul.Expr.id (structLocalFieldName name fieldName))
+  | .localArrayGet name path lengths => do
+      if lengths.isEmpty then
+        .error (mkError s!"EVM ExprPlan-to-Yul local struct-array field get `{name}.{fieldName}` requires at least one dimension")
+      if path.size != lengths.size then
+        .error (mkError s!"EVM ExprPlan-to-Yul local struct-array field get `{name}.{fieldName}` expected path rank {lengths.size}, got {path.size}")
+      match localArrayStaticPath? path with
+      | some staticPath => do
+          validateLocalArrayStaticPath mkError name staticPath lengths
+          .ok (Lean.Compiler.Yul.Expr.id (arrayStructLocalPathFieldName name staticPath fieldName))
+      | none => do
+          let pathArgs ← path.mapM lowerPlan
+          match lengths.toList with
+          | [length] =>
+              let mut valueArgs : Array Lean.Compiler.Yul.Expr := #[]
+              for _h : idx in [0:length] do
+                valueArgs := valueArgs.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName name idx fieldName))
+              .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName length) (pathArgs ++ valueArgs))
+          | _ =>
+              let mut valueArgs : Array Lean.Compiler.Yul.Expr := #[]
+              for leafPath in nestedLocalArrayLeafPaths lengths do
+                valueArgs := valueArgs.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalPathFieldName name leafPath fieldName))
+              .ok (Lean.Compiler.Yul.call (nestedLocalArrayGetFunctionName lengths) (pathArgs ++ valueArgs))
+  | _ =>
+      .error (mkError "EVM ExprPlan-to-Yul scalar lowering supports local struct field and local struct-array field plans only")
+
 def revertStatement : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.exprStmt
     (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
@@ -1337,8 +1371,12 @@ partial def exprPlanExpr
       .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support ABI word expansion plans yet")
   | .localCrosscallWords .. =>
       .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support crosscall word expansion plans yet")
-  | .structField .. =>
-      .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support struct field plans yet")
+  | .structField base fieldName =>
+      localStructFieldExpr
+        mkError
+        (exprPlanExpr mkError lowerExpr lowerEffect)
+        base
+        fieldName
   | .arrayGet .. =>
       .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support array get plans yet")
   | .localArrayGet name path lengths =>

@@ -421,12 +421,14 @@ Tasks:
     emission. The compatibility `IR.lean` expression lowering still owns
     type-env validation and aggregate crosscall argument word expansion, but
     delegates final helper-call names and argument ordering to `ToYul`.
-  - Started: expression-position local fixed-array getter assembly now also
-    lives behind `ExprPlan -> ToYul` for local scalar leaves. `Lower` records
-    local fixed-array path dimensions in `ExprPlan.localArrayGet`, and `ToYul`
-    owns the static local-name selection plus one-dimensional and nested
-    dynamic helper-call argument frames. Array literals, struct leaves, and
-    aggregate array values still fall back through the compatibility facade.
+  - Started: expression-position local fixed-array getter and local
+    struct-field getter assembly now live behind `ExprPlan -> ToYul` for local
+    scalar leaves. `Lower` records local fixed-array path dimensions in
+    `ExprPlan.localArrayGet`, and `ToYul` owns the static local-name selection,
+    local struct-field name selection, plus one-dimensional and nested dynamic
+    helper-call argument frames for scalar arrays and struct-array fields.
+    Array literals, struct literals, storage-backed struct reads, and aggregate
+    array values still fall back through the compatibility facade.
   - Started: whole local aggregate assignment snapshot blocks now live behind
     `ToYul`. `IR.lean` still validates and expands local fixed-array, nested
     fixed-array, struct-array, and struct assignment sources, but final temp

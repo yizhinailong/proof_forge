@@ -10970,3 +10970,34 @@ Result:
 - Static local struct-field and static local struct-array field assignment
   targets now lower through `StmtPlan.assign`/`StmtPlan.assignOp -> ToYul`.
 - Targeted EVM semantic-plan build and test passed locally.
+
+### EVM Local Struct Field ExprPlan ToYul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.localStructFieldExpr` so `ExprPlan.structField` can lower local
+  struct-field reads and local struct-array field reads without returning to
+  the compatibility facade.
+- Routed validated local struct, one-dimensional struct-array, and nested
+  struct-array field read paths in `IR.lean` through
+  `ExprPlan.structField -> ToYul`.
+- Kept struct literals, storage-backed struct reads, and unsupported
+  aggregate-value reads on their existing compatibility paths.
+- Added semantic-plan tests for direct `ExprPlan.structField -> ToYul`
+  lowering and `lowerExpr` integration for local struct fields and dynamic
+  local struct-array fields.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+```
+
+Result:
+
+- Local struct-field and local struct-array field reads now lower through
+  `ExprPlan.structField -> ToYul`.
+- Targeted EVM semantic-plan build and test passed locally.
