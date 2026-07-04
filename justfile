@@ -110,6 +110,10 @@ solana-token-plan-web3:
 near-target-first:
     scripts/near/target-first-smoke.sh
 
+# Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
+portable-counter-multi-target:
+    scripts/portable/counter-multi-target.sh
+
 # Run a live Solana Token-2022 transfer-fee plan smoke on Surfpool with Web3.js.
 solana-token-2022-transfer-fee-web3:
     scripts/solana/token-2022-transfer-fee-web3-smoke.sh
