@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Crosscall/Create ExprPlan To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.crosscallScalarHelperCallExpr` so scalar `call`,
+  value-bearing `call`, native value transfer, `staticcall`, and `delegatecall`
+  expression helper calls share the same helper-name selection used by planned
+  crosscall helper bodies.
+- Added `ToYul.createHelperCallExpr` so expression-position `create` and
+  `create2` helper calls share the same normalized init-code helper naming used
+  by planned create helper bodies.
+- Routed `ExprPlan.crosscall` and `ExprPlan.create` lowering through those new
+  `ToYul` helpers.
+- Updated the `IR.lean` compatibility expression lowering to keep type-env
+  validation and aggregate crosscall argument word expansion in place while
+  delegating final helper-call names and argument ordering to `ToYul`.
+- Extended semantic-plan tests for direct `ExprPlan -> ToYul` scalar
+  crosscall/native-transfer/create/create2 lowering and for the compatibility
+  `lowerExpr` path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+```
+
+Known limitations:
+
+- Aggregate crosscall return assignment/copy construction still goes through the
+  `IR.lean` compatibility facade.
+- Aggregate crosscall argument word expansion is still owned by `IR.lean` until
+  the plan layer can represent fully expanded crosscall argument words.
+
+Next step:
+
+- Move aggregate crosscall return assignment/copy construction behind `ToYul`,
+  or introduce a typed crosscall argument-word plan node so aggregate argument
+  expansion is no longer coupled to `IR.lean`.
+
 ### EVM Create Helper To-Yul Slice
 
 Commit: this commit

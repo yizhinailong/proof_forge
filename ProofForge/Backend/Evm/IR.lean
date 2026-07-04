@@ -2538,69 +2538,92 @@ mutual
     | .nativeValue =>
         .ok (Lean.Compiler.Yul.builtin "callvalue" #[])
     | .crosscallInvoke target methodId args => do
-        let mut callArgs := #[
-          ← lowerExpr module env target,
-          ← lowerExpr module env methodId
-        ]
+        let targetExpr ← lowerExpr module env target
+        let methodIdExpr ← lowerExpr module env methodId
+        let mut argExprs := #[]
         for arg in args do
-          callArgs := callArgs.push (← lowerExpr module env arg)
-        .ok (Lean.Compiler.Yul.call (← crosscallFunctionName args.size .u64) callArgs)
+          argExprs := argExprs.push (← lowerExpr module env arg)
+        .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
+          toYulError
+          ProofForge.Backend.Evm.Plan.CrosscallMode.call
+          targetExpr
+          methodIdExpr
+          none
+          argExprs
+          .u64
     | .crosscallInvokeTyped target methodId args returnType => do
         if !isCrosscallWordType returnType then
           .error { message := s!"typed aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
         let argWords ← lowerCrosscallArgWordsMany module env "typed crosscall argument" args
-        let mut callArgs := #[
-          ← lowerExpr module env target,
-          ← lowerExpr module env methodId
-        ]
-        callArgs := callArgs ++ argWords
-        .ok (Lean.Compiler.Yul.call (← crosscallFunctionName argWords.size returnType) callArgs)
+        .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
+          toYulError
+          ProofForge.Backend.Evm.Plan.CrosscallMode.call
+          (← lowerExpr module env target)
+          (← lowerExpr module env methodId)
+          none
+          argWords
+          returnType
     | .crosscallInvokeValueTyped target methodId callValue args returnType => do
         if !isCrosscallWordType returnType then
           .error { message := s!"value aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
         if plainValueTransferCall? methodId args then
-          .ok (Lean.Compiler.Yul.call (← crosscallValueFunctionName 0 returnType true) #[
-            ← lowerExpr module env target,
-            ← lowerExpr module env callValue
-          ])
+          .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
+            toYulError
+            ProofForge.Backend.Evm.Plan.CrosscallMode.callValue
+            (← lowerExpr module env target)
+            (Lean.Compiler.Yul.Expr.num 0)
+            (some (← lowerExpr module env callValue))
+            #[]
+            returnType
+            true
         else
           let argWords ← lowerCrosscallArgWordsMany module env "value crosscall argument" args
-          let mut callArgs := #[
-            ← lowerExpr module env target,
-            ← lowerExpr module env methodId,
-            ← lowerExpr module env callValue
-          ]
-          callArgs := callArgs ++ argWords
-          .ok (Lean.Compiler.Yul.call (← crosscallValueFunctionName argWords.size returnType) callArgs)
+          .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
+            toYulError
+            ProofForge.Backend.Evm.Plan.CrosscallMode.callValue
+            (← lowerExpr module env target)
+            (← lowerExpr module env methodId)
+            (some (← lowerExpr module env callValue))
+            argWords
+            returnType
     | .crosscallInvokeStaticTyped target methodId args returnType => do
         if !isCrosscallWordType returnType then
           .error { message := s!"static aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
         let argWords ← lowerCrosscallArgWordsMany module env "static crosscall argument" args
-        let mut callArgs := #[
-          ← lowerExpr module env target,
-          ← lowerExpr module env methodId
-        ]
-        callArgs := callArgs ++ argWords
-        .ok (Lean.Compiler.Yul.call (← crosscallStaticFunctionName argWords.size returnType) callArgs)
+        .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
+          toYulError
+          ProofForge.Backend.Evm.Plan.CrosscallMode.staticcall
+          (← lowerExpr module env target)
+          (← lowerExpr module env methodId)
+          none
+          argWords
+          returnType
     | .crosscallInvokeDelegateTyped target methodId args returnType => do
         if !isCrosscallWordType returnType then
           .error { message := s!"delegate aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
         let argWords ← lowerCrosscallArgWordsMany module env "delegate crosscall argument" args
-        let mut callArgs := #[
-          ← lowerExpr module env target,
-          ← lowerExpr module env methodId
-        ]
-        callArgs := callArgs ++ argWords
-        .ok (Lean.Compiler.Yul.call (← crosscallDelegateFunctionName argWords.size returnType) callArgs)
+        .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
+          toYulError
+          ProofForge.Backend.Evm.Plan.CrosscallMode.delegatecall
+          (← lowerExpr module env target)
+          (← lowerExpr module env methodId)
+          none
+          argWords
+          returnType
     | .crosscallCreate callValue initCodeHex => do
-        .ok (Lean.Compiler.Yul.call (← createHelperFunctionName .create initCodeHex) #[
-          ← lowerExpr module env callValue
-        ])
+        .ok <| ← ProofForge.Backend.Evm.ToYul.createHelperCallExpr
+          toYulError
+          ProofForge.Backend.Evm.Plan.CreateMode.create
+          (← lowerExpr module env callValue)
+          none
+          initCodeHex
     | .crosscallCreate2 callValue salt initCodeHex => do
-        .ok (Lean.Compiler.Yul.call (← createHelperFunctionName .create2 initCodeHex) #[
-          ← lowerExpr module env callValue,
-          ← lowerExpr module env salt
-        ])
+        .ok <| ← ProofForge.Backend.Evm.ToYul.createHelperCallExpr
+          toYulError
+          ProofForge.Backend.Evm.Plan.CreateMode.create2
+          (← lowerExpr module env callValue)
+          (some (← lowerExpr module env salt))
+          initCodeHex
     | .effect effect => lowerEffectExpr module env effect
 
   partial def lowerEffectExpr (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Expr

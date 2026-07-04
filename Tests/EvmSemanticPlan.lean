@@ -55,6 +55,17 @@ def statementsHaveAssignmentBuiltin (statements : Array Lean.Compiler.Yul.Statem
         builtinName == name
     | _ => false
 
+def requireCallExpr
+    (expr : Lean.Compiler.Yul.Expr)
+    (expectedName : String)
+    (expectedArgCount : Nat)
+    (label : String) : IO Unit := do
+  match expr with
+  | Lean.Compiler.Yul.Expr.call name args => do
+      require (name == expectedName) s!"{label} helper name"
+      require (args.size == expectedArgCount) s!"{label} arg count"
+  | _ => throw <| IO.userError s!"{label} must lower to helper call"
+
 def nativeTransferPlanProbe : Module := {
   name := "NativeTransferPlanProbe"
   state := #[]
@@ -594,6 +605,11 @@ def testSemanticPlanRender : IO Unit := do
   require (rendered.contains "storage:") "counter plan render storage"
 
 def testScalarExprPlanToYul : IO Unit := do
+  let scalarEnv : TypeEnv := #[
+    { name := "target", type := .u64, isMutable := false },
+    { name := "amount", type := .u64, isMutable := false },
+    { name := "salt", type := .hash, isMutable := false }
+  ]
   let readExpr ← requireOk
     (lowerExprViaPlan
       ProofForge.IR.Examples.Counter.module
@@ -620,6 +636,101 @@ def testScalarExprPlanToYul : IO Unit := do
       require (name == "__pf_checked_add") "counter checked add plan-to-yul helper"
       require (args.size == 2) "counter checked add plan-to-yul arg count"
   | _ => throw <| IO.userError "counter checked add plan-to-yul must be helper call"
+  let crosscallPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.crosscall
+        ProofForge.Backend.Evm.Plan.CrosscallMode.call
+        (.local "target")
+        (.literalWord 305419896)
+        none
+        #[.local "amount"]
+        .u32))
+    "scalar crosscall ExprPlan-to-Yul"
+  requireCallExpr
+    crosscallPlanExpr
+    "__proof_forge_crosscall_1_u32"
+    3
+    "scalar crosscall ExprPlan-to-Yul"
+  let nativeTransferPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.crosscall
+        ProofForge.Backend.Evm.Plan.CrosscallMode.callValue
+        (.local "target")
+        (.literalWord 0)
+        (some .nativeValue)
+        #[]
+        .u64))
+    "native transfer ExprPlan-to-Yul"
+  requireCallExpr
+    nativeTransferPlanExpr
+    "__proof_forge_native_transfer"
+    2
+    "native transfer ExprPlan-to-Yul"
+  let createPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.create
+        ProofForge.Backend.Evm.Plan.CreateMode.create
+        (.literalWord 0)
+        none
+        ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex))
+    "create ExprPlan-to-Yul"
+  requireCallExpr
+    createPlanExpr
+    ("__proof_forge_create_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
+    1
+    "create ExprPlan-to-Yul"
+  let create2PlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.create
+        ProofForge.Backend.Evm.Plan.CreateMode.create2
+        (.literalWord 0)
+        (some (.local "salt"))
+        ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex))
+    "create2 ExprPlan-to-Yul"
+  requireCallExpr
+    create2PlanExpr
+    ("__proof_forge_create2_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
+    2
+    "create2 ExprPlan-to-Yul"
+  let directCrosscallExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[.local "amount"]
+        .u32))
+    "direct scalar crosscall lowers through ToYul helper-call helper"
+  requireCallExpr
+    directCrosscallExpr
+    "__proof_forge_crosscall_1_u32"
+    3
+    "direct scalar crosscall ToYul helper-call"
+  let directNativeTransferExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.crosscallInvokeValueTyped
+        (.local "target")
+        (.literal (.u64 0))
+        .nativeValue
+        #[]
+        .u64))
+    "direct native transfer lowers through ToYul helper-call helper"
+  requireCallExpr
+    directNativeTransferExpr
+    "__proof_forge_native_transfer"
+    2
+    "direct native transfer ToYul helper-call"
 
 def testScalarAssertPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]

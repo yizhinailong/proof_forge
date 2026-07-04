@@ -390,15 +390,23 @@ Tasks:
     return helpers, and plain native transfer helpers can be emitted from the
     semantic plan without rediscovering return layout from the module during
     complete plan-driven lowering. `IR.lean` still owns return word-layout
-    discovery and compatibility wrappers until scalar/aggregate crosscall
-    expression call construction moves behind `ToYul`.
+    discovery and compatibility wrappers until aggregate crosscall return
+    assignment/copy construction moves behind `ToYul`.
   - Started: create/create2 helper naming and body construction now live behind
     the `CreateHelperSpec -> ToYul` boundary. Planned create specs can emit
     deterministic init-code `mstore` frames, `create`/`create2` opcode calls,
     zero-address revert guards, and helper function names without converting
     back to the `IR.lean` compatibility helper spec. `IR.lean` still owns
-    create helper discovery and expression-position create/create2 helper-call
-    assembly until those call expressions are moved behind `ToYul`.
+    create helper discovery until helper discovery itself moves fully into
+    `Lower`/`ModulePlan` construction.
+  - Started: scalar expression-position crosscall helper-call assembly and
+    create/create2 helper-call assembly now live behind `ToYul`. `ExprPlan`
+    nodes for scalar `call`, value-bearing `call`, native value transfer,
+    `staticcall`, `delegatecall`, `create`, and `create2` can lower directly to
+    helper calls using the same helper-name selection used for helper body
+    emission. The compatibility `IR.lean` expression lowering still owns
+    type-env validation and aggregate crosscall argument word expansion, but
+    delegates final helper-call names and argument ordering to `ToYul`.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

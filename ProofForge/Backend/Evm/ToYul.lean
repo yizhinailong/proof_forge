@@ -482,6 +482,72 @@ def crosscallHelperFunction
             guardStatements
         }
 
+def crosscallScalarHelperSpec
+    (mode : CrosscallMode)
+    (arity : Nat)
+    (returnType : ValueType)
+    (plainTransfer : Bool := false) : CrosscallHelperSpec := {
+  arity
+  returnType
+  wordTypes := #[returnType]
+  mode
+  plainTransfer
+}
+
+def crosscallScalarHelperCallExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (mode : CrosscallMode)
+    (target methodId : Lean.Compiler.Yul.Expr)
+    (callValue? : Option Lean.Compiler.Yul.Expr)
+    (args : Array Lean.Compiler.Yul.Expr)
+    (returnType : ValueType)
+    (plainTransfer : Bool := false) : Except ε Lean.Compiler.Yul.Expr := do
+  if !crosscallReturnIsScalarWord returnType then
+    .error (mkError s!"EVM scalar crosscall helper call does not support aggregate return type `{returnType.name}`")
+  else if plainTransfer && mode != .callValue then
+    .error (mkError "plain native transfer helper calls must use callValue mode")
+  else if plainTransfer && !args.isEmpty then
+    .error (mkError "plain native transfer helper calls cannot include calldata arguments")
+  else
+    let functionName ←
+      crosscallHelperFunctionName mkError
+        (crosscallScalarHelperSpec mode args.size returnType plainTransfer)
+    match mode, callValue? with
+    | .callValue, some callValue =>
+        if plainTransfer then
+          .ok (Lean.Compiler.Yul.call functionName #[target, callValue])
+        else
+          .ok (Lean.Compiler.Yul.call functionName (#[target, methodId, callValue] ++ args))
+    | .callValue, none =>
+        .error (mkError "value-bearing crosscall helper calls require call value")
+    | .call, none
+    | .staticcall, none
+    | .delegatecall, none =>
+        .ok (Lean.Compiler.Yul.call functionName (#[target, methodId] ++ args))
+    | .call, some _
+    | .staticcall, some _
+    | .delegatecall, some _ =>
+        .error (mkError "non-value crosscall helper calls cannot include call value")
+
+def createHelperCallExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (mode : CreateMode)
+    (callValue : Lean.Compiler.Yul.Expr)
+    (salt? : Option Lean.Compiler.Yul.Expr)
+    (initCodeHex : String) : Except ε Lean.Compiler.Yul.Expr := do
+  let functionName ← createHelperFunctionName mkError mode initCodeHex
+  match mode, salt? with
+  | .create, none =>
+      .ok (Lean.Compiler.Yul.call functionName #[callValue])
+  | .create2, some salt =>
+      .ok (Lean.Compiler.Yul.call functionName #[callValue, salt])
+  | .create, some _ =>
+      .error (mkError "create helper calls cannot include a salt")
+  | .create2, none =>
+      .error (mkError "create2 helper calls require a salt")
+
 def calldataloadAt (offset : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "calldataload" #[offset]
 
@@ -1074,10 +1140,32 @@ partial def exprPlanExpr
         (← exprPlanExpr mkError lowerExpr lowerEffect d))
   | .context field =>
       .ok (contextExpr field)
-  | .crosscall .. =>
-      .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support crosscall plans yet")
-  | .create .. =>
-      .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support create plans yet")
+  | .crosscall mode target methodId callValue? args returnType => do
+      let targetExpr ← exprPlanExpr mkError lowerExpr lowerEffect target
+      let methodIdExpr ← exprPlanExpr mkError lowerExpr lowerEffect methodId
+      let callValueExpr? ← callValue?.mapM (exprPlanExpr mkError lowerExpr lowerEffect)
+      let argExprs ← args.mapM (exprPlanExpr mkError lowerExpr lowerEffect)
+      let plainTransfer :=
+        mode == .callValue && args.isEmpty &&
+          match methodId with
+          | .literalWord 0 => true
+          | _ => false
+      crosscallScalarHelperCallExpr
+        mkError
+        mode
+        targetExpr
+        methodIdExpr
+        callValueExpr?
+        argExprs
+        returnType
+        plainTransfer
+  | .create mode callValue salt? initCodeHex => do
+      createHelperCallExpr
+        mkError
+        mode
+        (← exprPlanExpr mkError lowerExpr lowerEffect callValue)
+        (← salt?.mapM (exprPlanExpr mkError lowerExpr lowerEffect))
+        initCodeHex
   | .cast source _ =>
       exprPlanExpr mkError lowerExpr lowerEffect source
   | .localAbiWords .. =>
