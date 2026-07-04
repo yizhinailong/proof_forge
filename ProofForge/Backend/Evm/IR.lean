@@ -5014,6 +5014,285 @@ def lowerReturnStmt
     (leaveAfterReturn : Bool) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   lowerScalarReturnStmtPlanOrFallback module env entrypointName returnType value leaveAfterReturn
 
+def scalarBodyTypeSupported : ValueType → Bool
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
+  | .unit | .bytes | .string | .fixedArray _ _ | .structType _ => false
+
+mutual
+  partial def effectPlanSupportsScalarBodyExpr :
+      ProofForge.Backend.Evm.Plan.EffectPlan → Bool
+    | .storageScalarRead _ => true
+    | .contextRead _ => true
+    | _ => false
+
+  partial def exprPlanSupportsScalarBody :
+      ProofForge.Backend.Evm.Plan.ExprPlan → Bool
+    | .literalWord _ => true
+    | .local _ => true
+    | .calldataWord _ => true
+    | .storageLoad _ => true
+    | .builtin _ args => args.all exprPlanSupportsScalarBody
+    | .helperCall _ args => args.all exprPlanSupportsScalarBody
+    | .checkedArith _ lhs rhs => exprPlanSupportsScalarBody lhs && exprPlanSupportsScalarBody rhs
+    | .hashPack a b c d =>
+        exprPlanSupportsScalarBody a &&
+        exprPlanSupportsScalarBody b &&
+        exprPlanSupportsScalarBody c &&
+        exprPlanSupportsScalarBody d
+    | .context _ => true
+    | .cast source _ => exprPlanSupportsScalarBody source
+    | .hashValue a b c d =>
+        exprPlanSupportsScalarBody a &&
+        exprPlanSupportsScalarBody b &&
+        exprPlanSupportsScalarBody c &&
+        exprPlanSupportsScalarBody d
+    | .hash preimage => exprPlanSupportsScalarBody preimage
+    | .hashTwoToOne lhs rhs => exprPlanSupportsScalarBody lhs && exprPlanSupportsScalarBody rhs
+    | .nativeValue => true
+    | .effect effect => effectPlanSupportsScalarBodyExpr effect
+    | .crosscall .. | .create .. | .localAbiWords .. | .localCrosscallWords ..
+    | .storageCrosscallWords .. | .structField .. | .arrayGet .. | .localArrayGet ..
+    | .arrayLit .. | .structLit .. => false
+end
+
+def scalarBodyAssignmentTargetSupported :
+    ProofForge.Backend.Evm.Plan.ExprPlan → Bool
+  | .local _ => true
+  | _ => false
+
+def effectPlanSupportsScalarBodyStmt :
+    ProofForge.Backend.Evm.Plan.EffectPlan → Bool
+  | .storageScalarWrite _ value => exprPlanSupportsScalarBody value
+  | .storageScalarAssignOp _ _ value => exprPlanSupportsScalarBody value
+  | _ => false
+
+mutual
+  partial def stmtPlanSupportsScalarBody
+      (returnType : ValueType) :
+      ProofForge.Backend.Evm.Plan.StmtPlan → Bool
+    | .letBind _ type value
+    | .letMutBind _ type value =>
+        scalarBodyTypeSupported type && exprPlanSupportsScalarBody value
+    | .assign target value
+    | .assignOp target _ value =>
+        scalarBodyAssignmentTargetSupported target && exprPlanSupportsScalarBody value
+    | .effect effect =>
+        effectPlanSupportsScalarBodyStmt effect
+    | .assert condition _ _ =>
+        exprPlanSupportsScalarBody condition
+    | .assertEq lhs rhs _ _ =>
+        exprPlanSupportsScalarBody lhs && exprPlanSupportsScalarBody rhs
+    | .release _ => false
+    | .revert _ => true
+    | .revertWithError _ => true
+    | .ifElse condition thenBody elseBody =>
+        exprPlanSupportsScalarBody condition &&
+        stmtPlansSupportScalarBody returnType thenBody &&
+        stmtPlansSupportScalarBody returnType elseBody
+    | .boundedFor _ _ _ body =>
+        stmtPlansSupportScalarBody returnType body
+    | .return value =>
+        returnTypeSupportsScalarStmtPlan returnType && exprPlanSupportsScalarBody value
+
+  partial def stmtPlansSupportScalarBody
+      (returnType : ValueType)
+      (plans : Array ProofForge.Backend.Evm.Plan.StmtPlan) : Bool :=
+    plans.all (stmtPlanSupportsScalarBody returnType)
+end
+
+def scalarBodyEntrypoint
+    (entrypointName : String)
+    (returnType : ValueType) : Entrypoint := {
+  name := entrypointName
+  returns := returnType
+  body := #[]
+}
+
+def plannedScalarBodyStatement?
+    (module : Module)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (env : TypeEnv)
+    (statement : ProofForge.IR.Statement) :
+    Except LowerError (Option ProofForge.Backend.Evm.Plan.StmtPlan) := do
+  let entrypoint := scalarBodyEntrypoint entrypointName returnType
+  match ProofForge.Backend.Evm.Lower.buildStatementPlan module entrypoint (toValidateTypeEnv env) statement with
+  | .ok (plan, _) =>
+      if stmtPlanSupportsScalarBody returnType plan then
+        .ok (some plan)
+      else
+        .ok none
+  | .error _ =>
+      .ok none
+
+def lowerScalarBodyStorageEffectPlan
+    (module : Module)
+    (env : TypeEnv)
+    (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  match effect with
+  | .storageScalarWrite stateId _ => do
+      match ← scalarStateType module stateId with
+      | .structType _ =>
+          .error { message := s!"storage.scalar.write does not support struct state `{stateId}` in planned scalar control-flow bodies yet" }
+      | _ => pure ()
+  | .storageScalarAssignOp stateId _ _ => do
+      match ← scalarStateType module stateId with
+      | .structType _ =>
+          .error { message := s!"storage.scalar.assign_op does not support struct state `{stateId}` in planned scalar control-flow bodies yet" }
+      | _ => pure ()
+  | _ =>
+      .error { message := "planned scalar control-flow body expected storage.scalar.write/storage.scalar.assign_op effect" }
+  ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+    toYulError
+    (fun expr => lowerExpr module env expr)
+    (lowerPlanEffectExpr module env)
+    (lowerScalarStorageSlotExpr module env)
+    (scalarStatePacking module)
+    (.effect effect)
+
+mutual
+  partial def lowerScalarStmtPlanBodyStatements
+      (module : Module)
+      (entrypointName : String)
+      (returnType : ValueType)
+      (env : TypeEnv)
+      (leaveAfterReturn : Bool)
+      (plans : Array ProofForge.Backend.Evm.Plan.StmtPlan) :
+      Except LowerError (Array Lean.Compiler.Yul.Statement × TypeEnv) := do
+    let mut statementsAcc : Array Lean.Compiler.Yul.Statement := #[]
+    let mut currentEnv := env
+    for h : idx in [0:plans.size] do
+      let stmtLeaveAfterReturn := leaveAfterReturn || decide (idx + 1 < plans.size)
+      let (lowered, nextEnv) ←
+        lowerScalarStmtPlanBodyStatement
+          module
+          entrypointName
+          returnType
+          currentEnv
+          stmtLeaveAfterReturn
+          plans[idx]
+      statementsAcc := statementsAcc ++ lowered
+      currentEnv := nextEnv
+    .ok (statementsAcc, currentEnv)
+
+  partial def lowerScalarStmtPlanBodyStatement
+      (module : Module)
+      (entrypointName : String)
+      (returnType : ValueType)
+      (env : TypeEnv)
+      (leaveAfterReturn : Bool) :
+      ProofForge.Backend.Evm.Plan.StmtPlan →
+      Except LowerError (Array Lean.Compiler.Yul.Statement × TypeEnv)
+    | .letBind name type value => do
+        ensureLocalScalarType "planned scalar let binding" name type
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.scalarBindingStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.letBind name type value)
+        let nextEnv ← addLocal env name type false
+        .ok (statements, nextEnv)
+    | .letMutBind name type value => do
+        ensureLocalScalarType "planned scalar mutable let binding" name type
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.scalarBindingStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.letMutBind name type value)
+        let nextEnv ← addLocal env name type true
+        .ok (statements, nextEnv)
+    | .assign target value => do
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.assign target value)
+        .ok (statements, env)
+    | .assignOp target op value => do
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.assignOp target op value)
+        .ok (statements, env)
+    | .effect effect => do
+        .ok (← lowerScalarBodyStorageEffectPlan module env effect, env)
+    | .assert condition message errorRef? => do
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.scalarAssertStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (fun
+              | none => #[revertStmt]
+              | some ref => errorRefRevertStmts ref)
+            (.assert condition message errorRef?)
+        .ok (statements, env)
+    | .assertEq lhs rhs message errorRef? => do
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.scalarAssertStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (fun
+              | none => #[revertStmt]
+              | some ref => errorRefRevertStmts ref)
+            (.assertEq lhs rhs message errorRef?)
+        .ok (statements, env)
+    | .release _ =>
+        .error { message := "planned scalar control-flow bodies do not support release statements" }
+    | .revert message => do
+        if message.isEmpty then
+          .ok (#[revertStmt], env)
+        else
+          .ok (ProofForge.Backend.Evm.ToYul.revertWithMessageStatements message, env)
+    | .revertWithError errorRef =>
+        .ok (errorRefRevertStmts errorRef, env)
+    | .ifElse condition thenBody elseBody => do
+        let (thenStatements, _) ←
+          lowerScalarStmtPlanBodyStatements module entrypointName returnType env true thenBody
+        let (elseStatements, _) ←
+          lowerScalarStmtPlanBodyStatements module entrypointName returnType env true elseBody
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.ifElseStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            thenStatements
+            elseStatements
+            (.ifElse condition thenBody elseBody)
+        .ok (statements, env)
+    | .boundedFor indexName start stopExclusive body => do
+        if stopExclusive <= start then
+          .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
+        let loopEnv ← addLocal env indexName .u32 false
+        let (bodyStatements, _) ←
+          lowerScalarStmtPlanBodyStatements module entrypointName returnType loopEnv true body
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.boundedForStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module loopEnv expr)
+            (lowerPlanEffectExpr module loopEnv)
+            bodyStatements
+            (.boundedFor indexName start stopExclusive body)
+        .ok (statements, env)
+    | .return value => do
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (← abiReturnNames module entrypointName returnType)
+            leaveAfterReturn
+            (.return value)
+        .ok (statements, env)
+end
+
 mutual
   partial def lowerStatements
       (module : Module)
@@ -5082,46 +5361,62 @@ mutual
     | .revertWithError errorRef => do
         .ok (errorRefRevertStmts errorRef, env)
     | .ifElse condition thenBody elseBody => do
-        let thenStatements ← lowerStatements module entrypointName returnType env true thenBody
-        let elseStatements ← lowerStatements module entrypointName returnType env true elseBody
-        if exprSupportsPlanScalarYul condition then
-          let conditionPlan ←
-            match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) condition with
-            | .ok plan => .ok plan
-            | .error err => .error { message := err.message }
-          let statements ←
-            ProofForge.Backend.Evm.ToYul.ifElseStmtPlanStatements
-              toYulError
-              (fun expr => lowerExpr module env expr)
-              (lowerPlanEffectExpr module env)
-              thenStatements
-              elseStatements
-              (.ifElse conditionPlan #[] #[])
-          .ok (statements, env)
-        else
-          .ok (#[.switchStmt (← lowerScalarPlanExprOrFallback module env condition) #[
-            {
-              value := some (Lean.Compiler.Yul.Literal.natLit 0)
-              body := { statements := elseStatements }
-            },
-            {
-              value := none
-              body := { statements := thenStatements }
-            }
-          ]], env)
+        let fallback : Except LowerError (Array Lean.Compiler.Yul.Statement × TypeEnv) := do
+          let thenStatements ← lowerStatements module entrypointName returnType env true thenBody
+          let elseStatements ← lowerStatements module entrypointName returnType env true elseBody
+          if exprSupportsPlanScalarYul condition then
+            let conditionPlan ←
+              match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) condition with
+              | .ok plan => .ok plan
+              | .error err => .error { message := err.message }
+            let statements ←
+              ProofForge.Backend.Evm.ToYul.ifElseStmtPlanStatements
+                toYulError
+                (fun expr => lowerExpr module env expr)
+                (lowerPlanEffectExpr module env)
+                thenStatements
+                elseStatements
+                (.ifElse conditionPlan #[] #[])
+            .ok (statements, env)
+          else
+            .ok (#[.switchStmt (← lowerScalarPlanExprOrFallback module env condition) #[
+              {
+                value := some (Lean.Compiler.Yul.Literal.natLit 0)
+                body := { statements := elseStatements }
+              },
+              {
+                value := none
+                body := { statements := thenStatements }
+              }
+            ]], env)
+        match ← plannedScalarBodyStatement? module entrypointName returnType env (.ifElse condition thenBody elseBody) with
+        | some plan =>
+            match lowerScalarStmtPlanBodyStatement module entrypointName returnType env leaveAfterReturn plan with
+            | .ok lowered => .ok lowered
+            | .error _ => fallback
+        | none =>
+            fallback
     | .boundedFor indexName start stopExclusive body => do
-        if stopExclusive <= start then
-          .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
-        let loopEnv ← addLocal env indexName .u32 false
-        let bodyStatements ← lowerStatements module entrypointName returnType loopEnv true body
-        let statements ←
-          ProofForge.Backend.Evm.ToYul.boundedForStmtPlanStatements
-            toYulError
-            (fun expr => lowerExpr module loopEnv expr)
-            (lowerPlanEffectExpr module loopEnv)
-            bodyStatements
-            (.boundedFor indexName start stopExclusive #[])
-        .ok (statements, env)
+        let fallback : Except LowerError (Array Lean.Compiler.Yul.Statement × TypeEnv) := do
+          if stopExclusive <= start then
+            .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
+          let loopEnv ← addLocal env indexName .u32 false
+          let bodyStatements ← lowerStatements module entrypointName returnType loopEnv true body
+          let statements ←
+            ProofForge.Backend.Evm.ToYul.boundedForStmtPlanStatements
+              toYulError
+              (fun expr => lowerExpr module loopEnv expr)
+              (lowerPlanEffectExpr module loopEnv)
+              bodyStatements
+              (.boundedFor indexName start stopExclusive #[])
+          .ok (statements, env)
+        match ← plannedScalarBodyStatement? module entrypointName returnType env (.boundedFor indexName start stopExclusive body) with
+        | some plan =>
+            match lowerScalarStmtPlanBodyStatement module entrypointName returnType env leaveAfterReturn plan with
+            | .ok lowered => .ok lowered
+            | .error _ => fallback
+        | none =>
+            fallback
     | .return value => do
         .ok (← lowerReturnStmt module env entrypointName returnType value leaveAfterReturn, env)
 end

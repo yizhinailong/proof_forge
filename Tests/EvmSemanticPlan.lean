@@ -2148,6 +2148,96 @@ def testScalarControlFlowPlanToYul : IO Unit := do
       require (args.size == 2) "scalar boundedFor StmtPlan-to-Yul helper arg count"
       require (body.statements.size == 1) "scalar boundedFor StmtPlan-to-Yul helper body count"
   | _ => throw <| IO.userError "scalar boundedFor StmtPlan-to-Yul helper must lower to for over builtin"
+  let plannedIf :=
+    ProofForge.Backend.Evm.Plan.StmtPlan.ifElse
+      (.builtin "gt" #[.local "n", .literalWord 0])
+      #[
+        .letBind "m" .u64 (.checkedArith .add (.local "n") (.literalWord 1)),
+        .assign (.local "n") (.local "m")
+      ]
+      #[
+        .effect (.storageScalarWrite "count" (.literalWord 7))
+      ]
+  let (plannedIfStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.Counter.module
+      "control_flow"
+      .unit
+      env
+      false
+      plannedIf)
+    "planned scalar ifElse body lowering"
+  require (plannedIfStmts.size == 1) "planned scalar ifElse body lowering statement count"
+  match plannedIfStmts[0]! with
+  | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.builtin name args) cases => do
+      require (name == "gt") "planned scalar ifElse body lowering opcode"
+      require (args.size == 2) "planned scalar ifElse body lowering arg count"
+      require (cases.size == 2) "planned scalar ifElse body lowering case count"
+      let elseCase ← requireAt cases 0 "planned scalar ifElse body lowering else case"
+      let thenCase ← requireAt cases 1 "planned scalar ifElse body lowering then case"
+      require (thenCase.body.statements.size == 2) "planned scalar ifElse body lowering then statement count"
+      require (elseCase.body.statements.size == 1) "planned scalar ifElse body lowering else statement count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names _ => do
+          require (names.size == 1) "planned scalar ifElse body lowering let name count"
+          let name ← requireAt names 0 "planned scalar ifElse body lowering let name value"
+          require (name.name == "m") "planned scalar ifElse body lowering let name"
+      | _ => throw <| IO.userError "planned scalar ifElse body lowering must keep planned let body"
+      match thenCase.body.statements[1]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["n"]) "planned scalar ifElse body lowering assignment target"
+          require (valueName == "m") "planned scalar ifElse body lowering assignment value"
+      | _ => throw <| IO.userError "planned scalar ifElse body lowering must keep planned assignment body"
+      match elseCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin storageOp storageArgs) => do
+          require (storageOp == "sstore") "planned scalar ifElse body lowering storage op"
+          require (storageArgs.size == 2) "planned scalar ifElse body lowering storage arg count"
+      | _ => throw <| IO.userError "planned scalar ifElse body lowering must keep planned storage body"
+  | _ => throw <| IO.userError "planned scalar ifElse body lowering must lower to switch over builtin"
+  let plannedFor :=
+    ProofForge.Backend.Evm.Plan.StmtPlan.boundedFor
+      "i"
+      0
+      2
+      #[
+        .assignOp (.local "n") .add (.local "i")
+      ]
+  let (plannedForStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.Counter.module
+      "control_flow"
+      .unit
+      env
+      false
+      plannedFor)
+    "planned scalar boundedFor body lowering"
+  require (plannedForStmts.size == 1) "planned scalar boundedFor body lowering statement count"
+  match plannedForStmts[0]! with
+  | Lean.Compiler.Yul.Statement.forLoop _ (Lean.Compiler.Yul.Expr.builtin name args) _ body => do
+      require (name == "lt") "planned scalar boundedFor body lowering opcode"
+      require (args.size == 2) "planned scalar boundedFor body lowering arg count"
+      require (body.statements.size == 1) "planned scalar boundedFor body lowering body count"
+      match body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.assignment names _ =>
+          require (names == #["n"]) "planned scalar boundedFor body lowering assignment target"
+      | _ => throw <| IO.userError "planned scalar boundedFor body lowering must keep planned assignment body"
+  | _ => throw <| IO.userError "planned scalar boundedFor body lowering must lower to for over builtin"
+  let plannedControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.Counter.module
+      "control_flow"
+      .unit
+      env
+      (.ifElse
+        (.gt (.local "n") (.literal (.u64 0)))
+        #[.assign (.local "n") (.add (.local "n") (.literal (.u64 1)))]
+        #[.effect (.storageScalarWrite "count" (.literal (.u64 1)))]))
+    "planned scalar control-flow plan construction"
+  match plannedControl? with
+  | some (.ifElse _ thenBody elseBody) => do
+      require (thenBody.size == 1) "planned scalar control-flow plan construction then body"
+      require (elseBody.size == 1) "planned scalar control-flow plan construction else body"
+  | _ => throw <| IO.userError "planned scalar control-flow plan construction must produce ifElse body plan"
   let (ifStmts, _) ← requireOk
     (lowerStatement
       ProofForge.IR.Examples.Counter.module
