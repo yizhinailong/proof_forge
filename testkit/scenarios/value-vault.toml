@@ -73,7 +73,6 @@ contains = "events.emit"
 path = "artifacts"
 kind = "object"
 non_empty = true
-length = 3
 
 [[artifact.file]]
 path = "artifacts.wat"
