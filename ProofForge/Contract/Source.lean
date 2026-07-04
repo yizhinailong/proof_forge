@@ -2,6 +2,8 @@ import Lean
 import ProofForge.Contract.Surface
 import ProofForge.Solana.Surface
 
+set_option hygiene false
+
 namespace ProofForge.Contract.Source
 
 open Lean
@@ -137,6 +139,7 @@ scoped syntax "cpi " ident " spl_token_close_account" "(" ident ", " ident ", " 
 scoped syntax "cpi " ident " spl_token_set_authority" "(" ident ", " ident ", " ident ")" " authority_type" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" : contractItem
 scoped syntax "use " term : contractItem
+scoped syntax "compose " ident ";" : contractItem
 scoped syntax "import " ident ";" : contractItem
 scoped syntax "open " ident ";" : contractItem
 scoped syntax "constructor_param " ident " : " term ";" : contractItem
@@ -202,6 +205,42 @@ private def chainTerms (terms : Array (TSyntax `term)) : MacroM (TSyntax `term) 
   for term in terms.reverse do
     acc ← `($term *> $acc)
   return acc
+
+private def composeSpecTerm (mod : TSyntax `ident) : MacroM (TSyntax `term) := do
+  match mod.getId with
+  | `ProofForge.Contract.Stdlib.Ownable =>
+    `(ProofForge.Contract.Stdlib.Compose.Specs.ownableSpec)
+  | `ProofForge.Contract.Stdlib.ERC20 =>
+    `(ProofForge.Contract.Stdlib.Compose.Specs.erc20Spec)
+  | `ProofForge.Contract.Stdlib.OwnableERC20 =>
+    `(ProofForge.Contract.Stdlib.Compose.Specs.ownableErc20Spec)
+  | _ =>
+    let specId : TSyntax `ident := ⟨mkIdent (mod.getId ++ `spec)⟩
+    `(term| $specId)
+
+private def mkComposeBaseSpec (nameLit : TSyntax `term) (mods : Array (TSyntax `ident)) :
+    MacroM (TSyntax `term) := do
+  if mods.isEmpty then
+    Macro.throwError "compose requires at least one module"
+  else if mods.size == 1 then
+    composeSpecTerm mods[0]!
+  else
+    let mut specs : Array (TSyntax `term) := #[]
+    for mod in mods do
+      specs := specs.push (← composeSpecTerm mod)
+    `(ProofForge.Contract.Compose.mergeMany $nameLit #[ $(specs),* ])
+
+private def partitionContractItems (items : Array (TSyntax `contractItem)) :
+    MacroM (Array (TSyntax `ident) × Array (TSyntax `contractItem)) := do
+  let mut composeMods : Array (TSyntax `ident) := #[]
+  let mut extItems : Array (TSyntax `contractItem) := #[]
+  for item in items do
+    match item with
+    | `(contractItem| compose $mod:ident;) =>
+        composeMods := composeMods.push mod
+    | _ =>
+        extItems := extItems.push item
+  return (composeMods, extItems)
 
 private def mkParamLet (name : TSyntax `ident) (type : TSyntax `term)
     (body : TSyntax `term) : MacroM (TSyntax `term) := do
@@ -591,17 +630,38 @@ private def lowerContractItems (items : Array (TSyntax `contractItem)) :
 
 macro_rules
   | `(contract_source $name:ident do $items:contractItem*) => do
-      let (body, _) ← lowerContractItems items
+      let (composeMods, extItems) ← partitionContractItems items
       let nameLit := identNameLit name
       let specId : TSyntax `ident := ⟨mkIdent `spec⟩
       let moduleId : TSyntax `ident := ⟨mkIdent `module⟩
-      `(
-        def $specId : ProofForge.Contract.ContractSpec :=
-          ProofForge.Contract.Surface.contract $nameLit $body
+      if composeMods.isEmpty then
+        let (body, _) ← lowerContractItems items
+        `(
+          def $specId : ProofForge.Contract.ContractSpec :=
+            ProofForge.Contract.Surface.contract $nameLit $body
 
-        def $moduleId : ProofForge.IR.Module :=
-          ($specId).module
-      )
+          def $moduleId : ProofForge.IR.Module :=
+            ($specId).module
+        )
+      else if extItems.isEmpty then
+        let baseSpec ← mkComposeBaseSpec nameLit composeMods
+        `(
+          def $specId : ProofForge.Contract.ContractSpec := $baseSpec
+
+          def $moduleId : ProofForge.IR.Module :=
+            ($specId).module
+        )
+      else
+        let baseSpec ← mkComposeBaseSpec nameLit composeMods
+        let (extBody, _) ← lowerContractItems extItems
+        `(
+          def $specId : ProofForge.Contract.ContractSpec :=
+            ProofForge.Contract.Compose.mergeExtension $nameLit $baseSpec
+              (ProofForge.Contract.Surface.contract $nameLit $extBody)
+
+          def $moduleId : ProofForge.IR.Module :=
+            ($specId).module
+        )
 
   | `(contract_mixin $_name:ident do $items:contractItem*) => do
       let (body, _) ← lowerContractItems items
