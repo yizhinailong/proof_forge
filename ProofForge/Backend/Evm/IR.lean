@@ -2720,6 +2720,8 @@ partial def lowerPlanEffectExpr
       | _ => pure ()
       let storageSlot ← lowerScalarStorageSlotExpr module env stateId
       .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
+  | .contextRead (.blockHash blockNumber) => do
+      .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerExpr module env blockNumber])
   | .contextRead field =>
       .ok (ProofForge.Backend.Evm.ToYul.contextExpr field)
   | _ =>
