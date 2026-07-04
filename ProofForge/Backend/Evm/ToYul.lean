@@ -68,6 +68,17 @@ def arrayLocalPathName (name : String) (path : Array Nat) : String :=
   | [index] => arrayLocalElementName name index
   | _ => s!"__proof_forge_array_{name}_{natPathSuffix path}"
 
+def arrayStructLocalFieldName (name : String) (index : Nat) (fieldName : String) : String :=
+  s!"__proof_forge_array_struct_{name}_{index}_{fieldName}"
+
+def arrayStructLocalPathFieldName (name : String) (path : Array Nat) (fieldName : String) : String :=
+  match path.toList with
+  | [index] => arrayStructLocalFieldName name index fieldName
+  | _ => s!"__proof_forge_array_struct_{name}_{natPathSuffix path}_{fieldName}"
+
+def structLocalFieldName (name fieldName : String) : String :=
+  s!"__proof_forge_struct_{name}_{fieldName}"
+
 def localArrayGetFunctionName (length : Nat) : String :=
   s!"__proof_forge_local_array_get_{length}"
 
@@ -1458,6 +1469,132 @@ def scalarAssignmentStmtPlanStatements
       .error (mkError "EVM StmtPlan-to-Yul scalar compound assignment lowering expected a local target")
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected assign/assignOp")
+
+structure FixedArrayAssignmentSource where
+  index : Nat
+  expr : Lean.Compiler.Yul.Expr
+  deriving Inhabited
+
+structure StructArrayAssignmentSource where
+  index : Nat
+  fieldName : String
+  expr : Lean.Compiler.Yul.Expr
+  deriving Inhabited
+
+structure NestedFixedArrayAssignmentSource where
+  path : Array Nat
+  fieldName? : Option String
+  expr : Lean.Compiler.Yul.Expr
+  deriving Inhabited
+
+structure StructAssignmentSource where
+  fieldName : String
+  expr : Lean.Compiler.Yul.Expr
+  deriving Inhabited
+
+def aggregateAssignArrayTempName (name : String) (index : Nat) : String :=
+  s!"__proof_forge_assign_array_{name}_{index}"
+
+def aggregateAssignArrayPathTempName (name : String) (path : Array Nat) : String :=
+  s!"__proof_forge_assign_array_{name}_{natPathSuffix path}"
+
+def aggregateAssignStructTempName (name fieldName : String) : String :=
+  s!"__proof_forge_assign_struct_{name}_{fieldName}"
+
+def aggregateAssignStructArrayTempName (name : String) (index : Nat) (fieldName : String) : String :=
+  s!"__proof_forge_assign_array_struct_{name}_{index}_{fieldName}"
+
+def nestedFixedArrayTargetName (name : String) (path : Array Nat) (fieldName? : Option String) : String :=
+  match fieldName? with
+  | none => arrayLocalPathName name path
+  | some fieldName => arrayStructLocalPathFieldName name path fieldName
+
+def aggregateAssignNestedFixedArrayTempName (name : String) (path : Array Nat) (fieldName? : Option String) : String :=
+  match fieldName? with
+  | none => aggregateAssignArrayPathTempName name path
+  | some fieldName => s!"__proof_forge_assign_array_struct_{name}_{natPathSuffix path}_{fieldName}"
+
+def fixedArrayAssignmentStatements
+    (name : String)
+    (sources : Array FixedArrayAssignmentSource) : Array Lean.Compiler.Yul.Statement :=
+  Id.run do
+    let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+    for source in sources do
+      statements := statements.push <|
+        .varDecl #[{ name := aggregateAssignArrayTempName name source.index }] (some source.expr)
+    for source in sources do
+      statements := statements.push <|
+        .assignment
+          #[arrayLocalElementName name source.index]
+          (Lean.Compiler.Yul.Expr.id (aggregateAssignArrayTempName name source.index))
+    statements
+
+def wholeFixedArrayAssignStmt
+    (name : String)
+    (sources : Array FixedArrayAssignmentSource) : Lean.Compiler.Yul.Statement :=
+  .block { statements := fixedArrayAssignmentStatements name sources }
+
+def structArrayAssignmentStatements
+    (name : String)
+    (sources : Array StructArrayAssignmentSource) : Array Lean.Compiler.Yul.Statement :=
+  Id.run do
+    let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+    for source in sources do
+      statements := statements.push <|
+        .varDecl #[{ name := aggregateAssignStructArrayTempName name source.index source.fieldName }] (some source.expr)
+    for source in sources do
+      statements := statements.push <|
+        .assignment
+          #[arrayStructLocalFieldName name source.index source.fieldName]
+          (Lean.Compiler.Yul.Expr.id (aggregateAssignStructArrayTempName name source.index source.fieldName))
+    statements
+
+def wholeStructArrayAssignStmt
+    (name : String)
+    (sources : Array StructArrayAssignmentSource) : Lean.Compiler.Yul.Statement :=
+  .block { statements := structArrayAssignmentStatements name sources }
+
+def nestedFixedArrayAssignmentStatements
+    (name : String)
+    (sources : Array NestedFixedArrayAssignmentSource) : Array Lean.Compiler.Yul.Statement :=
+  Id.run do
+    let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+    for source in sources do
+      statements := statements.push <|
+        .varDecl
+          #[{ name := aggregateAssignNestedFixedArrayTempName name source.path source.fieldName? }]
+          (some source.expr)
+    for source in sources do
+      statements := statements.push <|
+        .assignment
+          #[nestedFixedArrayTargetName name source.path source.fieldName?]
+          (Lean.Compiler.Yul.Expr.id (aggregateAssignNestedFixedArrayTempName name source.path source.fieldName?))
+    statements
+
+def wholeNestedFixedArrayAssignStmt
+    (name : String)
+    (sources : Array NestedFixedArrayAssignmentSource) : Lean.Compiler.Yul.Statement :=
+  .block { statements := nestedFixedArrayAssignmentStatements name sources }
+
+def structAssignmentStatements
+    (name : String)
+    (sources : Array StructAssignmentSource) : Array Lean.Compiler.Yul.Statement :=
+  Id.run do
+    let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+    for source in sources do
+      statements := statements.push <|
+        .varDecl #[{ name := aggregateAssignStructTempName name source.fieldName }] (some source.expr)
+    for source in sources do
+      statements := statements.push <|
+        .assignment
+          #[structLocalFieldName name source.fieldName]
+          (Lean.Compiler.Yul.Expr.id (aggregateAssignStructTempName name source.fieldName))
+    statements
+
+def wholeStructAssignStmt
+    (name : String)
+    (sources : Array StructAssignmentSource) : Lean.Compiler.Yul.Statement :=
+  .block { statements := structAssignmentStatements name sources }
 
 def ifElseStmtPlanStatements
     {ε : Type}

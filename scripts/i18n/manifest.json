@@ -50,7 +50,7 @@
     "model": "manual"
   },
   "docs/implementation-backlog.md": {
-    "sha256": "0f0f17bb2c7a57fd2dccf930a0014d003b49d83441584a59c213c74ec276004c",
+    "sha256": "5eb08fbd2e53cc74a095d52e31da2eb62565b87b56e048aa287257449dd4ccc8",
     "zh": "docs/zh/implementation-backlog.zh.md",
     "model": "gemini-3-flash-preview"
   },

@@ -866,6 +866,83 @@ def testScalarExprPlanToYul : IO Unit := do
     6
     "nested dynamic local-array ExprPlan-to-Yul integration"
 
+def testAggregateAssignmentPlanToYul : IO Unit := do
+  let fixedStmt :=
+    ProofForge.Backend.Evm.ToYul.wholeFixedArrayAssignStmt
+      "xs"
+      #[
+        { index := 0, expr := Lean.Compiler.Yul.Expr.num 11 },
+        { index := 1, expr := Lean.Compiler.Yul.Expr.id "__proof_forge_array_ys_1" }
+      ]
+  match fixedStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 4) "fixed-array assignment snapshot statement count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.lit lit)) => do
+          require (vars.size == 1) "fixed-array assignment first snapshot var count"
+          let firstVar ← requireAt vars 0 "fixed-array assignment missing first snapshot var"
+          require (firstVar.name == "__proof_forge_assign_array_xs_0") "fixed-array assignment first snapshot var"
+          require (lit.value == "11") "fixed-array assignment first snapshot value"
+      | _ => throw <| IO.userError "fixed-array assignment first statement must snapshot source"
+      match block.statements[3]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["__proof_forge_array_xs_1"]) "fixed-array assignment final target"
+          require (valueName == "__proof_forge_assign_array_xs_1") "fixed-array assignment final source"
+      | _ => throw <| IO.userError "fixed-array assignment final statement must assign snapshot"
+  | _ => throw <| IO.userError "fixed-array assignment ToYul helper must produce block"
+  let structStmt :=
+    ProofForge.Backend.Evm.ToYul.wholeStructAssignStmt
+      "point"
+      #[{ fieldName := "x", expr := Lean.Compiler.Yul.Expr.num 7 }]
+  match structStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 2) "struct assignment snapshot statement count"
+      match block.statements[1]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["__proof_forge_struct_point_x"]) "struct assignment target"
+          require (valueName == "__proof_forge_assign_struct_point_x") "struct assignment snapshot source"
+      | _ => throw <| IO.userError "struct assignment final statement must assign snapshot"
+  | _ => throw <| IO.userError "struct assignment ToYul helper must produce block"
+  let nestedStmt :=
+    ProofForge.Backend.Evm.ToYul.wholeNestedFixedArrayAssignStmt
+      "matrix"
+      #[{
+        path := #[1, 0],
+        fieldName? := some "x",
+        expr := Lean.Compiler.Yul.Expr.num 5
+      }]
+  match nestedStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 2) "nested fixed-array assignment snapshot statement count"
+      match block.statements[1]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["__proof_forge_array_struct_matrix_1_0_x"]) "nested fixed-array assignment target"
+          require (valueName == "__proof_forge_assign_array_struct_matrix_1_0_x") "nested fixed-array assignment snapshot source"
+      | _ => throw <| IO.userError "nested fixed-array assignment final statement must assign snapshot"
+  | _ => throw <| IO.userError "nested fixed-array assignment ToYul helper must produce block"
+  let env : TypeEnv := #[
+    { name := "xs", type := .fixedArray .u64 2, isMutable := true },
+    { name := "ys", type := .fixedArray .u64 2, isMutable := false }
+  ]
+  let stmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.Counter.module
+      env
+      (.local "xs")
+      (.local "ys"))
+    "whole local fixed-array assignment integration"
+  require (stmts.size == 1) "whole local fixed-array assignment integration statement count"
+  match stmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 4) "whole local fixed-array assignment integration block count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.ident sourceName)) => do
+          let firstVar ← requireAt vars 0 "whole local fixed-array assignment integration missing temp"
+          require (firstVar.name == "__proof_forge_assign_array_xs_0") "whole local fixed-array assignment integration temp"
+          require (sourceName == "__proof_forge_array_ys_0") "whole local fixed-array assignment integration source"
+      | _ => throw <| IO.userError "whole local fixed-array assignment integration must snapshot source first"
+  | _ => throw <| IO.userError "whole local fixed-array assignment integration must lower to ToYul block"
+
 def testScalarAssertPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
   let checkGuardBuiltin := fun (stmt : Lean.Compiler.Yul.Statement) (expected : String) (label : String) => do
@@ -2053,6 +2130,7 @@ def main : IO UInt32 := do
   testEntrypointDispatchPlanToYul
   testSemanticPlanRender
   testScalarExprPlanToYul
+  testAggregateAssignmentPlanToYul
   testScalarAssertPlanToYul
   testScalarReturnPlanToYul
   testScalarBindingStmtPlanToYul

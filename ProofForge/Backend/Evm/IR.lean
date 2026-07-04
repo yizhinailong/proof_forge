@@ -476,7 +476,7 @@ def arrayLocalElementName (name : String) (index : Nat) : String :=
   ProofForge.Backend.Evm.ToYul.arrayLocalElementName name index
 
 def arrayStructLocalFieldName (name : String) (index : Nat) (fieldName : String) : String :=
-  s!"__proof_forge_array_struct_{name}_{index}_{fieldName}"
+  ProofForge.Backend.Evm.ToYul.arrayStructLocalFieldName name index fieldName
 
 def natPathSuffix (path : Array Nat) : String :=
   ProofForge.Backend.Evm.ToYul.natPathSuffix path
@@ -485,9 +485,7 @@ def arrayLocalPathName (name : String) (path : Array Nat) : String :=
   ProofForge.Backend.Evm.ToYul.arrayLocalPathName name path
 
 def arrayStructLocalPathFieldName (name : String) (path : Array Nat) (fieldName : String) : String :=
-  match path.toList with
-  | [index] => arrayStructLocalFieldName name index fieldName
-  | _ => s!"__proof_forge_array_struct_{name}_{natPathSuffix path}_{fieldName}"
+  ProofForge.Backend.Evm.ToYul.arrayStructLocalPathFieldName name path fieldName
 
 def localArrayGetFunctionName (length : Nat) : String :=
   ProofForge.Backend.Evm.ToYul.localArrayGetFunctionName length
@@ -508,7 +506,7 @@ partial def nestedLocalArrayLeafPaths (lengths : Array Nat) : Array (Array Nat) 
   ProofForge.Backend.Evm.ToYul.nestedLocalArrayLeafPaths lengths
 
 def structLocalFieldName (name fieldName : String) : String :=
-  s!"__proof_forge_struct_{name}_{fieldName}"
+  ProofForge.Backend.Evm.ToYul.structLocalFieldName name fieldName
 
 def abiReturnName (index : Nat) : String :=
   ProofForge.Backend.Evm.Plan.abiReturnName index
@@ -3790,9 +3788,7 @@ structure NestedFixedArraySourceExpr where
   expr : Lean.Compiler.Yul.Expr
 
 def nestedFixedArrayTargetName (name : String) (source : NestedFixedArraySourceExpr) : String :=
-  match source.fieldName? with
-  | none => arrayLocalPathName name source.path
-  | some fieldName => arrayStructLocalPathFieldName name source.path fieldName
+  ProofForge.Backend.Evm.ToYul.nestedFixedArrayTargetName name source.path source.fieldName?
 
 partial def lowerNestedFixedArrayLetBindings
     (module : Module)
@@ -3973,21 +3969,19 @@ def lowerAssignTargetName (context : String) : ProofForge.IR.Expr → Except Low
           .error { message := s!"{context} must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0" }
 
 def aggregateAssignArrayTempName (name : String) (index : Nat) : String :=
-  s!"__proof_forge_assign_array_{name}_{index}"
+  ProofForge.Backend.Evm.ToYul.aggregateAssignArrayTempName name index
 
 def aggregateAssignArrayPathTempName (name : String) (path : Array Nat) : String :=
-  s!"__proof_forge_assign_array_{name}_{natPathSuffix path}"
+  ProofForge.Backend.Evm.ToYul.aggregateAssignArrayPathTempName name path
 
 def aggregateAssignStructTempName (name fieldName : String) : String :=
-  s!"__proof_forge_assign_struct_{name}_{fieldName}"
+  ProofForge.Backend.Evm.ToYul.aggregateAssignStructTempName name fieldName
 
 def aggregateAssignStructArrayTempName (name : String) (index : Nat) (fieldName : String) : String :=
-  s!"__proof_forge_assign_array_struct_{name}_{index}_{fieldName}"
+  ProofForge.Backend.Evm.ToYul.aggregateAssignStructArrayTempName name index fieldName
 
 def aggregateAssignNestedFixedArrayTempName (name : String) (source : NestedFixedArraySourceExpr) : String :=
-  match source.fieldName? with
-  | none => aggregateAssignArrayPathTempName name source.path
-  | some fieldName => s!"__proof_forge_assign_array_struct_{name}_{natPathSuffix source.path}_{fieldName}"
+  ProofForge.Backend.Evm.ToYul.aggregateAssignNestedFixedArrayTempName name source.path source.fieldName?
 
 def lowerFixedArrayAssignmentSourceExprs
     (module : Module)
@@ -4145,16 +4139,11 @@ def lowerWholeStructArrayAssignStmt
     (length : Nat)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   let sourceExprs ← lowerStructArrayAssignmentSourceExprs module env name typeName length value
-  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
-  for source in sourceExprs do
+  let sources := sourceExprs.map fun source =>
     let (idx, fieldName, expr) := source
-    statements := statements.push <|
-      .varDecl #[{ name := aggregateAssignStructArrayTempName name idx fieldName }] (some expr)
-  for source in sourceExprs do
-    let (idx, fieldName, _) := source
-    statements := statements.push <|
-      .assignment #[arrayStructLocalFieldName name idx fieldName] (Lean.Compiler.Yul.Expr.id (aggregateAssignStructArrayTempName name idx fieldName))
-  .ok (.block { statements := statements })
+    ({ index := idx, fieldName := fieldName, expr := expr } :
+      ProofForge.Backend.Evm.ToYul.StructArrayAssignmentSource)
+  .ok (ProofForge.Backend.Evm.ToYul.wholeStructArrayAssignStmt name sources)
 
 def lowerWholeFixedArrayAssignStmt
     (module : Module)
@@ -4169,26 +4158,18 @@ def lowerWholeFixedArrayAssignStmt
   | .fixedArray _ _ => do
       let expectedType := ValueType.fixedArray elementType length
       let sourceExprs ← lowerNestedFixedArrayAssignmentSourceExprs module env name expectedType value
-      let mut statements : Array Lean.Compiler.Yul.Statement := #[]
-      for source in sourceExprs do
-        statements := statements.push <|
-          .varDecl #[{ name := aggregateAssignNestedFixedArrayTempName name source }] (some source.expr)
-      for source in sourceExprs do
-        statements := statements.push <|
-          .assignment #[nestedFixedArrayTargetName name source] (Lean.Compiler.Yul.Expr.id (aggregateAssignNestedFixedArrayTempName name source))
-      .ok (.block { statements := statements })
+      let sources := sourceExprs.map fun source =>
+        ({ path := source.path, fieldName? := source.fieldName?, expr := source.expr } :
+          ProofForge.Backend.Evm.ToYul.NestedFixedArrayAssignmentSource)
+      .ok (ProofForge.Backend.Evm.ToYul.wholeNestedFixedArrayAssignStmt name sources)
   | _ => do
       let sourceExprs ← lowerFixedArrayAssignmentSourceExprs module env name elementType length value
       if sourceExprs.size != length then
         .error { message := s!"assignment target `{name}` lowering produced {sourceExprs.size} element(s), expected {length}" }
-      let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+      let mut sources : Array ProofForge.Backend.Evm.ToYul.FixedArrayAssignmentSource := #[]
       for h : idx in [0:sourceExprs.size] do
-        statements := statements.push <|
-          .varDecl #[{ name := aggregateAssignArrayTempName name idx }] (some sourceExprs[idx])
-      for _h : idx in [0:length] do
-        statements := statements.push <|
-          .assignment #[arrayLocalElementName name idx] (Lean.Compiler.Yul.Expr.id (aggregateAssignArrayTempName name idx))
-      .ok (.block { statements := statements })
+        sources := sources.push { index := idx, expr := sourceExprs[idx] }
+      .ok (ProofForge.Backend.Evm.ToYul.wholeFixedArrayAssignStmt name sources)
 
 def lowerStructAssignmentSourceExprs
     (module : Module)
@@ -4228,14 +4209,11 @@ def lowerWholeStructAssignStmt
     (name typeName : String)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   let sourceExprs ← lowerStructAssignmentSourceExprs module env name typeName value
-  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
-  for field in sourceExprs do
-    statements := statements.push <|
-      .varDecl #[{ name := aggregateAssignStructTempName name field.fst }] (some field.snd)
-  for field in sourceExprs do
-    statements := statements.push <|
-      .assignment #[structLocalFieldName name field.fst] (Lean.Compiler.Yul.Expr.id (aggregateAssignStructTempName name field.fst))
-  .ok (.block { statements := statements })
+  let sources := sourceExprs.map fun field =>
+    let (fieldName, expr) := field
+    ({ fieldName := fieldName, expr := expr } :
+      ProofForge.Backend.Evm.ToYul.StructAssignmentSource)
+  .ok (ProofForge.Backend.Evm.ToYul.wholeStructAssignStmt name sources)
 
 def lowerWholeLocalAssignStmt
     (module : Module)

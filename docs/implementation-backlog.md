@@ -423,6 +423,12 @@ Tasks:
     owns the static local-name selection plus one-dimensional and nested
     dynamic helper-call argument frames. Array literals, struct leaves, and
     aggregate array values still fall back through the compatibility facade.
+  - Started: whole local aggregate assignment snapshot blocks now live behind
+    `ToYul`. `IR.lean` still validates and expands local fixed-array, nested
+    fixed-array, struct-array, and struct assignment sources, but final temp
+    declarations, target local names, and assignment block construction are
+    delegated to `ToYul` helpers so the compatibility facade no longer owns the
+    final Yul statement frame.
   - Started: aggregate crosscall helper-call assembly and entrypoint multi-word
     return assignment now live behind `ToYul`. `IR.lean` still owns return type
     checks, ABI return-name lookup, and aggregate argument word expansion, but

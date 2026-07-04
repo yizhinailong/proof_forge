@@ -10784,7 +10784,7 @@ Result:
 
 ### EVM Local Array ExprPlan-to-Yul Slice
 
-Commit: pending
+Commit: `033c6a2 feat: move evm local array reads to toyul`
 
 Summary:
 
@@ -10816,5 +10816,44 @@ Result:
 
 - EVM local fixed-array getter expression plans lower through `ToYul`, and the
   array-value/struct-array-value Foundry smokes still pass.
+- Full `lake build` passed locally with the existing `ProofForge/Cli.lean`
+  unused-variable warning.
+
+### EVM Aggregate Assignment ToYul Slice
+
+Commit: feature commit for EVM aggregate assignment ToYul
+
+Summary:
+
+- Added `ToYul` helpers for whole local aggregate assignment snapshot blocks,
+  including scalar fixed arrays, nested fixed arrays, arrays of flat structs,
+  and flat structs.
+- Moved aggregate assignment temp-name selection, target local naming, and final
+  Yul block construction out of the `IR.lean` compatibility facade.
+- Kept aggregate assignment validation and source expansion in `IR.lean` for
+  now, so this slice only moves the final statement-frame assembly behind the
+  target ToYul boundary.
+- Added semantic-plan tests for direct `ToYul` aggregate assignment helpers and
+  an integration path through `lowerAssignStmt`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/struct-array-value-ir-smoke.sh
+lake build
+```
+
+Result:
+
+- Whole local aggregate assignment snapshot blocks now lower through `ToYul`.
+- Array-value and struct-array-value Foundry smokes still pass.
 - Full `lake build` passed locally with the existing `ProofForge/Cli.lean`
   unused-variable warning.
