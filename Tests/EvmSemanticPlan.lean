@@ -2355,6 +2355,69 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (args.size == 3) "planned map path storage control-flow helper arg count"
       | _ => throw <| IO.userError "planned map path storage control-flow must lower to map write helper"
   | _ => throw <| IO.userError "planned map/path storage control-flow body lowering must lower to switch"
+  let plannedMapReadControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EvmMapProbe.module
+      "control_flow"
+      .unit
+      env
+      (.ifElse
+        (.gt (.local "n") (.literal (.u64 0)))
+        #[
+          .letBind "present" .bool (.effect (.storageMapContains "balances" (.local "n")))
+        ]
+        #[
+          .letBind "value" .u64 (.effect (.storageMapGet "balances" (.local "n")))
+        ]))
+    "planned map read control-flow plan construction"
+  let plannedMapReadControl ← requireSome plannedMapReadControl?
+    "planned map read control-flow plan construction missing plan"
+  let (mapReadControlStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.EvmMapProbe.module
+      "control_flow"
+      .unit
+      env
+      false
+      plannedMapReadControl)
+    "planned map read control-flow body lowering"
+  match mapReadControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let elseCase ← requireAt cases 0 "planned map read control-flow else case"
+      let thenCase ← requireAt cases 1 "planned map read control-flow then case"
+      require (thenCase.body.statements.size == 1) "planned map contains control-flow then count"
+      require (elseCase.body.statements.size == 1) "planned map get control-flow else count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.builtin name args)) => do
+          require (names.size == 1) "planned map contains control-flow var count"
+          let typedName ← requireAt names 0 "planned map contains control-flow var"
+          require (typedName.name == "present") "planned map contains control-flow local name"
+          require (name == "iszero") "planned map contains control-flow outer iszero"
+          require (args.size == 1) "planned map contains control-flow outer arg count"
+          match args[0]! with
+          | Lean.Compiler.Yul.Expr.builtin innerName innerArgs => do
+              require (innerName == "iszero") "planned map contains control-flow inner iszero"
+              require (innerArgs.size == 1) "planned map contains control-flow inner arg count"
+              match innerArgs[0]! with
+              | Lean.Compiler.Yul.Expr.builtin loadName loadArgs => do
+                  require (loadName == "sload") "planned map contains control-flow sload"
+                  require (loadArgs.size == 1) "planned map contains control-flow sload arg count"
+                  requireCallExpr loadArgs[0]! mapPresenceSlotFunctionName 2
+                    "planned map contains control-flow presence slot"
+              | _ => throw <| IO.userError "planned map contains control-flow inner must load presence slot"
+          | _ => throw <| IO.userError "planned map contains control-flow outer must wrap inner iszero"
+      | _ => throw <| IO.userError "planned map contains control-flow must lower to bool binding"
+      match elseCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.builtin name args)) => do
+          require (names.size == 1) "planned map get control-flow var count"
+          let typedName ← requireAt names 0 "planned map get control-flow var"
+          require (typedName.name == "value") "planned map get control-flow local name"
+          require (name == "sload") "planned map get control-flow sload"
+          require (args.size == 1) "planned map get control-flow sload arg count"
+          requireCallExpr args[0]! mapSlotFunctionName 2
+            "planned map get control-flow value slot"
+      | _ => throw <| IO.userError "planned map get control-flow must lower to value binding"
+  | _ => throw <| IO.userError "planned map read control-flow body lowering must lower to switch"
   let loopIndex := ProofForge.IR.Expr.cast (.local "i") .u64
   let plannedArrayControl? ← requireOk
     (plannedScalarBodyStatement?

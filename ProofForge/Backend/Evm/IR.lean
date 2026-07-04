@@ -2691,6 +2691,26 @@ mutual
         .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerExpr module env blockNumber])
     | .contextRead field =>
         .ok (ProofForge.Backend.Evm.ToYul.contextExpr field)
+    | .storageMapContains stateId key => do
+        let (rootSlot, _, _) ← requireStorageMapState module stateId
+        let keyExpr ← lowerExprPlanExpr module env key
+        let presenceSlot :=
+          ProofForge.Backend.Evm.ToYul.helperCall
+            ProofForge.Backend.Evm.Plan.Helper.mapPresenceSlot
+            #[slotExpr rootSlot, keyExpr]
+        .ok (Lean.Compiler.Yul.builtin "iszero" #[
+          Lean.Compiler.Yul.builtin "iszero" #[
+            Lean.Compiler.Yul.builtin "sload" #[presenceSlot]
+          ]
+        ])
+    | .storageMapGet stateId key => do
+        let (rootSlot, _, _) ← requireStorageMapState module stateId
+        let keyExpr ← lowerExprPlanExpr module env key
+        let valueSlot :=
+          ProofForge.Backend.Evm.ToYul.helperCall
+            ProofForge.Backend.Evm.Plan.Helper.mapSlot
+            #[slotExpr rootSlot, keyExpr]
+        .ok (Lean.Compiler.Yul.builtin "sload" #[valueSlot])
     | _ =>
         .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
 
@@ -5023,6 +5043,8 @@ mutual
       ProofForge.Backend.Evm.Plan.EffectPlan → Bool
     | .storageScalarRead _ => true
     | .contextRead _ => true
+    | .storageMapContains _ key
+    | .storageMapGet _ key => exprPlanSupportsScalarBody key
     | _ => false
 
   partial def exprPlanSupportsScalarBody :
