@@ -6,10 +6,12 @@ Portable VerifiedVault for the unified EVM entry path. Source-level financial
 proofs remain in `VerifiedVault.Spec`; codegen uses portable IR only.
 -/
 import ProofForge.Contract.Source
+import ProofForge.Contract.Stdlib.ReentrancyGuard
 
 namespace VerifiedVault
 
 open ProofForge.Contract.Source
+open ProofForge.Contract.Stdlib.ReentrancyGuard
 
 namespace Spec
 
@@ -64,12 +66,13 @@ theorem withdraw_decreases_reserves {s next : State} {amount : Nat}
 end Spec
 
 contract_source VerifiedVault do
+  import ProofForge.Contract.Stdlib.ReentrancyGuard;
+
   state «owner» : .u64
   state initialized : .u64
   state reserves : .u64
   state totalShares : .u64
   mapping balances from .u64 to .u64
-  state reentrancyLock : .u64
 
   entry init do
     do ProofForge.Contract.Surface.requireZero initialized "already initialized";
@@ -93,7 +96,7 @@ contract_source VerifiedVault do
 
   entry withdraw (amount : .u64) do
     do ProofForge.Contract.Surface.requireNe (ProofForge.Contract.Surface.read initialized) (u64 0) "not initialized";
-    acquire_lock reentrancyLock;
+    acquire_lock lock;
     let withdrawer : .u64 := caller;
     let bal : .u64 := mapRead balances withdrawer;
     do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref bal) (ProofForge.Contract.Surface.ref amount) "insufficient balance";
@@ -105,7 +108,7 @@ contract_source VerifiedVault do
     totalShares := curShares -! amount;
     do mapWrite balances withdrawer (bal -! amount);
     sendto withdrawer amount;
-    release_lock reentrancyLock;
+    release_lock lock;
 
   query reserves returns(.u64) do
     return reserves;
