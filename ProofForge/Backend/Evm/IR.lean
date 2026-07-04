@@ -2719,6 +2719,23 @@ mutual
             ProofForge.Backend.Evm.Plan.Helper.arraySlot
             #[slotExpr rootSlot, Lean.Compiler.Yul.Expr.num length, indexExpr]
         .ok (Lean.Compiler.Yul.builtin "sload" #[elementSlot])
+    | .storageStructFieldRead stateId fieldName => do
+        let (slot, _) ← requireStructStateField module stateId fieldName
+        .ok (Lean.Compiler.Yul.builtin "sload" #[slotExpr slot])
+    | .storageArrayStructFieldRead stateId index fieldName => do
+        let (rootSlot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
+        let indexExpr ← lowerExprPlanExpr module env index
+        let fieldSlot :=
+          ProofForge.Backend.Evm.ToYul.helperCall
+            ProofForge.Backend.Evm.Plan.Helper.structArraySlot
+            #[
+              slotExpr rootSlot,
+              Lean.Compiler.Yul.Expr.num length,
+              Lean.Compiler.Yul.Expr.num fieldCount,
+              Lean.Compiler.Yul.Expr.num fieldOffset,
+              indexExpr
+            ]
+        .ok (Lean.Compiler.Yul.builtin "sload" #[fieldSlot])
     | _ =>
         .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
 
@@ -5054,6 +5071,8 @@ mutual
     | .storageMapContains _ key
     | .storageMapGet _ key => exprPlanSupportsScalarBody key
     | .storageArrayRead _ index => exprPlanSupportsScalarBody index
+    | .storageStructFieldRead _ _ => true
+    | .storageArrayStructFieldRead _ index _ => exprPlanSupportsScalarBody index
     | _ => false
 
   partial def exprPlanSupportsScalarBody :
