@@ -1398,6 +1398,103 @@ def testLocalCrosscallWordsToYul : IO Unit := do
   requireIdentExpr loweredArrayWords[1]! "__proof_forge_array_xs_1" "compat local crosscall fixed-array word 1"
   requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "compat local crosscall fixed-array word 2"
 
+def testReturnValueWordPlanToYul : IO Unit := do
+  let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
+    if typeName == "Point" then
+      .ok #["x", "y"]
+    else
+      .error { message := s!"unknown struct `{typeName}`" }
+  let directPlan : ReturnValueWordPlan := {
+    returns := {
+      returnType := .fixedArray .u64 2
+      wordTypes := #[.u64, .u64]
+      localNames := #["__proof_forge_return_0", "__proof_forge_return_1"]
+    }
+    source := .localAbiWords "xs" (.fixedArray .u64 2)
+  }
+  let directAssignments ← requireOk
+    (ProofForge.Backend.Evm.ToYul.returnValueWordPlanAssignments
+      toYulError
+      simpleStructFields
+      "entrypoint `array` return value"
+      directPlan)
+    "direct return value word plan ToYul"
+  require (directAssignments.size == 2) "direct return value word plan assignment count"
+  match directAssignments[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+      require (names == #["__proof_forge_return_0"]) "direct return value word plan first target"
+      require (valueName == "__proof_forge_array_xs_0") "direct return value word plan first source"
+  | _ => throw <| IO.userError "direct return value word plan first statement must assign local ABI word"
+  match directAssignments[1]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+      require (names == #["__proof_forge_return_1"]) "direct return value word plan second target"
+      require (valueName == "__proof_forge_array_xs_1") "direct return value word plan second source"
+  | _ => throw <| IO.userError "direct return value word plan second statement must assign local ABI word"
+  let structEnv : TypeEnv := #[
+    { name := "p", type := .structType "Point", isMutable := false }
+  ]
+  let structPlan? ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.returnValueWordPlan?
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv structEnv)
+      "point"
+      (.structType "Point")
+      (.local "p"))
+    "Lower local struct return value word plan"
+  let structPlan ← requireSome structPlan? "Lower local struct return value word plan missing"
+  match structPlan.source with
+  | .localAbiWords name type => do
+      require (name == "p") "Lower local struct return source name"
+      require (type == .structType "Point") "Lower local struct return source type"
+  | _ => throw <| IO.userError "Lower local struct return must use localAbiWords source plan"
+  require (structPlan.returns.localNames == #["__proof_forge_return_0", "__proof_forge_return_1"])
+    "Lower local struct return names"
+  let structAssignments ← requireOk
+    (lowerReturnValueWordPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      "point"
+      structPlan)
+    "Lower local struct return value word plan ToYul integration"
+  require (structAssignments.size == 2) "Lower local struct return assignment count"
+  match structAssignments[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+      require (names == #["__proof_forge_return_0"]) "Lower local struct return first target"
+      require (valueName == "__proof_forge_struct_p_x") "Lower local struct return first source"
+  | _ => throw <| IO.userError "Lower local struct return first statement must assign local ABI word"
+  let arrayEnv : TypeEnv := #[
+    { name := "xs", type := .fixedArray .u64 3, isMutable := false }
+  ]
+  let arrayPlan? ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.returnValueWordPlan?
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      (toValidateTypeEnv arrayEnv)
+      "array"
+      (.fixedArray .u64 3)
+      (.local "xs"))
+    "Lower local fixed-array return value word plan"
+  let arrayPlan ← requireSome arrayPlan? "Lower local fixed-array return value word plan missing"
+  match arrayPlan.source with
+  | .localAbiWords name type => do
+      require (name == "xs") "Lower local fixed-array return source name"
+      require (type == .fixedArray .u64 3) "Lower local fixed-array return source type"
+  | _ => throw <| IO.userError "Lower local fixed-array return must use localAbiWords source plan"
+  require (arrayPlan.returns.localNames == #["__proof_forge_return_0", "__proof_forge_return_1", "__proof_forge_return_2"])
+    "Lower local fixed-array return names"
+  let arrayAssignments ← requireOk
+    (lowerReturnValueWordPlan
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      arrayEnv
+      "array"
+      arrayPlan)
+    "Lower local fixed-array return value word plan ToYul integration"
+  require (arrayAssignments.size == 3) "Lower local fixed-array return assignment count"
+  match arrayAssignments[2]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+      require (names == #["__proof_forge_return_2"]) "Lower local fixed-array return third target"
+      require (valueName == "__proof_forge_array_xs_2") "Lower local fixed-array return third source"
+  | _ => throw <| IO.userError "Lower local fixed-array return third statement must assign local ABI word"
+
 def testAggregateAssignmentPlanToYul : IO Unit := do
   let fixedStmt :=
     ProofForge.Backend.Evm.ToYul.wholeFixedArrayAssignStmt
@@ -2955,6 +3052,7 @@ def main : IO UInt32 := do
   testScalarExprPlanToYul
   testLocalAbiWordsToYul
   testLocalCrosscallWordsToYul
+  testReturnValueWordPlanToYul
   testAggregateAssignmentPlanToYul
   testScalarAssertPlanToYul
   testScalarReturnPlanToYul

@@ -310,9 +310,11 @@ Tasks:
   - Started: scalar `return` statement assembly now consumes a narrow
     `StmtPlan -> ToYul` helper for supported single-word `U32`/`U64`/`Bool`/
     `Hash`/`Address` return values, including branch-local `leave` insertion.
-    Return ABI name selection, bytes/string returns, aggregate return
-    flattening, and aggregate crosscall return helpers remain on their existing
-    compatibility paths until their own migration slices add plan-level
+    Local fixed-array and struct aggregate returns now use
+    `Lower.returnValueWordPlan? -> ReturnValueWordPlan -> ToYul` for return ABI
+    word assignment. Bytes/string returns, literal/storage aggregate returns,
+    and aggregate crosscall return helpers remain on their existing
+    compatibility paths until their own migration slices add broader plan-level
     coverage.
   - Started: direct scalar local assignment and compound-assignment statement
     assembly now consumes a narrow `StmtPlan -> ToYul` helper when the RHS is in
@@ -452,10 +454,13 @@ Tasks:
     consumes the planned `ExprPlan`s and delegates final helper-call
     function-name selection, argument ordering, and multi-return Yul assignment
     construction to `ToYul`. Local
-    aggregate ABI word expansion for entrypoint returns and related
-    compatibility paths now delegates final local identifier/data-pointer word
-    construction to `ToYul.localAbiWords`; `IR.lean` still validates the source
-    local, expected type, and struct field eligibility before calling it. Local
+    aggregate ABI word expansion for entrypoint returns now uses
+    `Lower.returnValueWordPlan?` to validate the source local and expected type,
+    records the planned `ExprPlan.localAbiWords` source plus `ReturnPlan`
+    layout in `ReturnValueWordPlan`, and delegates the final multi-word
+    assignment frame to `ToYul.returnValueWordPlanAssignments`. Related
+    compatibility paths still call `ToYul.localAbiWords` directly until they
+    are represented in the semantic plan. Local
     aggregate crosscall argument word expansion now delegates the final local
     identifier word construction to `ToYul.localCrosscallWords`; `IR.lean`
     still owns non-literal aggregate sources that are not storage scalar struct

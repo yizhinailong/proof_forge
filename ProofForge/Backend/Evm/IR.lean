@@ -2808,6 +2808,19 @@ def lowerCrosscallReturnAssignmentPlan
     plan.returns.returnType
     plan.returns.wordTypes
 
+def lowerReturnValueWordPlan
+    (module : Module)
+    (_env : TypeEnv)
+    (entrypointName : String)
+    (plan : ProofForge.Backend.Evm.Plan.ReturnValueWordPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let context := s!"entrypoint `{entrypointName}` return value"
+  ProofForge.Backend.Evm.ToYul.returnValueWordPlanAssignments
+    toYulError
+    (localAbiStructFieldIds module context)
+    context
+    plan
+
 partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
   | .literal _ => true
   | .local _ => true
@@ -4997,16 +5010,25 @@ def lowerReturnAssignments
   match aggregateAssignment? with
   | some statements => .ok statements
   | none => do
-      let names ← abiReturnNames module entrypointName returnType
-      let words ← lowerReturnWords module env entrypointName returnType value
-      if names.size != words.size then
-        .error { message := s!"entrypoint `{entrypointName}` return lowering produced {words.size} word(s), expected {names.size}" }
-      let mut statements : Array Lean.Compiler.Yul.Statement := #[]
-      for h : idx in [0:names.size] do
-        let some word := words[idx]?
-          | .error { message := s!"entrypoint `{entrypointName}` return lowering is missing word {idx}" }
-        statements := statements.push (.assignment #[names[idx]] word)
-      .ok statements
+      let returnValuePlan? ←
+        match ProofForge.Backend.Evm.Lower.returnValueWordPlan?
+            module (toValidateTypeEnv env) entrypointName returnType value with
+        | .ok plan? => .ok plan?
+        | .error err => .error { message := err.message }
+      match returnValuePlan? with
+      | some plan =>
+          lowerReturnValueWordPlan module env entrypointName plan
+      | none => do
+          let names ← abiReturnNames module entrypointName returnType
+          let words ← lowerReturnWords module env entrypointName returnType value
+          if names.size != words.size then
+            .error { message := s!"entrypoint `{entrypointName}` return lowering produced {words.size} word(s), expected {names.size}" }
+          let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+          for h : idx in [0:names.size] do
+            let some word := words[idx]?
+              | .error { message := s!"entrypoint `{entrypointName}` return lowering is missing word {idx}" }
+            statements := statements.push (.assignment #[names[idx]] word)
+          .ok statements
 
 partial def lowerScalarReturnStmtPlanOrFallback
     (module : Module)

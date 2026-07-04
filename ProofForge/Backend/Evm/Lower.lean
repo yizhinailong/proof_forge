@@ -538,6 +538,27 @@ def aggregateCrosscallReturnAssignmentPlan?
         .ok (some plan)
     | _ => .ok none
 
+def returnValueWordPlan?
+    (module : Module)
+    (env : TypeEnv)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : Expr) :
+    Except LowerError (Option ReturnValueWordPlan) := do
+  match returnType, value with
+  | .fixedArray _ _, .local name
+  | .structType _, .local name => do
+      let some binding := findLocal? env name
+        | .error { message := s!"unknown local `{name}`" }
+      let context := s!"entrypoint `{entrypointName}` return value"
+      ensureType context returnType binding.type
+      .ok (some {
+        returns := ← returnPlan module s!"entrypoint `{entrypointName}`" returnType
+        source := .localAbiWords name returnType
+      })
+  | _, _ =>
+      .ok none
+
 def buildEntrypointBodyPlan (module : Module) (entrypoint : Entrypoint) :
     Except LowerError (Array StmtPlan) := do
   validateEntrypointTypes module entrypoint

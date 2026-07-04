@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Local Aggregate Return Plan Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ReturnValueWordPlan` so local fixed-array and struct entrypoint
+  returns can carry their `ReturnPlan` layout and planned local ABI word source
+  through the EVM semantic plan.
+- Added `Lower.returnValueWordPlan?` for supported local aggregate returns,
+  moving the source-local and expected-type check out of the final
+  compatibility return assembly path.
+- Added `ToYul.returnValueWordPlanAssignments` so final multi-word return
+  assignment frames are owned by `ToYul`, while unsupported return shapes keep
+  using the existing compatibility fallback.
+- Extended `Tests/EvmSemanticPlan.lean` with direct `ToYul` coverage plus
+  `Lower -> IR facade -> ToYul` integration checks for local struct and
+  fixed-array return plans.
+- Added the missing `DynamicConstructorProbe.golden.yul` fixture so
+  `scripts/evm/build-examples.sh` can keep enforcing golden Yul coverage for
+  every EVM contract-source example.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-build-examples
+```
+
+Known limitations:
+
+- This slice only moves local fixed-array and struct return word assignment.
+  Bytes/string returns, literal aggregate returns, storage aggregate returns,
+  and broader recursive `StmtPlan -> Yul` body lowering still use compatibility
+  paths.
+
+Next step:
+
+- Continue moving non-local aggregate return sources or metadata/deploy
+  planning behind semantic-plan boundaries before deleting any legacy
+  `IR.lean -> Yul` lowering.
+
 ### Wasm-NEAR Diagnostics Capability Alignment
 
 Commit: this commit

@@ -855,6 +855,34 @@ def localAbiWords
     (type : ValueType) : Except ε (Array Lean.Compiler.Yul.Expr) :=
   localAbiWordsAt mkError structFieldIds context name #[] type
 
+def returnValueWordPlanWords
+    {ε : Type}
+    (mkError : String → ε)
+    (structFieldIds : String → Except ε (Array String))
+    (context : String)
+    (source : ExprPlan) : Except ε (Array Lean.Compiler.Yul.Expr) := do
+  match source with
+  | .localAbiWords name type =>
+      localAbiWords mkError structFieldIds context name type
+  | _ =>
+      .error (mkError "EVM ReturnValueWordPlan-to-Yul supports local ABI word plans only")
+
+def returnValueWordPlanAssignments
+    {ε : Type}
+    (mkError : String → ε)
+    (structFieldIds : String → Except ε (Array String))
+    (context : String)
+    (plan : ReturnValueWordPlan) : Except ε (Array Lean.Compiler.Yul.Statement) := do
+  let words ← returnValueWordPlanWords mkError structFieldIds context plan.source
+  if plan.returns.localNames.size != words.size then
+    .error (mkError s!"{context} return lowering produced {words.size} word(s), expected {plan.returns.localNames.size}")
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  for h : idx in [0:plan.returns.localNames.size] do
+    let some word := words[idx]?
+      | .error (mkError s!"{context} return lowering is missing word {idx}")
+    statements := statements.push (.assignment #[plan.returns.localNames[idx]] word)
+  .ok statements
+
 partial def localCrosscallWordsAt
     {ε : Type}
     (mkError : String → ε)
