@@ -600,7 +600,7 @@ def structLocalFieldName (name fieldName : String) : String :=
   s!"__proof_forge_struct_{name}_{fieldName}"
 
 def abiReturnName (index : Nat) : String :=
-  s!"__proof_forge_return_{index}"
+  ProofForge.Backend.Evm.Plan.abiReturnName index
 
 def ensureAbiWordType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
@@ -4694,24 +4694,19 @@ mutual
 end
 
 def abiReturnNames (module : Module) (entrypointName : String) : ValueType → Except LowerError (Array String)
-  | .unit => .ok #[]
-  | .u32 | .u64 | .bool | .hash | .address | .bytes | .string => .ok #["result"]
-  | .fixedArray elementType length => do
-      let words ← abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.fixedArray elementType length)
-      let mut names : Array String := #[]
-      for _h : idx in [0:words.size] do
-        names := names.push (abiReturnName idx)
-      .ok names
-  | .structType typeName => do
-      let words ← abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.structType typeName)
-      let mut names : Array String := #[]
-      for _h : idx in [0:words.size] do
-        names := names.push (abiReturnName idx)
-      .ok names
+  | returnType => do
+      let plan ←
+        match ProofForge.Backend.Evm.Lower.returnPlan module s!"entrypoint `{entrypointName}`" returnType with
+        | .ok plan => .ok plan
+        | .error err => .error { message := err.message }
+      .ok plan.localNames
 
 def abiReturnTypedNames (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.TypedName) := do
-  let names ← abiReturnNames module entrypoint.name entrypoint.returns
-  .ok (names.map fun name => ({ name := name } : Lean.Compiler.Yul.TypedName))
+  let plan ←
+    match ProofForge.Backend.Evm.Lower.returnPlan module s!"entrypoint `{entrypoint.name}`" entrypoint.returns with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
+  .ok (ProofForge.Backend.Evm.ToYul.returnTypedNames plan)
 
 def lowerStructArrayReturnWords
     (module : Module)
@@ -5120,8 +5115,7 @@ def lowerEntrypointWithPlan
         .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not return on every control-flow path" }
   validateEntrypointTypes module entrypoint
   let body ← lowerStatements module entrypoint.name entrypoint.returns (entrypointTypeEnv entrypoint) false entrypoint.body
-  let returns ← abiReturnTypedNames module entrypoint
-  .ok (ProofForge.Backend.Evm.ToYul.entrypointFunctionDefinition module.name entrypointPlan returns body)
+  .ok (ProofForge.Backend.Evm.ToYul.entrypointFunctionDefinition module.name entrypointPlan body)
 
 def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do
   let entrypointPlan ←

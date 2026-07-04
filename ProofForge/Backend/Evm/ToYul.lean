@@ -199,6 +199,9 @@ def entrypointParamTypedNames (params : Array AbiParamPlan) :
       acc ++ param.localNames.map (fun name => ({ name := name } : Lean.Compiler.Yul.TypedName)))
     #[]
 
+def returnTypedNames (returns : ReturnPlan) : Array Lean.Compiler.Yul.TypedName :=
+  returns.localNames.map fun name => ({ name := name } : Lean.Compiler.Yul.TypedName)
+
 def entrypointCallExpr
     (moduleName : String)
     (entrypoint : EntrypointPlan) : Lean.Compiler.Yul.Expr :=
@@ -207,12 +210,11 @@ def entrypointCallExpr
 def entrypointFunctionDefinition
     (moduleName : String)
     (entrypoint : EntrypointPlan)
-    (returns : Array Lean.Compiler.Yul.TypedName)
     (bodyStatements : Array Lean.Compiler.Yul.Statement) : Lean.Compiler.Yul.Statement :=
   .funcDef
     (entrypointPlanFunctionName moduleName entrypoint)
     (entrypointParamTypedNames entrypoint.params)
-    returns
+    (returnTypedNames entrypoint.returns)
     { statements := bodyStatements }
 
 def dispatchSelectorExpr : Lean.Compiler.Yul.Expr :=

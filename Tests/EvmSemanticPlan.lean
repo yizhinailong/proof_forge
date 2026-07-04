@@ -76,6 +76,12 @@ def testCounterSemanticPlan : IO Unit := do
   require (get.selector == "6d4ce63c") "counter plan get selector"
   require (get.returns.returnType == .u64) "counter plan get returns u64"
   require (get.returns.wordTypes == #[.u64]) "counter plan get return words"
+  require (get.returns.localNames == #["result"]) "counter plan get return local names"
+  let getReturnTypedNames := ProofForge.Backend.Evm.ToYul.returnTypedNames get.returns
+  require (getReturnTypedNames.size == 1) "counter plan get typed return count"
+  match getReturnTypedNames[0]? with
+  | some returnName => require (returnName.name == "result") "counter plan get typed return name"
+  | none => throw <| IO.userError "counter plan get missing typed return"
   require (get.body.size == 1) "counter plan get body size"
   match ← requireAt get.body 0 "counter plan get missing body" with
   | .return (.effect (.storageScalarRead stateId)) =>
@@ -335,7 +341,6 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
     ProofForge.Backend.Evm.ToYul.entrypointFunctionDefinition
       dynamicPlan.name
       transferEntrypoint
-      #[{ name := "result" }]
       #[revertStmt]
   match transferFunction with
   | Lean.Compiler.Yul.Statement.funcDef name params returns body => do

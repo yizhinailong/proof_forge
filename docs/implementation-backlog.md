@@ -281,8 +281,10 @@ Tasks:
     dispatcher call expression and internal entrypoint function naming also now
     live in `ToYul`. `AbiParamPlan.localNames` now carries the planned internal
     Yul parameter names, and `ToYul` emits the internal entrypoint `funcDef`
-    shell from an `EntrypointPlan`; the body statements still come from the
-    `IR.lean` compatibility facade until broader lowering moves behind
+    shell from an `EntrypointPlan`. `ReturnPlan.localNames` now carries planned
+    return variable names, and `ToYul.returnTypedNames` emits function return
+    typed names from `ReturnPlan`. Body statements still come from the `IR.lean`
+    compatibility facade until broader lowering moves behind
     `EntrypointPlan -> Yul`. Complete plans take this path during normal
     lowering; incomplete best-effort diagnostic plans fall back to compatibility
     lowering so user-facing validation errors are not masked by plan-shape

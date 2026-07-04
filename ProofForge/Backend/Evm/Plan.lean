@@ -584,9 +584,24 @@ def AbiParamPlan.headWordCount (param : AbiParamPlan) : Nat :=
 structure ReturnPlan where
   returnType : ValueType
   wordTypes : Array ValueType
+  localNames : Array String
   deriving Repr
 
-instance : Inhabited ReturnPlan := ⟨{ returnType := .unit, wordTypes := #[] }⟩
+instance : Inhabited ReturnPlan := ⟨{ returnType := .unit, wordTypes := #[], localNames := #[] }⟩
+
+def abiReturnName (index : Nat) : String :=
+  s!"__proof_forge_return_{index}"
+
+def returnLocalNames (returnType : ValueType) (wordTypes : Array ValueType) : Array String :=
+  match returnType with
+  | .unit => #[]
+  | .u32 | .u64 | .bool | .hash | .address | .bytes | .string => #["result"]
+  | .fixedArray _ _ | .structType _ =>
+      Id.run do
+        let mut names : Array String := #[]
+        for _h : idx in [0:wordTypes.size] do
+          names := names.push (abiReturnName idx)
+        names
 
 structure EntrypointPlan where
   name : String

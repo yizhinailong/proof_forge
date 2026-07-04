@@ -58,7 +58,7 @@ def returnPlan (module : Module) (context : String) (returnType : ValueType) :
     match returnType with
     | .unit => .ok #[]
     | _ => abiValueWordTypes module s!"{context} return value" returnType
-  .ok { returnType, wordTypes }
+  .ok { returnType, wordTypes, localNames := returnLocalNames returnType wordTypes }
 
 def entrypointSelector (entrypoint : Entrypoint) : Except LowerError String :=
   match entrypoint.selector? with
