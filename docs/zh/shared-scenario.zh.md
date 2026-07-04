@@ -1,14 +1,17 @@
-# 共享合约场景：Counter
+# 共享合约场景：Counter 和 ValueVault
 
 状态：**草案规范 (Phase 1–2)**
 
 Counter 场景是第一个跨目标验收标准测试。它在 Lean 业务核心中练习可移植标量状态，而不涉及特定于链的账户模型。
+ValueVault 是下一个共享场景：它覆盖多个标量状态字段、算术、事件发射和区块上下文读取，同时应用源代码仍保持链无关。
 
 相关：[可移植 IR](portable-ir.md),
 [能力注册表](capability-registry.md),
 [Decisions](decisions.md)。
 
 ## 场景定义
+
+### Counter
 
 一个合约维护单个无符号 64 位计数器。
 
@@ -20,11 +23,29 @@ Counter 场景是第一个跨目标验收标准测试。它在 Lean 业务核心
 
 v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events.emit`）。
 
+### ValueVault
+
+一个合约跟踪 deposit、release、累计 fee、最近值、最近 checkpoint 以及操作计数。
+
+| 操作 | 行为 |
+|---|---|
+| `initialize(initial)` | 设置初始 balance 和 checkpoint |
+| `deposit(amount)` | 将 `amount` 加到 balance，并发射 `ValueDeposited` |
+| `charge_fee(gross, fee_bps)` | 将 gross 拆分成 fee/net，把 net 加到 balance，累计 fees，并发射 `ValueCharged` |
+| `release(amount)` | 从 balance 中减去 `amount`，加入 released，并发射 `ValueReleased` |
+| `snapshot` | 读取目标区块/checkpoint 上下文，更新 `last_checkpoint`，发射 `ValueSnapshot`，并返回 balance |
+| `get_balance` | 返回 balance |
+| `get_net_value` | 返回 `balance - fees` |
+
+应用模块里不嵌入 EVM、Solana 或 NEAR 专用 API。目标相关的 selector、Solana instruction tag、WAT export、metadata、manifest、IDL 和 client 都是 adapter 输出。
+
 ## 所需能力
 
 | 能力 id | 使用者 |
 |---|---|
-| `storage.scalar` | 所有操作 |
+| `storage.scalar` | Counter 和 ValueVault 的状态操作 |
+| `events.emit` | ValueVault 生命周期事件 |
+| `env.block` | ValueVault checkpoint 读取 |
 | `caller.sender` | v1 中的可选访问控制 |
 
 ## 目标特定适配
@@ -64,6 +85,10 @@ v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events
 
 - [x] 同一个 `contract_source` 模块降级到 EVM + Solana + NEAR（见
       `Examples/Shared/Counter.lean` 和 `just portable-counter-multi-target`）。
+- [x] ValueVault 从同一个 `contract_source` 模块降级到 EVM + Solana + NEAR，
+      覆盖 EVM metadata、Solana manifest/IDL/client metadata，以及 NEAR
+      WAT/deploy metadata（见 `Examples/Shared/ValueVault.lean` 和
+      `just portable-value-vault`）。
 - [ ] 文档列出了此场景下每个目标支持的能力。
 
 ## 多 target authoring 演示（CS-1.5）
@@ -95,6 +120,19 @@ lake env proof-forge build --target wasm-near --root . \
 
 链的选择完全在 build time；Lean 模块不会 per-target 分叉。
 
+规范 portable ValueVault 也遵循同一模式：
+
+[`Examples/Shared/ValueVault.lean`](../../Examples/Shared/ValueVault.lean)
+
+用同一个文件构建并验证三条主 target：
+
+```bash
+just portable-value-vault
+```
+
+legacy `Examples/Learn/ValueVault.learn` fixture 继续保留，用于 parser
+等价覆盖。它不是新合约推荐的 authoring 路径。
+
 ## ZK 目标 Experimental 标准
 
 `psy-dpn` 不属于 Phase 2 退出标准，但它现在已经通过生成 `.psy` 源码和 Dargo 验证复用了 Counter 场景。
@@ -109,7 +147,7 @@ lake env proof-forge build --target wasm-near --root . \
 
 | 目标 | 路径 | 状态 |
 |---|---|---|
-| **所有主链** | `Examples/Shared/Counter.lean`（`contract_source`） | **代码库中** — `just portable-counter-multi-target` |
+| **所有主链** | `Examples/Shared/Counter.lean`、`Examples/Shared/ValueVault.lean`（`contract_source`） | **代码库中** — `just portable-counter-multi-target`、`just portable-value-vault` |
 | EVM | `Examples/Evm/Contracts/Counter.lean` | **代码库中**（EVM 示例树） |
 | CosmWasm | `Examples/CosmWasm/Counter.lean` | 已规划，不在代码库中 |
 | Solana | `Examples/Solana/Counter.lean` + manifest | **代码库中**（IR fixture 参考） |

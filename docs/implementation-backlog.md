@@ -2548,6 +2548,14 @@ target id, capability id, operation name, and source marker; `just
 contract-source-diagnostics` locks the CLI behavior with a negative
 `contract_source` fixture.
 
+Current CS-1.3/CS-5.1 slice: ValueVault now has an application-facing shared
+`contract_source` module at `Examples/Shared/ValueVault.lean`. `just
+portable-value-vault` builds that same `.lean` file for the three primary
+targets: EVM bytecode/Yul/metadata, Solana sBPF assembly plus manifest/IDL/TS
+client metadata, and NEAR/Wasm WAT plus deploy metadata. The legacy
+`Examples/Learn/ValueVault.learn` file remains an equivalence fixture, not the
+recommended product authoring path.
+
 ### Phase CS-2 — EVM stdlib in `contract_source`
 
 Focus: replace Builder-string stdlib with importable `contract_source` modules.

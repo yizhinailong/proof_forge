@@ -2668,7 +2668,7 @@ def optionalExistingArtifactEntryJson (path? : Option FilePath) : IO (Option Str
 
 def writeEmitWatDeployManifest
     (deployOutput : FilePath)
-    (targetId fixture : String)
+    (targetId fixture sourceKind : String)
     (module : ProofForge.IR.Module)
     (watArtifact : String)
     (wasmArtifact? : Option String) : IO Unit := do
@@ -2682,8 +2682,8 @@ def writeEmitWatDeployManifest
     ("targetFamily", jsonString "wasmHost"),
     ("artifactKind", jsonString "wasm-deploy"),
     ("fixture", jsonString fixture),
-    ("sourceKind", jsonString "portable-ir"),
-    ("irVersion", jsonString "portable-ir-v0"),
+    ("sourceKind", jsonString sourceKind),
+    ("irVersion", if sourceKind == "portable-ir" then jsonString "portable-ir-v0" else "null"),
     ("sourceModule", jsonString module.name),
     ("capabilities", jsonStringArray (moduleCapabilityIds module)),
     ("abi", jsonObject #[
@@ -2705,7 +2705,7 @@ def writeEmitWatDeployManifest
 
 def writeEmitWatArtifactMetadata
     (opts : CliOptions)
-    (targetId fixture : String)
+    (targetId fixture sourceKind : String)
     (module : ProofForge.IR.Module)
     (outputDir watPath : FilePath)
     (wasmPath? : Option FilePath) : IO Unit := do
@@ -2713,7 +2713,7 @@ def writeEmitWatArtifactMetadata
   let deployOutput := defaultDeployManifestOutput metadataOutput
   let watArtifact ← artifactEntryJson watPath
   let wasmArtifact? ← optionalExistingArtifactEntryJson wasmPath?
-  writeEmitWatDeployManifest deployOutput targetId fixture module watArtifact wasmArtifact?
+  writeEmitWatDeployManifest deployOutput targetId fixture sourceKind module watArtifact wasmArtifact?
   let deployArtifact ← artifactEntryJson deployOutput
   let mut artifactFields : Array (String × String) := #[
     ("wat", watArtifact),
@@ -2728,8 +2728,8 @@ def writeEmitWatArtifactMetadata
     ("targetFamily", jsonString "wasmHost"),
     ("artifactKind", jsonString "wasm"),
     ("fixture", jsonString fixture),
-    ("sourceKind", jsonString "portable-ir"),
-    ("irVersion", jsonString "portable-ir-v0"),
+    ("sourceKind", jsonString sourceKind),
+    ("irVersion", if sourceKind == "portable-ir" then jsonString "portable-ir-v0" else "null"),
     ("sourceModule", jsonString module.name),
     ("capabilities", jsonStringArray (moduleCapabilityIds module)),
     ("toolchain", jsonObject #[
@@ -2788,7 +2788,7 @@ def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Modu
   match renderResult with
   | .ok wat =>
       let (watPath, wasmPath?) ← writeWatPackage output name wat
-      writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name mod output watPath wasmPath?
+      writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name "portable-ir" mod output watPath wasmPath?
       return 0
   | .error msg =>
       throw <| IO.userError msg
@@ -2803,7 +2803,7 @@ def compileEmitWatWithPlan
   match ProofForge.Backend.WasmNear.EmitWat.renderModuleWithPlan mod plan with
   | .ok wat =>
       let (watPath, wasmPath?) ← writeWatPackage output name wat
-      writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name mod output watPath wasmPath?
+      writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name "contract-sdk" mod output watPath wasmPath?
       return 0
   | .error err =>
       throw <| IO.userError err.message
@@ -4499,11 +4499,17 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
       IO.println s!"wrote {output}"
       let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
       IO.println s!"wrote {manifestOutput}"
+      let idlOutput ← writeSbpfIdlWithPlan output spec.module plan
+      IO.println s!"wrote {idlOutput}"
+      let clientOutput ← writeSbpfClientWithPlan output spec.module plan
+      IO.println s!"wrote {clientOutput}"
       let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
       if let some parent := metadataOutput.parent then
         IO.FS.createDirAll parent
       let sourceArtifact ← artifactEntryJson output
       let manifestArtifact ← artifactEntryJson manifestOutput
+      let idlArtifact ← artifactEntryJson idlOutput
+      let clientArtifact ← artifactEntryJson clientOutput
       let sourceArtifactEntry ← artifactEntryJson input
       let metadata := jsonObject #[
         ("schemaVersion", "1"),
@@ -4528,7 +4534,9 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
         ("artifacts", jsonObject #[
           ("source", sourceArtifactEntry),
           ("sbpfAsm", sourceArtifact),
-          ("manifestToml", manifestArtifact)
+          ("manifestToml", manifestArtifact),
+          ("solanaIdl", idlArtifact),
+          ("solanaClientTs", clientArtifact)
         ]),
         ("validation", jsonObject #[
           ("contractSourceLowering", jsonString "passed"),

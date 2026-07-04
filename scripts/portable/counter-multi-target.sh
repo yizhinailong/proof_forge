@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
+export PATH="$HOME/.foundry/bin:$PATH"
+
 SOURCE="${PORTABLE_COUNTER_SOURCE:-Examples/Shared/Counter.lean}"
 OUT="${PORTABLE_COUNTER_OUT:-build/portable-counter}"
 HOST=(cargo run --quiet --manifest-path runtime/offline-host/Cargo.toml -- run)
@@ -50,7 +52,8 @@ python3 scripts/near/validate-emitwat-metadata.py \
   "$OUT/Counter.near-artifact.json" \
   --expected-fixture counter \
   --expected-module Counter \
-  --expected-entrypoints initialize,increment,get
+  --expected-entrypoints initialize,increment,get \
+  --expected-source-kind contract-sdk
 
 if out="$("${HOST[@]}" "$OUT/near/counter.wat" initialize get increment get 2>&1)"; then
   echo "$out"

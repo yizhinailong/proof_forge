@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Shared ValueVault Contract Source Multi-Target Smoke
+
+Commit: this commit
+
+Summary:
+
+- Added `Examples/Shared/ValueVault.lean` as the application-facing
+  chain-neutral ValueVault `contract_source` module.
+- Switched `scripts/portable/value-vault-smoke.sh` from the legacy
+  `Examples/Learn/ValueVault.learn` fixture to the shared `.lean` source.
+- The smoke now builds the same source file for EVM, Solana sBPF, and
+  NEAR/Wasm. Solana contract_source builds now emit IDL and TS client files
+  alongside assembly, manifest, and metadata.
+- NEAR EmitWat metadata now records `sourceKind: contract-sdk` for
+  contract_source builds while preserving `portable-ir` for direct IR fixtures.
+
+Validation run:
+
+```sh
+lake env lean Examples/Shared/ValueVault.lean
+lake build proof-forge
+scripts/portable/value-vault-smoke.sh
+```
+
+Known limitations:
+
+- Solana ELF assembly/linking remains optional through
+  `PROOF_FORGE_VALUE_VAULT_ELF=1`.
+- The legacy `.learn` ValueVault source remains useful for parser equivalence,
+  but it is no longer the product-facing smoke input.
+
+Next step:
+
+- Extend the unified testkit and docs so contract_source-authored Counter and
+  ValueVault are the default examples for Solana, EVM, and NEAR review.
+
 ### FV-8 ValueVault IR Invariant Anchor
 
 Commit: this commit
