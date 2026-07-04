@@ -14,6 +14,23 @@ object "ContextProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0xd9b80589 {
+      let _r0, _r1, _r2, _r3, _r4, _r5 := f_ContextProbe_context_extras()
+      mstore(0, _r0)
+      mstore(32, _r1)
+      mstore(64, _r2)
+      mstore(96, _r3)
+      mstore(128, _r4)
+      mstore(160, _r5)
+      return(0, 192)
+    }
+    case 0xb59b9225 {
+      let _r0, _r1, _r2 := f_ContextProbe_context_hashes()
+      mstore(0, _r0)
+      mstore(32, _r1)
+      mstore(64, _r2)
+      return(0, 96)
+    }
     default {
       revert(0, 0)
     }
@@ -22,6 +39,19 @@ object "ContextProbe" {
     }
     function f_ContextProbe_native_value() -> result {
       result := callvalue()
+    }
+    function f_ContextProbe_context_extras() -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5 {
+      __proof_forge_return_0 := timestamp()
+      __proof_forge_return_1 := chainid()
+      __proof_forge_return_2 := gasprice()
+      __proof_forge_return_3 := gas()
+      __proof_forge_return_4 := basefee()
+      __proof_forge_return_5 := prevrandao()
+    }
+    function f_ContextProbe_context_hashes() -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2 {
+      __proof_forge_return_0 := origin()
+      __proof_forge_return_1 := coinbase()
+      __proof_forge_return_2 := blockhash(1)
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {

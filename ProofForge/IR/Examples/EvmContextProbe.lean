@@ -13,12 +13,43 @@ def nativeValue : Entrypoint := {
   ]
 }
 
+def contextExtras : Entrypoint := {
+  name := "context_extras"
+  selector? := some "d9b80589"
+  returns := .fixedArray .u64 6
+  body := #[
+    .return <| .arrayLit .u64 #[
+      .effect (.contextRead .timestamp),
+      .effect (.contextRead .chainId),
+      .effect (.contextRead .gasPrice),
+      .effect (.contextRead .gasLeft),
+      .effect (.contextRead .baseFee),
+      .effect (.contextRead .prevRandao)
+    ]
+  ]
+}
+
+def contextHashes : Entrypoint := {
+  name := "context_hashes"
+  selector? := some "b59b9225"
+  returns := .fixedArray .hash 3
+  body := #[
+    .return <| .arrayLit .hash #[
+      .effect (.contextRead .origin),
+      .effect (.contextRead .coinbase),
+      .effect (.contextRead (.blockHash (.literal (.u64 1))))
+    ]
+  ]
+}
+
 def module : Module := {
   name := "ContextProbe"
   state := #[ProofForge.IR.Examples.ContextProbe.stateMarker]
   entrypoints := #[
     ProofForge.IR.Examples.ContextProbe.sumContext,
-    nativeValue
+    nativeValue,
+    contextExtras,
+    contextHashes
   ]
 }
 

@@ -64,6 +64,14 @@ structure Runtime where
   calldata : WordBindings := []
   calldataSize : Nat := 4
   blockNumber : Word := 0
+  timestamp : Word := 0
+  chainId : Word := 0
+  gasPrice : Word := 0
+  gasLeft : Word := 0
+  baseFee : Word := 0
+  prevRandao : Word := 0
+  origin : Word := 0
+  coinbase : Word := 0
   logs : Array Log := #[]
   deriving Repr, BEq, DecidableEq
 
@@ -245,6 +253,14 @@ def callRuntimeWithArgs (selector : Nat) (storage : WordBindings) (args : Array 
   calldata := insertWord 0 (selectorCalldataWord selector) (calldataArgBindings args)
   calldataSize := 4 + args.size * 32
   blockNumber := 0
+  timestamp := 0
+  chainId := 0
+  gasPrice := 0
+  gasLeft := 0
+  baseFee := 0
+  prevRandao := 0
+  origin := 0
+  coinbase := 0
   logs := #[]
 }
 
@@ -361,6 +377,25 @@ mutual
         .ok (rt, #[rt.calldataSize])
     | "number", [] =>
         .ok (rt, #[rt.blockNumber])
+    | "timestamp", [] =>
+        .ok (rt, #[rt.timestamp])
+    | "chainid", [] =>
+        .ok (rt, #[rt.chainId])
+    | "gasprice", [] =>
+        .ok (rt, #[rt.gasPrice])
+    | "gas", [] =>
+        .ok (rt, #[rt.gasLeft])
+    | "basefee", [] =>
+        .ok (rt, #[rt.baseFee])
+    | "prevrandao", [] =>
+        .ok (rt, #[rt.prevRandao])
+    | "origin", [] =>
+        .ok (rt, #[rt.origin])
+    | "coinbase", [] =>
+        .ok (rt, #[rt.coinbase])
+    | "blockhash", [blockNumber] => do
+        let (rt, _blockNumber) ← evalWord ctx rt blockNumber
+        .ok (rt, #[0])
     | "keccak256", [offset, size] => do
         let (rt, offset) ← evalWord ctx rt offset
         let (rt, size) ← evalWord ctx rt size

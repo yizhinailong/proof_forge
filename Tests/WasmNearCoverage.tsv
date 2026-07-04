@@ -16,6 +16,15 @@ Literal	hash4	lowered	literal emits four-limb [u64; 4] arrays and is covered by 
 ContextField	userId	lowered	lowerEffectExpr emits __pf_account_id_hash_u64(&env::predecessor_account_id()); Hasher fixture covers it and the context-as-statement diagnostic guards misuse.
 ContextField	contractId	lowered	lowerEffectExpr emits __pf_account_id_hash_u64(&env::current_account_id()); AccountIdHash helper generation is gated by moduleUsesAccountIdHash.
 ContextField	checkpointId	lowered	lowerEffectExpr emits env::block_height(); capability envBlock is present in the wasm-near profile.
+ContextField	timestamp	unsupported	wasm-near IR v0 context read catch-all rejects timestamp with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	chainId	unsupported	wasm-near IR v0 context read catch-all rejects chainId with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	gasPrice	unsupported	wasm-near IR v0 context read catch-all rejects gasPrice with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	gasLeft	unsupported	wasm-near IR v0 context read catch-all rejects gasLeft with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	baseFee	unsupported	wasm-near IR v0 context read catch-all rejects baseFee with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	prevRandao	unsupported	wasm-near IR v0 context read catch-all rejects prevRandao with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	origin	unsupported	wasm-near IR v0 context read catch-all rejects origin with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	coinbase	unsupported	wasm-near IR v0 context read catch-all rejects coinbase with an explicit diagnostic; only userId, contractId, and checkpointId are available.
+ContextField	blockHash	unsupported	wasm-near IR v0 context read catch-all rejects blockHash with an explicit diagnostic; only userId, contractId, and checkpointId are available.
 AssignOp	add	lowered	assignOpSymbol emits += and lowerStatement lowers compound assignment to a mutable local; Accum fixture exercises it and immutable-target diagnostics guard misuse.
 AssignOp	sub	lowered	assignOpSymbol emits -= and lowerStatement lowers compound assignment to a mutable local; immutable-target diagnostics guard misuse.
 AssignOp	mul	lowered	assignOpSymbol emits *= and the Accum fixture emits acc *= 2u64; immutable-target diagnostics guard misuse.

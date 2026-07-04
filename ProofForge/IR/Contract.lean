@@ -66,22 +66,6 @@ inductive Literal where
   | hash4 (a b c d : Nat)
   deriving BEq, Repr
 
-inductive ContextField where
-  | userId
-  | contractId
-  | checkpointId
-  deriving BEq, DecidableEq, Repr
-
-def ContextField.name : ContextField → String
-  | .userId => "userId"
-  | .contractId => "contractId"
-  | .checkpointId => "checkpointId"
-
-def ContextField.capability : ContextField → ProofForge.Target.Capability
-  | .userId => .callerSender
-  | .contractId => .accountExplicit
-  | .checkpointId => .envBlock
-
 inductive AssignOp where
   | add
   | sub
@@ -96,6 +80,21 @@ inductive AssignOp where
   deriving BEq, DecidableEq, Repr
 
 mutual
+  inductive ContextField where
+    | userId
+    | contractId
+    | checkpointId
+    | timestamp
+    | chainId
+    | gasPrice
+    | gasLeft
+    | baseFee
+    | prevRandao
+    | origin
+    | coinbase
+    | blockHash (blockNumber : Expr)
+    deriving Repr
+
   inductive Expr where
     | literal (value : Literal)
     | local (name : String)
@@ -166,6 +165,25 @@ mutual
     | mapKey (key : Expr)
     deriving Repr
 end
+
+def ContextField.name : ContextField → String
+  | .userId => "userId"
+  | .contractId => "contractId"
+  | .checkpointId => "checkpointId"
+  | .timestamp => "timestamp"
+  | .chainId => "chainId"
+  | .gasPrice => "gasPrice"
+  | .gasLeft => "gasLeft"
+  | .baseFee => "baseFee"
+  | .prevRandao => "prevRandao"
+  | .origin => "origin"
+  | .coinbase => "coinbase"
+  | .blockHash _ => "blockHash"
+
+def ContextField.capability : ContextField → ProofForge.Target.Capability
+  | .userId | .origin => .callerSender
+  | .contractId => .accountExplicit
+  | .checkpointId | .timestamp | .chainId | .gasPrice | .gasLeft | .baseFee | .prevRandao | .coinbase | .blockHash _ => .envBlock
 
 structure ErrorRef where
   assertionId : UInt32

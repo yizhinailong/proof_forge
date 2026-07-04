@@ -376,14 +376,19 @@ unknown-selector revert behavior. Invalid loop ranges remain explicit
 diagnostics.
 
 `ContextProbe` validates portable IR context reads through EVM opcodes:
-`userId` lowers to `caller()`, `contractId` lowers to `address()`, and
-`checkpointId` lowers to `number()`. It also validates `nativeValue` lowering
-to `callvalue()` through the `native_value()` selector. The smoke checks golden
-Yul reproducibility, `solc --strict-assembly` bytecode generation, metadata
-capabilities (`caller.sender`, `account.explicit`, `env.block`,
-`value.native`), Foundry runtime context values through `vm.prank`/`vm.roll`,
-value-bearing calls through `probe.call{value: ...}`, and unknown-selector
-revert behavior.
+`userId` lowers to `caller()`, `contractId` lowers to `address()`,
+`checkpointId` lowers to `number()`, `timestamp` lowers to `timestamp()`,
+`chainId` lowers to `chainid()`, `gasPrice` lowers to `gasprice()`, `gasLeft`
+lowers to `gas()`, `baseFee` lowers to `basefee()`, `prevRandao`
+lowers to `prevrandao()`, `origin` lowers to `origin()`, `coinbase` lowers to
+`coinbase()`, and `blockHash(n)` lowers to `blockhash(<n>)`. It also validates
+`nativeValue` lowering to `callvalue()` through the `native_value()` selector.
+The smoke checks golden Yul reproducibility, `solc --strict-assembly` bytecode
+generation, metadata capabilities (`caller.sender`, `account.explicit`,
+`env.block`, `value.native`), Foundry runtime context values through
+`vm.prank`/`vm.startPrank`/`vm.roll`/`vm.warp`/`vm.chainId`/`vm.txGasPrice`/
+`vm.fee`/`vm.prevrandao`/`vm.coinbase`, value-bearing calls through
+`probe.call{value: ...}`, and unknown-selector revert behavior.
 
 `EvmHashProbe` validates portable IR `Hash` values as a one-word EVM ABI and
 storage representation. Four-limb `hash4` literals and dynamic `hashValue`

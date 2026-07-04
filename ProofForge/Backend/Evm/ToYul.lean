@@ -33,6 +33,15 @@ def contextExpr : ContextField → Lean.Compiler.Yul.Expr
   | .userId => Lean.Compiler.Yul.builtin "caller" #[]
   | .contractId => Lean.Compiler.Yul.builtin "address" #[]
   | .checkpointId => Lean.Compiler.Yul.builtin "number" #[]
+  | .timestamp => Lean.Compiler.Yul.builtin "timestamp" #[]
+  | .chainId => Lean.Compiler.Yul.builtin "chainid" #[]
+  | .gasPrice => Lean.Compiler.Yul.builtin "gasprice" #[]
+  | .gasLeft => Lean.Compiler.Yul.builtin "gas" #[]
+  | .baseFee => Lean.Compiler.Yul.builtin "basefee" #[]
+  | .prevRandao => Lean.Compiler.Yul.builtin "prevrandao" #[]
+  | .origin => Lean.Compiler.Yul.builtin "origin" #[]
+  | .coinbase => Lean.Compiler.Yul.builtin "coinbase" #[]
+  | .blockHash _ => Lean.Compiler.Yul.builtin "blockhash" #[]
 
 def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num (4 + paramIndex * 32)]

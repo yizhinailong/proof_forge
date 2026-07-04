@@ -418,6 +418,7 @@ partial def evalExpr (state : State) (frame : Frame) : Expr → Except String Ex
       | .bool value => .ok (nextState, .bool (!value))
       | _ => .error "boolNot expects Bool operand"
   | .effect effect => evalEffect state frame effect
+  | .nativeValue => .ok (state, .u64 0)
   | _ => .error "expression is not supported by the scalar semantics model"
 
 partial def evalPathSegmentKey (state : State) (frame : Frame) : StoragePathSegment →
@@ -529,10 +530,12 @@ partial def evalEffect (state : State) (frame : Frame) : Effect → Except Strin
       let (stateAfterValue, rhs) ← evalExpr stateAfterPath frame valueExpr
       let value ← evalAssignOp op current rhs
       .ok (stateAfterValue.write key value, value)
-  | .contextRead .checkpointId =>
-      .ok (state, .u64 0)
   | .contextRead field =>
-      .error s!"context field `{field.name}` is not supported by the scalar semantics model"
+      match field with
+      | .userId | .contractId | .checkpointId | .timestamp | .chainId | .gasPrice | .gasLeft | .baseFee | .prevRandao =>
+          .ok (state, .u64 0)
+      | .origin | .coinbase | .blockHash _ =>
+          .ok (state, .hash 0 0 0 0)
   | .eventEmit name fields => do
       let (nextState, data) ← evalEventFields state frame fields
       .ok (nextState.recordEvent name #[] data, .unit)
