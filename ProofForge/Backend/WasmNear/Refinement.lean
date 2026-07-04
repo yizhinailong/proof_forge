@@ -918,6 +918,11 @@ def nearU64ParamLoadFrame (name : String) (offset : Nat) : Array WasmTraceOp := 
   .localSet name
 ]
 
+def nearCheckpointBlockIndexFrame (localName : String) : Array WasmTraceOp := #[
+  .call "block_index",
+  .localSet localName
+]
+
 def nearU64HostFrameExpectations : Array WasmHostFrameExpectation := #[
   {
     functionName := ProofForge.Backend.WasmNear.EmitWat.readName .u64
@@ -953,6 +958,11 @@ def nearValueVaultInputHostFrameExpectations : Array WasmHostFrameExpectation :=
   { functionName := "snapshot", expectedOps := nearInputRegisterFrame }
 ]
 
+def nearValueVaultContextHostFrameExpectations : Array WasmHostFrameExpectation := #[
+  { functionName := "initialize", expectedOps := nearCheckpointBlockIndexFrame "checkpoint" },
+  { functionName := "snapshot", expectedOps := nearCheckpointBlockIndexFrame "checkpoint" }
+]
+
 def wasmHostFramesOk
     (module : Module)
     (frames : Array WasmHostFrameExpectation) : Bool :=
@@ -967,6 +977,11 @@ def valueVaultInputHostFramesOk : Bool :=
   wasmHostFramesOk
     ProofForge.Contract.Examples.ValueVault.module
     nearValueVaultInputHostFrameExpectations
+
+def valueVaultContextHostFramesOk : Bool :=
+  wasmHostFramesOk
+    ProofForge.Contract.Examples.ValueVault.module
+    nearValueVaultContextHostFrameExpectations
 
 def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   name := "Counter.EmitWat.artifact-surface"
@@ -1147,7 +1162,9 @@ def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     { functionName := "__pf_evt_log", expectedCalls := #["log_utf8"] }
   ]
   requiredHostFrames :=
-    nearU64HostFrameExpectations ++ nearValueVaultInputHostFrameExpectations |>.push {
+    nearU64HostFrameExpectations ++
+      nearValueVaultInputHostFrameExpectations ++
+      nearValueVaultContextHostFrameExpectations |>.push {
       functionName := ProofForge.Backend.WasmNear.EmitWat.evtLogName
       expectedOps := nearEventLogUtf8Frame
     }
@@ -1372,6 +1389,7 @@ def valueVaultEmitWatBackendInvariantBridgeOk : Bool :=
       ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs &&
     valueVaultArtifactSurfaceObligation.memorySurfaceOk &&
     valueVaultInputHostFramesOk &&
+    valueVaultContextHostFramesOk &&
     valueVaultOfflineHostExecutionObligation.returnPayloadHexOk &&
     valueVaultOfflineHostExecutionObligation.storageSnapshotsOk &&
     valueVaultOfflineHostExecutionObligation.storageHexSnapshotsOk &&
@@ -1463,6 +1481,10 @@ theorem value_vault_emitwat_host_frames_ok :
 
 theorem value_vault_emitwat_input_host_frames_ok :
     valueVaultInputHostFramesOk = true := by
+  native_decide
+
+theorem value_vault_emitwat_context_host_frames_ok :
+    valueVaultContextHostFramesOk = true := by
   native_decide
 
 theorem value_vault_emitwat_memory_surface_ok :

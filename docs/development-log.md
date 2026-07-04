@@ -8642,3 +8642,27 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR EmitWat entrypoint input-frame checks passed locally.
+
+### NEAR EmitWat Context Host Frames
+
+Commit: pending
+
+Summary:
+
+- Added ValueVault context host-frame expectations for `checkpointId`
+  lowering.
+- Pinned the `block_index` host call followed by `local.set checkpoint` in both
+  `initialize` and `snapshot`.
+- Wired the new context-frame anchor into the formal smoke entrypoint and the
+  ValueVault backend-invariant bridge.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR EmitWat context host-frame checks passed locally.
