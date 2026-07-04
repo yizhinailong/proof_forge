@@ -8,6 +8,7 @@ open Lean
 open ProofForge.IR
 
 abbrev ScalarRef := ProofForge.Contract.Surface.ScalarRef
+abbrev MapRef := ProofForge.Contract.Surface.MapRef
 abbrev BindingRef := ProofForge.Contract.Surface.BindingRef
 abbrev MethodRef := ProofForge.Contract.Surface.MethodRef
 abbrev EventRef := ProofForge.Contract.Surface.EventRef
@@ -126,6 +127,8 @@ scoped syntax "cpi " ident " spl_token_close_account" "(" ident ", " ident ", " 
 scoped syntax "cpi " ident " spl_token_set_authority" "(" ident ", " ident ", " ident ")" " authority_type" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" : contractItem
 scoped syntax "use " term : contractItem
+scoped syntax "import " ident ";" : contractItem
+scoped syntax "open " ident ";" : contractItem
 scoped syntax "constructor_param " ident " : " term ";" : contractItem
 scoped syntax "constructor_param " ident " : " "cstring" ";" : contractItem
 scoped syntax "constructor_param " ident " : " "cbytes" ";" : contractItem
@@ -170,9 +173,14 @@ scoped syntax "pda_seed " ident : solanaSignerSeed
 scoped syntax "bump_seed " ident : solanaSignerSeed
 
 scoped syntax "contract_source " ident " do" ppLine contractItem* : command
+scoped syntax "contract_mixin " ident " do" ppLine contractItem* : command
 
 private def identNameLit (name : TSyntax `ident) : TSyntax `term :=
   ⟨Syntax.mkStrLit name.getId.toString⟩
+
+private def mixinTerm (mod : TSyntax `ident) : MacroM (TSyntax `term) := do
+  let mixId : TSyntax `ident := ⟨mkIdent (mod.getId ++ `mixin)⟩
+  `(term| $mixId)
 
 private def chainTerms (terms : Array (TSyntax `term)) : MacroM (TSyntax `term) := do
   let mut acc ← `(pure ())
@@ -508,6 +516,10 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
       return { action? := some action, binder := mkCpiLet call }
   | `(contractItem| use $action:term) =>
       return { action? := some action }
+  | `(contractItem| import $mod:ident;) =>
+      return { action? := some (← mixinTerm mod) }
+  | `(contractItem| open $mod:ident;) =>
+      return { action? := some (← mixinTerm mod) }
   | `(contractItem| entry $name:ident do $stmts:entryStmt*) =>
       return { action? := some (← mkEntry0 name (← `(.unit)) stmts) }
   | `(contractItem| entry $name:ident ($p1:ident : $t1:term) do $stmts:entryStmt*) =>
@@ -525,28 +537,40 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
   | _ =>
       Macro.throwError s!"unsupported contract source item: {item.raw}"
 
+private def lowerContractItems (items : Array (TSyntax `contractItem)) :
+    MacroM (TSyntax `term × Array LoweredItem) := do
+  let mut loweredItems : Array LoweredItem := #[]
+  let mut actions : Array (TSyntax `term) := #[]
+  for item in items do
+    let lowered ← lowerItem item
+    loweredItems := loweredItems.push lowered
+    if let some action := lowered.action? then
+      actions := actions.push action
+  let chained ← chainTerms actions
+  let mut body ← pure chained
+  for lowered in loweredItems.reverse do
+    body ← lowered.binder body
+  return (body, loweredItems)
+
 macro_rules
   | `(contract_source $name:ident do $items:contractItem*) => do
-      let mut loweredItems : Array LoweredItem := #[]
-      let mut actions : Array (TSyntax `term) := #[]
-      for item in items do
-        let lowered ← lowerItem item
-        loweredItems := loweredItems.push lowered
-        if let some action := lowered.action? then
-          actions := actions.push action
+      let (body, _) ← lowerContractItems items
       let nameLit := identNameLit name
-      let chained ← chainTerms actions
-      let mut body ←
-        `(ProofForge.Contract.Surface.contract $nameLit $chained)
-      for lowered in loweredItems.reverse do
-        body ← lowered.binder body
       let specId : TSyntax `ident := ⟨mkIdent `spec⟩
       let moduleId : TSyntax `ident := ⟨mkIdent `module⟩
       `(
-        def $specId : ProofForge.Contract.ContractSpec := $body
+        def $specId : ProofForge.Contract.ContractSpec :=
+          ProofForge.Contract.Surface.contract $nameLit $body
 
         def $moduleId : ProofForge.IR.Module :=
           ($specId).module
+      )
+
+  | `(contract_mixin $_name:ident do $items:contractItem*) => do
+      let (body, _) ← lowerContractItems items
+      let mixinId : TSyntax `ident := ⟨mkIdent `mixin⟩
+      `(
+        def $mixinId : ModuleM Unit := $body
       )
 
 def mapRead [ToExpr α] (mapRef : ProofForge.Contract.Surface.MapRef) (mapKey : α) :

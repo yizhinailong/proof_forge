@@ -1,8 +1,8 @@
-object "SimpleToken" {
+object "OwnableERC20" {
   code {
     switch shr(224, calldataload(0))
     case 0x8da5cb5b {
-      let _r := f_SimpleToken_owner()
+      let _r := f_OwnableERC20_owner()
       mstore(0, _r)
       return(0, 32)
     }
@@ -10,15 +10,15 @@ object "SimpleToken" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
-      f_SimpleToken_transferOwnership(calldataload(4))
+      f_OwnableERC20_transferOwnership(calldataload(4))
       return(0, 0)
     }
     case 0x715018a6 {
-      f_SimpleToken_renounceOwnership()
+      f_OwnableERC20_renounceOwnership()
       return(0, 0)
     }
     case 0x18160ddd {
-      let _r := f_SimpleToken_totalSupply()
+      let _r := f_OwnableERC20_totalSupply()
       mstore(0, _r)
       return(0, 32)
     }
@@ -26,7 +26,7 @@ object "SimpleToken" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
-      let _r := f_SimpleToken_balanceOf(calldataload(4))
+      let _r := f_OwnableERC20_balanceOf(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
@@ -34,14 +34,14 @@ object "SimpleToken" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
-      f_SimpleToken_transfer(calldataload(4), calldataload(36))
+      f_OwnableERC20_transfer(calldataload(4), calldataload(36))
       return(0, 0)
     }
     case 0xcca16fa8 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
-      let _r := f_SimpleToken_allowance(calldataload(4), calldataload(36))
+      let _r := f_OwnableERC20_allowance(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
@@ -49,49 +49,51 @@ object "SimpleToken" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
-      f_SimpleToken_approve(calldataload(4), calldataload(36))
+      f_OwnableERC20_approve(calldataload(4), calldataload(36))
       return(0, 0)
     }
     case 0x310ed7f0 {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
-      f_SimpleToken_transferFrom(calldataload(4), calldataload(36), calldataload(68))
+      f_OwnableERC20_transferFrom(calldataload(4), calldataload(36), calldataload(68))
       return(0, 0)
     }
     case 0x1b2ef1ca {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
-      f_SimpleToken_mint(calldataload(4), calldataload(36))
+      f_OwnableERC20_mint(calldataload(4), calldataload(36))
       return(0, 0)
     }
     case 0xb390c0ab {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
-      f_SimpleToken_burn(calldataload(4), calldataload(36))
+      f_OwnableERC20_burn(calldataload(4), calldataload(36))
       return(0, 0)
     }
     case 0xb7b0422d {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
-      f_SimpleToken_init(calldataload(4))
+      f_OwnableERC20_init(calldataload(4))
       return(0, 0)
     }
-    case 0x893d20e8 {
-      let _r := f_SimpleToken_getOwner()
-      mstore(0, _r)
-      return(0, 32)
+    case 0xd47573d4 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      f_OwnableERC20_ownerMint(calldataload(4), calldataload(36))
+      return(0, 0)
     }
     default {
       revert(0, 0)
     }
-    function f_SimpleToken_owner() -> result {
+    function f_OwnableERC20_owner() -> result {
       result := sload(0)
     }
-    function f_SimpleToken_transferOwnership(newOwner) {
+    function f_OwnableERC20_transferOwnership(newOwner) {
       if iszero(eq(caller(), sload(0))) {
         revert(0, 0)
       }
@@ -100,19 +102,19 @@ object "SimpleToken" {
       }
       sstore(0, newOwner)
     }
-    function f_SimpleToken_renounceOwnership() {
+    function f_OwnableERC20_renounceOwnership() {
       if iszero(eq(caller(), sload(0))) {
         revert(0, 0)
       }
       sstore(0, 0)
     }
-    function f_SimpleToken_totalSupply() -> result {
+    function f_OwnableERC20_totalSupply() -> result {
       result := sload(1)
     }
-    function f_SimpleToken_balanceOf(who) -> result {
+    function f_OwnableERC20_balanceOf(who) -> result {
       result := sload(__proof_forge_map_slot(2, who))
     }
-    function f_SimpleToken_transfer(recipient, amount) {
+    function f_OwnableERC20_transfer(recipient, amount) {
       if iszero(iszero(eq(recipient, 0))) {
         revert(0, 0)
       }
@@ -125,10 +127,10 @@ object "SimpleToken" {
       let dstBal := sload(__proof_forge_map_slot(2, recipient))
       __proof_forge_map_write(2, recipient, __pf_checked_add(dstBal, amount))
     }
-    function f_SimpleToken_allowance(ownerAddr, spender) -> result {
+    function f_OwnableERC20_allowance(ownerAddr, spender) -> result {
       result := sload(__proof_forge_map_slot(__proof_forge_map_slot(3, ownerAddr), spender))
     }
-    function f_SimpleToken_approve(spender, amount) {
+    function f_OwnableERC20_approve(spender, amount) {
       let ownerAddr := caller()
       if iszero(iszero(eq(spender, 0))) {
         revert(0, 0)
@@ -140,7 +142,7 @@ object "SimpleToken" {
         sstore(_presence_slot, 1)
       }
     }
-    function f_SimpleToken_transferFrom(src, dst, amount) {
+    function f_OwnableERC20_transferFrom(src, dst, amount) {
       let spender := caller()
       let current := sload(__proof_forge_map_slot(__proof_forge_map_slot(3, src), spender))
       if iszero(iszero(lt(current, amount))) {
@@ -160,7 +162,7 @@ object "SimpleToken" {
       let dstBal := sload(__proof_forge_map_slot(2, dst))
       __proof_forge_map_write(2, dst, __pf_checked_add(dstBal, amount))
     }
-    function f_SimpleToken_mint(who, amount) {
+    function f_OwnableERC20_mint(who, amount) {
       if iszero(iszero(eq(who, 0))) {
         revert(0, 0)
       }
@@ -169,7 +171,7 @@ object "SimpleToken" {
       let bal := sload(__proof_forge_map_slot(2, who))
       __proof_forge_map_write(2, who, __pf_checked_add(bal, amount))
     }
-    function f_SimpleToken_burn(who, amount) {
+    function f_OwnableERC20_burn(who, amount) {
       if iszero(iszero(eq(who, 0))) {
         revert(0, 0)
       }
@@ -181,7 +183,7 @@ object "SimpleToken" {
       let ts := sload(1)
       sstore(1, __pf_checked_sub(ts, amount))
     }
-    function f_SimpleToken_init(supply) {
+    function f_OwnableERC20_init(supply) {
       if iszero(eq(sload(0), 0)) {
         revert(0, 0)
       }
@@ -190,8 +192,14 @@ object "SimpleToken" {
       let who := caller()
       __proof_forge_map_write(2, who, supply)
     }
-    function f_SimpleToken_getOwner() -> result {
-      result := sload(0)
+    function f_OwnableERC20_ownerMint(who, amount) {
+      if iszero(eq(caller(), sload(0))) {
+        revert(0, 0)
+      }
+      let ts := sload(1)
+      sstore(1, __pf_checked_add(ts, amount))
+      let bal := sload(__proof_forge_map_slot(2, who))
+      __proof_forge_map_write(2, who, __pf_checked_add(bal, amount))
     }
     function __proof_forge_map_slot(slot, key) -> result {
       mstore(0, key)

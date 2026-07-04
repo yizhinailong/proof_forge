@@ -2,24 +2,13 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-Reusable reentrancy lock primitive authored with `contract_source`.
+EVM example wrapper for the portable ReentrancyGuard stdlib mixin.
 -/
-import ProofForge.Contract.Source
+import ProofForge.Contract.Stdlib.ReentrancyGuard
 
 namespace ReentrancyGuard
 
-open ProofForge.Contract.Source
-
-contract_source ReentrancyGuard do
-  state lock : .u64
-
-  entry acquire do
-    do ProofForge.Contract.Surface.acquireLock lock;
-
-  entry release do
-    do ProofForge.Contract.Surface.releaseLock lock;
-
-  query locked returns(.u64) do
-    return lock;
+def spec := ProofForge.Contract.Stdlib.ReentrancyGuard.spec
+def module := ProofForge.Contract.Stdlib.ReentrancyGuard.module
 
 end ReentrancyGuard
