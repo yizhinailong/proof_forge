@@ -11744,3 +11744,38 @@ Result:
   by `EventPlan`.
 - EVM semantic-plan, diagnostics, event IR smoke, full IR smokes, full Lake
   build, and whitespace checks passed locally.
+
+### EVM Planned Scalar Crosscalls In Control-Flow Bodies
+
+Commit: 07ebc5c
+
+Summary:
+
+- Extended planned scalar control-flow body support so scalar expression-position
+  crosscalls can stay inside supported branch/loop body statements.
+- Reused the existing `ExprPlan.crosscall` boundary for target, method,
+  call-value, argument, and scalar return-type validation, while keeping
+  aggregate crosscall argument expansion on the compatibility path.
+- Added a semantic-plan regression that builds an IR `ifElse`, binds the result
+  of `crosscallInvokeTyped`, assigns it back to a mutable local, verifies planned
+  body construction, and checks that the lowered Yul AST calls the expected
+  `__proof_forge_crosscall_1` helper.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/crosscall-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Result:
+
+- Planned control-flow bodies now cover scalar crosscall helper-call expressions
+  already represented by `ExprPlan.crosscall`.
+- EVM semantic-plan, diagnostics, crosscall IR smoke, full Lake build, and
+  whitespace checks passed locally.
