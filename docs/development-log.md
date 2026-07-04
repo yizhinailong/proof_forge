@@ -8588,3 +8588,30 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR offline-host return payload byte checks passed locally.
+
+### NEAR EmitWat Memory Layout Surface
+
+Commit: pending
+
+Summary:
+
+- Added a memory-surface check to NEAR artifact obligations so Counter and
+  ValueVault pin the emitted Wasm memory declaration, not only the memory export
+  name.
+- Added fixed host-buffer memory region expectations for `KEY_BUF`, `RET_BUF`,
+  `EVENT_BUF`, `EVT_KEY_PTR`, and `INPUT_BUF`.
+- Checked that those host buffers have nonzero size, fit in the first Wasm
+  memory page, and do not overlap.
+- Wired the new memory-surface anchors into the formal smoke entrypoint and the
+  ValueVault backend-invariant bridge.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR EmitWat memory layout surface checks passed locally.

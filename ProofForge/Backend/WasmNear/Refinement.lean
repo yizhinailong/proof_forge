@@ -145,17 +145,73 @@ def findImport? (mod : WasmModule) (moduleName functionName : String) :
   mod.imports.find? (fun import_ =>
     import_.module_ == moduleName && import_.name == functionName)
 
-def hasMemoryExport (mod : WasmModule) (exportName : String) : Bool :=
-  match mod.memory with
-  | some memory => memory.exportName == some exportName
-  | none => false
-
 def hasDataSegment (mod : WasmModule) (offset : Nat) (bytes : String) : Bool :=
   mod.dataSegments.any (fun segment => segment.offset == offset && segment.bytes == bytes)
+
+def memoryDeclarationMatches
+    (mod : WasmModule)
+    (exportName : String)
+    (min : Nat)
+    (max : Option Nat) : Bool :=
+  match mod.memory with
+  | some memory =>
+      memory.exportName == some exportName &&
+        memory.min == min &&
+        memory.max == max
+  | none => false
 
 structure WasmCallExpectation where
   functionName : String
   expectedCalls : Array String
+
+structure WasmMemoryRegionExpectation where
+  name : String
+  offset : Nat
+  byteLength : Nat
+  deriving Repr, BEq
+
+def WasmMemoryRegionExpectation.endExclusive
+    (region : WasmMemoryRegionExpectation) : Nat :=
+  region.offset + region.byteLength
+
+def WasmMemoryRegionExpectation.fitsIn
+    (region : WasmMemoryRegionExpectation)
+    (pageBytes : Nat) : Bool :=
+  region.byteLength > 0 && region.endExclusive <= pageBytes
+
+def wasmMemoryRegionsDoNotOverlap
+    (lhs rhs : WasmMemoryRegionExpectation) : Bool :=
+  lhs.endExclusive <= rhs.offset || rhs.endExclusive <= lhs.offset
+
+def wasmMemoryRegionsDisjointFrom
+    (region : WasmMemoryRegionExpectation) :
+    List WasmMemoryRegionExpectation → Bool
+  | [] => true
+  | other :: rest =>
+      wasmMemoryRegionsDoNotOverlap region other &&
+        wasmMemoryRegionsDisjointFrom region rest
+
+def wasmMemoryRegionsPairwiseDisjointList :
+    List WasmMemoryRegionExpectation → Bool
+  | [] => true
+  | region :: rest =>
+      wasmMemoryRegionsDisjointFrom region rest &&
+        wasmMemoryRegionsPairwiseDisjointList rest
+
+def wasmMemoryRegionsFitInPage
+    (regions : Array WasmMemoryRegionExpectation)
+    (pageBytes : Nat) : Bool :=
+  regions.all (fun region => region.fitsIn pageBytes)
+
+def wasmMemoryRegionsPairwiseDisjoint
+    (regions : Array WasmMemoryRegionExpectation) : Bool :=
+  wasmMemoryRegionsPairwiseDisjointList regions.toList
+
+def wasmMemoryLayoutOk
+    (regions : Array WasmMemoryRegionExpectation)
+    (pageBytes : Nat := 65536) : Bool :=
+  wasmMemoryRegionsFitInPage regions pageBytes &&
+    wasmMemoryRegionsPairwiseDisjoint regions
 
 inductive WasmTraceOp where
   | drop
@@ -240,6 +296,9 @@ structure ArtifactSurfaceObligation where
   requiredHostFrames : Array WasmHostFrameExpectation := #[]
   requiredDataSegments : Array (Nat × String) := #[]
   requiredMemoryExport : String := "memory"
+  requiredMemoryMin : Nat := 1
+  requiredMemoryMax : Option Nat := none
+  requiredMemoryRegions : Array WasmMemoryRegionExpectation := #[]
 
 def WasmExportExpectation.ok (mod : WasmModule) (expectation : WasmExportExpectation) :
     Bool :=
@@ -281,6 +340,17 @@ def ArtifactSurfaceObligation.hostFramesOk
         (fun expectation => expectation.ok wasm)
   | .error _ => false
 
+def ArtifactSurfaceObligation.memorySurfaceOk
+    (obligation : ArtifactSurfaceObligation) : Bool :=
+  match ProofForge.Backend.WasmNear.EmitWat.lowerModule obligation.module with
+  | .ok wasm =>
+      memoryDeclarationMatches wasm
+        obligation.requiredMemoryExport
+        obligation.requiredMemoryMin
+        obligation.requiredMemoryMax &&
+      wasmMemoryLayoutOk obligation.requiredMemoryRegions
+  | .error _ => false
+
 def ArtifactSurfaceObligation.ok (obligation : ArtifactSurfaceObligation) : Bool :=
   match ProofForge.Backend.WasmNear.EmitWat.lowerModule obligation.module with
   | .ok wasm =>
@@ -291,7 +361,11 @@ def ArtifactSurfaceObligation.ok (obligation : ArtifactSurfaceObligation) : Bool
       obligation.requiredFunctions.all (fun expectation => expectation.ok wasm) &&
       obligation.requiredHostFrames.all (fun expectation => expectation.ok wasm) &&
       obligation.requiredDataSegments.all (fun segment => hasDataSegment wasm segment.fst segment.snd) &&
-      hasMemoryExport wasm obligation.requiredMemoryExport
+      memoryDeclarationMatches wasm
+        obligation.requiredMemoryExport
+        obligation.requiredMemoryMin
+        obligation.requiredMemoryMax &&
+      wasmMemoryLayoutOk obligation.requiredMemoryRegions
   | .error _ => false
 
 /-! Offline-host execution-surface obligations.
@@ -756,7 +830,20 @@ def counterTraceObligation : TraceObligation := {
 def emitWatKeyBuf : Nat := ProofForge.Backend.WasmNear.EmitWat.KEY_BUF
 def emitWatRetBuf : Nat := ProofForge.Backend.WasmNear.EmitWat.RET_BUF
 def emitWatEventBuf : Nat := ProofForge.Backend.WasmNear.EmitWat.EVENT_BUF
+def emitWatEvtKeyPtr : Nat := ProofForge.Backend.WasmNear.EmitWat.EVT_KEY_PTR
+def emitWatInputBuf : Nat := ProofForge.Backend.WasmNear.EmitWat.INPUT_BUF
 def emitWatEvtPtrGlobal : String := ProofForge.Backend.WasmNear.EmitWat.evtPtrGlobal
+
+def nearHostBufferMemoryRegions : Array WasmMemoryRegionExpectation := #[
+  { name := "KEY_BUF", offset := emitWatKeyBuf, byteLength := 32 },
+  { name := "RET_BUF", offset := emitWatRetBuf, byteLength := 32 },
+  { name := "EVENT_BUF", offset := emitWatEventBuf, byteLength := 256 },
+  { name := "EVT_KEY_PTR", offset := emitWatEvtKeyPtr, byteLength := 5 },
+  { name := "INPUT_BUF", offset := emitWatInputBuf, byteLength := 1024 }
+]
+
+def nearHostBufferMemoryLayoutOk : Bool :=
+  wasmMemoryLayoutOk nearHostBufferMemoryRegions
 
 def nearU64StorageReadFrame : Array WasmTraceOp := #[
   .localGet "kl",
@@ -858,6 +945,7 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   ]
   requiredHostFrames := nearU64HostFrameExpectations
   requiredDataSegments := #[(0, "count")]
+  requiredMemoryRegions := nearHostBufferMemoryRegions
 }
 
 def counterStorageSnapshot (count : Nat) :
@@ -1020,6 +1108,7 @@ def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     (43104, "ValueReleased"),
     (43127, "ValueSnapshot")
   ]
+  requiredMemoryRegions := nearHostBufferMemoryRegions
 }
 
 def valueVaultStorageSnapshot
@@ -1225,6 +1314,7 @@ def valueVaultEmitWatBackendInvariantBridgeOk : Bool :=
     valueVaultOfflineHostReturnPayloadHexDerivesFromInvariantReturns &&
     valueVaultOfflineHostFinalStateDerivesFromInvariant
       ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs &&
+    valueVaultArtifactSurfaceObligation.memorySurfaceOk &&
     valueVaultOfflineHostExecutionObligation.returnPayloadHexOk &&
     valueVaultOfflineHostExecutionObligation.storageSnapshotsOk &&
     valueVaultOfflineHostExecutionObligation.storageHexSnapshotsOk &&
@@ -1254,6 +1344,10 @@ theorem value_vault_offline_host_return_payload_hex_derives_from_invariant_retur
     valueVaultOfflineHostReturnPayloadHexDerivesFromInvariantReturns = true := by
   native_decide
 
+theorem near_emitwat_host_buffer_memory_layout_ok :
+    nearHostBufferMemoryLayoutOk = true := by
+  native_decide
+
 theorem counter_ir_observable_trace_ok :
     counterTraceObligation.irTraceOk = true := by
   native_decide
@@ -1272,6 +1366,10 @@ theorem counter_emitwat_host_import_signatures_ok :
 
 theorem counter_emitwat_host_frames_ok :
     counterArtifactSurfaceObligation.hostFramesOk = true := by
+  native_decide
+
+theorem counter_emitwat_memory_surface_ok :
+    counterArtifactSurfaceObligation.memorySurfaceOk = true := by
   native_decide
 
 theorem counter_emitwat_offline_host_execution_surface_ok :
@@ -1300,6 +1398,10 @@ theorem value_vault_emitwat_host_import_signatures_ok :
 
 theorem value_vault_emitwat_host_frames_ok :
     valueVaultArtifactSurfaceObligation.hostFramesOk = true := by
+  native_decide
+
+theorem value_vault_emitwat_memory_surface_ok :
+    valueVaultArtifactSurfaceObligation.memorySurfaceOk = true := by
   native_decide
 
 theorem value_vault_emitwat_offline_host_execution_surface_ok :

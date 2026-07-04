@@ -55,6 +55,8 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_artifact_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_host_import_signatures_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_host_frames_ok
+#check ProofForge.Backend.WasmNear.Refinement.near_emitwat_host_buffer_memory_layout_ok
+#check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_memory_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_offline_host_execution_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_offline_host_return_payload_hex_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_offline_host_storage_snapshots_ok
@@ -62,6 +64,7 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_artifact_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_host_import_signatures_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_host_frames_ok
+#check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_memory_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_execution_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_return_payload_hex_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_storage_snapshots_ok
@@ -87,5 +90,5 @@ theorem release_then_sum_ownership_ok :
 end ProofForge.Tests.NearWasmFormal
 
 def main : IO UInt32 := do
-  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/import-signature/host-frame/return-payload-hex/storage-snapshot/storage-hex/log-payload-hex backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
+  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/import-signature/host-frame/memory-layout/return-payload-hex/storage-snapshot/storage-hex/log-payload-hex backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
   return 0
