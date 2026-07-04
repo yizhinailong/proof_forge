@@ -1309,9 +1309,16 @@ metadata 文件引用，以及已有的行为/预算追踪。fixture-only 路径
 | ID | 任务 | 验收标准 |
 |---|---|---|
 | CS-6.1 | 重写 `docs/targets/evm.md` pipeline 章节为统一入口（移除 EmitYul/Lean.Evm） | 与 PR #11 架构一致 |
-| CS-6.2 | 更新 `development-standards.md` library root（去掉 `ProofForge.Evm`、`EmitYul`） | 不再有过时的 EVM-native authoring 指引 |
+| CS-6.2 | 更新 `development-standards.md` library root（去掉 `ProofForge.Evm`、`EmitYul`） | ✅ 当前 roots 与 `lakefile.lean` 对齐；authoring 指引使用 `contract_source`，并把旧 EVM/LCNF 路线标为 legacy/research |
 | CS-6.3 | 关闭工作流 24 条目：声明 LCNF→EmitYul 已移除；记录 `contract_source` 为 EVM 产品 pipeline | decision log + RFC 0004 对齐 |
 | CS-6.4 | `Examples/Evm/README.md` 变更时保持 `docs/zh/examples-evm-README.zh.md` 同步 | `just docs-check` 通过 |
+
+当前 CS-6.2 切片：`docs/development-standards.md` 及其 zh 镜像现在列出
+`lakefile.lean` 中的当前 Lake roots，从当前包规范里移除了 `ProofForge.Evm` 和
+`ProofForge.Compiler.LCNF.EmitYul`，并明确 `ProofForge.Backend.Evm` 是编译器实现
+代码，不是产品级 authoring SDK。`Examples/` 的新示例应优先使用
+`contract_source`；backend-only probe 应放在 `Tests/` 或
+`ProofForge/IR/Examples/` 下。
 
 ### 建议排期（工作流 34）
 

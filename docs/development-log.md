@@ -17,6 +17,39 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Development Standards EVM Legacy Cleanup
+
+Commit: this commit
+
+Summary:
+
+- Updated `docs/development-standards.md` to list the current Lake roots from
+  `lakefile.lean` instead of the removed `ProofForge.Evm` /
+  `ProofForge.Compiler.LCNF.EmitYul` roots.
+- Clarified that `ProofForge.Backend.Evm` is compiler implementation code, not a
+  product authoring SDK.
+- Updated authoring guidance so new `Examples/` files use `contract_source`,
+  while backend-only probes live under `Tests/` or `ProofForge/IR/Examples/`.
+- Synchronized the zh mirror and backlog status for CS-6.2.
+
+Validation run:
+
+```sh
+scripts/i18n/check-sync.sh
+python3 scripts/translate-docs.py --check
+git diff --check
+```
+
+Known limitations:
+
+- Broader stale references remain in historical RFCs and target notes; those are
+  tracked by CS-6.1 and CS-6.3 rather than this standards-only cleanup.
+
+Next step:
+
+- Continue CS-6.1 by rewriting `docs/targets/evm.md` around the
+  `contract_source` -> portable IR -> EVM semantic plan -> Yul pipeline.
+
 ### Portable Counter Template Target-First Build
 
 Commit: this commit

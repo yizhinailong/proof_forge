@@ -2645,9 +2645,16 @@ as `error-ref` and allocator probes.
 | ID | Task | Acceptance |
 |---|---|---|
 | CS-6.1 | Rewrite `docs/targets/evm.md` pipeline section for unified entry (remove EmitYul/Lean.Evm) | Matches PR #11 architecture |
-| CS-6.2 | Update `development-standards.md` library roots (drop `ProofForge.Evm`, `EmitYul`) | No stale EVM-native authoring guidance |
+| CS-6.2 | Update `development-standards.md` library roots (drop `ProofForge.Evm`, `EmitYul`) | ✅ Current roots match `lakefile.lean`; authoring guidance names `contract_source` and labels the old EVM/LCNF route legacy/research |
 | CS-6.3 | Close Workstream 24 items: declare LCNF→EmitYul removed; record `contract_source` as EVM product pipeline | Decision log + RFC 0004 alignment |
 | CS-6.4 | Keep `docs/zh/examples-evm-README.zh.md` synced when `Examples/Evm/README.md` changes | `just docs-check` green |
+
+Current CS-6.2 slice: `docs/development-standards.md` and its zh mirror now
+list the current Lake roots from `lakefile.lean`, remove `ProofForge.Evm` and
+`ProofForge.Compiler.LCNF.EmitYul` from current package guidance, and state that
+`ProofForge.Backend.Evm` is compiler implementation code rather than a product
+authoring SDK. New `Examples/` guidance is `contract_source` first; backend-only
+probes belong under `Tests/` or `ProofForge/IR/Examples/`.
 
 ### Suggested sequencing (Workstream 34)
 
