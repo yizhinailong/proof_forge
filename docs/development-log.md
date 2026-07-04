@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Assignment Plan-To-Yul Assembly Slice
+
+Commit: this commit
+
+Summary:
+
+- Routed direct scalar `assign` RHS lowering through the supported
+  `ExprPlan -> ToYul` expression boundary.
+- Routed direct scalar `assignOp` RHS lowering through the same boundary before
+  applying the existing checked arithmetic / bitwise assignment operator.
+- Extended `Tests/EvmSemanticPlan.lean` to lock Yul AST shapes for scalar
+  assignment and compound-assignment RHS expressions.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/assignment-ir-smoke.sh
+scripts/evm/assign-op-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- This slice covers direct scalar assignment and direct scalar compound
+  assignment RHS expressions. Whole-aggregate assignment, dynamic aggregate
+  helper snapshots, storage effect writes, branch conditions, events,
+  crosscalls, and create paths still move over in later semantic-plan slices.
+
+Next step:
+
+- Move scalar `ifElse` and `boundedFor` condition lowering through
+  `ExprPlan -> ToYul`, or start extracting statement-plan to Yul assembly
+  helpers outside the compatibility facade.
+
 ### EVM Scalar Return Plan-To-Yul Assembly Slice
 
 Commit: this commit

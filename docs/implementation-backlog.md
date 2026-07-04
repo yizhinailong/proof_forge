@@ -284,6 +284,11 @@ Tasks:
     `Hash` return expressions. Aggregate return flattening and aggregate
     crosscall return helpers remain on their existing compatibility paths until
     their own migration slices add plan-level coverage.
+  - Started: direct scalar assignment and compound-assignment RHS lowering now
+    consumes the same `ExprPlan -> ToYul` expression boundary for supported
+    scalar expressions. Whole-aggregate assignment, dynamic aggregate helper
+    snapshots, and storage effect writes remain on their existing compatibility
+    paths until their own migration slices add coverage.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

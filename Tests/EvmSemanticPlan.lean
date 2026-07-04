@@ -220,6 +220,42 @@ def testScalarReturnPlanToYul : IO Unit := do
       require (args.size == 1) "storage scalar return plan-to-yul arg count"
   | _ => throw <| IO.userError "storage scalar return plan-to-yul must assign sload"
 
+def testScalarAssignmentPlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := true }]
+  let assignStmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.Counter.module
+      env
+      (.local "n")
+      (.add (.local "n") (.literal (.u64 1))))
+    "scalar assignment plan-to-yul"
+  require (assignStmts.size == 1) "scalar assignment plan-to-yul statement count"
+  match assignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["n"]) "scalar assignment plan-to-yul target"
+      require (name == "__pf_checked_add") "scalar assignment plan-to-yul helper"
+      require (args.size == 2) "scalar assignment plan-to-yul arg count"
+  | _ => throw <| IO.userError "scalar assignment plan-to-yul must assign helper result"
+  let assignOpStmts ← requireOk
+    (lowerAssignOpStmt
+      ProofForge.IR.Examples.Counter.module
+      env
+      (.local "n")
+      .add
+      (.effect (.storageScalarRead "count")))
+    "scalar compound assignment plan-to-yul"
+  require (assignOpStmts.size == 1) "scalar compound assignment plan-to-yul statement count"
+  match assignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["n"]) "scalar compound assignment plan-to-yul target"
+      require (name == "__pf_checked_add") "scalar compound assignment plan-to-yul helper"
+      require (args.size == 2) "scalar compound assignment plan-to-yul arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.builtin name _ =>
+          require (name == "sload") "scalar compound assignment plan-to-yul rhs opcode"
+      | _ => throw <| IO.userError "scalar compound assignment plan-to-yul rhs must be sload"
+  | _ => throw <| IO.userError "scalar compound assignment plan-to-yul must assign helper result"
+
 def main : IO UInt32 := do
   testCounterSemanticPlan
   testEventSemanticPlan
@@ -229,6 +265,7 @@ def main : IO UInt32 := do
   testScalarExprPlanToYul
   testScalarAssertPlanToYul
   testScalarReturnPlanToYul
+  testScalarAssignmentPlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0
 
