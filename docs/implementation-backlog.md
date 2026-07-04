@@ -316,7 +316,10 @@ Tasks:
     coverage.
   - Started: direct scalar local assignment and compound-assignment statement
     assembly now consumes a narrow `StmtPlan -> ToYul` helper when the RHS is in
-    the supported scalar plan subset. Whole-aggregate assignment, static/dynamic
+    the supported scalar plan subset. Static local fixed-array element
+    assignment and compound-assignment targets now also use the same
+    `StmtPlan.assign`/`StmtPlan.assignOp -> ToYul` helper through
+    `ExprPlan.localArrayGet`. Whole-aggregate assignment, static struct-field
     aggregate target paths, dynamic aggregate helper snapshots, and non-scalar
     storage effect writes remain on their existing compatibility paths until
     their own migration slices add coverage.

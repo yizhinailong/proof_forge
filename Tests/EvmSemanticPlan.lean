@@ -1222,6 +1222,10 @@ def testScalarBindingStmtPlanToYul : IO Unit := do
 
 def testScalarAssignmentPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := true }]
+  let arrayEnv : TypeEnv := #[
+    { name := "xs", type := .fixedArray .u64 2, isMutable := true },
+    { name := "n", type := .u64, isMutable := true }
+  ]
   let directAssignStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
       toYulError
@@ -1259,6 +1263,42 @@ def testScalarAssignmentPlanToYul : IO Unit := do
           require (name == "sload") "scalar compound assignment StmtPlan-to-Yul helper rhs opcode"
       | _ => throw <| IO.userError "scalar compound assignment StmtPlan-to-Yul helper rhs must be sload"
   | _ => throw <| IO.userError "scalar compound assignment StmtPlan-to-Yul helper must assign helper result"
+  let directArrayAssignStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module arrayEnv expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module arrayEnv)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.assign
+        (.localArrayGet "xs" #[.literalWord 1] #[2])
+        (.literalWord 9)))
+    "static local-array assignment StmtPlan-to-Yul helper"
+  require (directArrayAssignStmts.size == 1) "static local-array assignment StmtPlan-to-Yul helper statement count"
+  match directArrayAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.lit lit) => do
+      require (names == #["__proof_forge_array_xs_1"]) "static local-array assignment StmtPlan-to-Yul target"
+      require (lit.value == "9") "static local-array assignment StmtPlan-to-Yul value"
+  | _ => throw <| IO.userError "static local-array assignment StmtPlan-to-Yul helper must assign literal"
+  let directArrayAssignOpStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module arrayEnv expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module arrayEnv)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.assignOp
+        (.localArrayGet "xs" #[.literalWord 0] #[2])
+        .add
+        (.local "n")))
+    "static local-array compound assignment StmtPlan-to-Yul helper"
+  require (directArrayAssignOpStmts.size == 1) "static local-array compound assignment StmtPlan-to-Yul helper statement count"
+  match directArrayAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["__proof_forge_array_xs_0"]) "static local-array compound assignment StmtPlan-to-Yul target"
+      require (name == "__pf_checked_add") "static local-array compound assignment StmtPlan-to-Yul helper"
+      require (args.size == 2) "static local-array compound assignment StmtPlan-to-Yul arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.ident name =>
+          require (name == "__proof_forge_array_xs_0") "static local-array compound assignment StmtPlan-to-Yul lhs"
+      | _ => throw <| IO.userError "static local-array compound assignment lhs must be target ident"
+  | _ => throw <| IO.userError "static local-array compound assignment StmtPlan-to-Yul helper must assign helper result"
   let assignStmts ← requireOk
     (lowerAssignStmt
       ProofForge.IR.Examples.Counter.module
@@ -1292,6 +1332,35 @@ def testScalarAssignmentPlanToYul : IO Unit := do
           require (name == "sload") "scalar compound assignment plan-to-yul rhs opcode"
       | _ => throw <| IO.userError "scalar compound assignment plan-to-yul rhs must be sload"
   | _ => throw <| IO.userError "scalar compound assignment plan-to-yul must assign helper result"
+  let arrayAssignStmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.Counter.module
+      arrayEnv
+      (.arrayGet (.local "xs") (.literal (.u64 1)))
+      (.add (.local "n") (.literal (.u64 1))))
+    "static local-array assignment plan-to-yul integration"
+  require (arrayAssignStmts.size == 1) "static local-array assignment plan-to-yul integration statement count"
+  match arrayAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["__proof_forge_array_xs_1"]) "static local-array assignment plan-to-yul integration target"
+      require (name == "__pf_checked_add") "static local-array assignment plan-to-yul integration helper"
+      require (args.size == 2) "static local-array assignment plan-to-yul integration arg count"
+  | _ => throw <| IO.userError "static local-array assignment plan-to-yul integration must assign helper result"
+  let arrayAssignOpStmts ← requireOk
+    (lowerAssignOpStmt
+      ProofForge.IR.Examples.Counter.module
+      arrayEnv
+      (.arrayGet (.local "xs") (.literal (.u64 0)))
+      .add
+      (.local "n"))
+    "static local-array compound assignment plan-to-yul integration"
+  require (arrayAssignOpStmts.size == 1) "static local-array compound assignment plan-to-yul integration statement count"
+  match arrayAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["__proof_forge_array_xs_0"]) "static local-array compound assignment plan-to-yul integration target"
+      require (name == "__pf_checked_add") "static local-array compound assignment plan-to-yul integration helper"
+      require (args.size == 2) "static local-array compound assignment plan-to-yul integration arg count"
+  | _ => throw <| IO.userError "static local-array compound assignment plan-to-yul integration must assign helper result"
 
 def testScalarControlFlowPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := true }]

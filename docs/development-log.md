@@ -10860,7 +10860,7 @@ Result:
 
 ### EVM Dynamic Aggregate Assignment ToYul Slice
 
-Commit: feature commit for EVM dynamic aggregate assignment ToYul
+Commit: `b753bab feat: move evm dynamic aggregate assignment frames to toyul`
 
 Summary:
 
@@ -10894,6 +10894,46 @@ Result:
 
 - Dynamic local aggregate assignment switch/value snapshot frames now lower
   through `ToYul`.
+- Array-value and struct-array-value Foundry smokes still pass.
+- Full `lake build` passed locally with the existing `ProofForge/Cli.lean`
+  unused-variable warning.
+
+### EVM Static Local Array Assignment ToYul Slice
+
+Commit: feature commit for EVM static local-array assignment ToYul
+
+Summary:
+
+- Extended `ToYul.scalarAssignmentStmtPlanStatements` so
+  `StmtPlan.assign`/`StmtPlan.assignOp` can target static
+  `ExprPlan.localArrayGet` nodes, not only scalar locals.
+- Added validation that local-array assignment targets must have a fully static
+  path before `ToYul` converts them to local Yul identifiers.
+- Updated `IR.lean` static local fixed-array element assignment and compound
+  assignment paths to try the plan-backed target lowering first, while keeping
+  the old compatibility fallback for unsupported RHS expressions.
+- Added semantic-plan tests for direct `ToYul` static local-array targets plus
+  `lowerAssignStmt` and `lowerAssignOpStmt` integration.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/struct-array-value-ir-smoke.sh
+lake build
+```
+
+Result:
+
+- Static local fixed-array element assignment targets now lower through
+  `StmtPlan.assign`/`StmtPlan.assignOp -> ToYul`.
 - Array-value and struct-array-value Foundry smokes still pass.
 - Full `lake build` passed locally with the existing `ProofForge/Cli.lean`
   unused-variable warning.

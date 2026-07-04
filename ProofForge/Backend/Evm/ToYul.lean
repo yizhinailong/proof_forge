@@ -1443,19 +1443,34 @@ def scalarReturnStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar return lowering expected return")
 
+def scalarAssignmentTargetName
+    {ε : Type}
+    (mkError : String → ε) : ExprPlan → Except ε String
+  | .local targetName =>
+      .ok targetName
+  | .localArrayGet name path lengths => do
+      let some staticPath := localArrayStaticPath? path
+        | .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected a static local-array target")
+      validateLocalArrayStaticPath mkError name staticPath lengths
+      .ok (arrayLocalPathName name staticPath)
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected a local or static local-array target")
+
 def scalarAssignmentStmtPlanStatements
     {ε : Type}
     (mkError : String → ε)
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
     (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
     StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
-  | .assign (.local targetName) value => do
+  | .assign target value => do
+      let targetName ← scalarAssignmentTargetName mkError target
       .ok #[
         Lean.Compiler.Yul.Statement.assignment
           #[targetName]
           (← exprPlanExpr mkError lowerExpr lowerEffect value)
       ]
-  | .assignOp (.local targetName) op value => do
+  | .assignOp target op value => do
+      let targetName ← scalarAssignmentTargetName mkError target
       .ok #[
         Lean.Compiler.Yul.Statement.assignment
           #[targetName]
@@ -1463,10 +1478,6 @@ def scalarAssignmentStmtPlanStatements
             (Lean.Compiler.Yul.Expr.id targetName)
             (← exprPlanExpr mkError lowerExpr lowerEffect value))
       ]
-  | .assign _ _ =>
-      .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected a local target")
-  | .assignOp _ _ _ =>
-      .error (mkError "EVM StmtPlan-to-Yul scalar compound assignment lowering expected a local target")
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected assign/assignOp")
 
