@@ -180,7 +180,7 @@
   - 已完成：将标量和映射存储槽的 Yul 构建移动到 `StorageSlotPlan -> ToYul`，从存储路径使用的映射值/存在槽开始。
   - 已完成：将 `StorageSlotPlan -> ToYul` 扩展到数组槽和结构体数组字段槽。`IR.lean` 现在通过 plan-to-Yul 边界路由存储数组和结构体数组字段槽降级，同时为现有调用方保留兼容性外观函数。
   - 已开始：`Lower.buildEntrypointPlan` 现在会用结构化 `ExprPlan`/`StmtPlan` 节点填充 `EntrypointPlan.body`，表示入口 IR 主体，同时 `IR.lean` 仍作为兼容性 Yul 组装外观保留。
-  - 已开始：selector-dispatch case 组装现在会消费 `ToYul` 里的 `EntrypointPlan` surface helper，unit/static ABI-word dispatcher return-data encoding 也会通过同一边界消费 `ReturnPlan`。ABI validation/decode 语句、function-call 参数组装、dynamic `bytes`/`string` return encoding、dynamic-param free-memory-pointer 设置，以及 proxy fallback 选择仍留在 `IR.lean` 兼容外观中，直到更完整的 dispatch 降级移动到 `EntrypointPlan -> Yul` 后面。
+  - 已开始：selector-dispatch case 组装现在会消费 `ToYul` 里的 `EntrypointPlan` surface helper，unit/static ABI-word dispatcher return-data encoding 以及 dynamic `bytes`/`string` dispatcher return-data encoding 也会通过同一边界消费 `ReturnPlan`。ABI validation/decode 语句、function-call 参数组装、dynamic-param free-memory-pointer 设置，以及 proxy fallback 选择仍留在 `IR.lean` 兼容外观中，直到更完整的 dispatch 降级移动到 `EntrypointPlan -> Yul` 后面。
   - 已开始：标量局部绑定初始化现在会在受支持的标量子集上消费语义计划路径：`IR Expr -> Lower.buildExprPlan -> ToYul.exprPlanExpr -> Yul.Expr`。Counter、expression 和 context 冒烟测试证明生成的字节码仍可运行；尚不支持的聚合/crosscall plan 节点继续留在兼容性外观路径上，直到对应迁移切片补齐验证覆盖。
   - 已开始：标量 `let` 和 `let mut` 的 statement 组装现在会在受支持的标量 initializer 表达式上消费第一条窄 `StmtPlan -> ToYul` helper，从 `StmtPlan.letBind`/`StmtPlan.letMutBind` 生成 Yul `varDecl`。尚不支持的聚合或字段 initializer 形态仍留在兼容外观中，直到更完整的 `StmtPlan -> Yul` 降级落地。
   - 已开始：标量 `assert` 和 `assertEq` 的 statement 组装现在会在受支持的标量操作数上消费一条窄 `StmtPlan -> ToYul` helper。EVM 运行时错误 payload 的选择仍留在 `IR.lean` 兼容外观中，并以 revert-body callback 的形式传给 `ToYul`。尚不支持的聚合或字段断言操作数继续留在兼容路径上，直到更完整的 statement-plan 降级落地。

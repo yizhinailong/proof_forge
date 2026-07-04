@@ -270,11 +270,11 @@ Tasks:
     `IR.lean` remains the compatibility Yul assembly facade.
   - Started: selector-dispatch case assembly now consumes an `EntrypointPlan`
     surface helper in `ToYul`, and unit/static ABI-word dispatcher return-data
-    encoding now consumes `ReturnPlan` through the same boundary. ABI
-    validation/decode statements, function-call argument assembly, dynamic
-    `bytes`/`string` return encoding, dynamic-param free-memory-pointer setup,
-    and proxy fallback selection remain in the `IR.lean` compatibility facade
-    until broader dispatch lowering moves behind `EntrypointPlan -> Yul`.
+    encoding plus dynamic `bytes`/`string` dispatcher return-data encoding now
+    consume `ReturnPlan` through the same boundary. ABI validation/decode
+    statements, function-call argument assembly, dynamic-param free-memory-pointer
+    setup, and proxy fallback selection remain in the `IR.lean` compatibility
+    facade until broader dispatch lowering moves behind `EntrypointPlan -> Yul`.
   - Started: scalar local binding initialization now consumes the semantic
     plan path for the supported scalar subset:
     `IR Expr -> Lower.buildExprPlan -> ToYul.exprPlanExpr -> Yul.Expr`.

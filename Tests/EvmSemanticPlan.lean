@@ -1,5 +1,6 @@
 import ProofForge.Backend.Evm.IR
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.EvmDynamicAbiProbe
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmStorageArrayProbe
 import ProofForge.IR.Examples.EvmStorageStructProbe
@@ -267,6 +268,46 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
       require (args.size == 2) "entrypoint dispatch switch selector arg count"
       require (cases.size == plan.entrypoints.size + 1) "entrypoint dispatch switch case count"
   | _ => throw <| IO.userError "entrypoint dispatch block must lower to selector switch"
+  let dynamicPlan ← requireOk
+    (buildSemanticPlan ProofForge.IR.Examples.EvmDynamicAbiProbe.module)
+    "dynamic ABI plan"
+  let bytesEntrypoint ← requireSome
+    (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "echo_bytes"))
+    "dynamic ABI plan missing echo_bytes entrypoint"
+  let dynamicReturnStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.dynamicDispatchReturnStatements
+      toYulError
+      #[]
+      bytesEntrypoint.returns
+      (Lean.Compiler.Yul.call "EvmDynamicAbiProbe_echo_bytes" #[Lean.Compiler.Yul.Expr.id "payload"]))
+    "entrypoint dynamic dispatch return plan-to-yul"
+  require (dynamicReturnStmts.size == 7) "entrypoint dynamic dispatch return statement count"
+  match dynamicReturnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.call name args)) => do
+      match vars[0]? with
+      | some var => require (var.name == "_r") "entrypoint dynamic dispatch return result name"
+      | none => throw <| IO.userError "entrypoint dynamic dispatch return missing result var"
+      require (name == "EvmDynamicAbiProbe_echo_bytes") "entrypoint dynamic dispatch return call name"
+      require (args.size == 1) "entrypoint dynamic dispatch return call arg count"
+  | _ => throw <| IO.userError "entrypoint dynamic dispatch return must bind call result"
+  match dynamicReturnStmts[5]! with
+  | Lean.Compiler.Yul.Statement.forLoop _ (Lean.Compiler.Yul.Expr.builtin name args) _ _ => do
+      require (name == "lt") "entrypoint dynamic dispatch return copy loop guard"
+      require (args.size == 2) "entrypoint dynamic dispatch return copy loop guard arg count"
+  | _ => throw <| IO.userError "entrypoint dynamic dispatch return must copy data with loop"
+  let dynamicDispatch ← requireOk
+    (dispatchBlock ProofForge.IR.Examples.EvmDynamicAbiProbe.module)
+    "dynamic ABI dispatch block"
+  match dynamicDispatch with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 2) "dynamic ABI dispatch block statement count"
+      match block.statements[1]! with
+      | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.builtin name args) cases => do
+          require (name == "shr") "dynamic ABI dispatch switch selector opcode"
+          require (args.size == 2) "dynamic ABI dispatch switch selector arg count"
+          require (cases.size == dynamicPlan.entrypoints.size + 1) "dynamic ABI dispatch switch case count"
+      | _ => throw <| IO.userError "dynamic ABI dispatch block must contain selector switch"
+  | _ => throw <| IO.userError "dynamic ABI dispatch must initialize memory and wrap selector switch"
 
 def testSemanticPlanRender : IO Unit := do
   let rendered ← requireOk (renderSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan render"

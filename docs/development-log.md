@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM EntrypointPlan Dynamic Dispatch Return To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.dynamicDispatchReturnStatements` for dynamic `bytes`/`string`
+  dispatcher return-data encoding from a `ReturnPlan`.
+- Routed dynamic `IR.dispatchReturnStatements` through the helper, alongside
+  the existing static return helper.
+- Kept ABI validation/decode statements, function-call argument assembly,
+  dynamic-param free-memory-pointer initialization, and proxy fallback behavior
+  in the compatibility facade.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct dynamic return helper
+  output and the integrated dynamic ABI dispatch block shape.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/dynamic-abi-ir-smoke.sh
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- ABI validation/decode and function-call argument assembly still live in
+  `IR.lean`.
+- Dynamic-parameter free-memory-pointer setup still lives in `dispatchBlock`.
+
+Next step:
+
+- Move calldata validation/decode or full dispatch-block setup behind
+  `EntrypointPlan -> Yul`.
+
 ### EVM EntrypointPlan Static Dispatch Return To-Yul Slice
 
 Commit: this commit

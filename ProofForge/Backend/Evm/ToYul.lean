@@ -126,6 +126,71 @@ def staticDispatchReturnStatements
             ])
         .ok statements
 
+def dynamicDispatchReturnStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (validationStatements : Array Lean.Compiler.Yul.Statement)
+    (returns : ReturnPlan)
+    (callExpr : Lean.Compiler.Yul.Expr) :
+    Except ε (Array Lean.Compiler.Yul.Statement) := do
+  match returns.returnType with
+  | .bytes | .string =>
+      .ok (validationStatements ++ #[
+        Lean.Compiler.Yul.Statement.varDecl #[{ name := "_r" }] (some callExpr),
+        Lean.Compiler.Yul.Statement.varDecl #[{ name := "_ret_len" }]
+          (some (Lean.Compiler.Yul.builtin "mload" #[Lean.Compiler.Yul.Expr.id "_r"])),
+        Lean.Compiler.Yul.Statement.varDecl #[{ name := "_ret_word_count" }]
+          (some (Lean.Compiler.Yul.builtin "div" #[
+            Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "_ret_len", Lean.Compiler.Yul.Expr.num 31],
+            Lean.Compiler.Yul.Expr.num 32
+          ])),
+        Lean.Compiler.Yul.Statement.exprStmt
+          (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32]),
+        Lean.Compiler.Yul.Statement.exprStmt
+          (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "_ret_len"]),
+        Lean.Compiler.Yul.Statement.forLoop
+          { statements := #[
+            Lean.Compiler.Yul.Statement.varDecl #[{ name := "_i" }]
+              (some (Lean.Compiler.Yul.Expr.num 0))
+          ] }
+          (Lean.Compiler.Yul.builtin "lt" #[
+            Lean.Compiler.Yul.Expr.id "_i",
+            Lean.Compiler.Yul.Expr.id "_ret_word_count"
+          ])
+          { statements := #[
+            Lean.Compiler.Yul.Statement.assignment #["_i"]
+              (Lean.Compiler.Yul.builtin "add" #[
+                Lean.Compiler.Yul.Expr.id "_i",
+                Lean.Compiler.Yul.Expr.num 1
+              ])
+          ] }
+          { statements := #[
+            Lean.Compiler.Yul.Statement.exprStmt
+              (Lean.Compiler.Yul.builtin "mstore" #[
+                Lean.Compiler.Yul.builtin "add" #[
+                  Lean.Compiler.Yul.Expr.num 64,
+                  Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "_i", Lean.Compiler.Yul.Expr.num 32]
+                ],
+                Lean.Compiler.Yul.builtin "mload" #[
+                  Lean.Compiler.Yul.builtin "add" #[
+                    Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "_r", Lean.Compiler.Yul.Expr.num 32],
+                    Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "_i", Lean.Compiler.Yul.Expr.num 32]
+                  ]
+                ]
+              ])
+          ] },
+        Lean.Compiler.Yul.Statement.exprStmt
+          (Lean.Compiler.Yul.builtin "return" #[
+            Lean.Compiler.Yul.Expr.num 0,
+            Lean.Compiler.Yul.builtin "add" #[
+              Lean.Compiler.Yul.Expr.num 64,
+              Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "_ret_word_count", Lean.Compiler.Yul.Expr.num 32]
+            ]
+          ])
+      ])
+  | _ =>
+      .error (mkError s!"EVM dynamic dispatch return plan expected bytes/string, got `{returns.returnType.name}`")
+
 def hashPackExpr
     (a b c d : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "or" #[

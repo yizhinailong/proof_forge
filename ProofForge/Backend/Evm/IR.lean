@@ -5310,54 +5310,11 @@ def dispatchReturnStatements
   let validationStmts ← abiParamValidationAndDecodeStmts module entrypoint layouts
   match entrypoint.returns with
   | .bytes | .string =>
-      -- Dynamic return: the function returns a memory pointer.
-      -- Encode as head-tail: head = offset (32 bytes), tail = (length, data).
-      .ok (validationStmts ++ #[
-        -- Call the function, get the memory pointer result
-        Lean.Compiler.Yul.Statement.varDecl #[{ name := "_r" }] (some callExpr),
-        -- Read length from memory at _r
-        Lean.Compiler.Yul.Statement.varDecl #[{ name := "_ret_len" }]
-          (some (Lean.Compiler.Yul.builtin "mload" #[Lean.Compiler.Yul.Expr.id "_r"])),
-        -- Compute word count for data: ceil(len / 32)
-        Lean.Compiler.Yul.Statement.varDecl #[{ name := "_ret_word_count" }]
-          (some (Lean.Compiler.Yul.builtin "div" #[
-            Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "_ret_len", Lean.Compiler.Yul.Expr.num 31],
-            Lean.Compiler.Yul.Expr.num 32
-          ])),
-        -- Store offset in head (offset = 32, since head is 1 word)
-        Lean.Compiler.Yul.Statement.exprStmt
-          (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32]),
-        -- Store length in tail
-        Lean.Compiler.Yul.Statement.exprStmt
-          (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "_ret_len"]),
-        -- Copy data from memory (_r + 32) to output (offset 64) using a loop
-        -- (avoids mcopy due to solc optimizer argument-order bug)
-        Lean.Compiler.Yul.Statement.forLoop
-          { statements := #[Lean.Compiler.Yul.Statement.varDecl #[{ name := "_i" }] (some (Lean.Compiler.Yul.Expr.num 0))] }
-          (Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.Expr.id "_i", Lean.Compiler.Yul.Expr.id "_ret_word_count"])
-          { statements := #[Lean.Compiler.Yul.Statement.assignment #["_i"] (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "_i", Lean.Compiler.Yul.Expr.num 1])] }
-          { statements := #[
-            Lean.Compiler.Yul.Statement.exprStmt
-              (Lean.Compiler.Yul.builtin "mstore" #[
-                Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.num 64, Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "_i", Lean.Compiler.Yul.Expr.num 32]],
-                Lean.Compiler.Yul.builtin "mload" #[
-                  Lean.Compiler.Yul.builtin "add" #[
-                    Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "_r", Lean.Compiler.Yul.Expr.num 32],
-                    Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "_i", Lean.Compiler.Yul.Expr.num 32]
-                  ]
-                ]
-              ])
-          ] },
-        -- Return: head (32) + tail (32 + data words)
-        Lean.Compiler.Yul.Statement.exprStmt
-          (Lean.Compiler.Yul.builtin "return" #[
-            Lean.Compiler.Yul.Expr.num 0,
-            Lean.Compiler.Yul.builtin "add" #[
-              Lean.Compiler.Yul.Expr.num 64,
-              Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "_ret_word_count", Lean.Compiler.Yul.Expr.num 32]
-            ]
-          ])
-      ])
+      ProofForge.Backend.Evm.ToYul.dynamicDispatchReturnStatements
+        toYulError
+        validationStmts
+        returns
+        callExpr
   | _ => do
       ProofForge.Backend.Evm.ToYul.staticDispatchReturnStatements
         toYulError
