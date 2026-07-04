@@ -26,8 +26,8 @@ fi
 
 mkdir -p "$OUT_DIR"
 
-# Keep the CLI executable and legacy SDK module fresh when this script is run directly.
-(cd "$ROOT" && lake build proof-forge ProofForge.Evm >/dev/null)
+# Keep the CLI executable fresh when this script is run directly.
+(cd "$ROOT" && lake build proof-forge >/dev/null)
 
 is_contract_source() {
   local lean_file="$1"
@@ -40,26 +40,19 @@ is_contract_source() {
 failures=0
 while IFS= read -r -d '' lean_file; do
   name="$(basename "$lean_file" .lean)"
-  methods_file="${lean_file%.lean}.evm-methods"
-  if [[ -f "$methods_file" ]]; then
-    source_kind="lean-sdk"
-    fixture="$name.lean"
-    metadata_args=(--require-method-signatures)
-  elif is_contract_source "$lean_file"; then
-    source_kind="contract-sdk"
-    fixture="$name"
-    metadata_args=()
-  else
-    echo "build-examples: skipping $lean_file (neither contract_source nor .evm-methods sidecar)" >&2
+  if ! is_contract_source "$lean_file"; then
+    echo "build-examples: skipping $lean_file (not a portable contract source)" >&2
     continue
   fi
+  source_kind="contract-sdk"
+  fixture="$name"
   out="$OUT_DIR/$name.bin"
   yul_out="$OUT_DIR/$name.yul"
   golden="${lean_file%.lean}.golden.yul"
   metadata="$OUT_DIR/$name.proof-forge-artifact.json"
   if (
     cd "$ROOT"
-    "${proof_forge[@]}" build --target evm --root . --module contract --yul-output "$yul_out" --artifact-output "$metadata" -o "$out" "$lean_file"
+    "${proof_forge[@]}" build --target evm --root . --yul-output "$yul_out" --artifact-output "$metadata" -o "$out" "$lean_file"
     if [[ ! -f "$golden" ]]; then
       echo "build-examples: missing golden Yul: $golden" >&2
       exit 1
@@ -69,7 +62,6 @@ while IFS= read -r -d '' lean_file; do
       --root "$ROOT" \
       --expect-fixture "$fixture" \
       --expect-source-kind "$source_kind" \
-      "${metadata_args[@]}" \
       "$metadata"
   ); then
     :

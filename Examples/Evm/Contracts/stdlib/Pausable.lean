@@ -2,67 +2,41 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-Pausable - emergency stop primitive (OpenZeppelin `utils/Pausable.sol`).
-
-Provides `whenNotPaused` / `whenPaused` guards for emergency halting.
-
-Solidity equivalent:
-```solidity
-contract Pausable {
-    bool private _paused;
-    modifier whenNotPaused() { require(!_paused); _; }
-    function paused() public view returns (bool) { return _paused; }
-    function pause() public onlyOwner { _paused = true; }
-    function unpause() public onlyOwner { _paused = false; }
-}
-```
+Portable Pausable emergency-stop primitive for the unified EVM entry path.
 -/
-import ProofForge.Evm
-open Lean.Evm
+import ProofForge.Contract.Builder
 
 namespace Pausable
 
-def pausedSlot : Storage.Var Nat := Storage.Var.ofSlot 0
-
--- ## Pure model
+open ProofForge.Contract.Builder
+open ProofForge.IR
 
 namespace Spec
 
-/-- Paused state invariant: once paused, all nonPaused operations must revert. -/
 def paused (s : Nat) : Prop := s ≠ 0
 
 theorem not_paused_zero : ¬ paused 0 := by simp [paused]
 
 end Spec
 
--- ## Guards
+def spec : ProofForge.Contract.ContractSpec :=
+  build "Pausable" do
+    scalarState "paused" .u64
 
-/-- Revert if the contract is paused. -/
-def whenNotPaused : IO Unit := do
-  let p ← pausedSlot.read
-  if p != 0 then revert
+    entryReturns "paused" .u64 do
+      ret (storageScalarRead "paused")
 
-/-- Revert if the contract is NOT paused. -/
-def whenPaused : IO Unit := do
-  let p ← pausedSlot.read
-  if p == 0 then revert
+    entry "pause" do
+      letBind "p" .u64 (storageScalarRead "paused")
+      assert (eq (.local "p") (u64 0)) "already paused"
+      effect (storageScalarWrite "paused" (u64 1))
 
--- ## Entrypoints
+    entry "unpause" do
+      letBind "p" .u64 (storageScalarRead "paused")
+      assert (ne (.local "p") (u64 0)) "not paused"
+      effect (storageScalarWrite "paused" (u64 0))
 
-/-- Check if the contract is paused. -/
-@[export l_Pausable_paused]
-def paused : IO Nat := pausedSlot.read
-
-/-- Pause the contract. Must be called by an authorized caller (owner). -/
-@[export l_Pausable_pause]
-def pause : IO Unit := do
-  whenNotPaused
-  pausedSlot.write 1
-
-/-- Unpause the contract. -/
-@[export l_Pausable_unpause]
-def unpause : IO Unit := do
-  whenPaused
-  pausedSlot.write 0
+def module : ProofForge.IR.Module :=
+  spec.module
 
 end Pausable

@@ -5,7 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Portable Counter example for the unified EVM entry path.
 
 Compile:
-`lake env proof-forge build --target evm --root . --module contract -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean`
+`lake env proof-forge build --target evm --root . -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean`
 -/
 import ProofForge.Contract.Source
 

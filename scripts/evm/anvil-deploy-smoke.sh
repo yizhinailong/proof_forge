@@ -81,7 +81,6 @@ rebuild_counter_with_profile() {
     build
     --target evm
     --root .
-    --module contract
     --yul-output "$OUT_DIR/Counter.yul"
     --artifact-output "$OUT_DIR/Counter.proof-forge-artifact.json"
     -o "$RUNTIME_FILE"
@@ -115,7 +114,6 @@ if [[ -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
     build
     --target evm
     --root .
-    --module contract
     --yul-output "$OUT_DIR/Counter.yul"
     --artifact-output "$OUT_DIR/Counter.proof-forge-artifact.json"
   )

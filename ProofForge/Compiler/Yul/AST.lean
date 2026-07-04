@@ -7,7 +7,8 @@ Yul Abstract Syntax Tree.
 Ported from the `zig-to-yul` project (src/yul/ast.zig), which mirrors the
 libyul AST from Solidity. Reference: https://docs.soliditylang.org/en/latest/yul.html
 
-EmitYul produces a `Yul.Object` which `Yul.Printer` renders to Yul source text.
+EmitYul produced a `Yul.Object` which `Yul.Printer` renders to Yul source text.
+The portable IR EVM backend renders `Yul.AST` values through the same printer.
 -/
 module
 

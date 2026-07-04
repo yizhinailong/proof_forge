@@ -1,10 +1,9 @@
 # ProofForge EVM Examples
 
 This directory demonstrates compiling EVM contracts through ProofForge's unified
-portable entry path and the remaining legacy SDK examples that are still being
-migrated.
+portable entry path.
 
-## Unified entry (preferred)
+## Unified entry
 
 Write contracts with `contract_source` in Lean:
 
@@ -30,32 +29,19 @@ Build:
 
 ```bash
 lake env proof-forge build --target evm \
-  --root . --module contract \
+  --root . \
   -o build/evm/Counter.bin \
   Examples/Evm/Contracts/Counter.lean
 ```
 
-`ArrayExample.lean` uses the same unified path via `def spec : ContractSpec`
-and the Builder API (local fixed-array literals).
+`ArrayExample.lean` and the stdlib examples use the same unified path via
+`def spec : ContractSpec` and the Builder API.
 
 No `.evm-methods` sidecar is required. The CLI loads `spec : ContractSpec` from
 the Lean module and lowers through the portable IR EVM backend.
 
 See [docs/authoring-model.md](../../docs/authoring-model.md) and
 [docs/targets/evm.md](../../docs/targets/evm.md).
-
-## Legacy SDK examples (migration in progress)
-
-These files still use `ProofForge.Evm` / `Lean.Evm` with sibling
-`.evm-methods` sidecars:
-
-- `SimpleToken.lean`
-- `ArrayExample.lean`
-- `VerifiedVault.lean`
-- `stdlib/*.lean`
-
-They compile through the legacy LCNF/EmitYul path until ported to
-`contract_source`.
 
 ## Build all examples
 
@@ -65,7 +51,7 @@ From the repository root:
 scripts/evm/build-examples.sh
 ```
 
-This compiles each supported contract to EVM bytecode, diffs generated Yul
+This compiles each portable contract to EVM bytecode, diffs generated Yul
 against sibling `.golden.yul` fixtures, and validates artifact metadata. It
 expects Foundry (`cast`/`forge`) and `solc` on `PATH`.
 

@@ -2,152 +2,94 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-ERC20 - the complete ERC-20 token standard (OpenZeppelin `token/ERC20/ERC20.sol`).
-
-Implements all standard functions: totalSupply, balanceOf, transfer, allowance,
-approve, transferFrom. Includes internal mint/burn.
-
-Key invariant (formally proven): the sum of all balances equals totalSupply.
-No token can be created or destroyed through transfer/approve operations.
-
-Solidity equivalent:
-```solidity
-contract ERC20 {
-    mapping(address => uint256) private _balances;
-    mapping(address => mapping(address => uint256)) private _allowances;
-    uint256 private _totalSupply;
-    // ... transfer, approve, transferFrom, mint, burn
-}
-```
+Portable ERC-20 token for the unified EVM entry path.
 -/
-import ProofForge.Evm
-open Lean.Evm
+import ProofForge.Contract.Builder
 
 namespace ERC20
 
--- ## Storage layout
--- slot 0: totalSupply
--- slot 1: balances mapping (address => uint256)
--- slot 2: allowances mapping (address => address => uint256)
-
-def totalSupplyVar : Storage.Var Nat   := Storage.Var.ofSlot 0
-def balances         : Storage.Map Nat  := Storage.Map.ofSlot 1
-def allowances       : Storage.Map2 Nat := Storage.Map2.ofSlot 2
-
--- ## Pure model + formal proofs
+open ProofForge.Contract.Builder
+open ProofForge.IR
 
 namespace Spec
 
-/-- Pure model: track one account's balance for invariant reasoning. -/
-structure AccountState where
-  balance : Nat
-  allowance : Nat
-
-/-- Token conservation: after a transfer, source + dest balance is preserved. -/
 theorem transfer_conserves_supply {srcBal dstBal amount : Nat}
     (h_src : amount ≤ srcBal)
     : (srcBal - amount) + (dstBal + amount) = srcBal + dstBal := by
   omega
 
-/-- Allowance cannot go negative (bounded by current allowance). -/
 theorem spend_allowance_bounded {current allowance : Nat}
     (h : current ≤ allowance)
     : allowance - current ≤ allowance := by omega
 
-/-- After minting `amount`, totalSupply increases by exactly `amount`. -/
 theorem mint_increases_supply {supply : Nat} {amount : Nat}
     : supply + amount ≥ supply := by omega
 
-/-- After burning `amount`, totalSupply decreases by exactly `amount` (given sufficiency). -/
 theorem burn_decreases_supply {supply amount : Nat}
     (h : amount ≤ supply)
     : supply - amount ≤ supply := by omega
 
 end Spec
 
--- ## Internal operations
+def allowancePath (owner spender : Expr) : Array StoragePathSegment :=
+  #[.mapKey owner, .mapKey spender]
 
-/-- Internal: update balances for a transfer/mint/burn.
-    `src == 0` means mint, `dst == 0` means burn. -/
-def doUpdate (src dst amount : Nat) : IO Unit := do
-  if src == 0 then
-    -- Mint: increase totalSupply and recipient balance
-    let ts ← totalSupplyVar.read
-    totalSupplyVar.write (ts + amount)
-    let bal ← balances.get dst
-    balances.set dst (bal + amount)
-  else if dst == 0 then
-    -- Burn: decrease balance and totalSupply
-    let bal ← balances.get src
-    if amount > bal then revert
-    balances.set src (bal - amount)
-    let ts ← totalSupplyVar.read
-    totalSupplyVar.write (ts - amount)
-  else
-    -- Transfer: decrease sender, increase receiver
-    let srcBal ← balances.get src
-    if amount > srcBal then revert
-    balances.set src (srcBal - amount)
-    let dstBal ← balances.get dst
-    balances.set dst (dstBal + amount)
+def spec : ProofForge.Contract.ContractSpec :=
+  build "ERC20" do
+    scalarState "totalSupply" .u64
+    mapState "balances" .u64 .u64 256
+    mapState "allowances" .u64 .u64 256
 
-/-- Internal: transfer without allowance check. -/
-def doTransfer (src dst amount : Nat) : IO Unit := do
-  if src == 0 ∨ dst == 0 then revert
-  doUpdate src dst amount
+    entryReturns "totalSupply" .u64 do
+      ret (storageScalarRead "totalSupply")
 
-/-- Internal: spend allowance for transferFrom. -/
-def doSpendAllowance (owner spender amount : Nat) : IO Unit := do
-  let current ← allowances.get owner spender
-  if amount > current then revert
-  allowances.set owner spender (current - amount)
+    entryWithParams "balanceOf" #[("account", .u64)] .u64 do
+      ret (storageMapGet "balances" (.local "account"))
 
--- ## ERC-20 standard entrypoints
+    entryWithParams "transfer" #[("to", .u64), ("amount", .u64)] .unit do
+      letBind "sender" .u64 (contextRead .userId)
+      assert (ne (.local "to") (u64 0)) "zero recipient"
+      letBind "srcBal" .u64 (storageMapGet "balances" (.local "sender"))
+      assert (ge (.local "srcBal") (.local "amount")) "insufficient balance"
+      effect (storageMapSet "balances" (.local "sender") (sub (.local "srcBal") (.local "amount")))
+      letBind "dstBal" .u64 (storageMapGet "balances" (.local "to"))
+      effect (storageMapSet "balances" (.local "to") (add (.local "dstBal") (.local "amount")))
 
-/-- Get the total token supply. -/
-@[export l_ERC20_totalSupply]
-def totalSupply : IO Nat := totalSupplyVar.read
+    entryWithParams "allowance" #[("owner", .u64), ("spender", .u64)] .u64 do
+      ret (.effect (.storagePathRead "allowances" (allowancePath (.local "owner") (.local "spender"))))
 
-/-- Get the balance of an address. -/
-@[export l_ERC20_balanceOf]
-def balanceOf (account : Nat) : IO Nat := balances.get account
+    entryWithParams "approve" #[("spender", .u64), ("amount", .u64)] .unit do
+      letBind "owner" .u64 (contextRead .userId)
+      assert (ne (.local "spender") (u64 0)) "zero spender"
+      effect (.storagePathWrite "allowances" (allowancePath (.local "owner") (.local "spender")) (.local "amount"))
 
-/-- Transfer `amount` from caller to `to`. -/
-@[export l_ERC20_transfer]
-def transfer (to amount : Nat) : IO Unit := do
-  let sender ← Env.sender
-  doTransfer sender to amount
+    entryWithParams "transferFrom" #[("src", .u64), ("dst", .u64), ("amount", .u64)] .unit do
+      letBind "spender" .u64 (contextRead .userId)
+      letBind "current" .u64 (.effect (.storagePathRead "allowances" (allowancePath (.local "src") (.local "spender"))))
+      assert (ge (.local "current") (.local "amount")) "insufficient allowance"
+      effect (.storagePathWrite "allowances" (allowancePath (.local "src") (.local "spender")) (sub (.local "current") (.local "amount")))
+      letBind "srcBal" .u64 (storageMapGet "balances" (.local "src"))
+      assert (ge (.local "srcBal") (.local "amount")) "insufficient balance"
+      effect (storageMapSet "balances" (.local "src") (sub (.local "srcBal") (.local "amount")))
+      letBind "dstBal" .u64 (storageMapGet "balances" (.local "dst"))
+      effect (storageMapSet "balances" (.local "dst") (add (.local "dstBal") (.local "amount")))
 
-/-- Get the allowance granted by `owner` to `spender`. -/
-@[export l_ERC20_allowance]
-def allowance (owner spender : Nat) : IO Nat := allowances.get owner spender
+    entryWithParams "mint" #[("account", .u64), ("amount", .u64)] .unit do
+      assert (ne (.local "account") (u64 0)) "zero account"
+      letBind "ts" .u64 (storageScalarRead "totalSupply")
+      effect (storageScalarWrite "totalSupply" (add (.local "ts") (.local "amount")))
+      letBind "bal" .u64 (storageMapGet "balances" (.local "account"))
+      effect (storageMapSet "balances" (.local "account") (add (.local "bal") (.local "amount")))
 
-/-- Approve `spender` to spend up to `amount` on behalf of caller. -/
-@[export l_ERC20_approve]
-def approve (spender amount : Nat) : IO Unit := do
-  if spender == 0 then revert
-  let owner ← Env.sender
-  allowances.set owner spender amount
+    entryWithParams "burn" #[("account", .u64), ("amount", .u64)] .unit do
+      assert (ne (.local "account") (u64 0)) "zero account"
+      letBind "bal" .u64 (storageMapGet "balances" (.local "account"))
+      assert (ge (.local "bal") (.local "amount")) "insufficient balance"
+      effect (storageMapSet "balances" (.local "account") (sub (.local "bal") (.local "amount")))
+      letBind "ts" .u64 (storageScalarRead "totalSupply")
+      effect (storageScalarWrite "totalSupply" (sub (.local "ts") (.local "amount")))
 
-/-- Transfer `amount` from `from` to `to`, using caller's allowance. -/
-@[export l_ERC20_transferFrom]
-def transferFrom (src dst amount : Nat) : IO Unit := do
-  let spender ← Env.sender
-  doSpendAllowance src spender amount
-  doTransfer src dst amount
-
--- ## Mint/Burn (internal, exposed for token factory contracts)
-
-/-- Mint `amount` tokens to `account`. Caller must be authorized externally. -/
-@[export l_ERC20_mint]
-def mint (account amount : Nat) : IO Unit := do
-  if account == 0 then revert
-  doUpdate 0 account amount
-
-/-- Burn `amount` tokens from `account`. -/
-@[export l_ERC20_burn]
-def burn (account amount : Nat) : IO Unit := do
-  if account == 0 then revert
-  doUpdate account 0 amount
+def module : ProofForge.IR.Module :=
+  spec.module
 
 end ERC20

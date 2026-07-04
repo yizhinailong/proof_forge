@@ -98,14 +98,25 @@ def crosscallReturnTypeSuffix : ValueType → Except LowerError String
 def crosscallFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
   .ok s!"__proof_forge_crosscall_{arity}{← crosscallReturnTypeSuffix returnType}"
 
-def crosscallValueFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
-  .ok s!"__proof_forge_crosscall_value_{arity}{← crosscallReturnTypeSuffix returnType}"
+def crosscallValueFunctionName (arity : Nat) (returnType : ValueType) (plainTransfer : Bool := false) : Except LowerError String := do
+  if plainTransfer then
+    .ok s!"__proof_forge_native_transfer{← crosscallReturnTypeSuffix returnType}"
+  else
+    .ok s!"__proof_forge_crosscall_value_{arity}{← crosscallReturnTypeSuffix returnType}"
 
 def crosscallStaticFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
   .ok s!"__proof_forge_crosscall_static_{arity}{← crosscallReturnTypeSuffix returnType}"
 
 def crosscallDelegateFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
   .ok s!"__proof_forge_crosscall_delegate_{arity}{← crosscallReturnTypeSuffix returnType}"
+
+def plainValueTransferMethodId? (methodId : ProofForge.IR.Expr) : Bool :=
+  match methodId with
+  | .literal (.u64 0) => true
+  | _ => false
+
+def plainValueTransferCall? (methodId : ProofForge.IR.Expr) (args : Array ProofForge.IR.Expr) : Bool :=
+  plainValueTransferMethodId? methodId && args.isEmpty
 
 def crosscallReturnWordTag : ValueType → Except LowerError String
   | .u64 => .ok "u64"
@@ -124,8 +135,11 @@ def crosscallReturnWordTagsSuffix (wordTypes : Array ValueType) : Except LowerEr
 def crosscallAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
   .ok s!"__proof_forge_crosscall_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
 
-def crosscallValueAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
-  .ok s!"__proof_forge_crosscall_value_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
+def crosscallValueAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) (plainTransfer : Bool := false) : Except LowerError String := do
+  if plainTransfer then
+    .error { message := "plain native transfer does not support aggregate crosscall returns in IR EVM v0" }
+  else
+    .ok s!"__proof_forge_crosscall_value_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
 
 def crosscallStaticAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
   .ok s!"__proof_forge_crosscall_static_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
@@ -2519,14 +2533,20 @@ mutual
     | .crosscallInvokeValueTyped target methodId callValue args returnType => do
         if !isCrosscallWordType returnType then
           .error { message := s!"value aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
-        let argWords ← lowerCrosscallArgWordsMany module env "value crosscall argument" args
-        let mut callArgs := #[
-          ← lowerExpr module env target,
-          ← lowerExpr module env methodId,
-          ← lowerExpr module env callValue
-        ]
-        callArgs := callArgs ++ argWords
-        .ok (Lean.Compiler.Yul.call (← crosscallValueFunctionName argWords.size returnType) callArgs)
+        if plainValueTransferCall? methodId args then
+          .ok (Lean.Compiler.Yul.call (← crosscallValueFunctionName 0 returnType true) #[
+            ← lowerExpr module env target,
+            ← lowerExpr module env callValue
+          ])
+        else
+          let argWords ← lowerCrosscallArgWordsMany module env "value crosscall argument" args
+          let mut callArgs := #[
+            ← lowerExpr module env target,
+            ← lowerExpr module env methodId,
+            ← lowerExpr module env callValue
+          ]
+          callArgs := callArgs ++ argWords
+          .ok (Lean.Compiler.Yul.call (← crosscallValueFunctionName argWords.size returnType) callArgs)
     | .crosscallInvokeStaticTyped target methodId args returnType => do
         if !isCrosscallWordType returnType then
           .error { message := s!"static aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
@@ -4650,23 +4670,29 @@ def CrosscallMode.forwardsValue : CrosscallMode → Bool
   | .callValue => true
   | .call | .staticcall | .delegatecall => false
 
-def crosscallFunctionParams (arity : Nat) (mode : CrosscallMode) : Array Lean.Compiler.Yul.TypedName :=
-  let base := #[
-    ({ name := "target" } : Lean.Compiler.Yul.TypedName),
-    ({ name := "selector" } : Lean.Compiler.Yul.TypedName)
-  ]
-  let base :=
-    if mode.forwardsValue then
-      base.push ({ name := crosscallCallValueName } : Lean.Compiler.Yul.TypedName)
-    else
-      base
-  go 0 base
-where
-  go (idx : Nat) (acc : Array Lean.Compiler.Yul.TypedName) : Array Lean.Compiler.Yul.TypedName :=
-    if h : idx < arity then
-      go (idx + 1) (acc.push ({ name := crosscallArgName idx } : Lean.Compiler.Yul.TypedName))
-    else
-      acc
+def crosscallFunctionParams (arity : Nat) (mode : CrosscallMode) (plainTransfer : Bool := false) : Array Lean.Compiler.Yul.TypedName :=
+  if plainTransfer then
+    #[
+      ({ name := "target" } : Lean.Compiler.Yul.TypedName),
+      ({ name := crosscallCallValueName } : Lean.Compiler.Yul.TypedName)
+    ]
+  else
+    let base := #[
+      ({ name := "target" } : Lean.Compiler.Yul.TypedName),
+      ({ name := "selector" } : Lean.Compiler.Yul.TypedName)
+    ]
+    let base :=
+      if mode.forwardsValue then
+        base.push ({ name := crosscallCallValueName } : Lean.Compiler.Yul.TypedName)
+      else
+        base
+    go 0 base
+  where
+    go (idx : Nat) (acc : Array Lean.Compiler.Yul.TypedName) : Array Lean.Compiler.Yul.TypedName :=
+      if h : idx < arity then
+        go (idx + 1) (acc.push ({ name := crosscallArgName idx } : Lean.Compiler.Yul.TypedName))
+      else
+        acc
 
 def crosscallArgStoreStatements (arity : Nat) : Array Lean.Compiler.Yul.Statement :=
   go 0 #[]
@@ -4686,6 +4712,7 @@ structure CrosscallHelperSpec where
   arity : Nat
   returnType : ValueType
   mode : CrosscallMode := .call
+  plainTransfer : Bool := false
   deriving BEq, Repr
 
 def crosscallReturnGuardStatementsForName (resultName : String) (returnType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
@@ -4733,12 +4760,39 @@ def crosscallHelperFunction (module : Module) (spec : CrosscallHelperSpec) : Exc
     match spec.mode, isCrosscallWordType spec.returnType with
     | .call, true => crosscallFunctionName spec.arity spec.returnType
     | .call, false => crosscallAggregateFunctionName spec.arity wordTypes
-    | .callValue, true => crosscallValueFunctionName spec.arity spec.returnType
-    | .callValue, false => crosscallValueAggregateFunctionName spec.arity wordTypes
+    | .callValue, true => crosscallValueFunctionName spec.arity spec.returnType spec.plainTransfer
+    | .callValue, false => crosscallValueAggregateFunctionName spec.arity wordTypes spec.plainTransfer
     | .staticcall, true => crosscallStaticFunctionName spec.arity spec.returnType
     | .staticcall, false => crosscallStaticAggregateFunctionName spec.arity wordTypes
     | .delegatecall, true => crosscallDelegateFunctionName spec.arity spec.returnType
     | .delegatecall, false => crosscallDelegateAggregateFunctionName spec.arity wordTypes
+  if spec.plainTransfer then
+    if wordTypes.size != 1 then
+      .error { message := "plain native transfer expects a single-word return type in IR EVM v0" }
+    else
+      let returnName := (crosscallHelperReturnNameStrings 1)[0]!
+      .ok <| .funcDef functionName
+        (crosscallFunctionParams spec.arity spec.mode true)
+        (crosscallHelperReturnNames 1)
+        {
+          statements := #[
+            .varDecl #[{ name := "_success" }] (some <|
+              Lean.Compiler.Yul.builtin "call" #[
+                Lean.Compiler.Yul.builtin "gas" #[],
+                Lean.Compiler.Yul.Expr.id "target",
+                Lean.Compiler.Yul.Expr.id crosscallCallValueName,
+                Lean.Compiler.Yul.Expr.num 0,
+                Lean.Compiler.Yul.Expr.num 0,
+                Lean.Compiler.Yul.Expr.num 0,
+                Lean.Compiler.Yul.Expr.num 0
+              ]),
+            .ifStmt
+              (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "_success"])
+              { statements := #[revertStmt] },
+            .assignment #[returnName] (Lean.Compiler.Yul.Expr.num 0)
+          ]
+        }
+  else
   let outputSize := wordTypes.size * 32
   let callValue :=
     if spec.mode.forwardsValue then
@@ -4785,7 +4839,7 @@ def crosscallHelperFunction (module : Module) (spec : CrosscallHelperSpec) : Exc
   for h : idx in [0:wordTypes.size] do
     guardStatements := guardStatements ++ (← crosscallReturnGuardStatementsForName returnNameStrings[idx]! wordTypes[idx])
   .ok <| .funcDef functionName
-    (crosscallFunctionParams spec.arity spec.mode)
+    (crosscallFunctionParams spec.arity spec.mode spec.plainTransfer)
     (crosscallHelperReturnNames wordTypes.size)
     {
       statements :=
@@ -4907,7 +4961,13 @@ mutual
         for arg in args do
           nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsExpr module env arg)
         let argWordCount ← crosscallArgWordCountForArgs module env "value crosscall argument" args
-        .ok (pushCrosscallHelperSpecIfMissing nested { arity := argWordCount, returnType := returnType, mode := .callValue })
+        let plainTransfer := plainValueTransferCall? methodId args && isCrosscallWordType returnType
+        .ok (pushCrosscallHelperSpecIfMissing nested {
+          arity := argWordCount
+          returnType := returnType
+          mode := .callValue
+          plainTransfer := plainTransfer
+        })
     | .crosscallInvokeStaticTyped target methodId args returnType => do
         let mut nested := mergeCrosscallHelperSpecs
           (← crosscallHelperSpecsExpr module env target)
