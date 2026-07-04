@@ -289,6 +289,35 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
   let bytesEntrypoint ← requireSome
     (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "echo_bytes"))
     "dynamic ABI plan missing echo_bytes entrypoint"
+  let bytesParam ← requireAt bytesEntrypoint.params 0 "dynamic ABI echo_bytes missing param"
+  require (bytesParam.headWordIndex == 0) "dynamic ABI bytes param head word index"
+  require bytesParam.isDynamic "dynamic ABI bytes param is dynamic"
+  let bytesDecodeStmts :=
+    ProofForge.Backend.Evm.ToYul.abiParamValidationAndDecodeStatements bytesEntrypoint.params
+  require (bytesDecodeStmts.size == 9) "dynamic ABI bytes decode statement count"
+  match bytesDecodeStmts[bytesDecodeStmts.size - 1]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.ident ptrName)) => do
+      match vars[0]? with
+      | some var => require (var.name == "data__data_ptr") "dynamic ABI bytes data ptr local"
+      | none => throw <| IO.userError "dynamic ABI bytes decode missing data ptr var"
+      require (ptrName == "__pf_dyn_ptr_data") "dynamic ABI bytes decode data ptr source"
+  | _ => throw <| IO.userError "dynamic ABI bytes decode must end with data ptr var"
+  let transferEntrypoint ← requireSome
+    (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "transfer"))
+    "dynamic ABI plan missing transfer entrypoint"
+  let transferToParam ← requireAt transferEntrypoint.params 0 "transfer missing to param"
+  let transferAmountParam ← requireAt transferEntrypoint.params 1 "transfer missing amount param"
+  require (transferToParam.headWordIndex == 0) "transfer to param head word index"
+  require (transferAmountParam.headWordIndex == 1) "transfer amount param head word index"
+  let transferArgs := ProofForge.Backend.Evm.ToYul.entrypointCallArgs transferEntrypoint.params
+  require (transferArgs.size == 2) "transfer plan-to-yul call arg count"
+  match transferArgs[1]! with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "calldataload") "transfer amount call arg load"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit lit => require (lit.value == "36") "transfer amount calldata offset"
+      | _ => throw <| IO.userError "transfer amount calldata offset must be literal"
+  | _ => throw <| IO.userError "transfer amount call arg must be calldata load"
   let dynamicDirectDispatch :=
     ProofForge.Backend.Evm.ToYul.dispatchPlanStatement
       dynamicPlan.dispatch

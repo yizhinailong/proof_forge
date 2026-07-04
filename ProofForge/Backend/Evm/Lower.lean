@@ -34,14 +34,18 @@ def abiParamPlan
     (module : Module)
     (context : String)
     (name : String)
-    (type : ValueType) : Except LowerError AbiParamPlan := do
+    (type : ValueType)
+    (headWordIndex : Nat) : Except LowerError AbiParamPlan := do
   let wordTypes ← abiValueWordTypes module s!"{context} parameter `{name}`" type
-  .ok { name, type, wordTypes }
+  .ok { name, type, wordTypes, headWordIndex }
 
 def entrypointParamPlans (module : Module) (entrypoint : Entrypoint) :
-    Except LowerError (Array AbiParamPlan) :=
-  entrypoint.params.foldlM (init := #[]) fun acc param => do
-    .ok (acc.push (← abiParamPlan module s!"entrypoint `{entrypoint.name}`" param.fst param.snd))
+    Except LowerError (Array AbiParamPlan) := do
+  let (_, params) ← entrypoint.params.foldlM (init := (0, #[])) fun acc param => do
+    let (headWordIndex, params) := acc
+    let paramPlan ← abiParamPlan module s!"entrypoint `{entrypoint.name}`" param.fst param.snd headWordIndex
+    .ok (headWordIndex + paramPlan.headWordCount, params.push paramPlan)
+  .ok params
 
 def returnPlan (module : Module) (context : String) (returnType : ValueType) :
     Except LowerError ReturnPlan := do

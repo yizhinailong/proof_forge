@@ -553,9 +553,20 @@ structure AbiParamPlan where
   name : String
   type : ValueType
   wordTypes : Array ValueType
+  headWordIndex : Nat
   deriving Repr
 
-instance : Inhabited AbiParamPlan := ⟨{ name := "", type := .unit, wordTypes := #[] }⟩
+instance : Inhabited AbiParamPlan := ⟨{ name := "", type := .unit, wordTypes := #[], headWordIndex := 0 }⟩
+
+def abiTypeIsDynamic : ValueType → Bool
+  | .bytes | .string => true
+  | .u32 | .u64 | .bool | .hash | .address | .unit | .fixedArray _ _ | .structType _ => false
+
+def AbiParamPlan.isDynamic (param : AbiParamPlan) : Bool :=
+  abiTypeIsDynamic param.type
+
+def AbiParamPlan.headWordCount (param : AbiParamPlan) : Nat :=
+  if param.isDynamic then 1 else param.wordTypes.size
 
 structure ReturnPlan where
   returnType : ValueType

@@ -46,15 +46,151 @@ def contextExpr : ContextField → Lean.Compiler.Yul.Expr
 def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num (4 + paramIndex * 32)]
 
+def revertStatement : Lean.Compiler.Yul.Statement :=
+  Lean.Compiler.Yul.Statement.exprStmt
+    (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+
+def calldataloadAt (offset : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.builtin "calldataload" #[offset]
+
+def dynamicParamLengthName (name : String) : String :=
+  s!"{name}__length"
+
+def dynamicParamDataPtrName (name : String) : String :=
+  s!"{name}__data_ptr"
+
+def abiParamsHeadWordCount (params : Array AbiParamPlan) : Nat :=
+  params.foldl (fun acc param => acc + param.headWordCount) 0
+
+def abiParamsMinSizeValidationStatements (params : Array AbiParamPlan) :
+    Array Lean.Compiler.Yul.Statement :=
+  let headWordCount := abiParamsHeadWordCount params
+  let minSize := 4 + headWordCount * 32
+  if headWordCount == 0 then
+    #[]
+  else
+    #[
+      Lean.Compiler.Yul.Statement.ifStmt
+        (Lean.Compiler.Yul.builtin "lt" #[
+          Lean.Compiler.Yul.builtin "calldatasize" #[],
+          Lean.Compiler.Yul.Expr.num minSize
+        ])
+        { statements := #[revertStatement] }
+    ]
+
+def abiWordValidationStatement?
+    (word : Lean.Compiler.Yul.Expr)
+    (type : ValueType) : Option Lean.Compiler.Yul.Statement :=
+  match type with
+  | .u32 =>
+      some <| Lean.Compiler.Yul.Statement.ifStmt
+        (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 4294967295])
+        { statements := #[revertStatement] }
+  | .bool =>
+      some <| Lean.Compiler.Yul.Statement.ifStmt
+        (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 1])
+        { statements := #[revertStatement] }
+  | .u64 | .hash | .address | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
+      none
+
+def abiParamHeadValidationStatements (params : Array AbiParamPlan) :
+    Array Lean.Compiler.Yul.Statement :=
+  Id.run do
+    let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+    for h : i in [0:params.size] do
+      let param := params[i]
+      if param.isDynamic then
+        let offsetExpr := calldataWordExpr param.headWordIndex
+        let baseOffset := Lean.Compiler.Yul.Expr.num (4 + param.headWordIndex * 32)
+        let offsetPlusBase := Lean.Compiler.Yul.builtin "add" #[baseOffset, offsetExpr]
+        statements := statements.push <|
+          Lean.Compiler.Yul.Statement.ifStmt
+            (Lean.Compiler.Yul.builtin "gt" #[
+              offsetPlusBase,
+              Lean.Compiler.Yul.builtin "calldatasize" #[]
+            ])
+            { statements := #[revertStatement] }
+      else
+        for h : j in [0:param.wordTypes.size] do
+          let wordIndex := param.headWordIndex + j
+          match abiWordValidationStatement? (calldataWordExpr wordIndex) param.wordTypes[j] with
+          | some statement => statements := statements.push statement
+          | none => pure ()
+    statements
+
+def dynamicAbiParamDecodeStatements (param : AbiParamPlan) :
+    Array Lean.Compiler.Yul.Statement :=
+  if param.isDynamic then
+    let offsetExpr := calldataWordExpr param.headWordIndex
+    let dataOffset := Lean.Compiler.Yul.builtin "add" #[
+      Lean.Compiler.Yul.Expr.num (4 + param.headWordIndex * 32),
+      offsetExpr
+    ]
+    let lengthExpr := calldataloadAt dataOffset
+    let memPtrName := s!"__pf_dyn_ptr_{param.name}"
+    let memPtr := Lean.Compiler.Yul.Expr.id memPtrName
+    let dataStart := Lean.Compiler.Yul.builtin "add" #[memPtr, Lean.Compiler.Yul.Expr.num 32]
+    let wordCount := Lean.Compiler.Yul.builtin "div" #[
+      Lean.Compiler.Yul.builtin "add" #[lengthExpr, Lean.Compiler.Yul.Expr.num 31],
+      Lean.Compiler.Yul.Expr.num 32
+    ]
+    let memSize := Lean.Compiler.Yul.builtin "mul" #[wordCount, Lean.Compiler.Yul.Expr.num 32]
+    let totalSize := Lean.Compiler.Yul.builtin "add" #[memSize, Lean.Compiler.Yul.Expr.num 32]
+    let tailEnd := Lean.Compiler.Yul.builtin "add" #[
+      dataOffset,
+      Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.num 32, memSize]
+    ]
+    #[
+      .ifStmt
+        (Lean.Compiler.Yul.builtin "gt" #[tailEnd, Lean.Compiler.Yul.builtin "calldatasize" #[]])
+        { statements := #[revertStatement] },
+      .varDecl #[{ name := memPtrName }]
+        (some (Lean.Compiler.Yul.builtin "mload" #[Lean.Compiler.Yul.Expr.num 0x40])),
+      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[memPtr, lengthExpr]),
+      .exprStmt (Lean.Compiler.Yul.builtin "calldatacopy" #[
+        dataStart,
+        Lean.Compiler.Yul.builtin "add" #[dataOffset, Lean.Compiler.Yul.Expr.num 32],
+        memSize
+      ]),
+      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[
+        Lean.Compiler.Yul.Expr.num 0x40,
+        Lean.Compiler.Yul.builtin "add" #[memPtr, totalSize]
+      ]),
+      .varDecl #[{ name := dynamicParamLengthName param.name }] (some lengthExpr),
+      .varDecl #[{ name := dynamicParamDataPtrName param.name }] (some memPtr)
+    ]
+  else
+    #[]
+
+def abiParamDecodeStatements (params : Array AbiParamPlan) :
+    Array Lean.Compiler.Yul.Statement :=
+  params.foldl (fun acc param => acc ++ dynamicAbiParamDecodeStatements param) #[]
+
+def abiParamValidationAndDecodeStatements (params : Array AbiParamPlan) :
+    Array Lean.Compiler.Yul.Statement :=
+  abiParamsMinSizeValidationStatements params ++
+    abiParamHeadValidationStatements params ++
+    abiParamDecodeStatements params
+
+def entrypointCallArgs (params : Array AbiParamPlan) :
+    Array Lean.Compiler.Yul.Expr :=
+  Id.run do
+    let mut args : Array Lean.Compiler.Yul.Expr := #[]
+    for h : i in [0:params.size] do
+      let param := params[i]
+      if param.isDynamic then
+        args := args.push (Lean.Compiler.Yul.Expr.id (dynamicParamLengthName param.name))
+        args := args.push (Lean.Compiler.Yul.Expr.id (dynamicParamDataPtrName param.name))
+      else
+        for h : j in [0:param.wordTypes.size] do
+          args := args.push (calldataWordExpr (param.headWordIndex + j))
+    args
+
 def dispatchSelectorExpr : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "shr" #[
     Lean.Compiler.Yul.Expr.num 224,
     Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num 0]
   ]
-
-def revertStatement : Lean.Compiler.Yul.Statement :=
-  Lean.Compiler.Yul.Statement.exprStmt
-    (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
 
 def eip1967ImplementationSlotExpr : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.Expr.lit
@@ -126,9 +262,7 @@ def dispatchSwitchStatement
   .switchStmt dispatchSelectorExpr (cases.push defaultCase)
 
 def abiParamPlanIsDynamic (param : AbiParamPlan) : Bool :=
-  match param.type with
-  | .bytes | .string => true
-  | _ => false
+  param.isDynamic
 
 def entrypointPlanHasDynamicParams (entrypoint : EntrypointPlan) : Bool :=
   entrypoint.params.any abiParamPlanIsDynamic

@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM AbiParamPlan Calldata Decode To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `AbiParamPlan.headWordIndex`, plus `AbiParamPlan.isDynamic` and
+  `AbiParamPlan.headWordCount` helpers, so the semantic plan carries calldata
+  head layout for entrypoint parameters.
+- Updated `Lower.entrypointParamPlans` to compute head-word indices while
+  building entrypoint parameter plans.
+- Added `ToYul.entrypointCallArgs` and
+  `ToYul.abiParamValidationAndDecodeStatements`, moving dispatcher call
+  arguments and calldata validation/decode statement assembly behind
+  `AbiParamPlan -> Yul`.
+- Removed the temporary `IR.lean` `AbiParamLayout` path; the compatibility
+  facade now obtains parameter plans and delegates call-arg/decode generation
+  to `ToYul`.
+- Extended `Tests/EvmSemanticPlan.lean` to check head-word indices, direct
+  planned call args, and dynamic `bytes` decode statement shape.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/dynamic-abi-ir-smoke.sh
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- `IR.lean` still wraps the planned call args in the final internal function
+  call expression.
+- Full entrypoint body lowering still uses the compatibility facade while the
+  staged `StmtPlan -> Yul` migration continues.
+
+Next step:
+
+- Move the final dispatch call wrapper or broader entrypoint body lowering
+  behind `EntrypointPlan -> Yul`.
+
 ### EVM DispatchPlan Default-Case To-Yul Slice
 
 Commit: this commit

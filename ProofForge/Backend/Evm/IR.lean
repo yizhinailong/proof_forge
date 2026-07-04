@@ -527,22 +527,24 @@ def lowerAssertStmt (condition : Lean.Compiler.Yul.Expr) (errorRef? : Option Pro
   ProofForge.Backend.Evm.ToYul.assertStatementFromCondition condition revertStatements
 
 def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
-  Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num (4 + paramIndex * 32)]
+  ProofForge.Backend.Evm.ToYul.calldataWordExpr paramIndex
 
 -- Dynamic ABI type support: bytes and string use head-tail encoding.
 -- The head contains an offset to the tail where (length, data) is stored.
 
 def isDynamicAbiType : ValueType → Bool
-  | .bytes | .string => true
-  | .u32 | .u64 | .bool | .hash | .address | .unit | .fixedArray _ _ | .structType _ => false
+  | type => ProofForge.Backend.Evm.Plan.abiTypeIsDynamic type
 
 -- Yul expression to load a word from calldata at a byte offset.
 def calldataloadAt (offset : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
-  Lean.Compiler.Yul.builtin "calldataload" #[offset]
+  ProofForge.Backend.Evm.ToYul.calldataloadAt offset
 
 -- Names for dynamic parameter locals (length and memory pointer).
-def dynamicParamLengthName (name : String) : String := s!"{name}__length"
-def dynamicParamDataPtrName (name : String) : String := s!"{name}__data_ptr"
+def dynamicParamLengthName (name : String) : String :=
+  ProofForge.Backend.Evm.ToYul.dynamicParamLengthName name
+
+def dynamicParamDataPtrName (name : String) : String :=
+  ProofForge.Backend.Evm.ToYul.dynamicParamDataPtrName name
 def arrayLocalElementName (name : String) (index : Nat) : String :=
   s!"__proof_forge_array_{name}_{index}"
 
@@ -809,24 +811,6 @@ def lowerEntrypointParams (module : Module) (entrypoint : Entrypoint) : Except L
       let paramNames ← abiValueParamNames module s!"entrypoint `{entrypoint.name}` parameter `{name}`" name type
       .ok (acc ++ (paramNames.map fun name => ({ name := name } : Lean.Compiler.Yul.TypedName)))
 
--- Layout info for a single entrypoint parameter.
-structure AbiParamLayout where
-  name : String
-  type : ValueType
-  isDynamic : Bool
-  headWordIndex : Nat  -- index of this param's first head word
-  deriving Repr
-
-def entrypointParamLayouts (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array AbiParamLayout) := do
-  let mut layouts : Array AbiParamLayout := #[]
-  let mut headIdx := 0
-  for param in entrypoint.params do
-    let (name, type) := param
-    let isDyn := isDynamicAbiType type
-    layouts := layouts.push { name, type, isDynamic := isDyn, headWordIndex := headIdx }
-    headIdx := headIdx + (← abiParamHeadWordCount module s!"entrypoint `{entrypoint.name}` parameter `{name}`" type)
-  .ok layouts
-
 -- Static-only word types for entrypoint params (excludes dynamic types).
 -- Used for calldata size validation.
 def entrypointStaticParamWordTypes (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array ValueType) := do
@@ -839,159 +823,36 @@ def entrypointStaticParamWordTypes (module : Module) (entrypoint : Entrypoint) :
       words := words ++ (← abiValueWordTypes module s!"entrypoint `{entrypoint.name}` parameter `{param.fst}`" param.snd)
   .ok words
 
--- Generate call args for the entrypoint function.
--- Static params: calldataload from the head.
--- Dynamic params: pass __length and __data_ptr locals (set up by decode statements).
-def entrypointCallArgsWithLayout (module : Module) (entrypoint : Entrypoint) (layouts : Array AbiParamLayout) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-  let mut args : Array Lean.Compiler.Yul.Expr := #[]
-  let mut staticWordIdx := 0
-  for h : i in [0:layouts.size] do
-    let layout := layouts[i]
-    if layout.isDynamic then
-      -- Pass the decoded length and data_ptr as function args
-      args := args.push (Lean.Compiler.Yul.Expr.id (dynamicParamLengthName layout.name))
-      args := args.push (Lean.Compiler.Yul.Expr.id (dynamicParamDataPtrName layout.name))
-      staticWordIdx := staticWordIdx + 1
-    else
-      let wordTypes ← abiValueWordTypes module s!"entrypoint `{entrypoint.name}` parameter `{layout.name}`" layout.type
-      for _ in [0:wordTypes.size] do
-        args := args.push (calldataWordExpr staticWordIdx)
-        staticWordIdx := staticWordIdx + 1
-  .ok args
+def entrypointParamPlansForModule
+    (module : Module)
+    (entrypoint : Entrypoint) :
+    Except LowerError (Array ProofForge.Backend.Evm.Plan.AbiParamPlan) := do
+  match ProofForge.Backend.Evm.Lower.entrypointParamPlans module entrypoint with
+  | .ok params => .ok params
+  | .error err => .error { message := err.message }
+
+def entrypointCallArgsWithPlan
+    (params : Array ProofForge.Backend.Evm.Plan.AbiParamPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Expr) :=
+  .ok (ProofForge.Backend.Evm.ToYul.entrypointCallArgs params)
 
 def entrypointCallArgs (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-  let layouts ← entrypointParamLayouts module entrypoint
-  entrypointCallArgsWithLayout module entrypoint layouts
+  let params ← entrypointParamPlansForModule module entrypoint
+  entrypointCallArgsWithPlan params
 
 -- Generate calldata size check and per-word validation for static params,
 -- plus head-tail decode statements for dynamic params (bytes/string).
 -- Returns (validationStmts, dynamicDecodeStmts) — both run before the call.
 def abiParamValidationAndDecodeStmts
-    (module : Module)
-    (entrypoint : Entrypoint)
-    (layouts : Array AbiParamLayout) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let headWordCount := layouts.foldl (init := 0) fun acc l =>
-    if l.isDynamic then acc + 1 else
-      Id.run <| match abiValueWordTypes module "" l.type with
-      | .ok ws => acc + ws.size
-      | _ => acc + 1  -- fallback, shouldn't happen
-  let minSize := 4 + headWordCount * 32
-  let mut statements : Array Lean.Compiler.Yul.Statement :=
-    if headWordCount == 0 then
-      #[]
-    else
-      #[
-        Lean.Compiler.Yul.Statement.ifStmt
-          (Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.builtin "calldatasize" #[], Lean.Compiler.Yul.Expr.num minSize])
-          { statements := #[revertStmt] }
-      ]
-  -- Static param word validation
-  let mut staticWordIdx := 0
-  for h : i in [0:layouts.size] do
-    let layout := layouts[i]
-    if layout.isDynamic then
-      -- Validate offset: the offset word in the head must point within calldata
-      let offsetExpr := calldataWordExpr staticWordIdx
-      let baseOffset := Lean.Compiler.Yul.Expr.num (4 + staticWordIdx * 32)
-      -- The offset value + 4 (selector) + (staticWordIdx+1)*32 must be <= calldatasize
-      let offsetPlusBase := Lean.Compiler.Yul.builtin "add" #[baseOffset, offsetExpr]
-      statements := statements.push <|
-        Lean.Compiler.Yul.Statement.ifStmt
-          (Lean.Compiler.Yul.builtin "gt" #[offsetPlusBase, Lean.Compiler.Yul.builtin "calldatasize" #[]])
-          { statements := #[revertStmt] }
-      staticWordIdx := staticWordIdx + 1
-    else
-      let wordTypes ← abiValueWordTypes module s!"entrypoint `{entrypoint.name}` parameter `{layout.name}`" layout.type
-      for h : j in [0:wordTypes.size] do
-        let word := calldataWordExpr staticWordIdx
-        statements :=
-          match wordTypes[j] with
-          | .u32 =>
-              statements.push <| Lean.Compiler.Yul.Statement.ifStmt
-                (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 4294967295])
-                { statements := #[revertStmt] }
-          | .bool =>
-              statements.push <| Lean.Compiler.Yul.Statement.ifStmt
-                (Lean.Compiler.Yul.builtin "gt" #[word, Lean.Compiler.Yul.Expr.num 1])
-                { statements := #[revertStmt] }
-          | .u64 | .hash | .address | .unit | .fixedArray _ _ | .structType _ | .bytes | .string => statements
-        staticWordIdx := staticWordIdx + 1
-  -- Dynamic param decode: read offset from head, load length and data from tail
-  -- into memory. Use the free memory pointer (mload(0x40)) for allocation.
-  for h : i in [0:layouts.size] do
-    let layout := layouts[i]
-    if layout.isDynamic then
-      -- Read the offset from the head
-      let offsetExpr := calldataWordExpr layout.headWordIndex
-      -- Actual byte offset in calldata: 4 (selector) + headOffsetValue
-      let dataOffset := Lean.Compiler.Yul.builtin "add" #[
-        Lean.Compiler.Yul.Expr.num (4 + layout.headWordIndex * 32),
-        offsetExpr
-      ]
-      -- Read length from calldata at the offset
-      let lengthExpr := calldataloadAt dataOffset
-      -- Allocate memory: length word + ceil(length/32) data words
-      -- Use mload(0x40) as the memory pointer
-      let memPtr := Lean.Compiler.Yul.Expr.id (s!"__pf_dyn_ptr_{layout.name}")
-      let dataStart := Lean.Compiler.Yul.builtin "add" #[memPtr, Lean.Compiler.Yul.Expr.num 32]
-      let wordCount := Lean.Compiler.Yul.builtin "div" #[
-        Lean.Compiler.Yul.builtin "add" #[lengthExpr, Lean.Compiler.Yul.Expr.num 31],
-        Lean.Compiler.Yul.Expr.num 32
-      ]
-      let memSize := Lean.Compiler.Yul.builtin "mul" #[wordCount, Lean.Compiler.Yul.Expr.num 32]
-      let totalSize := Lean.Compiler.Yul.builtin "add" #[memSize, Lean.Compiler.Yul.Expr.num 32]
-      -- Validate length: offset + 32 + ceil(length/32)*32 <= calldatasize
-      let tailEnd := Lean.Compiler.Yul.builtin "add" #[
-        dataOffset,
-        Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.num 32, memSize]
-      ]
-      statements := statements ++ #[
-        -- Validate the tail fits in calldata
-        .ifStmt
-          (Lean.Compiler.Yul.builtin "gt" #[tailEnd, Lean.Compiler.Yul.builtin "calldatasize" #[]])
-          { statements := #[revertStmt] },
-        -- Allocate memory
-        .varDecl #[{ name := s!"__pf_dyn_ptr_{layout.name}" }]
-          (some (Lean.Compiler.Yul.builtin "mload" #[Lean.Compiler.Yul.Expr.num 0x40])),
-        -- Store length
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[memPtr, lengthExpr]),
-        -- Copy data from calldata to memory
-        .exprStmt (Lean.Compiler.Yul.builtin "calldatacopy" #[
-          dataStart,
-          Lean.Compiler.Yul.builtin "add" #[dataOffset, Lean.Compiler.Yul.Expr.num 32],
-          memSize
-        ]),
-        -- Update free memory pointer
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[
-          Lean.Compiler.Yul.Expr.num 0x40,
-          Lean.Compiler.Yul.builtin "add" #[memPtr, totalSize]
-        ]),
-        -- Set the __length and __data_ptr locals
-        .varDecl #[{ name := dynamicParamLengthName layout.name }] (some lengthExpr),
-        .varDecl #[{ name := dynamicParamDataPtrName layout.name }] (some memPtr)
-      ]
-  .ok statements
+    (params : Array ProofForge.Backend.Evm.Plan.AbiParamPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Statement) :=
+  .ok (ProofForge.Backend.Evm.ToYul.abiParamValidationAndDecodeStatements params)
 
 -- Backward-compatible wrapper: only returns validation (no dynamic decode).
 -- The full validation+decode is in abiParamValidationAndDecodeStmts.
 def abiParamValidationStmts (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let layouts ← entrypointParamLayouts module entrypoint
-  -- For backward compat, just run the size check + static word validation
-  -- (no dynamic decode). This is used by callers that don't need decode.
-  let headWordCount := layouts.foldl (init := 0) fun acc l =>
-    if l.isDynamic then acc + 1 else
-      Id.run <| match abiValueWordTypes module "" l.type with
-      | .ok ws => acc + ws.size
-      | _ => acc + 1
-  let minSize := 4 + headWordCount * 32
-  if headWordCount == 0 then
-    .ok #[]
-  else
-    .ok #[
-      Lean.Compiler.Yul.Statement.ifStmt
-        (Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.builtin "calldatasize" #[], Lean.Compiler.Yul.Expr.num minSize])
-        { statements := #[revertStmt] }
-    ]
+  let params ← entrypointParamPlansForModule module entrypoint
+  .ok (ProofForge.Backend.Evm.ToYul.abiParamsMinSizeValidationStatements params)
 
 def contextExpr : ContextField → Lean.Compiler.Yul.Expr
   | .userId => Lean.Compiler.Yul.builtin "caller" #[]
@@ -5261,18 +5122,26 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
   let returns ← abiReturnTypedNames module entrypoint
   .ok (.funcDef (yulFunctionName module.name entrypoint.name) params returns { statements := body })
 
+def entrypointCallExprWithPlan
+    (module : Module)
+    (entrypoint : Entrypoint)
+    (entrypointPlan : ProofForge.Backend.Evm.Plan.EntrypointPlan) :
+    Except LowerError Lean.Compiler.Yul.Expr := do
+  let args ← entrypointCallArgsWithPlan entrypointPlan.params
+  .ok (Lean.Compiler.Yul.call (yulFunctionName module.name entrypoint.name) args)
+
 def entrypointCallExpr (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Expr := do
-  let layouts ← entrypointParamLayouts module entrypoint
-  let args ← entrypointCallArgsWithLayout module entrypoint layouts
+  let params ← entrypointParamPlansForModule module entrypoint
+  let args ← entrypointCallArgsWithPlan params
   .ok (Lean.Compiler.Yul.call (yulFunctionName module.name entrypoint.name) args)
 
 def dispatchReturnStatements
-    (module : Module)
+    (_module : Module)
     (entrypoint : Entrypoint)
+    (params : Array ProofForge.Backend.Evm.Plan.AbiParamPlan)
     (returns : ProofForge.Backend.Evm.Plan.ReturnPlan)
     (callExpr : Lean.Compiler.Yul.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let layouts ← entrypointParamLayouts module entrypoint
-  let validationStmts ← abiParamValidationAndDecodeStmts module entrypoint layouts
+  let validationStmts ← abiParamValidationAndDecodeStmts params
   match entrypoint.returns with
   | .bytes | .string =>
       ProofForge.Backend.Evm.ToYul.dynamicDispatchReturnStatements
@@ -5299,8 +5168,8 @@ def dispatchCaseWithEntrypointPlan
     }
   else
     pure ()
-  let callExpr ← entrypointCallExpr module entrypoint
-  let bodyStmts ← dispatchReturnStatements module entrypoint entrypointPlan.returns callExpr
+  let callExpr ← entrypointCallExprWithPlan module entrypoint entrypointPlan
+  let bodyStmts ← dispatchReturnStatements module entrypoint entrypointPlan.params entrypointPlan.returns callExpr
   ProofForge.Backend.Evm.ToYul.entrypointDispatchCase toYulError entrypointPlan bodyStmts
 
 def dispatchCaseWithPlan (module : Module) (entrypoint : Entrypoint) :
