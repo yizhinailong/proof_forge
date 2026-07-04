@@ -15,6 +15,7 @@ The NEAR work contributed the first three formal anchors, now on `main`:
 | Anchor | Module | What it gives us |
 |---|---|---|
 | Executable IR semantics (scalar + first aggregate/storage/control-flow/event slice) | `ProofForge/IR/Semantics.lean` | A small executable trace interpreter for scalar values plus fixed arrays, structs, storage arrays, storage struct fields, storage paths, aggregate ABI params/returns, `ifElse`, `boundedFor`, and observable event-log items; used by the NEAR trace obligations and the first FV-2 aggregate/storage/control-flow/event checks |
+| User contract invariants over IR traces | `ProofForge/Contract/Examples/ValueVaultInvariant.lean`, `Tests/NearWasmFormal.lean` | The first FV-8 worked example: the chain-neutral ValueVault `contract_source` module is executed through the shared 11-step IR scenario, then decide-checked theorems pin the observable returns, the accounting invariant `balance + released + fees = externally supplied value`, final storage fields, and `get_net_value = balance - fees` |
 | Ownership rules | `ProofForge/IR/Ownership.lean`, `Tests/IROwnership.lean` | Checker for `release`/owned-local discipline (no use-after-release, branch consistency), currently validated by tests |
 | Backend trace obligations | `ProofForge/Backend/WasmNear/Refinement.lean`, `ProofForge/Backend/Evm/Refinement.lean`, `ProofForge/Backend/Evm/YulSemantics.lean`, `Tests/NearWasmFormal.lean` | `TraceObligation` with `decide`-checked theorems: the Counter, ValueVault, EvmExpressionProbe, EvmMapProbe, EvmTypedStorageProbe, EvmStorageStructProbe, EvmAbiAggregateProbe, ConditionalProbe, EvmLoopProbe, and EventProbe IR traces match expected observable values where IR semantics exists, EmitWat exports cover the NEAR trace entrypoints, the NEAR Counter and ValueVault artifact-surface obligations pin emitted Wasm AST host-boundary calls before WAT printing, the NEAR offline-host execution-surface obligations pin Borsh input bytes plus deterministic host return fragments for Counter and ValueVault, the EVM Yul surface contains selector-dispatched functions for the same traces, and the focused emitted Yul subset executes scalar, map, typed-array storage, storage-struct, aggregate ABI, control-flow, and event-log traces to the same observable return/log words |
 
@@ -126,7 +127,18 @@ The long-term differentiator: let contract authors state invariants next to
 `contract_source` (e.g. `balance = deposits - releases + fees` for
 ValueVault) and prove them against the FV-2 semantics before codegen. This
 needs no backend work — it is pure Lean over the IR semantics — and is the
-first proof surface users see. Start with ValueVault as the worked example.
+first proof surface users see. The first worked example is now
+`ProofForge.Contract.Examples.ValueVaultInvariant`: it executes ValueVault's
+shared scenario in the FV-2 interpreter and pins the return trace, final
+storage shape, accounting invariant, and net-value invariant.
+
+Next, turn that concrete module into an authoring pattern:
+
+- make invariant declarations live near `contract_source`;
+- separate reusable invariant predicates from scenario-specific inputs;
+- connect proved IR invariants to FV-4 backend obligations so generated
+  artifacts cannot drift from the proved scenario without a theorem/gate
+  failure.
 
 ## Non-goals
 
@@ -151,4 +163,6 @@ first proof surface users see. Start with ValueVault as the worked example.
    obligations plus offline-host execution-surface obligations; next, deepen
    that boundary toward richer Wasm/offline-host semantics.
 5. FV-6 authoring-surface equivalence for the fixture subset.
-6. FV-5 / FV-7 as the respective surfaces stabilize; FV-8 once FV-2 lands.
+6. FV-5 / FV-7 as the respective surfaces stabilize; continue FV-8 by turning
+   the ValueVault invariant anchor into a reusable authoring surface and then
+   linking it to backend obligations.

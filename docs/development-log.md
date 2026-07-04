@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-8 ValueVault IR Invariant Anchor
+
+Commit: this commit
+
+Summary:
+
+- Added `ProofForge.Contract.Examples.ValueVaultInvariant` as the first
+  user-facing contract-invariant proof surface over the executable IR
+  semantics.
+- The module runs the chain-neutral ValueVault `contract_source` module through
+  the shared 11-step scenario and checks the observable return trace.
+- Added decide-checkable accounting and net-value invariants over the final IR
+  state: `balance + released + fees` equals externally supplied value, final
+  storage matches the scenario inputs, and `get_net_value` equals
+  `balance - fees`.
+- Wired the new FV-8 theorem anchors into `Tests/NearWasmFormal.lean`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Contract.Examples.ValueVaultInvariant
+lake env lean --run Tests/NearWasmFormal.lean
+git diff --check
+```
+
+Known limitations:
+
+- This is a concrete executable-trace invariant for the ValueVault worked
+  example, not yet a source-level invariant DSL or a universally quantified
+  theorem over all valid inputs.
+- It proves the invariant against the FV-2 IR semantics. It does not yet
+  transport the invariant to emitted EVM, Solana, or NEAR artifacts.
+
+Next step:
+
+- Generalize the FV-8 shape so `contract_source` authors can state reusable
+  invariants near the contract and then connect those invariants to the FV-4
+  backend obligations.
+
 ### FV-4 NEAR Offline-Host Execution Surface Anchor
 
 Commit: this commit

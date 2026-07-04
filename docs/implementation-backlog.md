@@ -45,7 +45,7 @@ disposition is:
 |---|---|---|
 | R1: RFC 0009 and D-039 lagged behind the landed CLI M1 work | Closed on current `main`: RFC 0009 is accepted with M1/M3 landed, and D-039 now ratifies the compatibility-layer implementation instead of claiming a pre-code freeze | Keep RFC 0009 and CLI migration docs synchronized as M4 legacy-alias removal is scheduled |
 | R2: too many half-finished workstreams are active | Accepted as a planning risk | Gate P0 is closed and CLI M3 is now guarded by `just cli-target-first`; keep M4 alias removal behind the compatibility window and avoid opening Tier-1 M3/M4 work implicitly |
-| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, FV-2 aggregate/storage/map/control-flow/event-log IR traces, NEAR trace obligations plus Counter and ValueVault EmitWat artifact-surface and offline-host execution-surface obligations, and EVM FV-4 executable Yul trace anchors exist, but full IR-to-artifact semantic preservation is not done. The EVM map/storage/aggregate/control-flow/event slices now connect covered FV-2 IR traces to executable Yul obligations. | Extend NEAR FV-4 from execution-surface checks toward a richer Wasm/offline-host semantics boundary, then connect user-level invariants to the covered IR semantics |
+| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, FV-2 aggregate/storage/map/control-flow/event-log IR traces, the first FV-8 ValueVault accounting/net-value invariant anchors over IR semantics, NEAR trace obligations plus Counter and ValueVault EmitWat artifact-surface and offline-host execution-surface obligations, and EVM FV-4 executable Yul trace anchors exist, but full IR-to-artifact semantic preservation is not done. The EVM map/storage/aggregate/control-flow/event slices now connect covered FV-2 IR traces to executable Yul obligations. | Extend NEAR FV-4 from execution-surface checks toward a richer Wasm/offline-host semantics boundary, then connect ValueVault FV-8 invariants to the covered backend obligations |
 | R4: capability granularity is too coarse | Do not churn capability ids in the current phase; storage is already split into scalar/map/array/PDA, and Solana account semantics are modeled separately from storage patterns | Treat cross-target runtime differences as budget/diagnostic obligations: each target must reject unsupported shapes explicitly and pin resource budgets for supported ones |
 | R5: docs-first target notes create hidden sunk cost | Closed at the scheduling layer: D-045 and the target roadmap restricted product hardening to `solana-sbpf-asm`, `evm`, and `wasm-near` until Gate P0 closed | Keep research notes as inventory; schedule Tier-1 M3/M4 explicitly rather than letting old research notes create automatic implementation scope |
 | R6: Lean/toolchain onboarding friction | Partially closed: `docs/onboarding.md` exists and names the core toolchain and per-target tools, but editor workspace config, templates, and scaffolding remain open DX work | Add VS Code/Cursor workspace recommendations and a minimal project template after the NEAR/Wasm P0-3 closure, unless onboarding friction blocks P0 work earlier |
@@ -66,8 +66,11 @@ The immediate engineering order after this review is therefore:
    against executable emitted Yul. NEAR now has Counter and ValueVault EmitWat
    AST artifact-surface obligations plus offline-host execution-surface
    obligations that pin Borsh input bytes and deterministic host return/log
-   observations. Next extend that FV-4 path toward a richer Wasm/offline-host
-   semantics boundary.
+   observations. FV-8 now has a first ValueVault IR invariant anchor for the
+   shared 11-step scenario, including return-trace, accounting, final-storage,
+   and net-value checks. Next extend the FV-4 backend path toward a richer
+   Wasm/offline-host semantics boundary and connect the ValueVault FV-8
+   invariants to covered backend obligations.
 4. Address the remaining DX items (`.vscode` recommendations, project template,
    and scaffolding) once they no longer compete with the P0 closure.
 
@@ -2136,8 +2139,14 @@ Tasks (see the roadmap for full statements):
   paired fixture subset (decidable `ContractSpec` equality).
 - FV-7: prove Token SDK plan invariants (total feature routing, documented
   incompatibility diagnostics, plan well-formedness).
-- FV-8: user-facing contract invariants over IR semantics, ValueVault as the
-  worked example.
+- FV-8: first ValueVault worked-example invariants are now in
+  `ProofForge.Contract.Examples.ValueVaultInvariant`. The decide-checkable
+  anchors execute the chain-neutral ValueVault `contract_source` module through
+  the shared 11-step FV-2 IR scenario, then check the observable return trace,
+  `balance + released + fees = externally supplied value`, final storage
+  fields, and `get_net_value = balance - fees`. Next: turn this concrete
+  module into an author-facing invariant pattern and connect the proved IR
+  invariants to FV-4 backend obligations.
 
 Acceptance criteria:
 
