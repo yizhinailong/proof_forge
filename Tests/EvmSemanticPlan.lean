@@ -2238,6 +2238,80 @@ def testScalarControlFlowPlanToYul : IO Unit := do
       require (thenBody.size == 1) "planned scalar control-flow plan construction then body"
       require (elseBody.size == 1) "planned scalar control-flow plan construction else body"
   | _ => throw <| IO.userError "planned scalar control-flow plan construction must produce ifElse body plan"
+  let aggregateEnv : TypeEnv := #[
+    { name := "p", type := .structType "Point", isMutable := true },
+    { name := "xs", type := .fixedArray .u64 2, isMutable := true },
+    { name := "n", type := .u64, isMutable := true }
+  ]
+  let plannedAggregateControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      "control_flow"
+      .unit
+      aggregateEnv
+      (.ifElse
+        (.gt (.local "n") (.literal (.u64 0)))
+        #[
+          .assign
+            (.field (.local "p") "x")
+            (.add (.field (.local "p") "y") (.literal (.u64 1)))
+        ]
+        #[
+          .assign
+            (.arrayGet (.local "xs") (.literal (.u64 1)))
+            (.field (.local "p") "x")
+        ]))
+    "planned aggregate scalar control-flow plan construction"
+  let plannedAggregateControl ← requireSome plannedAggregateControl?
+    "planned aggregate scalar control-flow plan construction missing plan"
+  let (aggregateControlStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      "control_flow"
+      .unit
+      aggregateEnv
+      false
+      plannedAggregateControl)
+    "planned aggregate scalar control-flow body lowering"
+  require (aggregateControlStmts.size == 1) "planned aggregate scalar control-flow body lowering statement count"
+  match aggregateControlStmts[0]! with
+  | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.builtin name args) cases => do
+      require (name == "gt") "planned aggregate scalar control-flow body lowering opcode"
+      require (args.size == 2) "planned aggregate scalar control-flow body lowering arg count"
+      require (cases.size == 2) "planned aggregate scalar control-flow body lowering case count"
+      let elseCase ← requireAt cases 0 "planned aggregate scalar control-flow body lowering else case"
+      let thenCase ← requireAt cases 1 "planned aggregate scalar control-flow body lowering then case"
+      require (thenCase.body.statements.size == 1) "planned aggregate scalar control-flow body lowering then count"
+      require (elseCase.body.statements.size == 1) "planned aggregate scalar control-flow body lowering else count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+          require (names == #["__proof_forge_struct_p_x"]) "planned aggregate scalar control-flow body lowering struct target"
+          require (name == "__pf_checked_add") "planned aggregate scalar control-flow body lowering struct helper"
+          require (args.size == 2) "planned aggregate scalar control-flow body lowering struct helper args"
+      | _ => throw <| IO.userError "planned aggregate scalar control-flow body lowering must assign struct field"
+      match elseCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["__proof_forge_array_xs_1"]) "planned aggregate scalar control-flow body lowering array target"
+          require (valueName == "__proof_forge_struct_p_x") "planned aggregate scalar control-flow body lowering array value"
+      | _ => throw <| IO.userError "planned aggregate scalar control-flow body lowering must assign local array element"
+  | _ => throw <| IO.userError "planned aggregate scalar control-flow body lowering must lower to switch"
+  let immutableAggregatePlan? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      "control_flow"
+      .unit
+      #[
+        { name := "p", type := .structType "Point", isMutable := false },
+        { name := "n", type := .u64, isMutable := true }
+      ]
+      (.ifElse
+        (.gt (.local "n") (.literal (.u64 0)))
+        #[.assign (.field (.local "p") "x") (.literal (.u64 1))]
+        #[]))
+    "planned scalar control-flow validation guard"
+  match immutableAggregatePlan? with
+  | none => pure ()
+  | some _ => throw <| IO.userError "planned scalar control-flow validation guard must reject immutable struct assignment"
   let (ifStmts, _) ← requireOk
     (lowerStatement
       ProofForge.IR.Examples.Counter.module

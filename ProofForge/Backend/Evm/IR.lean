@@ -5050,15 +5050,24 @@ mutual
     | .hashTwoToOne lhs rhs => exprPlanSupportsScalarBody lhs && exprPlanSupportsScalarBody rhs
     | .nativeValue => true
     | .effect effect => effectPlanSupportsScalarBodyExpr effect
+    | .localArrayGet _ path _ =>
+        match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
+        | some _ => true
+        | none => false
+    | .structField (.local _) _ => true
+    | .structField (.localArrayGet _ path _) _ =>
+        match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
+        | some _ => true
+        | none => false
     | .crosscall .. | .create .. | .localAbiWords .. | .localCrosscallWords ..
-    | .storageCrosscallWords .. | .structField .. | .arrayGet .. | .localArrayGet ..
-    | .arrayLit .. | .structLit .. => false
+    | .storageCrosscallWords .. | .structField .. | .arrayGet .. | .arrayLit ..
+    | .structLit .. => false
 end
 
 def scalarBodyAssignmentTargetSupported :
     ProofForge.Backend.Evm.Plan.ExprPlan → Bool
   | .local _ => true
-  | _ => false
+  | target => exprPlanIsStaticAggregateScalarTarget target
 
 def effectPlanSupportsScalarBodyStmt :
     ProofForge.Backend.Evm.Plan.EffectPlan → Bool
@@ -5116,6 +5125,9 @@ def plannedScalarBodyStatement?
     (statement : ProofForge.IR.Statement) :
     Except LowerError (Option ProofForge.Backend.Evm.Plan.StmtPlan) := do
   let entrypoint := scalarBodyEntrypoint entrypointName returnType
+  match validateStatementTypes module entrypoint env statement with
+  | .ok _ => pure ()
+  | .error _ => return none
   match ProofForge.Backend.Evm.Lower.buildStatementPlan module entrypoint (toValidateTypeEnv env) statement with
   | .ok (plan, _) =>
       if stmtPlanSupportsScalarBody returnType plan then
