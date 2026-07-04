@@ -2295,6 +2295,58 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (valueName == "__proof_forge_struct_p_x") "planned aggregate scalar control-flow body lowering array value"
       | _ => throw <| IO.userError "planned aggregate scalar control-flow body lowering must assign local array element"
   | _ => throw <| IO.userError "planned aggregate scalar control-flow body lowering must lower to switch"
+  let dynamicLocalArrayEnv : TypeEnv := #[
+    { name := "xs", type := .fixedArray .u64 2, isMutable := false },
+    { name := "idx", type := .u64, isMutable := false }
+  ]
+  let plannedDynamicLocalArrayControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      "control_flow"
+      .unit
+      dynamicLocalArrayEnv
+      (.ifElse
+        (.gt (.local "idx") (.literal (.u64 0)))
+        #[
+          .letBind "item" .u64 (.arrayGet (.local "xs") (.local "idx"))
+        ]
+        #[
+          .letBind "first" .u64 (.arrayGet (.local "xs") (.literal (.u64 0)))
+        ]))
+    "planned dynamic local-array control-flow plan construction"
+  let plannedDynamicLocalArrayControl ← requireSome plannedDynamicLocalArrayControl?
+    "planned dynamic local-array control-flow plan construction missing plan"
+  let (dynamicLocalArrayControlStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      "control_flow"
+      .unit
+      dynamicLocalArrayEnv
+      false
+      plannedDynamicLocalArrayControl)
+    "planned dynamic local-array control-flow body lowering"
+  match dynamicLocalArrayControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let elseCase ← requireAt cases 0 "planned dynamic local-array control-flow else case"
+      let thenCase ← requireAt cases 1 "planned dynamic local-array control-flow then case"
+      require (thenCase.body.statements.size == 1) "planned dynamic local-array control-flow then count"
+      require (elseCase.body.statements.size == 1) "planned dynamic local-array control-flow else count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (names.size == 1) "planned dynamic local-array control-flow then var count"
+          let typedName ← requireAt names 0 "planned dynamic local-array control-flow then var"
+          require (typedName.name == "item") "planned dynamic local-array control-flow then local name"
+          require (name == "__proof_forge_local_array_get_2") "planned dynamic local-array control-flow helper"
+          require (args.size == 3) "planned dynamic local-array control-flow helper arg count"
+      | _ => throw <| IO.userError "planned dynamic local-array control-flow then must lower to helper binding"
+      match elseCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.ident valueName)) => do
+          require (names.size == 1) "planned static local-array control-flow var count"
+          let typedName ← requireAt names 0 "planned static local-array control-flow var"
+          require (typedName.name == "first") "planned static local-array control-flow local name"
+          require (valueName == "__proof_forge_array_xs_0") "planned static local-array control-flow local source"
+      | _ => throw <| IO.userError "planned static local-array control-flow must lower to local binding"
+  | _ => throw <| IO.userError "planned dynamic local-array control-flow body lowering must lower to switch"
   let immutableAggregatePlan? ← requireOk
     (plannedScalarBodyStatement?
       ProofForge.IR.Examples.EvmStructValueProbe.module

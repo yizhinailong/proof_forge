@@ -5131,14 +5131,10 @@ mutual
         | none => true
         | some salt => exprPlanSupportsScalarBody salt
     | .localArrayGet _ path _ =>
-        match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
-        | some _ => true
-        | none => false
+        path.all exprPlanSupportsScalarBody
     | .structField (.local _) _ => true
     | .structField (.localArrayGet _ path _) _ =>
-        match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
-        | some _ => true
-        | none => false
+        path.all exprPlanSupportsScalarBody
     | .localAbiWords .. | .localCrosscallWords ..
     | .storageCrosscallWords .. | .structField .. | .arrayGet .. | .arrayLit ..
     | .structLit .. => false
