@@ -217,6 +217,21 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
       require (lit.value == "0x6d4ce63c") "entrypoint dispatch case selector literal"
   | none => throw <| IO.userError "entrypoint dispatch case must have selector"
   require (getCase.body.statements.size == 1) "entrypoint dispatch case body statement count"
+  let defaultDispatchCase : Lean.Compiler.Yul.Case := {
+    value := none
+    body := { statements := #[revertStmt] }
+  }
+  let directDispatch :=
+    ProofForge.Backend.Evm.ToYul.dispatchBlockStatement
+      plan.entrypoints
+      #[getCase]
+      defaultDispatchCase
+  match directDispatch with
+  | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.builtin name args) cases => do
+      require (name == "shr") "entrypoint dispatch block helper selector opcode"
+      require (args.size == 2) "entrypoint dispatch block helper selector arg count"
+      require (cases.size == 2) "entrypoint dispatch block helper case count"
+  | _ => throw <| IO.userError "entrypoint dispatch block helper must lower static params to selector switch"
   let returnStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.staticDispatchReturnStatements
       toYulError
@@ -274,6 +289,25 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
   let bytesEntrypoint ← requireSome
     (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "echo_bytes"))
     "dynamic ABI plan missing echo_bytes entrypoint"
+  let dynamicDirectDispatch :=
+    ProofForge.Backend.Evm.ToYul.dispatchBlockStatement
+      dynamicPlan.entrypoints
+      #[getCase]
+      defaultDispatchCase
+  match dynamicDirectDispatch with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 2) "dynamic dispatch block helper statement count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+          require (name == "mstore") "dynamic dispatch block helper initializes memory"
+          require (args.size == 2) "dynamic dispatch block helper memory init arg count"
+      | _ => throw <| IO.userError "dynamic dispatch block helper must start with memory init"
+      match block.statements[1]! with
+      | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.builtin name args) _ => do
+          require (name == "shr") "dynamic dispatch block helper selector opcode"
+          require (args.size == 2) "dynamic dispatch block helper selector arg count"
+      | _ => throw <| IO.userError "dynamic dispatch block helper must end with selector switch"
+  | _ => throw <| IO.userError "dynamic dispatch block helper must wrap selector switch"
   let dynamicReturnStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.dynamicDispatchReturnStatements
       toYulError

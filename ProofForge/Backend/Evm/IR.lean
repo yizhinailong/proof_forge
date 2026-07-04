@@ -5322,18 +5322,26 @@ def dispatchReturnStatements
         returns
         callExpr
 
-def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Case := do
+def dispatchCaseWithPlan (module : Module) (entrypoint : Entrypoint) :
+    Except LowerError (ProofForge.Backend.Evm.Plan.EntrypointPlan × Lean.Compiler.Yul.Case) := do
   let entrypointPlan ←
     match ProofForge.Backend.Evm.Lower.buildEntrypointSurfacePlan module entrypoint with
     | .ok plan => .ok plan
     | .error err => .error { message := err.message }
   let callExpr ← entrypointCallExpr module entrypoint
   let bodyStmts ← dispatchReturnStatements module entrypoint entrypointPlan.returns callExpr
-  ProofForge.Backend.Evm.ToYul.entrypointDispatchCase toYulError entrypointPlan bodyStmts
+  let dispatchCase ←
+    ProofForge.Backend.Evm.ToYul.entrypointDispatchCase toYulError entrypointPlan bodyStmts
+  .ok (entrypointPlan, dispatchCase)
+
+def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Case := do
+  .ok (← dispatchCaseWithPlan module entrypoint).snd
 
 def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let cases ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
-    .ok (acc.push (← dispatchCase module entrypoint))
+  let (entrypointPlans, cases) ← module.entrypoints.foldlM (init := (#[], #[])) fun acc entrypoint => do
+    let (plans, cases) := acc
+    let (entrypointPlan, dispatchCase) ← dispatchCaseWithPlan module entrypoint
+    .ok (plans.push entrypointPlan, cases.push dispatchCase)
   let defaultCase : Lean.Compiler.Yul.Case :=
     match module.evmProxyPattern? with
     | some "uups" => uupsProxyDefaultCase
@@ -5341,20 +5349,7 @@ def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statem
         value := none
         body := { statements := #[revertStmt] }
       }
-  -- Initialize the free memory pointer (0x80 = 128) before the switch
-  -- when any entrypoint has dynamic ABI parameters (bytes/string).
-  -- In raw Yul, 0x40 is NOT initialized (unlike Solidity), so dynamic
-  -- ABI decoding (which uses mload(64) for allocation) needs a valid FMP.
-  let hasDynamicParams := module.entrypoints.any fun entrypoint =>
-    entrypoint.params.any fun param => isDynamicAbiType param.snd
-  let switchStmt := ProofForge.Backend.Evm.ToYul.dispatchSwitchStatement cases defaultCase
-  if hasDynamicParams then
-    .ok (.block { statements := #[
-      Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 64, Lean.Compiler.Yul.Expr.num 128]),
-      switchStmt
-    ] })
-  else
-    .ok switchStmt
+  .ok (ProofForge.Backend.Evm.ToYul.dispatchBlockStatement entrypointPlans cases defaultCase)
 
 def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
   .funcDef hashWordFunctionName

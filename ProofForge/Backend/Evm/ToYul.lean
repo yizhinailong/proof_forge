@@ -71,6 +71,28 @@ def dispatchSwitchStatement
     (defaultCase : Lean.Compiler.Yul.Case) : Lean.Compiler.Yul.Statement :=
   .switchStmt dispatchSelectorExpr (cases.push defaultCase)
 
+def abiParamPlanIsDynamic (param : AbiParamPlan) : Bool :=
+  match param.type with
+  | .bytes | .string => true
+  | _ => false
+
+def entrypointPlanHasDynamicParams (entrypoint : EntrypointPlan) : Bool :=
+  entrypoint.params.any abiParamPlanIsDynamic
+
+def dispatchBlockStatement
+    (entrypoints : Array EntrypointPlan)
+    (cases : Array Lean.Compiler.Yul.Case)
+    (defaultCase : Lean.Compiler.Yul.Case) : Lean.Compiler.Yul.Statement :=
+  let switchStmt := dispatchSwitchStatement cases defaultCase
+  if entrypoints.any entrypointPlanHasDynamicParams then
+    .block { statements := #[
+      Lean.Compiler.Yul.Statement.exprStmt
+        (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 64, Lean.Compiler.Yul.Expr.num 128]),
+      switchStmt
+    ] }
+  else
+    switchStmt
+
 def dispatchResultName (index : Nat) : String :=
   s!"_r{index}"
 

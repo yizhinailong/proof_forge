@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM EntrypointPlan Dispatch Block To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.abiParamPlanIsDynamic`,
+  `ToYul.entrypointPlanHasDynamicParams`, and
+  `ToYul.dispatchBlockStatement`.
+- Moved dynamic ABI free-memory-pointer initialization into `ToYul`, keyed from
+  `EntrypointPlan.params` before emitting the selector switch.
+- Routed `IR.dispatchBlock` through `dispatchCaseWithPlan`, so it carries the
+  same surface plans used to assemble dispatch cases into the final dispatch
+  block helper.
+- Kept ABI validation/decode statements, function-call argument assembly, and
+  proxy fallback selection in the compatibility facade.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct static and dynamic
+  dispatch-block helper output plus the integrated Counter and dynamic ABI
+  dispatch block shapes.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/dynamic-abi-ir-smoke.sh
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- ABI validation/decode and function-call argument assembly still live in
+  `IR.lean`.
+- Proxy fallback selection still happens before the `ToYul` dispatch-block
+  helper receives the default case.
+
+Next step:
+
+- Move calldata validation/decode or proxy/default-case planning behind
+  `EntrypointPlan -> Yul`.
+
 ### EVM EntrypointPlan Dynamic Dispatch Return To-Yul Slice
 
 Commit: this commit
