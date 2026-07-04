@@ -1962,13 +1962,48 @@ mutual
       ]
     ])
 
+  partial def lowerMapScalarPlanExprOrFallback
+      (module : Module)
+      (env : TypeEnv)
+      (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let lowerEffect : ProofForge.Backend.Evm.Plan.EffectPlan → Except LowerError Lean.Compiler.Yul.Expr
+      | .storageScalarRead stateId => do
+          match ← scalarStateType module stateId with
+          | .structType _ =>
+              .error {
+                message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
+              }
+          | _ => pure ()
+          let storageSlot ← lowerScalarStorageSlotExpr module env stateId
+          .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
+      | .contextRead (.blockHash blockNumber) => do
+          .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerExpr module env blockNumber])
+      | .contextRead field =>
+          .ok (contextExpr field)
+      | _ =>
+          .error { message := "EVM map write plan-to-Yul scalar lowering does not support this effect plan yet" }
+    match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) expr with
+    | .ok plan =>
+        match ProofForge.Backend.Evm.ToYul.exprPlanExpr
+            toYulError
+            (fun raw => lowerExpr module env raw)
+            lowerEffect
+            plan with
+        | .ok lowered => .ok lowered
+        | .error _ => lowerExpr module env expr
+    | .error _ => lowerExpr module env expr
+
   partial def lowerMapSetReturnExpr
       (module : Module)
       (env : TypeEnv)
       (stateId : String)
       (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     let (slot, _, _) ← requireStorageMapState module stateId
-    .ok (Lean.Compiler.Yul.call mapSetReturnFunctionName #[slotExpr slot, ← lowerExpr module env key, ← lowerExpr module env value])
+    .ok (Lean.Compiler.Yul.call mapSetReturnFunctionName #[
+      slotExpr slot,
+      ← lowerMapScalarPlanExprOrFallback module env key,
+      ← lowerMapScalarPlanExprOrFallback module env value
+    ])
 
   partial def lowerMapPathValueSlotExpr
       (module : Module)
@@ -3013,7 +3048,11 @@ def lowerMapWriteStmt
     (stateId : String)
     (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   let (slot, _, _) ← requireStorageMapState module stateId
-  .ok (.exprStmt (Lean.Compiler.Yul.call mapWriteFunctionName #[slotExpr slot, ← lowerExpr module env key, ← lowerExpr module env value]))
+  .ok (.exprStmt (Lean.Compiler.Yul.call mapWriteFunctionName #[
+    slotExpr slot,
+    ← lowerMapScalarPlanExprOrFallback module env key,
+    ← lowerMapScalarPlanExprOrFallback module env value
+  ]))
 
 def lowerMapPathWriteStmt
     (module : Module)

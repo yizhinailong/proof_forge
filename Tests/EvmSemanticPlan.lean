@@ -1,5 +1,6 @@
 import ProofForge.Backend.Evm.IR
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EventProbe
 
 namespace ProofForge.Tests.EvmSemanticPlan
@@ -469,6 +470,53 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "scalar storage assign_op plan-to-yul value must be helper call"
   | _ => throw <| IO.userError "scalar storage assign_op plan-to-yul must lower to sstore"
 
+def testMapWritePlanToYul : IO Unit := do
+  let env : TypeEnv := #[
+    { name := "key", type := .u64, isMutable := false },
+    { name := "value", type := .u64, isMutable := false }
+  ]
+  let writeStmt ← requireOk
+    (lowerMapWriteStmt
+      ProofForge.IR.Examples.EvmMapProbe.module
+      env
+      "balances"
+      (.add (.local "key") (.literal (.u64 1)))
+      (.effect (.storageScalarRead "before")))
+    "map write key/value plan-to-yul"
+  match writeStmt with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
+      require (name == mapWriteFunctionName) "map write plan-to-yul helper"
+      require (args.size == 3) "map write plan-to-yul arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "map write key must lower through checked add plan"
+          require (addArgs.size == 2) "map write key checked add arg count"
+      | _ => throw <| IO.userError "map write key must be plan-lowered checked add"
+      match args[2]! with
+      | Lean.Compiler.Yul.Expr.builtin readName readArgs => do
+          require (readName == "sload") "map write value must lower storage read through plan"
+          require (readArgs.size == 1) "map write value sload arg count"
+      | _ => throw <| IO.userError "map write value must be plan-lowered storage read"
+  | _ => throw <| IO.userError "map write plan-to-yul must lower to helper call"
+  let setReturnExpr ← requireOk
+    (lowerMapSetReturnExpr
+      ProofForge.IR.Examples.EvmMapProbe.module
+      env
+      "balances"
+      (.local "key")
+      (.add (.local "value") (.literal (.u64 2))))
+    "map set-return value plan-to-yul"
+  match setReturnExpr with
+  | Lean.Compiler.Yul.Expr.call name args => do
+      require (name == mapSetReturnFunctionName) "map set-return plan-to-yul helper"
+      require (args.size == 3) "map set-return plan-to-yul arg count"
+      match args[2]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "map set-return value must lower through checked add plan"
+          require (addArgs.size == 2) "map set-return value checked add arg count"
+      | _ => throw <| IO.userError "map set-return value must be plan-lowered checked add"
+  | _ => throw <| IO.userError "map set-return plan-to-yul must lower to helper call"
+
 def main : IO UInt32 := do
   testCounterSemanticPlan
   testEventSemanticPlan
@@ -483,6 +531,7 @@ def main : IO UInt32 := do
   testScalarControlFlowPlanToYul
   testScalarEventPlanToYul
   testScalarStorageEffectPlanToYul
+  testMapWritePlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0
 

@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Map Write Plan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Routed `storageMapInsert`/`storageMapSet` statement writes through
+  `ExprPlan -> ToYul` for supported scalar key/value expressions before calling
+  the EVM map write helper.
+- Routed return-old-value map writes through the same boundary before calling
+  the EVM map set-return helper.
+- Extended `Tests/EvmSemanticPlan.lean` to assert plan-lowered checked
+  arithmetic keys, storage-read values, and checked arithmetic set-return
+  values.
+- Updated `just evm-semantic-plan` to prebuild `EvmMapProbe` for clean
+  checkout reliability.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake build ProofForge.Backend.Evm
+just evm-semantic-plan
+scripts/evm/map-ir-smoke.sh
+scripts/evm/typed-map-ir-smoke.sh
+```
+
+Known limitations:
+
+- Storage-path map writes still use the compatibility path. Array writes,
+  struct-field writes, and storage-path writes remain separate migration
+  slices.
+
+Next step:
+
+- Move array write or storage-path write value lowering through
+  `ExprPlan -> ToYul`.
+
 ### EVM Example CI Import Prebuild Fix
 
 Commit: this commit
