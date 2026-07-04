@@ -8392,19 +8392,23 @@ Result:
 
 - Solana IDL/client error catalogue checks passed locally.
 
-### NEAR ValueVault Backend-Invariant Bridge
+### NEAR ValueVault Backend-Invariant State Bridge
 
 Commit: pending
 
 Summary:
 
-- Added a decide-checkable NEAR FV-4 bridge from the ValueVault FV-8 invariant
-  scenario to the EmitWat/offline-host execution surface.
+- Extended the decide-checkable NEAR FV-4 bridge from the ValueVault FV-8
+  invariant scenario to the EmitWat/offline-host execution surface.
 - Derived the ValueVault offline-host input sequence from
   `ValueVaultInvariant.defaultInputs` and checked return fragments against
   `ValueVaultInvariant.expectedReturns`.
-- Extended the offline-host IO obligation to include ValueVault event log JSON
-  fragments for `VaultInitialized`, `ValueDeposited`, `ValueCharged`,
+- Added storage-key counts and cumulative log counts to each offline-host IO
+  expectation.
+- Checked the final offline-host state against the FV-8 scenario state plus
+  the ValueVault accounting and final-storage predicates.
+- Derived the ValueVault event log JSON fragments from the invariant final
+  state, covering `VaultInitialized`, `ValueDeposited`, `ValueCharged`,
   `ValueReleased`, and `ValueSnapshot`.
 - Wired the new `value_vault_emitwat_backend_invariant_bridge_ok` theorem into
   the formal smoke entrypoint.
@@ -8418,4 +8422,4 @@ lake env lean --run Tests/NearWasmFormal.lean
 
 Result:
 
-- NEAR ValueVault backend-invariant bridge checks passed locally.
+- NEAR ValueVault backend-invariant state bridge checks passed locally.

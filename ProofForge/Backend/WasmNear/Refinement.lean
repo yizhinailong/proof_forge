@@ -242,7 +242,14 @@ structure OfflineHostIOExpectation where
   exportName : String
   inputHex : String
   returnLineFragment : String
+  storageKeys : Nat := 0
+  logCount : Nat := 0
   logLineFragments : Array String := #[]
+  deriving Repr, BEq
+
+structure OfflineHostExecutionTraceResult where
+  finalState : ProofForge.IR.Semantics.State
+  io : Array OfflineHostIOExpectation
   deriving Repr, BEq
 
 structure OfflineHostExecutionObligation where
@@ -313,6 +320,8 @@ def runOfflineHostExecutionStep
     exportName := step.exportName
     inputHex := inputHex
     returnLineFragment := s!"call 1:{step.exportName}: {offlineHostReturnFragment returnValue}"
+    storageKeys := nextState.storage.length
+    logCount := nextState.logs.size
     logLineFragments := logLineFragments
   })
 
@@ -325,13 +334,20 @@ def runOfflineHostExecutionTraceList (mod : Module) :
       let (finalState, ioSteps) ← runOfflineHostExecutionTraceList mod rest nextState
       .ok (finalState, #[ioStep] ++ ioSteps)
 
+def runOfflineHostExecutionTraceResult
+    (mod : Module)
+    (steps : Array OfflineHostExecutionStep) :
+    Except String OfflineHostExecutionTraceResult := do
+  let (finalState, ioSteps) ←
+    runOfflineHostExecutionTraceList mod steps.toList ProofForge.IR.Semantics.State.empty
+  .ok { finalState := finalState, io := ioSteps }
+
 def runOfflineHostExecutionTrace
     (mod : Module)
     (steps : Array OfflineHostExecutionStep) :
     Except String (Array OfflineHostIOExpectation) := do
-  let (_, ioSteps) ←
-    runOfflineHostExecutionTraceList mod steps.toList ProofForge.IR.Semantics.State.empty
-  .ok ioSteps
+  let result ← runOfflineHostExecutionTraceResult mod steps
+  .ok result.io
 
 def OfflineHostExecutionObligation.ioSurfaceOk
     (obligation : OfflineHostExecutionObligation) : Bool :=
@@ -374,6 +390,10 @@ def OfflineHostIOExpectation.returnSurfaceEq
   lhs.exportName == rhs.exportName &&
     lhs.inputHex == rhs.inputHex &&
     lhs.returnLineFragment == rhs.returnLineFragment
+
+def flattenOfflineHostLogLineFragments
+    (io : Array OfflineHostIOExpectation) : Array String :=
+  io.foldl (fun fragments step => fragments ++ step.logLineFragments) #[]
 
 def offlineHostReturnSurfaceMatchesList :
     List OfflineHostIOExpectation → List OfflineHostIOExpectation → Bool
@@ -426,6 +446,37 @@ def valueVaultOfflineHostExpectedIO?
   offlineHostExpectedIOFromReturns
     (valueVaultOfflineHostSteps inputs)
     (ProofForge.Contract.Examples.ValueVaultInvariant.expectedReturns inputs)
+
+def valueVaultOfflineHostInvariantTraceResult?
+    (inputs : ValueVaultInputs) :
+    Except String OfflineHostExecutionTraceResult :=
+  runOfflineHostExecutionTraceResult
+    ProofForge.Contract.Examples.ValueVaultInvariant.module
+    (valueVaultOfflineHostSteps inputs)
+
+def valueVaultOfflineHostFinalStateDerivesFromInvariant
+    (inputs : ValueVaultInputs) : Bool :=
+  match
+      ProofForge.Contract.Examples.ValueVaultInvariant.runScenario inputs,
+      valueVaultOfflineHostInvariantTraceResult? inputs with
+  | .ok scenario, .ok trace =>
+      trace.finalState == scenario.state &&
+        ProofForge.Contract.Examples.ValueVaultInvariant.accountingInvariantHolds
+          inputs trace.finalState &&
+        ProofForge.Contract.Examples.ValueVaultInvariant.finalStorageMatches
+          inputs trace.finalState
+  | _, _ => false
+
+def valueVaultOfflineHostLogFragmentsDeriveFromInvariantState
+    (inputs : ValueVaultInputs) : Bool :=
+  match
+      ProofForge.Contract.Examples.ValueVaultInvariant.runScenario inputs,
+      valueVaultOfflineHostInvariantTraceResult? inputs with
+  | .ok scenario, .ok trace =>
+      match offlineHostLogLineFragments scenario.state.logs with
+      | .ok expected => flattenOfflineHostLogLineFragments trace.io == expected
+      | .error _ => false
+  | _, _ => false
 
 def counterTraceEntrypoints : Array Entrypoint := #[
   ProofForge.IR.Examples.Counter.initializeEntrypoint,
@@ -485,21 +536,29 @@ def counterOfflineHostExecutionObligation : OfflineHostExecutionObligation := {
       exportName := "initialize"
       inputHex := ""
       returnLineFragment := "call 1:initialize: return=<none>"
+      storageKeys := 1
+      logCount := 0
     },
     {
       exportName := "get"
       inputHex := ""
       returnLineFragment := "call 1:get: return_hex=0000000000000000 return_u64=0"
+      storageKeys := 1
+      logCount := 0
     },
     {
       exportName := "increment"
       inputHex := ""
       returnLineFragment := "call 1:increment: return=<none>"
+      storageKeys := 1
+      logCount := 0
     },
     {
       exportName := "get"
       inputHex := ""
       returnLineFragment := "call 1:get: return_hex=0100000000000000 return_u64=1"
+      storageKeys := 1
+      logCount := 0
     }
   ]
 }
@@ -611,6 +670,8 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "initialize"
       inputHex := "6400000000000000"
       returnLineFragment := "call 1:initialize: return=<none>"
+      storageKeys := 6
+      logCount := 1
       logLineFragments := #[
         "log: {\"event\":\"VaultInitialized\",\"initial\":100,\"checkpoint\":0}"
       ]
@@ -619,11 +680,15 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "get_balance"
       inputHex := ""
       returnLineFragment := "call 1:get_balance: return_hex=6400000000000000 return_u64=100"
+      storageKeys := 6
+      logCount := 1
     },
     {
       exportName := "deposit"
       inputHex := "1900000000000000"
       returnLineFragment := "call 1:deposit: return=<none>"
+      storageKeys := 6
+      logCount := 2
       logLineFragments := #[
         "log: {\"event\":\"ValueDeposited\",\"amount\":25,\"balance\":125,\"operations\":2}"
       ]
@@ -632,11 +697,15 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "get_balance"
       inputHex := ""
       returnLineFragment := "call 1:get_balance: return_hex=7d00000000000000 return_u64=125"
+      storageKeys := 6
+      logCount := 2
     },
     {
       exportName := "charge_fee"
       inputHex := "6400000000000000fa00000000000000"
       returnLineFragment := "call 1:charge_fee: return=<none>"
+      storageKeys := 6
+      logCount := 3
       logLineFragments := #[
         "log: {\"event\":\"ValueCharged\",\"gross\":100,\"fee\":2,\"net\":98,\"balance\":223}"
       ]
@@ -645,16 +714,22 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "get_balance"
       inputHex := ""
       returnLineFragment := "call 1:get_balance: return_hex=df00000000000000 return_u64=223"
+      storageKeys := 6
+      logCount := 3
     },
     {
       exportName := "get_net_value"
       inputHex := ""
       returnLineFragment := "call 1:get_net_value: return_hex=dd00000000000000 return_u64=221"
+      storageKeys := 6
+      logCount := 3
     },
     {
       exportName := "release"
       inputHex := "1700000000000000"
       returnLineFragment := "call 1:release: return=<none>"
+      storageKeys := 6
+      logCount := 4
       logLineFragments := #[
         "log: {\"event\":\"ValueReleased\",\"amount\":23,\"balance\":200,\"released\":23}"
       ]
@@ -663,11 +738,15 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "get_balance"
       inputHex := ""
       returnLineFragment := "call 1:get_balance: return_hex=c800000000000000 return_u64=200"
+      storageKeys := 6
+      logCount := 4
     },
     {
       exportName := "snapshot"
       inputHex := ""
       returnLineFragment := "call 1:snapshot: return_hex=c800000000000000 return_u64=200"
+      storageKeys := 6
+      logCount := 5
       logLineFragments := #[
         "log: {\"event\":\"ValueSnapshot\",\"balance\":200,\"released\":23,\"fees\":2,\"checkpoint\":0}"
       ]
@@ -676,6 +755,8 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "get_net_value"
       inputHex := ""
       returnLineFragment := "call 1:get_net_value: return_hex=c600000000000000 return_u64=198"
+      storageKeys := 6
+      logCount := 5
     }
   ]
 }
@@ -696,7 +777,21 @@ def valueVaultEmitWatBackendInvariantBridgeOk : Bool :=
     ProofForge.Contract.Examples.ValueVaultInvariant.defaultScenarioNetValueOk &&
     valueVaultOfflineHostStepsDeriveFromInvariantInputs &&
     valueVaultOfflineHostExpectedIODerivesFromInvariantReturns &&
+    valueVaultOfflineHostFinalStateDerivesFromInvariant
+      ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs &&
+    valueVaultOfflineHostLogFragmentsDeriveFromInvariantState
+      ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs &&
     valueVaultOfflineHostExecutionObligation.ok
+
+theorem value_vault_offline_host_final_state_derives_from_invariant :
+    valueVaultOfflineHostFinalStateDerivesFromInvariant
+      ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs = true := by
+  native_decide
+
+theorem value_vault_offline_host_logs_derive_from_invariant_state :
+    valueVaultOfflineHostLogFragmentsDeriveFromInvariantState
+      ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs = true := by
+  native_decide
 
 theorem counter_ir_observable_trace_ok :
     counterTraceObligation.irTraceOk = true := by
