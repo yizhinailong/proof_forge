@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Storage-Path Write Plan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Routed nested map `storagePathWrite` value lowering through
+  `ExprPlan -> ToYul` for supported scalar RHS expressions.
+- Routed `storagePathAssignOp` key/value lowering through the same boundary
+  for direct `mapKey`, `index`, `field`, `index`+`field`, and nested
+  consecutive-`mapKey` paths.
+- Kept path slot assembly on the existing direct slot helpers and
+  `StorageSlotPlan -> ToYul` boundary.
+- Extended `Tests/EvmSemanticPlan.lean` to assert plan-lowered checked
+  arithmetic and storage-read RHS expressions across the storage-path write
+  and assign-op branches.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/map-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+```
+
+Known limitations:
+
+- Whole-struct storage writes and statement-level storage-path assembly still
+  use the compatibility facade.
+
+Next step:
+
+- Move another statement assembly shape behind `StmtPlan -> Yul`, or migrate
+  whole-struct storage write values through a dedicated plan-level slice.
+
 ### EVM Struct-Field Write Plan-To-Yul Slice
 
 Commit: this commit

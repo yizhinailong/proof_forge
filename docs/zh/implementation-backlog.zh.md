@@ -184,10 +184,11 @@
   - 已开始：标量 `assert` 和 `assertEq` 守卫现在也会在受支持的标量表达式上消费同一个 `ExprPlan -> ToYul` 表达式边界。`just evm-semantic-plan` 现在会在 `lean --run` 之前构建它导入的 example 模块，因此 semantic-plan 门禁可以在干净 checkout 中稳定运行，而不依赖旧的 `.olean` 文件。
   - 已开始：标量 `return` 字降级现在也会对受支持的 `U32`/`U64`/`Bool`/`Hash` 返回表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。聚合返回打平和聚合跨合约调用返回 helper 仍留在现有兼容路径上，直到对应迁移切片补齐计划级覆盖。
   - 已开始：直接标量赋值和复合赋值的 RHS 降级现在也会对受支持的标量表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。整聚合赋值、动态聚合 helper 快照以及非标量 storage effect 写入仍留在现有兼容路径上，直到对应迁移切片补齐覆盖。
-  - 已开始：标量 `storageScalarWrite` 和 `storageScalarAssignOp` 的 value 降级现在也会对受支持的标量 RHS 表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。结构体 storage 写入和 storage-path 写入仍留在兼容路径上，直到对应迁移切片补齐覆盖。
-  - 已开始：`storageMapInsert`/`storageMapSet` 写入降级现在会在 statement 写入和返回旧值的 expression 写入两种形态中，对受支持的标量 map key/value 表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。Storage-path map 写入仍留在兼容路径上，直到 path 组装被迁移。
-  - 已开始：`storageArrayWrite` 的 value 降级现在会对受支持的标量写入值消费同一个 `ExprPlan -> ToYul` 表达式边界。数组索引 slot 组装仍留在现有 `StorageSlotPlan -> ToYul` 边界上；storage-path array 写入仍是单独迁移切片。
-  - 已开始：`storageStructFieldWrite` 和 `storageArrayStructFieldWrite` 的 value 降级现在会对受支持的标量字段值消费同一个 `ExprPlan -> ToYul` 表达式边界。结构体字段 slot 组装仍留在现有 direct slot / `StorageSlotPlan -> ToYul` 边界上；storage-path field 写入和整体结构体写入仍是单独迁移切片。
+  - 已开始：标量 `storageScalarWrite` 和 `storageScalarAssignOp` 的 value 降级现在也会对受支持的标量 RHS 表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。整体结构体 storage 写入仍留在兼容路径上，直到对应迁移切片补齐覆盖。
+  - 已开始：`storageMapInsert`/`storageMapSet` 写入降级现在会在 statement 写入和返回旧值的 expression 写入两种形态中，对受支持的标量 map key/value 表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。
+  - 已开始：`storageArrayWrite` 的 value 降级现在会对受支持的标量写入值消费同一个 `ExprPlan -> ToYul` 表达式边界。数组索引 slot 组装仍留在现有 `StorageSlotPlan -> ToYul` 边界上。
+  - 已开始：`storageStructFieldWrite` 和 `storageArrayStructFieldWrite` 的 value 降级现在会对受支持的标量字段值消费同一个 `ExprPlan -> ToYul` 表达式边界。结构体字段 slot 组装仍留在现有 direct slot / `StorageSlotPlan -> ToYul` 边界上；整体结构体写入仍是单独迁移切片。
+  - 已开始：`storagePathWrite` 和 `storagePathAssignOp` 的 value 降级现在会在 direct `mapKey`、`index`、`field`、`index`+`field` 以及连续嵌套 `mapKey` 路径中，对受支持的标量 map key 和写入/复合赋值 RHS 表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。路径 slot 组装仍留在 direct slot helper 和 `StorageSlotPlan -> ToYul` 边界上；下一步语义计划抽取是把 statement-level storage-path 组装移到 `StmtPlan -> Yul` 后面。
   - 已开始：标量 `ifElse` 条件和合成的 `boundedFor` 循环守卫现在也会消费同一个 `ExprPlan -> ToYul` 表达式边界。语句排序以及分支/循环 body 降级仍留在兼容外观中，直到 `StmtPlan -> Yul` assembly 被抽出。
   - 已开始：标量事件数据字和标量索引事件 topic 现在也会消费同一个 `ExprPlan -> ToYul` 表达式边界。聚合事件打平和索引聚合 topic 哈希仍留在兼容外观中，直到事件组装被抽到 `EventPlan -> Yul` 后面。
   - 已开始：事件签名 topic 构造以及最终 `log1`-`log4` 语句选择现在会消费 `EventPlan -> ToYul` helper。事件字段值求值仍使用兼容外观，直到数据字和索引 topic 表达式组装完整移动到 `EventPlan -> Yul` 后面。

@@ -291,25 +291,28 @@ Tasks:
     compatibility paths until their own migration slices add coverage.
   - Started: scalar `storageScalarWrite` and `storageScalarAssignOp` value
     lowering now consumes the same `ExprPlan -> ToYul` expression boundary for
-    supported scalar RHS expressions. Struct storage writes and storage-path
-    writes remain on their
-    compatibility paths until their own migration slices add coverage.
+    supported scalar RHS expressions. Whole-struct storage writes remain on
+    their compatibility paths until their own migration slice adds coverage.
   - Started: `storageMapInsert`/`storageMapSet` write lowering now consumes
     the same `ExprPlan -> ToYul` expression boundary for supported scalar map
     key/value expressions in both statement writes and return-old-value
-    expression writes. Storage-path map writes remain on their compatibility
-    path until path assembly is migrated.
+    expression writes.
   - Started: `storageArrayWrite` value lowering now consumes the same
     `ExprPlan -> ToYul` expression boundary for supported scalar write values.
     Array index slot assembly remains on the existing `StorageSlotPlan ->
-    ToYul` boundary; storage-path array writes remain a separate migration
-    slice.
+    ToYul` boundary.
   - Started: `storageStructFieldWrite` and `storageArrayStructFieldWrite`
     value lowering now consume the same `ExprPlan -> ToYul` expression boundary
     for supported scalar field values. Struct-field slot assembly remains on
     the existing direct slot / `StorageSlotPlan -> ToYul` boundaries;
-    storage-path field writes and whole-struct writes remain separate migration
-    slices.
+    whole-struct writes remain a separate migration slice.
+  - Started: `storagePathWrite` and `storagePathAssignOp` value lowering now
+    consume the same `ExprPlan -> ToYul` expression boundary for supported
+    scalar map keys and write/assign RHS expressions across direct `mapKey`,
+    `index`, `field`, `index`+`field`, and nested consecutive-`mapKey` paths.
+    Path slot assembly remains on direct slot helpers and
+    `StorageSlotPlan -> ToYul`; the next semantic-plan extraction step is
+    statement-level storage-path assembly behind `StmtPlan -> Yul`.
   - Started: scalar `ifElse` conditions and synthesized `boundedFor` loop
     guards now consume the same `ExprPlan -> ToYul` expression boundary.
     Statement sequencing and branch/loop body lowering remain in the

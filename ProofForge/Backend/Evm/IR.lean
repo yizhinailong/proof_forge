@@ -3065,7 +3065,7 @@ def lowerMapPathWriteStmt
     .varDecl #[{ name := "_presence_slot" }] (some (← lowerMapPathPresenceSlotExpr module env stateId keys)),
     .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
       Lean.Compiler.Yul.Expr.id "_slot",
-      ← lowerExpr module env value
+      ← lowerScalarPlanExprOrFallback module env value
     ]),
     .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
       Lean.Compiler.Yul.Expr.id "_presence_slot",
@@ -3205,14 +3205,18 @@ def lowerStoragePathAssignOpStmt
   match path.toList with
   | [StoragePathSegment.mapKey key] => do
       let (slot, _, _) ← requireStorageMapState module stateId
-      .ok (.exprStmt (Lean.Compiler.Yul.call (mapAssignFunctionName op) #[slotExpr slot, ← lowerExpr module env key, ← lowerExpr module env value]))
+      .ok (.exprStmt (Lean.Compiler.Yul.call (mapAssignFunctionName op) #[
+        slotExpr slot,
+        ← lowerMapScalarPlanExprOrFallback module env key,
+        ← lowerMapScalarPlanExprOrFallback module env value
+      ]))
   | [StoragePathSegment.index index] => do
       let storageSlot ← lowerArraySlotExpr module env stateId index
       .ok (.block { statements := #[
         .varDecl #[{ name := "_slot" }] (some storageSlot),
         .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
           Lean.Compiler.Yul.Expr.id "_slot",
-          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module env value)
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerScalarPlanExprOrFallback module env value)
         ])
       ]})
   | [StoragePathSegment.field fieldName] => do
@@ -3221,7 +3225,7 @@ def lowerStoragePathAssignOpStmt
         .varDecl #[{ name := "_slot" }] (some storageSlot),
         .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
           Lean.Compiler.Yul.Expr.id "_slot",
-          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module env value)
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerScalarPlanExprOrFallback module env value)
         ])
       ]})
   | [StoragePathSegment.index index, StoragePathSegment.field fieldName] => do
@@ -3230,7 +3234,7 @@ def lowerStoragePathAssignOpStmt
         .varDecl #[{ name := "_slot" }] (some storageSlot),
         .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
           Lean.Compiler.Yul.Expr.id "_slot",
-          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module env value)
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerScalarPlanExprOrFallback module env value)
         ])
       ]})
   | [] => do
@@ -3249,7 +3253,7 @@ def lowerStoragePathAssignOpStmt
             .varDecl #[{ name := "_presence_slot" }] (some presenceSlot),
             .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
               Lean.Compiler.Yul.Expr.id "_slot",
-              lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerExpr module env value)
+              lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerScalarPlanExprOrFallback module env value)
             ]),
             .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
               Lean.Compiler.Yul.Expr.id "_presence_slot",
