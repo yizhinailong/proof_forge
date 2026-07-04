@@ -45,7 +45,7 @@ disposition is:
 |---|---|---|
 | R1: RFC 0009 and D-039 lagged behind the landed CLI M1 work | Closed on current `main`: RFC 0009 is accepted with M1/M3 landed, and D-039 now ratifies the compatibility-layer implementation instead of claiming a pre-code freeze | Keep RFC 0009 and CLI migration docs synchronized as M4 legacy-alias removal is scheduled |
 | R2: too many half-finished workstreams are active | Accepted as a planning risk | Gate P0 is closed and CLI M3 is now guarded by `just cli-target-first`; keep M4 alias removal behind the compatibility window and avoid opening Tier-1 M3/M4 work implicitly |
-| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, FV-2 aggregate/storage/map/control-flow/event-log IR traces, the first FV-8 ValueVault accounting/net-value invariant anchors over IR semantics, NEAR trace obligations plus Counter and ValueVault EmitWat artifact-surface/offline-host execution-surface obligations, the NEAR ValueVault backend-invariant state bridge, NEAR host import-signature, entrypoint input-frame, context-frame, host-call frame, memory-layout, return-payload-byte, per-step storage-snapshot, storage-byte, and log-payload-byte obligations, and EVM FV-4 executable Yul trace anchors exist, but full IR-to-artifact semantic preservation is not done. The EVM map/storage/aggregate/control-flow/event slices now connect covered FV-2 IR traces to executable Yul obligations. | Extend NEAR FV-4 from the new backend-invariant/import/input-frame/context-frame/frame/memory-layout/return-payload-byte/storage-byte/log-payload-byte bridge toward a richer Wasm/offline-host semantics boundary, then prove semantic preservation beyond the current state/IO, host-ABI, entrypoint input-frame, context-frame, host-call-frame, memory-layout, return-payload-byte, storage-snapshot, storage-byte, and log-payload-byte anchors |
+| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, FV-2 aggregate/storage/map/control-flow/event-log IR traces, the first FV-8 ValueVault accounting/net-value invariant anchors over IR semantics, NEAR trace obligations plus Counter and ValueVault EmitWat artifact-surface/offline-host execution-surface obligations, the NEAR ValueVault backend-invariant state bridge, NEAR host import-signature, entrypoint input-frame, context-frame, storage-read-key-frame, host-call frame, memory-layout, return-payload-byte, per-step storage-snapshot, storage-byte, and log-payload-byte obligations, and EVM FV-4 executable Yul trace anchors exist, but full IR-to-artifact semantic preservation is not done. The EVM map/storage/aggregate/control-flow/event slices now connect covered FV-2 IR traces to executable Yul obligations. | Extend NEAR FV-4 from the new backend-invariant/import/input-frame/context-frame/storage-read-key-frame/frame/memory-layout/return-payload-byte/storage-byte/log-payload-byte bridge toward a richer Wasm/offline-host semantics boundary, then prove semantic preservation beyond the current state/IO, host-ABI, entrypoint input-frame, context-frame, storage-read-key-frame, host-call-frame, memory-layout, return-payload-byte, storage-snapshot, storage-byte, and log-payload-byte anchors |
 | R4: capability granularity is too coarse | Do not churn capability ids in the current phase; storage is already split into scalar/map/array/PDA, and Solana account semantics are modeled separately from storage patterns | Treat cross-target runtime differences as budget/diagnostic obligations: each target must reject unsupported shapes explicitly and pin resource budgets for supported ones |
 | R5: docs-first target notes create hidden sunk cost | Closed at the scheduling layer: D-045 and the target roadmap restricted product hardening to `solana-sbpf-asm`, `evm`, and `wasm-near` until Gate P0 closed | Keep research notes as inventory; schedule Tier-1 M3/M4 explicitly rather than letting old research notes create automatic implementation scope |
 | R6: Lean/toolchain onboarding friction | Partially closed: `docs/onboarding.md` exists and names the core toolchain and per-target tools, but editor workspace config, templates, and scaffolding remain open DX work | Add VS Code/Cursor workspace recommendations and a minimal project template after the NEAR/Wasm P0-3 closure, unless onboarding friction blocks P0 work earlier |
@@ -83,7 +83,7 @@ The immediate engineering order after this review is therefore:
    and log line fragments. FV-8 now has a first ValueVault IR invariant anchor for the shared 11-step
    scenario, including return-trace, accounting, final-storage, and net-value
    checks. The latest NEAR FV-4 slices add a decide-checkable
-   backend-invariant state/import/input-frame/context-frame/frame/memory-layout/return-payload-byte/storage-byte/log-payload-byte bridge: the ValueVault
+   backend-invariant state/import/input-frame/context-frame/storage-read-key-frame/frame/memory-layout/return-payload-byte/storage-byte/log-payload-byte bridge: the ValueVault
    offline-host input sequence is derived from the FV-8 scenario inputs, return
    fragments are checked against FV-8 expected returns, final offline-host state
    is checked against the FV-8 scenario state and accounting/final-storage
@@ -95,12 +95,14 @@ The immediate engineering order after this review is therefore:
    fixed host buffers (`KEY_BUF`, `RET_BUF`, `EVENT_BUF`, `EVT_KEY_PTR`,
    `INPUT_BUF`) are checked to fit within the first page without overlap. Host
    import signatures, entrypoint `input`/`read_register` frames, scalar u64
-   parameter loads from `INPUT_BUF`, ValueVault `block_index` context reads
-   into `checkpoint`, and helper host-call frames are pinned before WAT printing.
+   parameter loads from `INPUT_BUF`, storage-read key pointer/length frames
+   passed into `__pf_read_u64`, ValueVault `block_index` context reads into
+   `checkpoint`, and helper host-call frames are pinned before WAT printing.
    Next extend this bridge from state/IO, host-ABI, host-call-frame,
-   entrypoint input-frame, context-frame, memory-layout, return-payload-byte,
-   storage-snapshot, storage-byte, and log-payload-byte equality toward a
-   richer Wasm memory/host semantics boundary.
+   entrypoint input-frame, context-frame, storage-read-key-frame,
+   memory-layout, return-payload-byte, storage-snapshot, storage-byte, and
+   log-payload-byte equality toward a richer Wasm memory/host semantics
+   boundary.
 4. Address the remaining DX items (`.vscode` recommendations, project template,
    and scaffolding) once they no longer compete with the P0 closure.
 
@@ -2159,7 +2161,8 @@ Tasks (see the roadmap for full statements):
   signatures before WAT printing. The same artifact surface now pins the Wasm
   memory declaration and fixed host buffer layout for the key, return, event,
   event-key, and input buffers, and it pins entrypoint `input`/`read_register`
-  prologues, scalar u64 parameter loads from `INPUT_BUF`, and ValueVault
+  prologues, scalar u64 parameter loads from `INPUT_BUF`, storage-read key
+  pointer/length frames passed into `__pf_read_u64`, and ValueVault
   `block_index` checkpoint reads. NEAR also has Counter and ValueVault
   offline-host execution-surface obligations that derive the Borsh/little-endian
   input bytes, expected deterministic host return fragments, storage/log counts,

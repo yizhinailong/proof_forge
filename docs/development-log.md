@@ -8666,3 +8666,29 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR EmitWat context host-frame checks passed locally.
+
+### NEAR EmitWat Storage Read Key Frames
+
+Commit: pending
+
+Summary:
+
+- Added artifact-surface host-frame expectations for scalar storage reads.
+- Pinned the Counter `count` key pointer/length passed into `__pf_read_u64`
+  for `increment` and `get`.
+- Pinned the ValueVault `balance`, `released`, `fees`, and `operations` key
+  pointer/length pairs passed into `__pf_read_u64` for `deposit`,
+  `charge_fee`, `release`, `snapshot`, `get_balance`, and `get_net_value`.
+- Wired the new storage-read-key-frame anchors into the formal smoke entrypoint
+  and the ValueVault backend-invariant bridge.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR EmitWat storage read key-frame checks passed locally.

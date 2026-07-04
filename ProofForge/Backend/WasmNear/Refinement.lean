@@ -918,6 +918,12 @@ def nearU64ParamLoadFrame (name : String) (offset : Nat) : Array WasmTraceOp := 
   .localSet name
 ]
 
+def nearU64StorageReadKeyFrame (keyPtr keyLen : Nat) : Array WasmTraceOp := #[
+  .i32Const keyPtr,
+  .i32Const keyLen,
+  .call (ProofForge.Backend.WasmNear.EmitWat.readName .u64)
+]
+
 def nearCheckpointBlockIndexFrame (localName : String) : Array WasmTraceOp := #[
   .call "block_index",
   .localSet localName
@@ -963,6 +969,27 @@ def nearValueVaultContextHostFrameExpectations : Array WasmHostFrameExpectation 
   { functionName := "snapshot", expectedOps := nearCheckpointBlockIndexFrame "checkpoint" }
 ]
 
+def counterStorageReadKeyFrameExpectations : Array WasmHostFrameExpectation := #[
+  { functionName := "increment", expectedOps := nearU64StorageReadKeyFrame 0 5 },
+  { functionName := "get", expectedOps := nearU64StorageReadKeyFrame 0 5 }
+]
+
+def valueVaultStorageReadKeyFrameExpectations : Array WasmHostFrameExpectation := #[
+  { functionName := "deposit", expectedOps := nearU64StorageReadKeyFrame 0 7 },
+  { functionName := "charge_fee", expectedOps := nearU64StorageReadKeyFrame 0 7 },
+  { functionName := "charge_fee", expectedOps := nearU64StorageReadKeyFrame 17 4 },
+  { functionName := "charge_fee", expectedOps := nearU64StorageReadKeyFrame 49 10 },
+  { functionName := "release", expectedOps := nearU64StorageReadKeyFrame 0 7 },
+  { functionName := "release", expectedOps := nearU64StorageReadKeyFrame 8 8 },
+  { functionName := "release", expectedOps := nearU64StorageReadKeyFrame 49 10 },
+  { functionName := "snapshot", expectedOps := nearU64StorageReadKeyFrame 0 7 },
+  { functionName := "snapshot", expectedOps := nearU64StorageReadKeyFrame 8 8 },
+  { functionName := "snapshot", expectedOps := nearU64StorageReadKeyFrame 17 4 },
+  { functionName := "get_balance", expectedOps := nearU64StorageReadKeyFrame 0 7 },
+  { functionName := "get_net_value", expectedOps := nearU64StorageReadKeyFrame 0 7 },
+  { functionName := "get_net_value", expectedOps := nearU64StorageReadKeyFrame 17 4 }
+]
+
 def wasmHostFramesOk
     (module : Module)
     (frames : Array WasmHostFrameExpectation) : Bool :=
@@ -973,6 +1000,11 @@ def wasmHostFramesOk
 def counterInputHostFramesOk : Bool :=
   wasmHostFramesOk ProofForge.IR.Examples.Counter.module nearInputHostFrameExpectations
 
+def counterStorageReadKeyFramesOk : Bool :=
+  wasmHostFramesOk
+    ProofForge.IR.Examples.Counter.module
+    counterStorageReadKeyFrameExpectations
+
 def valueVaultInputHostFramesOk : Bool :=
   wasmHostFramesOk
     ProofForge.Contract.Examples.ValueVault.module
@@ -982,6 +1014,11 @@ def valueVaultContextHostFramesOk : Bool :=
   wasmHostFramesOk
     ProofForge.Contract.Examples.ValueVault.module
     nearValueVaultContextHostFrameExpectations
+
+def valueVaultStorageReadKeyFramesOk : Bool :=
+  wasmHostFramesOk
+    ProofForge.Contract.Examples.ValueVault.module
+    valueVaultStorageReadKeyFrameExpectations
 
 def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   name := "Counter.EmitWat.artifact-surface"
@@ -1014,7 +1051,10 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     { functionName := "__pf_write_u64", expectedCalls := #["storage_write"] },
     { functionName := "__pf_return_u64", expectedCalls := #["value_return"] }
   ]
-  requiredHostFrames := nearU64HostFrameExpectations ++ nearInputHostFrameExpectations
+  requiredHostFrames :=
+    nearU64HostFrameExpectations ++
+      nearInputHostFrameExpectations ++
+      counterStorageReadKeyFrameExpectations
   requiredDataSegments := #[(0, "count")]
   requiredMemoryRegions := nearHostBufferMemoryRegions
 }
@@ -1164,7 +1204,8 @@ def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   requiredHostFrames :=
     nearU64HostFrameExpectations ++
       nearValueVaultInputHostFrameExpectations ++
-      nearValueVaultContextHostFrameExpectations |>.push {
+      nearValueVaultContextHostFrameExpectations ++
+      valueVaultStorageReadKeyFrameExpectations |>.push {
       functionName := ProofForge.Backend.WasmNear.EmitWat.evtLogName
       expectedOps := nearEventLogUtf8Frame
     }
@@ -1390,6 +1431,7 @@ def valueVaultEmitWatBackendInvariantBridgeOk : Bool :=
     valueVaultArtifactSurfaceObligation.memorySurfaceOk &&
     valueVaultInputHostFramesOk &&
     valueVaultContextHostFramesOk &&
+    valueVaultStorageReadKeyFramesOk &&
     valueVaultOfflineHostExecutionObligation.returnPayloadHexOk &&
     valueVaultOfflineHostExecutionObligation.storageSnapshotsOk &&
     valueVaultOfflineHostExecutionObligation.storageHexSnapshotsOk &&
@@ -1447,6 +1489,10 @@ theorem counter_emitwat_input_host_frames_ok :
     counterInputHostFramesOk = true := by
   native_decide
 
+theorem counter_emitwat_storage_read_key_frames_ok :
+    counterStorageReadKeyFramesOk = true := by
+  native_decide
+
 theorem counter_emitwat_memory_surface_ok :
     counterArtifactSurfaceObligation.memorySurfaceOk = true := by
   native_decide
@@ -1485,6 +1531,10 @@ theorem value_vault_emitwat_input_host_frames_ok :
 
 theorem value_vault_emitwat_context_host_frames_ok :
     valueVaultContextHostFramesOk = true := by
+  native_decide
+
+theorem value_vault_emitwat_storage_read_key_frames_ok :
+    valueVaultStorageReadKeyFramesOk = true := by
   native_decide
 
 theorem value_vault_emitwat_memory_surface_ok :
