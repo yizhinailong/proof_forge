@@ -635,9 +635,6 @@ def structLocalFieldName (name fieldName : String) : String :=
 def abiReturnName (index : Nat) : String :=
   s!"__proof_forge_return_{index}"
 
-def abiDispatchResultName (index : Nat) : String :=
-  s!"_r{index}"
-
 def ensureAbiWordType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
   | .u32 | .u64 | .bool | .hash | .address => .ok ()
@@ -5304,28 +5301,14 @@ def entrypointCallExpr (module : Module) (entrypoint : Entrypoint) : Except Lowe
   let args ← entrypointCallArgsWithLayout module entrypoint layouts
   .ok (Lean.Compiler.Yul.call (yulFunctionName module.name entrypoint.name) args)
 
-def dispatchResultNames (wordCount : Nat) : Array String :=
-  if wordCount == 1 then
-    #["_r"]
-  else
-    Id.run do
-      let mut names : Array String := #[]
-      for _h : idx in [0:wordCount] do
-        names := names.push (abiDispatchResultName idx)
-      names
-
 def dispatchReturnStatements
     (module : Module)
     (entrypoint : Entrypoint)
+    (returns : ProofForge.Backend.Evm.Plan.ReturnPlan)
     (callExpr : Lean.Compiler.Yul.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   let layouts ← entrypointParamLayouts module entrypoint
   let validationStmts ← abiParamValidationAndDecodeStmts module entrypoint layouts
   match entrypoint.returns with
-  | .unit =>
-      .ok (validationStmts ++ #[
-        Lean.Compiler.Yul.Statement.exprStmt callExpr,
-        Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
-      ])
   | .bytes | .string =>
       -- Dynamic return: the function returns a memory pointer.
       -- Encode as head-tail: head = offset (32 bytes), tail = (length, data).
@@ -5376,25 +5359,11 @@ def dispatchReturnStatements
           ])
       ])
   | _ => do
-      let wordTypes ← abiValueWordTypes module s!"entrypoint `{entrypoint.name}` return value" entrypoint.returns
-      let resultNames := dispatchResultNames wordTypes.size
-      let mut statements : Array Lean.Compiler.Yul.Statement :=
-        validationStmts ++ #[
-          Lean.Compiler.Yul.Statement.varDecl
-            (resultNames.map fun name => ({ name := name } : Lean.Compiler.Yul.TypedName))
-            (some callExpr)
-        ]
-      for h : idx in [0:resultNames.size] do
-        statements := statements.push <|
-          Lean.Compiler.Yul.Statement.exprStmt
-            (Lean.Compiler.Yul.builtin "mstore" #[
-              Lean.Compiler.Yul.Expr.num (idx * 32),
-              Lean.Compiler.Yul.Expr.id resultNames[idx]
-            ])
-      statements := statements.push <|
-        Lean.Compiler.Yul.Statement.exprStmt
-          (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num (wordTypes.size * 32)])
-      .ok statements
+      ProofForge.Backend.Evm.ToYul.staticDispatchReturnStatements
+        toYulError
+        validationStmts
+        returns
+        callExpr
 
 def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Case := do
   let entrypointPlan ←
@@ -5402,7 +5371,7 @@ def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError
     | .ok plan => .ok plan
     | .error err => .error { message := err.message }
   let callExpr ← entrypointCallExpr module entrypoint
-  let bodyStmts ← dispatchReturnStatements module entrypoint callExpr
+  let bodyStmts ← dispatchReturnStatements module entrypoint entrypointPlan.returns callExpr
   ProofForge.Backend.Evm.ToYul.entrypointDispatchCase toYulError entrypointPlan bodyStmts
 
 def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statement := do

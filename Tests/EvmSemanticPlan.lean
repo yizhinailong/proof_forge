@@ -216,6 +216,50 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
       require (lit.value == "0x6d4ce63c") "entrypoint dispatch case selector literal"
   | none => throw <| IO.userError "entrypoint dispatch case must have selector"
   require (getCase.body.statements.size == 1) "entrypoint dispatch case body statement count"
+  let returnStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.staticDispatchReturnStatements
+      toYulError
+      #[]
+      getEntrypoint.returns
+      (Lean.Compiler.Yul.call "Counter_get" #[]))
+    "entrypoint static dispatch return plan-to-yul"
+  require (returnStmts.size == 3) "entrypoint static dispatch return statement count"
+  match returnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.call name args)) => do
+      require (vars.size == 1) "entrypoint static dispatch return result count"
+      match vars[0]? with
+      | some var => require (var.name == "_r") "entrypoint static dispatch return result name"
+      | none => throw <| IO.userError "entrypoint static dispatch return missing result var"
+      require (name == "Counter_get") "entrypoint static dispatch return call name"
+      require (args.size == 0) "entrypoint static dispatch return call arg count"
+  | _ => throw <| IO.userError "entrypoint static dispatch return must bind call result"
+  match returnStmts[2]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+      require (name == "return") "entrypoint static dispatch return builtin"
+      require (args.size == 2) "entrypoint static dispatch return arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.lit lit => require (lit.value == "32") "entrypoint static dispatch return byte count"
+      | _ => throw <| IO.userError "entrypoint static dispatch return byte count must be literal"
+  | _ => throw <| IO.userError "entrypoint static dispatch return must end with return"
+  let initEntrypoint ← requireSome
+    (plan.entrypoints.find? (fun entrypoint => entrypoint.name == "initialize"))
+    "counter plan missing initialize entrypoint"
+  let unitReturnStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.staticDispatchReturnStatements
+      toYulError
+      #[]
+      initEntrypoint.returns
+      (Lean.Compiler.Yul.call "Counter_initialize" #[]))
+    "entrypoint unit dispatch return plan-to-yul"
+  require (unitReturnStmts.size == 2) "entrypoint unit dispatch return statement count"
+  match unitReturnStmts[1]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+      require (name == "return") "entrypoint unit dispatch return builtin"
+      require (args.size == 2) "entrypoint unit dispatch return arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.lit lit => require (lit.value == "0") "entrypoint unit dispatch return byte count"
+      | _ => throw <| IO.userError "entrypoint unit dispatch return byte count must be literal"
+  | _ => throw <| IO.userError "entrypoint unit dispatch return must end with return"
   let dispatch ← requireOk (dispatchBlock ProofForge.IR.Examples.Counter.module) "counter dispatch block"
   match dispatch with
   | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.builtin name args) cases => do

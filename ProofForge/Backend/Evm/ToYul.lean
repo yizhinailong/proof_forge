@@ -71,6 +71,61 @@ def dispatchSwitchStatement
     (defaultCase : Lean.Compiler.Yul.Case) : Lean.Compiler.Yul.Statement :=
   .switchStmt dispatchSelectorExpr (cases.push defaultCase)
 
+def dispatchResultName (index : Nat) : String :=
+  s!"_r{index}"
+
+def dispatchResultNames (wordCount : Nat) : Array String :=
+  if wordCount == 1 then
+    #["_r"]
+  else
+    Id.run do
+      let mut names : Array String := #[]
+      for _h : idx in [0:wordCount] do
+        names := names.push (dispatchResultName idx)
+      names
+
+def staticDispatchReturnStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (validationStatements : Array Lean.Compiler.Yul.Statement)
+    (returns : ReturnPlan)
+    (callExpr : Lean.Compiler.Yul.Expr) :
+    Except ε (Array Lean.Compiler.Yul.Statement) := do
+  match returns.returnType with
+  | .unit =>
+    .ok (validationStatements ++ #[
+      Lean.Compiler.Yul.Statement.exprStmt callExpr,
+      Lean.Compiler.Yul.Statement.exprStmt
+        (Lean.Compiler.Yul.builtin "return" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+    ])
+  | .bytes | .string =>
+      .error (mkError s!"EVM static dispatch return plan does not support dynamic `{returns.returnType.name}`")
+  | _ =>
+      if returns.wordTypes.isEmpty then
+        .error (mkError s!"EVM dispatch return plan for `{returns.returnType.name}` has no ABI words")
+      else
+        let resultNames := dispatchResultNames returns.wordTypes.size
+        let mut statements : Array Lean.Compiler.Yul.Statement :=
+          validationStatements ++ #[
+            Lean.Compiler.Yul.Statement.varDecl
+              (resultNames.map fun name => ({ name := name } : Lean.Compiler.Yul.TypedName))
+              (some callExpr)
+          ]
+        for h : idx in [0:resultNames.size] do
+          statements := statements.push <|
+            Lean.Compiler.Yul.Statement.exprStmt
+              (Lean.Compiler.Yul.builtin "mstore" #[
+                Lean.Compiler.Yul.Expr.num (idx * 32),
+                Lean.Compiler.Yul.Expr.id resultNames[idx]
+              ])
+        statements := statements.push <|
+          Lean.Compiler.Yul.Statement.exprStmt
+            (Lean.Compiler.Yul.builtin "return" #[
+              Lean.Compiler.Yul.Expr.num 0,
+              Lean.Compiler.Yul.Expr.num (returns.wordTypes.size * 32)
+            ])
+        .ok statements
+
 def hashPackExpr
     (a b c d : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "or" #[

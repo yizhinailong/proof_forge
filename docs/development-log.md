@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM EntrypointPlan Static Dispatch Return To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.staticDispatchReturnStatements`, `ToYul.dispatchResultName`,
+  and `ToYul.dispatchResultNames` for unit and static ABI-word dispatcher
+  return-data encoding.
+- Routed non-dynamic `IR.dispatchReturnStatements` through the helper using the
+  `ReturnPlan` from `Lower.buildEntrypointSurfacePlan`.
+- Preserved existing ABI validation/decode statements, function-call argument
+  assembly, dynamic `bytes`/`string` return encoding, dynamic-param memory
+  initialization, and proxy fallback behavior in the compatibility facade.
+- Removed the old duplicate dispatcher result-name helper from `IR.lean`.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct unit and static
+  ABI-word return helper output plus the integrated Counter dispatch path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/ir-counter-smoke.sh
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- ABI validation/decode and function-call argument assembly still live in
+  `IR.lean`.
+- Dynamic `bytes`/`string` dispatch return encoding still uses the
+  compatibility path.
+
+Next step:
+
+- Move calldata validation/decode or dynamic return encoding behind
+  `EntrypointPlan -> Yul`.
+
 ### EVM EntrypointPlan Dispatch Case To-Yul Slice
 
 Commit: this commit
