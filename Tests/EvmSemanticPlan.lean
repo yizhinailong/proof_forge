@@ -256,6 +256,46 @@ def testScalarAssignmentPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "scalar compound assignment plan-to-yul rhs must be sload"
   | _ => throw <| IO.userError "scalar compound assignment plan-to-yul must assign helper result"
 
+def testScalarControlFlowPlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := true }]
+  let (ifStmts, _) ← requireOk
+    (lowerStatement
+      ProofForge.IR.Examples.Counter.module
+      "control_flow"
+      .unit
+      env
+      false
+      (.ifElse
+        (.gt (.local "n") (.literal (.u64 0)))
+        #[.assign (.local "n") (.add (.local "n") (.literal (.u64 1)))]
+        #[.assign (.local "n") (.literal (.u64 1))]))
+    "scalar ifElse condition plan-to-yul"
+  require (ifStmts.size == 1) "scalar ifElse condition plan-to-yul statement count"
+  match ifStmts[0]! with
+  | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.builtin name args) _ => do
+      require (name == "gt") "scalar ifElse condition plan-to-yul opcode"
+      require (args.size == 2) "scalar ifElse condition plan-to-yul arg count"
+  | _ => throw <| IO.userError "scalar ifElse condition plan-to-yul must lower to switch over builtin"
+  let (forStmts, _) ← requireOk
+    (lowerStatement
+      ProofForge.IR.Examples.Counter.module
+      "control_flow"
+      .unit
+      env
+      false
+      (.boundedFor
+        "i"
+        0
+        3
+        #[.assign (.local "n") (.add (.local "n") (.local "i"))]))
+    "scalar boundedFor condition plan-to-yul"
+  require (forStmts.size == 1) "scalar boundedFor condition plan-to-yul statement count"
+  match forStmts[0]! with
+  | Lean.Compiler.Yul.Statement.forLoop _ (Lean.Compiler.Yul.Expr.builtin name args) _ _ => do
+      require (name == "lt") "scalar boundedFor condition plan-to-yul opcode"
+      require (args.size == 2) "scalar boundedFor condition plan-to-yul arg count"
+  | _ => throw <| IO.userError "scalar boundedFor condition plan-to-yul must lower to for over builtin"
+
 def main : IO UInt32 := do
   testCounterSemanticPlan
   testEventSemanticPlan
@@ -266,6 +306,7 @@ def main : IO UInt32 := do
   testScalarAssertPlanToYul
   testScalarReturnPlanToYul
   testScalarAssignmentPlanToYul
+  testScalarControlFlowPlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0
 

@@ -4492,7 +4492,7 @@ mutual
     | .ifElse condition thenBody elseBody => do
         let thenStatements ← lowerStatements module entrypointName returnType env true thenBody
         let elseStatements ← lowerStatements module entrypointName returnType env true elseBody
-        .ok (#[.switchStmt (← lowerExpr module env condition) #[
+        .ok (#[.switchStmt (← lowerScalarPlanExprOrFallback module env condition) #[
           {
             value := some (Lean.Compiler.Yul.Literal.natLit 0)
             body := { statements := elseStatements }
@@ -4507,11 +4507,12 @@ mutual
           .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
         let loopEnv ← addLocal env indexName .u32 false
         let bodyStatements ← lowerStatements module entrypointName returnType loopEnv true body
+        let loopCondition ← lowerScalarPlanExprOrFallback module loopEnv (.lt (.local indexName) (.literal (.u32 stopExclusive)))
         .ok (#[.forLoop
           { statements := #[
             .varDecl #[{ name := indexName }] (some (Lean.Compiler.Yul.Expr.num start))
           ] }
-          (Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.Expr.id indexName, Lean.Compiler.Yul.Expr.num stopExclusive])
+          loopCondition
           { statements := #[
             .assignment #[indexName] (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id indexName, Lean.Compiler.Yul.Expr.num 1])
           ] }

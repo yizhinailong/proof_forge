@@ -289,6 +289,10 @@ Tasks:
     scalar expressions. Whole-aggregate assignment, dynamic aggregate helper
     snapshots, and storage effect writes remain on their existing compatibility
     paths until their own migration slices add coverage.
+  - Started: scalar `ifElse` conditions and synthesized `boundedFor` loop
+    guards now consume the same `ExprPlan -> ToYul` expression boundary.
+    Statement sequencing and branch/loop body lowering remain in the
+    compatibility facade until `StmtPlan -> Yul` assembly is extracted.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

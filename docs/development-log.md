@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Control-Flow Condition Plan-To-Yul Assembly Slice
+
+Commit: this commit
+
+Summary:
+
+- Routed scalar `ifElse` conditions through the supported
+  `ExprPlan -> ToYul` expression boundary before emitting the existing Yul
+  `switch` shape.
+- Routed synthesized `boundedFor` loop guards through the same expression
+  boundary by building the scalar predicate `index < stopExclusive`.
+- Extended `Tests/EvmSemanticPlan.lean` to lock Yul AST shapes for plan-driven
+  conditional and loop guard expressions.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/conditional-ir-smoke.sh
+scripts/evm/loop-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- This slice only moves control-flow condition expressions. Statement
+  sequencing, branch and loop body assembly, early-return handling, dynamic
+  aggregate helper snapshots, storage effect writes, events, crosscalls, and
+  create paths still move over in later semantic-plan slices.
+
+Next step:
+
+- Start extracting narrow `StmtPlan -> Yul` assembly helpers, or migrate event
+  field/value expression lowering through `ExprPlan -> ToYul`.
+
 ### EVM Scalar Assignment Plan-To-Yul Assembly Slice
 
 Commit: this commit
