@@ -51,6 +51,10 @@ cli-target-first:
     python3 scripts/cli/check-target-first-migration.py
     lake env lean Tests/CliTargetFirst.lean
 
+# Check contract_source target capability diagnostics through the CLI.
+contract-source-diagnostics:
+    scripts/contract-source/diagnostic-smoke.sh
+
 # Run Solana target, SDK, and diagnostics tests that need only the Lean toolchain.
 solana-lean:
     lake build
@@ -258,7 +262,7 @@ testkit-list:
     cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry contract-spec-json contract-client evm-plan evm-semantic-plan solana-light cli-target-first near-target-first docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
+check: build target-registry contract-spec-json contract-client evm-plan evm-semantic-plan solana-light cli-target-first contract-source-diagnostics near-target-first docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:

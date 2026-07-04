@@ -74,6 +74,21 @@ def solanaExtensionMetadataError (profile : TargetProfile) (call : CapabilityCal
   message := s!"target `{profile.id}` cannot use Solana target extension metadata on operation `{call.operation}`"
 }
 
+def firstUnsupportedCapabilityCall? (profile : TargetProfile) (calls : Array CapabilityCall) :
+    Option CapabilityCall :=
+  calls.find? (fun call => !hasCapability profile call.capability)
+
+def unsupportedCapabilityCallDiagnostic (profile : TargetProfile) (call : CapabilityCall) :
+    Diagnostic :=
+  let sourceFragment :=
+    match call.source? with
+    | none => ""
+    | some source => s!" on operation `{call.operation}` at `{source}`"
+  {
+    message :=
+      s!"target `{profile.id}` does not support capability `{call.capability.id}`{sourceFragment}: capability is not present in the target profile"
+  }
+
 def requireTargetExtensionMetadata (profile : TargetProfile) (calls : Array CapabilityCall) :
     Except Diagnostic Unit := do
   match firstSolanaMetadataCall? calls with
@@ -98,9 +113,12 @@ def requireCapabilityPlan (profile : TargetProfile) (plan : CapabilityPlan) :
   match requireTargetExtensionMetadata profile plan.calls with
   | .error err => .error err
   | .ok () =>
-      match requireCapabilities profile plan.capabilities with
-      | .ok () => .ok plan
-      | .error err => .error (Diagnostic.fromCapabilityError err)
+      match firstUnsupportedCapabilityCall? profile plan.calls with
+      | some call => .error (unsupportedCapabilityCallDiagnostic profile call)
+      | none =>
+          match requireCapabilities profile plan.capabilities with
+          | .ok () => .ok plan
+          | .error err => .error (Diagnostic.fromCapabilityError err)
 
 def defaultResolve (profile : TargetProfile) (spec : ProofForge.Contract.ContractSpec) :
     Except Diagnostic CapabilityPlan := do

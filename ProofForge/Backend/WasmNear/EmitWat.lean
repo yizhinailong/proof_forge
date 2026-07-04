@@ -18,6 +18,7 @@ import ProofForge.IR.Ownership
 import ProofForge.Compiler.Wasm.AST
 import ProofForge.Compiler.Wasm.Printer
 import ProofForge.Target.Check
+import ProofForge.Target.Plan
 import ProofForge.Target.Registry
 
 namespace ProofForge.Backend.WasmNear.EmitWat
@@ -1582,13 +1583,31 @@ def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
     if emitWatCapabilities.contains c then .ok ()
     else .error { message := s!"EmitWat: capability `{c.id}` is not supported by the EmitWat backend" }) ()
 
-def renderModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := .near) : Except EmitError String := do
-  checkCapabilities mod
+def checkTargetPlan (plan : ProofForge.Target.CapabilityPlan) : Except EmitError Unit :=
+  if plan.targetId == ProofForge.Target.wasmNear.id then
+    .ok ()
+  else
+    .error { message := s!"EmitWat plan requires target `wasm-near`, got `{plan.targetId}`" }
+
+def renderCheckedModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := .near) :
+    Except EmitError String := do
   match ProofForge.IR.Ownership.checkModule mod with
   | .ok _ => pure ()
   | .error error => err s!"EmitWat: {error.render}"
   let m ← lowerModule mod bridge
   .ok (Printer.render m)
+
+def renderModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := .near) :
+    Except EmitError String := do
+  checkCapabilities mod
+  renderCheckedModule mod bridge
+
+def renderModuleWithPlan
+    (mod : ProofForge.IR.Module)
+    (plan : ProofForge.Target.CapabilityPlan)
+    (bridge : ProofForge.Target.HostBridge := .near) : Except EmitError String := do
+  checkTargetPlan plan
+  renderCheckedModule mod bridge
 
 
 end ProofForge.Backend.WasmNear.EmitWat

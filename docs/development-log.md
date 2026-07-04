@@ -8718,3 +8718,33 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR EmitWat storage write key/value-frame checks passed locally.
+
+### Contract Source Target Capability Diagnostics
+
+Commit: pending
+
+Summary:
+
+- Added source-aware unsupported-capability diagnostics at the target resolver
+  boundary.
+- Routed `wasm-near` contract_source builds through `Target.resolveSpec` before
+  EmitWat lowering.
+- Added a plan-backed EmitWat render path for contract_source builds.
+- Added a negative contract_source fixture and `just
+  contract-source-diagnostics` CLI smoke for target id, capability id,
+  operation, and source-marker diagnostics.
+
+Validation run:
+
+```sh
+lake build ProofForge.Target.Formal
+lake build ProofForge.Backend.WasmNear.EmitWat
+lake build proof-forge
+scripts/contract-source/diagnostic-smoke.sh
+lake env proof-forge build --target wasm-near --root . -o build/contract-source-diagnostics/near-positive --artifact-output build/contract-source-diagnostics/Counter.near-artifact.json Examples/Shared/Counter.lean
+```
+
+Result:
+
+- Contract source target capability diagnostics and the NEAR contract_source
+  positive build passed locally.

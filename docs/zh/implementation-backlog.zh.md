@@ -1209,6 +1209,12 @@ target extension 的边界。
 | CS-1.4 | 扩展 Learn → `contract_source` 等价测试（FV-6），覆盖 portable entrypoint/state/event | 配对的 `.learn` 与 `contract_source` fixture 产出等价 `ContractSpec` |
 | CS-1.5 | Target-first 项目布局约定：一个 `*.lean` contract 模块 + `proof-forge build --target <id>` 对应一个制品；不做 per-chain 源码分叉 | 写入 onboarding，并有一个多 target 示例：同一文件把 Counter 编译到 EVM + Solana + NEAR |
 
+当前 CS-1.2 切片：`wasm-near` 的 contract_source build 现在会先把加载到的
+`ContractSpec` 交给 `Target.resolveSpec`，再进入 EmitWat lowering。plan-backed
+EmitWat 路径会在所选 target 不支持某 capability 时拒绝，并在诊断中包含 target
+id、capability id、operation name 和 source marker；`just
+contract-source-diagnostics` 用一个负向 `contract_source` fixture 锁住这条 CLI 行为。
+
 ### 阶段 CS-2 — EVM stdlib 的 `contract_source` 化
 
 重点：用可 import 的 `contract_source` 模块替换 Builder 字符串 stdlib。

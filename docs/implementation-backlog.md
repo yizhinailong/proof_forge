@@ -2541,6 +2541,13 @@ target-extension boundary in `contract_source`.
 | CS-1.4 | Extend Learn → `contract_source` equivalence tests (FV-6) for portable entrypoints/state/events | Paired `.learn` and `contract_source` fixtures produce equivalent `ContractSpec` |
 | CS-1.5 | Target-first project layout convention: one `*.lean` contract module + `proof-forge build --target <id>` per artifact; no per-chain source forks | Documented in onboarding + one multi-target example compiling Counter to EVM + Solana + NEAR from the same file |
 
+Current CS-1.2 slice: `wasm-near` contract_source builds now resolve the
+loaded `ContractSpec` through `Target.resolveSpec` before EmitWat lowering. The
+plan-backed EmitWat path rejects unsupported capabilities with the selected
+target id, capability id, operation name, and source marker; `just
+contract-source-diagnostics` locks the CLI behavior with a negative
+`contract_source` fixture.
+
 ### Phase CS-2 — EVM stdlib in `contract_source`
 
 Focus: replace Builder-string stdlib with importable `contract_source` modules.

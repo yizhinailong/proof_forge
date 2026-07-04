@@ -2793,6 +2793,21 @@ def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Modu
   | .error msg =>
       throw <| IO.userError msg
 
+def compileEmitWatWithPlan
+    (opts : CliOptions)
+    (name : String)
+    (mod : ProofForge.IR.Module)
+    (plan : ProofForge.Target.CapabilityPlan) : IO UInt32 := do
+  let some output := opts.output?
+    | throw <| IO.userError "emitwat mode requires -o output directory"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModuleWithPlan mod plan with
+  | .ok wat =>
+      let (watPath, wasmPath?) ← writeWatPackage output name wat
+      writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name mod output watPath wasmPath?
+      return 0
+  | .error err =>
+      throw <| IO.userError err.message
+
 def compileCounterEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "counter" ProofForge.IR.Examples.Counter.module
 def compileErrorRefEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "error-ref" ProofForge.IR.Examples.ErrorRefProbe.module
 def compileContextEmitWat  (opts : CliOptions) : IO UInt32 := compileEmitWat opts "context" ProofForge.IR.Examples.ContextProbe.module
@@ -4546,7 +4561,11 @@ unsafe def compileContractSourceEmitWat (opts : CliOptions) : IO UInt32 := do
     output? := some outputDir
     targetId? := opts.targetId? <|> some ProofForge.Target.wasmNear.id
   }
-  compileEmitWat opts' fixtureSlug spec.module
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.wasmNear spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.render
+  compileEmitWatWithPlan opts' fixtureSlug spec.module plan
 
 def compileLearnTarget (opts : CliOptions) : IO UInt32 := do
   let profile ← learnTargetProfile opts

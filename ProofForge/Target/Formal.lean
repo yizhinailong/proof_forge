@@ -31,17 +31,21 @@ theorem requireCapabilityPlan_sound {profile : TargetProfile} {plan checked : Ca
   | error err =>
       simp [hExt] at h
   | ok _ =>
-      cases hCaps : requireCapabilities profile plan.capabilities with
-      | error err =>
-          simp [hExt, hCaps] at h
-      | ok _ =>
-          simp [hExt, hCaps] at h
-          subst checked
-          have hSupported : CapabilityPlan.supportedBy profile plan = true :=
-            (requireCapabilities_ok_iff profile plan.capabilities).mp hCaps
-          have hExtension : CapabilityPlan.targetExtensionsAllowed profile plan = true :=
-            (requireTargetExtensionMetadata_ok_iff profile plan.calls).mp hExt
-          simp [CapabilityPlan.checkedBy, hSupported, hExtension]
+      cases hCall : firstUnsupportedCapabilityCall? profile plan.calls with
+      | some call =>
+          simp [hExt, hCall] at h
+      | none =>
+          cases hCaps : requireCapabilities profile plan.capabilities with
+          | error err =>
+              simp [hExt, hCall, hCaps] at h
+          | ok _ =>
+              simp [hExt, hCall, hCaps] at h
+              subst checked
+              have hSupported : CapabilityPlan.supportedBy profile plan = true :=
+                (requireCapabilities_ok_iff profile plan.capabilities).mp hCaps
+              have hExtension : CapabilityPlan.targetExtensionsAllowed profile plan = true :=
+                (requireTargetExtensionMetadata_ok_iff profile plan.calls).mp hExt
+              simp [CapabilityPlan.checkedBy, hSupported, hExtension]
 
 theorem requireCapabilityPlan_capability_sound {profile : TargetProfile}
     {plan checked : CapabilityPlan}

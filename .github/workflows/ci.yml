@@ -90,6 +90,9 @@ jobs:
       - name: Run Wasm-NEAR target-first smoke
         run: just near-target-first
 
+      - name: Check contract_source target diagnostics
+        run: just contract-source-diagnostics
+
       - name: Run unified testkit
         run: just testkit
 
