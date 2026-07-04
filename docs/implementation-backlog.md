@@ -279,8 +279,10 @@ Tasks:
     function-call arguments now consume `AbiParamPlan` through `ToYul`, with
     `AbiParamPlan.headWordIndex` carrying calldata head layout. The planned
     dispatcher call expression and internal entrypoint function naming also now
-    live in `ToYul`. Full entrypoint function definition/body lowering remains
-    in the `IR.lean` compatibility facade until broader lowering moves behind
+    live in `ToYul`. `AbiParamPlan.localNames` now carries the planned internal
+    Yul parameter names, and `ToYul` emits the internal entrypoint `funcDef`
+    shell from an `EntrypointPlan`; the body statements still come from the
+    `IR.lean` compatibility facade until broader lowering moves behind
     `EntrypointPlan -> Yul`.
   - Started: scalar local binding initialization now consumes the semantic
     plan path for the supported scalar subset:

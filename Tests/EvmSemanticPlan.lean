@@ -292,6 +292,14 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
   let bytesParam ← requireAt bytesEntrypoint.params 0 "dynamic ABI echo_bytes missing param"
   require (bytesParam.headWordIndex == 0) "dynamic ABI bytes param head word index"
   require bytesParam.isDynamic "dynamic ABI bytes param is dynamic"
+  require
+    (bytesParam.localNames == #["data__length", "data__data_ptr"])
+    "dynamic ABI bytes param local names"
+  let bytesTypedParams := ProofForge.Backend.Evm.ToYul.entrypointParamTypedNames bytesEntrypoint.params
+  require (bytesTypedParams.size == 2) "dynamic ABI bytes function param count"
+  match bytesTypedParams[1]? with
+  | some param => require (param.name == "data__data_ptr") "dynamic ABI bytes function data ptr param"
+  | none => throw <| IO.userError "dynamic ABI bytes function missing data ptr param"
   let bytesDecodeStmts :=
     ProofForge.Backend.Evm.ToYul.abiParamValidationAndDecodeStatements bytesEntrypoint.params
   require (bytesDecodeStmts.size == 9) "dynamic ABI bytes decode statement count"
@@ -323,6 +331,19 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
       require (name == "f_EvmDynamicAbiProbe_transfer") "transfer plan-to-yul call name"
       require (args.size == 2) "transfer plan-to-yul call arg count"
   | _ => throw <| IO.userError "transfer plan-to-yul call must be a function call"
+  let transferFunction :=
+    ProofForge.Backend.Evm.ToYul.entrypointFunctionDefinition
+      dynamicPlan.name
+      transferEntrypoint
+      #[{ name := "result" }]
+      #[revertStmt]
+  match transferFunction with
+  | Lean.Compiler.Yul.Statement.funcDef name params returns body => do
+      require (name == "f_EvmDynamicAbiProbe_transfer") "transfer plan-to-yul function name"
+      require (params.size == 2) "transfer plan-to-yul function param count"
+      require (returns.size == 1) "transfer plan-to-yul function return count"
+      require (body.statements.size == 1) "transfer plan-to-yul function body count"
+  | _ => throw <| IO.userError "transfer plan-to-yul function must lower to funcDef"
   let dynamicDirectDispatch :=
     ProofForge.Backend.Evm.ToYul.dispatchPlanStatement
       dynamicPlan.dispatch

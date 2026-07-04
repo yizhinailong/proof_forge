@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM EntrypointPlan Function Shell To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `AbiParamPlan.localNames` and populated it from `Lower`, covering
+  static ABI-flattened parameter names and dynamic `bytes`/`string`
+  `<name>__length` / `<name>__data_ptr` locals.
+- Added `ToYul.entrypointParamTypedNames` and
+  `ToYul.entrypointFunctionDefinition`, so the internal entrypoint `funcDef`
+  shell is emitted from an `EntrypointPlan`.
+- Routed `IR.lowerEntrypointParams` and `IR.lowerEntrypointWithPlan` through
+  these plan-to-Yul helpers while keeping body statement lowering in the
+  compatibility facade.
+- Routed `lowerModuleWithPlan` through `lowerEntrypointsWithPlan`, so module
+  lowering consumes the same planned entrypoints used by dispatch lowering.
+- Extended `Tests/EvmSemanticPlan.lean` to cover planned dynamic parameter
+  local names, typed params, and direct entrypoint function shell output.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/dynamic-abi-ir-smoke.sh
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- Entrypoint body statements still come from `IR.lean`; broader
+  `EntrypointPlan.body -> Yul` lowering remains staged.
+- Return typed-name selection still uses the compatibility facade.
+
+Next step:
+
+- Continue migrating supported entrypoint body statement sequences behind
+  `StmtPlan -> Yul` helpers.
+
 ### EVM EntrypointPlan Call Wrapper To-Yul Slice
 
 Commit: this commit

@@ -37,7 +37,12 @@ def abiParamPlan
     (type : ValueType)
     (headWordIndex : Nat) : Except LowerError AbiParamPlan := do
   let wordTypes ← abiValueWordTypes module s!"{context} parameter `{name}`" type
-  .ok { name, type, wordTypes, headWordIndex }
+  let localNames ←
+    if abiTypeIsDynamic type then
+      .ok #[dynamicParamLengthName name, dynamicParamDataPtrName name]
+    else
+      abiValueParamNames module s!"{context} parameter `{name}`" name type
+  .ok { name, type, wordTypes, headWordIndex, localNames }
 
 def entrypointParamPlans (module : Module) (entrypoint : Entrypoint) :
     Except LowerError (Array AbiParamPlan) := do

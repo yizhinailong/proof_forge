@@ -60,10 +60,10 @@ def calldataloadAt (offset : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "calldataload" #[offset]
 
 def dynamicParamLengthName (name : String) : String :=
-  s!"{name}__length"
+  ProofForge.Backend.Evm.Plan.dynamicParamLengthName name
 
 def dynamicParamDataPtrName (name : String) : String :=
-  s!"{name}__data_ptr"
+  ProofForge.Backend.Evm.Plan.dynamicParamDataPtrName name
 
 def abiParamsHeadWordCount (params : Array AbiParamPlan) : Nat :=
   params.foldl (fun acc param => acc + param.headWordCount) 0
@@ -192,10 +192,28 @@ def entrypointCallArgs (params : Array AbiParamPlan) :
           args := args.push (calldataWordExpr (param.headWordIndex + j))
     args
 
+def entrypointParamTypedNames (params : Array AbiParamPlan) :
+    Array Lean.Compiler.Yul.TypedName :=
+  params.foldl
+    (fun acc param =>
+      acc ++ param.localNames.map (fun name => ({ name := name } : Lean.Compiler.Yul.TypedName)))
+    #[]
+
 def entrypointCallExpr
     (moduleName : String)
     (entrypoint : EntrypointPlan) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.call (entrypointPlanFunctionName moduleName entrypoint) (entrypointCallArgs entrypoint.params)
+
+def entrypointFunctionDefinition
+    (moduleName : String)
+    (entrypoint : EntrypointPlan)
+    (returns : Array Lean.Compiler.Yul.TypedName)
+    (bodyStatements : Array Lean.Compiler.Yul.Statement) : Lean.Compiler.Yul.Statement :=
+  .funcDef
+    (entrypointPlanFunctionName moduleName entrypoint)
+    (entrypointParamTypedNames entrypoint.params)
+    returns
+    { statements := bodyStatements }
 
 def dispatchSelectorExpr : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "shr" #[

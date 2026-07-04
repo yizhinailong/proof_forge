@@ -798,18 +798,9 @@ def abiValueParamNames
   abiValueParamNamesAt module context name #[] type
 
 def lowerEntrypointParams (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array Lean.Compiler.Yul.TypedName) :=
-  entrypoint.params.foldlM (init := #[]) fun acc param => do
-    let (name, type) := param
-    if isDynamicAbiType type then
-      -- Dynamic params (bytes/string) are represented as two Yul locals:
-      -- <name>__length (byte length) and <name>__data_ptr (memory pointer to data)
-      .ok (acc ++ #[
-        { name := dynamicParamLengthName name },
-        { name := dynamicParamDataPtrName name }
-      ])
-    else
-      let paramNames ← abiValueParamNames module s!"entrypoint `{entrypoint.name}` parameter `{name}`" name type
-      .ok (acc ++ (paramNames.map fun name => ({ name := name } : Lean.Compiler.Yul.TypedName)))
+  match ProofForge.Backend.Evm.Lower.entrypointParamPlans module entrypoint with
+  | .ok params => .ok (ProofForge.Backend.Evm.ToYul.entrypointParamTypedNames params)
+  | .error err => .error { message := err.message }
 
 -- Static-only word types for entrypoint params (excludes dynamic types).
 -- Used for calldata size validation.
@@ -5108,8 +5099,18 @@ mutual
         .ok (← lowerReturnStmt module env entrypointName returnType value leaveAfterReturn, env)
 end
 
-def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let params ← lowerEntrypointParams module entrypoint
+def lowerEntrypointWithPlan
+    (module : Module)
+    (entrypoint : Entrypoint)
+    (entrypointPlan : ProofForge.Backend.Evm.Plan.EntrypointPlan) :
+    Except LowerError Lean.Compiler.Yul.Statement := do
+  if entrypointPlan.name != entrypoint.name then
+    .error {
+      message :=
+        s!"EVM entrypoint function plan mismatch: expected `{entrypoint.name}`, got `{entrypointPlan.name}`"
+    }
+  else
+    pure ()
   match entrypoint.returns with
   | .unit => pure ()
   | _ =>
@@ -5120,7 +5121,14 @@ def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerEr
   validateEntrypointTypes module entrypoint
   let body ← lowerStatements module entrypoint.name entrypoint.returns (entrypointTypeEnv entrypoint) false entrypoint.body
   let returns ← abiReturnTypedNames module entrypoint
-  .ok (.funcDef (yulFunctionName module.name entrypoint.name) params returns { statements := body })
+  .ok (ProofForge.Backend.Evm.ToYul.entrypointFunctionDefinition module.name entrypointPlan returns body)
+
+def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let entrypointPlan ←
+    match ProofForge.Backend.Evm.Lower.buildEntrypointSurfacePlan module entrypoint with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
+  lowerEntrypointWithPlan module entrypoint entrypointPlan
 
 def entrypointCallExprWithPlan
     (module : Module)
@@ -6537,14 +6545,36 @@ def plannedCheckedArithmeticHelperFunctions (module : Module) :
     Array Lean.Compiler.Yul.Statement :=
   if moduleUsesCheckedArithmetic module then checkedArithmeticHelperFunctions else #[]
 
+def lowerEntrypointsWithPlan
+    (module : Module)
+    (entrypoints : Array ProofForge.Backend.Evm.Plan.EntrypointPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let (idx, functions) ← module.entrypoints.foldlM (init := (0, #[])) fun acc entrypoint => do
+    let (idx, functions) := acc
+    match entrypoints[idx]? with
+    | some entrypointPlan => do
+        let function ← lowerEntrypointWithPlan module entrypoint entrypointPlan
+        .ok (idx + 1, functions.push function)
+    | none =>
+        .error {
+          message :=
+            s!"EVM entrypoint plan has fewer entrypoints ({entrypoints.size}) than module `{module.name}` ({module.entrypoints.size})"
+        }
+  if idx != entrypoints.size then
+    .error {
+      message :=
+        s!"EVM entrypoint plan has {entrypoints.size} entrypoints but module `{module.name}` has {module.entrypoints.size}"
+    }
+  else
+    .ok functions
+
 def lowerModuleWithPlan
     (module : Module)
     (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Except LowerError Lean.Compiler.Yul.Object := do
   validateStructs module
   validateState module
-  let functions ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
-    .ok (acc.push (← lowerEntrypoint module entrypoint))
+  let functions ← lowerEntrypointsWithPlan module plan.entrypoints
   let dispatch ← dispatchBlockWithPlan module plan.dispatch
   let helpers := plannedMapHelperFunctions plan
   let helpers := helpers ++ plannedArrayHelperFunctions plan
