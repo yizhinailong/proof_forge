@@ -296,6 +296,53 @@ def testScalarControlFlowPlanToYul : IO Unit := do
       require (args.size == 2) "scalar boundedFor condition plan-to-yul arg count"
   | _ => throw <| IO.userError "scalar boundedFor condition plan-to-yul must lower to for over builtin"
 
+def testScalarEventPlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
+  let dataStmt ← requireOk
+    (lowerEventEmitCoreStmt
+      ProofForge.IR.Examples.EventProbe.evmModule
+      env
+      "PlanValue"
+      #[]
+      #[("value", .add (.local "n") (.literal (.u64 1)))])
+    "scalar event data field plan-to-yul"
+  match dataStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      let mut foundCheckedAdd := false
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "mstore" args) => do
+            if args.size == 2 then
+              match args[1]! with
+              | Lean.Compiler.Yul.Expr.call "__pf_checked_add" addArgs =>
+                  foundCheckedAdd := foundCheckedAdd || addArgs.size == 2
+              | _ => pure ()
+        | _ => pure ()
+      require foundCheckedAdd "scalar event data field must lower through checked add plan"
+  | _ => throw <| IO.userError "scalar event data field plan-to-yul must lower to block"
+  let indexedStmt ← requireOk
+    (lowerEventEmitCoreStmt
+      ProofForge.IR.Examples.EventProbe.evmModule
+      env
+      "PlanIndexed"
+      #[("key", .effect (.storageScalarRead "_proof_forge_marker"))]
+      #[("value", .add (.local "n") (.literal (.u64 1)))])
+    "scalar indexed event topic plan-to-yul"
+  match indexedStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      let mut foundIndexedSload := false
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.builtin "sload" args)) => do
+            match vars[0]? with
+            | some var =>
+                if vars.size == 1 && var.name == "_indexed_topic0" then
+                  foundIndexedSload := foundIndexedSload || args.size == 1
+            | none => pure ()
+        | _ => pure ()
+      require foundIndexedSload "scalar indexed event topic must lower storage read through plan"
+  | _ => throw <| IO.userError "scalar indexed event topic plan-to-yul must lower to block"
+
 def main : IO UInt32 := do
   testCounterSemanticPlan
   testEventSemanticPlan
@@ -307,6 +354,7 @@ def main : IO UInt32 := do
   testScalarReturnPlanToYul
   testScalarAssignmentPlanToYul
   testScalarControlFlowPlanToYul
+  testScalarEventPlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0
 

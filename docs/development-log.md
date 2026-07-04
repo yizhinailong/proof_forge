@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Event Field Plan-To-Yul Assembly Slice
+
+Commit: this commit
+
+Summary:
+
+- Routed scalar event data word lowering through the supported
+  `ExprPlan -> ToYul` expression boundary.
+- Routed scalar indexed event topic lowering through the same boundary before
+  emitting the existing `log1`-`log4` Yul shape.
+- Extended `Tests/EvmSemanticPlan.lean` to lock Yul AST shapes for plan-driven
+  event data expressions and indexed storage-backed topic expressions.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/event-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- This slice only moves scalar event word expressions. Aggregate event
+  flattening, indexed aggregate topic hashing, event statement sequencing,
+  crosscalls, creates, metadata planning, and full `EventPlan -> Yul` assembly
+  extraction remain later semantic-plan slices.
+
+Next step:
+
+- Extract event signature topic, indexed topic, and data-word assembly behind
+  `EventPlan -> Yul`, or continue migrating storage effect writes through
+  `ExprPlan -> ToYul`.
+
 ### EVM Scalar Control-Flow Condition Plan-To-Yul Assembly Slice
 
 Commit: this commit

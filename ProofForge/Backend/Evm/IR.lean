@@ -2826,7 +2826,7 @@ partial def lowerEventStructDataWords
         ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
         let some field := fields.find? fun field => field.fst == fieldDecl.id
           | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-        words := words.push (← lowerExpr module env field.snd)
+        words := words.push (← lowerScalarPlanExprOrFallback module env field.snd)
       .ok words
   | .effect (.storageScalarRead stateId) => do
       let fields ← lowerStructStorageReadFields module s!"event `{eventName}` data field `{fieldName}`" typeName stateId
@@ -2902,7 +2902,7 @@ partial def lowerEventFixedArrayDataWords
                   ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
                   let some field := fields.find? fun field => field.fst == fieldDecl.id
                     | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-                  words := words.push (← lowerExpr module env field.snd)
+                  words := words.push (← lowerScalarPlanExprOrFallback module env field.snd)
             | other =>
                 let actualType ← inferExprType module env other
                 .error {
@@ -2934,7 +2934,7 @@ partial def lowerEventFixedArrayDataWords
             }
           let mut words : Array Lean.Compiler.Yul.Expr := #[]
           for h : idx in [0:values.size] do
-            words := words.push (← lowerExpr module env values[idx])
+            words := words.push (← lowerScalarPlanExprOrFallback module env values[idx])
           .ok words
       | _ =>
           .error {
@@ -2953,7 +2953,7 @@ partial def lowerEventDataWords
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
   match type with
   | .u32 | .u64 | .bool | .hash =>
-      .ok #[← lowerExpr module env value]
+      .ok #[← lowerScalarPlanExprOrFallback module env value]
   | .fixedArray elementType length =>
       lowerEventFixedArrayDataWords module env eventName fieldName elementType length value
   | .structType typeName =>
@@ -2980,7 +2980,7 @@ partial def lowerIndexedEventTopicStatements
   let topicName := eventIndexedTopicName index
   match type with
   | .u32 | .u64 | .bool | .hash =>
-      .ok #[.varDecl #[{ name := topicName }] (some (← lowerExpr module env value))]
+      .ok #[.varDecl #[{ name := topicName }] (some (← lowerScalarPlanExprOrFallback module env value))]
   | .fixedArray _ _ | .structType _ => do
       let words ← lowerEventDataWords module env eventName fieldName type value
       .ok <| eventDataStoreStatements words |>.push

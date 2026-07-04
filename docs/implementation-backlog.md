@@ -293,6 +293,10 @@ Tasks:
     guards now consume the same `ExprPlan -> ToYul` expression boundary.
     Statement sequencing and branch/loop body lowering remain in the
     compatibility facade until `StmtPlan -> Yul` assembly is extracted.
+  - Started: scalar event data words and indexed scalar event topics now
+    consume the same `ExprPlan -> ToYul` expression boundary. Aggregate event
+    flattening and indexed aggregate topic hashing remain in the compatibility
+    facade until event assembly is extracted behind `EventPlan -> Yul`.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,
