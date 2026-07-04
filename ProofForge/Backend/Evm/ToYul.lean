@@ -46,6 +46,31 @@ def contextExpr : ContextField → Lean.Compiler.Yul.Expr
 def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num (4 + paramIndex * 32)]
 
+def dispatchSelectorExpr : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.builtin "shr" #[
+    Lean.Compiler.Yul.Expr.num 224,
+    Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num 0]
+  ]
+
+def entrypointDispatchCase
+    {ε : Type}
+    (mkError : String → ε)
+    (entrypoint : EntrypointPlan)
+    (bodyStatements : Array Lean.Compiler.Yul.Statement) :
+    Except ε Lean.Compiler.Yul.Case := do
+  if entrypoint.selector.isEmpty then
+    .error (mkError s!"EVM EntrypointPlan dispatch case for `{entrypoint.name}` requires a selector")
+  else
+    .ok {
+      value := some (Lean.Compiler.Yul.Literal.hex ("0x" ++ entrypoint.selector))
+      body := { statements := bodyStatements }
+    }
+
+def dispatchSwitchStatement
+    (cases : Array Lean.Compiler.Yul.Case)
+    (defaultCase : Lean.Compiler.Yul.Case) : Lean.Compiler.Yul.Statement :=
+  .switchStmt dispatchSelectorExpr (cases.push defaultCase)
+
 def hashPackExpr
     (a b c d : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "or" #[

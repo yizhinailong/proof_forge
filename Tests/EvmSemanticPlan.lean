@@ -200,6 +200,30 @@ def testDeployMetadata : IO Unit := do
   require (initSel.fst == "initialize") "counter deploy metadata initialize name"
   require (initSel.snd == "8129fc1c") "counter deploy metadata initialize selector"
 
+def testEntrypointDispatchPlanToYul : IO Unit := do
+  let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
+  let getEntrypoint ← requireSome
+    (plan.entrypoints.find? (fun entrypoint => entrypoint.name == "get"))
+    "counter plan missing get entrypoint"
+  let getCase ← requireOk
+    (ProofForge.Backend.Evm.ToYul.entrypointDispatchCase
+      toYulError
+      getEntrypoint
+      #[revertStmt])
+    "entrypoint dispatch case plan-to-yul"
+  match getCase.value with
+  | some lit =>
+      require (lit.value == "0x6d4ce63c") "entrypoint dispatch case selector literal"
+  | none => throw <| IO.userError "entrypoint dispatch case must have selector"
+  require (getCase.body.statements.size == 1) "entrypoint dispatch case body statement count"
+  let dispatch ← requireOk (dispatchBlock ProofForge.IR.Examples.Counter.module) "counter dispatch block"
+  match dispatch with
+  | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.builtin name args) cases => do
+      require (name == "shr") "entrypoint dispatch switch selector opcode"
+      require (args.size == 2) "entrypoint dispatch switch selector arg count"
+      require (cases.size == plan.entrypoints.size + 1) "entrypoint dispatch switch case count"
+  | _ => throw <| IO.userError "entrypoint dispatch block must lower to selector switch"
+
 def testSemanticPlanRender : IO Unit := do
   let rendered ← requireOk (renderSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan render"
   require (rendered.contains "module: Counter") "counter plan render module"
@@ -1418,6 +1442,7 @@ def main : IO UInt32 := do
   testERC20StandardEventSignatureTypes
   testArtifactMetadata
   testDeployMetadata
+  testEntrypointDispatchPlanToYul
   testSemanticPlanRender
   testScalarExprPlanToYul
   testScalarAssertPlanToYul

@@ -5397,20 +5397,15 @@ def dispatchReturnStatements
       .ok statements
 
 def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Case := do
-  let some selector := entrypoint.selector?
-    | .error { message := s!"entrypoint `{entrypoint.name}` has no EVM selector metadata" }
+  let entrypointPlan ←
+    match ProofForge.Backend.Evm.Lower.buildEntrypointSurfacePlan module entrypoint with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
   let callExpr ← entrypointCallExpr module entrypoint
   let bodyStmts ← dispatchReturnStatements module entrypoint callExpr
-  .ok {
-    value := some (Lean.Compiler.Yul.Literal.hex ("0x" ++ selector))
-    body := { statements := bodyStmts }
-  }
+  ProofForge.Backend.Evm.ToYul.entrypointDispatchCase toYulError entrypointPlan bodyStmts
 
 def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let selectorExpr := Lean.Compiler.Yul.builtin "shr" #[
-    Lean.Compiler.Yul.Expr.num 224,
-    Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num 0]
-  ]
   let cases ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
     .ok (acc.push (← dispatchCase module entrypoint))
   let defaultCase : Lean.Compiler.Yul.Case :=
@@ -5426,7 +5421,7 @@ def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statem
   -- ABI decoding (which uses mload(64) for allocation) needs a valid FMP.
   let hasDynamicParams := module.entrypoints.any fun entrypoint =>
     entrypoint.params.any fun param => isDynamicAbiType param.snd
-  let switchStmt := .switchStmt selectorExpr (cases.push defaultCase)
+  let switchStmt := ProofForge.Backend.Evm.ToYul.dispatchSwitchStatement cases defaultCase
   if hasDynamicParams then
     .ok (.block { statements := #[
       Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 64, Lean.Compiler.Yul.Expr.num 128]),

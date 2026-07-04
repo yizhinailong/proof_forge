@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM EntrypointPlan Dispatch Case To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `Lower.buildEntrypointSurfacePlan` for selector/ABI entrypoint surfaces
+  without requiring the entrypoint body to lower into `StmtPlan`.
+- Added `ToYul.dispatchSelectorExpr`, `ToYul.entrypointDispatchCase`, and
+  `ToYul.dispatchSwitchStatement` for the selector switch frame.
+- Routed `IR.dispatchCase` and `IR.dispatchBlock` through those helpers while
+  preserving the existing ABI validation, function-call argument assembly,
+  return encoding, dynamic-parameter memory initialization, and proxy fallback
+  behavior.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct dispatch-case helper
+  output and the integrated Counter dispatch switch shape.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/ir-counter-smoke.sh
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Dispatch return encoding and ABI decode/validation statements still live in
+  the compatibility facade.
+- The surface helper intentionally avoids body-plan validation; full
+  `EntrypointPlan -> Yul` dispatch lowering remains a later slice.
+
+Next step:
+
+- Move calldata guard/decode or return-data encoding helpers behind
+  `EntrypointPlan -> Yul`, or continue with `CrosscallPlan` extraction.
+
 ### EVM EventPlan Core Block To-Yul Slice
 
 Commit: this commit
