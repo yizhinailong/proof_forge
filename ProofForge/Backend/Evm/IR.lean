@@ -292,20 +292,8 @@ def validateEventName (name : String) : Except LowerError Unit := do
   if name.toUTF8.size == 0 then
     .error { message := "event name must be non-empty for IR EVM v0" }
 
-def packedUtf8Words (value : String) : Array Nat × Nat := Id.run do
-  let bytes := value.toUTF8
-  let wordCount := (bytes.size + 31) / 32
-  let mut words := #[]
-  for _h : wordIdx in [0:wordCount] do
-    let mut wordVal := 0
-    for _h : byteIdx in [0:32] do
-      let pos := wordIdx * 32 + byteIdx
-      if pos < bytes.size then
-        let b := (bytes.get! pos).toNat
-        let shift := (31 - byteIdx) * 8
-        wordVal := wordVal + (b * (2 ^ shift))
-    words := words.push wordVal
-  pure (words, bytes.size)
+def packedUtf8Words (value : String) : Array Nat × Nat :=
+  ProofForge.Backend.Evm.ToYul.packedUtf8Words value
 
 partial def eventSignatureFieldType (module : Module) (eventName fieldName : String) (type : ValueType) : Except LowerError String :=
   let erc20FieldType? : Option String :=
@@ -373,15 +361,8 @@ def ensureIndexedEventFieldType
     (type : ValueType) : Except LowerError Unit := do
   discard <| eventSignatureFieldType module eventName fieldName type
 
-def eventSignatureTopicStatements (signature : String) : Array Lean.Compiler.Yul.Statement := Id.run do
-  let (words, length) := packedUtf8Words signature
-  let mut statements := #[]
-  for h : idx in [0:words.size] do
-    statements := statements.push <|
-      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), Lean.Compiler.Yul.Expr.num words[idx]])
-  pure <| statements.push <|
-    .varDecl #[{ name := "_topic0" }]
-      (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num length]))
+def eventSignatureTopicStatements (signature : String) : Array Lean.Compiler.Yul.Statement :=
+  ProofForge.Backend.Evm.ToYul.eventSignatureTopicStatements (ProofForge.Backend.Evm.Plan.EventPlan.mk "" signature #[])
 
 def validateEventFieldName (eventName fieldName : String) : Except LowerError Unit :=
   if fieldName.isEmpty then
@@ -412,13 +393,10 @@ def validateIndexedEventFieldCount (eventName : String) (count : Nat) : Except L
     .ok ()
 
 def eventIndexedTopicName (index : Nat) : String :=
-  s!"_indexed_topic{index}"
+  ProofForge.Backend.Evm.ToYul.eventIndexedTopicName index
 
 def eventLogBuiltinName (indexedFieldCount : Nat) : Except LowerError String :=
-  if indexedFieldCount <= 3 then
-    .ok s!"log{indexedFieldCount + 1}"
-  else
-    .error { message := s!"EVM IR v0 supports at most 3 indexed event fields" }
+  ProofForge.Backend.Evm.ToYul.eventLogBuiltinName toYulError indexedFieldCount
 
 def revertStmt : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.exprStmt
@@ -2996,11 +2974,16 @@ def lowerEventEmitCoreStmt
     (env : TypeEnv)
     (name : String)
     (indexedFields dataFields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement := do
-  validateIndexedEventFieldCount name indexedFields.size
-  for field in indexedFields do
-    ensureIndexedEventFieldType module name field.fst (← inferEventFieldExprType module env field.snd)
-  let signature ← eventSignature module env name (indexedFields ++ dataFields)
-  let mut statements := eventSignatureTopicStatements signature
+  let eventPlan ←
+    match ProofForge.Backend.Evm.Lower.eventPlanForFields
+        module
+        (toValidateTypeEnv env)
+        name
+        indexedFields
+        dataFields with
+    | .ok eventPlan => .ok eventPlan
+    | .error err => .error { message := err.message }
+  let mut statements := ProofForge.Backend.Evm.ToYul.eventSignatureTopicStatements eventPlan
   for h : idx in [0:indexedFields.size] do
     let field := indexedFields[idx]
     let type ← inferEventFieldExprType module env field.snd
@@ -3010,15 +2993,7 @@ def lowerEventEmitCoreStmt
     let type ← inferEventFieldExprType module env field.snd
     dataWords := dataWords ++ (← lowerEventDataWords module env name field.fst type field.snd)
   statements := statements ++ eventDataStoreStatements dataWords
-  let mut logArgs : Array Lean.Compiler.Yul.Expr := #[
-    Lean.Compiler.Yul.Expr.num 0,
-    Lean.Compiler.Yul.Expr.num (dataWords.size * 32),
-    Lean.Compiler.Yul.Expr.id "_topic0"
-  ]
-  for h : idx in [0:indexedFields.size] do
-    logArgs := logArgs.push (Lean.Compiler.Yul.Expr.id (eventIndexedTopicName idx))
-  statements := statements.push <|
-    .exprStmt (Lean.Compiler.Yul.builtin (← eventLogBuiltinName indexedFields.size) logArgs)
+  statements := statements.push (← ProofForge.Backend.Evm.ToYul.eventLogStatement toYulError eventPlan dataWords.size)
   .ok (.block { statements := statements })
 
 def lowerEventEmitStmt

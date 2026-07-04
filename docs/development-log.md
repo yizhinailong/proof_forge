@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM EventPlan-To-Yul Topic Assembly Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul` helpers for event signature topic construction, indexed topic
+  names, indexed field counting, and final `log1`-`log4` statement selection.
+- Routed `IR.lean` event emission through `Lower.eventPlanForFields` so the
+  signature topic and final log statement are driven by `EventPlan`.
+- Kept compatibility wrappers for existing `IR.packedUtf8Words`,
+  `IR.eventSignatureTopicStatements`, `IR.eventIndexedTopicName`, and
+  `IR.eventLogBuiltinName` callers.
+- Extended `Tests/EvmSemanticPlan.lean` to assert the plan-to-Yul topic0 and
+  indexed log statement shapes.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/event-ir-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- Event data word evaluation and indexed aggregate hashing still use the
+  compatibility facade after `EventPlan` determines the event shape. Full
+  `EventPlan -> Yul` extraction remains a later slice.
+
+Next step:
+
+- Move event data-word and indexed aggregate topic assembly behind explicit
+  `EventPlan -> Yul` inputs, or migrate storage effect write values through
+  `ExprPlan -> ToYul`.
+
 ### EVM Scalar Event Field Plan-To-Yul Assembly Slice
 
 Commit: this commit

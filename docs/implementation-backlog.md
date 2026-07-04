@@ -297,6 +297,10 @@ Tasks:
     consume the same `ExprPlan -> ToYul` expression boundary. Aggregate event
     flattening and indexed aggregate topic hashing remain in the compatibility
     facade until event assembly is extracted behind `EventPlan -> Yul`.
+  - Started: event signature topic construction and final `log1`-`log4`
+    statement selection now consume `EventPlan -> ToYul` helpers. Event field
+    value evaluation still uses the compatibility facade until data-word and
+    indexed-topic expression assembly move fully behind `EventPlan -> Yul`.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

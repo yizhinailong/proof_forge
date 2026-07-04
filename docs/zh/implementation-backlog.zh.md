@@ -186,6 +186,7 @@
   - 已开始：直接标量赋值和复合赋值的 RHS 降级现在也会对受支持的标量表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。整聚合赋值、动态聚合 helper 快照以及 storage effect 写入仍留在现有兼容路径上，直到对应迁移切片补齐覆盖。
   - 已开始：标量 `ifElse` 条件和合成的 `boundedFor` 循环守卫现在也会消费同一个 `ExprPlan -> ToYul` 表达式边界。语句排序以及分支/循环 body 降级仍留在兼容外观中，直到 `StmtPlan -> Yul` assembly 被抽出。
   - 已开始：标量事件数据字和标量索引事件 topic 现在也会消费同一个 `ExprPlan -> ToYul` 表达式边界。聚合事件打平和索引聚合 topic 哈希仍留在兼容外观中，直到事件组装被抽到 `EventPlan -> Yul` 后面。
+  - 已开始：事件签名 topic 构造以及最终 `log1`-`log4` 语句选择现在会消费 `EventPlan -> ToYul` helper。事件字段值求值仍使用兼容外观，直到数据字和索引 topic 表达式组装完整移动到 `EventPlan -> Yul` 后面。
   - 为选择器分发、calldata 守卫、ABI 字打平、返回数据编码和制品元数据选择器布局添加 `EntrypointPlan`。
   - 为事件签名 topic、索引 topic 哈希、非索引数据打平以及制品元数据事件布局添加 `EventPlan`。
   - 为类型化的 `call`、带值的 `call`、`staticcall`、`delegatecall`、`create` 和 `create2` helper 添加 `CrosscallPlan`。

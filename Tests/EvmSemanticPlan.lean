@@ -89,6 +89,30 @@ def testEventSemanticPlan : IO Unit := do
   require (fields[0]!.name == "value") "event plan ValueEvent field name"
   require (fields[0]!.type == .u64) "event plan ValueEvent field type"
   require (fields[0]!.indexed == false) "event plan ValueEvent field not indexed"
+  let topicStmts := ProofForge.Backend.Evm.ToYul.eventSignatureTopicStatements valueEvent
+  require (topicStmts.size > 0) "event plan-to-yul topic statement count"
+  match topicStmts[topicStmts.size - 1]? with
+  | some (Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.builtin "keccak256" args))) => do
+      match vars[0]? with
+      | some var => require (var.name == "_topic0") "event plan-to-yul topic var name"
+      | none => throw <| IO.userError "event plan-to-yul missing topic var"
+      require (args.size == 2) "event plan-to-yul keccak arg count"
+  | _ => throw <| IO.userError "event plan-to-yul topic must end with keccak topic0"
+  let indexedEvent ← requireSome
+    (plan.events.find? (fun ev => ev.name == "IndexedValue"))
+    "event plan missing IndexedValue"
+  let logStmt ← requireOk
+    (ProofForge.Backend.Evm.ToYul.eventLogStatement toYulError indexedEvent 1)
+    "event plan-to-yul log statement"
+  match logStmt with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+      require (name == "log2") "event plan-to-yul indexed log builtin"
+      require (args.size == 4) "event plan-to-yul indexed log arg count"
+      match args[3]! with
+      | Lean.Compiler.Yul.Expr.ident topicName =>
+          require (topicName == "_indexed_topic0") "event plan-to-yul indexed topic arg"
+      | _ => throw <| IO.userError "event plan-to-yul indexed log topic must be identifier"
+  | _ => throw <| IO.userError "event plan-to-yul log must be expr statement"
 
 def testArtifactMetadata : IO Unit := do
   let artifactMeta ← requireOk (buildPlanArtifactMetadata ProofForge.IR.Examples.Counter.module) "counter artifact metadata"
