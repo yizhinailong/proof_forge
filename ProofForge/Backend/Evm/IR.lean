@@ -2204,43 +2204,17 @@ mutual
               message := "struct field access in IR EVM v0 supports local struct values, local struct-array values, nested local fixed-array struct leaves, or struct literals only"
             }
 
-  partial def lowerLocalAbiWordsAt
+  partial def localAbiStructFieldIds
       (module : Module)
-      (context name : String)
-      (path : Array Nat) : ValueType → Except LowerError (Array Lean.Compiler.Yul.Expr)
-    | .u32 | .u64 | .bool | .hash | .address =>
-        if path.isEmpty then
-          .ok #[Lean.Compiler.Yul.Expr.id name]
-        else
-          .ok #[Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path)]
-    | .unit =>
-        .error { message := s!"{context} uses Unit; IR EVM v0 ABI values must use U32, U64, Bool, Hash, Address, Bytes, String, fixed arrays, or structs" }
-    | .bytes | .string =>
-        -- Dynamic locals: return the data_ptr (memory pointer to length+data)
-        if path.isEmpty then
-          .ok #[Lean.Compiler.Yul.Expr.id (dynamicParamDataPtrName name)]
-        else
-          .error { message := s!"{context} dynamic type cannot be nested in fixed arrays" }
-    | .fixedArray elementType length => do
-        discard <| abiValueWordTypes module context (.fixedArray elementType length)
-        let mut words : Array Lean.Compiler.Yul.Expr := #[]
-        for _h : idx in [0:length] do
-          words := words ++ (← lowerLocalAbiWordsAt module context name (path.push idx) elementType)
-        .ok words
-    | .structType typeName => do
-        discard <| abiValueWordTypes module context (.structType typeName)
-        let some decl := findStruct? module typeName
-          | .error { message := s!"{context} uses unknown struct `{typeName}`" }
-        let mut words : Array Lean.Compiler.Yul.Expr := #[]
-        for fieldDecl in decl.fields do
-          ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-          let fieldName :=
-            if path.isEmpty then
-              structLocalFieldName name fieldDecl.id
-            else
-              arrayStructLocalPathFieldName name path fieldDecl.id
-          words := words.push (Lean.Compiler.Yul.Expr.id fieldName)
-        .ok words
+      (context typeName : String) : Except LowerError (Array String) := do
+    discard <| abiValueWordTypes module context (.structType typeName)
+    let some decl := findStruct? module typeName
+      | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+    let mut fieldIds : Array String := #[]
+    for fieldDecl in decl.fields do
+      ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+      fieldIds := fieldIds.push fieldDecl.id
+    .ok fieldIds
 
   partial def lowerLocalAbiWords
       (module : Module)
@@ -2250,7 +2224,13 @@ mutual
     let some binding := findLocal? env name
       | .error { message := s!"unknown local `{name}`" }
     ensureType context expectedType binding.type
-    lowerLocalAbiWordsAt module context name #[] expectedType
+    discard <| abiValueWordTypes module context expectedType
+    ProofForge.Backend.Evm.ToYul.localAbiWords
+      toYulError
+      (localAbiStructFieldIds module context)
+      context
+      name
+      expectedType
 
   partial def lowerLocalCrosscallWordsAt
       (module : Module)

@@ -69,6 +69,15 @@ def requireCallExpr
       require (args.size == expectedArgCount) s!"{label} arg count"
   | _ => throw <| IO.userError s!"{label} must lower to helper call"
 
+def requireIdentExpr
+    (expr : Lean.Compiler.Yul.Expr)
+    (expectedName : String)
+    (label : String) : IO Unit := do
+  match expr with
+  | Lean.Compiler.Yul.Expr.ident name =>
+      require (name == expectedName) s!"{label} local name"
+  | _ => throw <| IO.userError s!"{label} must lower to local identifier"
+
 def nativeTransferPlanProbe : Module := {
   name := "NativeTransferPlanProbe"
   state := #[]
@@ -994,6 +1003,64 @@ def testScalarExprPlanToYul : IO Unit := do
     "__proof_forge_local_array_get_nested_2_2"
     6
     "nested dynamic local-array ExprPlan-to-Yul integration"
+
+def testLocalAbiWordsToYul : IO Unit := do
+  let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
+    if typeName == "Point" then
+      .ok #["x", "y"]
+    else
+      .error { message := s!"unknown struct `{typeName}`" }
+  let directStructWords ← requireOk
+    (ProofForge.Backend.Evm.ToYul.localAbiWords
+      toYulError
+      simpleStructFields
+      "local ABI words"
+      "p"
+      (.structType "Point"))
+    "direct local ABI struct words ToYul"
+  require (directStructWords.size == 2) "direct local ABI struct words count"
+  requireIdentExpr directStructWords[0]! "__proof_forge_struct_p_x" "direct local ABI struct word 0"
+  requireIdentExpr directStructWords[1]! "__proof_forge_struct_p_y" "direct local ABI struct word 1"
+  let directArrayWords ← requireOk
+    (ProofForge.Backend.Evm.ToYul.localAbiWords
+      toYulError
+      simpleStructFields
+      "local ABI words"
+      "xs"
+      (.fixedArray .u64 2))
+    "direct local ABI fixed-array words ToYul"
+  require (directArrayWords.size == 2) "direct local ABI fixed-array words count"
+  requireIdentExpr directArrayWords[0]! "__proof_forge_array_xs_0" "direct local ABI fixed-array word 0"
+  requireIdentExpr directArrayWords[1]! "__proof_forge_array_xs_1" "direct local ABI fixed-array word 1"
+  let structEnv : TypeEnv := #[
+    { name := "p", type := .structType "Point", isMutable := false }
+  ]
+  let loweredStructWords ← requireOk
+    (lowerLocalAbiWords
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      "entrypoint `point` return value"
+      "p"
+      (.structType "Point"))
+    "compat local ABI struct words ToYul"
+  require (loweredStructWords.size == 2) "compat local ABI struct words count"
+  requireIdentExpr loweredStructWords[0]! "__proof_forge_struct_p_x" "compat local ABI struct word 0"
+  requireIdentExpr loweredStructWords[1]! "__proof_forge_struct_p_y" "compat local ABI struct word 1"
+  let arrayEnv : TypeEnv := #[
+    { name := "xs", type := .fixedArray .u64 3, isMutable := false }
+  ]
+  let loweredArrayWords ← requireOk
+    (lowerLocalAbiWords
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      arrayEnv
+      "entrypoint `array` return value"
+      "xs"
+      (.fixedArray .u64 3))
+    "compat local ABI fixed-array words ToYul"
+  require (loweredArrayWords.size == 3) "compat local ABI fixed-array words count"
+  requireIdentExpr loweredArrayWords[0]! "__proof_forge_array_xs_0" "compat local ABI fixed-array word 0"
+  requireIdentExpr loweredArrayWords[1]! "__proof_forge_array_xs_1" "compat local ABI fixed-array word 1"
+  requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "compat local ABI fixed-array word 2"
 
 def testAggregateAssignmentPlanToYul : IO Unit := do
   let fixedStmt :=
@@ -2499,6 +2566,7 @@ def main : IO UInt32 := do
   testEntrypointDispatchPlanToYul
   testSemanticPlanRender
   testScalarExprPlanToYul
+  testLocalAbiWordsToYul
   testAggregateAssignmentPlanToYul
   testScalarAssertPlanToYul
   testScalarReturnPlanToYul

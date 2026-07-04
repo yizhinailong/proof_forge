@@ -446,7 +446,11 @@ Tasks:
     return assignment now live behind `ToYul`. `IR.lean` still owns return type
     checks, ABI return-name lookup, and aggregate argument word expansion, but
     delegates aggregate helper-call function-name selection, argument ordering,
-    and final multi-return Yul assignment construction to `ToYul`.
+    and final multi-return Yul assignment construction to `ToYul`. Local
+    aggregate ABI word expansion for entrypoint returns and related
+    compatibility paths now delegates final local identifier/data-pointer word
+    construction to `ToYul.localAbiWords`; `IR.lean` still validates the source
+    local, expected type, and struct field eligibility before calling it.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

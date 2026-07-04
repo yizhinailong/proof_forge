@@ -782,6 +782,51 @@ def dynamicParamLengthName (name : String) : String :=
 def dynamicParamDataPtrName (name : String) : String :=
   ProofForge.Backend.Evm.Plan.dynamicParamDataPtrName name
 
+partial def localAbiWordsAt
+    {ε : Type}
+    (mkError : String → ε)
+    (structFieldIds : String → Except ε (Array String))
+    (context name : String)
+    (path : Array Nat) : ValueType → Except ε (Array Lean.Compiler.Yul.Expr)
+  | .u32 | .u64 | .bool | .hash | .address =>
+      if path.isEmpty then
+        .ok #[Lean.Compiler.Yul.Expr.id name]
+      else
+        .ok #[Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path)]
+  | .unit =>
+      .error (mkError s!"{context} uses Unit; IR EVM v0 ABI values must use U32, U64, Bool, Hash, Address, Bytes, String, fixed arrays, or structs")
+  | .bytes | .string =>
+      if path.isEmpty then
+        .ok #[Lean.Compiler.Yul.Expr.id (dynamicParamDataPtrName name)]
+      else
+        .error (mkError s!"{context} dynamic type cannot be nested in fixed arrays")
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error (mkError s!"{context} uses Array<{elementType.name},0>; IR EVM v0 ABI fixed arrays must have non-zero length")
+      let mut words : Array Lean.Compiler.Yul.Expr := #[]
+      for _h : idx in [0:length] do
+        words := words ++ (← localAbiWordsAt mkError structFieldIds context name (path.push idx) elementType)
+      .ok words
+  | .structType typeName => do
+      let fieldIds ← structFieldIds typeName
+      let mut words : Array Lean.Compiler.Yul.Expr := #[]
+      for fieldId in fieldIds do
+        let fieldName :=
+          if path.isEmpty then
+            structLocalFieldName name fieldId
+          else
+            arrayStructLocalPathFieldName name path fieldId
+        words := words.push (Lean.Compiler.Yul.Expr.id fieldName)
+      .ok words
+
+def localAbiWords
+    {ε : Type}
+    (mkError : String → ε)
+    (structFieldIds : String → Except ε (Array String))
+    (context name : String)
+    (type : ValueType) : Except ε (Array Lean.Compiler.Yul.Expr) :=
+  localAbiWordsAt mkError structFieldIds context name #[] type
+
 def abiParamsHeadWordCount (params : Array AbiParamPlan) : Nat :=
   params.foldl (fun acc param => acc + param.headWordCount) 0
 

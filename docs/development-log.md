@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Local ABI Words To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.localAbiWords` / `localAbiWordsAt` so local ABI word expansion
+  for scalar leaves, fixed arrays, structs, nested arrays, and dynamic
+  top-level `bytes`/`string` locals owns final Yul identifier/data-pointer
+  construction behind the plan-to-Yul boundary.
+- Routed `IR.lowerLocalAbiWords` through the new `ToYul` helper while keeping
+  local binding lookup, expected-type checks, ABI word validation, and struct
+  field eligibility checks in the compatibility facade.
+- Extended semantic-plan tests with direct `ToYul.localAbiWords` coverage and
+  compatibility facade coverage for local struct and fixed-array ABI return
+  words.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- Aggregate crosscall argument-word expansion and crosscall-specific local word
+  expansion still use the existing compatibility path.
+- Struct field metadata is still supplied by `IR.lean` until aggregate ABI word
+  planning carries field ids directly.
+
+Next step:
+
+- Move crosscall argument-word expansion or return word-layout discovery into
+  the semantic plan so aggregate crosscall lowering depends less on the
+  compatibility facade.
+
 ### EVM Aggregate Crosscall Return To-Yul Slice
 
 Commit: this commit
