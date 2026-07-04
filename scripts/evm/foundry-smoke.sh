@@ -284,6 +284,42 @@ contract ProofForgeSmokeTest {
         assertTrue(unknownOk);
         assertFalse(abi.decode(unknownResult, (bool)));
     }
+
+    function testAccessControlProbeLifecycle() public {
+        address probe = address(0xAC00);
+        address alice = address(0xA11CE);
+        address bob = address(0xB0B);
+        deployRuntime(hex"$(cat "$OUT_DIR/AccessControlProbe.bin")", probe);
+
+        vm.prank(alice);
+        (bool initOk,) = probe.call(abi.encodeWithSignature("init()"));
+        assertTrue(initOk);
+
+        (bool adminOk, bytes memory adminResult) =
+            probe.call(abi.encodeWithSignature("hasRole(uint256,address)", uint256(0), alice));
+        assertTrue(adminOk);
+        assertTrue(abi.decode(adminResult, (bool)));
+
+        vm.prank(alice);
+        (bool grantOk,) = probe.call(abi.encodeWithSignature("grantMinter(address)", bob));
+        assertTrue(grantOk);
+
+        (bool minterOk, bytes memory minterResult) =
+            probe.call(abi.encodeWithSignature("hasRole(uint256,address)", uint256(1), bob));
+        assertTrue(minterOk);
+        assertTrue(abi.decode(minterResult, (bool)));
+
+        vm.prank(bob);
+        (bool touchOk,) = probe.call(abi.encodeWithSignature("touch()"));
+        assertTrue(touchOk);
+
+        (, bytes memory touchesResult) = probe.call(abi.encodeWithSignature("getTouches()"));
+        assertEq(abi.decode(touchesResult, (uint256)), 1);
+
+        vm.prank(alice);
+        (bool noRoleOk,) = probe.call(abi.encodeWithSignature("touch()"));
+        assertFalse(noRoleOk);
+    }
 }
 SOL
 
