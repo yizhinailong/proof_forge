@@ -2548,6 +2548,24 @@ target id, capability id, operation name, and source marker; `just
 contract-source-diagnostics` locks the CLI behavior with a negative
 `contract_source` fixture.
 
+Current CS-1.3/CS-5.1 slice: ValueVault now has an application-facing shared
+`contract_source` module at `Examples/Shared/ValueVault.lean`. `just
+portable-value-vault` builds that same `.lean` file for the three primary
+targets: EVM bytecode/Yul/metadata, Solana sBPF assembly plus manifest/IDL/TS
+client metadata, and NEAR/Wasm WAT plus deploy metadata. The legacy
+`Examples/Learn/ValueVault.learn` file remains an equivalence fixture, not the
+recommended product authoring path.
+
+Current CS-1.4 slice: `Tests/SharedContractSource.lean` now loads
+`Examples/Shared/Counter.lean` and `Examples/Shared/ValueVault.lean` through
+the product `contract_source` loader, compares their lowered IR modules against
+the canonical `ProofForge.Contract.Examples.*` specs, and compares the paired
+legacy `.learn` fixtures against those same shared modules. ValueVault also
+compares the Solana package manifest rendered from the shared `.lean` source
+against the manifest rendered from the legacy `.learn` fixture, so the
+equivalence gate covers portable state, entrypoints, events, and package-facing
+metadata for the current shared scenario.
+
 ### Phase CS-2 — EVM stdlib in `contract_source`
 
 Focus: replace Builder-string stdlib with importable `contract_source` modules.

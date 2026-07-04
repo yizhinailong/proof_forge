@@ -20,6 +20,10 @@ contract-spec-json:
 contract-client:
     lake env lean --run Tests/ContractClient.lean
 
+# Check that shared contract_source examples match their legacy Learn fixtures.
+shared-contract-source:
+    lake env lean --run Tests/SharedContractSource.lean
+
 # Run the CosmWasm Counter WAT emission smoke through wat2wasm and cosmwasm-check.
 cosmwasm-counter-smoke:
     scripts/cosmwasm/counter-smoke.sh
@@ -75,6 +79,7 @@ solana-lean:
     lake env lean --run Tests/SolanaComputeBudgetInstruction.lean
     lake env lean --run Tests/SolanaPdaSeeds.lean
     lake env lean --run Tests/LearnSource.lean
+    lake env lean --run Tests/SharedContractSource.lean
     lake env lean --run Tests/LearnDiagnostics.lean
     lake env lean --run Tests/TargetRouting.lean
     lake env lean --run Tests/ValueVaultExample.lean

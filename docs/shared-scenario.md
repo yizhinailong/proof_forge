@@ -1,16 +1,20 @@
-# Shared Contract Scenario: Counter
+# Shared Contract Scenarios: Counter and ValueVault
 
 Status: **Draft spec (Phase 1–2)**
 
 The Counter scenario is the first cross-target acceptance test. It exercises
 portable scalar state without chain-specific account models in the Lean business
-core.
+core. ValueVault is the next shared scenario: it exercises multiple scalar
+state fields, arithmetic, event emission, and block-context reads while still
+keeping the application source chain-neutral.
 
 Related: [Portable IR](portable-ir.md),
 [Capability registry](capability-registry.md),
 [Decisions](decisions.md).
 
 ## Scenario Definition
+
+### Counter
 
 A contract maintains a single unsigned 64-bit counter.
 
@@ -23,11 +27,32 @@ A contract maintains a single unsigned 64-bit counter.
 No native token transfer, no cross-contract calls, no events required for v0
 (optional `events.emit` in v1).
 
+### ValueVault
+
+A contract tracks deposits, releases, accumulated fees, the last value seen,
+the last checkpoint, and an operation counter.
+
+| Operation | Behavior |
+|---|---|
+| `initialize(initial)` | Set the starting balance and checkpoint |
+| `deposit(amount)` | Add `amount` to balance and emit `ValueDeposited` |
+| `charge_fee(gross, fee_bps)` | Split gross value into fee/net, add net to balance, accumulate fees, and emit `ValueCharged` |
+| `release(amount)` | Subtract `amount` from balance, add it to released value, and emit `ValueReleased` |
+| `snapshot` | Read the target block/checkpoint context, update `last_checkpoint`, emit `ValueSnapshot`, and return balance |
+| `get_balance` | Return balance |
+| `get_net_value` | Return `balance - fees` |
+
+No operation embeds EVM, Solana, or NEAR-specific APIs in the application
+module. Target-specific selectors, Solana instruction tags, WAT exports,
+metadata, manifests, IDL, and clients are adapter outputs.
+
 ## Required Capabilities
 
 | Capability id | Used by |
 |---|---|
-| `storage.scalar` | all operations |
+| `storage.scalar` | Counter and ValueVault state operations |
+| `events.emit` | ValueVault lifecycle events |
+| `env.block` | ValueVault checkpoint reads |
 | `caller.sender` | optional access control in v1 |
 
 ## Target-Specific Adaptation
@@ -71,6 +96,10 @@ Phase 2 is complete when **both** parallel spikes pass independently:
 
 - [x] Same `contract_source` module lowers to EVM + Solana + NEAR (see
       `Examples/Shared/Counter.lean` and `just portable-counter-multi-target`).
+- [x] ValueVault lowers from one `contract_source` module to EVM + Solana +
+      NEAR, including EVM metadata, Solana manifest/IDL/client metadata, and
+      NEAR WAT/deploy metadata (see `Examples/Shared/ValueVault.lean` and
+      `just portable-value-vault`).
 - [ ] Document lists capabilities supported per target for this scenario.
 
 ## Multi-target authoring demo (CS-1.5)
@@ -102,6 +131,20 @@ lake env proof-forge build --target wasm-near --root . \
 
 Chain choice is entirely build-time; the Lean module does not fork per target.
 
+The canonical portable ValueVault follows the same pattern:
+
+[`Examples/Shared/ValueVault.lean`](../Examples/Shared/ValueVault.lean)
+
+Build and validate the same file across the three primary targets:
+
+```bash
+just portable-value-vault
+```
+
+The legacy `Examples/Learn/ValueVault.learn` fixture is retained for parser
+equivalence coverage. It is not the recommended authoring path for new
+contracts.
+
 ## ZK Target Experimental Criteria
 
 `psy-dpn` is not part of Phase 2 exit criteria, but it now reuses the Counter
@@ -118,7 +161,7 @@ scenario through generated `.psy` source and Dargo validation.
 
 | Target | Path | Status |
 |---|---|---|
-| **All primary chains** | `Examples/Shared/Counter.lean` (`contract_source`) | **In repo** — `just portable-counter-multi-target` |
+| **All primary chains** | `Examples/Shared/Counter.lean`, `Examples/Shared/ValueVault.lean` (`contract_source`) | **In repo** — `just portable-counter-multi-target`, `just portable-value-vault` |
 | EVM | `Examples/Evm/Contracts/Counter.lean` | **In repo** (EVM examples tree) |
 | CosmWasm | `Examples/CosmWasm/Counter.lean` | Planned, not in repo |
 | Solana | `Examples/Solana/Counter.lean` + manifest | **In repo** (IR fixture reference) |

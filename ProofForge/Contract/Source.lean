@@ -34,6 +34,9 @@ instance : ToExpr ProofForge.Contract.Surface.BindingRef where
 instance : ToExpr ProofForge.Contract.Surface.ScalarRef where
   toExpr slot := ProofForge.Contract.Surface.read slot
 
+instance : ToExpr Nat where
+  toExpr value := u64 value
+
 def expr [ToExpr α] (value : α) : ProofForge.IR.Expr :=
   ToExpr.toExpr value
 
@@ -59,6 +62,12 @@ def mulValue [ToExpr α] [ToExpr β] (lhs : α) (rhs : β) : ProofForge.IR.Expr 
 
 def divValue [ToExpr α] [ToExpr β] (lhs : α) (rhs : β) : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.div (expr lhs) (expr rhs)
+
+def u64Array3 [ToExpr α] [ToExpr β] [ToExpr γ] (a : α) (b : β) (c : γ) : ProofForge.IR.Expr :=
+  .arrayLit .u64 #[expr a, expr b, expr c]
+
+def arrayGet [ToExpr α] [ToExpr β] (arr : α) (index : β) : ProofForge.IR.Expr :=
+  .arrayGet (expr arr) (expr index)
 
 scoped infixl:65 " +! " => addValue
 scoped infixl:65 " -! " => subValue
@@ -117,6 +126,10 @@ scoped syntax "cpi " ident " spl_token_close_account" "(" ident ", " ident ", " 
 scoped syntax "cpi " ident " spl_token_set_authority" "(" ident ", " ident ", " ident ")" " authority_type" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" : contractItem
 scoped syntax "use " term : contractItem
+scoped syntax "constructor_param " ident " : " term ";" : contractItem
+scoped syntax "constructor_param " ident " : " "cstring" ";" : contractItem
+scoped syntax "constructor_param " ident " : " "cbytes" ";" : contractItem
+scoped syntax "constructor_param " ident " : " "u256array" ";" : contractItem
 scoped syntax "entry " ident " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ")" " do" ppLine entryStmt* : contractItem
@@ -140,6 +153,15 @@ scoped syntax "invoke " ident " spl_token_set_authority" "(" ident ", " ident ",
   " signer_seeds " "[" solanaSignerSeed,* "]" ";" : entryStmt
 scoped syntax "realloc " ident " to " term ";" : entryStmt
 scoped syntax "do " term ";" : entryStmt
+scoped syntax "accepts_callvalue;" : entryStmt
+scoped syntax "sendto " ident ident ";" : entryStmt
+scoped syntax "guard_owner " ident ";" : entryStmt
+scoped syntax "guard_not_paused " ident ";" : entryStmt
+scoped syntax "guard_paused " ident ";" : entryStmt
+scoped syntax "guard_unlocked " ident ";" : entryStmt
+scoped syntax "acquire_lock " ident ";" : entryStmt
+scoped syntax "release_lock " ident ";" : entryStmt
+scoped syntax "fixedu64x3 " ident "(" term ", " term ", " term ")" ";" : entryStmt
 
 scoped syntax "literal_seed " str : solanaSeed
 scoped syntax "account_seed " ident : solanaSeed
@@ -301,6 +323,28 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
           `(ProofForge.Solana.Surface.reallocAccount $accountRef $newSize *> $acc)
     | `(entryStmt| do $action:term;) =>
         acc ← `($action *> $acc)
+    | `(entryStmt| accepts_callvalue;) =>
+        acc ← `(ProofForge.Contract.Surface.markPayable *> $acc)
+    | `(entryStmt| sendto $recipient:ident $amount:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.nativeTransfer (ProofForge.Contract.Source.expr $recipient) (ProofForge.Contract.Source.expr $amount) *> $acc)
+    | `(entryStmt| guard_owner $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.requireOwner $slot *> $acc)
+    | `(entryStmt| guard_not_paused $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.requireNotPaused $slot *> $acc)
+    | `(entryStmt| guard_paused $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.requirePaused $slot *> $acc)
+    | `(entryStmt| guard_unlocked $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.requireUnlocked $slot *> $acc)
+    | `(entryStmt| acquire_lock $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.acquireLock $slot *> $acc)
+    | `(entryStmt| release_lock $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.releaseLock $slot *> $acc)
+    | `(entryStmt| fixedu64x3 $name:ident ($a:term, $b:term, $c:term);) =>
+        let nameLit := identNameLit name
+        acc ←
+          `(let $name : ProofForge.Contract.Surface.BindingRef :=
+              ProofForge.Contract.Surface.binding $nameLit (.fixedArray .u64 3)
+            ProofForge.Contract.Source.bindValue $name (ProofForge.Contract.Source.u64Array3 $a $b $c) *> $acc)
     | _ =>
         Macro.throwError s!"unsupported contract source statement: {stmt.raw}"
   return acc
@@ -351,6 +395,32 @@ private structure LoweredItem where
 
 private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
   match item with
+  | `(contractItem| constructor_param $name:ident : "cstring";) =>
+      let nameLit := identNameLit name
+      let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "string")
+      return { action? := some action }
+  | `(contractItem| constructor_param $name:ident : "cbytes";) =>
+      let nameLit := identNameLit name
+      let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "bytes")
+      return { action? := some action }
+  | `(contractItem| constructor_param $name:ident : "u256array";) =>
+      let nameLit := identNameLit name
+      let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "uint256[]")
+      return { action? := some action }
+  | `(contractItem| constructor_param $name:ident : $type:term;) =>
+      let nameLit := identNameLit name
+      match type with
+      | `(.u64) =>
+          let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "uint256")
+          return { action? := some action }
+      | `(.u32) =>
+          let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "uint32")
+          return { action? := some action }
+      | `(.bool) =>
+          let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "bool")
+          return { action? := some action }
+      | _ =>
+          Macro.throwError s!"unsupported constructor_param type: {type.raw}"
   | `(contractItem| state $name:ident : $type:term) =>
       let action ← `(ProofForge.Contract.Surface.scalar $name)
       return { action? := some action, binder := mkStateLet name type }
@@ -503,5 +573,7 @@ def caller : ProofForge.IR.Expr :=
 
 def nativeValue : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.nativeValue
+
+macro "array_get " arr:ident idx:term : term => `(ProofForge.Contract.Source.arrayGet $arr $idx)
 
 end ProofForge.Contract.Source

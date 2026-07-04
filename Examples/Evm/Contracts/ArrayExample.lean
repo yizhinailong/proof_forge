@@ -5,37 +5,24 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Portable ArrayExample for the unified EVM entry path.
 
 Demonstrates local fixed-array literals, element access, and reductions
-without the legacy Lean.Evm SDK.
+in `contract_source` syntax.
 -/
-import ProofForge.Contract.Builder
+import ProofForge.Contract.Source
 
 namespace ArrayExample
 
-open ProofForge.Contract.Builder
-open ProofForge.IR
+open ProofForge.Contract.Source
 
-def sampleArray : Expr :=
-  .arrayLit .u64 #[u64 10, u64 20, u64 30]
+contract_source ArrayExample do
+  query sizeOf3 returns(.u64) do
+    return u64 3;
 
-def spec : ProofForge.Contract.ContractSpec :=
-  build "ArrayExample" do
-    entryReturns "sizeOf3" .u64 do
-      letBind "xs" (.fixedArray .u64 3) sampleArray
-      ret (u64 3)
+  query getElem returns(.u64) do
+    fixedu64x3 xs (10, 20, 30);
+    return array_get xs (u64 1);
 
-    entryReturns "getElem" .u64 do
-      letBind "xs" (.fixedArray .u64 3) sampleArray
-      ret (.arrayGet (.local "xs") (u64 1))
-
-    entryReturns "sumOf3" .u64 do
-      letBind "xs" (.fixedArray .u64 3) sampleArray
-      ret (
-        .add
-          (.add (.arrayGet (.local "xs") (u64 0)) (.arrayGet (.local "xs") (u64 1)))
-          (.arrayGet (.local "xs") (u64 2))
-      )
-
-def module : ProofForge.IR.Module :=
-  spec.module
+  query sumOf3 returns(.u64) do
+    fixedu64x3 xs (10, 20, 30);
+    return (array_get xs (u64 0)) +! (array_get xs (u64 1)) +! (array_get xs (u64 2));
 
 end ArrayExample

@@ -20,9 +20,6 @@ object "ArrayExample" {
       revert(0, 0)
     }
     function f_ArrayExample_sizeOf3() -> result {
-      let __proof_forge_array_xs_0 := 10
-      let __proof_forge_array_xs_1 := 20
-      let __proof_forge_array_xs_2 := 30
       result := 3
     }
     function f_ArrayExample_getElem() -> result {

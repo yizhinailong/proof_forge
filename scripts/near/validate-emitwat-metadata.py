@@ -76,6 +76,7 @@ def main() -> int:
     parser.add_argument("--expected-fixture", required=True)
     parser.add_argument("--expected-module", required=True)
     parser.add_argument("--expected-entrypoints", required=True, help="comma-separated entrypoint names")
+    parser.add_argument("--expected-source-kind", default="portable-ir")
     args = parser.parse_args()
 
     metadata_path = Path(args.metadata)
@@ -86,8 +87,11 @@ def main() -> int:
     expect(metadata.get("targetFamily") == "wasmHost", "targetFamily must be wasmHost")
     expect(metadata.get("artifactKind") == "wasm", "artifactKind must be wasm")
     expect(metadata.get("fixture") == args.expected_fixture, "fixture mismatch")
-    expect(metadata.get("sourceKind") == "portable-ir", "sourceKind must be portable-ir")
-    expect(metadata.get("irVersion") == "portable-ir-v0", "irVersion must be portable-ir-v0")
+    expect(metadata.get("sourceKind") == args.expected_source_kind, "sourceKind mismatch")
+    if args.expected_source_kind == "portable-ir":
+        expect(metadata.get("irVersion") == "portable-ir-v0", "irVersion must be portable-ir-v0")
+    else:
+        expect(metadata.get("irVersion") is None, "irVersion must be null for non-IR sources")
     expect(metadata.get("sourceModule") == args.expected_module, "sourceModule mismatch")
     expect_list(metadata.get("capabilities"), "capabilities")
     expect(entrypoint_names(metadata) == args.expected_entrypoints.split(","), "entrypoint list mismatch")
@@ -109,6 +113,11 @@ def main() -> int:
     expect(deploy_manifest.get("kind") == "proof-forge-wasm-near-deploy-manifest", "deploy kind mismatch")
     expect(deploy_manifest.get("target") == "wasm-near", "deploy target must be wasm-near")
     expect(deploy_manifest.get("fixture") == args.expected_fixture, "deploy fixture mismatch")
+    expect(deploy_manifest.get("sourceKind") == args.expected_source_kind, "deploy sourceKind mismatch")
+    if args.expected_source_kind == "portable-ir":
+        expect(deploy_manifest.get("irVersion") == "portable-ir-v0", "deploy irVersion must be portable-ir-v0")
+    else:
+        expect(deploy_manifest.get("irVersion") is None, "deploy irVersion must be null for non-IR sources")
     expect(deploy_manifest.get("sourceModule") == args.expected_module, "deploy sourceModule mismatch")
     expect(entrypoint_names(deploy_manifest) == args.expected_entrypoints.split(","), "deploy entrypoint list mismatch")
     deploy_artifacts = expect_object(deploy_manifest.get("artifacts"), "deploy artifacts")

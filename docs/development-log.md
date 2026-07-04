@@ -17,6 +17,75 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Shared Contract Source Equivalence Gate
+
+Commit: this commit
+
+Summary:
+
+- Added `Tests/SharedContractSource.lean` to compare the product-facing shared
+  `.lean contract_source` examples against their canonical `ContractSpec`
+  modules and paired legacy `.learn` fixtures.
+- Covered both Counter and ValueVault module equivalence. ValueVault also
+  checks that the Solana package manifest rendered from shared `.lean` source
+  matches the manifest rendered from the legacy `.learn` fixture.
+- Added `just shared-contract-source` and wired the gate into `just
+  solana-lean`, so the default CI-safe Solana/authoring path now protects this
+  shared-source boundary.
+
+Validation run:
+
+```sh
+just shared-contract-source
+```
+
+Known limitations:
+
+- This gate compares the current shared Counter/ValueVault portable surface; it
+  does not yet prove equivalence for future Token-2022 or richer account/PDA
+  authoring extensions.
+
+Next step:
+
+- Continue CS-1/CS-5 by making the unified testkit consume the shared
+  `contract_source` files directly for all three primary targets.
+
+### Shared ValueVault Contract Source Multi-Target Smoke
+
+Commit: this commit
+
+Summary:
+
+- Added `Examples/Shared/ValueVault.lean` as the application-facing
+  chain-neutral ValueVault `contract_source` module.
+- Switched `scripts/portable/value-vault-smoke.sh` from the legacy
+  `Examples/Learn/ValueVault.learn` fixture to the shared `.lean` source.
+- The smoke now builds the same source file for EVM, Solana sBPF, and
+  NEAR/Wasm. Solana contract_source builds now emit IDL and TS client files
+  alongside assembly, manifest, and metadata.
+- NEAR EmitWat metadata now records `sourceKind: contract-sdk` for
+  contract_source builds while preserving `portable-ir` for direct IR fixtures.
+
+Validation run:
+
+```sh
+lake env lean Examples/Shared/ValueVault.lean
+lake build proof-forge
+scripts/portable/value-vault-smoke.sh
+```
+
+Known limitations:
+
+- Solana ELF assembly/linking remains optional through
+  `PROOF_FORGE_VALUE_VAULT_ELF=1`.
+- The legacy `.learn` ValueVault source remains useful for parser equivalence,
+  but it is no longer the product-facing smoke input.
+
+Next step:
+
+- Extend the unified testkit and docs so contract_source-authored Counter and
+  ValueVault are the default examples for Solana, EVM, and NEAR review.
+
 ### FV-8 ValueVault IR Invariant Anchor
 
 Commit: this commit

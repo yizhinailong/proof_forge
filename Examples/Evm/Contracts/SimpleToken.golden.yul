@@ -37,10 +37,10 @@ object "SimpleToken" {
       revert(0, 0)
     }
     function f_SimpleToken_init(supply) {
-      let owner := caller()
-      sstore(0, owner)
+      sstore(0, caller())
       sstore(1, supply)
-      __proof_forge_map_write(2, owner, supply)
+      let who := caller()
+      __proof_forge_map_write(2, who, supply)
     }
     function f_SimpleToken_getOwner() -> result {
       result := sload(0)
@@ -51,16 +51,15 @@ object "SimpleToken" {
     function f_SimpleToken_balanceOf(addr) -> result {
       result := sload(__proof_forge_map_slot(2, addr))
     }
-    function f_SimpleToken_transfer(to, amount) {
+    function f_SimpleToken_transfer(recipient, amount) {
       let sender := caller()
       let bal := sload(__proof_forge_map_slot(2, sender))
       if iszero(iszero(lt(bal, amount))) {
         revert(0, 0)
       }
-      let newBal := __pf_checked_sub(bal, amount)
-      __proof_forge_map_write(2, sender, newBal)
-      let recvBal := sload(__proof_forge_map_slot(2, to))
-      __proof_forge_map_write(2, to, __pf_checked_add(recvBal, amount))
+      __proof_forge_map_write(2, sender, __pf_checked_sub(bal, amount))
+      let recvBal := sload(__proof_forge_map_slot(2, recipient))
+      __proof_forge_map_write(2, recipient, __pf_checked_add(recvBal, amount))
     }
     function __proof_forge_map_slot(slot, key) -> result {
       mstore(0, key)
