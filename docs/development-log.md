@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Local Crosscall Arg Plan Slice
+
+Commit: this commit
+
+Summary:
+
+- Extended `Lower.buildExprPlan` so local aggregate typed/value/static/delegate
+  crosscall arguments are represented as `ExprPlan.localCrosscallWords`
+  instead of opaque aggregate expressions.
+- Updated `IR.lowerExprPlanExpr` to consume `ExprPlan.localCrosscallWords` by
+  expanding it through `ToYul.localCrosscallWords` before selecting the scalar
+  crosscall helper-call arity.
+- Added semantic-plan coverage proving a local `Point` struct crosscall
+  argument becomes a `localCrosscallWords` plan node and lowers to the
+  two-word `__proof_forge_crosscall_2` helper call.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/crosscall-ir-smoke.sh
+```
+
+Known limitations:
+
+- Struct literal, array literal, and storage-backed aggregate crosscall
+  argument sources still lower through the compatibility facade.
+- `ToYul.exprPlanExpr` remains scalar-only for word-expansion nodes; the
+  compatibility plan consumer expands local crosscall words before calling the
+  existing helper-call constructor.
+
+Next step:
+
+- Introduce semantic-plan nodes for non-local aggregate crosscall argument
+  sources, or move aggregate crosscall return word-layout discovery out of
+  `IR.lean`.
+
 ### EVM Local Crosscall Words To-Yul Slice
 
 Commit: this commit

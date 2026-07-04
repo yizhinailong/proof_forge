@@ -2641,16 +2641,64 @@ mutual
     | _ =>
         .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
 
+  partial def crosscallPlanArgContext :
+      ProofForge.Backend.Evm.Plan.CrosscallMode → String
+    | .call => "typed crosscall argument"
+    | .callValue => "value crosscall argument"
+    | .staticcall => "static crosscall argument"
+    | .delegatecall => "delegate crosscall argument"
+
+  partial def lowerCrosscallArgWordPlanExprs
+      (module : Module)
+      (env : TypeEnv)
+      (context : String)
+      (plans : Array ProofForge.Backend.Evm.Plan.ExprPlan) :
+      Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+    let mut words : Array Lean.Compiler.Yul.Expr := #[]
+    for plan in plans do
+      match plan with
+      | .localCrosscallWords name type => do
+          words := words ++ (← ProofForge.Backend.Evm.ToYul.localCrosscallWords
+            toYulError
+            (localCrosscallStructFieldIds module context)
+            context
+            name
+            type)
+      | _ =>
+          words := words.push (← lowerExprPlanExpr module env plan)
+    .ok words
+
   partial def lowerExprPlanExpr
       (module : Module)
       (env : TypeEnv)
       (plan : ProofForge.Backend.Evm.Plan.ExprPlan) :
-      Except LowerError Lean.Compiler.Yul.Expr :=
-    ProofForge.Backend.Evm.ToYul.exprPlanExpr
-      toYulError
-      (fun expr => lowerExpr module env expr)
-      (lowerPlanEffectExpr module env)
-      plan
+      Except LowerError Lean.Compiler.Yul.Expr := do
+    match plan with
+    | .crosscall mode target methodId callValue? args returnType => do
+        let targetExpr ← lowerExprPlanExpr module env target
+        let methodIdExpr ← lowerExprPlanExpr module env methodId
+        let callValueExpr? ← callValue?.mapM (lowerExprPlanExpr module env)
+        let argWords ← lowerCrosscallArgWordPlanExprs module env (crosscallPlanArgContext mode) args
+        let plainTransfer :=
+          mode == .callValue && argWords.isEmpty &&
+            match methodId with
+            | .literalWord 0 => true
+            | _ => false
+        ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
+          toYulError
+          mode
+          targetExpr
+          methodIdExpr
+          callValueExpr?
+          argWords
+          returnType
+          plainTransfer
+    | _ =>
+        ProofForge.Backend.Evm.ToYul.exprPlanExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          plan
 end
 
 partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool

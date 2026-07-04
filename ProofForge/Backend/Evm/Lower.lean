@@ -123,6 +123,35 @@ mutual
     | none =>
         .ok none
 
+  partial def buildCrosscallArgWordPlans
+      (module : Module)
+      (env : TypeEnv)
+      (context : String)
+      (arg : Expr) : Except LowerError (Array ExprPlan) := do
+    let type ← inferExprType module env arg
+    discard <| crosscallArgWordTypes module context type
+    match type with
+    | .u32 | .u64 | .bool | .hash | .address =>
+        .ok #[← buildExprPlan module env arg]
+    | .fixedArray _ _ | .structType _ =>
+        match arg with
+        | .local name =>
+            .ok #[.localCrosscallWords name type]
+        | _ =>
+            .ok #[← buildExprPlan module env arg]
+    | .unit | .bytes | .string =>
+        .error { message := s!"{context} uses Unit; IR EVM v0 crosscall arguments must use U32, U64, Bool, Hash, fixed arrays, or structs" }
+
+  partial def buildCrosscallArgWordPlansMany
+      (module : Module)
+      (env : TypeEnv)
+      (context : String)
+      (args : Array Expr) : Except LowerError (Array ExprPlan) := do
+    let mut plans : Array ExprPlan := #[]
+    for arg in args do
+      plans := plans ++ (← buildCrosscallArgWordPlans module env context arg)
+    .ok plans
+
   partial def buildExprPlan (module : Module) (env : TypeEnv) : Expr → Except LowerError ExprPlan
     | .literal value => literalPlan value
     | .local name => .ok (.local name)
@@ -206,28 +235,28 @@ mutual
           (← buildExprPlan module env target)
           (← buildExprPlan module env methodId)
           none
-          (← args.mapM (buildExprPlan module env))
+          (← buildCrosscallArgWordPlansMany module env "typed crosscall argument" args)
           returnType)
     | .crosscallInvokeValueTyped target methodId callValue args returnType => do
         .ok (.crosscall .callValue
           (← buildExprPlan module env target)
           (← buildExprPlan module env methodId)
           (some (← buildExprPlan module env callValue))
-          (← args.mapM (buildExprPlan module env))
+          (← buildCrosscallArgWordPlansMany module env "value crosscall argument" args)
           returnType)
     | .crosscallInvokeStaticTyped target methodId args returnType => do
         .ok (.crosscall .staticcall
           (← buildExprPlan module env target)
           (← buildExprPlan module env methodId)
           none
-          (← args.mapM (buildExprPlan module env))
+          (← buildCrosscallArgWordPlansMany module env "static crosscall argument" args)
           returnType)
     | .crosscallInvokeDelegateTyped target methodId args returnType => do
         .ok (.crosscall .delegatecall
           (← buildExprPlan module env target)
           (← buildExprPlan module env methodId)
           none
-          (← args.mapM (buildExprPlan module env))
+          (← buildCrosscallArgWordPlansMany module env "delegate crosscall argument" args)
           returnType)
     | .crosscallCreate callValue initCodeHex => do
         .ok (.create .create (← buildExprPlan module env callValue) none initCodeHex)

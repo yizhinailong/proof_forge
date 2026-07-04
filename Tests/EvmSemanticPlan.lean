@@ -745,6 +745,41 @@ def testScalarExprPlanToYul : IO Unit := do
     "__proof_forge_crosscall_1_u32"
     3
     "scalar crosscall ExprPlan-to-Yul"
+  let aggregateArgEnv : TypeEnv := #[
+    { name := "target", type := .u64, isMutable := false },
+    { name := "p", type := .structType "Point", isMutable := false }
+  ]
+  let aggregateArgPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv aggregateArgEnv)
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[.local "p"]
+        .u64))
+    "local aggregate crosscall argument Lower ExprPlan"
+  match aggregateArgPlan with
+  | .crosscall .call _ _ none args .u64 => do
+      require (args.size == 1) "local aggregate crosscall argument plan word group count"
+      let argPlan ← requireAt args 0 "local aggregate crosscall argument missing plan"
+      match argPlan with
+      | .localCrosscallWords name type => do
+          require (name == "p") "local aggregate crosscall argument plan local name"
+          require (type == .structType "Point") "local aggregate crosscall argument plan type"
+      | _ => throw <| IO.userError "local aggregate crosscall argument must use localCrosscallWords plan"
+  | _ => throw <| IO.userError "local aggregate crosscall argument must lower to call plan"
+  let aggregateArgPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      aggregateArgEnv
+      aggregateArgPlan)
+    "local aggregate crosscall argument ExprPlan-to-Yul"
+  requireCallExpr
+    aggregateArgPlanExpr
+    "__proof_forge_crosscall_2"
+    4
+    "local aggregate crosscall argument ExprPlan-to-Yul"
   let nativeTransferPlanExpr ← requireOk
     (lowerExprPlanExpr
       ProofForge.IR.Examples.Counter.module
