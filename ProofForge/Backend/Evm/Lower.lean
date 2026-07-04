@@ -503,6 +503,369 @@ def buildEventPlans (module : Module) : Except LowerError (Array EventPlan) := d
     collector ← collectEventPlansFromStatements module (entrypointTypeEnv entrypoint) collector entrypoint.body
   .ok collector.plans
 
+/-! ## Helper plan discovery -/
+
+def plainValueTransferMethodId? : Expr → Bool
+  | .literal (.u64 0) => true
+  | _ => false
+
+def plainValueTransferCall? (methodId : Expr) (args : Array Expr) : Bool :=
+  plainValueTransferMethodId? methodId && args.isEmpty
+
+def pushCrosscallHelperSpecIfMissing
+    (acc : Array CrosscallHelperSpec)
+    (value : CrosscallHelperSpec) : Array CrosscallHelperSpec :=
+  if acc.any (fun existing => existing == value) then acc else acc.push value
+
+def mergeCrosscallHelperSpecs
+    (lhs rhs : Array CrosscallHelperSpec) : Array CrosscallHelperSpec :=
+  rhs.foldl pushCrosscallHelperSpecIfMissing lhs
+
+def crosscallArgWordCountForExpr
+    (module : Module)
+    (env : TypeEnv)
+    (context : String)
+    (arg : Expr) : Except LowerError Nat := do
+  let type ← inferExprType module env arg
+  let words ← crosscallArgWordTypes module context type
+  .ok words.size
+
+def crosscallArgWordCountForArgs
+    (module : Module)
+    (env : TypeEnv)
+    (context : String)
+    (args : Array Expr) : Except LowerError Nat := do
+  let mut count := 0
+  for arg in args do
+    count := count + (← crosscallArgWordCountForExpr module env context arg)
+  .ok count
+
+def crosscallHelperSpec
+    (module : Module)
+    (context : String)
+    (arity : Nat)
+    (returnType : ValueType)
+    (mode : CrosscallMode)
+    (plainTransfer : Bool := false) : Except LowerError CrosscallHelperSpec := do
+  let wordTypes ← crosscallReturnWordTypes module context returnType
+  .ok { arity, returnType, wordTypes, mode, plainTransfer }
+
+mutual
+  partial def crosscallHelperSpecsFromExpr
+      (module : Module)
+      (env : TypeEnv) : Expr → Except LowerError (Array CrosscallHelperSpec)
+    | .literal _ | .local _ | .nativeValue => .ok #[]
+    | .arrayLit _ values =>
+        values.foldlM (init := #[]) fun acc value => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsFromExpr module env value))
+    | .arrayGet array index => do
+        let arraySpecs ← crosscallHelperSpecsFromExpr module env array
+        let indexSpecs ← crosscallHelperSpecsFromExpr module env index
+        .ok (mergeCrosscallHelperSpecs arraySpecs indexSpecs)
+    | .structLit _ fields =>
+        fields.foldlM (init := #[]) fun acc field => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsFromExpr module env field.snd))
+    | .field base _ =>
+        crosscallHelperSpecsFromExpr module env base
+    | .add lhs rhs | .sub lhs rhs | .mul lhs rhs | .div lhs rhs | .mod lhs rhs
+    | .pow lhs rhs | .bitAnd lhs rhs | .bitOr lhs rhs | .bitXor lhs rhs
+    | .shiftLeft lhs rhs | .shiftRight lhs rhs | .eq lhs rhs | .ne lhs rhs
+    | .lt lhs rhs | .le lhs rhs | .gt lhs rhs | .ge lhs rhs
+    | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs => do
+        let lhsSpecs ← crosscallHelperSpecsFromExpr module env lhs
+        let rhsSpecs ← crosscallHelperSpecsFromExpr module env rhs
+        .ok (mergeCrosscallHelperSpecs lhsSpecs rhsSpecs)
+    | .cast value _ | .boolNot value | .hash value =>
+        crosscallHelperSpecsFromExpr module env value
+    | .hashValue a b c d => do
+        let ab := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env a)
+          (← crosscallHelperSpecsFromExpr module env b)
+        let cd := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env c)
+          (← crosscallHelperSpecsFromExpr module env d)
+        .ok (mergeCrosscallHelperSpecs ab cd)
+    | .crosscallInvoke target methodId args => do
+        let mut nested := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env target)
+          (← crosscallHelperSpecsFromExpr module env methodId)
+        for arg in args do
+          nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsFromExpr module env arg)
+        let spec ← crosscallHelperSpec module "crosscall return" args.size .u64 .call
+        .ok (pushCrosscallHelperSpecIfMissing nested spec)
+    | .crosscallInvokeTyped target methodId args returnType => do
+        let mut nested := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env target)
+          (← crosscallHelperSpecsFromExpr module env methodId)
+        for arg in args do
+          nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsFromExpr module env arg)
+        let argWordCount ← crosscallArgWordCountForArgs module env "typed crosscall argument" args
+        let spec ← crosscallHelperSpec module "typed crosscall return" argWordCount returnType .call
+        .ok (pushCrosscallHelperSpecIfMissing nested spec)
+    | .crosscallInvokeValueTyped target methodId callValue args returnType => do
+        let mut nested := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env target)
+          (← crosscallHelperSpecsFromExpr module env methodId)
+        nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsFromExpr module env callValue)
+        for arg in args do
+          nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsFromExpr module env arg)
+        let argWordCount ← crosscallArgWordCountForArgs module env "value crosscall argument" args
+        let plainTransfer := plainValueTransferCall? methodId args && isCrosscallWordType returnType
+        let spec ← crosscallHelperSpec
+          module
+          "value crosscall return"
+          argWordCount
+          returnType
+          .callValue
+          plainTransfer
+        .ok (pushCrosscallHelperSpecIfMissing nested spec)
+    | .crosscallInvokeStaticTyped target methodId args returnType => do
+        let mut nested := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env target)
+          (← crosscallHelperSpecsFromExpr module env methodId)
+        for arg in args do
+          nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsFromExpr module env arg)
+        let argWordCount ← crosscallArgWordCountForArgs module env "static crosscall argument" args
+        let spec ← crosscallHelperSpec module "static crosscall return" argWordCount returnType .staticcall
+        .ok (pushCrosscallHelperSpecIfMissing nested spec)
+    | .crosscallInvokeDelegateTyped target methodId args returnType => do
+        let mut nested := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env target)
+          (← crosscallHelperSpecsFromExpr module env methodId)
+        for arg in args do
+          nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsFromExpr module env arg)
+        let argWordCount ← crosscallArgWordCountForArgs module env "delegate crosscall argument" args
+        let spec ← crosscallHelperSpec module "delegate crosscall return" argWordCount returnType .delegatecall
+        .ok (pushCrosscallHelperSpecIfMissing nested spec)
+    | .crosscallCreate callValue _ =>
+        crosscallHelperSpecsFromExpr module env callValue
+    | .crosscallCreate2 callValue salt _ => do
+        .ok (mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env callValue)
+          (← crosscallHelperSpecsFromExpr module env salt))
+    | .effect effect =>
+        crosscallHelperSpecsFromEffect module env effect
+
+  partial def crosscallHelperSpecsFromEffect
+      (module : Module)
+      (env : TypeEnv) : Effect → Except LowerError (Array CrosscallHelperSpec)
+    | .storageScalarRead _ | .storageStructFieldRead _ _ | .contextRead _ => .ok #[]
+    | .storageScalarWrite _ value
+    | .storageScalarAssignOp _ _ value
+    | .storageStructFieldWrite _ _ value =>
+        crosscallHelperSpecsFromExpr module env value
+    | .storageMapContains _ key
+    | .storageMapGet _ key
+    | .storageArrayRead _ key
+    | .storageArrayStructFieldRead _ key _ =>
+        crosscallHelperSpecsFromExpr module env key
+    | .storageMapInsert _ key value
+    | .storageMapSet _ key value
+    | .storageArrayWrite _ key value
+    | .storageArrayStructFieldWrite _ key _ value => do
+        let keySpecs ← crosscallHelperSpecsFromExpr module env key
+        let valueSpecs ← crosscallHelperSpecsFromExpr module env value
+        .ok (mergeCrosscallHelperSpecs keySpecs valueSpecs)
+    | .storagePathRead _ path =>
+        path.foldlM (init := #[]) fun acc segment => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsFromStoragePathSegment module env segment))
+    | .storagePathWrite _ path value | .storagePathAssignOp _ path _ value => do
+        let pathSpecs ← path.foldlM (init := #[]) fun acc segment => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsFromStoragePathSegment module env segment))
+        .ok (mergeCrosscallHelperSpecs pathSpecs (← crosscallHelperSpecsFromExpr module env value))
+    | .eventEmit _ fields =>
+        fields.foldlM (init := #[]) fun acc field => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsFromExpr module env field.snd))
+    | .eventEmitIndexed _ indexedFields dataFields => do
+        let indexedSpecs ← indexedFields.foldlM (init := #[]) fun acc field => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsFromExpr module env field.snd))
+        dataFields.foldlM (init := indexedSpecs) fun acc field => do
+          .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsFromExpr module env field.snd))
+
+  partial def crosscallHelperSpecsFromStoragePathSegment
+      (module : Module)
+      (env : TypeEnv) : StoragePathSegment → Except LowerError (Array CrosscallHelperSpec)
+    | .field _ => .ok #[]
+    | .index index => crosscallHelperSpecsFromExpr module env index
+    | .mapKey key => crosscallHelperSpecsFromExpr module env key
+
+  partial def crosscallHelperSpecsFromStatement
+      (module : Module)
+      (env : TypeEnv) : Statement → Except LowerError (Array CrosscallHelperSpec × TypeEnv)
+    | .letBind name type value => do
+        let specs ← crosscallHelperSpecsFromExpr module env value
+        let nextEnv ← addLocal env name type false
+        .ok (specs, nextEnv)
+    | .letMutBind name type value => do
+        let specs ← crosscallHelperSpecsFromExpr module env value
+        let nextEnv ← addLocal env name type true
+        .ok (specs, nextEnv)
+    | .assign target value | .assignOp target _ value => do
+        let targetSpecs ← crosscallHelperSpecsFromExpr module env target
+        let valueSpecs ← crosscallHelperSpecsFromExpr module env value
+        .ok (mergeCrosscallHelperSpecs targetSpecs valueSpecs, env)
+    | .effect effect => do
+        .ok (← crosscallHelperSpecsFromEffect module env effect, env)
+    | .assert condition _ _ => do
+        .ok (← crosscallHelperSpecsFromExpr module env condition, env)
+    | .assertEq lhs rhs _ _ => do
+        let lhsSpecs ← crosscallHelperSpecsFromExpr module env lhs
+        let rhsSpecs ← crosscallHelperSpecsFromExpr module env rhs
+        .ok (mergeCrosscallHelperSpecs lhsSpecs rhsSpecs, env)
+    | .release _ =>
+        .ok (#[], env)
+    | .ifElse condition thenBody elseBody => do
+        let conditionSpecs ← crosscallHelperSpecsFromExpr module env condition
+        let (thenSpecs, _) ← crosscallHelperSpecsFromStatements module env thenBody
+        let (elseSpecs, _) ← crosscallHelperSpecsFromStatements module env elseBody
+        .ok (mergeCrosscallHelperSpecs conditionSpecs (mergeCrosscallHelperSpecs thenSpecs elseSpecs), env)
+    | .boundedFor indexName _ _ body => do
+        let loopEnv ← addLocal env indexName .u32 false
+        let (bodySpecs, _) ← crosscallHelperSpecsFromStatements module loopEnv body
+        .ok (bodySpecs, env)
+    | .return value => do
+        .ok (← crosscallHelperSpecsFromExpr module env value, env)
+
+  partial def crosscallHelperSpecsFromStatements
+      (module : Module)
+      (env : TypeEnv)
+      (statements : Array Statement) : Except LowerError (Array CrosscallHelperSpec × TypeEnv) :=
+    statements.foldlM (init := (#[], env)) fun acc stmt => do
+      let (specs, currentEnv) := acc
+      let (stmtSpecs, nextEnv) ← crosscallHelperSpecsFromStatement module currentEnv stmt
+      .ok (mergeCrosscallHelperSpecs specs stmtSpecs, nextEnv)
+end
+
+def buildCrosscallHelperPlans (module : Module) : Except LowerError (Array CrosscallHelperSpec) := do
+  let mut specs : Array CrosscallHelperSpec := #[]
+  for entrypoint in module.entrypoints do
+    let (entrypointSpecs, _) ←
+      crosscallHelperSpecsFromStatements module (entrypointTypeEnv entrypoint) entrypoint.body
+    specs := mergeCrosscallHelperSpecs specs entrypointSpecs
+  .ok specs
+
+def pushCreateHelperSpecIfMissing
+    (acc : Array CreateHelperSpec)
+    (value : CreateHelperSpec) : Array CreateHelperSpec :=
+  if acc.any (fun existing => existing == value) then acc else acc.push value
+
+def mergeCreateHelperSpecs
+    (lhs rhs : Array CreateHelperSpec) : Array CreateHelperSpec :=
+  rhs.foldl pushCreateHelperSpecIfMissing lhs
+
+mutual
+  partial def createHelperSpecsFromExpr : Expr → Array CreateHelperSpec
+    | .literal _ | .local _ | .nativeValue => #[]
+    | .arrayLit _ values =>
+        values.foldl (init := #[]) fun acc value =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExpr value)
+    | .arrayGet array index =>
+        mergeCreateHelperSpecs (createHelperSpecsFromExpr array) (createHelperSpecsFromExpr index)
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExpr field.snd)
+    | .field base _ =>
+        createHelperSpecsFromExpr base
+    | .add lhs rhs | .sub lhs rhs | .mul lhs rhs | .div lhs rhs | .mod lhs rhs
+    | .pow lhs rhs | .bitAnd lhs rhs | .bitOr lhs rhs | .bitXor lhs rhs
+    | .shiftLeft lhs rhs | .shiftRight lhs rhs | .eq lhs rhs | .ne lhs rhs
+    | .lt lhs rhs | .le lhs rhs | .gt lhs rhs | .ge lhs rhs
+    | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs =>
+        mergeCreateHelperSpecs (createHelperSpecsFromExpr lhs) (createHelperSpecsFromExpr rhs)
+    | .cast value _ | .boolNot value | .hash value =>
+        createHelperSpecsFromExpr value
+    | .hashValue a b c d =>
+        mergeCreateHelperSpecs
+          (mergeCreateHelperSpecs (createHelperSpecsFromExpr a) (createHelperSpecsFromExpr b))
+          (mergeCreateHelperSpecs (createHelperSpecsFromExpr c) (createHelperSpecsFromExpr d))
+    | .crosscallInvoke target methodId args
+    | .crosscallInvokeTyped target methodId args _
+    | .crosscallInvokeStaticTyped target methodId args _
+    | .crosscallInvokeDelegateTyped target methodId args _ =>
+        let nested := mergeCreateHelperSpecs (createHelperSpecsFromExpr target) (createHelperSpecsFromExpr methodId)
+        args.foldl (init := nested) fun acc arg =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExpr arg)
+    | .crosscallInvokeValueTyped target methodId callValue args _ =>
+        let nested := mergeCreateHelperSpecs (createHelperSpecsFromExpr target) (createHelperSpecsFromExpr methodId)
+        let nested := mergeCreateHelperSpecs nested (createHelperSpecsFromExpr callValue)
+        args.foldl (init := nested) fun acc arg =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExpr arg)
+    | .crosscallCreate callValue initCodeHex =>
+        pushCreateHelperSpecIfMissing (createHelperSpecsFromExpr callValue) { mode := .create, initCodeHex }
+    | .crosscallCreate2 callValue salt initCodeHex =>
+        let nested := mergeCreateHelperSpecs (createHelperSpecsFromExpr callValue) (createHelperSpecsFromExpr salt)
+        pushCreateHelperSpecIfMissing nested { mode := .create2, initCodeHex }
+    | .effect effect =>
+        createHelperSpecsFromEffect effect
+
+  partial def createHelperSpecsFromEffect : Effect → Array CreateHelperSpec
+    | .storageScalarRead _ | .storageStructFieldRead _ _ | .contextRead _ => #[]
+    | .storageScalarWrite _ value
+    | .storageScalarAssignOp _ _ value
+    | .storageStructFieldWrite _ _ value =>
+        createHelperSpecsFromExpr value
+    | .storageMapContains _ key
+    | .storageMapGet _ key
+    | .storageArrayRead _ key
+    | .storageArrayStructFieldRead _ key _ =>
+        createHelperSpecsFromExpr key
+    | .storageMapInsert _ key value
+    | .storageMapSet _ key value
+    | .storageArrayWrite _ key value
+    | .storageArrayStructFieldWrite _ key _ value =>
+        mergeCreateHelperSpecs (createHelperSpecsFromExpr key) (createHelperSpecsFromExpr value)
+    | .storagePathRead _ path =>
+        path.foldl (init := #[]) fun acc segment =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromStoragePathSegment segment)
+    | .storagePathWrite _ path value | .storagePathAssignOp _ path _ value =>
+        let pathSpecs := path.foldl (init := #[]) fun acc segment =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromStoragePathSegment segment)
+        mergeCreateHelperSpecs pathSpecs (createHelperSpecsFromExpr value)
+    | .eventEmit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExpr field.snd)
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexedSpecs := indexedFields.foldl (init := #[]) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExpr field.snd)
+        dataFields.foldl (init := indexedSpecs) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExpr field.snd)
+
+  partial def createHelperSpecsFromStoragePathSegment : StoragePathSegment → Array CreateHelperSpec
+    | .field _ => #[]
+    | .index index => createHelperSpecsFromExpr index
+    | .mapKey key => createHelperSpecsFromExpr key
+
+  partial def createHelperSpecsFromStatement : Statement → Array CreateHelperSpec
+    | .letBind _ _ value | .letMutBind _ _ value =>
+        createHelperSpecsFromExpr value
+    | .assign target value | .assignOp target _ value =>
+        mergeCreateHelperSpecs (createHelperSpecsFromExpr target) (createHelperSpecsFromExpr value)
+    | .effect effect =>
+        createHelperSpecsFromEffect effect
+    | .assert condition _ _ =>
+        createHelperSpecsFromExpr condition
+    | .assertEq lhs rhs _ _ =>
+        mergeCreateHelperSpecs (createHelperSpecsFromExpr lhs) (createHelperSpecsFromExpr rhs)
+    | .release _ =>
+        #[]
+    | .ifElse condition thenBody elseBody =>
+        mergeCreateHelperSpecs
+          (createHelperSpecsFromExpr condition)
+          (mergeCreateHelperSpecs (createHelperSpecsFromStatements thenBody) (createHelperSpecsFromStatements elseBody))
+    | .boundedFor _ _ _ body =>
+        createHelperSpecsFromStatements body
+    | .return value =>
+        createHelperSpecsFromExpr value
+
+  partial def createHelperSpecsFromStatements (statements : Array Statement) : Array CreateHelperSpec :=
+    statements.foldl (init := #[]) fun acc stmt =>
+      mergeCreateHelperSpecs acc (createHelperSpecsFromStatement stmt)
+end
+
+def buildCreateHelperPlans (module : Module) : Array CreateHelperSpec :=
+  module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
+    mergeCreateHelperSpecs acc (createHelperSpecsFromStatements entrypoint.body)
+
 /-! ## Module plan assembly -/
 
 def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
@@ -513,6 +876,8 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
   let entrypointPlans ← buildEntrypointPlans module
   let dispatchPlan := moduleDispatchPlan module entrypointPlans
   let eventPlans ← buildEventPlans module
+  let crosscallPlans ← buildCrosscallHelperPlans module
+  let createPlans := buildCreateHelperPlans module
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans
@@ -523,6 +888,8 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
     entrypoints := entrypointPlans
     dispatch := dispatchPlan
     events := eventPlans
+    crosscalls := crosscallPlans
+    creates := createPlans
     metadata := metadata
   }
 
@@ -537,6 +904,8 @@ def buildFullModulePlanWithTargetPlan
   let entrypointPlans ← buildEntrypointPlans module
   let dispatchPlan := moduleDispatchPlan module entrypointPlans
   let eventPlans ← buildEventPlans module
+  let crosscallPlans ← buildCrosscallHelperPlans module
+  let createPlans := buildCreateHelperPlans module
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans
@@ -547,6 +916,8 @@ def buildFullModulePlanWithTargetPlan
     entrypoints := entrypointPlans
     dispatch := dispatchPlan
     events := eventPlans
+    crosscalls := crosscallPlans
+    creates := createPlans
     metadata := metadata
   }
 

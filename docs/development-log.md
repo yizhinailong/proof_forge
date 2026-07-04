@@ -10712,3 +10712,32 @@ Result:
 
 - Contract source target capability diagnostics and the NEAR contract_source
   positive build passed locally.
+
+### EVM Helper Discovery Lower Plan Slice
+
+Commit: pending
+
+Summary:
+
+- Moved complete-plan crosscall helper discovery into
+  `Lower.buildFullModulePlan`, including planned return ABI word layouts.
+- Moved complete-plan create/create2 helper discovery into
+  `Lower.buildFullModulePlan`.
+- Stopped `IR.buildSemanticPlan` from re-scanning crosscall/create helper specs
+  after `Lower` has already built the complete semantic plan.
+- Kept the existing `IR.lean` discovery helpers for incomplete/best-effort
+  fallback lowering so unsupported-shape diagnostics still render through the
+  compatibility path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+```
+
+Result:
+
+- EVM semantic-plan helper discovery now comes from `Lower.buildFullModulePlan`
+  for complete plans, while the public plan and ToYul helper behavior remain
+  unchanged.

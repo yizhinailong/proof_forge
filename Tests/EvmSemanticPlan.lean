@@ -261,6 +261,16 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
     requireOk
       (buildSemanticPlan ProofForge.IR.Examples.EvmCrosscallProbe.module)
       "crosscall probe plan"
+  let lowerPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.EvmCrosscallProbe.module)
+      "crosscall probe lower full module plan"
+  require
+    (lowerPlan.crosscalls == plan.crosscalls)
+    "crosscall helper discovery must come from Lower.buildFullModulePlan"
+  require
+    (lowerPlan.creates == plan.creates)
+    "create helper discovery must come from Lower.buildFullModulePlan"
   require (plan.crosscalls.size > 0) "crosscall probe planned crosscall helpers"
   require
     (plan.crosscalls.any fun spec =>

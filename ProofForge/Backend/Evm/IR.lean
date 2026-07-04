@@ -6538,15 +6538,10 @@ def buildSemanticPlan (module : Module) : Except LowerError ProofForge.Backend.E
     match ProofForge.Backend.Evm.Lower.buildFullModulePlan module with
     | .ok p => .ok p
     | .error err => .error { message := err.message }
-  let crosscallSpecs ← moduleCrosscallHelperSpecs module
-  let planCrosscallSpecs ← crosscallSpecs.mapM (toPlanCrosscallSpec module)
-  let createSpecs := moduleCreateHelperSpecs module
   let localArrayGetLengths ← moduleLocalArrayGetLengths module
   let nestedLocalArrayGetShapes ← moduleNestedLocalArrayGetShapes module
   let usesCheckedArithmetic := moduleUsesCheckedArithmetic module
   .ok { plan with
-    crosscalls := planCrosscallSpecs
-    creates := createSpecs.map toPlanCreateSpec
     localArrayGetLengths := localArrayGetLengths
     nestedLocalArrayGetShapes := nestedLocalArrayGetShapes
     usesCheckedArithmetic := usesCheckedArithmetic

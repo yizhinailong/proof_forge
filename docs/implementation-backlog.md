@@ -389,16 +389,19 @@ Tasks:
     carries the planned return ABI word layout, so scalar helpers, aggregate
     return helpers, and plain native transfer helpers can be emitted from the
     semantic plan without rediscovering return layout from the module during
-    complete plan-driven lowering. `IR.lean` still owns return word-layout
-    discovery and compatibility wrappers until return layout discovery itself
-    moves fully into `Lower`/`ModulePlan` construction.
+    complete plan-driven lowering. Complete `ModulePlan` construction now
+    discovers crosscall helper specs, including the planned return word layout,
+    in `Lower.buildFullModulePlan`; `IR.buildSemanticPlan` preserves those
+    Lower-discovered specs instead of re-scanning the module. `IR.lean` still
+    keeps compatibility wrappers for incomplete/best-effort fallback paths.
   - Started: create/create2 helper naming and body construction now live behind
     the `CreateHelperSpec -> ToYul` boundary. Planned create specs can emit
     deterministic init-code `mstore` frames, `create`/`create2` opcode calls,
     zero-address revert guards, and helper function names without converting
-    back to the `IR.lean` compatibility helper spec. `IR.lean` still owns
-    create helper discovery until helper discovery itself moves fully into
-    `Lower`/`ModulePlan` construction.
+    back to the `IR.lean` compatibility helper spec. Complete `ModulePlan`
+    construction now discovers create/create2 helper specs in
+    `Lower.buildFullModulePlan`; `IR.lean` keeps the old discovery only for
+    incomplete/best-effort fallback paths.
   - Started: scalar expression-position crosscall helper-call assembly and
     create/create2 helper-call assembly now live behind `ToYul`. `ExprPlan`
     nodes for scalar `call`, value-bearing `call`, native value transfer,
