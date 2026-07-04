@@ -69,8 +69,38 @@ Phase 2 is complete when **both** parallel spikes pass independently:
 
 ### Joint (after both spikes)
 
-- [ ] Same portable IR module lowers to EVM + at least one non-EVM target.
+- [x] Same `contract_source` module lowers to EVM + Solana + NEAR (see
+      `Examples/Shared/Counter.lean` and `just portable-counter-multi-target`).
 - [ ] Document lists capabilities supported per target for this scenario.
+
+## Multi-target authoring demo (CS-1.5)
+
+The canonical portable Counter lives in
+[`ProofForge/Contract/Examples/Counter.lean`](../ProofForge/Contract/Examples/Counter.lean)
+(`contract_source`). Application-facing entry:
+
+[`Examples/Shared/Counter.lean`](../Examples/Shared/Counter.lean)
+
+Build the **same file** to three primary targets:
+
+```bash
+just portable-counter-multi-target
+```
+
+Or manually:
+
+```bash
+lake env proof-forge build --target evm --root . \
+  -o build/portable-counter/Counter.bin Examples/Shared/Counter.lean
+
+lake env proof-forge build --target solana-sbpf-asm --root . \
+  -o build/portable-counter/Counter.s Examples/Shared/Counter.lean
+
+lake env proof-forge build --target wasm-near --root . \
+  -o build/portable-counter/near Examples/Shared/Counter.lean
+```
+
+Chain choice is entirely build-time; the Lean module does not fork per target.
 
 ## ZK Target Experimental Criteria
 
@@ -88,9 +118,10 @@ scenario through generated `.psy` source and Dargo validation.
 
 | Target | Path | Status |
 |---|---|---|
-| EVM | `Examples/Evm/Contracts/Counter.lean` | **In repo** |
+| **All primary chains** | `Examples/Shared/Counter.lean` (`contract_source`) | **In repo** — `just portable-counter-multi-target` |
+| EVM | `Examples/Evm/Contracts/Counter.lean` | **In repo** (EVM examples tree) |
 | CosmWasm | `Examples/CosmWasm/Counter.lean` | Planned, not in repo |
-| Solana | `Examples/Solana/Counter.lean` + manifest | Planned, not in repo (Workstream 7) |
+| Solana | `Examples/Solana/Counter.lean` + manifest | **In repo** (IR fixture reference) |
 | Aptos | `Examples/Move/Aptos/Counter/` | Planned, not in repo |
 | Psy DPN | `Examples/Psy/*.golden.psy`, `scripts/psy/*-smoke.sh` | **In repo** |
 

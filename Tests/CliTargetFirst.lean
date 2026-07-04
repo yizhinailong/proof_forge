@@ -71,6 +71,12 @@ def main : IO UInt32 := do
     ["build", "--target", "wasm-near", "--fixture", "context", "--format", "wat", "-o", "build/wasm-near/context"]
     ["--emit-context-emitwat", "-o", "build/wasm-near/context"]
   requireLegacy
+    ["build", "--target", "solana-sbpf-asm", "--root", ".", "-o", "build/portable-counter/Counter.s", "Examples/Shared/Counter.lean"]
+    ["--contract-source-sbpf", "-o", "build/portable-counter/Counter.s", "--root", ".", "Examples/Shared/Counter.lean"]
+  requireLegacy
+    ["build", "--target", "wasm-near", "--root", ".", "-o", "build/portable-counter/near", "Examples/Shared/Counter.lean"]
+    ["--contract-source-emitwat", "-o", "build/portable-counter/near", "--root", ".", "Examples/Shared/Counter.lean"]
+  requireLegacy
     ["emit", "--target", "psy-dpn", "--fixture", "assert", "--format", "psy", "-o", "build/psy/AssertProbe.psy"]
     ["--emit-assert-ir-psy", "-o", "build/psy/AssertProbe.psy"]
   requireLegacy

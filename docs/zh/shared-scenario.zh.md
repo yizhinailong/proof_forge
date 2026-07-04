@@ -62,8 +62,38 @@ v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events
 
 ### 联合（在两个 spike 之后）
 
-- [ ] 同一个可移植 IR 模块降级到 EVM + 至少一个非 EVM 目标。
+- [x] 同一个 `contract_source` 模块降级到 EVM + Solana + NEAR（见
+      `Examples/Shared/Counter.lean` 和 `just portable-counter-multi-target`）。
 - [ ] 文档列出了此场景下每个目标支持的能力。
+
+## 多 target authoring 演示（CS-1.5）
+
+规范 portable Counter 位于
+[`ProofForge/Contract/Examples/Counter.lean`](../../ProofForge/Contract/Examples/Counter.lean)
+（`contract_source`）。面向应用的入口：
+
+[`Examples/Shared/Counter.lean`](../../Examples/Shared/Counter.lean)
+
+**同一个文件**构建到三条主链：
+
+```bash
+just portable-counter-multi-target
+```
+
+或手动：
+
+```bash
+lake env proof-forge build --target evm --root . \
+  -o build/portable-counter/Counter.bin Examples/Shared/Counter.lean
+
+lake env proof-forge build --target solana-sbpf-asm --root . \
+  -o build/portable-counter/Counter.s Examples/Shared/Counter.lean
+
+lake env proof-forge build --target wasm-near --root . \
+  -o build/portable-counter/near Examples/Shared/Counter.lean
+```
+
+链的选择完全在 build time；Lean 模块不会 per-target 分叉。
 
 ## ZK 目标 Experimental 标准
 
@@ -79,9 +109,10 @@ v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events
 
 | 目标 | 路径 | 状态 |
 |---|---|---|
-| EVM | `Examples/Evm/Contracts/Counter.lean` | **代码库中** |
+| **所有主链** | `Examples/Shared/Counter.lean`（`contract_source`） | **代码库中** — `just portable-counter-multi-target` |
+| EVM | `Examples/Evm/Contracts/Counter.lean` | **代码库中**（EVM 示例树） |
 | CosmWasm | `Examples/CosmWasm/Counter.lean` | 已规划，不在代码库中 |
-| Solana | `Examples/Solana/Counter.lean` + manifest | 已规划，不在代码库中（工作流 7） |
+| Solana | `Examples/Solana/Counter.lean` + manifest | **代码库中**（IR fixture 参考） |
 | Aptos | `Examples/Move/Aptos/Counter/` | 已规划，不在代码库中 |
 | Psy DPN | `Examples/Psy/*.golden.psy`, `scripts/psy/*-smoke.sh` | **代码库中** |
 

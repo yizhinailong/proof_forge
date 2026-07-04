@@ -121,6 +121,8 @@ inductive EmitMode where
   | learnYul
   | learnBytecode
   | learnSbpf
+  | contractSourceSbpf
+  | contractSourceEmitWat
   | learnTarget
   | learnTokenTarget
   | counterIrTs
@@ -434,7 +436,8 @@ def EmitMode.acceptsTarget : EmitMode → Bool
   | .counterEmitWat
   | .contextEmitWat
   | .hashEmitWat
-  | .mapEmitWat => true
+  | .mapEmitWat
+  | .contractSourceEmitWat => true
   | _ => false
 
 def usage : String :=
@@ -2059,6 +2062,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .learnBytecode }
   | "--learn-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .learnSbpf }
+  | "--contract-source-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .contractSourceSbpf }
+  | "--contract-source-emitwat" :: rest, opts =>
+      parseArgs rest { opts with mode := .contractSourceEmitWat }
   | "--emit-abi-scalar-ir-yul" :: rest, opts =>
       parseArgs rest { opts with mode := .abiScalarIrYul }
   | "--emit-abi-scalar-ir-bytecode" :: rest, opts =>
@@ -2388,8 +2395,14 @@ partial def parseNewOptions : List String → NewCommandParseState → Except St
       else
         parseNewOptions rest { state with input? := some arg }
 
+def isLeanSourceFile (input? : Option String) : Bool :=
+  match input? with
+  | some path => path.endsWith ".lean"
+  | none => false
+
 def buildLegacyFlag (target : String) (input? : Option String) (fixture? : Option String := none) (format? : Option String := none) (token : Bool := false) : Except String String :=
   let isLearn := match input? with | some input => input.endsWith ".learn" | none => false
+  let isLeanSource := isLeanSourceFile input?
   match target, isLearn, fixture?, format?, token with
   | "evm", true, _, some "yul", false => Except.ok "--learn-yul"
   | "evm", true, _, some "yul", true => Except.error "proof-forge build --target evm --token --format yul is not yet implemented"
@@ -2401,8 +2414,13 @@ def buildLegacyFlag (target : String) (input? : Option String) (fixture? : Optio
   | "wasm-near", true, _, _, _ =>
       Except.error "proof-forge build --target wasm-near from .learn source is not yet implemented"
   | "wasm-near", false, fixture?, format?, _ =>
-      if input?.isSome then
-        Except.error "proof-forge build --target wasm-near from Lean source is not yet implemented; use --emit-counter-emitwat"
+      if isLeanSource then
+        if format?.isSome && format? != some "wat" then
+          Except.error s!"proof-forge build --target wasm-near does not support format '{format?.getD ""}'; use --format wat"
+        else
+          Except.ok "--contract-source-emitwat"
+      else if input?.isSome then
+        Except.error "proof-forge build --target wasm-near from Lean source is not yet implemented; use a .lean contract_source module"
       else
         if format?.isSome && format? != some "wat" then
           Except.error s!"proof-forge build --target wasm-near does not support format '{format?.getD ""}'; use --format wat"
@@ -2417,9 +2435,13 @@ def buildLegacyFlag (target : String) (input? : Option String) (fixture? : Optio
   | "wasm-cosmwasm", false, _, _, _ => Except.ok "--emit-counter-ir-cosmwasm"
   | "solana-sbpf-asm", true, _, _, true => Except.ok "--learn-token"
   | "solana-sbpf-asm", true, _, _, false => Except.ok "--learn"
-  | "solana-sbpf-asm", false, _, some "s", _ => Except.ok "--emit-counter-ir-sbpf"
-  | "solana-sbpf-asm", false, _, none, _ => Except.ok "--emit-counter-ir-sbpf"
-  | "solana-sbpf-asm", false, _, some fmt, _ => Except.error s!"proof-forge build --target solana-sbpf-asm does not support format '{fmt}' from Lean source"
+  | "solana-sbpf-asm", false, _, _, _ =>
+      if isLeanSource then
+        Except.ok "--contract-source-sbpf"
+      else if format? == some "s" || format?.isNone then
+        Except.ok "--emit-counter-ir-sbpf"
+      else
+        Except.error s!"proof-forge build --target solana-sbpf-asm does not support format '{format?.getD ""}' without a Lean contract source input"
   | "psy-dpn", true, _, _, _ =>
       Except.error "proof-forge build --target psy-dpn from .learn source is not yet implemented"
   | "psy-dpn", false, _, _, _ => Except.ok "--emit-counter-ir-psy"
@@ -4444,6 +4466,88 @@ def compileLearnSbpf (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
+  let some input := opts.input?
+    | IO.eprintln usage
+      return 1
+  let spec ← ProofForge.Cli.ContractLoader.loadSpec input opts.root? opts.moduleName?
+  let output := opts.output?.getD (siblingPath input s!".{leanBaseName input}.s")
+  let plan ←
+    match ProofForge.Target.resolveSpec ProofForge.Target.solanaSbpfAsm spec with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.render
+  match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan spec.module plan with
+  | .ok source =>
+      if let some parent := output.parent then
+        IO.FS.createDirAll parent
+      writeTextFile output source
+      IO.println s!"wrote {output}"
+      let manifestOutput ← writeSbpfManifestWithPlan output spec.module plan
+      IO.println s!"wrote {manifestOutput}"
+      let metadataOutput := opts.artifactOutput?.getD (defaultArtifactOutput output)
+      if let some parent := metadataOutput.parent then
+        IO.FS.createDirAll parent
+      let sourceArtifact ← artifactEntryJson output
+      let manifestArtifact ← artifactEntryJson manifestOutput
+      let sourceArtifactEntry ← artifactEntryJson input
+      let metadata := jsonObject #[
+        ("schemaVersion", "1"),
+        ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
+        ("targetFamily", jsonString "solana"),
+        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("fixture", jsonString (leanBaseName input)),
+        ("sourceKind", jsonString "contract-sdk"),
+        ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
+        ("sourceModule", jsonString spec.name),
+        ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
+        ("capabilityPlan", capabilityPlanJson plan),
+        ("solanaInstructions", solanaInstructionsJson spec.module plan),
+        ("solanaExtensions", solanaExtensionsJson plan),
+        ("solanaIdl", ProofForge.Backend.Solana.Idl.renderWithPlan spec.module plan),
+        ("toolchain", jsonObject #[
+          ("sbpf", jsonObject #[
+            ("path", jsonString "sbpf"),
+            ("version", "null")
+          ])
+        ]),
+        ("artifacts", jsonObject #[
+          ("source", sourceArtifactEntry),
+          ("sbpfAsm", sourceArtifact),
+          ("manifestToml", manifestArtifact)
+        ]),
+        ("validation", jsonObject #[
+          ("contractSourceLowering", jsonString "passed"),
+          ("targetRouting", jsonString "passed"),
+          ("manifestGeneration", jsonString "passed"),
+          ("sbpfBuild", jsonString "pending")
+        ])
+      ]
+      IO.FS.writeFile metadataOutput (metadata ++ "\n")
+      IO.println s!"wrote {metadataOutput}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+unsafe def compileContractSourceEmitWat (opts : CliOptions) : IO UInt32 := do
+  let some input := opts.input?
+    | IO.eprintln usage
+      return 1
+  let spec ← ProofForge.Cli.ContractLoader.loadSpec input opts.root? opts.moduleName?
+  let fixtureSlug := spec.name.toLower
+  let outputDir ← match opts.output? with
+    | some out =>
+        if out.extension == "wat" then
+          pure <| match out.parent with | some parent => parent | none => FilePath.mk "."
+        else
+          pure out
+    | none =>
+        throw <| IO.userError "contract source EmitWat build requires -o output directory (or .wat path)"
+  let opts' := { opts with
+    output? := some outputDir
+    targetId? := opts.targetId? <|> some ProofForge.Target.wasmNear.id
+  }
+  compileEmitWat opts' fixtureSlug spec.module
+
 def compileLearnTarget (opts : CliOptions) : IO UInt32 := do
   let profile ← learnTargetProfile opts
   if profile.id == ProofForge.Target.evm.id then
@@ -4996,6 +5100,8 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .learnYul => compileLearnYul opts
   | .learnBytecode => compileLearnBytecode opts
   | .learnSbpf => compileLearnSbpf opts
+  | .contractSourceSbpf => compileContractSourceSbpf opts
+  | .contractSourceEmitWat => compileContractSourceEmitWat opts
   | .learnTarget => compileLearnTarget opts
   | .learnTokenTarget => compileLearnTokenTarget opts
   | .abiScalarIrYul => compileAbiScalarIrYul opts
