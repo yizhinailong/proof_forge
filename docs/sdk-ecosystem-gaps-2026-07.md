@@ -108,7 +108,7 @@ missing.
 
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
-| transfer_fee | Covered | Plan/Surfpool execution plus direct sBPF CPI layouts for initialize config, transfer_checked_with_fee, withdraw/harvest, and set_transfer_fee; live generated direct-CPI behavior remains a validation expansion | — |
+| transfer_fee | Covered | Plan/Surfpool execution plus direct sBPF CPI layouts for initialize config, transfer_checked_with_fee, withdraw/harvest, and set_transfer_fee; `solana-spl-token-2022-cpi-web3` now deploys the generated program on Surfpool and executes the transfer-fee direct-CPI behavior path | — |
 | non_transferable | Covered | Plan/Surfpool execution plus direct sBPF CPI layout for initialize_non_transferable_mint; live generated direct-CPI behavior remains a validation expansion | — |
 | confidential_transfer | Missing | No plan or backend support | P1 |
 | transfer_hook | Missing | No plan or backend support | P1 |

@@ -1,0 +1,573 @@
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  TransactionInstruction,
+} from "@solana/web3.js";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  ExtensionType,
+  TOKEN_2022_PROGRAM_ID,
+  calculateEpochFee,
+  createInitializeMintInstruction,
+  getAccount,
+  getMint,
+  getMintLen,
+  getOrCreateAssociatedTokenAccount,
+  getTransferFeeAmount,
+  getTransferFeeConfig,
+  mintTo,
+} from "@solana/spl-token";
+import fs from "node:fs";
+
+function readKeypair(path) {
+  const bytes = JSON.parse(fs.readFileSync(path, "utf8"));
+  return Keypair.fromSecretKey(Uint8Array.from(bytes));
+}
+
+function readArtifact(path) {
+  return JSON.parse(fs.readFileSync(path, "utf8"));
+}
+
+function require(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function readU64LEAt(data, offset) {
+  if (data.length < offset + 8) {
+    throw new Error(`expected at least ${offset + 8} bytes, got ${data.length}`);
+  }
+  return Buffer.from(data).readBigUInt64LE(offset);
+}
+
+function assertAmount(label, actual, expected) {
+  if (actual !== expected) {
+    throw new Error(`${label} amount mismatch: expected ${expected}, got ${actual}`);
+  }
+}
+
+function writeData(tag, values = []) {
+  const data = Buffer.alloc(1 + values.length * 8);
+  data[0] = tag;
+  values.forEach((value, index) => {
+    data.writeBigUInt64LE(BigInt(value), 1 + index * 8);
+  });
+  return data;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function sendAndPollTransaction(connection, transaction, signers) {
+  const latest = await connection.getLatestBlockhash("confirmed");
+  transaction.recentBlockhash = latest.blockhash;
+  transaction.feePayer = signers[0].publicKey;
+  transaction.sign(...signers);
+  const signature = await connection.sendRawTransaction(transaction.serialize(), {
+    skipPreflight: false,
+  });
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const statuses = await connection.getSignatureStatuses([signature], {
+      searchTransactionHistory: true,
+    });
+    const status = statuses.value[0];
+    if (status?.err) {
+      throw new Error(`transaction ${signature} failed: ${JSON.stringify(status.err)}`);
+    }
+    if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") {
+      return signature;
+    }
+    await sleep(500);
+  }
+  throw new Error(`transaction ${signature} was not confirmed`);
+}
+
+async function createProgramState(connection, payer, programId, space) {
+  const state = Keypair.generate();
+  const lamports = await connection.getMinimumBalanceForRentExemption(space);
+  const ix = SystemProgram.createAccount({
+    fromPubkey: payer.publicKey,
+    newAccountPubkey: state.publicKey,
+    lamports,
+    space,
+    programId,
+  });
+  await sendAndPollTransaction(connection, new Transaction().add(ix), [payer, state]);
+  return state;
+}
+
+async function createScratchAccount(connection, payer, space = 0) {
+  const account = Keypair.generate();
+  const lamports = await connection.getMinimumBalanceForRentExemption(space);
+  const ix = SystemProgram.createAccount({
+    fromPubkey: payer.publicKey,
+    newAccountPubkey: account.publicKey,
+    lamports,
+    space,
+    programId: SystemProgram.programId,
+  });
+  await sendAndPollTransaction(connection, new Transaction().add(ix), [payer, account]);
+  return account;
+}
+
+function validateInstructionSchemas(artifact) {
+  const instructions = artifact.solanaInstructions ?? [];
+  const names = instructions.map((instruction) => instruction.name);
+  const expectedNames = [
+    "init_fee_config",
+    "transfer_with_fee",
+    "withdraw_from_mint",
+    "withdraw_from_accounts",
+    "harvest_to_mint",
+    "set_transfer_fee",
+    "initialize_non_transferable",
+  ];
+  require(JSON.stringify(names) === JSON.stringify(expectedNames), `instruction names mismatch: ${JSON.stringify(names)}`);
+
+  const expectedAccounts = [
+    "last_amount",
+    "mint",
+    "spl_token_2022",
+    "source",
+    "destination",
+    "authority",
+    "fee_receiver",
+    "withdraw_withheld_authority",
+    "withheld_source",
+    "transfer_fee_config_authority",
+  ];
+  for (const instruction of instructions) {
+    const accountNames = (instruction.accounts ?? []).map((account) => account.name);
+    require(
+      JSON.stringify(accountNames) === JSON.stringify(expectedAccounts),
+      `instruction ${instruction.name} account schema mismatch: ${JSON.stringify(accountNames)}`,
+    );
+  }
+
+  const initParams = instructions[0].params ?? [];
+  const transferParams = instructions[1].params ?? [];
+  const setFeeParams = instructions[5].params ?? [];
+  const expectedTwoU64Params = (first, second) => [
+    { name: first, type: "U64", offset: 1, byteSize: 8, encoding: "le-u64" },
+    { name: second, type: "U64", offset: 9, byteSize: 8, encoding: "le-u64" },
+  ];
+  require(JSON.stringify(initParams) === JSON.stringify(expectedTwoU64Params("basis_points", "maximum_fee")), `init_fee_config params mismatch: ${JSON.stringify(initParams)}`);
+  require(JSON.stringify(transferParams) === JSON.stringify(expectedTwoU64Params("amount", "fee")), `transfer_with_fee params mismatch: ${JSON.stringify(transferParams)}`);
+  require(JSON.stringify(setFeeParams) === JSON.stringify(expectedTwoU64Params("basis_points", "maximum_fee")), `set_transfer_fee params mismatch: ${JSON.stringify(setFeeParams)}`);
+  for (const instruction of [instructions[2], instructions[3], instructions[4], instructions[6]]) {
+    require((instruction.params ?? []).length === 0, `instruction ${instruction.name} should not declare params`);
+  }
+
+  const cpis = Object.fromEntries((artifact.solanaExtensions?.cpis ?? []).map((cpi) => [cpi.name, cpi]));
+  const expectedCpis = {
+    token_2022_init_fee_config: "token-2022.initialize_transfer_fee_config",
+    token_2022_transfer_with_fee: "token-2022.transfer_checked_with_fee",
+    token_2022_withdraw_from_mint: "token-2022.withdraw_withheld_tokens_from_mint",
+    token_2022_withdraw_from_accounts: "token-2022.withdraw_withheld_tokens_from_accounts",
+    token_2022_harvest_to_mint: "token-2022.harvest_withheld_tokens_to_mint",
+    token_2022_set_transfer_fee: "token-2022.set_transfer_fee",
+    token_2022_init_non_transferable: "token-2022.initialize_non_transferable_mint",
+  };
+  require(JSON.stringify(Object.keys(cpis)) === JSON.stringify(Object.keys(expectedCpis)), `CPI names mismatch: ${JSON.stringify(Object.keys(cpis))}`);
+  for (const [name, layout] of Object.entries(expectedCpis)) {
+    const cpi = cpis[name];
+    require(cpi.program === "spl_token_2022", `CPI ${name} program mismatch: ${JSON.stringify(cpi)}`);
+    require(cpi.protocol === "token-2022", `CPI ${name} protocol mismatch: ${JSON.stringify(cpi)}`);
+    require(cpi.dataLayout === layout, `CPI ${name} layout mismatch: ${JSON.stringify(cpi)}`);
+  }
+  require(cpis.token_2022_transfer_with_fee.feeSource === "fee", "transfer_with_fee missing feeSource");
+  require(cpis.token_2022_transfer_with_fee.decimals === "9", "transfer_with_fee decimals mismatch");
+  require(cpis.token_2022_withdraw_from_accounts.numTokenAccounts === "1", "withdraw_from_accounts numTokenAccounts mismatch");
+  return instructions;
+}
+
+function buildKeys(accounts, pubkeys) {
+  return accounts.map((account) => {
+    const pubkey = pubkeys[account.name];
+    if (!pubkey) {
+      throw new Error(`missing pubkey for account ${account.name}`);
+    }
+    return {
+      pubkey,
+      isSigner: account.signer === true,
+      isWritable: account.writable === true,
+    };
+  });
+}
+
+async function invokeGenerated(connection, payer, programId, instruction, pubkeys, data, extraSigners = []) {
+  const ix = new TransactionInstruction({
+    programId,
+    keys: buildKeys(instruction.accounts ?? [], pubkeys),
+    data,
+  });
+  return sendAndPollTransaction(connection, new Transaction().add(ix), [payer, ...extraSigners]);
+}
+
+async function createTransferFeeMintAccount(connection, payer) {
+  const mint = Keypair.generate();
+  const mintLen = getMintLen([ExtensionType.TransferFeeConfig]);
+  const mintRent = await connection.getMinimumBalanceForRentExemption(mintLen);
+  const ix = SystemProgram.createAccount({
+    fromPubkey: payer.publicKey,
+    newAccountPubkey: mint.publicKey,
+    lamports: mintRent,
+    space: mintLen,
+    programId: TOKEN_2022_PROGRAM_ID,
+  });
+  const signature = await sendAndPollTransaction(connection, new Transaction().add(ix), [payer, mint]);
+  return { mint, signature };
+}
+
+async function main() {
+  const rpcUrl = process.env.PROOF_FORGE_SOLANA_RPC_URL;
+  const wsUrl = process.env.PROOF_FORGE_SOLANA_WS_URL;
+  const payerPath = process.env.PROOF_FORGE_SOLANA_PAYER;
+  const programIdValue = process.env.PROOF_FORGE_SOLANA_PROGRAM_ID;
+  const artifactPath = process.env.PROOF_FORGE_SOLANA_ARTIFACT;
+  if (!rpcUrl || !payerPath || !programIdValue || !artifactPath) {
+    throw new Error("missing PROOF_FORGE_SOLANA_RPC_URL, PROOF_FORGE_SOLANA_PAYER, PROOF_FORGE_SOLANA_PROGRAM_ID, or PROOF_FORGE_SOLANA_ARTIFACT");
+  }
+
+  const artifact = readArtifact(artifactPath);
+  const instructions = validateInstructionSchemas(artifact);
+  const byName = Object.fromEntries(instructions.map((instruction) => [instruction.name, instruction]));
+  const connection = new Connection(rpcUrl, {
+    commitment: "confirmed",
+    wsEndpoint: wsUrl,
+  });
+  const payer = readKeypair(payerPath);
+  const programId = new PublicKey(programIdValue);
+  const state = await createProgramState(connection, payer, programId, 40);
+  const decimals = Number(process.env.PROOF_FORGE_SOLANA_TOKEN_DECIMALS ?? "9");
+  const initialSupply = BigInt(process.env.PROOF_FORGE_SOLANA_TOKEN_INITIAL_SUPPLY ?? "1000000000");
+  const transferFeeBasisPoints = BigInt(process.env.PROOF_FORGE_SOLANA_TRANSFER_FEE_BPS ?? "125");
+  const maximumFee = BigInt(process.env.PROOF_FORGE_SOLANA_TRANSFER_FEE_MAX_FEE ?? "10000");
+  const nextBasisPoints = BigInt(process.env.PROOF_FORGE_SOLANA_TRANSFER_FEE_NEXT_BPS ?? "250");
+  const nextMaximumFee = BigInt(process.env.PROOF_FORGE_SOLANA_TRANSFER_FEE_NEXT_MAX_FEE ?? "20000");
+  const transferAmount = BigInt(process.env.PROOF_FORGE_SOLANA_TOKEN_TRANSFER_AMOUNT ?? "250000");
+  if (initialSupply <= transferAmount * 2n) {
+    throw new Error(`initial supply ${initialSupply} is too small for two transfers of ${transferAmount}`);
+  }
+  for (const [label, value] of [["basis points", transferFeeBasisPoints], ["next basis points", nextBasisPoints]]) {
+    if (value < 0n || value > 10000n) {
+      throw new Error(`invalid ${label}: ${value}`);
+    }
+  }
+
+  const { mint, signature: createMintAccountSignature } = await createTransferFeeMintAccount(connection, payer);
+  const tokenOwner = await createScratchAccount(connection, payer);
+  const withdrawWithheldAuthority = await createScratchAccount(connection, payer);
+  const transferFeeConfigAuthority = await createScratchAccount(connection, payer);
+  const scratchSource = await createScratchAccount(connection, payer);
+  const scratchDestination = await createScratchAccount(connection, payer);
+  const scratchFeeReceiver = await createScratchAccount(connection, payer);
+  const scratchWithheldSource = await createScratchAccount(connection, payer);
+  const generatedSigners = [tokenOwner, withdrawWithheldAuthority, transferFeeConfigAuthority];
+  const basePubkeys = () => ({
+    last_amount: state.publicKey,
+    mint: mint.publicKey,
+    spl_token_2022: TOKEN_2022_PROGRAM_ID,
+    source: scratchSource.publicKey,
+    destination: scratchDestination.publicKey,
+    authority: tokenOwner.publicKey,
+    fee_receiver: scratchFeeReceiver.publicKey,
+    withdraw_withheld_authority: withdrawWithheldAuthority.publicKey,
+    withheld_source: scratchWithheldSource.publicKey,
+    transfer_fee_config_authority: transferFeeConfigAuthority.publicKey,
+  });
+  const pubkeysFor = (overrides) => ({ ...basePubkeys(), ...overrides });
+
+  const initFeeSignature = await invokeGenerated(
+    connection,
+    payer,
+    programId,
+    byName.init_fee_config,
+    pubkeysFor({}),
+    writeData(0, [transferFeeBasisPoints, maximumFee]),
+    generatedSigners,
+  );
+  let stateAccount = await connection.getAccountInfo(state.publicKey, "confirmed");
+  require(stateAccount !== null, `state account not found after init_fee_config: ${state.publicKey.toBase58()}`);
+  assertAmount("state last_basis_points after init", readU64LEAt(stateAccount.data, 16), transferFeeBasisPoints);
+  assertAmount("state last_maximum_fee after init", readU64LEAt(stateAccount.data, 24), maximumFee);
+
+  const initializeMintSignature = await sendAndPollTransaction(
+    connection,
+    new Transaction().add(
+      createInitializeMintInstruction(
+        mint.publicKey,
+        decimals,
+        payer.publicKey,
+        null,
+        TOKEN_2022_PROGRAM_ID,
+      ),
+    ),
+    [payer],
+  );
+
+  let mintAccount = await getMint(connection, mint.publicKey, "confirmed", TOKEN_2022_PROGRAM_ID);
+  let feeConfig = getTransferFeeConfig(mintAccount);
+  require(feeConfig !== null, "mint missing TransferFeeConfig extension after generated init");
+  require(feeConfig.transferFeeConfigAuthority.equals(transferFeeConfigAuthority.publicKey), "transfer-fee config authority mismatch");
+  require(feeConfig.withdrawWithheldAuthority.equals(withdrawWithheldAuthority.publicKey), "withdraw-withheld authority mismatch");
+  require(feeConfig.newerTransferFee.transferFeeBasisPoints === Number(transferFeeBasisPoints), "transfer-fee basis points mismatch");
+  assertAmount("transfer-fee maximum", feeConfig.newerTransferFee.maximumFee, maximumFee);
+
+  const recipient = Keypair.generate();
+  const harvestRecipient = Keypair.generate();
+  const feeReceiver = Keypair.generate();
+  const ownerAta = await getOrCreateAssociatedTokenAccount(
+    connection,
+    payer,
+    mint.publicKey,
+    tokenOwner.publicKey,
+    false,
+    "confirmed",
+    undefined,
+    TOKEN_2022_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+  );
+  const recipientAta = await getOrCreateAssociatedTokenAccount(
+    connection,
+    payer,
+    mint.publicKey,
+    recipient.publicKey,
+    false,
+    "confirmed",
+    undefined,
+    TOKEN_2022_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+  );
+  const harvestRecipientAta = await getOrCreateAssociatedTokenAccount(
+    connection,
+    payer,
+    mint.publicKey,
+    harvestRecipient.publicKey,
+    false,
+    "confirmed",
+    undefined,
+    TOKEN_2022_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+  );
+  const feeReceiverAta = await getOrCreateAssociatedTokenAccount(
+    connection,
+    payer,
+    mint.publicKey,
+    feeReceiver.publicKey,
+    false,
+    "confirmed",
+    undefined,
+    TOKEN_2022_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+  );
+
+  const mintToSignature = await mintTo(
+    connection,
+    payer,
+    mint.publicKey,
+    ownerAta.address,
+    payer,
+    initialSupply,
+    [],
+    { commitment: "confirmed" },
+    TOKEN_2022_PROGRAM_ID,
+  );
+  let ownerAccount = await getAccount(connection, ownerAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  let recipientAccount = await getAccount(connection, recipientAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  let harvestRecipientAccount = await getAccount(connection, harvestRecipientAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  let feeReceiverAccount = await getAccount(connection, feeReceiverAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  assertAmount("owner after mint", ownerAccount.amount, initialSupply);
+  assertAmount("recipient initial", recipientAccount.amount, 0n);
+  assertAmount("harvest recipient initial", harvestRecipientAccount.amount, 0n);
+  assertAmount("fee receiver initial", feeReceiverAccount.amount, 0n);
+
+  const epochInfo = await connection.getEpochInfo("confirmed");
+  feeConfig = getTransferFeeConfig(await getMint(connection, mint.publicKey, "confirmed", TOKEN_2022_PROGRAM_ID));
+  require(feeConfig !== null, "mint missing TransferFeeConfig before transfer");
+  const expectedFee = calculateEpochFee(feeConfig, BigInt(epochInfo.epoch), transferAmount);
+  const transferPubkeys = {
+    ...basePubkeys(),
+    source: ownerAta.address,
+    destination: recipientAta.address,
+    fee_receiver: feeReceiverAta.address,
+  };
+  const transferSignature = await invokeGenerated(
+    connection,
+    payer,
+    programId,
+    byName.transfer_with_fee,
+    transferPubkeys,
+    writeData(1, [transferAmount, expectedFee]),
+    generatedSigners,
+  );
+  ownerAccount = await getAccount(connection, ownerAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  recipientAccount = await getAccount(connection, recipientAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  let recipientFeeAmount = getTransferFeeAmount(recipientAccount);
+  require(recipientFeeAmount !== null, "recipient account missing TransferFeeAmount extension");
+  assertAmount("owner after generated transfer_with_fee", ownerAccount.amount, initialSupply - transferAmount);
+  assertAmount("recipient after generated transfer_with_fee", recipientAccount.amount, transferAmount - expectedFee);
+  assertAmount("recipient withheld transfer fee", recipientFeeAmount.withheldAmount, expectedFee);
+  stateAccount = await connection.getAccountInfo(state.publicKey, "confirmed");
+  require(stateAccount !== null, "state missing after transfer_with_fee");
+  assertAmount("state last_amount after transfer", readU64LEAt(stateAccount.data, 0), transferAmount);
+  assertAmount("state last_fee after transfer", readU64LEAt(stateAccount.data, 8), expectedFee);
+
+  const withdrawFromAccountsSignature = await invokeGenerated(
+    connection,
+    payer,
+    programId,
+    byName.withdraw_from_accounts,
+    pubkeysFor({
+      fee_receiver: feeReceiverAta.address,
+      withheld_source: recipientAta.address,
+    }),
+    writeData(3),
+    generatedSigners,
+  );
+  recipientAccount = await getAccount(connection, recipientAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  feeReceiverAccount = await getAccount(connection, feeReceiverAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  recipientFeeAmount = getTransferFeeAmount(recipientAccount);
+  require(recipientFeeAmount !== null, "recipient account missing TransferFeeAmount after withdraw");
+  assertAmount("recipient withheld fee after generated withdraw_from_accounts", recipientFeeAmount.withheldAmount, 0n);
+  assertAmount("fee receiver after generated withdraw_from_accounts", feeReceiverAccount.amount, expectedFee);
+  stateAccount = await connection.getAccountInfo(state.publicKey, "confirmed");
+  require(stateAccount !== null, "state missing after withdraw_from_accounts");
+  assertAmount("state marker after withdraw_from_accounts", readU64LEAt(stateAccount.data, 32), 2n);
+
+  const harvestTransferPubkeys = {
+    ...basePubkeys(),
+    source: ownerAta.address,
+    destination: harvestRecipientAta.address,
+    fee_receiver: feeReceiverAta.address,
+  };
+  const harvestTransferSignature = await invokeGenerated(
+    connection,
+    payer,
+    programId,
+    byName.transfer_with_fee,
+    harvestTransferPubkeys,
+    writeData(1, [transferAmount, expectedFee]),
+    generatedSigners,
+  );
+  ownerAccount = await getAccount(connection, ownerAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  harvestRecipientAccount = await getAccount(connection, harvestRecipientAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  let harvestRecipientFeeAmount = getTransferFeeAmount(harvestRecipientAccount);
+  require(harvestRecipientFeeAmount !== null, "harvest recipient missing TransferFeeAmount extension");
+  assertAmount("owner after harvest-path generated transfer", ownerAccount.amount, initialSupply - transferAmount * 2n);
+  assertAmount("harvest recipient after generated transfer_with_fee", harvestRecipientAccount.amount, transferAmount - expectedFee);
+  assertAmount("harvest recipient withheld fee", harvestRecipientFeeAmount.withheldAmount, expectedFee);
+
+  const harvestToMintSignature = await invokeGenerated(
+    connection,
+    payer,
+    programId,
+    byName.harvest_to_mint,
+    pubkeysFor({
+      fee_receiver: feeReceiverAta.address,
+      withheld_source: harvestRecipientAta.address,
+    }),
+    writeData(4),
+    generatedSigners,
+  );
+  harvestRecipientAccount = await getAccount(connection, harvestRecipientAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  mintAccount = await getMint(connection, mint.publicKey, "confirmed", TOKEN_2022_PROGRAM_ID);
+  harvestRecipientFeeAmount = getTransferFeeAmount(harvestRecipientAccount);
+  feeConfig = getTransferFeeConfig(mintAccount);
+  require(harvestRecipientFeeAmount !== null, "harvest recipient missing TransferFeeAmount after harvest");
+  require(feeConfig !== null, "mint missing TransferFeeConfig after harvest");
+  assertAmount("harvest recipient withheld fee after generated harvest_to_mint", harvestRecipientFeeAmount.withheldAmount, 0n);
+  assertAmount("mint withheld fee after generated harvest_to_mint", feeConfig.withheldAmount, expectedFee);
+  stateAccount = await connection.getAccountInfo(state.publicKey, "confirmed");
+  require(stateAccount !== null, "state missing after harvest_to_mint");
+  assertAmount("state marker after harvest_to_mint", readU64LEAt(stateAccount.data, 32), 3n);
+
+  const withdrawFromMintSignature = await invokeGenerated(
+    connection,
+    payer,
+    programId,
+    byName.withdraw_from_mint,
+    pubkeysFor({
+      fee_receiver: feeReceiverAta.address,
+    }),
+    writeData(2),
+    generatedSigners,
+  );
+  feeReceiverAccount = await getAccount(connection, feeReceiverAta.address, "confirmed", TOKEN_2022_PROGRAM_ID);
+  mintAccount = await getMint(connection, mint.publicKey, "confirmed", TOKEN_2022_PROGRAM_ID);
+  feeConfig = getTransferFeeConfig(mintAccount);
+  require(feeConfig !== null, "mint missing TransferFeeConfig after withdraw_from_mint");
+  assertAmount("fee receiver after generated withdraw_from_mint", feeReceiverAccount.amount, expectedFee * 2n);
+  assertAmount("mint withheld fee after generated withdraw_from_mint", feeConfig.withheldAmount, 0n);
+  stateAccount = await connection.getAccountInfo(state.publicKey, "confirmed");
+  require(stateAccount !== null, "state missing after withdraw_from_mint");
+  assertAmount("state marker after withdraw_from_mint", readU64LEAt(stateAccount.data, 32), 1n);
+
+  const setFeeSignature = await invokeGenerated(
+    connection,
+    payer,
+    programId,
+    byName.set_transfer_fee,
+    pubkeysFor({
+      fee_receiver: feeReceiverAta.address,
+    }),
+    writeData(5, [nextBasisPoints, nextMaximumFee]),
+    generatedSigners,
+  );
+  mintAccount = await getMint(connection, mint.publicKey, "confirmed", TOKEN_2022_PROGRAM_ID);
+  feeConfig = getTransferFeeConfig(mintAccount);
+  require(feeConfig !== null, "mint missing TransferFeeConfig after set_transfer_fee");
+  require(feeConfig.newerTransferFee.transferFeeBasisPoints === Number(nextBasisPoints), "next transfer-fee basis points mismatch");
+  assertAmount("next transfer-fee maximum", feeConfig.newerTransferFee.maximumFee, nextMaximumFee);
+  stateAccount = await connection.getAccountInfo(state.publicKey, "confirmed");
+  require(stateAccount !== null, "state missing after set_transfer_fee");
+  assertAmount("state last_basis_points after set", readU64LEAt(stateAccount.data, 16), nextBasisPoints);
+  assertAmount("state last_maximum_fee after set", readU64LEAt(stateAccount.data, 24), nextMaximumFee);
+
+  console.log(JSON.stringify({
+    programId: programId.toBase58(),
+    state: state.publicKey.toBase58(),
+    payer: payer.publicKey.toBase58(),
+    tokenOwner: tokenOwner.publicKey.toBase58(),
+    withdrawWithheldAuthority: withdrawWithheldAuthority.publicKey.toBase58(),
+    transferFeeConfigAuthority: transferFeeConfigAuthority.publicKey.toBase58(),
+    mint: mint.publicKey.toBase58(),
+    ownerAta: ownerAta.address.toBase58(),
+    recipientAta: recipientAta.address.toBase58(),
+    harvestRecipientAta: harvestRecipientAta.address.toBase58(),
+    feeReceiverAta: feeReceiverAta.address.toBase58(),
+    tokenProgram: TOKEN_2022_PROGRAM_ID.toBase58(),
+    decimals,
+    initialSupply: initialSupply.toString(),
+    transferAmount: transferAmount.toString(),
+    expectedFee: expectedFee.toString(),
+    transferFeeBasisPoints: transferFeeBasisPoints.toString(),
+    maximumFee: maximumFee.toString(),
+    nextBasisPoints: nextBasisPoints.toString(),
+    nextMaximumFee: nextMaximumFee.toString(),
+    ownerFinal: ownerAccount.amount.toString(),
+    feeReceiverFinal: feeReceiverAccount.amount.toString(),
+    signatures: {
+      createMintAccount: createMintAccountSignature,
+      initFee: initFeeSignature,
+      initializeMint: initializeMintSignature,
+      mintTo: mintToSignature,
+      transfer: transferSignature,
+      withdrawFromAccounts: withdrawFromAccountsSignature,
+      harvestTransfer: harvestTransferSignature,
+      harvestToMint: harvestToMintSignature,
+      withdrawFromMint: withdrawFromMintSignature,
+      setFee: setFeeSignature,
+    },
+  }));
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

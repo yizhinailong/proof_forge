@@ -81,6 +81,7 @@ import ProofForge.Solana.Examples.SplTokenTransferCheckedCpi
 import ProofForge.Solana.Examples.SplTokenOpsCpi
 import ProofForge.Solana.Examples.SplTokenCloseAccountCpi
 import ProofForge.Solana.Examples.SplTokenAuthorityCpi
+import ProofForge.Solana.Examples.SplToken2022Cpi
 import ProofForge.Solana.Examples.LogEvent
 import ProofForge.Solana.Examples.Clock
 import ProofForge.Solana.Examples.Rent
@@ -201,6 +202,7 @@ inductive EmitMode where
   | solanaSplTokenOpsCpiSbpf
   | solanaSplTokenCloseAccountCpiSbpf
   | solanaSplTokenAuthorityCpiSbpf
+  | solanaSplToken2022CpiSbpf
   | solanaElf
   | valueVaultSolanaElf
   | solanaSystemCpiElf
@@ -209,6 +211,7 @@ inductive EmitMode where
   | solanaSplTokenOpsCpiElf
   | solanaSplTokenCloseAccountCpiElf
   | solanaSplTokenAuthorityCpiElf
+  | solanaSplToken2022CpiElf
   | solanaLogEventElf
   | solanaClockSysvarElf
   | solanaRentSysvarElf
@@ -346,6 +349,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSplTokenOpsCpiSbpf
   | .solanaSplTokenCloseAccountCpiSbpf
   | .solanaSplTokenAuthorityCpiSbpf
+  | .solanaSplToken2022CpiSbpf
   | .solanaElf
   | .valueVaultSolanaElf
   | .solanaSystemCpiElf
@@ -354,6 +358,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSplTokenOpsCpiElf
   | .solanaSplTokenCloseAccountCpiElf
   | .solanaSplTokenAuthorityCpiElf
+  | .solanaSplToken2022CpiElf
   | .solanaLogEventElf
   | .solanaClockSysvarElf
   | .solanaRentSysvarElf
@@ -530,6 +535,7 @@ def usage : String :=
     "  proof-forge --emit-solana-spl-token-ops-cpi-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-spl-token-close-account-cpi-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-spl-token-authority-cpi-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-solana-spl-token-2022-cpi-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --value-vault-solana-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-system-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
@@ -538,6 +544,7 @@ def usage : String :=
     "  proof-forge --solana-spl-token-ops-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-spl-token-close-account-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-spl-token-authority-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-spl-token-2022-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-log-event-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-clock-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-rent-sysvar-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
@@ -2343,6 +2350,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaSplTokenCloseAccountCpiSbpf }
   | "--emit-solana-spl-token-authority-cpi-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSplTokenAuthorityCpiSbpf }
+  | "--emit-solana-spl-token-2022-cpi-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSplToken2022CpiSbpf }
   | "--solana-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaElf }
   | "--value-vault-solana-elf" :: rest, opts =>
@@ -2361,6 +2370,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaSplTokenCloseAccountCpiElf }
   | "--solana-spl-token-authority-cpi-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSplTokenAuthorityCpiElf }
+  | "--solana-spl-token-2022-cpi-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaSplToken2022CpiElf }
   | "--solana-log-event-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaLogEventElf }
   | "--solana-clock-sysvar-elf" :: rest, opts =>
@@ -4915,6 +4926,12 @@ def compileSolanaSplTokenAuthorityCpiSbpf (opts : CliOptions) : IO UInt32 :=
     "solana-spl-token-authority-cpi-sbpf"
     ProofForge.Solana.Examples.SplTokenAuthorityCpi.spec
 
+def compileSolanaSplToken2022CpiSbpf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecSbpf opts
+    (FilePath.mk "build/solana/SplToken2022Cpi.s")
+    "solana-spl-token-2022-cpi-sbpf"
+    ProofForge.Solana.Examples.SplToken2022Cpi.spec
+
 def compileValueVaultSolanaElf (opts : CliOptions) : IO UInt32 :=
   compileSolanaSpecElf opts
     (FilePath.mk "build/solana/ValueVault.so")
@@ -4963,6 +4980,13 @@ def compileSolanaSplTokenAuthorityCpiElf (opts : CliOptions) : IO UInt32 :=
     "spl-token-authority-cpi"
     "solana-spl-token-authority-cpi-elf"
     ProofForge.Solana.Examples.SplTokenAuthorityCpi.spec
+
+def compileSolanaSplToken2022CpiElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/SplToken2022Cpi.so")
+    "spl-token-2022-cpi"
+    "solana-spl-token-2022-cpi-elf"
+    ProofForge.Solana.Examples.SplToken2022Cpi.spec
 
 def compileSolanaLogEventElf (opts : CliOptions) : IO UInt32 :=
   compileSolanaSpecElf opts
@@ -5229,6 +5253,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaSplTokenOpsCpiSbpf => compileSolanaSplTokenOpsCpiSbpf opts
   | .solanaSplTokenCloseAccountCpiSbpf => compileSolanaSplTokenCloseAccountCpiSbpf opts
   | .solanaSplTokenAuthorityCpiSbpf => compileSolanaSplTokenAuthorityCpiSbpf opts
+  | .solanaSplToken2022CpiSbpf => compileSolanaSplToken2022CpiSbpf opts
   | .solanaElf => compileSolanaElf opts
   | .valueVaultSolanaElf => compileValueVaultSolanaElf opts
   | .solanaSystemCpiElf => compileSolanaSystemCpiElf opts
@@ -5237,6 +5262,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaSplTokenOpsCpiElf => compileSolanaSplTokenOpsCpiElf opts
   | .solanaSplTokenCloseAccountCpiElf => compileSolanaSplTokenCloseAccountCpiElf opts
   | .solanaSplTokenAuthorityCpiElf => compileSolanaSplTokenAuthorityCpiElf opts
+  | .solanaSplToken2022CpiElf => compileSolanaSplToken2022CpiElf opts
   | .solanaLogEventElf => compileSolanaLogEventElf opts
   | .solanaClockSysvarElf => compileSolanaClockSysvarElf opts
   | .solanaRentSysvarElf => compileSolanaRentSysvarElf opts

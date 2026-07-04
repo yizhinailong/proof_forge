@@ -194,6 +194,10 @@ solana-spl-token-ops-cpi-web3:
 solana-spl-token-authority-cpi-web3:
     scripts/solana/spl-token-authority-cpi-web3-smoke.sh
 
+# Run a live Token-2022 transfer-fee direct CPI smoke on Surfpool with Web3.js.
+solana-spl-token-2022-cpi-web3:
+    scripts/solana/spl-token-2022-cpi-web3-smoke.sh
+
 # Run a live Solana log/event smoke on Surfpool with Web3.js.
 solana-log-event-web3:
     scripts/solana/log-event-web3-smoke.sh

@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Solana Token-2022 Direct CPI Live Gate
+
+Commit: this commit
+
+Summary:
+
+- Added target-first CLI fixture support for
+  `--fixture spl-token-2022-cpi --format s|elf`, backed by the existing
+  `ProofForge.Solana.Examples.SplToken2022Cpi` spec.
+- Added `Tests/solana/spl_token_2022_cpi_web3_smoke.mjs`, which deploys the
+  generated program on Surfpool and exercises Token-2022 transfer-fee direct
+  CPI behavior: initialize transfer-fee config, transfer with fee, withdraw
+  withheld fees from accounts, harvest withheld fees to mint, withdraw from
+  mint, and update transfer-fee parameters.
+- Added `scripts/solana/spl-token-2022-cpi-web3-smoke.sh` and the
+  `just solana-spl-token-2022-cpi-web3` entrypoint. The shell gate validates
+  generated artifact metadata before deploying the ELF.
+
+Validation run:
+
+```sh
+lake build ProofForge.Cli ProofForge.Cli.Fixture ProofForge.Solana.Examples.SplToken2022Cpi
+lake build proof-forge
+lake env proof-forge check --target solana-sbpf-asm --fixture spl-token-2022-cpi --format s
+lake env proof-forge check --target solana-sbpf-asm --fixture spl-token-2022-cpi --format elf
+lake env lean --run Tests/SolanaCpiPacking.lean
+node --check Tests/solana/spl_token_2022_cpi_web3_smoke.mjs
+just solana-spl-token-2022-cpi-web3
+git diff --check
+```
+
+Known limitations:
+
+- This live gate covers the Token-2022 transfer-fee direct-CPI program path.
+  The generated `initialize_non_transferable_mint` direct CPI remains covered
+  by static packing/artifact checks; its generated-program live behavior should
+  be split into a separate mint-initialization smoke.
+
+Next step:
+
+- Continue Solana-first validation expansion with either the non-transferable
+  direct-CPI live smoke or the next ecosystem CPI target from the P1 gap list.
+
 ### Solana Lean Gate Example Build
 
 Commit: this commit
