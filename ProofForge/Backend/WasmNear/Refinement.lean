@@ -183,6 +183,119 @@ def ArtifactSurfaceObligation.ok (obligation : ArtifactSurfaceObligation) : Bool
       hasMemoryExport wasm obligation.requiredMemoryExport
   | .error _ => false
 
+/-! Offline-host execution-surface obligations.
+
+The Rust offline host remains an external differential-testing boundary, not
+part of the trusted Lean kernel.  This obligation pins the deterministic IO
+surface that host execution must expose for a generated EmitWat artifact: the
+Borsh/little-endian input bytes passed to each exported entrypoint and the
+return fragment that the host prints after executing it.
+-/
+
+def hexDigit (value : Nat) : Char :=
+  if value < 10 then Char.ofNat ('0'.toNat + value) else Char.ofNat ('a'.toNat + (value - 10))
+
+def byteHex (value : Nat) : String :=
+  String.ofList [hexDigit (value / 16 % 16), hexDigit (value % 16)]
+
+def littleEndianHex (byteCount value : Nat) : String :=
+  String.intercalate "" <|
+    (List.range byteCount).map fun idx => byteHex ((value / (256 ^ idx)) % 256)
+
+def borshValueHex : ProofForge.IR.Semantics.Value → Except String String
+  | .unit => .ok ""
+  | .bool value => .ok (if value then "01" else "00")
+  | .u32 value => .ok (littleEndianHex 4 value)
+  | .u64 value => .ok (littleEndianHex 8 value)
+  | .hash a b c d =>
+      .ok (littleEndianHex 8 a ++ littleEndianHex 8 b ++ littleEndianHex 8 c ++ littleEndianHex 8 d)
+  | .array _ => .error "offline-host execution obligation does not yet encode aggregate Borsh input values"
+  | .struct _ _ => .error "offline-host execution obligation does not yet encode struct Borsh input values"
+
+def borshArgsHex (args : Array ProofForge.IR.Semantics.Value) : Except String String := do
+  let parts ← args.mapM borshValueHex
+  .ok (String.intercalate "" parts.toList)
+
+def observableReturnHex : ObservableReturn → String
+  | .none => ""
+  | .bool value => if value then "01" else "00"
+  | .u32 value => littleEndianHex 4 value
+  | .u64 value => littleEndianHex 8 value
+  | .hash a b c d =>
+      littleEndianHex 8 a ++ littleEndianHex 8 b ++ littleEndianHex 8 c ++ littleEndianHex 8 d
+
+def offlineHostReturnFragment : ObservableReturn → String
+  | .none => "return=<none>"
+  | .bool value => s!"return_hex={observableReturnHex (.bool value)} return_bool={value}"
+  | .u32 value => s!"return_hex={observableReturnHex (.u32 value)} return_u32={value}"
+  | .u64 value => s!"return_hex={observableReturnHex (.u64 value)} return_u64={value}"
+  | .hash a b c d =>
+      s!"return_hex={observableReturnHex (.hash a b c d)} return_len=32"
+
+structure OfflineHostExecutionStep where
+  exportName : String
+  args : Array ProofForge.IR.Semantics.Value := #[]
+  deriving Repr
+
+structure OfflineHostIOExpectation where
+  exportName : String
+  inputHex : String
+  returnLineFragment : String
+  deriving Repr, BEq
+
+structure OfflineHostExecutionObligation where
+  name : String
+  artifactSurface : ArtifactSurfaceObligation
+  steps : Array OfflineHostExecutionStep
+  expectedIO : Array OfflineHostIOExpectation
+
+def findEntrypoint? (mod : Module) (name : String) : Option Entrypoint :=
+  mod.entrypoints.find? (fun entrypoint => entrypoint.name == name)
+
+def runOfflineHostExecutionStep
+    (state : ProofForge.IR.Semantics.State)
+    (mod : Module)
+    (step : OfflineHostExecutionStep) :
+    Except String (ProofForge.IR.Semantics.State × OfflineHostIOExpectation) := do
+  let entrypoint ←
+    match findEntrypoint? mod step.exportName with
+    | some entrypoint => .ok entrypoint
+    | none => .error s!"module `{mod.name}` has no exported entrypoint `{step.exportName}`"
+  let inputHex ← borshArgsHex step.args
+  let (nextState, result?) ← ProofForge.IR.Semantics.runEntrypointWithArgs state entrypoint step.args
+  let returnValue ← observableReturn entrypoint.returns result?
+  .ok (nextState, {
+    exportName := step.exportName
+    inputHex := inputHex
+    returnLineFragment := s!"call 1:{step.exportName}: {offlineHostReturnFragment returnValue}"
+  })
+
+def runOfflineHostExecutionTraceList (mod : Module) :
+    List OfflineHostExecutionStep → ProofForge.IR.Semantics.State →
+    Except String (ProofForge.IR.Semantics.State × Array OfflineHostIOExpectation)
+  | [], state => .ok (state, #[])
+  | step :: rest, state => do
+      let (nextState, ioStep) ← runOfflineHostExecutionStep state mod step
+      let (finalState, ioSteps) ← runOfflineHostExecutionTraceList mod rest nextState
+      .ok (finalState, #[ioStep] ++ ioSteps)
+
+def runOfflineHostExecutionTrace
+    (mod : Module)
+    (steps : Array OfflineHostExecutionStep) :
+    Except String (Array OfflineHostIOExpectation) := do
+  let (_, ioSteps) ←
+    runOfflineHostExecutionTraceList mod steps.toList ProofForge.IR.Semantics.State.empty
+  .ok ioSteps
+
+def OfflineHostExecutionObligation.ioSurfaceOk
+    (obligation : OfflineHostExecutionObligation) : Bool :=
+  match runOfflineHostExecutionTrace obligation.artifactSurface.module obligation.steps with
+  | .ok actual => actual == obligation.expectedIO
+  | .error _ => false
+
+def OfflineHostExecutionObligation.ok (obligation : OfflineHostExecutionObligation) : Bool :=
+  obligation.artifactSurface.ok && obligation.ioSurfaceOk
+
 def counterTraceEntrypoints : Array Entrypoint := #[
   ProofForge.IR.Examples.Counter.initializeEntrypoint,
   ProofForge.IR.Examples.Counter.get,
@@ -225,6 +338,39 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     { functionName := "__pf_return_u64", expectedCalls := #["value_return"] }
   ]
   requiredDataSegments := #[(0, "count")]
+}
+
+def counterOfflineHostExecutionObligation : OfflineHostExecutionObligation := {
+  name := "Counter.EmitWat.offline-host-execution-surface"
+  artifactSurface := counterArtifactSurfaceObligation
+  steps := #[
+    { exportName := "initialize" },
+    { exportName := "get" },
+    { exportName := "increment" },
+    { exportName := "get" }
+  ]
+  expectedIO := #[
+    {
+      exportName := "initialize"
+      inputHex := ""
+      returnLineFragment := "call 1:initialize: return=<none>"
+    },
+    {
+      exportName := "get"
+      inputHex := ""
+      returnLineFragment := "call 1:get: return_hex=0000000000000000 return_u64=0"
+    },
+    {
+      exportName := "increment"
+      inputHex := ""
+      returnLineFragment := "call 1:increment: return=<none>"
+    },
+    {
+      exportName := "get"
+      inputHex := ""
+      returnLineFragment := "call 1:get: return_hex=0100000000000000 return_u64=1"
+    }
+  ]
 }
 
 def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
@@ -313,6 +459,81 @@ def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   ]
 }
 
+def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation := {
+  name := "ValueVault.EmitWat.offline-host-execution-surface"
+  artifactSurface := valueVaultArtifactSurfaceObligation
+  steps := #[
+    { exportName := "initialize", args := #[.u64 100] },
+    { exportName := "get_balance" },
+    { exportName := "deposit", args := #[.u64 25] },
+    { exportName := "get_balance" },
+    { exportName := "charge_fee", args := #[.u64 100, .u64 250] },
+    { exportName := "get_balance" },
+    { exportName := "get_net_value" },
+    { exportName := "release", args := #[.u64 23] },
+    { exportName := "get_balance" },
+    { exportName := "snapshot" },
+    { exportName := "get_net_value" }
+  ]
+  expectedIO := #[
+    {
+      exportName := "initialize"
+      inputHex := "6400000000000000"
+      returnLineFragment := "call 1:initialize: return=<none>"
+    },
+    {
+      exportName := "get_balance"
+      inputHex := ""
+      returnLineFragment := "call 1:get_balance: return_hex=6400000000000000 return_u64=100"
+    },
+    {
+      exportName := "deposit"
+      inputHex := "1900000000000000"
+      returnLineFragment := "call 1:deposit: return=<none>"
+    },
+    {
+      exportName := "get_balance"
+      inputHex := ""
+      returnLineFragment := "call 1:get_balance: return_hex=7d00000000000000 return_u64=125"
+    },
+    {
+      exportName := "charge_fee"
+      inputHex := "6400000000000000fa00000000000000"
+      returnLineFragment := "call 1:charge_fee: return=<none>"
+    },
+    {
+      exportName := "get_balance"
+      inputHex := ""
+      returnLineFragment := "call 1:get_balance: return_hex=df00000000000000 return_u64=223"
+    },
+    {
+      exportName := "get_net_value"
+      inputHex := ""
+      returnLineFragment := "call 1:get_net_value: return_hex=dd00000000000000 return_u64=221"
+    },
+    {
+      exportName := "release"
+      inputHex := "1700000000000000"
+      returnLineFragment := "call 1:release: return=<none>"
+    },
+    {
+      exportName := "get_balance"
+      inputHex := ""
+      returnLineFragment := "call 1:get_balance: return_hex=c800000000000000 return_u64=200"
+    },
+    {
+      exportName := "snapshot"
+      inputHex := ""
+      returnLineFragment := "call 1:snapshot: return_hex=c800000000000000 return_u64=200"
+    },
+    {
+      exportName := "get_net_value"
+      inputHex := ""
+      returnLineFragment := "call 1:get_net_value: return_hex=c600000000000000 return_u64=198"
+    }
+  ]
+}
+
 theorem counter_ir_observable_trace_ok :
     counterTraceObligation.irTraceOk = true := by
   native_decide
@@ -325,8 +546,16 @@ theorem counter_emitwat_artifact_surface_ok :
     counterArtifactSurfaceObligation.ok = true := by
   native_decide
 
+theorem counter_emitwat_offline_host_execution_surface_ok :
+    counterOfflineHostExecutionObligation.ok = true := by
+  native_decide
+
 theorem value_vault_emitwat_artifact_surface_ok :
     valueVaultArtifactSurfaceObligation.ok = true := by
+  native_decide
+
+theorem value_vault_emitwat_offline_host_execution_surface_ok :
+    valueVaultOfflineHostExecutionObligation.ok = true := by
   native_decide
 
 end ProofForge.Backend.WasmNear.Refinement

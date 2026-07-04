@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-4 NEAR Offline-Host Execution Surface Anchor
+
+Commit: this commit
+
+Summary:
+
+- Added a decide-checkable NEAR/Wasm offline-host execution-surface obligation
+  for Counter and ValueVault.
+- The obligation derives each exported call's Borsh/little-endian input bytes
+  and expected `runtime/offline-host` return-line fragment from the same IR
+  trace boundary used by the formal anchors.
+- Extended `scripts/near/emitwat-ci-smoke.sh` so CI now emits the ValueVault
+  WAT fixture and executes the full 11-step ValueVault sequence through
+  `runtime/offline-host`, checking typed inputs, return words, event logs, and
+  fuel-based `near_gas` observations.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+scripts/near/emitwat-ci-smoke.sh
+git diff --check
+```
+
+Known limitations:
+
+- This is an execution-surface anchor, not a full Wasm semantics proof and not
+  a proof about Wasmtime or the NEAR runtime.
+- Aggregate Borsh input values remain outside this small obligation shape.
+
+Next step:
+
+- Deepen the NEAR FV-4 boundary from host-observed IO fragments toward a
+  focused Wasm/offline-host semantics model.
+
 ### FV-4 NEAR ValueVault Artifact Surface Anchor
 
 Commit: this commit
