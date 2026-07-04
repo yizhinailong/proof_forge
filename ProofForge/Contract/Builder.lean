@@ -13,6 +13,7 @@ structure ModuleBuilder where
   state : Array StateDecl := #[]
   entrypoints : Array Entrypoint := #[]
   intents : Array Intent := #[]
+  evmConstructorParams : Array ProofForge.Contract.EvmConstructorParam := #[]
   deriving Repr
 
 structure EntryBuilder where
@@ -36,6 +37,7 @@ def ModuleBuilder.toSpec (builder : ModuleBuilder) : ContractSpec :=
     name := module.name
     module := module
     intents := intentsFromIR module ++ builder.intents
+    evmConstructorParams := builder.evmConstructorParams
   }
 
 def buildModule (name : String) (body : ModuleM Unit) : Module :=
@@ -79,6 +81,12 @@ def state (id : String) (type : ValueType) (kind : StateKind := .scalar) : Modul
 
 def scalarState (id : String) (type : ValueType) : ModuleM Unit :=
   state id type .scalar
+
+def constructorParam (name : String) (abiType : String) : ModuleM Unit := do
+  modify fun builder =>
+    { builder with
+      evmConstructorParams := builder.evmConstructorParams.push { name, abiType }
+    }
 
 def mapState (id : String) (keyType type : ValueType) (capacity : Nat) : ModuleM Unit :=
   state id type (.map keyType capacity)

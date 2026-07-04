@@ -14,6 +14,8 @@ namespace Counter
 open ProofForge.Contract.Source
 
 contract_source Counter do
+  constructor_param initial : .u64;
+
   state count : .u64
 
   entry «initialize» do

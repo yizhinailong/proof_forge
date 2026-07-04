@@ -100,7 +100,7 @@ namespace ProofForge.Cli
 structure ConstructorParamSpec where
   name : String
   abiType : String
-  deriving Repr
+  deriving Repr, BEq
 
 structure ConstructorValueSpec where
   name : String
@@ -669,10 +669,22 @@ def normalizeConstructorArgsHex (value : String) : Except String String :=
     .ok (lowerHexString hex)
 
 def supportedConstructorAbiTypes : Array String :=
-  #["uint256", "uint64", "uint32", "bool", "bytes32", "address"]
+  #["uint256", "uint64", "uint32", "bool", "bytes32", "address", "string", "bytes", "uint256[]"]
+
+def constructorParamIsDynamic (abiType : String) : Bool :=
+  abiType == "string" || abiType == "bytes" || abiType == "uint256[]"
+
+def constructorParamEncoding (abiType : String) : String :=
+  match abiType with
+  | "string" | "bytes" => "abi-dynamic-bytes"
+  | "uint256[]" => "abi-dynamic-array"
+  | _ => "abi-static-word"
 
 def constructorAbiTypeSupported (abiType : String) : Bool :=
   supportedConstructorAbiTypes.contains abiType
+
+def supportedConstructorAbiTypesMessage : String :=
+  String.intercalate ", " supportedConstructorAbiTypes.toList
 
 def parseConstructorParamSpec (s : String) : Except String ConstructorParamSpec := do
   match s.splitOn ":" with
@@ -684,8 +696,7 @@ def parseConstructorParamSpec (s : String) : Except String ConstructorParamSpec 
       else if abiType.isEmpty then
         .error s!"invalid constructor parameter spec '{s}': type is empty"
       else if !constructorAbiTypeSupported abiType then
-        let supported := String.intercalate ", " supportedConstructorAbiTypes.toList
-        .error s!"unsupported constructor ABI type '{abiType}'; supported static-word types: {supported}"
+        .error s!"unsupported constructor ABI type '{abiType}'; supported types: {supportedConstructorAbiTypesMessage}"
       else
         .ok { name := name, abiType := abiType }
   | _ =>
@@ -763,7 +774,72 @@ def encodeBoolConstructorArg (name value : String) : Except String String :=
   | "false" | "False" | "FALSE" | "0" => .ok (fixedHexBytes 32 0)
   | _ => .error s!"constructor argument `{name}` must be true, false, 1, or 0"
 
-def encodeConstructorValue (param : ConstructorParamSpec) (value : String) : Except String String := do
+def byteToHex (byte : UInt8) : String :=
+  let value := byte.toNat
+  hexDigit (value / 16) ++ hexDigit (value % 16)
+
+def byteArrayToHex (bytes : ByteArray) : String := Id.run do
+  let mut hex := ""
+  for idx in [0:bytes.size] do
+    hex := hex ++ byteToHex (bytes[idx]!)
+  return hex
+
+def padHexTo32ByteBoundary (hex : String) : String :=
+  let byteCount := hex.length / 2
+  let rem := byteCount % 32
+  if rem == 0 then
+    hex
+  else
+    hex ++ repeatString ((32 - rem) * 2) "0"
+
+def encodeDynamicBytesTail (dataHex : String) (byteLen : Nat) : String :=
+  fixedHexBytes 32 byteLen ++ padHexTo32ByteBoundary dataHex
+
+def parseCommaSeparatedNatList (value name : String) : Except String (Array Nat) := do
+  let trimmed := trimAsciiString value
+  if trimmed.isEmpty then
+    .error s!"constructor argument `{name}` must not be empty"
+  let mut nums : Array Nat := #[]
+  for part in trimmed.splitOn "," do
+    let part := trimAsciiString part
+    if part.isEmpty then
+      .error s!"constructor argument `{name}` must not contain empty elements"
+    else
+      let n ← parseUnsignedNat part s!"constructor argument `{name}` element"
+      nums := nums.push n
+  .ok nums
+
+def encodeStringConstructorTail (name value : String) : Except String String := do
+  let trimmed := trimAsciiString value
+  if trimmed.isEmpty then
+    .error s!"constructor argument `{name}` must not be empty"
+  let bytes := trimmed.toUTF8
+  let dataHex := byteArrayToHex bytes
+  .ok (encodeDynamicBytesTail dataHex bytes.size)
+
+def encodeBytesConstructorTail (name value : String) : Except String String := do
+  let hex ← normalizeConstructorArgsHex value
+  if hex.isEmpty then
+    .error s!"constructor argument `{name}` must not be empty"
+  .ok (encodeDynamicBytesTail hex (hex.length / 2))
+
+def encodeUint256ArrayConstructorTail (name value : String) : Except String String := do
+  let nums ← parseCommaSeparatedNatList value name
+  if !nums.all (fun n => n < byteLimit 32) then
+    .error s!"constructor argument `{name}` element does not fit in uint256"
+  else
+    let countWord := fixedHexBytes 32 nums.size
+    let elemWords := String.intercalate "" (nums.toList.map (fixedHexBytes 32))
+    .ok (countWord ++ elemWords)
+
+def encodeDynamicConstructorTail (param : ConstructorParamSpec) (value : String) : Except String String :=
+  match param.abiType with
+  | "string" => encodeStringConstructorTail param.name value
+  | "bytes" => encodeBytesConstructorTail param.name value
+  | "uint256[]" => encodeUint256ArrayConstructorTail param.name value
+  | abiType => .error s!"unsupported dynamic constructor ABI type '{abiType}'"
+
+def encodeStaticConstructorValue (param : ConstructorParamSpec) (value : String) : Except String String := do
   match param.abiType with
   | "uint256" => encodeUintConstructorArg param.name value 32
   | "uint64" => encodeUintConstructorArg param.name value 8
@@ -773,7 +849,7 @@ def encodeConstructorValue (param : ConstructorParamSpec) (value : String) : Exc
   | "address" =>
       let address ← normalizeExactHexBytes value s!"constructor argument `{param.name}`" 20
       .ok (repeatString 24 "0" ++ address)
-  | abiType => .error s!"unsupported constructor ABI type '{abiType}'"
+  | abiType => .error s!"unsupported static constructor ABI type '{abiType}'"
 
 def constructorParamExists (params : Array ConstructorParamSpec) (name : String) : Bool :=
   params.any (fun param => param.name == name)
@@ -793,7 +869,14 @@ def validateConstructorValues (params : Array ConstructorParamSpec) (values : Ar
   for value in values do
     if constructorValueCount values value.name > 1 then
       .error s!"duplicate --evm-constructor-arg for `{value.name}`"
-    else if !constructorParamExists params value.name then
+    else
+      pure ()
+
+def validateConstructorValuesAgainstParams
+    (params : Array ConstructorParamSpec) (values : Array ConstructorValueSpec) : Except String Unit := do
+  validateConstructorValues params values
+  for value in values do
+    if !constructorParamExists params value.name then
       .error s!"--evm-constructor-arg `{value.name}` has no matching --evm-constructor-param"
     else
       pure ()
@@ -801,49 +884,101 @@ def validateConstructorValues (params : Array ConstructorParamSpec) (values : Ar
 def encodeConstructorValues (params : Array ConstructorParamSpec) (values : Array ConstructorValueSpec) : Except String String := do
   if params.isEmpty then
     .error "--evm-constructor-arg requires at least one --evm-constructor-param"
-  validateConstructorValues params values
-  let mut words : Array String := #[]
+  validateConstructorValuesAgainstParams params values
+  let headWordCount := params.size
+  let mut headWords : Array String := #[]
+  let mut tailHex := ""
+  let mut tailOffset := headWordCount * 32
   for param in params do
     match findConstructorValue? values param.name with
     | some value =>
-        let word ← encodeConstructorValue param value
-        words := words.push word
+        if constructorParamIsDynamic param.abiType then
+          let tail ← encodeDynamicConstructorTail param value
+          headWords := headWords.push (fixedHexBytes 32 tailOffset)
+          tailHex := tailHex ++ tail
+          tailOffset := tailOffset + tail.length / 2
+        else
+          let word ← encodeStaticConstructorValue param value
+          headWords := headWords.push word
     | none =>
         .error s!"missing --evm-constructor-arg for constructor parameter `{param.name}`"
-  .ok (String.intercalate "" words.toList)
+  .ok (String.intercalate "" headWords.toList ++ tailHex)
+
+def constructorSchemaHasDynamic (params : Array ConstructorParamSpec) : Bool :=
+  params.any (fun param => constructorParamIsDynamic param.abiType)
 
 def validateConstructorSchemaAndArgs (params : Array ConstructorParamSpec) (constructorArgsHex : String) : Except String Unit := do
   let argsHex ← normalizeConstructorArgsHex constructorArgsHex
   if params.isEmpty then
     .ok ()
   else if argsHex.isEmpty then
-    .error "--evm-constructor-param requires --evm-constructor-args-hex or matching --evm-constructor-arg values"
+    .ok ()
   else
-    let expectedBytes := params.size * 32
     let actualBytes := argsHex.length / 2
-    if actualBytes == expectedBytes then
-      .ok ()
+    if constructorSchemaHasDynamic params then
+      let minBytes := params.size * 32
+      if actualBytes >= minBytes then
+        .ok ()
+      else
+        .error s!"constructor ABI schema expects at least {minBytes} bytes ({params.size} ABI head word(s)), but constructor args have {actualBytes} byte(s)"
     else
-      .error s!"constructor ABI schema expects {expectedBytes} bytes ({params.size} static-word parameter(s)), but --evm-constructor-args-hex has {actualBytes} byte(s)"
+      let expectedBytes := params.size * 32
+      if actualBytes == expectedBytes then
+        .ok ()
+      else
+        .error s!"constructor ABI schema expects {expectedBytes} bytes ({params.size} static-word parameter(s)), but constructor args have {actualBytes} byte(s)"
+
+def mergeSpecConstructorParams
+    (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) : CliOptions :=
+  if spec.evmConstructorParams.isEmpty then
+    opts
+  else
+    let specParams := spec.evmConstructorParams.map fun param =>
+      { name := param.name, abiType := param.abiType }
+    let extraParams := opts.evmConstructorParams.filter fun param =>
+      !specParams.any (fun existing => existing.name == param.name)
+    { opts with evmConstructorParams := specParams ++ extraParams }
+
+def constructorValuesDeferSpecMerge
+    (params : Array ConstructorParamSpec) (values : Array ConstructorValueSpec) : Bool :=
+  values.any (fun value => !constructorParamExists params value.name)
+
+def constructorValuesReady (params : Array ConstructorParamSpec) (values : Array ConstructorValueSpec) : Bool :=
+  !values.isEmpty &&
+    !constructorValuesDeferSpecMerge params values &&
+    params.all (fun param => findConstructorValue? values param.name |>.isSome)
 
 def finalizeConstructorOptions (opts : CliOptions) : Except String CliOptions := do
   let argsHex ← normalizeConstructorArgsHex opts.evmConstructorArgsHex
   if !opts.evmConstructorValues.isEmpty then
     if !argsHex.isEmpty then
       .error "--evm-constructor-arg cannot be combined with --evm-constructor-args-hex"
-    else
+    else if constructorValuesDeferSpecMerge opts.evmConstructorParams opts.evmConstructorValues then
+      validateConstructorValues opts.evmConstructorParams opts.evmConstructorValues
+      .ok opts
+    else if constructorValuesReady opts.evmConstructorParams opts.evmConstructorValues then
       let encoded ← encodeConstructorValues opts.evmConstructorParams opts.evmConstructorValues
       validateConstructorSchemaAndArgs opts.evmConstructorParams encoded
       .ok { opts with
         evmConstructorArgsHex := encoded,
         evmConstructorArgsSource := "--evm-constructor-arg"
       }
+    else
+      validateConstructorValues opts.evmConstructorParams opts.evmConstructorValues
+      .ok opts
   else
     validateConstructorSchemaAndArgs opts.evmConstructorParams argsHex
     .ok { opts with
       evmConstructorArgsHex := argsHex,
       evmConstructorArgsSource := "--evm-constructor-args-hex"
     }
+
+def finalizeConstructorOptionsForSpec
+    (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) : Except String CliOptions := do
+  let merged := { (mergeSpecConstructorParams opts spec) with evmConstructorArgsHex := "" }
+  if !merged.evmConstructorValues.isEmpty && constructorValuesDeferSpecMerge merged.evmConstructorParams merged.evmConstructorValues then
+    validateConstructorValuesAgainstParams merged.evmConstructorParams merged.evmConstructorValues
+  finalizeConstructorOptions merged
 
 def runProcess (cmd : String) (args : Array String) (cwd? : Option FilePath := none) : IO String := do
   let output ← IO.Process.output { cmd := cmd, args := args, cwd := cwd? }
@@ -1372,12 +1507,18 @@ def eventAbisForModule (cast : String) (module : ProofForge.IR.Module) : IO (Arr
   return events
 
 def constructorParamJson (param : ConstructorParamSpec) : String :=
-  jsonObject #[
+  let fields : Array (String × String) := #[
     ("name", jsonString param.name),
     ("type", jsonString param.abiType),
-    ("encoding", jsonString "abi-static-word"),
+    ("encoding", jsonString (constructorParamEncoding param.abiType)),
     ("slotBytes", "32")
   ]
+  let fields :=
+    if param.abiType == "uint256[]" then
+      fields.push ("elementType", jsonString "uint256")
+    else
+      fields
+  jsonObject fields
 
 def constructorAbiJson (params : Array ConstructorParamSpec) : String :=
   jsonObject #[
@@ -3224,6 +3365,9 @@ unsafe def compileContractSourceEvmBytecode (opts : CliOptions) : IO UInt32 := d
     | IO.eprintln usage
       return 1
   let spec ← ProofForge.Cli.ContractLoader.loadSpec input opts.root? opts.moduleName?
+  let opts ← match finalizeConstructorOptionsForSpec opts spec with
+    | .ok opts => pure opts
+    | .error msg => throw <| IO.userError msg
   let yulOutput := opts.yulOutput?.getD (defaultYulOutput input)
   let (yul, module) ← renderContractSourceEvmYul opts spec
   writeTextFile yulOutput yul

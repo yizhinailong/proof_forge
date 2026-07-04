@@ -7,11 +7,17 @@ namespace ProofForge.Contract
 
 open ProofForge.IR
 
+structure EvmConstructorParam where
+  name : String
+  abiType : String
+  deriving Repr, BEq
+
 structure ContractSpec where
   name : String
   module : ProofForge.IR.Module
   intents : Array Intent := #[]
   upgradePolicy? : Option UpgradePolicy := none
+  evmConstructorParams : Array EvmConstructorParam := #[]
   deriving Repr
 
 def moduleIntent (module : ProofForge.IR.Module) : Intent := {
