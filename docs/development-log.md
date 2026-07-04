@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-05
 
+### Wasm-NEAR Diagnostics Capability Alignment
+
+Commit: this commit
+
+Summary:
+
+- Updated `Tests/WasmNearDiagnostics.lean` so the diagnostic baseline matches
+  the current `wasm-near` target profile: capability-gated cases that now reach
+  Rust sourcegen assert the backend-specific unsupported diagnostics instead of
+  stale target-profile errors.
+- Changed the fixed-array and struct cases to trigger unsupported ABI shapes
+  explicitly, and moved `nativeValue` to a positive Rust sourcegen check for
+  `env::attached_deposit()`.
+- Updated WasmNear coverage notes, target docs, and the capability registry so
+  NEAR partial capabilities distinguish the EmitWat path from Rust sourcegen v0.
+
+Validation run:
+
+```sh
+lake env lean --run Tests/WasmNearDiagnostics.lean
+scripts/near/diagnostic-smoke.sh
+lake build ProofForge.Target ProofForge.Backend.WasmNear.IR
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- Rust sourcegen v0 still rejects `if/else`, bounded loops, fixed-array ABI,
+  struct ABI, and storage arrays even though the broader `wasm-near` target
+  profile carries partial support through EmitWat.
+
+Next step:
+
+- Either route Rust sourcegen through the same planned lowering surfaces as
+  EmitWat, or split backend-subpath capability reporting if the product keeps
+  both NEAR codegen routes long term.
+
 ### EVM Crosscall Return Assignment Plan Slice
 
 Commit: this commit

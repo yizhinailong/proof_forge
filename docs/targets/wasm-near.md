@@ -100,18 +100,18 @@ Defined in `ProofForge/Target/Registry.lean` (`def wasmNear`):
 | `storage.scalar` | Yes | u32, u64, bool, hash → Rust struct fields |
 | `storage.map` | Yes | Map<U64, …> and Map<Hash, …> → raw `env::storage_read`/`env::storage_write` |
 | `caller.sender` | Yes | `env::predecessor_account_id()` |
-| `value.native` | Yes (capability) | Attached deposit capability declared; expression inspection not supported in v0 |
+| `value.native` | Partial | Rust sourcegen lowers `nativeValue` to `env::attached_deposit()`; EmitWat does not yet lower expression inspection |
 | `events.emit` | Yes | `near_sdk::log!` with deterministic JSON |
 | `env.block` | Yes | `env::block_height()` |
 | `crypto.hash` | Yes | `env::sha256`-based hash helpers |
 | `assertions.check` | Yes | Lowered to Rust `assert!`/`assert_eq!` |
 | `account.explicit` | Yes | `env::current_account_id()` |
 | `crosscall.invoke` | No | Not supported in sourcegen v0 |
-| `storage.array` | No | Rejected by capability check |
-| `control.conditional` | No | Rejected by capability check |
-| `control.bounded_loop` | No | Rejected by capability check |
-| `data.fixed_array` | No | Rejected by capability check |
-| `data.struct` | No | Rejected by capability check |
+| `storage.array` | Partial | Target profile advertises the capability for the EmitWat path; Rust sourcegen v0 rejects array state |
+| `control.conditional` | Partial | Target profile advertises the capability for EmitWat; Rust sourcegen v0 rejects `if/else` |
+| `control.bounded_loop` | Partial | Target profile advertises the capability for EmitWat; Rust sourcegen v0 rejects bounded loops |
+| `data.fixed_array` | Partial | Target profile advertises the capability for EmitWat; Rust sourcegen v0 rejects fixed-array ABI and expression lowering |
+| `data.struct` | Partial | Target profile advertises the capability for EmitWat; Rust sourcegen v0 rejects struct ABI and expression lowering |
 
 ## Deviations from Original Plan
 

@@ -67,7 +67,7 @@ def module1 (name : String) (state : Array StateDecl) (entrypoint : Entrypoint) 
 }
 
 -- ---------------------------------------------------------------------------
--- Capability rejection cases (wasm-near profile lacks these capabilities)
+-- Target/backend boundary cases.
 -- ---------------------------------------------------------------------------
 
 def conditionalModule : Module :=
@@ -84,15 +84,13 @@ def boundedLoopModule : Module :=
 
 def fixedArrayModule : Module :=
   module1 "BadFixedArray" #[markerState] <|
-    unitEntrypoint "bad" #[
-      .letBind "xs" (.fixedArray .u64 1) (.arrayLit .u64 #[.literal (.u64 1)])
-    ]
+    paramEntrypoint "bad" #[("xs", .fixedArray .u64 1)] .unit #[]
 
 def structModule : Module := {
   name := "BadStruct"
   structs := #[{ name := "Point", fields := #[{ id := "x", type := .u64 }] }]
   state := #[markerState]
-  entrypoints := #[unitEntrypoint "bad"]
+  entrypoints := #[paramEntrypoint "bad" #[("point", .structType "Point")] .unit #[]]
 }
 
 def storageArrayModule : Module := {
@@ -363,16 +361,16 @@ def renderOk? (module : Module) : Option String :=
   | .error _ => none
 
 def cases : Array (String × Module × String) := #[
-  ("conditional capability unsupported", conditionalModule,
-    "target `wasm-near` does not support capability `control.conditional`: capability is not present in the target profile"),
-  ("bounded loop capability unsupported", boundedLoopModule,
-    "target `wasm-near` does not support capability `control.bounded_loop`: capability is not present in the target profile"),
-  ("fixed array capability unsupported", fixedArrayModule,
-    "target `wasm-near` does not support capability `data.fixed_array`: capability is not present in the target profile"),
-  ("struct capability unsupported", structModule,
-    "target `wasm-near` does not support capability `data.struct`: capability is not present in the target profile"),
-  ("storage array capability unsupported", storageArrayModule,
-    "target `wasm-near` does not support capability `storage.array`: capability is not present in the target profile"),
+  ("conditional sourcegen unsupported", conditionalModule,
+    "conditional branches are not supported by wasm-near IR v0"),
+  ("bounded loop sourcegen unsupported", boundedLoopModule,
+    "bounded for loops are not supported by wasm-near IR v0"),
+  ("fixed array ABI unsupported", fixedArrayModule,
+    "entrypoint `bad` parameter `xs` uses `Array<U64,1>`; wasm-near IR v0 ABI parameters must use U32, U64, Bool, Hash, or Address"),
+  ("struct ABI unsupported", structModule,
+    "entrypoint `bad` parameter `point` uses `Point`; wasm-near IR v0 ABI parameters must use U32, U64, Bool, Hash, or Address"),
+  ("storage array sourcegen unsupported", storageArrayModule,
+    "state `values` is storage.array; wasm-near IR v0 does not lower portable array storage"),
   ("crosscall capability unsupported", crosscallModule,
     "target `wasm-near` does not support capability `crosscall.invoke`: capability is not present in the target profile"),
   ("unit scalar state unsupported", unitScalarStateModule,
@@ -427,8 +425,6 @@ def cases : Array (String × Module × String) := #[
     "event.emit is a statement effect, not an expression"),
   ("event empty name unsupported", eventEmptyNameModule,
     "event name must be non-empty for wasm-near IR v0"),
-  ("native value unsupported", nativeValueModule,
-    "native value inspection is not supported by wasm-near IR v0; add a dedicated attached-deposit IR context field first"),
   ("unknown scalar state", unknownScalarStateModule,
     "unknown scalar state `missing`")
 ]
@@ -445,7 +441,8 @@ def okCases : Array (String × Module × String) := #[
   ("map lowers storage_read", mapModule, "env::storage_read"),
   ("hash context lowers sha256 account helper", hashContextModule, "__pf_account_id_hash_u64"),
   ("hash context lowers hash intrinsic", hashContextModule, "__pf_hash("),
-  ("mutable local lowers compound assignment", mutableLocalModule, "acc *= 2u64;")
+  ("mutable local lowers compound assignment", mutableLocalModule, "acc *= 2u64;"),
+  ("native value lowers attached deposit", nativeValueModule, "env::attached_deposit()")
 ]
 
 def checkCase (name : String) (module : Module) (expected : String) : IO Bool := do
