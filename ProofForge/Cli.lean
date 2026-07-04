@@ -49,6 +49,7 @@ import ProofForge.IR.Examples.ErrorRefProbe
 import ProofForge.IR.Examples.PureMath
 import ProofForge.IR.Examples.EventProbe
 import ProofForge.IR.Examples.EvmAbiAggregateProbe
+import ProofForge.IR.Examples.EvmDynamicAbiProbe
 import ProofForge.IR.Examples.EvmArrayValueProbe
 import ProofForge.IR.Examples.EvmAssignOpProbe
 import ProofForge.IR.Examples.EvmCrosscallProbe
@@ -171,6 +172,8 @@ inductive EmitMode where
   | evmStructValueIrBytecode
   | evmAbiAggregateIrYul
   | evmAbiAggregateIrBytecode
+  | evmDynamicAbiIrYul
+  | evmDynamicAbiIrBytecode
   | counterIrPsy
   | eventIrPsy
   | crosscallIrPsy
@@ -267,6 +270,7 @@ def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
   | .evmStructArrayValueIrBytecode
   | .evmStructValueIrBytecode
   | .evmAbiAggregateIrBytecode => true
+  | .evmDynamicAbiIrBytecode => true
   | _ => false
 
 def EmitMode.hasBuiltInFixture : EmitMode → Bool
@@ -318,6 +322,8 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .evmStructValueIrBytecode
   | .evmAbiAggregateIrYul
   | .evmAbiAggregateIrBytecode
+  | .evmDynamicAbiIrYul
+  | .evmDynamicAbiIrBytecode
   | .counterIrPsy
   | .eventIrPsy
   | .crosscallIrPsy
@@ -505,6 +511,8 @@ def usage : String :=
     "  proof-forge --emit-evm-struct-value-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-evm-abi-aggregate-ir-yul [-o output.yul]",
     "  proof-forge --emit-evm-abi-aggregate-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
+    "  proof-forge --emit-evm-dynamic-abi-ir-yul [-o output.yul]",
+    "  proof-forge --emit-evm-dynamic-abi-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-counter-ir-psy [-o output.psy]",
     "  proof-forge --emit-event-ir-psy [-o output.psy]",
     "  proof-forge --emit-crosscall-ir-psy [-o output.psy]",
@@ -1182,8 +1190,11 @@ def entrypointAbiScalarTypeName
       | .u64 => .ok "uint256"
       | .bool => .ok "bool"
       | .hash => .ok "bytes32"
+      | .address => .ok "address"
+      | .bytes => .ok "bytes"
+      | .string => .ok "string"
       | .unit | .fixedArray _ _ | .structType _ =>
-          .error s!"{context} has unsupported EVM ABI word type `{type.name}`; entrypoint ABI words support U32, U64, Bool, or Hash"
+          .error s!"{context} has unsupported EVM ABI word type `{type.name}`; entrypoint ABI words support U32, U64, Bool, Hash, Address, Bytes, or String"
 
 partial def entrypointAbiType
     (module : ProofForge.IR.Module)
@@ -1191,10 +1202,10 @@ partial def entrypointAbiType
     (type : ProofForge.IR.ValueType)
     (evmAbiWord? : Option String := none) : Except String String := do
   match type with
-  | .u32 | .u64 | .bool | .hash =>
+  | .u32 | .u64 | .bool | .hash | .address | .bytes | .string =>
       entrypointAbiScalarTypeName context type evmAbiWord?
   | .unit =>
-      .error s!"{context} uses Unit; EVM entrypoint parameters and non-Unit returns must use U32, U64, Bool, Hash, fixed arrays, or flat structs"
+      .error s!"{context} uses Unit; EVM entrypoint parameters and non-Unit returns must use U32, U64, Bool, Hash, Address, Bytes, String, fixed arrays, or flat structs"
   | .fixedArray elementType length => do
       if length == 0 then
         .error s!"{context} uses Array<{elementType.name},0>; EVM entrypoint ABI fixed arrays must have non-zero length"
@@ -1215,10 +1226,10 @@ partial def entrypointAbiWordTypes
     (context : String)
     (type : ProofForge.IR.ValueType) : Except String (Array String) := do
   match type with
-  | .u32 | .u64 | .bool | .hash =>
+  | .u32 | .u64 | .bool | .hash | .address | .bytes | .string =>
       .ok #[← entrypointAbiScalarTypeName context type]
   | .unit =>
-      .error s!"{context} uses Unit; EVM entrypoint ABI values must use U32, U64, Bool, Hash, fixed arrays, or flat structs"
+      .error s!"{context} uses Unit; EVM entrypoint ABI values must use U32, U64, Bool, Hash, Address, Bytes, String, fixed arrays, or flat structs"
   | .fixedArray elementType length => do
       if length == 0 then
         .error s!"{context} uses Array<{elementType.name},0>; EVM entrypoint ABI fixed arrays must have non-zero length"
@@ -1243,7 +1254,9 @@ def entrypointAbiValueJson
     (abiType : String)
     (wordTypes : Array String) : String :=
   let encoding :=
-    if type == .unit then "none" else "abi-static-words"
+    if type == .unit then "none"
+    else if type == .bytes || type == .string then "abi-dynamic-bytes"
+    else "abi-static-words"
   let nameFields :=
     match name? with
     | some name => #[("name", jsonString name)]
@@ -2341,6 +2354,10 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .evmAbiAggregateIrYul }
   | "--emit-evm-abi-aggregate-ir-bytecode" :: rest, opts =>
       parseArgs rest { opts with mode := .evmAbiAggregateIrBytecode }
+  | "--emit-evm-dynamic-abi-ir-yul" :: rest, opts =>
+      parseArgs rest { opts with mode := .evmDynamicAbiIrYul }
+  | "--emit-evm-dynamic-abi-ir-bytecode" :: rest, opts =>
+      parseArgs rest { opts with mode := .evmDynamicAbiIrBytecode }
   | "--emit-counter-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrPsy }
   | "--emit-event-ir-psy" :: rest, opts =>
@@ -3903,6 +3920,32 @@ def compileEvmAbiAggregateIrBytecode (opts : CliOptions) : IO UInt32 := do
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 
+def compileEvmDynamicAbiIrYul (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/ir/EvmDynamicAbiProbe.yul")
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.EvmDynamicAbiProbe.module with
+  | .ok yul =>
+      writeTextFile output yul
+      IO.println s!"wrote {output}"
+      return 0
+  | .error err =>
+      throw <| IO.userError err.render
+
+def renderEvmDynamicAbiIrYul : IO String := do
+  match ProofForge.Backend.Evm.IR.renderModule ProofForge.IR.Examples.EvmDynamicAbiProbe.module with
+  | .ok yul => return yul
+  | .error err => throw <| IO.userError err.render
+
+def compileEvmDynamicAbiIrBytecode (opts : CliOptions) : IO UInt32 := do
+  let yulOutput := opts.yulOutput?.getD (FilePath.mk "build/ir/EvmDynamicAbiProbe.yul")
+  let yul ← renderEvmDynamicAbiIrYul
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (FilePath.mk "build/ir/EvmDynamicAbiProbe.bin")
+  writeTextFile output (bytecode ++ "\n")
+  writeEvmIrArtifactMetadata opts "EvmDynamicAbiProbe" "ProofForge.IR.Examples.EvmDynamicAbiProbe" ProofForge.IR.Examples.EvmDynamicAbiProbe.module yulOutput output
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
 def compileCounterIrPsy (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/psy/Counter.psy")
   match ProofForge.Backend.Psy.IR.renderModule ProofForge.IR.Examples.Counter.module with
@@ -5301,6 +5344,8 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .evmStructValueIrBytecode => compileEvmStructValueIrBytecode opts
   | .evmAbiAggregateIrYul => compileEvmAbiAggregateIrYul opts
   | .evmAbiAggregateIrBytecode => compileEvmAbiAggregateIrBytecode opts
+  | .evmDynamicAbiIrYul => compileEvmDynamicAbiIrYul opts
+  | .evmDynamicAbiIrBytecode => compileEvmDynamicAbiIrBytecode opts
   | .counterIrPsy => compileCounterIrPsy opts
   | .eventIrPsy => compileEventIrPsy opts
   | .crosscallIrPsy => compileCrosscallIrPsy opts
