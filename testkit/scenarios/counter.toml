@@ -1,6 +1,7 @@
 [scenario]
 name = "counter"
 fixture = "counter"
+source = "Examples/Shared/Counter.lean"
 targets = ["wasm-near", "evm", "solana-sbpf-asm"]
 capabilities = ["storage.scalar", "entrypoint.external"]
 
@@ -8,6 +9,51 @@ capabilities = ["storage.scalar", "entrypoint.external"]
 target = "wasm-near"
 name = "wat"
 matches_file = "Examples/WasmNear/Counter.golden.wat"
+
+[[artifact]]
+target = "wasm-near"
+name = "metadata"
+
+[[artifact.json]]
+path = "schemaVersion"
+kind = "integer"
+equals = 1
+
+[[artifact.json]]
+path = "target"
+kind = "string"
+equals = "wasm-near"
+
+[[artifact.json]]
+path = "artifactKind"
+kind = "string"
+equals = "wasm"
+
+[[artifact.json]]
+path = "fixture"
+equals = "counter"
+
+[[artifact.json]]
+path = "sourceKind"
+equals = "contract-sdk"
+
+[[artifact.json]]
+path = "irVersion"
+kind = "null"
+
+[[artifact.json]]
+path = "sourceModule"
+equals = "Counter"
+
+[[artifact.json]]
+path = "artifacts"
+kind = "object"
+non_empty = true
+length = 3
+
+[[artifact.file]]
+path = "artifacts.wat"
+artifact = "wat"
 
 [[artifact]]
 target = "solana-sbpf-asm"
@@ -90,11 +136,11 @@ equals = "solana-elf"
 
 [[artifact.json]]
 path = "fixture"
-equals = "counter-ir-sbpf"
+equals = "Counter"
 
 [[artifact.json]]
 path = "sourceKind"
-equals = "portable-ir"
+equals = "contract-sdk"
 
 [[artifact.json]]
 path = "irVersion"
@@ -110,19 +156,11 @@ non_empty = true
 path = "capabilities"
 kind = "array"
 non_empty = true
-length = 3
+length = 1
 
 [[artifact.json]]
 path = "capabilities"
 contains = "storage.scalar"
-
-[[artifact.json]]
-path = "capabilities"
-contains = "account.explicit"
-
-[[artifact.json]]
-path = "capabilities"
-contains = "control.conditional"
 
 [[artifact.json]]
 path = "validation.manifestGeneration"
@@ -132,7 +170,11 @@ equals = "passed"
 path = "artifacts"
 kind = "object"
 non_empty = true
-length = 2
+length = 5
+
+[[artifact.file]]
+path = "artifacts.source"
+artifact = "source"
 
 [[artifact.file]]
 path = "artifacts.sbpfAsm"
@@ -141,6 +183,52 @@ artifact = "sbpf-asm"
 [[artifact.file]]
 path = "artifacts.manifestToml"
 artifact = "manifest"
+
+[[artifact.file]]
+path = "artifacts.solanaIdl"
+artifact = "idl"
+
+[[artifact.file]]
+path = "artifacts.solanaClientTs"
+artifact = "client"
+
+[[artifact.json]]
+path = "solanaIdl.instructions"
+kind = "array"
+non_empty = true
+length = 3
+
+[[artifact.jsonArtifact]]
+path = "solanaIdl"
+artifact = "idl"
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "idl"
+
+[[artifact.json]]
+path = "schema"
+kind = "string"
+equals = "proof-forge.solana.idl.v0"
+
+[[artifact.json]]
+path = "name"
+equals = "Counter"
+
+[[artifact.json]]
+path = "instructions"
+kind = "array"
+non_empty = true
+length = 3
+
+[[artifact]]
+target = "solana-sbpf-asm"
+name = "client"
+contains = [
+  'export const IDL = ',
+  'encodeInstructionData',
+  'createInstruction',
+]
 
 [[artifact]]
 target = "evm"
@@ -176,12 +264,11 @@ equals = "Counter"
 
 [[artifact.json]]
 path = "sourceKind"
-equals = "portable-ir"
+equals = "contract-sdk"
 
 [[artifact.json]]
 path = "irVersion"
-kind = "string"
-non_empty = true
+kind = "null"
 
 [[artifact.json]]
 path = "sourceModule"
@@ -278,12 +365,11 @@ equals = "Counter"
 [[artifact.json]]
 path = "sourceKind"
 kind = "string"
-equals = "portable-ir"
+equals = "contract-sdk"
 
 [[artifact.json]]
 path = "irVersion"
-kind = "string"
-non_empty = true
+kind = "null"
 
 [[artifact.json]]
 path = "sourceModule"

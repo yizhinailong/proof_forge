@@ -133,7 +133,7 @@ fn run_counter_scenario(
     sbpf: &str,
     keygen: &str,
 ) -> Result<HarnessRun> {
-    let artifact = build_counter_fixture(repo_root, sbpf, keygen)?;
+    let artifact = build_counter_fixture(case, repo_root, sbpf, keygen)?;
     run_state_account_scenario(case, repo_root, artifact, COUNTER_DATA_LEN)
 }
 
@@ -143,7 +143,7 @@ fn run_value_vault_scenario(
     sbpf: &str,
     keygen: &str,
 ) -> Result<HarnessRun> {
-    let artifact = build_value_vault_fixture(repo_root, sbpf, keygen)?;
+    let artifact = build_value_vault_fixture(case, repo_root, sbpf, keygen)?;
     run_state_account_scenario(case, repo_root, artifact, VALUE_VAULT_DATA_LEN)
 }
 
@@ -195,6 +195,12 @@ fn run_state_account_scenario(
             path: contract_spec_path,
         });
     }
+    if let Some(source_path) = &artifact.source_path {
+        outputs.push(ArtifactOutput {
+            name: "source",
+            path: source_path,
+        });
+    }
     assert_artifact_expectations(case, "solana-sbpf-asm", repo_root, &outputs)?;
 
     let tags = load_instruction_tags(&artifact.manifest_path)?;
@@ -231,10 +237,7 @@ fn run_state_account_scenario(
                     .clone();
             }
             outcomes.push(outcome_from_mollusk_result(
-                sequence,
-                &step.call,
-                &result,
-                error,
+                sequence, &step.call, &result, error,
             ));
             sequence += 1;
         }
@@ -250,11 +253,13 @@ struct SolanaFixtureArtifact {
     idl_path: Option<PathBuf>,
     client_path: Option<PathBuf>,
     contract_spec_path: Option<PathBuf>,
+    source_path: Option<PathBuf>,
     keypair_path: PathBuf,
     program_path: PathBuf,
 }
 
 fn build_counter_fixture(
+    case: &ScenarioCase,
     repo_root: &Path,
     sbpf: &str,
     keygen: &str,
@@ -269,6 +274,21 @@ fn build_counter_fixture(
 
     let asm_path = out_dir.join("Counter.s");
     let artifact_path = out_dir.join("proof-forge-artifact.json");
+    if let Some(source_path) = scenario_source(case, repo_root)? {
+        build_contract_source_fixture(case, repo_root, &source_path, &asm_path, &artifact_path)?;
+        return finish_solana_fixture(
+            "Counter",
+            &out_dir,
+            &asm_path,
+            &artifact_path,
+            COUNTER_PROJECT_NAME,
+            Some(source_path),
+            true,
+            sbpf,
+            keygen,
+        );
+    }
+
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
     let mut emit = Command::new(&proof_forge);
     emit.current_dir(repo_root).args([
@@ -284,55 +304,26 @@ fn build_counter_fixture(
         "--artifact-output",
         path_str(&artifact_path)?,
     ]);
-    run_required(&mut emit, "proof-forge emit --target solana-sbpf-asm --fixture counter")?;
+    run_required(
+        &mut emit,
+        "proof-forge emit --target solana-sbpf-asm --fixture counter",
+    )?;
 
-    ensure!(
-        asm_path.exists(),
-        "Counter Solana emission did not create `{}`",
-        asm_path.display()
-    );
-    ensure!(
-        artifact_path.exists(),
-        "Counter Solana emission did not create `{}`",
-        artifact_path.display()
-    );
-    let manifest_path = out_dir.join("manifest.toml");
-    ensure!(
-        manifest_path.exists(),
-        "Counter Solana emission did not create `{}`",
-        manifest_path.display()
-    );
-    let project_dir = out_dir.join("sbpf-project");
-    let keypair_path = project_dir
-        .join("deploy")
-        .join(format!("{COUNTER_PROJECT_NAME}-keypair.json"));
-    let program_path = project_dir.join("deploy").join(COUNTER_PROJECT_NAME);
-    scaffold_sbpf_project(&project_dir, COUNTER_PROJECT_NAME, &asm_path, keygen)?;
-
-    let mut sbpf_build = Command::new(sbpf);
-    sbpf_build.current_dir(&project_dir).arg("build");
-    run_required(&mut sbpf_build, "sbpf build")?;
-
-    let elf_path = program_path.with_extension("so");
-    ensure!(
-        elf_path.exists(),
-        "Solana sbpf build did not create `{}`",
-        elf_path.display()
-    );
-
-    Ok(SolanaFixtureArtifact {
-        asm_path,
-        manifest_path,
-        metadata_path: artifact_path,
-        idl_path: None,
-        client_path: None,
-        contract_spec_path: None,
-        keypair_path,
-        program_path,
-    })
+    finish_solana_fixture(
+        "Counter",
+        &out_dir,
+        &asm_path,
+        &artifact_path,
+        COUNTER_PROJECT_NAME,
+        None,
+        false,
+        sbpf,
+        keygen,
+    )
 }
 
 fn build_value_vault_fixture(
+    case: &ScenarioCase,
     repo_root: &Path,
     sbpf: &str,
     keygen: &str,
@@ -347,6 +338,21 @@ fn build_value_vault_fixture(
 
     let asm_path = out_dir.join("ValueVault.s");
     let artifact_path = out_dir.join("proof-forge-artifact.json");
+    if let Some(source_path) = scenario_source(case, repo_root)? {
+        build_contract_source_fixture(case, repo_root, &source_path, &asm_path, &artifact_path)?;
+        return finish_solana_fixture(
+            "ValueVault",
+            &out_dir,
+            &asm_path,
+            &artifact_path,
+            VALUE_VAULT_PROJECT_NAME,
+            Some(source_path),
+            true,
+            sbpf,
+            keygen,
+        );
+    }
+
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
     let mut emit = Command::new(&proof_forge);
     emit.current_dir(repo_root).args([
@@ -362,30 +368,106 @@ fn build_value_vault_fixture(
         "--artifact-output",
         path_str(&artifact_path)?,
     ]);
-    run_required(&mut emit, "proof-forge emit --target solana-sbpf-asm --fixture value-vault")?;
+    run_required(
+        &mut emit,
+        "proof-forge emit --target solana-sbpf-asm --fixture value-vault",
+    )?;
 
+    finish_solana_fixture(
+        "ValueVault",
+        &out_dir,
+        &asm_path,
+        &artifact_path,
+        VALUE_VAULT_PROJECT_NAME,
+        None,
+        true,
+        sbpf,
+        keygen,
+    )
+}
+
+fn build_contract_source_fixture(
+    case: &ScenarioCase,
+    repo_root: &Path,
+    source_path: &Path,
+    asm_path: &Path,
+    artifact_path: &Path,
+) -> Result<()> {
+    let mut build = Command::new("lake");
+    build.current_dir(repo_root).args([
+        "env",
+        "proof-forge",
+        "build",
+        "--target",
+        "solana-sbpf-asm",
+        "--root",
+        ".",
+        "-o",
+        path_str(asm_path)?,
+        "--artifact-output",
+        path_str(artifact_path)?,
+        path_str(source_path)?,
+    ]);
+    run_required(
+        &mut build,
+        &format!(
+            "proof-forge build --target solana-sbpf-asm for scenario `{}`",
+            case.manifest.scenario.name
+        ),
+    )?;
+    Ok(())
+}
+
+fn finish_solana_fixture(
+    fixture_name: &str,
+    out_dir: &Path,
+    asm_path: &Path,
+    artifact_path: &Path,
+    project_name: &str,
+    source_path: Option<PathBuf>,
+    has_idl_and_client: bool,
+    sbpf: &str,
+    keygen: &str,
+) -> Result<SolanaFixtureArtifact> {
     ensure!(
         asm_path.exists(),
-        "ValueVault Solana emission did not create `{}`",
+        "{fixture_name} Solana emission did not create `{}`",
         asm_path.display()
     );
     ensure!(
         artifact_path.exists(),
-        "ValueVault Solana emission did not create `{}`",
+        "{fixture_name} Solana emission did not create `{}`",
         artifact_path.display()
     );
     let manifest_path = out_dir.join("manifest.toml");
     ensure!(
         manifest_path.exists(),
-        "ValueVault Solana emission did not create `{}`",
+        "{fixture_name} Solana emission did not create `{}`",
         manifest_path.display()
     );
+    let idl_path = has_idl_and_client.then(|| out_dir.join("proof-forge-idl.json"));
+    if let Some(ref path) = idl_path {
+        ensure!(
+            path.exists(),
+            "{fixture_name} Solana emission did not create `{}`",
+            path.display()
+        );
+    }
+    let client_path = has_idl_and_client.then(|| out_dir.join("proof-forge-client.ts"));
+    if let Some(ref path) = client_path {
+        ensure!(
+            path.exists(),
+            "{fixture_name} Solana emission did not create `{}`",
+            path.display()
+        );
+    }
+
     let project_dir = out_dir.join("sbpf-project");
     let keypair_path = project_dir
         .join("deploy")
-        .join(format!("{VALUE_VAULT_PROJECT_NAME}-keypair.json"));
-    let program_path = project_dir.join("deploy").join(VALUE_VAULT_PROJECT_NAME);
-    scaffold_sbpf_project(&project_dir, VALUE_VAULT_PROJECT_NAME, &asm_path, keygen)?;
+        .join(format!("{project_name}-keypair.json"));
+    let program_path = project_dir.join("deploy").join(project_name);
+    scaffold_sbpf_project(&project_dir, project_name, asm_path, keygen)?;
 
     let mut sbpf_build = Command::new(sbpf);
     sbpf_build.current_dir(&project_dir).arg("build");
@@ -399,12 +481,13 @@ fn build_value_vault_fixture(
     );
 
     Ok(SolanaFixtureArtifact {
-        asm_path,
+        asm_path: asm_path.to_path_buf(),
         manifest_path,
-        metadata_path: artifact_path,
-        idl_path: Some(out_dir.join("proof-forge-idl.json")),
-        client_path: Some(out_dir.join("proof-forge-client.ts")),
+        metadata_path: artifact_path.to_path_buf(),
+        idl_path,
+        client_path,
         contract_spec_path: None,
+        source_path,
         keypair_path,
         program_path,
     })
@@ -440,7 +523,10 @@ fn build_error_ref_fixture(
         "--artifact-output",
         path_str(&artifact_path)?,
     ]);
-    run_required(&mut emit, "proof-forge emit --target solana-sbpf-asm --fixture error-ref")?;
+    run_required(
+        &mut emit,
+        "proof-forge emit --target solana-sbpf-asm --fixture error-ref",
+    )?;
 
     ensure!(
         asm_path.exists(),
@@ -489,6 +575,7 @@ fn build_error_ref_fixture(
         idl_path: None,
         client_path: None,
         contract_spec_path: Some(contract_spec_path),
+        source_path: None,
         keypair_path,
         program_path,
     })
@@ -568,14 +655,14 @@ fn ix(pid: Address, data: Vec<u8>, state: Address) -> Instruction {
     Instruction::new_with_bytes(pid, &data, vec![AccountMeta::new(state, false)])
 }
 
-fn extract_solana_error(raw_result: &Result<(), InstructionError>) -> Option<proof_forge_testkit_core::ErrorOutcome> {
+fn extract_solana_error(
+    raw_result: &Result<(), InstructionError>,
+) -> Option<proof_forge_testkit_core::ErrorOutcome> {
     match raw_result {
-        Err(InstructionError::Custom(code)) => {
-            Some(proof_forge_testkit_core::ErrorOutcome {
-                assertion_id: *code,
-                user_code: None,
-            })
-        }
+        Err(InstructionError::Custom(code)) => Some(proof_forge_testkit_core::ErrorOutcome {
+            assertion_id: *code,
+            user_code: None,
+        }),
         _ => None,
     }
 }
@@ -594,7 +681,10 @@ fn outcome_from_mollusk_result(
     };
     let return_u64 = if return_data.len() == 8 {
         Some(u64::from_le_bytes(
-            return_data.as_slice().try_into().expect("return_data length checked"),
+            return_data
+                .as_slice()
+                .try_into()
+                .expect("return_data length checked"),
         ))
     } else {
         None
@@ -690,6 +780,19 @@ fn command_available(command: &str) -> bool {
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
+}
+
+fn scenario_source(case: &ScenarioCase, repo_root: &Path) -> Result<Option<PathBuf>> {
+    let Some(path) = case.manifest.scenario.source_path(repo_root) else {
+        return Ok(None);
+    };
+    ensure!(
+        path.exists(),
+        "scenario `{}` source `{}` does not exist",
+        case.manifest.scenario.name,
+        path.display()
+    );
+    Ok(Some(path))
 }
 
 fn tool(env_key: &str, default: &str) -> String {

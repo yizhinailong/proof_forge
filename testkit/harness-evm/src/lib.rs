@@ -44,7 +44,7 @@ impl ChainHarness for EvmHarness {
 
     fn run_scenario(&self, case: &ScenarioCase, repo_root: &Path) -> Result<HarnessRun> {
         if case.manifest.scenario.fixture == "value-vault" {
-            let cast = tool("CAST", "cast");
+            let cast = cast_tool(repo_root)?;
             if !command_available(&cast) {
                 return Ok(HarnessRun::skipped(
                     "cast not on PATH (set CAST or install Foundry)",
@@ -165,14 +165,14 @@ struct EvmFixtureArtifact {
 
 fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<EvmFixtureArtifact> {
     match case.manifest.scenario.fixture.as_str() {
-        "counter" => build_counter_fixture(repo_root),
-        "value-vault" => build_value_vault_fixture(repo_root),
+        "counter" => build_counter_fixture(case, repo_root),
+        "value-vault" => build_value_vault_fixture(case, repo_root),
         "error-ref" => build_error_ref_fixture(repo_root),
         fixture => bail!("EVM testkit harness does not support fixture `{fixture}` yet"),
     }
 }
 
-fn build_counter_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
+fn build_counter_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<EvmFixtureArtifact> {
     let out_dir = repo_root.join("build/testkit/evm");
     fs::create_dir_all(&out_dir)
         .with_context(|| format!("failed to create `{}`", out_dir.display()))?;
@@ -195,6 +195,33 @@ fn build_counter_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     let metadata_path = out_dir.join("Counter.proof-forge-artifact.json");
     let init_code_path = out_dir.join("Counter.init.bin");
     let deploy_manifest_path = out_dir.join("Counter.proof-forge-deploy.json");
+    if let Some(source_path) = scenario_source(case, repo_root)? {
+        build_contract_source_fixture(
+            case,
+            repo_root,
+            &source_path,
+            &bytecode_path,
+            &yul_path,
+            &metadata_path,
+        )?;
+        ensure_evm_outputs(
+            "Counter",
+            &bytecode_path,
+            &metadata_path,
+            &init_code_path,
+            &deploy_manifest_path,
+        )?;
+        return Ok(EvmFixtureArtifact {
+            bytecode_path,
+            metadata_path,
+            yul_path,
+            init_code_path,
+            deploy_manifest_path,
+            contract_spec_path: None,
+            evm_abi_path: None,
+        });
+    }
+
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
     let output = Command::new(&proof_forge)
         .current_dir(repo_root)
@@ -222,26 +249,13 @@ fn build_counter_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    ensure!(
-        bytecode_path.exists(),
-        "Counter EVM bytecode emission did not create `{}`",
-        bytecode_path.display()
-    );
-    ensure!(
-        metadata_path.exists(),
-        "Counter EVM bytecode emission did not create `{}`",
-        metadata_path.display()
-    );
-    ensure!(
-        init_code_path.exists(),
-        "Counter EVM bytecode emission did not create `{}`",
-        init_code_path.display()
-    );
-    ensure!(
-        deploy_manifest_path.exists(),
-        "Counter EVM bytecode emission did not create `{}`",
-        deploy_manifest_path.display()
-    );
+    ensure_evm_outputs(
+        "Counter",
+        &bytecode_path,
+        &metadata_path,
+        &init_code_path,
+        &deploy_manifest_path,
+    )?;
 
     Ok(EvmFixtureArtifact {
         bytecode_path,
@@ -254,7 +268,7 @@ fn build_counter_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     })
 }
 
-fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
+fn build_value_vault_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<EvmFixtureArtifact> {
     let out_dir = repo_root.join("build/testkit/evm/value-vault");
     fs::create_dir_all(&out_dir)
         .with_context(|| format!("failed to create `{}`", out_dir.display()))?;
@@ -277,8 +291,35 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
     let metadata_path = out_dir.join("ValueVault.proof-forge-artifact.json");
     let init_code_path = out_dir.join("ValueVault.init.bin");
     let deploy_manifest_path = out_dir.join("ValueVault.proof-forge-deploy.json");
+    if let Some(source_path) = scenario_source(case, repo_root)? {
+        build_contract_source_fixture(
+            case,
+            repo_root,
+            &source_path,
+            &bytecode_path,
+            &yul_path,
+            &metadata_path,
+        )?;
+        ensure_evm_outputs(
+            "ValueVault",
+            &bytecode_path,
+            &metadata_path,
+            &init_code_path,
+            &deploy_manifest_path,
+        )?;
+        return Ok(EvmFixtureArtifact {
+            bytecode_path,
+            metadata_path,
+            yul_path,
+            init_code_path,
+            deploy_manifest_path,
+            contract_spec_path: None,
+            evm_abi_path: None,
+        });
+    }
+
     let proof_forge = repo_root.join(".lake/build/bin/proof-forge");
-    let cast = tool("CAST", "cast");
+    let cast = cast_tool(repo_root)?;
     let mut emit = Command::new(&proof_forge);
     emit.current_dir(repo_root)
         .args([
@@ -307,26 +348,13 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    ensure!(
-        bytecode_path.exists(),
-        "ValueVault EVM bytecode emission did not create `{}`",
-        bytecode_path.display()
-    );
-    ensure!(
-        metadata_path.exists(),
-        "ValueVault EVM bytecode emission did not create `{}`",
-        metadata_path.display()
-    );
-    ensure!(
-        init_code_path.exists(),
-        "ValueVault EVM bytecode emission did not create `{}`",
-        init_code_path.display()
-    );
-    ensure!(
-        deploy_manifest_path.exists(),
-        "ValueVault EVM bytecode emission did not create `{}`",
-        deploy_manifest_path.display()
-    );
+    ensure_evm_outputs(
+        "ValueVault",
+        &bytecode_path,
+        &metadata_path,
+        &init_code_path,
+        &deploy_manifest_path,
+    )?;
 
     Ok(EvmFixtureArtifact {
         bytecode_path,
@@ -337,6 +365,89 @@ fn build_value_vault_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
         contract_spec_path: None,
         evm_abi_path: None,
     })
+}
+
+fn build_contract_source_fixture(
+    case: &ScenarioCase,
+    repo_root: &Path,
+    source_path: &Path,
+    bytecode_path: &Path,
+    yul_path: &Path,
+    metadata_path: &Path,
+) -> Result<()> {
+    let cast = cast_tool(repo_root)?;
+    if !command_available(&cast) {
+        bail!(
+            "cast not available for `{}`; set CAST or install Foundry",
+            cast
+        );
+    }
+    let output = Command::new("lake")
+        .current_dir(repo_root)
+        .args([
+            "env",
+            "proof-forge",
+            "build",
+            "--target",
+            "evm",
+            "--root",
+            ".",
+            "--cast",
+            cast.as_str(),
+            "-o",
+            path_str(bytecode_path)?,
+            "--yul-output",
+            path_str(yul_path)?,
+            "--artifact-output",
+            path_str(metadata_path)?,
+            path_str(source_path)?,
+        ])
+        .output()
+        .with_context(|| {
+            format!(
+                "failed to build EVM contract_source for scenario `{}`",
+                case.manifest.scenario.name
+            )
+        })?;
+    if !output.status.success() {
+        bail!(
+            "EVM contract_source build failed for scenario `{}`\nstdout:\n{}\nstderr:\n{}",
+            case.manifest.scenario.name,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    Ok(())
+}
+
+fn ensure_evm_outputs(
+    fixture_name: &str,
+    bytecode_path: &Path,
+    metadata_path: &Path,
+    init_code_path: &Path,
+    deploy_manifest_path: &Path,
+) -> Result<()> {
+    ensure!(
+        bytecode_path.exists(),
+        "{fixture_name} EVM bytecode emission did not create `{}`",
+        bytecode_path.display()
+    );
+    ensure!(
+        metadata_path.exists(),
+        "{fixture_name} EVM bytecode emission did not create `{}`",
+        metadata_path.display()
+    );
+    ensure!(
+        init_code_path.exists(),
+        "{fixture_name} EVM bytecode emission did not create `{}`",
+        init_code_path.display()
+    );
+    ensure!(
+        deploy_manifest_path.exists(),
+        "{fixture_name} EVM bytecode emission did not create `{}`",
+        deploy_manifest_path.display()
+    );
+    Ok(())
 }
 
 fn build_error_ref_fixture(repo_root: &Path) -> Result<EvmFixtureArtifact> {
@@ -620,8 +731,28 @@ fn command_available(command: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn tool(env_key: &str, default: &str) -> String {
-    env::var(env_key).unwrap_or_else(|_| default.to_string())
+fn scenario_source(case: &ScenarioCase, repo_root: &Path) -> Result<Option<PathBuf>> {
+    let Some(path) = case.manifest.scenario.source_path(repo_root) else {
+        return Ok(None);
+    };
+    ensure!(
+        path.exists(),
+        "scenario `{}` source `{}` does not exist",
+        case.manifest.scenario.name,
+        path.display()
+    );
+    Ok(Some(path))
+}
+
+fn cast_tool(repo_root: &Path) -> Result<String> {
+    if let Ok(path) = env::var("CAST") {
+        return Ok(path);
+    }
+    let shim = repo_root.join("build/tools/cast-shim");
+    if shim.exists() {
+        return Ok(path_str(&shim)?.to_string());
+    }
+    Ok("cast".to_string())
 }
 
 fn path_str(path: &Path) -> Result<&str> {

@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Source-Backed Testkit Shared Scenarios
+
+Commit: this commit
+
+Summary:
+
+- Added optional `scenario.source` support to the Rust testkit manifest model.
+- Switched Counter and ValueVault testkit scenarios to
+  `Examples/Shared/Counter.lean` and `Examples/Shared/ValueVault.lean`.
+- Updated the EVM, Solana, and NEAR harnesses so those scenarios build
+  target-first artifacts from shared `.lean contract_source` modules before
+  executing behavior traces.
+- Extended scenario artifact assertions for `contract-sdk` metadata, NEAR
+  metadata, Solana source/IDL/client outputs, Solana IDL JSON embedding, and
+  metadata file references.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo check --manifest-path testkit/Cargo.toml
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --target evm --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target evm --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --target wasm-near --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target wasm-near --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --target solana-sbpf-asm --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target solana-sbpf-asm --trace
+just testkit
+lake build
+scripts/i18n/check-sync.sh
+python3 scripts/translate-docs.py --check
+git diff --check
+```
+
+Known limitations:
+
+- EVM `contract_source` builds still need Foundry `cast` or the local ignored
+  test shim for selector hydration.
+- Live deploy gates remain separate from deterministic testkit parity.
+
+Next step:
+
+- Continue CS-5/CS-3 by broadening the `contract_source` surface beyond
+  Counter/ValueVault while keeping the three primary target scenarios green.
+
 ### Shared Contract Source Equivalence Gate
 
 Commit: this commit

@@ -1287,6 +1287,15 @@ fixture 与这些共享 module 对比。ValueVault 还会比较从共享 `.lean`
 | CS-5.2 | 为新 stdlib 合约建立 resource budget baseline（EVM gas、Solana CU） | 扩展工作流 31 budget；回归失败 CI |
 | CS-5.3 | Authoring model 完整示例：一个业务模块、三个 target、零源码分叉 | docs 教程（EN + zh，经 translate pipeline 同步） |
 
+当前 CS-5.1 testkit 切片：`testkit/scenarios/counter.toml` 和
+`testkit/scenarios/value-vault.toml` 现在声明 `source =
+"Examples/Shared/*.lean"`。EVM、Solana 和 NEAR harness 会消费这个字段，并
+对 Counter/ValueVault 运行 target-first `proof-forge build --target ...
+--root . <source>`，而不是只走 fixture 发射。场景断言现在会固定
+`contract-sdk` 元数据、NEAR 制品元数据、Solana source/IDL/client 制品、
+metadata 文件引用，以及已有的行为/预算追踪。fixture-only 路径继续保留给
+`error-ref` 和 allocator probes 等专门的编译器/运行时场景。
+
 ### 阶段 CS-6 — 文档与 legacy 清理
 
 | ID | 任务 | 验收标准 |
