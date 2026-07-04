@@ -308,6 +308,17 @@ def packedUtf8Words (value : String) : Array Nat × Nat := Id.run do
   pure (words, bytes.size)
 
 partial def eventSignatureFieldType (module : Module) (eventName fieldName : String) (type : ValueType) : Except LowerError String :=
+  let erc20FieldType? : Option String :=
+    if eventName == "Transfer" then
+      if fieldName == "from" || fieldName == "to" then some "address"
+      else if fieldName == "value" then some "uint256" else none
+    else if eventName == "Approval" then
+      if fieldName == "owner" || fieldName == "spender" then some "address"
+      else if fieldName == "value" then some "uint256" else none
+    else none
+  match erc20FieldType? with
+  | some abiType => .ok abiType
+  | none =>
   match type with
   | .u32 => .ok "uint32"
   | .u64 => .ok "uint64"

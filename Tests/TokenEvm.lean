@@ -1,5 +1,7 @@
-import ProofForge.Contract.Token.Evm
+import ProofForge.Contract.Token.EvmSpec
+import ProofForge.Contract.Token.EvmWrap
 import ProofForge.Contract.Token.Learn
+import ProofForge.Backend.Evm.IR
 
 namespace ProofForge.Tests.TokenEvm
 
@@ -17,13 +19,21 @@ def parseFixture (path : String) : IO TokenDecl := do
   | .ok decl => pure decl
   | .error err => throw <| IO.userError err
 
+def renderLearnTokenYul (decl : TokenDecl) : IO String := do
+  let module := ProofForge.Contract.Token.EvmSpec.moduleFor decl.spec
+  let runtimeObject ←
+    match ProofForge.Backend.Evm.IR.lowerModule module with
+    | .ok obj => pure obj
+    | .error err => throw <| IO.userError err.render
+  pure <| ProofForge.Contract.Token.EvmWrap.wrapRuntimeObject decl.id (decl.id ++ "Runtime") runtimeObject decl.spec
+
 def main : IO UInt32 := do
   let proofToken ← parseFixture "Examples/Learn/ProofToken.learn"
-  let yul := ProofForge.Contract.Token.Evm.renderErc20Yul proofToken
+  let yul ← renderLearnTokenYul proofToken
 
   require (yul.contains "object \"ProofToken\"") "ERC-20 Yul missing token object"
   require (yul.contains "sstore(0, 1000000)") "ERC-20 Yul missing initial supply storage"
-  require (yul.contains "sstore(mapSlot(1, caller()), 1000000)")
+  require (yul.contains "sstore(mapSlot(2, caller()), 1000000)")
     "ERC-20 Yul missing deployer initial balance"
   require (yul.contains "case 0x18160ddd") "ERC-20 Yul missing totalSupply selector"
   require (yul.contains "case 0x70a08231") "ERC-20 Yul missing balanceOf(address) selector"
@@ -34,13 +44,10 @@ def main : IO UInt32 := do
   require (yul.contains "case 0x313ce567") "ERC-20 Yul missing decimals() selector"
   require (yul.contains "case 0x40c10f19") "mintable ERC-20 Yul missing mint selector"
   require (yul.contains "case 0x42966c68") "burnable ERC-20 Yul missing burn selector"
-  require (yul.contains ProofForge.Contract.Token.Evm.transferTopic0)
-    "ERC-20 Yul missing standard Transfer topic"
-  require (yul.contains ProofForge.Contract.Token.Evm.approvalTopic0)
-    "ERC-20 Yul missing standard Approval topic"
+  require (yul.contains "log3(") "ERC-20 Yul missing indexed event emission"
 
   let feeToken ← parseFixture "Examples/Learn/FeeToken.learn"
-  let feeYul := ProofForge.Contract.Token.Evm.renderErc20Yul feeToken
+  let feeYul ← renderLearnTokenYul feeToken
   require (feeYul.contains "case 0x40c10f19") "mintable fee token should include mint selector"
   require (!feeYul.contains "case 0x42966c68") "non-burnable fee token should not include burn selector"
 

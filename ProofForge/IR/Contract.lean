@@ -193,6 +193,8 @@ structure Entrypoint where
   name : String
   selector? : Option String := none
   params : Array (String × ValueType) := #[]
+  /-- Parallel ABI word overrides for EVM selector/signature metadata (`some "address"`, etc.). -/
+  paramEvmAbiWords : Array (Option String) := #[]
   returns : ValueType := .unit
   body : Array Statement
   deriving Repr
