@@ -17,6 +17,37 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Array Write Plan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Routed `storageArrayWrite` value lowering through `ExprPlan -> ToYul` for
+  supported scalar write values.
+- Kept array slot assembly on the existing `StorageSlotPlan -> ToYul` boundary.
+- Extended `Tests/EvmSemanticPlan.lean` to assert plan-lowered checked
+  arithmetic values and storage-read values for array writes.
+- Updated `just evm-semantic-plan` to prebuild `EvmStorageArrayProbe` for clean
+  checkout reliability.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/storage-array-ir-smoke.sh
+```
+
+Known limitations:
+
+- Storage-path array writes and struct-array field writes still use the
+  compatibility path.
+
+Next step:
+
+- Move struct-field writes or storage-path writes through `ExprPlan -> ToYul`.
+
 ### EVM Map Write Plan-To-Yul Slice
 
 Commit: this commit

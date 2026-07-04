@@ -3078,7 +3078,10 @@ def lowerArrayWriteStmt
     (env : TypeEnv)
     (stateId : String)
     (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[← lowerArraySlotExpr module env stateId index, ← lowerExpr module env value]))
+  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+    ← lowerArraySlotExpr module env stateId index,
+    ← lowerScalarPlanExprOrFallback module env value
+  ]))
 
 def lowerStructFieldWriteStmt
     (module : Module)
