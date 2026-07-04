@@ -63,6 +63,12 @@ def mulValue [ToExpr α] [ToExpr β] (lhs : α) (rhs : β) : ProofForge.IR.Expr 
 def divValue [ToExpr α] [ToExpr β] (lhs : α) (rhs : β) : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.div (expr lhs) (expr rhs)
 
+def u64Array3 [ToExpr α] [ToExpr β] [ToExpr γ] (a : α) (b : β) (c : γ) : ProofForge.IR.Expr :=
+  .arrayLit .u64 #[expr a, expr b, expr c]
+
+def arrayGet [ToExpr α] [ToExpr β] (arr : α) (index : β) : ProofForge.IR.Expr :=
+  .arrayGet (expr arr) (expr index)
+
 scoped infixl:65 " +! " => addValue
 scoped infixl:65 " -! " => subValue
 scoped infixl:70 " *! " => mulValue
@@ -537,12 +543,6 @@ def caller : ProofForge.IR.Expr :=
 
 def nativeValue : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.nativeValue
-
-def u64Array3 [ToExpr α] [ToExpr β] [ToExpr γ] (a : α) (b : β) (c : γ) : ProofForge.IR.Expr :=
-  .arrayLit .u64 #[expr a, expr b, expr c]
-
-def arrayGet [ToExpr α] [ToExpr β] (arr : α) (index : β) : ProofForge.IR.Expr :=
-  .arrayGet (expr arr) (expr index)
 
 macro "array_get " arr:ident idx:term : term => `(ProofForge.Contract.Source.arrayGet $arr $idx)
 

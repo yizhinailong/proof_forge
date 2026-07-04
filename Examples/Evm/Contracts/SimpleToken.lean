@@ -30,12 +30,12 @@ contract_source SimpleToken do
   query balanceOf (addr : .u64) returns(.u64) do
     return mapRead balances addr;
 
-  entry transfer (to : .u64, amount : .u64) do
+  entry transfer (recipient : .u64, amount : .u64) do
     let sender : .u64 := caller;
     let bal : .u64 := mapRead balances sender;
     do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref bal) (ProofForge.Contract.Surface.ref amount) "insufficient balance";
     do mapWrite balances sender (bal -! amount);
-    let recvBal : .u64 := mapRead balances to;
-    do mapWrite balances to (recvBal +! amount);
+    let recvBal : .u64 := mapRead balances recipient;
+    do mapWrite balances recipient (recvBal +! amount);
 
 end SimpleToken
