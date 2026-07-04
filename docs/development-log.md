@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Let Plan-To-Yul Assembly Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ProofForge.Backend.Evm.ToYul.exprPlanExpr`, a semantic-plan to Yul
+  expression adapter for the supported scalar expression subset.
+- Routed scalar `let` / `let mut` initializer lowering through
+  `Lower.buildExprPlan -> ToYul.exprPlanExpr` when the initializer is inside
+  that supported scalar subset.
+- Added an explicit `IR.lean` compatibility boundary from the existing
+  `TypeEnv`/`LowerError` facade types to the newer `Validate`/`Lower` types.
+- Extended `Tests/EvmSemanticPlan.lean` to lock Counter scalar storage reads
+  and checked addition through the plan-to-Yul path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/expression-ir-smoke.sh
+scripts/evm/context-ir-smoke.sh
+```
+
+Known limitations:
+
+- This slice intentionally covers scalar local-binding initialization only.
+  Aggregate, crosscall, create, return, assertion, assignment, and full
+  statement lowering still use the `IR.lean` compatibility assembly path until
+  their own migration slices add plan-level coverage.
+- `ToYul.exprPlanExpr` returns explicit unsupported diagnostics for plan nodes
+  that are not valid in this scalar expression path.
+
+Next step:
+
+- Move the next statement path, likely scalar `assert`/`assertEq` or scalar
+  `return`, to consume `ExprPlan` directly and add the corresponding golden
+  Yul / Foundry smoke coverage.
+
 ### EVM Entrypoint Body Semantic Plans
 
 Commit: this commit

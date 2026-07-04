@@ -865,6 +865,17 @@ structure LocalBinding where
 
 abbrev TypeEnv := Array LocalBinding
 
+def toValidateLocalBinding (binding : LocalBinding) :
+    ProofForge.Backend.Evm.Validate.LocalBinding := {
+  name := binding.name
+  type := binding.type
+  isMutable := binding.isMutable
+}
+
+def toValidateTypeEnv (env : TypeEnv) :
+    ProofForge.Backend.Evm.Validate.TypeEnv :=
+  env.map toValidateLocalBinding
+
 def findLocal? (env : TypeEnv) (name : String) : Option LocalBinding :=
   env.find? fun binding => binding.name == name
 
@@ -2623,6 +2634,102 @@ mutual
         .error { message := "event.emit.indexed is a statement effect, not an expression" }
 end
 
+partial def exprSupportsPlanScalarInit : ProofForge.IR.Expr → Bool
+  | .literal _ => true
+  | .local _ => true
+  | .add lhs rhs
+  | .sub lhs rhs
+  | .mul lhs rhs
+  | .div lhs rhs
+  | .mod lhs rhs
+  | .pow lhs rhs
+  | .bitAnd lhs rhs
+  | .bitOr lhs rhs
+  | .bitXor lhs rhs
+  | .shiftLeft lhs rhs
+  | .shiftRight lhs rhs
+  | .eq lhs rhs
+  | .ne lhs rhs
+  | .lt lhs rhs
+  | .le lhs rhs
+  | .gt lhs rhs
+  | .ge lhs rhs
+  | .boolAnd lhs rhs
+  | .boolOr lhs rhs
+  | .hashTwoToOne lhs rhs =>
+      exprSupportsPlanScalarInit lhs && exprSupportsPlanScalarInit rhs
+  | .cast value _ => exprSupportsPlanScalarInit value
+  | .boolNot value
+  | .hash value => exprSupportsPlanScalarInit value
+  | .hashValue a b c d =>
+      exprSupportsPlanScalarInit a &&
+      exprSupportsPlanScalarInit b &&
+      exprSupportsPlanScalarInit c &&
+      exprSupportsPlanScalarInit d
+  | .nativeValue => true
+  | .effect (.storageScalarRead _) => true
+  | .effect (.contextRead _) => true
+  | .arrayLit _ _
+  | .arrayGet _ _
+  | .structLit _ _
+  | .field _ _
+  | .crosscallInvoke _ _ _
+  | .crosscallInvokeTyped _ _ _ _
+  | .crosscallInvokeValueTyped _ _ _ _ _
+  | .crosscallInvokeStaticTyped _ _ _ _
+  | .crosscallInvokeDelegateTyped _ _ _ _
+  | .crosscallCreate _ _
+  | .crosscallCreate2 _ _ _
+  | .effect _ => false
+
+partial def lowerPlanEffectExpr
+    (module : Module)
+    (env : TypeEnv) :
+    ProofForge.Backend.Evm.Plan.EffectPlan → Except LowerError Lean.Compiler.Yul.Expr
+  | .storageScalarRead stateId => do
+      match ← scalarStateType module stateId with
+      | .structType _ =>
+          .error {
+            message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
+          }
+      | _ => pure ()
+      let storageSlot ← lowerScalarStorageSlotExpr module env stateId
+      .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
+  | .contextRead field =>
+      .ok (ProofForge.Backend.Evm.ToYul.contextExpr field)
+  | _ =>
+      .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
+
+partial def lowerExprPlanExpr
+    (module : Module)
+    (env : TypeEnv)
+    (plan : ProofForge.Backend.Evm.Plan.ExprPlan) :
+    Except LowerError Lean.Compiler.Yul.Expr :=
+  ProofForge.Backend.Evm.ToYul.exprPlanExpr
+    toYulError
+    (fun expr => lowerExpr module env expr)
+    (lowerPlanEffectExpr module env)
+    plan
+
+partial def lowerExprViaPlan
+    (module : Module)
+    (env : TypeEnv)
+    (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+  let plan ←
+    match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) expr with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
+  lowerExprPlanExpr module env plan
+
+partial def lowerScalarInitExpr
+    (module : Module)
+    (env : TypeEnv)
+    (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr :=
+  if exprSupportsPlanScalarInit expr then
+    lowerExprViaPlan module env expr
+  else
+    lowerExpr module env expr
+
 partial def lowerEventStructDataWords
     (module : Module)
     (env : TypeEnv)
@@ -4283,7 +4390,7 @@ mutual
     | .letBind name type value => do
         ensureLocalScalarType "let binding" name type
         let nextEnv ← addLocal env name type false
-        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module env value))], nextEnv)
+        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerScalarInitExpr module env value))], nextEnv)
     | .letMutBind name (.fixedArray elementType length) value => do
         let lowered ← lowerFixedArrayLetBinding module env name elementType length value
         let nextEnv ← addLocal env name (.fixedArray elementType length) true
@@ -4295,7 +4402,7 @@ mutual
     | .letMutBind name type value => do
         ensureLocalScalarType "mutable let binding" name type
         let nextEnv ← addLocal env name type true
-        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerExpr module env value))], nextEnv)
+        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerScalarInitExpr module env value))], nextEnv)
     | .assign target value => do
         .ok (← lowerAssignStmt module env target value, env)
     | .assignOp target op value => do

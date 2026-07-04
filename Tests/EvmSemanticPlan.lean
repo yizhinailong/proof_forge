@@ -116,12 +116,41 @@ def testSemanticPlanRender : IO Unit := do
   require (rendered.contains "initialize") "counter plan render initialize"
   require (rendered.contains "storage:") "counter plan render storage"
 
+def testScalarExprPlanToYul : IO Unit := do
+  let readExpr ← requireOk
+    (lowerExprViaPlan
+      ProofForge.IR.Examples.Counter.module
+      #[]
+      (.effect (.storageScalarRead "count")))
+    "counter scalar read plan-to-yul"
+  match readExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "sload") "counter scalar read plan-to-yul opcode"
+      require (args.size == 1) "counter scalar read plan-to-yul arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit lit =>
+          require (lit.value == "0") "counter scalar read plan-to-yul slot"
+      | _ => throw <| IO.userError "counter scalar read plan-to-yul slot must be literal"
+  | _ => throw <| IO.userError "counter scalar read plan-to-yul must be sload"
+  let addExpr ← requireOk
+    (lowerExprViaPlan
+      ProofForge.IR.Examples.Counter.module
+      #[{ name := "n", type := .u64, isMutable := false }]
+      (.add (.local "n") (.literal (.u64 1))))
+    "counter checked add plan-to-yul"
+  match addExpr with
+  | Lean.Compiler.Yul.Expr.call name args => do
+      require (name == "__pf_checked_add") "counter checked add plan-to-yul helper"
+      require (args.size == 2) "counter checked add plan-to-yul arg count"
+  | _ => throw <| IO.userError "counter checked add plan-to-yul must be helper call"
+
 def main : IO UInt32 := do
   testCounterSemanticPlan
   testEventSemanticPlan
   testArtifactMetadata
   testDeployMetadata
   testSemanticPlanRender
+  testScalarExprPlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0
 
