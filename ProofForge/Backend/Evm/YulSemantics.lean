@@ -351,6 +351,10 @@ mutual
         let (rt, lhs) ← evalWord ctx rt lhs
         let (rt, rhs) ← evalWord ctx rt rhs
         .ok (rt, #[Nat.xor lhs rhs])
+    | "not", [value] => do
+        let (rt, value) ← evalWord ctx rt value
+        let modulus := twoPow 256
+        .ok (rt, #[(modulus - 1) - (value % modulus)])
     | "shl", [shift, value] => do
         let (rt, shift) ← evalWord ctx rt shift
         let (rt, value) ← evalWord ctx rt value

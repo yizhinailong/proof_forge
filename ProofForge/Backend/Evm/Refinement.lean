@@ -29,8 +29,10 @@ observable return words.
 inductive ObservableReturn where
   | none
   | bool (value : Bool)
+  | u8 (value : Nat)
   | u32 (value : Nat)
   | u64 (value : Nat)
+  | u128 (value : Nat)
   | hash (a b c d : Nat)
   | words (values : Array Nat)
   deriving Repr, BEq, DecidableEq
