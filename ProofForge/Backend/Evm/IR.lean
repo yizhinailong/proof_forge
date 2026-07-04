@@ -2659,7 +2659,7 @@ mutual
         .error { message := "event.emit.indexed is a statement effect, not an expression" }
 end
 
-partial def exprSupportsPlanScalarInit : ProofForge.IR.Expr → Bool
+partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
   | .literal _ => true
   | .local _ => true
   | .add lhs rhs
@@ -2682,15 +2682,15 @@ partial def exprSupportsPlanScalarInit : ProofForge.IR.Expr → Bool
   | .boolAnd lhs rhs
   | .boolOr lhs rhs
   | .hashTwoToOne lhs rhs =>
-      exprSupportsPlanScalarInit lhs && exprSupportsPlanScalarInit rhs
-  | .cast value _ => exprSupportsPlanScalarInit value
+      exprSupportsPlanScalarYul lhs && exprSupportsPlanScalarYul rhs
+  | .cast value _ => exprSupportsPlanScalarYul value
   | .boolNot value
-  | .hash value => exprSupportsPlanScalarInit value
+  | .hash value => exprSupportsPlanScalarYul value
   | .hashValue a b c d =>
-      exprSupportsPlanScalarInit a &&
-      exprSupportsPlanScalarInit b &&
-      exprSupportsPlanScalarInit c &&
-      exprSupportsPlanScalarInit d
+      exprSupportsPlanScalarYul a &&
+      exprSupportsPlanScalarYul b &&
+      exprSupportsPlanScalarYul c &&
+      exprSupportsPlanScalarYul d
   | .nativeValue => true
   | .effect (.storageScalarRead _) => true
   | .effect (.contextRead _) => true
@@ -2748,11 +2748,11 @@ partial def lowerExprViaPlan
     | .error err => .error { message := err.message }
   lowerExprPlanExpr module env plan
 
-partial def lowerScalarInitExpr
+partial def lowerScalarPlanExprOrFallback
     (module : Module)
     (env : TypeEnv)
     (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr :=
-  if exprSupportsPlanScalarInit expr then
+  if exprSupportsPlanScalarYul expr then
     lowerExprViaPlan module env expr
   else
     lowerExpr module env expr
@@ -4417,7 +4417,7 @@ mutual
     | .letBind name type value => do
         ensureLocalScalarType "let binding" name type
         let nextEnv ← addLocal env name type false
-        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerScalarInitExpr module env value))], nextEnv)
+        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerScalarPlanExprOrFallback module env value))], nextEnv)
     | .letMutBind name (.fixedArray elementType length) value => do
         let lowered ← lowerFixedArrayLetBinding module env name elementType length value
         let nextEnv ← addLocal env name (.fixedArray elementType length) true
@@ -4429,7 +4429,7 @@ mutual
     | .letMutBind name type value => do
         ensureLocalScalarType "mutable let binding" name type
         let nextEnv ← addLocal env name type true
-        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerScalarInitExpr module env value))], nextEnv)
+        .ok (#[.varDecl #[({ name := name } : Lean.Compiler.Yul.TypedName)] (some (← lowerScalarPlanExprOrFallback module env value))], nextEnv)
     | .assign target value => do
         .ok (← lowerAssignStmt module env target value, env)
     | .assignOp target op value => do
@@ -4437,9 +4437,12 @@ mutual
     | .effect effect => do
         .ok (#[← lowerEffectStmt module env effect], env)
     | .assert condition _ errorRef? => do
-        .ok (#[lowerAssertStmt (← lowerExpr module env condition) errorRef?], env)
+        .ok (#[lowerAssertStmt (← lowerScalarPlanExprOrFallback module env condition) errorRef?], env)
     | .assertEq lhs rhs _ errorRef? => do
-        let condition := Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]
+        let condition := Lean.Compiler.Yul.builtin "eq" #[
+          ← lowerScalarPlanExprOrFallback module env lhs,
+          ← lowerScalarPlanExprOrFallback module env rhs
+        ]
         .ok (#[lowerAssertStmt condition errorRef?], env)
     | .release _ =>
         .error { message := "release statements are not supported by IR EVM v0" }

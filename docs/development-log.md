@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Assert Plan-To-Yul Assembly Slice
+
+Commit: this commit
+
+Summary:
+
+- Reused the supported scalar `ExprPlan -> ToYul` expression boundary for EVM
+  IR `assert` and `assertEq` guard expressions.
+- Renamed the scalar plan support predicate and lowering helper to reflect
+  their broader use beyond local-binding initializers.
+- Extended `Tests/EvmSemanticPlan.lean` to lock the Yul AST shape for scalar
+  assertion guards lowered through the plan-to-Yul path.
+- Fixed `just evm-semantic-plan` to build the imported Counter and EventProbe
+  example modules before `lean --run`, removing the gate's dependence on
+  preexisting `.olean` files.
+
+Validation run:
+
+```sh
+just evm-semantic-plan
+lake build ProofForge.Backend.Evm.IR
+```
+
+Known limitations:
+
+- This slice only moves scalar assertion guard expressions through
+  `ExprPlan -> ToYul`. Statement sequencing, returns, assignments, aggregate
+  expressions, crosscalls, creates, event emission, dispatch, ABI flattening,
+  and metadata layout still move over in later semantic-plan slices.
+- Unsupported aggregate/crosscall plan nodes continue to fail explicitly or use
+  the compatibility facade where their migration has not started.
+
+Next step:
+
+- Move the next narrow statement path, likely scalar `return` or assignment
+  RHS lowering, to consume `ExprPlan` directly with golden Yul and runtime
+  smoke coverage.
+
 ### EVM Scalar Let Plan-To-Yul Assembly Slice
 
 Commit: this commit
