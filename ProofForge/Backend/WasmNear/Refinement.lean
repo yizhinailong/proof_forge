@@ -924,6 +924,30 @@ def nearU64StorageReadKeyFrame (keyPtr keyLen : Nat) : Array WasmTraceOp := #[
   .call (ProofForge.Backend.WasmNear.EmitWat.readName .u64)
 ]
 
+def nearU64StorageWriteExprFrame
+    (keyPtr keyLen : Nat)
+    (valueOps : Array WasmTraceOp) : Array WasmTraceOp :=
+  #[.i32Const keyPtr, .i32Const keyLen] ++
+    valueOps ++
+    #[.call (ProofForge.Backend.WasmNear.EmitWat.writeName .u64)]
+
+def nearU64StorageWriteLiteralFrame (keyPtr keyLen value : Nat) : Array WasmTraceOp :=
+  nearU64StorageWriteExprFrame keyPtr keyLen #[.i64Const value]
+
+def nearU64StorageWriteLocalFrame (keyPtr keyLen : Nat) (localName : String) :
+    Array WasmTraceOp :=
+  nearU64StorageWriteExprFrame keyPtr keyLen #[.localGet localName]
+
+def nearU64StorageWriteLocalAddLiteralFrame
+    (keyPtr keyLen : Nat)
+    (localName : String)
+    (value : Nat) : Array WasmTraceOp :=
+  nearU64StorageWriteExprFrame keyPtr keyLen #[
+    .localGet localName,
+    .i64Const value,
+    .plain "i64.add"
+  ]
+
 def nearCheckpointBlockIndexFrame (localName : String) : Array WasmTraceOp := #[
   .call "block_index",
   .localSet localName
@@ -974,6 +998,14 @@ def counterStorageReadKeyFrameExpectations : Array WasmHostFrameExpectation := #
   { functionName := "get", expectedOps := nearU64StorageReadKeyFrame 0 5 }
 ]
 
+def counterStorageWriteKeyValueFrameExpectations : Array WasmHostFrameExpectation := #[
+  { functionName := "initialize", expectedOps := nearU64StorageWriteLiteralFrame 0 5 0 },
+  {
+    functionName := "increment"
+    expectedOps := nearU64StorageWriteLocalAddLiteralFrame 0 5 "n" 1
+  }
+]
+
 def valueVaultStorageReadKeyFrameExpectations : Array WasmHostFrameExpectation := #[
   { functionName := "deposit", expectedOps := nearU64StorageReadKeyFrame 0 7 },
   { functionName := "charge_fee", expectedOps := nearU64StorageReadKeyFrame 0 7 },
@@ -988,6 +1020,27 @@ def valueVaultStorageReadKeyFrameExpectations : Array WasmHostFrameExpectation :
   { functionName := "get_balance", expectedOps := nearU64StorageReadKeyFrame 0 7 },
   { functionName := "get_net_value", expectedOps := nearU64StorageReadKeyFrame 0 7 },
   { functionName := "get_net_value", expectedOps := nearU64StorageReadKeyFrame 17 4 }
+]
+
+def valueVaultStorageWriteKeyValueFrameExpectations : Array WasmHostFrameExpectation := #[
+  { functionName := "initialize", expectedOps := nearU64StorageWriteLocalFrame 0 7 "initial" },
+  { functionName := "initialize", expectedOps := nearU64StorageWriteLiteralFrame 8 8 0 },
+  { functionName := "initialize", expectedOps := nearU64StorageWriteLiteralFrame 17 4 0 },
+  { functionName := "initialize", expectedOps := nearU64StorageWriteLocalFrame 22 10 "initial" },
+  { functionName := "initialize", expectedOps := nearU64StorageWriteLocalFrame 33 15 "checkpoint" },
+  { functionName := "initialize", expectedOps := nearU64StorageWriteLiteralFrame 49 10 1 },
+  { functionName := "deposit", expectedOps := nearU64StorageWriteLocalFrame 0 7 "next" },
+  { functionName := "deposit", expectedOps := nearU64StorageWriteLocalFrame 22 10 "amount" },
+  { functionName := "deposit", expectedOps := nearU64StorageWriteLocalFrame 49 10 "next_ops" },
+  { functionName := "charge_fee", expectedOps := nearU64StorageWriteLocalFrame 0 7 "next" },
+  { functionName := "charge_fee", expectedOps := nearU64StorageWriteLocalFrame 17 4 "next_fees" },
+  { functionName := "charge_fee", expectedOps := nearU64StorageWriteLocalFrame 22 10 "net" },
+  { functionName := "charge_fee", expectedOps := nearU64StorageWriteLocalFrame 49 10 "next_ops" },
+  { functionName := "release", expectedOps := nearU64StorageWriteLocalFrame 0 7 "next" },
+  { functionName := "release", expectedOps := nearU64StorageWriteLocalFrame 8 8 "released_next" },
+  { functionName := "release", expectedOps := nearU64StorageWriteLocalFrame 22 10 "amount" },
+  { functionName := "release", expectedOps := nearU64StorageWriteLocalFrame 49 10 "next_ops" },
+  { functionName := "snapshot", expectedOps := nearU64StorageWriteLocalFrame 33 15 "checkpoint" }
 ]
 
 def wasmHostFramesOk
@@ -1005,6 +1058,11 @@ def counterStorageReadKeyFramesOk : Bool :=
     ProofForge.IR.Examples.Counter.module
     counterStorageReadKeyFrameExpectations
 
+def counterStorageWriteKeyValueFramesOk : Bool :=
+  wasmHostFramesOk
+    ProofForge.IR.Examples.Counter.module
+    counterStorageWriteKeyValueFrameExpectations
+
 def valueVaultInputHostFramesOk : Bool :=
   wasmHostFramesOk
     ProofForge.Contract.Examples.ValueVault.module
@@ -1019,6 +1077,11 @@ def valueVaultStorageReadKeyFramesOk : Bool :=
   wasmHostFramesOk
     ProofForge.Contract.Examples.ValueVault.module
     valueVaultStorageReadKeyFrameExpectations
+
+def valueVaultStorageWriteKeyValueFramesOk : Bool :=
+  wasmHostFramesOk
+    ProofForge.Contract.Examples.ValueVault.module
+    valueVaultStorageWriteKeyValueFrameExpectations
 
 def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   name := "Counter.EmitWat.artifact-surface"
@@ -1054,7 +1117,8 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   requiredHostFrames :=
     nearU64HostFrameExpectations ++
       nearInputHostFrameExpectations ++
-      counterStorageReadKeyFrameExpectations
+      counterStorageReadKeyFrameExpectations ++
+      counterStorageWriteKeyValueFrameExpectations
   requiredDataSegments := #[(0, "count")]
   requiredMemoryRegions := nearHostBufferMemoryRegions
 }
@@ -1205,7 +1269,8 @@ def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     nearU64HostFrameExpectations ++
       nearValueVaultInputHostFrameExpectations ++
       nearValueVaultContextHostFrameExpectations ++
-      valueVaultStorageReadKeyFrameExpectations |>.push {
+      valueVaultStorageReadKeyFrameExpectations ++
+      valueVaultStorageWriteKeyValueFrameExpectations |>.push {
       functionName := ProofForge.Backend.WasmNear.EmitWat.evtLogName
       expectedOps := nearEventLogUtf8Frame
     }
@@ -1432,6 +1497,7 @@ def valueVaultEmitWatBackendInvariantBridgeOk : Bool :=
     valueVaultInputHostFramesOk &&
     valueVaultContextHostFramesOk &&
     valueVaultStorageReadKeyFramesOk &&
+    valueVaultStorageWriteKeyValueFramesOk &&
     valueVaultOfflineHostExecutionObligation.returnPayloadHexOk &&
     valueVaultOfflineHostExecutionObligation.storageSnapshotsOk &&
     valueVaultOfflineHostExecutionObligation.storageHexSnapshotsOk &&
@@ -1493,6 +1559,10 @@ theorem counter_emitwat_storage_read_key_frames_ok :
     counterStorageReadKeyFramesOk = true := by
   native_decide
 
+theorem counter_emitwat_storage_write_key_value_frames_ok :
+    counterStorageWriteKeyValueFramesOk = true := by
+  native_decide
+
 theorem counter_emitwat_memory_surface_ok :
     counterArtifactSurfaceObligation.memorySurfaceOk = true := by
   native_decide
@@ -1535,6 +1605,10 @@ theorem value_vault_emitwat_context_host_frames_ok :
 
 theorem value_vault_emitwat_storage_read_key_frames_ok :
     valueVaultStorageReadKeyFramesOk = true := by
+  native_decide
+
+theorem value_vault_emitwat_storage_write_key_value_frames_ok :
+    valueVaultStorageWriteKeyValueFramesOk = true := by
   native_decide
 
 theorem value_vault_emitwat_memory_surface_ok :

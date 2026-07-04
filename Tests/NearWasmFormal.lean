@@ -57,6 +57,7 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_host_frames_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_input_host_frames_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_storage_read_key_frames_ok
+#check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_storage_write_key_value_frames_ok
 #check ProofForge.Backend.WasmNear.Refinement.near_emitwat_host_buffer_memory_layout_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_memory_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_offline_host_execution_surface_ok
@@ -69,6 +70,7 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_input_host_frames_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_context_host_frames_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_storage_read_key_frames_ok
+#check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_storage_write_key_value_frames_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_memory_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_execution_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_return_payload_hex_ok
@@ -95,5 +97,5 @@ theorem release_then_sum_ownership_ok :
 end ProofForge.Tests.NearWasmFormal
 
 def main : IO UInt32 := do
-  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/import-signature/input-frame/context-frame/storage-read-key-frame/host-frame/memory-layout/return-payload-hex/storage-snapshot/storage-hex/log-payload-hex backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
+  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/import-signature/input-frame/context-frame/storage-read-key-frame/storage-write-key-value-frame/host-frame/memory-layout/return-payload-hex/storage-snapshot/storage-hex/log-payload-hex backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
   return 0

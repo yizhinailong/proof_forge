@@ -8692,3 +8692,29 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR EmitWat storage read key-frame checks passed locally.
+
+### NEAR EmitWat Storage Write Key/Value Frames
+
+Commit: pending
+
+Summary:
+
+- Added artifact-surface host-frame expectations for scalar storage writes.
+- Pinned Counter `count` writes passed into `__pf_write_u64` for `initialize`
+  and `increment`, including the `n + 1` value expression.
+- Pinned ValueVault `balance`, `released`, `fees`, `last_value`,
+  `last_checkpoint`, and `operations` write key/value frames for `initialize`,
+  `deposit`, `charge_fee`, `release`, and `snapshot`.
+- Wired the new storage-write-key-value-frame anchors into the formal smoke
+  entrypoint and the ValueVault backend-invariant bridge.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR EmitWat storage write key/value-frame checks passed locally.
