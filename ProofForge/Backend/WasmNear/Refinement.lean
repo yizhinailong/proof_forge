@@ -3,6 +3,7 @@ import ProofForge.IR.Semantics
 import ProofForge.IR.Examples.Counter
 import ProofForge.Compiler.Wasm.AST
 import ProofForge.Contract.Examples.ValueVault
+import ProofForge.Contract.Examples.ValueVaultInvariant
 
 namespace ProofForge.Backend.WasmNear.Refinement
 
@@ -235,12 +236,13 @@ def offlineHostReturnFragment : ObservableReturn → String
 structure OfflineHostExecutionStep where
   exportName : String
   args : Array ProofForge.IR.Semantics.Value := #[]
-  deriving Repr
+  deriving Repr, BEq
 
 structure OfflineHostIOExpectation where
   exportName : String
   inputHex : String
   returnLineFragment : String
+  logLineFragments : Array String := #[]
   deriving Repr, BEq
 
 structure OfflineHostExecutionObligation where
@@ -251,6 +253,48 @@ structure OfflineHostExecutionObligation where
 
 def findEntrypoint? (mod : Module) (name : String) : Option Entrypoint :=
   mod.entrypoints.find? (fun entrypoint => entrypoint.name == name)
+
+def arrayDrop {α : Type} (values : Array α) (n : Nat) : Array α :=
+  values.toList.drop n |>.toArray
+
+def valueVaultEventLogLineFragment
+    (log : ProofForge.IR.Semantics.EventLog) :
+    Except String String := do
+  if !log.indexed.isEmpty then
+    .error s!"offline-host log obligation does not yet encode indexed event `{log.name}`"
+  else
+    match log.name, log.data.toList with
+    | "VaultInitialized", [.u64 initial, .u64 checkpoint] =>
+        .ok ("log: {\"event\":\"VaultInitialized\",\"initial\":" ++
+          toString initial ++ ",\"checkpoint\":" ++ toString checkpoint ++ "}")
+    | "ValueDeposited", [.u64 amount, .u64 balance, .u64 operations] =>
+        .ok ("log: {\"event\":\"ValueDeposited\",\"amount\":" ++
+          toString amount ++ ",\"balance\":" ++ toString balance ++
+          ",\"operations\":" ++ toString operations ++ "}")
+    | "ValueCharged", [.u64 gross, .u64 fee, .u64 net, .u64 balance] =>
+        .ok ("log: {\"event\":\"ValueCharged\",\"gross\":" ++
+          toString gross ++ ",\"fee\":" ++ toString fee ++
+          ",\"net\":" ++ toString net ++ ",\"balance\":" ++
+          toString balance ++ "}")
+    | "ValueReleased", [.u64 amount, .u64 balance, .u64 released] =>
+        .ok ("log: {\"event\":\"ValueReleased\",\"amount\":" ++
+          toString amount ++ ",\"balance\":" ++ toString balance ++
+          ",\"released\":" ++ toString released ++ "}")
+    | "ValueSnapshot", [.u64 balance, .u64 released, .u64 fees, .u64 checkpoint] =>
+        .ok ("log: {\"event\":\"ValueSnapshot\",\"balance\":" ++
+          toString balance ++ ",\"released\":" ++ toString released ++
+          ",\"fees\":" ++ toString fees ++ ",\"checkpoint\":" ++
+          toString checkpoint ++ "}")
+    | _, _ =>
+        .error s!"offline-host log obligation has no formatter for event `{log.name}`"
+
+def offlineHostLogLineFragments
+    (logs : Array ProofForge.IR.Semantics.EventLog) :
+    Except String (Array String) := do
+  let mut fragments := #[]
+  for log in logs do
+    fragments := fragments.push (← valueVaultEventLogLineFragment log)
+  .ok fragments
 
 def runOfflineHostExecutionStep
     (state : ProofForge.IR.Semantics.State)
@@ -264,10 +308,12 @@ def runOfflineHostExecutionStep
   let inputHex ← borshArgsHex step.args
   let (nextState, result?) ← ProofForge.IR.Semantics.runEntrypointWithArgs state entrypoint step.args
   let returnValue ← observableReturn entrypoint.returns result?
+  let logLineFragments ← offlineHostLogLineFragments (arrayDrop nextState.logs state.logs.size)
   .ok (nextState, {
     exportName := step.exportName
     inputHex := inputHex
     returnLineFragment := s!"call 1:{step.exportName}: {offlineHostReturnFragment returnValue}"
+    logLineFragments := logLineFragments
   })
 
 def runOfflineHostExecutionTraceList (mod : Module) :
@@ -295,6 +341,91 @@ def OfflineHostExecutionObligation.ioSurfaceOk
 
 def OfflineHostExecutionObligation.ok (obligation : OfflineHostExecutionObligation) : Bool :=
   obligation.artifactSurface.ok && obligation.ioSurfaceOk
+
+abbrev SemValue := ProofForge.IR.Semantics.Value
+abbrev ValueVaultInputs := ProofForge.Contract.Examples.ValueVaultInvariant.ScenarioInputs
+
+def observableReturnFromSemValue? : Option SemValue → Except String ObservableReturn
+  | none => .ok .none
+  | some .unit => .ok .none
+  | some (.bool value) => .ok (.bool value)
+  | some (.u32 value) => .ok (.u32 value)
+  | some (.u64 value) => .ok (.u64 value)
+  | some (.hash a b c d) => .ok (.hash a b c d)
+  | some (.array _) =>
+      .error "offline-host execution obligation does not yet encode aggregate return values"
+  | some (.struct _ _) =>
+      .error "offline-host execution obligation does not yet encode struct return values"
+
+def offlineHostIOExpectationFromReturn
+    (step : OfflineHostExecutionStep)
+    (returnValue? : Option SemValue) :
+    Except String OfflineHostIOExpectation := do
+  let inputHex ← borshArgsHex step.args
+  let returnValue ← observableReturnFromSemValue? returnValue?
+  .ok {
+    exportName := step.exportName
+    inputHex := inputHex
+    returnLineFragment := s!"call 1:{step.exportName}: {offlineHostReturnFragment returnValue}"
+  }
+
+def OfflineHostIOExpectation.returnSurfaceEq
+    (lhs rhs : OfflineHostIOExpectation) : Bool :=
+  lhs.exportName == rhs.exportName &&
+    lhs.inputHex == rhs.inputHex &&
+    lhs.returnLineFragment == rhs.returnLineFragment
+
+def offlineHostReturnSurfaceMatchesList :
+    List OfflineHostIOExpectation → List OfflineHostIOExpectation → Bool
+  | [], [] => true
+  | lhs :: lhsRest, rhs :: rhsRest =>
+      lhs.returnSurfaceEq rhs && offlineHostReturnSurfaceMatchesList lhsRest rhsRest
+  | _, _ => false
+
+def offlineHostReturnSurfaceMatches
+    (lhs rhs : Array OfflineHostIOExpectation) : Bool :=
+  offlineHostReturnSurfaceMatchesList lhs.toList rhs.toList
+
+def offlineHostExpectedIOFromReturnsList :
+    List OfflineHostExecutionStep → List (Option SemValue) →
+    Except String (List OfflineHostIOExpectation)
+  | [], [] => .ok []
+  | step :: steps, returnValue? :: returnValues => do
+      let current ← offlineHostIOExpectationFromReturn step returnValue?
+      let rest ← offlineHostExpectedIOFromReturnsList steps returnValues
+      .ok (current :: rest)
+  | [], _ :: _ =>
+      .error "offline-host execution obligation has more expected returns than steps"
+  | _ :: _, [] =>
+      .error "offline-host execution obligation has more steps than expected returns"
+
+def offlineHostExpectedIOFromReturns
+    (steps : Array OfflineHostExecutionStep)
+    (returnValues : Array (Option SemValue)) :
+    Except String (Array OfflineHostIOExpectation) := do
+  let expected ← offlineHostExpectedIOFromReturnsList steps.toList returnValues.toList
+  .ok expected.toArray
+
+def valueVaultOfflineHostSteps (inputs : ValueVaultInputs) : Array OfflineHostExecutionStep := #[
+  { exportName := "initialize", args := #[.u64 inputs.initial] },
+  { exportName := "get_balance" },
+  { exportName := "deposit", args := #[.u64 inputs.deposit] },
+  { exportName := "get_balance" },
+  { exportName := "charge_fee", args := #[.u64 inputs.grossCharge, .u64 inputs.feeBps] },
+  { exportName := "get_balance" },
+  { exportName := "get_net_value" },
+  { exportName := "release", args := #[.u64 inputs.release] },
+  { exportName := "get_balance" },
+  { exportName := "snapshot" },
+  { exportName := "get_net_value" }
+]
+
+def valueVaultOfflineHostExpectedIO?
+    (inputs : ValueVaultInputs) :
+    Except String (Array OfflineHostIOExpectation) :=
+  offlineHostExpectedIOFromReturns
+    (valueVaultOfflineHostSteps inputs)
+    (ProofForge.Contract.Examples.ValueVaultInvariant.expectedReturns inputs)
 
 def counterTraceEntrypoints : Array Entrypoint := #[
   ProofForge.IR.Examples.Counter.initializeEntrypoint,
@@ -480,6 +611,9 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "initialize"
       inputHex := "6400000000000000"
       returnLineFragment := "call 1:initialize: return=<none>"
+      logLineFragments := #[
+        "log: {\"event\":\"VaultInitialized\",\"initial\":100,\"checkpoint\":0}"
+      ]
     },
     {
       exportName := "get_balance"
@@ -490,6 +624,9 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "deposit"
       inputHex := "1900000000000000"
       returnLineFragment := "call 1:deposit: return=<none>"
+      logLineFragments := #[
+        "log: {\"event\":\"ValueDeposited\",\"amount\":25,\"balance\":125,\"operations\":2}"
+      ]
     },
     {
       exportName := "get_balance"
@@ -500,6 +637,9 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "charge_fee"
       inputHex := "6400000000000000fa00000000000000"
       returnLineFragment := "call 1:charge_fee: return=<none>"
+      logLineFragments := #[
+        "log: {\"event\":\"ValueCharged\",\"gross\":100,\"fee\":2,\"net\":98,\"balance\":223}"
+      ]
     },
     {
       exportName := "get_balance"
@@ -515,6 +655,9 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "release"
       inputHex := "1700000000000000"
       returnLineFragment := "call 1:release: return=<none>"
+      logLineFragments := #[
+        "log: {\"event\":\"ValueReleased\",\"amount\":23,\"balance\":200,\"released\":23}"
+      ]
     },
     {
       exportName := "get_balance"
@@ -525,6 +668,9 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       exportName := "snapshot"
       inputHex := ""
       returnLineFragment := "call 1:snapshot: return_hex=c800000000000000 return_u64=200"
+      logLineFragments := #[
+        "log: {\"event\":\"ValueSnapshot\",\"balance\":200,\"released\":23,\"fees\":2,\"checkpoint\":0}"
+      ]
     },
     {
       exportName := "get_net_value"
@@ -533,6 +679,24 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
     }
   ]
 }
+
+def valueVaultOfflineHostStepsDeriveFromInvariantInputs : Bool :=
+  valueVaultOfflineHostExecutionObligation.steps ==
+    valueVaultOfflineHostSteps ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs
+
+def valueVaultOfflineHostExpectedIODerivesFromInvariantReturns : Bool :=
+  match valueVaultOfflineHostExpectedIO? ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs with
+  | .ok expected =>
+      offlineHostReturnSurfaceMatches expected valueVaultOfflineHostExecutionObligation.expectedIO
+  | .error _ => false
+
+def valueVaultEmitWatBackendInvariantBridgeOk : Bool :=
+  ProofForge.Contract.Examples.ValueVaultInvariant.defaultScenarioTraceOk &&
+    ProofForge.Contract.Examples.ValueVaultInvariant.defaultScenarioAccountingOk &&
+    ProofForge.Contract.Examples.ValueVaultInvariant.defaultScenarioNetValueOk &&
+    valueVaultOfflineHostStepsDeriveFromInvariantInputs &&
+    valueVaultOfflineHostExpectedIODerivesFromInvariantReturns &&
+    valueVaultOfflineHostExecutionObligation.ok
 
 theorem counter_ir_observable_trace_ok :
     counterTraceObligation.irTraceOk = true := by
@@ -556,6 +720,10 @@ theorem value_vault_emitwat_artifact_surface_ok :
 
 theorem value_vault_emitwat_offline_host_execution_surface_ok :
     valueVaultOfflineHostExecutionObligation.ok = true := by
+  native_decide
+
+theorem value_vault_emitwat_backend_invariant_bridge_ok :
+    valueVaultEmitWatBackendInvariantBridgeOk = true := by
   native_decide
 
 end ProofForge.Backend.WasmNear.Refinement

@@ -8391,3 +8391,31 @@ lake env lean --run Tests/SolanaSdkManifest.lean
 Result:
 
 - Solana IDL/client error catalogue checks passed locally.
+
+### NEAR ValueVault Backend-Invariant Bridge
+
+Commit: pending
+
+Summary:
+
+- Added a decide-checkable NEAR FV-4 bridge from the ValueVault FV-8 invariant
+  scenario to the EmitWat/offline-host execution surface.
+- Derived the ValueVault offline-host input sequence from
+  `ValueVaultInvariant.defaultInputs` and checked return fragments against
+  `ValueVaultInvariant.expectedReturns`.
+- Extended the offline-host IO obligation to include ValueVault event log JSON
+  fragments for `VaultInitialized`, `ValueDeposited`, `ValueCharged`,
+  `ValueReleased`, and `ValueSnapshot`.
+- Wired the new `value_vault_emitwat_backend_invariant_bridge_ok` theorem into
+  the formal smoke entrypoint.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR ValueVault backend-invariant bridge checks passed locally.
