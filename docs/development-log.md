@@ -11885,3 +11885,40 @@ Result:
   already represented by `EffectPlan`.
 - EVM semantic-plan, diagnostics, storage-array IR smoke, full Lake build, and
   whitespace checks passed locally.
+
+### EVM Planned Struct Reads In Control-Flow Bodies
+
+Commit: d5bf94f
+
+Summary:
+
+- Extended plan-effect expression lowering so `EffectPlan.storageStructFieldRead`
+  and `EffectPlan.storageArrayStructFieldRead` can lower inside scalar
+  control-flow bodies.
+- Added planned struct-array field slot construction using
+  `__proof_forge_struct_array_slot`, keeping struct-array index lowering on the
+  `ExprPlan -> ToYul` path; scalar struct field reads continue to lower to the
+  resolved field slot.
+- Added a semantic-plan regression that builds an IR `ifElse`, binds a scalar
+  struct field read in one branch and a struct-array field read in the other,
+  verifies planned body construction, and checks the emitted Yul AST uses the
+  expected `sload` / struct-array slot shape.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/storage-struct-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Result:
+
+- Planned control-flow bodies now cover expression-position struct storage reads
+  already represented by `EffectPlan`.
+- EVM semantic-plan, diagnostics, storage-struct IR smoke, full Lake build, and
+  whitespace checks passed locally.
