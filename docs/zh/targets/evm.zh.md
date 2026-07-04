@@ -114,7 +114,27 @@ proof-forge emit --target evm --fixture <fixture-id> --format bytecode [--solc s
 完整 fixture 列表可通过 `proof-forge --list-fixtures` 查看。`--evm-bytecode`、`--bytecode`
 和 `--emit-*-ir-yul` 等 legacy aliases 会在 RFC 0009 兼容窗口内保留，但新的脚本和文档应使用 target-first 界面。
 
-`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--evm-chain-profile <id>` 会把已知 EVM chain profile（例如 `robinhood-chain-testnet`）记录到生成的 deploy manifest 中，但不会签名或广播交易。`--evm-constructor-param <name:type>` 会在 `abi.constructor.params` 中记录静态 word constructor ABI schema；支持的 schema 类型是 `uint256`、`uint64`、`uint32`、`bool`、`bytes32` 和 `address`。`--evm-constructor-arg <name=value>` 会根据声明的 schema ABI-encode 一个 typed constructor value：无符号整数可以是十进制或 `0x` 前缀 hex，`bool` 接受 `true`、`false`、`1` 或 `0`，`bytes32` 必须正好是 32 个 hex byte，`address` 必须正好是 20 个 hex byte 并左填充到一个 ABI word。typed constructor args 不能和 `--evm-constructor-args-hex` 混用。`--evm-constructor-args-hex <hex>` 会把一段 ABI-encoded constructor argument blob 追加到生成的 `.init.bin` creation bytecode，并在 `proof-forge-deploy.json` 中记录规范化 hex、byte length、SHA-256 和 source flag。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`，并在 metadata 文件旁写入 `proof-forge-deploy.json`。当 smoke 脚本传入类似 `Counter.proof-forge-artifact.json` 的 fixture 专属 metadata 路径时，deploy manifest 会写成 `Counter.proof-forge-deploy.json`。
+`--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--evm-chain-profile <id>` 会把已知 EVM chain profile（例如 `robinhood-chain-testnet`）记录到生成的 deploy manifest 中，但不会签名或广播交易。
+
+Deploy（广播或只生成计划）：
+
+```sh
+proof-forge deploy --target evm --deploy-manifest build/evm/Counter.proof-forge-deploy.json \
+  --evm-chain-profile anvil-local --start-anvil \
+  -o build/evm/Counter.proof-forge-deploy-run.json
+
+proof-forge deploy --target evm --deploy-manifest build/evm/Counter.proof-forge-deploy.json \
+  --evm-chain-profile robinhood-chain-testnet --plan-only \
+  -o build/evm/Counter.proof-forge-deploy-plan.json
+```
+
+本地 Anvil 部署会使用 `cast send --create`，记录 `cast send` receipt 和
+`eth_getTransactionByHash` creation transaction，并写出
+`*.proof-forge-deploy-run.json`。Public testnet profile 默认使用
+`--plan-only`，写出 `*.proof-forge-deploy-plan.json`，其中包含 profile RPC
+metadata 和文档化的 `cast` broadcast command template，而不会签名真实交易。
+
+`--evm-constructor-param <name:type>` 会在 `abi.constructor.params` 中记录静态 word constructor ABI schema；支持的 schema 类型是 `uint256`、`uint64`、`uint32`、`bool`、`bytes32` 和 `address`。`--evm-constructor-arg <name=value>` 会根据声明的 schema ABI-encode 一个 typed constructor value：无符号整数可以是十进制或 `0x` 前缀 hex，`bool` 接受 `true`、`false`、`1` 或 `0`，`bytes32` 必须正好是 32 个 hex byte，`address` 必须正好是 20 个 hex byte 并左填充到一个 ABI word。typed constructor args 不能和 `--evm-constructor-args-hex` 混用。`--evm-constructor-args-hex <hex>` 会把一段 ABI-encoded constructor argument blob 追加到生成的 `.init.bin` creation bytecode，并在 `proof-forge-deploy.json` 中记录规范化 hex、byte length、SHA-256 和 source flag。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`，并在 metadata 文件旁写入 `proof-forge-deploy.json`。当 smoke 脚本传入类似 `Counter.proof-forge-artifact.json` 的 fixture 专属 metadata 路径时，deploy manifest 会写成 `Counter.proof-forge-deploy.json`。
 
 ## ABI metadata 与 selectors
 
@@ -313,16 +333,23 @@ EVM deploy manifest 会记录：
 - 选择 chain profile 时的 `deployment.profileId`、`deployment.chainId`、
   `deployment.rpcUrls`、`deployment.blockExplorerUrl` 和 verifier 字段
 - `deployment.broadcast: not-generated`，因为交易签名、broadcast JSON、deployed
-  address 记录和 explorer verification 还没有生成
+  address 记录和 explorer verification 不是由 `proof-forge build` 生成。使用
+  `proof-forge deploy --target evm` 可以在 `anvil-local` 上广播，或发射一份文档化的
+  testnet deploy plan。
 
 `scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact，同时检查 constructor-argument tail 与 deploy manifest 一致。当存在 constructor ABI schema metadata 时，validator 还会检查每个静态 word 参数，并确认 ABI-encoded constructor blob 的长度符合预期的 32-byte word 数量。validator 还可以确认 constructor args 来自 raw hex 还是 typed constructor values。选择 chain profile 时，validator 还会检查 `chainProfile` 和 `deployment` 中的 profile id、chain id、RPC URLs、explorer 和 verifier metadata 是否一致。ABI 校验还会检查 4-byte selector 形态、重复 selector、entrypoint Solidity-style signature、`cast sig` 计算出的 selector、entrypoint parameter/return ABI type、展开后的 calldata/return word count、生成的 Yul function name、event signature、`topic0` hash，以及 event indexed/data field encoding；contract-source 示例和 Anvil 门禁要求 artifact metadata 中存在生成的 ABI signature。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
 
 `scripts/evm/anvil-deploy-smoke.sh` 会消费生成的 Counter deploy manifest 和
 `.init.bin`，默认用 typed `initial=123` constructor argument 和静态
-`initial:uint256` constructor schema 重新生成 Counter 部署制品，启动本地 Anvil
-链，用 `cast send --create` 发送 initcode，检查 receipt，验证 deployed runtime
-code 等于 `Counter.bin`，通过 JSON-RPC 跑 Counter lifecycle，并写出
+`initial:uint256` constructor schema 重新生成 Counter 部署制品，并运行
+`proof-forge deploy --target evm --start-anvil`，通过 `cast send --create`
+广播 initcode、校验 receipt 和 deployed runtime code、通过 JSON-RPC 跑 Counter
+lifecycle，并写出
 `build/anvil-deploy-smoke/Counter.proof-forge-deploy-run.json`。
+`scripts/evm/deploy-plan-smoke.sh` 会为文档化的 `robinhood-chain-testnet`
+profile 记录
+`build/evm-deploy-plan-smoke/Counter.proof-forge-deploy-plan.json`，不进行 live
+broadcast。
 `scripts/evm/validate-deploy-run.py` 会校验这个 deploy-run artifact。原始 deploy
 manifest 仍然是可复现的部署计划，并保持 `deployment.broadcast: not-generated`；
 deploy-run artifact 会记录这次使用的 constructor ABI schema 和 constructor args，

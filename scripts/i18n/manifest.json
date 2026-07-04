@@ -96,7 +96,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/targets/evm.md": {
-    "sha256": "84dbb32c5856177cf7e38d1d31666b3fa129c7744b4bf58eebab2e175507ac16",
+    "sha256": "861b145455fb59173adc41291fa8b6c03694893286027073e32c81c72986d403",
     "zh": "docs/zh/targets/evm.zh.md",
     "model": "gemini-3-flash-preview"
   },
