@@ -1,5 +1,6 @@
 import ProofForge.Backend.Evm.IR
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.EvmArrayValueProbe
 import ProofForge.IR.Examples.EvmDynamicAbiProbe
 import ProofForge.IR.Examples.EvmCrosscallProbe
 import ProofForge.IR.Examples.EvmMapProbe
@@ -434,6 +435,37 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
   require
     (statementsHaveFunctionNamed object.code.statements "__proof_forge_native_transfer")
     "plan-driven module lowering includes native transfer helper"
+
+def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
+  let plan ←
+    requireOk
+      (buildSemanticPlan ProofForge.IR.Examples.EvmArrayValueProbe.module)
+      "array value probe plan"
+  let lowerPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.EvmArrayValueProbe.module)
+      "array value probe lower full module plan"
+  require
+    (lowerPlan.localArrayGetLengths == plan.localArrayGetLengths)
+    "local-array helper discovery must come from Lower.buildFullModulePlan"
+  require
+    (lowerPlan.nestedLocalArrayGetShapes == plan.nestedLocalArrayGetShapes)
+    "nested local-array helper discovery must come from Lower.buildFullModulePlan"
+  require
+    (lowerPlan.usesCheckedArithmetic == plan.usesCheckedArithmetic)
+    "checked arithmetic discovery must come from Lower.buildFullModulePlan"
+  require
+    (plan.localArrayGetLengths.contains 3)
+    "array value probe must plan length-3 dynamic local-array getter"
+  require
+    (plan.localArrayGetLengths.contains 2)
+    "array value probe must plan length-2 dynamic local-array getter"
+  require
+    (plan.nestedLocalArrayGetShapes.any (fun shape => shape == #[2, 2]))
+    "array value probe must plan nested 2x2 dynamic local-array getter"
+  require
+    plan.usesCheckedArithmetic
+    "array value probe must plan checked arithmetic helpers"
 
 def testEntrypointDispatchPlanToYul : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
@@ -1964,6 +1996,7 @@ def main : IO UInt32 := do
   testArtifactMetadata
   testDeployMetadata
   testPlannedHelperDiscoveryToYul
+  testLocalArrayHelperDiscoveryInLowerPlan
   testEntrypointDispatchPlanToYul
   testSemanticPlanRender
   testScalarExprPlanToYul

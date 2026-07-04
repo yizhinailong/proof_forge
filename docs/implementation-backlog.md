@@ -402,6 +402,13 @@ Tasks:
     construction now discovers create/create2 helper specs in
     `Lower.buildFullModulePlan`; `IR.lean` keeps the old discovery only for
     incomplete/best-effort fallback paths.
+  - Started: checked-arithmetic and local fixed-array getter helper
+    requirements are now discovered by complete `ModulePlan` construction in
+    `Lower.buildFullModulePlan`. `IR.buildSemanticPlan` preserves the
+    Lower-owned `usesCheckedArithmetic`, `localArrayGetLengths`, and
+    `nestedLocalArrayGetShapes` fields instead of re-scanning the module after
+    plan construction; `IR.lean` keeps compatibility rediscovery only for
+    incomplete/best-effort fallback lowering.
   - Started: scalar expression-position crosscall helper-call assembly and
     create/create2 helper-call assembly now live behind `ToYul`. `ExprPlan`
     nodes for scalar `call`, value-bearing `call`, native value transfer,

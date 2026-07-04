@@ -10715,7 +10715,7 @@ Result:
 
 ### EVM Helper Discovery Lower Plan Slice
 
-Commit: pending
+Commit: a6a31b9
 
 Summary:
 
@@ -10741,3 +10741,43 @@ Result:
 - EVM semantic-plan helper discovery now comes from `Lower.buildFullModulePlan`
   for complete plans, while the public plan and ToYul helper behavior remain
   unchanged.
+
+### EVM Local Array Helper Lower Plan Slice
+
+Commit: pending
+
+Summary:
+
+- Moved complete-plan local fixed-array getter helper discovery into
+  `Lower.buildFullModulePlan`.
+- Moved complete-plan nested local fixed-array getter shape discovery into
+  `Lower.buildFullModulePlan`.
+- Moved the checked-arithmetic flag into Lower-owned complete `ModulePlan`
+  construction.
+- Stopped `IR.buildSemanticPlan` from re-scanning those helper fields after
+  Lower has already built the complete semantic plan.
+- Kept the existing `IR.lean` discovery helpers for incomplete/best-effort
+  fallback lowering.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/struct-array-value-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+lake build
+```
+
+Result:
+
+- EVM semantic-plan local-array helper discovery and checked-arithmetic
+  discovery now come from `Lower.buildFullModulePlan` for complete plans.
+- Full `lake build` passed locally with the existing `ProofForge/Cli.lean`
+  unused-variable warning.

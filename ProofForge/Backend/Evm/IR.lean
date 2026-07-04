@@ -6534,18 +6534,9 @@ def toPlanCreateSpec (spec : CreateHelperSpec) : ProofForge.Backend.Evm.Plan.Cre
   { mode := toPlanCreateMode spec.mode, initCodeHex := spec.initCodeHex }
 
 def buildSemanticPlan (module : Module) : Except LowerError ProofForge.Backend.Evm.Plan.ModulePlan := do
-  let plan ←
-    match ProofForge.Backend.Evm.Lower.buildFullModulePlan module with
-    | .ok p => .ok p
-    | .error err => .error { message := err.message }
-  let localArrayGetLengths ← moduleLocalArrayGetLengths module
-  let nestedLocalArrayGetShapes ← moduleNestedLocalArrayGetShapes module
-  let usesCheckedArithmetic := moduleUsesCheckedArithmetic module
-  .ok { plan with
-    localArrayGetLengths := localArrayGetLengths
-    nestedLocalArrayGetShapes := nestedLocalArrayGetShapes
-    usesCheckedArithmetic := usesCheckedArithmetic
-  }
+  match ProofForge.Backend.Evm.Lower.buildFullModulePlan module with
+  | .ok plan => .ok plan
+  | .error err => .error { message := err.message }
 
 /-- Build the semantic plan best-effort, catching plan-construction errors so
     diagnostic smokes that intentionally feed unsupported shapes still render

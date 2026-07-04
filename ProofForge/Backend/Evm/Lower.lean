@@ -866,6 +866,340 @@ def buildCreateHelperPlans (module : Module) : Array CreateHelperSpec :=
   module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
     mergeCreateHelperSpecs acc (createHelperSpecsFromStatements entrypoint.body)
 
+def pushNatIfMissing (acc : Array Nat) (value : Nat) : Array Nat :=
+  if acc.contains value then acc else acc.push value
+
+def mergeNatSets (lhs rhs : Array Nat) : Array Nat :=
+  rhs.foldl pushNatIfMissing lhs
+
+def pushNatArrayIfMissing
+    (acc : Array (Array Nat))
+    (value : Array Nat) : Array (Array Nat) :=
+  if acc.any (fun existing => existing == value) then acc else acc.push value
+
+def mergeNatArraySets (lhs rhs : Array (Array Nat)) : Array (Array Nat) :=
+  rhs.foldl pushNatArrayIfMissing lhs
+
+def localArrayGetLengthsForDynamicExprTarget
+    (env : TypeEnv)
+    (array index : Expr) : Array Nat :=
+  match literalArrayIndex? index with
+  | some _ => #[]
+  | none =>
+      match array with
+      | .local name =>
+          match findLocal? env name with
+          | some { type := .fixedArray _ length, .. } => #[length]
+          | _ => #[]
+      | .arrayLit _ values => #[values.size]
+      | _ => #[]
+
+def nestedLocalArrayGetShapesForDynamicExprTarget
+    (env : TypeEnv)
+    (array index : Expr) : Array (Array Nat) :=
+  let fullExpr := Expr.arrayGet array index
+  match collectLocalArrayGetPath fullExpr with
+  | some (name, path) =>
+      if path.size > 1 && arrayIndexPathHasDynamic path then
+        match findLocal? env name with
+        | some binding =>
+            match fixedArrayPathShape "fixed array index" binding.type path with
+            | .ok (lengths, leafType) =>
+                match leafType with
+                | .u32 | .u64 | .bool | .hash | .address | .structType _ => #[lengths]
+                | .unit | .fixedArray _ _ | .bytes | .string => #[]
+            | .error _ => #[]
+        | none => #[]
+      else
+        #[]
+  | none => #[]
+
+mutual
+  partial def localArrayGetLengthsExpr (env : TypeEnv) : Expr → Array Nat
+    | .literal _ | .local _ | .nativeValue => #[]
+    | .arrayLit _ values =>
+        values.foldl (init := #[]) fun acc value =>
+          mergeNatSets acc (localArrayGetLengthsExpr env value)
+    | .arrayGet array index =>
+        let nested := mergeNatSets (localArrayGetLengthsExpr env array) (localArrayGetLengthsExpr env index)
+        mergeNatSets nested (localArrayGetLengthsForDynamicExprTarget env array index)
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeNatSets acc (localArrayGetLengthsExpr env field.snd)
+    | .field base _ =>
+        localArrayGetLengthsExpr env base
+    | .add lhs rhs | .sub lhs rhs | .mul lhs rhs | .div lhs rhs | .mod lhs rhs
+    | .pow lhs rhs | .bitAnd lhs rhs | .bitOr lhs rhs | .bitXor lhs rhs
+    | .shiftLeft lhs rhs | .shiftRight lhs rhs | .eq lhs rhs | .ne lhs rhs
+    | .lt lhs rhs | .le lhs rhs | .gt lhs rhs | .ge lhs rhs
+    | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs =>
+        mergeNatSets (localArrayGetLengthsExpr env lhs) (localArrayGetLengthsExpr env rhs)
+    | .cast value _ | .boolNot value | .hash value =>
+        localArrayGetLengthsExpr env value
+    | .hashValue a b c d =>
+        mergeNatSets
+          (mergeNatSets (localArrayGetLengthsExpr env a) (localArrayGetLengthsExpr env b))
+          (mergeNatSets (localArrayGetLengthsExpr env c) (localArrayGetLengthsExpr env d))
+    | .crosscallInvoke target methodId args
+    | .crosscallInvokeTyped target methodId args _
+    | .crosscallInvokeStaticTyped target methodId args _
+    | .crosscallInvokeDelegateTyped target methodId args _ =>
+        let nested := mergeNatSets (localArrayGetLengthsExpr env target) (localArrayGetLengthsExpr env methodId)
+        args.foldl (init := nested) fun acc arg =>
+          mergeNatSets acc (localArrayGetLengthsExpr env arg)
+    | .crosscallInvokeValueTyped target methodId callValue args _ =>
+        let nested := mergeNatSets (localArrayGetLengthsExpr env target) (localArrayGetLengthsExpr env methodId)
+        let nested := mergeNatSets nested (localArrayGetLengthsExpr env callValue)
+        args.foldl (init := nested) fun acc arg =>
+          mergeNatSets acc (localArrayGetLengthsExpr env arg)
+    | .crosscallCreate callValue _ =>
+        localArrayGetLengthsExpr env callValue
+    | .crosscallCreate2 callValue salt _ =>
+        mergeNatSets (localArrayGetLengthsExpr env callValue) (localArrayGetLengthsExpr env salt)
+    | .effect effect =>
+        localArrayGetLengthsEffect env effect
+
+  partial def localArrayGetLengthsEffect (env : TypeEnv) : Effect → Array Nat
+    | .storageScalarRead _ | .storageStructFieldRead _ _ | .contextRead _ => #[]
+    | .storageScalarWrite _ value
+    | .storageScalarAssignOp _ _ value
+    | .storageStructFieldWrite _ _ value =>
+        localArrayGetLengthsExpr env value
+    | .storageMapContains _ key
+    | .storageMapGet _ key
+    | .storageArrayRead _ key
+    | .storageArrayStructFieldRead _ key _ =>
+        localArrayGetLengthsExpr env key
+    | .storageMapInsert _ key value
+    | .storageMapSet _ key value
+    | .storageArrayWrite _ key value
+    | .storageArrayStructFieldWrite _ key _ value =>
+        mergeNatSets (localArrayGetLengthsExpr env key) (localArrayGetLengthsExpr env value)
+    | .storagePathRead _ path =>
+        path.foldl (init := #[]) fun acc segment =>
+          mergeNatSets acc (localArrayGetLengthsStoragePathSegment env segment)
+    | .storagePathWrite _ path value | .storagePathAssignOp _ path _ value =>
+        let pathLengths := path.foldl (init := #[]) fun acc segment =>
+          mergeNatSets acc (localArrayGetLengthsStoragePathSegment env segment)
+        mergeNatSets pathLengths (localArrayGetLengthsExpr env value)
+    | .eventEmit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeNatSets acc (localArrayGetLengthsExpr env field.snd)
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexedLengths := indexedFields.foldl (init := #[]) fun acc field =>
+          mergeNatSets acc (localArrayGetLengthsExpr env field.snd)
+        dataFields.foldl (init := indexedLengths) fun acc field =>
+          mergeNatSets acc (localArrayGetLengthsExpr env field.snd)
+
+  partial def localArrayGetLengthsStoragePathSegment (env : TypeEnv) : StoragePathSegment → Array Nat
+    | .field _ => #[]
+    | .index index => localArrayGetLengthsExpr env index
+    | .mapKey key => localArrayGetLengthsExpr env key
+
+  partial def localArrayGetLengthsAssignTarget (env : TypeEnv) : Expr → Array Nat
+    | .arrayGet (.local _) index =>
+        localArrayGetLengthsExpr env index
+    | .field (.local _) _ =>
+        #[]
+    | target =>
+        localArrayGetLengthsExpr env target
+
+  partial def localArrayGetLengthsStatement
+      (env : TypeEnv) : Statement → Except LowerError (Array Nat × TypeEnv)
+    | .letBind name type value => do
+        let nextEnv ← addLocal env name type false
+        .ok (localArrayGetLengthsExpr env value, nextEnv)
+    | .letMutBind name type value => do
+        let nextEnv ← addLocal env name type true
+        .ok (localArrayGetLengthsExpr env value, nextEnv)
+    | .assign target value | .assignOp target _ value =>
+        .ok (mergeNatSets (localArrayGetLengthsAssignTarget env target) (localArrayGetLengthsExpr env value), env)
+    | .effect effect =>
+        .ok (localArrayGetLengthsEffect env effect, env)
+    | .assert condition _ _ =>
+        .ok (localArrayGetLengthsExpr env condition, env)
+    | .assertEq lhs rhs _ _ =>
+        .ok (mergeNatSets (localArrayGetLengthsExpr env lhs) (localArrayGetLengthsExpr env rhs), env)
+    | .release _ =>
+        .ok (#[], env)
+    | .ifElse condition thenBody elseBody => do
+        let (thenLengths, _) ← localArrayGetLengthsStatements env thenBody
+        let (elseLengths, _) ← localArrayGetLengthsStatements env elseBody
+        let bodyLengths := mergeNatSets thenLengths elseLengths
+        .ok (mergeNatSets (localArrayGetLengthsExpr env condition) bodyLengths, env)
+    | .boundedFor indexName _ _ body => do
+        let loopEnv ← addLocal env indexName .u32 false
+        let (bodyLengths, _) ← localArrayGetLengthsStatements loopEnv body
+        .ok (bodyLengths, env)
+    | .return value =>
+        .ok (localArrayGetLengthsExpr env value, env)
+
+  partial def localArrayGetLengthsStatements
+      (env : TypeEnv)
+      (statements : Array Statement) : Except LowerError (Array Nat × TypeEnv) :=
+    statements.foldlM (init := (#[], env)) fun acc stmt => do
+      let (lengths, currentEnv) := acc
+      let (stmtLengths, nextEnv) ← localArrayGetLengthsStatement currentEnv stmt
+      .ok (mergeNatSets lengths stmtLengths, nextEnv)
+end
+
+def buildLocalArrayGetLengths (module : Module) : Except LowerError (Array Nat) := do
+  let mut lengths : Array Nat := #[]
+  for entrypoint in module.entrypoints do
+    let (entrypointLengths, _) ← localArrayGetLengthsStatements (entrypointTypeEnv entrypoint) entrypoint.body
+    lengths := mergeNatSets lengths entrypointLengths
+  .ok lengths
+
+mutual
+  partial def nestedLocalArrayGetShapesExpr (env : TypeEnv) : Expr → Array (Array Nat)
+    | .literal _ | .local _ | .nativeValue => #[]
+    | .arrayLit _ values =>
+        values.foldl (init := #[]) fun acc value =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env value)
+    | .arrayGet array index =>
+        let nested :=
+          mergeNatArraySets (nestedLocalArrayGetShapesExpr env array) (nestedLocalArrayGetShapesExpr env index)
+        mergeNatArraySets nested (nestedLocalArrayGetShapesForDynamicExprTarget env array index)
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env field.snd)
+    | .field base _ =>
+        nestedLocalArrayGetShapesExpr env base
+    | .add lhs rhs | .sub lhs rhs | .mul lhs rhs | .div lhs rhs | .mod lhs rhs
+    | .pow lhs rhs | .bitAnd lhs rhs | .bitOr lhs rhs | .bitXor lhs rhs
+    | .shiftLeft lhs rhs | .shiftRight lhs rhs | .eq lhs rhs | .ne lhs rhs
+    | .lt lhs rhs | .le lhs rhs | .gt lhs rhs | .ge lhs rhs
+    | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs =>
+        mergeNatArraySets (nestedLocalArrayGetShapesExpr env lhs) (nestedLocalArrayGetShapesExpr env rhs)
+    | .cast value _ | .boolNot value | .hash value =>
+        nestedLocalArrayGetShapesExpr env value
+    | .hashValue a b c d =>
+        mergeNatArraySets
+          (mergeNatArraySets (nestedLocalArrayGetShapesExpr env a) (nestedLocalArrayGetShapesExpr env b))
+          (mergeNatArraySets (nestedLocalArrayGetShapesExpr env c) (nestedLocalArrayGetShapesExpr env d))
+    | .crosscallInvoke target methodId args
+    | .crosscallInvokeTyped target methodId args _
+    | .crosscallInvokeStaticTyped target methodId args _
+    | .crosscallInvokeDelegateTyped target methodId args _ =>
+        let nested :=
+          mergeNatArraySets (nestedLocalArrayGetShapesExpr env target) (nestedLocalArrayGetShapesExpr env methodId)
+        args.foldl (init := nested) fun acc arg =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env arg)
+    | .crosscallInvokeValueTyped target methodId callValue args _ =>
+        let nested :=
+          mergeNatArraySets (nestedLocalArrayGetShapesExpr env target) (nestedLocalArrayGetShapesExpr env methodId)
+        let nested := mergeNatArraySets nested (nestedLocalArrayGetShapesExpr env callValue)
+        args.foldl (init := nested) fun acc arg =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env arg)
+    | .crosscallCreate callValue _ =>
+        nestedLocalArrayGetShapesExpr env callValue
+    | .crosscallCreate2 callValue salt _ =>
+        mergeNatArraySets (nestedLocalArrayGetShapesExpr env callValue) (nestedLocalArrayGetShapesExpr env salt)
+    | .effect effect =>
+        nestedLocalArrayGetShapesEffect env effect
+
+  partial def nestedLocalArrayGetShapesEffect (env : TypeEnv) : Effect → Array (Array Nat)
+    | .storageScalarRead _ | .storageStructFieldRead _ _ | .contextRead _ => #[]
+    | .storageScalarWrite _ value
+    | .storageScalarAssignOp _ _ value
+    | .storageStructFieldWrite _ _ value =>
+        nestedLocalArrayGetShapesExpr env value
+    | .storageMapContains _ key
+    | .storageMapGet _ key
+    | .storageArrayRead _ key
+    | .storageArrayStructFieldRead _ key _ =>
+        nestedLocalArrayGetShapesExpr env key
+    | .storageMapInsert _ key value
+    | .storageMapSet _ key value
+    | .storageArrayWrite _ key value
+    | .storageArrayStructFieldWrite _ key _ value =>
+        mergeNatArraySets (nestedLocalArrayGetShapesExpr env key) (nestedLocalArrayGetShapesExpr env value)
+    | .storagePathRead _ path =>
+        path.foldl (init := #[]) fun acc segment =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesStoragePathSegment env segment)
+    | .storagePathWrite _ path value | .storagePathAssignOp _ path _ value =>
+        let pathShapes := path.foldl (init := #[]) fun acc segment =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesStoragePathSegment env segment)
+        mergeNatArraySets pathShapes (nestedLocalArrayGetShapesExpr env value)
+    | .eventEmit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env field.snd)
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexedShapes := indexedFields.foldl (init := #[]) fun acc field =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env field.snd)
+        dataFields.foldl (init := indexedShapes) fun acc field =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env field.snd)
+
+  partial def nestedLocalArrayGetShapesStoragePathSegment (env : TypeEnv) :
+      StoragePathSegment → Array (Array Nat)
+    | .field _ => #[]
+    | .index index => nestedLocalArrayGetShapesExpr env index
+    | .mapKey key => nestedLocalArrayGetShapesExpr env key
+
+  partial def nestedLocalArrayGetShapesAssignTarget (env : TypeEnv) : Expr → Array (Array Nat)
+    | .arrayGet array index =>
+        let nested :=
+          mergeNatArraySets (nestedLocalArrayGetShapesExpr env array) (nestedLocalArrayGetShapesExpr env index)
+        mergeNatArraySets nested (nestedLocalArrayGetShapesForDynamicExprTarget env array index)
+    | .field target _ =>
+        nestedLocalArrayGetShapesExpr env target
+    | _ => #[]
+
+  partial def nestedLocalArrayGetShapesStatement
+      (env : TypeEnv) : Statement → Except LowerError (Array (Array Nat) × TypeEnv)
+    | .letBind name type value => do
+        let nextEnv ← addLocal env name type false
+        .ok (nestedLocalArrayGetShapesExpr env value, nextEnv)
+    | .letMutBind name type value => do
+        let nextEnv ← addLocal env name type true
+        .ok (nestedLocalArrayGetShapesExpr env value, nextEnv)
+    | .assign target value | .assignOp target _ value =>
+        .ok (
+          mergeNatArraySets
+            (nestedLocalArrayGetShapesAssignTarget env target)
+            (nestedLocalArrayGetShapesExpr env value),
+          env
+        )
+    | .effect effect =>
+        .ok (nestedLocalArrayGetShapesEffect env effect, env)
+    | .assert condition _ _ =>
+        .ok (nestedLocalArrayGetShapesExpr env condition, env)
+    | .assertEq lhs rhs _ _ =>
+        .ok (mergeNatArraySets (nestedLocalArrayGetShapesExpr env lhs) (nestedLocalArrayGetShapesExpr env rhs), env)
+    | .release _ =>
+        .ok (#[], env)
+    | .ifElse condition thenBody elseBody => do
+        let (thenShapes, _) ← nestedLocalArrayGetShapesStatements env thenBody
+        let (elseShapes, _) ← nestedLocalArrayGetShapesStatements env elseBody
+        .ok (
+          mergeNatArraySets
+            (nestedLocalArrayGetShapesExpr env condition)
+            (mergeNatArraySets thenShapes elseShapes),
+          env
+        )
+    | .boundedFor indexName _ _ body => do
+        let loopEnv ← addLocal env indexName .u32 false
+        let (bodyShapes, _) ← nestedLocalArrayGetShapesStatements loopEnv body
+        .ok (bodyShapes, env)
+    | .return value =>
+        .ok (nestedLocalArrayGetShapesExpr env value, env)
+
+  partial def nestedLocalArrayGetShapesStatements
+      (env : TypeEnv)
+      (statements : Array Statement) : Except LowerError (Array (Array Nat) × TypeEnv) :=
+    statements.foldlM (init := (#[], env)) fun acc stmt => do
+      let (shapes, currentEnv) := acc
+      let (stmtShapes, nextEnv) ← nestedLocalArrayGetShapesStatement currentEnv stmt
+      .ok (mergeNatArraySets shapes stmtShapes, nextEnv)
+end
+
+def buildNestedLocalArrayGetShapes (module : Module) : Except LowerError (Array (Array Nat)) := do
+  let mut shapes : Array (Array Nat) := #[]
+  for entrypoint in module.entrypoints do
+    let (entrypointShapes, _) ← nestedLocalArrayGetShapesStatements (entrypointTypeEnv entrypoint) entrypoint.body
+    shapes := mergeNatArraySets shapes entrypointShapes
+  .ok shapes
+
 /-! ## Module plan assembly -/
 
 def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
@@ -878,6 +1212,9 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
   let eventPlans ← buildEventPlans module
   let crosscallPlans ← buildCrosscallHelperPlans module
   let createPlans := buildCreateHelperPlans module
+  let localArrayGetLengths ← buildLocalArrayGetLengths module
+  let nestedLocalArrayGetShapes ← buildNestedLocalArrayGetShapes module
+  let usesCheckedArithmetic := moduleUsesCheckedArithmetic module
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans
@@ -890,6 +1227,9 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
     events := eventPlans
     crosscalls := crosscallPlans
     creates := createPlans
+    localArrayGetLengths := localArrayGetLengths
+    nestedLocalArrayGetShapes := nestedLocalArrayGetShapes
+    usesCheckedArithmetic := usesCheckedArithmetic
     metadata := metadata
   }
 
@@ -906,6 +1246,9 @@ def buildFullModulePlanWithTargetPlan
   let eventPlans ← buildEventPlans module
   let crosscallPlans ← buildCrosscallHelperPlans module
   let createPlans := buildCreateHelperPlans module
+  let localArrayGetLengths ← buildLocalArrayGetLengths module
+  let nestedLocalArrayGetShapes ← buildNestedLocalArrayGetShapes module
+  let usesCheckedArithmetic := moduleUsesCheckedArithmetic module
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans
@@ -918,6 +1261,9 @@ def buildFullModulePlanWithTargetPlan
     events := eventPlans
     crosscalls := crosscallPlans
     creates := createPlans
+    localArrayGetLengths := localArrayGetLengths
+    nestedLocalArrayGetShapes := nestedLocalArrayGetShapes
+    usesCheckedArithmetic := usesCheckedArithmetic
     metadata := metadata
   }
 
