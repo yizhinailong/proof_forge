@@ -594,6 +594,56 @@ def testStructFieldWritePlanToYul : IO Unit := do
       | _ => throw <| IO.userError "struct array field write value must be plan-lowered storage read"
   | _ => throw <| IO.userError "struct array field write plan-to-yul must lower to sstore"
 
+def testWholeStructStorageWritePlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let writeStmt ← requireOk
+    (lowerStorageStructWriteStmt
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      env
+      "current"
+      (.structLit "Point" #[
+        ("x", .add (.local "value") (.literal (.u64 7))),
+        ("y", .effect (.storageScalarRead "before"))
+      ]))
+    "whole struct storage write field values plan-to-yul"
+  match writeStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      let mut foundCheckedX := false
+      let mut foundStorageY := false
+      let mut foundStoreX := false
+      let mut foundStoreY := false
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.call addName addArgs)) => do
+            match vars[0]? with
+            | some var =>
+                foundCheckedX := foundCheckedX ||
+                  (var.name == storageStructAssignTempName "current" "x" &&
+                    addName == "__pf_checked_add" &&
+                    addArgs.size == 2)
+            | none => pure ()
+        | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.builtin readName readArgs)) => do
+            match vars[0]? with
+            | some var =>
+                foundStorageY := foundStorageY ||
+                  (var.name == storageStructAssignTempName "current" "y" &&
+                    readName == "sload" &&
+                    readArgs.size == 1)
+            | none => pure ()
+        | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+            if args.size == 2 then
+              match args[1]! with
+              | Lean.Compiler.Yul.Expr.ident name =>
+                  foundStoreX := foundStoreX || name == storageStructAssignTempName "current" "x"
+                  foundStoreY := foundStoreY || name == storageStructAssignTempName "current" "y"
+              | _ => pure ()
+        | _ => pure ()
+      require foundCheckedX "whole struct storage write x field must lower through checked add plan"
+      require foundStorageY "whole struct storage write y field must lower storage read through plan"
+      require foundStoreX "whole struct storage write must store x temp"
+      require foundStoreY "whole struct storage write must store y temp"
+  | _ => throw <| IO.userError "whole struct storage write plan-to-yul must lower to block"
+
 def testStoragePathWritePlanToYul : IO Unit := do
   let mapEnv : TypeEnv := #[
     { name := "outer", type := .u64, isMutable := false },
@@ -778,6 +828,7 @@ def main : IO UInt32 := do
   testMapWritePlanToYul
   testArrayWritePlanToYul
   testStructFieldWritePlanToYul
+  testWholeStructStorageWritePlanToYul
   testStoragePathWritePlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0

@@ -3124,7 +3124,7 @@ def lowerStorageStructWriteSourceExprs
         ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
         let some field := fields.find? fun field => field.fst == fieldDecl.id
           | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-        values := values.push (idx, fieldDecl.id, ← lowerExpr module env field.snd)
+        values := values.push (idx, fieldDecl.id, ← lowerScalarPlanExprOrFallback module env field.snd)
       .ok values
   | .effect (.storageScalarRead sourceStateId) => do
       let fields ← lowerStructStorageReadFields module s!"storage scalar struct write `{stateId}` source type" typeName sourceStateId

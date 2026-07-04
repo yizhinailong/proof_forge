@@ -291,8 +291,7 @@ Tasks:
     compatibility paths until their own migration slices add coverage.
   - Started: scalar `storageScalarWrite` and `storageScalarAssignOp` value
     lowering now consumes the same `ExprPlan -> ToYul` expression boundary for
-    supported scalar RHS expressions. Whole-struct storage writes remain on
-    their compatibility paths until their own migration slice adds coverage.
+    supported scalar RHS expressions.
   - Started: `storageMapInsert`/`storageMapSet` write lowering now consumes
     the same `ExprPlan -> ToYul` expression boundary for supported scalar map
     key/value expressions in both statement writes and return-old-value
@@ -304,8 +303,13 @@ Tasks:
   - Started: `storageStructFieldWrite` and `storageArrayStructFieldWrite`
     value lowering now consume the same `ExprPlan -> ToYul` expression boundary
     for supported scalar field values. Struct-field slot assembly remains on
-    the existing direct slot / `StorageSlotPlan -> ToYul` boundaries;
-    whole-struct writes remain a separate migration slice.
+    the existing direct slot / `StorageSlotPlan -> ToYul` boundaries.
+  - Started: whole-struct `storageScalarWrite` struct-literal field value
+    lowering now consumes the same `ExprPlan -> ToYul` expression boundary for
+    supported scalar field expressions, while keeping field snapshot temporaries
+    before storage writes. Local struct sources, storage-struct read sources,
+    and statement-level storage-struct write assembly remain in the
+    compatibility facade until the full `StmtPlan -> Yul` extraction.
   - Started: `storagePathWrite` and `storagePathAssignOp` value lowering now
     consume the same `ExprPlan -> ToYul` expression boundary for supported
     scalar map keys and write/assign RHS expressions across direct `mapKey`,

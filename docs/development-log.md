@@ -17,6 +17,36 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Whole-Struct Storage Write Plan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Routed whole-struct `storageScalarWrite` struct-literal field values through
+  `ExprPlan -> ToYul` for supported scalar field expressions.
+- Preserved the existing field temporary snapshot before storage writes, so
+  self-referential struct storage rewrites keep their current behavior.
+- Extended `Tests/EvmSemanticPlan.lean` to assert plan-lowered checked
+  arithmetic and storage-read field values for whole-struct storage writes.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/storage-struct-ir-smoke.sh
+```
+
+Known limitations:
+
+- Local struct sources, storage-struct read sources, and statement-level
+  storage-struct write assembly still use the compatibility facade.
+
+Next step:
+
+- Move another statement assembly shape behind `StmtPlan -> Yul`.
+
 ### EVM Storage-Path Write Plan-To-Yul Slice
 
 Commit: this commit
