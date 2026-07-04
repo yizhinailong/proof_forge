@@ -8534,3 +8534,30 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR offline-host storage byte checks passed locally.
+
+### NEAR Offline-Host Log Payload Bytes
+
+Commit: pending
+
+Summary:
+
+- Added byte-level `logPayloadHexFragments` data to NEAR offline-host IO
+  expectations for ValueVault event logs.
+- Split ValueVault event formatting into the host `log_utf8` payload and the
+  human-readable offline-host log-line fragment, so obligations can check the
+  actual UTF-8 payload bytes separately from console text.
+- Derived expected `log_utf8` payload hex fragments from the same FV-8
+  ValueVault invariant event stream that produces the semantic event logs.
+- Added decide-checkable ValueVault log-payload-byte anchors and folded the
+  log payload hex check into the backend-invariant bridge.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR offline-host log payload byte checks passed locally.

@@ -309,6 +309,9 @@ def hexDigit (value : Nat) : Char :=
 def byteHex (value : Nat) : String :=
   String.ofList [hexDigit (value / 16 % 16), hexDigit (value % 16)]
 
+def stringHex (value : String) : String :=
+  String.intercalate "" <| value.toList.map (fun char => byteHex char.toNat)
+
 def littleEndianHex (byteCount value : Nat) : String :=
   String.intercalate "" <|
     (List.range byteCount).map fun idx => byteHex ((value / (256 ^ idx)) % 256)
@@ -357,6 +360,7 @@ structure OfflineHostIOExpectation where
   storageHexSnapshot : Array (String × String) := #[]
   logCount : Nat := 0
   logLineFragments : Array String := #[]
+  logPayloadHexFragments : Array String := #[]
   deriving Repr, BEq
 
 structure OfflineHostExecutionTraceResult where
@@ -376,7 +380,7 @@ def findEntrypoint? (mod : Module) (name : String) : Option Entrypoint :=
 def arrayDrop {α : Type} (values : Array α) (n : Nat) : Array α :=
   values.toList.drop n |>.toArray
 
-def valueVaultEventLogLineFragment
+def valueVaultEventLogPayload
     (log : ProofForge.IR.Semantics.EventLog) :
     Except String String := do
   if !log.indexed.isEmpty then
@@ -384,28 +388,33 @@ def valueVaultEventLogLineFragment
   else
     match log.name, log.data.toList with
     | "VaultInitialized", [.u64 initial, .u64 checkpoint] =>
-        .ok ("log: {\"event\":\"VaultInitialized\",\"initial\":" ++
+        .ok ("{\"event\":\"VaultInitialized\",\"initial\":" ++
           toString initial ++ ",\"checkpoint\":" ++ toString checkpoint ++ "}")
     | "ValueDeposited", [.u64 amount, .u64 balance, .u64 operations] =>
-        .ok ("log: {\"event\":\"ValueDeposited\",\"amount\":" ++
+        .ok ("{\"event\":\"ValueDeposited\",\"amount\":" ++
           toString amount ++ ",\"balance\":" ++ toString balance ++
           ",\"operations\":" ++ toString operations ++ "}")
     | "ValueCharged", [.u64 gross, .u64 fee, .u64 net, .u64 balance] =>
-        .ok ("log: {\"event\":\"ValueCharged\",\"gross\":" ++
+        .ok ("{\"event\":\"ValueCharged\",\"gross\":" ++
           toString gross ++ ",\"fee\":" ++ toString fee ++
           ",\"net\":" ++ toString net ++ ",\"balance\":" ++
           toString balance ++ "}")
     | "ValueReleased", [.u64 amount, .u64 balance, .u64 released] =>
-        .ok ("log: {\"event\":\"ValueReleased\",\"amount\":" ++
+        .ok ("{\"event\":\"ValueReleased\",\"amount\":" ++
           toString amount ++ ",\"balance\":" ++ toString balance ++
           ",\"released\":" ++ toString released ++ "}")
     | "ValueSnapshot", [.u64 balance, .u64 released, .u64 fees, .u64 checkpoint] =>
-        .ok ("log: {\"event\":\"ValueSnapshot\",\"balance\":" ++
+        .ok ("{\"event\":\"ValueSnapshot\",\"balance\":" ++
           toString balance ++ ",\"released\":" ++ toString released ++
           ",\"fees\":" ++ toString fees ++ ",\"checkpoint\":" ++
           toString checkpoint ++ "}")
     | _, _ =>
         .error s!"offline-host log obligation has no formatter for event `{log.name}`"
+
+def valueVaultEventLogLineFragment
+    (log : ProofForge.IR.Semantics.EventLog) :
+    Except String String := do
+  .ok ("log: " ++ (← valueVaultEventLogPayload log))
 
 def offlineHostLogLineFragments
     (logs : Array ProofForge.IR.Semantics.EventLog) :
@@ -413,6 +422,14 @@ def offlineHostLogLineFragments
   let mut fragments := #[]
   for log in logs do
     fragments := fragments.push (← valueVaultEventLogLineFragment log)
+  .ok fragments
+
+def offlineHostLogPayloadHexFragments
+    (logs : Array ProofForge.IR.Semantics.EventLog) :
+    Except String (Array String) := do
+  let mut fragments := #[]
+  for log in logs do
+    fragments := fragments.push (stringHex (← valueVaultEventLogPayload log))
   .ok fragments
 
 def storageHexSnapshot
@@ -436,7 +453,9 @@ def runOfflineHostExecutionStep
   let inputHex ← borshArgsHex step.args
   let (nextState, result?) ← ProofForge.IR.Semantics.runEntrypointWithArgs state entrypoint step.args
   let returnValue ← observableReturn entrypoint.returns result?
-  let logLineFragments ← offlineHostLogLineFragments (arrayDrop nextState.logs state.logs.size)
+  let newLogs := arrayDrop nextState.logs state.logs.size
+  let logLineFragments ← offlineHostLogLineFragments newLogs
+  let logPayloadHexFragments ← offlineHostLogPayloadHexFragments newLogs
   let storageHex ← storageHexSnapshot nextState.storage
   .ok (nextState, {
     exportName := step.exportName
@@ -447,6 +466,7 @@ def runOfflineHostExecutionStep
     storageHexSnapshot := storageHex
     logCount := nextState.logs.size
     logLineFragments := logLineFragments
+    logPayloadHexFragments := logPayloadHexFragments
   })
 
 def runOfflineHostExecutionTraceList (mod : Module) :
@@ -531,6 +551,10 @@ def flattenOfflineHostLogLineFragments
     (io : Array OfflineHostIOExpectation) : Array String :=
   io.foldl (fun fragments step => fragments ++ step.logLineFragments) #[]
 
+def flattenOfflineHostLogPayloadHexFragments
+    (io : Array OfflineHostIOExpectation) : Array String :=
+  io.foldl (fun fragments step => fragments ++ step.logPayloadHexFragments) #[]
+
 def offlineHostReturnSurfaceMatchesList :
     List OfflineHostIOExpectation → List OfflineHostIOExpectation → Bool
   | [], [] => true
@@ -574,6 +598,29 @@ def OfflineHostExecutionObligation.storageHexSnapshotsOk
     (obligation : OfflineHostExecutionObligation) : Bool :=
   match runOfflineHostExecutionTrace obligation.artifactSurface.module obligation.steps with
   | .ok actual => offlineHostStorageHexSnapshotsMatch actual obligation.expectedIO
+  | .error _ => false
+
+def OfflineHostIOExpectation.logPayloadHexEq
+    (lhs rhs : OfflineHostIOExpectation) : Bool :=
+  lhs.exportName == rhs.exportName &&
+    lhs.logCount == rhs.logCount &&
+    lhs.logPayloadHexFragments == rhs.logPayloadHexFragments
+
+def offlineHostLogPayloadHexMatchesList :
+    List OfflineHostIOExpectation → List OfflineHostIOExpectation → Bool
+  | [], [] => true
+  | lhs :: lhsRest, rhs :: rhsRest =>
+      lhs.logPayloadHexEq rhs && offlineHostLogPayloadHexMatchesList lhsRest rhsRest
+  | _, _ => false
+
+def offlineHostLogPayloadHexMatches
+    (lhs rhs : Array OfflineHostIOExpectation) : Bool :=
+  offlineHostLogPayloadHexMatchesList lhs.toList rhs.toList
+
+def OfflineHostExecutionObligation.logPayloadHexOk
+    (obligation : OfflineHostExecutionObligation) : Bool :=
+  match runOfflineHostExecutionTrace obligation.artifactSurface.module obligation.steps with
+  | .ok actual => offlineHostLogPayloadHexMatches actual obligation.expectedIO
   | .error _ => false
 
 def offlineHostExpectedIOFromReturnsList :
@@ -645,6 +692,17 @@ def valueVaultOfflineHostLogFragmentsDeriveFromInvariantState
   | .ok scenario, .ok trace =>
       match offlineHostLogLineFragments scenario.state.logs with
       | .ok expected => flattenOfflineHostLogLineFragments trace.io == expected
+      | .error _ => false
+  | _, _ => false
+
+def valueVaultOfflineHostLogPayloadHexDerivesFromInvariantState
+    (inputs : ValueVaultInputs) : Bool :=
+  match
+      ProofForge.Contract.Examples.ValueVaultInvariant.runScenario inputs,
+      valueVaultOfflineHostInvariantTraceResult? inputs with
+  | .ok scenario, .ok trace =>
+      match offlineHostLogPayloadHexFragments scenario.state.logs with
+      | .ok expected => flattenOfflineHostLogPayloadHexFragments trace.io == expected
       | .error _ => false
   | _, _ => false
 
@@ -986,6 +1044,9 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       logLineFragments := #[
         "log: {\"event\":\"VaultInitialized\",\"initial\":100,\"checkpoint\":0}"
       ]
+      logPayloadHexFragments := #[
+        stringHex "{\"event\":\"VaultInitialized\",\"initial\":100,\"checkpoint\":0}"
+      ]
     },
     {
       exportName := "get_balance"
@@ -1007,6 +1068,9 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       logLineFragments := #[
         "log: {\"event\":\"ValueDeposited\",\"amount\":25,\"balance\":125,\"operations\":2}"
       ]
+      logPayloadHexFragments := #[
+        stringHex "{\"event\":\"ValueDeposited\",\"amount\":25,\"balance\":125,\"operations\":2}"
+      ]
     },
     {
       exportName := "get_balance"
@@ -1027,6 +1091,9 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       logCount := 3
       logLineFragments := #[
         "log: {\"event\":\"ValueCharged\",\"gross\":100,\"fee\":2,\"net\":98,\"balance\":223}"
+      ]
+      logPayloadHexFragments := #[
+        stringHex "{\"event\":\"ValueCharged\",\"gross\":100,\"fee\":2,\"net\":98,\"balance\":223}"
       ]
     },
     {
@@ -1058,6 +1125,9 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       logLineFragments := #[
         "log: {\"event\":\"ValueReleased\",\"amount\":23,\"balance\":200,\"released\":23}"
       ]
+      logPayloadHexFragments := #[
+        stringHex "{\"event\":\"ValueReleased\",\"amount\":23,\"balance\":200,\"released\":23}"
+      ]
     },
     {
       exportName := "get_balance"
@@ -1078,6 +1148,9 @@ def valueVaultOfflineHostExecutionObligation : OfflineHostExecutionObligation :=
       logCount := 5
       logLineFragments := #[
         "log: {\"event\":\"ValueSnapshot\",\"balance\":200,\"released\":23,\"fees\":2,\"checkpoint\":0}"
+      ]
+      logPayloadHexFragments := #[
+        stringHex "{\"event\":\"ValueSnapshot\",\"balance\":200,\"released\":23,\"fees\":2,\"checkpoint\":0}"
       ]
     },
     {
@@ -1114,6 +1187,9 @@ def valueVaultEmitWatBackendInvariantBridgeOk : Bool :=
     valueVaultOfflineHostExecutionObligation.storageHexSnapshotsOk &&
     valueVaultOfflineHostLogFragmentsDeriveFromInvariantState
       ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs &&
+    valueVaultOfflineHostExecutionObligation.logPayloadHexOk &&
+    valueVaultOfflineHostLogPayloadHexDerivesFromInvariantState
+      ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs &&
     valueVaultOfflineHostExecutionObligation.ok
 
 theorem value_vault_offline_host_final_state_derives_from_invariant :
@@ -1123,6 +1199,11 @@ theorem value_vault_offline_host_final_state_derives_from_invariant :
 
 theorem value_vault_offline_host_logs_derive_from_invariant_state :
     valueVaultOfflineHostLogFragmentsDeriveFromInvariantState
+      ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs = true := by
+  native_decide
+
+theorem value_vault_offline_host_log_payload_hex_derives_from_invariant_state :
+    valueVaultOfflineHostLogPayloadHexDerivesFromInvariantState
       ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs = true := by
   native_decide
 
@@ -1180,6 +1261,10 @@ theorem value_vault_emitwat_offline_host_storage_snapshots_ok :
 
 theorem value_vault_emitwat_offline_host_storage_hex_snapshots_ok :
     valueVaultOfflineHostExecutionObligation.storageHexSnapshotsOk = true := by
+  native_decide
+
+theorem value_vault_emitwat_offline_host_log_payload_hex_ok :
+    valueVaultOfflineHostExecutionObligation.logPayloadHexOk = true := by
   native_decide
 
 theorem value_vault_emitwat_backend_invariant_bridge_ok :
