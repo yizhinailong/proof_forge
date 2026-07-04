@@ -5069,10 +5069,33 @@ def scalarBodyAssignmentTargetSupported :
   | .local _ => true
   | target => exprPlanIsStaticAggregateScalarTarget target
 
+partial def storagePathSegmentSupportsScalarBody :
+    StoragePathSegment → Bool
+  | .field _ => true
+  | .index index => exprSupportsPlanScalarYul index
+  | .mapKey key => exprSupportsPlanScalarYul key
+
+def storagePathSupportsScalarBody
+    (path : Array StoragePathSegment) : Bool :=
+  path.all storagePathSegmentSupportsScalarBody
+
 def effectPlanSupportsScalarBodyStmt :
     ProofForge.Backend.Evm.Plan.EffectPlan → Bool
   | .storageScalarWrite _ value => exprPlanSupportsScalarBody value
   | .storageScalarAssignOp _ _ value => exprPlanSupportsScalarBody value
+  | .storageMapInsert _ key value
+  | .storageMapSet _ key value =>
+      exprPlanSupportsScalarBody key && exprPlanSupportsScalarBody value
+  | .storageArrayWrite _ index value =>
+      exprPlanSupportsScalarBody index && exprPlanSupportsScalarBody value
+  | .storageArrayStructFieldWrite _ index _ value =>
+      exprPlanSupportsScalarBody index && exprPlanSupportsScalarBody value
+  | .storageStructFieldWrite _ _ value =>
+      exprPlanSupportsScalarBody value
+  | .storagePathWrite _ path value =>
+      storagePathSupportsScalarBody path && exprPlanSupportsScalarBody value
+  | .storagePathAssignOp _ path _ value =>
+      storagePathSupportsScalarBody path && exprPlanSupportsScalarBody value
   | _ => false
 
 mutual
@@ -5146,22 +5169,84 @@ def lowerScalarBodyStorageEffectPlan
   | .storageScalarWrite stateId _ => do
       match ← scalarStateType module stateId with
       | .structType _ =>
-          .error { message := s!"storage.scalar.write does not support struct state `{stateId}` in planned scalar control-flow bodies yet" }
-      | _ => pure ()
+          ProofForge.Backend.Evm.ToYul.storageStructWriteEffectStmtPlanStatements
+            toYulError
+            (fun stateId value => lowerStorageStructWriteFields module env stateId value)
+            (.effect effect)
+      | _ =>
+          ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (lowerScalarStorageSlotExpr module env)
+            (scalarStatePacking module)
+            (.effect effect)
   | .storageScalarAssignOp stateId _ _ => do
       match ← scalarStateType module stateId with
       | .structType _ =>
           .error { message := s!"storage.scalar.assign_op does not support struct state `{stateId}` in planned scalar control-flow bodies yet" }
-      | _ => pure ()
+      | _ =>
+          ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (lowerScalarStorageSlotExpr module env)
+            (scalarStatePacking module)
+            (.effect effect)
+  | .storageMapInsert .. | .storageMapSet .. =>
+      ProofForge.Backend.Evm.ToYul.mapWriteEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun stateId => do
+          let (slot, _, _) ← requireStorageMapState module stateId
+          .ok (slotExpr slot))
+        (.effect effect)
+  | .storageArrayWrite .. =>
+      ProofForge.Backend.Evm.ToYul.arrayWriteEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun stateId indexPlan => do
+          let (slot, length, _) ← requireStorageArrayState module stateId
+          .ok (Lean.Compiler.Yul.call arraySlotFunctionName #[
+            slotExpr slot,
+            Lean.Compiler.Yul.Expr.num length,
+            ← lowerExprPlanExpr module env indexPlan
+          ]))
+        (.effect effect)
+  | .storageStructFieldWrite .. | .storageArrayStructFieldWrite .. =>
+      ProofForge.Backend.Evm.ToYul.structFieldWriteEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun stateId fieldName => lowerStructFieldSlotExpr module stateId fieldName)
+        (fun stateId indexPlan fieldName => do
+          let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
+          .ok (Lean.Compiler.Yul.call structArraySlotFunctionName #[
+            slotExpr slot,
+            Lean.Compiler.Yul.Expr.num length,
+            Lean.Compiler.Yul.Expr.num fieldCount,
+            Lean.Compiler.Yul.Expr.num fieldOffset,
+            ← lowerExprPlanExpr module env indexPlan
+          ]))
+        (.effect effect)
+  | .storagePathWrite .. =>
+      ProofForge.Backend.Evm.ToYul.storagePathWriteEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun stateId path => lowerStoragePathWriteTarget module env stateId path)
+        (.effect effect)
+  | .storagePathAssignOp .. =>
+      ProofForge.Backend.Evm.ToYul.storagePathAssignOpEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun stateId path => lowerStoragePathWriteTarget module env stateId path)
+        (.effect effect)
   | _ =>
-      .error { message := "planned scalar control-flow body expected storage.scalar.write/storage.scalar.assign_op effect" }
-  ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
-    toYulError
-    (fun expr => lowerExpr module env expr)
-    (lowerPlanEffectExpr module env)
-    (lowerScalarStorageSlotExpr module env)
-    (scalarStatePacking module)
-    (.effect effect)
+      .error { message := "planned scalar control-flow body expected a supported storage write effect" }
 
 mutual
   partial def lowerScalarStmtPlanBodyStatements

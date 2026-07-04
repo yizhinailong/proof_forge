@@ -2312,6 +2312,89 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   match immutableAggregatePlan? with
   | none => pure ()
   | some _ => throw <| IO.userError "planned scalar control-flow validation guard must reject immutable struct assignment"
+  let plannedMapControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EvmMapProbe.module
+      "control_flow"
+      .unit
+      env
+      (.ifElse
+        (.gt (.local "n") (.literal (.u64 0)))
+        #[
+          .effect (.storageMapSet "balances" (.local "n") (.literal (.u64 9)))
+        ]
+        #[
+          .effect (.storagePathWrite "balances" #[.mapKey (.literal (.u64 2002))] (.local "n"))
+        ]))
+    "planned map/path storage control-flow plan construction"
+  let plannedMapControl ← requireSome plannedMapControl?
+    "planned map/path storage control-flow plan construction missing plan"
+  let (mapControlStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.EvmMapProbe.module
+      "control_flow"
+      .unit
+      env
+      false
+      plannedMapControl)
+    "planned map/path storage control-flow body lowering"
+  match mapControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let elseCase ← requireAt cases 0 "planned map/path storage control-flow else case"
+      let thenCase ← requireAt cases 1 "planned map/path storage control-flow then case"
+      require (thenCase.body.statements.size == 1) "planned map storage control-flow then count"
+      require (elseCase.body.statements.size == 1) "planned map path storage control-flow else count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
+          require (name == "__proof_forge_map_write") "planned map storage control-flow helper"
+          require (args.size == 3) "planned map storage control-flow helper arg count"
+      | _ => throw <| IO.userError "planned map storage control-flow must lower to map write helper"
+      match elseCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
+          require (name == "__proof_forge_map_write") "planned map path storage control-flow helper"
+          require (args.size == 3) "planned map path storage control-flow helper arg count"
+      | _ => throw <| IO.userError "planned map path storage control-flow must lower to map write helper"
+  | _ => throw <| IO.userError "planned map/path storage control-flow body lowering must lower to switch"
+  let loopIndex := ProofForge.IR.Expr.cast (.local "i") .u64
+  let plannedArrayControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      "control_flow"
+      .unit
+      env
+      (.boundedFor
+        "i"
+        0
+        2
+        #[
+          .effect (.storageArrayWrite "values" loopIndex (.local "n")),
+          .effect (.storagePathAssignOp "values" #[.index loopIndex] .add (.literal (.u64 1)))
+        ]))
+    "planned array/path storage control-flow plan construction"
+  let plannedArrayControl ← requireSome plannedArrayControl?
+    "planned array/path storage control-flow plan construction missing plan"
+  let (arrayControlStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      "control_flow"
+      .unit
+      env
+      false
+      plannedArrayControl)
+    "planned array/path storage control-flow body lowering"
+  match arrayControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.forLoop _ _ _ body) => do
+      require (body.statements.size == 2) "planned array/path storage control-flow body count"
+      match body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+          require (name == "sstore") "planned array storage control-flow opcode"
+          require (args.size == 2) "planned array storage control-flow arg count"
+      | _ => throw <| IO.userError "planned array storage control-flow must lower to sstore"
+      match body.statements[1]! with
+      | Lean.Compiler.Yul.Statement.block block =>
+          require (block.statements.size == 2) "planned storage path assign control-flow block count"
+      | _ => throw <| IO.userError "planned storage path assign control-flow must lower to block"
+  | _ => throw <| IO.userError "planned array/path storage control-flow body lowering must lower to for"
   let (ifStmts, _) ← requireOk
     (lowerStatement
       ProofForge.IR.Examples.Counter.module
