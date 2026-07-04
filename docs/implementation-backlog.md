@@ -329,15 +329,14 @@ Tasks:
     before storage writes. Local struct sources, storage-struct read sources,
     and statement-level storage-struct write assembly remain in the
     compatibility facade until the full `StmtPlan -> Yul` extraction.
-  - Started: statement-position `storagePathWrite` assembly now consumes a
-    narrow `StmtPlan.effect` / `EffectPlan -> ToYul` helper for supported
-    scalar write values across direct `mapKey`, `index`, `field`,
-    `index`+`field`, and nested consecutive-`mapKey` paths. Path slot
-    computation and path-shape diagnostics remain in the `IR.lean`
-    compatibility facade. `storagePathAssignOp` value lowering still consumes
-    the existing `ExprPlan -> ToYul` expression boundary for supported scalar
-    map keys and assign RHS expressions; its statement assembly is the next
-    storage-path extraction slice.
+  - Started: statement-position `storagePathWrite` and `storagePathAssignOp`
+    assembly now consume narrow `StmtPlan.effect` / `EffectPlan -> ToYul`
+    helpers for supported scalar write/assign RHS values across direct
+    `mapKey`, `index`, `field`, `index`+`field`, and nested
+    consecutive-`mapKey` paths. Path slot computation and path-shape
+    diagnostics remain in the `IR.lean` compatibility facade; the next
+    storage-path extraction slice is deeper slot/path planning rather than the
+    final Yul statement assembly.
   - Started: scalar `ifElse` conditions and synthesized `boundedFor` loop
     guards now consume the same `ExprPlan -> ToYul` expression boundary.
     Statement sequencing and branch/loop body lowering remain in the

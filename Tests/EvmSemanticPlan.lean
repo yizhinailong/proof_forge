@@ -1118,14 +1118,48 @@ def testStoragePathWritePlanToYul : IO Unit := do
         | _ => pure ()
       require foundCheckedValue "nested storage path write value must lower through checked add plan"
   | _ => throw <| IO.userError "nested storage path write plan-to-yul must lower to block"
+  let directAssignOpStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathAssignOpEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv)
+      (fun _ _ => .ok (.singleSlot (Lean.Compiler.Yul.Expr.num 9)))
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storagePathAssignOp
+          "values"
+          #[.index (.literal (.u64 0))]
+          .add
+          (.effect (.storageScalarRead "before")))))
+    "storage path assign_op StmtPlan-to-Yul helper"
+  require (directAssignOpStmts.size == 1) "storage path assign_op StmtPlan-to-Yul helper statement count"
+  match directAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      let mut foundStorageReadValue := false
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+            if args.size == 2 then
+              match args[1]! with
+              | Lean.Compiler.Yul.Expr.call addName addArgs =>
+                  if addName == "__pf_checked_add" && addArgs.size == 2 then
+                    match addArgs[1]! with
+                    | Lean.Compiler.Yul.Expr.builtin readName readArgs =>
+                        foundStorageReadValue := foundStorageReadValue ||
+                          (readName == "sload" && readArgs.size == 1)
+                    | _ => pure ()
+              | _ => pure ()
+        | _ => pure ()
+      require foundStorageReadValue "storage path assign_op StmtPlan-to-Yul helper value must lower storage read through plan"
+  | _ => throw <| IO.userError "storage path assign_op StmtPlan-to-Yul helper must lower to block"
   let directMapAssign ← requireOk
-    (lowerStoragePathAssignOpStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmMapProbe.module
       mapEnv
-      "balances"
-      #[.mapKey (.add (.local "outer") (.literal (.u64 1)))]
-      .add
-      (.effect (.storageScalarRead "before")))
+      (.storagePathAssignOp
+        "balances"
+        #[.mapKey (.add (.local "outer") (.literal (.u64 1)))]
+        .add
+        (.effect (.storageScalarRead "before"))))
     "direct map storage path assign_op key/value plan-to-yul"
   match directMapAssign with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
@@ -1143,13 +1177,14 @@ def testStoragePathWritePlanToYul : IO Unit := do
       | _ => throw <| IO.userError "direct map storage path assign_op value must be plan-lowered storage read"
   | _ => throw <| IO.userError "direct map storage path assign_op plan-to-yul must lower to helper call"
   let nestedMapAssign ← requireOk
-    (lowerStoragePathAssignOpStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmMapProbe.module
       mapEnv
-      "balances"
-      #[.mapKey (.local "outer"), .mapKey (.local "inner")]
-      .add
-      (.effect (.storageScalarRead "before")))
+      (.storagePathAssignOp
+        "balances"
+        #[.mapKey (.local "outer"), .mapKey (.local "inner")]
+        .add
+        (.effect (.storageScalarRead "before"))))
     "nested map storage path assign_op value plan-to-yul"
   match nestedMapAssign with
   | Lean.Compiler.Yul.Statement.block block => do
@@ -1171,13 +1206,14 @@ def testStoragePathWritePlanToYul : IO Unit := do
       require foundStorageReadValue "nested map storage path assign_op value must lower storage read through plan"
   | _ => throw <| IO.userError "nested map storage path assign_op plan-to-yul must lower to block"
   let arrayAssign ← requireOk
-    (lowerStoragePathAssignOpStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
       #[]
-      "values"
-      #[.index (.literal (.u64 1))]
-      .add
-      (.effect (.storageScalarRead "before")))
+      (.storagePathAssignOp
+        "values"
+        #[.index (.literal (.u64 1))]
+        .add
+        (.effect (.storageScalarRead "before"))))
     "array storage path assign_op value plan-to-yul"
   match arrayAssign with
   | Lean.Compiler.Yul.Statement.block block => do
@@ -1200,13 +1236,14 @@ def testStoragePathWritePlanToYul : IO Unit := do
   | _ => throw <| IO.userError "array storage path assign_op plan-to-yul must lower to block"
   let structEnv : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
   let fieldAssign ← requireOk
-    (lowerStoragePathAssignOpStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageStructProbe.module
       structEnv
-      "current"
-      #[.field "x"]
-      .add
-      (.add (.local "value") (.literal (.u64 2))))
+      (.storagePathAssignOp
+        "current"
+        #[.field "x"]
+        .add
+        (.add (.local "value") (.literal (.u64 2)))))
     "struct field storage path assign_op value plan-to-yul"
   match fieldAssign with
   | Lean.Compiler.Yul.Statement.block block => do
@@ -1228,13 +1265,14 @@ def testStoragePathWritePlanToYul : IO Unit := do
       require foundCheckedValue "struct field storage path assign_op value must lower through checked add plan"
   | _ => throw <| IO.userError "struct field storage path assign_op plan-to-yul must lower to block"
   let arrayFieldAssign ← requireOk
-    (lowerStoragePathAssignOpStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageStructProbe.module
       #[]
-      "points"
-      #[.index (.literal (.u64 1)), .field "y"]
-      .add
-      (.effect (.storageScalarRead "before")))
+      (.storagePathAssignOp
+        "points"
+        #[.index (.literal (.u64 1)), .field "y"]
+        .add
+        (.effect (.storageScalarRead "before"))))
     "struct-array field storage path assign_op value plan-to-yul"
   match arrayFieldAssign with
   | Lean.Compiler.Yul.Statement.block block => do

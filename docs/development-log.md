@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Storage Path AssignOp Effect StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.storagePathAssignOpEffectPlanStatements` and
+  `ToYul.storagePathAssignOpEffectStmtPlanStatements` for statement-position
+  `storagePathAssignOp` assembly.
+- Routed `storagePathAssignOp` through the helper when the assign RHS is in the
+  supported scalar plan subset, while preserving the existing output shapes for
+  direct map-key compound assignment, direct slot updates, and nested-map
+  value/presence updates.
+- Reused the IR facade storage-path target selection from the
+  `storagePathWrite` slice, so path slot computation and path-shape diagnostics
+  remain in `IR.lean` while `ToYul` owns the final compound-update assembly.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+  integrated `lowerEffectStmt` path for direct map, array, struct field,
+  struct-array field, and nested-map storage paths.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/map-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Storage-path slot computation still lives in the `IR.lean` compatibility
+  facade.
+- Whole-struct storage writes still use their existing compatibility path.
+
+Next step:
+
+- Move whole-struct storage write assembly or storage-path slot planning deeper
+  behind semantic-plan/ToYul boundaries.
+
 ### EVM Storage Path Write Effect StmtPlan-To-Yul Slice
 
 Commit: this commit

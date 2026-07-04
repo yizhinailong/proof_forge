@@ -3754,6 +3754,36 @@ def lowerStoragePathAssignOpStmt
       | none =>
           .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 
+partial def lowerStoragePathAssignOpStmtPlanOrFallback
+    (module : Module)
+    (env : TypeEnv)
+    (stateId : String)
+    (path : Array StoragePathSegment)
+    (op : AssignOp)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  if exprSupportsPlanScalarYul value then
+    let valuePlan ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    let statements ←
+      ProofForge.Backend.Evm.ToYul.storagePathAssignOpEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun stateId path => lowerStoragePathWriteTarget module env stateId path)
+        (.effect (.storagePathAssignOp stateId path op valuePlan))
+    match statements[0]? with
+    | some statement =>
+        if statements.size == 1 then
+          .ok statement
+        else
+          .error { message := s!"EVM StmtPlan-to-Yul storage path assign_op lowering produced {statements.size} statements, expected 1" }
+    | none =>
+        .error { message := "EVM StmtPlan-to-Yul storage path assign_op lowering produced no statements" }
+  else
+    lowerStoragePathAssignOpStmt module env stateId path op value
+
 partial def lowerScalarStorageEffectStmtPlanOrFallback
     (module : Module)
     (env : TypeEnv) :
@@ -3852,7 +3882,7 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
   | .storagePathWrite stateId path value =>
       lowerStoragePathWriteStmtPlanOrFallback module env stateId path value
   | .storagePathAssignOp stateId path op value =>
-      lowerStoragePathAssignOpStmt module env stateId path op value
+      lowerStoragePathAssignOpStmtPlanOrFallback module env stateId path op value
   | .contextRead _ =>
       .error { message := "context reads must be used as expressions" }
   | .eventEmit name fields =>

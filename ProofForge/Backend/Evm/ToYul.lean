@@ -578,6 +578,70 @@ def storagePathWriteEffectStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul storage path write lowering expected effect")
 
+def storagePathAssignOpTargetStatements
+    (op : AssignOp)
+    (value : Lean.Compiler.Yul.Expr) :
+    StoragePathWriteTarget → Array Lean.Compiler.Yul.Statement
+  | .mapWrite rootSlot key =>
+      #[
+        .exprStmt (helperCall (Helper.mapAssign op) #[rootSlot, key, value])
+      ]
+  | .singleSlot slot =>
+      #[
+        .block { statements := #[
+          .varDecl #[{ name := "_slot" }] (some slot),
+          .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+            Lean.Compiler.Yul.Expr.id "_slot",
+            checkedArithExpr op
+              (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"])
+              value
+          ])
+        ]}
+      ]
+  | .mapValuePresence valueSlot presenceSlot =>
+      #[
+        .block { statements := #[
+          .varDecl #[{ name := "_slot" }] (some valueSlot),
+          .varDecl #[{ name := "_presence_slot" }] (some presenceSlot),
+          .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+            Lean.Compiler.Yul.Expr.id "_slot",
+            checkedArithExpr op
+              (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"])
+              value
+          ]),
+          .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+            Lean.Compiler.Yul.Expr.id "_presence_slot",
+            Lean.Compiler.Yul.Expr.num 1
+          ])
+        ]}
+      ]
+
+def storagePathAssignOpEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (storagePathTargetFor : String → Array StoragePathSegment → Except ε StoragePathWriteTarget) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storagePathAssignOp stateId path op value => do
+      .ok <| storagePathAssignOpTargetStatements op
+        (← exprPlanExpr mkError lowerExpr lowerEffect value)
+        (← storagePathTargetFor stateId path)
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul storage path assign_op lowering expected storagePathAssignOp")
+
+def storagePathAssignOpEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (storagePathTargetFor : String → Array StoragePathSegment → Except ε StoragePathWriteTarget) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      storagePathAssignOpEffectPlanStatements mkError lowerExpr lowerEffect storagePathTargetFor effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul storage path assign_op lowering expected effect")
+
 /-! ## Plan-driven helper requirements
 
 `StorageSlotPlan.requiredHelpers` lets the plan declare which EVM helper functions
