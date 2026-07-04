@@ -88,28 +88,19 @@ def structArraySlotFunctionName : String := "__proof_forge_struct_array_slot"
 def hashWordFunctionName : String := "__proof_forge_hash_word"
 def hashPairFunctionName : String := "__proof_forge_hash_pair"
 def crosscallReturnTypeSuffix : ValueType → Except LowerError String
-  | .u64 => .ok ""
-  | .u32 => .ok "_u32"
-  | .bool => .ok "_bool"
-  | .hash => .ok "_hash"
-  | .address => .ok "_address"
-  | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
-      .error { message := "crosscall return type must be U32, U64, Bool, or Hash in IR EVM v0" }
+  | type => ProofForge.Backend.Evm.ToYul.crosscallReturnTypeSuffix toYulError type
 
 def crosscallFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
-  .ok s!"__proof_forge_crosscall_{arity}{← crosscallReturnTypeSuffix returnType}"
+  ProofForge.Backend.Evm.ToYul.crosscallFunctionName toYulError arity returnType
 
 def crosscallValueFunctionName (arity : Nat) (returnType : ValueType) (plainTransfer : Bool := false) : Except LowerError String := do
-  if plainTransfer then
-    .ok s!"__proof_forge_native_transfer{← crosscallReturnTypeSuffix returnType}"
-  else
-    .ok s!"__proof_forge_crosscall_value_{arity}{← crosscallReturnTypeSuffix returnType}"
+  ProofForge.Backend.Evm.ToYul.crosscallValueFunctionName toYulError arity returnType plainTransfer
 
 def crosscallStaticFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
-  .ok s!"__proof_forge_crosscall_static_{arity}{← crosscallReturnTypeSuffix returnType}"
+  ProofForge.Backend.Evm.ToYul.crosscallStaticFunctionName toYulError arity returnType
 
 def crosscallDelegateFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
-  .ok s!"__proof_forge_crosscall_delegate_{arity}{← crosscallReturnTypeSuffix returnType}"
+  ProofForge.Backend.Evm.ToYul.crosscallDelegateFunctionName toYulError arity returnType
 
 def plainValueTransferMethodId? (methodId : ProofForge.IR.Expr) : Bool :=
   match methodId with
@@ -120,34 +111,22 @@ def plainValueTransferCall? (methodId : ProofForge.IR.Expr) (args : Array ProofF
   plainValueTransferMethodId? methodId && args.isEmpty
 
 def crosscallReturnWordTag : ValueType → Except LowerError String
-  | .u64 => .ok "u64"
-  | .u32 => .ok "u32"
-  | .bool => .ok "bool"
-  | .hash => .ok "hash"
-  | .address => .ok "address"
-  | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
-      .error { message := "crosscall aggregate return words must be U32, U64, Bool, or Hash in IR EVM v0" }
+  | type => ProofForge.Backend.Evm.ToYul.crosscallReturnWordTag toYulError type
 
 def crosscallReturnWordTagsSuffix (wordTypes : Array ValueType) : Except LowerError String := do
-  let mut suffix := ""
-  for wordType in wordTypes do
-    suffix := suffix ++ "_" ++ (← crosscallReturnWordTag wordType)
-  .ok suffix
+  ProofForge.Backend.Evm.ToYul.crosscallReturnWordTagsSuffix toYulError wordTypes
 
 def crosscallAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
-  .ok s!"__proof_forge_crosscall_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
+  ProofForge.Backend.Evm.ToYul.crosscallAggregateFunctionName toYulError arity wordTypes
 
 def crosscallValueAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) (plainTransfer : Bool := false) : Except LowerError String := do
-  if plainTransfer then
-    .error { message := "plain native transfer does not support aggregate crosscall returns in IR EVM v0" }
-  else
-    .ok s!"__proof_forge_crosscall_value_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
+  ProofForge.Backend.Evm.ToYul.crosscallValueAggregateFunctionName toYulError arity wordTypes plainTransfer
 
 def crosscallStaticAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
-  .ok s!"__proof_forge_crosscall_static_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
+  ProofForge.Backend.Evm.ToYul.crosscallStaticAggregateFunctionName toYulError arity wordTypes
 
 def crosscallDelegateAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
-  .ok s!"__proof_forge_crosscall_delegate_{arity}_abi{← crosscallReturnWordTagsSuffix wordTypes}"
+  ProofForge.Backend.Evm.ToYul.crosscallDelegateAggregateFunctionName toYulError arity wordTypes
 
 inductive CreateMode where
   | create
@@ -5566,123 +5545,19 @@ def crosscallHelperReturnNameStrings (wordCount : Nat) : Array String :=
 
 def crosscallHelperFunction (module : Module) (spec : CrosscallHelperSpec) : Except LowerError Lean.Compiler.Yul.Statement := do
   let wordTypes ← crosscallReturnWordTypes module "typed crosscall return" spec.returnType
-  let functionName ←
-    match spec.mode, isCrosscallWordType spec.returnType with
-    | .call, true => crosscallFunctionName spec.arity spec.returnType
-    | .call, false => crosscallAggregateFunctionName spec.arity wordTypes
-    | .callValue, true => crosscallValueFunctionName spec.arity spec.returnType spec.plainTransfer
-    | .callValue, false => crosscallValueAggregateFunctionName spec.arity wordTypes spec.plainTransfer
-    | .staticcall, true => crosscallStaticFunctionName spec.arity spec.returnType
-    | .staticcall, false => crosscallStaticAggregateFunctionName spec.arity wordTypes
-    | .delegatecall, true => crosscallDelegateFunctionName spec.arity spec.returnType
-    | .delegatecall, false => crosscallDelegateAggregateFunctionName spec.arity wordTypes
-  if spec.plainTransfer then
-    if wordTypes.size != 1 then
-      .error { message := "plain native transfer expects a single-word return type in IR EVM v0" }
-    else
-      let returnName := (crosscallHelperReturnNameStrings 1)[0]!
-      .ok <| .funcDef functionName
-        (crosscallFunctionParams spec.arity spec.mode true)
-        (crosscallHelperReturnNames 1)
-        {
-          statements := #[
-            .varDecl #[{ name := "_success" }] (some <|
-              Lean.Compiler.Yul.builtin "call" #[
-                Lean.Compiler.Yul.builtin "gas" #[],
-                Lean.Compiler.Yul.Expr.id "target",
-                Lean.Compiler.Yul.Expr.id crosscallCallValueName,
-                Lean.Compiler.Yul.Expr.num 0,
-                Lean.Compiler.Yul.Expr.num 0,
-                Lean.Compiler.Yul.Expr.num 0,
-                Lean.Compiler.Yul.Expr.num 0
-              ]),
-            .ifStmt
-              (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "_success"])
-              { statements := #[revertStmt] },
-            .assignment #[returnName] (Lean.Compiler.Yul.Expr.num 0)
-          ]
-        }
-  else
-  let outputSize := wordTypes.size * 32
-  let callValue :=
-    if spec.mode.forwardsValue then
-      Lean.Compiler.Yul.Expr.id crosscallCallValueName
-    else
-      Lean.Compiler.Yul.Expr.num 0
-  let callExpr :=
+  let planMode :=
     match spec.mode with
-    | .call | .callValue =>
-        Lean.Compiler.Yul.builtin "call" #[
-          Lean.Compiler.Yul.builtin "gas" #[],
-          Lean.Compiler.Yul.Expr.id "target",
-          callValue,
-          Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num (crosscallCalldataSize spec.arity),
-          Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num outputSize
-        ]
-    | .staticcall =>
-        Lean.Compiler.Yul.builtin "staticcall" #[
-          Lean.Compiler.Yul.builtin "gas" #[],
-          Lean.Compiler.Yul.Expr.id "target",
-          Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num (crosscallCalldataSize spec.arity),
-          Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num outputSize
-        ]
-    | .delegatecall =>
-        Lean.Compiler.Yul.builtin "delegatecall" #[
-          Lean.Compiler.Yul.builtin "gas" #[],
-          Lean.Compiler.Yul.Expr.id "target",
-          Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num (crosscallCalldataSize spec.arity),
-          Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num outputSize
-        ]
-  let returnNameStrings := crosscallHelperReturnNameStrings wordTypes.size
-  let mut copyAssignments : Array Lean.Compiler.Yul.Statement := #[]
-  for h : idx in [0:wordTypes.size] do
-    copyAssignments := copyAssignments.push <|
-      .assignment #[returnNameStrings[idx]!]
-        (Lean.Compiler.Yul.builtin "mload" #[Lean.Compiler.Yul.Expr.num (idx * 32)])
-  let mut guardStatements : Array Lean.Compiler.Yul.Statement := #[]
-  for h : idx in [0:wordTypes.size] do
-    guardStatements := guardStatements ++ (← crosscallReturnGuardStatementsForName returnNameStrings[idx]! wordTypes[idx])
-  .ok <| .funcDef functionName
-    (crosscallFunctionParams spec.arity spec.mode spec.plainTransfer)
-    (crosscallHelperReturnNames wordTypes.size)
-    {
-      statements :=
-        #[
-          .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[
-            Lean.Compiler.Yul.Expr.num 0,
-            Lean.Compiler.Yul.builtin "shl" #[
-              Lean.Compiler.Yul.Expr.num 224,
-              Lean.Compiler.Yul.Expr.id "selector"
-            ]
-          ])
-        ] ++
-        crosscallArgStoreStatements spec.arity ++
-        #[
-          .varDecl #[{ name := "_success" }] (some callExpr),
-          .ifStmt
-            (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "_success"])
-            { statements := #[revertStmt] },
-          .ifStmt
-            (Lean.Compiler.Yul.builtin "lt" #[
-              Lean.Compiler.Yul.builtin "returndatasize" #[],
-              Lean.Compiler.Yul.Expr.num outputSize
-            ])
-            { statements := #[revertStmt] },
-          .exprStmt (Lean.Compiler.Yul.builtin "returndatacopy" #[
-            Lean.Compiler.Yul.Expr.num 0,
-            Lean.Compiler.Yul.Expr.num 0,
-            Lean.Compiler.Yul.Expr.num outputSize
-          ])
-        ] ++
-        copyAssignments ++
-        guardStatements
-    }
+    | .call => ProofForge.Backend.Evm.Plan.CrosscallMode.call
+    | .callValue => ProofForge.Backend.Evm.Plan.CrosscallMode.callValue
+    | .staticcall => ProofForge.Backend.Evm.Plan.CrosscallMode.staticcall
+    | .delegatecall => ProofForge.Backend.Evm.Plan.CrosscallMode.delegatecall
+  ProofForge.Backend.Evm.ToYul.crosscallHelperFunction toYulError {
+    arity := spec.arity
+    returnType := spec.returnType
+    wordTypes := wordTypes
+    mode := planMode
+    plainTransfer := spec.plainTransfer
+  }
 
 def pushNatIfMissing (acc : Array Nat) (value : Nat) : Array Nat :=
   if acc.contains value then acc else acc.push value
@@ -6539,25 +6414,10 @@ def plannedCheckedArithmeticHelperFunctions (plan : ProofForge.Backend.Evm.Plan.
     Array Lean.Compiler.Yul.Statement :=
   if plan.usesCheckedArithmetic then checkedArithmeticHelperFunctions else #[]
 
-def fromPlanCrosscallMode (mode : ProofForge.Backend.Evm.Plan.CrosscallMode) : CrosscallMode :=
-  match mode with
-  | .call => .call
-  | .callValue => .callValue
-  | .staticcall => .staticcall
-  | .delegatecall => .delegatecall
-
-def fromPlanCrosscallSpec (spec : ProofForge.Backend.Evm.Plan.CrosscallHelperSpec) : CrosscallHelperSpec := {
-  arity := spec.arity
-  returnType := spec.returnType
-  mode := fromPlanCrosscallMode spec.mode
-  plainTransfer := spec.plainTransfer
-}
-
 def plannedCrosscallHelperFunctions
-    (module : Module)
     (specs : Array ProofForge.Backend.Evm.Plan.CrosscallHelperSpec) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) :=
-  specs.mapM fun spec => crosscallHelperFunction module (fromPlanCrosscallSpec spec)
+  specs.mapM fun spec => ProofForge.Backend.Evm.ToYul.crosscallHelperFunction toYulError spec
 
 def fromPlanCreateMode (mode : ProofForge.Backend.Evm.Plan.CreateMode) : CreateMode :=
   match mode with
@@ -6636,7 +6496,7 @@ def lowerModuleWithPlan
       helpers ++ (if moduleUsesCheckedArithmetic module then checkedArithmeticHelperFunctions else #[])
   let helpers ←
     if completePlan then
-      .ok (helpers ++ (← plannedCrosscallHelperFunctions module plan.crosscalls))
+      .ok (helpers ++ (← plannedCrosscallHelperFunctions plan.crosscalls))
     else
       let crosscallSpecs ← moduleCrosscallHelperSpecs module
       .ok (helpers ++ (← crosscallHelperFunctions module crosscallSpecs))
@@ -6679,10 +6539,14 @@ def toPlanCrosscallMode (mode : CrosscallMode) : ProofForge.Backend.Evm.Plan.Cro
   | .staticcall => .staticcall
   | .delegatecall => .delegatecall
 
-def toPlanCrosscallSpec (spec : CrosscallHelperSpec) : ProofForge.Backend.Evm.Plan.CrosscallHelperSpec :=
-  {
+def toPlanCrosscallSpec
+    (module : Module)
+    (spec : CrosscallHelperSpec) : Except LowerError ProofForge.Backend.Evm.Plan.CrosscallHelperSpec := do
+  let wordTypes ← crosscallReturnWordTypes module "typed crosscall return" spec.returnType
+  .ok {
     arity := spec.arity
     returnType := spec.returnType
+    wordTypes := wordTypes
     mode := toPlanCrosscallMode spec.mode
     plainTransfer := spec.plainTransfer
   }
@@ -6701,12 +6565,13 @@ def buildSemanticPlan (module : Module) : Except LowerError ProofForge.Backend.E
     | .ok p => .ok p
     | .error err => .error { message := err.message }
   let crosscallSpecs ← moduleCrosscallHelperSpecs module
+  let planCrosscallSpecs ← crosscallSpecs.mapM (toPlanCrosscallSpec module)
   let createSpecs := moduleCreateHelperSpecs module
   let localArrayGetLengths ← moduleLocalArrayGetLengths module
   let nestedLocalArrayGetShapes ← moduleNestedLocalArrayGetShapes module
   let usesCheckedArithmetic := moduleUsesCheckedArithmetic module
   .ok { plan with
-    crosscalls := crosscallSpecs.map toPlanCrosscallSpec
+    crosscalls := planCrosscallSpecs
     creates := createSpecs.map toPlanCreateSpec
     localArrayGetLengths := localArrayGetLengths
     nestedLocalArrayGetShapes := nestedLocalArrayGetShapes

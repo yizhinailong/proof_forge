@@ -523,6 +523,7 @@ def EventPlan.dataFields (event : EventPlan) : Array EventFieldPlan :=
 structure CrosscallHelperSpec where
   arity : Nat
   returnType : ValueType
+  wordTypes : Array ValueType
   mode : CrosscallMode := .call
   plainTransfer : Bool := false
   deriving BEq, Repr

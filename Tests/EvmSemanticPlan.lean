@@ -252,6 +252,22 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
     (plan.crosscalls.any fun spec =>
       spec.mode == ProofForge.Backend.Evm.Plan.CrosscallMode.delegatecall)
     "crosscall probe planned delegatecall helper"
+  let aggregateReturn ← requireSome
+    (plan.crosscalls.find? fun spec =>
+      match spec.returnType with
+      | .structType "RemotePair" => spec.mode == ProofForge.Backend.Evm.Plan.CrosscallMode.call
+      | _ => false)
+    "crosscall probe missing planned aggregate return helper"
+  require
+    (aggregateReturn.wordTypes == #[.bool, .u32])
+    "crosscall probe planned aggregate return word layout"
+  let aggregateFunctionName ←
+    requireOk
+      (ProofForge.Backend.Evm.ToYul.crosscallHelperFunctionName toYulError aggregateReturn)
+      "aggregate crosscall helper name"
+  require
+    (aggregateFunctionName == "__proof_forge_crosscall_0_abi_bool_u32")
+    "aggregate crosscall helper name must include planned ABI word layout"
   require (plan.creates.size == 2) "crosscall probe planned create helpers"
   let nativePlan ← requireOk (buildSemanticPlan nativeTransferPlanProbe) "native transfer plan"
   let nativeTransfer ← requireSome
@@ -262,9 +278,17 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
     "native transfer helper mode"
   require (nativeTransfer.arity == 0) "native transfer helper arity"
   require (nativeTransfer.returnType == .u64) "native transfer return type"
+  require (nativeTransfer.wordTypes == #[.u64]) "native transfer return word layout"
+  let nativeFunctionName ←
+    requireOk
+      (ProofForge.Backend.Evm.ToYul.crosscallHelperFunctionName toYulError nativeTransfer)
+      "native transfer helper name"
+  require
+    (nativeFunctionName == "__proof_forge_native_transfer")
+    "native transfer helper name"
   let crosscallHelpers ←
     requireOk
-      (plannedCrosscallHelperFunctions nativeTransferPlanProbe nativePlan.crosscalls)
+      (plannedCrosscallHelperFunctions nativePlan.crosscalls)
       "planned crosscall helper functions"
   require
     (statementsHaveFunctionNamed crosscallHelpers "__proof_forge_native_transfer")

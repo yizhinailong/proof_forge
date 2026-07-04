@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Crosscall Helper To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `CrosscallHelperSpec.wordTypes` to the EVM semantic plan so planned
+  crosscall helpers carry their return ABI word layout.
+- Moved crosscall helper name selection, calldata packing helper body
+  construction, return-data guard construction, and plain native transfer
+  helper body construction behind `CrosscallHelperSpec -> ToYul`.
+- Kept `IR.lean` responsible for return word layout discovery and compatibility
+  wrapper functions while complete `lowerModuleWithPlan` consumes planned
+  crosscall helper specs directly.
+- Extended semantic-plan coverage for planned aggregate return word layouts,
+  direct ToYul helper naming, planned native transfer return words, and
+  plan-only crosscall helper emission.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/crosscall-ir-smoke.sh
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- Scalar and aggregate crosscall expression call construction still go through
+  the `IR.lean` compatibility facade.
+- Create/create2 helper body construction remains on the compatibility facade
+  even though complete module lowering consumes planned create specs.
+
+Next step:
+
+- Move scalar crosscall expression call construction, or create/create2 helper
+  construction, behind a narrower `ToYul` boundary.
+
 ### EVM ModulePlan Helper Discovery Consumption Slice
 
 Commit: this commit

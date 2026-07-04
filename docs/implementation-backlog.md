@@ -384,6 +384,14 @@ Tasks:
     transfers), create/create2 helpers, and local-array getter helpers from the
     semantic plan fields. Incomplete best-effort diagnostic plans still fall
     back to compatibility rediscovery so validation diagnostics are not masked.
+  - Started: crosscall helper naming and body construction now live behind the
+    `CrosscallHelperSpec -> ToYul` boundary. `CrosscallHelperSpec.wordTypes`
+    carries the planned return ABI word layout, so scalar helpers, aggregate
+    return helpers, and plain native transfer helpers can be emitted from the
+    semantic plan without rediscovering return layout from the module during
+    complete plan-driven lowering. `IR.lean` still owns return word-layout
+    discovery and compatibility wrappers until scalar/aggregate crosscall
+    expression call construction moves behind `ToYul`.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,
