@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Local Crosscall Words To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.localCrosscallWords` / `localCrosscallWordsAt` so local
+  crosscall argument word expansion for scalar leaves, fixed arrays, structs,
+  and nested arrays owns final Yul identifier construction behind the
+  plan-to-Yul boundary.
+- Routed `IR.lowerLocalCrosscallWords` through the new `ToYul` helper while
+  keeping local binding lookup, expected-type checks, crosscall word
+  validation, and struct field eligibility checks in the compatibility facade.
+- Extended semantic-plan tests with direct `ToYul.localCrosscallWords` coverage
+  and compatibility facade coverage for local struct and fixed-array crosscall
+  argument words.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- Crosscall argument flattening for struct literals, array literals, and
+  storage-backed aggregate values still uses the compatibility facade.
+- Struct field metadata is still supplied by `IR.lean` until aggregate
+  crosscall argument planning carries field ids directly.
+
+Next step:
+
+- Move aggregate crosscall argument source planning into `Lower`/`ModulePlan`
+  so local and non-local aggregate sources share one semantic-plan boundary.
+
 ### EVM Local ABI Words To-Yul Slice
 
 Commit: this commit

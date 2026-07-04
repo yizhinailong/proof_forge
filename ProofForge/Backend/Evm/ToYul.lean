@@ -827,6 +827,46 @@ def localAbiWords
     (type : ValueType) : Except ε (Array Lean.Compiler.Yul.Expr) :=
   localAbiWordsAt mkError structFieldIds context name #[] type
 
+partial def localCrosscallWordsAt
+    {ε : Type}
+    (mkError : String → ε)
+    (structFieldIds : String → Except ε (Array String))
+    (context name : String)
+    (path : Array Nat) : ValueType → Except ε (Array Lean.Compiler.Yul.Expr)
+  | .u32 | .u64 | .bool | .hash | .address =>
+      if path.isEmpty then
+        .ok #[Lean.Compiler.Yul.Expr.id name]
+      else
+        .ok #[Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path)]
+  | .unit | .bytes | .string =>
+      .error (mkError s!"{context} uses Unit; IR EVM v0 crosscall values must use U32, U64, Bool, Hash, fixed arrays, or structs")
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error (mkError s!"{context} uses Array<{elementType.name},0>; IR EVM v0 crosscall fixed arrays must have non-zero length")
+      let mut words : Array Lean.Compiler.Yul.Expr := #[]
+      for _h : idx in [0:length] do
+        words := words ++ (← localCrosscallWordsAt mkError structFieldIds context name (path.push idx) elementType)
+      .ok words
+  | .structType typeName => do
+      let fieldIds ← structFieldIds typeName
+      let mut words : Array Lean.Compiler.Yul.Expr := #[]
+      for fieldId in fieldIds do
+        let fieldName :=
+          if path.isEmpty then
+            structLocalFieldName name fieldId
+          else
+            arrayStructLocalPathFieldName name path fieldId
+        words := words.push (Lean.Compiler.Yul.Expr.id fieldName)
+      .ok words
+
+def localCrosscallWords
+    {ε : Type}
+    (mkError : String → ε)
+    (structFieldIds : String → Except ε (Array String))
+    (context name : String)
+    (type : ValueType) : Except ε (Array Lean.Compiler.Yul.Expr) :=
+  localCrosscallWordsAt mkError structFieldIds context name #[] type
+
 def abiParamsHeadWordCount (params : Array AbiParamPlan) : Nat :=
   params.foldl (fun acc param => acc + param.headWordCount) 0
 

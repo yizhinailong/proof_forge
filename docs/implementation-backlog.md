@@ -450,7 +450,11 @@ Tasks:
     aggregate ABI word expansion for entrypoint returns and related
     compatibility paths now delegates final local identifier/data-pointer word
     construction to `ToYul.localAbiWords`; `IR.lean` still validates the source
-    local, expected type, and struct field eligibility before calling it.
+    local, expected type, and struct field eligibility before calling it. Local
+    aggregate crosscall argument word expansion now delegates the final local
+    identifier word construction to `ToYul.localCrosscallWords`; `IR.lean`
+    still owns crosscall argument shape validation and non-local aggregate
+    sources until those are represented directly in the semantic plan.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

@@ -2232,37 +2232,17 @@ mutual
       name
       expectedType
 
-  partial def lowerLocalCrosscallWordsAt
+  partial def localCrosscallStructFieldIds
       (module : Module)
-      (context name : String)
-      (path : Array Nat) : ValueType → Except LowerError (Array Lean.Compiler.Yul.Expr)
-    | .u32 | .u64 | .bool | .hash | .address =>
-        if path.isEmpty then
-          .ok #[Lean.Compiler.Yul.Expr.id name]
-        else
-          .ok #[Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path)]
-    | .unit | .bytes | .string =>
-        .error { message := s!"{context} uses Unit; IR EVM v0 crosscall values must use U32, U64, Bool, Hash, fixed arrays, or structs" }
-    | .fixedArray elementType length => do
-        discard <| crosscallValueWordTypes module context (.fixedArray elementType length)
-        let mut words : Array Lean.Compiler.Yul.Expr := #[]
-        for _h : idx in [0:length] do
-          words := words ++ (← lowerLocalCrosscallWordsAt module context name (path.push idx) elementType)
-        .ok words
-    | .structType typeName => do
-        discard <| crosscallValueWordTypes module context (.structType typeName)
-        let some decl := findStruct? module typeName
-          | .error { message := s!"{context} uses unknown struct `{typeName}`" }
-        let mut words : Array Lean.Compiler.Yul.Expr := #[]
-        for fieldDecl in decl.fields do
-          ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-          let fieldName :=
-            if path.isEmpty then
-              structLocalFieldName name fieldDecl.id
-            else
-              arrayStructLocalPathFieldName name path fieldDecl.id
-          words := words.push (Lean.Compiler.Yul.Expr.id fieldName)
-        .ok words
+      (context typeName : String) : Except LowerError (Array String) := do
+    discard <| crosscallValueWordTypes module context (.structType typeName)
+    let some decl := findStruct? module typeName
+      | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+    let mut fieldIds : Array String := #[]
+    for fieldDecl in decl.fields do
+      ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+      fieldIds := fieldIds.push fieldDecl.id
+    .ok fieldIds
 
   partial def lowerLocalCrosscallWords
       (module : Module)
@@ -2272,7 +2252,16 @@ mutual
     let some binding := findLocal? env name
       | .error { message := s!"unknown local `{name}`" }
     ensureType context expectedType binding.type
-    lowerLocalCrosscallWordsAt module context name #[] expectedType
+    match expectedType with
+    | .fixedArray _ _ | .structType _ =>
+        discard <| crosscallValueWordTypes module context expectedType
+    | _ => pure ()
+    ProofForge.Backend.Evm.ToYul.localCrosscallWords
+      toYulError
+      (localCrosscallStructFieldIds module context)
+      context
+      name
+      expectedType
 
   partial def lowerCrosscallStructArgWords
       (module : Module)

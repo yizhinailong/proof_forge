@@ -1062,6 +1062,64 @@ def testLocalAbiWordsToYul : IO Unit := do
   requireIdentExpr loweredArrayWords[1]! "__proof_forge_array_xs_1" "compat local ABI fixed-array word 1"
   requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "compat local ABI fixed-array word 2"
 
+def testLocalCrosscallWordsToYul : IO Unit := do
+  let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
+    if typeName == "Point" then
+      .ok #["x", "y"]
+    else
+      .error { message := s!"unknown struct `{typeName}`" }
+  let directStructWords ← requireOk
+    (ProofForge.Backend.Evm.ToYul.localCrosscallWords
+      toYulError
+      simpleStructFields
+      "crosscall argument"
+      "p"
+      (.structType "Point"))
+    "direct local crosscall struct words ToYul"
+  require (directStructWords.size == 2) "direct local crosscall struct words count"
+  requireIdentExpr directStructWords[0]! "__proof_forge_struct_p_x" "direct local crosscall struct word 0"
+  requireIdentExpr directStructWords[1]! "__proof_forge_struct_p_y" "direct local crosscall struct word 1"
+  let directArrayWords ← requireOk
+    (ProofForge.Backend.Evm.ToYul.localCrosscallWords
+      toYulError
+      simpleStructFields
+      "crosscall argument"
+      "xs"
+      (.fixedArray .u64 2))
+    "direct local crosscall fixed-array words ToYul"
+  require (directArrayWords.size == 2) "direct local crosscall fixed-array words count"
+  requireIdentExpr directArrayWords[0]! "__proof_forge_array_xs_0" "direct local crosscall fixed-array word 0"
+  requireIdentExpr directArrayWords[1]! "__proof_forge_array_xs_1" "direct local crosscall fixed-array word 1"
+  let structEnv : TypeEnv := #[
+    { name := "p", type := .structType "Point", isMutable := false }
+  ]
+  let loweredStructWords ← requireOk
+    (lowerLocalCrosscallWords
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      "crosscall argument"
+      "p"
+      (.structType "Point"))
+    "compat local crosscall struct words ToYul"
+  require (loweredStructWords.size == 2) "compat local crosscall struct words count"
+  requireIdentExpr loweredStructWords[0]! "__proof_forge_struct_p_x" "compat local crosscall struct word 0"
+  requireIdentExpr loweredStructWords[1]! "__proof_forge_struct_p_y" "compat local crosscall struct word 1"
+  let arrayEnv : TypeEnv := #[
+    { name := "xs", type := .fixedArray .u64 3, isMutable := false }
+  ]
+  let loweredArrayWords ← requireOk
+    (lowerLocalCrosscallWords
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      arrayEnv
+      "crosscall argument"
+      "xs"
+      (.fixedArray .u64 3))
+    "compat local crosscall fixed-array words ToYul"
+  require (loweredArrayWords.size == 3) "compat local crosscall fixed-array words count"
+  requireIdentExpr loweredArrayWords[0]! "__proof_forge_array_xs_0" "compat local crosscall fixed-array word 0"
+  requireIdentExpr loweredArrayWords[1]! "__proof_forge_array_xs_1" "compat local crosscall fixed-array word 1"
+  requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "compat local crosscall fixed-array word 2"
+
 def testAggregateAssignmentPlanToYul : IO Unit := do
   let fixedStmt :=
     ProofForge.Backend.Evm.ToYul.wholeFixedArrayAssignStmt
@@ -2567,6 +2625,7 @@ def main : IO UInt32 := do
   testSemanticPlanRender
   testScalarExprPlanToYul
   testLocalAbiWordsToYul
+  testLocalCrosscallWordsToYul
   testAggregateAssignmentPlanToYul
   testScalarAssertPlanToYul
   testScalarReturnPlanToYul
