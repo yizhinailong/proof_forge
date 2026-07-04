@@ -17,6 +17,33 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EmitWat Coverage Manifest CI Fix
+
+Commit: this commit
+
+Summary:
+
+- Added explicit `Tests/EmitWatCoverage.tsv` entries for the expanded
+  `ContextField` constructors that direct EmitWat does not lower today.
+- Classified the EVM-only block/gas/origin/coinbase/block-hash context reads
+  as `unsupported` for EmitWat, preserving the existing direct-WAT host surface
+  of `userId`, `contractId`, and `checkpointId`.
+
+Validation run:
+
+```sh
+scripts/near/check-ir-coverage-manifest.py --manifest Tests/EmitWatCoverage.tsv --label emitwat-ir-coverage
+```
+
+Known limitations:
+
+- This only fixes manifest completeness. It does not add new EmitWat context
+  lowering.
+
+Next step:
+
+- Keep CI green before continuing backend migration slices.
+
 ### EVM EventPlan-To-Yul Topic Assembly Slice
 
 Commit: this commit
