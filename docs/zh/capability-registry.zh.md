@@ -355,7 +355,8 @@ BCH/CashScript 与 UTXO covenant 目标有重叠，但 CashVM、transaction intr
 | `value.native` | `Env.value` |
 | `events.emit` | `log0`–`log4` |
 | `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
-| `env.block` | `Env.blockNumber`, 等 |
+| `env.block` | `Env.blockNumber`, `timestamp()`, `chainid()`, `gasprice()`, `gas()`, `basefee()`, `prevrandao()`, `coinbase()`, `blockhash(n)` |
+| `account.explicit` | `address()` |
 
 目前通过 `ProofForge.Evm` / `Lean.Evm` 实现 —— 参见 [targets/evm.md](targets/evm.md)。
 

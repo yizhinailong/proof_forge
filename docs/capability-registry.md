@@ -394,7 +394,7 @@ explicit representation before a target profile is added.
 | `value.native` | `Env.value` |
 | `events.emit` | `log0`–`log4` |
 | `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
-| `env.block` | `Env.blockNumber`, `timestamp()`, `chainid()`, `gasprice()`, `gasleft()`, `basefee()`, `prevrandao()`, `coinbase()`, `blockhash(n)` |
+| `env.block` | `Env.blockNumber`, `timestamp()`, `chainid()`, `gasprice()`, `gas()`, `basefee()`, `prevrandao()`, `coinbase()`, `blockhash(n)` |
 | `account.explicit` | `address()` |
 
 Implemented today via `ProofForge.Evm` / `Lean.Evm` — see

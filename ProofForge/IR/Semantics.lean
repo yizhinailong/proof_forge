@@ -418,6 +418,7 @@ partial def evalExpr (state : State) (frame : Frame) : Expr → Except String Ex
       | .bool value => .ok (nextState, .bool (!value))
       | _ => .error "boolNot expects Bool operand"
   | .effect effect => evalEffect state frame effect
+  | .nativeValue => .ok (state, .u64 0)
   | _ => .error "expression is not supported by the scalar semantics model"
 
 partial def evalPathSegmentKey (state : State) (frame : Frame) : StoragePathSegment →

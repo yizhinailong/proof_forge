@@ -374,7 +374,7 @@ diagnostics.
 `userId` lowers to `caller()`, `contractId` lowers to `address()`,
 `checkpointId` lowers to `number()`, `timestamp` lowers to `timestamp()`,
 `chainId` lowers to `chainid()`, `gasPrice` lowers to `gasprice()`, `gasLeft`
-lowers to `gasleft()`, `baseFee` lowers to `basefee()`, `prevRandao`
+lowers to `gas()`, `baseFee` lowers to `basefee()`, `prevRandao`
 lowers to `prevrandao()`, `origin` lowers to `origin()`, `coinbase` lowers to
 `coinbase()`, and `blockHash(n)` lowers to `blockhash(<n>)`. It also validates
 `nativeValue` lowering to `callvalue()` through the `native_value()` selector.

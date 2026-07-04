@@ -383,7 +383,7 @@ mutual
         .ok (rt, #[rt.chainId])
     | "gasprice", [] =>
         .ok (rt, #[rt.gasPrice])
-    | "gasleft", [] =>
+    | "gas", [] =>
         .ok (rt, #[rt.gasLeft])
     | "basefee", [] =>
         .ok (rt, #[rt.baseFee])

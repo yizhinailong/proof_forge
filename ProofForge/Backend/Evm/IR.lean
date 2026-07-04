@@ -818,7 +818,7 @@ def contextExpr : ContextField → Lean.Compiler.Yul.Expr
   | .timestamp => Lean.Compiler.Yul.builtin "timestamp" #[]
   | .chainId => Lean.Compiler.Yul.builtin "chainid" #[]
   | .gasPrice => Lean.Compiler.Yul.builtin "gasprice" #[]
-  | .gasLeft => Lean.Compiler.Yul.builtin "gasleft" #[]
+  | .gasLeft => Lean.Compiler.Yul.builtin "gas" #[]
   | .baseFee => Lean.Compiler.Yul.builtin "basefee" #[]
   | .prevRandao => Lean.Compiler.Yul.builtin "prevrandao" #[]
   | .origin => Lean.Compiler.Yul.builtin "origin" #[]

@@ -10,6 +10,7 @@ import ProofForge.IR.Examples.EvmStorageStructProbe
 import ProofForge.IR.Examples.EvmTypedStorageProbe
 import ProofForge.IR.Examples.EventProbe
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.EvmContextProbe
 import ProofForge.IR.Semantics
 
 namespace ProofForge.Backend.Evm.Refinement
@@ -1043,6 +1044,36 @@ theorem abi_aggregate_yul_surface_trace_entrypoints :
 
 theorem abi_aggregate_yul_executable_trace_ok :
     abiAggregateTraceObligation.evmYulTraceOk = true := by
+  native_decide
+
+def contextTraceCalls : Array TraceCall := #[
+  { entrypoint := ProofForge.IR.Examples.EvmContextProbe.contextExtras },
+  { entrypoint := ProofForge.IR.Examples.EvmContextProbe.contextHashes }
+]
+
+def contextExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "context_extras", selector := "d9b80589", returnValue := .words #[0, 0, 0, 0, 0, 0] },
+  { entrypointName := "context_hashes", selector := "b59b9225", returnValue := .words #[0, 0, 0] }
+]
+
+def contextTraceObligation : TraceObligation := {
+  name := "EvmContextProbe.context-reads-trace"
+  module := ProofForge.IR.Examples.EvmContextProbe.module
+  calls := contextTraceCalls
+  expected := contextExpectedTrace
+}
+
+
+theorem context_ir_observable_trace_ok :
+    contextTraceObligation.irTraceOk = true := by
+  native_decide
+
+theorem context_evm_yul_surface_trace_entrypoints :
+    contextTraceObligation.evmYulSurfaceOk = true := by
+  native_decide
+
+theorem context_evm_yul_executable_trace_ok :
+    contextTraceObligation.evmYulTraceOk = true := by
   native_decide
 
 end ProofForge.Backend.Evm.Refinement

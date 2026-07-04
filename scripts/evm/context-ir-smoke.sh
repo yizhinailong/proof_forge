@@ -98,6 +98,10 @@ contract ProofForgeIRContextSmokeTest {
         require(actual == expected, "assertEq failed");
     }
 
+    function assertEq(bytes32 actual, bytes32 expected) internal pure {
+        require(actual == expected, "assertEq bytes32 failed");
+    }
+
     function deployRuntime(bytes memory code, address target) internal {
         vm.etch(target, code);
     }

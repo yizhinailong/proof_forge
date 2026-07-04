@@ -44,7 +44,7 @@ object "ContextProbe" {
       __proof_forge_return_0 := timestamp()
       __proof_forge_return_1 := chainid()
       __proof_forge_return_2 := gasprice()
-      __proof_forge_return_3 := gasleft()
+      __proof_forge_return_3 := gas()
       __proof_forge_return_4 := basefee()
       __proof_forge_return_5 := prevrandao()
     }
