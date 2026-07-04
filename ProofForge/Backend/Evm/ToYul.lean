@@ -332,6 +332,29 @@ def scalarAssertStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar assertion lowering expected assert/assertEq")
 
+def scalarReturnStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (returnNames : Array String)
+    (leaveAfterReturn : Bool) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .return value => do
+      let some returnName := returnNames[0]?
+        | .error (mkError "EVM StmtPlan-to-Yul scalar return lowering expected one return name, got 0")
+      if returnNames.size != 1 then
+        .error (mkError s!"EVM StmtPlan-to-Yul scalar return lowering expected one return name, got {returnNames.size}")
+      else
+        let statements := #[
+          Lean.Compiler.Yul.Statement.assignment
+            #[returnName]
+            (← exprPlanExpr mkError lowerExpr lowerEffect value)
+        ]
+        .ok <| if leaveAfterReturn then statements.push .leave else statements
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul scalar return lowering expected return")
+
 /-! ## Plan-driven helper requirements
 
 `StorageSlotPlan.requiredHelpers` lets the plan declare which EVM helper functions

@@ -286,11 +286,13 @@ Tasks:
     passed into `ToYul` as a revert-body callback. Unsupported aggregate or
     field assertion operands stay on the compatibility path until broader
     statement-plan lowering exists.
-  - Started: scalar `return` word lowering now consumes the same
-    `ExprPlan -> ToYul` expression boundary for supported `U32`/`U64`/`Bool`/
-    `Hash` return expressions. Aggregate return flattening and aggregate
-    crosscall return helpers remain on their existing compatibility paths until
-    their own migration slices add plan-level coverage.
+  - Started: scalar `return` statement assembly now consumes a narrow
+    `StmtPlan -> ToYul` helper for supported single-word `U32`/`U64`/`Bool`/
+    `Hash`/`Address` return values, including branch-local `leave` insertion.
+    Return ABI name selection, bytes/string returns, aggregate return
+    flattening, and aggregate crosscall return helpers remain on their existing
+    compatibility paths until their own migration slices add plan-level
+    coverage.
   - Started: direct scalar assignment and compound-assignment RHS lowering now
     consumes the same `ExprPlan -> ToYul` expression boundary for supported
     scalar expressions. Whole-aggregate assignment, dynamic aggregate helper

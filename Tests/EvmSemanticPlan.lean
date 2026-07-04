@@ -316,6 +316,43 @@ def testScalarAssertPlanToYul : IO Unit := do
 
 def testScalarReturnPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
+  let directStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      #["result"]
+      false
+      (ProofForge.Backend.Evm.Plan.StmtPlan.return
+        (.checkedArith .add (.local "n") (.literalWord 1))))
+    "scalar return StmtPlan-to-Yul helper"
+  require (directStmts.size == 1) "scalar return StmtPlan-to-Yul helper statement count"
+  match directStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["result"]) "scalar return StmtPlan-to-Yul helper target"
+      require (name == "__pf_checked_add") "scalar return StmtPlan-to-Yul helper checked add"
+      require (args.size == 2) "scalar return StmtPlan-to-Yul helper checked add arg count"
+  | _ => throw <| IO.userError "scalar return StmtPlan-to-Yul helper must assign helper result"
+  let directLeaveStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      #["result"]
+      true
+      (ProofForge.Backend.Evm.Plan.StmtPlan.return
+        (.effect (.storageScalarRead "count"))))
+    "scalar return StmtPlan-to-Yul helper leave"
+  require (directLeaveStmts.size == 2) "scalar return StmtPlan-to-Yul helper leave statement count"
+  match directLeaveStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.builtin name args) => do
+      require (names == #["result"]) "scalar return StmtPlan-to-Yul helper leave target"
+      require (name == "sload") "scalar return StmtPlan-to-Yul helper leave storage read"
+      require (args.size == 1) "scalar return StmtPlan-to-Yul helper leave sload arg count"
+  | _ => throw <| IO.userError "scalar return StmtPlan-to-Yul helper leave must assign sload"
+  match directLeaveStmts[1]! with
+  | Lean.Compiler.Yul.Statement.leave => pure ()
+  | _ => throw <| IO.userError "scalar return StmtPlan-to-Yul helper leave must append leave"
   let returnStmts ← requireOk
     (lowerReturnStmt
       ProofForge.IR.Examples.Counter.module

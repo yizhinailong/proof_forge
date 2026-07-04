@@ -17,6 +17,40 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Return StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.scalarReturnStmtPlanStatements` for the narrow scalar
+  `StmtPlan.return` assembly path.
+- Routed scalar single-word returns for `U32`, `U64`, `Bool`, `Hash`, and
+  `Address` through the helper when the returned value is in the supported
+  scalar plan subset.
+- Kept return ABI name selection and aggregate/dynamic return handling in the
+  `IR.lean` compatibility facade.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output, returned
+  storage reads, and `leaveAfterReturn` appending a Yul `leave`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- This slice covers only single-word scalar return statement assembly.
+  Bytes/string, fixed-array, struct, and aggregate crosscall returns still use
+  the compatibility facade.
+
+Next step:
+
+- Move direct scalar assignment or scalar compound assignment behind a
+  `StmtPlan -> Yul` helper.
+
 ### EVM Scalar Assert StmtPlan-To-Yul Slice
 
 Commit: this commit

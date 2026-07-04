@@ -4632,6 +4632,10 @@ def lowerReturnWords
   | .structType typeName =>
       lowerStructReturnWords module env entrypointName typeName value
 
+def returnTypeSupportsScalarStmtPlan : ValueType → Bool
+  | .u32 | .u64 | .bool | .hash | .address => true
+  | .unit | .bytes | .string | .fixedArray _ _ | .structType _ => false
+
 def lowerAggregateCrosscallReturnAssignment?
     (module : Module)
     (env : TypeEnv)
@@ -4718,6 +4722,32 @@ def lowerReturnAssignments
         statements := statements.push (.assignment #[names[idx]] word)
       .ok statements
 
+partial def lowerScalarReturnStmtPlanOrFallback
+    (module : Module)
+    (env : TypeEnv)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : ProofForge.IR.Expr)
+    (leaveAfterReturn : Bool) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  if returnTypeSupportsScalarStmtPlan returnType && exprSupportsPlanScalarYul value then
+    let valuePlan ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr module env expr)
+      (lowerPlanEffectExpr module env)
+      (← abiReturnNames module entrypointName returnType)
+      leaveAfterReturn
+      (.return valuePlan)
+  else
+    let statements ← lowerReturnAssignments module env entrypointName returnType value
+    if leaveAfterReturn then
+      .ok (statements.push .leave)
+    else
+      .ok statements
+
 def lowerReturnStmt
     (module : Module)
     (env : TypeEnv)
@@ -4725,11 +4755,7 @@ def lowerReturnStmt
     (returnType : ValueType)
     (value : ProofForge.IR.Expr)
     (leaveAfterReturn : Bool) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let statements ← lowerReturnAssignments module env entrypointName returnType value
-  if leaveAfterReturn then
-    .ok (statements.push .leave)
-  else
-    .ok statements
+  lowerScalarReturnStmtPlanOrFallback module env entrypointName returnType value leaveAfterReturn
 
 mutual
   partial def lowerStatements
