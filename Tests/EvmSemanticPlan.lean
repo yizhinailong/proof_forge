@@ -2447,6 +2447,63 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           | _ => throw <| IO.userError "planned scalar indexed event control-flow block must end with log"
       | _ => throw <| IO.userError "planned scalar indexed event control-flow else branch must lower to event block"
   | _ => throw <| IO.userError "planned scalar event control-flow body lowering must lower to switch"
+  let crosscallEnv : TypeEnv := #[
+    { name := "target", type := .u64, isMutable := false },
+    { name := "method", type := .u64, isMutable := false },
+    { name := "n", type := .u64, isMutable := true }
+  ]
+  let plannedCrosscallControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      "control_flow"
+      .unit
+      crosscallEnv
+      (.ifElse
+        (.gt (.local "n") (.literal (.u64 0)))
+        #[
+          .letBind
+            "remote"
+            .u64
+            (.crosscallInvokeTyped
+              (.local "target")
+              (.local "method")
+              #[.local "n"]
+              .u64),
+          .assign (.local "n") (.local "remote")
+        ]
+        #[
+          .assign (.local "n") (.literal (.u64 0))
+        ]))
+    "planned scalar crosscall control-flow plan construction"
+  let plannedCrosscallControl ← requireSome plannedCrosscallControl?
+    "planned scalar crosscall control-flow plan construction missing plan"
+  let (crosscallControlStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      "control_flow"
+      .unit
+      crosscallEnv
+      false
+      plannedCrosscallControl)
+    "planned scalar crosscall control-flow body lowering"
+  match crosscallControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let thenCase ← requireAt cases 1 "planned scalar crosscall control-flow then case"
+      require (thenCase.body.statements.size == 2) "planned scalar crosscall control-flow then count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (names.size == 1) "planned scalar crosscall control-flow var count"
+          let typedName ← requireAt names 0 "planned scalar crosscall control-flow var"
+          require (typedName.name == "remote") "planned scalar crosscall control-flow local name"
+          require (name == "__proof_forge_crosscall_1") "planned scalar crosscall control-flow helper"
+          require (args.size == 3) "planned scalar crosscall control-flow helper arg count"
+      | _ => throw <| IO.userError "planned scalar crosscall control-flow must lower let initializer to helper call"
+      match thenCase.body.statements[1]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["n"]) "planned scalar crosscall control-flow assignment target"
+          require (valueName == "remote") "planned scalar crosscall control-flow assignment value"
+      | _ => throw <| IO.userError "planned scalar crosscall control-flow must assign helper result"
+  | _ => throw <| IO.userError "planned scalar crosscall control-flow body lowering must lower to switch"
   let (ifStmts, _) ← requireOk
     (lowerStatement
       ProofForge.IR.Examples.Counter.module

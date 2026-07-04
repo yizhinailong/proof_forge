@@ -5050,6 +5050,14 @@ mutual
     | .hashTwoToOne lhs rhs => exprPlanSupportsScalarBody lhs && exprPlanSupportsScalarBody rhs
     | .nativeValue => true
     | .effect effect => effectPlanSupportsScalarBodyExpr effect
+    | .crosscall _ target methodId callValue? args returnType =>
+        scalarBodyTypeSupported returnType &&
+        exprPlanSupportsScalarBody target &&
+        exprPlanSupportsScalarBody methodId &&
+        (match callValue? with
+         | none => true
+         | some callValue => exprPlanSupportsScalarBody callValue) &&
+        args.all exprPlanSupportsScalarBody
     | .localArrayGet _ path _ =>
         match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
         | some _ => true
@@ -5059,7 +5067,7 @@ mutual
         match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
         | some _ => true
         | none => false
-    | .crosscall .. | .create .. | .localAbiWords .. | .localCrosscallWords ..
+    | .create .. | .localAbiWords .. | .localCrosscallWords ..
     | .storageCrosscallWords .. | .structField .. | .arrayGet .. | .arrayLit ..
     | .structLit .. => false
 end
