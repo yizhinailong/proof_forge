@@ -185,6 +185,41 @@ def testScalarAssertPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "scalar assertEq plan-to-yul condition must be builtin"
   | _ => throw <| IO.userError "scalar assertEq plan-to-yul must lower to if iszero"
 
+def testScalarReturnPlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
+  let returnStmts ← requireOk
+    (lowerReturnStmt
+      ProofForge.IR.Examples.Counter.module
+      env
+      "checked_return"
+      .u64
+      (.add (.local "n") (.literal (.u64 1)))
+      false)
+    "scalar return plan-to-yul"
+  require (returnStmts.size == 1) "scalar return plan-to-yul statement count"
+  match returnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["result"]) "scalar return plan-to-yul target"
+      require (name == "__pf_checked_add") "scalar return plan-to-yul helper"
+      require (args.size == 2) "scalar return plan-to-yul arg count"
+  | _ => throw <| IO.userError "scalar return plan-to-yul must assign helper result"
+  let storageReturnStmts ← requireOk
+    (lowerReturnStmt
+      ProofForge.IR.Examples.Counter.module
+      #[]
+      "storage_return"
+      .u64
+      (.effect (.storageScalarRead "count"))
+      false)
+    "storage scalar return plan-to-yul"
+  require (storageReturnStmts.size == 1) "storage scalar return plan-to-yul statement count"
+  match storageReturnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.builtin name args) => do
+      require (names == #["result"]) "storage scalar return plan-to-yul target"
+      require (name == "sload") "storage scalar return plan-to-yul opcode"
+      require (args.size == 1) "storage scalar return plan-to-yul arg count"
+  | _ => throw <| IO.userError "storage scalar return plan-to-yul must assign sload"
+
 def main : IO UInt32 := do
   testCounterSemanticPlan
   testEventSemanticPlan
@@ -193,6 +228,7 @@ def main : IO UInt32 := do
   testSemanticPlanRender
   testScalarExprPlanToYul
   testScalarAssertPlanToYul
+  testScalarReturnPlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0
 

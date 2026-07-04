@@ -17,6 +17,40 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Return Plan-To-Yul Assembly Slice
+
+Commit: this commit
+
+Summary:
+
+- Routed single-word EVM IR return expressions for `U32`, `U64`, `Bool`, and
+  `Hash` through the supported scalar `ExprPlan -> ToYul` expression boundary.
+- Kept aggregate return flattening and aggregate crosscall return helper
+  assignment on the existing compatibility paths for later plan-level slices.
+- Extended `Tests/EvmSemanticPlan.lean` to lock scalar return assignment Yul AST
+  shapes for checked arithmetic returns and scalar storage reads.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/expression-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+```
+
+Known limitations:
+
+- This slice covers only single-word scalar return expressions. ABI aggregate
+  returns, dispatch return-data encoding, assignment RHS lowering, branch
+  conditions, event data, crosscalls, and create paths still move over in later
+  semantic-plan slices.
+
+Next step:
+
+- Move another scalar statement expression path, likely assignment RHS or
+  `ifElse` / `boundedFor` conditions, to consume `ExprPlan` directly.
+
 ### EVM Scalar Assert Plan-To-Yul Assembly Slice
 
 Commit: this commit

@@ -4277,7 +4277,7 @@ def lowerReturnWords
   | .unit =>
       .error { message := s!"entrypoint `{entrypointName}` has Unit return type and cannot return a value" }
   | .u32 | .u64 | .bool | .hash => do
-      .ok #[← lowerExpr module env value]
+      .ok #[← lowerScalarPlanExprOrFallback module env value]
   | .fixedArray elementType length =>
       lowerFixedArrayReturnWords module env entrypointName elementType length value
   | .structType typeName =>

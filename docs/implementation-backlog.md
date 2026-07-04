@@ -279,6 +279,11 @@ Tasks:
     `just evm-semantic-plan` now builds its imported example modules before
     `lean --run`, so the semantic-plan gate is reliable from a clean checkout
     instead of depending on stale `.olean` files.
+  - Started: scalar `return` word lowering now consumes the same
+    `ExprPlan -> ToYul` expression boundary for supported `U32`/`U64`/`Bool`/
+    `Hash` return expressions. Aggregate return flattening and aggregate
+    crosscall return helpers remain on their existing compatibility paths until
+    their own migration slices add plan-level coverage.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,
