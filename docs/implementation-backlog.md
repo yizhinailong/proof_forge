@@ -2477,6 +2477,157 @@ starts as an RFC, not code; sequencing hooks are listed in the gap doc.
     `Tests/SolanaSdkManifest.lean`. Deeper production client ergonomics moves
     to the SDK ecosystem completeness backlog.
 
+## Workstream 34: Contract Source Productization (unified authoring layer)
+
+Goal: make `contract_source` the **only product authoring surface** for
+portable smart contracts. Application authors write business logic once in
+Lean SDK syntax; **`proof-forge build --target <id>`** selects the chain and
+the compiler routes capabilities, extensions, ABI/layout, and artifact emission.
+Authors should not hand-write `ContractSpec`, `.evm-methods`, or target-specific
+deployment plumbing in application modules.
+
+Related:
+
+- [Authoring model](authoring-model.md)
+- [SDK ecosystem gaps (2026-07)](sdk-ecosystem-gaps-2026-07.md)
+- [Shared scenario](shared-scenario.md)
+- PR #11 unified EVM entry (legacy `Lean.Evm` / LCNF removed)
+
+### Design contract
+
+```text
+contract_source / Token SDK  (portable business logic + typed capability intents)
+  -> source AST
+  -> ContractSpec / TokenSpec / portable IR
+  -> target resolver + capability routing   <-- chosen by --target
+  -> target semantic plan
+  -> printer / assembler / package emitter
+  -> artifacts (Yul/bytecode, sBPF, WAT, …) + manifests + clients
+```
+
+Rules for new work in this workstream:
+
+1. **Portable first:** state, entrypoints, events, arithmetic, and control flow
+   stay target-neutral in source unless a capability truly has no shared shape.
+2. **Target at build time:** chain choice is CLI/config (`--target evm`,
+   `--target solana-sbpf-asm`, …), not `#ifdef`-style duplication in contract
+   modules.
+3. **Extensions lower honestly:** Solana account/PDA/CPI, EVM payable/receive,
+   NEAR promises, etc. attach through typed SDK forms and capability routing;
+   unsupported combinations fail with explicit diagnostics.
+4. **No second product language:** Builder string fixtures and `.learn` remain
+   compiler/test inputs; new SDK features land in `ProofForge.Contract.Source`
+   (or `Token`) first.
+
+### Phase CS-0 — Unified compiler entry ✅ (landed PR #11)
+
+| ID | Task | Status |
+|---|---|---|
+| CS-0.1 | Route all EVM example builds through `ContractLoader` + portable IR | ✅ |
+| CS-0.2 | Remove legacy `ProofForge.Evm`, LCNF `EmitYul`, `.evm-methods` | ✅ |
+| CS-0.3 | Migrate `Examples/Evm/Contracts/*` to `contract_source` / `ContractSpec` | ✅ |
+| CS-0.4 | Refresh CI gates (build-examples, Foundry, Anvil, docs-check) | ✅ |
+
+### Phase CS-1 — Portable authoring core
+
+Focus: one syntax for cross-target business logic; tighten the portable vs
+target-extension boundary in `contract_source`.
+
+| ID | Task | Acceptance |
+|---|---|---|
+| CS-1.1 | Document portable subset vs target-extension forms in `authoring-model.md` with examples for EVM/Solana/NEAR | Authors can tell which statements compile on all primary targets vs one target |
+| CS-1.2 | Add compiler diagnostics when portable syntax uses a capability absent from the selected `--target` | Error names target id, capability id, and source location |
+| CS-1.3 | Add `contract_source` modules for shared scenarios (`Counter`, `ValueVault`) as canonical references; demote Builder-only examples to `Tests/` or `ProofForge/Contract/Examples/` | `Examples/` tree shows only `contract_source` product style |
+| CS-1.4 | Extend Learn → `contract_source` equivalence tests (FV-6) for portable entrypoints/state/events | Paired `.learn` and `contract_source` fixtures produce equivalent `ContractSpec` |
+| CS-1.5 | Target-first project layout convention: one `*.lean` contract module + `proof-forge build --target <id>` per artifact; no per-chain source forks | Documented in onboarding + one multi-target example compiling Counter to EVM + Solana + NEAR from the same file |
+
+### Phase CS-2 — EVM stdlib in `contract_source`
+
+Focus: replace Builder-string stdlib with importable `contract_source` modules.
+Maps to SDK ecosystem P0/P1 "access patterns" and partial token work.
+
+| ID | Task | Acceptance |
+|---|---|---|
+| CS-2.1 | Rewrite `Examples/Evm/Contracts/stdlib/Ownable.lean` as `contract_source` module with `onlyOwner`-style entry guards | Builds on `--target evm`; Foundry smoke covers owner transfer/renounce |
+| CS-2.2 | Rewrite `Pausable.lean` as `contract_source` with pause/unpause + `whenNotPaused` guard | Foundry smoke for paused/unpaused paths |
+| CS-2.3 | Rewrite `ERC20.lean` as `contract_source` stdlib (not Builder map boilerplate) | Matches canonical ERC-20 selectors/events; Foundry lifecycle smoke |
+| CS-2.4 | Add reusable `ReentrancyGuard` module (`contract_source`) | `VerifiedVault` uses stdlib guard instead of hand-rolled lock state |
+| CS-2.5 | Add `import`/`open` story for stdlib modules in `contract_source` | Two example contracts compose Ownable + ERC20 without copy-paste |
+| CS-2.6 | Unify `TokenSpec` ERC-20 emission with `contract_source` token modules (single planning boundary) | Same token semantics whether authored as Token SDK or contract module |
+
+### Phase CS-3 — EVM capability surface in SDK syntax
+
+Focus: expose already-lowered IR features through typed `contract_source` forms
+so authors never drop to Builder for common EVM patterns. Cross-ref
+[sdk-ecosystem-gaps-2026-07.md](sdk-ecosystem-gaps-2026-07.md) EVM P0/P1.
+
+| ID | Task | Priority | Acceptance |
+|---|---|---|---|
+| CS-3.1 | `payable` entry / `msg.value` syntax (`nativeValue` routing) | P0 | Authoring syntax for value-bearing entries; Foundry value tests |
+| CS-3.2 | Native ETH transfer helper (plain transfer to EOA/contract) | P0 | No manual `crosscallInvokeValueTyped(u64 0)` in examples |
+| CS-3.3 | Entry modifiers / guards (`onlyOwner`, `whenNotPaused`, role guards) | P0 | Desugar to portable IR checks; diagnostics on misuse |
+| CS-3.4 | Constructor dynamic ABI (string, bytes, dynamic arrays) | P0 | CLI + artifact metadata; Anvil smoke with non-empty constructor args |
+| CS-3.5 | Custom errors (Solidity-style selectors) | P1 | Structured revert surface + client decode helpers |
+| CS-3.6 | ERC-165 `supportsInterface` module | P0 | Foundry interface probe tests |
+| CS-3.7 | AccessControl roles (grant/revoke/hasRole) | P0 | Role-guarded entries in `contract_source` |
+| CS-3.8 | ERC-721 core (ownerOf, transfer, safeTransferFrom, mint, burn) | P0 | Foundry NFT lifecycle smoke |
+| CS-3.9 | CREATE2 factory template module | P1 | Deterministic deploy example + metadata |
+| CS-3.10 | Proxy/upgrade patterns (UUPS or transparent) aligned with Workstream 32 `upgradePolicy` | P1 | Honest lowering or explicit reject per policy |
+
+### Phase CS-4 — Project development experience
+
+Focus: a developer can open a repo, write `contract_source`, and run
+build/test/deploy without touching compiler internals.
+
+| ID | Task | Acceptance |
+|---|---|---|
+| CS-4.1 | `proof-forge init` (or documented template repo) with `contract_source` stub + multi-target `justfile` | New project builds Counter on `evm` and at least one other primary target |
+| CS-4.2 | Foundry workspace integration: generated artifacts feed `forge test` / `forge script` with stable paths | Documented workflow; CI recipe |
+| CS-4.3 | Productize `ContractClient` for EVM (ABI wrapper + deploy helpers) from `ContractSpec` JSON | TypeScript or Rust client generated beside artifact |
+| CS-4.4 | Deploy commands beyond metadata: RPC broadcast + tx/receipt artifacts using chain profiles | Anvil-local + one documented testnet profile |
+| CS-4.5 | VS Code/Cursor workspace recommendations + diagnostic surfacing from `proof-forge check --target <id>` | Onboarding friction item R6 partial closure |
+
+### Phase CS-5 — Cross-target parity and testkit
+
+Focus: prove the unified authoring story on all three primary chains.
+
+| ID | Task | Acceptance |
+|---|---|---|
+| CS-5.1 | Expand testkit scenarios for `contract_source`-authored Counter/ValueVault on `evm`, `solana-sbpf-asm`, `wasm-near` | `just testkit` covers same scenario file, different `--target` artifacts |
+| CS-5.2 | Resource budget baselines for new stdlib contracts (EVM gas, Solana CU) | Workstream 31 budgets extended; regressions fail CI |
+| CS-5.3 | Authoring-model worked example: one business module, three targets, zero source forks | Tutorial in docs (EN + zh sync via translate pipeline) |
+
+### Phase CS-6 — Documentation and legacy cleanup
+
+| ID | Task | Acceptance |
+|---|---|---|
+| CS-6.1 | Rewrite `docs/targets/evm.md` pipeline section for unified entry (remove EmitYul/Lean.Evm) | Matches PR #11 architecture |
+| CS-6.2 | Update `development-standards.md` library roots (drop `ProofForge.Evm`, `EmitYul`) | No stale EVM-native authoring guidance |
+| CS-6.3 | Close Workstream 24 items: declare LCNF→EmitYul removed; record `contract_source` as EVM product pipeline | Decision log + RFC 0004 alignment |
+| CS-6.4 | Keep `docs/zh/examples-evm-README.zh.md` synced when `Examples/Evm/README.md` changes | `just docs-check` green |
+
+### Suggested sequencing (Workstream 34)
+
+1. **CS-1** portable boundary + diagnostics (unblocks honest multi-target authoring).
+2. **CS-2** EVM stdlib in `contract_source` (immediate developer-visible win).
+3. **CS-3** EVM P0 SDK blockers (parallelize CS-3.1–3.4 with CS-2).
+4. **CS-4** project DX once stdlib + payable/constructor land.
+5. **CS-5** testkit parity evidence across three primary targets.
+6. **CS-6** docs/decisions cleanup continuously, not only at the end.
+
+### Acceptance criteria (workstream complete)
+
+- Every file under `Examples/Evm/Contracts/` is authored with `contract_source`
+  or composes stdlib `contract_source` modules; Builder-only EVM examples live
+  only under compiler test/fixture paths.
+- A new developer can write a portable contract module and run
+  `proof-forge build --target evm|solana-sbpf-asm|wasm-near` without editing
+  chain-specific source.
+- EVM P0 SDK blockers in [sdk-ecosystem-gaps-2026-07.md](sdk-ecosystem-gaps-2026-07.md)
+  are either implemented through `contract_source` or explicitly rejected with
+  diagnostics.
+- CI covers stdlib + at least one multi-target shared-scenario build.
+
 ## Suggested Order
 
 Workstreams 1, 1.5, 2–3, 6–7 (registry, portable IR, EVM metadata, Solana
@@ -2490,6 +2641,11 @@ workstream. The forward order follows the tier gates of
    removal after the RFC 0009 compatibility window, runtime error vocabulary
    for testkit, and the versioning / deployment lifecycle policies (30/32,
    docs-agent parallel track).
+0b. **Contract Source productization (Workstream 34):** after unified EVM entry
+   (CS-0 ✅), land portable authoring boundary (CS-1), EVM stdlib in
+   `contract_source` (CS-2), then EVM SDK P0 surface (CS-3) before broad
+   project DX (CS-4). This is the primary post-PR-#11 product track and
+   subsumes the EVM rows in SDK Ecosystem Completeness below.
 1. **Parallel:** unified testkit (Workstream 26) and allocator unification
    (Workstream 27) — testkit M1/M2 has no dependency on allocator M1/M2;
    allocator M4 lands after testkit M3.
@@ -2520,6 +2676,9 @@ chain's P0 SDK blockers are closed. "P0 SDK blocker" = a feature whose absence
 means a real developer cannot write a common contract pattern.
 
 ### EVM SDK blockers (5 P0, 10 P1)
+
+Tracked in detail as **Workstream 34 Phase CS-2/CS-3**; implementation must
+land in `contract_source` / Token SDK syntax, not Builder fixtures.
 
 - P0: ERC-20 completion (canonical selector surface, stdlib ERC-20 with
   permit, EVM lowering of all token methods)

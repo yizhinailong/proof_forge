@@ -21,8 +21,8 @@ import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Backend.Aleo.IR
 import ProofForge.Backend.CosmWasm.EmitWat
 import ProofForge.Backend.Move.Aptos
+import ProofForge.Cli.ContractLoader
 import ProofForge.Cli.Fixture
-import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.Compiler.TS.AST
 import ProofForge.Compiler.TS.Printer
 import ProofForge.Compiler.TS.Emit
@@ -96,8 +96,6 @@ open Lean
 open System
 
 namespace ProofForge.Cli
-
-abbrev MethodSpec := Lean.Compiler.LCNF.EmitYul.MethodSpec
 
 structure ConstructorParamSpec where
   name : String
@@ -409,8 +407,6 @@ structure CliOptions where
   output? : Option FilePath := none
   root? : Option FilePath := none
   moduleName? : Option Name := none
-  methods : Array MethodSpec := #[]
-  methodsFile? : Option FilePath := none
   yulOutput? : Option FilePath := none
   artifactOutput? : Option FilePath := none
   solc : String := "solc"
@@ -444,8 +440,8 @@ def EmitMode.acceptsTarget : EmitMode → Bool
 def usage : String :=
   String.intercalate "\n" [
     "Usage:",
-    "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] [--method selector:fn:argc:view|update] input.lean",
-    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
+    "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] input.lean",
+    "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",
     "  proof-forge --emit-counter-ir-ts [-o output.ts]",
     "  proof-forge --emit-counter-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
@@ -567,7 +563,7 @@ def usage : String :=
     "  proof-forge --emit-counter-ir-cosmwasm [-o output.wat]   (CosmWasm Counter spike)",
     "  proof-forge --emit-counter-ir-aptos [-o output-dir]       (Aptos Move Counter spike)",
     "",
-    "EVM bytecode mode reads <contract>.evm-methods by default and uses Foundry `cast sig` plus `solc --strict-assembly`.",
+    "EVM bytecode mode loads `spec : ContractSpec` from the Lean module and uses Foundry `cast sig` plus `solc --strict-assembly`.",
     "`--evm-chain-profile <id>` records deployment profile metadata in the EVM deploy manifest without broadcasting transactions.",
     "`--evm-constructor-param name:type` records static-word constructor ABI schema metadata for an ABI-encoded constructor args blob.",
     "`--evm-constructor-arg name=value` ABI-encodes one typed constructor value using the declared constructor schema.",
@@ -599,33 +595,6 @@ def lowerHexString (s : String) : String :=
     | 'F' => "f"
     | _ => ch.toString
 
-def parseReturnsValue (s : String) : Except String Bool :=
-  match s with
-  | "view" | "pure" | "return" | "returns" | "true" => .ok true
-  | "update" | "void" | "false" => .ok false
-  | _ => .error s!"unknown method return mode '{s}', expected view or update"
-
-/-- Parse `selector:fnName:argCount:view|update`.
-
-`fnName` is the generated Yul function name, for example `f_Counter_get`.
-The build scripts accept `.evm-methods` sidecars and convert exported Lean
-symbols such as `l_Counter_get` to this form.
--/
-def parseMethodSpec (s : String) : Except String MethodSpec := do
-  match s.splitOn ":" with
-  | [selector, fnName, argCount, returnMode] =>
-      let some argc := argCount.toNat?
-        | .error s!"invalid method arg count '{argCount}'"
-      let returnsValue ← parseReturnsValue returnMode
-      .ok {
-        selector := stripHexPrefix selector
-        fnName := fnName
-        argCount := argc
-        returnsValue := returnsValue
-      }
-  | _ =>
-      .error s!"invalid method spec '{s}'\n{usage}"
-
 def leanBaseName (input : FilePath) : String :=
   let fileName := input.fileName.getD input.toString
   if fileName.endsWith ".lean" then
@@ -639,61 +608,8 @@ def siblingPath (input : FilePath) (fileName : String) : FilePath :=
   | some parent => parent / child
   | none => child
 
-def defaultMethodsFile (input : FilePath) : FilePath :=
-  siblingPath input s!"{leanBaseName input}.evm-methods"
-
 def defaultYulOutput (input : FilePath) : FilePath :=
   siblingPath input s!".{leanBaseName input}.yul"
-
-def methodArgCount (sig : String) : Except String Nat := do
-  match sig.splitOn "(" with
-  | [_name, rest] =>
-      if !rest.endsWith ")" then
-        .error s!"invalid method signature '{sig}'"
-      else
-        let args := trimAsciiString (dropEndString rest 1)
-        if args.isEmpty then
-          .ok 0
-        else
-          .ok (args.splitOn ",").length
-  | _ =>
-      .error s!"invalid method signature '{sig}'"
-
-def yulFunctionName (symbol : String) : String :=
-  let name :=
-    if symbol.startsWith "l_" then
-      (symbol.drop 2).toString
-    else
-      symbol
-  s!"f_{name}"
-
-def parseMethodTarget (target : String) : Except String (String × Bool) := do
-  match (trimAsciiString target).splitOn "[" with
-  | [symbol] =>
-      .ok (trimAsciiString symbol, false)
-  | [symbol, modeWithBracket] =>
-      if !modeWithBracket.endsWith "]" then
-        .error s!"invalid method target '{target}'"
-      else
-        let mode := trimAsciiString (dropEndString modeWithBracket 1)
-        let returnsValue ← parseReturnsValue mode
-        .ok (trimAsciiString symbol, returnsValue)
-  | _ =>
-      .error s!"invalid method target '{target}'"
-
-def parseMethodsLine (line : String) : Except String (Option (String × String × Bool × Nat)) := do
-  let line := trimAsciiString line
-  if line.isEmpty || line.startsWith "#" then
-    .ok none
-  else
-    match line.splitOn "=" with
-    | [sig, target] =>
-        let sig := trimAsciiString sig
-        let (symbol, returnsValue) ← parseMethodTarget target
-        let argc ← methodArgCount sig
-        .ok (some (sig, yulFunctionName symbol, returnsValue, argc))
-    | _ =>
-        .error s!"invalid .evm-methods line '{line}', expected signature=symbol[view|update]"
 
 def isHexChar (c : Char) : Bool :=
   c.isDigit || "abcdefABCDEF".contains c
@@ -940,27 +856,6 @@ def selectorFor (cast : String) (sig : String) : IO String := do
   if selector.length != 8 || !isHexString selector then
     throw <| IO.userError s!"cast returned invalid selector for {sig}: {trimAsciiString stdout}"
   return selector
-
-def readMethodsFile (cast : String) (path : FilePath) : IO (Array MethodSpec) := do
-  if !(← path.pathExists) then
-    throw <| IO.userError s!"methods file not found: {path}"
-  let contents ← IO.FS.readFile path
-  let mut methods := #[]
-  for line in contents.splitOn "\n" do
-    match parseMethodsLine line with
-    | .ok none => pure ()
-    | .ok (some (sig, fnName, returnsValue, argCount)) =>
-        let selector ← selectorFor cast sig
-        methods := methods.push {
-          selector := selector
-          fnName := fnName
-          argCount := argCount
-          signature? := some sig
-          returnsValue := returnsValue
-        }
-    | .error msg =>
-        throw <| IO.userError s!"{path}: {msg}"
-  return methods
 
 def solcBytecode (solc : String) (yulFile : FilePath) : IO String := do
   let stdout ← runProcess solc #["--strict-assembly", yulFile.toString, "--bin"]
@@ -1472,15 +1367,6 @@ def eventAbisForModule (cast : String) (module : ProofForge.IR.Module) : IO (Arr
       eventAbisInStatements cast module (ProofForge.Backend.Evm.IR.entrypointTypeEnv entrypoint) entrypoint.body
     events ← liftExceptString <| mergeEventAbis events entrypointEvents
   return events
-
-def methodSpecJson (method : MethodSpec) : String :=
-  jsonObject #[
-    ("selector", jsonString method.selector),
-    ("signature", jsonStringOption method.signature?),
-    ("fnName", jsonString method.fnName),
-    ("argCount", toString method.argCount),
-    ("returnsValue", jsonBool method.returnsValue)
-  ]
 
 def constructorParamJson (param : ConstructorParamSpec) : String :=
   jsonObject #[
@@ -2082,24 +1968,6 @@ def writeEvmLearnArtifactMetadata
     yulOutput
     bytecodeOutput
 
-def writeEvmSdkArtifactMetadata
-    (opts : CliOptions)
-    (sourceModule : String)
-    (input yulOutput bytecodeOutput : FilePath)
-    (methods : Array MethodSpec) : IO Unit :=
-  writeEvmArtifactMetadata
-    opts
-    (input.fileName.getD input.toString)
-    "lean-sdk"
-    sourceModule
-    #[]
-    #[]
-    #[]
-    (methods.map methodSpecJson)
-    (some input)
-    yulOutput
-    bytecodeOutput
-
 partial def parseArgs : List String → CliOptions → Except String CliOptions
   | [], opts =>
       let hasRunnableInput := opts.input?.isSome || opts.mode.hasBuiltInFixture
@@ -2129,11 +1997,6 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with root? := some (FilePath.mk root) }
   | "--module" :: modName :: rest, opts =>
       parseArgs rest { opts with moduleName? := some (parseModuleName modName) }
-  | "--method" :: method :: rest, opts => do
-      let spec ← parseMethodSpec method
-      parseArgs rest { opts with methods := opts.methods.push spec }
-  | "--methods-file" :: path :: rest, opts =>
-      parseArgs rest { opts with methodsFile? := some (FilePath.mk path) }
   | "--yul-output" :: path :: rest, opts =>
       parseArgs rest { opts with yulOutput? := some (FilePath.mk path) }
   | "--artifact-output" :: path :: rest, opts =>
@@ -2446,7 +2309,6 @@ structure NewCommandParseState where
   evmConstructorValues : Array ConstructorValueSpec := #[]
   evmConstructorArgsHex : String := ""
   solanaSbpfArch? : Option String := none
-  methodsFile? : Option String := none
   token : Bool := false
   input? : Option String := none
   legacyPrefix : List String := []
@@ -2516,9 +2378,6 @@ partial def parseNewOptions : List String → NewCommandParseState → Except St
         parseNewOptions rest { state with solanaSbpfArch? := some arch }
       else
         .error s!"invalid --solana-sbpf-arch '{arch}', expected v0 or v3"
-  | "--methods-file" :: rest, state => do
-      let (path, rest) ← takeOption rest "--methods-file"
-      parseNewOptions rest { state with methodsFile? := some path }
   | "--token" :: rest, state =>
       parseNewOptions rest { state with token := true }
   | arg :: rest, state =>
@@ -2650,7 +2509,6 @@ def newCommandArgsToLegacy (args : List String) : Except String (List String) :=
       if let some yul := state.yulOut? then legacy := legacy ++ ["--yul-output", yul]
       if let some artifact := state.artifactOut? then legacy := legacy ++ ["--artifact-output", artifact]
       if let some profile := state.evmChainProfile? then legacy := legacy ++ ["--evm-chain-profile", profile]
-      if let some methods := state.methodsFile? then legacy := legacy ++ ["--methods-file", methods]
       for param in state.evmConstructorParams do
         legacy := legacy ++ ["--evm-constructor-param", s!"{param.name}:{param.abiType}"]
       for value in state.evmConstructorValues do
@@ -2739,15 +2597,6 @@ unsafe def checkCommand (opts : CliOptions) : IO UInt32 := do
       IO.eprintln s!"warning: required tool '{tool}' not found on PATH for target '{targetId}'"
   IO.println "check: ok"
   return 0
-
-def resolveMethods (opts : CliOptions) (input : FilePath) : IO (Array MethodSpec) := do
-  if !opts.methods.isEmpty then
-    return opts.methods
-  else if opts.mode == .evmBytecode then
-    let methodsFile := opts.methodsFile?.getD (defaultMethodsFile input)
-    readMethodsFile opts.cast methodsFile
-  else
-    return #[]
 
 def writeTextFile (path : FilePath) (contents : String) : IO Unit := do
   if let some parent := path.parent then
@@ -2927,47 +2776,6 @@ def compileErrorRefEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opt
 def compileContextEmitWat  (opts : CliOptions) : IO UInt32 := compileEmitWat opts "context" ProofForge.IR.Examples.ContextProbe.module
 def compileHashEmitWat     (opts : CliOptions) : IO UInt32 := compileEmitWat opts "hash" ProofForge.IR.Examples.HashProbe.module
 def compileMapEmitWat      (opts : CliOptions) : IO UInt32 := compileEmitWat opts "map" ProofForge.IR.Examples.MapProbe.emitWatModule
-
-unsafe def emitYulFile (opts : CliOptions) (input output : FilePath) (methods : Array MethodSpec) : IO Unit := do
-  enableInitializersExecution
-  initSearchPath (← findSysroot "lean")
-  let source ← IO.FS.readFile input
-  let modName ← match opts.moduleName? with
-    | some name => pure name
-    | none => moduleNameOfFileName input opts.root?
-  let frontendOpts := Elab.async.set {} false
-  let env? ← Elab.runFrontend
-    source
-    frontendOpts
-    input.toString
-    modName
-    (trustLevel := 0)
-    (oleanFileName? := none)
-    (ileanFileName? := none)
-    (jsonOutput := false)
-    (errorOnKinds := #[])
-    (plugins := #[])
-    (printStats := false)
-    (setup? := none)
-  let some env := env?
-    | throw <| IO.userError "frontend failed"
-  let emit := if methods.isEmpty then
-    Lean.Compiler.LCNF.EmitYul.emitYul modName
-  else
-    Lean.Compiler.LCNF.EmitYul.emitYulContract modName methods
-  let yul ← emit
-    |>.toIO' { fileName := input.toString, fileMap := default } { env := env }
-  writeTextFile output yul
-
-unsafe def compileYul (opts : CliOptions) : IO UInt32 := do
-  let some input := opts.input?
-    | IO.eprintln usage
-      return 1
-  let methods ← resolveMethods opts input
-  let output := opts.output?.getD (input.withExtension "yul")
-  emitYulFile opts input output methods
-  IO.println s!"wrote {output}"
-  return 0
 
 def compileCounterIrYul (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/ir/Counter.yul")
@@ -3369,6 +3177,36 @@ def renderLearnEvmYul (opts : CliOptions) (spec : ProofForge.Contract.ContractSp
   match ProofForge.Backend.Evm.IR.renderModule module with
   | .ok yul => return (yul, module)
   | .error err => throw <| IO.userError err.render
+
+def renderContractSourceEvmYul (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) :
+    IO (String × ProofForge.IR.Module) :=
+  renderLearnEvmYul opts spec
+
+unsafe def compileContractSourceEvmBytecode (opts : CliOptions) : IO UInt32 := do
+  let some input := opts.input?
+    | IO.eprintln usage
+      return 1
+  let spec ← ProofForge.Cli.ContractLoader.loadSpec input opts.root? opts.moduleName?
+  let yulOutput := opts.yulOutput?.getD (defaultYulOutput input)
+  let (yul, module) ← renderContractSourceEvmYul opts spec
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (input.withExtension "bin")
+  writeTextFile output (bytecode ++ "\n")
+  writeEvmContractSdkArtifactMetadata opts (leanBaseName input) spec.name module yulOutput output
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
+unsafe def compileContractSourceYul (opts : CliOptions) : IO UInt32 := do
+  let some input := opts.input?
+    | IO.eprintln usage
+      return 1
+  let spec ← ProofForge.Cli.ContractLoader.loadSpec input opts.root? opts.moduleName?
+  let output := opts.output?.getD (defaultYulOutput input)
+  let (yul, _module) ← renderContractSourceEvmYul opts spec
+  writeTextFile output yul
+  IO.println s!"wrote {output}"
+  return 0
 
 def compileLearnYul (opts : CliOptions) : IO UInt32 := do
   let (_input, spec) ← parseLearnInput opts "--learn-yul"
@@ -5139,29 +4977,12 @@ def compileCounterIrAptos (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.message
 
-unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
-  let some input := opts.input?
-    | IO.eprintln usage
-      return 1
-  let methods ← resolveMethods opts input
-  if methods.isEmpty then
-    throw <| IO.userError "EVM bytecode mode requires at least one method"
-  let yulOutput := opts.yulOutput?.getD (defaultYulOutput input)
-  emitYulFile opts input yulOutput methods
-  let bytecode ← solcBytecode opts.solc yulOutput
-  let output := opts.output?.getD (input.withExtension "bin")
-  writeTextFile output (bytecode ++ "\n")
-  let sourceModule :=
-    match opts.moduleName? with
-    | some name => toString name
-    | none => leanBaseName input
-  writeEvmSdkArtifactMetadata opts sourceModule input yulOutput output methods
-  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
-  return 0
+unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 :=
+  compileContractSourceEvmBytecode opts
 
 unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   match opts.mode with
-  | .yul => compileYul opts
+  | .yul => compileContractSourceYul opts
   | .evmBytecode => compileEvmBytecode opts
   | .counterIrYul => compileCounterIrYul opts
   | .counterIrTs => compileCounterIrTs opts

@@ -222,7 +222,7 @@ def validate_chain_profile(manifest: dict, run: dict, expected_profile: str | No
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
-    parser.add_argument("--expect-fixture", default="Counter.lean")
+    parser.add_argument("--expect-fixture", default="Counter")
     parser.add_argument("--expect-chain-id", type=int, default=31337)
     parser.add_argument("--expect-chain-profile")
     parser.add_argument("--expect-contract-name", default="Counter")
@@ -280,10 +280,10 @@ def main() -> int:
         expect_object(run.get("creationTransaction"), "creationTransaction"),
         "creationTransaction",
     )
-    set_receipt_path = file_entry(
+    initialize_receipt_path = file_entry(
         root,
-        expect_object(run.get("setReceipt"), "setReceipt"),
-        "setReceipt",
+        expect_object(run.get("initializeReceipt"), "initializeReceipt"),
+        "initializeReceipt",
     )
 
     manifest_inputs = expect_object(manifest.get("inputs"), "deploy manifest inputs")
@@ -339,8 +339,8 @@ def main() -> int:
     tx_input = creation_tx.get("input", creation_tx.get("data"))
     expect(normalize_hex(expect_string(tx_input, "creation transaction.input"), "creation transaction.input") == init_hex, "creation transaction.input must match initCode")
 
-    set_receipt = expect_object(json.loads(set_receipt_path.read_text()), "set receipt")
-    expect(set_receipt.get("status") == "0x1", "set receipt status must be 0x1")
+    initialize_receipt = expect_object(json.loads(initialize_receipt_path.read_text()), "initialize receipt")
+    expect(initialize_receipt.get("status") == "0x1", "initialize receipt status must be 0x1")
 
     deployed_code = expect_object(run.get("deployedCode"), "deployedCode")
     expect(expect_address(deployed_code.get("address"), "deployedCode.address") == contract_address, "deployedCode.address mismatch")
@@ -350,10 +350,9 @@ def main() -> int:
 
     calls = expect_object(run.get("calls"), "calls")
     expect(calls.get("initialGet") == "0", "calls.initialGet mismatch")
-    expect(calls.get("setValue") == "99", "calls.setValue mismatch")
-    expect(calls.get("afterSetGet") == "99", "calls.afterSetGet mismatch")
-    expect(calls.get("afterIncrementGet") == "100", "calls.afterIncrementGet mismatch")
-    expect(calls.get("afterDecrementGet") == "99", "calls.afterDecrementGet mismatch")
+    expect(calls.get("afterInitializeGet") == "0", "calls.afterInitializeGet mismatch")
+    expect(calls.get("afterIncrementGet") == "1", "calls.afterIncrementGet mismatch")
+    expect(calls.get("afterSecondIncrementGet") == "2", "calls.afterSecondIncrementGet mismatch")
 
     validation = expect_object(run.get("validation"), "validation")
     for key in (

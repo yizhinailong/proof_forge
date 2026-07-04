@@ -73,30 +73,26 @@ contract ProofForgeSmokeTest {
     }
 
     function assertCounterLifecycle(address counter) internal {
+        (bool initOk,) = counter.call(abi.encodeWithSignature("initialize()"));
+        assertTrue(initOk);
+
         (bool ok0, bytes memory r0) = counter.call(abi.encodeWithSignature("get()"));
         assertTrue(ok0);
         assertEq(abi.decode(r0, (uint256)), 0);
 
-        (bool ok1,) = counter.call(abi.encodeWithSignature("set(uint256)", uint256(42)));
+        (bool ok1,) = counter.call(abi.encodeWithSignature("increment()"));
         assertTrue(ok1);
 
         (bool ok2, bytes memory r2) = counter.call(abi.encodeWithSignature("get()"));
         assertTrue(ok2);
-        assertEq(abi.decode(r2, (uint256)), 42);
+        assertEq(abi.decode(r2, (uint256)), 1);
 
         (bool ok3,) = counter.call(abi.encodeWithSignature("increment()"));
         assertTrue(ok3);
 
         (bool ok4, bytes memory r4) = counter.call(abi.encodeWithSignature("get()"));
         assertTrue(ok4);
-        assertEq(abi.decode(r4, (uint256)), 43);
-
-        (bool ok5,) = counter.call(abi.encodeWithSignature("decrement()"));
-        assertTrue(ok5);
-
-        (bool ok6, bytes memory r6) = counter.call(abi.encodeWithSignature("get()"));
-        assertTrue(ok6);
-        assertEq(abi.decode(r6, (uint256)), 42);
+        assertEq(abi.decode(r4, (uint256)), 2);
     }
 
     function testCounterLifecycle() public {
