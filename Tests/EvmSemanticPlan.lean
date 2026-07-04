@@ -6,6 +6,7 @@ namespace ProofForge.Tests.EvmSemanticPlan
 
 open ProofForge.IR
 open ProofForge.Backend.Evm.IR
+open ProofForge.Backend.Evm.Plan
 
 def require (condition : Bool) (message : String) : IO Unit :=
   if condition then
@@ -16,6 +17,11 @@ def require (condition : Bool) (message : String) : IO Unit :=
 def requireSome {α : Type} (value : Option α) (message : String) : IO α :=
   match value with
   | some x => pure x
+  | none => throw <| IO.userError message
+
+def requireAt {α : Type} (values : Array α) (index : Nat) (message : String) : IO α :=
+  match values[index]? with
+  | some value => pure value
   | none => throw <| IO.userError message
 
 def requireOk {α : Type} (result : Except LowerError α) (message : String) : IO α :=
@@ -33,11 +39,37 @@ def testCounterSemanticPlan : IO Unit := do
   require (init.selector == "8129fc1c") "counter plan initialize selector"
   require (init.params.size == 0) "counter plan initialize params"
   require (init.returns.returnType == .unit) "counter plan initialize returns unit"
+  require (init.body.size == 1) "counter plan initialize body size"
+  match ← requireAt init.body 0 "counter plan initialize missing body" with
+  | .effect (.storageScalarWrite stateId (.literalWord value)) => do
+      require (stateId == "count") "counter plan initialize storage write state"
+      require (value == 0) "counter plan initialize storage write value"
+  | _ => throw <| IO.userError "counter plan initialize body must be storage scalar write"
+  let inc := plan.entrypoints[1]!
+  require (inc.name == "increment") "counter plan increment name"
+  require (inc.body.size == 2) "counter plan increment body size"
+  match ← requireAt inc.body 0 "counter plan increment missing first statement" with
+  | .letBind name type (.effect (.storageScalarRead stateId)) => do
+      require (name == "n") "counter plan increment let name"
+      require (type == .u64) "counter plan increment let type"
+      require (stateId == "count") "counter plan increment read state"
+  | _ => throw <| IO.userError "counter plan increment first statement must read count"
+  match ← requireAt inc.body 1 "counter plan increment missing second statement" with
+  | .effect (.storageScalarWrite stateId (.checkedArith .add (.local name) (.literalWord value))) => do
+      require (stateId == "count") "counter plan increment write state"
+      require (name == "n") "counter plan increment add lhs"
+      require (value == 1) "counter plan increment add rhs"
+  | _ => throw <| IO.userError "counter plan increment second statement must write checked add"
   let get := plan.entrypoints[2]!
   require (get.name == "get") "counter plan get name"
   require (get.selector == "6d4ce63c") "counter plan get selector"
   require (get.returns.returnType == .u64) "counter plan get returns u64"
   require (get.returns.wordTypes == #[.u64]) "counter plan get return words"
+  require (get.body.size == 1) "counter plan get body size"
+  match ← requireAt get.body 0 "counter plan get missing body" with
+  | .return (.effect (.storageScalarRead stateId)) =>
+      require (stateId == "count") "counter plan get return read state"
+  | _ => throw <| IO.userError "counter plan get body must return storage scalar read"
   let storageCount ← requireSome (plan.storage.find? "count") "counter plan missing count storage"
   require (storageCount.slot == 0) "counter plan count slot"
   require (storageCount.span == 1) "counter plan count span"

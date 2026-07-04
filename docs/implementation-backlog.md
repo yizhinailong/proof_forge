@@ -265,9 +265,10 @@ Tasks:
     field slots. `IR.lean` now routes storage array and struct-array field slot
     lowering through the plan-to-Yul boundary while keeping compatibility
     facade functions for existing callers.
-  - Add `ExprPlan` and `StmtPlan` so expression and statement validation,
-    helper discovery, and target-specific lowering happen before Yul AST
-    assembly.
+  - Started: `Lower.buildEntrypointPlan` now fills `EntrypointPlan.body` with
+    structural `ExprPlan`/`StmtPlan` nodes for the entrypoint IR body, while
+    `IR.lean` remains the compatibility Yul assembly facade. Next migrate
+    selected Yul assembly paths to consume these plan nodes directly.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

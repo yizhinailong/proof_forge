@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Entrypoint Body Semantic Plans
+
+Commit: this commit
+
+Summary:
+
+- Added structural IR-to-`ExprPlan` / `StmtPlan` lowering in
+  `ProofForge.Backend.Evm.Lower`.
+- `Lower.buildEntrypointPlan` now validates and stores each entrypoint body in
+  `EntrypointPlan.body` instead of leaving the body empty.
+- Extended `Tests/EvmSemanticPlan.lean` to lock Counter's planned
+  `initialize`, `increment`, and `get` bodies, including storage scalar
+  effects and checked addition.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower
+just evm-plan
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- Final Yul AST assembly still runs through the compatibility lowering in
+  `IR.lean`; this slice only makes the semantic plan carry the structured body
+  needed for the next migration step.
+- Storage path segments are still carried in their portable IR form inside
+  `EffectPlan.storagePath*` nodes.
+
+Next step:
+
+- Move a narrow expression or statement assembly path from `IR.lean` to consume
+  the new `ExprPlan` / `StmtPlan` nodes directly, with golden Yul and Foundry
+  smokes proving behavior is unchanged.
+
 ### EVM Storage Slot Plan Array Coverage
 
 Commit: this commit

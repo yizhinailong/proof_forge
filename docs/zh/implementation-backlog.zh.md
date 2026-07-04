@@ -179,7 +179,7 @@
   - 将 `ProofForge.Backend.Evm.IR` 拆分为 `Validate`、`Lower`、`ToYul` 和 `Metadata` 模块，同时保留 `IR.lean` 作为兼容性外观，直到调用方完成迁移。
   - 已完成：将标量和映射存储槽的 Yul 构建移动到 `StorageSlotPlan -> ToYul`，从存储路径使用的映射值/存在槽开始。
   - 已完成：将 `StorageSlotPlan -> ToYul` 扩展到数组槽和结构体数组字段槽。`IR.lean` 现在通过 plan-to-Yul 边界路由存储数组和结构体数组字段槽降级，同时为现有调用方保留兼容性外观函数。
-  - 添加 `ExprPlan` 和 `StmtPlan`，使表达式和语句验证、helper 发现以及目标特定降级在 Yul AST 组装之前进行。
+  - 已开始：`Lower.buildEntrypointPlan` 现在会用结构化 `ExprPlan`/`StmtPlan` 节点填充 `EntrypointPlan.body`，表示入口 IR 主体，同时 `IR.lean` 仍作为兼容性 Yul 组装外观保留。下一步将选择部分 Yul 组装路径迁移为直接消费这些 plan 节点。
   - 为选择器分发、calldata 守卫、ABI 字打平、返回数据编码和制品元数据选择器布局添加 `EntrypointPlan`。
   - 为事件签名 topic、索引 topic 哈希、非索引数据打平以及制品元数据事件布局添加 `EventPlan`。
   - 为类型化的 `call`、带值的 `call`、`staticcall`、`delegatecall`、`create` 和 `create2` helper 添加 `CrosscallPlan`。
