@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM EventPlan Core Block To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.eventEmitCoreStatement` to assemble the final event Yul block
+  from an `EventPlan`, already-lowered indexed-topic statements, and
+  non-indexed data words.
+- Moved signature topic setup, indexed-topic statement placement, data-word
+  `mstore` placement, and final `log1`-`log4` selection behind that helper.
+- Kept event field expression evaluation, aggregate flattening, and indexed
+  aggregate topic word derivation in the `IR.lean` compatibility facade.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+  integrated `lowerEventEmitCoreStmt` path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/event-ir-smoke.sh
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Field expression evaluation and aggregate/event-field flattening still live
+  in the compatibility facade.
+- The helper starts from pre-lowered indexed-topic statements and data words;
+  full event lowering is not yet a pure `EventPlan -> Yul` path.
+
+Next step:
+
+- Move event data-word and indexed-topic expression lowering fully behind
+  `EventPlan -> Yul`, or continue with `EntrypointPlan` / `CrosscallPlan`
+  extraction.
+
 ### EVM Scalar Control Flow StmtPlan-To-Yul Slice
 
 Commit: this commit

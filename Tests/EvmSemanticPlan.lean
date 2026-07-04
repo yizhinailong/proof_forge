@@ -597,6 +597,31 @@ def testScalarControlFlowPlanToYul : IO Unit := do
 
 def testScalarEventPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
+  let directEvent := ProofForge.Backend.Evm.Plan.EventPlan.mk
+    "PlanIndexed"
+    "PlanIndexed(uint64,uint64)"
+    #[
+      ProofForge.Backend.Evm.Plan.EventFieldPlan.mk "key" .u64 true,
+      ProofForge.Backend.Evm.Plan.EventFieldPlan.mk "value" .u64 false
+    ]
+  let directStmt ← requireOk
+    (ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement
+      toYulError
+      directEvent
+      #[Lean.Compiler.Yul.Statement.varDecl
+        #[{ name := "_indexed_topic0" }]
+        (some (Lean.Compiler.Yul.Expr.num 5))]
+      #[Lean.Compiler.Yul.Expr.num 9])
+    "event EventPlan-to-Yul core helper"
+  match directStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size >= 4) "event EventPlan-to-Yul core helper statement count"
+      match block.statements[block.statements.size - 1]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+          require (name == "log2") "event EventPlan-to-Yul core helper log builtin"
+          require (args.size == 4) "event EventPlan-to-Yul core helper log arg count"
+      | _ => throw <| IO.userError "event EventPlan-to-Yul core helper must end with log statement"
+  | _ => throw <| IO.userError "event EventPlan-to-Yul core helper must lower to block"
   let dataStmt ← requireOk
     (lowerEventEmitCoreStmt
       ProofForge.IR.Examples.EventProbe.evmModule

@@ -158,6 +158,19 @@ def eventLogStatement
     logArgs := logArgs.push (Lean.Compiler.Yul.Expr.id (eventIndexedTopicName idx))
   .ok (.exprStmt (Lean.Compiler.Yul.builtin (← eventLogBuiltinName mkError indexedFieldCount) logArgs))
 
+def eventEmitCoreStatement
+    {ε : Type}
+    (mkError : String → ε)
+    (event : EventPlan)
+    (indexedTopicStatements : Array Lean.Compiler.Yul.Statement)
+    (dataWords : Array Lean.Compiler.Yul.Expr) :
+    Except ε Lean.Compiler.Yul.Statement := do
+  let mut statements := eventSignatureTopicStatements event
+  statements := statements ++ indexedTopicStatements
+  statements := statements ++ eventDataStoreStatements dataWords
+  statements := statements.push (← eventLogStatement mkError event dataWords.size)
+  .ok (.block { statements := statements })
+
 def lowerValuePlan
     {ε : Type}
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr) :

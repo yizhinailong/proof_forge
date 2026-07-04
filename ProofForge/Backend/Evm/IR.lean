@@ -3290,21 +3290,24 @@ def lowerEventEmitCoreStmt
     | .error err => .error { message := err.message }
   let indexedFieldPlans := eventPlan.indexedFields
   let dataFieldPlans := eventPlan.dataFields
-  let mut statements := ProofForge.Backend.Evm.ToYul.eventSignatureTopicStatements eventPlan
+  let mut indexedTopicStatements : Array Lean.Compiler.Yul.Statement := #[]
   for h : idx in [0:indexedFields.size] do
     let field := indexedFields[idx]
     let some fieldPlan := indexedFieldPlans[idx]?
       | .error { message := s!"event `{name}` missing indexed field plan at index {idx}" }
-    statements := statements ++ (← lowerIndexedEventTopicStatements module env name field.fst idx fieldPlan field.snd)
+    indexedTopicStatements := indexedTopicStatements ++
+      (← lowerIndexedEventTopicStatements module env name field.fst idx fieldPlan field.snd)
   let mut dataWords : Array Lean.Compiler.Yul.Expr := #[]
   for h : idx in [0:dataFields.size] do
     let field := dataFields[idx]
     let some fieldPlan := dataFieldPlans[idx]?
       | .error { message := s!"event `{name}` missing data field plan at index {idx}" }
     dataWords := dataWords ++ (← lowerEventDataWords module env name field.fst fieldPlan.type field.snd)
-  statements := statements ++ ProofForge.Backend.Evm.ToYul.eventDataStoreStatements dataWords
-  statements := statements.push (← ProofForge.Backend.Evm.ToYul.eventLogStatement toYulError eventPlan dataWords.size)
-  .ok (.block { statements := statements })
+  ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement
+    toYulError
+    eventPlan
+    indexedTopicStatements
+    dataWords
 
 def lowerEventEmitStmt
     (module : Module)

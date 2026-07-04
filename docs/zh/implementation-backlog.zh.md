@@ -193,7 +193,7 @@
   - 已开始：statement 位置的 `storagePathWrite` 和 `storagePathAssignOp` 组装现在会在 direct `mapKey`、`index`、`field`、`index`+`field` 以及连续嵌套 `mapKey` 路径中，对受支持的标量写入/复合赋值 RHS value 消费窄 `StmtPlan.effect` / `EffectPlan -> ToYul` helper。路径 slot 计算和路径形状诊断仍留在 `IR.lean` 兼容外观中；下一步 storage-path 抽取切片是更深的 slot/path planning，而不是最终 Yul statement 组装。
   - 已开始：标量 `ifElse` 和 `boundedFor` 的 control-flow frame 组装现在会消费窄 `StmtPlan -> ToYul` helper。if 条件和合成的 bounded-loop 守卫会消费 `ExprPlan -> ToYul`；分支/循环 body 降级以及语句排序仍留在 `IR.lean` 兼容外观中，直到递归的 `StmtPlan -> Yul` body 降级被抽出。
   - 已开始：标量事件数据字和标量索引事件 topic 现在也会消费同一个 `ExprPlan -> ToYul` 表达式边界。聚合事件打平和索引聚合 topic 哈希仍留在兼容外观中，直到事件组装被抽到 `EventPlan -> Yul` 后面。
-  - 已开始：事件签名 topic 构造以及最终 `log1`-`log4` 语句选择现在会消费 `EventPlan -> ToYul` helper。事件字段值求值仍使用兼容外观，直到数据字和索引 topic 表达式组装完整移动到 `EventPlan -> Yul` 后面。
+  - 已开始：最终事件 block 组装现在会消费 `EventPlan -> ToYul` helper，用于签名 topic 设置、索引 topic 语句、非索引数据存储，以及最终 `log1`-`log4` 语句选择。事件字段值求值仍使用兼容外观，直到数据字和索引 topic 表达式组装完整移动到 `EventPlan -> Yul` 后面。
   - 已开始：事件数据字存储组装以及标量/聚合索引 topic 组装现在会消费 `EventFieldPlan -> ToYul` helper。字段表达式求值和聚合打平仍使用兼容外观，直到完整事件降级路径表达为 `EventPlan`。
   - 为选择器分发、calldata 守卫、ABI 字打平、返回数据编码和制品元数据选择器布局添加 `EntrypointPlan`。
   - 为事件签名 topic、索引 topic 哈希、非索引数据打平以及制品元数据事件布局添加 `EventPlan`。
