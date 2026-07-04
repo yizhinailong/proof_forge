@@ -2145,6 +2145,71 @@ def lowerToken2022InitializeNonTransferableMintData : Array AstNode :=
     storeImm .stb .r8 0 32
   ]
 
+/-- Initialize metadata pointer: u8 instruction=39, pubkey metadata_program_id, pubkey metadata_account. -/
+def lowerToken2022InitializeMetadataPointerData (accountBindings : Array CpiAccountBinding)
+    (cpi : CpiInvoke) : Array AstNode :=
+  #[
+    .comment "solana.cpi.data token-2022.initialize_metadata_pointer: u8 instruction=39, pubkey metadata_program_id, pubkey metadata_account"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 39
+  ] ++
+  lowerCpiOwnerField accountBindings cpi 1
+
+/-- Initialize default account state: u8 instruction=38, u8 state (0=unfrozen, 1=frozen).
+    The state value comes from `solana.cpi.default_account_state` metadata as a
+    literal string (0 or 1). -/
+def lowerToken2022InitializeDefaultAccountStateData (cpi : CpiInvoke) : Array AstNode :=
+  let stateVal := match cpiMetadataValue? cpi "solana.cpi.default_account_state" with
+    | some "1" => 1
+    | _ => 0
+  #[
+    .comment s!"solana.cpi.data token-2022.initialize_default_account_state: u8 instruction=38, u8 state={stateVal}"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 38,
+    storeImm .stb .r8 1 stateVal
+  ]
+
+/-- Initialize immutable owner: u8 instruction=37 (discriminator only, no extra data). -/
+def lowerToken2022InitializeImmutableOwnerData : Array AstNode :=
+  #[
+    .comment "solana.cpi.data token-2022.initialize_immutable_owner: u8 instruction=37"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 37
+  ]
+
+/-- Memo CPI data: raw bytes from the input binding. No discriminator — the
+    Memo program accepts arbitrary bytes as instruction data. This initial
+    lowering copies up to 8 bytes (one u64 word) from the binding's offset;
+    longer memos require a memcpy loop (future work). The binding's `byteSize`
+    records the memo length for metadata. -/
+def lowerMemoData (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
+  match cpiMetadataValue? cpi "solana.cpi.memo_source" with
+  | some source =>
+      match cpiValueBinding? valueBindings source with
+      | some binding =>
+          let len := binding.byteSize
+          let loadValue :=
+            if binding.relativeToInstructionData then
+              loadSavedInstructionDataPtr .r7 ++ #[
+                .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num binding.absOff) }
+              ]
+            else
+              #[
+                .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num binding.absOff) }
+              ]
+          #[
+            .comment s!"solana.cpi.data memo.memo: raw bytes (len={len}) from {binding.sourceKind} {source}"
+          ] ++ stackPtr .r8 cpiInstructionDataOffset ++ loadValue ++ #[
+            storeReg .stxdw .r8 0 .r3
+          ]
+      | none =>
+          #[.comment s!"memo.memo: source `{source}` not found in bindings — empty data"]
+  | none =>
+      #[.comment "memo.memo: no memo_source metadata — empty data"]
+
 def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
     (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode × Nat :=
   match cpi.dataLayout? with
@@ -2180,9 +2245,34 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
       (lowerToken2022SetTransferFeeData valueBindings cpi, 12)
   | some "token-2022.initialize_non_transferable_mint" =>
       (lowerToken2022InitializeNonTransferableMintData, 1)
-  | _ =>
+  | some "token-2022.initialize_metadata_pointer" =>
+      (lowerToken2022InitializeMetadataPointerData accountBindings cpi, 1)
+  | some "token-2022.initialize_default_account_state" =>
+      (lowerToken2022InitializeDefaultAccountStateData cpi, 2)
+  | some "token-2022.initialize_immutable_owner" =>
+      (lowerToken2022InitializeImmutableOwnerData, 1)
+  | some "memo.memo" =>
+      (lowerMemoData valueBindings cpi, 8)
+  | some dl =>
+      -- Known plan-scaffolded but unlowered Token-2022 extensions: fail at
+      -- runtime with a logged error instead of silently emitting zero-data
+      -- CPI (which would produce a no-op call). These dataLayouts have plan
+      -- metadata in Token.lean but no sBPF instruction-data lowering yet.
+      if dl == "token-2022.initialize_confidential_transfer_mint"
+         ∨ dl == "token-2022.initialize_transfer_hook"
+         ∨ dl == "token-2022.initialize_permanent_delegate"
+         ∨ dl == "token-2022.initialize_interest_bearing_mint"
+         ∨ dl == "token-2022.initialize_memo_transfer" then
+        (#[.comment s!"UNSUPPORTED CPI dataLayout `{dl}`: plan scaffolded but sBPF lowering pending — runtime abort",
+          .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 1) },
+          .instruction { opcode := .exit }], 0)
+      else
+        (#[
+          .comment s!"generic CPI instruction data empty for `{dl}`; protocol-specific ABI packing pending"
+        ], 0)
+  | none =>
       (#[
-        .comment "generic CPI instruction data empty; protocol-specific ABI packing pending"
+        .comment "generic CPI instruction data empty (no dataLayout); protocol-specific ABI packing pending"
       ], 0)
 
 def lowerCpiInstructionRecord (cpi : CpiInvoke) (dataLen : Nat) : Array AstNode :=

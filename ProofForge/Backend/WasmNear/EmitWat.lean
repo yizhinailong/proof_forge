@@ -57,6 +57,8 @@ def wasmTypeOf : ValueType → ValType
 def widthOf : ValueType → String
   | .u32 => "i32" | .u64 => "i64" | .bool => "i32" | .hash => "i32" | _ => "i32"
 def isNumeric (t : ValueType) : Bool := match t with | .u32 | .u64 => true | _ => false
+def isScalarBorshType (t : ValueType) : Bool :=
+  match t with | .u32 | .u64 | .bool | .hash => true | _ => false
 def scalarWidth : ValueType → Nat
   | .u32 => 4 | .u64 => 8 | .bool => 1 | .hash => 32 | _ => 8
 def loadOpFor : ValueType → String
@@ -354,10 +356,13 @@ def inputImport : Import := hostImport "input" #[.i64] #[]
 def panicImport : Import := hostImport "panic" #[.i64, .i64] #[]
 def predecessorImport : Import := hostImport "predecessor_account_id" #[.i64] #[]
 def currentAcctImport : Import := hostImport "current_account_id" #[.i64] #[]
+def signerImport : Import := hostImport "signer_account_id" #[.i64] #[]
+def depositImport : Import := hostImport "attached_deposit" #[] #[.i64]
 def registerLenImport : Import := hostImport "register_len" #[.i64] #[.i64]
 def blockHeightImport : Import := hostImport "block_index" #[] #[.i64]
 def ctxUserIdName : String := "__pf_ctx_user_id"
 def ctxContractIdName : String := "__pf_ctx_contract_id"
+def ctxSignerName : String := "__pf_ctx_signer_id"
 
 def hashPtrGlobalDecl : Global :=
   { name := hashPtrGlobal, type := .i32, init := toString HASH_HEAP, isMutable := true }
@@ -583,7 +588,21 @@ def ctxContractIdFunc : Func :=
       .i64Const 1, .i64Const CTX_BUF, .call "read_register",
       .i32Const CTX_BUF, .load "i64.load" 0 ] } }
 
-def ctxHelperFuncs : Array Func := #[ ctxUserIdFunc, ctxContractIdFunc ]
+/-- Signer account id: sha256(signer_account_id_bytes)[0..8] as u64.
+    Maps to IR `ContextField.origin` (tx.origin equivalent). On NEAR the signer
+    is the account that signed the transaction, distinct from the predecessor
+    (the immediate caller). -/
+def ctxSignerFunc : Func :=
+  { name := ctxSignerName, results := #[.i64], locals := #[{ name := "len", type := .i64 }],
+    body := { insns := #[
+      .i64Const 0, .call "signer_account_id",
+      .i64Const 0, .call "register_len", .localSet "len",
+      .i64Const 0, .i64Const CTX_BUF, .call "read_register",
+      .localGet "len", .i64Const CTX_BUF, .i64Const 1, .call "sha256",
+      .i64Const 1, .i64Const CTX_BUF, .call "read_register",
+      .i32Const CTX_BUF, .load "i64.load" 0 ] } }
+
+def ctxHelperFuncs : Array Func := #[ ctxUserIdFunc, ctxContractIdFunc, ctxSignerFunc ]
 def ctxImports : Array Import := #[ predecessorImport, currentAcctImport, registerLenImport, blockHeightImport ]
 
 -- Event helpers --------------------------------------------------------
@@ -715,6 +734,8 @@ def stringPool (mod : ProofForge.IR.Module) : Array StringInfo :=
     ep.body.foldl (init := acc) fun acc' s =>
       match s with
       | .effect (.eventEmit name fields) => acc' ++ #[name] ++ fields.map (fun (n, _) => n)
+      | .effect (.eventEmitIndexed name indexedFields dataFields) =>
+          acc' ++ #[name] ++ indexedFields.map (fun (n, _) => n) ++ dataFields.map (fun (n, _) => n)
       | _ => acc'
   let unique : Array String := raw.foldl (init := #[]) fun acc s => if acc.contains s then acc else acc.push s
   let result : Array StringInfo × Nat :=
@@ -880,6 +901,8 @@ mutual
     | .effect (.contextRead .userId) => .ok (#[.call ctxUserIdName], .u64)
     | .effect (.contextRead .contractId) => .ok (#[.call ctxContractIdName], .u64)
     | .effect (.contextRead .checkpointId) => .ok (#[.call "block_index"], .u64)
+    | .effect (.contextRead .origin) => .ok (#[.call ctxSignerName], .u64)
+    | .nativeValue => .ok (#[.call "attached_deposit"], .u64)
     | .effect (.storageMapSet id key value) | .effect (.storageMapInsert id key value) =>
       lowerMapWrite ctx env id key value
     | .effect (.storageArrayRead id index) =>
@@ -1439,6 +1462,10 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
               | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
         | _ => err s!"EmitWat: storageArrayStructFieldWrite expects a struct-valued array, got `{m.valueType.name}`"
   | .effect (.eventEmit name fields) => lowerEventEmit ctx env name fields
+  | .effect (.eventEmitIndexed name indexedFields dataFields) =>
+      -- NEAR events are log_utf8 strings; indexed/data distinction is EVM-specific.
+      -- Flatten all fields into a single JSON event log (same as non-indexed).
+      lowerEventEmit ctx env name (indexedFields ++ dataFields)
   | .assert cond _ errorRef? => do
     let (is, t) ← lowerExpr ctx env cond
     if t != .bool then err "EmitWat: assert condition must be Bool"
@@ -1495,10 +1522,16 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
              .localGet indexName, .i64Const 1, .plain "i64.add", .localSet indexName, .br 0 ] } ] } ])
   | _ => err "EmitWat: this statement form is not yet supported"
 
-/-- Build the Borsh input prologue: env.input → INPUT_BUF, then load each
+/-- Build the Borsh input prologue: env.input -> INPUT_BUF, then load each
     param at its cumulative Borsh offset into a local. Entrypoint params have
-    no wasm-level params; they are decoded from input and held in locals. -/
-def loadParams (params : Array (String × ValueType))
+    no wasm-level params; they are decoded from input and held in locals.
+
+    Scalar types (u32/u64/bool) load directly. Hash loads 32 bytes into a
+    param hash slot. Fixed arrays of scalars and flat structs are decoded
+    from Borsh (fields/elements laid out sequentially) into heap-allocated
+    memory, with the local holding an i32 pointer. -/
+def loadParams (structs : Array ProofForge.IR.StructDecl)
+    (params : Array (String × ValueType))
     : Except EmitError (Array Insn × Array Local) := do
   let prologue : Array Insn :=
     #[.i64Const 0, .call "input", .i64Const 0, .i64Const INPUT_BUF, .call "read_register"]
@@ -1514,12 +1547,57 @@ def loadParams (params : Array (String × ValueType))
         let loadInsns := #[.i32Const slot, .i32Const (INPUT_BUF + offset), .i32Const 32, .call memcpyName,
                            .i32Const slot, .localSet name]
         .ok (insns ++ loadInsns, locals.push { name := name, type := wasmTypeOf vt }, offset + 32, hslot + 1)
+      | .fixedArray elemType n =>
+        if !(isScalarBorshType elemType) then
+          err s!"EmitWat: param `{name}` has unsupported fixedArray element type `{elemType.name}` (only scalar elements supported in Borsh params)"
+        else
+          let elemWidth := scalarWidth elemType
+          let totalBytes := n * elemWidth
+          let loadInsns :=
+            #[.i64Const totalBytes, .call arrAllocName, .localSet name] ++
+            (Array.range n).foldl (fun (acc : Array Insn) i =>
+              let srcOff := INPUT_BUF + offset + i * elemWidth
+              let dstOff := i * elemWidth
+              let loadElem :=
+                if elemType == ProofForge.IR.ValueType.hash then
+                  #[.i32Const dstOff, .localGet name, .plain "i32.add",
+                    .i32Const srcOff, .i32Const 32, .call memcpyName]
+                else
+                  #[.i32Const dstOff, .localGet name, .plain "i32.add",
+                    .i32Const srcOff, .load (loadOpFor elemType) 0,
+                    .store (storeOpFor elemType) 0]
+              acc ++ loadElem) #[]
+          .ok (insns ++ loadInsns, locals.push { name := name, type := .i32 }, offset + totalBytes, hslot)
+      | .structType typeName =>
+        match structs.find? (fun s => s.name == typeName) with
+        | none => err s!"EmitWat: param `{name}` references unknown struct `{typeName}`"
+        | some sd =>
+          if !structStorageFieldsSupported sd then
+            err s!"EmitWat: param `{name}` struct `{typeName}` has non-scalar fields (only u32/u64/bool/hash supported in Borsh params)"
+          else
+            let totalBytes := structTotalSize sd
+            let loadInsns :=
+              #[.i64Const totalBytes, .call arrAllocName, .localSet name] ++
+              sd.fields.foldl (fun (acc : Array Insn) f =>
+                let fieldOff := structFieldOffset? sd f.id |>.getD 0
+                let srcOff := INPUT_BUF + offset + fieldOff
+                let dstOff := fieldOff
+                let loadField :=
+                  if f.type == ProofForge.IR.ValueType.hash then
+                    #[.i32Const dstOff, .localGet name, .plain "i32.add",
+                      .i32Const srcOff, .i32Const 32, .call memcpyName]
+                  else
+                    #[.i32Const dstOff, .localGet name, .plain "i32.add",
+                      .i32Const srcOff, .load (loadOpFor f.type) 0,
+                      .store (storeOpFor f.type) 0]
+                acc ++ loadField) #[]
+          .ok (insns ++ loadInsns, locals.push { name := name, type := .i32 }, offset + totalBytes, hslot)
       | _ => err s!"EmitWat: param `{name}` has unsupported Borsh type `{vt.name}`"
   pure (result.fst, result.snd.fst)
 
 def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
   let bodyLocals ← collectLocals ep.body
-  let (paramPrologue, paramLocals) ← loadParams ep.params
+  let (paramPrologue, paramLocals) ← loadParams ctx.structs ep.params
   let allLocalTypes : LocalTypes :=
     (ep.params.map (fun (n, t) => { name := n, vt := t : LBind })) ++ bodyLocals
   let locals := paramLocals ++ bodyLocals.map (fun b => { name := b.name, type := wasmTypeOf b.vt : Local })
@@ -1567,16 +1645,15 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
         memory := some { min := 1 },
         dataSegments := scalarData ++ mapData ++ boolData ++ #[evtKeyData] ++ stringData ++ (if hasPanic then panicData else #[]) }
 
-/-- EmitWat supports the same capability surface as the Rust-v0 `wasmNear` profile:
-    scalars, maps, caller, events, block, hash, assertions, account. Anything the
-    profile rejects (arrays, structs, control flow, crosscall, …) EmitWat also
-    cannot lower — fail fast with a capability error instead of reaching the
-    lowering and reporting an opaque "not yet supported". -/
-/- EmitWat capability surface: the wasmNear profile plus `controlConditional`
-    and `controlBoundedLoop` (if/else + boundedFor are lowered natively in WAT).
-    Arrays / structs / fixed arrays / crosscall stay rejected. -/
+/-! EmitWat supports the same capability surface as the `wasmNear` target profile,
+    plus `controlConditional` and `controlBoundedLoop` (if/else + boundedFor are
+    lowered natively in WAT). This set is intentionally kept in sync with the
+    `wasmNear` profile so that the target-adapter capability gate and EmitWat's
+    own gate reject the same shapes. Aggregate entrypoint params (structs/arrays)
+    and cross-contract calls are NOT in this set; they stay rejected until the
+    profile explicitly opens them. -/
 def emitWatCapabilities : ProofForge.Target.CapabilitySet :=
-  ProofForge.Target.wasmNear.capabilities ++ #[.controlConditional, .controlBoundedLoop, .storageArray, .dataFixedArray, .dataStruct]
+  ProofForge.Target.wasmNear.capabilities
 
 def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
   mod.capabilities.foldlM (fun _ c =>
