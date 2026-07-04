@@ -11851,3 +11851,37 @@ Result:
   reads already represented by `EffectPlan`.
 - EVM semantic-plan, diagnostics, map IR smoke, full Lake build, and whitespace
   checks passed locally.
+
+### EVM Planned Array Reads In Control-Flow Bodies
+
+Commit: de192b9
+
+Summary:
+
+- Extended plan-effect expression lowering so `EffectPlan.storageArrayRead` can
+  lower from a planned index inside scalar control-flow bodies.
+- Added planned array element slot construction using `__proof_forge_array_slot`,
+  keeping index lowering on the `ExprPlan -> ToYul` path.
+- Added a semantic-plan regression that builds an IR `ifElse`, binds
+  `storageArrayRead` results in both branches, verifies planned body
+  construction, and checks the emitted Yul AST uses the expected array slot
+  helper under `sload`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/storage-array-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Result:
+
+- Planned control-flow bodies now cover expression-position storage array reads
+  already represented by `EffectPlan`.
+- EVM semantic-plan, diagnostics, storage-array IR smoke, full Lake build, and
+  whitespace checks passed locally.

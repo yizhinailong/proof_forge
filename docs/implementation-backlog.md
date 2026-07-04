@@ -372,9 +372,9 @@ Tasks:
     statements now recursively consume planned scalar bindings, scalar/local
     aggregate-scalar assignments, assertions, returns, reverts, scalar storage
     writes, map writes plus map contains/get read expressions, array writes,
-    struct-field writes, and storage-path writes/assign-ops, scalar
-    non-indexed/indexed event emits, and scalar crosscall/create helper-call
-    expressions inside supported body statements.
+    array read expressions, struct-field writes, and storage-path
+    writes/assign-ops, scalar non-indexed/indexed event emits, and scalar
+    crosscall/create helper-call expressions inside supported body statements.
     Statement sequencing and unsupported body shapes still remain in the
     `IR.lean` compatibility facade until full recursive `StmtPlan -> Yul`
     lowering is extracted.
