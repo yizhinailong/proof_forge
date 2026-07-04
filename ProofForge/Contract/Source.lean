@@ -140,6 +140,8 @@ scoped syntax "invoke " ident " spl_token_set_authority" "(" ident ", " ident ",
   " signer_seeds " "[" solanaSignerSeed,* "]" ";" : entryStmt
 scoped syntax "realloc " ident " to " term ";" : entryStmt
 scoped syntax "do " term ";" : entryStmt
+scoped syntax "accepts_callvalue;" : entryStmt
+scoped syntax "sendto " ident ident ";" : entryStmt
 
 scoped syntax "literal_seed " str : solanaSeed
 scoped syntax "account_seed " ident : solanaSeed
@@ -301,6 +303,10 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
           `(ProofForge.Solana.Surface.reallocAccount $accountRef $newSize *> $acc)
     | `(entryStmt| do $action:term;) =>
         acc ← `($action *> $acc)
+    | `(entryStmt| accepts_callvalue;) =>
+        acc ← `(ProofForge.Contract.Surface.markPayable *> $acc)
+    | `(entryStmt| sendto $recipient:ident $amount:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.nativeTransfer (ProofForge.Contract.Source.expr $recipient) (ProofForge.Contract.Source.expr $amount) *> $acc)
     | _ =>
         Macro.throwError s!"unsupported contract source statement: {stmt.raw}"
   return acc
