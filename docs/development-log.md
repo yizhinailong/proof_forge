@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-4 NEAR ValueVault Artifact Surface Anchor
+
+Commit: this commit
+
+Summary:
+
+- Extended the NEAR/Wasm artifact-surface obligation from Counter to
+  ValueVault.
+- The ValueVault obligation inspects the `Compiler.Wasm.AST` emitted by
+  `EmitWat.lowerModule` and checks all seven exported entrypoints:
+  `initialize`, `deposit`, `charge_fee`, `release`, `snapshot`,
+  `get_balance`, and `get_net_value`.
+- The check pins the host-boundary shape for storage reads/writes, block
+  context reads, value returns, event logging, memory export, storage-key data
+  segments, and event-name data segments.
+- Wired `value_vault_emitwat_artifact_surface_ok` into
+  `Tests/NearWasmFormal.lean`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+git diff --check
+```
+
+Known limitations:
+
+- This is still an AST-level obligation, not a full Wasm evaluator or a proof
+  about `wat2wasm`, Wasmtime, or the NEAR runtime.
+- It proves the emitted artifact surface for the shared ValueVault scenario;
+  the next NEAR FV-4 step is to relate offline-host execution observations to
+  the same IR trace boundary.
+
+Next step:
+
+- Add an executable offline-host trace obligation shape for the NEAR Counter
+  and ValueVault scenarios, then align it with the existing IR observable
+  traces.
+
 ### FV-4 NEAR EmitWat Artifact Surface Anchor
 
 Commit: this commit
@@ -46,13 +86,13 @@ Known limitations:
 
 - This is an AST-level artifact-surface proof, not a full Wasm evaluator or a
   theorem about `wat2wasm`, Wasmtime, or the NEAR runtime.
-- It covers the Counter artifact first. ValueVault and richer EmitWat fixtures
-  still need their own NEAR FV-4 obligations.
+- It covers the Counter artifact first. Richer EmitWat fixtures beyond
+  ValueVault still need their own NEAR FV-4 obligations.
 
 Next step:
 
-- Extend the NEAR FV-4 surface from Counter to ValueVault, then connect the
-  offline-host execution trace shape to the same observable IR trace boundary.
+- Connect the offline-host execution trace shape to the same observable IR
+  trace boundary.
 
 ### FV-2 IR Semantics Metatheory Anchors
 

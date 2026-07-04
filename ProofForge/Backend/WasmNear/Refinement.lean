@@ -2,6 +2,7 @@ import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.IR.Semantics
 import ProofForge.IR.Examples.Counter
 import ProofForge.Compiler.Wasm.AST
+import ProofForge.Contract.Examples.ValueVault
 
 namespace ProofForge.Backend.WasmNear.Refinement
 
@@ -226,6 +227,92 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   requiredDataSegments := #[(0, "count")]
 }
 
+def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
+  name := "ValueVault.EmitWat.artifact-surface"
+  module := ProofForge.Contract.Examples.ValueVault.module
+  requiredImports := #[
+    "input",
+    "read_register",
+    "storage_read",
+    "storage_write",
+    "value_return",
+    "log_utf8",
+    "block_index"
+  ]
+  requiredExports := #[
+    {
+      exportName := "initialize"
+      expectedCalls := #[
+        "input", "read_register", "block_index", "__pf_write_u64",
+        "__pf_write_u64", "__pf_write_u64", "__pf_write_u64",
+        "__pf_write_u64", "__pf_write_u64", "__pf_evt_log"
+      ]
+    },
+    {
+      exportName := "deposit"
+      expectedCalls := #[
+        "input", "read_register", "__pf_read_u64", "__pf_read_u64",
+        "__pf_write_u64", "__pf_write_u64", "__pf_write_u64",
+        "__pf_evt_log"
+      ]
+    },
+    {
+      exportName := "charge_fee"
+      expectedCalls := #[
+        "input", "read_register", "__pf_read_u64", "__pf_read_u64",
+        "__pf_read_u64", "__pf_write_u64", "__pf_write_u64",
+        "__pf_write_u64", "__pf_write_u64", "__pf_evt_log"
+      ]
+    },
+    {
+      exportName := "release"
+      expectedCalls := #[
+        "input", "read_register", "__pf_read_u64", "__pf_read_u64",
+        "__pf_read_u64", "__pf_write_u64", "__pf_write_u64",
+        "__pf_write_u64", "__pf_write_u64", "__pf_evt_log"
+      ]
+    },
+    {
+      exportName := "snapshot"
+      expectedCalls := #[
+        "input", "read_register", "block_index", "__pf_read_u64",
+        "__pf_read_u64", "__pf_read_u64", "__pf_write_u64",
+        "__pf_evt_log", "__pf_return_u64"
+      ]
+    },
+    {
+      exportName := "get_balance"
+      expectedCalls := #["input", "read_register", "__pf_read_u64", "__pf_return_u64"]
+    },
+    {
+      exportName := "get_net_value"
+      expectedCalls := #[
+        "input", "read_register", "__pf_read_u64", "__pf_read_u64",
+        "__pf_return_u64"
+      ]
+    }
+  ]
+  requiredFunctions := #[
+    { functionName := "__pf_read_u64", expectedCalls := #["storage_read", "read_register"] },
+    { functionName := "__pf_write_u64", expectedCalls := #["storage_write"] },
+    { functionName := "__pf_return_u64", expectedCalls := #["value_return"] },
+    { functionName := "__pf_evt_log", expectedCalls := #["log_utf8"] }
+  ]
+  requiredDataSegments := #[
+    (0, "balance"),
+    (8, "released"),
+    (17, "fees"),
+    (22, "last_value"),
+    (33, "last_checkpoint"),
+    (49, "operations"),
+    (43000, "VaultInitialized"),
+    (43036, "ValueDeposited"),
+    (43077, "ValueCharged"),
+    (43104, "ValueReleased"),
+    (43127, "ValueSnapshot")
+  ]
+}
+
 theorem counter_ir_observable_trace_ok :
     counterTraceObligation.irTraceOk = true := by
   native_decide
@@ -236,6 +323,10 @@ theorem counter_emitwat_exports_trace_entrypoints :
 
 theorem counter_emitwat_artifact_surface_ok :
     counterArtifactSurfaceObligation.ok = true := by
+  native_decide
+
+theorem value_vault_emitwat_artifact_surface_ok :
+    valueVaultArtifactSurfaceObligation.ok = true := by
   native_decide
 
 end ProofForge.Backend.WasmNear.Refinement
