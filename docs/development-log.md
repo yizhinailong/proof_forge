@@ -8561,3 +8561,30 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR offline-host log payload byte checks passed locally.
+
+### NEAR Offline-Host Return Payload Bytes
+
+Commit: pending
+
+Summary:
+
+- Added byte-level `returnPayloadHex` data to NEAR offline-host IO
+  expectations.
+- Derived `returnPayloadHex` from the same scalar Borsh/little-endian encoder
+  used by `value_return` observations, rather than relying only on the
+  human-readable `returnLineFragment`.
+- Added decide-checkable Counter and ValueVault return-payload-byte anchors.
+- Folded the ValueVault return payload hex check into the backend-invariant
+  bridge so FV-8 expected returns now constrain both semantic return values and
+  the host `value_return` payload bytes.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR offline-host return payload byte checks passed locally.
