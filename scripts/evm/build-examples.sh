@@ -26,15 +26,31 @@ fi
 
 mkdir -p "$OUT_DIR"
 
-# Keep the CLI executable and SDK module fresh when this script is run directly,
-# not only through the full CI sequence.
+# Keep the CLI executable and legacy SDK module fresh when this script is run directly.
 (cd "$ROOT" && lake build proof-forge ProofForge.Evm >/dev/null)
+
+is_contract_source() {
+  local lean_file="$1"
+  if grep -Eq 'contract_source |ProofForge\.Contract\.Source|def spec : ProofForge\.Contract\.ContractSpec' "$lean_file"; then
+    return 0
+  fi
+  return 1
+}
 
 failures=0
 while IFS= read -r -d '' lean_file; do
   name="$(basename "$lean_file" .lean)"
   methods_file="${lean_file%.lean}.evm-methods"
-  if [[ ! -f "$methods_file" ]]; then
+  if [[ -f "$methods_file" ]]; then
+    source_kind="lean-sdk"
+    fixture="$name.lean"
+    metadata_args=(--require-method-signatures)
+  elif is_contract_source "$lean_file"; then
+    source_kind="contract-sdk"
+    fixture="$name"
+    metadata_args=()
+  else
+    echo "build-examples: skipping $lean_file (neither contract_source nor .evm-methods sidecar)" >&2
     continue
   fi
   out="$OUT_DIR/$name.bin"
@@ -51,9 +67,9 @@ while IFS= read -r -d '' lean_file; do
     diff -u "$golden" "$yul_out"
     python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
       --root "$ROOT" \
-      --expect-fixture "$name.lean" \
-      --expect-source-kind lean-sdk \
-      --require-method-signatures \
+      --expect-fixture "$fixture" \
+      --expect-source-kind "$source_kind" \
+      "${metadata_args[@]}" \
       "$metadata"
   ); then
     :

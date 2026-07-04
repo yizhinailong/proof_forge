@@ -21,6 +21,7 @@ import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Backend.Aleo.IR
 import ProofForge.Backend.CosmWasm.EmitWat
 import ProofForge.Backend.Move.Aptos
+import ProofForge.Cli.ContractLoader
 import ProofForge.Cli.Fixture
 import ProofForge.Compiler.LCNF.EmitYul
 import ProofForge.Compiler.TS.AST
@@ -641,6 +642,27 @@ def siblingPath (input : FilePath) (fileName : String) : FilePath :=
 
 def defaultMethodsFile (input : FilePath) : FilePath :=
   siblingPath input s!"{leanBaseName input}.evm-methods"
+
+def sourceContains (source pattern : String) : Bool :=
+  (source.splitOn pattern).length > 1
+
+def looksLikeContractSource (source : String) : Bool :=
+  sourceContains source "contract_source" ||
+    sourceContains source "ProofForge.Contract.Source" ||
+    sourceContains source "def spec : ProofForge.Contract.ContractSpec"
+
+def legacyEvmMethodsSidecar? (input : FilePath) : IO Bool := do
+  let methodsFile := defaultMethodsFile input
+  methodsFile.pathExists
+
+/-- True when the input should use the portable contract-source pipeline instead of legacy Lean.Evm/LCNF. -/
+def contractSourceInput? (input : FilePath) : IO Bool := do
+  if !input.toString.endsWith ".lean" then
+    return false
+  if ← legacyEvmMethodsSidecar? input then
+    return false
+  let source ← IO.FS.readFile input
+  return looksLikeContractSource source
 
 def defaultYulOutput (input : FilePath) : FilePath :=
   siblingPath input s!".{leanBaseName input}.yul"
@@ -3370,6 +3392,25 @@ def renderLearnEvmYul (opts : CliOptions) (spec : ProofForge.Contract.ContractSp
   | .ok yul => return (yul, module)
   | .error err => throw <| IO.userError err.render
 
+def renderContractSourceEvmYul (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) :
+    IO (String × ProofForge.IR.Module) :=
+  renderLearnEvmYul opts spec
+
+unsafe def compileContractSourceEvmBytecode (opts : CliOptions) : IO UInt32 := do
+  let some input := opts.input?
+    | IO.eprintln usage
+      return 1
+  let spec ← ProofForge.Cli.ContractLoader.loadSpec input opts.root? none
+  let yulOutput := opts.yulOutput?.getD (defaultYulOutput input)
+  let (yul, module) ← renderContractSourceEvmYul opts spec
+  writeTextFile yulOutput yul
+  let bytecode ← solcBytecode opts.solc yulOutput
+  let output := opts.output?.getD (input.withExtension "bin")
+  writeTextFile output (bytecode ++ "\n")
+  writeEvmContractSdkArtifactMetadata opts (leanBaseName input) spec.name module yulOutput output
+  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+  return 0
+
 def compileLearnYul (opts : CliOptions) : IO UInt32 := do
   let (_input, spec) ← parseLearnInput opts "--learn-yul"
   let output := opts.output?.getD (defaultLearnOutput "learn/evm" "yul" spec)
@@ -5143,21 +5184,25 @@ unsafe def compileEvmBytecode (opts : CliOptions) : IO UInt32 := do
   let some input := opts.input?
     | IO.eprintln usage
       return 1
-  let methods ← resolveMethods opts input
-  if methods.isEmpty then
-    throw <| IO.userError "EVM bytecode mode requires at least one method"
-  let yulOutput := opts.yulOutput?.getD (defaultYulOutput input)
-  emitYulFile opts input yulOutput methods
-  let bytecode ← solcBytecode opts.solc yulOutput
-  let output := opts.output?.getD (input.withExtension "bin")
-  writeTextFile output (bytecode ++ "\n")
-  let sourceModule :=
-    match opts.moduleName? with
-    | some name => toString name
-    | none => leanBaseName input
-  writeEvmSdkArtifactMetadata opts sourceModule input yulOutput output methods
-  IO.println s!"wrote {output} ({bytecode.length} hex chars)"
-  return 0
+  if ← contractSourceInput? input then
+    compileContractSourceEvmBytecode opts
+  else
+    let methods ← resolveMethods opts input
+    if methods.isEmpty then
+      throw <| IO.userError
+        "EVM bytecode mode requires at least one method; legacy Lean.Evm contracts need a sibling `.evm-methods` file, and portable contracts need `contract_source` with `def spec : ProofForge.Contract.ContractSpec`"
+    let yulOutput := opts.yulOutput?.getD (defaultYulOutput input)
+    emitYulFile opts input yulOutput methods
+    let bytecode ← solcBytecode opts.solc yulOutput
+    let output := opts.output?.getD (input.withExtension "bin")
+    writeTextFile output (bytecode ++ "\n")
+    let sourceModule :=
+      match opts.moduleName? with
+      | some name => toString name
+      | none => leanBaseName input
+    writeEvmSdkArtifactMetadata opts sourceModule input yulOutput output methods
+    IO.println s!"wrote {output} ({bytecode.length} hex chars)"
+    return 0
 
 unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   match opts.mode with

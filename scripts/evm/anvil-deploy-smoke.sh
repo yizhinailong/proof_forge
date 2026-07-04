@@ -18,16 +18,15 @@ fi
 MNEMONIC="${EVM_ANVIL_MNEMONIC:-test test test test test test test test test test test junk}"
 DEPLOYER_PRIVATE_KEY="${EVM_ANVIL_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
 DEPLOYER_ADDRESS="${EVM_ANVIL_DEPLOYER:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
-SET_VALUE="${EVM_ANVIL_SET_VALUE:-99}"
 CONSTRUCTOR_ARGS_HEX="${EVM_ANVIL_CONSTRUCTOR_ARGS_HEX-}"
 if [[ -n "${EVM_ANVIL_CONSTRUCTOR_ARG+x}" ]]; then
   CONSTRUCTOR_ARG="$EVM_ANVIL_CONSTRUCTOR_ARG"
 elif [[ -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
   CONSTRUCTOR_ARG=""
 else
-  CONSTRUCTOR_ARG="initial=123"
+  CONSTRUCTOR_ARG=""
 fi
-CONSTRUCTOR_PARAM="${EVM_ANVIL_CONSTRUCTOR_PARAM:-initial:uint256}"
+CONSTRUCTOR_PARAM="${EVM_ANVIL_CONSTRUCTOR_PARAM-}"
 if [[ -n "${EVM_ANVIL_CONSTRUCTOR_ARG+x}" && -n "$CONSTRUCTOR_ARG" && -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
   echo "anvil-deploy-smoke: set either EVM_ANVIL_CONSTRUCTOR_ARG or EVM_ANVIL_CONSTRUCTOR_ARGS_HEX, not both" >&2
   exit 2
@@ -65,18 +64,53 @@ mkdir -p "$RUN_DIR"
 ANVIL_LOG="$RUN_DIR/anvil.log"
 DEPLOY_RECEIPT="$RUN_DIR/Counter.cast-send.json"
 DEPLOY_TX="$RUN_DIR/Counter.creation-transaction.json"
-SET_RECEIPT="$RUN_DIR/Counter.set-receipt.json"
+INITIALIZE_RECEIPT="$RUN_DIR/Counter.initialize-receipt.json"
 DEPLOY_RUN="$RUN_DIR/Counter.proof-forge-deploy-run.json"
 RUNTIME_FILE="$OUT_DIR/Counter.bin"
 INIT_FILE="$OUT_DIR/Counter.init.bin"
 DEPLOY_MANIFEST="$OUT_DIR/Counter.proof-forge-deploy.json"
 
-if [[ -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
-  if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then
-    proof_forge=("$PROOF_FORGE_BIN")
-  else
-    proof_forge=(lake env proof-forge)
+if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then
+  proof_forge=("$PROOF_FORGE_BIN")
+else
+  proof_forge=(lake env proof-forge)
+fi
+
+rebuild_counter_with_profile() {
+  local proof_forge_args=(
+    build
+    --target evm
+    --root .
+    --module contract
+    --yul-output "$OUT_DIR/Counter.yul"
+    --artifact-output "$OUT_DIR/Counter.proof-forge-artifact.json"
+    -o "$RUNTIME_FILE"
+    Examples/Evm/Contracts/Counter.lean
+  )
+  if [[ -n "$CHAIN_PROFILE" ]]; then
+    proof_forge_args+=(--evm-chain-profile "$CHAIN_PROFILE")
   fi
+  (
+    cd "$ROOT"
+    "${proof_forge[@]}" "${proof_forge_args[@]}"
+    diff -u Examples/Evm/Contracts/Counter.golden.yul "$OUT_DIR/Counter.yul"
+    metadata_validator=(
+      python3 "$ROOT/scripts/evm/validate-artifact-metadata.py"
+      --root "$ROOT"
+      --expect-fixture Counter
+      --expect-source-kind contract-sdk
+    )
+    if [[ -n "$CHAIN_PROFILE" ]]; then
+      metadata_validator+=(--expect-chain-profile "$CHAIN_PROFILE" --expect-chain-id "$CHAIN_ID")
+    fi
+    metadata_validator+=("$OUT_DIR/Counter.proof-forge-artifact.json")
+    "${metadata_validator[@]}"
+  )
+}
+
+rebuild_counter_with_profile
+
+if [[ -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
   proof_forge_args=(
     build
     --target evm
@@ -105,10 +139,9 @@ if [[ -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
     diff -u Examples/Evm/Contracts/Counter.golden.yul "$OUT_DIR/Counter.yul"
     metadata_validator=(
       python3 "$ROOT/scripts/evm/validate-artifact-metadata.py"
-      --root "$ROOT" \
-      --expect-fixture Counter.lean \
-      --expect-source-kind lean-sdk
-      --require-method-signatures
+      --root "$ROOT"
+      --expect-fixture Counter
+      --expect-source-kind contract-sdk
     )
     if [[ -n "$CHAIN_PROFILE" ]]; then
       metadata_validator+=(--expect-chain-profile "$CHAIN_PROFILE" --expect-chain-id "$CHAIN_ID")
@@ -206,10 +239,10 @@ cast send \
   --rpc-url "$RPC_URL" \
   --private-key "$DEPLOYER_PRIVATE_KEY" \
   "$CONTRACT_ADDRESS" \
-  'set(uint256)' "$SET_VALUE" \
+  'initialize()' \
   --json \
-  >"$SET_RECEIPT"
-AFTER_SET_GET="$(cast call --rpc-url "$RPC_URL" "$CONTRACT_ADDRESS" 'get()(uint256)')"
+  >"$INITIALIZE_RECEIPT"
+AFTER_INITIALIZE_GET="$(cast call --rpc-url "$RPC_URL" "$CONTRACT_ADDRESS" 'get()(uint256)')"
 cast send \
   --rpc-url "$RPC_URL" \
   --private-key "$DEPLOYER_PRIVATE_KEY" \
@@ -222,10 +255,10 @@ cast send \
   --rpc-url "$RPC_URL" \
   --private-key "$DEPLOYER_PRIVATE_KEY" \
   "$CONTRACT_ADDRESS" \
-  'decrement()' \
+  'increment()' \
   --json \
   >/dev/null
-AFTER_DECREMENT_GET="$(cast call --rpc-url "$RPC_URL" "$CONTRACT_ADDRESS" 'get()(uint256)')"
+AFTER_SECOND_INCREMENT_GET="$(cast call --rpc-url "$RPC_URL" "$CONTRACT_ADDRESS" 'get()(uint256)')"
 
 DEPLOYED_CODE="$(cast code --rpc-url "$RPC_URL" "$CONTRACT_ADDRESS")"
 RUNTIME_HEX="$(tr -d '\n' < "$RUNTIME_FILE")"
@@ -242,16 +275,15 @@ python3 - \
   "$CONTRACT_ADDRESS" \
   "$DEPLOY_RECEIPT" \
   "$DEPLOY_TX" \
-  "$SET_RECEIPT" \
+  "$INITIALIZE_RECEIPT" \
   "$DEPLOY_MANIFEST" \
   "$RUNTIME_FILE" \
   "$INIT_FILE" \
   "$DEPLOY_RUN" \
   "$INITIAL_GET" \
-  "$SET_VALUE" \
-  "$AFTER_SET_GET" \
+  "$AFTER_INITIALIZE_GET" \
   "$AFTER_INCREMENT_GET" \
-  "$AFTER_DECREMENT_GET" <<'PY'
+  "$AFTER_SECOND_INCREMENT_GET" <<'PY'
 import hashlib
 import json
 import sys
@@ -265,16 +297,15 @@ from pathlib import Path
     contract_address,
     deploy_receipt_path,
     deploy_tx_path,
-    set_receipt_path,
+    initialize_receipt_path,
     deploy_manifest_path,
     runtime_path,
     init_path,
     deploy_run_path,
     initial_get,
-    set_value,
-    after_set_get,
+    after_initialize_get,
     after_increment_get,
-    after_decrement_get,
+    after_second_increment_get,
 ) = sys.argv[1:]
 
 root_path = Path(root)
@@ -306,7 +337,7 @@ run = {
     "kind": "proof-forge-evm-deploy-run",
     "target": "evm",
     "targetFamily": "evm",
-    "fixture": "Counter.lean",
+    "fixture": "Counter",
     "contractName": "Counter",
     "deployManifest": file_entry(deploy_manifest_path),
     "runtimeBytecode": file_entry(runtime_path),
@@ -316,7 +347,7 @@ run = {
     "constructorArgs": deploy_manifest["creation"]["constructorArgs"],
     "castSendReceipt": file_entry(deploy_receipt_path),
     "creationTransaction": file_entry(deploy_tx_path),
-    "setReceipt": file_entry(set_receipt_path),
+    "initializeReceipt": file_entry(initialize_receipt_path),
     "network": {
         "kind": "anvil",
         "chainId": int(chain_id),
@@ -346,10 +377,9 @@ run = {
     },
     "calls": {
         "initialGet": initial_get,
-        "setValue": set_value,
-        "afterSetGet": after_set_get,
+        "afterInitializeGet": after_initialize_get,
         "afterIncrementGet": after_increment_get,
-        "afterDecrementGet": after_decrement_get,
+        "afterSecondIncrementGet": after_second_increment_get,
     },
     "validation": {
         "anvilStarted": "passed",
@@ -369,7 +399,7 @@ PY
 deploy_run_validator=(
   python3 "$ROOT/scripts/evm/validate-deploy-run.py"
   --root "$ROOT" \
-  --expect-fixture Counter.lean \
+  --expect-fixture Counter \
   --expect-chain-id "$CHAIN_ID"
 )
 if [[ -n "$CHAIN_PROFILE" ]]; then

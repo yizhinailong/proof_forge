@@ -2,37 +2,28 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-A minimal EVM counter contract written against `Lean.Evm`.
-
-Demonstrates: storage read/write, selector dispatch, increment logic.
+Portable Counter example for the unified EVM entry path.
 
 Compile:
 `lake env proof-forge build --target evm --root . --module contract -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean`
 -/
-import ProofForge.Evm
-open Lean.Evm
+import ProofForge.Contract.Source
 
 namespace Counter
 
-/-- Get the current counter value. -/
-@[export l_Counter_get]
-def get : IO Nat := Storage.load 0
+open ProofForge.Contract.Source
 
-/-- Set the counter to a specific value. -/
-@[export l_Counter_set]
-def set (v : Nat) : IO Unit := Storage.store 0 v
+contract_source Counter do
+  state count : .u64
 
-/-- Increment the counter by 1. -/
-@[export l_Counter_increment]
-def increment : IO Unit := do
-  let n ← Storage.load 0
-  Storage.store 0 (n + 1)
+  entry «initialize» do
+    count := u64 0;
 
-/-- Decrement the counter by 1 (floor at 0). -/
-@[export l_Counter_decrement]
-def decrement : IO Unit := do
-  let n ← Storage.load 0
-  if n > 0 then
-    Storage.store 0 (n - 1)
+  entry increment do
+    let n : .u64 := count;
+    count := n +! u64 1;
+
+  query get returns(.u64) do
+    return count;
 
 end Counter
