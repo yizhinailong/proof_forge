@@ -1596,6 +1596,85 @@ def wholeStructAssignStmt
     (sources : Array StructAssignmentSource) : Lean.Compiler.Yul.Statement :=
   .block { statements := structAssignmentStatements name sources }
 
+def dynamicArrayIndexLocalName : String := "__proof_forge_array_index"
+
+def dynamicArrayValueLocalName : String := "__proof_forge_array_value"
+
+def dynamicArrayIndexPathLocalName (depth : Nat) : String :=
+  s!"__proof_forge_array_index_{depth}"
+
+def dynamicArrayValueExpr : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.Expr.id dynamicArrayValueLocalName
+
+def dynamicAssignmentRhs
+    (targetName : String)
+    (op? : Option AssignOp) : Lean.Compiler.Yul.Expr :=
+  match op? with
+  | some op => checkedArithExpr op (Lean.Compiler.Yul.Expr.id targetName) dynamicArrayValueExpr
+  | none => dynamicArrayValueExpr
+
+def dynamicAssignmentStatement
+    (targetName : String)
+    (op? : Option AssignOp) : Lean.Compiler.Yul.Statement :=
+  .assignment #[targetName] (dynamicAssignmentRhs targetName op?)
+
+def dynamicLocalSwitchCase
+    (index : Nat)
+    (statements : Array Lean.Compiler.Yul.Statement) : Lean.Compiler.Yul.Case := {
+  value := some (Lean.Compiler.Yul.Literal.natLit index)
+  body := { statements }
+}
+
+def dynamicLocalSwitchDefaultCase : Lean.Compiler.Yul.Case := {
+  value := none
+  body := { statements := #[revertStatement] }
+}
+
+def dynamicLocalFixedArraySwitchCases
+    (length : Nat)
+    (bodyForIndex : Nat → Array Lean.Compiler.Yul.Statement) : Array Lean.Compiler.Yul.Case :=
+  Id.run do
+    let mut cases : Array Lean.Compiler.Yul.Case := #[]
+    for _h : idx in [0:length] do
+      cases := cases.push (dynamicLocalSwitchCase idx (bodyForIndex idx))
+    cases.push dynamicLocalSwitchDefaultCase
+
+def dynamicLocalValueSwitchBlock
+    (indexExpr valueExpr : Lean.Compiler.Yul.Expr)
+    (length : Nat)
+    (bodyForIndex : Nat → Array Lean.Compiler.Yul.Statement) :
+    Lean.Compiler.Yul.Statement :=
+  .block {
+    statements := #[
+      .varDecl #[{ name := dynamicArrayIndexLocalName }] (some indexExpr),
+      .varDecl #[{ name := dynamicArrayValueLocalName }] (some valueExpr),
+      .switchStmt
+        (Lean.Compiler.Yul.Expr.id dynamicArrayIndexLocalName)
+        (dynamicLocalFixedArraySwitchCases length bodyForIndex)
+    ]
+  }
+
+def dynamicLocalPathSwitchBlock
+    (depth : Nat)
+    (indexExpr : Lean.Compiler.Yul.Expr)
+    (cases : Array Lean.Compiler.Yul.Case) : Lean.Compiler.Yul.Statement :=
+  let indexName := dynamicArrayIndexPathLocalName depth
+  .block {
+    statements := #[
+      .varDecl #[{ name := indexName }] (some indexExpr),
+      .switchStmt (Lean.Compiler.Yul.Expr.id indexName) cases
+    ]
+  }
+
+def dynamicLocalValueBlock
+    (valueExpr : Lean.Compiler.Yul.Expr)
+    (body : Array Lean.Compiler.Yul.Statement) : Lean.Compiler.Yul.Statement :=
+  .block {
+    statements := #[
+      .varDecl #[{ name := dynamicArrayValueLocalName }] (some valueExpr)
+    ] ++ body
+  }
+
 def ifElseStmtPlanStatements
     {ε : Type}
     (mkError : String → ε)

@@ -203,6 +203,7 @@
   - 已开始：标量 expression 位置的 crosscall helper-call 组装以及 create/create2 helper-call 组装现在位于 `ToYul` 后面。标量 `call`、带值 `call`、native value transfer、`staticcall`、`delegatecall`、`create` 和 `create2` 的 `ExprPlan` 节点可以直接使用与 helper body 发射相同的 helper 名称选择逻辑降级为 helper call。兼容性的 `IR.lean` 表达式降级仍负责 type-env 验证和聚合 crosscall 参数字展开，但最终 helper-call 名称和参数顺序会委托给 `ToYul`。
   - 已开始：expression 位置的本地 fixed-array getter 组装现在也对本地标量叶子位于 `ExprPlan -> ToYul` 后面。`Lower` 会在 `ExprPlan.localArrayGet` 中记录本地 fixed-array 路径维度，`ToYul` 负责静态 local 名称选择，以及一维和嵌套动态 helper-call 参数 frame。数组字面量、struct 叶子和聚合数组值仍通过兼容外观 fallback。
   - 已开始：整体本地聚合赋值的 snapshot block 现在位于 `ToYul` 后面。`IR.lean` 仍负责验证并展开本地 fixed-array、嵌套 fixed-array、struct-array 和 struct 赋值 source，但最终的临时变量声明、目标 local 名称以及 assignment block 构造会委托给 `ToYul` helper，使兼容外观不再拥有最终 Yul statement frame。
+  - 已开始：动态本地聚合赋值的 switch frame 现在位于 `ToYul` 后面。`IR.lean` 仍负责解析动态本地 fixed-array 与 struct-array 路径，但共享的动态 index/value snapshot local、switch default case、checked-assignment RHS、一维 switch frame 和嵌套路径 switch frame 都会由 `ToYul` helper 发射。
   - 已开始：聚合 crosscall helper-call 组装以及入口多字返回 assignment 现在位于 `ToYul` 后面。`IR.lean` 仍负责返回类型检查、ABI 返回名查询和聚合参数字展开，但聚合 helper-call 函数名选择、参数顺序以及最终多返回 Yul assignment 构造会委托给 `ToYul`。
   - 为选择器分发、calldata 守卫、ABI 字打平、返回数据编码和制品元数据选择器布局添加 `EntrypointPlan`。
   - 为事件签名 topic、索引 topic 哈希、非索引数据打平以及制品元数据事件布局添加 `EventPlan`。

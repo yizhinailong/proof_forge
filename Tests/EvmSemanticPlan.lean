@@ -920,9 +920,61 @@ def testAggregateAssignmentPlanToYul : IO Unit := do
           require (valueName == "__proof_forge_assign_array_struct_matrix_1_0_x") "nested fixed-array assignment snapshot source"
       | _ => throw <| IO.userError "nested fixed-array assignment final statement must assign snapshot"
   | _ => throw <| IO.userError "nested fixed-array assignment ToYul helper must produce block"
+  let dynamicStmt :=
+    ProofForge.Backend.Evm.ToYul.dynamicLocalValueSwitchBlock
+      (Lean.Compiler.Yul.Expr.id "idx")
+      (Lean.Compiler.Yul.Expr.num 13)
+      2
+      (fun idx =>
+        #[ProofForge.Backend.Evm.ToYul.dynamicAssignmentStatement
+          (ProofForge.Backend.Evm.ToYul.arrayLocalElementName "xs" idx)
+          (some .add)])
+  match dynamicStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 3) "dynamic fixed-array assignment frame statement count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.ident indexName)) => do
+          let firstVar ← requireAt vars 0 "dynamic fixed-array assignment frame missing index var"
+          require (firstVar.name == "__proof_forge_array_index") "dynamic fixed-array assignment frame index var"
+          require (indexName == "idx") "dynamic fixed-array assignment frame index source"
+      | _ => throw <| IO.userError "dynamic fixed-array assignment frame must snapshot index"
+      match block.statements[2]! with
+      | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.ident switchName) cases => do
+          require (switchName == "__proof_forge_array_index") "dynamic fixed-array assignment switch index"
+          require (cases.size == 3) "dynamic fixed-array assignment switch case count"
+          match cases[1]!.body.statements[0]! with
+          | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call helper args) => do
+              require (names == #["__proof_forge_array_xs_1"]) "dynamic fixed-array assignment case target"
+              require (helper == "__pf_checked_add") "dynamic fixed-array assignment case helper"
+              require (args.size == 2) "dynamic fixed-array assignment case helper arg count"
+          | _ => throw <| IO.userError "dynamic fixed-array assignment case must assign checked RHS"
+      | _ => throw <| IO.userError "dynamic fixed-array assignment frame must switch on index"
+  | _ => throw <| IO.userError "dynamic fixed-array assignment ToYul helper must produce block"
+  let dynamicPathStmt :=
+    ProofForge.Backend.Evm.ToYul.dynamicLocalPathSwitchBlock
+      1
+      (Lean.Compiler.Yul.Expr.id "col")
+      #[
+        ProofForge.Backend.Evm.ToYul.dynamicLocalSwitchCase 0 #[
+          ProofForge.Backend.Evm.ToYul.dynamicAssignmentStatement
+            "__proof_forge_array_matrix_0_0"
+            none
+        ],
+        ProofForge.Backend.Evm.ToYul.dynamicLocalSwitchDefaultCase
+      ]
+  match dynamicPathStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.ident sourceName)) => do
+          let firstVar ← requireAt vars 0 "dynamic path assignment frame missing index var"
+          require (firstVar.name == "__proof_forge_array_index_1") "dynamic path assignment frame index var"
+          require (sourceName == "col") "dynamic path assignment frame index source"
+      | _ => throw <| IO.userError "dynamic path assignment frame must snapshot path index"
+  | _ => throw <| IO.userError "dynamic path assignment ToYul helper must produce block"
   let env : TypeEnv := #[
     { name := "xs", type := .fixedArray .u64 2, isMutable := true },
-    { name := "ys", type := .fixedArray .u64 2, isMutable := false }
+    { name := "ys", type := .fixedArray .u64 2, isMutable := false },
+    { name := "idx", type := .u64, isMutable := false }
   ]
   let stmts ← requireOk
     (lowerAssignStmt
@@ -942,6 +994,23 @@ def testAggregateAssignmentPlanToYul : IO Unit := do
           require (sourceName == "__proof_forge_array_ys_0") "whole local fixed-array assignment integration source"
       | _ => throw <| IO.userError "whole local fixed-array assignment integration must snapshot source first"
   | _ => throw <| IO.userError "whole local fixed-array assignment integration must lower to ToYul block"
+  let dynamicStmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.Counter.module
+      env
+      (.arrayGet (.local "xs") (.local "idx"))
+      (.literal (.u64 7)))
+    "dynamic local fixed-array assignment integration"
+  require (dynamicStmts.size == 1) "dynamic local fixed-array assignment integration statement count"
+  match dynamicStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 3) "dynamic local fixed-array assignment integration frame count"
+      match block.statements[2]! with
+      | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.ident switchName) cases => do
+          require (switchName == "__proof_forge_array_index") "dynamic local fixed-array assignment integration switch index"
+          require (cases.size == 3) "dynamic local fixed-array assignment integration case count"
+      | _ => throw <| IO.userError "dynamic local fixed-array assignment integration must switch on planned index"
+  | _ => throw <| IO.userError "dynamic local fixed-array assignment integration must lower to ToYul frame"
 
 def testScalarAssertPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]

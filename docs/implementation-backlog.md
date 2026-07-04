@@ -429,6 +429,11 @@ Tasks:
     declarations, target local names, and assignment block construction are
     delegated to `ToYul` helpers so the compatibility facade no longer owns the
     final Yul statement frame.
+  - Started: dynamic local aggregate assignment switch frames now live behind
+    `ToYul`. `IR.lean` still resolves dynamic local fixed-array and
+    struct-array paths, but the shared dynamic index/value snapshot locals,
+    switch default case, checked-assignment RHS, one-dimensional switch frame,
+    and nested path switch frame are emitted by `ToYul` helpers.
   - Started: aggregate crosscall helper-call assembly and entrypoint multi-word
     return assignment now live behind `ToYul`. `IR.lean` still owns return type
     checks, ABI return-name lookup, and aggregate argument word expansion, but

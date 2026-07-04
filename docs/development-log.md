@@ -10821,7 +10821,7 @@ Result:
 
 ### EVM Aggregate Assignment ToYul Slice
 
-Commit: feature commit for EVM aggregate assignment ToYul
+Commit: `061956b feat: move evm aggregate assignments to toyul`
 
 Summary:
 
@@ -10854,6 +10854,46 @@ lake build
 Result:
 
 - Whole local aggregate assignment snapshot blocks now lower through `ToYul`.
+- Array-value and struct-array-value Foundry smokes still pass.
+- Full `lake build` passed locally with the existing `ProofForge/Cli.lean`
+  unused-variable warning.
+
+### EVM Dynamic Aggregate Assignment ToYul Slice
+
+Commit: feature commit for EVM dynamic aggregate assignment ToYul
+
+Summary:
+
+- Added `ToYul` helpers for dynamic local aggregate assignment frames:
+  shared index/value snapshot locals, switch cases and default revert case,
+  checked-assignment RHS construction, one-dimensional switch blocks, nested
+  path switch blocks, and outer value-snapshot blocks.
+- Updated the `IR.lean` dynamic local fixed-array, nested fixed-array path, and
+  struct-array field assignment paths to delegate the final Yul frame assembly
+  to `ToYul` while keeping validation and path recursion in the compatibility
+  facade.
+- Added semantic-plan tests for direct `ToYul` dynamic assignment frames plus
+  `lowerAssignStmt` integration for dynamic local fixed-array assignment.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/struct-array-value-ir-smoke.sh
+lake build
+```
+
+Result:
+
+- Dynamic local aggregate assignment switch/value snapshot frames now lower
+  through `ToYul`.
 - Array-value and struct-array-value Foundry smokes still pass.
 - Full `lake build` passed locally with the existing `ProofForge/Cli.lean`
   unused-variable warning.
