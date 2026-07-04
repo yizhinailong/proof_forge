@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Literal Crosscall Arg Plan Slice
+
+Commit: this commit
+
+Summary:
+
+- Extended `Lower.buildExprPlan` so struct literal and fixed-array literal
+  typed/value/static/delegate crosscall arguments are flattened into scalar
+  word `ExprPlan`s instead of opaque aggregate expressions.
+- Covered scalar fixed-array literals, nested fixed-array literals, struct
+  literals, and struct-array literals at the semantic-plan boundary.
+- Kept local aggregate crosscall arguments on `ExprPlan.localCrosscallWords` so
+  final local identifier word construction still goes through
+  `ToYul.localCrosscallWords`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+just evm-diagnostics
+scripts/evm/crosscall-ir-smoke.sh
+lake build proof-forge
+lake build
+```
+
+Known limitations:
+
+- Storage-backed and other non-literal aggregate crosscall argument sources
+  still lower through the compatibility facade.
+- `ToYul.exprPlanExpr` remains scalar-only for standalone aggregate
+  expression plans; crosscall expression lowering expands planned words before
+  selecting the helper-call constructor.
+
+Next step:
+
+- Move storage-backed aggregate crosscall argument sources behind an explicit
+  plan node, or continue extracting aggregate return word-layout discovery out
+  of `IR.lean`.
+
 ### EVM Local Crosscall Arg Plan Slice
 
 Commit: this commit
@@ -43,15 +86,16 @@ scripts/evm/crosscall-ir-smoke.sh
 
 Known limitations:
 
-- Struct literal, array literal, and storage-backed aggregate crosscall
-  argument sources still lower through the compatibility facade.
+- Literal aggregate crosscall argument sources are handled by the later
+  semantic-plan slice; storage-backed and other non-literal aggregate
+  crosscall argument sources still lower through the compatibility facade.
 - `ToYul.exprPlanExpr` remains scalar-only for word-expansion nodes; the
   compatibility plan consumer expands local crosscall words before calling the
   existing helper-call constructor.
 
 Next step:
 
-- Introduce semantic-plan nodes for non-local aggregate crosscall argument
+- Introduce semantic-plan nodes for storage-backed aggregate crosscall argument
   sources, or move aggregate crosscall return word-layout discovery out of
   `IR.lean`.
 

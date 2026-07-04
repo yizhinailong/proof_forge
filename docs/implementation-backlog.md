@@ -453,12 +453,13 @@ Tasks:
     local, expected type, and struct field eligibility before calling it. Local
     aggregate crosscall argument word expansion now delegates the final local
     identifier word construction to `ToYul.localCrosscallWords`; `IR.lean`
-    still owns crosscall argument shape validation and non-local aggregate
-    sources until those are represented directly in the semantic plan. `Lower`
-    now represents local aggregate typed/value/static/delegate crosscall
-    arguments as `ExprPlan.localCrosscallWords`, and `IR.lowerExprPlanExpr`
-    consumes that plan node by expanding it through `ToYul.localCrosscallWords`
-    before selecting the helper-call arity.
+    still owns storage-backed and other non-literal aggregate sources until
+    those are represented directly in the semantic plan. `Lower` now represents
+    local aggregate typed/value/static/delegate crosscall arguments as
+    `ExprPlan.localCrosscallWords`, expands struct literal and fixed-array
+    literal crosscall arguments into scalar word `ExprPlan`s, and lets
+    `IR.lowerExprPlanExpr` consume those planned words before selecting the
+    helper-call arity.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

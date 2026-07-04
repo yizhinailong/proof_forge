@@ -69,6 +69,15 @@ def requireCallExpr
       require (args.size == expectedArgCount) s!"{label} arg count"
   | _ => throw <| IO.userError s!"{label} must lower to helper call"
 
+def requireLiteralWordPlan
+    (plan : ExprPlan)
+    (expectedValue : Nat)
+    (label : String) : IO Unit := do
+  match plan with
+  | .literalWord value =>
+      require (value == expectedValue) s!"{label} literal word value"
+  | _ => throw <| IO.userError s!"{label} must be a literal word plan"
+
 def requireIdentExpr
     (expr : Lean.Compiler.Yul.Expr)
     (expectedName : String)
@@ -780,6 +789,141 @@ def testScalarExprPlanToYul : IO Unit := do
     "__proof_forge_crosscall_2"
     4
     "local aggregate crosscall argument ExprPlan-to-Yul"
+  let aggregateStructLiteralArgPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[.structLit "Point" #[
+          ("x", .literal (.u64 4)),
+          ("y", .literal (.u64 6))
+        ]]
+        .u64))
+    "struct literal aggregate crosscall argument Lower ExprPlan"
+  match aggregateStructLiteralArgPlan with
+  | .crosscall .call _ _ none args .u64 => do
+      require (args.size == 2) "struct literal aggregate crosscall argument plan word count"
+      requireLiteralWordPlan (← requireAt args 0 "struct literal aggregate crosscall argument missing x word") 4
+        "struct literal aggregate crosscall argument x word"
+      requireLiteralWordPlan (← requireAt args 1 "struct literal aggregate crosscall argument missing y word") 6
+        "struct literal aggregate crosscall argument y word"
+  | _ => throw <| IO.userError "struct literal aggregate crosscall argument must lower to call plan"
+  let aggregateStructLiteralArgPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      #[{ name := "target", type := .u64, isMutable := false }]
+      aggregateStructLiteralArgPlan)
+    "struct literal aggregate crosscall argument ExprPlan-to-Yul"
+  requireCallExpr
+    aggregateStructLiteralArgPlanExpr
+    "__proof_forge_crosscall_2"
+    4
+    "struct literal aggregate crosscall argument ExprPlan-to-Yul"
+  let aggregateArrayLiteralArgPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[.arrayLit .u64 #[
+          .literal (.u64 5),
+          .literal (.u64 8)
+        ]]
+        .u64))
+    "array literal aggregate crosscall argument Lower ExprPlan"
+  match aggregateArrayLiteralArgPlan with
+  | .crosscall .call _ _ none args .u64 => do
+      require (args.size == 2) "array literal aggregate crosscall argument plan word count"
+      requireLiteralWordPlan (← requireAt args 0 "array literal aggregate crosscall argument missing element 0 word") 5
+        "array literal aggregate crosscall argument element 0 word"
+      requireLiteralWordPlan (← requireAt args 1 "array literal aggregate crosscall argument missing element 1 word") 8
+        "array literal aggregate crosscall argument element 1 word"
+  | _ => throw <| IO.userError "array literal aggregate crosscall argument must lower to call plan"
+  let aggregateArrayLiteralArgPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      #[{ name := "target", type := .u64, isMutable := false }]
+      aggregateArrayLiteralArgPlan)
+    "array literal aggregate crosscall argument ExprPlan-to-Yul"
+  requireCallExpr
+    aggregateArrayLiteralArgPlanExpr
+    "__proof_forge_crosscall_2"
+    4
+    "array literal aggregate crosscall argument ExprPlan-to-Yul"
+  let aggregateNestedArrayLiteralArgPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[ProofForge.IR.Examples.EvmCrosscallProbe.matrix2x2
+          (.literal (.u64 1)) (.literal (.u64 2))
+          (.literal (.u64 3)) (.literal (.u64 4))]
+        .u64))
+    "nested array literal aggregate crosscall argument Lower ExprPlan"
+  match aggregateNestedArrayLiteralArgPlan with
+  | .crosscall .call _ _ none args .u64 => do
+      require (args.size == 4) "nested array literal aggregate crosscall argument plan word count"
+      requireLiteralWordPlan (← requireAt args 0 "nested array literal aggregate crosscall argument missing word 0") 1
+        "nested array literal aggregate crosscall argument word 0"
+      requireLiteralWordPlan (← requireAt args 1 "nested array literal aggregate crosscall argument missing word 1") 2
+        "nested array literal aggregate crosscall argument word 1"
+      requireLiteralWordPlan (← requireAt args 2 "nested array literal aggregate crosscall argument missing word 2") 3
+        "nested array literal aggregate crosscall argument word 2"
+      requireLiteralWordPlan (← requireAt args 3 "nested array literal aggregate crosscall argument missing word 3") 4
+        "nested array literal aggregate crosscall argument word 3"
+  | _ => throw <| IO.userError "nested array literal aggregate crosscall argument must lower to call plan"
+  let aggregateNestedArrayLiteralArgPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      #[{ name := "target", type := .u64, isMutable := false }]
+      aggregateNestedArrayLiteralArgPlan)
+    "nested array literal aggregate crosscall argument ExprPlan-to-Yul"
+  requireCallExpr
+    aggregateNestedArrayLiteralArgPlanExpr
+    "__proof_forge_crosscall_4"
+    6
+    "nested array literal aggregate crosscall argument ExprPlan-to-Yul"
+  let aggregateStructArrayLiteralArgPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[.arrayLit (.structType "RemotePair") #[
+          ProofForge.IR.Examples.EvmCrosscallProbe.pair (.literal (.bool true)) (.literal (.u32 7)),
+          ProofForge.IR.Examples.EvmCrosscallProbe.pair (.literal (.bool false)) (.literal (.u32 9))
+        ]]
+        .u64))
+    "struct-array literal aggregate crosscall argument Lower ExprPlan"
+  match aggregateStructArrayLiteralArgPlan with
+  | .crosscall .call _ _ none args .u64 => do
+      require (args.size == 4) "struct-array literal aggregate crosscall argument plan word count"
+      requireLiteralWordPlan (← requireAt args 0 "struct-array literal aggregate crosscall argument missing flag 0 word") 1
+        "struct-array literal aggregate crosscall argument flag 0 word"
+      requireLiteralWordPlan (← requireAt args 1 "struct-array literal aggregate crosscall argument missing small 0 word") 7
+        "struct-array literal aggregate crosscall argument small 0 word"
+      requireLiteralWordPlan (← requireAt args 2 "struct-array literal aggregate crosscall argument missing flag 1 word") 0
+        "struct-array literal aggregate crosscall argument flag 1 word"
+      requireLiteralWordPlan (← requireAt args 3 "struct-array literal aggregate crosscall argument missing small 1 word") 9
+        "struct-array literal aggregate crosscall argument small 1 word"
+  | _ => throw <| IO.userError "struct-array literal aggregate crosscall argument must lower to call plan"
+  let aggregateStructArrayLiteralArgPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      #[{ name := "target", type := .u64, isMutable := false }]
+      aggregateStructArrayLiteralArgPlan)
+    "struct-array literal aggregate crosscall argument ExprPlan-to-Yul"
+  requireCallExpr
+    aggregateStructArrayLiteralArgPlanExpr
+    "__proof_forge_crosscall_4"
+    6
+    "struct-array literal aggregate crosscall argument ExprPlan-to-Yul"
   let nativeTransferPlanExpr ← requireOk
     (lowerExprPlanExpr
       ProofForge.IR.Examples.Counter.module
