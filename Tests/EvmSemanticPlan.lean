@@ -446,6 +446,43 @@ def testScalarBindingStmtPlanToYul : IO Unit := do
 
 def testScalarAssignmentPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := true }]
+  let directAssignStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.assign
+        (.local "n")
+        (.checkedArith .add (.local "n") (.literalWord 1))))
+    "scalar assignment StmtPlan-to-Yul helper"
+  require (directAssignStmts.size == 1) "scalar assignment StmtPlan-to-Yul helper statement count"
+  match directAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["n"]) "scalar assignment StmtPlan-to-Yul helper target"
+      require (name == "__pf_checked_add") "scalar assignment StmtPlan-to-Yul helper checked add"
+      require (args.size == 2) "scalar assignment StmtPlan-to-Yul helper checked add arg count"
+  | _ => throw <| IO.userError "scalar assignment StmtPlan-to-Yul helper must assign helper result"
+  let directAssignOpStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.assignOp
+        (.local "n")
+        .add
+        (.effect (.storageScalarRead "count"))))
+    "scalar compound assignment StmtPlan-to-Yul helper"
+  require (directAssignOpStmts.size == 1) "scalar compound assignment StmtPlan-to-Yul helper statement count"
+  match directAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["n"]) "scalar compound assignment StmtPlan-to-Yul helper target"
+      require (name == "__pf_checked_add") "scalar compound assignment StmtPlan-to-Yul helper checked add"
+      require (args.size == 2) "scalar compound assignment StmtPlan-to-Yul helper checked add arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.builtin name _ =>
+          require (name == "sload") "scalar compound assignment StmtPlan-to-Yul helper rhs opcode"
+      | _ => throw <| IO.userError "scalar compound assignment StmtPlan-to-Yul helper rhs must be sload"
+  | _ => throw <| IO.userError "scalar compound assignment StmtPlan-to-Yul helper must assign helper result"
   let assignStmts ← requireOk
     (lowerAssignStmt
       ProofForge.IR.Examples.Counter.module

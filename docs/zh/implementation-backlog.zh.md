@@ -184,7 +184,7 @@
   - 已开始：标量 `let` 和 `let mut` 的 statement 组装现在会在受支持的标量 initializer 表达式上消费第一条窄 `StmtPlan -> ToYul` helper，从 `StmtPlan.letBind`/`StmtPlan.letMutBind` 生成 Yul `varDecl`。尚不支持的聚合或字段 initializer 形态仍留在兼容外观中，直到更完整的 `StmtPlan -> Yul` 降级落地。
   - 已开始：标量 `assert` 和 `assertEq` 的 statement 组装现在会在受支持的标量操作数上消费一条窄 `StmtPlan -> ToYul` helper。EVM 运行时错误 payload 的选择仍留在 `IR.lean` 兼容外观中，并以 revert-body callback 的形式传给 `ToYul`。尚不支持的聚合或字段断言操作数继续留在兼容路径上，直到更完整的 statement-plan 降级落地。
   - 已开始：标量 `return` 的 statement 组装现在会对受支持的单字 `U32`/`U64`/`Bool`/`Hash`/`Address` 返回值消费一条窄 `StmtPlan -> ToYul` helper，并覆盖分支内返回需要追加 Yul `leave` 的情况。返回 ABI 名称选择、bytes/string 返回、聚合返回打平，以及聚合跨合约调用返回 helper 仍留在现有兼容路径上，直到对应迁移切片补齐计划级覆盖。
-  - 已开始：直接标量赋值和复合赋值的 RHS 降级现在也会对受支持的标量表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。整聚合赋值、动态聚合 helper 快照以及非标量 storage effect 写入仍留在现有兼容路径上，直到对应迁移切片补齐覆盖。
+  - 已开始：直接标量 local 赋值和复合赋值的 statement 组装现在会在 RHS 属于受支持标量 plan 子集时消费一条窄 `StmtPlan -> ToYul` helper。整聚合赋值、静态/动态聚合 target path、动态聚合 helper snapshot，以及非标量 storage effect 写入仍留在现有兼容路径上，直到对应迁移切片补齐覆盖。
   - 已开始：标量 `storageScalarWrite` 和 `storageScalarAssignOp` 的 value 降级现在也会对受支持的标量 RHS 表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。
   - 已开始：`storageMapInsert`/`storageMapSet` 写入降级现在会在 statement 写入和返回旧值的 expression 写入两种形态中，对受支持的标量 map key/value 表达式消费同一个 `ExprPlan -> ToYul` 表达式边界。
   - 已开始：`storageArrayWrite` 的 value 降级现在会对受支持的标量写入值消费同一个 `ExprPlan -> ToYul` 表达式边界。数组索引 slot 组装仍留在现有 `StorageSlotPlan -> ToYul` 边界上。

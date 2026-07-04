@@ -4358,8 +4358,19 @@ def lowerAssignStmt
       | .fixedArray _ _ | .structType _ =>
           .ok #[← lowerWholeLocalAssignStmt module env name binding value]
       | _ =>
-          let targetName ← lowerAssignTargetName "assignment target" target
-          .ok #[.assignment #[targetName] (← lowerScalarPlanExprOrFallback module env value)]
+          if exprSupportsPlanScalarYul value then
+            let valuePlan ←
+              match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+              | .ok plan => .ok plan
+              | .error err => .error { message := err.message }
+            ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              (.assign (.local name) valuePlan)
+          else
+            let targetName ← lowerAssignTargetName "assignment target" target
+            .ok #[.assignment #[targetName] (← lowerExpr module env value)]
   | .arrayGet (.local name) index =>
       match literalArrayIndex? index with
       | some _ => do
@@ -4405,6 +4416,27 @@ def lowerAssignOpStmt
     (op : AssignOp)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   match target with
+  | .local name => do
+      let some binding := findLocal? env name
+        | .error { message := s!"unknown local `{name}`" }
+      match binding.type with
+      | .fixedArray _ _ | .structType _ =>
+          let targetName ← lowerAssignTargetName "compound assignment target" target
+          .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerScalarPlanExprOrFallback module env value))]
+      | _ =>
+          if exprSupportsPlanScalarYul value then
+            let valuePlan ←
+              match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+              | .ok plan => .ok plan
+              | .error err => .error { message := err.message }
+            ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              (.assignOp (.local name) op valuePlan)
+          else
+            let targetName ← lowerAssignTargetName "compound assignment target" target
+            .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerExpr module env value))]
   | .arrayGet (.local name) index =>
       match literalArrayIndex? index with
       | some _ => do

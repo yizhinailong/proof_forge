@@ -17,6 +17,39 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Assignment StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.scalarAssignmentStmtPlanStatements` for narrow direct scalar
+  local `StmtPlan.assign` and `StmtPlan.assignOp` assembly.
+- Routed direct scalar local assignment and compound assignment through the
+  helper when the RHS is in the supported scalar plan subset.
+- Kept aggregate locals, static/dynamic array element targets, struct fields,
+  and other assignable path forms on the compatibility facade.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+  integrated `lowerAssignStmt` / `lowerAssignOpStmt` paths.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- This slice covers direct scalar local assignment only. Array elements, struct
+  fields, nested aggregate paths, and storage writes still need their own
+  `StmtPlan -> Yul` extraction slices.
+
+Next step:
+
+- Move a storage-effect or path-assignment assembly shape behind a
+  `StmtPlan -> Yul` helper, or start extracting control-flow statement assembly.
+
 ### EVM Scalar Return StmtPlan-To-Yul Slice
 
 Commit: this commit

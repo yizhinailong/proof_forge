@@ -355,6 +355,33 @@ def scalarReturnStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar return lowering expected return")
 
+def scalarAssignmentStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .assign (.local targetName) value => do
+      .ok #[
+        Lean.Compiler.Yul.Statement.assignment
+          #[targetName]
+          (← exprPlanExpr mkError lowerExpr lowerEffect value)
+      ]
+  | .assignOp (.local targetName) op value => do
+      .ok #[
+        Lean.Compiler.Yul.Statement.assignment
+          #[targetName]
+          (checkedArithExpr op
+            (Lean.Compiler.Yul.Expr.id targetName)
+            (← exprPlanExpr mkError lowerExpr lowerEffect value))
+      ]
+  | .assign _ _ =>
+      .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected a local target")
+  | .assignOp _ _ _ =>
+      .error (mkError "EVM StmtPlan-to-Yul scalar compound assignment lowering expected a local target")
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected assign/assignOp")
+
 /-! ## Plan-driven helper requirements
 
 `StorageSlotPlan.requiredHelpers` lets the plan declare which EVM helper functions

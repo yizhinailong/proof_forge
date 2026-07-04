@@ -293,11 +293,12 @@ Tasks:
     flattening, and aggregate crosscall return helpers remain on their existing
     compatibility paths until their own migration slices add plan-level
     coverage.
-  - Started: direct scalar assignment and compound-assignment RHS lowering now
-    consumes the same `ExprPlan -> ToYul` expression boundary for supported
-    scalar expressions. Whole-aggregate assignment, dynamic aggregate helper
-    snapshots, and non-scalar storage effect writes remain on their existing
-    compatibility paths until their own migration slices add coverage.
+  - Started: direct scalar local assignment and compound-assignment statement
+    assembly now consumes a narrow `StmtPlan -> ToYul` helper when the RHS is in
+    the supported scalar plan subset. Whole-aggregate assignment, static/dynamic
+    aggregate target paths, dynamic aggregate helper snapshots, and non-scalar
+    storage effect writes remain on their existing compatibility paths until
+    their own migration slices add coverage.
   - Started: scalar `storageScalarWrite` and `storageScalarAssignOp` value
     lowering now consumes the same `ExprPlan -> ToYul` expression boundary for
     supported scalar RHS expressions.
