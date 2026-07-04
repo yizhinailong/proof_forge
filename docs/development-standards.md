@@ -83,24 +83,33 @@ source-of-truth docs and states when they must be updated.
 
 - Lean toolchain is `leanprover/lean4:v4.31.0` from `lean-toolchain`.
 - Base build gate is `lake build`.
-- Current library roots are `ProofForge`, `ProofForge.Evm`,
-  `ProofForge.Compiler.Yul.AST`, `ProofForge.Compiler.Yul.Printer`, and
-  `ProofForge.Compiler.LCNF.EmitYul` from `lakefile.lean` lines 7-14.
+- Current library roots are `ProofForge`, `ProofForge.Psy`,
+  `ProofForge.Target`, `ProofForge.IR`, `ProofForge.Backend`,
+  `ProofForge.Backend.Solana.SbpfAsm`, `ProofForge.Compiler.Yul.AST`,
+  `ProofForge.Compiler.Yul.Printer`, `ProofForge.Compiler.Wasm.AST`,
+  `ProofForge.Compiler.Wasm.Printer`, `ProofForge.Compiler.TS.AST`,
+  `ProofForge.Compiler.TS.Printer`, and `ProofForge.Compiler.TS.Emit` from
+  `lakefile.lean`.
 - The executable is `proof-forge`, rooted at `ProofForge.Cli`, with
-  `supportInterpreter := true` from `lakefile.lean` lines 16-19.
+  `supportInterpreter := true` from `lakefile.lean`.
 - New compiled Lean modules must be imported by an existing root or added to
   Lake roots before docs may claim they are part of the package.
 
 ## Authoring surface conventions
 
 - New chain-neutral contracts use `ProofForge.Contract.Source` and lower to
-  `ContractSpec` / portable IR. Do not add `ProofForge.Evm`, Solana, NEAR, or
-  other target imports to starter templates merely to select an output chain;
-  target selection belongs to the CLI (`--target <id>`) or package metadata.
-- EVM-native examples may still import `ProofForge.Evm` and `open Lean.Evm`
-  when they intentionally exercise the legacy EVM SDK / LCNF route.
-- EVM-native exported entrypoints use `@[export l_<Contract>_<method>]` and
-  must match either `--method` CLI flags or a sibling `.evm-methods` file.
+  `ContractSpec` / portable IR. Do not add `ProofForge.Backend.Evm`, Solana,
+  NEAR, or other target/backend imports to starter templates merely to select an
+  output chain; target selection belongs to the CLI (`--target <id>`) or package
+  metadata.
+- `ProofForge.Backend.Evm` is compiler implementation code, not a product
+  authoring SDK. New examples under `Examples/` should use `contract_source` or
+  compose importable `contract_source` modules; backend-only probes belong under
+  `Tests/` or `ProofForge/IR/Examples/`.
+- The old `ProofForge.Evm` / `Lean.Evm` / LCNF `EmitYul` authoring route has
+  been removed from the product surface. References to that route in historical
+  RFCs or research notes must be labeled as legacy/research, not current
+  authoring guidance.
 - Capability names in EVM docs must reuse `docs/capability-registry.md` ids:
   `events.emit`, `crosscall.invoke`, `account.explicit`, `storage.pda`,
   `crosscall.cpi`. Do not introduce alternate ids such as `events.log`,

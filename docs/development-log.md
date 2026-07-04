@@ -17,6 +17,319 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Let Plan-To-Yul Assembly Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ProofForge.Backend.Evm.ToYul.exprPlanExpr`, a semantic-plan to Yul
+  expression adapter for the supported scalar expression subset.
+- Routed scalar `let` / `let mut` initializer lowering through
+  `Lower.buildExprPlan -> ToYul.exprPlanExpr` when the initializer is inside
+  that supported scalar subset.
+- Added an explicit `IR.lean` compatibility boundary from the existing
+  `TypeEnv`/`LowerError` facade types to the newer `Validate`/`Lower` types.
+- Extended `Tests/EvmSemanticPlan.lean` to lock Counter scalar storage reads
+  and checked addition through the plan-to-Yul path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/expression-ir-smoke.sh
+scripts/evm/context-ir-smoke.sh
+```
+
+Known limitations:
+
+- This slice intentionally covers scalar local-binding initialization only.
+  Aggregate, crosscall, create, return, assertion, assignment, and full
+  statement lowering still use the `IR.lean` compatibility assembly path until
+  their own migration slices add plan-level coverage.
+- `ToYul.exprPlanExpr` returns explicit unsupported diagnostics for plan nodes
+  that are not valid in this scalar expression path.
+
+Next step:
+
+- Move the next statement path, likely scalar `assert`/`assertEq` or scalar
+  `return`, to consume `ExprPlan` directly and add the corresponding golden
+  Yul / Foundry smoke coverage.
+
+### EVM Entrypoint Body Semantic Plans
+
+Commit: this commit
+
+Summary:
+
+- Added structural IR-to-`ExprPlan` / `StmtPlan` lowering in
+  `ProofForge.Backend.Evm.Lower`.
+- `Lower.buildEntrypointPlan` now validates and stores each entrypoint body in
+  `EntrypointPlan.body` instead of leaving the body empty.
+- Extended `Tests/EvmSemanticPlan.lean` to lock Counter's planned
+  `initialize`, `increment`, and `get` bodies, including storage scalar
+  effects and checked addition.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower
+just evm-plan
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- Final Yul AST assembly still runs through the compatibility lowering in
+  `IR.lean`; this slice only makes the semantic plan carry the structured body
+  needed for the next migration step.
+- Storage path segments are still carried in their portable IR form inside
+  `EffectPlan.storagePath*` nodes.
+
+Next step:
+
+- Move a narrow expression or statement assembly path from `IR.lean` to consume
+  the new `ExprPlan` / `StmtPlan` nodes directly, with golden Yul and Foundry
+  smokes proving behavior is unchanged.
+
+### EVM Storage Slot Plan Array Coverage
+
+Commit: this commit
+
+Summary:
+
+- Extended `StorageSlotPlan` with storage array and struct-array field slot
+  shapes.
+- Added `ToYul.storageSlotExpr` lowering for `__proof_forge_array_slot` and
+  `__proof_forge_struct_array_slot` helper calls.
+- Routed `IR.lean` storage array and struct-array field slot lowering through
+  the plan-to-Yul boundary while keeping compatibility facade functions.
+- Extended `Tests/EvmPlan.lean` to lock the new slot plans, helper
+  requirements, and rendered Yul expressions.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul
+lake env lean --run Tests/EvmPlan.lean
+lake build ProofForge.Backend.Evm.IR
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+```
+
+Known limitations:
+
+- `IR.lean` is still the compatibility facade for expression/statement
+  lowering; the semantic-plan migration is not complete until `ExprPlan`,
+  `StmtPlan`, entrypoint, event, crosscall, and metadata planning own the
+  remaining lowering decisions.
+
+Next step:
+
+- Continue the EVM semantic-plan migration with `ExprPlan`/`StmtPlan` or
+  entrypoint dispatch planning, keeping golden Yul and Foundry smokes as the
+  behavior lock.
+
+### EVM Example Stdlib Build Gate Fix
+
+Commit: this commit
+
+Summary:
+
+- Added the new `ProofForge.Contract.Stdlib.*` modules to
+  `ProofForge/Contract.lean` so a package-level contract build owns the stdlib
+  import surface.
+- Updated `scripts/evm/build-examples.sh` to build `ProofForge.Contract` in
+  addition to the `proof-forge` executable before loading example sources. This
+  fixes clean-checkout failures where stdlib example imports had no generated
+  `.olean` files.
+
+Validation run:
+
+```sh
+rm -rf build/evm
+scripts/evm/build-examples.sh
+```
+
+Known limitations:
+
+- The script still requires Foundry `cast` and `solc`; this change only fixes
+  the Lean module availability side of the EVM example gate.
+
+Next step:
+
+- Re-run CI and continue EVM target-note/RFC cleanup once the build-examples
+  step is green.
+
+### EVM Target Note Unified Pipeline Cleanup
+
+Commit: this commit
+
+Summary:
+
+- Rewrote `docs/targets/evm.md` and its zh mirror around the current
+  `contract_source` / `ContractSpec` -> portable IR -> EVM semantic plan ->
+  Yul AST/printer -> `solc` pipeline.
+- Replaced the `.evm-methods` product workflow with ABI/selector derivation
+  from `ContractSpec`; legacy sidecar support is now described only as an RFC
+  0009 compatibility-window behavior.
+- Updated the EVM module layout, example workflow, metadata source-kind text,
+  and gate description to match the unified backend.
+- Marked CS-6.1 complete in the Workstream 34 backlog.
+
+Validation run:
+
+```sh
+scripts/i18n/check-sync.sh
+python3 scripts/translate-docs.py --check
+git diff --check
+```
+
+Known limitations:
+
+- Historical RFCs still contain old EVM/LCNF narrative as project history; CS-6.3
+  owns the broader decision/RFC cleanup.
+
+Next step:
+
+- Continue CS-6.3 by aligning RFC 0004 / decision text with the now-current EVM
+  product pipeline, or move to CS-3 SDK capability blockers.
+
+### Development Standards EVM Legacy Cleanup
+
+Commit: this commit
+
+Summary:
+
+- Updated `docs/development-standards.md` to list the current Lake roots from
+  `lakefile.lean` instead of the removed `ProofForge.Evm` /
+  `ProofForge.Compiler.LCNF.EmitYul` roots.
+- Clarified that `ProofForge.Backend.Evm` is compiler implementation code, not a
+  product authoring SDK.
+- Updated authoring guidance so new `Examples/` files use `contract_source`,
+  while backend-only probes live under `Tests/` or `ProofForge/IR/Examples/`.
+- Synchronized the zh mirror and backlog status for CS-6.2.
+
+Validation run:
+
+```sh
+scripts/i18n/check-sync.sh
+python3 scripts/translate-docs.py --check
+git diff --check
+```
+
+Known limitations:
+
+- Broader stale references remain in historical RFCs and target notes; those are
+  tracked by CS-6.1 and CS-6.3 rather than this standards-only cleanup.
+
+Next step:
+
+- Continue CS-6.1 by rewriting `docs/targets/evm.md` around the
+  `contract_source` -> portable IR -> EVM semantic plan -> Yul pipeline.
+
+### Portable Counter Template Target-First Build
+
+Commit: this commit
+
+Summary:
+
+- Made `templates/portable-counter/Counter.lean` directly consumable by the
+  `ContractLoader` by aligning its namespace with the file basename, so the
+  generated `Counter.spec` is found without an explicit `--module` override.
+- Rewrote the template README to use real
+  `proof-forge build --target evm|solana-sbpf-asm|wasm-near` commands against
+  the template `.lean` source instead of fixture-only `emit` commands.
+- Documented how to run the existing `portable-counter-multi-target` smoke with
+  `PORTABLE_COUNTER_SOURCE=templates/portable-counter/Counter.lean`.
+
+Validation run:
+
+```sh
+lake env lean templates/portable-counter/Counter.lean
+lake env proof-forge build --target evm --root . --cast build/tools/cast-shim \
+  -o build/portable-counter-template/Counter.bin \
+  --yul-output build/portable-counter-template/Counter.yul \
+  --artifact-output build/portable-counter-template/Counter.proof-forge-artifact.json \
+  templates/portable-counter/Counter.lean
+lake env proof-forge build --target solana-sbpf-asm --root . \
+  -o build/portable-counter-template/Counter.s \
+  --artifact-output build/portable-counter-template/Counter.solana-artifact.json \
+  templates/portable-counter/Counter.lean
+lake env proof-forge build --target wasm-near --root . \
+  -o build/portable-counter-template/near \
+  --artifact-output build/portable-counter-template/Counter.near-artifact.json \
+  templates/portable-counter/Counter.lean
+PORTABLE_COUNTER_SOURCE=templates/portable-counter/Counter.lean \
+PORTABLE_COUNTER_OUT=build/portable-counter-template \
+CAST=build/tools/cast-shim \
+just portable-counter-multi-target
+scripts/i18n/check-sync.sh
+python3 scripts/translate-docs.py --check
+git diff --check
+```
+
+Known limitations:
+
+- The checked EVM build still needs Foundry `cast`; the local validation command
+  can use the repository's ignored `build/tools/cast-shim` when Foundry is not
+  installed.
+- A public `proof-forge init` command is still open; this slice only makes the
+  checked-in starter template executable by the current target-first build path.
+
+Next step:
+
+- Continue CS-4 by adding a standalone project scaffold or keep moving through
+  CS-6 stale EVM-native documentation cleanup if DX docs remain the larger
+  source of confusion.
+
+### Source-Backed Testkit Shared Scenarios
+
+Commit: this commit
+
+Summary:
+
+- Added optional `scenario.source` support to the Rust testkit manifest model.
+- Switched Counter and ValueVault testkit scenarios to
+  `Examples/Shared/Counter.lean` and `Examples/Shared/ValueVault.lean`.
+- Updated the EVM, Solana, and NEAR harnesses so those scenarios build
+  target-first artifacts from shared `.lean contract_source` modules before
+  executing behavior traces.
+- Extended scenario artifact assertions for `contract-sdk` metadata, NEAR
+  metadata, Solana source/IDL/client outputs, Solana IDL JSON embedding, and
+  metadata file references.
+
+Validation run:
+
+```sh
+cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
+cargo check --manifest-path testkit/Cargo.toml
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --target evm --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target evm --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --target wasm-near --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target wasm-near --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --target solana-sbpf-asm --trace
+cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target solana-sbpf-asm --trace
+just testkit
+lake build
+scripts/i18n/check-sync.sh
+python3 scripts/translate-docs.py --check
+git diff --check
+```
+
+Known limitations:
+
+- EVM `contract_source` builds still need Foundry `cast` or the local ignored
+  test shim for selector hydration.
+- Live deploy gates remain separate from deterministic testkit parity.
+
+Next step:
+
+- Continue CS-5/CS-3 by broadening the `contract_source` surface beyond
+  Counter/ValueVault while keeping the three primary target scenarios green.
+
 ### Shared Contract Source Equivalence Gate
 
 Commit: this commit

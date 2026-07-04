@@ -7,7 +7,7 @@ sBPF assembly/ELF, NEAR WAT/Wasm, or another target artifact.
 -/
 import ProofForge.Contract.Source
 
-namespace Templates.PortableCounter
+namespace Counter
 
 open ProofForge.Contract.Source
 
@@ -18,10 +18,10 @@ contract_source Counter do
     count := u64 0;
 
   entry increment do
-    let current : .u64 := count;
-    count := current +! u64 1;
+    let n : .u64 := count;
+    count := n +! u64 1;
 
   query get returns(.u64) do
     return count;
 
-end Templates.PortableCounter
+end Counter

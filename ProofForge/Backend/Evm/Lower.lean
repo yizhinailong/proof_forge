@@ -56,21 +56,276 @@ def entrypointSelector (entrypoint : Entrypoint) : Except LowerError String :=
   | some selector => .ok selector
   | none => .error { message := s!"entrypoint `{entrypoint.name}` has no EVM selector metadata" }
 
-/-! Entrypoint body plans carry the IR statements as opaque `StmtPlan` markers.
+/-! Entrypoint body plans carry structural `StmtPlan` / `ExprPlan` nodes.
 
-The full `StmtPlan`/`ExprPlan` lowering (RFC 0004 Stage 3-5) replaces the direct
-Yul construction inside `IR.lean` over time. During the staged migration the
-body is carried as an empty array while the Yul pass in `IR.lean` remains the
-authoritative lowering; the plan records the ABI surface, selector, and return
-shape so metadata and dispatch planning can consume it without re-discovering
-facts from rendered Yul. -/
+`IR.lean` remains the compatibility facade that assembles final Yul today, but
+the semantic plan now owns a target-validated statement/expression view of each
+entrypoint body. Later migration slices can consume these plan nodes directly
+instead of re-walking the portable IR at Yul assembly time. -/
+
+def literalPlan : Literal → Except LowerError ExprPlan
+  | .u32 value => .ok (.literalWord value)
+  | .u64 value => .ok (.literalWord value)
+  | .bool value => .ok (.literalWord (if value then 1 else 0))
+  | .hash4 a b c d => do
+      .ok (.literalWord (← packedHashLiteral a b c d))
+
+def eventPlanForFields
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (indexedFields dataFields : Array (String × Expr)) :
+    Except LowerError EventPlan := do
+  validateIndexedEventFieldCount name indexedFields.size
+  let fields := indexedFields ++ dataFields
+  let signature ← eventSignature module env name fields
+  let mut fieldPlans : Array EventFieldPlan := #[]
+  for field in indexedFields do
+    let fieldType ← inferEventFieldExprType module env field.snd
+    fieldPlans := fieldPlans.push (EventFieldPlan.mk field.fst fieldType true)
+  for field in dataFields do
+    let fieldType ← inferEventFieldExprType module env field.snd
+    fieldPlans := fieldPlans.push (EventFieldPlan.mk field.fst fieldType false)
+  .ok (EventPlan.mk name signature fieldPlans)
+
+def assignExprPlan (op : AssignOp) (lhs rhs : ExprPlan) : ExprPlan :=
+  .checkedArith op lhs rhs
+
+mutual
+  partial def buildExprPlan (module : Module) (env : TypeEnv) : Expr → Except LowerError ExprPlan
+    | .literal value => literalPlan value
+    | .local name => .ok (.local name)
+    | .arrayLit elementType values => do
+        let planned ← values.mapM (buildExprPlan module env)
+        .ok (.arrayLit elementType planned)
+    | .arrayGet array index => do
+        .ok (.arrayGet (← buildExprPlan module env array) (← buildExprPlan module env index))
+    | .structLit typeName fields => do
+        let mut planned : Array (String × ExprPlan) := #[]
+        for field in fields do
+          planned := planned.push (field.fst, ← buildExprPlan module env field.snd)
+        .ok (.structLit typeName planned)
+    | .field base fieldName => do
+        .ok (.structField (← buildExprPlan module env base) fieldName)
+    | .add lhs rhs => do
+        .ok (assignExprPlan .add (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .sub lhs rhs => do
+        .ok (assignExprPlan .sub (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .mul lhs rhs => do
+        .ok (assignExprPlan .mul (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .div lhs rhs => do
+        .ok (assignExprPlan .div (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .mod lhs rhs => do
+        .ok (assignExprPlan .mod (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .pow lhs rhs => do
+        .ok (.builtin "exp" #[← buildExprPlan module env lhs, ← buildExprPlan module env rhs])
+    | .bitAnd lhs rhs => do
+        .ok (assignExprPlan .bitAnd (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .bitOr lhs rhs => do
+        .ok (assignExprPlan .bitOr (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .bitXor lhs rhs => do
+        .ok (assignExprPlan .bitXor (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .shiftLeft lhs rhs => do
+        .ok (assignExprPlan .shiftLeft (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .shiftRight lhs rhs => do
+        .ok (assignExprPlan .shiftRight (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .cast value targetType => do
+        .ok (.cast (← buildExprPlan module env value) targetType)
+    | .eq lhs rhs => do
+        .ok (.builtin "eq" #[← buildExprPlan module env lhs, ← buildExprPlan module env rhs])
+    | .ne lhs rhs => do
+        .ok (.builtin "iszero" #[.builtin "eq" #[← buildExprPlan module env lhs, ← buildExprPlan module env rhs]])
+    | .lt lhs rhs => do
+        .ok (.builtin "lt" #[← buildExprPlan module env lhs, ← buildExprPlan module env rhs])
+    | .le lhs rhs => do
+        .ok (.builtin "iszero" #[.builtin "gt" #[← buildExprPlan module env lhs, ← buildExprPlan module env rhs]])
+    | .gt lhs rhs => do
+        .ok (.builtin "gt" #[← buildExprPlan module env lhs, ← buildExprPlan module env rhs])
+    | .ge lhs rhs => do
+        .ok (.builtin "iszero" #[.builtin "lt" #[← buildExprPlan module env lhs, ← buildExprPlan module env rhs]])
+    | .boolAnd lhs rhs => do
+        .ok (.builtin "and" #[← buildExprPlan module env lhs, ← buildExprPlan module env rhs])
+    | .boolOr lhs rhs => do
+        .ok (.builtin "or" #[← buildExprPlan module env lhs, ← buildExprPlan module env rhs])
+    | .boolNot value => do
+        .ok (.builtin "iszero" #[← buildExprPlan module env value])
+    | .hashValue a b c d => do
+        .ok (.hashValue
+          (← buildExprPlan module env a)
+          (← buildExprPlan module env b)
+          (← buildExprPlan module env c)
+          (← buildExprPlan module env d))
+    | .hash preimage => do
+        .ok (.hash (← buildExprPlan module env preimage))
+    | .hashTwoToOne lhs rhs => do
+        .ok (.hashTwoToOne (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
+    | .nativeValue =>
+        .ok .nativeValue
+    | .crosscallInvoke target methodId args => do
+        .ok (.crosscall .call
+          (← buildExprPlan module env target)
+          (← buildExprPlan module env methodId)
+          none
+          (← args.mapM (buildExprPlan module env))
+          .u64)
+    | .crosscallInvokeTyped target methodId args returnType => do
+        .ok (.crosscall .call
+          (← buildExprPlan module env target)
+          (← buildExprPlan module env methodId)
+          none
+          (← args.mapM (buildExprPlan module env))
+          returnType)
+    | .crosscallInvokeValueTyped target methodId callValue args returnType => do
+        .ok (.crosscall .callValue
+          (← buildExprPlan module env target)
+          (← buildExprPlan module env methodId)
+          (some (← buildExprPlan module env callValue))
+          (← args.mapM (buildExprPlan module env))
+          returnType)
+    | .crosscallInvokeStaticTyped target methodId args returnType => do
+        .ok (.crosscall .staticcall
+          (← buildExprPlan module env target)
+          (← buildExprPlan module env methodId)
+          none
+          (← args.mapM (buildExprPlan module env))
+          returnType)
+    | .crosscallInvokeDelegateTyped target methodId args returnType => do
+        .ok (.crosscall .delegatecall
+          (← buildExprPlan module env target)
+          (← buildExprPlan module env methodId)
+          none
+          (← args.mapM (buildExprPlan module env))
+          returnType)
+    | .crosscallCreate callValue initCodeHex => do
+        .ok (.create .create (← buildExprPlan module env callValue) none initCodeHex)
+    | .crosscallCreate2 callValue salt initCodeHex => do
+        .ok (.create .create2
+          (← buildExprPlan module env callValue)
+          (some (← buildExprPlan module env salt))
+          initCodeHex)
+    | .effect effect => do
+        .ok (.effect (← buildEffectPlan module env effect))
+
+  partial def buildEffectPlan (module : Module) (env : TypeEnv) : Effect → Except LowerError EffectPlan
+    | .storageScalarRead stateId =>
+        .ok (.storageScalarRead stateId)
+    | .storageScalarWrite stateId value => do
+        .ok (.storageScalarWrite stateId (← buildExprPlan module env value))
+    | .storageScalarAssignOp stateId op value => do
+        .ok (.storageScalarAssignOp stateId op (← buildExprPlan module env value))
+    | .storageMapContains stateId key => do
+        .ok (.storageMapContains stateId (← buildExprPlan module env key))
+    | .storageMapGet stateId key => do
+        .ok (.storageMapGet stateId (← buildExprPlan module env key))
+    | .storageMapInsert stateId key value => do
+        .ok (.storageMapInsert stateId (← buildExprPlan module env key) (← buildExprPlan module env value))
+    | .storageMapSet stateId key value => do
+        .ok (.storageMapSet stateId (← buildExprPlan module env key) (← buildExprPlan module env value))
+    | .storageArrayRead stateId index => do
+        .ok (.storageArrayRead stateId (← buildExprPlan module env index))
+    | .storageArrayWrite stateId index value => do
+        .ok (.storageArrayWrite stateId (← buildExprPlan module env index) (← buildExprPlan module env value))
+    | .storageArrayStructFieldRead stateId index fieldName => do
+        .ok (.storageArrayStructFieldRead stateId (← buildExprPlan module env index) fieldName)
+    | .storageArrayStructFieldWrite stateId index fieldName value => do
+        .ok (.storageArrayStructFieldWrite stateId (← buildExprPlan module env index) fieldName (← buildExprPlan module env value))
+    | .storageStructFieldRead stateId fieldName =>
+        .ok (.storageStructFieldRead stateId fieldName)
+    | .storageStructFieldWrite stateId fieldName value => do
+        .ok (.storageStructFieldWrite stateId fieldName (← buildExprPlan module env value))
+    | .storagePathRead stateId path =>
+        .ok (.storagePathRead stateId path)
+    | .storagePathWrite stateId path value => do
+        .ok (.storagePathWrite stateId path (← buildExprPlan module env value))
+    | .storagePathAssignOp stateId path op value => do
+        .ok (.storagePathAssignOp stateId path op (← buildExprPlan module env value))
+    | .contextRead field =>
+        .ok (.contextRead field)
+    | .eventEmit name fields => do
+        let eventPlan ← eventPlanForFields module env name #[] fields
+        let plannedFields ← fields.mapM fun field => buildExprPlan module env field.snd
+        .ok (.eventEmit eventPlan plannedFields)
+    | .eventEmitIndexed name indexedFields dataFields => do
+        let eventPlan ← eventPlanForFields module env name indexedFields dataFields
+        let plannedIndexed ← indexedFields.mapM fun field => buildExprPlan module env field.snd
+        let plannedData ← dataFields.mapM fun field => buildExprPlan module env field.snd
+        .ok (.eventEmitIndexed eventPlan plannedIndexed plannedData)
+
+  partial def buildStatementPlan
+      (module : Module)
+      (entrypoint : Entrypoint)
+      (env : TypeEnv) :
+      Statement → Except LowerError (StmtPlan × TypeEnv)
+    | .letBind name type value => do
+        ensureType s!"let binding `{name}`" type (← inferExprType module env value)
+        let valuePlan ← buildExprPlan module env value
+        let nextEnv ← addLocal env name type false
+        .ok (.letBind name type valuePlan, nextEnv)
+    | .letMutBind name type value => do
+        ensureType s!"mutable let binding `{name}`" type (← inferExprType module env value)
+        let valuePlan ← buildExprPlan module env value
+        let nextEnv ← addLocal env name type true
+        .ok (.letMutBind name type valuePlan, nextEnv)
+    | .assign target value => do
+        let targetPlan ← buildExprPlan module env target
+        let valuePlan ← buildExprPlan module env value
+        .ok (.assign targetPlan valuePlan, env)
+    | .assignOp target op value => do
+        let targetPlan ← buildExprPlan module env target
+        let valuePlan ← buildExprPlan module env value
+        .ok (.assignOp targetPlan op valuePlan, env)
+    | .effect effect => do
+        .ok (.effect (← buildEffectPlan module env effect), env)
+    | .assert condition message errorRef? => do
+        ensureType "assert condition" .bool (← inferExprType module env condition)
+        .ok (.assert (← buildExprPlan module env condition) message errorRef?, env)
+    | .assertEq lhs rhs message errorRef? => do
+        let lhsType ← inferExprType module env lhs
+        ensureType "assert_eq right operand" lhsType (← inferExprType module env rhs)
+        ensureEqType "assert_eq" lhsType
+        .ok (.assertEq (← buildExprPlan module env lhs) (← buildExprPlan module env rhs) message errorRef?, env)
+    | .release name =>
+        .ok (.release name, env)
+    | .ifElse condition thenBody elseBody => do
+        ensureType "if condition" .bool (← inferExprType module env condition)
+        let (thenPlans, _) ← buildStatementPlans module entrypoint env thenBody
+        let (elsePlans, _) ← buildStatementPlans module entrypoint env elseBody
+        .ok (.ifElse (← buildExprPlan module env condition) thenPlans elsePlans, env)
+    | .boundedFor indexName start stopExclusive body => do
+        if stopExclusive <= start then
+          .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
+        let loopEnv ← addLocal env indexName .u32 false
+        let (bodyPlans, _) ← buildStatementPlans module entrypoint loopEnv body
+        .ok (.boundedFor indexName start stopExclusive bodyPlans, env)
+    | .return value => do
+        ensureType "return value" entrypoint.returns (← inferExprType module env value)
+        .ok (.return (← buildExprPlan module env value), env)
+
+  partial def buildStatementPlans
+      (module : Module)
+      (entrypoint : Entrypoint)
+      (env : TypeEnv)
+      (statements : Array Statement) :
+      Except LowerError (Array StmtPlan × TypeEnv) := do
+    statements.foldlM (init := (#[], env)) fun acc stmt => do
+      let (plans, currentEnv) := acc
+      let (stmtPlan, nextEnv) ← buildStatementPlan module entrypoint currentEnv stmt
+      .ok (plans.push stmtPlan, nextEnv)
+end
+
+def buildEntrypointBodyPlan (module : Module) (entrypoint : Entrypoint) :
+    Except LowerError (Array StmtPlan) := do
+  validateEntrypointTypes module entrypoint
+  let (body, _) ← buildStatementPlans module entrypoint (entrypointTypeEnv entrypoint) entrypoint.body
+  .ok body
 
 def buildEntrypointPlan (module : Module) (entrypoint : Entrypoint) :
     Except LowerError EntrypointPlan := do
   let selector ← entrypointSelector entrypoint
   let params ← entrypointParamPlans module entrypoint
   let returns ← returnPlan module s!"entrypoint `{entrypoint.name}`" entrypoint.returns
-  .ok { name := entrypoint.name, selector, params, returns, body := #[] }
+  let body ← buildEntrypointBodyPlan module entrypoint
+  .ok { name := entrypoint.name, selector, params, returns, body }
 
 def buildEntrypointPlans (module : Module) : Except LowerError (Array EntrypointPlan) :=
   module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do

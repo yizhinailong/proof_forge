@@ -13,20 +13,27 @@ Related: [Capability registry](../capability-registry.md),
 ## Pipeline
 
 ```text
-Lean contract (ProofForge.Evm / Lean.Evm)
-  -> Lean frontend / LCNF
-  -> EmitYul
-  -> Yul AST + Printer
+Lean contract_source / ContractSpec
+  -> portable IR
+  -> EVM semantic plan
+  -> Yul AST
+  -> Yul Printer
   -> solc --strict-assembly
   -> EVM runtime bytecode
-  -> Foundry smoke (vm.etch)
+  -> artifact + deploy metadata
+  -> Foundry / Anvil smoke
 ```
 
-The portable IR EVM backend already lowers to the shared Yul syntax AST before
-rendering. RFC 0004 defines the next internal architecture step: insert an EVM
-semantic plan layer between portable IR and the low-level Yul AST so storage
-layout, ABI dispatch, helper discovery, events, cross-calls, and metadata are
-planned before syntax generation.
+The product entry is `contract_source` (or another producer of
+`ContractSpec`). `proof-forge build --target evm` loads `spec` from the Lean
+module through `ContractLoader`, lowers the resulting portable IR through the
+EVM semantic plan, prints Yul from the shared Yul AST, then invokes
+`solc --strict-assembly` for runtime bytecode. The same build writes
+machine-readable artifact metadata and, for bytecode builds, a deploy manifest.
+
+RFC 0004's semantic-plan architecture is now the current EVM product pipeline.
+The older `ProofForge.Evm` / `Lean.Evm` / LCNF `EmitYul` route is historical
+research/compatibility context and is not the authoring path for new examples.
 
 ## EVM-Compatible Chain Profiles
 
@@ -70,7 +77,7 @@ chain.
 ```sh
 lake build
 
-lake env proof-forge build --target evm --root . --module contract \
+lake env proof-forge build --target evm --root . \
   --artifact-output build/evm/Counter.proof-forge-artifact.json \
   -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
 
@@ -99,10 +106,10 @@ scripts/evm/abi-aggregate-ir-smoke.sh
 
 ## CLI modes
 
-Target-first Lean SDK build:
+Target-first `contract_source` build:
 
 ```sh
-proof-forge build --target evm [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
+proof-forge build --target evm [--root DIR] [--module Mod.Name] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
 ```
 
 Portable IR fixture modes:
@@ -142,40 +149,27 @@ scripts pass fixture-specific metadata paths such as
 `Counter.proof-forge-artifact.json`, the deploy manifest is written as
 `Counter.proof-forge-deploy.json`.
 
-## .evm-methods sidecar format
+## ABI metadata and selectors
 
-Each line follows this syntax:
+`contract_source` entrypoints, queries, constructor declarations, and events are
+the selector-facing ABI source of truth. The EVM backend derives
+Solidity-style signatures, 4-byte selectors, calldata word layout, return-data
+word layout, event signatures, `topic0`, indexed/data field encodings, and
+generated Yul dispatcher functions from the `ContractSpec` / portable IR. No
+`.evm-methods` sidecar is required for new examples.
 
-```text
-<solidity-signature>=<lean-export-symbol>[view|update]
-```
-
-Examples:
-
-```text
-get()=l_Counter_get[view]
-set(uint256)=l_Counter_set[update]
-transfer(uint256,uint256)=l_SimpleToken_transfer[update]
-```
-
-Parser rules (from `ProofForge/Cli.lean`):
-
-- Empty lines and `#` comments are ignored.
-- Selectors are computed with `cast sig <solidity-signature>`.
-- `l_Counter_get` maps to Yul function `f_Counter_get` by stripping leading
-  `l_` and prefixing `f_`; this must stay consistent with
-  `EmitYul.yulFnName`.
-- `view`, `pure`, `return`, `returns`, and `true` mean the dispatch returns a
-  value; `update`, `void`, and `false` mean it returns zero bytes unless the
-  Lean entrypoint terminates itself with an explicit EVM return.
-- EVM bytecode mode requires at least one method.
+Legacy `.evm-methods` parsing remains only inside the RFC 0009 compatibility
+window for older callers. New documentation, scripts, and examples should not
+add sidecars or `@[export l_<Contract>_<method>]` entrypoints.
 
 ## Adding or changing an EVM example
 
 1. Add or update the Lean contract under `Examples/Evm/Contracts/`.
-2. Add or update the sibling `.evm-methods` file.
+2. Use `contract_source` directly, or define
+   `spec : ProofForge.Contract.ContractSpec` by composing importable
+   `contract_source`/stdlib modules.
 3. Add or update the sibling `.golden.yul` file; `scripts/evm/build-examples.sh`
-   diffs generated SDK Yul against this fixture.
+   diffs generated Yul against this fixture.
 4. If the example is part of the baseline, add or update a case in
    `scripts/evm/foundry-smoke.sh`.
 5. Run `scripts/evm/build-examples.sh`; run `scripts/evm/foundry-smoke.sh` when
@@ -185,16 +179,16 @@ Parser rules (from `ProofForge/Cli.lean`):
 
 Mapped to [capability-registry](../capability-registry.md) ids:
 
-| Capability id | SDK / IR surface |
+| Capability id | `contract_source` / IR surface |
 |---|---|
-| `storage.scalar` | `Storage.load`, `Storage.store`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, flat scalar storage struct field read/write, and whole flat scalar storage struct read/write |
+| `storage.scalar` | `contract_source state`; portable IR `Bool`/`U32`/`U64`/`Hash` scalar storage read/write, scalar storage compound assignment for numeric words, flat scalar storage struct field read/write, and whole flat scalar storage struct read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`; portable IR `Map<K, V, N>` get/set/insert/contains and one-or-more-segment consecutive `mapKey` storage paths where `K` and `V` are word types (`Bool`, `U32`, `U64`, or `Hash`); `contains` uses ProofForge-managed presence slots so zero-valued keys can still be present |
 | `storage.array` | Partial: portable IR `Bool`/`U32`/`U64`/`Hash` fixed storage arrays and fixed arrays of flat structs lower to contiguous EVM storage slots with runtime index bounds checks; word and flat-struct storage arrays can feed fixed-array ABI returns and event aggregate fields through storage reads |
 | `data.fixed_array` | Partial: used by portable IR fixed storage arrays, single-segment index storage paths over word arrays, index+field storage paths over struct arrays, immutable and mutable local fixed-array values, fixed-array literals, static and dynamic local/literal index reads, static and dynamic local element assignment/compound assignment, whole local fixed-array assignment with RHS snapshotting, static and dynamic nested scalar local fixed-array reads, static and dynamic nested scalar local leaf assignment/compound assignment, nested whole local fixed-array assignment with RHS snapshotting, local fixed arrays and nested local fixed arrays of flat structs with static/dynamic field reads and writes plus whole local assignment with RHS snapshotting, flat static fixed-array ABI parameters/returns over U64/U32/Hash leaves, nested scalar fixed-array ABI parameters/returns, fixed-array ABI parameters/returns whose elements are flat structs, storage-backed fixed-array ABI returns from word arrays and fixed arrays of flat structs, nested fixed-array typed crosscall arguments/returns whose leaves are scalar words or flat structs, scalar fixed-array event data fields, fixed-array event fields whose elements are flat structs, and nested fixed-array event fields whose leaves are scalar words or flat structs, including non-indexed data flattening and indexed topic hashing from local values, storage array reads, and storage array struct field reads; zero-length ABI arrays, nested local arrays with unsupported aggregate/non-flat leaves, nested crosscall fixed arrays with non-flat struct or unsupported leaves, and unsupported element shapes still reject explicitly |
 | `data.struct` | Partial: portable IR flat immutable and mutable local struct values, flat struct elements inside local fixed arrays, struct literals, field access, static local field assignment/compound assignment, whole local struct assignment with RHS snapshotting, flat ABI-facing struct parameters/returns including Hash/bytes32 fields, fixed arrays of flat structs in ABI-facing parameters/returns, storage-backed fixed-array-of-flat-struct ABI returns, flat event data fields and indexed event topic hashing from local values, storage scalar struct reads, storage array struct field reads inside fixed arrays, and nested fixed-array event fields whose leaves are flat structs; flat scalar storage structs including whole read/write, and fixed storage arrays of flat structs lower by expanding supported fields to EVM words; nested fields and unsupported field shapes still reject explicitly |
-| `caller.sender` | `Env.sender` |
-| `value.native` | `Env.value` |
-| `env.block` | `Env.blockNumber`, `Env.balance` |
+| `caller.sender` | `contract_source`/portable IR caller context reads |
+| `value.native` | `contract_source` `nativeValue` / payable call-value routing |
+| `env.block` | Portable IR block/context reads |
 | `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`; portable IR `crosscallInvoke` lowers to synchronous EVM `call` with a low-32-bit selector, 32-byte word arguments, failed-call reverts, and short-return reverts; typed crosscalls accept Bool/U32/U64/Hash scalar-word arguments plus flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested fixed-array arguments whose leaves are scalar words or flat structs, flattened to ABI words; typed normal/value/static/delegate calls return Bool/U32/U64/Hash scalar words with Bool/U32 return guards and support direct entrypoint returns of flat struct, scalar fixed-array, fixed-array-of-flat-struct, and nested fixed-array return data whose leaves are scalar words or flat structs; `crosscallInvokeValueTyped` forwards an explicit U64 call value through the EVM `call` value slot; `crosscallInvokeStaticTyped` preserves static-context state-write failure behavior; `crosscallInvokeDelegateTyped` preserves caller-storage context; `crosscallCreate` and `crosscallCreate2` deploy fixed init-code hex through Yul `create`/`create2`, revert on zero-address failure, and return the deployed address word |
 | `events.emit` | `log0` through `log4`; portable IR `eventEmit` lowers to `log1`, `eventEmitIndexed` lowers up to `log4`, topic0 is derived from a Solidity-style event signature, non-indexed data fields can be U64/Bool/U32/Hash scalar words, flat structs from local values or storage scalar struct reads, scalar fixed arrays from local values or storage array reads, fixed arrays of flat structs from local literals or storage array struct field reads, or nested fixed arrays whose leaves are scalar words or flat structs, scalar indexed topics can be U64/Bool/U32/Hash words, indexed aggregate fields use `keccak256` over flattened ABI-style words including nested fixed arrays with scalar or flat-struct leaves, and portable IR artifacts record event ABI metadata in `abi.events` |
 | `assertions.check` | Portable IR `assert` / `assert_eq` lower to Yul revert guards |
@@ -209,12 +203,22 @@ Not supported on EVM (by design for other targets):
 
 ## Module Layout
 
-- `ProofForge/Evm.lean` — EVM SDK (`@[extern "lean_evm_*"]` primitives).
-- `ProofForge/Compiler/LCNF/EmitYul.lean` — LCNF to Yul lowering.
-- `ProofForge/Compiler/Yul/` — Yul AST and printer.
+- `ProofForge/Contract/Source.lean` — product authoring syntax that emits
+  `ContractSpec`.
+- `ProofForge/Cli/ContractLoader.lean` — Lean source loader for
+  `spec : ContractSpec`.
+- `ProofForge/Backend/Evm/Plan.lean` — target semantic plan construction.
+- `ProofForge/Backend/Evm/Lower.lean`,
+  `ProofForge/Backend/Evm/ToYul.lean`, and `ProofForge/Backend/Evm/IR.lean` —
+  portable IR to Yul AST lowering.
+- `ProofForge/Backend/Evm/Metadata.lean` and
+  `ProofForge/Backend/Evm/Validate.lean` — artifact metadata and validation
+  helpers.
+- `ProofForge/Compiler/Yul/` — Yul AST and printer shared by EVM codegen.
 - `ProofForge/Cli.lean` — `proof-forge` CLI.
 
-Contracts import `ProofForge.Evm` and `open Lean.Evm`.
+Contracts import `ProofForge.Contract.Source` and select the destination chain
+through `proof-forge build --target evm`.
 
 ## Examples
 
@@ -230,9 +234,9 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
 
 - `Nat` capped at U256; no bignum on EVM.
 - String manipulation APIs incomplete in Yul runtime.
-- The production EVM SDK path still lowers through LCNF/EmitYul; the portable
-  IR EVM backend currently supports scalar storage/ABI, assertions, local
-  assignment, local compound assignment, scalar storage compound assignment,
+- The EVM `contract_source` pipeline currently supports scalar storage/ABI,
+  assertions, local assignment, local compound assignment, scalar storage
+  compound assignment,
   conditionals, context reads, scalar and flat aggregate event data, `Hash`
   word values and hashing,
   word key/value `Map<K, V, N>` storage including managed key presence,
@@ -269,10 +273,11 @@ See [Examples/Evm/README.md](../../Examples/Evm/README.md):
   dynamic constructor ABI types, variable-length cross-call return data, and
   first-class signed transaction or public-RPC broadcast manifests.
 
-## Portable IR Gates
+## EVM Gates
 
-The portable IR EVM backend is tracked separately from the older
-`ProofForge.Evm` SDK path:
+The EVM backend is guarded by target-first diagnostics, coverage manifests,
+golden Yul snapshots, bytecode compilation, metadata validation, Foundry
+runtime tests, and Anvil deployment smoke:
 
 ```sh
 scripts/evm/diagnostic-smoke.sh
@@ -637,15 +642,14 @@ The current EVM metadata schema records:
 
 - `schemaVersion: 1`
 - `target: evm`, `targetFamily: evm`, and `artifactKind: evm-bytecode`
-- source kind (`lean-sdk` or `portable-ir`), source module, and `irVersion`
+- source kind (`contract-sdk` or `portable-ir`), source module, and `irVersion`
   (`portable-ir-v0` for portable IR fixtures)
 - portable IR capability ids when available
 - constructor ABI schema, structured selector-facing portable IR entrypoint ABI
   metadata in `abi.entrypoints` with Solidity-style signatures, selector
   values, IR type names, ABI parameter/return types, flattened calldata
-  word types/counts, and flattened return-data word types/counts, portable IR
-  event ABI metadata in `abi.events`, or SDK method specs, including Solidity
-  signatures for methods loaded from `.evm-methods`
+  word types/counts, and flattened return-data word types/counts, plus event
+  ABI metadata in `abi.events`
 - `solc` path/version
 - Yul, runtime bytecode, deployable initcode, source when available, and
   deploy-manifest artifact paths, byte sizes, and SHA-256 hashes
@@ -656,8 +660,7 @@ The EVM deploy manifest records:
 
 - `kind: proof-forge-evm-deploy-manifest`
 - source kind/module, `irVersion`, capabilities, constructor ABI schema, and
-  ABI entrypoints/events/methods, including portable IR entrypoint
-  calldata/return word layouts and SDK method signatures when available
+  ABI entrypoints/events, including calldata/return word layouts when available
 - optional `chainProfile` metadata copied from the EVM target registry when
   `--evm-chain-profile` is provided, including profile id, chain id, RPC URLs,
   native gas symbol, explorer, verifier, and notes
@@ -684,10 +687,11 @@ length. They also accept and can assert whether constructor args came from raw
 hex or typed constructor values. When a chain profile is selected, they also
 verify that `chainProfile` and `deployment` agree on profile id, chain id, RPC
 URLs, explorer, and verifier metadata. ABI validation also checks 4-byte
-selector shape, duplicate selectors, generated Yul function names, optional
-method signatures, signature/argument-count consistency, event signatures,
-`topic0` hashes, and event indexed/data field encodings; SDK example and Anvil
-gates require signatures for `.evm-methods`-derived methods.
+selector shape, duplicate selectors, entrypoint Solidity-style signatures,
+`cast sig` selector matches, entrypoint parameter/return ABI types, flattened
+calldata/return word counts, generated Yul function names, event signatures,
+`topic0` hashes, and event indexed/data field encodings; contract-source
+example and Anvil gates require generated ABI signatures in artifact metadata.
 `scripts/evm/validate-deploy-manifest.py` can validate a deploy manifest
 directly.
 
@@ -711,5 +715,5 @@ generated deploy artifacts. By default it uses the `anvil-local` chain profile
 when the Anvil chain id is `31337`; set `EVM_ANVIL_CHAIN_PROFILE=` to disable
 that profile link or provide a different profile explicitly.
 
-Method dispatch still uses `.evm-methods` sidecar files until a unified target
-manifest lands (RFC 0002).
+Target-first `contract_source` builds derive method dispatch and ABI metadata
+from `ContractSpec`; no `.evm-methods` sidecar is required for new code.

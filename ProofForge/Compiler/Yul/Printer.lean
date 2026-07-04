@@ -134,6 +134,13 @@ mutual
     header ++ codeBlock ++ subs ++ datas ++ footer
 end
 
+/-- Render only the `code { ... }` section of a Yul object at the given indent. -/
+def renderCode (indent : Nat) (code : Block) : String :=
+  let codeHeader := line indent "code {"
+  let codeBody := code.statements.foldl (fun acc s => acc ++ printStatement (indent + 1) s) ""
+  let codeFooter := line indent "}"
+  codeHeader ++ codeBody ++ codeFooter
+
 /-- Render a Yul object to source text. -/
 def render (o : Object) : String := printObject 0 o
 

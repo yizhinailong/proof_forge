@@ -2,12 +2,15 @@ import Lean
 import ProofForge.Contract.Surface
 import ProofForge.Solana.Surface
 
+set_option hygiene false
+
 namespace ProofForge.Contract.Source
 
 open Lean
 open ProofForge.IR
 
 abbrev ScalarRef := ProofForge.Contract.Surface.ScalarRef
+abbrev MapRef := ProofForge.Contract.Surface.MapRef
 abbrev BindingRef := ProofForge.Contract.Surface.BindingRef
 abbrev MethodRef := ProofForge.Contract.Surface.MethodRef
 abbrev EventRef := ProofForge.Contract.Surface.EventRef
@@ -21,6 +24,13 @@ def checkpointId : ProofForge.IR.Expr :=
 
 def u64 (value : Nat) : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.u64 value
+
+def boolLit (value : Bool) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Builder.bool value
+
+def emitIndexedEvent (eventRef : ProofForge.Contract.Surface.EventRef)
+    (indexedFields dataFields : Array ProofForge.Contract.Surface.EventField) : EntryM Unit :=
+  ProofForge.Contract.Surface.emitIndexed eventRef indexedFields dataFields
 
 class ToExpr (α : Type) where
   toExpr : α → ProofForge.IR.Expr
@@ -86,6 +96,9 @@ instance : ToField ProofForge.Contract.Surface.ScalarRef where
 def field [ToField α] (value : α) : ProofForge.Contract.Surface.EventField :=
   ToField.toField value
 
+def fieldAsName (name : String) [ToExpr α] (value : α) : ProofForge.Contract.Surface.EventField :=
+  ProofForge.Contract.Surface.field name (expr value)
+
 def fieldValue [ToExpr α] (name : String) (value : α) :
     ProofForge.Contract.Surface.EventField :=
   ProofForge.Contract.Surface.field name (expr value)
@@ -126,14 +139,21 @@ scoped syntax "cpi " ident " spl_token_close_account" "(" ident ", " ident ", " 
 scoped syntax "cpi " ident " spl_token_set_authority" "(" ident ", " ident ", " ident ")" " authority_type" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" : contractItem
 scoped syntax "use " term : contractItem
+scoped syntax "compose " ident ";" : contractItem
+scoped syntax "import " ident ";" : contractItem
+scoped syntax "open " ident ";" : contractItem
 scoped syntax "constructor_param " ident " : " term ";" : contractItem
 scoped syntax "constructor_param " ident " : " "cstring" ";" : contractItem
 scoped syntax "constructor_param " ident " : " "cbytes" ";" : contractItem
 scoped syntax "constructor_param " ident " : " "u256array" ";" : contractItem
 scoped syntax "entry " ident " do" ppLine entryStmt* : contractItem
+scoped syntax "entry " ident " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ")" " do" ppLine entryStmt* : contractItem
+scoped syntax "entry " ident "(" ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ")" " do" ppLine entryStmt* : contractItem
+scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ", " ident " : " term ")" " do" ppLine entryStmt* : contractItem
+scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ", " ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "query " ident " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "query " ident "(" ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "query " ident "(" ident " : " term ", " ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
@@ -141,6 +161,7 @@ scoped syntax "query " ident "(" ident " : " term ", " ident " : " term ")" " re
 scoped syntax "let " ident " : " term " := " term ";" : entryStmt
 scoped syntax ident " := " term ";" : entryStmt
 scoped syntax "emit " ident term ";" : entryStmt
+scoped syntax "emit " ident " indexed " term " data " term ";" : entryStmt
 scoped syntax "return " term ";" : entryStmt
 scoped syntax "derive " "pda " ident " seeds " "[" solanaSeed,* "]" " bump " ident " account " ident " signer;" : entryStmt
 scoped syntax "invoke " ident " system_transfer" "(" ident ", " ident ", " ident ")" ";" : entryStmt
@@ -170,9 +191,14 @@ scoped syntax "pda_seed " ident : solanaSignerSeed
 scoped syntax "bump_seed " ident : solanaSignerSeed
 
 scoped syntax "contract_source " ident " do" ppLine contractItem* : command
+scoped syntax "contract_mixin " ident " do" ppLine contractItem* : command
 
 private def identNameLit (name : TSyntax `ident) : TSyntax `term :=
   ⟨Syntax.mkStrLit name.getId.toString⟩
+
+private def mixinTerm (mod : TSyntax `ident) : MacroM (TSyntax `term) := do
+  let mixId : TSyntax `ident := ⟨mkIdent (mod.getId ++ `mixin)⟩
+  `(term| $mixId)
 
 private def chainTerms (terms : Array (TSyntax `term)) : MacroM (TSyntax `term) := do
   let mut acc ← `(pure ())
@@ -180,12 +206,54 @@ private def chainTerms (terms : Array (TSyntax `term)) : MacroM (TSyntax `term) 
     acc ← `($term *> $acc)
   return acc
 
+private def composeSpecTerm (mod : TSyntax `ident) : MacroM (TSyntax `term) := do
+  match mod.getId with
+  | `ProofForge.Contract.Stdlib.Ownable =>
+    `(ProofForge.Contract.Stdlib.Compose.Specs.ownableSpec)
+  | `ProofForge.Contract.Stdlib.ERC20 =>
+    `(ProofForge.Contract.Stdlib.Compose.Specs.erc20Spec)
+  | `ProofForge.Contract.Stdlib.OwnableERC20 =>
+    `(ProofForge.Contract.Stdlib.Compose.Specs.ownableErc20Spec)
+  | _ =>
+    let specId : TSyntax `ident := ⟨mkIdent (mod.getId ++ `spec)⟩
+    `(term| $specId)
+
+private def mkComposeBaseSpec (nameLit : TSyntax `term) (mods : Array (TSyntax `ident)) :
+    MacroM (TSyntax `term) := do
+  if mods.isEmpty then
+    Macro.throwError "compose requires at least one module"
+  else if mods.size == 1 then
+    composeSpecTerm mods[0]!
+  else
+    let mut specs : Array (TSyntax `term) := #[]
+    for mod in mods do
+      specs := specs.push (← composeSpecTerm mod)
+    `(ProofForge.Contract.Compose.mergeMany $nameLit #[ $(specs),* ])
+
+private def partitionContractItems (items : Array (TSyntax `contractItem)) :
+    MacroM (Array (TSyntax `ident) × Array (TSyntax `contractItem)) := do
+  let mut composeMods : Array (TSyntax `ident) := #[]
+  let mut extItems : Array (TSyntax `contractItem) := #[]
+  for item in items do
+    match item with
+    | `(contractItem| compose $mod:ident;) =>
+        composeMods := composeMods.push mod
+    | _ =>
+        extItems := extItems.push item
+  return (composeMods, extItems)
+
 private def mkParamLet (name : TSyntax `ident) (type : TSyntax `term)
     (body : TSyntax `term) : MacroM (TSyntax `term) := do
   let nameLit := identNameLit name
-  `(let $name : ProofForge.Contract.Surface.BindingRef :=
-      ProofForge.Contract.Surface.binding $nameLit $type
-    $body)
+  match type with
+  | `(.address) =>
+    `(let $name : ProofForge.Contract.Surface.BindingRef :=
+        ProofForge.Contract.Surface.bindingWithAbi $nameLit (.u64) "address"
+      $body)
+  | _ =>
+    `(let $name : ProofForge.Contract.Surface.BindingRef :=
+        ProofForge.Contract.Surface.binding $nameLit $type
+      $body)
 
 private def mkBindingLet (name : TSyntax `ident) (type : TSyntax `term)
     (body : TSyntax `term) : MacroM (TSyntax `term) :=
@@ -267,13 +335,21 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
     | `(entryStmt| let $name:ident : $type:term := $value:term;) =>
         let nameLit := identNameLit name
         acc ←
-          `(let $name : ProofForge.Contract.Surface.BindingRef :=
-              ProofForge.Contract.Surface.binding $nameLit $type
-            ProofForge.Contract.Source.bindValue $name $value *> $acc)
+          match type with
+          | `(.address) =>
+            `(let $name : ProofForge.Contract.Surface.BindingRef :=
+                ProofForge.Contract.Surface.bindingWithAbi $nameLit (.u64) "address"
+              ProofForge.Contract.Source.bindValue $name $value *> $acc)
+          | _ =>
+            `(let $name : ProofForge.Contract.Surface.BindingRef :=
+                ProofForge.Contract.Surface.binding $nameLit $type
+              ProofForge.Contract.Source.bindValue $name $value *> $acc)
     | `(entryStmt| $slot:ident := $value:term;) =>
         acc ← `(ProofForge.Contract.Source.writeValue $slot $value *> $acc)
     | `(entryStmt| emit $eventRef:ident $fields:term;) =>
         acc ← `(ProofForge.Contract.Source.emitEvent $eventRef $fields *> $acc)
+    | `(entryStmt| emit $eventRef:ident indexed $indexedFields:term data $dataFields:term;) =>
+        acc ← `(ProofForge.Contract.Source.emitIndexedEvent $eventRef $indexedFields $dataFields *> $acc)
     | `(entryStmt| return $value:term;) =>
         acc ← `(ProofForge.Contract.Source.retValue $value *> $acc)
     | `(entryStmt| derive pda $pdaRef:ident seeds [$seedItems:solanaSeed,*] bump $bumpRef:ident account $accountRef:ident signer;) =>
@@ -508,14 +584,26 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
       return { action? := some action, binder := mkCpiLet call }
   | `(contractItem| use $action:term) =>
       return { action? := some action }
+  | `(contractItem| import $mod:ident;) =>
+      return { action? := some (← mixinTerm mod) }
+  | `(contractItem| open $mod:ident;) =>
+      return { action? := some (← mixinTerm mod) }
   | `(contractItem| entry $name:ident do $stmts:entryStmt*) =>
       return { action? := some (← mkEntry0 name (← `(.unit)) stmts) }
+  | `(contractItem| entry $name:ident returns($retTy:term) do $stmts:entryStmt*) =>
+      return { action? := some (← mkEntry0 name retTy stmts) }
   | `(contractItem| entry $name:ident ($p1:ident : $t1:term) do $stmts:entryStmt*) =>
       return { action? := some (← mkEntry1 name p1 t1 (← `(.unit)) stmts) }
+  | `(contractItem| entry $name:ident ($p1:ident : $t1:term) returns($retTy:term) do $stmts:entryStmt*) =>
+      return { action? := some (← mkEntry1 name p1 t1 retTy stmts) }
   | `(contractItem| entry $name:ident ($p1:ident : $t1:term, $p2:ident : $t2:term) do $stmts:entryStmt*) =>
       return { action? := some (← mkEntry2 name p1 t1 p2 t2 (← `(.unit)) stmts) }
+  | `(contractItem| entry $name:ident ($p1:ident : $t1:term, $p2:ident : $t2:term) returns($retTy:term) do $stmts:entryStmt*) =>
+      return { action? := some (← mkEntry2 name p1 t1 p2 t2 retTy stmts) }
   | `(contractItem| entry $name:ident ($p1:ident : $t1:term, $p2:ident : $t2:term, $p3:ident : $t3:term) do $stmts:entryStmt*) =>
       return { action? := some (← mkEntry3 name p1 t1 p2 t2 p3 t3 (← `(.unit)) stmts) }
+  | `(contractItem| entry $name:ident ($p1:ident : $t1:term, $p2:ident : $t2:term, $p3:ident : $t3:term) returns($retTy:term) do $stmts:entryStmt*) =>
+      return { action? := some (← mkEntry3 name p1 t1 p2 t2 p3 t3 retTy stmts) }
   | `(contractItem| query $name:ident returns($retTy:term) do $stmts:entryStmt*) =>
       return { action? := some (← mkEntry0 name retTy stmts) }
   | `(contractItem| query $name:ident ($p1:ident : $t1:term) returns($retTy:term) do $stmts:entryStmt*) =>
@@ -525,28 +613,61 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
   | _ =>
       Macro.throwError s!"unsupported contract source item: {item.raw}"
 
+private def lowerContractItems (items : Array (TSyntax `contractItem)) :
+    MacroM (TSyntax `term × Array LoweredItem) := do
+  let mut loweredItems : Array LoweredItem := #[]
+  let mut actions : Array (TSyntax `term) := #[]
+  for item in items do
+    let lowered ← lowerItem item
+    loweredItems := loweredItems.push lowered
+    if let some action := lowered.action? then
+      actions := actions.push action
+  let chained ← chainTerms actions
+  let mut body ← pure chained
+  for lowered in loweredItems.reverse do
+    body ← lowered.binder body
+  return (body, loweredItems)
+
 macro_rules
   | `(contract_source $name:ident do $items:contractItem*) => do
-      let mut loweredItems : Array LoweredItem := #[]
-      let mut actions : Array (TSyntax `term) := #[]
-      for item in items do
-        let lowered ← lowerItem item
-        loweredItems := loweredItems.push lowered
-        if let some action := lowered.action? then
-          actions := actions.push action
+      let (composeMods, extItems) ← partitionContractItems items
       let nameLit := identNameLit name
-      let chained ← chainTerms actions
-      let mut body ←
-        `(ProofForge.Contract.Surface.contract $nameLit $chained)
-      for lowered in loweredItems.reverse do
-        body ← lowered.binder body
       let specId : TSyntax `ident := ⟨mkIdent `spec⟩
       let moduleId : TSyntax `ident := ⟨mkIdent `module⟩
-      `(
-        def $specId : ProofForge.Contract.ContractSpec := $body
+      if composeMods.isEmpty then
+        let (body, _) ← lowerContractItems items
+        `(
+          def $specId : ProofForge.Contract.ContractSpec :=
+            ProofForge.Contract.Surface.contract $nameLit $body
 
-        def $moduleId : ProofForge.IR.Module :=
-          ($specId).module
+          def $moduleId : ProofForge.IR.Module :=
+            ($specId).module
+        )
+      else if extItems.isEmpty then
+        let baseSpec ← mkComposeBaseSpec nameLit composeMods
+        `(
+          def $specId : ProofForge.Contract.ContractSpec := $baseSpec
+
+          def $moduleId : ProofForge.IR.Module :=
+            ($specId).module
+        )
+      else
+        let baseSpec ← mkComposeBaseSpec nameLit composeMods
+        let (extBody, _) ← lowerContractItems extItems
+        `(
+          def $specId : ProofForge.Contract.ContractSpec :=
+            ProofForge.Contract.Compose.mergeExtension $nameLit $baseSpec
+              (ProofForge.Contract.Surface.contract $nameLit $extBody)
+
+          def $moduleId : ProofForge.IR.Module :=
+            ($specId).module
+        )
+
+  | `(contract_mixin $_name:ident do $items:contractItem*) => do
+      let (body, _) ← lowerContractItems items
+      let mixinId : TSyntax `ident := ⟨mkIdent `mixin⟩
+      `(
+        def $mixinId : ModuleM Unit := $body
       )
 
 def mapRead [ToExpr α] (mapRef : ProofForge.Contract.Surface.MapRef) (mapKey : α) :

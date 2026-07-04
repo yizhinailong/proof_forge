@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -11,6 +12,7 @@ pub struct NearHarness;
 
 struct NearFixtureArtifact {
     wat_path: PathBuf,
+    metadata_path: Option<PathBuf>,
     contract_spec_path: Option<PathBuf>,
     near_wrapper_path: Option<PathBuf>,
 }
@@ -38,6 +40,12 @@ impl ChainHarness for NearHarness {
             name: "wat",
             path: &artifact.wat_path,
         }];
+        if let Some(ref path) = artifact.metadata_path {
+            outputs.push(ArtifactOutput {
+                name: "metadata",
+                path,
+            });
+        }
         if let Some(ref path) = artifact.contract_spec_path {
             outputs.push(ArtifactOutput {
                 name: "contract-spec",
@@ -50,12 +58,7 @@ impl ChainHarness for NearHarness {
                 path: path,
             });
         }
-        assert_artifact_expectations(
-            case,
-            self.target_id(),
-            repo_root,
-            &outputs,
-        )?;
+        assert_artifact_expectations(case, self.target_id(), repo_root, &outputs)?;
         let mut args = vec!["run".to_string(), artifact.wat_path.display().to_string()];
         let mut inputs = Vec::new();
         let mut has_inputs = false;
@@ -103,22 +106,50 @@ impl ChainHarness for NearHarness {
 
 fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<NearFixtureArtifact> {
     match case.manifest.scenario.fixture.as_str() {
-        "counter" => emit_wat_fixture(
-            repo_root,
-            "Tests/EmitWatSmoke.lean",
-            "Counter",
-            "build/wasm-near/emitwat-counter.wat",
-            None,
-            None,
-        ),
-        "value-vault" => emit_wat_fixture(
-            repo_root,
-            "Tests/EmitWatValueVault.lean",
-            "ValueVault",
-            "build/wasm-near/emitwat-value-vault.wat",
-            None,
-            None,
-        ),
+        "counter" => {
+            if let Some(source_path) = scenario_source(case, repo_root)? {
+                build_contract_source_wat(
+                    case,
+                    repo_root,
+                    &source_path,
+                    "Counter",
+                    "build/testkit/near/counter",
+                    "counter.wat",
+                    "Counter.near-artifact.json",
+                )
+            } else {
+                emit_wat_fixture(
+                    repo_root,
+                    "Tests/EmitWatSmoke.lean",
+                    "Counter",
+                    "build/wasm-near/emitwat-counter.wat",
+                    None,
+                    None,
+                )
+            }
+        }
+        "value-vault" => {
+            if let Some(source_path) = scenario_source(case, repo_root)? {
+                build_contract_source_wat(
+                    case,
+                    repo_root,
+                    &source_path,
+                    "ValueVault",
+                    "build/testkit/near/value-vault",
+                    "valuevault.wat",
+                    "ValueVault.near-artifact.json",
+                )
+            } else {
+                emit_wat_fixture(
+                    repo_root,
+                    "Tests/EmitWatValueVault.lean",
+                    "ValueVault",
+                    "build/wasm-near/emitwat-value-vault.wat",
+                    None,
+                    None,
+                )
+            }
+        }
         "alloc-release" => emit_wat_fixture(
             repo_root,
             "Tests/EmitWatAlloc.lean",
@@ -183,7 +214,88 @@ fn emit_wat_fixture(
     }
     Ok(NearFixtureArtifact {
         wat_path,
+        metadata_path: None,
         contract_spec_path,
         near_wrapper_path,
     })
+}
+
+fn build_contract_source_wat(
+    case: &ScenarioCase,
+    repo_root: &Path,
+    source_path: &Path,
+    fixture_name: &str,
+    output_dir: &str,
+    wat_file: &str,
+    metadata_file: &str,
+) -> Result<NearFixtureArtifact> {
+    let output_dir = repo_root.join(output_dir);
+    fs::create_dir_all(&output_dir)
+        .with_context(|| format!("failed to create `{}`", output_dir.display()))?;
+    let metadata_path = output_dir.join(metadata_file);
+    let output = Command::new("lake")
+        .current_dir(repo_root)
+        .args([
+            "env",
+            "proof-forge",
+            "build",
+            "--target",
+            "wasm-near",
+            "--root",
+            ".",
+            "-o",
+            path_str(&output_dir)?,
+            "--artifact-output",
+            path_str(&metadata_path)?,
+            path_str(source_path)?,
+        ])
+        .output()
+        .with_context(|| {
+            format!(
+                "failed to build wasm-near contract_source for scenario `{}`",
+                case.manifest.scenario.name
+            )
+        })?;
+    if !output.status.success() {
+        bail!(
+            "{fixture_name} contract_source WAT build failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let wat_path = output_dir.join(wat_file);
+    ensure!(
+        wat_path.exists(),
+        "{fixture_name} WAT build did not create `{}`",
+        wat_path.display()
+    );
+    ensure!(
+        metadata_path.exists(),
+        "{fixture_name} WAT build did not create `{}`",
+        metadata_path.display()
+    );
+    Ok(NearFixtureArtifact {
+        wat_path,
+        metadata_path: Some(metadata_path),
+        contract_spec_path: None,
+        near_wrapper_path: None,
+    })
+}
+
+fn scenario_source(case: &ScenarioCase, repo_root: &Path) -> Result<Option<PathBuf>> {
+    let Some(path) = case.manifest.scenario.source_path(repo_root) else {
+        return Ok(None);
+    };
+    ensure!(
+        path.exists(),
+        "scenario `{}` source `{}` does not exist",
+        case.manifest.scenario.name,
+        path.display()
+    );
+    Ok(Some(path))
+}
+
+fn path_str(path: &Path) -> Result<&str> {
+    path.to_str()
+        .ok_or_else(|| anyhow::anyhow!("non-UTF-8 path `{}`", path.display()))
 }

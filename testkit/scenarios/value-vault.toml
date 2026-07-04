@@ -1,6 +1,7 @@
 [scenario]
 name = "value-vault"
 fixture = "value-vault"
+source = "Examples/Shared/ValueVault.lean"
 targets = ["wasm-near", "evm", "solana-sbpf-asm"]
 capabilities = ["storage.scalar", "entrypoint.external", "events.emit", "env.block"]
 
@@ -14,6 +15,68 @@ contains = [
   '(func $snapshot (export "snapshot")',
   'call $log_utf8',
 ]
+
+[[artifact]]
+target = "wasm-near"
+name = "metadata"
+
+[[artifact.json]]
+path = "schemaVersion"
+kind = "integer"
+equals = 1
+
+[[artifact.json]]
+path = "target"
+kind = "string"
+equals = "wasm-near"
+
+[[artifact.json]]
+path = "artifactKind"
+kind = "string"
+equals = "wasm"
+
+[[artifact.json]]
+path = "fixture"
+equals = "valuevault"
+
+[[artifact.json]]
+path = "sourceKind"
+equals = "contract-sdk"
+
+[[artifact.json]]
+path = "irVersion"
+kind = "null"
+
+[[artifact.json]]
+path = "sourceModule"
+equals = "ValueVault"
+
+[[artifact.json]]
+path = "capabilities"
+kind = "array"
+non_empty = true
+length = 3
+
+[[artifact.json]]
+path = "capabilities"
+contains = "env.block"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "storage.scalar"
+
+[[artifact.json]]
+path = "capabilities"
+contains = "events.emit"
+
+[[artifact.json]]
+path = "artifacts"
+kind = "object"
+non_empty = true
+
+[[artifact.file]]
+path = "artifacts.wat"
+artifact = "wat"
 
 [[artifact]]
 target = "evm"
@@ -388,7 +451,7 @@ equals = 6
 target = "solana-sbpf-asm"
 name = "metadata"
 contains = [
-  '"fixture":"value-vault-ir-sbpf"',
+  '"fixture":"ValueVault"',
   '"sourceKind":"contract-sdk"',
   '"target":"solana-sbpf-asm"',
 ]
@@ -414,7 +477,7 @@ equals = "solana-elf"
 
 [[artifact.json]]
 path = "fixture"
-equals = "value-vault-ir-sbpf"
+equals = "ValueVault"
 
 [[artifact.json]]
 path = "sourceKind"
@@ -456,7 +519,7 @@ equals = "passed"
 path = "artifacts"
 kind = "object"
 non_empty = true
-length = 4
+length = 5
 
 [[artifact.json]]
 path = "solanaInstructions"
@@ -469,6 +532,10 @@ path = "solanaIdl.instructions"
 kind = "array"
 non_empty = true
 length = 7
+
+[[artifact.file]]
+path = "artifacts.source"
+artifact = "source"
 
 [[artifact.file]]
 path = "artifacts.sbpfAsm"

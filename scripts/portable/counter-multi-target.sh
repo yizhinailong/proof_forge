@@ -15,6 +15,10 @@ if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then
 else
   proof_forge=(lake env proof-forge)
 fi
+cast_args=()
+if [[ -n "${CAST:-}" ]]; then
+  cast_args=(--cast "$CAST")
+fi
 
 mkdir -p "$OUT"
 
@@ -25,6 +29,7 @@ echo "portable-counter: EVM"
   -o "$OUT/Counter.bin" \
   --yul-output "$OUT/Counter.yul" \
   --artifact-output "$OUT/Counter.proof-forge-artifact.json" \
+  "${cast_args[@]}" \
   "$SOURCE"
 diff -u Examples/Evm/Counter.golden.yul "$OUT/Counter.yul"
 python3 scripts/evm/validate-artifact-metadata.py \

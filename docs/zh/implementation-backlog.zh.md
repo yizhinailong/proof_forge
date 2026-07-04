@@ -178,8 +178,9 @@
   - 已完成：使 `ModulePlan` 变为目标驱动，以便在 Yul 生成之前从 `Target.resolveModule/resolveSpec Target.evm` 派生 helper 规划。
   - 将 `ProofForge.Backend.Evm.IR` 拆分为 `Validate`、`Lower`、`ToYul` 和 `Metadata` 模块，同时保留 `IR.lean` 作为兼容性外观，直到调用方完成迁移。
   - 已完成：将标量和映射存储槽的 Yul 构建移动到 `StorageSlotPlan -> ToYul`，从存储路径使用的映射值/存在槽开始。
-  - 将 `StorageSlotPlan -> ToYul` 扩展到数组槽和结构体数组字段槽，然后从 `IR.lean` 中移除旧的直接槽表达式构建器。
-  - 添加 `ExprPlan` 和 `StmtPlan`，使表达式和语句验证、helper 发现以及目标特定降级在 Yul AST 组装之前进行。
+  - 已完成：将 `StorageSlotPlan -> ToYul` 扩展到数组槽和结构体数组字段槽。`IR.lean` 现在通过 plan-to-Yul 边界路由存储数组和结构体数组字段槽降级，同时为现有调用方保留兼容性外观函数。
+  - 已开始：`Lower.buildEntrypointPlan` 现在会用结构化 `ExprPlan`/`StmtPlan` 节点填充 `EntrypointPlan.body`，表示入口 IR 主体，同时 `IR.lean` 仍作为兼容性 Yul 组装外观保留。
+  - 已开始：标量局部绑定初始化现在会在受支持的标量子集上消费语义计划路径：`IR Expr -> Lower.buildExprPlan -> ToYul.exprPlanExpr -> Yul.Expr`。Counter、expression 和 context 冒烟测试证明生成的字节码仍可运行；尚不支持的聚合/crosscall plan 节点继续留在兼容性外观路径上，直到对应迁移切片补齐验证覆盖。
   - 为选择器分发、calldata 守卫、ABI 字打平、返回数据编码和制品元数据选择器布局添加 `EntrypointPlan`。
   - 为事件签名 topic、索引 topic 哈希、非索引数据打平以及制品元数据事件布局添加 `EventPlan`。
   - 为类型化的 `call`、带值的 `call`、`staticcall`、`delegatecall`、`create` 和 `create2` helper 添加 `CrosscallPlan`。
@@ -1231,6 +1232,14 @@ fixture 与这些共享 module 对比。ValueVault 还会比较从共享 `.lean`
 `.learn` fixture 渲染出的 Solana package manifest，因此当前 shared scenario
 的等价门禁覆盖 portable state、entrypoint、event 以及 package-facing metadata。
 
+当前 CS-1.5/CS-4.1 starter template 切片：`templates/portable-counter`
+现在是可直接 target-first build 的 `contract_source` starter。它的 namespace
+与文件 basename 对齐，因此 `ContractLoader` 可以在不额外传 CLI flag 的情况下解析
+生成的 `Counter.spec`；README 也改为直接用模板源文件运行
+`proof-forge build --target ...`，分别生成 EVM、Solana sBPF assembly 和
+NEAR/Wasm 制品。现有 `portable-counter-multi-target` smoke 可以通过设置
+`PORTABLE_COUNTER_SOURCE=templates/portable-counter/Counter.lean` 来验证该模板。
+
 ### 阶段 CS-2 — EVM stdlib 的 `contract_source` 化
 
 重点：用可 import 的 `contract_source` 模块替换 Builder 字符串 stdlib。
@@ -1287,14 +1296,36 @@ fixture 与这些共享 module 对比。ValueVault 还会比较从共享 `.lean`
 | CS-5.2 | 为新 stdlib 合约建立 resource budget baseline（EVM gas、Solana CU） | 扩展工作流 31 budget；回归失败 CI |
 | CS-5.3 | Authoring model 完整示例：一个业务模块、三个 target、零源码分叉 | docs 教程（EN + zh，经 translate pipeline 同步） |
 
+当前 CS-5.1 testkit 切片：`testkit/scenarios/counter.toml` 和
+`testkit/scenarios/value-vault.toml` 现在声明 `source =
+"Examples/Shared/*.lean"`。EVM、Solana 和 NEAR harness 会消费这个字段，并
+对 Counter/ValueVault 运行 target-first `proof-forge build --target ...
+--root . <source>`，而不是只走 fixture 发射。场景断言现在会固定
+`contract-sdk` 元数据、NEAR 制品元数据、Solana source/IDL/client 制品、
+metadata 文件引用，以及已有的行为/预算追踪。fixture-only 路径继续保留给
+`error-ref` 和 allocator probes 等专门的编译器/运行时场景。
+
 ### 阶段 CS-6 — 文档与 legacy 清理
 
 | ID | 任务 | 验收标准 |
 |---|---|---|
-| CS-6.1 | 重写 `docs/targets/evm.md` pipeline 章节为统一入口（移除 EmitYul/Lean.Evm） | 与 PR #11 架构一致 |
-| CS-6.2 | 更新 `development-standards.md` library root（去掉 `ProofForge.Evm`、`EmitYul`） | 不再有过时的 EVM-native authoring 指引 |
+| CS-6.1 | 重写 `docs/targets/evm.md` pipeline 章节为统一入口（移除 EmitYul/Lean.Evm） | ✅ 当前 EVM target note 描述 `contract_source` / `ContractSpec` → portable IR → EVM semantic plan → Yul AST/printer → solc，并把旧 EVM/LCNF 路线标为 legacy/research |
+| CS-6.2 | 更新 `development-standards.md` library root（去掉 `ProofForge.Evm`、`EmitYul`） | ✅ 当前 roots 与 `lakefile.lean` 对齐；authoring 指引使用 `contract_source`，并把旧 EVM/LCNF 路线标为 legacy/research |
 | CS-6.3 | 关闭工作流 24 条目：声明 LCNF→EmitYul 已移除；记录 `contract_source` 为 EVM 产品 pipeline | decision log + RFC 0004 对齐 |
 | CS-6.4 | `Examples/Evm/README.md` 变更时保持 `docs/zh/examples-evm-README.zh.md` 同步 | `just docs-check` 通过 |
+
+当前 CS-6.2 切片：`docs/development-standards.md` 及其 zh 镜像现在列出
+`lakefile.lean` 中的当前 Lake roots，从当前包规范里移除了 `ProofForge.Evm` 和
+`ProofForge.Compiler.LCNF.EmitYul`，并明确 `ProofForge.Backend.Evm` 是编译器实现
+代码，不是产品级 authoring SDK。`Examples/` 的新示例应优先使用
+`contract_source`；backend-only probe 应放在 `Tests/` 或
+`ProofForge/IR/Examples/` 下。
+
+当前 CS-6.1 切片：`docs/targets/evm.md` 及其 zh 镜像现在描述当前统一的 EVM
+产品流水线、从 `ContractSpec` 派生 selector/ABI、target-first 示例流程、当前 backend
+模块布局、metadata source kind `contract-sdk`，以及 EVM 门禁。旧的 `.evm-methods`
+和 `ProofForge.Evm` / `Lean.Evm` / LCNF `EmitYul` 路线只作为 legacy compatibility
+或历史研究背景保留。
 
 ### 建议排期（工作流 34）
 

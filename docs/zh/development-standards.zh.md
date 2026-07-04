@@ -72,19 +72,30 @@
 
 - Lean 工具链是来自 `lean-toolchain` 的 `leanprover/lean4:v4.31.0`。
 - 基础构建门禁是 `lake build`。
-- 当前库根为 `ProofForge`、`ProofForge.Evm`、`ProofForge.Compiler.Yul.AST`、`ProofForge.Compiler.Yul.Printer` 以及来自 `lakefile.lean` 第 7-14 行的 `ProofForge.Compiler.LCNF.EmitYul`。
-- 可执行文件为 `proof-forge`，根位于 `ProofForge.Cli`，包含来自 `lakefile.lean` 第 16-19 行的 `supportInterpreter := true`。
+- 当前库根为 `ProofForge`、`ProofForge.Psy`、`ProofForge.Target`、
+  `ProofForge.IR`、`ProofForge.Backend`、
+  `ProofForge.Backend.Solana.SbpfAsm`、`ProofForge.Compiler.Yul.AST`、
+  `ProofForge.Compiler.Yul.Printer`、`ProofForge.Compiler.Wasm.AST`、
+  `ProofForge.Compiler.Wasm.Printer`、`ProofForge.Compiler.TS.AST`、
+  `ProofForge.Compiler.TS.Printer` 和 `ProofForge.Compiler.TS.Emit`，
+  均来自 `lakefile.lean`。
+- 可执行文件为 `proof-forge`，根位于 `ProofForge.Cli`，并在 `lakefile.lean`
+  中设置 `supportInterpreter := true`。
 - 新编译的 Lean 模块必须由现有根导入或添加到 Lake 根中，文档才能声称它们是包的一部分。
 
 ## 作者侧接口规范
 
 - 新的链无关合约使用 `ProofForge.Contract.Source`，并降低到 `ContractSpec` /
-  portable IR。不要仅为了选择输出链，就在 starter 模板中加入 `ProofForge.Evm`、
-  Solana、NEAR 或其他目标导入；目标选择属于 CLI（`--target <id>`）或包元数据。
-- EVM-native 示例在明确测试旧版 EVM SDK / LCNF 路径时，仍可以导入
-  `ProofForge.Evm` 并 `open Lean.Evm`。
-- EVM-native 导出的入口使用 `@[export l_<Contract>_<method>]`，且必须匹配
-  `--method` CLI 标志或同级的 `.evm-methods` 文件。
+  portable IR。不要仅为了选择输出链，就在 starter 模板中加入
+  `ProofForge.Backend.Evm`、Solana、NEAR 或其他 target/backend 导入；目标选择属于
+  CLI（`--target <id>`）或包元数据。
+- `ProofForge.Backend.Evm` 是编译器实现代码，不是产品级 authoring SDK。
+  `Examples/` 下的新示例应使用 `contract_source`，或组合可 import 的
+  `contract_source` 模块；backend-only probe 应放在 `Tests/` 或
+  `ProofForge/IR/Examples/` 下。
+- 旧的 `ProofForge.Evm` / `Lean.Evm` / LCNF `EmitYul` authoring 路线已从产品
+  surface 中移除。历史 RFC 或研究笔记如果引用这条路线，必须标记为
+  legacy/research，不能写成当前 authoring 指引。
 - EVM 文档中的能力名称必须重用 `docs/capability-registry.md` id：`events.emit`、`crosscall.invoke`、`account.explicit`、`storage.pda`、`crosscall.cpi`。不要引入替代 id，例如 `events.log`、`cross_call.contract` 或 `account.container`。
 
 ## 计划行为标签

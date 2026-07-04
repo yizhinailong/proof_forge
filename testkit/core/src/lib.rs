@@ -31,9 +31,23 @@ pub struct Scenario {
     pub name: String,
     pub fixture: String,
     #[serde(default)]
+    pub source: Option<PathBuf>,
+    #[serde(default)]
     pub targets: Vec<String>,
     #[serde(default)]
     pub capabilities: Vec<String>,
+}
+
+impl Scenario {
+    pub fn source_path(&self, repo_root: &Path) -> Option<PathBuf> {
+        self.source.as_ref().map(|path| {
+            if path.is_absolute() {
+                path.clone()
+            } else {
+                repo_root.join(path)
+            }
+        })
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -429,6 +443,13 @@ pub fn discover_scenarios(dir: &Path) -> Result<Vec<ScenarioCase>> {
             "scenario `{}` has an empty fixture",
             path.display()
         );
+        if let Some(source) = &manifest.scenario.source {
+            ensure!(
+                !source.as_os_str().is_empty(),
+                "scenario `{}` has an empty source path",
+                path.display()
+            );
+        }
         ensure!(
             !manifest.scenario.targets.is_empty(),
             "scenario `{}` has no targets",
@@ -1390,7 +1411,11 @@ fn display_toml_value(value: &TomlValue) -> String {
     }
 }
 
-pub fn assert_expectations(case: &ScenarioCase, target_id: &str, outcomes: &[CallOutcome]) -> Result<()> {
+pub fn assert_expectations(
+    case: &ScenarioCase,
+    target_id: &str,
+    outcomes: &[CallOutcome],
+) -> Result<()> {
     let expected_len: usize = case
         .manifest
         .steps
@@ -1877,7 +1902,10 @@ pub fn parse_offline_host_outcomes(stdout: &str) -> Result<Vec<CallOutcome>> {
                                 idx += 1;
                             }
                         }
-                        outcome.error = Some(ErrorOutcome { assertion_id, user_code });
+                        outcome.error = Some(ErrorOutcome {
+                            assertion_id,
+                            user_code,
+                        });
                     }
                 }
                 _ => {}

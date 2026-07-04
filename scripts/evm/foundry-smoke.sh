@@ -133,7 +133,7 @@ contract ProofForgeSmokeTest {
         (bool ok0,) = token.call(abi.encodeWithSignature("init(uint256)", uint256(1_000_000)));
         assertTrue(ok0);
 
-        (bool ok1, bytes memory r1) = token.call(abi.encodeWithSignature("getOwner()"));
+        (bool ok1, bytes memory r1) = token.call(abi.encodeWithSignature("owner()"));
         assertTrue(ok1);
         assertEq(abi.decode(r1, (uint256)), uint256(uint160(alice)));
 
@@ -142,18 +142,18 @@ contract ProofForgeSmokeTest {
         assertEq(abi.decode(r2, (uint256)), 1_000_000);
 
         vm.prank(alice);
-        (bool ok3,) = token.call(abi.encodeWithSignature("transfer(uint256,uint256)", uint256(uint160(bob)), uint256(300_000)));
+        (bool ok3,) = token.call(abi.encodeWithSignature("transfer(address,uint256)", bob, uint256(300_000)));
         assertTrue(ok3);
 
-        (, bytes memory aliceBal) = token.call(abi.encodeWithSignature("balanceOf(uint256)", uint256(uint160(alice))));
+        (, bytes memory aliceBal) = token.call(abi.encodeWithSignature("balanceOf(address)", alice));
         assertEq(abi.decode(aliceBal, (uint256)), 700_000);
 
-        (, bytes memory bobBal) = token.call(abi.encodeWithSignature("balanceOf(uint256)", uint256(uint160(bob))));
+        (, bytes memory bobBal) = token.call(abi.encodeWithSignature("balanceOf(address)", bob));
         assertEq(abi.decode(bobBal, (uint256)), 300_000);
 
         vm.prank(bob);
-        (bool reverted,) = token.call(abi.encodeWithSignature("transfer(uint256,uint256)", uint256(uint160(alice)), uint256(999_999)));
-        assertFalse(reverted);
+        (bool overdraftOk,) = token.call(abi.encodeWithSignature("transfer(address,uint256)", alice, uint256(999_999)));
+        assertFalse(overdraftOk);
     }
 
     function testOwnableLifecycle() public {

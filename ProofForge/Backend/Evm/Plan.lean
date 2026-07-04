@@ -145,12 +145,16 @@ inductive StorageSlotPlan where
   | scalarSlot (slot : Nat)
   | mapValueSlot (rootSlot : Nat) (keys : Array ValuePlan)
   | mapPresenceSlot (rootSlot : Nat) (keys : Array ValuePlan)
+  | arraySlot (rootSlot length : Nat) (index : ValuePlan)
+  | structArrayFieldSlot (rootSlot length fieldCount fieldOffset : Nat) (index : ValuePlan)
   deriving Repr
 
 def StorageSlotPlan.keyCount : StorageSlotPlan → Nat
   | .scalarSlot _ => 0
   | .mapValueSlot _ keys => keys.size
   | .mapPresenceSlot _ keys => keys.size
+  | .arraySlot .. => 0
+  | .structArrayFieldSlot .. => 0
 
 def StorageSlotPlan.requiredHelpers : StorageSlotPlan → HelperSet
   | .scalarSlot _ => #[]
@@ -161,6 +165,8 @@ def StorageSlotPlan.requiredHelpers : StorageSlotPlan → HelperSet
         HelperSet.insert helpers Helper.mapSlot
       else
         helpers
+  | .arraySlot .. => #[Helper.arraySlot]
+  | .structArrayFieldSlot .. => #[Helper.structArraySlot]
 
 structure MapStatePlan where
   stateId : String
@@ -246,6 +252,59 @@ def isStorageWordType : ValueType → Bool
 
 def findStruct? (module : Module) (name : String) : Option StructDecl :=
   module.structs.find? (fun decl => decl.name == name)
+
+def findStructFieldWithOffset? (decl : StructDecl) (fieldName : String) : Option (Nat × StructField) :=
+  Id.run do
+    let mut found : Option (Nat × StructField) := none
+    for h : idx in [0:decl.fields.size] do
+      if found.isNone then
+        let field := decl.fields[idx]
+        if field.id == fieldName then
+          found := some (idx, field)
+    pure found
+
+def requireArrayState (module : Module) (stateId : String) : Except PlanError (Nat × Nat × ValueType) := do
+  let (slot, state) ← requireState module stateId
+  match state.kind, state.type with
+  | .array length, elementType =>
+      if length == 0 then
+        .error { message := s!"EVM array state '{stateId}' must have non-zero length" }
+      else if isStorageWordType elementType then
+        .ok (slot, length, elementType)
+      else
+        .error { message := s!"EVM array state '{stateId}' has unsupported slot element type '{elementType.name}'" }
+  | .scalar, _ | .map _ _, _ =>
+      .error { message := s!"EVM storage state '{stateId}' is not an array" }
+
+def requireStructArrayStateField
+    (module : Module)
+    (stateId fieldName : String) : Except PlanError (Nat × Nat × Nat × Nat × StructField) := do
+  let (slot, state) ← requireState module stateId
+  match state.kind, state.type with
+  | .array length, .structType typeName => do
+      if length == 0 then
+        .error { message := s!"EVM array state '{stateId}' must have non-zero length" }
+      let some decl := findStruct? module typeName
+        | .error { message := s!"EVM array state '{stateId}' uses unknown struct '{typeName}'" }
+      let some (fieldOffset, field) := findStructFieldWithOffset? decl fieldName
+        | .error { message := s!"EVM struct array state '{stateId}' has no field '{fieldName}'" }
+      .ok (slot, length, decl.fields.size, fieldOffset, field)
+  | .array _, other =>
+      .error { message := s!"EVM storage state '{stateId}' is array storage, but not a struct array; got '{other.name}'" }
+  | .scalar, _ | .map _ _, _ =>
+      .error { message := s!"EVM storage state '{stateId}' is not a struct array" }
+
+def arraySlotPlan (module : Module) (stateId : String) (index : Expr) : Except PlanError StorageSlotPlan := do
+  let (slot, length, _) ← requireArrayState module stateId
+  .ok (.arraySlot slot length (ValuePlan.fromExpr index))
+
+def structArrayFieldSlotPlan
+    (module : Module)
+    (stateId : String)
+    (index : Expr)
+    (fieldName : String) : Except PlanError StorageSlotPlan := do
+  let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
+  .ok (.structArrayFieldSlot slot length fieldCount fieldOffset (ValuePlan.fromExpr index))
 
 def isSupportedMapState (state : StateDecl) : Bool :=
   match state.kind, state.type with
