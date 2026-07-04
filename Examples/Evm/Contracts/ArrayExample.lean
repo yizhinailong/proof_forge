@@ -23,6 +23,6 @@ contract_source ArrayExample do
 
   query sumOf3 returns(.u64) do
     fixedu64x3 xs (10, 20, 30);
-    return array_get xs (u64 0) +! array_get xs (u64 1) +! array_get xs (u64 2);
+    return (array_get xs (u64 0)) +! (array_get xs (u64 1)) +! (array_get xs (u64 2));
 
 end ArrayExample

@@ -32,7 +32,7 @@ object "ArrayExample" {
       let __proof_forge_array_xs_0 := 10
       let __proof_forge_array_xs_1 := 20
       let __proof_forge_array_xs_2 := 30
-      result := __proof_forge_local_array_get_3(__pf_checked_add(0, __proof_forge_local_array_get_3(__pf_checked_add(1, __proof_forge_array_xs_2), __proof_forge_array_xs_0, __proof_forge_array_xs_1, __proof_forge_array_xs_2)), __proof_forge_array_xs_0, __proof_forge_array_xs_1, __proof_forge_array_xs_2)
+      result := __pf_checked_add(__pf_checked_add(__proof_forge_array_xs_0, __proof_forge_array_xs_1), __proof_forge_array_xs_2)
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
@@ -55,21 +55,6 @@ object "ArrayExample" {
         revert(0, 0)
       }
       r := mul(a, b)
-    }
-    function __proof_forge_local_array_get_3(index, value_0, value_1, value_2) -> result {
-      switch index
-      case 0 {
-        result := value_0
-      }
-      case 1 {
-        result := value_1
-      }
-      case 2 {
-        result := value_2
-      }
-      default {
-        revert(0, 0)
-      }
     }
   }
 }
