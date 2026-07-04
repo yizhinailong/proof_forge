@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Storage Path Read Slot Plan Slice
+
+Commit: b37765d
+
+Summary:
+
+- Added `Plan.storagePathReadSlotPlan` so `storagePathRead` resolves direct map,
+  array, struct field, struct-array field, and nested-map paths to a
+  `StorageSlotPlan` before Yul expression assembly.
+- Added `ToYul.storagePathReadExprFromPlan`, reusing the existing
+  `StorageSlotPlan -> Yul` lowering and wrapping the planned slot in `sload`.
+- Replaced the `IR.lean` storage-path read `match` with a thin
+  `Plan.storagePathReadSlotPlan -> ToYul.storagePathReadExprFromPlan`
+  compatibility facade.
+- Extended `Tests/EvmSemanticPlan.lean` with direct read-slot plan coverage for
+  map, array, struct field, struct-array field, and nested-map storage paths.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-diagnostics
+just evm-build-examples
+just evm-foundry
+just evm-semantic-plan
+lake build
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- This slice plans read slots only. Broader recursive `StmtPlan -> Yul` body
+  lowering and some storage-path type/shape validation responsibilities still
+  remain in compatibility facades.
+
+Next step:
+
+- Continue extracting recursive statement-body lowering or move remaining
+  storage-path validation/metadata surfaces behind semantic-plan boundaries.
+
 ### EVM Storage Path Target Plan Slice
 
 Commit: 929fb30
