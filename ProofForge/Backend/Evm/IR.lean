@@ -3396,6 +3396,44 @@ def lowerArrayWriteStmt
     ← lowerScalarPlanExprOrFallback module env value
   ]))
 
+partial def lowerArrayWriteStmtPlanOrFallback
+    (module : Module)
+    (env : TypeEnv)
+    (stateId : String)
+    (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  if exprSupportsPlanScalarYul index && exprSupportsPlanScalarYul value then
+    let indexPlan ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) index with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    let valuePlan ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    let statements ←
+      ProofForge.Backend.Evm.ToYul.arrayWriteEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun stateId indexPlan => do
+          let (slot, length, _) ← requireStorageArrayState module stateId
+          .ok (Lean.Compiler.Yul.call arraySlotFunctionName #[
+            slotExpr slot,
+            Lean.Compiler.Yul.Expr.num length,
+            ← lowerExprPlanExpr module env indexPlan
+          ]))
+        (.effect (.storageArrayWrite stateId indexPlan valuePlan))
+    match statements[0]? with
+    | some statement =>
+        if statements.size == 1 then
+          .ok statement
+        else
+          .error { message := s!"EVM StmtPlan-to-Yul array write lowering produced {statements.size} statements, expected 1" }
+    | none =>
+        .error { message := "EVM StmtPlan-to-Yul array write lowering produced no statements" }
+  else
+    lowerArrayWriteStmt module env stateId index value
+
 def lowerStructFieldWriteStmt
     (module : Module)
     (env : TypeEnv)
@@ -3660,7 +3698,7 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
   | .storageArrayRead _ _ =>
       .error { message := "storage.array.read must be used as an expression" }
   | .storageArrayWrite stateId index value =>
-      lowerArrayWriteStmt module env stateId index value
+      lowerArrayWriteStmtPlanOrFallback module env stateId index value
   | .storageArrayStructFieldRead _ _ _ =>
       .error { message := "storage.array.struct.field.read must be used as an expression" }
   | .storageArrayStructFieldWrite stateId index fieldName value =>

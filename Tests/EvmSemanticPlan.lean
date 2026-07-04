@@ -781,17 +781,64 @@ def testMapWritePlanToYul : IO Unit := do
 
 def testArrayWritePlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let directWriteStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.arrayWriteEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env)
+      (fun _ index => do
+        .ok (Lean.Compiler.Yul.call arraySlotFunctionName #[
+          Lean.Compiler.Yul.Expr.num 1,
+          Lean.Compiler.Yul.Expr.num 3,
+          ← ProofForge.Backend.Evm.ToYul.exprPlanExpr
+            toYulError
+            (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env expr)
+            (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env)
+            index
+        ]))
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageArrayWrite
+          "values"
+          (.checkedArith .add (.literalWord 1) (.literalWord 1))
+          (.effect (.storageScalarRead "before")))))
+    "array write StmtPlan-to-Yul helper"
+  require (directWriteStmts.size == 1) "array write StmtPlan-to-Yul helper statement count"
+  match directWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "array write StmtPlan-to-Yul helper arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == arraySlotFunctionName) "array write StmtPlan-to-Yul helper slot call"
+          require (slotArgs.size == 3) "array write StmtPlan-to-Yul helper slot arg count"
+          match slotArgs[2]! with
+          | Lean.Compiler.Yul.Expr.call addName addArgs => do
+              require (addName == "__pf_checked_add") "array write StmtPlan-to-Yul helper index checked add"
+              require (addArgs.size == 2) "array write StmtPlan-to-Yul helper index checked add arg count"
+          | _ => throw <| IO.userError "array write StmtPlan-to-Yul helper index must be checked add"
+      | _ => throw <| IO.userError "array write StmtPlan-to-Yul helper slot must use array helper"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.builtin readName readArgs => do
+          require (readName == "sload") "array write StmtPlan-to-Yul helper value storage read"
+          require (readArgs.size == 1) "array write StmtPlan-to-Yul helper value sload arg count"
+      | _ => throw <| IO.userError "array write StmtPlan-to-Yul helper value must be storage read"
+  | _ => throw <| IO.userError "array write StmtPlan-to-Yul helper must lower to sstore"
   let writeStmt ← requireOk
-    (lowerArrayWriteStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
       env
-      "values"
-      (.literal (.u64 1))
-      (.add (.local "value") (.literal (.u64 3))))
+      (.storageArrayWrite
+        "values"
+        (.literal (.u64 1))
+        (.add (.local "value") (.literal (.u64 3)))))
     "array write value plan-to-yul"
   match writeStmt with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
       require (args.size == 2) "array write plan-to-yul arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == arraySlotFunctionName) "array write plan-to-yul slot call"
+          require (slotArgs.size == 3) "array write plan-to-yul slot arg count"
+      | _ => throw <| IO.userError "array write plan-to-yul slot must use array helper"
       match args[1]! with
       | Lean.Compiler.Yul.Expr.call addName addArgs => do
           require (addName == "__pf_checked_add") "array write value must lower through checked add plan"
@@ -799,12 +846,13 @@ def testArrayWritePlanToYul : IO Unit := do
       | _ => throw <| IO.userError "array write value must be plan-lowered checked add"
   | _ => throw <| IO.userError "array write plan-to-yul must lower to sstore"
   let storageValueStmt ← requireOk
-    (lowerArrayWriteStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
       env
-      "values"
-      (.literal (.u64 2))
-      (.effect (.storageScalarRead "before")))
+      (.storageArrayWrite
+        "values"
+        (.literal (.u64 2))
+        (.effect (.storageScalarRead "before"))))
     "array write storage-read value plan-to-yul"
   match storageValueStmt with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do

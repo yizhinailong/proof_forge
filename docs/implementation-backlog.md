@@ -311,10 +311,11 @@ Tasks:
     expression helper, while map root slot lookup and storage-path map writes
     remain in the compatibility facade until their own extraction slices add
     coverage.
-  - Started: `storageArrayWrite` value lowering now consumes the same
-    `ExprPlan -> ToYul` expression boundary for supported scalar write values.
-    Array index slot assembly remains on the existing `StorageSlotPlan ->
-    ToYul` boundary.
+  - Started: statement-position `storageArrayWrite` assembly now consumes a
+    narrow `StmtPlan.effect` / `EffectPlan -> ToYul` helper for supported scalar
+    index and value expressions. Array state root slot/length lookup remains in
+    the compatibility facade, and the final array element slot expression stays
+    on the existing array-slot helper boundary.
   - Started: `storageStructFieldWrite` and `storageArrayStructFieldWrite`
     value lowering now consume the same `ExprPlan -> ToYul` expression boundary
     for supported scalar field values. Struct-field slot assembly remains on

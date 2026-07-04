@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Array Write Effect StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.arrayWriteEffectPlanStatements` and
+  `ToYul.arrayWriteEffectStmtPlanStatements` for statement-position
+  `storageArrayWrite` assembly.
+- Routed statement-position fixed storage array writes through the helper when
+  both index and value are in the supported scalar plan subset.
+- Kept array state root slot and length lookup in the `IR.lean` compatibility
+  facade, with the final slot expression still assembled through the existing
+  array slot helper boundary.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct `StmtPlan.effect`
+  helper output, planned array index lowering, planned value lowering, and the
+  integrated `lowerEffectStmt` path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- This slice covers direct fixed storage array writes only. Storage-path array
+  writes and struct-array field writes still use their existing compatibility
+  paths.
+
+Next step:
+
+- Move storage-path write assembly or struct-array field write assembly behind a
+  `StmtPlan.effect` / `EffectPlan -> Yul` helper.
+
 ### EVM Map Write Effect StmtPlan-To-Yul Slice
 
 Commit: this commit
