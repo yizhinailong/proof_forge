@@ -62,13 +62,45 @@ where
 def metadataRequiresSolana (metadata : Array TargetMetadata) : Bool :=
   metadata.any (fun item => item.key.startsWith "solana.")
 
+def firstSolanaMetadataCall? (calls : Array CapabilityCall) : Option CapabilityCall :=
+  calls.find? (fun call => metadataRequiresSolana call.metadata)
+
+def targetExtensionMetadataAllowed (profile : TargetProfile) (calls : Array CapabilityCall) : Bool :=
+  match firstSolanaMetadataCall? calls with
+  | none => true
+  | some _ => profile.family == .solana
+
+def solanaExtensionMetadataError (profile : TargetProfile) (call : CapabilityCall) : Diagnostic := {
+  message := s!"target `{profile.id}` cannot use Solana target extension metadata on operation `{call.operation}`"
+}
+
 def requireTargetExtensionMetadata (profile : TargetProfile) (calls : Array CapabilityCall) :
     Except Diagnostic Unit := do
-  for call in calls do
-    if metadataRequiresSolana call.metadata && profile.family != .solana then
-      .error {
-        message := s!"target `{profile.id}` cannot use Solana target extension metadata on operation `{call.operation}`"
-      }
+  match firstSolanaMetadataCall? calls with
+  | none => .ok ()
+  | some call =>
+      if profile.family == .solana then
+        .ok ()
+      else
+        .error (solanaExtensionMetadataError profile call)
+
+def CapabilityPlan.supportedBy (profile : TargetProfile) (plan : CapabilityPlan) : Bool :=
+  allCapabilitiesSupported profile plan.capabilities
+
+def CapabilityPlan.targetExtensionsAllowed (profile : TargetProfile) (plan : CapabilityPlan) : Bool :=
+  targetExtensionMetadataAllowed profile plan.calls
+
+def CapabilityPlan.checkedBy (profile : TargetProfile) (plan : CapabilityPlan) : Bool :=
+  plan.supportedBy profile && plan.targetExtensionsAllowed profile
+
+def requireCapabilityPlan (profile : TargetProfile) (plan : CapabilityPlan) :
+    Except Diagnostic CapabilityPlan :=
+  match requireTargetExtensionMetadata profile plan.calls with
+  | .error err => .error err
+  | .ok () =>
+      match requireCapabilities profile plan.capabilities with
+      | .ok () => .ok plan
+      | .error err => .error (Diagnostic.fromCapabilityError err)
 
 def defaultResolve (profile : TargetProfile) (spec : ProofForge.Contract.ContractSpec) :
     Except Diagnostic CapabilityPlan := do
@@ -83,10 +115,7 @@ def defaultResolve (profile : TargetProfile) (spec : ProofForge.Contract.Contrac
     calls := capabilityCallsForSpec spec
     metadata := defaultMetadata profile spec
   }
-  requireTargetExtensionMetadata profile plan.calls
-  match requireCapabilities profile plan.capabilities with
-  | .ok () => .ok plan
-  | .error err => .error (Diagnostic.fromCapabilityError err)
+  requireCapabilityPlan profile plan
 
 structure TargetAdapter where
   profile : TargetProfile

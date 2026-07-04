@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-1 Target Capability Routing Anchors
+
+Commit: this commit
+
+Summary:
+
+- Added theorem-friendly target checker helpers:
+  `firstUnsupportedCapability?`, `allCapabilitiesSupported`,
+  `firstSolanaMetadataCall?`, and `targetExtensionMetadataAllowed`.
+- Routed `defaultResolve` through `requireCapabilityPlan`, so capability
+  support and Solana target-extension isolation share one checked boundary.
+- Added `ProofForge.Target.Formal` with Lean theorems proving that a
+  successfully checked `CapabilityPlan` satisfies the FV-1 `checkedBy`
+  predicate.
+- Added `Tests/TargetFormal.lean` to exercise representative `resolveSpec`
+  boundaries: EVM ValueVault success, Solana rejection of generic
+  `crosscall.invoke`, and EVM rejection of Solana extension metadata.
+
+Validation run:
+
+```sh
+lake build ProofForge.Target.Formal ProofForge.Target
+lake env lean --run Tests/TargetFormal.lean
+git diff --check
+```
+
+Known limitations:
+
+- This proves the local checked boundary used by `resolveSpec`; it does not
+  yet prove a full induction over every future adapter implementation.
+- The executable `Tests/TargetFormal.lean` smoke is intentionally not a new
+  public `just` gate yet, to avoid changing the validation surface before the
+  current documentation sync state is cleaned up.
+
+Next step:
+
+- Extend FV-1 from the default adapter boundary to any non-default target
+  adapter once those adapters expose custom resolution logic, then continue the
+  formal roadmap toward NEAR artifact-level execution obligations.
+
 ### Solana Token-2022 Direct CPI Live Gate
 
 Commit: this commit
