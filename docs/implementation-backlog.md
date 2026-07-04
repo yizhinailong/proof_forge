@@ -316,10 +316,13 @@ Tasks:
     index and value expressions. Array state root slot/length lookup remains in
     the compatibility facade, and the final array element slot expression stays
     on the existing array-slot helper boundary.
-  - Started: `storageStructFieldWrite` and `storageArrayStructFieldWrite`
-    value lowering now consume the same `ExprPlan -> ToYul` expression boundary
-    for supported scalar field values. Struct-field slot assembly remains on
-    the existing direct slot / `StorageSlotPlan -> ToYul` boundaries.
+  - Started: statement-position `storageStructFieldWrite` and
+    `storageArrayStructFieldWrite` assembly now consume a narrow
+    `StmtPlan.effect` / `EffectPlan -> ToYul` helper for supported scalar field
+    values and, for struct-array field writes, supported scalar indexes. Direct
+    struct field slot lookup and struct-array field slot metadata remain in the
+    compatibility facade until broader storage-path and whole-struct extraction
+    slices add coverage.
   - Started: whole-struct `storageScalarWrite` struct-literal field value
     lowering now consumes the same `ExprPlan -> ToYul` expression boundary for
     supported scalar field expressions, while keeping field snapshot temporaries

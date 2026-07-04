@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Struct Field Write Effect StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.structFieldWriteEffectPlanStatements` and
+  `ToYul.structFieldWriteEffectStmtPlanStatements` for statement-position
+  `storageStructFieldWrite` and `storageArrayStructFieldWrite` assembly.
+- Routed direct storage struct field writes through the helper when the value is
+  in the supported scalar plan subset.
+- Routed storage struct-array field writes through the helper when both index
+  and value are in the supported scalar plan subset.
+- Kept direct struct field slot lookup and struct-array field slot metadata in
+  the `IR.lean` compatibility facade, while the helper owns the final
+  `sstore(slot, value)` assembly.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+  integrated `lowerEffectStmt` path for both struct field write shapes.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- This slice covers direct field-write effects only. Whole-struct storage
+  writes and storage-path field writes still use their existing compatibility
+  paths.
+
+Next step:
+
+- Move storage-path write assembly or whole-struct storage write assembly behind
+  `StmtPlan.effect` / `EffectPlan -> Yul` helpers.
+
 ### EVM Array Write Effect StmtPlan-To-Yul Slice
 
 Commit: this commit

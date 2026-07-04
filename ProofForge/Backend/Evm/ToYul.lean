@@ -481,6 +481,44 @@ def arrayWriteEffectStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul array write lowering expected effect")
 
+def structFieldWriteEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (structFieldSlotFor : String → String → Except ε Lean.Compiler.Yul.Expr)
+    (structArrayFieldSlotFor : String → ExprPlan → String → Except ε Lean.Compiler.Yul.Expr) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storageStructFieldWrite stateId fieldName value => do
+      .ok #[
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          ← structFieldSlotFor stateId fieldName,
+          ← exprPlanExpr mkError lowerExpr lowerEffect value
+        ])
+      ]
+  | .storageArrayStructFieldWrite stateId index fieldName value => do
+      .ok #[
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          ← structArrayFieldSlotFor stateId index fieldName,
+          ← exprPlanExpr mkError lowerExpr lowerEffect value
+        ])
+      ]
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul struct field write lowering expected storageStructFieldWrite/storageArrayStructFieldWrite")
+
+def structFieldWriteEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (structFieldSlotFor : String → String → Except ε Lean.Compiler.Yul.Expr)
+    (structArrayFieldSlotFor : String → ExprPlan → String → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      structFieldWriteEffectPlanStatements mkError lowerExpr lowerEffect structFieldSlotFor structArrayFieldSlotFor effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul struct field write lowering expected effect")
+
 /-! ## Plan-driven helper requirements
 
 `StorageSlotPlan.requiredHelpers` lets the plan declare which EVM helper functions

@@ -866,13 +866,93 @@ def testArrayWritePlanToYul : IO Unit := do
 
 def testStructFieldWritePlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let directFieldStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.structFieldWriteEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env)
+      (fun _ _ => .ok (Lean.Compiler.Yul.Expr.num 2))
+      (fun _ index _ => do
+        .ok (Lean.Compiler.Yul.call structArraySlotFunctionName #[
+          Lean.Compiler.Yul.Expr.num 4,
+          Lean.Compiler.Yul.Expr.num 2,
+          Lean.Compiler.Yul.Expr.num 2,
+          Lean.Compiler.Yul.Expr.num 1,
+          ← ProofForge.Backend.Evm.ToYul.exprPlanExpr
+            toYulError
+            (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env expr)
+            (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env)
+            index
+        ]))
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageStructFieldWrite
+          "current"
+          "x"
+          (.checkedArith .add (.local "value") (.literalWord 5)))))
+    "struct field write StmtPlan-to-Yul helper"
+  require (directFieldStmts.size == 1) "struct field write StmtPlan-to-Yul helper statement count"
+  match directFieldStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "struct field write StmtPlan-to-Yul helper arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "struct field write StmtPlan-to-Yul helper checked add"
+          require (addArgs.size == 2) "struct field write StmtPlan-to-Yul helper checked add arg count"
+      | _ => throw <| IO.userError "struct field write StmtPlan-to-Yul helper value must be checked add"
+  | _ => throw <| IO.userError "struct field write StmtPlan-to-Yul helper must lower to sstore"
+  let directArrayFieldStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.structFieldWriteEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env)
+      (fun _ _ => .ok (Lean.Compiler.Yul.Expr.num 2))
+      (fun _ index _ => do
+        .ok (Lean.Compiler.Yul.call structArraySlotFunctionName #[
+          Lean.Compiler.Yul.Expr.num 4,
+          Lean.Compiler.Yul.Expr.num 2,
+          Lean.Compiler.Yul.Expr.num 2,
+          Lean.Compiler.Yul.Expr.num 1,
+          ← ProofForge.Backend.Evm.ToYul.exprPlanExpr
+            toYulError
+            (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env expr)
+            (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env)
+            index
+        ]))
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageArrayStructFieldWrite
+          "points"
+          (.checkedArith .add (.literalWord 0) (.literalWord 1))
+          "y"
+          (.effect (.storageScalarRead "before")))))
+    "struct array field write StmtPlan-to-Yul helper"
+  require (directArrayFieldStmts.size == 1) "struct array field write StmtPlan-to-Yul helper statement count"
+  match directArrayFieldStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "struct array field write StmtPlan-to-Yul helper arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == structArraySlotFunctionName) "struct array field write StmtPlan-to-Yul helper slot call"
+          require (slotArgs.size == 5) "struct array field write StmtPlan-to-Yul helper slot arg count"
+          match slotArgs[4]! with
+          | Lean.Compiler.Yul.Expr.call addName addArgs => do
+              require (addName == "__pf_checked_add") "struct array field write StmtPlan-to-Yul helper index checked add"
+              require (addArgs.size == 2) "struct array field write StmtPlan-to-Yul helper index checked add arg count"
+          | _ => throw <| IO.userError "struct array field write StmtPlan-to-Yul helper index must be checked add"
+      | _ => throw <| IO.userError "struct array field write StmtPlan-to-Yul helper slot must use struct-array helper"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.builtin readName readArgs => do
+          require (readName == "sload") "struct array field write StmtPlan-to-Yul helper value storage read"
+          require (readArgs.size == 1) "struct array field write StmtPlan-to-Yul helper value sload arg count"
+      | _ => throw <| IO.userError "struct array field write StmtPlan-to-Yul helper value must be storage read"
+  | _ => throw <| IO.userError "struct array field write StmtPlan-to-Yul helper must lower to sstore"
   let fieldStmt ← requireOk
-    (lowerStructFieldWriteStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageStructProbe.module
       env
-      "current"
-      "x"
-      (.add (.local "value") (.literal (.u64 5))))
+      (.storageStructFieldWrite
+        "current"
+        "x"
+        (.add (.local "value") (.literal (.u64 5)))))
     "struct field write value plan-to-yul"
   match fieldStmt with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
@@ -884,17 +964,23 @@ def testStructFieldWritePlanToYul : IO Unit := do
       | _ => throw <| IO.userError "struct field write value must be plan-lowered checked add"
   | _ => throw <| IO.userError "struct field write plan-to-yul must lower to sstore"
   let arrayFieldStmt ← requireOk
-    (lowerStructArrayFieldWriteStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageStructProbe.module
       env
-      "points"
-      (.literal (.u64 1))
-      "y"
-      (.effect (.storageScalarRead "before")))
+      (.storageArrayStructFieldWrite
+        "points"
+        (.literal (.u64 1))
+        "y"
+        (.effect (.storageScalarRead "before"))))
     "struct array field write value plan-to-yul"
   match arrayFieldStmt with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
       require (args.size == 2) "struct array field write plan-to-yul arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == structArraySlotFunctionName) "struct array field write plan-to-yul slot call"
+          require (slotArgs.size == 5) "struct array field write plan-to-yul slot arg count"
+      | _ => throw <| IO.userError "struct array field write plan-to-yul slot must use struct-array helper"
       match args[1]! with
       | Lean.Compiler.Yul.Expr.builtin readName readArgs => do
           require (readName == "sload") "struct array field write value must lower storage read through plan"
