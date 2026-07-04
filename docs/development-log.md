@@ -34,6 +34,8 @@ Summary:
   compatibility facade.
 - Routed `lowerModuleWithPlan` through `lowerEntrypointsWithPlan`, so module
   lowering consumes the same planned entrypoints used by dispatch lowering.
+- Preserved diagnostic priority by falling back to compatibility lowering when
+  best-effort diagnostic plans do not contain a complete entrypoint list.
 - Extended `Tests/EvmSemanticPlan.lean` to cover planned dynamic parameter
   local names, typed params, and direct entrypoint function shell output.
 
@@ -42,6 +44,7 @@ Validation run:
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
 just evm-semantic-plan
+just evm-diagnostics
 scripts/evm/dynamic-abi-ir-smoke.sh
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json
@@ -54,6 +57,8 @@ Known limitations:
 - Entrypoint body statements still come from `IR.lean`; broader
   `EntrypointPlan.body -> Yul` lowering remains staged.
 - Return typed-name selection still uses the compatibility facade.
+- Incomplete best-effort diagnostic plans still fall back to compatibility
+  lowering so user-facing diagnostics are not masked by plan-shape errors.
 
 Next step:
 

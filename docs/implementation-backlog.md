@@ -283,7 +283,10 @@ Tasks:
     Yul parameter names, and `ToYul` emits the internal entrypoint `funcDef`
     shell from an `EntrypointPlan`; the body statements still come from the
     `IR.lean` compatibility facade until broader lowering moves behind
-    `EntrypointPlan -> Yul`.
+    `EntrypointPlan -> Yul`. Complete plans take this path during normal
+    lowering; incomplete best-effort diagnostic plans fall back to compatibility
+    lowering so user-facing validation errors are not masked by plan-shape
+    errors.
   - Started: scalar local binding initialization now consumes the semantic
     plan path for the supported scalar subset:
     `IR Expr -> Lower.buildExprPlan -> ToYul.exprPlanExpr -> Yul.Expr`.

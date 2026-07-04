@@ -6568,14 +6568,33 @@ def lowerEntrypointsWithPlan
   else
     .ok functions
 
+def entrypointPlanIsComplete
+    (module : Module)
+    (entrypoints : Array ProofForge.Backend.Evm.Plan.EntrypointPlan) : Bool :=
+  entrypoints.size == module.entrypoints.size
+
+def lowerEntrypointsBestEffort
+    (module : Module)
+    (entrypoints : Array ProofForge.Backend.Evm.Plan.EntrypointPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  if entrypointPlanIsComplete module entrypoints then
+    lowerEntrypointsWithPlan module entrypoints
+  else
+    module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
+      .ok (acc.push (← lowerEntrypoint module entrypoint))
+
 def lowerModuleWithPlan
     (module : Module)
     (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Except LowerError Lean.Compiler.Yul.Object := do
   validateStructs module
   validateState module
-  let functions ← lowerEntrypointsWithPlan module plan.entrypoints
-  let dispatch ← dispatchBlockWithPlan module plan.dispatch
+  let functions ← lowerEntrypointsBestEffort module plan.entrypoints
+  let dispatch ←
+    if entrypointPlanIsComplete module plan.dispatch.entrypoints then
+      dispatchBlockWithPlan module plan.dispatch
+    else
+      dispatchBlock module
   let helpers := plannedMapHelperFunctions plan
   let helpers := helpers ++ plannedArrayHelperFunctions plan
   let helpers := helpers ++ plannedStructArrayHelperFunctions plan
