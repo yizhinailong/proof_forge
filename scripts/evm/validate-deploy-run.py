@@ -11,7 +11,9 @@ from typing import Any
 
 ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 HASH_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
-SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
+SUPPORTED_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address", "string", "bytes", "uint256[]"}
+STATIC_CONSTRUCTOR_TYPES = {"uint256", "uint64", "uint32", "bool", "bytes32", "address"}
+DYNAMIC_CONSTRUCTOR_TYPES = {"string", "bytes", "uint256[]"}
 SUPPORTED_CONSTRUCTOR_ARG_SOURCES = {"--evm-constructor-args-hex", "--evm-constructor-arg"}
 
 
@@ -119,6 +121,20 @@ def parse_expected_constructor_param(value: str) -> dict:
     return {"name": name, "type": abi_type}
 
 
+def expected_constructor_param_encoding(abi_type: str) -> str:
+    if abi_type in STATIC_CONSTRUCTOR_TYPES:
+        return "abi-static-word"
+    if abi_type in {"string", "bytes"}:
+        return "abi-dynamic-bytes"
+    if abi_type == "uint256[]":
+        return "abi-dynamic-array"
+    fail(f"unsupported constructor ABI type '{abi_type}'")
+
+
+def constructor_schema_has_dynamic(params: list[dict]) -> bool:
+    return any(param["type"] in DYNAMIC_CONSTRUCTOR_TYPES for param in params)
+
+
 def validate_constructor_abi(abi: dict, expected_params: list[dict]) -> list[dict]:
     constructor = expect_object(abi.get("constructor"), "deploy manifest abi.constructor")
     params = expect_array(constructor.get("params"), "deploy manifest abi.constructor.params")
@@ -129,8 +145,16 @@ def validate_constructor_abi(abi: dict, expected_params: list[dict]) -> list[dic
         name = expect_string(param.get("name"), f"deploy manifest abi.constructor.params[{idx}].name")
         abi_type = expect_string(param.get("type"), f"deploy manifest abi.constructor.params[{idx}].type")
         expect(abi_type in SUPPORTED_CONSTRUCTOR_TYPES, f"deploy manifest abi.constructor.params[{idx}].type unsupported")
-        expect(param.get("encoding") == "abi-static-word", f"deploy manifest abi.constructor.params[{idx}].encoding mismatch")
+        expect(
+            param.get("encoding") == expected_constructor_param_encoding(abi_type),
+            f"deploy manifest abi.constructor.params[{idx}].encoding mismatch",
+        )
         expect(param.get("slotBytes") == 32, f"deploy manifest abi.constructor.params[{idx}].slotBytes must be 32")
+        if abi_type == "uint256[]":
+            expect(
+                param.get("elementType") == "uint256",
+                f"deploy manifest abi.constructor.params[{idx}].elementType must be uint256",
+            )
         actual_params.append({"name": name, "type": abi_type})
     if expected_params:
         expect(actual_params == expected_params, "deploy manifest abi.constructor.params mismatch")
@@ -138,11 +162,17 @@ def validate_constructor_abi(abi: dict, expected_params: list[dict]) -> list[dic
 
 
 def validate_constructor_schema_args(params: list[dict], constructor_args_hex: str) -> None:
-    if not params:
+    if not params or not constructor_args_hex:
         return
-    expect(constructor_args_hex, "deploy manifest abi.constructor.params requires non-empty constructorArgs")
-    expected_bytes = len(params) * 32
     actual_bytes = len(constructor_args_hex) // 2
+    if constructor_schema_has_dynamic(params):
+        min_bytes = len(params) * 32
+        expect(
+            actual_bytes >= min_bytes,
+            f"deploy manifest abi.constructor.params expects at least {min_bytes} constructor arg bytes, got {actual_bytes}",
+        )
+        return
+    expected_bytes = len(params) * 32
     expect(
         actual_bytes == expected_bytes,
         f"deploy manifest abi.constructor.params expects {expected_bytes} constructor arg bytes, got {actual_bytes}",

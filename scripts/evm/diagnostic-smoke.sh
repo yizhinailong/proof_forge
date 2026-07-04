@@ -24,7 +24,7 @@ run_cli_diagnostic() {
   set +e
   lake env proof-forge build --target evm \
     --root . \
-    --module contract \
+    --module Counter \
     --yul-output "$out_dir/Counter.yul" \
     --artifact-output "$out_dir/Counter.proof-forge-artifact.json" \
     -o "$out_dir/Counter.bin" \
@@ -59,15 +59,16 @@ run_cli_diagnostic() {
 raw_constructor_arg="000000000000000000000000000000000000000000000000000000000000007b"
 
 run_cli_diagnostic \
-  "constructor dynamic type unsupported" \
-  "unsupported constructor ABI type 'string'; supported static-word types" \
+  "constructor string empty value" \
+  "invalid constructor argument spec 'memo=': value is empty" \
   --evm-constructor-param "memo:string" \
-  --evm-constructor-arg "memo=hello"
+  --evm-constructor-arg "memo="
 
 run_cli_diagnostic \
   "constructor schema missing args" \
-  "--evm-constructor-param requires --evm-constructor-args-hex or matching --evm-constructor-arg values" \
-  --evm-constructor-param "initial:uint256"
+  "--evm-constructor-arg \`other\` has no matching --evm-constructor-param" \
+  --evm-constructor-param "initial:uint256" \
+  --evm-constructor-arg "other=1"
 
 run_cli_diagnostic \
   "constructor duplicate typed value" \

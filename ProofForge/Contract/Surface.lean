@@ -37,6 +37,9 @@ structure EventField where
 def contract (name : String) (body : ModuleM Unit) : ContractSpec :=
   ProofForge.Contract.Builder.build name body
 
+def declareConstructorParam (name : String) (abiType : String) : ModuleM Unit :=
+  ProofForge.Contract.Builder.constructorParam name abiType
+
 def slot (id : String) (type : ValueType) : ScalarRef :=
   { id, type }
 

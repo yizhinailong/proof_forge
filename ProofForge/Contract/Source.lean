@@ -120,6 +120,10 @@ scoped syntax "cpi " ident " spl_token_close_account" "(" ident ", " ident ", " 
 scoped syntax "cpi " ident " spl_token_set_authority" "(" ident ", " ident ", " ident ")" " authority_type" "(" term ")"
   " signer_seeds " "[" solanaSignerSeed,* "]" : contractItem
 scoped syntax "use " term : contractItem
+scoped syntax "constructor_param " ident " : " term ";" : contractItem
+scoped syntax "constructor_param " ident " : " "cstring" ";" : contractItem
+scoped syntax "constructor_param " ident " : " "cbytes" ";" : contractItem
+scoped syntax "constructor_param " ident " : " "u256array" ";" : contractItem
 scoped syntax "entry " ident " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ")" " do" ppLine entryStmt* : contractItem
@@ -385,6 +389,32 @@ private structure LoweredItem where
 
 private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
   match item with
+  | `(contractItem| constructor_param $name:ident : "cstring";) =>
+      let nameLit := identNameLit name
+      let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "string")
+      return { action? := some action }
+  | `(contractItem| constructor_param $name:ident : "cbytes";) =>
+      let nameLit := identNameLit name
+      let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "bytes")
+      return { action? := some action }
+  | `(contractItem| constructor_param $name:ident : "u256array";) =>
+      let nameLit := identNameLit name
+      let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "uint256[]")
+      return { action? := some action }
+  | `(contractItem| constructor_param $name:ident : $type:term;) =>
+      let nameLit := identNameLit name
+      match type with
+      | `(.u64) =>
+          let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "uint256")
+          return { action? := some action }
+      | `(.u32) =>
+          let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "uint32")
+          return { action? := some action }
+      | `(.bool) =>
+          let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "bool")
+          return { action? := some action }
+      | _ =>
+          Macro.throwError s!"unsupported constructor_param type: {type.raw}"
   | `(contractItem| state $name:ident : $type:term) =>
       let action ← `(ProofForge.Contract.Surface.scalar $name)
       return { action? := some action, binder := mkStateLet name type }
