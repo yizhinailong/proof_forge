@@ -11996,3 +11996,39 @@ Result:
   already represented by `ExprPlan.localArrayGet`.
 - EVM semantic-plan, diagnostics, array-value IR smoke, full Lake build, and
   whitespace checks passed locally.
+
+### EVM Planned Local Struct-Array Field Reads In Control-Flow Bodies
+
+Commit: 8ac6c8c
+
+Summary:
+
+- Extended `Lower.buildExprPlan` so IR expressions shaped as
+  `field(arrayGet(localStructArray, index), fieldName)` lower directly to
+  `ExprPlan.structField (.localArrayGet ...)` when the fixed-array leaf is a
+  flat local struct.
+- Reused the existing `ExprPlan -> ToYul` local struct-array field lowering:
+  static indexes still read the direct field local and dynamic indexes route
+  through the length-specific `__proof_forge_local_array_get_N` helper.
+- Added a semantic-plan regression that builds an IR `ifElse`, binds a dynamic
+  local struct-array field read in one branch and a static local struct-array
+  field read in the other, verifies planned body construction, and checks the
+  emitted Yul AST uses the expected helper/local source.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/struct-array-value-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Result:
+
+- Planned control-flow bodies now cover local struct-array field reads already
+  representable as `ExprPlan.structField (.localArrayGet ...)`.
+- EVM semantic-plan, diagnostics, struct-array value IR smoke, full Lake build,
+  and whitespace checks passed locally.
