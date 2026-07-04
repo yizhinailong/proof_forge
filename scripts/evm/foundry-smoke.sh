@@ -133,7 +133,7 @@ contract ProofForgeSmokeTest {
         (bool ok0,) = token.call(abi.encodeWithSignature("init(uint256)", uint256(1_000_000)));
         assertTrue(ok0);
 
-        (bool ok1, bytes memory r1) = token.call(abi.encodeWithSignature("getOwner()"));
+        (bool ok1, bytes memory r1) = token.call(abi.encodeWithSignature("owner()"));
         assertTrue(ok1);
         assertEq(abi.decode(r1, (uint256)), uint256(uint160(alice)));
 

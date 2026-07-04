@@ -2,23 +2,26 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-Example composed contract: local owner access control plus ERC-20 token surface.
-Demonstrates CS-2.5 stdlib import without copy-paste.
+Example composed contract: Ownable access control plus ERC-20 token surface.
+Uses the official `compose` merge API instead of inlining owner state (CS-2.7).
 -/
 import ProofForge.Contract.Source
+import ProofForge.Contract.Compose
+import ProofForge.Contract.Stdlib.Compose.Specs
+import ProofForge.Contract.Stdlib.Ownable
 import ProofForge.Contract.Stdlib.ERC20
 
 namespace OwnableERC20
 
 open ProofForge.Contract.Source
+open ProofForge.Contract.Stdlib.Ownable
 open ProofForge.Contract.Stdlib.ERC20
 
 contract_source OwnableERC20 do
-  import ProofForge.Contract.Stdlib.ERC20;
+  compose ProofForge.Contract.Stdlib.Ownable;
+  compose ProofForge.Contract.Stdlib.ERC20;
 
   event Transfer
-
-  state «owner» : .u64
 
   entry init (supply : .u64) do
     do ProofForge.Contract.Surface.requireZero «owner» "already initialized";

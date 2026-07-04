@@ -3,6 +3,8 @@ Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
 Portable Ownable access-control mixin for `contract_source` composition.
+To combine with ERC-20 in one contract, use the official `compose` API and import
+`ProofForge.Contract.Stdlib.Compose.Specs` rather than chaining both mixins directly.
 -/
 import ProofForge.Contract.Source
 

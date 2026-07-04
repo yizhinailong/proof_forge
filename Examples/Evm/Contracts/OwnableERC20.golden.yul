@@ -1,6 +1,22 @@
 object "OwnableERC20" {
   code {
     switch shr(224, calldataload(0))
+    case 0x8da5cb5b {
+      let _r := f_OwnableERC20_owner()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xd23e8489 {
+      if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      f_OwnableERC20_transferOwnership(calldataload(4))
+      return(0, 0)
+    }
+    case 0x715018a6 {
+      f_OwnableERC20_renounceOwnership()
+      return(0, 0)
+    }
     case 0x18160ddd {
       let _r := f_OwnableERC20_totalSupply()
       mstore(0, _r)
@@ -85,30 +101,48 @@ object "OwnableERC20" {
     default {
       revert(0, 0)
     }
-    function f_OwnableERC20_totalSupply() -> result {
+    function f_OwnableERC20_owner() -> result {
       result := sload(0)
     }
-    function f_OwnableERC20_decimals() -> result {
+    function f_OwnableERC20_transferOwnership(newOwner) {
+      if iszero(eq(caller(), sload(0))) {
+        revert(0, 0)
+      }
+      if iszero(iszero(eq(newOwner, 0))) {
+        revert(0, 0)
+      }
+      sstore(0, newOwner)
+    }
+    function f_OwnableERC20_renounceOwnership() {
+      if iszero(eq(caller(), sload(0))) {
+        revert(0, 0)
+      }
+      sstore(0, 0)
+    }
+    function f_OwnableERC20_totalSupply() -> result {
       result := sload(1)
     }
+    function f_OwnableERC20_decimals() -> result {
+      result := sload(2)
+    }
     function f_OwnableERC20_balanceOf(who) -> result {
-      result := sload(__proof_forge_map_slot(2, who))
+      result := sload(__proof_forge_map_slot(3, who))
     }
     function f_OwnableERC20_allowance(holder, spender) -> result {
-      result := sload(__proof_forge_map_slot(__proof_forge_map_slot(3, holder), spender))
+      result := sload(__proof_forge_map_slot(__proof_forge_map_slot(4, holder), spender))
     }
     function f_OwnableERC20_transfer(recipient, amount) -> result {
       if iszero(iszero(eq(recipient, 0))) {
         revert(0, 0)
       }
       let sender := caller()
-      let srcBal := sload(__proof_forge_map_slot(2, sender))
+      let srcBal := sload(__proof_forge_map_slot(3, sender))
       if iszero(iszero(lt(srcBal, amount))) {
         revert(0, 0)
       }
-      __proof_forge_map_write(2, sender, __pf_checked_sub(srcBal, amount))
-      let dstBal := sload(__proof_forge_map_slot(2, recipient))
-      __proof_forge_map_write(2, recipient, __pf_checked_add(dstBal, amount))
+      __proof_forge_map_write(3, sender, __pf_checked_sub(srcBal, amount))
+      let dstBal := sload(__proof_forge_map_slot(3, recipient))
+      __proof_forge_map_write(3, recipient, __pf_checked_add(dstBal, amount))
       {
         mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
         mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
@@ -126,8 +160,8 @@ object "OwnableERC20" {
         revert(0, 0)
       }
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(3, holder), spender)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(3, holder), spender)
+        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(4, holder), spender)
+        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(4, holder), spender)
         sstore(_slot, amount)
         sstore(_presence_slot, 1)
       }
@@ -144,23 +178,23 @@ object "OwnableERC20" {
     }
     function f_OwnableERC20_transferFrom(src, dst, amount) -> result {
       let spender := caller()
-      let current := sload(__proof_forge_map_slot(__proof_forge_map_slot(3, src), spender))
+      let current := sload(__proof_forge_map_slot(__proof_forge_map_slot(4, src), spender))
       if iszero(iszero(lt(current, amount))) {
         revert(0, 0)
       }
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(3, src), spender)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(3, src), spender)
+        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(4, src), spender)
+        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(4, src), spender)
         sstore(_slot, __pf_checked_sub(current, amount))
         sstore(_presence_slot, 1)
       }
-      let srcBal := sload(__proof_forge_map_slot(2, src))
+      let srcBal := sload(__proof_forge_map_slot(3, src))
       if iszero(iszero(lt(srcBal, amount))) {
         revert(0, 0)
       }
-      __proof_forge_map_write(2, src, __pf_checked_sub(srcBal, amount))
-      let dstBal := sload(__proof_forge_map_slot(2, dst))
-      __proof_forge_map_write(2, dst, __pf_checked_add(dstBal, amount))
+      __proof_forge_map_write(3, src, __pf_checked_sub(srcBal, amount))
+      let dstBal := sload(__proof_forge_map_slot(3, dst))
+      __proof_forge_map_write(3, dst, __pf_checked_add(dstBal, amount))
       {
         mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
         mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
@@ -176,10 +210,10 @@ object "OwnableERC20" {
       if iszero(iszero(eq(recipient, 0))) {
         revert(0, 0)
       }
-      let ts := sload(0)
-      sstore(0, __pf_checked_add(ts, amount))
-      let bal := sload(__proof_forge_map_slot(2, recipient))
-      __proof_forge_map_write(2, recipient, __pf_checked_add(bal, amount))
+      let ts := sload(1)
+      sstore(1, __pf_checked_add(ts, amount))
+      let bal := sload(__proof_forge_map_slot(3, recipient))
+      __proof_forge_map_write(3, recipient, __pf_checked_add(bal, amount))
       {
         mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
         mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
@@ -193,13 +227,13 @@ object "OwnableERC20" {
     }
     function f_OwnableERC20_burn(amount) -> result {
       let who := caller()
-      let bal := sload(__proof_forge_map_slot(2, who))
+      let bal := sload(__proof_forge_map_slot(3, who))
       if iszero(iszero(lt(bal, amount))) {
         revert(0, 0)
       }
-      __proof_forge_map_write(2, who, __pf_checked_sub(bal, amount))
-      let ts := sload(0)
-      sstore(0, __pf_checked_sub(ts, amount))
+      __proof_forge_map_write(3, who, __pf_checked_sub(bal, amount))
+      let ts := sload(1)
+      sstore(1, __pf_checked_sub(ts, amount))
       {
         mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
         mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
@@ -212,23 +246,23 @@ object "OwnableERC20" {
       result := 1
     }
     function f_OwnableERC20_init(supply) {
-      if iszero(eq(sload(4), 0)) {
+      if iszero(eq(sload(0), 0)) {
         revert(0, 0)
       }
-      sstore(4, caller())
-      sstore(1, 18)
-      sstore(0, supply)
+      sstore(0, caller())
+      sstore(2, 18)
+      sstore(1, supply)
       let who := caller()
-      __proof_forge_map_write(2, who, supply)
+      __proof_forge_map_write(3, who, supply)
     }
     function f_OwnableERC20_ownerMint(recipient, amount) -> result {
-      if iszero(eq(caller(), sload(4))) {
+      if iszero(eq(caller(), sload(0))) {
         revert(0, 0)
       }
-      let ts := sload(0)
-      sstore(0, __pf_checked_add(ts, amount))
-      let bal := sload(__proof_forge_map_slot(2, recipient))
-      __proof_forge_map_write(2, recipient, __pf_checked_add(bal, amount))
+      let ts := sload(1)
+      sstore(1, __pf_checked_add(ts, amount))
+      let bal := sload(__proof_forge_map_slot(3, recipient))
+      __proof_forge_map_write(3, recipient, __pf_checked_add(bal, amount))
       {
         mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
         mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)

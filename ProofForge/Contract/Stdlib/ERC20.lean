@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Canonical ERC-20 token mixin for `contract_source` composition on EVM.
 Uses standard selectors, Transfer/Approval events, and bool returns.
+To combine with Ownable in one contract, use the official `compose` API and import
+`ProofForge.Contract.Stdlib.Compose.Specs` rather than chaining both mixins directly.
 -/
 import ProofForge.Contract.Source
 
