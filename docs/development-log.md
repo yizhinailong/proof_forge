@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-2 IR Semantics Metatheory Anchors
+
+Commit: this commit
+
+Summary:
+
+- Added deterministic-result theorems for the executable IR semantics:
+  `evalExpr_deterministic`, `execStatements_deterministic`, and
+  `runEntrypointWithArgs_deterministic`.
+- Added `boundedForRemaining` and `boundedForRemaining_decreases`, a Nat
+  measure anchor for `boundedFor` execution. This records the structurally
+  decreasing loop argument that the FV-2 roadmap calls out as the bounded-loop
+  termination basis.
+- Wired the new theorem anchors into `Tests/NearWasmFormal.lean` so the
+  existing formal anchor gate checks them alongside the IR trace obligations.
+
+Validation run:
+
+```sh
+lake build ProofForge.IR.Semantics
+lake env lean --run Tests/NearWasmFormal.lean
+git diff --check
+```
+
+Known limitations:
+
+- These are metatheory anchors over the current executable interpreter, not a
+  full progress/preservation proof for every typed IR node.
+- `execBoundedFor` remains in the existing partial mutual interpreter; this
+  slice proves the decreasing measure used by the bounded loop step.
+
+Next step:
+
+- Continue FV-2 with progress/preservation for the validated typed subset, or
+  deepen FV-4 on the NEAR side toward artifact-level execution obligations.
+
 ### FV-1 Target Capability Routing Anchors
 
 Commit: this commit

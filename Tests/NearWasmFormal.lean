@@ -13,6 +13,10 @@ theorem release_then_sum_ownership_ok :
 
 #check ProofForge.IR.Semantics.counter_trace_gets_one
 #check ProofForge.IR.Semantics.counter_exports_match_near_entrypoints
+#check ProofForge.IR.Semantics.evalExpr_deterministic
+#check ProofForge.IR.Semantics.execStatements_deterministic
+#check ProofForge.IR.Semantics.runEntrypointWithArgs_deterministic
+#check ProofForge.IR.Semantics.boundedForRemaining_decreases
 #check ProofForge.IR.Semantics.array_sum_literal_trace_returns_sixty
 #check ProofForge.IR.Semantics.array_storage_lifecycle_trace_returns_thirty_one
 #check ProofForge.IR.Semantics.array_predicates_trace_returns_one
