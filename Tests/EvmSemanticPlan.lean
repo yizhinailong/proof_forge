@@ -322,6 +322,42 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
   require
     (aggregateReturnPlan.localNames == #["__proof_forge_return_0", "__proof_forge_return_1"])
     "aggregate crosscall return plan local names"
+  let aggregateAssignmentPlan? ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.aggregateCrosscallReturnAssignmentPlan?
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      (toValidateTypeEnv (entrypointTypeEnv ProofForge.IR.Examples.EvmCrosscallProbe.callRemotePair))
+      "call_remote_pair"
+      (.structType "RemotePair")
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.local "method")
+        #[]
+        (.structType "RemotePair")))
+    "aggregate crosscall return assignment plan"
+  let aggregateAssignmentPlan ← requireSome
+    aggregateAssignmentPlan?
+    "aggregate crosscall return assignment plan must be present"
+  require
+    (aggregateAssignmentPlan.mode == ProofForge.Backend.Evm.Plan.CrosscallMode.call)
+    "aggregate crosscall return assignment plan mode"
+  require
+    (aggregateAssignmentPlan.returns.wordTypes == #[.bool, .u32])
+    "aggregate crosscall return assignment plan word layout"
+  require
+    (aggregateAssignmentPlan.returns.localNames == #["__proof_forge_return_0", "__proof_forge_return_1"])
+    "aggregate crosscall return assignment plan local names"
+  require
+    aggregateAssignmentPlan.args.isEmpty
+    "aggregate crosscall return assignment plan args"
+  match aggregateAssignmentPlan.target with
+  | .local "target" => pure ()
+  | _ => throw <| IO.userError "aggregate crosscall return assignment plan target"
+  match aggregateAssignmentPlan.methodId with
+  | .local "method" => pure ()
+  | _ => throw <| IO.userError "aggregate crosscall return assignment plan method"
+  match aggregateAssignmentPlan.callValue? with
+  | none => pure ()
+  | some _ => throw <| IO.userError "aggregate crosscall return assignment plan call value"
   let aggregateFunctionName ←
     requireOk
       (ProofForge.Backend.Evm.ToYul.crosscallHelperFunctionName toYulError aggregateReturn)

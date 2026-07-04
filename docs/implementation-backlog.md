@@ -444,11 +444,14 @@ Tasks:
     and nested path switch frame are emitted by `ToYul` helpers.
   - Started: aggregate crosscall helper-call assembly and entrypoint multi-word
     return assignment now live behind `ToYul`. `IR.lean` still owns return type
-    checks and aggregate argument word expansion, but aggregate crosscall
-    return local-name and word-layout planning now comes from
-    `Lower.crosscallReturnPlan`, and final helper-call function-name
-    selection, argument ordering, and multi-return Yul assignment construction
-    are delegated to `ToYul`. Local
+    checks and aggregate argument word expansion for scalar expression fallback
+    paths, but aggregate crosscall return assignment decisions now come from
+    `Lower.aggregateCrosscallReturnAssignmentPlan?`. That plan records the
+    call mode, target/method/call-value expression plans, planned crosscall
+    argument words, and `ReturnPlan` local-name/word-layout data; `IR.lean`
+    consumes the planned `ExprPlan`s and delegates final helper-call
+    function-name selection, argument ordering, and multi-return Yul assignment
+    construction to `ToYul`. Local
     aggregate ABI word expansion for entrypoint returns and related
     compatibility paths now delegates final local identifier/data-pointer word
     construction to `ToYul.localAbiWords`; `IR.lean` still validates the source

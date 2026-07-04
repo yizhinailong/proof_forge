@@ -590,6 +590,15 @@ structure ReturnPlan where
   localNames : Array String
   deriving Repr
 
+structure CrosscallReturnAssignmentPlan where
+  returns : ReturnPlan
+  mode : CrosscallMode
+  target : ExprPlan
+  methodId : ExprPlan
+  callValue? : Option ExprPlan
+  args : Array ExprPlan
+  deriving Repr
+
 instance : Inhabited ReturnPlan := ⟨{ returnType := .unit, wordTypes := #[], localNames := #[] }⟩
 
 def abiReturnName (index : Nat) : String :=

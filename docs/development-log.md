@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Crosscall Return Assignment Plan Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `CrosscallReturnAssignmentPlan` so aggregate crosscall return
+  assignment shape is represented in the semantic plan.
+- Added `Lower.aggregateCrosscallReturnAssignmentPlan?`, which now owns the
+  aggregate-return decision, call/return type check, target/method/call-value
+  expression planning, crosscall argument word planning, and return word/local
+  layout.
+- Simplified `IR.lowerAggregateCrosscallReturnAssignment?` so it consumes the
+  planned assignment, lowers the contained `ExprPlan`s, and delegates final
+  multi-return Yul assignment construction to `ToYul`.
+- Added semantic-plan coverage for the `RemotePair` aggregate crosscall return
+  assignment plan.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+just evm-diagnostics
+scripts/evm/crosscall-ir-smoke.sh
+lake build proof-forge
+lake build
+```
+
+Known limitations:
+
+- Final multi-return assignment construction still lives in `ToYul`; this
+  slice moves the assignment decision and operand planning into `Lower`, not
+  the full recursive `StmtPlan -> Yul` return path.
+- The remaining compatibility surface is mostly around non-literal aggregate
+  sources and broader recursive return statement lowering.
+
+Next step:
+
+- Move the remaining return statement assembly behind `StmtPlan`/`ReturnPlan`,
+  or introduce semantic-plan nodes for the remaining non-literal aggregate
+  crosscall argument sources.
+
 ### EVM Crosscall Return Plan Slice
 
 Commit: this commit
@@ -55,9 +101,9 @@ Known limitations:
 
 Next step:
 
-- Move the aggregate crosscall return assignment decision itself into a
-  statement/return plan, or continue introducing semantic-plan nodes for the
-  remaining non-literal aggregate crosscall argument sources.
+- Move the remaining return statement assembly behind `StmtPlan`/`ReturnPlan`,
+  or continue introducing semantic-plan nodes for the remaining non-literal
+  aggregate crosscall argument sources.
 
 ### EVM Storage Crosscall Arg Plan Slice
 

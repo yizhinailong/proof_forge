@@ -473,6 +473,63 @@ mutual
       .ok (plans.push stmtPlan, nextEnv)
 end
 
+def crosscallModeArgContext : CrosscallMode → String
+  | .call => "typed crosscall argument"
+  | .callValue => "value crosscall argument"
+  | .staticcall => "static crosscall argument"
+  | .delegatecall => "delegate crosscall argument"
+
+def buildCrosscallReturnAssignmentPlan
+    (module : Module)
+    (env : TypeEnv)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (mode : CrosscallMode)
+    (target methodId : Expr)
+    (callValue? : Option Expr)
+    (args : Array Expr)
+    (callReturnType : ValueType) :
+    Except LowerError CrosscallReturnAssignmentPlan := do
+  ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
+  let returns ← crosscallReturnPlan module s!"entrypoint `{entrypointName}` return value" returnType
+  .ok {
+    returns
+    mode
+    target := ← buildExprPlan module env target
+    methodId := ← buildExprPlan module env methodId
+    callValue? := ← callValue?.mapM (buildExprPlan module env)
+    args := ← buildCrosscallArgWordPlansMany module env (crosscallModeArgContext mode) args
+  }
+
+def aggregateCrosscallReturnAssignmentPlan?
+    (module : Module)
+    (env : TypeEnv)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : Expr) :
+    Except LowerError (Option CrosscallReturnAssignmentPlan) := do
+  if isCrosscallWordType returnType then
+    .ok none
+  else
+    match value with
+    | .crosscallInvokeTyped target methodId args callReturnType => do
+        let plan ← buildCrosscallReturnAssignmentPlan
+          module env entrypointName returnType .call target methodId none args callReturnType
+        .ok (some plan)
+    | .crosscallInvokeValueTyped target methodId callValue args callReturnType => do
+        let plan ← buildCrosscallReturnAssignmentPlan
+          module env entrypointName returnType .callValue target methodId (some callValue) args callReturnType
+        .ok (some plan)
+    | .crosscallInvokeStaticTyped target methodId args callReturnType => do
+        let plan ← buildCrosscallReturnAssignmentPlan
+          module env entrypointName returnType .staticcall target methodId none args callReturnType
+        .ok (some plan)
+    | .crosscallInvokeDelegateTyped target methodId args callReturnType => do
+        let plan ← buildCrosscallReturnAssignmentPlan
+          module env entrypointName returnType .delegatecall target methodId none args callReturnType
+        .ok (some plan)
+    | _ => .ok none
+
 def buildEntrypointBodyPlan (module : Module) (entrypoint : Entrypoint) :
     Except LowerError (Array StmtPlan) := do
   validateEntrypointTypes module entrypoint
