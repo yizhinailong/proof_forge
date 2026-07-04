@@ -124,9 +124,12 @@ Yul、bytecode、ABI metadata 和 deployment file。当合约本身是 portable 
 
 ## 下一步实现
 
-1. 新的 SDK Alpha/Beta 工作继续落在 Lean SDK 语法和编译器内部 planning layer；
+1. 执行 **工作流 34**（Contract Source 产品化）：portable authoring 边界、
+   EVM stdlib 的 `contract_source` 化，以及 target 选择的 build/test/deploy UX。
+   详见 [implementation-backlog.md](implementation-backlog.md) 工作流 34。
+2. 新的 SDK Alpha/Beta 工作继续落在 Lean SDK 语法和编译器内部 planning layer；
    legacy `.learn` 输入只在兼容性测试有用时复用这些层。
-2. 逐步用 typed account、owner、program 和 capability reference 替代 Lean helper
+3. 逐步用 typed account、owner、program 和 capability reference 替代 Lean helper
    中带字符串的 Solana declaration，同时只在编译器制品内部保留字符串名称。
-3. 随着 Wasm、Move 和其他 target 后端从 routing plan 走到 package emitter，
+4. 随着 Wasm、Move 和其他 target 后端从 routing plan 走到 package emitter，
    继续扩展 target package emission。

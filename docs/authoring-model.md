@@ -139,11 +139,15 @@ need to manually switch between these internals when the contract is portable.
 
 ## Next Implementation Steps
 
-1. Keep new SDK Alpha/Beta work in Lean SDK syntax and compiler-owned planning
+1. Execute **Workstream 34** (Contract Source productization): portable
+   authoring boundary, EVM stdlib in `contract_source`, then target-selected
+   build/test/deploy UX. See [implementation-backlog.md](implementation-backlog.md)
+   Workstream 34.
+2. Keep new SDK Alpha/Beta work in Lean SDK syntax and compiler-owned planning
    layers, then let legacy `.learn` inputs reuse those layers only when useful
    for compatibility tests.
-2. Gradually replace string-bearing Solana declarations with typed account,
+3. Gradually replace string-bearing Solana declarations with typed account,
    owner, program, and capability references in Lean helpers while keeping
    string names inside compiler artifacts only.
-3. Extend target package emission beyond EVM and Solana sBPF as Wasm, Move, and
+4. Extend target package emission beyond EVM and Solana sBPF as Wasm, Move, and
    other target backends grow from routing plans into package emitters.
