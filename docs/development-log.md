@@ -17,6 +17,33 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Solana Lean Gate Example Build
+
+Commit: this commit
+
+Summary:
+
+- Made `just solana-lean` explicitly build `ProofForge.Solana.Examples`
+  before running tests that import individual Solana example modules.
+- This fixes clean CI caches where `lake env lean --run
+  Tests/SolanaAccountRealloc.lean` could fail before the imported
+  `ProofForge.Solana.Examples.AccountRealloc` `.olean` existed.
+
+Validation run:
+
+```sh
+just solana-lean
+git diff --check
+```
+
+Known limitations:
+
+- This is a CI/build-order fix only; it does not change generated contracts.
+
+Next step:
+
+- Re-run CI, then continue Solana direct Token-2022 live validation.
+
 ### Solana Token-2022 Direct CPI Lowering
 
 Commit: this commit

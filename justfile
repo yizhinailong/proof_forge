@@ -56,6 +56,7 @@ solana-lean:
     lake build
     lake build ProofForge.Contract.Token
     lake build ProofForge.Contract.Examples.Counter
+    lake build ProofForge.Solana.Examples
     lake env lean --run Tests/SolanaDiagnostics.lean
     lake env lean --run Tests/SolanaSdk.lean
     lake env lean --run Tests/SolanaSdkManifest.lean
