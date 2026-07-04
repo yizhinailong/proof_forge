@@ -323,12 +323,14 @@ Tasks:
     struct field slot lookup and struct-array field slot metadata remain in the
     compatibility facade until broader storage-path and whole-struct extraction
     slices add coverage.
-  - Started: whole-struct `storageScalarWrite` struct-literal field value
-    lowering now consumes the same `ExprPlan -> ToYul` expression boundary for
-    supported scalar field expressions, while keeping field snapshot temporaries
-    before storage writes. Local struct sources, storage-struct read sources,
-    and statement-level storage-struct write assembly remain in the
-    compatibility facade until the full `StmtPlan -> Yul` extraction.
+  - Started: whole-struct `storageScalarWrite` assembly now consumes a narrow
+    `StmtPlan.effect` / `EffectPlan -> ToYul` helper for local struct sources,
+    storage-struct read sources, and struct literals whose field expressions
+    are in the supported scalar plan subset. Struct metadata lookup and field
+    source expansion remain in the `IR.lean` compatibility facade; the helper
+    owns the final snapshot-temp declarations and field-slot `sstore` block.
+    Struct literals with unsupported field expressions still use the
+    compatibility fallback.
   - Started: statement-position `storagePathWrite` and `storagePathAssignOp`
     assembly now consume narrow `StmtPlan.effect` / `EffectPlan -> ToYul`
     helpers for supported scalar write/assign RHS values across direct

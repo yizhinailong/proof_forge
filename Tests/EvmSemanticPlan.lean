@@ -990,15 +990,70 @@ def testStructFieldWritePlanToYul : IO Unit := do
 
 def testWholeStructStorageWritePlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let directStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storageStructWriteEffectStmtPlanStatements
+      toYulError
+      (fun _ _ => .ok #[
+        {
+          slot := Lean.Compiler.Yul.Expr.num 3
+          fieldName := "x"
+          value := Lean.Compiler.Yul.call "__pf_checked_add" #[
+            Lean.Compiler.Yul.Expr.id "value",
+            Lean.Compiler.Yul.Expr.num 7
+          ]
+        },
+        {
+          slot := Lean.Compiler.Yul.Expr.num 4
+          fieldName := "y"
+          value := Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.num 0]
+        }
+      ])
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageScalarWrite
+          "current"
+          (.structLit "Point" #[
+            ("x", .checkedArith .add (.local "value") (.literalWord 7)),
+            ("y", .effect (.storageScalarRead "before"))
+          ]))))
+    "whole struct storage write StmtPlan-to-Yul helper"
+  require (directStmts.size == 1) "whole struct storage write StmtPlan-to-Yul helper statement count"
+  match directStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      let mut foundTempX := false
+      let mut foundTempY := false
+      let mut foundStoreX := false
+      let mut foundStoreY := false
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.varDecl vars (some _) => do
+            match vars[0]? with
+            | some var =>
+                foundTempX := foundTempX || var.name == storageStructAssignTempName "current" "x"
+                foundTempY := foundTempY || var.name == storageStructAssignTempName "current" "y"
+            | none => pure ()
+        | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+            if args.size == 2 then
+              match args[1]! with
+              | Lean.Compiler.Yul.Expr.ident name =>
+                  foundStoreX := foundStoreX || name == storageStructAssignTempName "current" "x"
+                  foundStoreY := foundStoreY || name == storageStructAssignTempName "current" "y"
+              | _ => pure ()
+        | _ => pure ()
+      require foundTempX "whole struct storage write StmtPlan-to-Yul helper must snapshot x"
+      require foundTempY "whole struct storage write StmtPlan-to-Yul helper must snapshot y"
+      require foundStoreX "whole struct storage write StmtPlan-to-Yul helper must store x temp"
+      require foundStoreY "whole struct storage write StmtPlan-to-Yul helper must store y temp"
+  | _ => throw <| IO.userError "whole struct storage write StmtPlan-to-Yul helper must lower to block"
   let writeStmt ← requireOk
-    (lowerStorageStructWriteStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageStructProbe.module
       env
-      "current"
-      (.structLit "Point" #[
-        ("x", .add (.local "value") (.literal (.u64 7))),
-        ("y", .effect (.storageScalarRead "before"))
-      ]))
+      (.storageScalarWrite
+        "current"
+        (.structLit "Point" #[
+          ("x", .add (.local "value") (.literal (.u64 7))),
+          ("y", .effect (.storageScalarRead "before"))
+        ])))
     "whole struct storage write field values plan-to-yul"
   match writeStmt with
   | Lean.Compiler.Yul.Statement.block block => do

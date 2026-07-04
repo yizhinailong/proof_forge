@@ -519,6 +519,53 @@ def structFieldWriteEffectStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul struct field write lowering expected effect")
 
+structure StorageStructWriteField where
+  slot : Lean.Compiler.Yul.Expr
+  fieldName : String
+  value : Lean.Compiler.Yul.Expr
+  deriving Inhabited
+
+def storageStructAssignTempName (stateId fieldName : String) : String :=
+  s!"__proof_forge_assign_storage_struct_{stateId}_{fieldName}"
+
+def storageStructWriteStatements
+    (stateId : String)
+    (fields : Array StorageStructWriteField) : Array Lean.Compiler.Yul.Statement :=
+  Id.run do
+    let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+    for field in fields do
+      statements := statements.push <|
+        .varDecl #[{ name := storageStructAssignTempName stateId field.fieldName }] (some field.value)
+    for field in fields do
+      statements := statements.push <|
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          field.slot,
+          Lean.Compiler.Yul.Expr.id (storageStructAssignTempName stateId field.fieldName)
+        ])
+    pure statements
+
+def storageStructWriteEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (storageStructFieldsFor : String → ExprPlan → Except ε (Array StorageStructWriteField)) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storageScalarWrite stateId value => do
+      .ok #[
+        .block { statements := storageStructWriteStatements stateId (← storageStructFieldsFor stateId value) }
+      ]
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul storage struct write lowering expected storageScalarWrite")
+
+def storageStructWriteEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (storageStructFieldsFor : String → ExprPlan → Except ε (Array StorageStructWriteField)) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      storageStructWriteEffectPlanStatements mkError storageStructFieldsFor effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul storage struct write lowering expected effect")
+
 inductive StoragePathWriteTarget where
   | mapWrite (rootSlot key : Lean.Compiler.Yul.Expr)
   | singleSlot (slot : Lean.Compiler.Yul.Expr)

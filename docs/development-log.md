@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Whole Struct Storage Write StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.StorageStructWriteField`,
+  `ToYul.storageStructWriteEffectPlanStatements`, and
+  `ToYul.storageStructWriteEffectStmtPlanStatements` for whole-struct
+  `storageScalarWrite` assembly.
+- Routed whole-struct storage writes through the helper for supported local
+  struct sources, storage-struct read sources, and struct literals whose field
+  expressions are in the scalar plan subset.
+- Kept struct metadata lookup, source validation, and field source expansion in
+  the `IR.lean` compatibility facade, while `ToYul` owns the final snapshot
+  temp declarations and field-slot `sstore` block.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+  integrated `lowerEffectStmt` path for struct-literal whole-struct writes.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Struct literals with field expressions outside the scalar plan subset still
+  use the compatibility fallback.
+- Struct metadata lookup and field source expansion still live in `IR.lean`.
+
+Next step:
+
+- Move another aggregate statement shape behind `StmtPlan.effect` /
+  `EffectPlan -> ToYul`, or start deeper storage slot/path planning.
+
 ### EVM Storage Path AssignOp Effect StmtPlan-To-Yul Slice
 
 Commit: this commit
