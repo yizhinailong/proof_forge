@@ -11922,3 +11922,41 @@ Result:
   already represented by `EffectPlan`.
 - EVM semantic-plan, diagnostics, storage-struct IR smoke, full Lake build, and
   whitespace checks passed locally.
+
+### EVM Planned Storage Path Reads In Control-Flow Bodies
+
+Commit: 6e348b9
+
+Summary:
+
+- Extended plan-effect expression lowering so `EffectPlan.storagePathRead` can
+  lower inside scalar control-flow bodies.
+- Routed storage-path reads through `Plan.storagePathReadSlotPlan` and
+  `ToYul.storagePathReadExprFromPlan`, while keeping the path segment
+  expressions on the existing raw path value-plan boundary until a deeper typed
+  path-plan slice is added.
+- Added a semantic-plan regression that builds an IR `ifElse`, binds direct
+  struct-field and struct-array field `storagePathRead` values in branches,
+  verifies planned body construction, and checks the emitted Yul AST uses the
+  expected `sload` / struct-array slot shape.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/map-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Result:
+
+- Planned control-flow bodies now cover expression-position storage path reads
+  already represented by `EffectPlan`.
+- EVM semantic-plan, diagnostics, storage-struct/storage-array/map IR smokes,
+  full Lake build, and whitespace checks passed locally.

@@ -373,9 +373,9 @@ Tasks:
     aggregate-scalar assignments, assertions, returns, reverts, scalar storage
     writes, map writes plus map contains/get read expressions, array writes,
     array read expressions, struct-field writes plus struct/struct-array field
-    read expressions, and storage-path writes/assign-ops, scalar
-    non-indexed/indexed event emits, and scalar crosscall/create helper-call
-    expressions inside supported body statements.
+    read expressions, and storage-path writes/assign-ops plus read expressions,
+    scalar non-indexed/indexed event emits, and scalar crosscall/create
+    helper-call expressions inside supported body statements.
     Statement sequencing and unsupported body shapes still remain in the
     `IR.lean` compatibility facade until full recursive `StmtPlan -> Yul`
     lowering is extracted.
