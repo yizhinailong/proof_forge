@@ -6535,9 +6535,44 @@ end
 def moduleUsesCheckedArithmetic (module : Module) : Bool :=
   module.entrypoints.any (fun ep => ep.body.any stmtUsesCheckedArithmetic)
 
-def plannedCheckedArithmeticHelperFunctions (module : Module) :
+def plannedCheckedArithmeticHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
-  if moduleUsesCheckedArithmetic module then checkedArithmeticHelperFunctions else #[]
+  if plan.usesCheckedArithmetic then checkedArithmeticHelperFunctions else #[]
+
+def fromPlanCrosscallMode (mode : ProofForge.Backend.Evm.Plan.CrosscallMode) : CrosscallMode :=
+  match mode with
+  | .call => .call
+  | .callValue => .callValue
+  | .staticcall => .staticcall
+  | .delegatecall => .delegatecall
+
+def fromPlanCrosscallSpec (spec : ProofForge.Backend.Evm.Plan.CrosscallHelperSpec) : CrosscallHelperSpec := {
+  arity := spec.arity
+  returnType := spec.returnType
+  mode := fromPlanCrosscallMode spec.mode
+  plainTransfer := spec.plainTransfer
+}
+
+def plannedCrosscallHelperFunctions
+    (module : Module)
+    (specs : Array ProofForge.Backend.Evm.Plan.CrosscallHelperSpec) :
+    Except LowerError (Array Lean.Compiler.Yul.Statement) :=
+  specs.mapM fun spec => crosscallHelperFunction module (fromPlanCrosscallSpec spec)
+
+def fromPlanCreateMode (mode : ProofForge.Backend.Evm.Plan.CreateMode) : CreateMode :=
+  match mode with
+  | .create => .create
+  | .create2 => .create2
+
+def fromPlanCreateSpec (spec : ProofForge.Backend.Evm.Plan.CreateHelperSpec) : CreateHelperSpec := {
+  mode := fromPlanCreateMode spec.mode
+  initCodeHex := spec.initCodeHex
+}
+
+def plannedCreateHelperFunctions
+    (specs : Array ProofForge.Backend.Evm.Plan.CreateHelperSpec) :
+    Except LowerError (Array Lean.Compiler.Yul.Statement) :=
+  specs.mapM fun spec => createHelperFunction (fromPlanCreateSpec spec)
 
 def lowerEntrypointsWithPlan
     (module : Module)
@@ -6593,15 +6628,36 @@ def lowerModuleWithPlan
   let helpers := helpers ++ plannedArrayHelperFunctions plan
   let helpers := helpers ++ plannedStructArrayHelperFunctions plan
   let helpers := helpers ++ plannedHashHelperFunctions plan
-  let helpers := helpers ++ plannedCheckedArithmeticHelperFunctions module
-  let crosscallSpecs ← moduleCrosscallHelperSpecs module
-  let helpers := helpers ++ (← crosscallHelperFunctions module crosscallSpecs)
-  let createSpecs := moduleCreateHelperSpecs module
-  let helpers := helpers ++ (← createHelperFunctions createSpecs)
-  let localArrayGetLengths ← moduleLocalArrayGetLengths module
-  let helpers := helpers ++ localArrayGetHelperFunctions localArrayGetLengths
-  let nestedLocalArrayGetShapes ← moduleNestedLocalArrayGetShapes module
-  let helpers := helpers ++ nestedLocalArrayGetHelperFunctions nestedLocalArrayGetShapes
+  let completePlan := entrypointPlanIsComplete module plan.entrypoints
+  let helpers :=
+    if completePlan then
+      helpers ++ plannedCheckedArithmeticHelperFunctions plan
+    else
+      helpers ++ (if moduleUsesCheckedArithmetic module then checkedArithmeticHelperFunctions else #[])
+  let helpers ←
+    if completePlan then
+      .ok (helpers ++ (← plannedCrosscallHelperFunctions module plan.crosscalls))
+    else
+      let crosscallSpecs ← moduleCrosscallHelperSpecs module
+      .ok (helpers ++ (← crosscallHelperFunctions module crosscallSpecs))
+  let helpers ←
+    if completePlan then
+      .ok (helpers ++ (← plannedCreateHelperFunctions plan.creates))
+    else
+      let createSpecs := moduleCreateHelperSpecs module
+      .ok (helpers ++ (← createHelperFunctions createSpecs))
+  let helpers ←
+    if completePlan then
+      .ok (helpers ++ localArrayGetHelperFunctions plan.localArrayGetLengths)
+    else
+      let localArrayGetLengths ← moduleLocalArrayGetLengths module
+      .ok (helpers ++ localArrayGetHelperFunctions localArrayGetLengths)
+  let helpers ←
+    if completePlan then
+      .ok (helpers ++ nestedLocalArrayGetHelperFunctions plan.nestedLocalArrayGetShapes)
+    else
+      let nestedLocalArrayGetShapes ← moduleNestedLocalArrayGetShapes module
+      .ok (helpers ++ nestedLocalArrayGetHelperFunctions nestedLocalArrayGetShapes)
   .ok {
     name := module.name
     code := { statements := #[dispatch] ++ functions ++ helpers }
@@ -6624,7 +6680,12 @@ def toPlanCrosscallMode (mode : CrosscallMode) : ProofForge.Backend.Evm.Plan.Cro
   | .delegatecall => .delegatecall
 
 def toPlanCrosscallSpec (spec : CrosscallHelperSpec) : ProofForge.Backend.Evm.Plan.CrosscallHelperSpec :=
-  { arity := spec.arity, returnType := spec.returnType, mode := toPlanCrosscallMode spec.mode }
+  {
+    arity := spec.arity
+    returnType := spec.returnType
+    mode := toPlanCrosscallMode spec.mode
+    plainTransfer := spec.plainTransfer
+  }
 
 def toPlanCreateMode (mode : CreateMode) : ProofForge.Backend.Evm.Plan.CreateMode :=
   match mode with

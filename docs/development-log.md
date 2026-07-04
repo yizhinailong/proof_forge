@@ -15,6 +15,51 @@ Each entry should include:
 - known limitations
 - next step
 
+## 2026-07-05
+
+### EVM ModulePlan Helper Discovery Consumption Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `CrosscallHelperSpec.plainTransfer` to the EVM semantic plan so plain
+  native value-transfer helpers survive the plan boundary.
+- Routed complete `lowerModuleWithPlan` helper emission through `ModulePlan`
+  fields for checked arithmetic, crosscall, create/create2, local-array getter,
+  and nested local-array getter helpers.
+- Preserved best-effort diagnostic behavior by falling back to compatibility
+  helper rediscovery when the entrypoint plan is incomplete.
+- Added semantic-plan coverage for planned native transfer helpers, crosscall
+  helper emission, create helper emission, and plan-driven module helper
+  emission.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/crosscall-ir-smoke.sh
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- Crosscall expression and helper body construction still live in `IR.lean`;
+  this slice only makes helper discovery and module helper emission consume the
+  semantic plan fields for complete plans.
+
+Next step:
+
+- Move crosscall helper naming/body construction behind a `CrosscallPlan ->
+  ToYul` boundary, then migrate scalar crosscall expression calls off the
+  compatibility facade.
+
 ## 2026-07-04
 
 ### EVM ReturnPlan Typed Names To-Yul Slice

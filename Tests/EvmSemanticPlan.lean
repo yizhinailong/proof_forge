@@ -1,6 +1,7 @@
 import ProofForge.Backend.Evm.IR
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.EvmDynamicAbiProbe
+import ProofForge.IR.Examples.EvmCrosscallProbe
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmStorageArrayProbe
 import ProofForge.IR.Examples.EvmStorageStructProbe
@@ -39,6 +40,34 @@ def requireValidateOk {α : Type}
   match result with
   | .ok x => pure x
   | .error err => throw <| IO.userError s!"{message}: {err.message}"
+
+def statementFunctionName? : Lean.Compiler.Yul.Statement → Option String
+  | .funcDef name _ _ _ => some name
+  | _ => none
+
+def statementsHaveFunctionNamed (statements : Array Lean.Compiler.Yul.Statement) (name : String) : Bool :=
+  statements.any fun stmt => statementFunctionName? stmt == some name
+
+def nativeTransferPlanProbe : Module := {
+  name := "NativeTransferPlanProbe"
+  state := #[]
+  entrypoints := #[
+    {
+      name := "send"
+      selector? := some "3e58ca8c"
+      params := #[("target", .u64)]
+      returns := .u64
+      body := #[
+        .return (.crosscallInvokeValueTyped
+          (.local "target")
+          (.literal (.u64 0))
+          .nativeValue
+          #[]
+          .u64)
+      ]
+    }
+  ]
+}
 
 def testCounterSemanticPlan : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
@@ -208,6 +237,48 @@ def testDeployMetadata : IO Unit := do
   let initSel := deployMeta.entrypointSelectors[0]!
   require (initSel.fst == "initialize") "counter deploy metadata initialize name"
   require (initSel.snd == "8129fc1c") "counter deploy metadata initialize selector"
+
+def testPlannedHelperDiscoveryToYul : IO Unit := do
+  let plan ←
+    requireOk
+      (buildSemanticPlan ProofForge.IR.Examples.EvmCrosscallProbe.module)
+      "crosscall probe plan"
+  require (plan.crosscalls.size > 0) "crosscall probe planned crosscall helpers"
+  require
+    (plan.crosscalls.any fun spec =>
+      spec.mode == ProofForge.Backend.Evm.Plan.CrosscallMode.staticcall)
+    "crosscall probe planned staticcall helper"
+  require
+    (plan.crosscalls.any fun spec =>
+      spec.mode == ProofForge.Backend.Evm.Plan.CrosscallMode.delegatecall)
+    "crosscall probe planned delegatecall helper"
+  require (plan.creates.size == 2) "crosscall probe planned create helpers"
+  let nativePlan ← requireOk (buildSemanticPlan nativeTransferPlanProbe) "native transfer plan"
+  let nativeTransfer ← requireSome
+    (nativePlan.crosscalls.find? fun spec => spec.plainTransfer)
+    "native transfer probe missing planned native transfer helper"
+  require
+    (nativeTransfer.mode == ProofForge.Backend.Evm.Plan.CrosscallMode.callValue)
+    "native transfer helper mode"
+  require (nativeTransfer.arity == 0) "native transfer helper arity"
+  require (nativeTransfer.returnType == .u64) "native transfer return type"
+  let crosscallHelpers ←
+    requireOk
+      (plannedCrosscallHelperFunctions nativeTransferPlanProbe nativePlan.crosscalls)
+      "planned crosscall helper functions"
+  require
+    (statementsHaveFunctionNamed crosscallHelpers "__proof_forge_native_transfer")
+    "planned crosscall helpers include native transfer"
+  let createHelpers ←
+    requireOk (plannedCreateHelperFunctions plan.creates) "planned create helper functions"
+  require (createHelpers.size == 2) "planned create helper count"
+  let object ←
+    requireOk
+      (lowerModuleWithPlan nativeTransferPlanProbe nativePlan)
+      "native transfer plan-driven module lowering"
+  require
+    (statementsHaveFunctionNamed object.code.statements "__proof_forge_native_transfer")
+    "plan-driven module lowering includes native transfer helper"
 
 def testEntrypointDispatchPlanToYul : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
@@ -1637,6 +1708,7 @@ def main : IO UInt32 := do
   testERC20StandardEventSignatureTypes
   testArtifactMetadata
   testDeployMetadata
+  testPlannedHelperDiscoveryToYul
   testEntrypointDispatchPlanToYul
   testSemanticPlanRender
   testScalarExprPlanToYul

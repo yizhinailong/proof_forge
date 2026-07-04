@@ -524,6 +524,7 @@ structure CrosscallHelperSpec where
   arity : Nat
   returnType : ValueType
   mode : CrosscallMode := .call
+  plainTransfer : Bool := false
   deriving BEq, Repr
 
 structure CreateHelperSpec where

@@ -378,6 +378,12 @@ Tasks:
     assembly now consume `EventFieldPlan -> ToYul` helpers. Field expression
     evaluation and aggregate flattening still use the compatibility facade
     until the complete event lowering path is expressed as an `EventPlan`.
+  - Started: helper discovery is now consumed from `ModulePlan` during
+    complete plan-driven module lowering. `lowerModuleWithPlan` emits checked
+    arithmetic helpers, crosscall helpers (including planned plain native
+    transfers), create/create2 helpers, and local-array getter helpers from the
+    semantic plan fields. Incomplete best-effort diagnostic plans still fall
+    back to compatibility rediscovery so validation diagnostics are not masked.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,
