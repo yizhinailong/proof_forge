@@ -30,6 +30,8 @@ production-grade 的本地/CI 门禁：
 - VS Code 或 Cursor，并安装官方 `leanprover.lean4` 扩展。
 - 仓库已经包含 `.vscode/extensions.json` 和 `.vscode/settings.json`，会自动推荐
   Lean 扩展、TOML 语法支持，并排除 `.lake`、`build`、`target` 等噪声目录的搜索/监听。
+- scaffold 出来的 portable 项目也会复制同一套 `.vscode` 推荐和
+  `proof-forge check` task 配方。
 - 打开仓库根目录，而不是子目录，这样 Lake、import 和 `lean-toolchain` 才会稳定解析。
 - 让扩展通过 `elan` 使用仓库工具链；不要在 workspace 里手动覆盖 Lean 版本。
 
@@ -60,6 +62,10 @@ git diff --check
 
 `just check` 是常用的快速门禁。它运行 CI 期望的通用 build、诊断、覆盖率和 smoke
 切片，但不要求安装每一个 live-chain 工具。
+
+使用 `proof-forge check --target <id> [--fixture <id>|input.lean]` 可以在构建制品前验证
+capability 支持和 lowering。传入 `--report-format json` 可以得到机器可读诊断，
+适合编辑器集成和 smoke validator 使用。
 
 ## Target 专用工具
 
