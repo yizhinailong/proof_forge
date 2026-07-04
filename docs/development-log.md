@@ -11709,3 +11709,38 @@ Result:
   represented by `StmtPlan.effect` / `EffectPlan`.
 - EVM semantic-plan, diagnostics, example bytecode generation, Foundry smoke,
   IR smokes, full Lake build, and whitespace checks passed locally.
+
+### EVM Planned Scalar Events In Control-Flow Bodies
+
+Commit: c96bae1
+
+Summary:
+
+- Extended planned scalar control-flow body support so non-indexed and indexed
+  scalar event emits can stay inside `StmtPlan.effect` / `EffectPlan` bodies.
+- Added scalar event field support checks for `U8`/`U32`/`U64`/`U128`/`Bool`/
+  `Hash`/`Address`, while keeping aggregate event flattening and indexed
+  aggregate topic hashing on the existing compatibility path.
+- Added semantic-plan tests that build a real IR `ifElse` with `eventEmit` and
+  `eventEmitIndexed`, verify planned construction, and check the emitted Yul
+  AST ends in the expected `log1`/`log2` statements.
+
+Validation run:
+
+```sh
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/event-ir-smoke.sh
+just evm-ir-smokes
+lake build
+git diff --check
+```
+
+Result:
+
+- Planned control-flow bodies now cover scalar event effects already represented
+  by `EventPlan`.
+- EVM semantic-plan, diagnostics, event IR smoke, full IR smokes, full Lake
+  build, and whitespace checks passed locally.

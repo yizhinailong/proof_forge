@@ -372,9 +372,10 @@ Tasks:
     statements now recursively consume planned scalar bindings, scalar/local
     aggregate-scalar assignments, assertions, returns, reverts, scalar storage
     writes, map writes, array writes, struct-field writes, and storage-path
-    writes/assign-ops. Statement sequencing and unsupported body shapes still
-    remain in the `IR.lean` compatibility facade until full recursive
-    `StmtPlan -> Yul` lowering is extracted.
+    writes/assign-ops, plus scalar non-indexed/indexed event emits. Statement
+    sequencing and unsupported body shapes still remain in the `IR.lean`
+    compatibility facade until full recursive `StmtPlan -> Yul` lowering is
+    extracted.
   - Started: scalar event data words and indexed scalar event topics now
     consume the same `ExprPlan -> ToYul` expression boundary. Aggregate event
     flattening and indexed aggregate topic hashing remain in the compatibility
