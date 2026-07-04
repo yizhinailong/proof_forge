@@ -5240,31 +5240,44 @@ mutual
     | .ifElse condition thenBody elseBody => do
         let thenStatements ← lowerStatements module entrypointName returnType env true thenBody
         let elseStatements ← lowerStatements module entrypointName returnType env true elseBody
-        .ok (#[.switchStmt (← lowerScalarPlanExprOrFallback module env condition) #[
-          {
-            value := some (Lean.Compiler.Yul.Literal.natLit 0)
-            body := { statements := elseStatements }
-          },
-          {
-            value := none
-            body := { statements := thenStatements }
-          }
-        ]], env)
+        if exprSupportsPlanScalarYul condition then
+          let conditionPlan ←
+            match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) condition with
+            | .ok plan => .ok plan
+            | .error err => .error { message := err.message }
+          let statements ←
+            ProofForge.Backend.Evm.ToYul.ifElseStmtPlanStatements
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              thenStatements
+              elseStatements
+              (.ifElse conditionPlan #[] #[])
+          .ok (statements, env)
+        else
+          .ok (#[.switchStmt (← lowerScalarPlanExprOrFallback module env condition) #[
+            {
+              value := some (Lean.Compiler.Yul.Literal.natLit 0)
+              body := { statements := elseStatements }
+            },
+            {
+              value := none
+              body := { statements := thenStatements }
+            }
+          ]], env)
     | .boundedFor indexName start stopExclusive body => do
         if stopExclusive <= start then
           .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
         let loopEnv ← addLocal env indexName .u32 false
         let bodyStatements ← lowerStatements module entrypointName returnType loopEnv true body
-        let loopCondition ← lowerScalarPlanExprOrFallback module loopEnv (.lt (.local indexName) (.literal (.u32 stopExclusive)))
-        .ok (#[.forLoop
-          { statements := #[
-            .varDecl #[{ name := indexName }] (some (Lean.Compiler.Yul.Expr.num start))
-          ] }
-          loopCondition
-          { statements := #[
-            .assignment #[indexName] (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id indexName, Lean.Compiler.Yul.Expr.num 1])
-          ] }
-          { statements := bodyStatements }], env)
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.boundedForStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module loopEnv expr)
+            (lowerPlanEffectExpr module loopEnv)
+            bodyStatements
+            (.boundedFor indexName start stopExclusive #[])
+        .ok (statements, env)
     | .return value => do
         .ok (← lowerReturnStmt module env entrypointName returnType value leaveAfterReturn, env)
 end

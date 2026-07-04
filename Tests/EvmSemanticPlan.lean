@@ -519,6 +519,44 @@ def testScalarAssignmentPlanToYul : IO Unit := do
 
 def testScalarControlFlowPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := true }]
+  let directIfStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.ifElseStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      #[Lean.Compiler.Yul.Statement.assignment #["n"] (Lean.Compiler.Yul.Expr.num 2)]
+      #[Lean.Compiler.Yul.Statement.assignment #["n"] (Lean.Compiler.Yul.Expr.num 1)]
+      (ProofForge.Backend.Evm.Plan.StmtPlan.ifElse
+        (.builtin "gt" #[.local "n", .literalWord 0])
+        #[]
+        #[]))
+    "scalar ifElse StmtPlan-to-Yul helper"
+  require (directIfStmts.size == 1) "scalar ifElse StmtPlan-to-Yul helper statement count"
+  match directIfStmts[0]! with
+  | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.builtin name args) cases => do
+      require (name == "gt") "scalar ifElse StmtPlan-to-Yul helper opcode"
+      require (args.size == 2) "scalar ifElse StmtPlan-to-Yul helper arg count"
+      require (cases.size == 2) "scalar ifElse StmtPlan-to-Yul helper case count"
+  | _ => throw <| IO.userError "scalar ifElse StmtPlan-to-Yul helper must lower to switch over builtin"
+  let directForStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.boundedForStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      #[Lean.Compiler.Yul.Statement.assignment #["n"] (Lean.Compiler.Yul.Expr.id "i")]
+      (ProofForge.Backend.Evm.Plan.StmtPlan.boundedFor
+        "i"
+        0
+        3
+        #[]))
+    "scalar boundedFor StmtPlan-to-Yul helper"
+  require (directForStmts.size == 1) "scalar boundedFor StmtPlan-to-Yul helper statement count"
+  match directForStmts[0]! with
+  | Lean.Compiler.Yul.Statement.forLoop _ (Lean.Compiler.Yul.Expr.builtin name args) _ body => do
+      require (name == "lt") "scalar boundedFor StmtPlan-to-Yul helper opcode"
+      require (args.size == 2) "scalar boundedFor StmtPlan-to-Yul helper arg count"
+      require (body.statements.size == 1) "scalar boundedFor StmtPlan-to-Yul helper body count"
+  | _ => throw <| IO.userError "scalar boundedFor StmtPlan-to-Yul helper must lower to for over builtin"
   let (ifStmts, _) ← requireOk
     (lowerStatement
       ProofForge.IR.Examples.Counter.module

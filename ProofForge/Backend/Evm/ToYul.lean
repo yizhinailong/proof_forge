@@ -382,6 +382,64 @@ def scalarAssignmentStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected assign/assignOp")
 
+def ifElseStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (thenStatements elseStatements : Array Lean.Compiler.Yul.Statement) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .ifElse condition _ _ => do
+      .ok #[
+        .switchStmt
+          (← exprPlanExpr mkError lowerExpr lowerEffect condition)
+          #[
+            {
+              value := some (Lean.Compiler.Yul.Literal.natLit 0)
+              body := { statements := elseStatements }
+            },
+            {
+              value := none
+              body := { statements := thenStatements }
+            }
+          ]
+      ]
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul ifElse lowering expected ifElse")
+
+def boundedForConditionPlan (indexName : String) (stopExclusive : Nat) : ExprPlan :=
+  .builtin "lt" #[.local indexName, .literalWord stopExclusive]
+
+def boundedForStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (bodyStatements : Array Lean.Compiler.Yul.Statement) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .boundedFor indexName start stopExclusive _ => do
+      if stopExclusive <= start then
+        .error (mkError s!"bounded loop `{indexName}` must have stop greater than start")
+      else
+        .ok #[
+          .forLoop
+            { statements := #[
+              .varDecl #[{ name := indexName }] (some (Lean.Compiler.Yul.Expr.num start))
+            ] }
+            (← exprPlanExpr mkError lowerExpr lowerEffect
+              (boundedForConditionPlan indexName stopExclusive))
+            { statements := #[
+              .assignment #[indexName]
+                (Lean.Compiler.Yul.builtin "add" #[
+                  Lean.Compiler.Yul.Expr.id indexName,
+                  Lean.Compiler.Yul.Expr.num 1
+                ])
+            ] }
+            { statements := bodyStatements }
+        ]
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul boundedFor lowering expected boundedFor")
+
 def scalarStorageEffectPlanStatements
     {ε : Type}
     (mkError : String → ε)

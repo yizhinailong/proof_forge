@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Control Flow StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.ifElseStmtPlanStatements`,
+  `ToYul.boundedForStmtPlanStatements`, and `ToYul.boundedForConditionPlan` for
+  scalar control-flow frame assembly.
+- Routed scalar `ifElse` frames through the helper when the condition is in the
+  supported scalar plan subset.
+- Routed `boundedFor` frames through the helper with a synthesized
+  `index < stopExclusive` condition plan.
+- Kept branch/loop body lowering and environment sequencing in the `IR.lean`
+  compatibility facade; the helpers own the final Yul `switch` and `for`
+  frames.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+  integrated `lowerStatement` path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/conditional-ir-smoke.sh
+scripts/evm/loop-ir-smoke.sh
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Branch/loop body lowering and statement sequencing still live in the
+  compatibility facade.
+- Unsupported `ifElse` condition shapes still use the compatibility fallback.
+
+Next step:
+
+- Move recursive `StmtPlan -> Yul` body lowering into `ToYul`, or continue
+  extracting event and expression assembly paths.
+
 ### EVM Whole Struct Storage Write StmtPlan-To-Yul Slice
 
 Commit: this commit

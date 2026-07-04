@@ -339,10 +339,11 @@ Tasks:
     diagnostics remain in the `IR.lean` compatibility facade; the next
     storage-path extraction slice is deeper slot/path planning rather than the
     final Yul statement assembly.
-  - Started: scalar `ifElse` conditions and synthesized `boundedFor` loop
-    guards now consume the same `ExprPlan -> ToYul` expression boundary.
-    Statement sequencing and branch/loop body lowering remain in the
-    compatibility facade until `StmtPlan -> Yul` assembly is extracted.
+  - Started: scalar `ifElse` and `boundedFor` control-flow frame assembly now
+    consumes narrow `StmtPlan -> ToYul` helpers. If conditions and synthesized
+    bounded-loop guards consume `ExprPlan -> ToYul`; branch/loop body lowering
+    and statement sequencing remain in the `IR.lean` compatibility facade until
+    recursive `StmtPlan -> Yul` body lowering is extracted.
   - Started: scalar event data words and indexed scalar event topics now
     consume the same `ExprPlan -> ToYul` expression boundary. Aggregate event
     flattening and indexed aggregate topic hashing remain in the compatibility
