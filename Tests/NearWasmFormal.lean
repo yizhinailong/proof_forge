@@ -57,11 +57,13 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_host_frames_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_offline_host_execution_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_offline_host_storage_snapshots_ok
+#check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_offline_host_storage_hex_snapshots_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_artifact_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_host_import_signatures_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_host_frames_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_execution_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_storage_snapshots_ok
+#check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_storage_hex_snapshots_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_offline_host_final_state_derives_from_invariant
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_offline_host_logs_derive_from_invariant_state
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_backend_invariant_bridge_ok
@@ -80,5 +82,5 @@ theorem release_then_sum_ownership_ok :
 end ProofForge.Tests.NearWasmFormal
 
 def main : IO UInt32 := do
-  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/import-signature/host-frame/storage-snapshot backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
+  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/import-signature/host-frame/storage-snapshot/storage-hex backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
   return 0

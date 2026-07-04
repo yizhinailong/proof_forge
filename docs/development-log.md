@@ -8507,3 +8507,30 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR offline-host storage snapshot checks passed locally.
+
+### NEAR Offline-Host Storage Bytes
+
+Commit: pending
+
+Summary:
+
+- Added byte-level `storageHexSnapshot` data to NEAR offline-host IO
+  expectations.
+- Derived storage bytes from the same Borsh/little-endian scalar encoder used
+  for offline-host inputs and return observations.
+- Pinned Counter and ValueVault storage byte strings after every checked
+  entrypoint, connecting the semantic storage snapshots to the byte strings
+  that the NEAR host storage boundary would persist.
+- Added decide-checkable Counter and ValueVault storage-byte anchors and folded
+  the ValueVault storage-byte check into the backend-invariant bridge.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR offline-host storage byte checks passed locally.
