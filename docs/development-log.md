@@ -17,6 +17,71 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Example Stdlib Build Gate Fix
+
+Commit: this commit
+
+Summary:
+
+- Added the new `ProofForge.Contract.Stdlib.*` modules to
+  `ProofForge/Contract.lean` so a package-level contract build owns the stdlib
+  import surface.
+- Updated `scripts/evm/build-examples.sh` to build `ProofForge.Contract` in
+  addition to the `proof-forge` executable before loading example sources. This
+  fixes clean-checkout failures where stdlib example imports had no generated
+  `.olean` files.
+
+Validation run:
+
+```sh
+rm -rf build/evm
+scripts/evm/build-examples.sh
+```
+
+Known limitations:
+
+- The script still requires Foundry `cast` and `solc`; this change only fixes
+  the Lean module availability side of the EVM example gate.
+
+Next step:
+
+- Re-run CI and continue EVM target-note/RFC cleanup once the build-examples
+  step is green.
+
+### EVM Target Note Unified Pipeline Cleanup
+
+Commit: this commit
+
+Summary:
+
+- Rewrote `docs/targets/evm.md` and its zh mirror around the current
+  `contract_source` / `ContractSpec` -> portable IR -> EVM semantic plan ->
+  Yul AST/printer -> `solc` pipeline.
+- Replaced the `.evm-methods` product workflow with ABI/selector derivation
+  from `ContractSpec`; legacy sidecar support is now described only as an RFC
+  0009 compatibility-window behavior.
+- Updated the EVM module layout, example workflow, metadata source-kind text,
+  and gate description to match the unified backend.
+- Marked CS-6.1 complete in the Workstream 34 backlog.
+
+Validation run:
+
+```sh
+scripts/i18n/check-sync.sh
+python3 scripts/translate-docs.py --check
+git diff --check
+```
+
+Known limitations:
+
+- Historical RFCs still contain old EVM/LCNF narrative as project history; CS-6.3
+  owns the broader decision/RFC cleanup.
+
+Next step:
+
+- Continue CS-6.3 by aligning RFC 0004 / decision text with the now-current EVM
+  product pipeline, or move to CS-3 SDK capability blockers.
+
 ### Development Standards EVM Legacy Cleanup
 
 Commit: this commit

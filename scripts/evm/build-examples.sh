@@ -26,8 +26,10 @@ fi
 
 mkdir -p "$OUT_DIR"
 
-# Keep the CLI executable fresh when this script is run directly.
-(cd "$ROOT" && lake build proof-forge >/dev/null)
+# Keep the CLI executable and importable contract modules fresh when this script
+# is run directly. The examples may import stdlib modules that the executable
+# does not depend on.
+(cd "$ROOT" && lake build proof-forge ProofForge.Contract >/dev/null)
 
 is_contract_source() {
   local lean_file="$1"

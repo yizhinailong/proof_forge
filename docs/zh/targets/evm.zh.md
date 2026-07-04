@@ -9,16 +9,25 @@
 ## 流水线
 
 ```text
-Lean contract (ProofForge.Evm / Lean.Evm)
-  -> Lean frontend / LCNF
-  -> EmitYul
-  -> Yul AST + Printer
+Lean contract_source / ContractSpec
+  -> portable IR
+  -> EVM semantic plan
+  -> Yul AST
+  -> Yul Printer
   -> solc --strict-assembly
   -> EVM runtime bytecode
-  -> Foundry smoke (vm.etch)
+  -> artifact + deploy metadata
+  -> Foundry / Anvil smoke
 ```
 
-portable IR EVM 后端现在已经会先降到共享的 Yul 语法 AST，再渲染为源码。RFC 0004 定义下一步内部架构：在 portable IR 和低层 Yul AST 之间插入 EVM semantic plan 层，让 storage layout、ABI dispatch、helper discovery、event、cross-call 和 metadata 先完成计划，再生成语法。
+产品入口是 `contract_source`（或其他能产生 `ContractSpec` 的 producer）。
+`proof-forge build --target evm` 会通过 `ContractLoader` 从 Lean 模块加载
+`spec`，把得到的 portable IR 交给 EVM semantic plan，再从共享 Yul AST 打印
+Yul，并调用 `solc --strict-assembly` 生成 runtime bytecode。同一次 build 会写出
+机器可读的 artifact metadata；bytecode build 还会写出 deploy manifest。
+
+RFC 0004 的 semantic-plan 架构现在就是当前 EVM 产品流水线。旧的
+`ProofForge.Evm` / `Lean.Evm` / LCNF `EmitYul` 路线只是历史研究/兼容背景，不是新示例的 authoring 路径。
 
 ## EVM 兼容链 profile
 
@@ -57,7 +66,7 @@ deployment command，把所选 profile 的 RPC metadata 传给 wallet/broadcast 
 ```sh
 lake build
 
-lake env proof-forge build --target evm --root . --module contract \
+lake env proof-forge build --target evm --root . \
   --artifact-output build/evm/Counter.proof-forge-artifact.json \
   -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
 
@@ -87,10 +96,10 @@ scripts/evm/abi-aggregate-ir-smoke.sh
 
 ## CLI 模式
 
-Target-first Lean SDK build：
+Target-first `contract_source` build：
 
 ```sh
-proof-forge build --target evm [--root DIR] [--module Mod.Name] [--methods-file file] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
+proof-forge build --target evm [--root DIR] [--module Mod.Name] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean
 ```
 
 Portable IR EVM fixture 模式：
@@ -107,35 +116,24 @@ proof-forge emit --target evm --fixture <fixture-id> --format bytecode [--solc s
 
 `--solc <path>` 和 `--cast <path>` 用于覆盖外部工具路径。`--evm-chain-profile <id>` 会把已知 EVM chain profile（例如 `robinhood-chain-testnet`）记录到生成的 deploy manifest 中，但不会签名或广播交易。`--evm-constructor-param <name:type>` 会在 `abi.constructor.params` 中记录静态 word constructor ABI schema；支持的 schema 类型是 `uint256`、`uint64`、`uint32`、`bool`、`bytes32` 和 `address`。`--evm-constructor-arg <name=value>` 会根据声明的 schema ABI-encode 一个 typed constructor value：无符号整数可以是十进制或 `0x` 前缀 hex，`bool` 接受 `true`、`false`、`1` 或 `0`，`bytes32` 必须正好是 32 个 hex byte，`address` 必须正好是 20 个 hex byte 并左填充到一个 ABI word。typed constructor args 不能和 `--evm-constructor-args-hex` 混用。`--evm-constructor-args-hex <hex>` 会把一段 ABI-encoded constructor argument blob 追加到生成的 `.init.bin` creation bytecode，并在 `proof-forge-deploy.json` 中记录规范化 hex、byte length、SHA-256 和 source flag。`--artifact-output <path>` 用于覆盖默认 EVM metadata 路径；如果不指定，bytecode 模式会在 bytecode 输出旁写入 `proof-forge-artifact.json`，并在 metadata 文件旁写入 `proof-forge-deploy.json`。当 smoke 脚本传入类似 `Counter.proof-forge-artifact.json` 的 fixture 专属 metadata 路径时，deploy manifest 会写成 `Counter.proof-forge-deploy.json`。
 
-## .evm-methods sidecar 格式
+## ABI metadata 与 selectors
 
-每一行都遵循以下语法：
+`contract_source` entrypoint、query、constructor 声明和 event 是面向 selector
+的 ABI 真值来源。EVM backend 会从 `ContractSpec` / portable IR 派生
+Solidity-style signature、4-byte selector、calldata word layout、return-data
+word layout、event signature、`topic0`、indexed/data field encoding，以及生成的
+Yul dispatcher function。新示例不需要 `.evm-methods` sidecar。
 
-```text
-<solidity-signature>=<lean-export-symbol>[view|update]
-```
-
-示例：
-
-```text
-get()=l_Counter_get[view]
-set(uint256)=l_Counter_set[update]
-transfer(uint256,uint256)=l_SimpleToken_transfer[update]
-```
-
-解析器规则（来自 `ProofForge/Cli.lean`）：
-
-- 空行和 `#` 注释会被忽略。
-- 选择器使用 `cast sig <solidity-signature>` 计算。
-- `l_Counter_get` 通过剥离前导 `l_` 并添加前缀 `f_` 映射到 Yul 函数 `f_Counter_get`；这必须与 `EmitYul.yulFnName` 保持一致。
-- `view`、`pure`、`return`、`returns` 和 `true` 表示分派返回一个值；`update`、`void` 和 `false` 表示除非 Lean 入口以显式的 EVM return 终止，否则它返回零字节。
-- EVM 字节码模式要求至少有一个方法。
+旧的 `.evm-methods` parser 只在 RFC 0009 兼容窗口内为旧调用者保留。新的文档、
+脚本和示例不应再添加 sidecar，也不应新增 `@[export l_<Contract>_<method>]`
+entrypoint。
 
 ## 添加或更改 EVM 示例
 
 1. 在 `Examples/Evm/Contracts/` 下添加或更新 Lean 合约。
-2. 添加或更新同级的 `.evm-methods` 文件。
-3. 添加或更新同级的 `.golden.yul` 文件；`scripts/evm/build-examples.sh` 会把生成的 SDK Yul 与这个 fixture 做 diff。
+2. 直接使用 `contract_source`，或通过组合可 import 的 `contract_source`/stdlib
+   模块定义 `spec : ProofForge.Contract.ContractSpec`。
+3. 添加或更新同级的 `.golden.yul` 文件；`scripts/evm/build-examples.sh` 会把生成的 Yul 与这个 fixture 做 diff。
 4. 如果该示例是基线的一部分，请在 `scripts/evm/foundry-smoke.sh` 中添加或更新一个用例。
 5. 运行 `scripts/evm/build-examples.sh`；当 Foundry 和 `solc` 可用时，运行 `scripts/evm/foundry-smoke.sh`。
 
@@ -143,16 +141,16 @@ transfer(uint256,uint256)=l_SimpleToken_transfer[update]
 
 映射到 [capability-registry](../capability-registry.md) id：
 
-| 能力 id | SDK / IR 表面 |
+| 能力 id | `contract_source` / IR 表面 |
 |---|---|
-| `storage.scalar` | `Storage.load`, `Storage.store`；portable IR `Bool`/`U32`/`U64`/`Hash` 标量 storage read/write、numeric word 的标量 storage 复合赋值、扁平 scalar storage struct 字段 read/write，以及扁平 scalar storage struct 的 whole read/write |
+| `storage.scalar` | `contract_source state`；portable IR `Bool`/`U32`/`U64`/`Hash` 标量 storage read/write、numeric word 的标量 storage 复合赋值、扁平 scalar storage struct 字段 read/write，以及扁平 scalar storage struct 的 whole read/write |
 | `storage.map` | `Storage.mapLoad`, `Storage.mapStore`；portable IR `Map<K, V, N>` get/set/insert/contains，以及由一个或多个连续 `mapKey` segment 组成的 map storage path，其中 `K` 和 `V` 是 word 类型（`Bool`、`U32`、`U64` 或 `Hash`）；`contains` 使用 ProofForge 管理的 presence slot，因此 value 为零的 key 也可以保持 present |
 | `storage.array` | 部分支持：portable IR `Bool`/`U32`/`U64`/`Hash` 固定 storage array 和扁平 struct 固定 storage array 降为连续 EVM storage slot，并带运行时 index bounds check；word 和扁平 struct storage array 可以通过 storage read 进入 fixed-array ABI return 与 event aggregate field |
 | `data.fixed_array` | 部分支持：用于 portable IR 固定 storage array、word array 的单段 index storage path、struct array 上的 index+field storage path、不可变和可变 local fixed-array value、fixed-array literal、静态和动态 local/literal index read、静态和动态 local 元素赋值/复合赋值、带 RHS 快照的 whole local fixed-array assignment、静态和动态嵌套 scalar local fixed-array read、静态和动态嵌套 scalar local leaf 赋值/复合赋值、带 RHS 快照的嵌套 whole local fixed-array assignment、带静态/动态字段 read/write 以及带 RHS 快照 whole local assignment 的扁平 struct local fixed array 和嵌套扁平 struct local fixed array、leaf 为 U64/U32/Hash 的扁平静态 fixed-array ABI 参数/返回、嵌套标量 fixed-array ABI 参数/返回、元素为扁平 struct 的 fixed-array ABI 参数/返回、来自 word array 与扁平 struct array 的 storage-backed fixed-array ABI return、leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array typed crosscall 参数/返回、scalar fixed-array event data field、元素为扁平 struct 的 fixed-array event field，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array event field，包括来自 local value、storage array read 和 storage array struct field read 的非 indexed data flattening 与 indexed topic hashing；零长度 ABI array、leaf 为不支持 aggregate 或非扁平 struct 的嵌套 local array、leaf 为非扁平 struct 或其他不支持形态的嵌套 crosscall fixed array，以及不支持的元素形态仍会显式拒绝 |
 | `data.struct` | 部分支持：portable IR 扁平不可变和可变 local struct value、local fixed array 和嵌套 local fixed array 内的扁平 struct element、struct literal、field access、静态 local 字段赋值/复合赋值、带 RHS 快照的 whole local struct assignment、扁平 ABI-facing struct 参数/返回（包括 Hash/bytes32 字段）、ABI-facing 参数/返回中的扁平 struct fixed array、storage-backed fixed-array-of-flat-struct ABI return；event data field 与 indexed event topic hashing 覆盖 local value、storage scalar struct read、fixed array 内 storage array struct field read，以及 leaf 为扁平 struct 的嵌套 fixed-array event field；扁平 scalar storage struct 支持 whole read/write，扁平 struct 固定 storage array 会把支持字段展开为 EVM word；嵌套字段和不支持的字段形态仍会显式拒绝 |
-| `caller.sender` | `Env.sender` |
-| `value.native` | `Env.value` |
-| `env.block` | `Env.blockNumber`, `Env.balance` |
+| `caller.sender` | `contract_source` / portable IR caller context read |
+| `value.native` | `contract_source` `nativeValue` / payable call-value routing |
+| `env.block` | Portable IR block/context read |
 | `crosscall.invoke` | SDK `call`, `staticcall`, `delegatecall`, `create`, `create2`；portable IR `crosscallInvoke` 降为同步 EVM `call`，method 使用低 32 位 selector，参数是 32-byte word，调用失败和返回不足一个 word 都会 revert；typed crosscall 支持 Bool/U32/U64/Hash scalar-word 参数，也支持把扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array 参数展开为 ABI word；typed normal/value/static/delegate call 返回 Bool/U32/U64/Hash scalar word 并对 Bool/U32 返回做范围 guard，同时支持 entrypoint 直接返回扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array return data；`crosscallInvokeValueTyped` 会把显式 U64 call value 转发到 EVM `call` 的 value slot；`crosscallInvokeStaticTyped` 保留 static context 下状态写入失败的行为；`crosscallInvokeDelegateTyped` 保留 caller storage context；`crosscallCreate` 和 `crosscallCreate2` 通过 Yul `create`/`create2` 部署固定 init-code hex，零地址失败会 revert，并返回部署地址 word |
 | `events.emit` | `log0` 到 `log4`；portable IR `eventEmit` 降为 `log1`，`eventEmitIndexed` 最多降为 `log4`，topic0 由 Solidity-style event signature 派生，1 到 3 个 indexed scalar field 会按顺序进入 topic，非 indexed data field 可以是 U64/Bool/U32/Hash scalar word、来自 local value 或 storage scalar struct read 的扁平 struct、来自 local value 或 storage array read 的 scalar fixed array、来自 local literal 或 storage array struct field read 的扁平 struct fixed array，或 leaf 为 scalar word 或扁平 struct 的嵌套 fixed array，U64/Bool/U32/Hash scalar indexed topic 会直接进入 topic，indexed aggregate field 会对展开后的 ABI-style word 执行 `keccak256` 作为 topic，包括 leaf 为 scalar word 或扁平 struct 的嵌套 fixed array，portable IR artifact 会在 `abi.events` 中记录 event ABI metadata |
 | `assertions.check` | Portable IR `assert` / `assert_eq` 降为 Yul revert guard |
@@ -167,12 +165,18 @@ EVM 不支持（设计上针对其他目标）：
 
 ## 模块布局
 
-- `ProofForge/Evm.lean` — EVM SDK（`@[extern "lean_evm_*"]` 原语）。
-- `ProofForge/Compiler/LCNF/EmitYul.lean` — LCNF 到 Yul 的降级。
-- `ProofForge/Compiler/Yul/` — Yul AST 和打印器。
+- `ProofForge/Contract/Source.lean` — 产生 `ContractSpec` 的产品级 authoring 语法。
+- `ProofForge/Cli/ContractLoader.lean` — 加载 `spec : ContractSpec` 的 Lean source loader。
+- `ProofForge/Backend/Evm/Plan.lean` — target semantic plan 构造。
+- `ProofForge/Backend/Evm/Lower.lean`、`ProofForge/Backend/Evm/ToYul.lean` 和
+  `ProofForge/Backend/Evm/IR.lean` — portable IR 到 Yul AST 的 lowering。
+- `ProofForge/Backend/Evm/Metadata.lean` 和
+  `ProofForge/Backend/Evm/Validate.lean` — artifact metadata 与 validation helper。
+- `ProofForge/Compiler/Yul/` — EVM codegen 共享的 Yul AST 和 printer。
 - `ProofForge/Cli.lean` — `proof-forge` CLI。
 
-合约导入 `ProofForge.Evm` 和 `open Lean.Evm`。
+合约导入 `ProofForge.Contract.Source`，并通过
+`proof-forge build --target evm` 选择目标链。
 
 ## 示例
 
@@ -188,12 +192,14 @@ EVM 不支持（设计上针对其他目标）：
 
 - `Nat` 限制在 U256；EVM 上没有大数。
 - Yul 运行时中的字符串操作 API 不完整。
-- 生产 EVM SDK 路径仍然通过 LCNF/EmitYul 降级；portable IR EVM 后端目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、通过 Yul `leave` 实现的分支/loop 内早退、context read、scalar 和扁平 aggregate event data、`Hash` word 值与 hashing、带托管 key presence 的 word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态和动态 index 的不可变和可变 local fixed-array value、静态和动态嵌套 scalar/扁平 struct local fixed-array read 以及可变 leaf/whole-array 更新、标量/hash 字段上的扁平不可变和可变 local struct value、带静态/动态字段访问的扁平 struct local fixed array 和嵌套扁平 struct local fixed array、扁平静态聚合 ABI 参数/返回（包括 Hash/bytes32 聚合 leaf）、嵌套标量 fixed-array ABI 参数/返回、word array 和扁平 struct array 的 storage-backed fixed-array ABI return、同步返回一个 word 的 `crosscallInvoke`、支持 scalar word、扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array 参数/返回的 typed crosscall、normal/value/static/delegate typed call 的扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array entrypoint 直接返回、带 value 的 typed `crosscallInvokeValueTyped`、typed `crosscallInvokeStaticTyped`、typed `crosscallInvokeDelegateTyped`，以及固定 init-code 的 `crosscallCreate` 和 `crosscallCreate2`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
+- EVM `contract_source` 流水线目前覆盖标量 storage/ABI、断言、局部赋值、局部复合赋值、标量 storage 复合赋值、条件分支、静态 bounded loop、通过 Yul `leave` 实现的分支/loop 内早退、context read、scalar 和扁平 aggregate event data、`Hash` word 值与 hashing、带托管 key presence 的 word key/value `Map<K, V, N>` storage、`Bool`/`U32`/`U64`/`Hash` 固定 storage array、扁平 scalar storage struct、扁平 struct 固定 storage array、带静态和动态 index 的不可变和可变 local fixed-array value、静态和动态嵌套 scalar/扁平 struct local fixed-array read 以及可变 leaf/whole-array 更新、标量/hash 字段上的扁平不可变和可变 local struct value、带静态/动态字段访问的扁平 struct local fixed array 和嵌套扁平 struct local fixed array、扁平静态聚合 ABI 参数/返回（包括 Hash/bytes32 聚合 leaf）、嵌套标量 fixed-array ABI 参数/返回、word array 和扁平 struct array 的 storage-backed fixed-array ABI return、同步返回一个 word 的 `crosscallInvoke`、支持 scalar word、扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array 参数/返回的 typed crosscall、normal/value/static/delegate typed call 的扁平 struct、scalar fixed-array、元素为扁平 struct 的 fixed-array，以及 leaf 为 scalar word 或扁平 struct 的嵌套 fixed-array entrypoint 直接返回、带 value 的 typed `crosscallInvokeValueTyped`、typed `crosscallInvokeStaticTyped`、typed `crosscallInvokeDelegateTyped`，以及固定 init-code 的 `crosscallCreate` 和 `crosscallCreate2`，其他更宽的 portable IR 节点仍以显式诊断拒绝。
 - Portable IR EVM 目前仍缺少动态 ABI 值、leaf 为不支持 aggregate 或非扁平 struct 的嵌套 local array、leaf 为非扁平 struct 或其他不支持形态的嵌套 crosscall fixed array、非 word 或 aggregate map 形态、超出扁平 struct array 的 nested local struct、更完整的 event declaration、dynamic constructor ABI types、variable-length 跨调用返回数据，以及一等的签名交易或 public-RPC broadcast manifest。
 
-## Portable IR 门禁
+## EVM 门禁
 
-Portable IR EVM 后端与较早的 `ProofForge.Evm` SDK 路径分开跟踪：
+EVM backend 由 target-first diagnostic、coverage manifest、golden Yul snapshot、
+bytecode 编译、metadata validation、Foundry runtime test 和 Anvil deployment
+smoke 共同守住：
 
 ```sh
 scripts/evm/diagnostic-smoke.sh
@@ -270,14 +276,13 @@ EVM bytecode 模式会发射 ProofForge 制品元数据 JSON 和 ProofForge EVM 
 
 - `schemaVersion: 1`
 - `target: evm`、`targetFamily: evm` 和 `artifactKind: evm-bytecode`
-- source kind（`lean-sdk` 或 `portable-ir`）、source module，以及 portable IR fixture 的 `irVersion: portable-ir-v0`
+- source kind（`contract-sdk` 或 `portable-ir`）、source module，以及 portable IR fixture 的 `irVersion: portable-ir-v0`
 - 可获得的 portable IR capability ids
-- constructor ABI schema、结构化 selector-facing portable IR entrypoint ABI
+- constructor ABI schema、结构化 selector-facing entrypoint ABI
   metadata（`abi.entrypoints`），其中包含 Solidity-style signature、selector
   value、IR type name、ABI parameter/return type、展开后的 calldata word
-  type/count 和展开后的 return-data word type/count；portable IR event ABI
-  metadata（`abi.events`），或 SDK method specs，其中从 `.evm-methods`
-  加载的方法会记录 Solidity signature
+  type/count 和展开后的 return-data word type/count；以及 event ABI
+  metadata（`abi.events`）
 - `solc` path/version
 - Yul、runtime bytecode、可部署 initcode、可选 source 和 deploy manifest 的 artifact path、byte size 和 SHA-256
 - `solc --strict-assembly`、bytecode generation、initcode generation 与 deploy manifest generation 的 validation flag
@@ -286,8 +291,7 @@ EVM deploy manifest 会记录：
 
 - `kind: proof-forge-evm-deploy-manifest`
 - source kind/module、`irVersion`、capabilities、constructor ABI schema 和
-  ABI entrypoints/events/methods；其中 portable IR entrypoint 会包含
-  calldata/return word layout，可获得时也会包含 SDK method signature
+  ABI entrypoints/events；可获得时会包含 calldata/return word layout
 - 当传入 `--evm-chain-profile` 时，从 EVM target registry 复制的可选
   `chainProfile` metadata，包括 profile id、chain id、RPC URLs、native gas
   symbol、explorer、verifier 和 notes
@@ -298,7 +302,7 @@ EVM deploy manifest 会记录：
 - `deployment.broadcast: not-generated`，因为交易签名、broadcast JSON、deployed
   address 记录和 explorer verification 还没有生成
 
-`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact，同时检查 constructor-argument tail 与 deploy manifest 一致。当存在 constructor ABI schema metadata 时，validator 还会检查每个静态 word 参数，并确认 ABI-encoded constructor blob 的长度符合预期的 32-byte word 数量。validator 还可以确认 constructor args 来自 raw hex 还是 typed constructor values。选择 chain profile 时，validator 还会检查 `chainProfile` 和 `deployment` 中的 profile id、chain id、RPC URLs、explorer 和 verifier metadata 是否一致。ABI 校验还会检查 4-byte selector 形态、重复 selector、entrypoint Solidity-style signature、`cast sig` 计算出的 selector、entrypoint parameter/return ABI type、展开后的 calldata/return word count、生成的 Yul function name、可选 method signature、signature/argument-count 一致性、event signature、`topic0` hash，以及 event indexed/data field encoding；SDK 示例和 Anvil 门禁会要求 `.evm-methods` 派生的方法带有 signature。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
+`scripts/evm/validate-artifact-metadata.py` 会在 EVM IR smoke 脚本和 `scripts/evm/build-examples.sh` 中校验这些 metadata 文件及其引用的 deploy manifest。validator 会解析 initcode header，并检查它复制且返回的正是被引用的 runtime bytecode artifact，同时检查 constructor-argument tail 与 deploy manifest 一致。当存在 constructor ABI schema metadata 时，validator 还会检查每个静态 word 参数，并确认 ABI-encoded constructor blob 的长度符合预期的 32-byte word 数量。validator 还可以确认 constructor args 来自 raw hex 还是 typed constructor values。选择 chain profile 时，validator 还会检查 `chainProfile` 和 `deployment` 中的 profile id、chain id、RPC URLs、explorer 和 verifier metadata 是否一致。ABI 校验还会检查 4-byte selector 形态、重复 selector、entrypoint Solidity-style signature、`cast sig` 计算出的 selector、entrypoint parameter/return ABI type、展开后的 calldata/return word count、生成的 Yul function name、event signature、`topic0` hash，以及 event indexed/data field encoding；contract-source 示例和 Anvil 门禁要求 artifact metadata 中存在生成的 ABI signature。`scripts/evm/validate-deploy-manifest.py` 可以单独校验 deploy manifest。
 
 `scripts/evm/anvil-deploy-smoke.sh` 会消费生成的 Counter deploy manifest 和
 `.init.bin`，默认用 typed `initial=123` constructor argument 和静态
@@ -316,4 +320,5 @@ deployment chain id、实际 Anvil chain id、transaction hash、sender、creati
 Anvil chain id 是 `31337` 时，它会使用 `anvil-local` chain profile；可以设置
 `EVM_ANVIL_CHAIN_PROFILE=` 关闭 profile 关联，或显式提供另一个 profile。
 
-在统一的目标清单发布（RFC 0002）之前，方法分派仍使用 `.evm-methods` sidecar 文件。
+Target-first `contract_source` build 会从 `ContractSpec` 派生 method dispatch 和
+ABI metadata；新代码不需要 `.evm-methods` sidecar。

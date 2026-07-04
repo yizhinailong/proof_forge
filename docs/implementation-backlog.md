@@ -2644,7 +2644,7 @@ as `error-ref` and allocator probes.
 
 | ID | Task | Acceptance |
 |---|---|---|
-| CS-6.1 | Rewrite `docs/targets/evm.md` pipeline section for unified entry (remove EmitYul/Lean.Evm) | Matches PR #11 architecture |
+| CS-6.1 | Rewrite `docs/targets/evm.md` pipeline section for unified entry (remove EmitYul/Lean.Evm) | ✅ Current EVM target note describes `contract_source` / `ContractSpec` → portable IR → EVM semantic plan → Yul AST/printer → solc, and labels the old EVM/LCNF route legacy/research |
 | CS-6.2 | Update `development-standards.md` library roots (drop `ProofForge.Evm`, `EmitYul`) | ✅ Current roots match `lakefile.lean`; authoring guidance names `contract_source` and labels the old EVM/LCNF route legacy/research |
 | CS-6.3 | Close Workstream 24 items: declare LCNF→EmitYul removed; record `contract_source` as EVM product pipeline | Decision log + RFC 0004 alignment |
 | CS-6.4 | Keep `docs/zh/examples-evm-README.zh.md` synced when `Examples/Evm/README.md` changes | `just docs-check` green |
@@ -2655,6 +2655,13 @@ list the current Lake roots from `lakefile.lean`, remove `ProofForge.Evm` and
 `ProofForge.Backend.Evm` is compiler implementation code rather than a product
 authoring SDK. New `Examples/` guidance is `contract_source` first; backend-only
 probes belong under `Tests/` or `ProofForge/IR/Examples/`.
+
+Current CS-6.1 slice: `docs/targets/evm.md` and its zh mirror now describe the
+current unified EVM product pipeline, selector/ABI derivation from
+`ContractSpec`, target-first example workflow, current backend module layout,
+metadata source kind `contract-sdk`, and EVM gates. The old `.evm-methods` and
+`ProofForge.Evm` / `Lean.Evm` / LCNF `EmitYul` route remains documented only as
+legacy compatibility or historical research context.
 
 ### Suggested sequencing (Workstream 34)
 

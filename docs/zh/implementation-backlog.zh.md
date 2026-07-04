@@ -1308,7 +1308,7 @@ metadata 文件引用，以及已有的行为/预算追踪。fixture-only 路径
 
 | ID | 任务 | 验收标准 |
 |---|---|---|
-| CS-6.1 | 重写 `docs/targets/evm.md` pipeline 章节为统一入口（移除 EmitYul/Lean.Evm） | 与 PR #11 架构一致 |
+| CS-6.1 | 重写 `docs/targets/evm.md` pipeline 章节为统一入口（移除 EmitYul/Lean.Evm） | ✅ 当前 EVM target note 描述 `contract_source` / `ContractSpec` → portable IR → EVM semantic plan → Yul AST/printer → solc，并把旧 EVM/LCNF 路线标为 legacy/research |
 | CS-6.2 | 更新 `development-standards.md` library root（去掉 `ProofForge.Evm`、`EmitYul`） | ✅ 当前 roots 与 `lakefile.lean` 对齐；authoring 指引使用 `contract_source`，并把旧 EVM/LCNF 路线标为 legacy/research |
 | CS-6.3 | 关闭工作流 24 条目：声明 LCNF→EmitYul 已移除；记录 `contract_source` 为 EVM 产品 pipeline | decision log + RFC 0004 对齐 |
 | CS-6.4 | `Examples/Evm/README.md` 变更时保持 `docs/zh/examples-evm-README.zh.md` 同步 | `just docs-check` 通过 |
@@ -1319,6 +1319,12 @@ metadata 文件引用，以及已有的行为/预算追踪。fixture-only 路径
 代码，不是产品级 authoring SDK。`Examples/` 的新示例应优先使用
 `contract_source`；backend-only probe 应放在 `Tests/` 或
 `ProofForge/IR/Examples/` 下。
+
+当前 CS-6.1 切片：`docs/targets/evm.md` 及其 zh 镜像现在描述当前统一的 EVM
+产品流水线、从 `ContractSpec` 派生 selector/ABI、target-first 示例流程、当前 backend
+模块布局、metadata source kind `contract-sdk`，以及 EVM 门禁。旧的 `.evm-methods`
+和 `ProofForge.Evm` / `Lean.Evm` / LCNF `EmitYul` 路线只作为 legacy compatibility
+或历史研究背景保留。
 
 ### 建议排期（工作流 34）
 
