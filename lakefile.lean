@@ -10,6 +10,7 @@ lean_lib ProofForge where
     `ProofForge.Psy,
     `ProofForge.Target,
     `ProofForge.IR,
+    `ProofForge.Contract,
     `ProofForge.Backend,
     `ProofForge.Backend.Solana.SbpfAsm,
     `ProofForge.Compiler.Yul.AST,
