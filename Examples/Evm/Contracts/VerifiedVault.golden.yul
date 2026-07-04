@@ -1,6 +1,19 @@
 object "VerifiedVault" {
   code {
     switch shr(224, calldataload(0))
+    case 0xa7134f73 {
+      f_VerifiedVault_acquire()
+      return(0, 0)
+    }
+    case 0x86d1a69f {
+      f_VerifiedVault_release()
+      return(0, 0)
+    }
+    case 0xcf309012 {
+      let _r := f_VerifiedVault_locked()
+      mstore(0, _r)
+      return(0, 32)
+    }
     case 0xe1c7392a {
       f_VerifiedVault_init()
       return(0, 0)
@@ -42,17 +55,29 @@ object "VerifiedVault" {
     default {
       revert(0, 0)
     }
-    function f_VerifiedVault_init() {
-      if iszero(eq(sload(1), 0)) {
+    function f_VerifiedVault_acquire() {
+      if iszero(eq(sload(0), 0)) {
         revert(0, 0)
       }
-      sstore(0, caller())
-      sstore(1, 1)
-      sstore(2, 0)
+      sstore(0, 1)
+    }
+    function f_VerifiedVault_release() {
+      sstore(0, 0)
+    }
+    function f_VerifiedVault_locked() -> result {
+      result := sload(0)
+    }
+    function f_VerifiedVault_init() {
+      if iszero(eq(sload(2), 0)) {
+        revert(0, 0)
+      }
+      sstore(1, caller())
+      sstore(2, 1)
       sstore(3, 0)
+      sstore(4, 0)
     }
     function f_VerifiedVault_deposit() {
-      if iszero(iszero(eq(sload(1), 0))) {
+      if iszero(iszero(eq(sload(2), 0))) {
         revert(0, 0)
       }
       let depositor := caller()
@@ -60,51 +85,51 @@ object "VerifiedVault" {
       if iszero(iszero(eq(amount, 0))) {
         revert(0, 0)
       }
-      let curReserves := sload(2)
-      sstore(2, __pf_checked_add(curReserves, amount))
-      let curShares := sload(3)
-      sstore(3, __pf_checked_add(curShares, amount))
-      let bal := sload(__proof_forge_map_slot(4, depositor))
-      __proof_forge_map_write(4, depositor, __pf_checked_add(bal, amount))
+      let curReserves := sload(3)
+      sstore(3, __pf_checked_add(curReserves, amount))
+      let curShares := sload(4)
+      sstore(4, __pf_checked_add(curShares, amount))
+      let bal := sload(__proof_forge_map_slot(5, depositor))
+      __proof_forge_map_write(5, depositor, __pf_checked_add(bal, amount))
     }
     function f_VerifiedVault_withdraw(amount) {
-      if iszero(iszero(eq(sload(1), 0))) {
+      if iszero(iszero(eq(sload(2), 0))) {
         revert(0, 0)
       }
-      if iszero(eq(sload(5), 0)) {
+      if iszero(eq(sload(0), 0)) {
         revert(0, 0)
       }
-      sstore(5, 1)
+      sstore(0, 1)
       let withdrawer := caller()
-      let bal := sload(__proof_forge_map_slot(4, withdrawer))
+      let bal := sload(__proof_forge_map_slot(5, withdrawer))
       if iszero(iszero(lt(bal, amount))) {
         revert(0, 0)
       }
-      let curReserves := sload(2)
+      let curReserves := sload(3)
       if iszero(iszero(lt(curReserves, amount))) {
         revert(0, 0)
       }
-      let curShares := sload(3)
+      let curShares := sload(4)
       if iszero(iszero(lt(curShares, amount))) {
         revert(0, 0)
       }
-      sstore(2, __pf_checked_sub(curReserves, amount))
-      sstore(3, __pf_checked_sub(curShares, amount))
-      __proof_forge_map_write(4, withdrawer, __pf_checked_sub(bal, amount))
+      sstore(3, __pf_checked_sub(curReserves, amount))
+      sstore(4, __pf_checked_sub(curShares, amount))
+      __proof_forge_map_write(5, withdrawer, __pf_checked_sub(bal, amount))
       let _sent := __proof_forge_native_transfer(withdrawer, amount)
-      sstore(5, 0)
+      sstore(0, 0)
     }
     function f_VerifiedVault_reserves() -> result {
-      result := sload(2)
-    }
-    function f_VerifiedVault_totalShares() -> result {
       result := sload(3)
     }
+    function f_VerifiedVault_totalShares() -> result {
+      result := sload(4)
+    }
     function f_VerifiedVault_balanceOf(depositor) -> result {
-      result := sload(__proof_forge_map_slot(4, depositor))
+      result := sload(__proof_forge_map_slot(5, depositor))
     }
     function f_VerifiedVault_getOwner() -> result {
-      result := sload(0)
+      result := sload(1)
     }
     function __proof_forge_map_slot(slot, key) -> result {
       mstore(0, key)

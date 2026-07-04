@@ -250,6 +250,10 @@ private def mkParamLet (name : TSyntax `ident) (type : TSyntax `term)
     `(let $name : ProofForge.Contract.Surface.BindingRef :=
         ProofForge.Contract.Surface.bindingWithAbi $nameLit (.u64) "address"
       $body)
+  | `(.bytes4) =>
+    `(let $name : ProofForge.Contract.Surface.BindingRef :=
+        ProofForge.Contract.Surface.bindingWithAbi $nameLit (.u64) "bytes4"
+      $body)
   | _ =>
     `(let $name : ProofForge.Contract.Surface.BindingRef :=
         ProofForge.Contract.Surface.binding $nameLit $type
@@ -339,6 +343,10 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
           | `(.address) =>
             `(let $name : ProofForge.Contract.Surface.BindingRef :=
                 ProofForge.Contract.Surface.bindingWithAbi $nameLit (.u64) "address"
+              ProofForge.Contract.Source.bindValue $name $value *> $acc)
+          | `(.bytes4) =>
+            `(let $name : ProofForge.Contract.Surface.BindingRef :=
+                ProofForge.Contract.Surface.bindingWithAbi $nameLit (.u64) "bytes4"
               ProofForge.Contract.Source.bindValue $name $value *> $acc)
           | _ =>
             `(let $name : ProofForge.Contract.Surface.BindingRef :=

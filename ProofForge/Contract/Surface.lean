@@ -164,6 +164,12 @@ def checkpointId : ProofForge.IR.Expr :=
 def u64 (value : Nat) : ProofForge.IR.Expr :=
   ProofForge.Contract.Builder.u64 value
 
+def u32 (value : Nat) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Builder.u32 value
+
+def boolOr (lhs rhs : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Builder.boolOr lhs rhs
+
 def add (lhs rhs : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   ProofForge.Contract.Builder.add lhs rhs
 

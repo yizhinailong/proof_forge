@@ -260,6 +260,30 @@ contract ProofForgeSmokeTest {
         (bool overdraftOk,) = vault.call(abi.encodeWithSignature("withdraw(uint256)", uint256(999)));
         assertFalse(overdraftOk);
     }
+
+    function testERC165ProbeLifecycle() public {
+        address probe = address(0x1650);
+        deployRuntime(hex"$(cat "$OUT_DIR/ERC165Probe.bin")", probe);
+
+        vm.prank(address(0xA11CE));
+        (bool initOk,) = probe.call(abi.encodeWithSignature("init()"));
+        assertTrue(initOk);
+
+        (bool erc165Ok, bytes memory erc165Result) =
+            probe.call(abi.encodeWithSignature("supportsInterface(bytes4)", bytes4(0x01ffc9a7)));
+        assertTrue(erc165Ok);
+        assertTrue(abi.decode(erc165Result, (bool)));
+
+        (bool sampleOk, bytes memory sampleResult) =
+            probe.call(abi.encodeWithSignature("supportsInterface(bytes4)", bytes4(0x12345678)));
+        assertTrue(sampleOk);
+        assertTrue(abi.decode(sampleResult, (bool)));
+
+        (bool unknownOk, bytes memory unknownResult) =
+            probe.call(abi.encodeWithSignature("supportsInterface(bytes4)", bytes4(0xdeadbeef)));
+        assertTrue(unknownOk);
+        assertFalse(abi.decode(unknownResult, (bool)));
+    }
 }
 SOL
 
