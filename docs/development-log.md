@@ -8615,3 +8615,30 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR EmitWat memory layout surface checks passed locally.
+
+### NEAR EmitWat Entrypoint Input Frames
+
+Commit: pending
+
+Summary:
+
+- Added artifact-surface host-frame expectations for entrypoint input
+  prologues.
+- Pinned the `input(0)` plus `read_register(0, INPUT_BUF)` sequence used by
+  Counter and ValueVault exported entrypoints before parameter decoding.
+- Pinned scalar u64 parameter loads from `INPUT_BUF` for ValueVault's
+  `initialize`, `deposit`, `charge_fee`, and `release` entrypoints, including
+  the second `charge_fee` parameter at offset 8.
+- Wired the new Counter and ValueVault input-frame anchors into the formal
+  smoke entrypoint and the ValueVault backend-invariant bridge.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR EmitWat entrypoint input-frame checks passed locally.

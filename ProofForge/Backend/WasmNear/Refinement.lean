@@ -897,6 +897,27 @@ def nearEventLogUtf8Frame : Array WasmTraceOp := #[
   .call "log_utf8"
 ]
 
+def nearInputRegisterFrame : Array WasmTraceOp := #[
+  .i64Const 0,
+  .call "input",
+  .i64Const 0,
+  .i64Const emitWatInputBuf,
+  .call "read_register"
+]
+
+def nearU64InputParamFrame (name : String) (offset : Nat) : Array WasmTraceOp :=
+  nearInputRegisterFrame ++ #[
+    .i32Const (emitWatInputBuf + offset),
+    .load "i64.load" 0,
+    .localSet name
+  ]
+
+def nearU64ParamLoadFrame (name : String) (offset : Nat) : Array WasmTraceOp := #[
+  .i32Const (emitWatInputBuf + offset),
+  .load "i64.load" 0,
+  .localSet name
+]
+
 def nearU64HostFrameExpectations : Array WasmHostFrameExpectation := #[
   {
     functionName := ProofForge.Backend.WasmNear.EmitWat.readName .u64
@@ -911,6 +932,41 @@ def nearU64HostFrameExpectations : Array WasmHostFrameExpectation := #[
     expectedOps := nearU64ValueReturnFrame
   }
 ]
+
+def nearInputHostFrameExpectations : Array WasmHostFrameExpectation := #[
+  { functionName := "initialize", expectedOps := nearInputRegisterFrame },
+  { functionName := "increment", expectedOps := nearInputRegisterFrame },
+  { functionName := "get", expectedOps := nearInputRegisterFrame }
+]
+
+def nearValueVaultInputHostFrameExpectations : Array WasmHostFrameExpectation := #[
+  { functionName := "initialize", expectedOps := nearU64InputParamFrame "initial" 0 },
+  { functionName := "get_balance", expectedOps := nearInputRegisterFrame },
+  { functionName := "deposit", expectedOps := nearU64InputParamFrame "amount" 0 },
+  { functionName := "charge_fee", expectedOps := nearU64InputParamFrame "gross" 0 },
+  {
+    functionName := "charge_fee"
+    expectedOps := nearU64ParamLoadFrame "fee_bps" 8
+  },
+  { functionName := "get_net_value", expectedOps := nearInputRegisterFrame },
+  { functionName := "release", expectedOps := nearU64InputParamFrame "amount" 0 },
+  { functionName := "snapshot", expectedOps := nearInputRegisterFrame }
+]
+
+def wasmHostFramesOk
+    (module : Module)
+    (frames : Array WasmHostFrameExpectation) : Bool :=
+  match ProofForge.Backend.WasmNear.EmitWat.lowerModule module with
+  | .ok wasm => frames.all (fun expectation => expectation.ok wasm)
+  | .error _ => false
+
+def counterInputHostFramesOk : Bool :=
+  wasmHostFramesOk ProofForge.IR.Examples.Counter.module nearInputHostFrameExpectations
+
+def valueVaultInputHostFramesOk : Bool :=
+  wasmHostFramesOk
+    ProofForge.Contract.Examples.ValueVault.module
+    nearValueVaultInputHostFrameExpectations
 
 def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   name := "Counter.EmitWat.artifact-surface"
@@ -943,7 +999,7 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     { functionName := "__pf_write_u64", expectedCalls := #["storage_write"] },
     { functionName := "__pf_return_u64", expectedCalls := #["value_return"] }
   ]
-  requiredHostFrames := nearU64HostFrameExpectations
+  requiredHostFrames := nearU64HostFrameExpectations ++ nearInputHostFrameExpectations
   requiredDataSegments := #[(0, "count")]
   requiredMemoryRegions := nearHostBufferMemoryRegions
 }
@@ -1091,7 +1147,7 @@ def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     { functionName := "__pf_evt_log", expectedCalls := #["log_utf8"] }
   ]
   requiredHostFrames :=
-    nearU64HostFrameExpectations.push {
+    nearU64HostFrameExpectations ++ nearValueVaultInputHostFrameExpectations |>.push {
       functionName := ProofForge.Backend.WasmNear.EmitWat.evtLogName
       expectedOps := nearEventLogUtf8Frame
     }
@@ -1315,6 +1371,7 @@ def valueVaultEmitWatBackendInvariantBridgeOk : Bool :=
     valueVaultOfflineHostFinalStateDerivesFromInvariant
       ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs &&
     valueVaultArtifactSurfaceObligation.memorySurfaceOk &&
+    valueVaultInputHostFramesOk &&
     valueVaultOfflineHostExecutionObligation.returnPayloadHexOk &&
     valueVaultOfflineHostExecutionObligation.storageSnapshotsOk &&
     valueVaultOfflineHostExecutionObligation.storageHexSnapshotsOk &&
@@ -1368,6 +1425,10 @@ theorem counter_emitwat_host_frames_ok :
     counterArtifactSurfaceObligation.hostFramesOk = true := by
   native_decide
 
+theorem counter_emitwat_input_host_frames_ok :
+    counterInputHostFramesOk = true := by
+  native_decide
+
 theorem counter_emitwat_memory_surface_ok :
     counterArtifactSurfaceObligation.memorySurfaceOk = true := by
   native_decide
@@ -1398,6 +1459,10 @@ theorem value_vault_emitwat_host_import_signatures_ok :
 
 theorem value_vault_emitwat_host_frames_ok :
     valueVaultArtifactSurfaceObligation.hostFramesOk = true := by
+  native_decide
+
+theorem value_vault_emitwat_input_host_frames_ok :
+    valueVaultInputHostFramesOk = true := by
   native_decide
 
 theorem value_vault_emitwat_memory_surface_ok :
