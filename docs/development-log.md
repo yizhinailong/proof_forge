@@ -11779,3 +11779,39 @@ Result:
   already represented by `ExprPlan.crosscall`.
 - EVM semantic-plan, diagnostics, crosscall IR smoke, full Lake build, and
   whitespace checks passed locally.
+
+### EVM Planned Scalar Creates In Control-Flow Bodies
+
+Commit: 38af94d
+
+Summary:
+
+- Extended planned scalar control-flow body support so `crosscallCreate` and
+  `crosscallCreate2` helper-call expressions can stay inside supported
+  branch/loop body statements.
+- Reused the existing `ExprPlan.create -> ToYul.createHelperCallExpr` boundary
+  for create/create2 call-value and salt expression lowering, while leaving
+  create helper discovery in `ModulePlan`.
+- Added a semantic-plan regression that builds an IR `ifElse`, binds both
+  `crosscallCreate` and `crosscallCreate2` results in branch bodies, verifies
+  planned construction, and checks that the lowered Yul AST calls the expected
+  `__proof_forge_create_*` and `__proof_forge_create2_*` helpers.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/crosscall-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Result:
+
+- Planned control-flow bodies now cover scalar create/create2 helper-call
+  expressions already represented by `ExprPlan.create`.
+- EVM semantic-plan, diagnostics, crosscall/create IR smoke, full Lake build,
+  and whitespace checks passed locally.
