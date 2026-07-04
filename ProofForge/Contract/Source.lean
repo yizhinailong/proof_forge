@@ -34,6 +34,9 @@ instance : ToExpr ProofForge.Contract.Surface.BindingRef where
 instance : ToExpr ProofForge.Contract.Surface.ScalarRef where
   toExpr slot := ProofForge.Contract.Surface.read slot
 
+instance : ToExpr Nat where
+  toExpr value := u64 value
+
 def expr [ToExpr α] (value : α) : ProofForge.IR.Expr :=
   ToExpr.toExpr value
 
@@ -142,6 +145,13 @@ scoped syntax "realloc " ident " to " term ";" : entryStmt
 scoped syntax "do " term ";" : entryStmt
 scoped syntax "accepts_callvalue;" : entryStmt
 scoped syntax "sendto " ident ident ";" : entryStmt
+scoped syntax "guard_owner " ident ";" : entryStmt
+scoped syntax "guard_not_paused " ident ";" : entryStmt
+scoped syntax "guard_paused " ident ";" : entryStmt
+scoped syntax "guard_unlocked " ident ";" : entryStmt
+scoped syntax "acquire_lock " ident ";" : entryStmt
+scoped syntax "release_lock " ident ";" : entryStmt
+scoped syntax "fixedu64x3 " ident "(" term ", " term ", " term ")" ";" : entryStmt
 
 scoped syntax "literal_seed " str : solanaSeed
 scoped syntax "account_seed " ident : solanaSeed
@@ -307,6 +317,24 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
         acc ← `(ProofForge.Contract.Surface.markPayable *> $acc)
     | `(entryStmt| sendto $recipient:ident $amount:ident;) =>
         acc ← `(ProofForge.Contract.Surface.nativeTransfer (ProofForge.Contract.Source.expr $recipient) (ProofForge.Contract.Source.expr $amount) *> $acc)
+    | `(entryStmt| guard_owner $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.requireOwner $slot *> $acc)
+    | `(entryStmt| guard_not_paused $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.requireNotPaused $slot *> $acc)
+    | `(entryStmt| guard_paused $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.requirePaused $slot *> $acc)
+    | `(entryStmt| guard_unlocked $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.requireUnlocked $slot *> $acc)
+    | `(entryStmt| acquire_lock $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.acquireLock $slot *> $acc)
+    | `(entryStmt| release_lock $slot:ident;) =>
+        acc ← `(ProofForge.Contract.Surface.releaseLock $slot *> $acc)
+    | `(entryStmt| fixedu64x3 $name:ident ($a:term, $b:term, $c:term);) =>
+        let nameLit := identNameLit name
+        acc ←
+          `(let $name : ProofForge.Contract.Surface.BindingRef :=
+              ProofForge.Contract.Surface.binding $nameLit (.fixedArray .u64 3)
+            ProofForge.Contract.Source.bindValue $name (ProofForge.Contract.Source.u64Array3 $a $b $c) *> $acc)
     | _ =>
         Macro.throwError s!"unsupported contract source statement: {stmt.raw}"
   return acc
@@ -509,5 +537,13 @@ def caller : ProofForge.IR.Expr :=
 
 def nativeValue : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.nativeValue
+
+def u64Array3 [ToExpr α] [ToExpr β] [ToExpr γ] (a : α) (b : β) (c : γ) : ProofForge.IR.Expr :=
+  .arrayLit .u64 #[expr a, expr b, expr c]
+
+def arrayGet [ToExpr α] [ToExpr β] (arr : α) (index : β) : ProofForge.IR.Expr :=
+  .arrayGet (expr arr) (expr index)
+
+macro "array_get " arr:ident idx:term : term => `(ProofForge.Contract.Source.arrayGet $arr $idx)
 
 end ProofForge.Contract.Source

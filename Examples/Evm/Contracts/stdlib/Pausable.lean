@@ -25,11 +25,11 @@ contract_source Pausable do
     return «paused»;
 
   entry pause do
-    do ProofForge.Contract.Surface.requireNotPaused «paused» "already paused";
+    guard_not_paused «paused»;
     «paused» := u64 1;
 
   entry unpause do
-    do ProofForge.Contract.Surface.requirePaused «paused»;
+    guard_paused «paused»;
     «paused» := u64 0;
 
 end Pausable

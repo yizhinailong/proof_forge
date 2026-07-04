@@ -66,6 +66,9 @@ covers:
   syntax;
 - EVM native-value entry markers (`accepts_callvalue;`), `nativeValue` reads, and
   plain native transfers (`sendto recipient amount;`);
+- EVM entry guards (`guard_owner`, `guard_not_paused`, `guard_paused`,
+  `guard_unlocked`, `acquire_lock`, `release_lock`) and fixed `u64` array locals
+  (`fixedu64x3`, `array_get`);
 - Solana allocator selection;
 - Solana account constraints, including writable and signer declarations;
 - Solana PDA declarations and derivation statements;

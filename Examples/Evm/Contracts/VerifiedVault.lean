@@ -93,7 +93,7 @@ contract_source VerifiedVault do
 
   entry withdraw (amount : .u64) do
     do ProofForge.Contract.Surface.requireNe (ProofForge.Contract.Surface.read initialized) (u64 0) "not initialized";
-    do ProofForge.Contract.Surface.acquireLock reentrancyLock;
+    acquire_lock reentrancyLock;
     let withdrawer : .u64 := caller;
     let bal : .u64 := mapRead balances withdrawer;
     do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref bal) (ProofForge.Contract.Surface.ref amount) "insufficient balance";
@@ -105,7 +105,7 @@ contract_source VerifiedVault do
     totalShares := curShares -! amount;
     do mapWrite balances withdrawer (bal -! amount);
     sendto withdrawer amount;
-    do ProofForge.Contract.Surface.releaseLock reentrancyLock;
+    release_lock reentrancyLock;
 
   query reserves returns(.u64) do
     return reserves;
