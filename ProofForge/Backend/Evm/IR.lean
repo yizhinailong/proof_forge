@@ -43,30 +43,7 @@ def lowerPlan
   | .error err => .error (planError err)
 
 def stateInfo? (module : Module) (stateId : String) : Option (Nat × StateDecl) :=
-  go 0 0 module.state
-where
-  stateSlotSpan (state : StateDecl) : Nat :=
-    match state.kind, state.type with
-    | .scalar, .structType typeName =>
-        match module.structs.find? (fun decl => decl.name == typeName) with
-        | some decl => decl.fields.size
-        | none => 1
-    | .array length, .structType typeName =>
-        match module.structs.find? (fun decl => decl.name == typeName) with
-        | some decl => length * decl.fields.size
-        | none => length
-    | .array length, _ => length
-    | .scalar, _ | .map _ _, _ => 1
-
-  go (idx slot : Nat) (states : Array StateDecl) : Option (Nat × StateDecl) :=
-    if h : idx < states.size then
-      let state := states[idx]
-      if state.id == stateId then
-        some (slot, state)
-      else
-        go (idx + 1) (slot + stateSlotSpan state) states
-    else
-      none
+  ProofForge.Backend.Evm.Plan.stateInfo? module stateId
 
 def stateSlot? (module : Module) (stateId : String) : Option Nat :=
   match stateInfo? module stateId with
@@ -1026,9 +1003,12 @@ def scalarStateType (module : Module) (stateId : String) : Except LowerError Val
   | .array _ => .error { message := s!"state `{stateId}` is an array, not scalar storage" }
 
 def scalarStatePacking (module : Module) (stateId : String) : Except LowerError (Nat × Nat) := do
-  match ProofForge.Backend.Evm.Plan.storageLayout module |>.find? stateId with
-  | some plan => .ok (plan.byteOffset, plan.byteWidth)
-  | none => .error { message := s!"unknown EVM state '{stateId}'" }
+  if stateId == "$eip1967.implementation" then
+    .ok (0, 32)
+  else
+    match ProofForge.Backend.Evm.Plan.storageLayout module |>.find? stateId with
+    | some plan => .ok (plan.byteOffset, plan.byteWidth)
+    | none => .error { message := s!"unknown EVM state '{stateId}'" }
 
 def mapStateTypes (module : Module) (stateId : String) : Except LowerError (ValueType × ValueType) := do
   let state ← stateDeclOf module stateId "map"

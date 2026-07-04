@@ -108,6 +108,18 @@ def nativeTransferPlanProbe : Module := {
   ]
 }
 
+def eip1967PackingProbe : Module := {
+  name := "Eip1967PackingProbe"
+  state := #[
+    {
+      id := "$eip1967.implementation"
+      type := .address
+      kind := .scalar
+    }
+  ]
+  entrypoints := #[]
+}
+
 def testCounterSemanticPlan : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
   require (plan.name == "Counter") "counter plan name"
@@ -2343,6 +2355,27 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
           | _ => throw <| IO.userError "scalar storage write plan-to-yul must have shl in packed write"
       | _ => throw <| IO.userError "scalar storage write plan-to-yul value must be packed write (or/and/shl)"
   | _ => throw <| IO.userError "scalar storage write plan-to-yul must lower to sstore"
+  let eip1967Write ← requireOk
+    (lowerEffectStmt
+      eip1967PackingProbe
+      #[{ name := "impl", type := .address, isMutable := false }]
+      (.storageScalarWrite "$eip1967.implementation" (.local "impl")))
+    "EIP-1967 fixed slot scalar write plan-to-yul"
+  match eip1967Write with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin ssName args) => do
+      require (ssName == "sstore") "EIP-1967 fixed slot write must lower to sstore"
+      require (args.size == 2) "EIP-1967 fixed slot write arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal => do
+          match literal.kind with
+          | Lean.Compiler.Yul.LiteralKind.hexNumber => pure ()
+          | _ => throw <| IO.userError "EIP-1967 fixed slot write slot literal kind"
+          require (literal.value == "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc") "EIP-1967 fixed slot write slot"
+      | _ => throw <| IO.userError "EIP-1967 fixed slot write must use fixed slot literal"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.ident "impl" => pure ()
+      | _ => throw <| IO.userError "EIP-1967 fixed slot write must not pack address value"
+  | _ => throw <| IO.userError "EIP-1967 fixed slot write must lower to sstore"
   let assignOpStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.Counter.module

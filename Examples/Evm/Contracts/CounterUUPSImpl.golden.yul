@@ -25,7 +25,7 @@ object "CounterUUPSImpl" {
       revert(0, 0)
     }
     function f_CounterUUPSImpl_upgradeTo(newImpl) {
-      if iszero(eq(caller(), sload(0))) {
+      if iszero(eq(caller(), and(shr(192, sload(0)), 18446744073709551615))) {
         revert(0, 0)
       }
       if iszero(iszero(eq(newImpl, 0))) {
@@ -40,15 +40,15 @@ object "CounterUUPSImpl" {
       }
     }
     function f_CounterUUPSImpl_init() {
-      sstore(0, caller())
-      sstore(2, 0)
+      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, caller())))
+      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, 0)))
     }
     function f_CounterUUPSImpl_increment() {
-      let n := sload(2)
-      sstore(2, __pf_checked_add(n, 1))
+      let n := and(shr(64, sload(0)), 18446744073709551615)
+      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, __pf_checked_add(n, 1))))
     }
     function f_CounterUUPSImpl_get() -> result {
-      result := sload(2)
+      result := and(shr(64, sload(0)), 18446744073709551615)
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {

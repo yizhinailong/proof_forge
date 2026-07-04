@@ -96,10 +96,10 @@ object "AccessControlProbe" {
       if iszero(iszero(eq(sload(__proof_forge_map_slot(__proof_forge_map_slot(0, 1), caller())), 0))) {
         revert(0, 0)
       }
-      sstore(1, __pf_checked_add(sload(1), 1))
+      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_add(and(shr(192, sload(1)), 18446744073709551615), 1))))
     }
     function f_AccessControlProbe_getTouches() -> result {
-      result := sload(1)
+      result := and(shr(192, sload(1)), 18446744073709551615)
     }
     function __proof_forge_map_slot(slot, key) -> result {
       mstore(0, key)

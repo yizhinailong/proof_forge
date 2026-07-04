@@ -18,16 +18,16 @@ object "ReentrancyGuard" {
       revert(0, 0)
     }
     function f_ReentrancyGuard_acquire() {
-      if iszero(eq(sload(0), 0)) {
+      if iszero(eq(and(shr(192, sload(0)), 18446744073709551615), 0)) {
         revert(0, 0)
       }
-      sstore(0, 1)
+      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 1)))
     }
     function f_ReentrancyGuard_release() {
-      sstore(0, 0)
+      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 0)))
     }
     function f_ReentrancyGuard_locked() -> result {
-      result := sload(0)
+      result := and(shr(192, sload(0)), 18446744073709551615)
     }
   }
 }

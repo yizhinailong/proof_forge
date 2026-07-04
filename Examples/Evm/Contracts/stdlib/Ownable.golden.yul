@@ -25,28 +25,28 @@ object "Ownable" {
       revert(0, 0)
     }
     function f_Ownable_owner() -> result {
-      result := sload(0)
+      result := and(shr(192, sload(0)), 18446744073709551615)
     }
     function f_Ownable_transferOwnership(newOwner) {
-      if iszero(eq(caller(), sload(0))) {
+      if iszero(eq(caller(), and(shr(192, sload(0)), 18446744073709551615))) {
         revert(0, 0)
       }
       if iszero(iszero(eq(newOwner, 0))) {
         revert(0, 0)
       }
-      sstore(0, newOwner)
+      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, newOwner)))
     }
     function f_Ownable_renounceOwnership() {
-      if iszero(eq(caller(), sload(0))) {
+      if iszero(eq(caller(), and(shr(192, sload(0)), 18446744073709551615))) {
         revert(0, 0)
       }
-      sstore(0, 0)
+      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 0)))
     }
     function f_Ownable_init() {
-      if iszero(eq(sload(0), 0)) {
+      if iszero(eq(and(shr(192, sload(0)), 18446744073709551615), 0)) {
         revert(0, 0)
       }
-      sstore(0, caller())
+      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, caller())))
     }
   }
 }

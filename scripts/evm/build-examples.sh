@@ -82,7 +82,10 @@ while IFS= read -r -d '' lean_file; do
       echo "build-examples: missing golden Yul: $golden" >&2
       exit 1
     fi
-    diff -u "$golden" "$yul_out"
+    if ! diff -u "$golden" "$yul_out"; then
+      echo "build-examples: $name differs from golden Yul: $golden" >&2
+      exit 1
+    fi
     python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
       --root "$ROOT" \
       --expect-fixture "$fixture" \
