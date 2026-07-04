@@ -2,6 +2,7 @@ import ProofForge.Backend.Evm.IR
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmStorageArrayProbe
+import ProofForge.IR.Examples.EvmStorageStructProbe
 import ProofForge.IR.Examples.EventProbe
 
 namespace ProofForge.Tests.EvmSemanticPlan
@@ -555,6 +556,44 @@ def testArrayWritePlanToYul : IO Unit := do
       | _ => throw <| IO.userError "array write value must be plan-lowered storage read"
   | _ => throw <| IO.userError "array write storage-read value must lower to sstore"
 
+def testStructFieldWritePlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let fieldStmt ← requireOk
+    (lowerStructFieldWriteStmt
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      env
+      "current"
+      "x"
+      (.add (.local "value") (.literal (.u64 5))))
+    "struct field write value plan-to-yul"
+  match fieldStmt with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "struct field write plan-to-yul arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "struct field write value must lower through checked add plan"
+          require (addArgs.size == 2) "struct field write checked add arg count"
+      | _ => throw <| IO.userError "struct field write value must be plan-lowered checked add"
+  | _ => throw <| IO.userError "struct field write plan-to-yul must lower to sstore"
+  let arrayFieldStmt ← requireOk
+    (lowerStructArrayFieldWriteStmt
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      env
+      "points"
+      (.literal (.u64 1))
+      "y"
+      (.effect (.storageScalarRead "before")))
+    "struct array field write value plan-to-yul"
+  match arrayFieldStmt with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "struct array field write plan-to-yul arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.builtin readName readArgs => do
+          require (readName == "sload") "struct array field write value must lower storage read through plan"
+          require (readArgs.size == 1) "struct array field write sload arg count"
+      | _ => throw <| IO.userError "struct array field write value must be plan-lowered storage read"
+  | _ => throw <| IO.userError "struct array field write plan-to-yul must lower to sstore"
+
 def main : IO UInt32 := do
   testCounterSemanticPlan
   testEventSemanticPlan
@@ -571,6 +610,7 @@ def main : IO UInt32 := do
   testScalarStorageEffectPlanToYul
   testMapWritePlanToYul
   testArrayWritePlanToYul
+  testStructFieldWritePlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0
 

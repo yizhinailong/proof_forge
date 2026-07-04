@@ -3089,7 +3089,10 @@ def lowerStructFieldWriteStmt
     (stateId fieldName : String)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   let (slot, _) ← requireStructStateField module stateId fieldName
-  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[slotExpr slot, ← lowerExpr module env value]))
+  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+    slotExpr slot,
+    ← lowerScalarPlanExprOrFallback module env value
+  ]))
 
 def storageStructAssignTempName (stateId fieldName : String) : String :=
   s!"__proof_forge_assign_storage_struct_{stateId}_{fieldName}"
@@ -3165,7 +3168,7 @@ partial def lowerStructArrayFieldWriteStmt
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
     ← lowerStructArrayFieldSlotExpr module env stateId index fieldName,
-    ← lowerExpr module env value
+    ← lowerScalarPlanExprOrFallback module env value
   ]))
 
 def lowerStoragePathWriteStmt
