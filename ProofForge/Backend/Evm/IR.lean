@@ -5058,6 +5058,11 @@ mutual
          | none => true
          | some callValue => exprPlanSupportsScalarBody callValue) &&
         args.all exprPlanSupportsScalarBody
+    | .create _ callValue salt? _ =>
+        exprPlanSupportsScalarBody callValue &&
+        match salt? with
+        | none => true
+        | some salt => exprPlanSupportsScalarBody salt
     | .localArrayGet _ path _ =>
         match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
         | some _ => true
@@ -5067,7 +5072,7 @@ mutual
         match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
         | some _ => true
         | none => false
-    | .create .. | .localAbiWords .. | .localCrosscallWords ..
+    | .localAbiWords .. | .localCrosscallWords ..
     | .storageCrosscallWords .. | .structField .. | .arrayGet .. | .arrayLit ..
     | .structLit .. => false
 end

@@ -2504,6 +2504,77 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (valueName == "remote") "planned scalar crosscall control-flow assignment value"
       | _ => throw <| IO.userError "planned scalar crosscall control-flow must assign helper result"
   | _ => throw <| IO.userError "planned scalar crosscall control-flow body lowering must lower to switch"
+  let createEnv : TypeEnv := #[
+    { name := "value", type := .u64, isMutable := false },
+    { name := "salt", type := .hash, isMutable := false },
+    { name := "created", type := .u64, isMutable := true }
+  ]
+  let createHelperName :=
+    "__proof_forge_create_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex
+  let create2HelperName :=
+    "__proof_forge_create2_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex
+  let plannedCreateControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      "control_flow"
+      .unit
+      createEnv
+      (.ifElse
+        (.eq (.local "value") (.literal (.u64 0)))
+        #[
+          .letBind
+            "deployed"
+            .u64
+            (.crosscallCreate
+              (.local "value")
+              ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex),
+          .assign (.local "created") (.local "deployed")
+        ]
+        #[
+          .letBind
+            "deployed2"
+            .u64
+            (.crosscallCreate2
+              (.local "value")
+              (.local "salt")
+              ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex),
+          .assign (.local "created") (.local "deployed2")
+        ]))
+    "planned scalar create control-flow plan construction"
+  let plannedCreateControl ← requireSome plannedCreateControl?
+    "planned scalar create control-flow plan construction missing plan"
+  let (createControlStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      "control_flow"
+      .unit
+      createEnv
+      false
+      plannedCreateControl)
+    "planned scalar create control-flow body lowering"
+  match createControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let thenCase ← requireAt cases 1 "planned scalar create control-flow then case"
+      require (thenCase.body.statements.size == 2) "planned scalar create control-flow then count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (names.size == 1) "planned scalar create control-flow var count"
+          let typedName ← requireAt names 0 "planned scalar create control-flow var"
+          require (typedName.name == "deployed") "planned scalar create control-flow local name"
+          require (name == createHelperName) "planned scalar create control-flow helper"
+          require (args.size == 1) "planned scalar create control-flow helper arg count"
+      | _ => throw <| IO.userError "planned scalar create control-flow must lower let initializer to helper call"
+      let elseCase ← requireAt cases 0 "planned scalar create control-flow else case"
+      require (elseCase.body.statements.size == 2) "planned scalar create2 control-flow else count"
+      match elseCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (names.size == 1) "planned scalar create2 control-flow var count"
+          let typedName ← requireAt names 0 "planned scalar create2 control-flow var"
+          require (typedName.name == "deployed2") "planned scalar create2 control-flow local name"
+          require (name == create2HelperName) "planned scalar create2 control-flow helper"
+          require (args.size == 2) "planned scalar create2 control-flow helper arg count"
+      | _ => throw <| IO.userError "planned scalar create2 control-flow must lower let initializer to helper call"
+  | _ => throw <| IO.userError "planned scalar create control-flow body lowering must lower to switch"
   let (ifStmts, _) ← requireOk
     (lowerStatement
       ProofForge.IR.Examples.Counter.module
