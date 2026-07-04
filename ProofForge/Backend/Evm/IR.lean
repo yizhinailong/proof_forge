@@ -2941,33 +2941,25 @@ partial def lowerEventDataWords
         message := s!"event `{eventName}` data field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event data fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays"
       }
 
-def eventDataStoreStatements (words : Array Lean.Compiler.Yul.Expr) : Array Lean.Compiler.Yul.Statement := Id.run do
-  let mut statements := #[]
-  for h : idx in [0:words.size] do
-    statements := statements.push <|
-      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num (idx * 32), words[idx]])
-  pure statements
+def eventDataStoreStatements (words : Array Lean.Compiler.Yul.Expr) : Array Lean.Compiler.Yul.Statement :=
+  ProofForge.Backend.Evm.ToYul.eventDataStoreStatements words
 
 partial def lowerIndexedEventTopicStatements
     (module : Module)
     (env : TypeEnv)
     (eventName fieldName : String)
     (index : Nat)
-    (type : ValueType)
+    (fieldPlan : ProofForge.Backend.Evm.Plan.EventFieldPlan)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let topicName := eventIndexedTopicName index
+  let type := fieldPlan.type
   match type with
-  | .u32 | .u64 | .bool | .hash =>
-      .ok #[.varDecl #[{ name := topicName }] (some (← lowerScalarPlanExprOrFallback module env value))]
-  | .fixedArray _ _ | .structType _ => do
-      let words ← lowerEventDataWords module env eventName fieldName type value
-      .ok <| eventDataStoreStatements words |>.push
-        (.varDecl #[{ name := topicName }]
-          (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num (words.size * 32)])))
   | .unit =>
       .error {
         message := s!"event `{eventName}` indexed field `{fieldName}` has unsupported EVM IR v0 type `Unit`; indexed event fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays"
       }
+  | _ => do
+      let words ← lowerEventDataWords module env eventName fieldName type value
+      ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements toYulError fieldPlan index words
 
 def lowerEventEmitCoreStmt
     (module : Module)
@@ -2983,16 +2975,21 @@ def lowerEventEmitCoreStmt
         dataFields with
     | .ok eventPlan => .ok eventPlan
     | .error err => .error { message := err.message }
+  let indexedFieldPlans := eventPlan.indexedFields
+  let dataFieldPlans := eventPlan.dataFields
   let mut statements := ProofForge.Backend.Evm.ToYul.eventSignatureTopicStatements eventPlan
   for h : idx in [0:indexedFields.size] do
     let field := indexedFields[idx]
-    let type ← inferEventFieldExprType module env field.snd
-    statements := statements ++ (← lowerIndexedEventTopicStatements module env name field.fst idx type field.snd)
+    let some fieldPlan := indexedFieldPlans[idx]?
+      | .error { message := s!"event `{name}` missing indexed field plan at index {idx}" }
+    statements := statements ++ (← lowerIndexedEventTopicStatements module env name field.fst idx fieldPlan field.snd)
   let mut dataWords : Array Lean.Compiler.Yul.Expr := #[]
-  for field in dataFields do
-    let type ← inferEventFieldExprType module env field.snd
-    dataWords := dataWords ++ (← lowerEventDataWords module env name field.fst type field.snd)
-  statements := statements ++ eventDataStoreStatements dataWords
+  for h : idx in [0:dataFields.size] do
+    let field := dataFields[idx]
+    let some fieldPlan := dataFieldPlans[idx]?
+      | .error { message := s!"event `{name}` missing data field plan at index {idx}" }
+    dataWords := dataWords ++ (← lowerEventDataWords module env name field.fst fieldPlan.type field.snd)
+  statements := statements ++ ProofForge.Backend.Evm.ToYul.eventDataStoreStatements dataWords
   statements := statements.push (← ProofForge.Backend.Evm.ToYul.eventLogStatement toYulError eventPlan dataWords.size)
   .ok (.block { statements := statements })
 

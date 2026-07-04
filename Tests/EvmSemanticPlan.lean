@@ -101,6 +101,37 @@ def testEventSemanticPlan : IO Unit := do
   let indexedEvent ← requireSome
     (plan.events.find? (fun ev => ev.name == "IndexedValue"))
     "event plan missing IndexedValue"
+  let indexedField ← requireAt indexedEvent.indexedFields 0 "event plan missing IndexedValue indexed field"
+  let indexedTopicStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
+      toYulError
+      indexedField
+      0
+      #[Lean.Compiler.Yul.Expr.num 7])
+    "event plan-to-yul indexed scalar topic"
+  require (indexedTopicStmts.size == 1) "event plan-to-yul indexed scalar topic statement count"
+  match indexedTopicStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.lit lit)) => do
+      match vars[0]? with
+      | some var => require (var.name == "_indexed_topic0") "event plan-to-yul indexed scalar topic var"
+      | none => throw <| IO.userError "event plan-to-yul indexed scalar topic missing var"
+      require (lit.value == "7") "event plan-to-yul indexed scalar topic value"
+  | _ => throw <| IO.userError "event plan-to-yul indexed scalar topic must be var decl"
+  let aggregateTopicStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
+      toYulError
+      (EventFieldPlan.mk "values" (.fixedArray .u64 2) true)
+      1
+      #[Lean.Compiler.Yul.Expr.num 1, Lean.Compiler.Yul.Expr.num 2])
+    "event plan-to-yul indexed aggregate topic"
+  require (aggregateTopicStmts.size == 3) "event plan-to-yul indexed aggregate topic statement count"
+  match aggregateTopicStmts[2]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.builtin "keccak256" args)) => do
+      match vars[0]? with
+      | some var => require (var.name == "_indexed_topic1") "event plan-to-yul indexed aggregate topic var"
+      | none => throw <| IO.userError "event plan-to-yul indexed aggregate topic missing var"
+      require (args.size == 2) "event plan-to-yul indexed aggregate keccak arg count"
+  | _ => throw <| IO.userError "event plan-to-yul indexed aggregate topic must hash stored words"
   let logStmt ← requireOk
     (ProofForge.Backend.Evm.ToYul.eventLogStatement toYulError indexedEvent 1)
     "event plan-to-yul log statement"

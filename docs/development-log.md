@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM EventFieldPlan-To-Yul Topic Assembly Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `EventPlan.indexedFields` and `EventPlan.dataFields` helpers so event
+  lowering can consume planned field views instead of re-deriving them from
+  raw IR arrays.
+- Moved event data-word `mstore` assembly and indexed scalar/aggregate topic
+  assembly into `ProofForge.Backend.Evm.ToYul`.
+- Routed indexed event topic lowering through `EventFieldPlan -> ToYul`, while
+  preserving the compatibility facade for field expression evaluation and
+  aggregate flattening.
+- Extended `Tests/EvmSemanticPlan.lean` to assert scalar indexed-topic and
+  aggregate indexed-topic Yul statement shapes.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/event-ir-smoke.sh
+```
+
+Known limitations:
+
+- Field expression evaluation and aggregate flattening still happen in
+  `IR.lean`. The full event path is not yet a standalone `EventPlan -> Yul`
+  lowering pass.
+
+Next step:
+
+- Continue extracting field value planning/flattening, or switch to the next
+  high-impact semantic-plan slice such as storage effect writes.
+
 ### EmitWat Coverage Manifest CI Fix
 
 Commit: this commit

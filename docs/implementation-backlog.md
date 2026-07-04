@@ -301,6 +301,10 @@ Tasks:
     statement selection now consume `EventPlan -> ToYul` helpers. Event field
     value evaluation still uses the compatibility facade until data-word and
     indexed-topic expression assembly move fully behind `EventPlan -> Yul`.
+  - Started: event data-word store assembly and indexed scalar/aggregate topic
+    assembly now consume `EventFieldPlan -> ToYul` helpers. Field expression
+    evaluation and aggregate flattening still use the compatibility facade
+    until the complete event lowering path is expressed as an `EventPlan`.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

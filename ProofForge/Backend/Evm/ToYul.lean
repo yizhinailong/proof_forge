@@ -78,9 +78,7 @@ def eventIndexedTopicName (index : Nat) : String :=
   s!"_indexed_topic{index}"
 
 def eventIndexedFieldCount (event : EventPlan) : Nat :=
-  event.fields.foldl
-    (fun count field => if field.indexed then count + 1 else count)
-    0
+  event.indexedFields.size
 
 def eventLogBuiltinName
     {ε : Type}
@@ -106,6 +104,44 @@ def eventSignatureTopicStatements (event : EventPlan) : Array Lean.Compiler.Yul.
         Lean.Compiler.Yul.Expr.num 0,
         Lean.Compiler.Yul.Expr.num length
       ]))
+
+def eventDataStoreStatements (words : Array Lean.Compiler.Yul.Expr) : Array Lean.Compiler.Yul.Statement := Id.run do
+  let mut statements := #[]
+  for _h : idx in [0:words.size] do
+    statements := statements.push <|
+      .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[
+        Lean.Compiler.Yul.Expr.num (idx * 32),
+        words[idx]
+      ])
+  pure statements
+
+def eventIndexedTopicStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (field : EventFieldPlan)
+    (index : Nat)
+    (words : Array Lean.Compiler.Yul.Expr) :
+    Except ε (Array Lean.Compiler.Yul.Statement) := do
+  let topicName := eventIndexedTopicName index
+  match field.type with
+  | .u32 | .u64 | .bool | .hash =>
+      match words[0]? with
+      | some word =>
+          if words.size == 1 then
+            .ok #[.varDecl #[{ name := topicName }] (some word)]
+          else
+            .error (mkError s!"EVM indexed scalar event field `{field.name}` expected one data word, got {words.size}")
+      | none =>
+          .error (mkError s!"EVM indexed scalar event field `{field.name}` expected one data word, got 0")
+  | .fixedArray _ _ | .structType _ =>
+      .ok <| eventDataStoreStatements words |>.push
+        (.varDecl #[{ name := topicName }]
+          (some (Lean.Compiler.Yul.builtin "keccak256" #[
+            Lean.Compiler.Yul.Expr.num 0,
+            Lean.Compiler.Yul.Expr.num (words.size * 32)
+          ])))
+  | .unit =>
+      .error (mkError s!"EVM indexed event field `{field.name}` has unsupported Unit type")
 
 def eventLogStatement
     {ε : Type}

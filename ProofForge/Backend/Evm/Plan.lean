@@ -508,6 +508,16 @@ def EventPlan.signature : EventPlan → String
 def EventPlan.fields : EventPlan → Array EventFieldPlan
   | .mk _ _ fields => fields
 
+def EventPlan.indexedFields (event : EventPlan) : Array EventFieldPlan :=
+  event.fields.foldl
+    (fun acc field => if field.indexed then acc.push field else acc)
+    #[]
+
+def EventPlan.dataFields (event : EventPlan) : Array EventFieldPlan :=
+  event.fields.foldl
+    (fun acc field => if field.indexed then acc else acc.push field)
+    #[]
+
 /-! ## CrosscallHelperSpec / CreateHelperSpec: helper function specs (no ExprPlan) -/
 
 structure CrosscallHelperSpec where
