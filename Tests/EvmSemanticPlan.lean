@@ -6,6 +6,8 @@ import ProofForge.IR.Examples.EvmCrosscallProbe
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmStorageArrayProbe
 import ProofForge.IR.Examples.EvmStorageStructProbe
+import ProofForge.IR.Examples.EvmStructArrayValueProbe
+import ProofForge.IR.Examples.EvmStructValueProbe
 import ProofForge.IR.Examples.EventProbe
 
 namespace ProofForge.Tests.EvmSemanticPlan
@@ -1226,6 +1228,14 @@ def testScalarAssignmentPlanToYul : IO Unit := do
     { name := "xs", type := .fixedArray .u64 2, isMutable := true },
     { name := "n", type := .u64, isMutable := true }
   ]
+  let structEnv : TypeEnv := #[
+    { name := "p", type := .structType "Point", isMutable := true },
+    { name := "n", type := .u64, isMutable := true }
+  ]
+  let structArrayEnv : TypeEnv := #[
+    { name := "people", type := .fixedArray (.structType "Person") 2, isMutable := true },
+    { name := "n", type := .u64, isMutable := true }
+  ]
   let directAssignStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
       toYulError
@@ -1299,6 +1309,42 @@ def testScalarAssignmentPlanToYul : IO Unit := do
           require (name == "__proof_forge_array_xs_0") "static local-array compound assignment StmtPlan-to-Yul lhs"
       | _ => throw <| IO.userError "static local-array compound assignment lhs must be target ident"
   | _ => throw <| IO.userError "static local-array compound assignment StmtPlan-to-Yul helper must assign helper result"
+  let directStructAssignStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStructValueProbe.module structEnv expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStructValueProbe.module structEnv)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.assign
+        (.structField (.local "p") "x")
+        (.literalWord 21)))
+    "static local-struct field assignment StmtPlan-to-Yul helper"
+  require (directStructAssignStmts.size == 1) "static local-struct field assignment StmtPlan-to-Yul helper statement count"
+  match directStructAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.lit lit) => do
+      require (names == #["__proof_forge_struct_p_x"]) "static local-struct field assignment StmtPlan-to-Yul target"
+      require (lit.value == "21") "static local-struct field assignment StmtPlan-to-Yul value"
+  | _ => throw <| IO.userError "static local-struct field assignment StmtPlan-to-Yul helper must assign literal"
+  let directStructArrayAssignOpStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStructArrayValueProbe.module structArrayEnv expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStructArrayValueProbe.module structArrayEnv)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.assignOp
+        (.structField (.localArrayGet "people" #[.literalWord 1] #[2]) "score")
+        .add
+        (.local "n")))
+    "static local struct-array field compound assignment StmtPlan-to-Yul helper"
+  require (directStructArrayAssignOpStmts.size == 1) "static local struct-array field compound assignment StmtPlan-to-Yul helper statement count"
+  match directStructArrayAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["__proof_forge_array_struct_people_1_score"]) "static local struct-array field compound assignment StmtPlan-to-Yul target"
+      require (name == "__pf_checked_add") "static local struct-array field compound assignment StmtPlan-to-Yul helper"
+      require (args.size == 2) "static local struct-array field compound assignment StmtPlan-to-Yul arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.ident name =>
+          require (name == "__proof_forge_array_struct_people_1_score") "static local struct-array field compound assignment StmtPlan-to-Yul lhs"
+      | _ => throw <| IO.userError "static local struct-array field compound assignment lhs must be target ident"
+  | _ => throw <| IO.userError "static local struct-array field compound assignment StmtPlan-to-Yul helper must assign helper result"
   let assignStmts ← requireOk
     (lowerAssignStmt
       ProofForge.IR.Examples.Counter.module
@@ -1361,6 +1407,64 @@ def testScalarAssignmentPlanToYul : IO Unit := do
       require (name == "__pf_checked_add") "static local-array compound assignment plan-to-yul integration helper"
       require (args.size == 2) "static local-array compound assignment plan-to-yul integration arg count"
   | _ => throw <| IO.userError "static local-array compound assignment plan-to-yul integration must assign helper result"
+  let structAssignStmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      (.field (.local "p") "x")
+      (.add (.local "n") (.literal (.u64 1))))
+    "static local-struct field assignment plan-to-yul integration"
+  require (structAssignStmts.size == 1) "static local-struct field assignment plan-to-yul integration statement count"
+  match structAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["__proof_forge_struct_p_x"]) "static local-struct field assignment plan-to-yul integration target"
+      require (name == "__pf_checked_add") "static local-struct field assignment plan-to-yul integration helper"
+      require (args.size == 2) "static local-struct field assignment plan-to-yul integration arg count"
+  | _ => throw <| IO.userError "static local-struct field assignment plan-to-yul integration must assign helper result"
+  let structAssignOpStmts ← requireOk
+    (lowerAssignOpStmt
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      (.field (.local "p") "y")
+      .add
+      (.local "n"))
+    "static local-struct field compound assignment plan-to-yul integration"
+  require (structAssignOpStmts.size == 1) "static local-struct field compound assignment plan-to-yul integration statement count"
+  match structAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["__proof_forge_struct_p_y"]) "static local-struct field compound assignment plan-to-yul integration target"
+      require (name == "__pf_checked_add") "static local-struct field compound assignment plan-to-yul integration helper"
+      require (args.size == 2) "static local-struct field compound assignment plan-to-yul integration arg count"
+  | _ => throw <| IO.userError "static local-struct field compound assignment plan-to-yul integration must assign helper result"
+  let structArrayAssignStmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      structArrayEnv
+      (.field (.arrayGet (.local "people") (.literal (.u64 1))) "age")
+      (.add (.local "n") (.literal (.u64 1))))
+    "static local struct-array field assignment plan-to-yul integration"
+  require (structArrayAssignStmts.size == 1) "static local struct-array field assignment plan-to-yul integration statement count"
+  match structArrayAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["__proof_forge_array_struct_people_1_age"]) "static local struct-array field assignment plan-to-yul integration target"
+      require (name == "__pf_checked_add") "static local struct-array field assignment plan-to-yul integration helper"
+      require (args.size == 2) "static local struct-array field assignment plan-to-yul integration arg count"
+  | _ => throw <| IO.userError "static local struct-array field assignment plan-to-yul integration must assign helper result"
+  let structArrayAssignOpStmts ← requireOk
+    (lowerAssignOpStmt
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      structArrayEnv
+      (.field (.arrayGet (.local "people") (.literal (.u64 0))) "score")
+      .add
+      (.local "n"))
+    "static local struct-array field compound assignment plan-to-yul integration"
+  require (structArrayAssignOpStmts.size == 1) "static local struct-array field compound assignment plan-to-yul integration statement count"
+  match structArrayAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["__proof_forge_array_struct_people_0_score"]) "static local struct-array field compound assignment plan-to-yul integration target"
+      require (name == "__pf_checked_add") "static local struct-array field compound assignment plan-to-yul integration helper"
+      require (args.size == 2) "static local struct-array field compound assignment plan-to-yul integration arg count"
+  | _ => throw <| IO.userError "static local struct-array field compound assignment plan-to-yul integration must assign helper result"
 
 def testScalarControlFlowPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := true }]

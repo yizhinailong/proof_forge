@@ -4420,14 +4420,57 @@ def lowerDynamicLocalStructArrayFieldAssignOpStmt
         (arrayStructLocalFieldName name idx fieldName)
         (some op)]))
 
-def exprPlanIsStaticLocalArrayTarget : ProofForge.Backend.Evm.Plan.ExprPlan → Bool
+def exprPlanIsStaticAggregateScalarTarget : ProofForge.Backend.Evm.Plan.ExprPlan → Bool
   | .localArrayGet _ path _ =>
+      match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
+      | some _ => true
+      | none => false
+  | .structField (.local _) _ =>
+      true
+  | .structField (.localArrayGet _ path _) _ =>
       match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
       | some _ => true
       | none => false
   | _ => false
 
-def lowerStaticLocalArrayAssignmentPlan?
+def buildStaticAggregateScalarTargetPlan?
+    (module : Module)
+    (env : TypeEnv)
+    (target : ProofForge.IR.Expr) :
+    Except LowerError (Option ProofForge.Backend.Evm.Plan.ExprPlan) := do
+  match target with
+  | .field (.local name) fieldName =>
+      .ok (some (.structField (.local name) fieldName))
+  | _ =>
+      match collectLocalArrayFieldGetPath target with
+      | some (name, path, fieldName) => do
+          let some binding := findLocal? env name
+            | .error { message := s!"unknown local `{name}`" }
+          let (lengths, _) ← fixedArrayPathShape "assignment target fixed-array path" binding.type path
+          .ok <| some <| .structField
+            (.localArrayGet name
+              (← path.mapM fun index =>
+                match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) index with
+                | .ok plan => .ok plan
+                | .error err => .error { message := err.message })
+              lengths)
+            fieldName
+      | none =>
+          match collectLocalArrayGetPath target with
+          | some (name, path) => do
+              let some binding := findLocal? env name
+                | .error { message := s!"unknown local `{name}`" }
+              let (lengths, _) ← fixedArrayPathShape "assignment target fixed-array path" binding.type path
+              .ok <| some <| .localArrayGet name
+                (← path.mapM fun index =>
+                  match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) index with
+                  | .ok plan => .ok plan
+                  | .error err => .error { message := err.message })
+                lengths
+          | none =>
+              .ok none
+
+def lowerStaticAggregateScalarAssignmentPlan?
     (module : Module)
     (env : TypeEnv)
     (context : String)
@@ -4436,25 +4479,27 @@ def lowerStaticLocalArrayAssignmentPlan?
   if exprSupportsPlanScalarYul value then
     discard <| lowerAssignTargetName context target
     let targetPlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) target with
-      | .ok plan => .ok plan
-      | .error err => .error { message := err.message }
-    if exprPlanIsStaticLocalArrayTarget targetPlan then
-      let valuePlan ←
-        match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
-        | .ok plan => .ok plan
-        | .error err => .error { message := err.message }
-      let stmtPlan :=
-        match op? with
-        | none => ProofForge.Backend.Evm.Plan.StmtPlan.assign targetPlan valuePlan
-        | some op => ProofForge.Backend.Evm.Plan.StmtPlan.assignOp targetPlan op valuePlan
-      .ok <| some <| ← ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
-        toYulError
-        (fun expr => lowerExpr module env expr)
-        (lowerPlanEffectExpr module env)
-        stmtPlan
-    else
-      .ok none
+      buildStaticAggregateScalarTargetPlan? module env target
+    match targetPlan with
+    | some targetPlan =>
+      if exprPlanIsStaticAggregateScalarTarget targetPlan then
+        let valuePlan ←
+          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+          | .ok plan => .ok plan
+          | .error err => .error { message := err.message }
+        let stmtPlan :=
+          match op? with
+          | none => ProofForge.Backend.Evm.Plan.StmtPlan.assign targetPlan valuePlan
+          | some op => ProofForge.Backend.Evm.Plan.StmtPlan.assignOp targetPlan op valuePlan
+        .ok <| some <| ← ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          stmtPlan
+      else
+        .ok none
+    | none =>
+        .ok none
   else
     .ok none
 
@@ -4486,7 +4531,7 @@ def lowerAssignStmt
   | .arrayGet (.local name) index =>
       match literalArrayIndex? index with
       | some _ => do
-          match ← lowerStaticLocalArrayAssignmentPlan? module env "assignment target" target value none with
+          match ← lowerStaticAggregateScalarAssignmentPlan? module env "assignment target" target value none with
           | some statements => .ok statements
           | none => do
               let targetName ← lowerAssignTargetName "assignment target" target
@@ -4497,8 +4542,11 @@ def lowerAssignStmt
   | .field (.arrayGet (.local name) index) fieldName =>
       match literalArrayIndex? index with
       | some _ => do
-          let targetName ← lowerAssignTargetName "assignment target" target
-          .ok #[.assignment #[targetName] (← lowerScalarPlanExprOrFallback module env value)]
+          match ← lowerStaticAggregateScalarAssignmentPlan? module env "assignment target" target value none with
+          | some statements => .ok statements
+          | none => do
+              let targetName ← lowerAssignTargetName "assignment target" target
+              .ok #[.assignment #[targetName] (← lowerScalarPlanExprOrFallback module env value)]
       | none => do
           let (_, length, _) ← requireLocalFixedStructArrayField module env "assignment target" name fieldName
           .ok #[← lowerDynamicLocalStructArrayFieldAssignStmt module env name fieldName length index value]
@@ -4509,8 +4557,11 @@ def lowerAssignStmt
             let binding ← requireMutableLocal env "assignment target" name
             .ok #[← lowerDynamicLocalFixedArrayPathFieldAssignStmt module env name binding path fieldName none value]
           else
-            let targetName ← lowerAssignTargetName "assignment target" target
-            .ok #[.assignment #[targetName] (← lowerScalarPlanExprOrFallback module env value)]
+            match ← lowerStaticAggregateScalarAssignmentPlan? module env "assignment target" target value none with
+            | some statements => .ok statements
+            | none => do
+                let targetName ← lowerAssignTargetName "assignment target" target
+                .ok #[.assignment #[targetName] (← lowerScalarPlanExprOrFallback module env value)]
       | none =>
           match collectLocalArrayGetPath target with
           | some (name, path) =>
@@ -4518,14 +4569,17 @@ def lowerAssignStmt
                 let binding ← requireMutableLocal env "assignment target" name
                 .ok #[← lowerDynamicLocalFixedArrayPathAssignStmt module env name binding path none value]
               else
-                match ← lowerStaticLocalArrayAssignmentPlan? module env "assignment target" target value none with
+                match ← lowerStaticAggregateScalarAssignmentPlan? module env "assignment target" target value none with
                 | some statements => .ok statements
                 | none => do
                     let targetName ← lowerAssignTargetName "assignment target" target
                     .ok #[.assignment #[targetName] (← lowerScalarPlanExprOrFallback module env value)]
           | none =>
-              let targetName ← lowerAssignTargetName "assignment target" target
-              .ok #[.assignment #[targetName] (← lowerScalarPlanExprOrFallback module env value)]
+              match ← lowerStaticAggregateScalarAssignmentPlan? module env "assignment target" target value none with
+              | some statements => .ok statements
+              | none => do
+                  let targetName ← lowerAssignTargetName "assignment target" target
+                  .ok #[.assignment #[targetName] (← lowerScalarPlanExprOrFallback module env value)]
 
 def lowerAssignOpStmt
     (module : Module)
@@ -4558,7 +4612,7 @@ def lowerAssignOpStmt
   | .arrayGet (.local name) index =>
       match literalArrayIndex? index with
       | some _ => do
-          match ← lowerStaticLocalArrayAssignmentPlan? module env "compound assignment target" target value (some op) with
+          match ← lowerStaticAggregateScalarAssignmentPlan? module env "compound assignment target" target value (some op) with
           | some statements => .ok statements
           | none => do
               let targetName ← lowerAssignTargetName "compound assignment target" target
@@ -4569,8 +4623,11 @@ def lowerAssignOpStmt
   | .field (.arrayGet (.local name) index) fieldName =>
       match literalArrayIndex? index with
       | some _ => do
-          let targetName ← lowerAssignTargetName "compound assignment target" target
-          .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerScalarPlanExprOrFallback module env value))]
+          match ← lowerStaticAggregateScalarAssignmentPlan? module env "compound assignment target" target value (some op) with
+          | some statements => .ok statements
+          | none => do
+              let targetName ← lowerAssignTargetName "compound assignment target" target
+              .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerScalarPlanExprOrFallback module env value))]
       | none => do
           let (_, length, _) ← requireLocalFixedStructArrayField module env "compound assignment target" name fieldName
           .ok #[← lowerDynamicLocalStructArrayFieldAssignOpStmt module env name fieldName length index op value]
@@ -4581,8 +4638,11 @@ def lowerAssignOpStmt
             let binding ← requireMutableLocal env "compound assignment target" name
             .ok #[← lowerDynamicLocalFixedArrayPathFieldAssignStmt module env name binding path fieldName (some op) value]
           else
-            let targetName ← lowerAssignTargetName "compound assignment target" target
-            .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerScalarPlanExprOrFallback module env value))]
+            match ← lowerStaticAggregateScalarAssignmentPlan? module env "compound assignment target" target value (some op) with
+            | some statements => .ok statements
+            | none => do
+                let targetName ← lowerAssignTargetName "compound assignment target" target
+                .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerScalarPlanExprOrFallback module env value))]
       | none =>
           match collectLocalArrayGetPath target with
           | some (name, path) =>
@@ -4590,14 +4650,17 @@ def lowerAssignOpStmt
                 let binding ← requireMutableLocal env "compound assignment target" name
                 .ok #[← lowerDynamicLocalFixedArrayPathAssignStmt module env name binding path (some op) value]
               else
-                match ← lowerStaticLocalArrayAssignmentPlan? module env "compound assignment target" target value (some op) with
+                match ← lowerStaticAggregateScalarAssignmentPlan? module env "compound assignment target" target value (some op) with
                 | some statements => .ok statements
                 | none => do
                     let targetName ← lowerAssignTargetName "compound assignment target" target
                     .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerScalarPlanExprOrFallback module env value))]
           | none =>
-              let targetName ← lowerAssignTargetName "compound assignment target" target
-              .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerScalarPlanExprOrFallback module env value))]
+              match ← lowerStaticAggregateScalarAssignmentPlan? module env "compound assignment target" target value (some op) with
+              | some statements => .ok statements
+              | none => do
+                  let targetName ← lowerAssignTargetName "compound assignment target" target
+                  .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerScalarPlanExprOrFallback module env value))]
 
 mutual
   partial def statementAlwaysReturns : Statement → Bool

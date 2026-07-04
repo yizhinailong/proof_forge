@@ -317,12 +317,13 @@ Tasks:
   - Started: direct scalar local assignment and compound-assignment statement
     assembly now consumes a narrow `StmtPlan -> ToYul` helper when the RHS is in
     the supported scalar plan subset. Static local fixed-array element
-    assignment and compound-assignment targets now also use the same
+    assignment, static local struct-field assignment, and static local
+    struct-array field assignment targets now also use the same
     `StmtPlan.assign`/`StmtPlan.assignOp -> ToYul` helper through
-    `ExprPlan.localArrayGet`. Whole-aggregate assignment, static struct-field
-    aggregate target paths, dynamic aggregate helper snapshots, and non-scalar
-    storage effect writes remain on their existing compatibility paths until
-    their own migration slices add coverage.
+    `ExprPlan.localArrayGet` and `ExprPlan.structField`. Whole-aggregate
+    assignment, dynamic aggregate helper snapshots, and non-scalar storage
+    effect writes remain on their existing compatibility paths until their own
+    migration slices add coverage.
   - Started: scalar `storageScalarWrite` and `storageScalarAssignOp` statement
     assembly now consumes a narrow `StmtPlan.effect` / `EffectPlan -> ToYul`
     helper for supported scalar value expressions. State-layout slot resolution

@@ -10900,7 +10900,7 @@ Result:
 
 ### EVM Static Local Array Assignment ToYul Slice
 
-Commit: feature commit for EVM static local-array assignment ToYul
+Commit: `d4e547d feat: move evm static array assignments to toyul`
 
 Summary:
 
@@ -10937,3 +10937,36 @@ Result:
 - Array-value and struct-array-value Foundry smokes still pass.
 - Full `lake build` passed locally with the existing `ProofForge/Cli.lean`
   unused-variable warning.
+
+### EVM Static Struct Field Assignment ToYul Slice
+
+Commit: feature commit for EVM static struct-field assignment ToYul
+
+Summary:
+
+- Extended `ToYul.scalarAssignmentStmtPlanStatements` so
+  `StmtPlan.assign`/`StmtPlan.assignOp` can target static local struct fields
+  and static local struct-array fields, not only scalar locals and scalar
+  local-array leaves.
+- Generalized the static assignment target planner in `IR.lean` so compatible
+  local struct-field and struct-array field assignments build
+  `ExprPlan.structField` targets before final Yul emission.
+- Kept dynamic aggregate field assignment frames and whole-aggregate assignment
+  blocks on their existing `ToYul` helpers; this slice only moves scalar field
+  targets through the narrow scalar assignment helper.
+- Added semantic-plan tests for direct `ToYul` struct-field targets and
+  `lowerAssignStmt` / `lowerAssignOpStmt` integration for local struct and
+  static struct-array fields.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+```
+
+Result:
+
+- Static local struct-field and static local struct-array field assignment
+  targets now lower through `StmtPlan.assign`/`StmtPlan.assignOp -> ToYul`.
+- Targeted EVM semantic-plan build and test passed locally.

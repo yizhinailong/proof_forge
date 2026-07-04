@@ -1453,8 +1453,15 @@ def scalarAssignmentTargetName
         | .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected a static local-array target")
       validateLocalArrayStaticPath mkError name staticPath lengths
       .ok (arrayLocalPathName name staticPath)
+  | .structField (.local name) fieldName =>
+      .ok (structLocalFieldName name fieldName)
+  | .structField (.localArrayGet name path lengths) fieldName => do
+      let some staticPath := localArrayStaticPath? path
+        | .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected a static local-array struct-field target")
+      validateLocalArrayStaticPath mkError name staticPath lengths
+      .ok (arrayStructLocalPathFieldName name staticPath fieldName)
   | _ =>
-      .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected a local or static local-array target")
+      .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected a local, static local-array, or static struct-field target")
 
 def scalarAssignmentStmtPlanStatements
     {ε : Type}
