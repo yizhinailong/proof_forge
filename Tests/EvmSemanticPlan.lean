@@ -29,6 +29,13 @@ def requireOk {α : Type} (result : Except LowerError α) (message : String) : I
   | .ok x => pure x
   | .error err => throw <| IO.userError s!"{message}: {err.message}"
 
+def requireValidateOk {α : Type}
+    (result : Except ProofForge.Backend.Evm.Validate.LowerError α)
+    (message : String) : IO α :=
+  match result with
+  | .ok x => pure x
+  | .error err => throw <| IO.userError s!"{message}: {err.message}"
+
 def testCounterSemanticPlan : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
   require (plan.name == "Counter") "counter plan name"
@@ -144,6 +151,33 @@ def testEventSemanticPlan : IO Unit := do
           require (topicName == "_indexed_topic0") "event plan-to-yul indexed topic arg"
       | _ => throw <| IO.userError "event plan-to-yul indexed log topic must be identifier"
   | _ => throw <| IO.userError "event plan-to-yul log must be expr statement"
+
+def testERC20StandardEventSignatureTypes : IO Unit := do
+  let module := ProofForge.IR.Examples.Counter.module
+  let transferFrom ← requireValidateOk
+    (ProofForge.Backend.Evm.Validate.eventSignatureFieldType module "Transfer" "from" .u64)
+    "erc20 Transfer.from event ABI type"
+  require (transferFrom == "address") "erc20 Transfer.from must stay address"
+  let transferValue ← requireValidateOk
+    (ProofForge.Backend.Evm.Validate.eventSignatureFieldType module "Transfer" "value" .u64)
+    "erc20 Transfer.value event ABI type"
+  require
+    (transferValue == "uint256")
+    "erc20 Transfer.value must stay Solidity/ERC-20 uint256"
+  let approvalOwner ← requireValidateOk
+    (ProofForge.Backend.Evm.Validate.eventSignatureFieldType module "Approval" "owner" .u64)
+    "erc20 Approval.owner event ABI type"
+  require (approvalOwner == "address") "erc20 Approval.owner must stay address"
+  let approvalValue ← requireValidateOk
+    (ProofForge.Backend.Evm.Validate.eventSignatureFieldType module "Approval" "value" .u64)
+    "erc20 Approval.value event ABI type"
+  require
+    (approvalValue == "uint256")
+    "erc20 Approval.value must stay Solidity/ERC-20 uint256"
+  let defaultValue ← requireValidateOk
+    (ProofForge.Backend.Evm.Validate.eventSignatureFieldType module "ValueEvent" "value" .u64)
+    "default event ABI type"
+  require (defaultValue == "uint64") "non-ERC20 U64 event fields must stay uint64"
 
 def testArtifactMetadata : IO Unit := do
   let artifactMeta ← requireOk (buildPlanArtifactMetadata ProofForge.IR.Examples.Counter.module) "counter artifact metadata"
@@ -438,6 +472,7 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
 def main : IO UInt32 := do
   testCounterSemanticPlan
   testEventSemanticPlan
+  testERC20StandardEventSignatureTypes
   testArtifactMetadata
   testDeployMetadata
   testSemanticPlanRender

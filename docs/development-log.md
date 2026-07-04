@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Example CI Import Prebuild Fix
+
+Commit: this commit
+
+Summary:
+
+- Fixed `scripts/evm/build-examples.sh` so a clean checkout prebuilds the
+  `ProofForge.*` modules imported by EVM example contracts before invoking the
+  `proof-forge` frontend.
+- Moved the ERC-20 `Transfer`/`Approval` event ABI compatibility override into
+  the plan-side validation path so `EventPlan` keeps standard
+  `address,address,uint256` signatures instead of silently deriving `uint64`
+  topics from the portable scalar type.
+- Added a semantic-plan regression covering ERC-20 standard event field ABI
+  mapping and the default non-ERC20 `U64 -> uint64` event mapping.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Validate
+just evm-semantic-plan
+scripts/evm/build-examples.sh
+```
+
+Known limitations:
+
+- This does not remove the duplicate compatibility implementation in
+  `ProofForge.Backend.Evm.IR`; it only keeps the new `Validate`/`Lower` path
+  semantically aligned while the facade still exists.
+
+Next step:
+
+- Continue the EVM semantic-plan migration by moving another storage write
+  shape, such as map or array writes, through `ExprPlan -> ToYul`.
+
 ### EVM Scalar Storage Effect Plan-To-Yul Slice
 
 Commit: this commit

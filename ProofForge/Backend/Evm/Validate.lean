@@ -129,18 +129,47 @@ def packedUtf8Words (value : String) : Array Nat × Nat := Id.run do
   pure (words, bytes.size)
 
 partial def eventSignatureFieldType (module : Module) (eventName fieldName : String) (type : ValueType) : Except LowerError String :=
-  match type with
-  | .u32 => .ok "uint32"
-  | .u64 => .ok "uint64"
-  | .bool => .ok "bool"
-  | .hash => .ok "bytes32"
-  | .fixedArray elementType length => do
-      if length == 0 then
-        .error { message := s!"event `{eventName}` field `{fieldName}` uses Array<{elementType.name},0>; event fixed arrays must have non-zero length" }
-      match elementType with
-      | .fixedArray _ _ => do
-          let elementName ← eventSignatureFieldType module eventName fieldName elementType
-          .ok (elementName ++ s!"[{length}]")
+  let erc20FieldType? : Option String :=
+    if eventName == "Transfer" then
+      if fieldName == "from" || fieldName == "to" then some "address"
+      else if fieldName == "value" then some "uint256" else none
+    else if eventName == "Approval" then
+      if fieldName == "owner" || fieldName == "spender" then some "address"
+      else if fieldName == "value" then some "uint256" else none
+    else none
+  match erc20FieldType? with
+  | some abiType => .ok abiType
+  | none =>
+      match type with
+      | .u32 => .ok "uint32"
+      | .u64 => .ok "uint64"
+      | .bool => .ok "bool"
+      | .hash => .ok "bytes32"
+      | .fixedArray elementType length => do
+          if length == 0 then
+            .error { message := s!"event `{eventName}` field `{fieldName}` uses Array<{elementType.name},0>; event fixed arrays must have non-zero length" }
+          match elementType with
+          | .fixedArray _ _ => do
+              let elementName ← eventSignatureFieldType module eventName fieldName elementType
+              .ok (elementName ++ s!"[{length}]")
+          | .structType typeName => do
+              let some decl := module.structs.find? fun decl => decl.name == typeName
+                | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
+              if decl.fields.isEmpty then
+                .error { message := s!"event `{eventName}` field `{fieldName}` uses empty struct `{typeName}`; event structs must have at least one field" }
+              let mut parts := #[]
+              for field in decl.fields do
+                match field.type with
+                | .u32 | .u64 | .bool | .hash =>
+                    parts := parts.push (← eventSignatureFieldType module eventName s!"{fieldName}.{field.id}" field.type)
+                | .unit | .fixedArray _ _ | .structType _ =>
+                    .error {
+                      message := s!"event `{eventName}` field `{fieldName}` struct `{typeName}` field `{field.id}` has unsupported EVM IR v0 event type `{field.type.name}`; event structs must be flat U32, U64, Bool, or Hash fields"
+                    }
+              .ok ("(" ++ String.intercalate "," parts.toList ++ ")" ++ s!"[{length}]")
+          | _ => do
+              let elementName ← eventSignatureFieldType module eventName fieldName elementType
+              .ok (elementName ++ s!"[{length}]")
       | .structType typeName => do
           let some decl := module.structs.find? fun decl => decl.name == typeName
             | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
@@ -155,27 +184,9 @@ partial def eventSignatureFieldType (module : Module) (eventName fieldName : Str
                 .error {
                   message := s!"event `{eventName}` field `{fieldName}` struct `{typeName}` field `{field.id}` has unsupported EVM IR v0 event type `{field.type.name}`; event structs must be flat U32, U64, Bool, or Hash fields"
                 }
-          .ok ("(" ++ String.intercalate "," parts.toList ++ ")" ++ s!"[{length}]")
-      | _ => do
-          let elementName ← eventSignatureFieldType module eventName fieldName elementType
-          .ok (elementName ++ s!"[{length}]")
-  | .structType typeName => do
-      let some decl := module.structs.find? fun decl => decl.name == typeName
-        | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
-      if decl.fields.isEmpty then
-        .error { message := s!"event `{eventName}` field `{fieldName}` uses empty struct `{typeName}`; event structs must have at least one field" }
-      let mut parts := #[]
-      for field in decl.fields do
-        match field.type with
-        | .u32 | .u64 | .bool | .hash =>
-            parts := parts.push (← eventSignatureFieldType module eventName s!"{fieldName}.{field.id}" field.type)
-        | .unit | .fixedArray _ _ | .structType _ =>
-            .error {
-              message := s!"event `{eventName}` field `{fieldName}` struct `{typeName}` field `{field.id}` has unsupported EVM IR v0 event type `{field.type.name}`; event structs must be flat U32, U64, Bool, or Hash fields"
-            }
-      .ok ("(" ++ String.intercalate "," parts.toList ++ ")")
-  | .unit =>
-      .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays" }
+          .ok ("(" ++ String.intercalate "," parts.toList ++ ")")
+      | .unit =>
+          .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays" }
 
 def ensureIndexedEventFieldType
     (module : Module)

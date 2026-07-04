@@ -29,7 +29,30 @@ mkdir -p "$OUT_DIR"
 # Keep the CLI executable and importable contract modules fresh when this script
 # is run directly. The examples may import stdlib modules that the executable
 # does not depend on.
-(cd "$ROOT" && lake build proof-forge ProofForge.Contract >/dev/null)
+prebuild_targets=(proof-forge)
+has_prebuild_target() {
+  local target="$1"
+  local existing
+  for existing in "${prebuild_targets[@]}"; do
+    if [[ "$existing" == "$target" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+while IFS= read -r -d '' lean_file; do
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^import[[:space:]]+(ProofForge[A-Za-z0-9_.]*) ]]; then
+      module="${BASH_REMATCH[1]}"
+      if ! has_prebuild_target "$module"; then
+        prebuild_targets+=("$module")
+      fi
+    fi
+  done < "$lean_file"
+done < <(find "$CONTRACTS_DIR" -name '*.lean' -print0 | sort -z)
+
+(cd "$ROOT" && lake build "${prebuild_targets[@]}" >/dev/null)
 
 is_contract_source() {
   local lean_file="$1"
