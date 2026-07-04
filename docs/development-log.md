@@ -11815,3 +11815,39 @@ Result:
   expressions already represented by `ExprPlan.create`.
 - EVM semantic-plan, diagnostics, crosscall/create IR smoke, full Lake build,
   and whitespace checks passed locally.
+
+### EVM Planned Map Reads In Control-Flow Bodies
+
+Commit: 92d5bad
+
+Summary:
+
+- Extended plan-effect expression lowering so `EffectPlan.storageMapContains`
+  and `EffectPlan.storageMapGet` can lower from planned keys inside scalar
+  control-flow bodies.
+- Added planned map read slot construction using `__proof_forge_map_slot` and
+  `__proof_forge_map_presence_slot`, keeping key lowering on the
+  `ExprPlan -> ToYul` path.
+- Added a semantic-plan regression that builds an IR `ifElse`, binds
+  `storageMapContains` in one branch and `storageMapGet` in the other, verifies
+  planned body construction, and checks the emitted Yul AST uses the expected
+  map slot helpers.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/map-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Result:
+
+- Planned control-flow bodies now cover expression-position map contains/get
+  reads already represented by `EffectPlan`.
+- EVM semantic-plan, diagnostics, map IR smoke, full Lake build, and whitespace
+  checks passed locally.
