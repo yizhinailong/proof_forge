@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-04
 
+### FV-4 NEAR EmitWat Artifact Surface Anchor
+
+Commit: this commit
+
+Summary:
+
+- Added a decide-checkable NEAR/Wasm artifact-surface obligation in
+  `ProofForge.Backend.WasmNear.Refinement`.
+- The new obligation inspects the `Compiler.Wasm.AST` produced by
+  `EmitWat.lowerModule` instead of matching WAT text. It pins the Counter
+  artifact's required host imports, exported entrypoint call sequences,
+  helper-function calls into NEAR storage/return host functions, memory export,
+  and the `count` storage-key data segment.
+- Wired `counter_emitwat_artifact_surface_ok` into
+  `Tests/NearWasmFormal.lean`, advancing the NEAR FV-4 path beyond export-name
+  coverage while keeping the claim below full Wasm semantic preservation.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+git diff --check
+```
+
+Known limitations:
+
+- This is an AST-level artifact-surface proof, not a full Wasm evaluator or a
+  theorem about `wat2wasm`, Wasmtime, or the NEAR runtime.
+- It covers the Counter artifact first. ValueVault and richer EmitWat fixtures
+  still need their own NEAR FV-4 obligations.
+
+Next step:
+
+- Extend the NEAR FV-4 surface from Counter to ValueVault, then connect the
+  offline-host execution trace shape to the same observable IR trace boundary.
+
 ### FV-2 IR Semantics Metatheory Anchors
 
 Commit: this commit

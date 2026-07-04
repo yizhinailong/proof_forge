@@ -51,6 +51,7 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.Tests.NearWasmFormal.release_then_sum_ownership_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_ir_observable_trace_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_exports_trace_entrypoints
+#check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_artifact_surface_ok
 #check ProofForge.Backend.Evm.Refinement.evm_map_ir_observable_trace_ok
 #check ProofForge.Backend.Evm.Refinement.evm_map_contains_ir_observable_trace_ok
 #check ProofForge.Backend.Evm.Refinement.conditional_ir_observable_trace_ok
@@ -63,5 +64,5 @@ theorem release_then_sum_ownership_ok :
 end ProofForge.Tests.NearWasmFormal
 
 def main : IO UInt32 := do
-  IO.println "formal-anchors: NEAR scalar and EVM FV-2/FV-4 IR trace anchors checked"
+  IO.println "formal-anchors: NEAR artifact surface and EVM FV-2/FV-4 IR trace anchors checked"
   return 0

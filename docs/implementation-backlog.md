@@ -45,7 +45,7 @@ disposition is:
 |---|---|---|
 | R1: RFC 0009 and D-039 lagged behind the landed CLI M1 work | Closed on current `main`: RFC 0009 is accepted with M1/M3 landed, and D-039 now ratifies the compatibility-layer implementation instead of claiming a pre-code freeze | Keep RFC 0009 and CLI migration docs synchronized as M4 legacy-alias removal is scheduled |
 | R2: too many half-finished workstreams are active | Accepted as a planning risk | Gate P0 is closed and CLI M3 is now guarded by `just cli-target-first`; keep M4 alias removal behind the compatibility window and avoid opening Tier-1 M3/M4 work implicitly |
-| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, NEAR trace obligations, EVM FV-4 executable Yul trace anchors, and FV-2 aggregate/storage/map/control-flow IR traces exist, but full IR-to-artifact semantic preservation is not done. The EVM map/storage/aggregate/control-flow slices now connect covered FV-2 IR traces to executable Yul obligations. | Extend FV-2 over observable event-log traces, deepen NEAR from export coverage toward artifact execution obligations, and then connect user-level invariants to the covered IR semantics |
+| R3: no end-to-end proof connects user invariants to generated artifacts | Partially accepted: source-level proofs, FV-2 aggregate/storage/map/control-flow/event-log IR traces, NEAR trace obligations plus the first Counter EmitWat artifact-surface obligation, and EVM FV-4 executable Yul trace anchors exist, but full IR-to-artifact semantic preservation is not done. The EVM map/storage/aggregate/control-flow/event slices now connect covered FV-2 IR traces to executable Yul obligations. | Extend NEAR FV-4 from Counter artifact-surface checks toward offline-host execution obligations, then connect user-level invariants to the covered IR semantics |
 | R4: capability granularity is too coarse | Do not churn capability ids in the current phase; storage is already split into scalar/map/array/PDA, and Solana account semantics are modeled separately from storage patterns | Treat cross-target runtime differences as budget/diagnostic obligations: each target must reject unsupported shapes explicitly and pin resource budgets for supported ones |
 | R5: docs-first target notes create hidden sunk cost | Closed at the scheduling layer: D-045 and the target roadmap restricted product hardening to `solana-sbpf-asm`, `evm`, and `wasm-near` until Gate P0 closed | Keep research notes as inventory; schedule Tier-1 M3/M4 explicitly rather than letting old research notes create automatic implementation scope |
 | R6: Lean/toolchain onboarding friction | Partially closed: `docs/onboarding.md` exists and names the core toolchain and per-target tools, but editor workspace config, templates, and scaffolding remain open DX work | Add VS Code/Cursor workspace recommendations and a minimal project template after the NEAR/Wasm P0-3 closure, unless onboarding friction blocks P0 work earlier |
@@ -59,12 +59,13 @@ The immediate engineering order after this review is therefore:
    and runs the target-first mapping regression suite. M4 legacy flag removal
    remains intentionally deferred until the RFC 0009 compatibility window.
 3. Continue formal verification work: FV-2 now has aggregate/storage executable
-   traces, state-threaded map insert/set lifecycle traces, and control-flow
-   traces for `ifElse`/`boundedFor`. The covered EVM
-   map/storage/aggregate/control-flow obligations compare those IR traces
-   against executable emitted Yul. Next extend FV-2 over observable event-log
-   traces and deepen NEAR from export coverage toward artifact execution
-   obligations.
+   traces, state-threaded map insert/set lifecycle traces, control-flow traces
+   for `ifElse`/`boundedFor`, observable event-log traces, and determinism plus
+   bounded-loop measure anchors. The covered EVM
+   map/storage/aggregate/control-flow/event obligations compare those IR traces
+   against executable emitted Yul. NEAR now has a Counter EmitWat AST
+   artifact-surface obligation; next extend that FV-4 path toward offline-host
+   execution obligations.
 4. Address the remaining DX items (`.vscode` recommendations, project template,
    and scaffolding) once they no longer compete with the P0 closure.
 
@@ -2086,9 +2087,10 @@ Tasks (see the roadmap for full statements):
   Done: executable aggregate/storage slices for fixed arrays, struct values,
   aggregate ABI params/returns, storage arrays, storage struct fields, nested
   storage paths, state-threaded effectful expressions covering map insert/set
-  lifecycles, and control-flow execution for `ifElse` plus `boundedFor`.
-  Remaining: model events as observable log traces, then prove determinism plus
-  bounded-loop termination.
+  lifecycles, control-flow execution for `ifElse` plus `boundedFor`,
+  observable event-log traces, deterministic-result anchors, and a
+  bounded-loop decreasing-measure anchor. Remaining: progress/preservation for
+  the validated typed subset.
 - FV-3: prove the `IR/Ownership.lean` checker sound against release-aware
   semantics (no use-after-release, no double release), justifying the three
   divergent `release` lowerings (EmitWat allocator, EVM/Psy reject, TS
@@ -2112,12 +2114,15 @@ Tasks (see the roadmap for full statements):
   (storage structs and arrays of flat structs), `EvmAbiAggregateProbe`
   (aggregate ABI params/returns), `ConditionalProbe` (if/else storage updates),
   and `EvmLoopProbe` (bounded loops plus branch/loop early returns). The covered
-  FV-2 IR aggregate/storage/map/control-flow traces are now wired into those EVM
+  FV-2 IR aggregate/storage/map/control-flow/event traces are now wired into those EVM
   obligations through explicit IR call arguments and `*_ir_observable_trace_ok`
   theorem anchors, so the same observable return words are checked on the IR
-  side and the executable emitted-Yul side. Next: extend FV-2 over observable
-  event-log traces, deepen NEAR from export coverage toward artifact execution
-  obligations, and keep Psy/Solana on differential gates until their
+  side and the executable emitted-Yul side. NEAR now has a Counter
+  artifact-surface obligation over the `Compiler.Wasm.AST` produced by
+  `EmitWat.lowerModule`, pinning entrypoint/helper host-boundary calls, memory,
+  and storage-key data before WAT printing. Next: extend NEAR FV-4 from this
+  artifact surface toward offline-host execution obligations, and keep
+  Psy/Solana on differential gates until their
   interpreters exist.
 - FV-5: state checked-arithmetic overflow/division semantics once in the IR
   value domain and add the overflow branch to backend obligations.
