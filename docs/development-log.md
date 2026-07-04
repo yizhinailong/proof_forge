@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Storage Crosscall Arg Plan Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ExprPlan.storageCrosscallWords` as an explicit semantic-plan node for
+  storage-backed aggregate crosscall arguments.
+- Extended `Lower.buildExprPlan` so `storage.scalar.read` of a struct state
+  used as a typed/value/static/delegate crosscall argument is represented as
+  `ExprPlan.storageCrosscallWords` instead of an opaque aggregate expression.
+- Updated `IR.lowerExprPlanExpr` to consume the planned storage-backed word
+  node by expanding the struct storage slots before selecting the scalar
+  crosscall helper-call arity.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+just evm-diagnostics
+scripts/evm/crosscall-ir-smoke.sh
+lake build proof-forge
+lake build
+```
+
+Known limitations:
+
+- Storage-backed aggregate crosscall argument planning currently covers scalar
+  struct storage reads only; other non-literal aggregate sources still lower
+  through the compatibility facade.
+- `ToYul.exprPlanExpr` remains scalar-only for standalone word-expansion nodes;
+  crosscall expression lowering expands planned words before selecting the
+  helper-call constructor.
+
+Next step:
+
+- Continue extracting aggregate return word-layout discovery out of `IR.lean`,
+  or introduce semantic-plan nodes for the remaining non-literal aggregate
+  crosscall argument sources.
+
 ### EVM Literal Crosscall Arg Plan Slice
 
 Commit: this commit
@@ -48,17 +92,18 @@ lake build
 
 Known limitations:
 
-- Storage-backed and other non-literal aggregate crosscall argument sources
-  still lower through the compatibility facade.
+- Storage-backed scalar struct crosscall argument sources are handled by the
+  later semantic-plan slice; other non-literal aggregate crosscall argument
+  sources still lower through the compatibility facade.
 - `ToYul.exprPlanExpr` remains scalar-only for standalone aggregate
   expression plans; crosscall expression lowering expands planned words before
   selecting the helper-call constructor.
 
 Next step:
 
-- Move storage-backed aggregate crosscall argument sources behind an explicit
-  plan node, or continue extracting aggregate return word-layout discovery out
-  of `IR.lean`.
+- Continue extracting aggregate return word-layout discovery out of `IR.lean`,
+  or introduce semantic-plan nodes for the remaining non-literal aggregate
+  crosscall argument sources.
 
 ### EVM Local Crosscall Arg Plan Slice
 

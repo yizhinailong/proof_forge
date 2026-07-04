@@ -142,6 +142,9 @@ mutual
             | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
           plans := plans.push (← buildExprPlan module env field.snd)
         .ok plans
+    | .effect (.storageScalarRead stateId) => do
+        ensureType context (.structType typeName) (← scalarStateType module stateId)
+        .ok #[.storageCrosscallWords stateId (.structType typeName)]
     | _ =>
         .ok #[← buildExprPlan module env arg]
 

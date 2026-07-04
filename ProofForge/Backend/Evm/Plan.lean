@@ -444,6 +444,7 @@ mutual
     | cast (source : ExprPlan) (target : ValueType)
     | localAbiWords (name : String) (type : ValueType)
     | localCrosscallWords (name : String) (type : ValueType)
+    | storageCrosscallWords (stateId : String) (type : ValueType)
     | structField (base : ExprPlan) (fieldName : String)
     | arrayGet (array index : ExprPlan)
     | localArrayGet (name : String) (path : Array ExprPlan) (lengths : Array Nat)

@@ -789,6 +789,37 @@ def testScalarExprPlanToYul : IO Unit := do
     "__proof_forge_crosscall_2"
     4
     "local aggregate crosscall argument ExprPlan-to-Yul"
+  let aggregateStorageArgPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[.effect (.storageScalarRead "current")]
+        .u64))
+    "storage-backed aggregate crosscall argument Lower ExprPlan"
+  match aggregateStorageArgPlan with
+  | .crosscall .call _ _ none args .u64 => do
+      require (args.size == 1) "storage-backed aggregate crosscall argument plan word group count"
+      let argPlan ← requireAt args 0 "storage-backed aggregate crosscall argument missing plan"
+      match argPlan with
+      | .storageCrosscallWords stateId type => do
+          require (stateId == "current") "storage-backed aggregate crosscall argument plan state id"
+          require (type == .structType "Point") "storage-backed aggregate crosscall argument plan type"
+      | _ => throw <| IO.userError "storage-backed aggregate crosscall argument must use storageCrosscallWords plan"
+  | _ => throw <| IO.userError "storage-backed aggregate crosscall argument must lower to call plan"
+  let aggregateStorageArgPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      #[{ name := "target", type := .u64, isMutable := false }]
+      aggregateStorageArgPlan)
+    "storage-backed aggregate crosscall argument ExprPlan-to-Yul"
+  requireCallExpr
+    aggregateStorageArgPlanExpr
+    "__proof_forge_crosscall_2"
+    4
+    "storage-backed aggregate crosscall argument ExprPlan-to-Yul"
   let aggregateStructLiteralArgPlan ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.buildExprPlan
       ProofForge.IR.Examples.EvmStructValueProbe.module
