@@ -1231,6 +1231,14 @@ fixture 与这些共享 module 对比。ValueVault 还会比较从共享 `.lean`
 `.learn` fixture 渲染出的 Solana package manifest，因此当前 shared scenario
 的等价门禁覆盖 portable state、entrypoint、event 以及 package-facing metadata。
 
+当前 CS-1.5/CS-4.1 starter template 切片：`templates/portable-counter`
+现在是可直接 target-first build 的 `contract_source` starter。它的 namespace
+与文件 basename 对齐，因此 `ContractLoader` 可以在不额外传 CLI flag 的情况下解析
+生成的 `Counter.spec`；README 也改为直接用模板源文件运行
+`proof-forge build --target ...`，分别生成 EVM、Solana sBPF assembly 和
+NEAR/Wasm 制品。现有 `portable-counter-multi-target` smoke 可以通过设置
+`PORTABLE_COUNTER_SOURCE=templates/portable-counter/Counter.lean` 来验证该模板。
+
 ### 阶段 CS-2 — EVM stdlib 的 `contract_source` 化
 
 重点：用可 import 的 `contract_source` 模块替换 Builder 字符串 stdlib。

@@ -2566,6 +2566,14 @@ against the manifest rendered from the legacy `.learn` fixture, so the
 equivalence gate covers portable state, entrypoints, events, and package-facing
 metadata for the current shared scenario.
 
+Current CS-1.5/CS-4.1 starter-template slice: `templates/portable-counter`
+is now a direct target-first `contract_source` starter. Its namespace matches
+the file basename so `ContractLoader` can resolve the generated `Counter.spec`
+without extra CLI flags, and its README uses `proof-forge build --target ...`
+against the template source for EVM, Solana sBPF assembly, and NEAR/Wasm. The
+existing `portable-counter-multi-target` smoke can validate the template by
+setting `PORTABLE_COUNTER_SOURCE=templates/portable-counter/Counter.lean`.
+
 ### Phase CS-2 — EVM stdlib in `contract_source`
 
 Focus: replace Builder-string stdlib with importable `contract_source` modules.

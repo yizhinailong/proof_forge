@@ -13,14 +13,26 @@ lake env lean templates/portable-counter/Counter.lean
 
 ## Target-First Emission
 
-The current CLI migration still routes multi-target Counter emission through
-the built-in `counter` fixture registry. Use these commands to validate the
-same portable contract shape against concrete targets:
+Use the same `.lean` source file for every primary target. The `--target`
+value selects the backend and artifact shape; the contract source stays
+chain-neutral.
 
 ```sh
-lake env proof-forge emit --target evm --fixture counter --format yul -o build/portable-counter/evm/Counter.yul
-lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format s -o build/portable-counter/solana/Counter.s
-lake env proof-forge emit --target wasm-near --fixture counter --format wat -o build/portable-counter/near
+lake env proof-forge build --target evm --root . \
+  -o build/portable-counter-template/Counter.bin \
+  --yul-output build/portable-counter-template/Counter.yul \
+  --artifact-output build/portable-counter-template/Counter.proof-forge-artifact.json \
+  templates/portable-counter/Counter.lean
+
+lake env proof-forge build --target solana-sbpf-asm --root . \
+  -o build/portable-counter-template/Counter.s \
+  --artifact-output build/portable-counter-template/Counter.solana-artifact.json \
+  templates/portable-counter/Counter.lean
+
+lake env proof-forge build --target wasm-near --root . \
+  -o build/portable-counter-template/near \
+  --artifact-output build/portable-counter-template/Counter.near-artifact.json \
+  templates/portable-counter/Counter.lean
 ```
 
 The intended product surface is:
@@ -29,7 +41,17 @@ The intended product surface is:
 portable Lean source -> ContractSpec / portable IR -> proof-forge --target <id>
 ```
 
-Routing arbitrary `contract_source` files through every target-first `build`
-path is still part of the CLI M4/source-routing hardening work. Until that
-lands, keep this template as the authoring shape and use the fixture commands
-above for target artifact validation.
+The root command loader resolves `spec : ProofForge.Contract.ContractSpec` from
+the file's module namespace, the file's final module component, or the root
+namespace. This template uses `namespace Counter`, matching the file basename,
+so the generated `Counter.spec` is found without extra CLI flags.
+
+For a checked multi-target run that diffs generated artifacts against the
+canonical Counter goldens, use the existing smoke. It honors `CAST=/path/to/cast`
+when Foundry's `cast` is not on `PATH`.
+
+```sh
+PORTABLE_COUNTER_SOURCE=templates/portable-counter/Counter.lean \
+PORTABLE_COUNTER_OUT=build/portable-counter-template \
+just portable-counter-multi-target
+```

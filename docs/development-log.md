@@ -17,6 +17,61 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Portable Counter Template Target-First Build
+
+Commit: this commit
+
+Summary:
+
+- Made `templates/portable-counter/Counter.lean` directly consumable by the
+  `ContractLoader` by aligning its namespace with the file basename, so the
+  generated `Counter.spec` is found without an explicit `--module` override.
+- Rewrote the template README to use real
+  `proof-forge build --target evm|solana-sbpf-asm|wasm-near` commands against
+  the template `.lean` source instead of fixture-only `emit` commands.
+- Documented how to run the existing `portable-counter-multi-target` smoke with
+  `PORTABLE_COUNTER_SOURCE=templates/portable-counter/Counter.lean`.
+
+Validation run:
+
+```sh
+lake env lean templates/portable-counter/Counter.lean
+lake env proof-forge build --target evm --root . --cast build/tools/cast-shim \
+  -o build/portable-counter-template/Counter.bin \
+  --yul-output build/portable-counter-template/Counter.yul \
+  --artifact-output build/portable-counter-template/Counter.proof-forge-artifact.json \
+  templates/portable-counter/Counter.lean
+lake env proof-forge build --target solana-sbpf-asm --root . \
+  -o build/portable-counter-template/Counter.s \
+  --artifact-output build/portable-counter-template/Counter.solana-artifact.json \
+  templates/portable-counter/Counter.lean
+lake env proof-forge build --target wasm-near --root . \
+  -o build/portable-counter-template/near \
+  --artifact-output build/portable-counter-template/Counter.near-artifact.json \
+  templates/portable-counter/Counter.lean
+PORTABLE_COUNTER_SOURCE=templates/portable-counter/Counter.lean \
+PORTABLE_COUNTER_OUT=build/portable-counter-template \
+CAST=build/tools/cast-shim \
+just portable-counter-multi-target
+scripts/i18n/check-sync.sh
+python3 scripts/translate-docs.py --check
+git diff --check
+```
+
+Known limitations:
+
+- The checked EVM build still needs Foundry `cast`; the local validation command
+  can use the repository's ignored `build/tools/cast-shim` when Foundry is not
+  installed.
+- A public `proof-forge init` command is still open; this slice only makes the
+  checked-in starter template executable by the current target-first build path.
+
+Next step:
+
+- Continue CS-4 by adding a standalone project scaffold or keep moving through
+  CS-6 stale EVM-native documentation cleanup if DX docs remain the larger
+  source of confusion.
+
 ### Source-Backed Testkit Shared Scenarios
 
 Commit: this commit
