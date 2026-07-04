@@ -894,6 +894,36 @@ def testScalarExprPlanToYul : IO Unit := do
   | Lean.Compiler.Yul.Expr.ident name =>
       require (name == "__proof_forge_struct_p_x") "static local-struct field ExprPlan-to-Yul local name"
   | _ => throw <| IO.userError "static local-struct field ExprPlan-to-Yul must lower to local identifier"
+  let structLiteralFieldExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      (.structField
+        (.structLit "Point" #[
+          ("x", .literalWord 4),
+          ("y", .literalWord 6)
+        ])
+        "y"))
+    "struct-literal field ExprPlan-to-Yul"
+  match structLiteralFieldExpr with
+  | Lean.Compiler.Yul.Expr.lit lit =>
+      require (lit.value == "6") "struct-literal field ExprPlan-to-Yul selected value"
+  | _ => throw <| IO.userError "struct-literal field ExprPlan-to-Yul must select literal value"
+  let directStructLiteralFieldExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      (.field
+        (.structLit "Point" #[
+          ("x", .literal (.u64 4)),
+          ("y", .literal (.u64 6))
+        ])
+        "x"))
+    "direct struct-literal field read lowers through ToYul"
+  match directStructLiteralFieldExpr with
+  | Lean.Compiler.Yul.Expr.lit lit =>
+      require (lit.value == "4") "direct struct-literal field read selected value"
+  | _ => throw <| IO.userError "direct struct-literal field read must select literal value"
   let staticStructArrayFieldExpr ← requireOk
     (lowerExprPlanExpr
       ProofForge.IR.Examples.EvmStructArrayValueProbe.module

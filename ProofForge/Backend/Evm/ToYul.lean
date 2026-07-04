@@ -159,6 +159,10 @@ def localStructFieldExpr
   match base with
   | .local name =>
       .ok (Lean.Compiler.Yul.Expr.id (structLocalFieldName name fieldName))
+  | .structLit _ fields => do
+      let some field := fields.find? fun field => field.fst == fieldName
+        | .error (mkError s!"struct literal has no field `{fieldName}`")
+      lowerPlan field.snd
   | .localArrayGet name path lengths => do
       if lengths.isEmpty then
         .error (mkError s!"EVM ExprPlan-to-Yul local struct-array field get `{name}.{fieldName}` requires at least one dimension")
@@ -182,7 +186,7 @@ def localStructFieldExpr
                 valueArgs := valueArgs.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalPathFieldName name leafPath fieldName))
               .ok (Lean.Compiler.Yul.call (nestedLocalArrayGetFunctionName lengths) (pathArgs ++ valueArgs))
   | _ =>
-      .error (mkError "EVM ExprPlan-to-Yul scalar lowering supports local struct field and local struct-array field plans only")
+      .error (mkError "EVM ExprPlan-to-Yul scalar lowering supports local struct field, struct literal field, and local struct-array field plans only")
 
 def arrayGetExpr
     {ε : Type}

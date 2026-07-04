@@ -11031,3 +11031,32 @@ Result:
 - Scalar array-literal indexing now lowers through
   `ExprPlan.arrayGet -> ToYul`.
 - Targeted EVM semantic-plan build and test passed locally.
+
+### EVM Struct Literal Field ExprPlan ToYul Slice
+
+Commit: this commit
+
+Summary:
+
+- Extended `ToYul.localStructFieldExpr` so `ExprPlan.structField` can select
+  fields from `ExprPlan.structLit` bases.
+- Routed `IR.lean` struct-literal field access through
+  `ExprPlan.structField -> ToYul`, preserving the existing missing-field
+  diagnostic text.
+- Kept standalone struct literal values and storage-backed struct reads on
+  their existing compatibility paths.
+- Added semantic-plan tests for direct struct-literal field plans and
+  `lowerExpr` integration.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+```
+
+Result:
+
+- Struct-literal field reads now lower through
+  `ExprPlan.structField -> ToYul`.
+- Targeted EVM semantic-plan build and test passed locally.

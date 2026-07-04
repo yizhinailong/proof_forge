@@ -425,11 +425,12 @@ Tasks:
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local
     fixed-array path dimensions in `ExprPlan.localArrayGet`, and `ToYul` owns
-    the static local-name selection, local struct-field name selection, array
-    literal element selection, plus one-dimensional and nested dynamic
-    helper-call argument frames for scalar arrays, scalar array literals, and
-    struct-array fields. Struct literals, storage-backed struct reads, and
-    aggregate array values still fall back through the compatibility facade.
+    the static local-name selection, local struct-field name selection, struct
+    literal field selection, array literal element selection, plus
+    one-dimensional and nested dynamic helper-call argument frames for scalar
+    arrays, scalar array literals, and struct-array fields. Standalone struct
+    literal values, storage-backed struct reads, and aggregate array values
+    still fall back through the compatibility facade.
   - Started: whole local aggregate assignment snapshot blocks now live behind
     `ToYul`. `IR.lean` still validates and expands local fixed-array, nested
     fixed-array, struct-array, and struct assignment sources, but final temp

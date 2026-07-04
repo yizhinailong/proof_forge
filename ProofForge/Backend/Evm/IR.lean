@@ -2182,10 +2182,12 @@ mutual
           | .error err => .error { message := err.message }
         lowerExprPlanExpr module env <|
           .structField (.localArrayGet name #[indexPlan] #[length]) fieldName
-    | .structLit _ fields => do
-        let some field := fields.find? fun field => field.fst == fieldName
-          | .error { message := s!"struct literal has no field `{fieldName}`" }
-        lowerExpr module env field.snd
+    | .structLit _ _ => do
+        let basePlan ←
+          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) base with
+          | .ok plan => .ok plan
+          | .error err => .error { message := err.message }
+        lowerExprPlanExpr module env (.structField basePlan fieldName)
     | _ =>
         match collectLocalArrayGetPath base with
         | some (name, path) =>
