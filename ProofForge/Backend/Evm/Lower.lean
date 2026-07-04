@@ -134,6 +134,31 @@ mutual
     | none =>
         .ok none
 
+  partial def localArrayStructFieldExprPlan?
+      (module : Module)
+      (env : TypeEnv)
+      (base : Expr)
+      (fieldName : String) : Except LowerError (Option ExprPlan) := do
+    match collectLocalArrayGetPath base with
+    | some (name, path) => do
+        let some binding := findLocal? env name
+          | .error { message := s!"unknown local `{name}`" }
+        let (lengths, leafType) ← fixedArrayPathShape "struct field fixed-array index" binding.type path
+        match leafType with
+        | .structType typeName => do
+            discard <| ensureLocalFlatStructType module s!"struct field access local `{name}` fixed-array leaf" typeName
+            let fieldType ← structFieldType module typeName fieldName
+            ensureStructLocalFieldType typeName fieldName fieldType
+            .ok (some <|
+              .structField
+                (.localArrayGet name (← path.mapM (buildExprPlan module env)) lengths)
+                fieldName)
+        | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address
+        | .unit | .fixedArray _ _ | .bytes | .string =>
+            .ok none
+    | none =>
+        .ok none
+
   partial def buildCrosscallStructArgWordPlans
       (module : Module)
       (env : TypeEnv)
@@ -272,7 +297,9 @@ mutual
           planned := planned.push (field.fst, ← buildExprPlan module env field.snd)
         .ok (.structLit typeName planned)
     | .field base fieldName => do
-        .ok (.structField (← buildExprPlan module env base) fieldName)
+        match ← localArrayStructFieldExprPlan? module env base fieldName with
+        | some plan => .ok plan
+        | none => .ok (.structField (← buildExprPlan module env base) fieldName)
     | .add lhs rhs => do
         .ok (assignExprPlan .add (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
     | .sub lhs rhs => do

@@ -2347,6 +2347,58 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (valueName == "__proof_forge_array_xs_0") "planned static local-array control-flow local source"
       | _ => throw <| IO.userError "planned static local-array control-flow must lower to local binding"
   | _ => throw <| IO.userError "planned dynamic local-array control-flow body lowering must lower to switch"
+  let dynamicLocalStructArrayEnv : TypeEnv := #[
+    { name := "people", type := .fixedArray (.structType "Person") 2, isMutable := false },
+    { name := "idx", type := .u64, isMutable := false }
+  ]
+  let plannedDynamicLocalStructArrayControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      "control_flow"
+      .unit
+      dynamicLocalStructArrayEnv
+      (.ifElse
+        (.gt (.local "idx") (.literal (.u64 0)))
+        #[
+          .letBind "age" .u64 (.field (.arrayGet (.local "people") (.local "idx")) "age")
+        ]
+        #[
+          .letBind "score" .u64 (.field (.arrayGet (.local "people") (.literal (.u64 0))) "score")
+        ]))
+    "planned dynamic local struct-array field control-flow plan construction"
+  let plannedDynamicLocalStructArrayControl ← requireSome plannedDynamicLocalStructArrayControl?
+    "planned dynamic local struct-array field control-flow plan construction missing plan"
+  let (dynamicLocalStructArrayControlStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      "control_flow"
+      .unit
+      dynamicLocalStructArrayEnv
+      false
+      plannedDynamicLocalStructArrayControl)
+    "planned dynamic local struct-array field control-flow body lowering"
+  match dynamicLocalStructArrayControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let elseCase ← requireAt cases 0 "planned dynamic local struct-array field control-flow else case"
+      let thenCase ← requireAt cases 1 "planned dynamic local struct-array field control-flow then case"
+      require (thenCase.body.statements.size == 1) "planned dynamic local struct-array field control-flow then count"
+      require (elseCase.body.statements.size == 1) "planned dynamic local struct-array field control-flow else count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (names.size == 1) "planned dynamic local struct-array field control-flow then var count"
+          let typedName ← requireAt names 0 "planned dynamic local struct-array field control-flow then var"
+          require (typedName.name == "age") "planned dynamic local struct-array field control-flow then local name"
+          require (name == "__proof_forge_local_array_get_2") "planned dynamic local struct-array field control-flow helper"
+          require (args.size == 3) "planned dynamic local struct-array field control-flow helper arg count"
+      | _ => throw <| IO.userError "planned dynamic local struct-array field control-flow then must lower to helper binding"
+      match elseCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.ident valueName)) => do
+          require (names.size == 1) "planned static local struct-array field control-flow var count"
+          let typedName ← requireAt names 0 "planned static local struct-array field control-flow var"
+          require (typedName.name == "score") "planned static local struct-array field control-flow local name"
+          require (valueName == "__proof_forge_array_struct_people_0_score") "planned static local struct-array field control-flow local source"
+      | _ => throw <| IO.userError "planned static local struct-array field control-flow must lower to local binding"
+  | _ => throw <| IO.userError "planned dynamic local struct-array field control-flow body lowering must lower to switch"
   let immutableAggregatePlan? ← requireOk
     (plannedScalarBodyStatement?
       ProofForge.IR.Examples.EvmStructValueProbe.module
