@@ -2395,6 +2395,58 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (block.statements.size == 2) "planned storage path assign control-flow block count"
       | _ => throw <| IO.userError "planned storage path assign control-flow must lower to block"
   | _ => throw <| IO.userError "planned array/path storage control-flow body lowering must lower to for"
+  let plannedEventControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EventProbe.evmModule
+      "control_flow"
+      .unit
+      env
+      (.ifElse
+        (.gt (.local "n") (.literal (.u64 0)))
+        #[
+          .effect (.eventEmit "ValueEvent" #[("value", .local "n")])
+        ]
+        #[
+          .effect (.eventEmitIndexed
+            "IndexedValue"
+            #[("user", .literal (.u64 1))]
+            #[("value", .local "n")])
+        ]))
+    "planned scalar event control-flow plan construction"
+  let plannedEventControl ← requireSome plannedEventControl?
+    "planned scalar event control-flow plan construction missing plan"
+  let (eventControlStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.EventProbe.evmModule
+      "control_flow"
+      .unit
+      env
+      false
+      plannedEventControl)
+    "planned scalar event control-flow body lowering"
+  match eventControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let elseCase ← requireAt cases 0 "planned scalar event control-flow else case"
+      let thenCase ← requireAt cases 1 "planned scalar event control-flow then case"
+      require (thenCase.body.statements.size == 1) "planned scalar event control-flow then count"
+      require (elseCase.body.statements.size == 1) "planned scalar event control-flow else count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.block block => do
+          match block.statements[block.statements.size - 1]! with
+          | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+              require (name == "log1") "planned scalar event control-flow data log"
+              require (args.size == 3) "planned scalar event control-flow data log arg count"
+          | _ => throw <| IO.userError "planned scalar event control-flow then block must end with log"
+      | _ => throw <| IO.userError "planned scalar event control-flow then branch must lower to event block"
+      match elseCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.block block => do
+          match block.statements[block.statements.size - 1]! with
+          | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+              require (name == "log2") "planned scalar indexed event control-flow log"
+              require (args.size == 4) "planned scalar indexed event control-flow log arg count"
+          | _ => throw <| IO.userError "planned scalar indexed event control-flow block must end with log"
+      | _ => throw <| IO.userError "planned scalar indexed event control-flow else branch must lower to event block"
+  | _ => throw <| IO.userError "planned scalar event control-flow body lowering must lower to switch"
   let (ifStmts, _) ← requireOk
     (lowerStatement
       ProofForge.IR.Examples.Counter.module

@@ -5079,6 +5079,20 @@ def storagePathSupportsScalarBody
     (path : Array StoragePathSegment) : Bool :=
   path.all storagePathSegmentSupportsScalarBody
 
+def eventFieldPlanSupportsScalarBody :
+    ProofForge.Backend.Evm.Plan.EventFieldPlan → Bool
+  | .mk _ type _ =>
+      match type with
+      | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
+      | .unit | .bytes | .string | .fixedArray _ _ | .structType _ => false
+
+def eventFieldPlansSupportScalarBody
+    (fields : Array ProofForge.Backend.Evm.Plan.EventFieldPlan)
+    (values : Array ProofForge.Backend.Evm.Plan.ExprPlan) : Bool :=
+  fields.size == values.size &&
+    fields.all eventFieldPlanSupportsScalarBody &&
+    values.all exprPlanSupportsScalarBody
+
 def effectPlanSupportsScalarBodyStmt :
     ProofForge.Backend.Evm.Plan.EffectPlan → Bool
   | .storageScalarWrite _ value => exprPlanSupportsScalarBody value
@@ -5096,6 +5110,12 @@ def effectPlanSupportsScalarBodyStmt :
       storagePathSupportsScalarBody path && exprPlanSupportsScalarBody value
   | .storagePathAssignOp _ path _ value =>
       storagePathSupportsScalarBody path && exprPlanSupportsScalarBody value
+  | .eventEmit event dataFields =>
+      event.indexedFields.isEmpty &&
+        eventFieldPlansSupportScalarBody event.dataFields dataFields
+  | .eventEmitIndexed event indexedFields dataFields =>
+      eventFieldPlansSupportScalarBody event.indexedFields indexedFields &&
+        eventFieldPlansSupportScalarBody event.dataFields dataFields
   | _ => false
 
 mutual
@@ -5160,7 +5180,76 @@ def plannedScalarBodyStatement?
   | .error _ =>
       .ok none
 
-def lowerScalarBodyStorageEffectPlan
+def lowerScalarEventFieldWords
+    (module : Module)
+    (env : TypeEnv)
+    (eventName : String)
+    (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
+    (value : ProofForge.Backend.Evm.Plan.ExprPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  match field.type with
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+      .ok #[← lowerExprPlanExpr module env value]
+  | .unit | .bytes | .string | .fixedArray _ _ | .structType _ =>
+      .error {
+        message := s!"planned scalar control-flow event `{eventName}` field `{field.name}` has unsupported type `{field.type.name}`"
+      }
+
+def lowerScalarEventFieldsWords
+    (module : Module)
+    (env : TypeEnv)
+    (eventName : String)
+    (fields : Array ProofForge.Backend.Evm.Plan.EventFieldPlan)
+    (values : Array ProofForge.Backend.Evm.Plan.ExprPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  if fields.size != values.size then
+    .error { message := s!"planned scalar control-flow event `{eventName}` field/value count mismatch" }
+  let mut words : Array Lean.Compiler.Yul.Expr := #[]
+  for h : idx in [0:fields.size] do
+    let some value := values[idx]?
+      | .error { message := s!"planned scalar control-flow event `{eventName}` missing field value at index {idx}" }
+    words := words ++ (← lowerScalarEventFieldWords module env eventName fields[idx] value)
+  .ok words
+
+def lowerScalarEventIndexedTopicStatements
+    (module : Module)
+    (env : TypeEnv)
+    (event : ProofForge.Backend.Evm.Plan.EventPlan)
+    (values : Array ProofForge.Backend.Evm.Plan.ExprPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let fields := event.indexedFields
+  if fields.size != values.size then
+    .error { message := s!"planned scalar control-flow event `{event.name}` indexed field/value count mismatch" }
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  for h : idx in [0:fields.size] do
+    let some value := values[idx]?
+      | .error { message := s!"planned scalar control-flow event `{event.name}` missing indexed field value at index {idx}" }
+    let words ← lowerScalarEventFieldWords module env event.name fields[idx] value
+    statements := statements ++
+      (← ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
+        toYulError
+        fields[idx]
+        idx
+        words)
+  .ok statements
+
+def lowerScalarEventEffectPlan
+    (module : Module)
+    (env : TypeEnv)
+    (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  match effect with
+  | .eventEmit event dataFields => do
+      let dataWords ← lowerScalarEventFieldsWords module env event.name event.dataFields dataFields
+      .ok #[← ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement toYulError event #[] dataWords]
+  | .eventEmitIndexed event indexedFields dataFields => do
+      let indexedTopicStatements ← lowerScalarEventIndexedTopicStatements module env event indexedFields
+      let dataWords ← lowerScalarEventFieldsWords module env event.name event.dataFields dataFields
+      .ok #[← ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement toYulError event indexedTopicStatements dataWords]
+  | _ =>
+      .error { message := "planned scalar control-flow body expected an event effect" }
+
+def lowerScalarBodyEffectPlan
     (module : Module)
     (env : TypeEnv)
     (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
@@ -5245,8 +5334,10 @@ def lowerScalarBodyStorageEffectPlan
         (lowerPlanEffectExpr module env)
         (fun stateId path => lowerStoragePathWriteTarget module env stateId path)
         (.effect effect)
+  | .eventEmit .. | .eventEmitIndexed .. =>
+      lowerScalarEventEffectPlan module env effect
   | _ =>
-      .error { message := "planned scalar control-flow body expected a supported storage write effect" }
+      .error { message := "planned scalar control-flow body expected a supported effect" }
 
 mutual
   partial def lowerScalarStmtPlanBodyStatements
@@ -5318,7 +5409,7 @@ mutual
             (.assignOp target op value)
         .ok (statements, env)
     | .effect effect => do
-        .ok (← lowerScalarBodyStorageEffectPlan module env effect, env)
+        .ok (← lowerScalarBodyEffectPlan module env effect, env)
     | .assert condition message errorRef? => do
         let statements ←
           ProofForge.Backend.Evm.ToYul.scalarAssertStmtPlanStatements
