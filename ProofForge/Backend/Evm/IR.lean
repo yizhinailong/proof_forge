@@ -2711,6 +2711,14 @@ mutual
             ProofForge.Backend.Evm.Plan.Helper.mapSlot
             #[slotExpr rootSlot, keyExpr]
         .ok (Lean.Compiler.Yul.builtin "sload" #[valueSlot])
+    | .storageArrayRead stateId index => do
+        let (rootSlot, length, _) ← requireStorageArrayState module stateId
+        let indexExpr ← lowerExprPlanExpr module env index
+        let elementSlot :=
+          ProofForge.Backend.Evm.ToYul.helperCall
+            ProofForge.Backend.Evm.Plan.Helper.arraySlot
+            #[slotExpr rootSlot, Lean.Compiler.Yul.Expr.num length, indexExpr]
+        .ok (Lean.Compiler.Yul.builtin "sload" #[elementSlot])
     | _ =>
         .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
 
@@ -5045,6 +5053,7 @@ mutual
     | .contextRead _ => true
     | .storageMapContains _ key
     | .storageMapGet _ key => exprPlanSupportsScalarBody key
+    | .storageArrayRead _ index => exprPlanSupportsScalarBody index
     | _ => false
 
   partial def exprPlanSupportsScalarBody :
