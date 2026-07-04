@@ -1515,6 +1515,13 @@ def storageSlotExpr
         ← lowerValuePlan lowerExpr index
       ])
 
+def storagePathReadExprFromPlan
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (slot : StorageSlotPlan) : Except ε Lean.Compiler.Yul.Expr := do
+  .ok (Lean.Compiler.Yul.builtin "sload" #[← storageSlotExpr mkError lowerExpr slot])
+
 partial def exprPlanExpr
     {ε : Type}
     (mkError : String → ε)

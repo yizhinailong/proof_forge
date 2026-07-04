@@ -422,6 +422,32 @@ def storagePathWriteTargetPlan
       | none =>
           .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 
+def storagePathReadSlotPlan
+    (module : Module)
+    (stateId : String)
+    (path : Array StoragePathSegment) : Except PlanError StorageSlotPlan :=
+  match path.toList with
+  | [StoragePathSegment.mapKey key] =>
+      mapValueSlotPlan module stateId #[key]
+  | [StoragePathSegment.index index] =>
+      arraySlotPlan module stateId index
+  | [StoragePathSegment.field fieldName] =>
+      structFieldSlotPlan module stateId fieldName
+  | [StoragePathSegment.index index, StoragePathSegment.field fieldName] =>
+      structArrayFieldSlotPlan module stateId index fieldName
+  | [] => do
+      let (_, state) ← requireState module stateId
+      match state.kind with
+      | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+      | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
+      | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.read" }
+  | _ =>
+      match storagePathMapKeys? path with
+      | some _ =>
+          storagePathMapValueSlotPlan module stateId path
+      | none =>
+          .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
+
 def isSupportedMapState (state : StateDecl) : Bool :=
   match state.kind, state.type with
   | .map keyType _, valueType => isStorageWordType keyType && isStorageWordType valueType

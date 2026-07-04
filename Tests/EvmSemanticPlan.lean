@@ -2816,6 +2816,129 @@ def testWholeStructStorageWritePlanToYul : IO Unit := do
       require foundStoreY "whole struct storage write must store y temp"
   | _ => throw <| IO.userError "whole struct storage write plan-to-yul must lower to block"
 
+def testStoragePathReadPlanToYul : IO Unit := do
+  let arrayEnv : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let mapEnv : TypeEnv := #[
+    { name := "outer", type := .u64, isMutable := false },
+    { name := "inner", type := .u64, isMutable := false }
+  ]
+  let directMapReadPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan
+        ProofForge.IR.Examples.EvmMapProbe.module
+        "balances"
+        #[.mapKey (.add (.local "outer") (.literal (.u64 1)))]
+    )
+    "direct map storage path read slot plan"
+  let directMapRead ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module mapEnv expr)
+      directMapReadPlan)
+    "direct map storage path read plan-to-yul"
+  match directMapRead with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "direct map storage path read sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call name slotArgs => do
+          require (name == mapSlotFunctionName) "direct map storage path read slot helper"
+          require (slotArgs.size == 2) "direct map storage path read slot arg count"
+          match slotArgs[1]! with
+          | Lean.Compiler.Yul.Expr.call addName addArgs => do
+              require (addName == "__pf_checked_add") "direct map storage path read key plan"
+              require (addArgs.size == 2) "direct map storage path read key arg count"
+          | _ => throw <| IO.userError "direct map storage path read key must be plan-lowered"
+      | _ => throw <| IO.userError "direct map storage path read slot must use map helper"
+  | _ => throw <| IO.userError "direct map storage path read must lower to sload"
+  let arrayReadPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan
+        ProofForge.IR.Examples.EvmStorageArrayProbe.module
+        "values"
+        #[.index (.local "value")]
+    )
+    "array storage path read slot plan"
+  let arrayRead ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv expr)
+      arrayReadPlan)
+    "array storage path read plan-to-yul"
+  match arrayRead with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "array storage path read sload arg count"
+      requireCallExpr args[0]! arraySlotFunctionName 3 "array storage path read slot"
+  | _ => throw <| IO.userError "array storage path read must lower to sload"
+  let structReadPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan
+        ProofForge.IR.Examples.EvmStorageStructProbe.module
+        "current"
+        #[.field "x"]
+    )
+    "struct storage path read slot plan"
+  let structRead ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module #[] expr)
+      structReadPlan)
+    "struct storage path read plan-to-yul"
+  match structRead with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "struct storage path read sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "struct storage path read field slot"
+      | _ => throw <| IO.userError "struct storage path read field slot must be literal"
+  | _ => throw <| IO.userError "struct storage path read must lower to sload"
+  let structArrayReadPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan
+        ProofForge.IR.Examples.EvmStorageStructProbe.module
+        "points"
+        #[.index (.literal (.u64 1)), .field "y"]
+    )
+    "struct-array storage path read slot plan"
+  let structArrayRead ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module #[] expr)
+      structArrayReadPlan)
+    "struct-array storage path read plan-to-yul"
+  match structArrayRead with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "struct-array storage path read sload arg count"
+      requireCallExpr args[0]! structArraySlotFunctionName 5 "struct-array storage path read slot"
+  | _ => throw <| IO.userError "struct-array storage path read must lower to sload"
+  let nestedMapReadPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan
+        ProofForge.IR.Examples.EvmMapProbe.module
+        "balances"
+        #[.mapKey (.local "outer"), .mapKey (.local "inner")]
+    )
+    "nested map storage path read slot plan"
+  let nestedMapRead ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module mapEnv expr)
+      nestedMapReadPlan)
+    "nested map storage path read plan-to-yul"
+  match nestedMapRead with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "nested map storage path read sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call name slotArgs => do
+          require (name == mapSlotFunctionName) "nested map storage path read outer slot helper"
+          require (slotArgs.size == 2) "nested map storage path read outer slot arg count"
+          match slotArgs[0]! with
+          | Lean.Compiler.Yul.Expr.call parentName parentArgs => do
+              require (parentName == mapSlotFunctionName) "nested map storage path read parent slot helper"
+              require (parentArgs.size == 2) "nested map storage path read parent slot arg count"
+          | _ => throw <| IO.userError "nested map storage path read parent slot must use map helper"
+      | _ => throw <| IO.userError "nested map storage path read slot must use map helper"
+  | _ => throw <| IO.userError "nested map storage path read must lower to sload"
+
 def testStoragePathWritePlanToYul : IO Unit := do
   let arrayEnv : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
   let mapEnv : TypeEnv := #[
@@ -3200,6 +3323,7 @@ def main : IO UInt32 := do
   testArrayWritePlanToYul
   testStructFieldWritePlanToYul
   testWholeStructStorageWritePlanToYul
+  testStoragePathReadPlanToYul
   testStoragePathWritePlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0

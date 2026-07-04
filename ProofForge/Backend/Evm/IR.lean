@@ -2048,24 +2048,12 @@ mutual
       (module : Module)
       (env : TypeEnv)
       (stateId : String)
-      (path : Array StoragePathSegment) : Except LowerError Lean.Compiler.Yul.Expr :=
-    match path.toList with
-    | [StoragePathSegment.mapKey key] => lowerMapGetExpr module env stateId key
-    | [StoragePathSegment.index index] => lowerArrayReadExpr module env stateId index
-    | [StoragePathSegment.field fieldName] => lowerStructFieldReadExpr module stateId fieldName
-    | [StoragePathSegment.index index, StoragePathSegment.field fieldName] =>
-        lowerStructArrayFieldReadExpr module env stateId index fieldName
-    | [] => do
-        let state ← stateDeclOf module stateId "storage path"
-        match state.kind with
-        | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
-        | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
-        | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.read" }
-    | _ => do
-        match storagePathMapKeys? path with
-        | some keys => lowerMapPathReadExpr module env stateId keys
-        | none =>
-            .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
+      (path : Array StoragePathSegment) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan module stateId path
+    ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
+      toYulError
+      (fun expr => lowerExpr module env expr)
+      plan
 
   partial def validateFixedArrayIndexExprPath
       (module : Module)
