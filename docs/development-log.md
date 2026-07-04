@@ -11563,3 +11563,41 @@ Result:
 - Struct-literal field reads now lower through
   `ExprPlan.structField -> ToYul`.
 - Targeted EVM semantic-plan build and test passed locally.
+
+### EVM Scalar Control-Flow Body Plan Slice
+
+Commit: cbdf5af
+
+Summary:
+
+- Added a planned scalar control-flow body lowering path in `IR.lean` for
+  supported `StmtPlan` bodies.
+- Routed `ifElse` and `boundedFor` lowering through planned bodies when every
+  nested statement is in the supported scalar subset: scalar local bindings,
+  local assignments, scalar storage writes/assign-ops, assertions, reverts,
+  nested control flow, and scalar returns.
+- Kept aggregate, map/path, crosscall, create, event, and unsupported body
+  shapes on the existing compatibility fallback.
+- Added semantic-plan tests that directly validate planned if/loop body
+  lowering and plan construction from IR control-flow statements.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+just evm-semantic-plan
+just evm-diagnostics
+just evm-build-examples
+just evm-foundry
+lake build
+git diff --check
+```
+
+Result:
+
+- Scalar branch and bounded-loop bodies can now consume `StmtPlan` bodies
+  before `ToYul`.
+- EVM semantic-plan, diagnostics, example bytecode generation, Foundry smoke
+  tests, full Lake build, and whitespace checks passed locally.
