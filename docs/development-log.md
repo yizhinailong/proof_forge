@@ -17,6 +17,92 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Storage Path Target Plan Slice
+
+Commit: 929fb30
+
+Summary:
+
+- Added `StoragePathWriteTargetPlan` so direct map writes, array element writes,
+  struct field writes, struct-array field writes, and nested map
+  value/presence writes have an explicit semantic-plan target before Yul
+  statement assembly.
+- Added `ToYul.storagePathWriteTargetFromPlan`, reusing `StorageSlotPlan -> Yul`
+  lowering for array, struct-array, nested-map value, and nested-map presence
+  targets.
+- Replaced the `IR.lean` storage-path write-target `match` with a thin
+  `Plan.storagePathWriteTargetPlan -> ToYul.storagePathWriteTargetFromPlan`
+  compatibility facade.
+- Extended `Tests/EvmSemanticPlan.lean` with direct target-plan coverage for
+  map, array, struct field, struct-array field, and nested-map storage paths.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-build-examples
+just evm-diagnostics
+just evm-foundry
+just evm-semantic-plan
+lake build
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- This slice plans storage-path write targets only. Storage-path reads,
+  recursive body lowering, and full storage-path type/shape diagnostics still
+  retain compatibility-facade responsibilities.
+
+Next step:
+
+- Move the read-side storage path target planning, or continue extracting
+  recursive `StmtPlan -> Yul` body lowering, while keeping unsupported shapes
+  covered by explicit diagnostics.
+
+### EVM Packed Storage Layout Consumer Alignment
+
+Commit: e83767f
+
+Summary:
+
+- Routed the EVM `IR.lean` and `Validate.lean` state lookup facades through
+  `Plan.stateInfo?`, making the packed `storageLayout` the single slot source
+  for lowering and validation consumers.
+- Kept the fixed EIP-1967 implementation slot out of scalar address packing so
+  UUPS proxy fallback reads and implementation writes agree on the same raw
+  slot.
+- Made `scripts/evm/build-examples.sh` fail on golden Yul mismatches instead of
+  only printing the diff in an `errexit`-suppressed conditional context.
+- Refreshed EVM golden Yul fixtures after the packed-storage layout alignment.
+
+Validation run:
+
+```sh
+lake build
+just evm-semantic-plan
+just evm-diagnostics
+just evm-build-examples
+just evm-foundry
+just evm-ir-smokes
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- This was a layout-consumer fix, not a broader storage-path planning
+  extraction. Several compatibility-facade storage helpers remained in
+  `IR.lean` after this commit.
+
+Next step:
+
+- Continue moving storage path planning behind `Plan -> ToYul` boundaries.
+
 ### EVM Local Aggregate Return Plan Slice
 
 Commit: this commit
