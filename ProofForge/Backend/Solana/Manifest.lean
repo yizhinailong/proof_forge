@@ -429,9 +429,15 @@ def renderCpi (cpi : CpiInvoke) : String :=
     renderCpiMetadataField cpi "solana.cpi.space_source" "space_source" ++
     renderCpiMetadataField cpi "solana.cpi.owner" "owner_source" ++
     renderCpiMetadataField cpi "solana.cpi.amount_source" "amount_source" ++
+    renderCpiMetadataField cpi "solana.cpi.fee_source" "fee_source" ++
     renderCpiMetadataField cpi "solana.cpi.decimals" "decimals" ++
     renderCpiMetadataField cpi "solana.cpi.authority_type" "authority_type" ++
-    renderCpiMetadataField cpi "solana.cpi.new_authority" "new_authority"
+    renderCpiMetadataField cpi "solana.cpi.new_authority" "new_authority" ++
+    renderCpiMetadataField cpi "solana.cpi.transfer_fee_config_authority" "transfer_fee_config_authority" ++
+    renderCpiMetadataField cpi "solana.cpi.withdraw_withheld_authority" "withdraw_withheld_authority" ++
+    renderCpiMetadataField cpi "solana.cpi.transfer_fee_basis_points" "transfer_fee_basis_points" ++
+    renderCpiMetadataField cpi "solana.cpi.maximum_fee" "maximum_fee" ++
+    renderCpiMetadataField cpi "solana.cpi.num_token_accounts" "num_token_accounts"
   "[[solana.cpi]]\n" ++
   "name = " ++ tomlString cpi.name ++ "\n" ++
   "program = " ++ tomlString cpi.program ++ "\n" ++

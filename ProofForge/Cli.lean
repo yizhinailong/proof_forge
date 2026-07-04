@@ -1572,6 +1572,10 @@ def solanaCpiJson (cpi : ProofForge.Backend.Solana.Extension.CpiInvoke) : String
       match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.amount_source" with
       | some value => jsonString value
       | none => "null"),
+    ("feeSource",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.fee_source" with
+      | some value => jsonString value
+      | none => "null"),
     ("decimals",
       match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.decimals" with
       | some value => jsonString value
@@ -1582,6 +1586,26 @@ def solanaCpiJson (cpi : ProofForge.Backend.Solana.Extension.CpiInvoke) : String
       | none => "null"),
     ("newAuthority",
       match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.new_authority" with
+      | some value => jsonString value
+      | none => "null"),
+    ("transferFeeConfigAuthority",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.transfer_fee_config_authority" with
+      | some value => jsonString value
+      | none => "null"),
+    ("withdrawWithheldAuthority",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.withdraw_withheld_authority" with
+      | some value => jsonString value
+      | none => "null"),
+    ("transferFeeBasisPoints",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.transfer_fee_basis_points" with
+      | some value => jsonString value
+      | none => "null"),
+    ("maximumFee",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.maximum_fee" with
+      | some value => jsonString value
+      | none => "null"),
+    ("numTokenAccounts",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.num_token_accounts" with
       | some value => jsonString value
       | none => "null"),
     ("signed", jsonBool cpi.signed)

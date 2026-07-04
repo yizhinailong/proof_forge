@@ -1203,13 +1203,13 @@ def pdaMaxSeeds : Nat := 16
 def cpiInstructionOffset : Nat := 64
 def cpiAccountMetaOffset : Nat := 128
 def cpiInstructionDataOffset : Nat := 384
-def cpiProgramIdOffset : Nat := 448
-def cpiPlaceholderPubkeyOffset : Nat := 512
-def cpiAccountInfoOffset : Nat := 1088
-def cpiPlaceholderLamportsOffset : Nat := 2048
-def cpiSignerEntriesOffset : Nat := 2240
-def cpiSignerSeedTableOffset : Nat := 2304
-def cpiSignerSeedDataOffset : Nat := 2816
+def cpiProgramIdOffset : Nat := 512
+def cpiPlaceholderPubkeyOffset : Nat := 576
+def cpiAccountInfoOffset : Nat := 1152
+def cpiPlaceholderLamportsOffset : Nat := 2112
+def cpiSignerEntriesOffset : Nat := 2304
+def cpiSignerSeedTableOffset : Nat := 2368
+def cpiSignerSeedDataOffset : Nat := 2880
 def cpiMaxSeedLen : Nat := 32
 def cryptoSliceTableOffset : Nat := 3072
 def cryptoResultOffset : Nat := 3104
@@ -1590,6 +1590,12 @@ def splTokenProgramIdBytes : Array Nat :=
     28, 180, 133, 237, 95, 91, 55, 145,
     58, 140, 245, 133, 126, 255, 0, 169]
 
+def splToken2022ProgramIdBytes : Array Nat :=
+  #[6, 221, 246, 225, 238, 117, 143, 222,
+    24, 66, 93, 188, 228, 108, 205, 218,
+    182, 26, 252, 77, 131, 185, 13, 39,
+    254, 189, 249, 40, 216, 161, 139, 252]
+
 def storePubkeyBytes (base : Reg) (bytes : Array Nat) : Array AstNode :=
   bytes.mapIdx fun idx byte => storeImm .stb base idx byte
 
@@ -1599,6 +1605,13 @@ def lowerCpiSplTokenProgramId : Array AstNode :=
   ] ++
   stackPtr .r8 cpiProgramIdOffset ++
   storePubkeyBytes .r8 splTokenProgramIdBytes
+
+def lowerCpiSplToken2022ProgramId : Array AstNode :=
+  #[
+    .comment "solana.cpi.program_id spl_token_2022 TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+  ] ++
+  stackPtr .r8 cpiProgramIdOffset ++
+  storePubkeyBytes .r8 splToken2022ProgramIdBytes
 
 def lowerCpiFallbackProgramId (program : String) : Array AstNode :=
   #[
@@ -1610,6 +1623,8 @@ def lowerCpiFallbackProgramId (program : String) : Array AstNode :=
 def lowerCpiProgramId (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
   if cpi.program == "spl_token" then
     lowerCpiSplTokenProgramId
+  else if cpi.program == "spl_token_2022" then
+    lowerCpiSplToken2022ProgramId
   else
     match cpiAccountBinding? bindings cpi.program with
     | some binding =>
@@ -1794,6 +1809,47 @@ def lowerCpiU64Field (bindings : Array CpiValueBinding) (cpi : CpiInvoke)
         storeReg .stxdw .r8 fieldOff .r3
       ]
 
+def lowerCpiU16Field (bindings : Array CpiValueBinding) (cpi : CpiInvoke)
+    (metadataKey fieldName : String) (fieldOff : Nat) : Array AstNode :=
+  match cpiMetadataValue? cpi metadataKey with
+  | some source =>
+      match source.toNat? with
+      | some value =>
+          #[
+            .comment s!"solana.cpi.value {fieldName} literal={value}",
+            loadImm .r3 value,
+            storeReg .stxh .r8 fieldOff .r3
+          ]
+      | none =>
+          match cpiValueBinding? bindings source with
+          | some binding =>
+              let loadValue :=
+                if binding.relativeToInstructionData then
+                  loadSavedInstructionDataPtr .r7 ++ #[
+                    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num binding.absOff) }
+                  ]
+                else
+                  #[
+                    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num binding.absOff) }
+                  ]
+              #[
+                .comment s!"solana.cpi.value {fieldName} from {binding.sourceKind} {source}",
+              ] ++ loadValue ++ #[
+                storeReg .stxh .r8 fieldOff .r3
+              ]
+          | none =>
+              #[
+                .comment s!"solana.cpi.value {fieldName} source={source} placeholder=0",
+                loadImm .r3 0,
+                storeReg .stxh .r8 fieldOff .r3
+              ]
+  | none =>
+      #[
+        .comment s!"solana.cpi.value {fieldName} missing placeholder=0",
+        loadImm .r3 0,
+        storeReg .stxh .r8 fieldOff .r3
+      ]
+
 def lowerCurrentProgramIdToData (fieldOff : Nat) : Array AstNode := #[
   .comment "solana.cpi.value owner=current_program_id",
 ] ++ loadCurrentProgramIdPtr .r7 .r3 ++ #[
@@ -1825,6 +1881,32 @@ def lowerAccountKeyToDataField (fieldName source : String)
 
 def lowerAccountKeyToData (source : String) (layout : AccountInputLayout) (fieldOff : Nat) : Array AstNode :=
   lowerAccountKeyToDataField "owner" source layout fieldOff
+
+def lowerCpiPubkeyOptionField (accountBindings : Array CpiAccountBinding)
+    (cpi : CpiInvoke) (metadataKey fieldName : String) (fieldOff : Nat) : Array AstNode :=
+  match cpiMetadataValue? cpi metadataKey with
+  | some "program" =>
+      #[
+        .comment s!"solana.cpi.value {fieldName}=current_program_id option=some",
+        storeImm .stb .r8 fieldOff 1
+      ] ++ lowerCurrentProgramIdToData (fieldOff + 1)
+  | some source =>
+      match cpiAccountBinding? accountBindings source with
+      | some binding =>
+          #[
+            .comment s!"solana.cpi.value {fieldName} option=some",
+            storeImm .stb .r8 fieldOff 1
+          ] ++ lowerAccountKeyToDataField fieldName source binding.layout (fieldOff + 1)
+      | none =>
+          #[
+            .comment s!"solana.cpi.value {fieldName} source={source} placeholder=some-zero",
+            storeImm .stb .r8 fieldOff 1
+          ] ++ lowerZero32At .r8 (fieldOff + 1)
+  | none =>
+      #[
+        .comment s!"solana.cpi.value {fieldName} missing placeholder=some-zero",
+        storeImm .stb .r8 fieldOff 1
+      ] ++ lowerZero32At .r8 (fieldOff + 1)
 
 def lowerCpiOwnerField (accountBindings : Array CpiAccountBinding) (cpi : CpiInvoke)
     (fieldOff : Nat) : Array AstNode :=
@@ -1983,6 +2065,86 @@ def lowerSplTokenSetAuthorityData
   ] ++
   lowerSplTokenSetAuthorityNewAuthority accountBindings cpi
 
+def lowerToken2022InitializeTransferFeeConfigData
+    (accountBindings : Array CpiAccountBinding) (valueBindings : Array CpiValueBinding)
+    (cpi : CpiInvoke) : Array AstNode :=
+  #[
+    .comment "solana.cpi.data token-2022.initialize_transfer_fee_config: u8 instruction=26, u8 transfer_fee_instruction=0, pubkey_option transfer_fee_config_authority, pubkey_option withdraw_withheld_authority, u16 transfer_fee_basis_points, u64 maximum_fee"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 26,
+    storeImm .stb .r8 1 0
+  ] ++
+  lowerCpiPubkeyOptionField accountBindings cpi
+    "solana.cpi.transfer_fee_config_authority" "transfer_fee_config_authority" 2 ++
+  lowerCpiPubkeyOptionField accountBindings cpi
+    "solana.cpi.withdraw_withheld_authority" "withdraw_withheld_authority" 35 ++
+  lowerCpiU16Field valueBindings cpi
+    "solana.cpi.transfer_fee_basis_points" "transfer_fee_basis_points" 68 ++
+  lowerCpiU64Field valueBindings cpi
+    "solana.cpi.maximum_fee" "maximum_fee" 70
+
+def lowerToken2022TransferCheckedWithFeeData
+    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
+  #[
+    .comment s!"solana.cpi.data token-2022.transfer_checked_with_fee: u8 instruction=26, u8 transfer_fee_instruction=1, u64 amount, u8 decimals={cpiDecimals cpi}, u64 fee"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 26,
+    storeImm .stb .r8 1 1
+  ] ++
+  lowerCpiU64Field valueBindings cpi "solana.cpi.amount_source" "amount" 2 ++ #[
+    storeImm .stb .r8 10 (cpiDecimals cpi)
+  ] ++
+  lowerCpiU64Field valueBindings cpi "solana.cpi.fee_source" "fee" 11
+
+def lowerToken2022TransferFeeTagData (layoutName : String) (subTag : Nat) : Array AstNode :=
+  #[
+    .comment s!"solana.cpi.data {layoutName}: u8 instruction=26, u8 transfer_fee_instruction={subTag}"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 26,
+    storeImm .stb .r8 1 subTag
+  ]
+
+def token2022NumTokenAccounts (cpi : CpiInvoke) : Nat :=
+  match cpiMetadataValue? cpi "solana.cpi.num_token_accounts" with
+  | some value => value.toNat?.getD 0
+  | none => 0
+
+def lowerToken2022WithdrawWithheldTokensFromAccountsData (cpi : CpiInvoke) :
+    Array AstNode :=
+  #[
+    .comment s!"solana.cpi.data token-2022.withdraw_withheld_tokens_from_accounts: u8 instruction=26, u8 transfer_fee_instruction=3, u8 num_token_accounts={token2022NumTokenAccounts cpi}"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 26,
+    storeImm .stb .r8 1 3,
+    storeImm .stb .r8 2 (token2022NumTokenAccounts cpi)
+  ]
+
+def lowerToken2022SetTransferFeeData
+    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
+  #[
+    .comment "solana.cpi.data token-2022.set_transfer_fee: u8 instruction=26, u8 transfer_fee_instruction=5, u16 transfer_fee_basis_points, u64 maximum_fee"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 26,
+    storeImm .stb .r8 1 5
+  ] ++
+  lowerCpiU16Field valueBindings cpi
+    "solana.cpi.transfer_fee_basis_points" "transfer_fee_basis_points" 2 ++
+  lowerCpiU64Field valueBindings cpi
+    "solana.cpi.maximum_fee" "maximum_fee" 4
+
+def lowerToken2022InitializeNonTransferableMintData : Array AstNode :=
+  #[
+    .comment "solana.cpi.data token-2022.initialize_non_transferable_mint: u8 instruction=32"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 32
+  ]
+
 def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
     (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode × Nat :=
   match cpi.dataLayout? with
@@ -2004,6 +2166,20 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
       (lowerSplTokenCloseAccountData, 1)
   | some "spl-token.set_authority" =>
       (lowerSplTokenSetAuthorityData accountBindings cpi, 35)
+  | some "token-2022.initialize_transfer_fee_config" =>
+      (lowerToken2022InitializeTransferFeeConfigData accountBindings valueBindings cpi, 78)
+  | some "token-2022.transfer_checked_with_fee" =>
+      (lowerToken2022TransferCheckedWithFeeData valueBindings cpi, 19)
+  | some "token-2022.withdraw_withheld_tokens_from_mint" =>
+      (lowerToken2022TransferFeeTagData "token-2022.withdraw_withheld_tokens_from_mint" 2, 2)
+  | some "token-2022.withdraw_withheld_tokens_from_accounts" =>
+      (lowerToken2022WithdrawWithheldTokensFromAccountsData cpi, 3)
+  | some "token-2022.harvest_withheld_tokens_to_mint" =>
+      (lowerToken2022TransferFeeTagData "token-2022.harvest_withheld_tokens_to_mint" 4, 2)
+  | some "token-2022.set_transfer_fee" =>
+      (lowerToken2022SetTransferFeeData valueBindings cpi, 12)
+  | some "token-2022.initialize_non_transferable_mint" =>
+      (lowerToken2022InitializeNonTransferableMintData, 1)
   | _ =>
       (#[
         .comment "generic CPI instruction data empty; protocol-specific ABI packing pending"

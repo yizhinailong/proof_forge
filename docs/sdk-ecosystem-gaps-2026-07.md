@@ -101,15 +101,15 @@ missing.
 | SPL Token transfer_checked | Covered | Live Surfpool + Pinocchio reference | — |
 | SPL Token mint_to/burn/approve/revoke | Covered | Live Surfpool + Pinocchio reference | — |
 | SPL Token set_authority | Covered | Live Surfpool + Pinocchio reference | — |
-| Memo / Stake / Vote / Config | Missing | Extension lowering stops at System + SPL Token | P1 |
+| Memo / Stake / Vote / Config | Missing | Extension lowering covers System, SPL Token, and the Token-2022 transfer-fee/non-transferable direct CPI subset | P1 |
 | ComputeBudgetInstruction | Covered | Solana manifest/IDL/client/package metadata exposes per-entrypoint compute-unit limit and priority-fee advice; generated TS clients emit `ComputeBudgetProgram` pre-instructions | — |
 
 ### Token-2022 extensions
 
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
-| transfer_fee | Partial | Plan/Surfpool execution; no direct sBPF CPI lowering | P0 |
-| non_transferable | Partial | Plan/Surfpool execution; no direct sBPF CPI lowering | P0 |
+| transfer_fee | Covered | Plan/Surfpool execution plus direct sBPF CPI layouts for initialize config, transfer_checked_with_fee, withdraw/harvest, and set_transfer_fee; live generated direct-CPI behavior remains a validation expansion | — |
+| non_transferable | Covered | Plan/Surfpool execution plus direct sBPF CPI layout for initialize_non_transferable_mint; live generated direct-CPI behavior remains a validation expansion | — |
 | confidential_transfer | Missing | No plan or backend support | P1 |
 | transfer_hook | Missing | No plan or backend support | P1 |
 | metadata_pointer / permanent_delegate / interest_bearing / default_account_state / immutable_owner / memo_transfer | Missing | No plan or backend support | P2 |
@@ -195,9 +195,9 @@ economics) is almost entirely missing.
 
 **EVM (5 P0):** ERC-20 completion, ERC-721 NFT, ERC-165, AccessControl roles, Constructor dynamic args
 
-**Solana (1 open P0, 4 closed P0):** Token-2022 direct sBPF CPI (transfer_fee + non_transferable) remains open. Account constraint owner validation, user-facing realloc API, SPL Token close-account lowering, and ComputeBudgetInstruction are closed.
+**Solana (0 open P0, 5 closed P0):** Account constraint owner validation, user-facing realloc API, SPL Token close-account lowering, ComputeBudgetInstruction, and Token-2022 direct sBPF CPI lowering for transfer_fee + non_transferable are closed. Live generated-program Token-2022 direct-CPI validation remains a P1 validation expansion.
 
 **NEAR (6 P0):** Promise API (create/then/and/batch), Callback handling, NEP-141 FT, signer_account_id, attached_deposit, Aggregate ABI (structs/arrays in entrypoint params)
 
-Total: 12 open P0 blockers across three chains. These must close before "any
+Total: 11 open P0 blockers across three chains. These must close before "any
 contract can be written and deployed" is true for any chain.

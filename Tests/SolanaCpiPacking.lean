@@ -2,6 +2,7 @@ import ProofForge.Backend.Solana.Package
 import ProofForge.Contract.Builder
 import ProofForge.Solana
 import ProofForge.Solana.Examples.SplTokenAuthorityCpi
+import ProofForge.Solana.Examples.SplToken2022Cpi
 import ProofForge.Solana.Examples.SplTokenCloseAccountCpi
 import ProofForge.Solana.Examples.SplTokenOpsCpi
 
@@ -356,6 +357,107 @@ def main : IO UInt32 := do
         "assembly missing set_authority entrypoint CPI helper call"
   | .error err =>
       throw <| IO.userError s!"Solana token-authority CPI packing render failed: {err.render}"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec
+      "token-2022-cpi" ProofForge.Solana.Examples.SplToken2022Cpi.spec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "token-2022 package missing sBPF assembly"
+      let some manifestFile := pkg.files.find? (fun file => file.path == "manifest.toml")
+        | throw <| IO.userError "token-2022 package missing manifest.toml"
+      let some idlFile := pkg.files.find? (fun file => file.path == pkg.idlPath)
+        | throw <| IO.userError "token-2022 package missing proof-forge-idl.json"
+      let asm := asmFile.contents
+      let manifest := manifestFile.contents
+      let idl := idlFile.contents
+      require (contains manifest "program = \"spl_token_2022\"")
+        "Token-2022 manifest missing program id"
+      require (contains manifest "protocol = \"token-2022\"")
+        "Token-2022 manifest missing protocol metadata"
+      require (contains manifest "data_layout = \"token-2022.initialize_transfer_fee_config\"")
+        "Token-2022 manifest missing transfer-fee config layout"
+      require (contains manifest "transfer_fee_config_authority = \"transfer_fee_config_authority\"")
+        "Token-2022 manifest missing transfer-fee config authority source"
+      require (contains manifest "withdraw_withheld_authority = \"withdraw_withheld_authority\"")
+        "Token-2022 manifest missing withdraw-withheld authority source"
+      require (contains manifest "transfer_fee_basis_points = \"basis_points\"")
+        "Token-2022 manifest missing transfer-fee bps source"
+      require (contains manifest "maximum_fee = \"maximum_fee\"")
+        "Token-2022 manifest missing maximum fee source"
+      require (contains manifest "data_layout = \"token-2022.transfer_checked_with_fee\"")
+        "Token-2022 manifest missing transfer_checked_with_fee layout"
+      require (contains manifest "fee_source = \"fee\"")
+        "Token-2022 manifest missing fee source"
+      require (contains manifest "data_layout = \"token-2022.initialize_non_transferable_mint\"")
+        "Token-2022 manifest missing non-transferable layout"
+      require (contains manifest "num_token_accounts = \"1\"")
+        "Token-2022 manifest missing withheld source count"
+      require (contains idl "\"feeSource\": \"fee\"")
+        "Token-2022 IDL missing feeSource"
+      require (contains idl "\"transferFeeConfigAuthority\": \"transfer_fee_config_authority\"")
+        "Token-2022 IDL missing transferFeeConfigAuthority"
+      require (contains idl "\"withdrawWithheldAuthority\": \"withdraw_withheld_authority\"")
+        "Token-2022 IDL missing withdrawWithheldAuthority"
+      require (contains idl "\"numTokenAccounts\": \"1\"")
+        "Token-2022 IDL missing numTokenAccounts"
+      require (contains asm "sol_cpi_token_2022_init_fee_config:")
+        "assembly missing Token-2022 init fee config helper label"
+      require (contains asm "sol_cpi_token_2022_transfer_with_fee:")
+        "assembly missing Token-2022 transfer-with-fee helper label"
+      require (contains asm "sol_cpi_token_2022_init_non_transferable:")
+        "assembly missing Token-2022 non-transferable helper label"
+      require (contains asm "solana.cpi.program_id spl_token_2022 TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
+        "assembly missing Token-2022 program id packing marker"
+      require (contains asm "solana.cpi.data token-2022.initialize_transfer_fee_config: u8 instruction=26, u8 transfer_fee_instruction=0")
+        "assembly missing transfer-fee config data packing marker"
+      require (contains asm "solana.cpi.value transfer_fee_config_authority from account transfer_fee_config_authority")
+        "assembly missing transfer-fee config authority pubkey binding"
+      require (contains asm "solana.cpi.value withdraw_withheld_authority from account withdraw_withheld_authority")
+        "assembly missing withdraw-withheld authority pubkey binding"
+      require (contains asm "solana.cpi.value transfer_fee_basis_points from instruction param basis_points")
+        "assembly missing transfer-fee bps parameter binding"
+      require (contains asm "solana.cpi.value maximum_fee from instruction param maximum_fee")
+        "assembly missing maximum-fee parameter binding"
+      require (contains asm "solana.cpi.data token-2022.transfer_checked_with_fee: u8 instruction=26, u8 transfer_fee_instruction=1, u64 amount, u8 decimals=9, u64 fee")
+        "assembly missing transfer_checked_with_fee data packing marker"
+      require (contains asm "solana.cpi.value fee from instruction param fee")
+        "assembly missing transfer fee parameter binding"
+      require (contains asm "solana.cpi.data token-2022.withdraw_withheld_tokens_from_mint: u8 instruction=26, u8 transfer_fee_instruction=2")
+        "assembly missing withdraw-withheld-from-mint data packing marker"
+      require (contains asm "solana.cpi.data token-2022.withdraw_withheld_tokens_from_accounts: u8 instruction=26, u8 transfer_fee_instruction=3, u8 num_token_accounts=1")
+        "assembly missing withdraw-withheld-from-accounts data packing marker"
+      require (contains asm "solana.cpi.data token-2022.harvest_withheld_tokens_to_mint: u8 instruction=26, u8 transfer_fee_instruction=4")
+        "assembly missing harvest-withheld-to-mint data packing marker"
+      require (contains asm "solana.cpi.data token-2022.set_transfer_fee: u8 instruction=26, u8 transfer_fee_instruction=5, u16 transfer_fee_basis_points, u64 maximum_fee")
+        "assembly missing set-transfer-fee data packing marker"
+      require (contains asm "solana.cpi.data token-2022.initialize_non_transferable_mint: u8 instruction=32")
+        "assembly missing initialize_non_transferable_mint data packing marker"
+      require (contains asm "mov64 r3, 78")
+        "assembly missing initialize_transfer_fee_config data length"
+      require (contains asm "mov64 r3, 19")
+        "assembly missing transfer_checked_with_fee data length"
+      require (contains asm "mov64 r3, 12")
+        "assembly missing set_transfer_fee data length"
+      require (contains asm "stb [r8+0], 26")
+        "assembly missing Token-2022 extension top-level tag store"
+      require (contains asm "stb [r8+1], 1")
+        "assembly missing transfer_checked_with_fee sub-instruction store"
+      require (contains asm "stb [r8+10], 9")
+        "assembly missing transfer_checked_with_fee decimals store"
+      require (contains asm "stxdw [r8+11], r3")
+        "assembly missing transfer_checked_with_fee fee store"
+      require (contains asm "stxh [r8+68], r3")
+        "assembly missing transfer-fee config bps store"
+      require (contains asm "stxh [r8+2], r3")
+        "assembly missing set_transfer_fee bps store"
+      require (contains asm "stb [r8+0], 32")
+        "assembly missing non-transferable instruction tag store"
+      require (contains asm "call sol_cpi_token_2022_transfer_with_fee")
+        "assembly missing transfer_with_fee entrypoint CPI helper call"
+      require (contains asm "call sol_cpi_token_2022_init_non_transferable")
+        "assembly missing non-transferable entrypoint CPI helper call"
+  | .error err =>
+      throw <| IO.userError s!"Solana Token-2022 CPI packing render failed: {err.render}"
 
   IO.println "solana-cpi-packing: ok"
   return 0

@@ -1,0 +1,143 @@
+import ProofForge.Contract.Builder
+import ProofForge.Solana
+
+namespace ProofForge.Solana.Examples.SplToken2022Cpi
+
+open ProofForge.Contract.Builder
+open ProofForge.Solana
+
+def spec : ProofForge.Contract.ContractSpec :=
+  build "SolanaSplToken2022Cpi" do
+    scalarState "last_amount" .u64
+    scalarState "last_fee" .u64
+    scalarState "last_basis_points" .u64
+    scalarState "last_maximum_fee" .u64
+    scalarState "last_marker" .u64
+
+    writableAccountConstraint "mint"
+    readonlyAccountConstraint "transfer_fee_config_authority"
+    readonlyAccountConstraint "withdraw_withheld_authority"
+    writableAccountConstraint "source"
+    writableAccountConstraint "destination"
+    signerAccountConstraint "authority"
+    writableAccountConstraint "fee_receiver"
+    writableAccountConstraint "withheld_source"
+
+    splToken2022InitializeTransferFeeConfig
+      "token_2022_init_fee_config"
+      "mint"
+      "transfer_fee_config_authority"
+      "withdraw_withheld_authority"
+      "basis_points"
+      "maximum_fee"
+
+    splToken2022TransferCheckedWithFee
+      "token_2022_transfer_with_fee"
+      "source"
+      "mint"
+      "destination"
+      "authority"
+      "amount"
+      "fee"
+      9
+
+    splToken2022WithdrawWithheldTokensFromMint
+      "token_2022_withdraw_from_mint"
+      "mint"
+      "fee_receiver"
+      "withdraw_withheld_authority"
+
+    splToken2022WithdrawWithheldTokensFromAccounts
+      "token_2022_withdraw_from_accounts"
+      "mint"
+      "fee_receiver"
+      "withdraw_withheld_authority"
+      #["withheld_source"]
+
+    splToken2022HarvestWithheldTokensToMint
+      "token_2022_harvest_to_mint"
+      "mint"
+      #["withheld_source"]
+
+    splToken2022SetTransferFee
+      "token_2022_set_transfer_fee"
+      "mint"
+      "transfer_fee_config_authority"
+      "basis_points"
+      "maximum_fee"
+
+    splToken2022InitializeNonTransferableMint
+      "token_2022_init_non_transferable"
+      "mint"
+
+    entrySelectorWithParams "init_fee_config" "08"
+        #[("basis_points", .u64), ("maximum_fee", .u64)] .unit do
+      invokeSplToken2022InitializeTransferFeeConfig
+        "token_2022_init_fee_config"
+        "mint"
+        "transfer_fee_config_authority"
+        "withdraw_withheld_authority"
+        "basis_points"
+        "maximum_fee"
+      effect (storageScalarWrite "last_basis_points" (localVar "basis_points"))
+      effect (storageScalarWrite "last_maximum_fee" (localVar "maximum_fee"))
+
+    entrySelectorWithParams "transfer_with_fee" "09"
+        #[("amount", .u64), ("fee", .u64)] .unit do
+      invokeSplToken2022TransferCheckedWithFee
+        "token_2022_transfer_with_fee"
+        "source"
+        "mint"
+        "destination"
+        "authority"
+        "amount"
+        "fee"
+        9
+      effect (storageScalarWrite "last_amount" (localVar "amount"))
+      effect (storageScalarWrite "last_fee" (localVar "fee"))
+
+    entrySelector "withdraw_from_mint" "0a" do
+      invokeSplToken2022WithdrawWithheldTokensFromMint
+        "token_2022_withdraw_from_mint"
+        "mint"
+        "fee_receiver"
+        "withdraw_withheld_authority"
+      effect (storageScalarWrite "last_marker" (u64 1))
+
+    entrySelector "withdraw_from_accounts" "0b" do
+      invokeSplToken2022WithdrawWithheldTokensFromAccounts
+        "token_2022_withdraw_from_accounts"
+        "mint"
+        "fee_receiver"
+        "withdraw_withheld_authority"
+        #["withheld_source"]
+      effect (storageScalarWrite "last_marker" (u64 2))
+
+    entrySelector "harvest_to_mint" "0c" do
+      invokeSplToken2022HarvestWithheldTokensToMint
+        "token_2022_harvest_to_mint"
+        "mint"
+        #["withheld_source"]
+      effect (storageScalarWrite "last_marker" (u64 3))
+
+    entrySelectorWithParams "set_transfer_fee" "0d"
+        #[("basis_points", .u64), ("maximum_fee", .u64)] .unit do
+      invokeSplToken2022SetTransferFee
+        "token_2022_set_transfer_fee"
+        "mint"
+        "transfer_fee_config_authority"
+        "basis_points"
+        "maximum_fee"
+      effect (storageScalarWrite "last_basis_points" (localVar "basis_points"))
+      effect (storageScalarWrite "last_maximum_fee" (localVar "maximum_fee"))
+
+    entrySelector "initialize_non_transferable" "0e" do
+      invokeSplToken2022InitializeNonTransferableMint
+        "token_2022_init_non_transferable"
+        "mint"
+      effect (storageScalarWrite "last_marker" (u64 4))
+
+def module : ProofForge.IR.Module :=
+  spec.module
+
+end ProofForge.Solana.Examples.SplToken2022Cpi

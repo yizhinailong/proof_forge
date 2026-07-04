@@ -584,6 +584,9 @@ def tokenMetadata (tokenProgram : String) : Array TargetMetadata :=
     kv "solana.cpi.protocol" (tokenProtocolForProgram tokenProgram)
   ]
 
+def token2022Metadata : Array TargetMetadata :=
+  tokenMetadata splToken2022Program
+
 def systemTransferCall (name fromAccount to lamportsSource : String)
     (signerSeeds : Array String := #[]) : CpiCall := {
   name := name
@@ -636,6 +639,120 @@ def splTokenTransferCheckedCall (name source mint destination authority amountSo
     kv "solana.cpi.amount_source" amountSource,
     kv "solana.cpi.decimals" (toString decimals)
   ]
+}
+
+def splToken2022InitializeTransferFeeConfigCall
+    (name mint transferFeeConfigAuthority withdrawWithheldAuthority basisPointsSource
+      maximumFeeSource : String) : CpiCall := {
+  name := name
+  program := splToken2022Program
+  instruction := "initialize_transfer_fee_config"
+  accounts := #[
+    writableAccount mint
+  ]
+  dataLayout? := some "token-2022.initialize_transfer_fee_config"
+  extraMetadata := token2022Metadata ++ #[
+    kv "solana.cpi.transfer_fee_config_authority" transferFeeConfigAuthority,
+    kv "solana.cpi.withdraw_withheld_authority" withdrawWithheldAuthority,
+    kv "solana.cpi.transfer_fee_basis_points" basisPointsSource,
+    kv "solana.cpi.maximum_fee" maximumFeeSource
+  ]
+}
+
+def splToken2022TransferCheckedWithFeeCall
+    (name source mint destination authority amountSource feeSource : String)
+    (decimals : Nat) (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := splToken2022Program
+  instruction := "transfer_checked_with_fee"
+  accounts := #[
+    writableAccount source,
+    readonlyAccount mint,
+    writableAccount destination,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "token-2022.transfer_checked_with_fee"
+  extraMetadata := token2022Metadata ++ #[
+    kv "solana.cpi.amount_source" amountSource,
+    kv "solana.cpi.decimals" (toString decimals),
+    kv "solana.cpi.fee_source" feeSource
+  ]
+}
+
+def splToken2022WithdrawWithheldTokensFromMintCall
+    (name mint destination authority : String) (signerSeeds : Array String := #[]) :
+    CpiCall := {
+  name := name
+  program := splToken2022Program
+  instruction := "withdraw_withheld_tokens_from_mint"
+  accounts := #[
+    writableAccount mint,
+    writableAccount destination,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "token-2022.withdraw_withheld_tokens_from_mint"
+  extraMetadata := token2022Metadata
+}
+
+def splToken2022WithdrawWithheldTokensFromAccountsCall
+    (name mint destination authority : String) (sources : Array String)
+    (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := splToken2022Program
+  instruction := "withdraw_withheld_tokens_from_accounts"
+  accounts :=
+    #[
+      readonlyAccount mint,
+      writableAccount destination,
+      signerForSeeds authority .readOnly signerSeeds
+    ] ++ sources.map writableAccount
+  signerSeeds := signerSeeds
+  dataLayout? := some "token-2022.withdraw_withheld_tokens_from_accounts"
+  extraMetadata := token2022Metadata ++ #[
+    kv "solana.cpi.num_token_accounts" (toString sources.size)
+  ]
+}
+
+def splToken2022HarvestWithheldTokensToMintCall
+    (name mint : String) (sources : Array String) : CpiCall := {
+  name := name
+  program := splToken2022Program
+  instruction := "harvest_withheld_tokens_to_mint"
+  accounts := #[writableAccount mint] ++ sources.map writableAccount
+  dataLayout? := some "token-2022.harvest_withheld_tokens_to_mint"
+  extraMetadata := token2022Metadata
+}
+
+def splToken2022SetTransferFeeCall
+    (name mint authority basisPointsSource maximumFeeSource : String)
+    (signerSeeds : Array String := #[]) : CpiCall := {
+  name := name
+  program := splToken2022Program
+  instruction := "set_transfer_fee"
+  accounts := #[
+    writableAccount mint,
+    signerForSeeds authority .readOnly signerSeeds
+  ]
+  signerSeeds := signerSeeds
+  dataLayout? := some "token-2022.set_transfer_fee"
+  extraMetadata := token2022Metadata ++ #[
+    kv "solana.cpi.transfer_fee_basis_points" basisPointsSource,
+    kv "solana.cpi.maximum_fee" maximumFeeSource
+  ]
+}
+
+def splToken2022InitializeNonTransferableMintCall (name mint : String) :
+    CpiCall := {
+  name := name
+  program := splToken2022Program
+  instruction := "initialize_non_transferable_mint"
+  accounts := #[
+    writableAccount mint
+  ]
+  dataLayout? := some "token-2022.initialize_non_transferable_mint"
+  extraMetadata := token2022Metadata
 }
 
 def splTokenMintToCall (name mint destination authority amountSource : String)
@@ -1300,6 +1417,84 @@ def invokeSplTokenTransferChecked (name source mint destination authority amount
     (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
   cpiEntry (splTokenTransferCheckedCall name source mint destination authority amountSource decimals
     (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
+
+def splToken2022InitializeTransferFeeConfig
+    (name mint transferFeeConfigAuthority withdrawWithheldAuthority basisPointsSource
+      maximumFeeSource : String) : ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splToken2022InitializeTransferFeeConfigCall name mint transferFeeConfigAuthority
+    withdrawWithheldAuthority basisPointsSource maximumFeeSource)
+
+def invokeSplToken2022InitializeTransferFeeConfig
+    (name mint transferFeeConfigAuthority withdrawWithheldAuthority basisPointsSource
+      maximumFeeSource : String) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splToken2022InitializeTransferFeeConfigCall name mint transferFeeConfigAuthority
+    withdrawWithheldAuthority basisPointsSource maximumFeeSource)
+
+def splToken2022TransferCheckedWithFee
+    (name source mint destination authority amountSource feeSource : String)
+    (decimals : Nat) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splToken2022TransferCheckedWithFeeCall name source mint destination authority
+    amountSource feeSource decimals (signerSeeds := signerSeeds))
+
+def invokeSplToken2022TransferCheckedWithFee
+    (name source mint destination authority amountSource feeSource : String)
+    (decimals : Nat) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splToken2022TransferCheckedWithFeeCall name source mint destination authority
+    amountSource feeSource decimals (signerSeeds := signerSeeds))
+
+def splToken2022WithdrawWithheldTokensFromMint
+    (name mint destination authority : String) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splToken2022WithdrawWithheldTokensFromMintCall name mint destination authority
+    (signerSeeds := signerSeeds))
+
+def invokeSplToken2022WithdrawWithheldTokensFromMint
+    (name mint destination authority : String) (signerSeeds : Array String := #[]) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splToken2022WithdrawWithheldTokensFromMintCall name mint destination authority
+    (signerSeeds := signerSeeds))
+
+def splToken2022WithdrawWithheldTokensFromAccounts
+    (name mint destination authority : String) (sources : Array String)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splToken2022WithdrawWithheldTokensFromAccountsCall name mint destination authority sources
+    (signerSeeds := signerSeeds))
+
+def invokeSplToken2022WithdrawWithheldTokensFromAccounts
+    (name mint destination authority : String) (sources : Array String)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splToken2022WithdrawWithheldTokensFromAccountsCall name mint destination authority sources
+    (signerSeeds := signerSeeds))
+
+def splToken2022HarvestWithheldTokensToMint
+    (name mint : String) (sources : Array String) : ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splToken2022HarvestWithheldTokensToMintCall name mint sources)
+
+def invokeSplToken2022HarvestWithheldTokensToMint
+    (name mint : String) (sources : Array String) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splToken2022HarvestWithheldTokensToMintCall name mint sources)
+
+def splToken2022SetTransferFee
+    (name mint authority basisPointsSource maximumFeeSource : String)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splToken2022SetTransferFeeCall name mint authority basisPointsSource maximumFeeSource
+    (signerSeeds := signerSeeds))
+
+def invokeSplToken2022SetTransferFee
+    (name mint authority basisPointsSource maximumFeeSource : String)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splToken2022SetTransferFeeCall name mint authority basisPointsSource maximumFeeSource
+    (signerSeeds := signerSeeds))
+
+def splToken2022InitializeNonTransferableMint (name mint : String) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splToken2022InitializeNonTransferableMintCall name mint)
+
+def invokeSplToken2022InitializeNonTransferableMint (name mint : String) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splToken2022InitializeNonTransferableMintCall name mint)
 
 def splTokenMintTo (name mint destination authority amountSource : String)
     (tokenProgram : String := splTokenProgram) (signerSeeds : Array String := #[]) :

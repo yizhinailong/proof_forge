@@ -147,6 +147,96 @@ def invokeSplTokenTransferChecked (call : CpiRef) (source mint destination autho
     authority.name amountSource.id decimals
     (tokenProgram := tokenProgram) (signerSeeds := signerSeeds)
 
+def splToken2022InitializeTransferFeeConfig
+    (call : CpiRef) (mint transferFeeConfigAuthority withdrawWithheldAuthority : AccountRef)
+    (basisPointsSource maximumFeeSource : ProofForge.Contract.Surface.BindingRef) :
+    ProofForge.Contract.Surface.ModuleM Unit :=
+  ProofForge.Solana.splToken2022InitializeTransferFeeConfig call.name mint.name
+    transferFeeConfigAuthority.name withdrawWithheldAuthority.name basisPointsSource.id
+    maximumFeeSource.id
+
+def invokeSplToken2022InitializeTransferFeeConfig
+    (call : CpiRef) (mint transferFeeConfigAuthority withdrawWithheldAuthority : AccountRef)
+    (basisPointsSource maximumFeeSource : ProofForge.Contract.Surface.BindingRef) :
+    ProofForge.Contract.Surface.EntryM Unit :=
+  ProofForge.Solana.invokeSplToken2022InitializeTransferFeeConfig call.name mint.name
+    transferFeeConfigAuthority.name withdrawWithheldAuthority.name basisPointsSource.id
+    maximumFeeSource.id
+
+def splToken2022TransferCheckedWithFee (call : CpiRef)
+    (source mint destination authority : AccountRef)
+    (amountSource feeSource : ProofForge.Contract.Surface.BindingRef) (decimals : Nat)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Surface.ModuleM Unit :=
+  ProofForge.Solana.splToken2022TransferCheckedWithFee call.name source.name mint.name
+    destination.name authority.name amountSource.id feeSource.id decimals
+    (signerSeeds := signerSeeds)
+
+def invokeSplToken2022TransferCheckedWithFee (call : CpiRef)
+    (source mint destination authority : AccountRef)
+    (amountSource feeSource : ProofForge.Contract.Surface.BindingRef) (decimals : Nat)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Surface.EntryM Unit :=
+  ProofForge.Solana.invokeSplToken2022TransferCheckedWithFee call.name source.name mint.name
+    destination.name authority.name amountSource.id feeSource.id decimals
+    (signerSeeds := signerSeeds)
+
+def splToken2022WithdrawWithheldTokensFromMint
+    (call : CpiRef) (mint destination authority : AccountRef)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Surface.ModuleM Unit :=
+  ProofForge.Solana.splToken2022WithdrawWithheldTokensFromMint call.name mint.name
+    destination.name authority.name (signerSeeds := signerSeeds)
+
+def invokeSplToken2022WithdrawWithheldTokensFromMint
+    (call : CpiRef) (mint destination authority : AccountRef)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Surface.EntryM Unit :=
+  ProofForge.Solana.invokeSplToken2022WithdrawWithheldTokensFromMint call.name mint.name
+    destination.name authority.name (signerSeeds := signerSeeds)
+
+def splToken2022WithdrawWithheldTokensFromAccounts
+    (call : CpiRef) (mint destination authority : AccountRef) (sources : Array AccountRef)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Surface.ModuleM Unit :=
+  ProofForge.Solana.splToken2022WithdrawWithheldTokensFromAccounts call.name mint.name
+    destination.name authority.name (sources.map accountName) (signerSeeds := signerSeeds)
+
+def invokeSplToken2022WithdrawWithheldTokensFromAccounts
+    (call : CpiRef) (mint destination authority : AccountRef) (sources : Array AccountRef)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Surface.EntryM Unit :=
+  ProofForge.Solana.invokeSplToken2022WithdrawWithheldTokensFromAccounts call.name mint.name
+    destination.name authority.name (sources.map accountName) (signerSeeds := signerSeeds)
+
+def splToken2022HarvestWithheldTokensToMint
+    (call : CpiRef) (mint : AccountRef) (sources : Array AccountRef) :
+    ProofForge.Contract.Surface.ModuleM Unit :=
+  ProofForge.Solana.splToken2022HarvestWithheldTokensToMint call.name mint.name
+    (sources.map accountName)
+
+def invokeSplToken2022HarvestWithheldTokensToMint
+    (call : CpiRef) (mint : AccountRef) (sources : Array AccountRef) :
+    ProofForge.Contract.Surface.EntryM Unit :=
+  ProofForge.Solana.invokeSplToken2022HarvestWithheldTokensToMint call.name mint.name
+    (sources.map accountName)
+
+def splToken2022SetTransferFee
+    (call : CpiRef) (mint authority : AccountRef)
+    (basisPointsSource maximumFeeSource : ProofForge.Contract.Surface.BindingRef)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Surface.ModuleM Unit :=
+  ProofForge.Solana.splToken2022SetTransferFee call.name mint.name authority.name
+    basisPointsSource.id maximumFeeSource.id (signerSeeds := signerSeeds)
+
+def invokeSplToken2022SetTransferFee
+    (call : CpiRef) (mint authority : AccountRef)
+    (basisPointsSource maximumFeeSource : ProofForge.Contract.Surface.BindingRef)
+    (signerSeeds : Array String := #[]) : ProofForge.Contract.Surface.EntryM Unit :=
+  ProofForge.Solana.invokeSplToken2022SetTransferFee call.name mint.name authority.name
+    basisPointsSource.id maximumFeeSource.id (signerSeeds := signerSeeds)
+
+def splToken2022InitializeNonTransferableMint (call : CpiRef) (mint : AccountRef) :
+    ProofForge.Contract.Surface.ModuleM Unit :=
+  ProofForge.Solana.splToken2022InitializeNonTransferableMint call.name mint.name
+
+def invokeSplToken2022InitializeNonTransferableMint (call : CpiRef) (mint : AccountRef) :
+    ProofForge.Contract.Surface.EntryM Unit :=
+  ProofForge.Solana.invokeSplToken2022InitializeNonTransferableMint call.name mint.name
+
 def splTokenMintTo (call : CpiRef) (mint destination authority : AccountRef)
     (amountSource : ProofForge.Contract.Surface.BindingRef)
     (tokenProgram : String := ProofForge.Solana.splTokenProgram)

@@ -17,6 +17,54 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Solana Token-2022 Direct CPI Lowering
+
+Commit: this commit
+
+Summary:
+
+- Added direct Solana SDK helpers for Token-2022 transfer-fee and
+  non-transferable CPI paths, including typed `Surface` wrappers.
+- Lowered Token-2022 instruction data for
+  `initialize_transfer_fee_config`, `transfer_checked_with_fee`,
+  `withdraw_withheld_tokens_from_mint`,
+  `withdraw_withheld_tokens_from_accounts`, `harvest_withheld_tokens_to_mint`,
+  `set_transfer_fee`, and `initialize_non_transferable_mint`.
+- Added the built-in Token-2022 program id
+  `TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb` to direct CPI program-id
+  packing, so these calls no longer fall back to placeholder program ids.
+- Extended Solana manifest and IDL metadata with fee source, transfer-fee
+  authorities, basis points, maximum fee, and withheld-account count fields.
+- Added `ProofForge.Solana.Examples.SplToken2022Cpi` and expanded
+  `Tests/SolanaCpiPacking.lean` to check Token-2022 tags, data lengths,
+  value bindings, program id packing, manifest fields, IDL fields, and
+  entrypoint helper calls.
+
+Validation run:
+
+```sh
+lake build ProofForge.Solana ProofForge.Solana.Surface ProofForge.Backend.Solana.Extension ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Idl ProofForge.Solana.Examples.SplToken2022Cpi
+lake env lean --run Tests/SolanaCpiPacking.lean
+scripts/i18n/check-sync.sh
+just solana-lean
+just solana-light
+```
+
+Known limitations:
+
+- This closes the static SDK/backend lowering side of the Token-2022 P0 for
+  transfer-fee and non-transferable flows. A live Surfpool/Web3.js gate for
+  generated direct-CPI programs, plus a Pinocchio/reference equivalence fixture,
+  remains a validation expansion.
+- `contract_source` shorthand syntax is still limited to the older SPL Token
+  helpers; Token-2022 direct CPI is currently available through the builder API
+  and typed `Surface` wrappers.
+
+Next step:
+
+- Continue Solana-first SDK hardening with direct Token-2022 live validation,
+  then move to the next primary-chain SDK P0 backlog item.
+
 ### Solana Account Realloc API
 
 Commit: this commit
