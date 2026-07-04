@@ -2736,6 +2736,12 @@ mutual
               indexExpr
             ]
         .ok (Lean.Compiler.Yul.builtin "sload" #[fieldSlot])
+    | .storagePathRead stateId path => do
+        let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan module stateId path
+        ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          plan
     | _ =>
         .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
 
@@ -5063,6 +5069,16 @@ def scalarBodyTypeSupported : ValueType → Bool
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
   | .unit | .bytes | .string | .fixedArray _ _ | .structType _ => false
 
+partial def storagePathSegmentSupportsScalarBody :
+    StoragePathSegment → Bool
+  | .field _ => true
+  | .index index => exprSupportsPlanScalarYul index
+  | .mapKey key => exprSupportsPlanScalarYul key
+
+def storagePathSupportsScalarBody
+    (path : Array StoragePathSegment) : Bool :=
+  path.all storagePathSegmentSupportsScalarBody
+
 mutual
   partial def effectPlanSupportsScalarBodyExpr :
       ProofForge.Backend.Evm.Plan.EffectPlan → Bool
@@ -5073,6 +5089,7 @@ mutual
     | .storageArrayRead _ index => exprPlanSupportsScalarBody index
     | .storageStructFieldRead _ _ => true
     | .storageArrayStructFieldRead _ index _ => exprPlanSupportsScalarBody index
+    | .storagePathRead _ path => storagePathSupportsScalarBody path
     | _ => false
 
   partial def exprPlanSupportsScalarBody :
@@ -5131,16 +5148,6 @@ def scalarBodyAssignmentTargetSupported :
     ProofForge.Backend.Evm.Plan.ExprPlan → Bool
   | .local _ => true
   | target => exprPlanIsStaticAggregateScalarTarget target
-
-partial def storagePathSegmentSupportsScalarBody :
-    StoragePathSegment → Bool
-  | .field _ => true
-  | .index index => exprSupportsPlanScalarYul index
-  | .mapKey key => exprSupportsPlanScalarYul key
-
-def storagePathSupportsScalarBody
-    (path : Array StoragePathSegment) : Bool :=
-  path.all storagePathSegmentSupportsScalarBody
 
 def eventFieldPlanSupportsScalarBody :
     ProofForge.Backend.Evm.Plan.EventFieldPlan → Bool

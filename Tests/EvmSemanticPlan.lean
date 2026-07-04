@@ -2562,6 +2562,57 @@ def testScalarControlFlowPlanToYul : IO Unit := do
             "planned struct-array read control-flow else slot"
       | _ => throw <| IO.userError "planned struct-array read control-flow else must lower to value binding"
   | _ => throw <| IO.userError "planned struct read control-flow body lowering must lower to switch"
+  let plannedPathReadControl? ← requireOk
+    (plannedScalarBodyStatement?
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      "control_flow"
+      .unit
+      env
+      (.ifElse
+        (.gt (.local "n") (.literal (.u64 0)))
+        #[
+          .letBind "path_x" .u64 (.effect (.storagePathRead "current" #[.field "x"]))
+        ]
+        #[
+          .letBind "path_y" .u64 (.effect (.storagePathRead "points" #[.index (.local "n"), .field "y"]))
+        ]))
+    "planned storage path read control-flow plan construction"
+  let plannedPathReadControl ← requireSome plannedPathReadControl?
+    "planned storage path read control-flow plan construction missing plan"
+  let (pathReadControlStmts, _) ← requireOk
+    (lowerScalarStmtPlanBodyStatement
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      "control_flow"
+      .unit
+      env
+      false
+      plannedPathReadControl)
+    "planned storage path read control-flow body lowering"
+  match pathReadControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let elseCase ← requireAt cases 0 "planned storage path read control-flow else case"
+      let thenCase ← requireAt cases 1 "planned storage path read control-flow then case"
+      require (thenCase.body.statements.size == 1) "planned storage path read control-flow then count"
+      require (elseCase.body.statements.size == 1) "planned storage path read control-flow else count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.builtin name args)) => do
+          require (names.size == 1) "planned storage path field read control-flow var count"
+          let typedName ← requireAt names 0 "planned storage path field read control-flow var"
+          require (typedName.name == "path_x") "planned storage path field read control-flow local name"
+          require (name == "sload") "planned storage path field read control-flow sload"
+          require (args.size == 1) "planned storage path field read control-flow sload arg count"
+      | _ => throw <| IO.userError "planned storage path field read control-flow must lower to value binding"
+      match elseCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.builtin name args)) => do
+          require (names.size == 1) "planned storage path struct-array read control-flow var count"
+          let typedName ← requireAt names 0 "planned storage path struct-array read control-flow var"
+          require (typedName.name == "path_y") "planned storage path struct-array read control-flow local name"
+          require (name == "sload") "planned storage path struct-array read control-flow sload"
+          require (args.size == 1) "planned storage path struct-array read control-flow sload arg count"
+          requireCallExpr args[0]! structArraySlotFunctionName 5
+            "planned storage path struct-array read control-flow slot"
+      | _ => throw <| IO.userError "planned storage path struct-array read control-flow must lower to value binding"
+  | _ => throw <| IO.userError "planned storage path read control-flow body lowering must lower to switch"
   let plannedEventControl? ← requireOk
     (plannedScalarBodyStatement?
       ProofForge.IR.Examples.EventProbe.evmModule
