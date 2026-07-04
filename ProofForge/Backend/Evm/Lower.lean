@@ -101,7 +101,28 @@ def eventPlanForFields
 def assignExprPlan (op : AssignOp) (lhs rhs : ExprPlan) : ExprPlan :=
   .checkedArith op lhs rhs
 
+def fixedArrayScalarLeafType? : ValueType → Bool
+  | .u32 | .u64 | .bool | .hash | .address => true
+  | .unit | .fixedArray _ _ | .structType _ | .bytes | .string => false
+
 mutual
+  partial def localArrayGetExprPlan?
+      (module : Module)
+      (env : TypeEnv)
+      (array index : Expr) : Except LowerError (Option ExprPlan) := do
+    let fullExpr := Expr.arrayGet array index
+    match collectLocalArrayGetPath fullExpr with
+    | some (name, path) => do
+        let some binding := findLocal? env name
+          | .error { message := s!"unknown local `{name}`" }
+        let (lengths, leafType) ← fixedArrayPathShape "fixed array index" binding.type path
+        if fixedArrayScalarLeafType? leafType then
+          .ok (some (.localArrayGet name (← path.mapM (buildExprPlan module env)) lengths))
+        else
+          .ok none
+    | none =>
+        .ok none
+
   partial def buildExprPlan (module : Module) (env : TypeEnv) : Expr → Except LowerError ExprPlan
     | .literal value => literalPlan value
     | .local name => .ok (.local name)
@@ -109,7 +130,9 @@ mutual
         let planned ← values.mapM (buildExprPlan module env)
         .ok (.arrayLit elementType planned)
     | .arrayGet array index => do
-        .ok (.arrayGet (← buildExprPlan module env array) (← buildExprPlan module env index))
+        match ← localArrayGetExprPlan? module env array index with
+        | some plan => .ok plan
+        | none => .ok (.arrayGet (← buildExprPlan module env array) (← buildExprPlan module env index))
     | .structLit typeName fields => do
         let mut planned : Array (String × ExprPlan) := #[]
         for field in fields do

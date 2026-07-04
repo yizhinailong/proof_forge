@@ -446,7 +446,7 @@ mutual
     | localCrosscallWords (name : String) (type : ValueType)
     | structField (base : ExprPlan) (fieldName : String)
     | arrayGet (array index : ExprPlan)
-    | localArrayGet (name : String) (path : Array ExprPlan)
+    | localArrayGet (name : String) (path : Array ExprPlan) (lengths : Array Nat)
     | arrayLit (elementType : ValueType) (values : Array ExprPlan)
     | structLit (typeName : String) (fields : Array (String × ExprPlan))
     | hashValue (a b c d : ExprPlan)

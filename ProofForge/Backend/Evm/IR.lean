@@ -473,23 +473,16 @@ def dynamicParamLengthName (name : String) : String :=
 def dynamicParamDataPtrName (name : String) : String :=
   ProofForge.Backend.Evm.ToYul.dynamicParamDataPtrName name
 def arrayLocalElementName (name : String) (index : Nat) : String :=
-  s!"__proof_forge_array_{name}_{index}"
+  ProofForge.Backend.Evm.ToYul.arrayLocalElementName name index
 
 def arrayStructLocalFieldName (name : String) (index : Nat) (fieldName : String) : String :=
   s!"__proof_forge_array_struct_{name}_{index}_{fieldName}"
 
 def natPathSuffix (path : Array Nat) : String :=
-  Id.run do
-    let mut suffix := ""
-    for h : idx in [0:path.size] do
-      let part := toString path[idx]
-      suffix := if idx == 0 then part else s!"{suffix}_{part}"
-    suffix
+  ProofForge.Backend.Evm.ToYul.natPathSuffix path
 
 def arrayLocalPathName (name : String) (path : Array Nat) : String :=
-  match path.toList with
-  | [index] => arrayLocalElementName name index
-  | _ => s!"__proof_forge_array_{name}_{natPathSuffix path}"
+  ProofForge.Backend.Evm.ToYul.arrayLocalPathName name path
 
 def arrayStructLocalPathFieldName (name : String) (path : Array Nat) (fieldName : String) : String :=
   match path.toList with
@@ -497,10 +490,10 @@ def arrayStructLocalPathFieldName (name : String) (path : Array Nat) (fieldName 
   | _ => s!"__proof_forge_array_struct_{name}_{natPathSuffix path}_{fieldName}"
 
 def localArrayGetFunctionName (length : Nat) : String :=
-  s!"__proof_forge_local_array_get_{length}"
+  ProofForge.Backend.Evm.ToYul.localArrayGetFunctionName length
 
 def nestedLocalArrayGetFunctionName (lengths : Array Nat) : String :=
-  s!"__proof_forge_local_array_get_nested_{natPathSuffix lengths}"
+  ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetFunctionName lengths
 
 def localArrayGetValueParamName (index : Nat) : String :=
   s!"value_{index}"
@@ -512,16 +505,7 @@ def localArrayGetPathValueParamName (path : Array Nat) : String :=
   s!"value_{natPathSuffix path}"
 
 partial def nestedLocalArrayLeafPaths (lengths : Array Nat) : Array (Array Nat) :=
-  match lengths.toList with
-  | [] => #[#[]]
-  | length :: rest =>
-      Id.run do
-        let nested := nestedLocalArrayLeafPaths rest.toArray
-        let mut paths : Array (Array Nat) := #[]
-        for _h : idx in [0:length] do
-          for path in nested do
-            paths := paths.push (#[idx] ++ path)
-        paths
+  ProofForge.Backend.Evm.ToYul.nestedLocalArrayLeafPaths lengths
 
 def structLocalFieldName (name fieldName : String) : String :=
   s!"__proof_forge_struct_{name}_{fieldName}"
@@ -2768,11 +2752,17 @@ partial def lowerExprViaPlan
 partial def lowerScalarPlanExprOrFallback
     (module : Module)
     (env : TypeEnv)
-    (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr :=
-  if exprSupportsPlanScalarYul expr then
-    lowerExprViaPlan module env expr
-  else
-    lowerExpr module env expr
+    (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+  match expr with
+  | .arrayGet _ _ =>
+      match lowerExprViaPlan module env expr with
+      | .ok lowered => .ok lowered
+      | .error _ => lowerExpr module env expr
+  | _ =>
+      if exprSupportsPlanScalarYul expr then
+        lowerExprViaPlan module env expr
+      else
+        lowerExpr module env expr
 
 partial def lowerScalarBindingStmtPlanOrFallback
     (module : Module)

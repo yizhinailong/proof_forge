@@ -10744,7 +10744,7 @@ Result:
 
 ### EVM Local Array Helper Lower Plan Slice
 
-Commit: pending
+Commit: b87d53a
 
 Summary:
 
@@ -10779,5 +10779,42 @@ Result:
 
 - EVM semantic-plan local-array helper discovery and checked-arithmetic
   discovery now come from `Lower.buildFullModulePlan` for complete plans.
+- Full `lake build` passed locally with the existing `ProofForge/Cli.lean`
+  unused-variable warning.
+
+### EVM Local Array ExprPlan-to-Yul Slice
+
+Commit: pending
+
+Summary:
+
+- Added `ExprPlan.localArrayGet` dimensions so Lower can represent local
+  fixed-array reads as semantic expression plans.
+- Moved static, dynamic one-dimensional, and nested dynamic local scalar-array
+  getter expression assembly into `ToYul`.
+- Kept array literals, struct leaves, and aggregate array values on the
+  compatibility fallback path.
+- Reused the same `ToYul` naming/path helpers for local-array getter calls and
+  the existing helper bodies to prevent naming drift.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/struct-array-value-ir-smoke.sh
+lake build
+```
+
+Result:
+
+- EVM local fixed-array getter expression plans lower through `ToYul`, and the
+  array-value/struct-array-value Foundry smokes still pass.
 - Full `lake build` passed locally with the existing `ProofForge/Cli.lean`
   unused-variable warning.

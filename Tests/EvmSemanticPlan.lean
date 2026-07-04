@@ -812,6 +812,59 @@ def testScalarExprPlanToYul : IO Unit := do
     "__proof_forge_native_transfer"
     2
     "direct native transfer ToYul helper-call"
+  let arrayEnv : TypeEnv := #[
+    { name := "xs", type := .fixedArray .u64 3, isMutable := false },
+    { name := "idx", type := .u64, isMutable := false }
+  ]
+  let staticLocalArrayExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      arrayEnv
+      (.localArrayGet "xs" #[.literalWord 2] #[3]))
+    "static local-array ExprPlan-to-Yul"
+  match staticLocalArrayExpr with
+  | Lean.Compiler.Yul.Expr.ident name =>
+      require (name == "__proof_forge_array_xs_2") "static local-array ExprPlan-to-Yul local name"
+  | _ => throw <| IO.userError "static local-array ExprPlan-to-Yul must lower to local identifier"
+  let dynamicLocalArrayExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      arrayEnv
+      (.localArrayGet "xs" #[.local "idx"] #[3]))
+    "dynamic local-array ExprPlan-to-Yul"
+  requireCallExpr
+    dynamicLocalArrayExpr
+    "__proof_forge_local_array_get_3"
+    4
+    "dynamic local-array ExprPlan-to-Yul"
+  let dynamicPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      (toValidateTypeEnv arrayEnv)
+      (.arrayGet (.local "xs") (.local "idx")))
+    "dynamic local-array Lower ExprPlan"
+  match dynamicPlan with
+  | .localArrayGet name path lengths => do
+      require (name == "xs") "dynamic local-array Lower ExprPlan name"
+      require (path.size == 1) "dynamic local-array Lower ExprPlan path rank"
+      require (lengths == #[3]) "dynamic local-array Lower ExprPlan lengths"
+  | _ => throw <| IO.userError "dynamic local-array Lower ExprPlan must be localArrayGet"
+  let matrixEnv : TypeEnv := #[
+    { name := "matrix", type := .fixedArray (.fixedArray .u64 2) 2, isMutable := false },
+    { name := "row", type := .u64, isMutable := false },
+    { name := "col", type := .u64, isMutable := false }
+  ]
+  let nestedDynamicLocalArrayExpr ← requireOk
+    (lowerScalarPlanExprOrFallback
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      matrixEnv
+      (.arrayGet (.arrayGet (.local "matrix") (.local "row")) (.local "col")))
+    "nested dynamic local-array ExprPlan-to-Yul integration"
+  requireCallExpr
+    nestedDynamicLocalArrayExpr
+    "__proof_forge_local_array_get_nested_2_2"
+    6
+    "nested dynamic local-array ExprPlan-to-Yul integration"
 
 def testScalarAssertPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]

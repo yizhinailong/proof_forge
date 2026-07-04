@@ -52,6 +52,93 @@ def contextExpr : ContextField → Lean.Compiler.Yul.Expr
 def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num (4 + paramIndex * 32)]
 
+def arrayLocalElementName (name : String) (index : Nat) : String :=
+  s!"__proof_forge_array_{name}_{index}"
+
+def natPathSuffix (path : Array Nat) : String :=
+  Id.run do
+    let mut suffix := ""
+    for h : idx in [0:path.size] do
+      let part := toString path[idx]
+      suffix := if idx == 0 then part else s!"{suffix}_{part}"
+    suffix
+
+def arrayLocalPathName (name : String) (path : Array Nat) : String :=
+  match path.toList with
+  | [index] => arrayLocalElementName name index
+  | _ => s!"__proof_forge_array_{name}_{natPathSuffix path}"
+
+def localArrayGetFunctionName (length : Nat) : String :=
+  s!"__proof_forge_local_array_get_{length}"
+
+def nestedLocalArrayGetFunctionName (lengths : Array Nat) : String :=
+  s!"__proof_forge_local_array_get_nested_{natPathSuffix lengths}"
+
+partial def nestedLocalArrayLeafPaths (lengths : Array Nat) : Array (Array Nat) :=
+  match lengths.toList with
+  | [] => #[#[]]
+  | length :: rest =>
+      let nested := nestedLocalArrayLeafPaths rest.toArray
+      Id.run do
+        let mut paths : Array (Array Nat) := #[]
+        for _h : idx in [0:length] do
+          for tail in nested do
+            paths := paths.push (#[idx] ++ tail)
+        paths
+
+def localArrayStaticPath? (path : Array ExprPlan) : Option (Array Nat) :=
+  path.foldl
+    (init := some #[])
+    (fun acc part =>
+      match acc, part with
+      | some values, .literalWord value => some (values.push value)
+      | _, _ => none)
+
+def validateLocalArrayStaticPath
+    {ε : Type}
+    (mkError : String → ε)
+    (name : String)
+    (path lengths : Array Nat) : Except ε Unit := do
+  if path.size != lengths.size then
+    .error (mkError s!"EVM ExprPlan-to-Yul local array get `{name}` expected path rank {lengths.size}, got {path.size}")
+  for h : idx in [0:path.size] do
+    let index := path[idx]
+    let some length := lengths[idx]?
+      | .error (mkError s!"EVM ExprPlan-to-Yul local array get `{name}` missing length for path index {idx}")
+    if index < length then
+      pure ()
+    else
+      .error (mkError s!"EVM ExprPlan-to-Yul local array get `{name}` index {index} is out of bounds for length {length}")
+
+def localArrayGetExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlan : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (name : String)
+    (path : Array ExprPlan)
+    (lengths : Array Nat) : Except ε Lean.Compiler.Yul.Expr := do
+  if lengths.isEmpty then
+    .error (mkError s!"EVM ExprPlan-to-Yul local array get `{name}` requires at least one dimension")
+  if path.size != lengths.size then
+    .error (mkError s!"EVM ExprPlan-to-Yul local array get `{name}` expected path rank {lengths.size}, got {path.size}")
+  match localArrayStaticPath? path with
+  | some staticPath => do
+      validateLocalArrayStaticPath mkError name staticPath lengths
+      .ok (Lean.Compiler.Yul.Expr.id (arrayLocalPathName name staticPath))
+  | none => do
+      let pathArgs ← path.mapM lowerPlan
+      match lengths.toList with
+      | [length] =>
+          let mut valueArgs : Array Lean.Compiler.Yul.Expr := #[]
+          for _h : idx in [0:length] do
+            valueArgs := valueArgs.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
+          .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName length) (pathArgs ++ valueArgs))
+      | _ =>
+          let mut valueArgs : Array Lean.Compiler.Yul.Expr := #[]
+          for leafPath in nestedLocalArrayLeafPaths lengths do
+            valueArgs := valueArgs.push (Lean.Compiler.Yul.Expr.id (arrayLocalPathName name leafPath))
+          .ok (Lean.Compiler.Yul.call (nestedLocalArrayGetFunctionName lengths) (pathArgs ++ valueArgs))
+
 def revertStatement : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.exprStmt
     (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
@@ -1243,8 +1330,13 @@ partial def exprPlanExpr
       .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support struct field plans yet")
   | .arrayGet .. =>
       .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support array get plans yet")
-  | .localArrayGet .. =>
-      .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support local array get plans yet")
+  | .localArrayGet name path lengths =>
+      localArrayGetExpr
+        mkError
+        (exprPlanExpr mkError lowerExpr lowerEffect)
+        name
+        path
+        lengths
   | .arrayLit .. =>
       .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support array literal plans yet")
   | .structLit .. =>
