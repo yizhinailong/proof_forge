@@ -318,6 +318,11 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
       | Lean.Compiler.Yul.Expr.lit lit => require (lit.value == "36") "transfer amount calldata offset"
       | _ => throw <| IO.userError "transfer amount calldata offset must be literal"
   | _ => throw <| IO.userError "transfer amount call arg must be calldata load"
+  match ProofForge.Backend.Evm.ToYul.entrypointCallExpr dynamicPlan.name transferEntrypoint with
+  | Lean.Compiler.Yul.Expr.call name args => do
+      require (name == "f_EvmDynamicAbiProbe_transfer") "transfer plan-to-yul call name"
+      require (args.size == 2) "transfer plan-to-yul call arg count"
+  | _ => throw <| IO.userError "transfer plan-to-yul call must be a function call"
   let dynamicDirectDispatch :=
     ProofForge.Backend.Evm.ToYul.dispatchPlanStatement
       dynamicPlan.dispatch

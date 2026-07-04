@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM EntrypointPlan Call Wrapper To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.entrypointFunctionName`,
+  `ToYul.entrypointPlanFunctionName`, and `ToYul.entrypointCallExpr`.
+- Kept `IR.yulFunctionName` as a compatibility alias while routing planned
+  dispatcher call expression construction through `ToYul`.
+- Added a plan-name consistency check in `IR.entrypointCallExprWithPlan`.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct planned entrypoint call
+  expression generation for the dynamic ABI probe.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/dynamic-abi-ir-smoke.sh
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- Full entrypoint function definition and body lowering still live in the
+  `IR.lean` compatibility facade.
+
+Next step:
+
+- Continue moving supported `StmtPlan -> Yul` body lowering out of the
+  compatibility facade.
+
 ### EVM AbiParamPlan Calldata Decode To-Yul Slice
 
 Commit: this commit

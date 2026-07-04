@@ -12,6 +12,12 @@ def slotExpr (slot : Nat) : Lean.Compiler.Yul.Expr :=
 def helperCall (helper : Helper) (args : Array Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.call helper.name args
 
+def entrypointFunctionName (moduleName entrypointName : String) : String :=
+  s!"f_{moduleName}_{entrypointName}"
+
+def entrypointPlanFunctionName (moduleName : String) (entrypoint : EntrypointPlan) : String :=
+  entrypointFunctionName moduleName entrypoint.name
+
 def checkedAddName : String := "__pf_checked_add"
 def checkedSubName : String := "__pf_checked_sub"
 def checkedMulName : String := "__pf_checked_mul"
@@ -185,6 +191,11 @@ def entrypointCallArgs (params : Array AbiParamPlan) :
         for h : j in [0:param.wordTypes.size] do
           args := args.push (calldataWordExpr (param.headWordIndex + j))
     args
+
+def entrypointCallExpr
+    (moduleName : String)
+    (entrypoint : EntrypointPlan) : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.call (entrypointPlanFunctionName moduleName entrypoint) (entrypointCallArgs entrypoint.params)
 
 def dispatchSelectorExpr : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "shr" #[

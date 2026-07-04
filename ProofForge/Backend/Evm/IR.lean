@@ -77,7 +77,7 @@ def slotExpr (slot : Nat) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.Expr.num slot
 
 def yulFunctionName (moduleName entrypointName : String) : String :=
-  s!"f_{moduleName}_{entrypointName}"
+  ProofForge.Backend.Evm.ToYul.entrypointFunctionName moduleName entrypointName
 
 def mapSlotFunctionName : String := "__proof_forge_map_slot"
 def mapPresenceSlotFunctionName : String := "__proof_forge_map_presence_slot"
@@ -5127,13 +5127,20 @@ def entrypointCallExprWithPlan
     (entrypoint : Entrypoint)
     (entrypointPlan : ProofForge.Backend.Evm.Plan.EntrypointPlan) :
     Except LowerError Lean.Compiler.Yul.Expr := do
-  let args ← entrypointCallArgsWithPlan entrypointPlan.params
-  .ok (Lean.Compiler.Yul.call (yulFunctionName module.name entrypoint.name) args)
+  if entrypointPlan.name != entrypoint.name then
+    .error {
+      message :=
+        s!"EVM entrypoint call plan mismatch: expected `{entrypoint.name}`, got `{entrypointPlan.name}`"
+    }
+  else
+    .ok (ProofForge.Backend.Evm.ToYul.entrypointCallExpr module.name entrypointPlan)
 
 def entrypointCallExpr (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Expr := do
-  let params ← entrypointParamPlansForModule module entrypoint
-  let args ← entrypointCallArgsWithPlan params
-  .ok (Lean.Compiler.Yul.call (yulFunctionName module.name entrypoint.name) args)
+  let entrypointPlan ←
+    match ProofForge.Backend.Evm.Lower.buildEntrypointSurfacePlan module entrypoint with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
+  entrypointCallExprWithPlan module entrypoint entrypointPlan
 
 def dispatchReturnStatements
     (_module : Module)
