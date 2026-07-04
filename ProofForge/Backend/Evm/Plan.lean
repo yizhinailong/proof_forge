@@ -179,6 +179,12 @@ inductive StorageSlotPlan where
   | structArrayFieldSlot (rootSlot length fieldCount fieldOffset : Nat) (index : ValuePlan)
   deriving Repr
 
+inductive StoragePathWriteTargetPlan where
+  | mapWrite (rootSlot : Nat) (key : ValuePlan)
+  | singleSlot (slot : StorageSlotPlan)
+  | mapValuePresence (valueSlot presenceSlot : StorageSlotPlan)
+  deriving Repr
+
 def StorageSlotPlan.keyCount : StorageSlotPlan → Nat
   | .scalarSlot _ => 0
   | .fixedSlot _ => 0
@@ -340,6 +346,81 @@ def structArrayFieldSlotPlan
     (fieldName : String) : Except PlanError StorageSlotPlan := do
   let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
   .ok (.structArrayFieldSlot slot length fieldCount fieldOffset (ValuePlan.fromExpr index))
+
+def ensureStructFieldWordType (typeName fieldName : String) (type : ValueType) : Except PlanError Unit :=
+  if isStorageWordType type then
+    .ok ()
+  else
+    .error {
+      message :=
+        s!"field `{fieldName}` in struct `{typeName}` has unsupported EVM IR v0 local struct field type `{type.name}`; local structs support U32, U64, Bool, Hash, or Address fields"
+    }
+
+def requireStructState
+    (module : Module)
+    (stateId : String) : Except PlanError (Nat × String × StructDecl) := do
+  match stateInfo? module stateId with
+  | none => .error { message := s!"unknown struct state `{stateId}`" }
+  | some (slot, state) =>
+      match state.kind, state.type with
+      | .scalar, .structType typeName => do
+          let some decl := findStruct? module typeName
+            | .error { message := s!"state `{stateId}` uses unknown struct `{typeName}`" }
+          if decl.fields.isEmpty then
+            .error { message := s!"state `{stateId}` uses empty struct `{typeName}`; EVM IR v0 storage structs must have at least one field" }
+          for field in decl.fields do
+            ensureStructFieldWordType typeName field.id field.type
+          .ok (slot, typeName, decl)
+      | .scalar, other =>
+          .error { message := s!"state `{stateId}` has unsupported EVM IR v0 struct storage type `{other.name}`; expected struct storage" }
+      | .array _, _ =>
+          .error { message := s!"state `{stateId}` is array storage, not scalar struct storage" }
+      | .map _ _, _ =>
+          .error { message := s!"state `{stateId}` is map storage, not scalar struct storage" }
+
+def requireStructStateField
+    (module : Module)
+    (stateId fieldName : String) : Except PlanError (Nat × StructField) := do
+  let (slot, typeName, decl) ← requireStructState module stateId
+  let some (offset, field) := findStructFieldWithOffset? decl fieldName
+    | .error { message := s!"struct `{typeName}` has no field `{fieldName}`" }
+  ensureStructFieldWordType typeName field.id field.type
+  .ok (slot + offset, field)
+
+def structFieldSlotPlan
+    (module : Module)
+    (stateId fieldName : String) : Except PlanError StorageSlotPlan := do
+  let (slot, _) ← requireStructStateField module stateId fieldName
+  .ok (.scalarSlot slot)
+
+def storagePathWriteTargetPlan
+    (module : Module)
+    (stateId : String)
+    (path : Array StoragePathSegment) : Except PlanError StoragePathWriteTargetPlan :=
+  match path.toList with
+  | [StoragePathSegment.mapKey key] => do
+      let mapState ← requireMapState module stateId
+      .ok (.mapWrite mapState.rootSlot (ValuePlan.fromExpr key))
+  | [StoragePathSegment.index index] => do
+      .ok (.singleSlot (← arraySlotPlan module stateId index))
+  | [StoragePathSegment.field fieldName] => do
+      .ok (.singleSlot (← structFieldSlotPlan module stateId fieldName))
+  | [StoragePathSegment.index index, StoragePathSegment.field fieldName] => do
+      .ok (.singleSlot (← structArrayFieldSlotPlan module stateId index fieldName))
+  | [] => do
+      let (_, state) ← requireState module stateId
+      match state.kind with
+      | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+      | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
+      | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.write" }
+  | _ =>
+      match storagePathMapKeys? path with
+      | some _ => do
+          .ok (.mapValuePresence
+            (← storagePathMapValueSlotPlan module stateId path)
+            (← storagePathMapPresenceSlotPlan module stateId path))
+      | none =>
+          .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 
 def isSupportedMapState (state : StateDecl) : Bool :=
   match state.kind, state.type with

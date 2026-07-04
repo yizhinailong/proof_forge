@@ -2247,6 +2247,20 @@ inductive StoragePathWriteTarget where
   | mapValuePresence (valueSlot presenceSlot : Lean.Compiler.Yul.Expr)
   deriving Inhabited
 
+def storagePathWriteTargetFromPlan
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr) :
+    StoragePathWriteTargetPlan → Except ε StoragePathWriteTarget
+  | .mapWrite rootSlot key => do
+      .ok (.mapWrite (slotExpr rootSlot) (← lowerValuePlan lowerExpr key))
+  | .singleSlot slot => do
+      .ok (.singleSlot (← storageSlotExpr mkError lowerExpr slot))
+  | .mapValuePresence valueSlot presenceSlot => do
+      .ok (.mapValuePresence
+        (← storageSlotExpr mkError lowerExpr valueSlot)
+        (← storageSlotExpr mkError lowerExpr presenceSlot))
+
 def storagePathWriteTargetStatements
     (value : Lean.Compiler.Yul.Expr) :
     StoragePathWriteTarget → Array Lean.Compiler.Yul.Statement

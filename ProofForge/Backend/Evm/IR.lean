@@ -3591,31 +3591,12 @@ def lowerStoragePathWriteTarget
     (env : TypeEnv)
     (stateId : String)
     (path : Array StoragePathSegment) :
-    Except LowerError ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget :=
-  match path.toList with
-  | [StoragePathSegment.mapKey key] => do
-      let (slot, _, _) ← requireStorageMapState module stateId
-      .ok (.mapWrite (slotExpr slot) (← lowerMapScalarPlanExprOrFallback module env key))
-  | [StoragePathSegment.index index] => do
-      .ok (.singleSlot (← lowerArraySlotExpr module env stateId index))
-  | [StoragePathSegment.field fieldName] => do
-      .ok (.singleSlot (← lowerStructFieldSlotExpr module stateId fieldName))
-  | [StoragePathSegment.index index, StoragePathSegment.field fieldName] => do
-      .ok (.singleSlot (← lowerStructArrayFieldSlotExpr module env stateId index fieldName))
-  | [] => do
-      let state ← stateDeclOf module stateId "storage path"
-      match state.kind with
-      | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
-      | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
-      | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.write" }
-  | _ => do
-      match storagePathMapKeys? path with
-      | some keys => do
-          .ok (.mapValuePresence
-            (← lowerMapPathValueSlotExpr module env stateId keys)
-            (← lowerMapPathPresenceSlotExpr module env stateId keys))
-      | none =>
-          .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
+    Except LowerError ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget := do
+  let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan module stateId path
+  ProofForge.Backend.Evm.ToYul.storagePathWriteTargetFromPlan
+    toYulError
+    (fun expr => lowerExpr module env expr)
+    plan
 
 partial def lowerStoragePathWriteStmtPlanOrFallback
     (module : Module)

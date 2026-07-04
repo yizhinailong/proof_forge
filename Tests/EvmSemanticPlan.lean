@@ -2818,6 +2818,113 @@ def testWholeStructStorageWritePlanToYul : IO Unit := do
 
 def testStoragePathWritePlanToYul : IO Unit := do
   let arrayEnv : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let mapEnv : TypeEnv := #[
+    { name := "outer", type := .u64, isMutable := false },
+    { name := "inner", type := .u64, isMutable := false },
+    { name := "value", type := .u64, isMutable := false }
+  ]
+  let directMapTargetPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan
+        ProofForge.IR.Examples.EvmMapProbe.module
+        "balances"
+        #[.mapKey (.add (.local "outer") (.literal (.u64 1)))]
+    )
+    "direct map storage path target plan"
+  let directMapTarget ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathWriteTargetFromPlan
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module mapEnv expr)
+      directMapTargetPlan)
+    "direct map storage path target plan-to-yul"
+  match directMapTarget with
+  | ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget.mapWrite rootSlot key => do
+      match rootSlot with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "direct map storage path target root slot"
+      | _ => throw <| IO.userError "direct map storage path target root slot must be literal"
+      match key with
+      | Lean.Compiler.Yul.Expr.call name args => do
+          require (name == "__pf_checked_add") "direct map storage path target key plan"
+          require (args.size == 2) "direct map storage path target key arg count"
+      | _ => throw <| IO.userError "direct map storage path target key must be plan-lowered"
+  | _ => throw <| IO.userError "direct map storage path target must lower to mapWrite"
+  let arrayTargetPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan
+        ProofForge.IR.Examples.EvmStorageArrayProbe.module
+        "values"
+        #[.index (.local "value")]
+    )
+    "array storage path target plan"
+  let arrayTarget ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathWriteTargetFromPlan
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv expr)
+      arrayTargetPlan)
+    "array storage path target plan-to-yul"
+  match arrayTarget with
+  | ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget.singleSlot slot =>
+      requireCallExpr slot arraySlotFunctionName 3 "array storage path target slot"
+  | _ => throw <| IO.userError "array storage path target must lower to singleSlot"
+  let structTargetPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan
+        ProofForge.IR.Examples.EvmStorageStructProbe.module
+        "current"
+        #[.field "x"]
+    )
+    "struct storage path target plan"
+  let structTarget ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathWriteTargetFromPlan
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module #[] expr)
+      structTargetPlan)
+    "struct storage path target plan-to-yul"
+  match structTarget with
+  | ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget.singleSlot slot => do
+      match slot with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "struct storage path target field slot"
+      | _ => throw <| IO.userError "struct storage path target field slot must be literal"
+  | _ => throw <| IO.userError "struct storage path target must lower to singleSlot"
+  let structArrayTargetPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan
+        ProofForge.IR.Examples.EvmStorageStructProbe.module
+        "points"
+        #[.index (.literal (.u64 1)), .field "y"]
+    )
+    "struct-array storage path target plan"
+  let structArrayTarget ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathWriteTargetFromPlan
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module #[] expr)
+      structArrayTargetPlan)
+    "struct-array storage path target plan-to-yul"
+  match structArrayTarget with
+  | ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget.singleSlot slot =>
+      requireCallExpr slot structArraySlotFunctionName 5 "struct-array storage path target slot"
+  | _ => throw <| IO.userError "struct-array storage path target must lower to singleSlot"
+  let nestedMapTargetPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan
+        ProofForge.IR.Examples.EvmMapProbe.module
+        "balances"
+        #[.mapKey (.local "outer"), .mapKey (.local "inner")]
+    )
+    "nested map storage path target plan"
+  let nestedMapTarget ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathWriteTargetFromPlan
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module mapEnv expr)
+      nestedMapTargetPlan)
+    "nested map storage path target plan-to-yul"
+  match nestedMapTarget with
+  | ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget.mapValuePresence valueSlot presenceSlot => do
+      requireCallExpr valueSlot mapSlotFunctionName 2 "nested map storage path target value slot"
+      requireCallExpr presenceSlot mapPresenceSlotFunctionName 2 "nested map storage path target presence slot"
+  | _ => throw <| IO.userError "nested map storage path target must lower to value/presence slots"
   let directWriteStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.storagePathWriteEffectStmtPlanStatements
       toYulError
@@ -2867,11 +2974,6 @@ def testStoragePathWritePlanToYul : IO Unit := do
           require (addArgs.size == 2) "array storage path write value checked add arg count"
       | _ => throw <| IO.userError "array storage path write value must be plan-lowered checked add"
   | _ => throw <| IO.userError "array storage path write plan-to-yul must lower to sstore"
-  let mapEnv : TypeEnv := #[
-    { name := "outer", type := .u64, isMutable := false },
-    { name := "inner", type := .u64, isMutable := false },
-    { name := "value", type := .u64, isMutable := false }
-  ]
   let nestedWriteStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.EvmMapProbe.module
