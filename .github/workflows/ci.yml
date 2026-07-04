@@ -42,6 +42,11 @@ jobs:
       - name: Install Solana testkit tools
         run: scripts/solana/install-testkit-ci-tools.sh
 
+      - name: Install wabt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wabt
+
       - name: Tool versions
         run: |
           lean --version
@@ -52,6 +57,7 @@ jobs:
           rustc --version
           cargo --version
           just --version
+          wat2wasm --version
 
       - name: Build Lean package
         run: just build

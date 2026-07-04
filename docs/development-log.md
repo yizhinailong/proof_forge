@@ -32,6 +32,8 @@ Summary:
   `env::attached_deposit()`.
 - Updated WasmNear coverage notes, target docs, and the capability registry so
   NEAR partial capabilities distinguish the EmitWat path from Rust sourcegen v0.
+- Installed `wabt` in the main CI `build-test` job so unified testkit NEAR
+  artifact metadata can keep asserting `validation.wat2wasm = "passed"`.
 
 Validation run:
 
@@ -39,6 +41,7 @@ Validation run:
 lake env lean --run Tests/WasmNearDiagnostics.lean
 scripts/near/diagnostic-smoke.sh
 lake build ProofForge.Target ProofForge.Backend.WasmNear.IR
+just testkit
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 git diff --check
