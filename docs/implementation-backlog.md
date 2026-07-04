@@ -299,9 +299,11 @@ Tasks:
     aggregate target paths, dynamic aggregate helper snapshots, and non-scalar
     storage effect writes remain on their existing compatibility paths until
     their own migration slices add coverage.
-  - Started: scalar `storageScalarWrite` and `storageScalarAssignOp` value
-    lowering now consumes the same `ExprPlan -> ToYul` expression boundary for
-    supported scalar RHS expressions.
+  - Started: scalar `storageScalarWrite` and `storageScalarAssignOp` statement
+    assembly now consumes a narrow `StmtPlan.effect` / `EffectPlan -> ToYul`
+    helper for supported scalar value expressions. State-layout slot resolution
+    and struct storage writes remain in the compatibility facade until their own
+    extraction slices add coverage.
   - Started: `storageMapInsert`/`storageMapSet` write lowering now consumes
     the same `ExprPlan -> ToYul` expression boundary for supported scalar map
     key/value expressions in both statement writes and return-old-value

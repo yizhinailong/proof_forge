@@ -3541,26 +3541,79 @@ def lowerStoragePathAssignOpStmt
       | none =>
           .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 
-def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Statement
-  | .storageScalarRead _ =>
-      .error { message := "storage.scalar.read must be used as an expression" }
+partial def lowerScalarStorageEffectStmtPlanOrFallback
+    (module : Module)
+    (env : TypeEnv) :
+    Effect → Except LowerError Lean.Compiler.Yul.Statement
   | .storageScalarWrite stateId value => do
       match ← scalarStateType module stateId with
       | .structType _ =>
           lowerStorageStructWriteStmt module env stateId value
-      | _ => do
-          let storageSlot ← lowerScalarStorageSlotExpr module env stateId
-          .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, ← lowerScalarPlanExprOrFallback module env value]))
+      | _ =>
+          if exprSupportsPlanScalarYul value then
+            let valuePlan ←
+              match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+              | .ok plan => .ok plan
+              | .error err => .error { message := err.message }
+            let statements ←
+              ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+                toYulError
+                (fun expr => lowerExpr module env expr)
+                (lowerPlanEffectExpr module env)
+                (lowerScalarStorageSlotExpr module env)
+                (.effect (.storageScalarWrite stateId valuePlan))
+            match statements[0]? with
+            | some statement =>
+                if statements.size == 1 then
+                  .ok statement
+                else
+                  .error { message := s!"EVM StmtPlan-to-Yul scalar storage write lowering produced {statements.size} statements, expected 1" }
+            | none =>
+                .error { message := "EVM StmtPlan-to-Yul scalar storage write lowering produced no statements" }
+          else
+            let storageSlot ← lowerScalarStorageSlotExpr module env stateId
+            .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, ← lowerExpr module env value]))
   | .storageScalarAssignOp stateId op value => do
       match ← scalarStateType module stateId with
       | .structType _ =>
           .error { message := s!"storage.scalar.assign_op does not support struct state `{stateId}` in IR EVM v0" }
       | _ => pure ()
-      let storageSlot ← lowerScalarStorageSlotExpr module env stateId
-      .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-        storageSlot,
-        lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[storageSlot]) (← lowerScalarPlanExprOrFallback module env value)
-      ]))
+      if exprSupportsPlanScalarYul value then
+        let valuePlan ←
+          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+          | .ok plan => .ok plan
+          | .error err => .error { message := err.message }
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (lowerScalarStorageSlotExpr module env)
+            (.effect (.storageScalarAssignOp stateId op valuePlan))
+        match statements[0]? with
+        | some statement =>
+            if statements.size == 1 then
+              .ok statement
+            else
+              .error { message := s!"EVM StmtPlan-to-Yul scalar storage assign_op lowering produced {statements.size} statements, expected 1" }
+        | none =>
+            .error { message := "EVM StmtPlan-to-Yul scalar storage assign_op lowering produced no statements" }
+      else
+        let storageSlot ← lowerScalarStorageSlotExpr module env stateId
+        .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          storageSlot,
+          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[storageSlot]) (← lowerExpr module env value)
+        ]))
+  | _ =>
+      .error { message := "EVM StmtPlan-to-Yul scalar storage effect lowering expected storageScalarWrite/storageScalarAssignOp" }
+
+def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Statement
+  | .storageScalarRead _ =>
+      .error { message := "storage.scalar.read must be used as an expression" }
+  | .storageScalarWrite stateId value =>
+      lowerScalarStorageEffectStmtPlanOrFallback module env (.storageScalarWrite stateId value)
+  | .storageScalarAssignOp stateId op value =>
+      lowerScalarStorageEffectStmtPlanOrFallback module env (.storageScalarAssignOp stateId op value)
   | .storageMapContains _ _ =>
       .error { message := "storage.map.contains must be used as an expression" }
   | .storageMapGet _ _ =>

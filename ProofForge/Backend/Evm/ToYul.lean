@@ -382,6 +382,45 @@ def scalarAssignmentStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar assignment lowering expected assign/assignOp")
 
+def scalarStorageEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (storageSlotFor : String → Except ε Lean.Compiler.Yul.Expr) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storageScalarWrite stateId value => do
+      .ok #[
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          ← storageSlotFor stateId,
+          ← exprPlanExpr mkError lowerExpr lowerEffect value
+        ])
+      ]
+  | .storageScalarAssignOp stateId op value => do
+      let storageSlot ← storageSlotFor stateId
+      .ok #[
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          storageSlot,
+          checkedArithExpr op
+            (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
+            (← exprPlanExpr mkError lowerExpr lowerEffect value)
+        ])
+      ]
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul scalar storage effect lowering expected storageScalarWrite/storageScalarAssignOp")
+
+def scalarStorageEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (storageSlotFor : String → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      scalarStorageEffectPlanStatements mkError lowerExpr lowerEffect storageSlotFor effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul scalar storage effect lowering expected effect")
+
 /-! ## Plan-driven helper requirements
 
 `StorageSlotPlan.requiredHelpers` lets the plan declare which EVM helper functions

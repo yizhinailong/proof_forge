@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Storage Effect StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.scalarStorageEffectPlanStatements` and
+  `ToYul.scalarStorageEffectStmtPlanStatements` for scalar
+  `storageScalarWrite` / `storageScalarAssignOp` statement assembly.
+- Routed non-struct scalar storage writes and scalar storage compound
+  assignments through the helper when their value expression is in the
+  supported scalar plan subset.
+- Kept state-layout slot resolution and struct storage writes in the `IR.lean`
+  compatibility facade.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct `StmtPlan.effect`
+  helper output and the integrated `lowerEffectStmt` path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- This slice covers scalar storage effects only. Struct storage writes, array
+  writes, map writes, storage paths, and event effects still need separate
+  `StmtPlan -> Yul` / `EffectPlan -> Yul` extraction slices.
+
+Next step:
+
+- Move one of the remaining storage-path or map/array storage effect assembly
+  shapes behind a plan-to-Yul helper.
+
 ### EVM Scalar Assignment StmtPlan-To-Yul Slice
 
 Commit: this commit

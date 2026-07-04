@@ -606,6 +606,53 @@ def testScalarEventPlanToYul : IO Unit := do
 
 def testScalarStorageEffectPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
+  let directWriteStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      (fun _ => .ok (Lean.Compiler.Yul.Expr.num 0))
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageScalarWrite
+          "count"
+          (.checkedArith .add (.local "n") (.literalWord 1)))))
+    "scalar storage write StmtPlan-to-Yul helper"
+  require (directWriteStmts.size == 1) "scalar storage write StmtPlan-to-Yul helper statement count"
+  match directWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "scalar storage write StmtPlan-to-Yul helper arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call name addArgs => do
+          require (name == "__pf_checked_add") "scalar storage write StmtPlan-to-Yul helper checked add"
+          require (addArgs.size == 2) "scalar storage write StmtPlan-to-Yul helper checked add arg count"
+      | _ => throw <| IO.userError "scalar storage write StmtPlan-to-Yul helper value must be helper call"
+  | _ => throw <| IO.userError "scalar storage write StmtPlan-to-Yul helper must lower to sstore"
+  let directAssignOpStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      (fun _ => .ok (Lean.Compiler.Yul.Expr.num 0))
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageScalarAssignOp
+          "count"
+          .add
+          (.effect (.storageScalarRead "count")))))
+    "scalar storage assign_op StmtPlan-to-Yul helper"
+  require (directAssignOpStmts.size == 1) "scalar storage assign_op StmtPlan-to-Yul helper statement count"
+  match directAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "scalar storage assign_op StmtPlan-to-Yul helper arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call name addArgs => do
+          require (name == "__pf_checked_add") "scalar storage assign_op StmtPlan-to-Yul helper checked add"
+          require (addArgs.size == 2) "scalar storage assign_op StmtPlan-to-Yul helper checked add arg count"
+          match addArgs[0]! with
+          | Lean.Compiler.Yul.Expr.builtin readName _ =>
+              require (readName == "sload") "scalar storage assign_op StmtPlan-to-Yul helper lhs must be sload"
+          | _ => throw <| IO.userError "scalar storage assign_op StmtPlan-to-Yul helper lhs must be sload"
+      | _ => throw <| IO.userError "scalar storage assign_op StmtPlan-to-Yul helper value must be helper call"
+  | _ => throw <| IO.userError "scalar storage assign_op StmtPlan-to-Yul helper must lower to sstore"
   let writeStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.Counter.module
