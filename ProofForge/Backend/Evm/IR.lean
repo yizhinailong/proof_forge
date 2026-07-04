@@ -3223,7 +3223,7 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
           lowerStorageStructWriteStmt module env stateId value
       | _ => do
           let storageSlot ← lowerScalarStorageSlotExpr module env stateId
-          .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, ← lowerExpr module env value]))
+          .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, ← lowerScalarPlanExprOrFallback module env value]))
   | .storageScalarAssignOp stateId op value => do
       match ← scalarStateType module stateId with
       | .structType _ =>
@@ -3232,7 +3232,7 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
       let storageSlot ← lowerScalarStorageSlotExpr module env stateId
       .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
         storageSlot,
-        lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[storageSlot]) (← lowerExpr module env value)
+        lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[storageSlot]) (← lowerScalarPlanExprOrFallback module env value)
       ]))
   | .storageMapContains _ _ =>
       .error { message := "storage.map.contains must be used as an expression" }

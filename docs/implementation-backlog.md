@@ -287,8 +287,13 @@ Tasks:
   - Started: direct scalar assignment and compound-assignment RHS lowering now
     consumes the same `ExprPlan -> ToYul` expression boundary for supported
     scalar expressions. Whole-aggregate assignment, dynamic aggregate helper
-    snapshots, and storage effect writes remain on their existing compatibility
-    paths until their own migration slices add coverage.
+    snapshots, and non-scalar storage effect writes remain on their existing
+    compatibility paths until their own migration slices add coverage.
+  - Started: scalar `storageScalarWrite` and `storageScalarAssignOp` value
+    lowering now consumes the same `ExprPlan -> ToYul` expression boundary for
+    supported scalar RHS expressions. Struct storage writes, map writes, array
+    writes, struct-field writes, and storage-path writes remain on their
+    compatibility paths until their own migration slices add coverage.
   - Started: scalar `ifElse` conditions and synthesized `boundedFor` loop
     guards now consume the same `ExprPlan -> ToYul` expression boundary.
     Statement sequencing and branch/loop body lowering remain in the

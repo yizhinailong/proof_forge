@@ -17,6 +17,39 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Scalar Storage Effect Plan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Routed scalar `storageScalarWrite` value lowering through
+  `ExprPlan -> ToYul` for supported scalar RHS expressions.
+- Routed scalar `storageScalarAssignOp` RHS lowering through the same boundary
+  before applying the existing checked arithmetic assignment operator.
+- Extended `Tests/EvmSemanticPlan.lean` to assert Yul AST shapes for
+  plan-driven scalar storage writes and storage compound assignments.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/diagnostic-smoke.sh
+```
+
+Known limitations:
+
+- This slice only moves scalar storage effect values. Struct storage writes,
+  map writes, array writes, struct-field writes, storage-path writes, and
+  aggregate snapshots remain on the compatibility facade.
+
+Next step:
+
+- Migrate another storage write shape through `ExprPlan -> ToYul`, or continue
+  extracting event field value planning.
+
 ### EVM EventFieldPlan-To-Yul Topic Assembly Slice
 
 Commit: this commit

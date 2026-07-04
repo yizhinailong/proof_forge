@@ -398,6 +398,43 @@ def testScalarEventPlanToYul : IO Unit := do
       require foundIndexedSload "scalar indexed event topic must lower storage read through plan"
   | _ => throw <| IO.userError "scalar indexed event topic plan-to-yul must lower to block"
 
+def testScalarStorageEffectPlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
+  let writeStmt ← requireOk
+    (lowerEffectStmt
+      ProofForge.IR.Examples.Counter.module
+      env
+      (.storageScalarWrite "count" (.add (.local "n") (.literal (.u64 1)))))
+    "scalar storage write value plan-to-yul"
+  match writeStmt with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "scalar storage write plan-to-yul arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call name addArgs => do
+          require (name == "__pf_checked_add") "scalar storage write plan-to-yul helper"
+          require (addArgs.size == 2) "scalar storage write plan-to-yul helper arg count"
+      | _ => throw <| IO.userError "scalar storage write plan-to-yul value must be helper call"
+  | _ => throw <| IO.userError "scalar storage write plan-to-yul must lower to sstore"
+  let assignOpStmt ← requireOk
+    (lowerEffectStmt
+      ProofForge.IR.Examples.Counter.module
+      env
+      (.storageScalarAssignOp "count" .add (.effect (.storageScalarRead "count"))))
+    "scalar storage assign_op value plan-to-yul"
+  match assignOpStmt with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "scalar storage assign_op plan-to-yul arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call name addArgs => do
+          require (name == "__pf_checked_add") "scalar storage assign_op plan-to-yul helper"
+          require (addArgs.size == 2) "scalar storage assign_op plan-to-yul helper arg count"
+          match addArgs[1]! with
+          | Lean.Compiler.Yul.Expr.builtin readName _ =>
+              require (readName == "sload") "scalar storage assign_op rhs must be plan-lowered sload"
+          | _ => throw <| IO.userError "scalar storage assign_op rhs must be sload"
+      | _ => throw <| IO.userError "scalar storage assign_op plan-to-yul value must be helper call"
+  | _ => throw <| IO.userError "scalar storage assign_op plan-to-yul must lower to sstore"
+
 def main : IO UInt32 := do
   testCounterSemanticPlan
   testEventSemanticPlan
@@ -410,6 +447,7 @@ def main : IO UInt32 := do
   testScalarAssignmentPlanToYul
   testScalarControlFlowPlanToYul
   testScalarEventPlanToYul
+  testScalarStorageEffectPlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0
 
