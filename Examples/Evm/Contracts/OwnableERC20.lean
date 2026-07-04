@@ -2,19 +2,19 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-Portable SimpleToken for the unified EVM entry path. Composes the stdlib
-Ownable and ERC20 mixins instead of duplicating token/owner boilerplate.
+Example composed contract: Ownable access control plus ERC-20 token surface.
+Demonstrates CS-2.5 stdlib import without copy-paste.
 -/
 import ProofForge.Contract.Source
 import ProofForge.Contract.Stdlib.Ownable
 import ProofForge.Contract.Stdlib.ERC20
 
-namespace SimpleToken
+namespace OwnableERC20
 
 open ProofForge.Contract.Source
 open ProofForge.Contract.Stdlib.Ownable ProofForge.Contract.Stdlib.ERC20
 
-contract_source SimpleToken do
+contract_source OwnableERC20 do
   import ProofForge.Contract.Stdlib.Ownable;
   import ProofForge.Contract.Stdlib.ERC20;
 
@@ -25,7 +25,11 @@ contract_source SimpleToken do
     let who : .u64 := caller;
     do mapWrite balances who supply;
 
-  query getOwner returns(.u64) do
-    return «owner»;
+  entry ownerMint (who : .u64, amount : .u64) do
+    guard_owner «owner»;
+    let ts : .u64 := totalSupply;
+    totalSupply := ts +! amount;
+    let bal : .u64 := mapRead balances who;
+    do mapWrite balances who (bal +! amount);
 
-end SimpleToken
+end OwnableERC20

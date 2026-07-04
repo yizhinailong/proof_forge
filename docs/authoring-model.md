@@ -82,7 +82,27 @@ covers:
   `close_account`, and `set_authority` CPI declarations and invocation
   statements;
 - Solana log, return-data, compute-unit, memory, crypto, and sysvar helper
-  statements.
+  statements;
+- reusable mixin modules via `contract_mixin Name do ...`, which emit
+  `def mixin : ModuleM Unit` for composition;
+- stdlib composition via `import Module;` / `open Module;` inside
+  `contract_source`, which splice another module's `mixin` action into the
+  contract body;
+- portable stdlib mixins under `ProofForge/Contract/Stdlib/` (`Ownable`,
+  `Pausable`, `ERC20`, `ReentrancyGuard`) with thin EVM wrappers in
+  `Examples/Evm/Contracts/stdlib/`.
+
+To compose mixins, import the stdlib Lean module, `open` it for state ref
+names, then inside `contract_source` write:
+
+```lean
+import ProofForge.Contract.Stdlib.Ownable;
+import ProofForge.Contract.Stdlib.ERC20;
+```
+
+Each `import` expands to that module's `mixin` action. Standalone stdlib
+contracts use `use mixin;` after defining the mixin in the same file. See
+`Examples/Evm/Contracts/SimpleToken.lean` and `OwnableERC20.lean`.
 
 `ProofForge.Contract.Token` is the current token SDK planning boundary.
 Lean-authored `TokenSpec` values route to ERC-20 on EVM or to structured Solana

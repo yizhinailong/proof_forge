@@ -31,7 +31,7 @@ mkdir -p "$OUT_DIR"
 
 is_contract_source() {
   local lean_file="$1"
-  if grep -Eq 'contract_source |ProofForge\.Contract\.Source|def spec : ProofForge\.Contract\.ContractSpec' "$lean_file"; then
+  if grep -Eq 'contract_source |def spec : ProofForge\.Contract\.ContractSpec|def spec := ProofForge\.Contract\.Stdlib\.' "$lean_file"; then
     return 0
   fi
   return 1

@@ -1,10 +1,6 @@
 object "Ownable" {
   code {
     switch shr(224, calldataload(0))
-    case 0xe1c7392a {
-      f_Ownable_init()
-      return(0, 0)
-    }
     case 0x8da5cb5b {
       let _r := f_Ownable_owner()
       mstore(0, _r)
@@ -21,14 +17,12 @@ object "Ownable" {
       f_Ownable_renounceOwnership()
       return(0, 0)
     }
+    case 0xe1c7392a {
+      f_Ownable_init()
+      return(0, 0)
+    }
     default {
       revert(0, 0)
-    }
-    function f_Ownable_init() {
-      if iszero(eq(sload(0), 0)) {
-        revert(0, 0)
-      }
-      sstore(0, caller())
     }
     function f_Ownable_owner() -> result {
       result := sload(0)
@@ -47,6 +41,12 @@ object "Ownable" {
         revert(0, 0)
       }
       sstore(0, 0)
+    }
+    function f_Ownable_init() {
+      if iszero(eq(sload(0), 0)) {
+        revert(0, 0)
+      }
+      sstore(0, caller())
     }
   }
 }
