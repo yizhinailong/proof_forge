@@ -136,6 +136,15 @@ def findExportedFunc? (mod : WasmModule) (exportName : String) : Option WasmFunc
 def importedFunctionNames (mod : WasmModule) : Array String :=
   mod.imports.map (fun import_ => import_.name)
 
+def funcTypeMatches (type : ProofForge.Compiler.Wasm.FuncType)
+    (params results : Array ProofForge.Compiler.Wasm.ValType) : Bool :=
+  type.params == params && type.results == results
+
+def findImport? (mod : WasmModule) (moduleName functionName : String) :
+    Option ProofForge.Compiler.Wasm.Import :=
+  mod.imports.find? (fun import_ =>
+    import_.module_ == moduleName && import_.name == functionName)
+
 def hasMemoryExport (mod : WasmModule) (exportName : String) : Bool :=
   match mod.memory with
   | some memory => memory.exportName == some exportName
@@ -148,6 +157,12 @@ structure WasmCallExpectation where
   functionName : String
   expectedCalls : Array String
 
+structure WasmImportExpectation where
+  moduleName : String := "env"
+  functionName : String
+  params : Array ProofForge.Compiler.Wasm.ValType := #[]
+  results : Array ProofForge.Compiler.Wasm.ValType := #[]
+
 structure WasmExportExpectation where
   exportName : String
   expectedCalls : Array String
@@ -156,6 +171,7 @@ structure ArtifactSurfaceObligation where
   name : String
   module : Module
   requiredImports : Array String := #[]
+  requiredImportSignatures : Array WasmImportExpectation := #[]
   requiredExports : Array WasmExportExpectation := #[]
   requiredFunctions : Array WasmCallExpectation := #[]
   requiredDataSegments : Array (Nat × String) := #[]
@@ -173,11 +189,26 @@ def WasmCallExpectation.ok (mod : WasmModule) (expectation : WasmCallExpectation
   | some func => callsContainInOrder func.calls expectation.expectedCalls
   | none => false
 
+def WasmImportExpectation.ok (mod : WasmModule) (expectation : WasmImportExpectation) :
+    Bool :=
+  match findImport? mod expectation.moduleName expectation.functionName with
+  | some import_ => funcTypeMatches import_.type expectation.params expectation.results
+  | none => false
+
+def ArtifactSurfaceObligation.hostImportSignaturesOk
+    (obligation : ArtifactSurfaceObligation) : Bool :=
+  match ProofForge.Backend.WasmNear.EmitWat.lowerModule obligation.module with
+  | .ok wasm =>
+      obligation.requiredImportSignatures.all
+        (fun expectation => expectation.ok wasm)
+  | .error _ => false
+
 def ArtifactSurfaceObligation.ok (obligation : ArtifactSurfaceObligation) : Bool :=
   match ProofForge.Backend.WasmNear.EmitWat.lowerModule obligation.module with
   | .ok wasm =>
       let imports := importedFunctionNames wasm
       obligation.requiredImports.all (stringArrayContains imports) &&
+      obligation.requiredImportSignatures.all (fun expectation => expectation.ok wasm) &&
       obligation.requiredExports.all (fun expectation => expectation.ok wasm) &&
       obligation.requiredFunctions.all (fun expectation => expectation.ok wasm) &&
       obligation.requiredDataSegments.all (fun segment => hasDataSegment wasm segment.fst segment.snd) &&
@@ -509,6 +540,17 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     "storage_write",
     "value_return"
   ]
+  requiredImportSignatures := #[
+    { functionName := "input", params := #[.i64] },
+    { functionName := "read_register", params := #[.i64, .i64] },
+    { functionName := "storage_read", params := #[.i64, .i64, .i64], results := #[.i64] },
+    {
+      functionName := "storage_write"
+      params := #[.i64, .i64, .i64, .i64, .i64]
+      results := #[.i64]
+    },
+    { functionName := "value_return", params := #[.i64, .i64] }
+  ]
   requiredExports := #[
     { exportName := "initialize", expectedCalls := #["input", "read_register", "__pf_write_u64"] },
     { exportName := "increment", expectedCalls := #["input", "read_register", "__pf_read_u64", "__pf_write_u64"] },
@@ -574,6 +616,19 @@ def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     "value_return",
     "log_utf8",
     "block_index"
+  ]
+  requiredImportSignatures := #[
+    { functionName := "input", params := #[.i64] },
+    { functionName := "read_register", params := #[.i64, .i64] },
+    { functionName := "storage_read", params := #[.i64, .i64, .i64], results := #[.i64] },
+    {
+      functionName := "storage_write"
+      params := #[.i64, .i64, .i64, .i64, .i64]
+      results := #[.i64]
+    },
+    { functionName := "value_return", params := #[.i64, .i64] },
+    { functionName := "log_utf8", params := #[.i64, .i64] },
+    { functionName := "block_index", results := #[.i64] }
   ]
   requiredExports := #[
     {
@@ -805,12 +860,20 @@ theorem counter_emitwat_artifact_surface_ok :
     counterArtifactSurfaceObligation.ok = true := by
   native_decide
 
+theorem counter_emitwat_host_import_signatures_ok :
+    counterArtifactSurfaceObligation.hostImportSignaturesOk = true := by
+  native_decide
+
 theorem counter_emitwat_offline_host_execution_surface_ok :
     counterOfflineHostExecutionObligation.ok = true := by
   native_decide
 
 theorem value_vault_emitwat_artifact_surface_ok :
     valueVaultArtifactSurfaceObligation.ok = true := by
+  native_decide
+
+theorem value_vault_emitwat_host_import_signatures_ok :
+    valueVaultArtifactSurfaceObligation.hostImportSignaturesOk = true := by
   native_decide
 
 theorem value_vault_emitwat_offline_host_execution_surface_ok :

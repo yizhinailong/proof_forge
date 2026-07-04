@@ -8423,3 +8423,31 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR ValueVault backend-invariant state bridge checks passed locally.
+
+### NEAR EmitWat Host Import Signatures
+
+Commit: pending
+
+Summary:
+
+- Added `WasmImportExpectation` to the NEAR refinement artifact surface so
+  obligations can check host import module names plus Wasm parameter/result
+  signatures, not only imported function names.
+- Pinned the Counter and ValueVault NEAR host-call ABI for `input`,
+  `read_register`, `storage_read`, `storage_write`, `value_return`,
+  `log_utf8`, and `block_index` where those imports are part of the checked
+  surface.
+- Added decide-checkable `counter_emitwat_host_import_signatures_ok` and
+  `value_vault_emitwat_host_import_signatures_ok` anchors and wired both into
+  the formal smoke entrypoint.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR EmitWat host import signature checks passed locally.
