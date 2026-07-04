@@ -4833,53 +4833,68 @@ def lowerAggregateCrosscallReturnAssignment?
         let names ← abiReturnNames module entrypointName returnType
         let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
         let argWords ← lowerCrosscallArgWordsMany module env "typed crosscall argument" args
-        let mut callArgs := #[
-          ← lowerExpr module env target,
-          ← lowerExpr module env methodId
-        ]
-        callArgs := callArgs ++ argWords
         .ok (some #[
-          .assignment names (Lean.Compiler.Yul.call (← crosscallAggregateFunctionName argWords.size wordTypes) callArgs)
+          ← ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignment
+            toYulError
+            names
+            ProofForge.Backend.Evm.Plan.CrosscallMode.call
+            (← lowerExpr module env target)
+            (← lowerExpr module env methodId)
+            none
+            argWords
+            returnType
+            wordTypes
         ])
     | .crosscallInvokeValueTyped target methodId callValue args callReturnType => do
         ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
         let names ← abiReturnNames module entrypointName returnType
         let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
         let argWords ← lowerCrosscallArgWordsMany module env "value crosscall argument" args
-        let mut callArgs := #[
-          ← lowerExpr module env target,
-          ← lowerExpr module env methodId,
-          ← lowerExpr module env callValue
-        ]
-        callArgs := callArgs ++ argWords
         .ok (some #[
-          .assignment names (Lean.Compiler.Yul.call (← crosscallValueAggregateFunctionName argWords.size wordTypes) callArgs)
+          ← ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignment
+            toYulError
+            names
+            ProofForge.Backend.Evm.Plan.CrosscallMode.callValue
+            (← lowerExpr module env target)
+            (← lowerExpr module env methodId)
+            (some (← lowerExpr module env callValue))
+            argWords
+            returnType
+            wordTypes
         ])
     | .crosscallInvokeStaticTyped target methodId args callReturnType => do
         ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
         let names ← abiReturnNames module entrypointName returnType
         let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
         let argWords ← lowerCrosscallArgWordsMany module env "static crosscall argument" args
-        let mut callArgs := #[
-          ← lowerExpr module env target,
-          ← lowerExpr module env methodId
-        ]
-        callArgs := callArgs ++ argWords
         .ok (some #[
-          .assignment names (Lean.Compiler.Yul.call (← crosscallStaticAggregateFunctionName argWords.size wordTypes) callArgs)
+          ← ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignment
+            toYulError
+            names
+            ProofForge.Backend.Evm.Plan.CrosscallMode.staticcall
+            (← lowerExpr module env target)
+            (← lowerExpr module env methodId)
+            none
+            argWords
+            returnType
+            wordTypes
         ])
     | .crosscallInvokeDelegateTyped target methodId args callReturnType => do
         ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
         let names ← abiReturnNames module entrypointName returnType
         let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
         let argWords ← lowerCrosscallArgWordsMany module env "delegate crosscall argument" args
-        let mut callArgs := #[
-          ← lowerExpr module env target,
-          ← lowerExpr module env methodId
-        ]
-        callArgs := callArgs ++ argWords
         .ok (some #[
-          .assignment names (Lean.Compiler.Yul.call (← crosscallDelegateAggregateFunctionName argWords.size wordTypes) callArgs)
+          ← ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignment
+            toYulError
+            names
+            ProofForge.Backend.Evm.Plan.CrosscallMode.delegatecall
+            (← lowerExpr module env target)
+            (← lowerExpr module env methodId)
+            none
+            argWords
+            returnType
+            wordTypes
         ])
     | _ => .ok none
 

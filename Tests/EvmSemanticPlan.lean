@@ -286,6 +286,45 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
   require
     (aggregateFunctionName == "__proof_forge_crosscall_0_abi_bool_u32")
     "aggregate crosscall helper name must include planned ABI word layout"
+  let aggregateAssignment ←
+    requireOk
+      (ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignment
+        toYulError
+        #["ret_flag", "ret_small"]
+        ProofForge.Backend.Evm.Plan.CrosscallMode.call
+        (Lean.Compiler.Yul.Expr.id "target")
+        (Lean.Compiler.Yul.Expr.id "method")
+        none
+        #[]
+        (.structType "RemotePair")
+        #[.bool, .u32])
+      "aggregate crosscall return assignment helper"
+  match aggregateAssignment with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["ret_flag", "ret_small"]) "aggregate crosscall return assignment names"
+      require (name == "__proof_forge_crosscall_0_abi_bool_u32") "aggregate crosscall return assignment helper name"
+      require (args.size == 2) "aggregate crosscall return assignment arg count"
+  | _ => throw <| IO.userError "aggregate crosscall return assignment must assign aggregate helper call"
+  let aggregateReturnStmts ←
+    requireOk
+      (lowerReturnAssignments
+        ProofForge.IR.Examples.EvmCrosscallProbe.module
+        (entrypointTypeEnv ProofForge.IR.Examples.EvmCrosscallProbe.callRemotePair)
+        "call_remote_pair"
+        (.structType "RemotePair")
+        (.crosscallInvokeTyped
+          (.local "target")
+          (.local "method")
+          #[]
+          (.structType "RemotePair")))
+      "aggregate crosscall return assignment integration"
+  require (aggregateReturnStmts.size == 1) "aggregate crosscall return assignment integration statement count"
+  match aggregateReturnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names.size == 2) "aggregate crosscall return assignment integration names count"
+      require (name == "__proof_forge_crosscall_0_abi_bool_u32") "aggregate crosscall return assignment integration helper name"
+      require (args.size == 2) "aggregate crosscall return assignment integration arg count"
+  | _ => throw <| IO.userError "aggregate crosscall return assignment integration must assign aggregate helper call"
   require (plan.creates.size == 2) "crosscall probe planned create helpers"
   let nativePlan ← requireOk (buildSemanticPlan nativeTransferPlanProbe) "native transfer plan"
   let nativeTransfer ← requireSome

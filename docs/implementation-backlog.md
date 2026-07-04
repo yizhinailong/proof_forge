@@ -390,8 +390,8 @@ Tasks:
     return helpers, and plain native transfer helpers can be emitted from the
     semantic plan without rediscovering return layout from the module during
     complete plan-driven lowering. `IR.lean` still owns return word-layout
-    discovery and compatibility wrappers until aggregate crosscall return
-    assignment/copy construction moves behind `ToYul`.
+    discovery and compatibility wrappers until return layout discovery itself
+    moves fully into `Lower`/`ModulePlan` construction.
   - Started: create/create2 helper naming and body construction now live behind
     the `CreateHelperSpec -> ToYul` boundary. Planned create specs can emit
     deterministic init-code `mstore` frames, `create`/`create2` opcode calls,
@@ -407,6 +407,11 @@ Tasks:
     emission. The compatibility `IR.lean` expression lowering still owns
     type-env validation and aggregate crosscall argument word expansion, but
     delegates final helper-call names and argument ordering to `ToYul`.
+  - Started: aggregate crosscall helper-call assembly and entrypoint multi-word
+    return assignment now live behind `ToYul`. `IR.lean` still owns return type
+    checks, ABI return-name lookup, and aggregate argument word expansion, but
+    delegates aggregate helper-call function-name selection, argument ordering,
+    and final multi-return Yul assignment construction to `ToYul`.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

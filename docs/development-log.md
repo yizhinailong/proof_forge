@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Aggregate Crosscall Return To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.crosscallAggregateHelperCallExpr` and
+  `ToYul.crosscallAggregateReturnAssignment` so aggregate typed `call`,
+  value-bearing `call`, `staticcall`, and `delegatecall` entrypoint returns use
+  the same helper-name selection and argument ordering as planned crosscall
+  helper bodies.
+- Routed the `IR.lean` aggregate crosscall return compatibility path through
+  the new `ToYul` helper while keeping return type checks, ABI return-name
+  lookup, and aggregate argument word expansion in place.
+- Extended semantic-plan tests for direct aggregate return assignment lowering
+  and the compatibility `lowerReturnAssignments` path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+```
+
+Known limitations:
+
+- Aggregate crosscall argument word expansion is still owned by `IR.lean` until
+  the plan layer can represent fully expanded crosscall argument words.
+- Return word-layout discovery still flows through the compatibility facade for
+  this path.
+
+Next step:
+
+- Move aggregate crosscall argument-word planning into `Lower`/`ModulePlan`, or
+  continue extracting return layout discovery so aggregate crosscall return
+  lowering no longer depends on `IR.lean`.
+
 ### EVM Crosscall/Create ExprPlan To-Yul Slice
 
 Commit: this commit

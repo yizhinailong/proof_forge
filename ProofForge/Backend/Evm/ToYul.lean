@@ -494,6 +494,18 @@ def crosscallScalarHelperSpec
   plainTransfer
 }
 
+def crosscallAggregateHelperSpec
+    (mode : CrosscallMode)
+    (arity : Nat)
+    (returnType : ValueType)
+    (wordTypes : Array ValueType) : CrosscallHelperSpec := {
+  arity
+  returnType
+  wordTypes
+  mode
+  plainTransfer := false
+}
+
 def crosscallScalarHelperCallExpr
     {ε : Type}
     (mkError : String → ε)
@@ -529,6 +541,61 @@ def crosscallScalarHelperCallExpr
     | .staticcall, some _
     | .delegatecall, some _ =>
         .error (mkError "non-value crosscall helper calls cannot include call value")
+
+def crosscallAggregateHelperCallExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (mode : CrosscallMode)
+    (target methodId : Lean.Compiler.Yul.Expr)
+    (callValue? : Option Lean.Compiler.Yul.Expr)
+    (args : Array Lean.Compiler.Yul.Expr)
+    (returnType : ValueType)
+    (wordTypes : Array ValueType) : Except ε Lean.Compiler.Yul.Expr := do
+  if crosscallReturnIsScalarWord returnType then
+    .error (mkError s!"EVM aggregate crosscall helper call requires an aggregate return type, got `{returnType.name}`")
+  else if wordTypes.isEmpty then
+    .error (mkError s!"EVM aggregate crosscall helper call for `{returnType.name}` has no return word layout")
+  else
+    let functionName ←
+      crosscallHelperFunctionName mkError
+        (crosscallAggregateHelperSpec mode args.size returnType wordTypes)
+    match mode, callValue? with
+    | .callValue, some callValue =>
+        .ok (Lean.Compiler.Yul.call functionName (#[target, methodId, callValue] ++ args))
+    | .callValue, none =>
+        .error (mkError "value-bearing aggregate crosscall helper calls require call value")
+    | .call, none
+    | .staticcall, none
+    | .delegatecall, none =>
+        .ok (Lean.Compiler.Yul.call functionName (#[target, methodId] ++ args))
+    | .call, some _
+    | .staticcall, some _
+    | .delegatecall, some _ =>
+        .error (mkError "non-value aggregate crosscall helper calls cannot include call value")
+
+def crosscallAggregateReturnAssignment
+    {ε : Type}
+    (mkError : String → ε)
+    (returnNames : Array String)
+    (mode : CrosscallMode)
+    (target methodId : Lean.Compiler.Yul.Expr)
+    (callValue? : Option Lean.Compiler.Yul.Expr)
+    (args : Array Lean.Compiler.Yul.Expr)
+    (returnType : ValueType)
+    (wordTypes : Array ValueType) : Except ε Lean.Compiler.Yul.Statement := do
+  if returnNames.size != wordTypes.size then
+    .error (mkError s!"aggregate crosscall return assignment has {returnNames.size} target(s), expected {wordTypes.size}")
+  else
+    .ok <| .assignment returnNames
+      (← crosscallAggregateHelperCallExpr
+        mkError
+        mode
+        target
+        methodId
+        callValue?
+        args
+        returnType
+        wordTypes)
 
 def createHelperCallExpr
     {ε : Type}
