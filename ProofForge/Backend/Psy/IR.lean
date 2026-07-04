@@ -85,7 +85,9 @@ def valueTypeName : ValueType → Except LowerError String
   | .u32 => .ok "u32"
   | .u64 => .ok "Felt"
   | .hash => .ok "Hash"
+  | .u8 => .ok "U8"
   | .address => .ok "Address"
+  | .u128 => .error { message := "Psy IR v0 does not support U128" }
   | .bytes => .error { message := "Psy IR v0 does not support Bytes" }
   | .string => .error { message := "Psy IR v0 does not support String" }
   | .fixedArray element length => do
@@ -100,6 +102,8 @@ def literal : Literal → String
   | .bool true => "true"
   | .bool false => "false"
   | .hash4 a b c d => s!"[{a}, {b}, {c}, {d}]"
+  | .u8 value => toString value
+  | .u128 value => toString value
   | .address value => toString value
 
 def stringLiteral (value : String) : String :=
@@ -347,9 +351,9 @@ def isFeltBackedU32StorageArrayPath (module : Module) (stateId : String) (pathTy
 partial def validateValueType (module : Module) (type : ValueType) : Except LowerError Unit := do
   match type with
   | .unit => .error { message := "Psy IR v0 does not support Unit as a stored or structured value type" }
-  | .bool | .u32 | .u64 | .hash | .address => pure ()
-  | .bytes | .string =>
-      .error { message := "Psy IR v0 does not support Bytes or String as stored or structured value types" }
+  | .bool | .u8 | .u32 | .u64 | .hash | .address => pure ()
+  | .bytes | .string | .u128 =>
+      .error { message := "Psy IR v0 does not support Bytes, String, or U128 as stored or structured value types" }
   | .fixedArray element length =>
       if length == 0 then
         .error { message := "Psy IR v0 fixed arrays must have non-zero length" }
@@ -366,9 +370,9 @@ partial def validateAbiValueType (module : Module) (type : ValueType) (context :
         pure ()
       else
         .error { message := s!"{context} uses Unit; Psy IR v0 entrypoint parameters must use Felt, U32, Bool, Hash, Address, fixed arrays, or declared structs" }
-  | .bool | .u32 | .u64 | .hash | .address => pure ()
-  | .bytes | .string =>
-      .error { message := s!"{context} uses Bytes or String; Psy IR v0 entrypoint parameters must use Felt, U32, Bool, Hash, Address, fixed arrays, or declared structs" }
+  | .bool | .u8 | .u32 | .u64 | .hash | .address => pure ()
+  | .bytes | .string | .u128 =>
+      .error { message := s!"{context} uses Bytes, String, or U128; Psy IR v0 entrypoint parameters must use Felt, U8, U32, Bool, Hash, Address, fixed arrays, or declared structs" }
   | .fixedArray element length =>
       if length == 0 then
         .error { message := s!"{context} uses a zero-length fixed array; Psy IR v0 fixed arrays must have non-zero length" }
@@ -458,7 +462,7 @@ def ensureEqType (context : String) (type : ValueType) : Except LowerError Unit 
   match type with
   | .unit =>
       .error { message := s!"{context} does not support Unit equality" }
-  | .bool | .u32 | .u64 | .hash | .address | .fixedArray _ _ | .structType _ | .bytes | .string =>
+  | .bool | .u8 | .u32 | .u64 | .hash | .address | .fixedArray _ _ | .structType _ | .bytes | .string | .u128 =>
       .ok ()
 
 def ensureCastType (source target : ValueType) : Except LowerError Unit :=
@@ -512,8 +516,10 @@ mutual
   partial def inferExprType (module : Module) (env : TypeEnv) : Expr → Except LowerError ValueType
     | .literal (.u32 _) => .ok .u32
     | .literal (.u64 _) => .ok .u64
+    | .literal (.u128 _) => .error { message := "Psy IR v0 does not support U128 literals" }
     | .literal (.bool _) => .ok .bool
     | .literal (.hash4 ..) => .ok .hash
+    | .literal (.u8 _) => .ok .u8
     | .literal (.address _) => .ok .address
     | .local name =>
         match findLocal? env name with
@@ -945,6 +951,8 @@ mutual
         .ok env
     | .release _ =>
         .error { message := "release statements are not supported by Psy IR v0" }
+    | .revert _ => .ok env
+    | .revertWithError _ => .ok env
     | .ifElse condition thenBody elseBody => do
         let conditionType ← inferExprType module env condition
         ensureType "if condition" .bool conditionType
@@ -1279,6 +1287,10 @@ mutual
         .ok #[s!"assert_eq({← lowerExpr module lhs}, {← lowerExpr module rhs}, {stringLiteral message});"]
     | .release _ =>
         .error { message := "release statements are not supported by Psy IR v0" }
+    | .revert message =>
+        .ok #[s!"abort(\"{message}\");"]
+    | .revertWithError _ =>
+        .ok #["abort(\"revertWithError\");"]
     | .ifElse condition thenBody elseBody => do
         let thenLines ← lowerBody module thenBody
         let elseLines ← lowerBody module elseBody
@@ -1339,6 +1351,8 @@ mutual
     | .assert _ _ _
     | .assertEq _ _ _ _
     | .release _
+    | .revert _
+    | .revertWithError _
     | .return _ =>
         pure ()
 

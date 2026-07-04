@@ -174,8 +174,8 @@ def ensureSameNumericType (operator : String) (lhs rhs : ValueType) : Except Low
 def ensureEqType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
   | .unit => .error { message := s!"{context} does not support Unit equality" }
-  | .bool | .u32 | .u64 | .hash | .address => .ok ()
-  | .fixedArray _ _ | .structType _ | .bytes | .string =>
+  | .bool | .u8 | .u32 | .u64 | .hash | .address => .ok ()
+  | .fixedArray _ _ | .structType _ | .bytes | .string | .u128 =>
       .error { message := s!"{context} does not support `{type.name}` equality in wasm-near IR v0" }
 
 def ensureCastType (source target : ValueType) : Except LowerError Unit :=
@@ -288,7 +288,7 @@ mutual
     | .boundedFor indexName _ _ body => do
         validateRustIdentifier s!"loop index in entrypoint `{entrypointName}`" indexName
         validateBodyIdentifiers entrypointName body
-    | .assign _ _ | .assignOp _ _ _ | .effect _ | .assert _ _ _ | .assertEq _ _ _ _ | .release _ | .return _ =>
+    | .assign _ _ | .assignOp _ _ _ | .effect _ | .assert _ _ _ | .assertEq _ _ _ _ | .release _ | .revert _ | .revertWithError _ | .return _ =>
         pure ()
 
   partial def validateBodyIdentifiers (entrypointName : String) (body : Array Statement) : Except LowerError Unit := do
@@ -322,22 +322,24 @@ def validateIdentifiers (module : Module) : Except LowerError Unit := do
 def validateEntrypointParameters (entrypoint : Entrypoint) : Except LowerError Unit := do
   for param in entrypoint.params do
     match param.snd with
-    | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
+    | .unit | .fixedArray _ _ | .structType _ | .bytes | .string | .u128 =>
         .error { message := s!"entrypoint `{entrypoint.name}` parameter `{param.fst}` uses `{param.snd.name}`; wasm-near IR v0 ABI parameters must use U32, U64, Bool, Hash, or Address" }
-    | .u32 | .u64 | .bool | .hash | .address => pure ()
+    | .u8 | .u32 | .u64 | .bool | .hash | .address => pure ()
 
 def validateEntrypointReturn (entrypoint : Entrypoint) : Except LowerError Unit :=
   match entrypoint.returns with
-  | .unit | .u32 | .u64 | .bool | .hash | .address => pure ()
-  | .fixedArray _ _ | .structType _ | .bytes | .string =>
+  | .unit | .u8 | .u32 | .u64 | .bool | .hash | .address => pure ()
+  | .fixedArray _ _ | .structType _ | .bytes | .string | .u128 =>
       .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}`; wasm-near IR v0 supports only Unit, U32, U64, Bool, Hash, and Address" }
 
 mutual
   partial def inferExprType (module : Module) (env : TypeEnv) : Expr → Except LowerError ValueType
     | .literal (.u32 _) => .ok .u32
     | .literal (.u64 _) => .ok .u64
+    | .literal (.u128 _) => .error { message := "wasm-near IR v0 does not support U128 literals" }
     | .literal (.bool _) => .ok .bool
     | .literal (.hash4 ..) => .ok .hash
+    | .literal (.u8 _) => .ok .u8
     | .literal (.address _) => .ok .address
     | .local name =>
         match findLocal? env name with
@@ -522,6 +524,8 @@ mutual
         .ok env
     | .release _ =>
         .error { message := "release statements are not supported by wasm-near Rust sourcegen v0" }
+    | .revert _ => .ok env
+    | .revertWithError _ => .ok env
     | .ifElse _ _ _ =>
         .error { message := "conditional branches are not supported by wasm-near IR v0" }
     | .boundedFor _ _ _ _ =>
@@ -583,8 +587,8 @@ mutual
             .error { message := s!"event `{name}` field name must be non-empty" }
           let actual ← inferExprType module env field.snd
           match actual with
-          | .u32 | .u64 | .bool | .hash | .address => pure ()
-          | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
+          | .u8 | .u32 | .u64 | .bool | .hash | .address => pure ()
+          | .unit | .fixedArray _ _ | .structType _ | .bytes | .string | .u128 =>
               .error { message := s!"event `{name}` field `{field.fst}` has unsupported wasm-near IR v0 type `{actual.name}`; event fields must be U32, U64, Bool, Hash, or Address" }
     | .eventEmitIndexed _ _ _ =>
         .error { message := "indexed events are not supported by wasm-near Rust sourcegen v0" }
@@ -622,7 +626,9 @@ def valueTypeName : ValueType → Except LowerError String
   | .u32 => .ok "u32"
   | .u64 => .ok "u64"
   | .hash => .ok "[u64; 4]"
+  | .u8 => .ok "u32"
   | .address => .ok "u64"
+  | .u128 => .error { message := "wasm-near IR v0 does not support U128" }
   | .bytes => .error { message := "wasm-near IR v0 does not support Bytes" }
   | .string => .error { message := "wasm-near IR v0 does not support String" }
   | .fixedArray element length =>
@@ -633,16 +639,20 @@ def valueTypeName : ValueType → Except LowerError String
 def literal : Literal → String
   | .u32 value => s!"{value}u32"
   | .u64 value => s!"{value}u64"
+  | .u128 _ => "0"
   | .bool true => "true"
   | .bool false => "false"
   | .hash4 a b c d => s!"[{a}u64, {b}u64, {c}u64, {d}u64]"
+  | .u8 value => s!"{value}u32"
   | .address value => s!"{value}u64"
 
 def literalType : Literal → ValueType
   | .u32 _ => .u32
   | .u64 _ => .u64
+  | .u128 _ => .u128
   | .bool _ => .bool
   | .hash4 _ _ _ _ => .hash
+  | .u8 _ => .u8
   | .address _ => .address
 
 def maxU32 : Nat := 4294967295
@@ -658,12 +668,14 @@ def checkLiteralBounds (lit : Literal) : Except LowerError Unit :=
   match lit with
   | .u32 value => checkedLiteralLimb "value" value maxU32
   | .u64 value => checkedLiteralLimb "value" value maxU64
+  | .u128 value => checkedLiteralLimb "value" value 340282366920938463463374607431768211455
   | .bool _ => .ok ()
   | .hash4 a b c d => do
       checkedLiteralLimb "a" a maxU64
       checkedLiteralLimb "b" b maxU64
       checkedLiteralLimb "c" c maxU64
       checkedLiteralLimb "d" d maxU64
+  | .u8 value => checkedLiteralLimb "value" value 255
   | .address value => checkedLiteralLimb "value" value maxU64
 
 -- ---------------------------------------------------------------------------
@@ -881,8 +893,8 @@ mutual
           let value ← lowerExpr module field.snd
           let jsonValue ← match ← inferExprType module #[] field.snd with
             | .hash => .ok s!"[{value}[0], {value}[1], {value}[2], {value}[3]]"
-            | .u32 | .u64 | .bool | .address => .ok value
-            | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
+            | .u8 | .u32 | .u64 | .bool | .address => .ok value
+            | .unit | .fixedArray _ _ | .structType _ | .bytes | .string | .u128 =>
                 .error { message := s!"event `{name}` field `{field.fst}` has unsupported wasm-near IR v0 type; event fields must be U32, U64, Bool, Hash, or Address" }
           .ok s!"\"{field.fst}\":{jsonValue}"
         let jsonParts := #[s!"\"event\":\"{name}\""] ++ fieldJson
@@ -925,6 +937,10 @@ mutual
         .ok #[s!"assert_eq!({← lowerExpr module lhs}, {← lowerExpr module rhs}, {stringLiteral message});"]
     | .release _ =>
         .error { message := "release statements are not supported by wasm-near Rust sourcegen v0" }
+    | .revert message =>
+        .ok #[s!"panic!({stringLiteral message});"]
+    | .revertWithError _ =>
+        .ok #["panic!(\"revertWithError\");"]
     | .ifElse _ _ _ =>
         .error { message := "if/else statements are not supported by wasm-near IR v0" }
     | .boundedFor _ _ _ _ =>

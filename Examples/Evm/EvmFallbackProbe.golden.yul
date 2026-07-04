@@ -1,31 +1,37 @@
-object "Counter" {
+object "EvmFallbackProbe" {
   code {
     switch shr(224, calldataload(0))
-    case 0x8129fc1c {
-      f_Counter_initialize()
-      return(0, 0)
-    }
     case 0xd09de08a {
-      f_Counter_increment()
+      f_EvmFallbackProbe_increment()
       return(0, 0)
     }
-    case 0x6d4ce63c {
-      let _r := f_Counter_get()
+    case 0x20965255 {
+      let _r := f_EvmFallbackProbe_getValue()
       mstore(0, _r)
       return(0, 32)
     }
     default {
-      revert(0, 0)
+      if iszero(calldatasize()) {
+        __pf_receive()
+        return(0, 0)
+      }
+      __pf_fallback()
     }
-    function f_Counter_initialize() {
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 0)))
+    function f_EvmFallbackProbe_increment() {
+      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_add(and(shr(192, sload(0)), 18446744073709551615), 1))))
     }
-    function f_Counter_increment() {
-      let n := and(shr(192, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_add(n, 1))))
-    }
-    function f_Counter_get() -> result {
+    function f_EvmFallbackProbe_getValue() -> result {
       result := and(shr(192, sload(0)), 18446744073709551615)
+    }
+    function __pf_fallback() {
+      mstore(0, 147028384)
+      mstore(4, 32)
+      mstore(36, 26)
+      mstore(68, 0)
+      revert(0, 132)
+    }
+    function __pf_receive() {
+      sstore(0, or(and(sload(0), not(shl(128, 18446744073709551615))), shl(128, __pf_checked_add(and(shr(128, sload(0)), 18446744073709551615), 1))))
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {

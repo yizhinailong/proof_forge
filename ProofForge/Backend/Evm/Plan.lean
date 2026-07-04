@@ -39,6 +39,8 @@ structure StorageStatePlan where
   span : Nat
   kind : StateKind
   type : ValueType
+  byteOffset : Nat := 0
+  byteWidth : Nat := 32
   deriving Repr
 
 structure StorageLayout where
@@ -46,20 +48,52 @@ structure StorageLayout where
   deriving Repr
 
 def storageLayout (module : Module) : StorageLayout := {
-  states := go 0 0 module.state #[]
+  states := go 0 0 0 module.state #[]
 }
 where
-  go (idx slot : Nat) (states : Array StateDecl) (acc : Array StorageStatePlan) : Array StorageStatePlan :=
+  go (idx slot usedBytes : Nat) (states : Array StateDecl) (acc : Array StorageStatePlan) : Array StorageStatePlan :=
     if h : idx < states.size then
       let state := states[idx]
       let span := stateSlotSpan module state
-      go (idx + 1) (slot + span) states (acc.push {
-        id := state.id
-        slot
-        span
-        kind := state.kind
-        type := state.type
-      })
+      let w := state.type.byteWidth
+      -- Only scalar states with byteWidth > 0 and < 32 can be packed.
+      -- Arrays, maps, structs, hash (32 bytes), bytes/string always start a new slot.
+      let canPack := state.kind == .scalar && w > 0 && w < 32
+      if canPack && usedBytes + w <= 32 then
+        -- Pack into current slot
+        go (idx + 1) slot (usedBytes + w) states (acc.push {
+          id := state.id
+          slot
+          span := 0
+          kind := state.kind
+          type := state.type
+          byteOffset := usedBytes
+          byteWidth := w
+        })
+      else if canPack then
+        -- Packed scalar that doesn't fit current slot: start a new slot, span 0
+        let nextSlot := if usedBytes > 0 then slot + 1 else slot
+        go (idx + 1) nextSlot w states (acc.push {
+          id := state.id
+          slot := nextSlot
+          span := 0
+          kind := state.kind
+          type := state.type
+          byteOffset := 0
+          byteWidth := w
+        })
+      else
+        -- Non-packable state: start a new slot with its span
+        let nextSlot := if usedBytes > 0 then slot + 1 else slot
+        go (idx + 1) (nextSlot + span) 0 states (acc.push {
+          id := state.id
+          slot := nextSlot
+          span
+          kind := state.kind
+          type := state.type
+          byteOffset := 0
+          byteWidth := if canPack then w else 32
+        })
     else
       acc
 
@@ -67,17 +101,12 @@ def StorageLayout.find? (layout : StorageLayout) (stateId : String) : Option Sto
   layout.states.find? (fun state => state.id == stateId)
 
 def stateInfo? (module : Module) (stateId : String) : Option (Nat × StateDecl) :=
-  go 0 0 module.state
-where
-  go (idx slot : Nat) (states : Array StateDecl) : Option (Nat × StateDecl) :=
-    if h : idx < states.size then
-      let state := states[idx]
-      if state.id == stateId then
-        some (slot, state)
-      else
-        go (idx + 1) (slot + stateSlotSpan module state) states
-    else
-      none
+  match module.state.find? (fun s => s.id == stateId) with
+  | some state =>
+    match storageLayout module |>.find? stateId with
+    | some plan => some (plan.slot, state)
+    | none => none
+  | none => none
 
 def stateSlot? (module : Module) (stateId : String) : Option Nat :=
   match stateInfo? module stateId with
@@ -253,7 +282,7 @@ def storagePathMapPresenceSlotPlan
       .error { message := "EVM plan supports map storage paths only as one or more mapKey segments" }
 
 def isStorageWordType : ValueType → Bool
-  | .u32 | .u64 | .bool | .hash | .address => true
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string => false
 
 def findStruct? (module : Module) (name : String) : Option StructDecl :=
@@ -545,6 +574,8 @@ inductive StmtPlan where
   | assert (condition : ExprPlan) (message : String) (errorRef? : Option ProofForge.IR.ErrorRef)
   | assertEq (lhs rhs : ExprPlan) (message : String) (errorRef? : Option ProofForge.IR.ErrorRef)
   | release (name : String)
+  | revert (message : String)
+  | revertWithError (errorRef : ProofForge.IR.ErrorRef)
   | ifElse (condition : ExprPlan) (thenBody elseBody : Array StmtPlan)
   | boundedFor (indexName : String) (start stopExclusive : Nat) (body : Array StmtPlan)
   | return (value : ExprPlan)
@@ -570,7 +601,7 @@ instance : Inhabited AbiParamPlan := ⟨{
 
 def abiTypeIsDynamic : ValueType → Bool
   | .bytes | .string => true
-  | .u32 | .u64 | .bool | .hash | .address | .unit | .fixedArray _ _ | .structType _ => false
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .unit | .fixedArray _ _ | .structType _ => false
 
 def dynamicParamLengthName (name : String) : String :=
   s!"{name}__length"
@@ -607,7 +638,7 @@ def abiReturnName (index : Nat) : String :=
 def returnLocalNames (returnType : ValueType) (wordTypes : Array ValueType) : Array String :=
   match returnType with
   | .unit => #[]
-  | .u32 | .u64 | .bool | .hash | .address | .bytes | .string => #["result"]
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .bytes | .string => #["result"]
   | .fixedArray _ _ | .structType _ =>
       Id.run do
         let mut names : Array String := #[]
@@ -628,6 +659,10 @@ instance : Inhabited EntrypointPlan := ⟨{ name := "", selector := "", params :
 inductive DispatchDefaultPlan where
   | revert
   | uupsProxy
+  /-- User-defined fallback: runs on unknown selector with non-empty calldata. -/
+  | fallback
+  /-- User-defined receive: runs on empty calldata with ETH. -/
+  | receive
   deriving BEq, Repr
 
 structure DispatchPlan where
@@ -638,9 +673,15 @@ structure DispatchPlan where
 instance : Inhabited DispatchPlan := ⟨{ entrypoints := #[], default := .revert }⟩
 
 def moduleDispatchDefaultPlan (module : Module) : DispatchDefaultPlan :=
+  -- Check for user-defined fallback/receive entrypoints first
+  let hasFallback := module.entrypoints.any (fun ep => ep.kind == .fallback)
+  let hasReceive := module.entrypoints.any (fun ep => ep.kind == .receive)
   match module.evmProxyPattern? with
   | some "uups" => .uupsProxy
-  | _ => .revert
+  | _ =>
+    if hasReceive then .receive
+    else if hasFallback then .fallback
+    else .revert
 
 def moduleDispatchPlan (module : Module) (entrypoints : Array EntrypointPlan) : DispatchPlan := {
   entrypoints

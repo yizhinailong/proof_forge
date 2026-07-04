@@ -242,6 +242,8 @@ partial def eventSignatureFieldType (module : Module) (eventName fieldName : Str
   | .bool => .ok "bool"
   | .hash => .ok "bytes32"
   | .address => .ok "address"
+  | .u8 => .ok "uint8"
+  | .u128 => .ok "uint128"
   | .bytes => .ok "bytes"
   | .string => .ok "string"
   | .fixedArray elementType length => do
@@ -259,7 +261,7 @@ partial def eventSignatureFieldType (module : Module) (eventName fieldName : Str
           let mut parts := #[]
           for field in decl.fields do
             match field.type with
-            | .u32 | .u64 | .bool | .hash | .address =>
+            | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
                 parts := parts.push (← eventSignatureFieldType module eventName s!"{fieldName}.{field.id}" field.type)
             | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
                 .error {
@@ -277,7 +279,7 @@ partial def eventSignatureFieldType (module : Module) (eventName fieldName : Str
       let mut parts := #[]
       for field in decl.fields do
         match field.type with
-        | .u32 | .u64 | .bool | .hash | .address =>
+        | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
             parts := parts.push (← eventSignatureFieldType module eventName s!"{fieldName}.{field.id}" field.type)
         | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
             .error {
@@ -513,7 +515,7 @@ def abiReturnName (index : Nat) : String :=
 
 def ensureAbiWordType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
-  | .u32 | .u64 | .bool | .hash | .address => .ok ()
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => .ok ()
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
       .error {
         message := s!"{context} has unsupported EVM IR v0 ABI word type `{type.name}`; ABI aggregate words support U32, U64, Bool, Hash, or Address"
@@ -521,14 +523,14 @@ def ensureAbiWordType (context : String) (type : ValueType) : Except LowerError 
 
 def ensureCrosscallWordType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
-  | .u32 | .u64 | .bool | .hash | .address => .ok ()
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => .ok ()
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
       .error {
         message := s!"{context} has unsupported EVM IR v0 crosscall word type `{type.name}`; crosscall scalar words support U32, U64, Bool, Hash, or Address"
       }
 
 def isCrosscallWordType : ValueType → Bool
-  | .u32 | .u64 | .bool | .hash | .address => true
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string => false
 
 def abiStructWordTypes (module : Module) (context typeName : String) : Except LowerError (Array ValueType) := do
@@ -559,6 +561,8 @@ partial def abiNestedFixedArrayWordTypes (module : Module) (context : String) : 
   | .bool => .ok #[.bool]
   | .hash => .ok #[.hash]
   | .address => .ok #[.address]
+  | .u8 => .ok #[.u8]
+  | .u128 => .ok #[.u128]
   | .bytes | .string =>
       .error { message := s!"{context} uses a dynamic type; IR EVM v0 ABI nested fixed arrays must have U32, U64, Bool, Hash, Address, or flat struct leaves" }
   | .unit =>
@@ -580,6 +584,8 @@ partial def abiValueWordTypes (module : Module) (context : String) : ValueType �
   | .bool => .ok #[.bool]
   | .hash => .ok #[.hash]
   | .address => .ok #[.address]
+  | .u8 => .ok #[.u8]
+  | .u128 => .ok #[.u128]
   | .bytes => .ok #[.bytes]
   | .string => .ok #[.string]
   | .unit =>
@@ -619,6 +625,8 @@ partial def crosscallNestedFixedArrayWordTypes (module : Module) (context : Stri
   | .bool => .ok #[.bool]
   | .hash => .ok #[.hash]
   | .address => .ok #[.address]
+  | .u8 => .ok #[.u8]
+  | .u128 => .ok #[.u128]
   | .bytes | .string =>
       .error { message := s!"{context} uses a dynamic type; IR EVM v0 crosscall nested fixed arrays must have U32, U64, Bool, Hash, Address, or flat struct leaves" }
   | .unit =>
@@ -640,6 +648,8 @@ partial def crosscallValueWordTypes (module : Module) (context : String) : Value
   | .bool => .ok #[.bool]
   | .hash => .ok #[.hash]
   | .address => .ok #[.address]
+  | .u8 => .ok #[.u8]
+  | .u128 => .ok #[.u128]
   | .bytes | .string =>
       .error { message := s!"{context} uses a dynamic type; IR EVM v0 crosscall values must use U32, U64, Bool, Hash, Address, fixed arrays, or structs" }
   | .unit =>
@@ -676,7 +686,7 @@ partial def abiValueParamNamesAt
     (module : Module)
     (context name : String)
     (path : Array Nat) : ValueType → Except LowerError (Array String)
-  | .u32 | .u64 | .bool | .hash | .address | .bytes | .string =>
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .bytes | .string =>
       if path.isEmpty then
         .ok #[name]
       else
@@ -710,7 +720,6 @@ def lowerEntrypointParams (module : Module) (entrypoint : Entrypoint) : Except L
   match ProofForge.Backend.Evm.Lower.entrypointParamPlans module entrypoint with
   | .ok params => .ok (ProofForge.Backend.Evm.ToYul.entrypointParamTypedNames params)
   | .error err => .error { message := err.message }
-
 -- Static-only word types for entrypoint params (excludes dynamic types).
 -- Used for calldata size validation.
 def entrypointStaticParamWordTypes (module : Module) (entrypoint : Entrypoint) : Except LowerError (Array ValueType) := do
@@ -754,6 +763,7 @@ def abiParamValidationStmts (module : Module) (entrypoint : Entrypoint) : Except
   let params ← entrypointParamPlansForModule module entrypoint
   .ok (ProofForge.Backend.Evm.ToYul.abiParamsMinSizeValidationStatements params)
 
+
 def contextExpr : ContextField → Lean.Compiler.Yul.Expr
   | .userId => Lean.Compiler.Yul.builtin "caller" #[]
   | .contractId => Lean.Compiler.Yul.builtin "address" #[]
@@ -772,7 +782,7 @@ def mapShapeName (keyType valueType : ValueType) (capacity : Nat) : String :=
   s!"Map<{keyType.name}, {valueType.name}, {capacity}>"
 
 def isStorageWordType : ValueType → Bool
-  | .u32 | .u64 | .bool | .hash | .address => true
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string => false
 
 def requireStorageMapState (module : Module) (stateId : String) : Except LowerError (Nat × ValueType × ValueType) :=
@@ -845,8 +855,10 @@ def ensureType (context : String) (expected actual : ValueType) : Except LowerEr
 
 def ensureNumericType (context : String) (lhs rhs : ValueType) : Except LowerError ValueType :=
   match lhs, rhs with
+  | .u8, .u8 => .ok .u8
   | .u32, .u32 => .ok .u32
   | .u64, .u64 => .ok .u64
+  | .u128, .u128 => .ok .u128
   | _, _ => .error { message := s!"{context} expects matching numeric operands, got `{lhs.name}` and `{rhs.name}`" }
 
 def ensureArrayIndexType (context : String) (type : ValueType) : Except LowerError Unit :=
@@ -985,19 +997,19 @@ def lowerAssignOpExpr
 
 def ensureEqType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
-  | .bool | .u32 | .u64 | .hash | .address => .ok ()
+  | .bool | .u8 | .u32 | .u64 | .u128 | .hash | .address => .ok ()
   | .unit => .error { message := s!"{context} does not support Unit equality" }
   | .fixedArray _ _ | .structType _ | .bytes | .string =>
       .error { message := s!"{context} does not support `{type.name}` equality in IR EVM v0" }
 
 def ensureCastType (source target : ValueType) : Except LowerError Unit :=
   match source, target with
-  | .u32, .u64 => .ok ()
-  | .u64, .u32 => .ok ()
-  | .u32, .bool => .ok ()
-  | .bool, .u64 => .ok ()
-  | .bool, .u32 => .ok ()
-  | .u64, .bool => .ok ()
+  | .u8, .u8 | .u8, .u32 | .u8, .u64 | .u8, .u128 | .u8, .bool => .ok ()
+  | .u32, .u8 | .u32, .u32 | .u32, .u64 | .u32, .u128 | .u32, .bool => .ok ()
+  | .u64, .u8 | .u64, .u32 | .u64, .u64 | .u64, .u128 | .u64, .bool => .ok ()
+  | .u128, .u8 | .u128, .u32 | .u128, .u64 | .u128, .u128 => .ok ()
+  | .bool, .u8 | .bool, .u32 | .bool, .u64 | .bool, .u128 | .bool, .bool => .ok ()
+  | .address, .address | .address, .u64 | .hash, .address | .address, .hash | .hash, .hash => .ok ()
   | _, _ =>
       .error { message := s!"cast from `{source.name}` to `{target.name}` is not supported by IR EVM v0" }
 
@@ -1012,6 +1024,11 @@ def scalarStateType (module : Module) (stateId : String) : Except LowerError Val
   | .scalar => .ok state.type
   | .map _ _ => .error { message := s!"state `{stateId}` is a map, not scalar storage" }
   | .array _ => .error { message := s!"state `{stateId}` is an array, not scalar storage" }
+
+def scalarStatePacking (module : Module) (stateId : String) : Except LowerError (Nat × Nat) := do
+  match ProofForge.Backend.Evm.Plan.storageLayout module |>.find? stateId with
+  | some plan => .ok (plan.byteOffset, plan.byteWidth)
+  | none => .error { message := s!"unknown EVM state '{stateId}'" }
 
 def mapStateTypes (module : Module) (stateId : String) : Except LowerError (ValueType × ValueType) := do
   let state ← stateDeclOf module stateId "map"
@@ -1038,7 +1055,7 @@ def findStructFieldWithOffset? (decl : StructDecl) (fieldName : String) : Option
 
 def ensureStructLocalFieldType (structName fieldName : String) (type : ValueType) : Except LowerError Unit :=
   match type with
-  | .u32 | .u64 | .bool | .hash | .address => .ok ()
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => .ok ()
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
       .error {
         message := s!"field `{fieldName}` in struct `{structName}` has unsupported EVM IR v0 local struct field type `{type.name}`; local structs support U32, U64, Bool, or Hash fields"
@@ -1056,7 +1073,7 @@ def ensureLocalFlatStructType (module : Module) (context typeName : String) : Ex
 partial def ensureLocalNestedFixedArrayValueType
     (module : Module)
     (context name : String) : ValueType → Except LowerError Unit
-  | .u32 | .u64 | .bool | .hash | .address => .ok ()
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => .ok ()
   | .structType typeName => do
       discard <| ensureLocalFlatStructType module s!"{context} `{name}` nested fixed-array leaf" typeName
   | .fixedArray elementType length => do
@@ -1179,8 +1196,10 @@ def validateStructLiteralFields
 
 mutual
   partial def inferExprType (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError ValueType
+    | .literal (.u8 _) => .ok .u8
     | .literal (.u32 _) => .ok .u32
     | .literal (.u64 _) => .ok .u64
+    | .literal (.u128 _) => .ok .u128
     | .literal (.bool _) => .ok .bool
     | .literal (.hash4 ..) => .ok .hash
     | .literal (.address _) => .ok .address
@@ -1434,8 +1453,10 @@ mutual
 end
 
 partial def inferEventFieldExprType (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError ValueType
+  | .literal (.u8 _) => .ok .u8
   | .literal (.u32 _) => .ok .u32
   | .literal (.u64 _) => .ok .u64
+  | .literal (.u128 _) => .ok .u128
   | .literal (.bool _) => .ok .bool
   | .literal (.hash4 ..) => .ok .hash
   | .literal (.address _) => .ok .address
@@ -1589,7 +1610,7 @@ def validateLocalFixedArrayTarget
       | none => pure ()
       ensureType s!"{context} value" elementType (← inferExprType module env value)
       match elementType with
-      | .u32 | .u64 | .bool | .hash | .address => pure ()
+      | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => pure ()
       | .structType _ =>
           .error {
             message := s!"{context} local `{name}` returns struct values; IR EVM v0 requires field assignment such as array[index].field"
@@ -1612,7 +1633,7 @@ def validateLocalFixedArrayStaticPathTarget
   let targetType ← validateFixedArrayIndexPathTarget module env context binding.type path
   ensureType s!"{context} value" targetType (← inferExprType module env value)
   match targetType with
-  | .u32 | .u64 | .bool | .hash | .address => .ok targetType
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => .ok targetType
   | .structType _ =>
       .error {
         message := s!"{context} local `{name}` returns struct values; IR EVM v0 requires field assignment such as array[index].field"
@@ -1686,7 +1707,7 @@ def validateAssignTarget
         match binding.type with
         | .fixedArray elementType _ => do
             match elementType with
-            | .u32 | .u64 | .bool | .hash | .address => pure ()
+            | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => pure ()
             | .fixedArray _ _ =>
                 ensureLocalNestedFixedArrayValueType module "assignment target" name elementType
             | .structType typeName =>
@@ -1800,6 +1821,8 @@ mutual
         .ok env
     | .release _ =>
         .error { message := "release statements are not supported by IR EVM v0" }
+    | .revert _ => .ok env
+    | .revertWithError _ => .ok env
     | .ifElse condition thenBody elseBody => do
         ensureType "if condition" .bool (← inferExprType module env condition)
         discard <| validateStatements module entrypoint env thenBody
@@ -1844,6 +1867,55 @@ mutual
     let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.scalarSlotPlan module stateId
     lowerStorageSlotPlanExpr module env plan
 
+  partial def lowerScalarStorageReadExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let storageSlot ← lowerScalarStorageSlotExpr module env stateId
+    let (byteOffset, byteWidth) ← scalarStatePacking module stateId
+    if byteWidth >= 32 || byteOffset == 0 && byteWidth == 32 then
+      .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
+    else
+      let shiftBits := (32 - byteOffset - byteWidth) * 8
+      let mask := (2^(byteWidth * 8 : Nat)) - 1
+      .ok (Lean.Compiler.Yul.builtin "and" #[
+        Lean.Compiler.Yul.builtin "shr" #[
+          Lean.Compiler.Yul.Expr.num shiftBits,
+          Lean.Compiler.Yul.builtin "sload" #[storageSlot]
+        ],
+        Lean.Compiler.Yul.Expr.num mask
+      ])
+
+  partial def lowerScalarStorageWriteStmt
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (value : Lean.Compiler.Yul.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+    let storageSlot ← lowerScalarStorageSlotExpr module env stateId
+    let (byteOffset, byteWidth) ← scalarStatePacking module stateId
+    if byteWidth >= 32 || byteOffset == 0 && byteWidth == 32 then
+      .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, value]))
+    else
+      let shiftBits := (32 - byteOffset - byteWidth) * 8
+      let mask := (2^(byteWidth * 8 : Nat)) - 1
+      let shiftedMask := Lean.Compiler.Yul.builtin "shl" #[
+        Lean.Compiler.Yul.Expr.num shiftBits,
+        Lean.Compiler.Yul.Expr.num mask
+      ]
+      .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+        storageSlot,
+        Lean.Compiler.Yul.builtin "or" #[
+          Lean.Compiler.Yul.builtin "and" #[
+            Lean.Compiler.Yul.builtin "sload" #[storageSlot],
+            Lean.Compiler.Yul.builtin "not" #[shiftedMask]
+          ],
+          Lean.Compiler.Yul.builtin "shl" #[
+            Lean.Compiler.Yul.Expr.num shiftBits,
+            value
+          ]
+        ]
+      ]))
+
   partial def lowerMapSlotExpr
       (module : Module)
       (env : TypeEnv)
@@ -1887,8 +1959,7 @@ mutual
                 message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
               }
           | _ => pure ()
-          let storageSlot ← lowerScalarStorageSlotExpr module env stateId
-          .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
+          lowerScalarStorageReadExpr module env stateId
       | .contextRead (.blockHash blockNumber) => do
           .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerExpr module env blockNumber])
       | .contextRead field =>
@@ -2044,7 +2115,7 @@ mutual
       (path : Array ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     let (lengths, leafType) ← validateFixedArrayIndexExprPath module env "fixed array index" binding.type path
     match leafType with
-    | .u32 | .u64 | .bool | .hash | .address => pure ()
+    | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => pure ()
     | .structType _ =>
         .error {
           message := s!"fixed array indexing local `{name}` returns struct values; IR EVM v0 requires field access such as array[index].field"
@@ -2079,7 +2150,7 @@ mutual
                 | .error { message := s!"unknown local `{name}`" }
               let elementType ← fixedArrayPathType "fixed array index" binding.type path
               match elementType with
-              | .u32 | .u64 | .bool | .hash | .address =>
+              | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
                   .ok (Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path))
               | .structType _ =>
                   .error {
@@ -2110,7 +2181,7 @@ mutual
             .error {
               message := s!"fixed array indexing local `{name}` has unsupported EVM IR v0 element type `{elementType.name}`"
             }
-        | .u32 | .u64 | .bool | .hash | .address => pure ()
+        | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => pure ()
         match literalArrayIndex? index with
         | some indexValue => do
             ensureFixedArrayIndexInBounds "fixed array index" indexValue length
@@ -2271,7 +2342,7 @@ mutual
     | .structType typeName => do
         let fields ← lowerStructStorageReadFields module context typeName stateId
         .ok (fields.map fun field => field.snd)
-    | .u32 | .u64 | .bool | .hash | .address | .unit
+    | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .unit
     | .fixedArray _ _ | .bytes | .string =>
         .error {
           message := s!"{context} storage-backed crosscall word expansion supports struct scalar storage only, got `{expectedType.name}`"
@@ -2412,7 +2483,7 @@ mutual
     let type ← inferExprType module env arg
     discard <| crosscallArgWordTypes module context type
     match type with
-    | .u32 | .u64 | .bool | .hash | .address =>
+    | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
         .ok #[← lowerExpr module env arg]
     | .fixedArray elementType length =>
         lowerCrosscallFixedArrayArgWords module env context elementType length arg
@@ -2432,8 +2503,10 @@ mutual
     .ok words
 
   partial def lowerExpr (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
+    | .literal (.u8 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.u64 value) => .ok (Lean.Compiler.Yul.Expr.num value)
+    | .literal (.u128 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.bool value) => .ok (if value then Lean.Compiler.Yul.Expr.num 1 else Lean.Compiler.Yul.Expr.num 0)
     | .literal (.hash4 a b c d) => do
         .ok (Lean.Compiler.Yul.Expr.num (← packedHashLiteral a b c d))
@@ -2594,8 +2667,7 @@ mutual
               message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
             }
         | _ => pure ()
-        let storageSlot ← lowerScalarStorageSlotExpr module env stateId
-        .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
+        lowerScalarStorageReadExpr module env stateId
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
     | .storageScalarAssignOp _ _ _ =>
@@ -2646,8 +2718,7 @@ mutual
               message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
             }
         | _ => pure ()
-        let storageSlot ← lowerScalarStorageSlotExpr module env stateId
-        .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
+        lowerScalarStorageReadExpr module env stateId
     | .contextRead (.blockHash blockNumber) => do
         .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerExpr module env blockNumber])
     | .contextRead field =>
@@ -2999,7 +3070,7 @@ partial def lowerEventFixedArrayDataWords
           .error {
             message := s!"event `{eventName}` data field `{fieldName}` fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
           }
-  | .u32 | .u64 | .bool | .hash | .address => do
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => do
       match value with
       | .local name => do
           let (sourceElementType, sourceLength) ← requireLocalFixedArray s!"event `{eventName}` data field `{fieldName}`" env name
@@ -3038,7 +3109,7 @@ partial def lowerEventDataWords
     (type : ValueType)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
   match type with
-  | .u32 | .u64 | .bool | .hash | .address =>
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
       .ok #[← lowerScalarPlanExprOrFallback module env value]
   | .fixedArray elementType length =>
       lowerEventFixedArrayDataWords module env eventName fieldName elementType length value
@@ -3062,9 +3133,10 @@ partial def lowerIndexedEventTopicStatements
   let topicName := eventIndexedTopicName index
   let type := fieldPlan.type
   match type with
-  | .u32 | .u64 | .bool | .hash | .address =>
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
       .ok #[.varDecl #[{ name := topicName }] (some (← lowerScalarPlanExprOrFallback module env value))]
   | .fixedArray _ _ | .structType _ => do
+
       let words ← lowerEventDataWords module env eventName fieldName type value
       .ok <| eventDataStoreStatements words |>.push
         (.varDecl #[{ name := topicName }]
@@ -3699,6 +3771,7 @@ partial def lowerScalarStorageEffectStmtPlanOrFallback
                 (fun expr => lowerExpr module env expr)
                 (lowerPlanEffectExpr module env)
                 (lowerScalarStorageSlotExpr module env)
+                (scalarStatePacking module)
                 (.effect (.storageScalarWrite stateId valuePlan))
             match statements[0]? with
             | some statement =>
@@ -3727,6 +3800,7 @@ partial def lowerScalarStorageEffectStmtPlanOrFallback
             (fun expr => lowerExpr module env expr)
             (lowerPlanEffectExpr module env)
             (lowerScalarStorageSlotExpr module env)
+            (scalarStatePacking module)
             (.effect (.storageScalarAssignOp stateId op valuePlan))
         match statements[0]? with
         | some statement =>
@@ -3787,13 +3861,13 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
 
 def ensureLocalScalarType (context name : String) (type : ValueType) : Except LowerError Unit :=
   match type with
-  | .u32 | .u64 | .bool | .hash | .address => .ok ()
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => .ok ()
   | .unit => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `Unit`" }
   | .fixedArray _ _ | .structType _ | .bytes | .string => .error { message := s!"{context} `{name}` has unsupported EVM IR v0 type `{type.name}`" }
 
 def ensureLocalFixedArrayElementType (context name : String) (type : ValueType) : Except LowerError Unit :=
   match type with
-  | .u32 | .u64 | .bool | .hash | .address => .ok ()
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => .ok ()
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
       .error {
         message := s!"{context} `{name}` has unsupported EVM IR v0 fixed-array element type `{type.name}`; local fixed arrays support U32, U64, Bool, or Hash elements"
@@ -3846,7 +3920,7 @@ partial def lowerNestedFixedArrayLetBindings
     (type : ValueType)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   match type with
-  | .u32 | .u64 | .bool | .hash | .address =>
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
       .ok #[Lean.Compiler.Yul.Statement.varDecl
         #[{ name := arrayLocalPathName name path }]
         (some (← lowerExpr module env value))]
@@ -4063,7 +4137,7 @@ partial def lowerNestedFixedArrayLocalSourceExprs
     (module : Module)
     (sourceName : String)
     (path : Array Nat) : ValueType → Except LowerError (Array NestedFixedArraySourceExpr)
-  | .u32 | .u64 | .bool | .hash | .address =>
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
       .ok #[{ path := path, fieldName? := none, expr := Lean.Compiler.Yul.Expr.id (arrayLocalPathName sourceName path) }]
   | .structType typeName => do
       let decl ← ensureLocalFlatStructType module s!"assignment value `{sourceName}` nested fixed-array leaf" typeName
@@ -4094,7 +4168,7 @@ partial def lowerNestedFixedArrayLiteralSourceExprs
     (expectedType : ValueType)
     (value : ProofForge.IR.Expr) : Except LowerError (Array NestedFixedArraySourceExpr) := do
   match expectedType with
-  | .u32 | .u64 | .bool | .hash | .address =>
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
       .ok #[{ path := path, fieldName? := none, expr := ← lowerExpr module env value }]
   | .structType typeName => do
       let fields ← lowerStructValueFieldExprs module env s!"assignment target `{name}` nested fixed-array leaf" typeName value
@@ -4887,7 +4961,7 @@ def lowerReturnWords
           .ok #[Lean.Compiler.Yul.Expr.id (dynamicParamDataPtrName name)]
       | _ =>
           .error { message := s!"entrypoint `{entrypointName}` bytes/string returns in IR EVM v0 support local references only" }
-  | .u32 | .u64 | .bool | .hash | .address => do
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => do
       .ok #[← lowerScalarPlanExprOrFallback module env value]
   | .fixedArray elementType length =>
       lowerFixedArrayReturnWords module env entrypointName elementType length value
@@ -4895,7 +4969,7 @@ def lowerReturnWords
       lowerStructReturnWords module env entrypointName typeName value
 
 def returnTypeSupportsScalarStmtPlan : ValueType → Bool
-  | .u32 | .u64 | .bool | .hash | .address => true
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
   | .unit | .bytes | .string | .fixedArray _ _ | .structType _ => false
 
 def lowerAggregateCrosscallReturnAssignment?
@@ -5029,6 +5103,13 @@ mutual
         .ok (← lowerScalarAssertStmtPlanOrFallback module env (.assertEq lhs rhs message errorRef?), env)
     | .release _ =>
         .error { message := "release statements are not supported by IR EVM v0" }
+    | .revert message => do
+        if message.isEmpty then
+          .ok (#[revertStmt], env)
+        else
+          .ok (ProofForge.Backend.Evm.ToYul.revertWithMessageStatements message, env)
+    | .revertWithError errorRef => do
+        .ok (errorRefRevertStmts errorRef, env)
     | .ifElse condition thenBody elseBody => do
         let thenStatements ← lowerStatements module entrypointName returnType env true thenBody
         let elseStatements ← lowerStatements module entrypointName returnType env true elseBody
@@ -5089,13 +5170,21 @@ def lowerEntrypointWithPlan
   match entrypoint.returns with
   | .unit => pure ()
   | _ =>
-      if statementsAlwaysReturn entrypoint.body then
+      if entrypoint.kind == .fallback || entrypoint.kind == .receive then
+        .error { message := s!"entrypoint `{entrypoint.name}` is a fallback/receive and must return unit" }
+      else if statementsAlwaysReturn entrypoint.body then
         pure ()
       else
         .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not return on every control-flow path" }
   validateEntrypointTypes module entrypoint
   let body ← lowerStatements module entrypoint.name entrypoint.returns (entrypointTypeEnv entrypoint) false entrypoint.body
-  .ok (ProofForge.Backend.Evm.ToYul.entrypointFunctionDefinition module.name entrypointPlan body)
+  -- Fallback/receive functions use a fixed name and have no params/returns
+  if entrypoint.kind == .fallback || entrypoint.kind == .receive then
+    .ok (ProofForge.Backend.Evm.ToYul.fallbackReceiveFunctionDefinition
+           (ProofForge.Backend.Evm.ToYul.fallbackReceiveFunctionName entrypoint.kind)
+           body)
+  else
+    .ok (ProofForge.Backend.Evm.ToYul.entrypointFunctionDefinition module.name entrypointPlan body)
 
 def lowerEntrypoint (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Statement := do
   let entrypointPlan ←
@@ -5179,15 +5268,19 @@ def dispatchCasesWithPlan
     Except LowerError (Array Lean.Compiler.Yul.Case) := do
   let (idx, cases) ← module.entrypoints.foldlM (init := (0, #[])) fun acc entrypoint => do
     let (idx, cases) := acc
-    match dispatch.entrypoints[idx]? with
-    | some entrypointPlan => do
-        let dispatchCase ← dispatchCaseWithEntrypointPlan module entrypoint entrypointPlan
-        .ok (idx + 1, cases.push dispatchCase)
-    | none =>
-        .error {
-          message :=
-            s!"EVM dispatch plan has fewer entrypoints ({dispatch.entrypoints.size}) than module `{module.name}` ({module.entrypoints.size})"
-        }
+    -- Skip fallback/receive entrypoints — they are handled by the default case
+    if entrypoint.kind == .fallback || entrypoint.kind == .receive then
+      .ok (idx, cases)
+    else
+      match dispatch.entrypoints[idx]? with
+      | some entrypointPlan => do
+          let dispatchCase ← dispatchCaseWithEntrypointPlan module entrypoint entrypointPlan
+          .ok (idx + 1, cases.push dispatchCase)
+      | none =>
+          .error {
+            message :=
+              s!"EVM dispatch plan has fewer entrypoints ({dispatch.entrypoints.size}) than module `{module.name}` ({module.entrypoints.size})"
+          }
   if idx != dispatch.entrypoints.size then
     .error {
       message :=
@@ -5206,11 +5299,15 @@ def dispatchBlockWithPlan
 def dispatchPlanForModule (module : Module) :
     Except LowerError ProofForge.Backend.Evm.Plan.DispatchPlan := do
   let entrypointPlans ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
-    let entrypointPlan ←
-      match ProofForge.Backend.Evm.Lower.buildEntrypointSurfacePlan module entrypoint with
-      | .ok plan => .ok plan
-      | .error err => .error { message := err.message }
-    .ok (acc.push entrypointPlan)
+    -- Skip fallback/receive entrypoints — they don't have selectors
+    if entrypoint.kind == .fallback || entrypoint.kind == .receive then
+      .ok acc
+    else
+      let entrypointPlan ←
+        match ProofForge.Backend.Evm.Lower.buildEntrypointSurfacePlan module entrypoint with
+        | .ok plan => .ok plan
+        | .error err => .error { message := err.message }
+      .ok (acc.push entrypointPlan)
   .ok (ProofForge.Backend.Evm.Plan.moduleDispatchPlan module entrypointPlans)
 
 def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statement := do
@@ -5519,17 +5616,17 @@ def crosscallReturnGuardStatementsForName (resultName : String) (returnType : Va
           (Lean.Compiler.Yul.builtin "gt" #[Lean.Compiler.Yul.Expr.id resultName, Lean.Compiler.Yul.Expr.num 1])
           { statements := #[revertStmt] }
       ]
-  | .u64 | .hash | .address => .ok #[]
+  | .u8 | .u128 | .u64 | .hash | .address => .ok #[]
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
-      .error { message := "crosscall return type must be U32, U64, Bool, or Hash in IR EVM v0" }
+      .error { message := "crosscall return type must be U8, U32, U64, U128, Bool, or Hash in IR EVM v0" }
 
 def crosscallReturnGuardStatements (returnType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
   match returnType with
   | .u32 => crosscallReturnGuardStatementsForName "result" .u32
   | .bool => crosscallReturnGuardStatementsForName "result" .bool
-  | .u64 | .hash | .address => .ok #[]
+  | .u8 | .u128 | .u64 | .hash | .address => .ok #[]
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string =>
-      .error { message := "crosscall return type must be U32, U64, Bool, or Hash in IR EVM v0" }
+      .error { message := "crosscall return type must be U8, U32, U64, U128, Bool, or Hash in IR EVM v0" }
 
 def crosscallHelperReturnNames (wordCount : Nat) : Array Lean.Compiler.Yul.TypedName :=
   if wordCount == 1 then
@@ -5761,6 +5858,8 @@ mutual
         let lhsSpecs ← crosscallHelperSpecsExpr module env lhs
         let rhsSpecs ← crosscallHelperSpecsExpr module env rhs
         .ok (mergeCrosscallHelperSpecs lhsSpecs rhsSpecs, env)
+    | .revert _ => .ok (#[], env)
+    | .revertWithError _ => .ok (#[], env)
     | .release _ =>
         .ok (#[], env)
     | .ifElse condition thenBody elseBody => do
@@ -5916,6 +6015,8 @@ mutual
         mergeCreateHelperSpecs (createHelperSpecsExpr lhs) (createHelperSpecsExpr rhs)
     | .release _ =>
         #[]
+    | .revert _ => #[]
+    | .revertWithError _ => #[]
     | .ifElse condition thenBody elseBody =>
         mergeCreateHelperSpecs
           (createHelperSpecsExpr condition)
@@ -5963,7 +6064,7 @@ def nestedLocalArrayGetShapesForDynamicExprTarget
             match fixedArrayPathShape "fixed array index" binding.type path with
             | .ok (lengths, leafType) =>
                 match leafType with
-                | .u32 | .u64 | .bool | .hash | .address | .structType _ => #[lengths]
+                | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .structType _ => #[lengths]
                 | .unit | .fixedArray _ _ | .bytes | .string => #[]
             | .error _ => #[]
         | none => #[]
@@ -6092,6 +6193,8 @@ mutual
         .ok (mergeNatSets (localArrayGetLengthsExpr env lhs) (localArrayGetLengthsExpr env rhs), env)
     | .release _ =>
         .ok (#[], env)
+    | .revert _ => .ok (#[], env)
+    | .revertWithError _ => .ok (#[], env)
     | .ifElse condition thenBody elseBody => do
         let (thenLengths, _) ← localArrayGetLengthsStatements module env thenBody
         let (elseLengths, _) ← localArrayGetLengthsStatements module env elseBody
@@ -6244,6 +6347,8 @@ mutual
         .ok (bodyShapes, env)
     | .release _ =>
         .ok (#[], env)
+    | .revert _ => .ok (#[], env)
+    | .revertWithError _ => .ok (#[], env)
     | .return value =>
         .ok (nestedLocalArrayGetShapesExpr env value, env)
 
@@ -6302,10 +6407,13 @@ def validateStorageStructState (context typeName : String) (module : Module) : E
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
     match state.kind, state.type with
+    | .scalar, .u8 => pure ()
     | .scalar, .u32 => pure ()
     | .scalar, .u64 => pure ()
+    | .scalar, .u128 => pure ()
     | .scalar, .bool => pure ()
     | .scalar, .hash => pure ()
+    | .scalar, .address => pure ()
     | .scalar, .structType typeName =>
         validateStorageStructState s!"state `{state.id}`" typeName module
     | .scalar, other =>
@@ -6319,8 +6427,10 @@ def validateState (module : Module) : Except LowerError Unit := do
           }
     | .array 0, _ =>
         .error { message := s!"array state `{state.id}` must have non-zero length" }
+    | .array _, .u8 => pure ()
     | .array _, .u32 => pure ()
     | .array _, .u64 => pure ()
+    | .array _, .u128 => pure ()
     | .array _, .bool => pure ()
     | .array _, .hash => pure ()
     | .array _, .structType typeName =>
@@ -6400,7 +6510,7 @@ mutual
   partial def stmtUsesCheckedArithmetic : Statement → Bool
     | .letBind _ _ v | .letMutBind _ _ v | .assign _ v | .assignOp _ _ v | .return v =>
         exprUsesCheckedArithmetic v
-    | .assert _ _ _ | .assertEq _ _ _ _ | .release _ => false
+    | .assert _ _ _ | .assertEq _ _ _ _ | .release _ | .revert _ | .revertWithError _ => false
     | .effect e => effectUsesCheckedArithmetic e
     | .ifElse c thenBody elseBody =>
         exprUsesCheckedArithmetic c || thenBody.any stmtUsesCheckedArithmetic
@@ -6451,7 +6561,10 @@ def lowerEntrypointsWithPlan
 def entrypointPlanIsComplete
     (module : Module)
     (entrypoints : Array ProofForge.Backend.Evm.Plan.EntrypointPlan) : Bool :=
-  entrypoints.size == module.entrypoints.size
+  -- Only function entrypoints (not fallback/receive) need dispatch plans
+  let functionCount := module.entrypoints.foldl (init := 0) fun acc ep =>
+    if ep.kind == .fallback || ep.kind == .receive then acc else acc + 1
+  entrypoints.size == functionCount
 
 def lowerEntrypointsBestEffort
     (module : Module)

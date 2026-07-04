@@ -68,7 +68,11 @@ def crosscallReturnPlan (module : Module) (context : String) (returnType : Value
 def entrypointSelector (entrypoint : Entrypoint) : Except LowerError String :=
   match entrypoint.selector? with
   | some selector => .ok selector
-  | none => .error { message := s!"entrypoint `{entrypoint.name}` has no EVM selector metadata" }
+  | none =>
+    if entrypoint.kind == .fallback || entrypoint.kind == .receive then
+      .ok ""  -- Fallback/receive don't have selectors
+    else
+      .error { message := s!"entrypoint `{entrypoint.name}` has no EVM selector metadata" }
 
 /-! Entrypoint body plans carry structural `StmtPlan` / `ExprPlan` nodes.
 
@@ -80,6 +84,8 @@ instead of re-walking the portable IR at Yul assembly time. -/
 def literalPlan : Literal → Except LowerError ExprPlan
   | .u32 value => .ok (.literalWord value)
   | .u64 value => .ok (.literalWord value)
+  | .u8 value => .ok (.literalWord value)
+  | .u128 value => .ok (.literalWord value)
   | .bool value => .ok (.literalWord (if value then 1 else 0))
   | .hash4 a b c d => do
       .ok (.literalWord (← packedHashLiteral a b c d))
@@ -107,7 +113,7 @@ def assignExprPlan (op : AssignOp) (lhs rhs : ExprPlan) : ExprPlan :=
   .checkedArith op lhs rhs
 
 def fixedArrayScalarLeafType? : ValueType → Bool
-  | .u32 | .u64 | .bool | .hash | .address => true
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string => false
 
 mutual
@@ -223,7 +229,7 @@ mutual
     let type ← inferExprType module env arg
     discard <| crosscallArgWordTypes module context type
     match type with
-    | .u32 | .u64 | .bool | .hash | .address =>
+    | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
         .ok #[← buildExprPlan module env arg]
     | .fixedArray elementType length =>
         match arg with
@@ -446,6 +452,8 @@ mutual
         .ok (.assertEq (← buildExprPlan module env lhs) (← buildExprPlan module env rhs) message errorRef?, env)
     | .release name =>
         .ok (.release name, env)
+    | .revert message => .ok (.revert message, env)
+    | .revertWithError errorRef => .ok (.revertWithError errorRef, env)
     | .ifElse condition thenBody elseBody => do
         ensureType "if condition" .bool (← inferExprType module env condition)
         let (thenPlans, _) ← buildStatementPlans module entrypoint env thenBody
@@ -691,7 +699,7 @@ mutual
         | .assertEq lhs rhs _ _ => do
             acc ← collectEventPlansFromExpr module current acc lhs
             acc ← collectEventPlansFromExpr module current acc rhs
-        | .release _ => pure ()
+        | .release _ | .revert _ | .revertWithError _ => pure ()
         | .ifElse condition thenBody elseBody => do
             acc ← collectEventPlansFromExpr module current acc condition
             acc ← collectEventPlansFromStatements module current acc thenBody
@@ -921,6 +929,8 @@ mutual
         .ok (mergeCrosscallHelperSpecs lhsSpecs rhsSpecs, env)
     | .release _ =>
         .ok (#[], env)
+    | .revert _ => .ok (#[], env)
+    | .revertWithError _ => .ok (#[], env)
     | .ifElse condition thenBody elseBody => do
         let conditionSpecs ← crosscallHelperSpecsFromExpr module env condition
         let (thenSpecs, _) ← crosscallHelperSpecsFromStatements module env thenBody
@@ -1055,6 +1065,8 @@ mutual
         mergeCreateHelperSpecs (createHelperSpecsFromExpr lhs) (createHelperSpecsFromExpr rhs)
     | .release _ =>
         #[]
+    | .revert _ => #[]
+    | .revertWithError _ => #[]
     | .ifElse condition thenBody elseBody =>
         mergeCreateHelperSpecs
           (createHelperSpecsFromExpr condition)
@@ -1113,7 +1125,7 @@ def nestedLocalArrayGetShapesForDynamicExprTarget
             match fixedArrayPathShape "fixed array index" binding.type path with
             | .ok (lengths, leafType) =>
                 match leafType with
-                | .u32 | .u64 | .bool | .hash | .address | .structType _ => #[lengths]
+                | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .structType _ => #[lengths]
                 | .unit | .fixedArray _ _ | .bytes | .string => #[]
             | .error _ => #[]
         | none => #[]
@@ -1229,6 +1241,8 @@ mutual
         .ok (mergeNatSets (localArrayGetLengthsExpr env lhs) (localArrayGetLengthsExpr env rhs), env)
     | .release _ =>
         .ok (#[], env)
+    | .revert _ => .ok (#[], env)
+    | .revertWithError _ => .ok (#[], env)
     | .ifElse condition thenBody elseBody => do
         let (thenLengths, _) ← localArrayGetLengthsStatements env thenBody
         let (elseLengths, _) ← localArrayGetLengthsStatements env elseBody
@@ -1375,6 +1389,8 @@ mutual
         .ok (mergeNatArraySets (nestedLocalArrayGetShapesExpr env lhs) (nestedLocalArrayGetShapesExpr env rhs), env)
     | .release _ =>
         .ok (#[], env)
+    | .revert _ => .ok (#[], env)
+    | .revertWithError _ => .ok (#[], env)
     | .ifElse condition thenBody elseBody => do
         let (thenShapes, _) ← nestedLocalArrayGetShapesStatements env thenBody
         let (elseShapes, _) ← nestedLocalArrayGetShapesStatements env elseBody
@@ -1415,7 +1431,11 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
     | .ok plan => .ok plan
     | .error err => .error (planError err)
   let entrypointPlans ← buildEntrypointPlans module
-  let dispatchPlan := moduleDispatchPlan module entrypointPlans
+  let dispatchEntrypointPlans := entrypointPlans.filterMap fun plan =>
+    match module.entrypoints.find? (fun ep => ep.name == plan.name) with
+    | some ep => if ep.kind == .fallback || ep.kind == .receive then none else some plan
+    | none => some plan
+  let dispatchPlan := moduleDispatchPlan module dispatchEntrypointPlans
   let eventPlans ← buildEventPlans module
   let crosscallPlans ← buildCrosscallHelperPlans module
   let createPlans := buildCreateHelperPlans module
@@ -1449,7 +1469,11 @@ def buildFullModulePlanWithTargetPlan
     | .ok plan => .ok plan
     | .error err => .error (planError err)
   let entrypointPlans ← buildEntrypointPlans module
-  let dispatchPlan := moduleDispatchPlan module entrypointPlans
+  let dispatchEntrypointPlans := entrypointPlans.filterMap fun plan =>
+    match module.entrypoints.find? (fun ep => ep.name == plan.name) with
+    | some ep => if ep.kind == .fallback || ep.kind == .receive then none else some plan
+    | none => some plan
+  let dispatchPlan := moduleDispatchPlan module dispatchEntrypointPlans
   let eventPlans ← buildEventPlans module
   let crosscallPlans ← buildCrosscallHelperPlans module
   let createPlans := buildCreateHelperPlans module
