@@ -55,6 +55,20 @@ def storageSlotExpr
         lowerMapValueSlotExpr lowerExpr rootSlot keys
   | .mapPresenceSlot rootSlot keys =>
       lowerMapPresenceSlotExpr mkError lowerExpr rootSlot keys
+  | .arraySlot rootSlot length index => do
+      .ok (helperCall Helper.arraySlot #[
+        slotExpr rootSlot,
+        Lean.Compiler.Yul.Expr.num length,
+        ← lowerValuePlan lowerExpr index
+      ])
+  | .structArrayFieldSlot rootSlot length fieldCount fieldOffset index => do
+      .ok (helperCall Helper.structArraySlot #[
+        slotExpr rootSlot,
+        Lean.Compiler.Yul.Expr.num length,
+        Lean.Compiler.Yul.Expr.num fieldCount,
+        Lean.Compiler.Yul.Expr.num fieldOffset,
+        ← lowerValuePlan lowerExpr index
+      ])
 
 /-! ## Plan-driven helper requirements
 

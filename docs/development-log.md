@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Storage Slot Plan Array Coverage
+
+Commit: this commit
+
+Summary:
+
+- Extended `StorageSlotPlan` with storage array and struct-array field slot
+  shapes.
+- Added `ToYul.storageSlotExpr` lowering for `__proof_forge_array_slot` and
+  `__proof_forge_struct_array_slot` helper calls.
+- Routed `IR.lean` storage array and struct-array field slot lowering through
+  the plan-to-Yul boundary while keeping compatibility facade functions.
+- Extended `Tests/EvmPlan.lean` to lock the new slot plans, helper
+  requirements, and rendered Yul expressions.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul
+lake env lean --run Tests/EvmPlan.lean
+lake build ProofForge.Backend.Evm.IR
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+```
+
+Known limitations:
+
+- `IR.lean` is still the compatibility facade for expression/statement
+  lowering; the semantic-plan migration is not complete until `ExprPlan`,
+  `StmtPlan`, entrypoint, event, crosscall, and metadata planning own the
+  remaining lowering decisions.
+
+Next step:
+
+- Continue the EVM semantic-plan migration with `ExprPlan`/`StmtPlan` or
+  entrypoint dispatch planning, keeping golden Yul and Foundry smokes as the
+  behavior lock.
+
 ### EVM Example Stdlib Build Gate Fix
 
 Commit: this commit

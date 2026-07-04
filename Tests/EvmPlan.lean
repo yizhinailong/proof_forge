@@ -1,4 +1,6 @@
 import ProofForge.Backend.Evm.Plan
+import ProofForge.Backend.Evm.ToYul
+import ProofForge.Compiler.Yul.Printer
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmTypedMapProbe
 import ProofForge.Target.Capability
@@ -33,6 +35,26 @@ def typedMapProbeU32 (value : Nat) : Expr :=
 def typedMapProbeNestedMapPath (outer inner : Expr) : Array StoragePathSegment :=
   ProofForge.IR.Examples.EvmTypedMapProbe.nestedMapPath outer inner
 
+def storagePairStruct : StructDecl := {
+  name := "Pair"
+  fields := #[
+    { id := "x", type := .u64 },
+    { id := "y", type := .u64 }
+  ]
+}
+
+def storageSlotProbeModule : Module := {
+  name := "StorageSlotProbe"
+  structs := #[storagePairStruct]
+  state := #[
+    { id := "count", kind := .scalar, type := .u64 },
+    { id := "values", kind := .array 3, type := .u64 },
+    { id := "pairs", kind := .array 2, type := .structType "Pair" },
+    { id := "after", kind := .scalar, type := .u64 }
+  ]
+  entrypoints := #[]
+}
+
 def require (condition : Bool) (message : String) : IO Unit :=
   if condition then
     pure ()
@@ -51,6 +73,11 @@ def requireOk {α : Type} (value : Except PlanError α) (message : String) : IO 
   match value with
   | .ok x => pure x
   | .error err => throw <| IO.userError s!"{message}: {err.render}"
+
+def requireOkString {α : Type} (value : Except String α) (message : String) : IO α :=
+  match value with
+  | .ok x => pure x
+  | .error err => throw <| IO.userError s!"{message}: {err}"
 
 def requireScalarSlot (plan : StorageSlotPlan) (expectedSlot : Nat) (message : String) : IO Unit := do
   match plan with
@@ -76,6 +103,28 @@ def requireMapPresenceSlot
       requireEqNat rootSlot expectedRootSlot s!"{message}: root slot"
       requireEqNat keys.size expectedKeys s!"{message}: key count"
   | _ => throw <| IO.userError s!"{message}: expected map presence slot plan"
+
+def requireArraySlot
+    (plan : StorageSlotPlan)
+    (expectedRootSlot expectedLength : Nat)
+    (message : String) : IO Unit := do
+  match plan with
+  | .arraySlot rootSlot length _ => do
+      requireEqNat rootSlot expectedRootSlot s!"{message}: root slot"
+      requireEqNat length expectedLength s!"{message}: length"
+  | _ => throw <| IO.userError s!"{message}: expected array slot plan"
+
+def requireStructArrayFieldSlot
+    (plan : StorageSlotPlan)
+    (expectedRootSlot expectedLength expectedFieldCount expectedFieldOffset : Nat)
+    (message : String) : IO Unit := do
+  match plan with
+  | .structArrayFieldSlot rootSlot length fieldCount fieldOffset _ => do
+      requireEqNat rootSlot expectedRootSlot s!"{message}: root slot"
+      requireEqNat length expectedLength s!"{message}: length"
+      requireEqNat fieldCount expectedFieldCount s!"{message}: field count"
+      requireEqNat fieldOffset expectedFieldOffset s!"{message}: field offset"
+  | _ => throw <| IO.userError s!"{message}: expected struct-array field slot plan"
 
 def requireHelper (helpers : HelperSet) (helper : Helper) (message : String) : IO Unit :=
   require (HelperSet.contains helpers helper) message
@@ -160,6 +209,45 @@ def testTypedMapProbeLayout : IO Unit := do
     "typed nested map value plan failed"
   requireMapValueSlot typedNested 0 2 "typed nested map value plan"
 
+def lowerSlotTestExpr : Expr → Except String Lean.Compiler.Yul.Expr
+  | .literal (.u64 value) => .ok (Lean.Compiler.Yul.Expr.num value)
+  | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
+  | _ => .error "unsupported slot test expression"
+
+def renderSlotPlan (plan : StorageSlotPlan) : Except String String := do
+  let expr ← ProofForge.Backend.Evm.ToYul.storageSlotExpr id lowerSlotTestExpr plan
+  .ok (Lean.Compiler.Yul.Printer.printExpr expr)
+
+def testArraySlotPlans : IO Unit := do
+  requireEqNat (← requireSome (stateSlot? storageSlotProbeModule "count") "missing count slot") 0
+    "StorageSlotProbe.count slot"
+  requireEqNat (← requireSome (stateSlot? storageSlotProbeModule "values") "missing values slot") 1
+    "StorageSlotProbe.values slot"
+  requireEqNat (← requireSome (stateSlot? storageSlotProbeModule "pairs") "missing pairs slot") 4
+    "StorageSlotProbe.pairs slot"
+  requireEqNat (← requireSome (stateSlot? storageSlotProbeModule "after") "missing after slot") 8
+    "StorageSlotProbe.after slot"
+
+  let arrayPlan ← requireOk
+    (arraySlotPlan storageSlotProbeModule "values" (.local "idx"))
+    "array slot plan failed"
+  requireArraySlot arrayPlan 1 3 "values array slot plan"
+  requireHelper arrayPlan.requiredHelpers Helper.arraySlot
+    "array slot plan must require array slot helper"
+  let arrayExpr ← requireOkString (renderSlotPlan arrayPlan) "array slot ToYul lowering failed"
+  require (arrayExpr == "__proof_forge_array_slot(1, 3, idx)")
+    s!"array slot ToYul expression mismatch: {arrayExpr}"
+
+  let structArrayPlan ← requireOk
+    (structArrayFieldSlotPlan storageSlotProbeModule "pairs" (.local "idx") "y")
+    "struct-array slot plan failed"
+  requireStructArrayFieldSlot structArrayPlan 4 2 2 1 "pairs.y struct-array slot plan"
+  requireHelper structArrayPlan.requiredHelpers Helper.structArraySlot
+    "struct-array field slot plan must require struct-array slot helper"
+  let structArrayExpr ← requireOkString (renderSlotPlan structArrayPlan) "struct-array slot ToYul lowering failed"
+  require (structArrayExpr == "__proof_forge_struct_array_slot(4, 2, 2, 1, idx)")
+    s!"struct-array slot ToYul expression mismatch: {structArrayExpr}"
+
 def testModulePlanCapabilities : IO Unit := do
   let plan ← requireOk (buildModulePlan mapProbeModule) "EVM module plan failed"
   require (plan.name == mapProbeModule.name) "module plan name mismatch"
@@ -195,6 +283,7 @@ def main : IO UInt32 := do
   testScalarSlotPlan
   testMapSlotPlans
   testTypedMapProbeLayout
+  testArraySlotPlans
   testModulePlanCapabilities
   testWrongTargetPlanRejected
   IO.println "evm-plan: ok"

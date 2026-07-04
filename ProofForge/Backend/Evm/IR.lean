@@ -1949,8 +1949,9 @@ mutual
       (env : TypeEnv)
       (stateId : String)
       (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let (slot, length, _) ← requireStorageArrayState module stateId
-    .ok (Lean.Compiler.Yul.call arraySlotFunctionName #[slotExpr slot, Lean.Compiler.Yul.Expr.num length, ← lowerExpr module env index])
+    discard <| requireStorageArrayState module stateId
+    let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.arraySlotPlan module stateId index
+    lowerStorageSlotPlanExpr module env plan
 
   partial def lowerArrayReadExpr
       (module : Module)
@@ -1976,14 +1977,10 @@ mutual
       (stateId : String)
       (index : ProofForge.IR.Expr)
       (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
-    .ok (Lean.Compiler.Yul.call structArraySlotFunctionName #[
-      slotExpr slot,
-      Lean.Compiler.Yul.Expr.num length,
-      Lean.Compiler.Yul.Expr.num fieldCount,
-      Lean.Compiler.Yul.Expr.num fieldOffset,
-      ← lowerExpr module env index
-    ])
+    discard <| requireStructArrayStateField module stateId fieldName
+    let plan ← lowerPlan <|
+      ProofForge.Backend.Evm.Plan.structArrayFieldSlotPlan module stateId index fieldName
+    lowerStorageSlotPlanExpr module env plan
 
   partial def lowerStructArrayFieldReadExpr
       (module : Module)

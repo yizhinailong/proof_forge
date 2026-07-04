@@ -261,9 +261,10 @@ Tasks:
   - Done: move scalar and map storage slot Yul construction to
     `StorageSlotPlan -> ToYul`, starting with map value/presence slots used by
     storage paths.
-  - Extend `StorageSlotPlan -> ToYul` to array slots and struct-array field
-    slots, then remove the old direct slot-expression builders from
-    `IR.lean`.
+  - Done: extend `StorageSlotPlan -> ToYul` to array slots and struct-array
+    field slots. `IR.lean` now routes storage array and struct-array field slot
+    lowering through the plan-to-Yul boundary while keeping compatibility
+    facade functions for existing callers.
   - Add `ExprPlan` and `StmtPlan` so expression and statement validation,
     helper discovery, and target-specific lowering happen before Yul AST
     assembly.
