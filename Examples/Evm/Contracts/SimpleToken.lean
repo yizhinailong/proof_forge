@@ -4,44 +4,38 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Portable SimpleToken for the unified EVM entry path.
 -/
-import ProofForge.Contract.Builder
+import ProofForge.Contract.Source
 
 namespace SimpleToken
 
-open ProofForge.Contract.Builder
-open ProofForge.IR
+open ProofForge.Contract.Source
 
-def spec : ProofForge.Contract.ContractSpec :=
-  build "SimpleToken" do
-    scalarState "owner" .u64
-    scalarState "totalSupply" .u64
-    mapState "balances" .u64 .u64 256
+contract_source SimpleToken do
+  state «owner» : .u64
+  state totalSupply : .u64
+  mapping balances from .u64 to .u64
 
-    entryWithParams "init" #[("supply", .u64)] .unit do
-      letBind "owner" .u64 (contextRead .userId)
-      effect (storageScalarWrite "owner" (.local "owner"))
-      effect (storageScalarWrite "totalSupply" (.local "supply"))
-      effect (storageMapInsert "balances" (.local "owner") (.local "supply"))
+  entry init (supply : .u64) do
+    «owner» := caller;
+    totalSupply := supply;
+    let who : .u64 := caller;
+    do mapWrite balances who supply;
 
-    entryReturns "getOwner" .u64 do
-      ret (storageScalarRead "owner")
+  query getOwner returns(.u64) do
+    return «owner»;
 
-    entryReturns "totalSupply" .u64 do
-      ret (storageScalarRead "totalSupply")
+  query totalSupply returns(.u64) do
+    return totalSupply;
 
-    entryWithParams "balanceOf" #[("addr", .u64)] .u64 do
-      ret (storageMapGet "balances" (.local "addr"))
+  query balanceOf (addr : .u64) returns(.u64) do
+    return mapRead balances addr;
 
-    entryWithParams "transfer" #[("to", .u64), ("amount", .u64)] .unit do
-      letBind "sender" .u64 (contextRead .userId)
-      letBind "bal" .u64 (storageMapGet "balances" (.local "sender"))
-      assert (ge (.local "bal") (.local "amount")) "insufficient balance"
-      letBind "newBal" .u64 (sub (.local "bal") (.local "amount"))
-      effect (storageMapSet "balances" (.local "sender") (.local "newBal"))
-      letBind "recvBal" .u64 (storageMapGet "balances" (.local "to"))
-      effect (storageMapSet "balances" (.local "to") (add (.local "recvBal") (.local "amount")))
-
-def module : ProofForge.IR.Module :=
-  spec.module
+  entry transfer (to : .u64, amount : .u64) do
+    let sender : .u64 := caller;
+    let bal : .u64 := mapRead balances sender;
+    do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref bal) (ProofForge.Contract.Surface.ref amount) "insufficient balance";
+    do mapWrite balances sender (bal -! amount);
+    let recvBal : .u64 := mapRead balances to;
+    do mapWrite balances to (recvBal +! amount);
 
 end SimpleToken

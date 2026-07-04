@@ -28,18 +28,18 @@ contract_source Ownable do
 
   entry init do
     do ProofForge.Contract.Surface.requireZero «owner» "already initialized";
-    do ProofForge.Contract.Surface.write «owner» caller;
+    «owner» := caller;
 
   query «owner» returns(.u64) do
     return «owner»;
 
   entry transferOwnership (newOwner : .u64) do
-    do ProofForge.Contract.Surface.requireOwner «owner»;
+    guard_owner «owner»;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref newOwner) "zero address";
     «owner» := newOwner;
 
   entry renounceOwnership do
-    do ProofForge.Contract.Surface.requireOwner «owner»;
+    guard_owner «owner»;
     «owner» := u64 0;
 
 end Ownable
