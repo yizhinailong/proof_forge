@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Create Helper To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added plan-to-Yul create/create2 helper construction in
+  `ProofForge.Backend.Evm.ToYul`.
+- Moved create helper naming, init-code `mstore` frame construction,
+  `create`/`create2` opcode invocation, and zero-address revert guards behind
+  `CreateHelperSpec -> ToYul`.
+- Kept `IR.lean` compatibility wrappers for create helper names, params,
+  init-code store statements, and helper functions while complete
+  `lowerModuleWithPlan` consumes planned create specs directly.
+- Extended semantic-plan coverage for planned create/create2 specs, direct
+  ToYul helper names, helper parameter counts, emitted Yul opcodes, and
+  plan-only create helper emission.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/crosscall-ir-smoke.sh
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- Expression-position create/create2 helper-call assembly still goes through
+  the `IR.lean` compatibility facade.
+- Scalar and aggregate crosscall expression call construction still go through
+  the `IR.lean` compatibility facade.
+
+Next step:
+
+- Move expression-position create/create2 helper-call assembly, or scalar
+  crosscall expression call construction, behind a narrower `ToYul` boundary.
+
 ### EVM Crosscall Helper To-Yul Slice
 
 Commit: this commit
@@ -53,8 +97,6 @@ Known limitations:
 
 - Scalar and aggregate crosscall expression call construction still go through
   the `IR.lean` compatibility facade.
-- Create/create2 helper body construction remains on the compatibility facade
-  even though complete module lowering consumes planned create specs.
 
 Next step:
 

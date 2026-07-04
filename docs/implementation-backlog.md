@@ -392,6 +392,13 @@ Tasks:
     complete plan-driven lowering. `IR.lean` still owns return word-layout
     discovery and compatibility wrappers until scalar/aggregate crosscall
     expression call construction moves behind `ToYul`.
+  - Started: create/create2 helper naming and body construction now live behind
+    the `CreateHelperSpec -> ToYul` boundary. Planned create specs can emit
+    deterministic init-code `mstore` frames, `create`/`create2` opcode calls,
+    zero-address revert guards, and helper function names without converting
+    back to the `IR.lean` compatibility helper spec. `IR.lean` still owns
+    create helper discovery and expression-position create/create2 helper-call
+    assembly until those call expressions are moved behind `ToYul`.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

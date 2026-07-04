@@ -48,6 +48,13 @@ def statementFunctionName? : Lean.Compiler.Yul.Statement → Option String
 def statementsHaveFunctionNamed (statements : Array Lean.Compiler.Yul.Statement) (name : String) : Bool :=
   statements.any fun stmt => statementFunctionName? stmt == some name
 
+def statementsHaveAssignmentBuiltin (statements : Array Lean.Compiler.Yul.Statement) (name : String) : Bool :=
+  statements.any fun stmt =>
+    match stmt with
+    | Lean.Compiler.Yul.Statement.assignment _ (Lean.Compiler.Yul.Expr.builtin builtinName _) =>
+        builtinName == name
+    | _ => false
+
 def nativeTransferPlanProbe : Module := {
   name := "NativeTransferPlanProbe"
   state := #[]
@@ -293,9 +300,73 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
   require
     (statementsHaveFunctionNamed crosscallHelpers "__proof_forge_native_transfer")
     "planned crosscall helpers include native transfer"
+  let createSpec ← requireSome
+    (plan.creates.find? fun spec => spec.mode == ProofForge.Backend.Evm.Plan.CreateMode.create)
+    "crosscall probe missing planned create helper"
+  require
+    (createSpec.initCodeHex == ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
+    "planned create helper init code"
+  let createName ←
+    requireOk
+      (ProofForge.Backend.Evm.ToYul.createHelperFunctionName
+        toYulError
+        createSpec.mode
+        createSpec.initCodeHex)
+      "planned create helper name"
+  require
+    (createName ==
+      "__proof_forge_create_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
+    "planned create helper name must include normalized init code"
+  let createFunction ←
+    requireOk
+      (ProofForge.Backend.Evm.ToYul.createHelperFunction toYulError createSpec)
+      "planned create helper function"
+  match createFunction with
+  | Lean.Compiler.Yul.Statement.funcDef name params returns body => do
+      require (name == createName) "planned create helper function name"
+      require (params.size == 1) "planned create helper parameter count"
+      require (returns.size == 1) "planned create helper return count"
+      require (statementsHaveAssignmentBuiltin body.statements "create")
+        "planned create helper must call Yul create opcode"
+  | _ => throw <| IO.userError "planned create helper must lower to function definition"
+  let create2Spec ← requireSome
+    (plan.creates.find? fun spec => spec.mode == ProofForge.Backend.Evm.Plan.CreateMode.create2)
+    "crosscall probe missing planned create2 helper"
+  require
+    (create2Spec.initCodeHex == ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
+    "planned create2 helper init code"
+  let create2Name ←
+    requireOk
+      (ProofForge.Backend.Evm.ToYul.createHelperFunctionName
+        toYulError
+        create2Spec.mode
+        create2Spec.initCodeHex)
+      "planned create2 helper name"
+  require
+    (create2Name ==
+      "__proof_forge_create2_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
+    "planned create2 helper name must include normalized init code"
+  let create2Function ←
+    requireOk
+      (ProofForge.Backend.Evm.ToYul.createHelperFunction toYulError create2Spec)
+      "planned create2 helper function"
+  match create2Function with
+  | Lean.Compiler.Yul.Statement.funcDef name params returns body => do
+      require (name == create2Name) "planned create2 helper function name"
+      require (params.size == 2) "planned create2 helper parameter count"
+      require (returns.size == 1) "planned create2 helper return count"
+      require (statementsHaveAssignmentBuiltin body.statements "create2")
+        "planned create2 helper must call Yul create2 opcode"
+  | _ => throw <| IO.userError "planned create2 helper must lower to function definition"
   let createHelpers ←
     requireOk (plannedCreateHelperFunctions plan.creates) "planned create helper functions"
   require (createHelpers.size == 2) "planned create helper count"
+  require
+    (statementsHaveFunctionNamed createHelpers createName)
+    "planned create helpers include create helper"
+  require
+    (statementsHaveFunctionNamed createHelpers create2Name)
+    "planned create helpers include create2 helper"
   let object ←
     requireOk
       (lowerModuleWithPlan nativeTransferPlanProbe nativePlan)

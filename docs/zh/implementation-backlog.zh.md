@@ -198,6 +198,7 @@
   - 已开始：事件数据字存储组装以及标量/聚合索引 topic 组装现在会消费 `EventFieldPlan -> ToYul` helper。字段表达式求值和聚合打平仍使用兼容外观，直到完整事件降级路径表达为 `EventPlan`。
   - 已开始：helper 发现结果现在会在完整的 plan-driven module lowering 中从 `ModulePlan` 消费。`lowerModuleWithPlan` 会从语义计划字段发射 checked arithmetic helper、crosscall helper（包括已规划的 plain native transfer）、create/create2 helper 以及 local-array getter helper。不完整的 best-effort diagnostic plan 仍会回退到兼容性重新发现路径，以避免 validation diagnostics 被 plan-shape 错误遮蔽。
   - 已开始：crosscall helper 命名和函数体构造现在位于 `CrosscallHelperSpec -> ToYul` 边界之后。`CrosscallHelperSpec.wordTypes` 会承载已规划的返回 ABI 字布局，因此标量 helper、聚合返回 helper 和 plain native transfer helper 都可以在完整 plan-driven lowering 中直接从语义计划发射，而不需要在发射阶段重新从模块发现返回布局。`IR.lean` 仍负责返回字布局发现和兼容外观 wrapper，直到标量/聚合 crosscall expression 调用构造也移动到 `ToYul` 后面。
+  - 已开始：create/create2 helper 命名和函数体构造现在位于 `CreateHelperSpec -> ToYul` 边界之后。已规划的 create specs 可以直接发射确定性的 init-code `mstore` frame、`create`/`create2` opcode 调用、零地址失败 revert guard，以及 helper 函数名，而不需要再转换回 `IR.lean` 的兼容 helper spec。`IR.lean` 仍负责 create helper 发现和 expression 位置的 create/create2 helper-call 组装，直到这些调用表达式也移动到 `ToYul` 后面。
   - 为选择器分发、calldata 守卫、ABI 字打平、返回数据编码和制品元数据选择器布局添加 `EntrypointPlan`。
   - 为事件签名 topic、索引 topic 哈希、非索引数据打平以及制品元数据事件布局添加 `EventPlan`。
   - 为类型化的 `call`、带值的 `call`、`staticcall`、`delegatecall`、`create` 和 `create2` helper 添加 `CrosscallPlan`。

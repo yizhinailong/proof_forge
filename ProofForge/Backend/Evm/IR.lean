@@ -133,13 +133,15 @@ inductive CreateMode where
   | create2
   deriving BEq, Repr
 
+def CreateMode.toPlan : CreateMode → ProofForge.Backend.Evm.Plan.CreateMode
+  | .create => .create
+  | .create2 => .create2
+
 def CreateMode.functionPrefix : CreateMode → String
-  | .create => "__proof_forge_create_"
-  | .create2 => "__proof_forge_create2_"
+  | mode => ProofForge.Backend.Evm.ToYul.createModeFunctionPrefix mode.toPlan
 
 def CreateMode.opcode : CreateMode → String
-  | .create => "create"
-  | .create2 => "create2"
+  | mode => ProofForge.Backend.Evm.ToYul.createModeOpcode mode.toPlan
 
 structure CreateHelperSpec where
   mode : CreateMode
@@ -147,94 +149,40 @@ structure CreateHelperSpec where
   deriving BEq, Repr
 
 def isHexChar (c : Char) : Bool :=
-  ('0' <= c && c <= '9') ||
-  ('a' <= c && c <= 'f') ||
-  ('A' <= c && c <= 'F')
+  ProofForge.Backend.Evm.ToYul.isHexChar c
 
 def stripHexPrefix (s : String) : String :=
-  if s.startsWith "0x" || s.startsWith "0X" then
-    (s.drop 2).toString
-  else
-    s
+  ProofForge.Backend.Evm.ToYul.stripHexPrefix s
 
 def normalizeInitCodeHex (context initCodeHex : String) : Except LowerError String := do
-  let raw := stripHexPrefix initCodeHex
-  if raw.isEmpty then
-    .error { message := s!"{context} init code must be non-empty hex" }
-  else if raw.length % 2 != 0 then
-    .error { message := s!"{context} init code hex must have an even number of digits" }
-  else if !(raw.all isHexChar) then
-    .error { message := s!"{context} init code must contain only hex digits" }
-  else
-    .ok raw
+  ProofForge.Backend.Evm.ToYul.normalizeInitCodeHex toYulError context initCodeHex
 
 def repeatString : Nat → String → String
-  | 0, _ => ""
-  | n+1, s => s ++ repeatString n s
+  | n, s => ProofForge.Backend.Evm.ToYul.repeatString n s
 
 def rightPadHex64 (chunk : String) : String :=
-  chunk ++ repeatString (64 - chunk.length) "0"
+  ProofForge.Backend.Evm.ToYul.rightPadHex64 chunk
 
-partial def hexChunks64 (hex : String) : Array String :=
-  if hex.isEmpty then
-    #[]
-  else
-    let chunk := (hex.take 64).toString
-    let rest := (hex.drop 64).toString
-    #[chunk] ++ hexChunks64 rest
+def hexChunks64 (hex : String) : Array String :=
+  ProofForge.Backend.Evm.ToYul.hexChunks64 hex
 
 def createHelperFunctionName (mode : CreateMode) (initCodeHex : String) : Except LowerError String := do
-  let hex ← normalizeInitCodeHex "contract creation" initCodeHex
-  .ok s!"{mode.functionPrefix}{hex}"
+  ProofForge.Backend.Evm.ToYul.createHelperFunctionName toYulError mode.toPlan initCodeHex
 
-def createCallValueParamName : String := "call_value"
-def createSaltParamName : String := "salt"
+def createCallValueParamName : String := ProofForge.Backend.Evm.ToYul.createCallValueParamName
+def createSaltParamName : String := ProofForge.Backend.Evm.ToYul.createSaltParamName
 
 def createHelperParams : CreateMode → Array Lean.Compiler.Yul.TypedName
-  | .create => #[{ name := createCallValueParamName }]
-  | .create2 => #[{ name := createCallValueParamName }, { name := createSaltParamName }]
+  | mode => ProofForge.Backend.Evm.ToYul.createHelperParams mode.toPlan
 
 def createInitCodeStoreStatements (initCodeHex : String) : Except LowerError (Array Lean.Compiler.Yul.Statement × Nat) := do
-  let hex ← normalizeInitCodeHex "contract creation" initCodeHex
-  let chunks := hexChunks64 hex
-  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
-  for h : idx in [0:chunks.size] do
-    let chunk := chunks[idx]
-    statements := statements.push <| .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[
-      Lean.Compiler.Yul.Expr.num (idx * 32),
-      Lean.Compiler.Yul.Expr.lit (Lean.Compiler.Yul.Literal.hex ("0x" ++ rightPadHex64 chunk))
-    ])
-  .ok (statements, hex.length / 2)
+  ProofForge.Backend.Evm.ToYul.createInitCodeStoreStatements toYulError initCodeHex
 
 def createHelperFunction (spec : CreateHelperSpec) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let functionName ← createHelperFunctionName spec.mode spec.initCodeHex
-  let (storeStatements, byteLength) ← createInitCodeStoreStatements spec.initCodeHex
-  let createArgs :=
-    match spec.mode with
-    | .create =>
-        #[
-          Lean.Compiler.Yul.Expr.id createCallValueParamName,
-          Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num byteLength
-        ]
-    | .create2 =>
-        #[
-          Lean.Compiler.Yul.Expr.id createCallValueParamName,
-          Lean.Compiler.Yul.Expr.num 0,
-          Lean.Compiler.Yul.Expr.num byteLength,
-          Lean.Compiler.Yul.Expr.id createSaltParamName
-        ]
-  .ok <| .funcDef functionName
-    (createHelperParams spec.mode)
-    #[{ name := "result" }]
-    {
-      statements := storeStatements ++ #[
-        .assignment #["result"] (Lean.Compiler.Yul.builtin spec.mode.opcode createArgs),
-        .ifStmt
-          (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "result"])
-          { statements := #[.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])] }
-      ]
-    }
+  ProofForge.Backend.Evm.ToYul.createHelperFunction toYulError {
+    mode := spec.mode.toPlan
+    initCodeHex := spec.initCodeHex
+  }
 
 def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
@@ -6419,20 +6367,10 @@ def plannedCrosscallHelperFunctions
     Except LowerError (Array Lean.Compiler.Yul.Statement) :=
   specs.mapM fun spec => ProofForge.Backend.Evm.ToYul.crosscallHelperFunction toYulError spec
 
-def fromPlanCreateMode (mode : ProofForge.Backend.Evm.Plan.CreateMode) : CreateMode :=
-  match mode with
-  | .create => .create
-  | .create2 => .create2
-
-def fromPlanCreateSpec (spec : ProofForge.Backend.Evm.Plan.CreateHelperSpec) : CreateHelperSpec := {
-  mode := fromPlanCreateMode spec.mode
-  initCodeHex := spec.initCodeHex
-}
-
 def plannedCreateHelperFunctions
     (specs : Array ProofForge.Backend.Evm.Plan.CreateHelperSpec) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) :=
-  specs.mapM fun spec => createHelperFunction (fromPlanCreateSpec spec)
+  specs.mapM fun spec => ProofForge.Backend.Evm.ToYul.createHelperFunction toYulError spec
 
 def lowerEntrypointsWithPlan
     (module : Module)
@@ -6552,9 +6490,7 @@ def toPlanCrosscallSpec
   }
 
 def toPlanCreateMode (mode : CreateMode) : ProofForge.Backend.Evm.Plan.CreateMode :=
-  match mode with
-  | .create => .create
-  | .create2 => .create2
+  mode.toPlan
 
 def toPlanCreateSpec (spec : CreateHelperSpec) : ProofForge.Backend.Evm.Plan.CreateHelperSpec :=
   { mode := toPlanCreateMode spec.mode, initCodeHex := spec.initCodeHex }
