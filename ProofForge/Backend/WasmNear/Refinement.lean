@@ -157,6 +157,69 @@ structure WasmCallExpectation where
   functionName : String
   expectedCalls : Array String
 
+inductive WasmTraceOp where
+  | drop
+  | const (type : ProofForge.Compiler.Wasm.ValType) (value : String)
+  | localGet (name : String)
+  | localSet (name : String)
+  | globalGet (name : String)
+  | globalSet (name : String)
+  | plain (name : String)
+  | load (name : String) (offset : Nat)
+  | store (name : String) (offset : Nat)
+  | call (name : String)
+  deriving Repr, BEq, DecidableEq
+
+def WasmTraceOp.i32Const (value : Nat) : WasmTraceOp :=
+  .const .i32 (toString value)
+
+def WasmTraceOp.i64Const (value : Nat) : WasmTraceOp :=
+  .const .i64 (toString value)
+
+mutual
+partial def wasmInsnTraceOps : WasmInsn → Array WasmTraceOp
+  | .drop => #[.drop]
+  | .const type value => #[.const type value]
+  | .localGet name => #[.localGet name]
+  | .localSet name => #[.localSet name]
+  | .globalGet name => #[.globalGet name]
+  | .globalSet name => #[.globalSet name]
+  | .plain name => #[.plain name]
+  | .load name offset => #[.load name offset]
+  | .store name offset => #[.store name offset]
+  | .call name => #[.call name]
+  | .block_ body => wasmBlockTraceOps body
+  | .loop_ body => wasmBlockTraceOps body
+  | .if_ thenBody elseBody => wasmBlockTraceOps thenBody ++ wasmBlockTraceOps elseBody
+  | _ => #[]
+
+partial def wasmBlockTraceOps (block : WasmBlock) : Array WasmTraceOp :=
+  block.insns.foldl (fun ops insn => ops ++ wasmInsnTraceOps insn) #[]
+end
+
+def WasmFunc.traceOps (func : WasmFunc) : Array WasmTraceOp :=
+  wasmBlockTraceOps func.body
+
+def traceOpsStartsWithList : List WasmTraceOp → List WasmTraceOp → Bool
+  | _, [] => true
+  | [], _ :: _ => false
+  | actual :: actualRest, expected :: expectedRest =>
+      actual == expected && traceOpsStartsWithList actualRest expectedRest
+
+def traceOpsContainContiguousList : List WasmTraceOp → List WasmTraceOp → Bool
+  | _, [] => true
+  | [], _ :: _ => false
+  | actual@(_ :: rest), expected =>
+      traceOpsStartsWithList actual expected ||
+        traceOpsContainContiguousList rest expected
+
+def traceOpsContainContiguous (actual expected : Array WasmTraceOp) : Bool :=
+  traceOpsContainContiguousList actual.toList expected.toList
+
+structure WasmHostFrameExpectation where
+  functionName : String
+  expectedOps : Array WasmTraceOp
+
 structure WasmImportExpectation where
   moduleName : String := "env"
   functionName : String
@@ -174,6 +237,7 @@ structure ArtifactSurfaceObligation where
   requiredImportSignatures : Array WasmImportExpectation := #[]
   requiredExports : Array WasmExportExpectation := #[]
   requiredFunctions : Array WasmCallExpectation := #[]
+  requiredHostFrames : Array WasmHostFrameExpectation := #[]
   requiredDataSegments : Array (Nat × String) := #[]
   requiredMemoryExport : String := "memory"
 
@@ -195,11 +259,25 @@ def WasmImportExpectation.ok (mod : WasmModule) (expectation : WasmImportExpecta
   | some import_ => funcTypeMatches import_.type expectation.params expectation.results
   | none => false
 
+def WasmHostFrameExpectation.ok (mod : WasmModule)
+    (expectation : WasmHostFrameExpectation) : Bool :=
+  match findFunc? mod expectation.functionName with
+  | some func => traceOpsContainContiguous func.traceOps expectation.expectedOps
+  | none => false
+
 def ArtifactSurfaceObligation.hostImportSignaturesOk
     (obligation : ArtifactSurfaceObligation) : Bool :=
   match ProofForge.Backend.WasmNear.EmitWat.lowerModule obligation.module with
   | .ok wasm =>
       obligation.requiredImportSignatures.all
+        (fun expectation => expectation.ok wasm)
+  | .error _ => false
+
+def ArtifactSurfaceObligation.hostFramesOk
+    (obligation : ArtifactSurfaceObligation) : Bool :=
+  match ProofForge.Backend.WasmNear.EmitWat.lowerModule obligation.module with
+  | .ok wasm =>
+      obligation.requiredHostFrames.all
         (fun expectation => expectation.ok wasm)
   | .error _ => false
 
@@ -211,6 +289,7 @@ def ArtifactSurfaceObligation.ok (obligation : ArtifactSurfaceObligation) : Bool
       obligation.requiredImportSignatures.all (fun expectation => expectation.ok wasm) &&
       obligation.requiredExports.all (fun expectation => expectation.ok wasm) &&
       obligation.requiredFunctions.all (fun expectation => expectation.ok wasm) &&
+      obligation.requiredHostFrames.all (fun expectation => expectation.ok wasm) &&
       obligation.requiredDataSegments.all (fun segment => hasDataSegment wasm segment.fst segment.snd) &&
       hasMemoryExport wasm obligation.requiredMemoryExport
   | .error _ => false
@@ -530,6 +609,78 @@ def counterTraceObligation : TraceObligation := {
   expected := counterExpectedTrace
 }
 
+def emitWatKeyBuf : Nat := ProofForge.Backend.WasmNear.EmitWat.KEY_BUF
+def emitWatRetBuf : Nat := ProofForge.Backend.WasmNear.EmitWat.RET_BUF
+def emitWatEventBuf : Nat := ProofForge.Backend.WasmNear.EmitWat.EVENT_BUF
+def emitWatEvtPtrGlobal : String := ProofForge.Backend.WasmNear.EmitWat.evtPtrGlobal
+
+def nearU64StorageReadFrame : Array WasmTraceOp := #[
+  .localGet "kl",
+  .plain "i64.extend_i32_u",
+  .localGet "kp",
+  .plain "i64.extend_i32_u",
+  .i64Const 0,
+  .call "storage_read",
+  .localSet "found",
+  .localGet "found",
+  .i64Const 0,
+  .plain "i64.ne",
+  .i64Const 0,
+  .i64Const emitWatKeyBuf,
+  .call "read_register",
+  .i32Const emitWatKeyBuf,
+  .load "i64.load" 0,
+  .localSet "r"
+]
+
+def nearU64StorageWriteFrame : Array WasmTraceOp := #[
+  .i32Const emitWatKeyBuf,
+  .localGet "v",
+  .store "i64.store" 0,
+  .localGet "kl",
+  .plain "i64.extend_i32_u",
+  .localGet "kp",
+  .plain "i64.extend_i32_u",
+  .i64Const 8,
+  .i64Const emitWatKeyBuf,
+  .i64Const 0,
+  .call "storage_write",
+  .drop
+]
+
+def nearU64ValueReturnFrame : Array WasmTraceOp := #[
+  .i32Const emitWatRetBuf,
+  .localGet "v",
+  .store "i64.store" 0,
+  .i64Const 8,
+  .i64Const emitWatRetBuf,
+  .call "value_return"
+]
+
+def nearEventLogUtf8Frame : Array WasmTraceOp := #[
+  .globalGet emitWatEvtPtrGlobal,
+  .i32Const emitWatEventBuf,
+  .plain "i32.sub",
+  .plain "i64.extend_i32_u",
+  .i64Const emitWatEventBuf,
+  .call "log_utf8"
+]
+
+def nearU64HostFrameExpectations : Array WasmHostFrameExpectation := #[
+  {
+    functionName := ProofForge.Backend.WasmNear.EmitWat.readName .u64
+    expectedOps := nearU64StorageReadFrame
+  },
+  {
+    functionName := ProofForge.Backend.WasmNear.EmitWat.writeName .u64
+    expectedOps := nearU64StorageWriteFrame
+  },
+  {
+    functionName := ProofForge.Backend.WasmNear.EmitWat.returnU64Name
+    expectedOps := nearU64ValueReturnFrame
+  }
+]
+
 def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   name := "Counter.EmitWat.artifact-surface"
   module := ProofForge.IR.Examples.Counter.module
@@ -561,6 +712,7 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     { functionName := "__pf_write_u64", expectedCalls := #["storage_write"] },
     { functionName := "__pf_return_u64", expectedCalls := #["value_return"] }
   ]
+  requiredHostFrames := nearU64HostFrameExpectations
   requiredDataSegments := #[(0, "count")]
 }
 
@@ -689,6 +841,11 @@ def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     { functionName := "__pf_return_u64", expectedCalls := #["value_return"] },
     { functionName := "__pf_evt_log", expectedCalls := #["log_utf8"] }
   ]
+  requiredHostFrames :=
+    nearU64HostFrameExpectations.push {
+      functionName := ProofForge.Backend.WasmNear.EmitWat.evtLogName
+      expectedOps := nearEventLogUtf8Frame
+    }
   requiredDataSegments := #[
     (0, "balance"),
     (8, "released"),
@@ -864,6 +1021,10 @@ theorem counter_emitwat_host_import_signatures_ok :
     counterArtifactSurfaceObligation.hostImportSignaturesOk = true := by
   native_decide
 
+theorem counter_emitwat_host_frames_ok :
+    counterArtifactSurfaceObligation.hostFramesOk = true := by
+  native_decide
+
 theorem counter_emitwat_offline_host_execution_surface_ok :
     counterOfflineHostExecutionObligation.ok = true := by
   native_decide
@@ -874,6 +1035,10 @@ theorem value_vault_emitwat_artifact_surface_ok :
 
 theorem value_vault_emitwat_host_import_signatures_ok :
     valueVaultArtifactSurfaceObligation.hostImportSignaturesOk = true := by
+  native_decide
+
+theorem value_vault_emitwat_host_frames_ok :
+    valueVaultArtifactSurfaceObligation.hostFramesOk = true := by
   native_decide
 
 theorem value_vault_emitwat_offline_host_execution_surface_ok :

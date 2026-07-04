@@ -8451,3 +8451,32 @@ lake env lean --run Tests/NearWasmFormal.lean
 Result:
 
 - NEAR EmitWat host import signature checks passed locally.
+
+### NEAR EmitWat Host Call Frames
+
+Commit: pending
+
+Summary:
+
+- Added `WasmTraceOp` and `WasmHostFrameExpectation` to the NEAR refinement
+  artifact surface so obligations can check contiguous Wasm AST instruction
+  frames around host calls, not only call names.
+- Pinned the `u64` storage read/write helper frames for `storage_read`,
+  `read_register`, and `storage_write`, including the key/value buffer
+  constants passed to the NEAR host ABI.
+- Pinned the `u64` return helper frame for `value_return` and the ValueVault
+  event-log frame for `log_utf8`.
+- Added decide-checkable `counter_emitwat_host_frames_ok` and
+  `value_vault_emitwat_host_frames_ok` anchors and wired both into the formal
+  smoke entrypoint.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.WasmNear.Refinement
+lake env lean --run Tests/NearWasmFormal.lean
+```
+
+Result:
+
+- NEAR EmitWat host call-frame checks passed locally.
