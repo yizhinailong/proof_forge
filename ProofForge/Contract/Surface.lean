@@ -260,6 +260,10 @@ def pathWrite (stateId : String) (path : Array StoragePathSegment) (value : Proo
 def allowancePath (ownerKey spenderKey : ProofForge.IR.Expr) : Array StoragePathSegment :=
   #[mapKey ownerKey, mapKey spenderKey]
 
+def requireRole (members : MapRef) (roleKey accountKey : ProofForge.IR.Expr)
+    (message : String := "missing role") : EntryM Unit :=
+  requireNe (pathRead members.id (allowancePath roleKey accountKey)) (u64 0) message
+
 def acquireLock (lockSlot : ScalarRef) : EntryM Unit := do
   requireUnlocked lockSlot
   write lockSlot (u64 1)

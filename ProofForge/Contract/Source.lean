@@ -177,6 +177,7 @@ scoped syntax "do " term ";" : entryStmt
 scoped syntax "accepts_callvalue;" : entryStmt
 scoped syntax "sendto " ident ident ";" : entryStmt
 scoped syntax "guard_owner " ident ";" : entryStmt
+scoped syntax "guard_role " ident ";" : entryStmt
 scoped syntax "guard_not_paused " ident ";" : entryStmt
 scoped syntax "guard_paused " ident ";" : entryStmt
 scoped syntax "guard_unlocked " ident ";" : entryStmt
@@ -413,6 +414,10 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
         acc ← `(ProofForge.Contract.Surface.nativeTransfer (ProofForge.Contract.Source.expr $recipient) (ProofForge.Contract.Source.expr $amount) *> $acc)
     | `(entryStmt| guard_owner $slot:ident;) =>
         acc ← `(ProofForge.Contract.Surface.requireOwner $slot *> $acc)
+    | `(entryStmt| guard_role $role:ident;) =>
+        acc ←
+          `(ProofForge.Contract.Surface.requireRole roleMembers (ProofForge.Contract.Source.expr $role)
+              ProofForge.Contract.Surface.caller *> $acc)
     | `(entryStmt| guard_not_paused $slot:ident;) =>
         acc ← `(ProofForge.Contract.Surface.requireNotPaused $slot *> $acc)
     | `(entryStmt| guard_paused $slot:ident;) =>
@@ -696,6 +701,18 @@ def pathWriteAllowance [ToExpr α]
     (mapValue : α) : EntryM Unit :=
   ProofForge.Contract.Surface.pathWrite mapRef.id
     (ProofForge.Contract.Surface.allowancePath ownerKey spenderKey) (expr mapValue)
+
+def pathReadRole [ToExpr α] [ToExpr β]
+    (mapRef : ProofForge.Contract.Surface.MapRef) (roleKey : α) (accountKey : β) :
+    ProofForge.IR.Expr :=
+  ProofForge.Contract.Surface.pathRead mapRef.id
+    (ProofForge.Contract.Surface.allowancePath (expr roleKey) (expr accountKey))
+
+def pathWriteRole [ToExpr α] [ToExpr β] [ToExpr γ]
+    (mapRef : ProofForge.Contract.Surface.MapRef) (roleKey : α) (accountKey : β)
+    (mapValue : γ) : EntryM Unit :=
+  ProofForge.Contract.Surface.pathWrite mapRef.id
+    (ProofForge.Contract.Surface.allowancePath (expr roleKey) (expr accountKey)) (expr mapValue)
 
 def caller : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.caller
