@@ -11001,3 +11001,33 @@ Result:
 - Local struct-field and local struct-array field reads now lower through
   `ExprPlan.structField -> ToYul`.
 - Targeted EVM semantic-plan build and test passed locally.
+
+### EVM Array Literal ExprPlan ToYul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.arrayGetExpr` so `ExprPlan.arrayGet` can lower scalar
+  array-literal indexing directly, including static element selection and
+  dynamic helper-call frames.
+- Routed `IR.lean` array-literal indexing through
+  `ExprPlan.arrayGet -> ToYul`, while retaining the existing out-of-bounds
+  diagnostic text.
+- Kept local fixed-array indexing on `ExprPlan.localArrayGet` and unsupported
+  aggregate array values on compatibility/error paths.
+- Added semantic-plan tests for direct static/dynamic array-literal
+  `ExprPlan.arrayGet` lowering and `lowerExpr` integration.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+```
+
+Result:
+
+- Scalar array-literal indexing now lowers through
+  `ExprPlan.arrayGet -> ToYul`.
+- Targeted EVM semantic-plan build and test passed locally.

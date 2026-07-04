@@ -839,6 +839,44 @@ def testScalarExprPlanToYul : IO Unit := do
     "__proof_forge_local_array_get_3"
     4
     "dynamic local-array ExprPlan-to-Yul"
+  let staticArrayLiteralExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.Counter.module
+      arrayEnv
+      (.arrayGet
+        (.arrayLit .u64 #[.literalWord 5, .literalWord 8])
+        (.literalWord 1)))
+    "static array-literal ExprPlan-to-Yul"
+  match staticArrayLiteralExpr with
+  | Lean.Compiler.Yul.Expr.lit lit =>
+      require (lit.value == "8") "static array-literal ExprPlan-to-Yul selected value"
+  | _ => throw <| IO.userError "static array-literal ExprPlan-to-Yul must select literal value"
+  let dynamicArrayLiteralExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.Counter.module
+      arrayEnv
+      (.arrayGet
+        (.arrayLit .u64 #[.literalWord 5, .literalWord 8])
+        (.local "idx")))
+    "dynamic array-literal ExprPlan-to-Yul"
+  requireCallExpr
+    dynamicArrayLiteralExpr
+    "__proof_forge_local_array_get_2"
+    3
+    "dynamic array-literal ExprPlan-to-Yul"
+  let directArrayLiteralExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      arrayEnv
+      (.arrayGet
+        (.arrayLit .u64 #[.literal (.u64 5), .literal (.u64 8)])
+        (.local "idx")))
+    "direct dynamic array-literal read lowers through ToYul"
+  requireCallExpr
+    directArrayLiteralExpr
+    "__proof_forge_local_array_get_2"
+    3
+    "direct dynamic array-literal read ToYul"
   let structEnv : TypeEnv := #[
     { name := "p", type := .structType "Point", isMutable := false }
   ]

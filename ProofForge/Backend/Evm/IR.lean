@@ -2117,21 +2117,19 @@ mutual
             .ok (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name indexValue))
         | none => do
             let mut values : Array Lean.Compiler.Yul.Expr := #[]
-            for h : idx in [0:length] do
+            for _h : idx in [0:length] do
               values := values.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
             .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName length) (#[← lowerExpr module env index] ++ values))
-    | .arrayLit _ values =>
-        match literalArrayIndex? index with
-        | some indexValue =>
-            if h : indexValue < values.size then
-              lowerExpr module env values[indexValue]
-            else
-              .error { message := s!"fixed array literal index {indexValue} is out of bounds for length {values.size}" }
-        | none => do
-            let mut loweredValues : Array Lean.Compiler.Yul.Expr := #[]
-            for h : idx in [0:values.size] do
-              loweredValues := loweredValues.push (← lowerExpr module env values[idx])
-            .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName values.size) (#[← lowerExpr module env index] ++ loweredValues))
+    | .arrayLit _ _ => do
+        let arrayPlan ←
+          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) array with
+          | .ok plan => .ok plan
+          | .error err => .error { message := err.message }
+        let indexPlan ←
+          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) index with
+          | .ok plan => .ok plan
+          | .error err => .error { message := err.message }
+        lowerExprPlanExpr module env (.arrayGet arrayPlan indexPlan)
     | _ =>
         .error {
           message := "fixed array indexing in IR EVM v0 supports local fixed-array values or array literals only"

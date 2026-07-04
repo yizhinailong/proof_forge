@@ -184,6 +184,28 @@ def localStructFieldExpr
   | _ =>
       .error (mkError "EVM ExprPlan-to-Yul scalar lowering supports local struct field and local struct-array field plans only")
 
+def arrayGetExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlan : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (array index : ExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
+  match array with
+  | .arrayLit _ values =>
+      if values.isEmpty then
+        .error (mkError "EVM ExprPlan-to-Yul array literal get requires at least one value")
+      match index with
+      | .literalWord indexValue =>
+          if h : indexValue < values.size then
+            lowerPlan values[indexValue]
+          else
+            .error (mkError s!"fixed array literal index {indexValue} is out of bounds for length {values.size}")
+      | _ =>
+          let indexExpr ← lowerPlan index
+          let valueExprs ← values.mapM lowerPlan
+          .ok (Lean.Compiler.Yul.call (localArrayGetFunctionName values.size) (#[indexExpr] ++ valueExprs))
+  | _ =>
+      .error (mkError "EVM ExprPlan-to-Yul scalar lowering supports array literal get plans only")
+
 def revertStatement : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.exprStmt
     (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
@@ -1377,8 +1399,12 @@ partial def exprPlanExpr
         (exprPlanExpr mkError lowerExpr lowerEffect)
         base
         fieldName
-  | .arrayGet .. =>
-      .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support array get plans yet")
+  | .arrayGet array index =>
+      arrayGetExpr
+        mkError
+        (exprPlanExpr mkError lowerExpr lowerEffect)
+        array
+        index
   | .localArrayGet name path lengths =>
       localArrayGetExpr
         mkError
