@@ -15,6 +15,8 @@ import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Learn
 import ProofForge.Contract.Spec.Json
 import ProofForge.Contract.Token.Evm
+import ProofForge.Contract.Token.EvmSpec
+import ProofForge.Contract.Token.EvmWrap
 import ProofForge.Contract.Token.Learn
 import ProofForge.Backend.WasmNear
 import ProofForge.Backend.WasmNear.EmitWat
@@ -1164,22 +1166,27 @@ def valueTypeJson (type : ProofForge.IR.ValueType) : String :=
 
 def entrypointAbiScalarTypeName
     (context : String)
-    (type : ProofForge.IR.ValueType) : Except String String :=
-  match type with
-  | .u32 => .ok "uint32"
-  | .u64 => .ok "uint256"
-  | .bool => .ok "bool"
-  | .hash => .ok "bytes32"
-  | .unit | .fixedArray _ _ | .structType _ =>
-      .error s!"{context} has unsupported EVM ABI word type `{type.name}`; entrypoint ABI words support U32, U64, Bool, or Hash"
+    (type : ProofForge.IR.ValueType)
+    (evmAbiWord? : Option String := none) : Except String String :=
+  match evmAbiWord? with
+  | some word => .ok word
+  | none =>
+      match type with
+      | .u32 => .ok "uint32"
+      | .u64 => .ok "uint256"
+      | .bool => .ok "bool"
+      | .hash => .ok "bytes32"
+      | .unit | .fixedArray _ _ | .structType _ =>
+          .error s!"{context} has unsupported EVM ABI word type `{type.name}`; entrypoint ABI words support U32, U64, Bool, or Hash"
 
 partial def entrypointAbiType
     (module : ProofForge.IR.Module)
     (context : String)
-    (type : ProofForge.IR.ValueType) : Except String String := do
+    (type : ProofForge.IR.ValueType)
+    (evmAbiWord? : Option String := none) : Except String String := do
   match type with
   | .u32 | .u64 | .bool | .hash =>
-      entrypointAbiScalarTypeName context type
+      entrypointAbiScalarTypeName context type evmAbiWord?
   | .unit =>
       .error s!"{context} uses Unit; EVM entrypoint parameters and non-Unit returns must use U32, U64, Bool, Hash, fixed arrays, or flat structs"
   | .fixedArray elementType length => do
@@ -1247,10 +1254,17 @@ def entrypointAbiValueJson
 def entrypointParamJson
     (module : ProofForge.IR.Module)
     (entrypointName : String)
-    (param : String × ProofForge.IR.ValueType) : Except String (String × Nat × String) := do
-  let abiType ← entrypointAbiType module s!"entrypoint `{entrypointName}` parameter `{param.fst}`" param.snd
+    (param : String × ProofForge.IR.ValueType)
+    (evmAbiWord? : Option String := none) : Except String (String × Nat × String) := do
+  let abiType ← entrypointAbiType module s!"entrypoint `{entrypointName}` parameter `{param.fst}`" param.snd evmAbiWord?
   let wordTypes ← entrypointAbiWordTypes module s!"entrypoint `{entrypointName}` parameter `{param.fst}`" param.snd
   .ok (abiType, wordTypes.size, entrypointAbiValueJson (some param.fst) param.snd abiType wordTypes)
+
+def entrypointParamEvmAbiWord (entrypoint : ProofForge.IR.Entrypoint) (index : Nat) : Option String :=
+  if h : index < entrypoint.paramEvmAbiWords.size then
+    entrypoint.paramEvmAbiWords[index]
+  else
+    none
 
 def entrypointReturnJson
     (module : ProofForge.IR.Module)
@@ -1268,8 +1282,10 @@ def entrypointSoliditySignature
     (module : ProofForge.IR.Module)
     (entrypoint : ProofForge.IR.Entrypoint) : Except String String := do
   let mut paramAbiTypes := #[]
-  for param in entrypoint.params do
+  for h : idx in [0:entrypoint.params.size] do
+    let param := entrypoint.params[idx]
     let abiType ← entrypointAbiType module s!"entrypoint `{entrypoint.name}` parameter `{param.fst}`" param.snd
+      (entrypointParamEvmAbiWord entrypoint idx)
     paramAbiTypes := paramAbiTypes.push abiType
   .ok s!"{entrypoint.name}({String.intercalate "," paramAbiTypes.toList})"
 
@@ -1296,8 +1312,10 @@ def entrypointJson (module : ProofForge.IR.Module) (entrypoint : ProofForge.IR.E
   let mut params := #[]
   let mut paramAbiTypes := #[]
   let mut calldataWords := 0
-  for param in entrypoint.params do
+  for h : idx in [0:entrypoint.params.size] do
+    let param := entrypoint.params[idx]
     let (abiType, wordCount, paramJson) ← entrypointParamJson module entrypoint.name param
+      (entrypointParamEvmAbiWord entrypoint idx)
     params := params.push paramJson
     paramAbiTypes := paramAbiTypes.push abiType
     calldataWords := calldataWords + wordCount
@@ -3242,85 +3260,42 @@ def tokenPlanJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
     ])
   ]
 
-def tokenEvmEntrypointsJson (spec : ProofForge.Contract.Token.TokenSpec) : String := Id.run do
-  let mut entries := #[
-    jsonObject #[
-      ("name", jsonString "totalSupply"),
-      ("selector", jsonString "18160ddd"),
-      ("signature", jsonString "totalSupply()"),
-      ("returns", jsonString "uint256")
-    ],
-    jsonObject #[
-      ("name", jsonString "balanceOf"),
-      ("selector", jsonString "70a08231"),
-      ("signature", jsonString "balanceOf(address)"),
-      ("returns", jsonString "uint256")
-    ],
-    jsonObject #[
-      ("name", jsonString "transfer"),
-      ("selector", jsonString "a9059cbb"),
-      ("signature", jsonString "transfer(address,uint256)"),
-      ("returns", jsonString "bool")
-    ],
-    jsonObject #[
-      ("name", jsonString "approve"),
-      ("selector", jsonString "095ea7b3"),
-      ("signature", jsonString "approve(address,uint256)"),
-      ("returns", jsonString "bool")
-    ],
-    jsonObject #[
-      ("name", jsonString "allowance"),
-      ("selector", jsonString "dd62ed3e"),
-      ("signature", jsonString "allowance(address,address)"),
-      ("returns", jsonString "uint256")
-    ],
-    jsonObject #[
-      ("name", jsonString "transferFrom"),
-      ("selector", jsonString "23b872dd"),
-      ("signature", jsonString "transferFrom(address,address,uint256)"),
-      ("returns", jsonString "bool")
-    ],
-    jsonObject #[
-      ("name", jsonString "decimals"),
-      ("selector", jsonString "313ce567"),
-      ("signature", jsonString "decimals()"),
-      ("returns", jsonString "uint8")
-    ]
-  ]
-  if spec.hasFeature ProofForge.Contract.Token.TokenFeature.mintable then
+def tokenEntrypointReturnsAbi
+    (module : ProofForge.IR.Module)
+    (entrypoint : ProofForge.IR.Entrypoint) : Except String String :=
+  match entrypoint.returns with
+  | .unit => .ok "void"
+  | _ =>
+      entrypointAbiType module s!"entrypoint `{entrypoint.name}` return" entrypoint.returns
+
+def tokenEvmEntrypointsJson (module : ProofForge.IR.Module) : Except String String := do
+  let mut entries := #[]
+  for entrypoint in module.entrypoints do
+    let signature ← entrypointSoliditySignature module entrypoint
+    let selector :=
+      match entrypoint.selector? with
+      | some value => value
+      | none => ""
+    let returnsAbi ← tokenEntrypointReturnsAbi module entrypoint
     entries := entries.push <| jsonObject #[
-      ("name", jsonString "mint"),
-      ("selector", jsonString "40c10f19"),
-      ("signature", jsonString "mint(address,uint256)"),
-      ("returns", jsonString "bool")
-    ]
-  if spec.hasFeature ProofForge.Contract.Token.TokenFeature.burnable then
-    entries := entries.push <| jsonObject #[
-      ("name", jsonString "burn"),
-      ("selector", jsonString "42966c68"),
-      ("signature", jsonString "burn(uint256)"),
-      ("returns", jsonString "bool")
+      ("name", jsonString entrypoint.name),
+      ("selector", jsonString selector),
+      ("signature", jsonString signature),
+      ("returns", jsonString returnsAbi)
     ]
   pure (jsonArray entries)
 
-def tokenEvmEventsJson : String :=
-  jsonArray #[
-    jsonObject #[
-      ("name", jsonString "Transfer"),
-      ("topic0", jsonString ProofForge.Contract.Token.Evm.transferTopic0),
-      ("signature", jsonString "Transfer(address,address,uint256)")
-    ],
-    jsonObject #[
-      ("name", jsonString "Approval"),
-      ("topic0", jsonString ProofForge.Contract.Token.Evm.approvalTopic0),
-      ("signature", jsonString "Approval(address,address,uint256)")
-    ]
-  ]
+def tokenEvmEventsJson (events : Array EventAbi) : String :=
+  jsonArray (events.map fun event => jsonObject #[
+    ("name", jsonString event.name),
+    ("topic0", jsonString event.topic0),
+    ("signature", jsonString event.signature)
+  ])
 
 def tokenEvmArtifactJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
     (profile : ProofForge.Target.TargetProfile)
     (plan : ProofForge.Contract.Token.TokenPlan)
-    (sourceArtifact yulArtifact bytecodeArtifact : String) : String :=
+    (sourceArtifact yulArtifact bytecodeArtifact entrypointsJson eventsJson : String) : String :=
   jsonObject #[
     ("format", jsonString "proof-forge-token-artifact-v0"),
     ("sourceKind", jsonString "learn-token-source"),
@@ -3333,8 +3308,8 @@ def tokenEvmArtifactJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
     ("operations", jsonStringArray plan.operations),
     ("notes", jsonStringArray plan.notes),
     ("abi", jsonObject #[
-      ("entrypoints", tokenEvmEntrypointsJson decl.spec),
-      ("events", tokenEvmEventsJson)
+      ("entrypoints", entrypointsJson),
+      ("events", eventsJson)
     ]),
     ("artifacts", jsonObject #[
       ("source", sourceArtifact),
@@ -3344,7 +3319,7 @@ def tokenEvmArtifactJson (decl : ProofForge.Contract.Token.Learn.TokenDecl)
     ("validation", jsonObject #[
       ("learnTokenParsing", jsonString "passed"),
       ("targetRouting", jsonString "passed"),
-      ("erc20YulGeneration", jsonString "passed"),
+      ("erc20IrLowering", jsonString "passed"),
       ("solcStrictAssembly", jsonString "passed")
     ])
   ]
@@ -4734,8 +4709,16 @@ def compileLearnTokenEvm (opts : CliOptions)
     (input : FilePath)
     (decl : ProofForge.Contract.Token.Learn.TokenDecl)
     (plan : ProofForge.Contract.Token.TokenPlan) : IO UInt32 := do
+  let spec := ProofForge.Contract.Token.EvmSpec.specFor decl.spec
+  let module ← hydrateEvmSelectors opts.cast spec.module
+  let runtimeObject ←
+    match ProofForge.Backend.Evm.IR.lowerModule module with
+    | .ok obj => pure obj
+    | .error err => throw <| IO.userError err.render
+  let runtimeName := decl.id ++ "Runtime"
+  let yul := ProofForge.Contract.Token.EvmWrap.wrapRuntimeObject decl.id runtimeName runtimeObject decl.spec
   let yulOutput := opts.yulOutput?.getD (defaultLearnTokenEvmYulOutput decl)
-  writeTextFile yulOutput (ProofForge.Contract.Token.Evm.renderErc20Yul decl)
+  writeTextFile yulOutput yul
   let bytecode ← solcBytecode opts.solc yulOutput
   let output := opts.output?.getD (defaultLearnTokenEvmBytecodeOutput decl)
   writeTextFile output (bytecode ++ "\n")
@@ -4743,7 +4726,12 @@ def compileLearnTokenEvm (opts : CliOptions)
   let sourceArtifact ← artifactEntryJson input
   let yulArtifact ← artifactEntryJson yulOutput
   let bytecodeArtifact ← artifactEntryJson output
-  writeTextFile metadataOutput (tokenEvmArtifactJson decl profile plan sourceArtifact yulArtifact bytecodeArtifact ++ "\n")
+  let events ← eventAbisForModule opts.cast module
+  let entrypointsJson ← liftExceptString (tokenEvmEntrypointsJson module)
+  let eventsJson := tokenEvmEventsJson events
+  writeTextFile metadataOutput
+    (tokenEvmArtifactJson decl profile plan sourceArtifact yulArtifact bytecodeArtifact entrypointsJson
+      eventsJson ++ "\n")
   IO.println s!"wrote {yulOutput}"
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   IO.println s!"wrote {metadataOutput}"

@@ -98,12 +98,14 @@ def pushStmt (statement : Statement) : EntryM Unit := do
   modify fun builder => { builder with body := builder.body.push statement }
 
 def entryFull (name : String) (selector? : Option String) (returns : ValueType)
-    (params : Array (String × ValueType)) (body : EntryM Unit) : ModuleM Unit := do
+    (params : Array (String × ValueType)) (paramEvmAbiWords : Array (Option String))
+    (body : EntryM Unit) : ModuleM Unit := do
   let (_, entryBuilder) := body.run {}
   let entrypoint : Entrypoint := {
     name := name
     selector? := selector?
     params := params
+    paramEvmAbiWords := paramEvmAbiWords
     returns := returns
     body := entryBuilder.body
   }
@@ -114,25 +116,28 @@ def entryFull (name : String) (selector? : Option String) (returns : ValueType)
     intents := builder.intents ++ entryIntents
   }
 
+def defaultParamEvmAbiWords (params : Array (String × ValueType)) : Array (Option String) :=
+  params.map fun _ => none
+
 def entry (name : String) (body : EntryM Unit) : ModuleM Unit :=
-  entryFull name none .unit #[] body
+  entryFull name none .unit #[] #[] body
 
 def entrySelector (name selector : String) (body : EntryM Unit) : ModuleM Unit :=
-  entryFull name (some selector) .unit #[] body
+  entryFull name (some selector) .unit #[] #[] body
 
 def entryReturns (name : String) (returns : ValueType) (body : EntryM Unit) : ModuleM Unit :=
-  entryFull name none returns #[] body
+  entryFull name none returns #[] #[] body
 
 def entrySelectorReturns (name selector : String) (returns : ValueType) (body : EntryM Unit) : ModuleM Unit :=
-  entryFull name (some selector) returns #[] body
+  entryFull name (some selector) returns #[] #[] body
 
 def entryWithParams (name : String) (params : Array (String × ValueType)) (returns : ValueType)
     (body : EntryM Unit) : ModuleM Unit :=
-  entryFull name none returns params body
+  entryFull name none returns params (defaultParamEvmAbiWords params) body
 
 def entrySelectorWithParams (name selector : String) (params : Array (String × ValueType))
     (returns : ValueType) (body : EntryM Unit) : ModuleM Unit :=
-  entryFull name (some selector) returns params body
+  entryFull name (some selector) returns params (defaultParamEvmAbiWords params) body
 
 def letBind (name : String) (type : ValueType) (value : Expr) : EntryM Unit :=
   pushStmt (.letBind name type value)

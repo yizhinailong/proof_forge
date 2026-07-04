@@ -16,6 +16,7 @@ structure ScalarRef where
 structure BindingRef where
   id : String
   type : ValueType
+  evmAbiWord? : Option String := none
   deriving BEq, Repr
 
 structure MethodRef where
@@ -45,6 +46,9 @@ def slot (id : String) (type : ValueType) : ScalarRef :=
 
 def binding (id : String) (type : ValueType) : BindingRef :=
   { id, type }
+
+def bindingWithAbi (id : String) (type : ValueType) (evmAbiWord : String) : BindingRef :=
+  { id, type, evmAbiWord? := some evmAbiWord }
 
 def event (name : String) : EventRef :=
   { name }
@@ -113,6 +117,7 @@ def entry (methodRef : MethodRef) (body : EntryM Unit) : ModuleM Unit :=
     methodRef.selector?
     methodRef.returns
     (methodRef.params.map fun param => (param.id, param.type))
+    (methodRef.params.map fun param => param.evmAbiWord?)
     body
 
 def bind (bindingRef : BindingRef) (value : ProofForge.IR.Expr) : EntryM Unit :=
@@ -143,6 +148,12 @@ def emitNamed (name : String) (fields : Array EventField) : EntryM Unit :=
 
 def emit (eventRef : EventRef) (fields : Array EventField) : EntryM Unit :=
   emitNamed eventRef.name fields
+
+def emitIndexed (eventRef : EventRef) (indexedFields dataFields : Array EventField) : EntryM Unit :=
+  ProofForge.Contract.Builder.effect
+    (.eventEmitIndexed eventRef.name
+      (indexedFields.map fun field => (field.name, field.value))
+      (dataFields.map fun field => (field.name, field.value)))
 
 def ret (value : ProofForge.IR.Expr) : EntryM Unit :=
   ProofForge.Contract.Builder.ret value

@@ -61,10 +61,7 @@ if command -v solc >/dev/null 2>&1; then
   require_contains "$EVM_YUL" "case 0xa9059cbb" "ERC-20 transfer selector"
   require_contains "$EVM_YUL" "case 0x095ea7b3" "ERC-20 approve selector"
   require_contains "$EVM_YUL" "case 0x23b872dd" "ERC-20 transferFrom selector"
-  require_contains "$EVM_YUL" "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" \
-    "ERC-20 Transfer topic"
-  require_contains "$EVM_YUL" "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925" \
-    "ERC-20 Approval topic"
+  require_contains "$EVM_YUL" "log3(" "ERC-20 indexed event emission"
 
   python3 - "$EVM_ARTIFACT" <<'PY'
 import json

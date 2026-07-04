@@ -1,28 +1,17 @@
 object "SimpleToken" {
   code {
     switch shr(224, calldataload(0))
-    case 0x8da5cb5b {
-      let _r := f_SimpleToken_owner()
-      mstore(0, _r)
-      return(0, 32)
-    }
-    case 0xd23e8489 {
-      if lt(calldatasize(), 36) {
-        revert(0, 0)
-      }
-      f_SimpleToken_transferOwnership(calldataload(4))
-      return(0, 0)
-    }
-    case 0x715018a6 {
-      f_SimpleToken_renounceOwnership()
-      return(0, 0)
-    }
     case 0x18160ddd {
       let _r := f_SimpleToken_totalSupply()
       mstore(0, _r)
       return(0, 32)
     }
-    case 0x9cc7f708 {
+    case 0x313ce567 {
+      let _r := f_SimpleToken_decimals()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x70a08231 {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
@@ -30,14 +19,7 @@ object "SimpleToken" {
       mstore(0, _r)
       return(0, 32)
     }
-    case 0x0cf79e0a {
-      if lt(calldatasize(), 68) {
-        revert(0, 0)
-      }
-      f_SimpleToken_transfer(calldataload(4), calldataload(36))
-      return(0, 0)
-    }
-    case 0xcca16fa8 {
+    case 0xdd62ed3e {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
@@ -45,33 +27,45 @@ object "SimpleToken" {
       mstore(0, _r)
       return(0, 32)
     }
-    case 0x5d35a3d9 {
+    case 0xa9059cbb {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
-      f_SimpleToken_approve(calldataload(4), calldataload(36))
-      return(0, 0)
+      let _r := f_SimpleToken_transfer(calldataload(4), calldataload(36))
+      mstore(0, _r)
+      return(0, 32)
     }
-    case 0x310ed7f0 {
+    case 0x095ea7b3 {
+      if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      let _r := f_SimpleToken_approve(calldataload(4), calldataload(36))
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x23b872dd {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
-      f_SimpleToken_transferFrom(calldataload(4), calldataload(36), calldataload(68))
-      return(0, 0)
+      let _r := f_SimpleToken_transferFrom(calldataload(4), calldataload(36), calldataload(68))
+      mstore(0, _r)
+      return(0, 32)
     }
-    case 0x1b2ef1ca {
+    case 0x40c10f19 {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
-      f_SimpleToken_mint(calldataload(4), calldataload(36))
-      return(0, 0)
+      let _r := f_SimpleToken_mint(calldataload(4), calldataload(36))
+      mstore(0, _r)
+      return(0, 32)
     }
-    case 0xb390c0ab {
-      if lt(calldatasize(), 68) {
+    case 0x42966c68 {
+      if lt(calldatasize(), 36) {
         revert(0, 0)
       }
-      f_SimpleToken_burn(calldataload(4), calldataload(36))
-      return(0, 0)
+      let _r := f_SimpleToken_burn(calldataload(4))
+      mstore(0, _r)
+      return(0, 32)
     }
     case 0xb7b0422d {
       if lt(calldatasize(), 36) {
@@ -88,31 +82,19 @@ object "SimpleToken" {
     default {
       revert(0, 0)
     }
-    function f_SimpleToken_owner() -> result {
+    function f_SimpleToken_totalSupply() -> result {
       result := sload(0)
     }
-    function f_SimpleToken_transferOwnership(newOwner) {
-      if iszero(eq(caller(), sload(0))) {
-        revert(0, 0)
-      }
-      if iszero(iszero(eq(newOwner, 0))) {
-        revert(0, 0)
-      }
-      sstore(0, newOwner)
-    }
-    function f_SimpleToken_renounceOwnership() {
-      if iszero(eq(caller(), sload(0))) {
-        revert(0, 0)
-      }
-      sstore(0, 0)
-    }
-    function f_SimpleToken_totalSupply() -> result {
+    function f_SimpleToken_decimals() -> result {
       result := sload(1)
     }
     function f_SimpleToken_balanceOf(who) -> result {
       result := sload(__proof_forge_map_slot(2, who))
     }
-    function f_SimpleToken_transfer(recipient, amount) {
+    function f_SimpleToken_allowance(holder, spender) -> result {
+      result := sload(__proof_forge_map_slot(__proof_forge_map_slot(3, holder), spender))
+    }
+    function f_SimpleToken_transfer(recipient, amount) -> result {
       if iszero(iszero(eq(recipient, 0))) {
         revert(0, 0)
       }
@@ -124,23 +106,40 @@ object "SimpleToken" {
       __proof_forge_map_write(2, sender, __pf_checked_sub(srcBal, amount))
       let dstBal := sload(__proof_forge_map_slot(2, recipient))
       __proof_forge_map_write(2, recipient, __pf_checked_add(dstBal, amount))
+      {
+        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
+        mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
+        let _topic0 := keccak256(0, 33)
+        let _indexed_topic0 := sender
+        let _indexed_topic1 := recipient
+        mstore(0, amount)
+        log3(0, 32, _topic0, _indexed_topic0, _indexed_topic1)
+      }
+      result := 1
     }
-    function f_SimpleToken_allowance(ownerAddr, spender) -> result {
-      result := sload(__proof_forge_map_slot(__proof_forge_map_slot(3, ownerAddr), spender))
-    }
-    function f_SimpleToken_approve(spender, amount) {
-      let ownerAddr := caller()
+    function f_SimpleToken_approve(spender, amount) -> result {
+      let holder := caller()
       if iszero(iszero(eq(spender, 0))) {
         revert(0, 0)
       }
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(3, ownerAddr), spender)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(3, ownerAddr), spender)
+        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(3, holder), spender)
+        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(3, holder), spender)
         sstore(_slot, amount)
         sstore(_presence_slot, 1)
       }
+      {
+        mstore(0, 29598998109930618199054758324288223757593108964568133265786181954376800810294)
+        mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
+        let _topic0 := keccak256(0, 33)
+        let _indexed_topic0 := holder
+        let _indexed_topic1 := spender
+        mstore(0, amount)
+        log3(0, 32, _topic0, _indexed_topic0, _indexed_topic1)
+      }
+      result := 1
     }
-    function f_SimpleToken_transferFrom(src, dst, amount) {
+    function f_SimpleToken_transferFrom(src, dst, amount) -> result {
       let spender := caller()
       let current := sload(__proof_forge_map_slot(__proof_forge_map_slot(3, src), spender))
       if iszero(iszero(lt(current, amount))) {
@@ -159,39 +158,68 @@ object "SimpleToken" {
       __proof_forge_map_write(2, src, __pf_checked_sub(srcBal, amount))
       let dstBal := sload(__proof_forge_map_slot(2, dst))
       __proof_forge_map_write(2, dst, __pf_checked_add(dstBal, amount))
+      {
+        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
+        mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
+        let _topic0 := keccak256(0, 33)
+        let _indexed_topic0 := src
+        let _indexed_topic1 := dst
+        mstore(0, amount)
+        log3(0, 32, _topic0, _indexed_topic0, _indexed_topic1)
+      }
+      result := 1
     }
-    function f_SimpleToken_mint(who, amount) {
-      if iszero(iszero(eq(who, 0))) {
+    function f_SimpleToken_mint(recipient, amount) -> result {
+      if iszero(iszero(eq(recipient, 0))) {
         revert(0, 0)
       }
-      let ts := sload(1)
-      sstore(1, __pf_checked_add(ts, amount))
-      let bal := sload(__proof_forge_map_slot(2, who))
-      __proof_forge_map_write(2, who, __pf_checked_add(bal, amount))
-    }
-    function f_SimpleToken_burn(who, amount) {
-      if iszero(iszero(eq(who, 0))) {
-        revert(0, 0)
+      let ts := sload(0)
+      sstore(0, __pf_checked_add(ts, amount))
+      let bal := sload(__proof_forge_map_slot(2, recipient))
+      __proof_forge_map_write(2, recipient, __pf_checked_add(bal, amount))
+      {
+        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
+        mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
+        let _topic0 := keccak256(0, 33)
+        let _indexed_topic0 := 0
+        let _indexed_topic1 := recipient
+        mstore(0, amount)
+        log3(0, 32, _topic0, _indexed_topic0, _indexed_topic1)
       }
+      result := 1
+    }
+    function f_SimpleToken_burn(amount) -> result {
+      let who := caller()
       let bal := sload(__proof_forge_map_slot(2, who))
       if iszero(iszero(lt(bal, amount))) {
         revert(0, 0)
       }
       __proof_forge_map_write(2, who, __pf_checked_sub(bal, amount))
-      let ts := sload(1)
-      sstore(1, __pf_checked_sub(ts, amount))
+      let ts := sload(0)
+      sstore(0, __pf_checked_sub(ts, amount))
+      {
+        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
+        mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
+        let _topic0 := keccak256(0, 33)
+        let _indexed_topic0 := who
+        let _indexed_topic1 := 0
+        mstore(0, amount)
+        log3(0, 32, _topic0, _indexed_topic0, _indexed_topic1)
+      }
+      result := 1
     }
     function f_SimpleToken_init(supply) {
-      if iszero(eq(sload(0), 0)) {
+      if iszero(eq(sload(4), 0)) {
         revert(0, 0)
       }
-      sstore(0, caller())
-      sstore(1, supply)
+      sstore(4, caller())
+      sstore(1, 18)
+      sstore(0, supply)
       let who := caller()
       __proof_forge_map_write(2, who, supply)
     }
     function f_SimpleToken_getOwner() -> result {
-      result := sload(0)
+      result := sload(4)
     }
     function __proof_forge_map_slot(slot, key) -> result {
       mstore(0, key)
