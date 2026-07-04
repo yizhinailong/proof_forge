@@ -1223,6 +1223,14 @@ metadata，以及 NEAR/Wasm WAT 加 deploy metadata。legacy
 `Examples/Learn/ValueVault.learn` 继续作为等价 fixture 保留，不再是推荐的产品
 authoring 路径。
 
+当前 CS-1.4 切片：`Tests/SharedContractSource.lean` 现在会通过产品级
+`contract_source` loader 加载 `Examples/Shared/Counter.lean` 和
+`Examples/Shared/ValueVault.lean`，把降级后的 IR module 与 canonical
+`ProofForge.Contract.Examples.*` spec 对比，并把配对的 legacy `.learn`
+fixture 与这些共享 module 对比。ValueVault 还会比较从共享 `.lean` 源和 legacy
+`.learn` fixture 渲染出的 Solana package manifest，因此当前 shared scenario
+的等价门禁覆盖 portable state、entrypoint、event 以及 package-facing metadata。
+
 ### 阶段 CS-2 — EVM stdlib 的 `contract_source` 化
 
 重点：用可 import 的 `contract_source` 模块替换 Builder 字符串 stdlib。

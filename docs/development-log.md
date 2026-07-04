@@ -17,6 +17,39 @@ Each entry should include:
 
 ## 2026-07-04
 
+### Shared Contract Source Equivalence Gate
+
+Commit: this commit
+
+Summary:
+
+- Added `Tests/SharedContractSource.lean` to compare the product-facing shared
+  `.lean contract_source` examples against their canonical `ContractSpec`
+  modules and paired legacy `.learn` fixtures.
+- Covered both Counter and ValueVault module equivalence. ValueVault also
+  checks that the Solana package manifest rendered from shared `.lean` source
+  matches the manifest rendered from the legacy `.learn` fixture.
+- Added `just shared-contract-source` and wired the gate into `just
+  solana-lean`, so the default CI-safe Solana/authoring path now protects this
+  shared-source boundary.
+
+Validation run:
+
+```sh
+just shared-contract-source
+```
+
+Known limitations:
+
+- This gate compares the current shared Counter/ValueVault portable surface; it
+  does not yet prove equivalence for future Token-2022 or richer account/PDA
+  authoring extensions.
+
+Next step:
+
+- Continue CS-1/CS-5 by making the unified testkit consume the shared
+  `contract_source` files directly for all three primary targets.
+
 ### Shared ValueVault Contract Source Multi-Target Smoke
 
 Commit: this commit
