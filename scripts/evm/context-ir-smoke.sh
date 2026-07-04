@@ -44,6 +44,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-capability value.native \
   --expect-entrypoint sum_context:14a70e97 \
   --expect-entrypoint native_value:f0eba40f \
+  --expect-entrypoint context_extras:d9b80589 \
   "$METADATA_FILE"
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/ContextProbe.bin")"
@@ -71,6 +72,11 @@ interface Vm {
     function etch(address target, bytes calldata newRuntimeBytecode) external;
     function prank(address msgSender) external;
     function roll(uint256 newHeight) external;
+    function warp(uint256 newTimestamp) external;
+    function chainId(uint256 newChainId) external;
+    function txGasPrice(uint256 newGasPrice) external;
+    function fee(uint256 newBaseFee) external;
+    function prevrandao(uint256 newPrevrandao) external;
 }
 
 contract ProofForgeIRContextSmokeTest {
@@ -118,8 +124,31 @@ contract ProofForgeIRContextSmokeTest {
         assertEq(abi.decode(result, (uint256)), 1234);
     }
 
-    function testIRContextRejectsUnknownSelector() public {
+    function testIRContextExtras() public {
         address probe = address(uint160(0xC077F));
+        deployRuntime(hex"$probe_hex", probe);
+
+        vm.warp(1000);
+        vm.chainId(42);
+        vm.txGasPrice(5 gwei);
+        vm.fee(20 gwei);
+        vm.prevrandao(12345);
+
+        (bool ok, bytes memory result) =
+            probe.call(abi.encodeWithSignature("context_extras()"));
+
+        assertTrue(ok);
+        uint256[6] memory values = abi.decode(result, (uint256[6]));
+        assertEq(values[0], 1000);          // timestamp
+        assertEq(values[1], 42);            // chainid
+        assertEq(values[2], 5 gwei);        // gasprice
+        assertTrue(values[3] > 0);          // gasleft
+        assertEq(values[4], 20 gwei);       // basefee
+        assertEq(values[5], 12345);         // prevrandao
+    }
+
+    function testIRContextRejectsUnknownSelector() public {
+        address probe = address(uint160(0xC0781));
         deployRuntime(hex"$probe_hex", probe);
 
         (bool ok,) = probe.call(hex"ffffffff");

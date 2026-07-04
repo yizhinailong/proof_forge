@@ -815,6 +815,12 @@ def contextExpr : ContextField → Lean.Compiler.Yul.Expr
   | .userId => Lean.Compiler.Yul.builtin "caller" #[]
   | .contractId => Lean.Compiler.Yul.builtin "address" #[]
   | .checkpointId => Lean.Compiler.Yul.builtin "number" #[]
+  | .timestamp => Lean.Compiler.Yul.builtin "timestamp" #[]
+  | .chainId => Lean.Compiler.Yul.builtin "chainid" #[]
+  | .gasPrice => Lean.Compiler.Yul.builtin "gasprice" #[]
+  | .gasLeft => Lean.Compiler.Yul.builtin "gasleft" #[]
+  | .baseFee => Lean.Compiler.Yul.builtin "basefee" #[]
+  | .prevRandao => Lean.Compiler.Yul.builtin "prevrandao" #[]
 
 def mapShapeName (keyType valueType : ValueType) (capacity : Nat) : String :=
   s!"Map<{keyType.name}, {valueType.name}, {capacity}>"

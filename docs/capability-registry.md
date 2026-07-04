@@ -394,7 +394,7 @@ explicit representation before a target profile is added.
 | `value.native` | `Env.value` |
 | `events.emit` | `log0`–`log4` |
 | `crosscall.invoke` | `call`, `staticcall`, `delegatecall`, `create`, `create2` |
-| `env.block` | `Env.blockNumber`, etc. |
+| `env.block` | `Env.blockNumber`, `timestamp()`, `chainid()`, `gasprice()`, `gasleft()`, `basefee()`, `prevrandao()` |
 
 Implemented today via `ProofForge.Evm` / `Lean.Evm` — see
 [targets/evm.md](targets/evm.md).

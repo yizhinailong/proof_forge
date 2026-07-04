@@ -529,10 +529,10 @@ partial def evalEffect (state : State) (frame : Frame) : Effect → Except Strin
       let (stateAfterValue, rhs) ← evalExpr stateAfterPath frame valueExpr
       let value ← evalAssignOp op current rhs
       .ok (stateAfterValue.write key value, value)
-  | .contextRead .checkpointId =>
-      .ok (state, .u64 0)
   | .contextRead field =>
-      .error s!"context field `{field.name}` is not supported by the scalar semantics model"
+      match field with
+      | .userId | .contractId | .checkpointId | .timestamp | .chainId | .gasPrice | .gasLeft | .baseFee | .prevRandao =>
+          .ok (state, .u64 0)
   | .eventEmit name fields => do
       let (nextState, data) ← evalEventFields state frame fields
       .ok (nextState.recordEvent name #[] data, .unit)

@@ -774,6 +774,8 @@ mutual
         .ok "__pf_account_id_hash_u64(&env::current_account_id())"
     | .contextRead .checkpointId =>
         .ok "env::block_height()"
+    | .contextRead field =>
+        .error { message := s!"wasm-near IR v0 context read `{field.name}` is not supported; only userId, contractId, and checkpointId are available" }
     | .eventEmit _ _ =>
         .error { message := "event.emit is a statement effect, not an expression" }
     | .eventEmitIndexed _ _ _ =>

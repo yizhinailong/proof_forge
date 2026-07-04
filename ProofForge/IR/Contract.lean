@@ -70,17 +70,29 @@ inductive ContextField where
   | userId
   | contractId
   | checkpointId
+  | timestamp
+  | chainId
+  | gasPrice
+  | gasLeft
+  | baseFee
+  | prevRandao
   deriving BEq, DecidableEq, Repr
 
 def ContextField.name : ContextField → String
   | .userId => "userId"
   | .contractId => "contractId"
   | .checkpointId => "checkpointId"
+  | .timestamp => "timestamp"
+  | .chainId => "chainId"
+  | .gasPrice => "gasPrice"
+  | .gasLeft => "gasLeft"
+  | .baseFee => "baseFee"
+  | .prevRandao => "prevRandao"
 
 def ContextField.capability : ContextField → ProofForge.Target.Capability
   | .userId => .callerSender
   | .contractId => .accountExplicit
-  | .checkpointId => .envBlock
+  | .checkpointId | .timestamp | .chainId | .gasPrice | .gasLeft | .baseFee | .prevRandao => .envBlock
 
 inductive AssignOp where
   | add

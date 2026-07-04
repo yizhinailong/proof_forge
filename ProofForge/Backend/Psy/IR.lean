@@ -158,11 +158,6 @@ def validateDistinctNames (context : String) (names : Array String) : Except Low
       .ok (seen.push name)
   pure ()
 
-def contextFunction : ContextField → String
-  | .userId => "get_user_id()"
-  | .contractId => "get_contract_id()"
-  | .checkpointId => "get_checkpoint_id()"
-
 def fieldVisibility (isPublic : Bool) : String :=
   if isPublic then "pub " else ""
 
@@ -1107,8 +1102,11 @@ mutual
         .error { message := "storage.path.write is a statement effect, not an expression" }
     | .storagePathAssignOp _ _ _ _ =>
         .error { message := "storage.path.assign_op is a statement effect, not an expression" }
+    | .contextRead .userId => .ok "get_user_id()"
+    | .contextRead .contractId => .ok "get_contract_id()"
+    | .contextRead .checkpointId => .ok "get_checkpoint_id()"
     | .contextRead field =>
-        .ok (contextFunction field)
+        .error { message := s!"Psy IR v0 context read `{field.name}` is not supported; only userId, contractId, and checkpointId are available" }
     | .eventEmit _ _ =>
         .error { message := "event.emit is a statement effect, not an expression" }
     | .eventEmitIndexed _ _ _ =>
