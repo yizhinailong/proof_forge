@@ -1039,18 +1039,69 @@ def testWholeStructStorageWritePlanToYul : IO Unit := do
   | _ => throw <| IO.userError "whole struct storage write plan-to-yul must lower to block"
 
 def testStoragePathWritePlanToYul : IO Unit := do
+  let arrayEnv : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let directWriteStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathWriteEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv)
+      (fun _ _ => .ok (.singleSlot (Lean.Compiler.Yul.Expr.num 9)))
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storagePathWrite
+          "values"
+          #[.index (.literal (.u64 0))]
+          (.checkedArith .add (.local "value") (.literalWord 4)))))
+    "storage path write StmtPlan-to-Yul helper"
+  require (directWriteStmts.size == 1) "storage path write StmtPlan-to-Yul helper statement count"
+  match directWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "storage path write StmtPlan-to-Yul helper arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit lit =>
+          require (lit.value == "9") "storage path write StmtPlan-to-Yul helper slot"
+      | _ => throw <| IO.userError "storage path write StmtPlan-to-Yul helper slot must be literal"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "storage path write StmtPlan-to-Yul helper checked add"
+          require (addArgs.size == 2) "storage path write StmtPlan-to-Yul helper checked add arg count"
+      | _ => throw <| IO.userError "storage path write StmtPlan-to-Yul helper value must be checked add"
+  | _ => throw <| IO.userError "storage path write StmtPlan-to-Yul helper must lower to sstore"
+  let arrayWriteStmt ← requireOk
+    (lowerEffectStmt
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      arrayEnv
+      (.storagePathWrite
+        "values"
+        #[.index (.literal (.u64 1))]
+        (.add (.local "value") (.literal (.u64 4)))))
+    "array storage path write value plan-to-yul"
+  match arrayWriteStmt with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "array storage path write plan-to-yul arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == arraySlotFunctionName) "array storage path write plan-to-yul slot call"
+          require (slotArgs.size == 3) "array storage path write plan-to-yul slot arg count"
+      | _ => throw <| IO.userError "array storage path write plan-to-yul slot must use array helper"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "array storage path write value must lower through checked add plan"
+          require (addArgs.size == 2) "array storage path write value checked add arg count"
+      | _ => throw <| IO.userError "array storage path write value must be plan-lowered checked add"
+  | _ => throw <| IO.userError "array storage path write plan-to-yul must lower to sstore"
   let mapEnv : TypeEnv := #[
     { name := "outer", type := .u64, isMutable := false },
     { name := "inner", type := .u64, isMutable := false },
     { name := "value", type := .u64, isMutable := false }
   ]
   let nestedWriteStmt ← requireOk
-    (lowerMapPathWriteStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmMapProbe.module
       mapEnv
-      "balances"
-      #[.local "outer", .local "inner"]
-      (.add (.local "value") (.literal (.u64 9))))
+      (.storagePathWrite
+        "balances"
+        #[.mapKey (.local "outer"), .mapKey (.local "inner")]
+        (.add (.local "value") (.literal (.u64 9)))))
     "nested storage path write value plan-to-yul"
   match nestedWriteStmt with
   | Lean.Compiler.Yul.Statement.block block => do

@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Storage Path Write Effect StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.StoragePathWriteTarget`,
+  `ToYul.storagePathWriteEffectPlanStatements`, and
+  `ToYul.storagePathWriteEffectStmtPlanStatements` for statement-position
+  `storagePathWrite` assembly.
+- Routed `storagePathWrite` through the helper when the write value is in the
+  supported scalar plan subset, while preserving the existing output shapes for
+  direct `mapKey`, array `index`, struct `field`, struct-array `index`+`field`,
+  and nested consecutive-`mapKey` paths.
+- Kept path slot computation and path-shape diagnostics in the `IR.lean`
+  compatibility facade, with `ToYul` owning the final helper call,
+  `sstore(slot, value)`, or nested-map value/presence block assembly.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+  integrated `lowerEffectStmt` path for array and nested-map storage paths.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/map-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- `storagePathAssignOp` still uses the existing compatibility facade for
+  statement assembly.
+- Whole-struct storage writes still use their existing compatibility path.
+
+Next step:
+
+- Move `storagePathAssignOp` assembly or whole-struct storage write assembly
+  behind `StmtPlan.effect` / `EffectPlan -> Yul` helpers.
+
 ### EVM Struct Field Write Effect StmtPlan-To-Yul Slice
 
 Commit: this commit

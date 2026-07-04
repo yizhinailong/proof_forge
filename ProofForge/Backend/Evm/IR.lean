@@ -3626,6 +3626,66 @@ def lowerStoragePathWriteStmt
       | none =>
           .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 
+def lowerStoragePathWriteTarget
+    (module : Module)
+    (env : TypeEnv)
+    (stateId : String)
+    (path : Array StoragePathSegment) :
+    Except LowerError ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget :=
+  match path.toList with
+  | [StoragePathSegment.mapKey key] => do
+      let (slot, _, _) ← requireStorageMapState module stateId
+      .ok (.mapWrite (slotExpr slot) (← lowerMapScalarPlanExprOrFallback module env key))
+  | [StoragePathSegment.index index] => do
+      .ok (.singleSlot (← lowerArraySlotExpr module env stateId index))
+  | [StoragePathSegment.field fieldName] => do
+      .ok (.singleSlot (← lowerStructFieldSlotExpr module stateId fieldName))
+  | [StoragePathSegment.index index, StoragePathSegment.field fieldName] => do
+      .ok (.singleSlot (← lowerStructArrayFieldSlotExpr module env stateId index fieldName))
+  | [] => do
+      let state ← stateDeclOf module stateId "storage path"
+      match state.kind with
+      | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+      | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
+      | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.write" }
+  | _ => do
+      match storagePathMapKeys? path with
+      | some keys => do
+          .ok (.mapValuePresence
+            (← lowerMapPathValueSlotExpr module env stateId keys)
+            (← lowerMapPathPresenceSlotExpr module env stateId keys))
+      | none =>
+          .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
+
+partial def lowerStoragePathWriteStmtPlanOrFallback
+    (module : Module)
+    (env : TypeEnv)
+    (stateId : String)
+    (path : Array StoragePathSegment)
+    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  if exprSupportsPlanScalarYul value then
+    let valuePlan ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    let statements ←
+      ProofForge.Backend.Evm.ToYul.storagePathWriteEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun stateId path => lowerStoragePathWriteTarget module env stateId path)
+        (.effect (.storagePathWrite stateId path valuePlan))
+    match statements[0]? with
+    | some statement =>
+        if statements.size == 1 then
+          .ok statement
+        else
+          .error { message := s!"EVM StmtPlan-to-Yul storage path write lowering produced {statements.size} statements, expected 1" }
+    | none =>
+        .error { message := "EVM StmtPlan-to-Yul storage path write lowering produced no statements" }
+  else
+    lowerStoragePathWriteStmt module env stateId path value
+
 def lowerStoragePathAssignOpStmt
     (module : Module)
     (env : TypeEnv)
@@ -3790,7 +3850,7 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
   | .storagePathRead _ _ =>
       .error { message := "storage.path.read must be used as an expression" }
   | .storagePathWrite stateId path value =>
-      lowerStoragePathWriteStmt module env stateId path value
+      lowerStoragePathWriteStmtPlanOrFallback module env stateId path value
   | .storagePathAssignOp stateId path op value =>
       lowerStoragePathAssignOpStmt module env stateId path op value
   | .contextRead _ =>
