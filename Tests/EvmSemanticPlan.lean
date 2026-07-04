@@ -86,6 +86,8 @@ def testCounterSemanticPlan : IO Unit := do
   require (storageCount.span == 1) "counter plan count span"
   require (plan.usesCheckedArithmetic == true) "counter plan checked arithmetic (increment uses add)"
   require (plan.creates.size == 0) "counter plan no creates"
+  require (plan.dispatch.entrypoints.size == plan.entrypoints.size) "counter plan dispatch entrypoint count"
+  require (plan.dispatch.default == .revert) "counter plan dispatch default"
 
 def testEventSemanticPlan : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.EventProbe.evmModule) "event plan"
@@ -217,20 +219,18 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
       require (lit.value == "0x6d4ce63c") "entrypoint dispatch case selector literal"
   | none => throw <| IO.userError "entrypoint dispatch case must have selector"
   require (getCase.body.statements.size == 1) "entrypoint dispatch case body statement count"
-  let defaultDispatchCase : Lean.Compiler.Yul.Case := {
-    value := none
-    body := { statements := #[revertStmt] }
-  }
   let directDispatch :=
-    ProofForge.Backend.Evm.ToYul.dispatchBlockStatement
-      plan.entrypoints
+    ProofForge.Backend.Evm.ToYul.dispatchPlanStatement
+      plan.dispatch
       #[getCase]
-      defaultDispatchCase
   match directDispatch with
   | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.builtin name args) cases => do
       require (name == "shr") "entrypoint dispatch block helper selector opcode"
       require (args.size == 2) "entrypoint dispatch block helper selector arg count"
       require (cases.size == 2) "entrypoint dispatch block helper case count"
+      let defaultCase ← requireAt cases (cases.size - 1) "entrypoint dispatch block helper missing default case"
+      require defaultCase.value.isNone "entrypoint dispatch block helper default case value"
+      require (defaultCase.body.statements.size == 1) "entrypoint dispatch block helper revert default size"
   | _ => throw <| IO.userError "entrypoint dispatch block helper must lower static params to selector switch"
   let returnStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.staticDispatchReturnStatements
@@ -290,10 +290,9 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
     (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "echo_bytes"))
     "dynamic ABI plan missing echo_bytes entrypoint"
   let dynamicDirectDispatch :=
-    ProofForge.Backend.Evm.ToYul.dispatchBlockStatement
-      dynamicPlan.entrypoints
+    ProofForge.Backend.Evm.ToYul.dispatchPlanStatement
+      dynamicPlan.dispatch
       #[getCase]
-      defaultDispatchCase
   match dynamicDirectDispatch with
   | Lean.Compiler.Yul.Statement.block block => do
       require (block.statements.size == 2) "dynamic dispatch block helper statement count"
@@ -342,6 +341,23 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
           require (cases.size == dynamicPlan.entrypoints.size + 1) "dynamic ABI dispatch switch case count"
       | _ => throw <| IO.userError "dynamic ABI dispatch block must contain selector switch"
   | _ => throw <| IO.userError "dynamic ABI dispatch must initialize memory and wrap selector switch"
+  let uupsModule := { ProofForge.IR.Examples.Counter.module with evmProxyPattern? := some "uups" }
+  let uupsPlan ← requireOk (buildSemanticPlan uupsModule) "UUPS counter plan"
+  require (uupsPlan.dispatch.default == .uupsProxy) "UUPS plan dispatch default"
+  let uupsDefault := ProofForge.Backend.Evm.ToYul.dispatchDefaultCase uupsPlan.dispatch.default
+  require (uupsDefault.value.isNone) "UUPS default case selector"
+  require
+    (uupsDefault.body.statements.size == ProofForge.Backend.Evm.ToYul.uupsProxyFallbackBody.size)
+    "UUPS default case fallback statement count"
+  let uupsDispatch ← requireOk (dispatchBlockWithPlan uupsModule uupsPlan.dispatch) "UUPS dispatch block"
+  match uupsDispatch with
+  | Lean.Compiler.Yul.Statement.switchStmt _ cases => do
+      require (cases.size == uupsPlan.dispatch.entrypoints.size + 1) "UUPS dispatch switch case count"
+      let defaultCase ← requireAt cases (cases.size - 1) "UUPS dispatch missing default case"
+      require
+        (defaultCase.body.statements.size == ProofForge.Backend.Evm.ToYul.uupsProxyFallbackBody.size)
+        "UUPS dispatch default fallback statement count"
+  | _ => throw <| IO.userError "UUPS dispatch block must lower to selector switch"
 
 def testSemanticPlanRender : IO Unit := do
   let rendered ← requireOk (renderSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan render"

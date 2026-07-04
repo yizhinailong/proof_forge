@@ -502,6 +502,7 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
     | .ok plan => .ok plan
     | .error err => .error (planError err)
   let entrypointPlans ← buildEntrypointPlans module
+  let dispatchPlan := moduleDispatchPlan module entrypointPlans
   let eventPlans ← buildEventPlans module
   let metadata := {
     moduleName := module.name
@@ -511,6 +512,7 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
   }
   .ok { basePlan with
     entrypoints := entrypointPlans
+    dispatch := dispatchPlan
     events := eventPlans
     metadata := metadata
   }
@@ -524,6 +526,7 @@ def buildFullModulePlanWithTargetPlan
     | .ok plan => .ok plan
     | .error err => .error (planError err)
   let entrypointPlans ← buildEntrypointPlans module
+  let dispatchPlan := moduleDispatchPlan module entrypointPlans
   let eventPlans ← buildEventPlans module
   let metadata := {
     moduleName := module.name
@@ -533,6 +536,7 @@ def buildFullModulePlanWithTargetPlan
   }
   .ok { basePlan with
     entrypoints := entrypointPlans
+    dispatch := dispatchPlan
     events := eventPlans
     metadata := metadata
   }

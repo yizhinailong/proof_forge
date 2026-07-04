@@ -52,6 +52,60 @@ def dispatchSelectorExpr : Lean.Compiler.Yul.Expr :=
     Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num 0]
   ]
 
+def revertStatement : Lean.Compiler.Yul.Statement :=
+  Lean.Compiler.Yul.Statement.exprStmt
+    (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+
+def eip1967ImplementationSlotExpr : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.Expr.lit
+    (Lean.Compiler.Yul.Literal.hex "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
+
+def uupsProxyFallbackBody : Array Lean.Compiler.Yul.Statement := #[
+  .varDecl #[{ name := "_impl" }] (some (Lean.Compiler.Yul.builtin "sload" #[eip1967ImplementationSlotExpr])),
+  .ifStmt (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "_impl"]) { statements := #[revertStatement] },
+  .exprStmt (Lean.Compiler.Yul.builtin "calldatacopy" #[
+    Lean.Compiler.Yul.Expr.num 0,
+    Lean.Compiler.Yul.Expr.num 0,
+    Lean.Compiler.Yul.builtin "calldatasize" #[]
+  ]),
+  .varDecl #[{ name := "_ok" }] (some (Lean.Compiler.Yul.builtin "delegatecall" #[
+    Lean.Compiler.Yul.builtin "gas" #[],
+    Lean.Compiler.Yul.Expr.id "_impl",
+    Lean.Compiler.Yul.Expr.num 0,
+    Lean.Compiler.Yul.builtin "calldatasize" #[],
+    Lean.Compiler.Yul.Expr.num 0,
+    Lean.Compiler.Yul.Expr.num 0
+  ])),
+  .exprStmt (Lean.Compiler.Yul.builtin "returndatacopy" #[
+    Lean.Compiler.Yul.Expr.num 0,
+    Lean.Compiler.Yul.Expr.num 0,
+    Lean.Compiler.Yul.builtin "returndatasize" #[]
+  ]),
+  .ifStmt (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "_ok"]) {
+    statements := #[
+      .exprStmt (Lean.Compiler.Yul.builtin "revert" #[
+        Lean.Compiler.Yul.Expr.num 0,
+        Lean.Compiler.Yul.builtin "returndatasize" #[]
+      ])
+    ]
+  },
+  .exprStmt (Lean.Compiler.Yul.builtin "return" #[
+    Lean.Compiler.Yul.Expr.num 0,
+    Lean.Compiler.Yul.builtin "returndatasize" #[]
+  ])
+]
+
+def dispatchDefaultCase (defaultPlan : DispatchDefaultPlan) : Lean.Compiler.Yul.Case :=
+  match defaultPlan with
+  | .revert => {
+      value := none
+      body := { statements := #[revertStatement] }
+    }
+  | .uupsProxy => {
+      value := none
+      body := { statements := uupsProxyFallbackBody }
+    }
+
 def entrypointDispatchCase
     {ε : Type}
     (mkError : String → ε)
@@ -92,6 +146,11 @@ def dispatchBlockStatement
     ] }
   else
     switchStmt
+
+def dispatchPlanStatement
+    (dispatch : DispatchPlan)
+    (cases : Array Lean.Compiler.Yul.Case) : Lean.Compiler.Yul.Statement :=
+  dispatchBlockStatement dispatch.entrypoints cases (dispatchDefaultCase dispatch.default)
 
 def dispatchResultName (index : Nat) : String :=
   s!"_r{index}"

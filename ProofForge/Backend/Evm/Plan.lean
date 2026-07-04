@@ -574,6 +574,28 @@ structure EntrypointPlan where
 
 instance : Inhabited EntrypointPlan := ⟨{ name := "", selector := "", params := #[], returns := default, body := #[] }⟩
 
+inductive DispatchDefaultPlan where
+  | revert
+  | uupsProxy
+  deriving BEq, Repr
+
+structure DispatchPlan where
+  entrypoints : Array EntrypointPlan
+  default : DispatchDefaultPlan
+  deriving Repr
+
+instance : Inhabited DispatchPlan := ⟨{ entrypoints := #[], default := .revert }⟩
+
+def moduleDispatchDefaultPlan (module : Module) : DispatchDefaultPlan :=
+  match module.evmProxyPattern? with
+  | some "uups" => .uupsProxy
+  | _ => .revert
+
+def moduleDispatchPlan (module : Module) (entrypoints : Array EntrypointPlan) : DispatchPlan := {
+  entrypoints
+  default := moduleDispatchDefaultPlan module
+}
+
 /-! ## MetadataPlan: planned artifact/deploy metadata inputs -/
 
 structure MetadataPlan where
@@ -592,6 +614,7 @@ structure ModulePlan where
   helpers : HelperSet
   mapAssignOps : Array AssignOp
   entrypoints : Array EntrypointPlan
+  dispatch : DispatchPlan
   events : Array EventPlan
   crosscalls : Array CrosscallHelperSpec
   creates : Array CreateHelperSpec
@@ -622,6 +645,7 @@ def buildModulePlanWithTargetPlan (module : Module) (targetPlan : CapabilityPlan
       helpers
       mapAssignOps := helperMapAssignOps helpers
       entrypoints := #[]
+      dispatch := moduleDispatchPlan module #[]
       events := #[]
       crosscalls := #[]
       creates := #[]

@@ -404,51 +404,16 @@ def eventLogBuiltinName (indexedFieldCount : Nat) : Except LowerError String :=
   ProofForge.Backend.Evm.ToYul.eventLogBuiltinName toYulError indexedFieldCount
 
 def revertStmt : Lean.Compiler.Yul.Statement :=
-  Lean.Compiler.Yul.Statement.exprStmt
-    (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+  ProofForge.Backend.Evm.ToYul.revertStatement
 
 def eip1967ImplementationSlotExpr : Lean.Compiler.Yul.Expr :=
-  Lean.Compiler.Yul.Expr.lit (Lean.Compiler.Yul.Literal.hex "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
+  ProofForge.Backend.Evm.ToYul.eip1967ImplementationSlotExpr
 
-def uupsProxyFallbackBody : Array Lean.Compiler.Yul.Statement := #[
-  .varDecl #[{ name := "_impl" }] (some (Lean.Compiler.Yul.builtin "sload" #[eip1967ImplementationSlotExpr])),
-  .ifStmt (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "_impl"]) { statements := #[revertStmt] },
-  .exprStmt (Lean.Compiler.Yul.builtin "calldatacopy" #[
-    Lean.Compiler.Yul.Expr.num 0,
-    Lean.Compiler.Yul.Expr.num 0,
-    Lean.Compiler.Yul.builtin "calldatasize" #[]
-  ]),
-  .varDecl #[{ name := "_ok" }] (some (Lean.Compiler.Yul.builtin "delegatecall" #[
-    Lean.Compiler.Yul.builtin "gas" #[],
-    Lean.Compiler.Yul.Expr.id "_impl",
-    Lean.Compiler.Yul.Expr.num 0,
-    Lean.Compiler.Yul.builtin "calldatasize" #[],
-    Lean.Compiler.Yul.Expr.num 0,
-    Lean.Compiler.Yul.Expr.num 0
-  ])),
-  .exprStmt (Lean.Compiler.Yul.builtin "returndatacopy" #[
-    Lean.Compiler.Yul.Expr.num 0,
-    Lean.Compiler.Yul.Expr.num 0,
-    Lean.Compiler.Yul.builtin "returndatasize" #[]
-  ]),
-  .ifStmt (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "_ok"]) {
-    statements := #[
-      .exprStmt (Lean.Compiler.Yul.builtin "revert" #[
-        Lean.Compiler.Yul.Expr.num 0,
-        Lean.Compiler.Yul.builtin "returndatasize" #[]
-      ])
-    ]
-  },
-  .exprStmt (Lean.Compiler.Yul.builtin "return" #[
-    Lean.Compiler.Yul.Expr.num 0,
-    Lean.Compiler.Yul.builtin "returndatasize" #[]
-  ])
-]
+def uupsProxyFallbackBody : Array Lean.Compiler.Yul.Statement :=
+  ProofForge.Backend.Evm.ToYul.uupsProxyFallbackBody
 
-def uupsProxyDefaultCase : Lean.Compiler.Yul.Case := {
-  value := none
-  body := { statements := uupsProxyFallbackBody }
-}
+def uupsProxyDefaultCase : Lean.Compiler.Yul.Case :=
+  ProofForge.Backend.Evm.ToYul.dispatchDefaultCase .uupsProxy
 
 /-- The 2^256 - 1 max word value, used for overflow checks. -/
 def maxUint256 : Nat := 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -5322,34 +5287,77 @@ def dispatchReturnStatements
         returns
         callExpr
 
+def dispatchCaseWithEntrypointPlan
+    (module : Module)
+    (entrypoint : Entrypoint)
+    (entrypointPlan : ProofForge.Backend.Evm.Plan.EntrypointPlan) :
+    Except LowerError Lean.Compiler.Yul.Case := do
+  if entrypointPlan.name != entrypoint.name then
+    .error {
+      message :=
+        s!"EVM dispatch plan entrypoint mismatch: expected `{entrypoint.name}`, got `{entrypointPlan.name}`"
+    }
+  else
+    pure ()
+  let callExpr ← entrypointCallExpr module entrypoint
+  let bodyStmts ← dispatchReturnStatements module entrypoint entrypointPlan.returns callExpr
+  ProofForge.Backend.Evm.ToYul.entrypointDispatchCase toYulError entrypointPlan bodyStmts
+
 def dispatchCaseWithPlan (module : Module) (entrypoint : Entrypoint) :
     Except LowerError (ProofForge.Backend.Evm.Plan.EntrypointPlan × Lean.Compiler.Yul.Case) := do
   let entrypointPlan ←
     match ProofForge.Backend.Evm.Lower.buildEntrypointSurfacePlan module entrypoint with
     | .ok plan => .ok plan
     | .error err => .error { message := err.message }
-  let callExpr ← entrypointCallExpr module entrypoint
-  let bodyStmts ← dispatchReturnStatements module entrypoint entrypointPlan.returns callExpr
-  let dispatchCase ←
-    ProofForge.Backend.Evm.ToYul.entrypointDispatchCase toYulError entrypointPlan bodyStmts
+  let dispatchCase ← dispatchCaseWithEntrypointPlan module entrypoint entrypointPlan
   .ok (entrypointPlan, dispatchCase)
 
 def dispatchCase (module : Module) (entrypoint : Entrypoint) : Except LowerError Lean.Compiler.Yul.Case := do
   .ok (← dispatchCaseWithPlan module entrypoint).snd
 
+def dispatchCasesWithPlan
+    (module : Module)
+    (dispatch : ProofForge.Backend.Evm.Plan.DispatchPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Case) := do
+  let (idx, cases) ← module.entrypoints.foldlM (init := (0, #[])) fun acc entrypoint => do
+    let (idx, cases) := acc
+    match dispatch.entrypoints[idx]? with
+    | some entrypointPlan => do
+        let dispatchCase ← dispatchCaseWithEntrypointPlan module entrypoint entrypointPlan
+        .ok (idx + 1, cases.push dispatchCase)
+    | none =>
+        .error {
+          message :=
+            s!"EVM dispatch plan has fewer entrypoints ({dispatch.entrypoints.size}) than module `{module.name}` ({module.entrypoints.size})"
+        }
+  if idx != dispatch.entrypoints.size then
+    .error {
+      message :=
+        s!"EVM dispatch plan has {dispatch.entrypoints.size} entrypoints but module `{module.name}` has {module.entrypoints.size}"
+    }
+  else
+    .ok cases
+
+def dispatchBlockWithPlan
+    (module : Module)
+    (dispatch : ProofForge.Backend.Evm.Plan.DispatchPlan) :
+    Except LowerError Lean.Compiler.Yul.Statement := do
+  let cases ← dispatchCasesWithPlan module dispatch
+  .ok (ProofForge.Backend.Evm.ToYul.dispatchPlanStatement dispatch cases)
+
+def dispatchPlanForModule (module : Module) :
+    Except LowerError ProofForge.Backend.Evm.Plan.DispatchPlan := do
+  let entrypointPlans ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
+    let entrypointPlan ←
+      match ProofForge.Backend.Evm.Lower.buildEntrypointSurfacePlan module entrypoint with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    .ok (acc.push entrypointPlan)
+  .ok (ProofForge.Backend.Evm.Plan.moduleDispatchPlan module entrypointPlans)
+
 def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let (entrypointPlans, cases) ← module.entrypoints.foldlM (init := (#[], #[])) fun acc entrypoint => do
-    let (plans, cases) := acc
-    let (entrypointPlan, dispatchCase) ← dispatchCaseWithPlan module entrypoint
-    .ok (plans.push entrypointPlan, cases.push dispatchCase)
-  let defaultCase : Lean.Compiler.Yul.Case :=
-    match module.evmProxyPattern? with
-    | some "uups" => uupsProxyDefaultCase
-    | _ => {
-        value := none
-        body := { statements := #[revertStmt] }
-      }
-  .ok (ProofForge.Backend.Evm.ToYul.dispatchBlockStatement entrypointPlans cases defaultCase)
+  let dispatchPlan ← dispatchPlanForModule module
+  dispatchBlockWithPlan module dispatchPlan
 
 def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
   .funcDef hashWordFunctionName
@@ -6661,7 +6669,7 @@ def lowerModuleWithPlan
   validateState module
   let functions ← module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
     .ok (acc.push (← lowerEntrypoint module entrypoint))
-  let dispatch ← dispatchBlock module
+  let dispatch ← dispatchBlockWithPlan module plan.dispatch
   let helpers := plannedMapHelperFunctions plan
   let helpers := helpers ++ plannedArrayHelperFunctions plan
   let helpers := helpers ++ plannedStructArrayHelperFunctions plan
@@ -6742,6 +6750,7 @@ def buildSemanticPlanBestEffort (module : Module) : ProofForge.Backend.Evm.Plan.
       helpers := #[]
       mapAssignOps := #[]
       entrypoints := #[]
+      dispatch := ProofForge.Backend.Evm.Plan.moduleDispatchPlan module #[]
       events := #[]
       crosscalls := #[]
       creates := #[]

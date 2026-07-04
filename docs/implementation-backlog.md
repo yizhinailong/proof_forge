@@ -272,10 +272,11 @@ Tasks:
     surface helper in `ToYul`, and unit/static ABI-word dispatcher return-data
     encoding plus dynamic `bytes`/`string` dispatcher return-data encoding now
     consume `ReturnPlan` through the same boundary. Dispatch-block setup now
-    consumes entrypoint parameter plans to initialize the free-memory pointer
-    for dynamic ABI parameters before the selector switch. ABI
-    validation/decode statements, function-call argument assembly, and proxy
-    fallback selection remain in the `IR.lean` compatibility facade until
+    consumes `DispatchPlan`: entrypoint parameter plans initialize the
+    free-memory pointer for dynamic ABI parameters before the selector switch,
+    and `DispatchDefaultPlan` lowers ordinary revert vs. UUPS proxy fallback
+    cases in `ToYul`. ABI validation/decode statements and function-call
+    argument assembly remain in the `IR.lean` compatibility facade until
     broader dispatch lowering moves behind `EntrypointPlan -> Yul`.
   - Started: scalar local binding initialization now consumes the semantic
     plan path for the supported scalar subset:

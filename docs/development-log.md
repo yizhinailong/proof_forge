@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM DispatchPlan Default-Case To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `DispatchDefaultPlan` and `DispatchPlan` to the EVM semantic plan.
+- Filled `ModulePlan.dispatch` from `Lower.buildFullModulePlan`, including the
+  ordinary revert default case and UUPS proxy fallback case.
+- Moved revert and UUPS default-case Yul AST construction into `ToYul`, with
+  `IR.lean` keeping compatibility aliases for existing callers.
+- Routed `lowerModuleWithPlan` through `IR.dispatchBlockWithPlan`, so module
+  lowering consumes `plan.dispatch` instead of re-selecting proxy/default
+  behavior from the raw IR module.
+- Extended `Tests/EvmSemanticPlan.lean` to cover Counter dispatch defaults,
+  direct `DispatchPlan -> Yul` output, and UUPS proxy fallback dispatch output.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/evm/dynamic-abi-ir-smoke.sh
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json
+git diff --check
+lake build
+```
+
+Known limitations:
+
+- ABI validation/decode statements and function-call argument assembly still
+  live in the `IR.lean` compatibility facade.
+- `dispatchBlockWithPlan` still zips raw IR entrypoints with planned
+  entrypoints by order while the full dispatch body lowering remains staged.
+
+Next step:
+
+- Move calldata validation/decode behind an ABI decode plan consumed by
+  `ToYul`.
+
 ### EVM EntrypointPlan Dispatch Block To-Yul Slice
 
 Commit: this commit
