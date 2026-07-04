@@ -310,6 +310,18 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
   require
     (aggregateReturn.wordTypes == #[.bool, .u32])
     "crosscall probe planned aggregate return word layout"
+  let aggregateReturnPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.crosscallReturnPlan
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      "typed crosscall return"
+      (.structType "RemotePair"))
+    "aggregate crosscall return plan"
+  require
+    (aggregateReturnPlan.wordTypes == #[.bool, .u32])
+    "aggregate crosscall return plan word layout"
+  require
+    (aggregateReturnPlan.localNames == #["__proof_forge_return_0", "__proof_forge_return_1"])
+    "aggregate crosscall return plan local names"
   let aggregateFunctionName ←
     requireOk
       (ProofForge.Backend.Evm.ToYul.crosscallHelperFunctionName toYulError aggregateReturn)

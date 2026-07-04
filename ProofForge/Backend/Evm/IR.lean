@@ -4718,6 +4718,15 @@ def abiReturnTypedNames (module : Module) (entrypoint : Entrypoint) : Except Low
     | .error err => .error { message := err.message }
   .ok (ProofForge.Backend.Evm.ToYul.returnTypedNames plan)
 
+def aggregateCrosscallReturnPlan
+    (module : Module)
+    (entrypointName : String)
+    (returnType : ValueType) :
+    Except LowerError ProofForge.Backend.Evm.Plan.ReturnPlan := do
+  match ProofForge.Backend.Evm.Lower.crosscallReturnPlan module s!"entrypoint `{entrypointName}` return value" returnType with
+  | .ok plan => .ok plan
+  | .error err => .error { message := err.message }
+
 def lowerStructArrayReturnWords
     (module : Module)
     (env : TypeEnv)
@@ -4890,71 +4899,67 @@ def lowerAggregateCrosscallReturnAssignment?
     match value with
     | .crosscallInvokeTyped target methodId args callReturnType => do
         ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
-        let names ← abiReturnNames module entrypointName returnType
-        let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
+        let returnPlan ← aggregateCrosscallReturnPlan module entrypointName returnType
         let argWords ← lowerCrosscallArgWordsMany module env "typed crosscall argument" args
         .ok (some #[
           ← ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignment
             toYulError
-            names
+            returnPlan.localNames
             ProofForge.Backend.Evm.Plan.CrosscallMode.call
             (← lowerExpr module env target)
             (← lowerExpr module env methodId)
             none
             argWords
             returnType
-            wordTypes
+            returnPlan.wordTypes
         ])
     | .crosscallInvokeValueTyped target methodId callValue args callReturnType => do
         ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
-        let names ← abiReturnNames module entrypointName returnType
-        let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
+        let returnPlan ← aggregateCrosscallReturnPlan module entrypointName returnType
         let argWords ← lowerCrosscallArgWordsMany module env "value crosscall argument" args
         .ok (some #[
           ← ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignment
             toYulError
-            names
+            returnPlan.localNames
             ProofForge.Backend.Evm.Plan.CrosscallMode.callValue
             (← lowerExpr module env target)
             (← lowerExpr module env methodId)
             (some (← lowerExpr module env callValue))
             argWords
             returnType
-            wordTypes
+            returnPlan.wordTypes
         ])
     | .crosscallInvokeStaticTyped target methodId args callReturnType => do
         ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
-        let names ← abiReturnNames module entrypointName returnType
-        let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
+        let returnPlan ← aggregateCrosscallReturnPlan module entrypointName returnType
         let argWords ← lowerCrosscallArgWordsMany module env "static crosscall argument" args
         .ok (some #[
           ← ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignment
             toYulError
-            names
+            returnPlan.localNames
             ProofForge.Backend.Evm.Plan.CrosscallMode.staticcall
             (← lowerExpr module env target)
             (← lowerExpr module env methodId)
             none
             argWords
             returnType
-            wordTypes
+            returnPlan.wordTypes
         ])
     | .crosscallInvokeDelegateTyped target methodId args callReturnType => do
         ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type" returnType callReturnType
-        let names ← abiReturnNames module entrypointName returnType
-        let wordTypes ← crosscallReturnWordTypes module s!"entrypoint `{entrypointName}` return value" returnType
+        let returnPlan ← aggregateCrosscallReturnPlan module entrypointName returnType
         let argWords ← lowerCrosscallArgWordsMany module env "delegate crosscall argument" args
         .ok (some #[
           ← ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignment
             toYulError
-            names
+            returnPlan.localNames
             ProofForge.Backend.Evm.Plan.CrosscallMode.delegatecall
             (← lowerExpr module env target)
             (← lowerExpr module env methodId)
             none
             argWords
             returnType
-            wordTypes
+            returnPlan.wordTypes
         ])
     | _ => .ok none
 

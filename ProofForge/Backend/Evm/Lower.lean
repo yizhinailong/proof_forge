@@ -60,6 +60,11 @@ def returnPlan (module : Module) (context : String) (returnType : ValueType) :
     | _ => abiValueWordTypes module s!"{context} return value" returnType
   .ok { returnType, wordTypes, localNames := returnLocalNames returnType wordTypes }
 
+def crosscallReturnPlan (module : Module) (context : String) (returnType : ValueType) :
+    Except LowerError ReturnPlan := do
+  let wordTypes ← crosscallReturnWordTypes module context returnType
+  .ok { returnType, wordTypes, localNames := returnLocalNames returnType wordTypes }
+
 def entrypointSelector (entrypoint : Entrypoint) : Except LowerError String :=
   match entrypoint.selector? with
   | some selector => .ok selector

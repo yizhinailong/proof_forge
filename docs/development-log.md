@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Crosscall Return Plan Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `Lower.crosscallReturnPlan` so aggregate crosscall return local names
+  and word layout are planned outside the `IR.lean` compatibility facade.
+- Routed `lowerAggregateCrosscallReturnAssignment?` through the planned
+  `ReturnPlan` before delegating final multi-return Yul assignment construction
+  to `ToYul.crosscallAggregateReturnAssignment`.
+- Added semantic-plan coverage for the planned `RemotePair` aggregate return
+  word layout and generated return local names.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+just evm-diagnostics
+scripts/evm/crosscall-ir-smoke.sh
+lake build proof-forge
+lake build
+```
+
+Known limitations:
+
+- Aggregate crosscall return assignment still lives in the `IR.lean`
+  compatibility facade; this slice only moves return local-name and word-layout
+  discovery behind `Lower`.
+- Aggregate crosscall argument expansion still uses compatibility helpers for
+  the remaining non-literal aggregate sources.
+
+Next step:
+
+- Move the aggregate crosscall return assignment decision itself into a
+  statement/return plan, or continue introducing semantic-plan nodes for the
+  remaining non-literal aggregate crosscall argument sources.
+
 ### EVM Storage Crosscall Arg Plan Slice
 
 Commit: this commit
@@ -57,9 +99,9 @@ Known limitations:
 
 Next step:
 
-- Continue extracting aggregate return word-layout discovery out of `IR.lean`,
-  or introduce semantic-plan nodes for the remaining non-literal aggregate
-  crosscall argument sources.
+- Move aggregate crosscall return assignment decision itself behind a
+  statement/return plan, or introduce semantic-plan nodes for the remaining
+  non-literal aggregate crosscall argument sources.
 
 ### EVM Literal Crosscall Arg Plan Slice
 
@@ -101,9 +143,9 @@ Known limitations:
 
 Next step:
 
-- Continue extracting aggregate return word-layout discovery out of `IR.lean`,
-  or introduce semantic-plan nodes for the remaining non-literal aggregate
-  crosscall argument sources.
+- Move aggregate crosscall return assignment decision itself behind a
+  statement/return plan, or introduce semantic-plan nodes for the remaining
+  non-literal aggregate crosscall argument sources.
 
 ### EVM Local Crosscall Arg Plan Slice
 
