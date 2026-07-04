@@ -11671,3 +11671,41 @@ Result:
 
 - EVM refinement anchors, ValueVault invariant build, NEAR formal anchors, full
   Lake build, and whitespace checks passed locally.
+
+### EVM Planned Storage Effects In Control-Flow Bodies
+
+Commit: 40f2c96
+
+Summary:
+
+- Extended planned scalar control-flow body support beyond scalar storage
+  writes so branch and bounded-loop bodies can lower supported map writes,
+  array writes, struct-field writes, and storage-path writes/assign-ops through
+  existing `EffectPlan -> ToYul` helpers.
+- Added storage-path segment support checks so path keys and indexes only enter
+  the planned body route when their expressions are already in the supported
+  scalar-plan subset.
+- Added semantic-plan tests that build real IR `ifElse`/`boundedFor` statements,
+  verify they produce planned body nodes, and check map/path helper calls plus
+  array/path storage write frames in the emitted Yul AST.
+
+Validation run:
+
+```sh
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+just evm-semantic-plan
+just evm-diagnostics
+just evm-build-examples
+just evm-foundry
+just evm-ir-smokes
+lake build
+git diff --check
+```
+
+Result:
+
+- Planned control-flow bodies now cover the storage write effects already
+  represented by `StmtPlan.effect` / `EffectPlan`.
+- EVM semantic-plan, diagnostics, example bytecode generation, Foundry smoke,
+  IR smokes, full Lake build, and whitespace checks passed locally.

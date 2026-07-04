@@ -368,9 +368,13 @@ Tasks:
     final Yul statement assembly.
   - Started: scalar `ifElse` and `boundedFor` control-flow frame assembly now
     consumes narrow `StmtPlan -> ToYul` helpers. If conditions and synthesized
-    bounded-loop guards consume `ExprPlan -> ToYul`; branch/loop body lowering
-    and statement sequencing remain in the `IR.lean` compatibility facade until
-    recursive `StmtPlan -> Yul` body lowering is extracted.
+    bounded-loop guards consume `ExprPlan -> ToYul`; supported branch/loop body
+    statements now recursively consume planned scalar bindings, scalar/local
+    aggregate-scalar assignments, assertions, returns, reverts, scalar storage
+    writes, map writes, array writes, struct-field writes, and storage-path
+    writes/assign-ops. Statement sequencing and unsupported body shapes still
+    remain in the `IR.lean` compatibility facade until full recursive
+    `StmtPlan -> Yul` lowering is extracted.
   - Started: scalar event data words and indexed scalar event topics now
     consume the same `ExprPlan -> ToYul` expression boundary. Aggregate event
     flattening and indexed aggregate topic hashing remain in the compatibility
