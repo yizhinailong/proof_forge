@@ -693,13 +693,57 @@ def testMapWritePlanToYul : IO Unit := do
     { name := "key", type := .u64, isMutable := false },
     { name := "value", type := .u64, isMutable := false }
   ]
+  let directWriteStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.mapWriteEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmMapProbe.module env)
+      (fun _ => .ok (Lean.Compiler.Yul.Expr.num 0))
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageMapSet
+          "balances"
+          (.checkedArith .add (.local "key") (.literalWord 1))
+          (.effect (.storageScalarRead "before")))))
+    "map write StmtPlan-to-Yul helper"
+  require (directWriteStmts.size == 1) "map write StmtPlan-to-Yul helper statement count"
+  match directWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
+      require (name == mapWriteFunctionName) "map write StmtPlan-to-Yul helper call"
+      require (args.size == 3) "map write StmtPlan-to-Yul helper arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "map write StmtPlan-to-Yul helper key checked add"
+          require (addArgs.size == 2) "map write StmtPlan-to-Yul helper key checked add arg count"
+      | _ => throw <| IO.userError "map write StmtPlan-to-Yul helper key must be checked add"
+      match args[2]! with
+      | Lean.Compiler.Yul.Expr.builtin readName readArgs => do
+          require (readName == "sload") "map write StmtPlan-to-Yul helper value storage read"
+          require (readArgs.size == 1) "map write StmtPlan-to-Yul helper value sload arg count"
+      | _ => throw <| IO.userError "map write StmtPlan-to-Yul helper value must be storage read"
+  | _ => throw <| IO.userError "map write StmtPlan-to-Yul helper must lower to helper call"
+  let directInsertStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.mapWriteEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmMapProbe.module env)
+      (fun _ => .ok (Lean.Compiler.Yul.Expr.num 0))
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageMapInsert "balances" (.local "key") (.local "value"))))
+    "map insert StmtPlan-to-Yul helper"
+  require (directInsertStmts.size == 1) "map insert StmtPlan-to-Yul helper statement count"
+  match directInsertStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
+      require (name == mapWriteFunctionName) "map insert StmtPlan-to-Yul helper call"
+      require (args.size == 3) "map insert StmtPlan-to-Yul helper arg count"
+  | _ => throw <| IO.userError "map insert StmtPlan-to-Yul helper must lower to helper call"
   let writeStmt ← requireOk
-    (lowerMapWriteStmt
+    (lowerEffectStmt
       ProofForge.IR.Examples.EvmMapProbe.module
       env
-      "balances"
-      (.add (.local "key") (.literal (.u64 1)))
-      (.effect (.storageScalarRead "before")))
+      (.storageMapSet
+        "balances"
+        (.add (.local "key") (.literal (.u64 1)))
+        (.effect (.storageScalarRead "before"))))
     "map write key/value plan-to-yul"
   match writeStmt with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do

@@ -421,6 +421,37 @@ def scalarStorageEffectStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar storage effect lowering expected effect")
 
+def mapWriteEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (mapRootSlotFor : String → Except ε Lean.Compiler.Yul.Expr) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storageMapInsert stateId key value
+  | .storageMapSet stateId key value => do
+      .ok #[
+        .exprStmt (helperCall Helper.mapWrite #[
+          ← mapRootSlotFor stateId,
+          ← exprPlanExpr mkError lowerExpr lowerEffect key,
+          ← exprPlanExpr mkError lowerExpr lowerEffect value
+        ])
+      ]
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul map write lowering expected storageMapInsert/storageMapSet")
+
+def mapWriteEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (mapRootSlotFor : String → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      mapWriteEffectPlanStatements mkError lowerExpr lowerEffect mapRootSlotFor effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul map write lowering expected effect")
+
 /-! ## Plan-driven helper requirements
 
 `StorageSlotPlan.requiredHelpers` lets the plan declare which EVM helper functions

@@ -17,6 +17,40 @@ Each entry should include:
 
 ## 2026-07-04
 
+### EVM Map Write Effect StmtPlan-To-Yul Slice
+
+Commit: this commit
+
+Summary:
+
+- Added `ToYul.mapWriteEffectPlanStatements` and
+  `ToYul.mapWriteEffectStmtPlanStatements` for statement-position
+  `storageMapInsert` / `storageMapSet` assembly.
+- Routed statement-position map writes through the helper when both key and
+  value are in the supported scalar plan subset.
+- Kept map root slot lookup, expression-position set-return map writes, and
+  storage-path map writes in the `IR.lean` compatibility facade.
+- Extended `Tests/EvmSemanticPlan.lean` to cover direct `StmtPlan.effect`
+  helper output and the integrated `lowerEffectStmt` path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- This slice covers statement-position direct map writes only.
+  Expression-position return-old-value map writes and storage-path map writes
+  still use their existing compatibility paths.
+
+Next step:
+
+- Move storage array writes or storage-path write assembly behind a
+  `StmtPlan.effect` / `EffectPlan -> Yul` helper.
+
 ### EVM Scalar Storage Effect StmtPlan-To-Yul Slice
 
 Commit: this commit

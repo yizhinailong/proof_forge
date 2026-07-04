@@ -3332,6 +3332,41 @@ def lowerMapWriteStmt
     ← lowerMapScalarPlanExprOrFallback module env value
   ]))
 
+partial def lowerMapWriteStmtPlanOrFallback
+    (module : Module)
+    (env : TypeEnv)
+    (stateId : String)
+    (mkEffect : String → ProofForge.Backend.Evm.Plan.ExprPlan → ProofForge.Backend.Evm.Plan.ExprPlan → ProofForge.Backend.Evm.Plan.EffectPlan)
+    (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
+  if exprSupportsPlanScalarYul key && exprSupportsPlanScalarYul value then
+    let keyPlan ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) key with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    let valuePlan ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    let statements ←
+      ProofForge.Backend.Evm.ToYul.mapWriteEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun stateId => do
+          let (slot, _, _) ← requireStorageMapState module stateId
+          .ok (slotExpr slot))
+        (.effect (mkEffect stateId keyPlan valuePlan))
+    match statements[0]? with
+    | some statement =>
+        if statements.size == 1 then
+          .ok statement
+        else
+          .error { message := s!"EVM StmtPlan-to-Yul map write lowering produced {statements.size} statements, expected 1" }
+    | none =>
+        .error { message := "EVM StmtPlan-to-Yul map write lowering produced no statements" }
+  else
+    lowerMapWriteStmt module env stateId key value
+
 def lowerMapPathWriteStmt
     (module : Module)
     (env : TypeEnv)
@@ -3619,9 +3654,9 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
   | .storageMapGet _ _ =>
       .error { message := "storage.map.get must be used as an expression" }
   | .storageMapInsert stateId key value =>
-      lowerMapWriteStmt module env stateId key value
+      lowerMapWriteStmtPlanOrFallback module env stateId (fun stateId key value => .storageMapInsert stateId key value) key value
   | .storageMapSet stateId key value =>
-      lowerMapWriteStmt module env stateId key value
+      lowerMapWriteStmtPlanOrFallback module env stateId (fun stateId key value => .storageMapSet stateId key value) key value
   | .storageArrayRead _ _ =>
       .error { message := "storage.array.read must be used as an expression" }
   | .storageArrayWrite stateId index value =>

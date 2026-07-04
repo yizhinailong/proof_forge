@@ -304,10 +304,13 @@ Tasks:
     helper for supported scalar value expressions. State-layout slot resolution
     and struct storage writes remain in the compatibility facade until their own
     extraction slices add coverage.
-  - Started: `storageMapInsert`/`storageMapSet` write lowering now consumes
-    the same `ExprPlan -> ToYul` expression boundary for supported scalar map
-    key/value expressions in both statement writes and return-old-value
-    expression writes.
+  - Started: statement-position `storageMapInsert`/`storageMapSet` write
+    assembly now consumes a narrow `StmtPlan.effect` / `EffectPlan -> ToYul`
+    helper for supported scalar map key/value expressions. Expression-position
+    return-old-value map writes still consume the existing `ExprPlan -> ToYul`
+    expression helper, while map root slot lookup and storage-path map writes
+    remain in the compatibility facade until their own extraction slices add
+    coverage.
   - Started: `storageArrayWrite` value lowering now consumes the same
     `ExprPlan -> ToYul` expression boundary for supported scalar write values.
     Array index slot assembly remains on the existing `StorageSlotPlan ->
