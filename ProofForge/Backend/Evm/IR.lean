@@ -2784,21 +2784,18 @@ mutual
       (context : String)
       (plans : Array ProofForge.Backend.Evm.Plan.ExprPlan) :
       Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    let mut words : Array Lean.Compiler.Yul.Expr := #[]
-    for plan in plans do
-      match plan with
-      | .localCrosscallWords name type => do
-          words := words ++ (← ProofForge.Backend.Evm.ToYul.localCrosscallWords
+    ProofForge.Backend.Evm.ToYul.crosscallArgWordPlanExprs
+      (lowerExprPlanExpr module env)
+      (fun name type =>
+        ProofForge.Backend.Evm.ToYul.localCrosscallWords
             toYulError
             (localCrosscallStructFieldIds module context)
             context
             name
             type)
-      | .storageCrosscallWords stateId type => do
-          words := words ++ (← lowerStorageCrosscallWords module context stateId type)
-      | _ =>
-          words := words.push (← lowerExprPlanExpr module env plan)
-    .ok words
+      (fun stateId type =>
+        lowerStorageCrosscallWords module context stateId type)
+      plans
 
   partial def lowerExprPlanExpr
       (module : Module)

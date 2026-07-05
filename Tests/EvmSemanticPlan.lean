@@ -1692,6 +1692,38 @@ def testLocalCrosscallWordsToYul : IO Unit := do
   require (directArrayWords.size == 2) "direct local crosscall fixed-array words count"
   requireIdentExpr directArrayWords[0]! "__proof_forge_array_xs_0" "direct local crosscall fixed-array word 0"
   requireIdentExpr directArrayWords[1]! "__proof_forge_array_xs_1" "direct local crosscall fixed-array word 1"
+  let directArgWords ← requireOk
+    (ProofForge.Backend.Evm.ToYul.crosscallArgWordPlanExprs
+      (fun
+        | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
+        | _ => .error { message := "direct crosscall arg word plan test only lowers literal scalar plans" })
+      (fun name type =>
+        ProofForge.Backend.Evm.ToYul.localCrosscallWords
+          toYulError
+          simpleStructFields
+          "crosscall argument"
+          name
+          type)
+      (fun stateId type =>
+        if stateId == "current" && type == .structType "Point" then
+          .ok #[Lean.Compiler.Yul.Expr.id "current_x", Lean.Compiler.Yul.Expr.id "current_y"]
+        else
+          .error { message := "direct crosscall arg word plan test unexpected storage plan" })
+      #[
+        .localCrosscallWords "p" (.structType "Point"),
+        .literalWord 9,
+        .storageCrosscallWords "current" (.structType "Point")
+      ])
+    "direct crosscall arg word plan ToYul"
+  require (directArgWords.size == 5) "direct crosscall arg word plan word count"
+  requireIdentExpr directArgWords[0]! "__proof_forge_struct_p_x" "direct crosscall arg word plan local word 0"
+  requireIdentExpr directArgWords[1]! "__proof_forge_struct_p_y" "direct crosscall arg word plan local word 1"
+  match directArgWords[2]! with
+  | Lean.Compiler.Yul.Expr.lit value =>
+      require (value.value == "9") "direct crosscall arg word plan scalar word"
+  | _ => throw <| IO.userError "direct crosscall arg word plan scalar word must be numeric"
+  requireIdentExpr directArgWords[3]! "current_x" "direct crosscall arg word plan storage word 0"
+  requireIdentExpr directArgWords[4]! "current_y" "direct crosscall arg word plan storage word 1"
   let structEnv : TypeEnv := #[
     { name := "p", type := .structType "Point", isMutable := false }
   ]

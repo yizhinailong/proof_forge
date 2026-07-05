@@ -1406,6 +1406,23 @@ def localCrosscallWords
     (type : ValueType) : Except ε (Array Lean.Compiler.Yul.Expr) :=
   localCrosscallWordsAt mkError structFieldIds context name #[] type
 
+partial def crosscallArgWordPlanExprs
+    {ε : Type}
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (localWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
+    (storageWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
+    (plans : Array ExprPlan) : Except ε (Array Lean.Compiler.Yul.Expr) := do
+  let mut words : Array Lean.Compiler.Yul.Expr := #[]
+  for plan in plans do
+    match plan with
+    | .localCrosscallWords name type =>
+        words := words ++ (← localWords name type)
+    | .storageCrosscallWords stateId type =>
+        words := words ++ (← storageWords stateId type)
+    | _ =>
+        words := words.push (← lowerPlanExpr plan)
+  .ok words
+
 def abiParamsHeadWordCount (params : Array AbiParamPlan) : Nat :=
   params.foldl (fun acc param => acc + param.headWordCount) 0
 

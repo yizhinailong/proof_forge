@@ -526,7 +526,11 @@ Tasks:
     struct reads as `ExprPlan.storageCrosscallWords`, expands struct literal
     and fixed-array literal crosscall arguments into scalar word `ExprPlan`s,
     and lets `IR.lowerExprPlanExpr` consume those planned words before
-    selecting the helper-call arity.
+    selecting the helper-call arity. The final traversal and concatenation of
+    planned crosscall argument word groups now uses
+    `ToYul.crosscallArgWordPlanExprs`; `IR.lean` supplies only the
+    local/storage word-provider callbacks that still depend on compatibility
+    type-env helpers.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,
