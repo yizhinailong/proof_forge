@@ -1433,6 +1433,29 @@ partial def crosscallArgWordPlanExprs
         words := words.push (← lowerPlanExpr exprPlan)
   .ok words
 
+def crosscallAggregateReturnAssignmentPlanStatement
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (localWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
+    (storageWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
+    (plan : CrosscallReturnAssignmentPlan) :
+    Except ε Lean.Compiler.Yul.Statement := do
+  let target ← lowerPlanExpr plan.target
+  let methodId ← lowerPlanExpr plan.methodId
+  let callValue? ← plan.callValue?.mapM lowerPlanExpr
+  let argWords ← crosscallArgWordPlanExprs lowerPlanExpr localWords storageWords plan.args
+  crosscallAggregateReturnAssignment
+    mkError
+    plan.returns.localNames
+    plan.mode
+    target
+    methodId
+    callValue?
+    argWords
+    plan.returns.returnType
+    plan.returns.wordTypes
+
 partial def crosscallExprPlanExpr
     {ε : Type}
     (mkError : String → ε)

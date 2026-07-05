@@ -712,7 +712,13 @@ Tasks:
     legacy untyped scalar expression crosscall lowering now enters
     `Lower.buildExpressionExprPlan` -> `ExprPlan.crosscall` before that ToYul
     boundary. The old IR-local scalar helper-call branch and
-    `lowerCrosscall*ArgWords` expansion tree have been removed.
+    `lowerCrosscall*ArgWords` expansion tree have been removed. Aggregate
+    crosscall return assignment now also enters
+    `ToYul.crosscallAggregateReturnAssignmentPlanStatement`, so target/method/
+    call-value lowering, planned crosscall argument word traversal, helper-call
+    name selection, argument ordering, and multi-return assignment construction
+    live behind the ToYul plan boundary; `IR.lean` only provides the local/
+    storage word-source provider callbacks.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

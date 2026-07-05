@@ -928,6 +928,53 @@ def testPlannedCrosscallHelperDiscoveryToYul : IO Unit := do
       require (name == "__proof_forge_crosscall_0_abi_bool_u32") "aggregate crosscall return assignment helper name"
       require (args.size == 2) "aggregate crosscall return assignment arg count"
   | _ => throw <| IO.userError "aggregate crosscall return assignment must assign aggregate helper call"
+  let aggregateAssignmentFromPlan ←
+    requireOk
+      (ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignmentPlanStatement
+        toYulError
+        (fun
+          | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
+          | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
+          | _ => .error { message := "aggregate crosscall return plan helper test only lowers local/literal scalar plans" })
+        (fun name type =>
+          if name == "pair" && type == .structType "RemotePair" then
+            .ok #[Lean.Compiler.Yul.Expr.id "pair_flag", Lean.Compiler.Yul.Expr.id "pair_small"]
+          else
+            .error { message := "aggregate crosscall return plan helper test unexpected local source" })
+        (fun _stateId _type =>
+          .error { message := "aggregate crosscall return plan helper test should not lower storage sources" })
+        { aggregateAssignmentPlan with
+          args := #[
+            CrosscallArgWordPlan.local "pair" (.structType "RemotePair"),
+            CrosscallArgWordPlan.expr (.literalWord 7)
+          ] })
+      "aggregate crosscall return assignment plan helper"
+  let aggregateAssignmentFromPlanName ←
+    requireOk
+      (ProofForge.Backend.Evm.ToYul.crosscallHelperFunctionName
+        toYulError
+        (ProofForge.Backend.Evm.ToYul.crosscallAggregateHelperSpec
+          ProofForge.Backend.Evm.Plan.CrosscallMode.call
+          3
+          (.structType "RemotePair")
+          #[.bool, .u32]))
+      "aggregate crosscall return assignment plan helper name"
+  match aggregateAssignmentFromPlan with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["__proof_forge_return_0", "__proof_forge_return_1"])
+        "aggregate crosscall return assignment plan helper return names"
+      require (name == aggregateAssignmentFromPlanName)
+        "aggregate crosscall return assignment plan helper function name"
+      require (args.size == 5) "aggregate crosscall return assignment plan helper arg count"
+      requireIdentExpr args[0]! "target" "aggregate crosscall return assignment plan helper target"
+      requireIdentExpr args[1]! "method" "aggregate crosscall return assignment plan helper method"
+      requireIdentExpr args[2]! "pair_flag" "aggregate crosscall return assignment plan helper local word 0"
+      requireIdentExpr args[3]! "pair_small" "aggregate crosscall return assignment plan helper local word 1"
+      match args[4]! with
+      | Lean.Compiler.Yul.Expr.lit value =>
+          require (value.value == "7") "aggregate crosscall return assignment plan helper literal arg"
+      | _ => throw <| IO.userError "aggregate crosscall return assignment plan helper final arg must be literal"
+  | _ => throw <| IO.userError "aggregate crosscall return assignment plan helper must assign aggregate helper call"
   let aggregateReturnStmts ←
     requireOk
       (lowerReturnAssignments

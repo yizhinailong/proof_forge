@@ -2603,20 +2603,13 @@ def lowerCrosscallReturnAssignmentPlan
     (env : TypeEnv)
     (plan : ProofForge.Backend.Evm.Plan.CrosscallReturnAssignmentPlan) :
     Except LowerError Lean.Compiler.Yul.Statement := do
-  let target ← lowerExprPlanExpr module env plan.target
-  let methodId ← lowerExprPlanExpr module env plan.methodId
-  let callValue? ← plan.callValue?.mapM (lowerExprPlanExpr module env)
-  let argWords ← lowerCrosscallArgWordPlanExprs module env (crosscallPlanArgContext plan.mode) plan.args
-  ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignment
+  let argContext := crosscallPlanArgContext plan.mode
+  ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignmentPlanStatement
     toYulError
-    plan.returns.localNames
-    plan.mode
-    target
-    methodId
-    callValue?
-    argWords
-    plan.returns.returnType
-    plan.returns.wordTypes
+    (lowerExprPlanExpr module env)
+    (fun name type => lowerLocalCrosscallWords module env argContext name type)
+    (fun stateId type => lowerStorageCrosscallWords module env argContext stateId type)
+    plan
 
 def lowerAbiWordPlanExprs
     (module : Module)
