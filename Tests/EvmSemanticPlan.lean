@@ -100,6 +100,14 @@ def requireLiteralWordPlan
       require (value == expectedValue) s!"{label} literal word value"
   | _ => throw <| IO.userError s!"{label} must be a literal word plan"
 
+def requireCrosscallLiteralWordPlan
+    (plan : CrosscallArgWordPlan)
+    (expectedValue : Nat)
+    (label : String) : IO Unit := do
+  match plan with
+  | .expr exprPlan => requireLiteralWordPlan exprPlan expectedValue label
+  | _ => throw <| IO.userError s!"{label} must be a crosscall scalar expression word plan"
+
 def requireScalarStorageTarget
     (target : ScalarStorageTargetPlan)
     (expectedSlot expectedByteOffset expectedByteWidth : Nat)
@@ -1158,7 +1166,7 @@ def testScalarExprPlanToYul : IO Unit := do
         (.local "target")
         (.literalWord 305419896)
         none
-        #[.local "amount"]
+        #[CrosscallArgWordPlan.expr (.local "amount")]
         .u32))
     "scalar crosscall ExprPlan-to-Yul"
   requireCallExpr
@@ -1185,10 +1193,10 @@ def testScalarExprPlanToYul : IO Unit := do
       require (args.size == 1) "local aggregate crosscall argument plan word group count"
       let argPlan ← requireAt args 0 "local aggregate crosscall argument missing plan"
       match argPlan with
-      | .localCrosscallWords name type => do
+      | CrosscallArgWordPlan.local name type => do
           require (name == "p") "local aggregate crosscall argument plan local name"
           require (type == .structType "Point") "local aggregate crosscall argument plan type"
-      | _ => throw <| IO.userError "local aggregate crosscall argument must use localCrosscallWords plan"
+      | _ => throw <| IO.userError "local aggregate crosscall argument must use crosscall local source plan"
   | _ => throw <| IO.userError "local aggregate crosscall argument must lower to call plan"
   let aggregateArgPlanExpr ← requireOk
     (lowerExprPlanExpr
@@ -1234,12 +1242,12 @@ def testScalarExprPlanToYul : IO Unit := do
       require (args.size == 2) "storage-backed aggregate crosscall argument plan word count"
       let xArgPlan ← requireAt args 0 "storage-backed aggregate crosscall argument missing x plan"
       match xArgPlan with
-      | .storageLoad (.scalarSlot slot) =>
+      | CrosscallArgWordPlan.expr (.storageLoad (.scalarSlot slot)) =>
           require (slot == 1) "storage-backed aggregate crosscall argument x slot"
       | _ => throw <| IO.userError "storage-backed aggregate crosscall argument x must use storageLoad plan"
       let yArgPlan ← requireAt args 1 "storage-backed aggregate crosscall argument missing y plan"
       match yArgPlan with
-      | .storageLoad (.scalarSlot slot) =>
+      | CrosscallArgWordPlan.expr (.storageLoad (.scalarSlot slot)) =>
           require (slot == 2) "storage-backed aggregate crosscall argument y slot"
       | _ => throw <| IO.userError "storage-backed aggregate crosscall argument y must use storageLoad plan"
   | _ => throw <| IO.userError "storage-backed aggregate crosscall argument must lower to call plan"
@@ -1270,9 +1278,9 @@ def testScalarExprPlanToYul : IO Unit := do
   match aggregateStructLiteralArgPlan with
   | .crosscall .call _ _ none args .u64 => do
       require (args.size == 2) "struct literal aggregate crosscall argument plan word count"
-      requireLiteralWordPlan (← requireAt args 0 "struct literal aggregate crosscall argument missing x word") 4
+      requireCrosscallLiteralWordPlan (← requireAt args 0 "struct literal aggregate crosscall argument missing x word") 4
         "struct literal aggregate crosscall argument x word"
-      requireLiteralWordPlan (← requireAt args 1 "struct literal aggregate crosscall argument missing y word") 6
+      requireCrosscallLiteralWordPlan (← requireAt args 1 "struct literal aggregate crosscall argument missing y word") 6
         "struct literal aggregate crosscall argument y word"
   | _ => throw <| IO.userError "struct literal aggregate crosscall argument must lower to call plan"
   let aggregateStructLiteralArgPlanExpr ← requireOk
@@ -1302,9 +1310,9 @@ def testScalarExprPlanToYul : IO Unit := do
   match aggregateArrayLiteralArgPlan with
   | .crosscall .call _ _ none args .u64 => do
       require (args.size == 2) "array literal aggregate crosscall argument plan word count"
-      requireLiteralWordPlan (← requireAt args 0 "array literal aggregate crosscall argument missing element 0 word") 5
+      requireCrosscallLiteralWordPlan (← requireAt args 0 "array literal aggregate crosscall argument missing element 0 word") 5
         "array literal aggregate crosscall argument element 0 word"
-      requireLiteralWordPlan (← requireAt args 1 "array literal aggregate crosscall argument missing element 1 word") 8
+      requireCrosscallLiteralWordPlan (← requireAt args 1 "array literal aggregate crosscall argument missing element 1 word") 8
         "array literal aggregate crosscall argument element 1 word"
   | _ => throw <| IO.userError "array literal aggregate crosscall argument must lower to call plan"
   let aggregateArrayLiteralArgPlanExpr ← requireOk
@@ -1333,13 +1341,13 @@ def testScalarExprPlanToYul : IO Unit := do
   match aggregateNestedArrayLiteralArgPlan with
   | .crosscall .call _ _ none args .u64 => do
       require (args.size == 4) "nested array literal aggregate crosscall argument plan word count"
-      requireLiteralWordPlan (← requireAt args 0 "nested array literal aggregate crosscall argument missing word 0") 1
+      requireCrosscallLiteralWordPlan (← requireAt args 0 "nested array literal aggregate crosscall argument missing word 0") 1
         "nested array literal aggregate crosscall argument word 0"
-      requireLiteralWordPlan (← requireAt args 1 "nested array literal aggregate crosscall argument missing word 1") 2
+      requireCrosscallLiteralWordPlan (← requireAt args 1 "nested array literal aggregate crosscall argument missing word 1") 2
         "nested array literal aggregate crosscall argument word 1"
-      requireLiteralWordPlan (← requireAt args 2 "nested array literal aggregate crosscall argument missing word 2") 3
+      requireCrosscallLiteralWordPlan (← requireAt args 2 "nested array literal aggregate crosscall argument missing word 2") 3
         "nested array literal aggregate crosscall argument word 2"
-      requireLiteralWordPlan (← requireAt args 3 "nested array literal aggregate crosscall argument missing word 3") 4
+      requireCrosscallLiteralWordPlan (← requireAt args 3 "nested array literal aggregate crosscall argument missing word 3") 4
         "nested array literal aggregate crosscall argument word 3"
   | _ => throw <| IO.userError "nested array literal aggregate crosscall argument must lower to call plan"
   let aggregateNestedArrayLiteralArgPlanExpr ← requireOk
@@ -1369,13 +1377,13 @@ def testScalarExprPlanToYul : IO Unit := do
   match aggregateStructArrayLiteralArgPlan with
   | .crosscall .call _ _ none args .u64 => do
       require (args.size == 4) "struct-array literal aggregate crosscall argument plan word count"
-      requireLiteralWordPlan (← requireAt args 0 "struct-array literal aggregate crosscall argument missing flag 0 word") 1
+      requireCrosscallLiteralWordPlan (← requireAt args 0 "struct-array literal aggregate crosscall argument missing flag 0 word") 1
         "struct-array literal aggregate crosscall argument flag 0 word"
-      requireLiteralWordPlan (← requireAt args 1 "struct-array literal aggregate crosscall argument missing small 0 word") 7
+      requireCrosscallLiteralWordPlan (← requireAt args 1 "struct-array literal aggregate crosscall argument missing small 0 word") 7
         "struct-array literal aggregate crosscall argument small 0 word"
-      requireLiteralWordPlan (← requireAt args 2 "struct-array literal aggregate crosscall argument missing flag 1 word") 0
+      requireCrosscallLiteralWordPlan (← requireAt args 2 "struct-array literal aggregate crosscall argument missing flag 1 word") 0
         "struct-array literal aggregate crosscall argument flag 1 word"
-      requireLiteralWordPlan (← requireAt args 3 "struct-array literal aggregate crosscall argument missing small 1 word") 9
+      requireCrosscallLiteralWordPlan (← requireAt args 3 "struct-array literal aggregate crosscall argument missing small 1 word") 9
         "struct-array literal aggregate crosscall argument small 1 word"
   | _ => throw <| IO.userError "struct-array literal aggregate crosscall argument must lower to call plan"
   let aggregateStructArrayLiteralArgPlanExpr ← requireOk
@@ -1875,9 +1883,9 @@ def testLocalCrosscallWordsToYul : IO Unit := do
         else
           .error { message := "direct crosscall arg word plan test unexpected storage plan" })
       #[
-        .localCrosscallWords "p" (.structType "Point"),
-        .literalWord 9,
-        .storageCrosscallWords "current" (.structType "Point")
+        CrosscallArgWordPlan.local "p" (.structType "Point"),
+        CrosscallArgWordPlan.expr (.literalWord 9),
+        CrosscallArgWordPlan.storage "current" (.structType "Point")
       ])
     "direct crosscall arg word plan ToYul"
   require (directArgWords.size == 5) "direct crosscall arg word plan word count"

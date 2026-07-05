@@ -1421,16 +1421,16 @@ partial def crosscallArgWordPlanExprs
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
     (localWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
     (storageWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
-    (plans : Array ExprPlan) : Except ε (Array Lean.Compiler.Yul.Expr) := do
+    (plans : Array CrosscallArgWordPlan) : Except ε (Array Lean.Compiler.Yul.Expr) := do
   let mut words : Array Lean.Compiler.Yul.Expr := #[]
   for plan in plans do
     match plan with
-    | .localCrosscallWords name type =>
+    | .local name type =>
         words := words ++ (← localWords name type)
-    | .storageCrosscallWords stateId type =>
+    | .storage stateId type =>
         words := words ++ (← storageWords stateId type)
-    | _ =>
-        words := words.push (← lowerPlanExpr plan)
+    | .expr exprPlan =>
+        words := words.push (← lowerPlanExpr exprPlan)
   .ok words
 
 def abiParamsHeadWordCount (params : Array AbiParamPlan) : Nat :=
@@ -2262,7 +2262,10 @@ partial def exprPlanExpr
       let targetExpr ← exprPlanExpr mkError lowerExpr lowerEffect target
       let methodIdExpr ← exprPlanExpr mkError lowerExpr lowerEffect methodId
       let callValueExpr? ← callValue?.mapM (exprPlanExpr mkError lowerExpr lowerEffect)
-      let argExprs ← args.mapM (exprPlanExpr mkError lowerExpr lowerEffect)
+      let argExprs ← args.mapM fun
+        | .expr plan => exprPlanExpr mkError lowerExpr lowerEffect plan
+        | .local .. | .storage .. =>
+            .error (mkError "generic ExprPlan-to-Yul crosscall lowering requires pre-expanded argument word plans")
       let plainTransfer :=
         mode == .callValue && args.isEmpty &&
           match methodId with

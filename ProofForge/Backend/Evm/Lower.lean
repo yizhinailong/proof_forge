@@ -198,6 +198,9 @@ def storageCrosscallWordPlans
         message := s!"{context} storage-backed crosscall word expansion supports struct scalar storage only, got `{expectedType.name}`"
       }
 
+def wrapCrosscallExprWordPlans (plans : Array ExprPlan) : Array CrosscallArgWordPlan :=
+  plans.map CrosscallArgWordPlan.expr
+
 def storageArrayAbiWordPlans
     (module : Module)
     (context stateId : String)
@@ -658,26 +661,26 @@ mutual
       (module : Module)
       (env : TypeEnv)
       (context typeName : String)
-      (arg : Expr) : Except LowerError (Array ExprPlan) := do
+      (arg : Expr) : Except LowerError (Array CrosscallArgWordPlan) := do
     discard <| crosscallArgWordTypes module context (.structType typeName)
     let some decl := ProofForge.Backend.Evm.Validate.findStruct? module typeName
       | .error { message := s!"{context} uses unknown struct `{typeName}`" }
     match arg with
     | .local name =>
         ensureType context (.structType typeName) (← inferExprType module env arg)
-        .ok #[.localCrosscallWords name (.structType typeName)]
+        .ok #[.local name (.structType typeName)]
     | .structLit literalTypeName fields => do
         if literalTypeName != typeName then
           .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }
-        let mut plans : Array ExprPlan := #[]
+        let mut plans : Array CrosscallArgWordPlan := #[]
         for fieldDecl in decl.fields do
           ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
           let some field := fields.find? fun field => field.fst == fieldDecl.id
             | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-          plans := plans.push (← buildExprPlan module env field.snd)
+          plans := plans.push (.expr (← buildExprPlan module env field.snd))
         .ok plans
     | .effect (.storageScalarRead stateId) => do
-        storageCrosscallWordPlans module context stateId (.structType typeName)
+        .ok (wrapCrosscallExprWordPlans (← storageCrosscallWordPlans module context stateId (.structType typeName)))
     | _ =>
         .error {
           message := s!"{context} struct values in IR EVM v0 support local struct values, struct literals, or storage scalar struct reads only"
@@ -688,17 +691,17 @@ mutual
       (env : TypeEnv)
       (context typeName : String)
       (length : Nat)
-      (arg : Expr) : Except LowerError (Array ExprPlan) := do
+      (arg : Expr) : Except LowerError (Array CrosscallArgWordPlan) := do
     discard <| crosscallArgWordTypes module context (.fixedArray (.structType typeName) length)
     match arg with
     | .local name =>
         ensureType context (.fixedArray (.structType typeName) length) (← inferExprType module env arg)
-        .ok #[.localCrosscallWords name (.fixedArray (.structType typeName) length)]
+        .ok #[.local name (.fixedArray (.structType typeName) length)]
     | .arrayLit literalElementType values => do
         ensureType s!"{context} fixed-array element type" (.structType typeName) literalElementType
         if values.size != length then
           .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
-        let mut plans : Array ExprPlan := #[]
+        let mut plans : Array CrosscallArgWordPlan := #[]
         for h : idx in [0:values.size] do
           match values[idx] with
           | .structLit .. =>
@@ -720,7 +723,7 @@ mutual
       (context : String)
       (elementType : ValueType)
       (length : Nat)
-      (arg : Expr) : Except LowerError (Array ExprPlan) := do
+      (arg : Expr) : Except LowerError (Array CrosscallArgWordPlan) := do
     discard <| crosscallArgWordTypes module context (.fixedArray elementType length)
     match elementType with
     | .structType typeName =>
@@ -729,12 +732,12 @@ mutual
         match arg with
         | .local name =>
             ensureType context (.fixedArray elementType length) (← inferExprType module env arg)
-            .ok #[.localCrosscallWords name (.fixedArray elementType length)]
+            .ok #[.local name (.fixedArray elementType length)]
         | .arrayLit literalElementType values => do
             ensureType s!"{context} fixed-array element type" elementType literalElementType
             if values.size != length then
               .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
-            let mut plans : Array ExprPlan := #[]
+            let mut plans : Array CrosscallArgWordPlan := #[]
             for h : idx in [0:values.size] do
               plans := plans ++ (← buildCrosscallFixedArrayArgWordPlans module env context nestedElementType nestedLength values[idx])
             .ok plans
@@ -746,14 +749,14 @@ mutual
         match arg with
         | .local name =>
             ensureType context (.fixedArray elementType length) (← inferExprType module env arg)
-            .ok #[.localCrosscallWords name (.fixedArray elementType length)]
+            .ok #[.local name (.fixedArray elementType length)]
         | .arrayLit literalElementType values => do
             ensureType s!"{context} fixed-array element type" elementType literalElementType
             if values.size != length then
               .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
-            let mut plans : Array ExprPlan := #[]
+            let mut plans : Array CrosscallArgWordPlan := #[]
             for h : idx in [0:values.size] do
-              plans := plans.push (← buildExprPlan module env values[idx])
+              plans := plans.push (.expr (← buildExprPlan module env values[idx]))
             .ok plans
         | _ =>
             .error {
@@ -764,22 +767,22 @@ mutual
       (module : Module)
       (env : TypeEnv)
       (context : String)
-      (arg : Expr) : Except LowerError (Array ExprPlan) := do
+      (arg : Expr) : Except LowerError (Array CrosscallArgWordPlan) := do
     let type ← inferExprType module env arg
     discard <| crosscallArgWordTypes module context type
     match type with
     | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-        .ok #[← buildExprPlan module env arg]
+        .ok #[.expr (← buildExprPlan module env arg)]
     | .fixedArray elementType length =>
         match arg with
         | .local name =>
-            .ok #[.localCrosscallWords name type]
+            .ok #[.local name type]
         | _ =>
             buildCrosscallFixedArrayArgWordPlans module env context elementType length arg
     | .structType typeName =>
         match arg with
         | .local name =>
-            .ok #[.localCrosscallWords name type]
+            .ok #[.local name type]
         | _ =>
             buildCrosscallStructArgWordPlans module env context typeName arg
     | .array _ =>
@@ -791,8 +794,8 @@ mutual
       (module : Module)
       (env : TypeEnv)
       (context : String)
-      (args : Array Expr) : Except LowerError (Array ExprPlan) := do
-    let mut plans : Array ExprPlan := #[]
+      (args : Array Expr) : Except LowerError (Array CrosscallArgWordPlan) := do
+    let mut plans : Array CrosscallArgWordPlan := #[]
     for arg in args do
       plans := plans ++ (← buildCrosscallArgWordPlans module env context arg)
     .ok plans
@@ -881,7 +884,7 @@ mutual
           (← buildExprPlan module env target)
           (← buildExprPlan module env methodId)
           none
-          (← args.mapM (buildExprPlan module env))
+          (wrapCrosscallExprWordPlans (← args.mapM (buildExprPlan module env)))
           .u64)
     | .crosscallInvokeTyped target methodId args returnType => do
         .ok (.crosscall .call

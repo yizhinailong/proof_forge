@@ -2569,7 +2569,7 @@ mutual
       (module : Module)
       (env : TypeEnv)
       (context : String)
-      (plans : Array ProofForge.Backend.Evm.Plan.ExprPlan) :
+      (plans : Array ProofForge.Backend.Evm.Plan.CrosscallArgWordPlan) :
       Except LowerError (Array Lean.Compiler.Yul.Expr) := do
     ProofForge.Backend.Evm.ToYul.crosscallArgWordPlanExprs
       (lowerExprPlanExpr module env)
@@ -4880,6 +4880,11 @@ mutual
     | .storagePathReadExprTarget slot => storageSlotExprPlanSupportsScalarBody slot
     | _ => false
 
+  partial def crosscallArgWordPlanSupportsScalarBody :
+      ProofForge.Backend.Evm.Plan.CrosscallArgWordPlan → Bool
+    | .expr value => exprPlanSupportsScalarBody value
+    | .local .. | .storage .. => false
+
   partial def exprPlanSupportsScalarBody :
       ProofForge.Backend.Evm.Plan.ExprPlan → Bool
     | .literalWord _ => true
@@ -4912,7 +4917,7 @@ mutual
         (match callValue? with
          | none => true
          | some callValue => exprPlanSupportsScalarBody callValue) &&
-        args.all exprPlanSupportsScalarBody
+        args.all crosscallArgWordPlanSupportsScalarBody
     | .create _ callValue salt? _ =>
         exprPlanSupportsScalarBody callValue &&
         match salt? with

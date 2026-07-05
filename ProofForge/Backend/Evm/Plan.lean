@@ -772,7 +772,7 @@ mutual
     | hashPack (a b c d : ExprPlan)
     | context (field : ContextExprPlan)
     | crosscall (mode : CrosscallMode) (target methodId : ExprPlan)
-        (callValue? : Option ExprPlan) (args : Array ExprPlan) (returnType : ValueType)
+        (callValue? : Option ExprPlan) (args : Array CrosscallArgWordPlan) (returnType : ValueType)
     | create (mode : CreateMode) (callValue : ExprPlan) (salt? : Option ExprPlan)
         (initCodeHex : String)
     | cast (source : ExprPlan) (target : ValueType)
@@ -801,6 +801,12 @@ mutual
     | storage (stateId : String) (type : ValueType)
     | arrayLit (elementType : ValueType) (values : Array AbiValuePlan)
     | structLit (typeName : String) (fields : Array (String × AbiValuePlan))
+    deriving Repr
+
+  inductive CrosscallArgWordPlan where
+    | expr (value : ExprPlan)
+    | local (name : String) (type : ValueType)
+    | storage (stateId : String) (type : ValueType)
     deriving Repr
 
   inductive StorageSlotExprPlan where
@@ -1153,7 +1159,7 @@ structure CrosscallReturnAssignmentPlan where
   target : ExprPlan
   methodId : ExprPlan
   callValue? : Option ExprPlan
-  args : Array ExprPlan
+  args : Array CrosscallArgWordPlan
   deriving Repr
 
 structure ReturnValueWordPlan where
