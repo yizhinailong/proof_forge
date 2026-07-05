@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Storage-Path Write Lower-Plan Routing
+
+Commit: 9ecd2a0
+
+Summary:
+
+- Routed statement-position `storagePathWrite` lowering through
+  `Lower.buildEffectPlan`, so the `IR.lean` compatibility facade consumes the
+  planned `StoragePathWriteTargetPlan` variant instead of rebuilding the value
+  plan and target plan independently.
+- Routed statement-position `storagePathAssignOp` lowering through the same
+  `Lower.buildEffectPlan -> EffectPlan -> ToYul` boundary.
+- Preserved the existing fallback path for value expressions outside the
+  supported scalar plan subset.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+git diff --check -- ProofForge/Backend/Evm/IR.lean
+```
+
+Known limitations:
+
+- Storage-path key/index expressions still live inside `ValuePlan` wrappers
+  around IR expressions. They are now routed through the lower-plan boundary
+  for statement writes, but they are not yet first-class `ExprPlan` nodes inside
+  `StorageSlotPlan` / `StoragePathWriteTargetPlan`.
+
+Next step:
+
+- Widen storage-path target planning so map keys, array indexes, and
+  struct-array indexes can be represented as planned expression nodes before
+  final Yul assembly.
+
 ### EVM Planned Storage-Path Read Targets
 
 Commit: 3b9d33b
