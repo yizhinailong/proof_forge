@@ -1232,11 +1232,11 @@ def storageAbiWords
   | .fixedArray _ _ | .bytes | .string | .array _ =>
       .error (mkError s!"{context} storage-backed ABI word expansion supports struct scalar storage only, got `{type.name}`")
 
-def abiValueWordsFromPlan
+partial def abiValueWordsFromPlan
     {ε : Type}
     (mkError : String → ε)
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
-    (structFieldIds : String → Except ε (Array String))
+    (structFields : String → Except ε (Array (String × ValueType)))
     (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
     (context : String)
     (type : ValueType)
@@ -1245,11 +1245,13 @@ def abiValueWordsFromPlan
   match type with
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
       .ok #[← lowerPlanExpr value]
-  | .fixedArray _ _ | .structType _ =>
+  | .fixedArray elementType length =>
       match value with
       | .localAbiWords name plannedType =>
           if plannedType == type then
-            localAbiWords mkError structFieldIds context name type
+            localAbiWords mkError (fun typeName => do
+              let fields ← structFields typeName
+              .ok (fields.map fun field => field.fst)) context name type
           else
             .error (mkError s!"{context} local ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`")
       | .storageAbiWords stateId plannedType =>
@@ -1257,6 +1259,57 @@ def abiValueWordsFromPlan
             storageAbiWords mkError storageStructWords context stateId type
           else
             .error (mkError s!"{context} storage ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`")
+      | .arrayLit literalElementType values => do
+          if literalElementType != elementType then
+            .error (mkError s!"{context} fixed-array literal element type mismatch: expected `{elementType.name}`, got `{literalElementType.name}`")
+          if values.size != length then
+            .error (mkError s!"{context} fixed-array expected length {length}, got {values.size}")
+          let mut words : Array Lean.Compiler.Yul.Expr := #[]
+          for h : idx in [0:values.size] do
+            words := words ++
+              (← abiValueWordsFromPlan
+                mkError
+                lowerPlanExpr
+                structFields
+                storageStructWords
+                s!"{context} fixed-array element {idx}"
+                elementType
+                values[idx])
+          .ok words
+      | _ =>
+          .error (mkError s!"{context} aggregate field requires an ABI word expansion plan")
+  | .structType typeName =>
+      match value with
+      | .localAbiWords name plannedType =>
+          if plannedType == type then
+            localAbiWords mkError (fun typeName => do
+              let fields ← structFields typeName
+              .ok (fields.map fun field => field.fst)) context name type
+          else
+            .error (mkError s!"{context} local ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`")
+      | .storageAbiWords stateId plannedType =>
+          if plannedType == type then
+            storageAbiWords mkError storageStructWords context stateId type
+          else
+            .error (mkError s!"{context} storage ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`")
+      | .structLit literalTypeName fields => do
+          if literalTypeName != typeName then
+            .error (mkError s!"{context} expected struct `{typeName}`, got `{literalTypeName}`")
+          let fieldDecls ← structFields typeName
+          let mut words : Array Lean.Compiler.Yul.Expr := #[]
+          for fieldDecl in fieldDecls do
+            let some field := fields.find? fun field => field.fst == fieldDecl.fst
+              | .error (mkError s!"{context} struct literal `{typeName}` is missing field `{fieldDecl.fst}`")
+            words := words ++
+              (← abiValueWordsFromPlan
+                mkError
+                lowerPlanExpr
+                structFields
+                storageStructWords
+                s!"{context} struct field `{fieldDecl.fst}`"
+                fieldDecl.snd
+                field.snd)
+          .ok words
       | _ =>
           .error (mkError s!"{context} aggregate field requires an ABI word expansion plan")
   | .unit | .bytes | .string | .array _ =>
@@ -1888,7 +1941,7 @@ def eventFieldDataWordsFromPlan
     {ε : Type}
     (mkError : String → ε)
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
-    (structFieldIds : String → Except ε (Array String))
+    (structFields : String → Except ε (Array (String × ValueType)))
     (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
     (eventName : String)
     (field : EventFieldPlan)
@@ -1897,7 +1950,7 @@ def eventFieldDataWordsFromPlan
   abiValueWordsFromPlan
     mkError
     lowerPlanExpr
-    structFieldIds
+    structFields
     storageStructWords
     s!"planned event `{eventName}` field `{field.name}`"
     field.type
@@ -1907,7 +1960,7 @@ def eventFieldsDataWordsFromPlan
     {ε : Type}
     (mkError : String → ε)
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
-    (structFieldIds : String → Except ε (Array String))
+    (structFields : String → Except ε (Array (String × ValueType)))
     (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
     (eventName : String)
     (fields : Array EventFieldPlan)
@@ -1923,7 +1976,7 @@ def eventFieldsDataWordsFromPlan
       (← eventFieldDataWordsFromPlan
         mkError
         lowerPlanExpr
-        structFieldIds
+        structFields
         storageStructWords
         eventName
         fields[idx]
@@ -1934,7 +1987,7 @@ def eventIndexedTopicStatementsFromPlans
     {ε : Type}
     (mkError : String → ε)
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
-    (structFieldIds : String → Except ε (Array String))
+    (structFields : String → Except ε (Array (String × ValueType)))
     (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
     (event : EventPlan)
     (values : Array ExprPlan) :
@@ -1950,7 +2003,7 @@ def eventIndexedTopicStatementsFromPlans
       eventFieldDataWordsFromPlan
         mkError
         lowerPlanExpr
-        structFieldIds
+        structFields
         storageStructWords
         event.name
         fields[idx]

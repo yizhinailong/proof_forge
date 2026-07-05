@@ -2101,6 +2101,18 @@ mutual
       fieldIds := fieldIds.push fieldDecl.id
     .ok fieldIds
 
+  partial def localAbiStructFields
+      (module : Module)
+      (context typeName : String) : Except LowerError (Array (String × ValueType)) := do
+    discard <| abiValueWordTypes module context (.structType typeName)
+    let some decl := findStruct? module typeName
+      | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+    let mut fields : Array (String × ValueType) := #[]
+    for fieldDecl in decl.fields do
+      ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+      fields := fields.push (fieldDecl.id, fieldDecl.type)
+    .ok fields
+
   partial def lowerLocalAbiWords
       (module : Module)
       (env : TypeEnv)
@@ -3122,7 +3134,27 @@ partial def lowerIndexedEventTopicStatements
         message := s!"event `{eventName}` indexed field `{fieldName}` has unsupported EVM IR v0 type `{type.name}`; indexed event fields must be U32, U64, Bool, Hash, Address, flat structs, or fixed arrays"
       }
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .fixedArray _ _ | .structType _ => do
-      let words ← lowerEventDataWords module env eventName fieldName type value
+      let valuePlan ←
+        match ProofForge.Backend.Evm.Lower.buildEventFieldValuePlan
+          module
+          (toValidateTypeEnv env)
+          eventName
+          fieldName
+          type
+          value with
+        | .ok plan => .ok plan
+        | .error err => .error { message := err.message }
+      let words ←
+        ProofForge.Backend.Evm.ToYul.eventFieldDataWordsFromPlan
+          toYulError
+          (fun exprPlan => lowerExprPlanExpr module env exprPlan)
+          (localAbiStructFields module s!"event `{eventName}` indexed field")
+          (fun context typeName stateId => do
+            let fields ← lowerStructStorageReadFields module context typeName stateId
+            .ok (fields.map fun field => field.snd))
+          eventName
+          fieldPlan
+          valuePlan
       ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
         toYulError
         fieldPlan
@@ -5407,7 +5439,7 @@ def lowerScalarEventEffectPlan
         ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
           toYulError
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
-          (localAbiStructFieldIds module s!"event `{event.name}` data field")
+          (localAbiStructFields module s!"event `{event.name}` data field")
           (fun context typeName stateId => do
             let fields ← lowerStructStorageReadFields module context typeName stateId
             .ok (fields.map fun field => field.snd))
@@ -5420,7 +5452,7 @@ def lowerScalarEventEffectPlan
         ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatementsFromPlans
           toYulError
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
-          (localAbiStructFieldIds module s!"event `{event.name}` indexed field")
+          (localAbiStructFields module s!"event `{event.name}` indexed field")
           (fun context typeName stateId => do
             let fields ← lowerStructStorageReadFields module context typeName stateId
             .ok (fields.map fun field => field.snd))
@@ -5430,7 +5462,7 @@ def lowerScalarEventEffectPlan
         ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
           toYulError
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
-          (localAbiStructFieldIds module s!"event `{event.name}` data field")
+          (localAbiStructFields module s!"event `{event.name}` data field")
           (fun context typeName stateId => do
             let fields ← lowerStructStorageReadFields module context typeName stateId
             .ok (fields.map fun field => field.snd))

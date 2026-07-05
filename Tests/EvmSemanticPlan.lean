@@ -3279,7 +3279,7 @@ def testScalarEventPlanToYul : IO Unit := do
     | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
     | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
     | _ => .error (toYulError "unexpected event plan test expression")
-  let noStructFields (_ : String) : Except LowerError (Array String) :=
+  let noStructFields (_ : String) : Except LowerError (Array (String × ValueType)) :=
     .error (toYulError "unexpected event plan test struct fields")
   let noStorageWords (_context _typeName _stateId : String) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
     .error (toYulError "unexpected event plan test storage words")
@@ -3435,7 +3435,7 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
     (ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
       toYulError
       (fun _ => .error (toYulError "storage aggregate event should not lower scalar field value"))
-      (localAbiStructFieldIds module "storage aggregate event")
+      (localAbiStructFields module "storage aggregate event")
       (fun context typeName stateId => do
         let fields ← lowerStructStorageReadFields module context typeName stateId
         .ok (fields.map fun field => field.snd))
@@ -3450,6 +3450,63 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
         require (name == "sload") s!"storage aggregate event word {idx} must be sload"
         require (args.size == 1) s!"storage aggregate event word {idx} sload arg count"
     | _ => throw <| IO.userError s!"storage aggregate event word {idx} must lower to sload"
+
+def testStorageAggregateIndexedEventTopicPlanToYul : IO Unit := do
+  let module := ProofForge.IR.Examples.EventProbe.evmModule
+  let plan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      module
+      (toValidateTypeEnv #[{ name := "value", type := .u64, isMutable := false }])
+      (.eventEmitIndexed
+        "IndexedStoragePair"
+        #[("pair", .effect (.storageScalarRead "storedPair"))]
+        #[("value", .local "value")]))
+    "storage aggregate indexed event Lower EffectPlan"
+  let (event, indexedFields) ←
+    match plan with
+    | .eventEmitIndexed event indexedFields _ => pure (event, indexedFields)
+    | _ => throw <| IO.userError "storage aggregate indexed event must lower to eventEmitIndexed plan"
+  require (event.name == "IndexedStoragePair") "storage aggregate indexed event plan name"
+  require (event.indexedFields.size == 1) "storage aggregate indexed event indexed field count"
+  require (indexedFields.size == 1) "storage aggregate indexed event planned indexed value count"
+  match indexedFields[0]? with
+  | some (ExprPlan.storageAbiWords stateId type) => do
+      require (stateId == "storedPair") "storage aggregate indexed event storageAbiWords state id"
+      require (type == .structType "Pair") "storage aggregate indexed event storageAbiWords type"
+  | some _ => throw <| IO.userError "storage aggregate indexed event field must use storageAbiWords"
+  | none => throw <| IO.userError "storage aggregate indexed event missing planned indexed field"
+  let plannedTopicStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatementsFromPlans
+      toYulError
+      (fun _ => .error (toYulError "storage aggregate indexed event should not lower scalar indexed field"))
+      (localAbiStructFields module "storage aggregate indexed event")
+      (fun context typeName stateId => do
+        let fields ← lowerStructStorageReadFields module context typeName stateId
+        .ok (fields.map fun field => field.snd))
+      event
+      indexedFields)
+    "storage aggregate indexed event topic plan-to-yul"
+  require (plannedTopicStmts.size == 3) "storage aggregate indexed event topic statement count"
+  match plannedTopicStmts[2]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.builtin "keccak256" args)) => do
+      match vars[0]? with
+      | some var => require (var.name == "_indexed_topic0") "storage aggregate indexed event topic var"
+      | none => throw <| IO.userError "storage aggregate indexed event topic missing var"
+      require (args.size == 2) "storage aggregate indexed event topic keccak arg count"
+  | _ => throw <| IO.userError "storage aggregate indexed event topic must hash planned words"
+  let fieldPlan ← requireAt event.indexedFields 0 "storage aggregate indexed event missing field plan"
+  let facadeTopicStmts ← requireOk
+    (lowerIndexedEventTopicStatements
+      module
+      #[]
+      "IndexedStoragePair"
+      "pair"
+      0
+      fieldPlan
+      (.effect (.storageScalarRead "storedPair")))
+    "storage aggregate indexed event facade topic plan-to-yul"
+  require (facadeTopicStmts.size == plannedTopicStmts.size)
+    "storage aggregate indexed event facade topic statement count"
 
 def testScalarStorageEffectPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
@@ -5239,6 +5296,7 @@ def main : IO UInt32 := do
   testScalarEventPlanToYul
   testLocalAggregateEventDataWordsToYul
   testStorageAggregateEventDataWordsPlanToYul
+  testStorageAggregateIndexedEventTopicPlanToYul
   testScalarStorageEffectPlanToYul
   testMapReadPlanToYul
   testMapWritePlanToYul
