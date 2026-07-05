@@ -6863,6 +6863,41 @@ def testStoragePathReadPlanToYul : IO Unit := do
       | .local name => require (name == "value") "Lower array storage path read target index"
       | _ => throw <| IO.userError "Lower array storage path read index must be ExprPlan local"
   | _ => throw <| IO.userError "Lower array storage path read must produce storagePathReadExprTarget"
+  let typedMapReadPath ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildStoragePathPlan
+      ProofForge.IR.Examples.EvmMapProbe.module
+      (toValidateTypeEnv mapEnv)
+      #[.mapKey (.add (.local "outer") (.literal (.u64 1)))])
+    "typed map storage path read plan"
+  match typedMapReadPath[0]? with
+  | some (ProofForge.Backend.Evm.Plan.StoragePathPlanSegment.mapKey (.checkedArith .add (.local name) (.literalWord value))) => do
+      require (name == "outer") "typed map storage path read plan key lhs"
+      require (value == 1) "typed map storage path read plan key rhs"
+  | _ => throw <| IO.userError "typed map storage path read plan key must be checked add"
+  let typedMapReadPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathReadExprSlotPlan
+        ProofForge.IR.Examples.EvmMapProbe.module
+        "balances"
+        typedMapReadPath
+    )
+    "typed map storage path read expr slot plan"
+  let typedMapRead ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathReadExprFromExprPlan
+      toYulError
+      (lowerExprPlanExpr ProofForge.IR.Examples.EvmMapProbe.module mapEnv)
+      typedMapReadPlan)
+    "typed map storage path read expr plan-to-yul"
+  match typedMapRead with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "typed map storage path read sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call name slotArgs => do
+          require (name == (Helper.mapSlot).name) "typed map storage path read slot helper"
+          require (slotArgs.size == 2) "typed map storage path read slot arg count"
+          requireCallExpr slotArgs[1]! "__pf_checked_add" 2 "typed map storage path read key"
+      | _ => throw <| IO.userError "typed map storage path read slot must use map helper"
+  | _ => throw <| IO.userError "typed map storage path read must lower to sload"
   let directMapReadPlan ← requireOk
     (lowerPlan <|
       ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan
@@ -6988,7 +7023,12 @@ def testStoragePathReadPlanToYul : IO Unit := do
   match rawMapPathRead with
   | Lean.Compiler.Yul.Expr.builtin "sload" args => do
       require (args.size == 1) "raw map storage path read sload arg count"
-      requireCallExpr args[0]! (Helper.mapSlot).name 2 "raw map storage path read slot helper"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call name slotArgs => do
+          require (name == (Helper.mapSlot).name) "raw map storage path read slot helper"
+          require (slotArgs.size == 2) "raw map storage path read slot arg count"
+          requireCallExpr slotArgs[1]! "__pf_checked_add" 2 "raw map storage path read key"
+      | _ => throw <| IO.userError "raw map storage path read slot must use map helper"
   | _ => throw <| IO.userError "raw map storage path read must lower to sload"
   let rawMapPathReadEffect ← requireOk
     (lowerEffectExpr
@@ -6999,7 +7039,12 @@ def testStoragePathReadPlanToYul : IO Unit := do
   match rawMapPathReadEffect with
   | Lean.Compiler.Yul.Expr.builtin "sload" args => do
       require (args.size == 1) "raw map storage path read effect sload arg count"
-      requireCallExpr args[0]! (Helper.mapSlot).name 2 "raw map storage path read effect slot helper"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call name slotArgs => do
+          require (name == (Helper.mapSlot).name) "raw map storage path read effect slot helper"
+          require (slotArgs.size == 2) "raw map storage path read effect slot arg count"
+          requireCallExpr slotArgs[1]! "__pf_checked_add" 2 "raw map storage path read effect key"
+      | _ => throw <| IO.userError "raw map storage path read effect slot must use map helper"
   | _ => throw <| IO.userError "raw map storage path read effect must lower through target plan"
 
 def testStoragePathWritePlanToYul : IO Unit := do

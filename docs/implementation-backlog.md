@@ -441,8 +441,12 @@ Tasks:
     for the final `sload` slot expression instead of recomputing the slot only
     in the compatibility facade. Active path segment expressions now flow
     through `Lower.buildStoragePathPlan` as `StoragePathPlanSegment` values
-    carrying `ExprPlan`s; older `ValuePlan` slot helpers remain only for direct
-    compatibility/fallback surfaces.
+    carrying `ExprPlan`s. The compatibility `lowerStoragePathReadExprTarget`
+    helper now also builds `Lower.buildStoragePathPlan` and lowers
+    `StorageSlotExprPlan -> ToYul`, so raw path segment expressions no longer
+    enter the read fallback through `ValuePlan` wrappers. Older `ValuePlan`
+    slot helpers remain only for direct `StorageSlotPlan` helper surfaces and
+    legacy compatibility tests.
   - Started: statement-position `storagePathWrite` and `storagePathAssignOp`
     assembly now consume planned `StoragePathWriteExprTargetPlan` variants from
     `Lower.buildEffectPlan`, with direct `EffectPlan -> ToYul` helpers for

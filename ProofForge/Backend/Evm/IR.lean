@@ -1882,16 +1882,21 @@ mutual
     | .ok _ | .error _ =>
         lowerStructArrayFieldReadExprFallback module env stateId index fieldName
 
-  partial def lowerStoragePathReadExprFallback
+  partial def lowerStoragePathReadExprTarget
       (module : Module)
       (env : TypeEnv)
       (stateId : String)
       (path : Array StoragePathSegment) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan module stateId path
-    ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
+    let plannedPath ←
+      match ProofForge.Backend.Evm.Lower.buildStoragePathPlan module (toValidateTypeEnv env) path with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    let slot ← lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathReadExprSlotPlan module stateId plannedPath
+    ProofForge.Backend.Evm.ToYul.storagePathReadExprFromExprPlan
       toYulError
-      (fun expr => lowerExpr module env expr)
-      plan
+      (lowerExprPlanExpr module env)
+      slot
 
   partial def lowerStoragePathReadExpr
       (module : Module)
@@ -1910,7 +1915,7 @@ mutual
           (fun expr => lowerExpr module env expr)
           slot
     | .ok _ | .error _ =>
-        lowerStoragePathReadExprFallback module env stateId path
+        lowerStoragePathReadExprTarget module env stateId path
 
   partial def validateFixedArrayIndexExprPath
       (module : Module)
@@ -2514,12 +2519,8 @@ mutual
           (lowerPlanEffectExpr module env)
           target
           index
-    | .storagePathRead stateId path => do
-        let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan module stateId path
-        ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          plan
+    | .storagePathRead stateId path =>
+        lowerStoragePathReadExprTarget module env stateId path
     | .storagePathReadTarget slot =>
         ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
           toYulError
