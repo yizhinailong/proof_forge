@@ -16356,3 +16356,47 @@ Result:
   root-slot and slot-helper assembly.
 - EVM semantic-plan tests, i18n sync, JSON validation, EVM IR build, and
   whitespace checks passed locally.
+
+### EVM Event Statement Lower Plan Slice
+
+Commit: fb5a58e
+
+Summary:
+
+- Routed the compatibility `lowerEventEmitCoreStmt` facade through
+  `Lower.buildEffectPlan` for portable `eventEmit`/`eventEmitIndexed` effects
+  instead of reconstructing `EventPlan` and field value source plans in
+  `IR.lean`.
+- Restricted that facade to the word-planned `eventEmitWords` and
+  `eventEmitIndexedWords` effects before delegating final event block assembly
+  to `ToYul.eventEffectStmtPlanStatements`.
+- Added semantic-plan regressions proving ordinary and indexed portable event
+  statements lower to word-planned event effects before the compatibility facade
+  emits Yul.
+- Updated the implementation backlog and Chinese backlog note to reflect the
+  new event statement entrypoint boundary.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/event-ir-smoke.sh
+just evm-diagnostics
+git diff --check
+```
+
+Result:
+
+- Ordinary and indexed event statements now enter the same
+  `Lower.buildEffectPlan -> event word plans -> ToYul` path as planned-body
+  event effects.
+- EVM semantic-plan tests, EVM plan tests, event IR smoke, EVM diagnostics,
+  i18n sync, JSON validation, full Lake build, and whitespace checks passed
+  locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
