@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Storage-Path Expressions
+
+Commit: e2eb7ff
+
+Summary:
+
+- Added `StorageSlotExprPlan` and `StoragePathWriteExprTargetPlan`, a
+  storage-path target surface whose map keys, fixed-array indexes,
+  struct-array indexes, and dynamic-array indexes are first-class `ExprPlan`
+  values instead of `ValuePlan` wrappers around raw IR expressions.
+- Added `StoragePathPlanSegment` and routed `Lower.buildEffectPlan` for
+  `storagePathRead`, `storagePathWrite`, and `storagePathAssignOp` through
+  raw path segment planning before slot/target resolution.
+- Added `ToYul` lowering helpers for the new planned read/write/assign target
+  surface and wired expression-position reads, statement-position writes, and
+  scalar control-flow bodies through the new variants.
+- Kept the existing `StorageSlotPlan` / `StoragePathWriteTargetPlan`
+  compatibility surface for direct plan tests and fallback callers.
+
+Validation run:
+
+```sh
+lake build
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/map-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/evm/dynamic-array-ir-smoke.sh
+git diff --check
+```
+
+Known limitations:
+
+- Direct compatibility helpers still expose the older `ValuePlan`-based
+  storage slot target surface. They are intentionally retained until remaining
+  fallback callers and direct plan tests move to the new ExprPlan surface.
+
+Next step:
+
+- Move more storage-path direct plan tests and fallback-only callers to the
+  ExprPlan target surface, then retire the `ValuePlan` storage-path surface
+  once no supported lowering path depends on it.
+
 ### EVM Storage-Path Write Lower-Plan Routing
 
 Commit: 9ecd2a0
