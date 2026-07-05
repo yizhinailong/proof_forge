@@ -2005,6 +2005,60 @@ def boundedForStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul boundedFor lowering expected boundedFor")
 
+def scalarStorageWriteStatements
+    (storageSlot valueExpr : Lean.Compiler.Yul.Expr)
+    (byteOffset byteWidth : Nat) : Array Lean.Compiler.Yul.Statement :=
+  if byteWidth >= 32 || byteOffset == 0 && byteWidth == 32 then
+    #[
+      .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, valueExpr])
+    ]
+  else
+    let shiftBits := (32 - (byteOffset + byteWidth)) * 8
+    let mask := (2^(byteWidth * 8 : Nat)) - 1
+    let shiftedMask := Lean.Compiler.Yul.builtin "shl" #[
+      Lean.Compiler.Yul.Expr.num shiftBits,
+      Lean.Compiler.Yul.Expr.num mask
+    ]
+    #[
+      .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+        storageSlot,
+        Lean.Compiler.Yul.builtin "or" #[
+          Lean.Compiler.Yul.builtin "and" #[
+            Lean.Compiler.Yul.builtin "sload" #[storageSlot],
+            Lean.Compiler.Yul.builtin "not" #[shiftedMask]
+          ],
+          Lean.Compiler.Yul.builtin "shl" #[
+            Lean.Compiler.Yul.Expr.num shiftBits,
+            valueExpr
+          ]
+        ]
+      ])
+    ]
+
+def scalarStoragePackedReadExpr
+    (storageSlot : Lean.Compiler.Yul.Expr)
+    (byteOffset byteWidth : Nat) : Lean.Compiler.Yul.Expr :=
+  if byteWidth >= 32 || byteOffset == 0 && byteWidth == 32 then
+    Lean.Compiler.Yul.builtin "sload" #[storageSlot]
+  else
+    let shiftBits := (32 - (byteOffset + byteWidth)) * 8
+    let mask := (2^(byteWidth * 8 : Nat)) - 1
+    Lean.Compiler.Yul.builtin "and" #[
+      Lean.Compiler.Yul.builtin "shr" #[
+        Lean.Compiler.Yul.Expr.num shiftBits,
+        Lean.Compiler.Yul.builtin "sload" #[storageSlot]
+      ],
+      Lean.Compiler.Yul.Expr.num mask
+    ]
+
+def scalarStorageAssignOpStatements
+    (op : AssignOp)
+    (storageSlot valueExpr : Lean.Compiler.Yul.Expr)
+    (byteOffset byteWidth : Nat) : Array Lean.Compiler.Yul.Statement :=
+  let packedRead := scalarStoragePackedReadExpr storageSlot byteOffset byteWidth
+  let computedValue := checkedArithExpr op packedRead valueExpr
+  scalarStorageWriteStatements storageSlot computedValue byteOffset byteWidth
+
 def scalarStorageEffectPlanStatements
     {ε : Type}
     (mkError : String → ε)
@@ -2017,76 +2071,12 @@ def scalarStorageEffectPlanStatements
       let storageSlot ← storageSlotFor stateId
       let valueExpr ← exprPlanExpr mkError lowerExpr lowerEffect value
       let (byteOffset, byteWidth) ← packingFor stateId
-      if byteWidth >= 32 || byteOffset == 0 && byteWidth == 32 then
-        .ok #[
-          .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, valueExpr])
-        ]
-      else
-        let shiftBits := (32 - (byteOffset + byteWidth)) * 8
-        let mask := (2^(byteWidth * 8 : Nat)) - 1
-        let shiftedMask := Lean.Compiler.Yul.builtin "shl" #[
-          Lean.Compiler.Yul.Expr.num shiftBits,
-          Lean.Compiler.Yul.Expr.num mask
-        ]
-        .ok #[
-          .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-            storageSlot,
-            Lean.Compiler.Yul.builtin "or" #[
-              Lean.Compiler.Yul.builtin "and" #[
-                Lean.Compiler.Yul.builtin "sload" #[storageSlot],
-                Lean.Compiler.Yul.builtin "not" #[shiftedMask]
-              ],
-              Lean.Compiler.Yul.builtin "shl" #[
-                Lean.Compiler.Yul.Expr.num shiftBits,
-                valueExpr
-              ]
-            ]
-          ])
-        ]
+      .ok <| scalarStorageWriteStatements storageSlot valueExpr byteOffset byteWidth
   | .storageScalarAssignOp stateId op value => do
       let storageSlot ← storageSlotFor stateId
       let (byteOffset, byteWidth) ← packingFor stateId
-      let packedRead ←
-        if byteWidth >= 32 || byteOffset == 0 && byteWidth == 32 then
-          .ok (Lean.Compiler.Yul.builtin "sload" #[storageSlot])
-        else
-          let shiftBits := (32 - (byteOffset + byteWidth)) * 8
-          let mask := (2^(byteWidth * 8 : Nat)) - 1
-          .ok (Lean.Compiler.Yul.builtin "and" #[
-            Lean.Compiler.Yul.builtin "shr" #[
-              Lean.Compiler.Yul.Expr.num shiftBits,
-              Lean.Compiler.Yul.builtin "sload" #[storageSlot]
-            ],
-            Lean.Compiler.Yul.Expr.num mask
-          ])
       let rhs ← exprPlanExpr mkError lowerExpr lowerEffect value
-      let computedValue := checkedArithExpr op packedRead rhs
-      if byteWidth >= 32 || byteOffset == 0 && byteWidth == 32 then
-        .ok #[
-          .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, computedValue])
-        ]
-      else
-        let shiftBits := (32 - (byteOffset + byteWidth)) * 8
-        let mask := (2^(byteWidth * 8 : Nat)) - 1
-        let shiftedMask := Lean.Compiler.Yul.builtin "shl" #[
-          Lean.Compiler.Yul.Expr.num shiftBits,
-          Lean.Compiler.Yul.Expr.num mask
-        ]
-        .ok #[
-          .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-            storageSlot,
-            Lean.Compiler.Yul.builtin "or" #[
-              Lean.Compiler.Yul.builtin "and" #[
-                Lean.Compiler.Yul.builtin "sload" #[storageSlot],
-                Lean.Compiler.Yul.builtin "not" #[shiftedMask]
-              ],
-              Lean.Compiler.Yul.builtin "shl" #[
-                Lean.Compiler.Yul.Expr.num shiftBits,
-                computedValue
-              ]
-            ]
-          ])
-        ]
+      .ok <| scalarStorageAssignOpStatements op storageSlot rhs byteOffset byteWidth
   | _ =>
       .error (mkError "EVM EffectPlan-to-Yul scalar storage effect lowering expected storageScalarWrite/storageScalarAssignOp")
 
@@ -2102,6 +2092,34 @@ def scalarStorageEffectStmtPlanStatements
       scalarStorageEffectPlanStatements mkError lowerExpr lowerEffect storageSlotFor packingFor effect
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar storage effect lowering expected effect")
+
+def scalarStorageTargetEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storageScalarWriteTarget target value => do
+      let targetSlot ← storageSlotExpr mkError lowerExpr target.slot
+      let valueExpr ← exprPlanExpr mkError lowerExpr lowerEffect value
+      .ok <| scalarStorageWriteStatements targetSlot valueExpr target.byteOffset target.byteWidth
+  | .storageScalarAssignOpTarget target op value => do
+      let targetSlot ← storageSlotExpr mkError lowerExpr target.slot
+      let valueExpr ← exprPlanExpr mkError lowerExpr lowerEffect value
+      .ok <| scalarStorageAssignOpStatements op targetSlot valueExpr target.byteOffset target.byteWidth
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul planned scalar storage lowering expected storageScalarWriteTarget/storageScalarAssignOpTarget")
+
+def scalarStorageTargetEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      scalarStorageTargetEffectPlanStatements mkError lowerExpr lowerEffect effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul planned scalar storage lowering expected effect")
 
 def mapWriteEffectPlanStatements
     {ε : Type}

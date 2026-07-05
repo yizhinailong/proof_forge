@@ -78,6 +78,17 @@ def requireLiteralWordPlan
       require (value == expectedValue) s!"{label} literal word value"
   | _ => throw <| IO.userError s!"{label} must be a literal word plan"
 
+def requireScalarStorageTarget
+    (target : ScalarStorageTargetPlan)
+    (expectedSlot expectedByteOffset expectedByteWidth : Nat)
+    (label : String) : IO Unit := do
+  match target.slot with
+  | .scalarSlot slot =>
+      require (slot == expectedSlot) s!"{label} slot"
+  | _ => throw <| IO.userError s!"{label} must use scalar slot"
+  require (target.byteOffset == expectedByteOffset) s!"{label} byte offset"
+  require (target.byteWidth == expectedByteWidth) s!"{label} byte width"
+
 def requireIdentExpr
     (expr : Lean.Compiler.Yul.Expr)
     (expectedName : String)
@@ -132,8 +143,8 @@ def testCounterSemanticPlan : IO Unit := do
   require (init.returns.returnType == .unit) "counter plan initialize returns unit"
   require (init.body.size == 1) "counter plan initialize body size"
   match ← requireAt init.body 0 "counter plan initialize missing body" with
-  | .effect (.storageScalarWrite stateId (.literalWord value)) => do
-      require (stateId == "count") "counter plan initialize storage write state"
+  | .effect (.storageScalarWriteTarget target (.literalWord value)) => do
+      requireScalarStorageTarget target 0 0 8 "counter plan initialize storage write target"
       require (value == 0) "counter plan initialize storage write value"
   | _ => throw <| IO.userError "counter plan initialize body must be storage scalar write"
   let inc := plan.entrypoints[1]!
@@ -146,8 +157,8 @@ def testCounterSemanticPlan : IO Unit := do
       require (stateId == "count") "counter plan increment read state"
   | _ => throw <| IO.userError "counter plan increment first statement must read count"
   match ← requireAt inc.body 1 "counter plan increment missing second statement" with
-  | .effect (.storageScalarWrite stateId (.checkedArith .add (.local name) (.literalWord value))) => do
-      require (stateId == "count") "counter plan increment write state"
+  | .effect (.storageScalarWriteTarget target (.checkedArith .add (.local name) (.literalWord value))) => do
+      requireScalarStorageTarget target 0 0 8 "counter plan increment storage write target"
       require (name == "n") "counter plan increment add lhs"
       require (value == 1) "counter plan increment add rhs"
   | _ => throw <| IO.userError "counter plan increment second statement must write checked add"
@@ -3078,6 +3089,71 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
           | _ => throw <| IO.userError "scalar storage assign_op StmtPlan-to-Yul helper must have shl in packed write"
       | _ => throw <| IO.userError "scalar storage assign_op StmtPlan-to-Yul helper value must be packed write (or/and/shl)"
   | _ => throw <| IO.userError "scalar storage assign_op StmtPlan-to-Yul helper must lower to sstore"
+  let loweredScalarWriteEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv env)
+      (.storageScalarWrite "count" (.add (.local "n") (.literal (.u64 1)))))
+    "Lower scalar storage write target effect plan"
+  match loweredScalarWriteEffect with
+  | .storageScalarWriteTarget target (.checkedArith .add (.local name) (.literalWord value)) => do
+      requireScalarStorageTarget target 0 0 8 "Lower scalar storage write target"
+      require (name == "n") "Lower scalar storage write target value lhs"
+      require (value == 1) "Lower scalar storage write target value rhs"
+  | _ => throw <| IO.userError "Lower scalar storage write must produce storageScalarWriteTarget"
+  let loweredScalarAssignOpEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv env)
+      (.storageScalarAssignOp "count" .add (.effect (.storageScalarRead "count"))))
+    "Lower scalar storage assign_op target effect plan"
+  match loweredScalarAssignOpEffect with
+  | .storageScalarAssignOpTarget target op (.effect (.storageScalarRead stateId)) => do
+      requireScalarStorageTarget target 0 0 8 "Lower scalar storage assign_op target"
+      require (op == .add) "Lower scalar storage assign_op target op"
+      require (stateId == "count") "Lower scalar storage assign_op value"
+  | _ => throw <| IO.userError "Lower scalar storage assign_op must produce storageScalarAssignOpTarget"
+  let directPlannedWriteStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageScalarWriteTarget
+          { slot := .scalarSlot 0, byteOffset := 0, byteWidth := 8 }
+          (.checkedArith .add (.local "n") (.literalWord 1)))))
+    "planned scalar storage write target StmtPlan-to-Yul helper"
+  require (directPlannedWriteStmts.size == 1) "planned scalar storage write target helper statement count"
+  match directPlannedWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "planned scalar storage write target helper arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.builtin orName orArgs => do
+          require (orName == "or") "planned scalar storage write target helper packed write"
+          require (orArgs.size == 2) "planned scalar storage write target helper or arg count"
+      | _ => throw <| IO.userError "planned scalar storage write target helper value must be packed write"
+  | _ => throw <| IO.userError "planned scalar storage write target helper must lower to sstore"
+  let directPlannedAssignOpStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageScalarAssignOpTarget
+          { slot := .scalarSlot 0, byteOffset := 0, byteWidth := 8 }
+          .add
+          (.effect (.storageScalarRead "count")))))
+    "planned scalar storage assign_op target StmtPlan-to-Yul helper"
+  require (directPlannedAssignOpStmts.size == 1) "planned scalar storage assign_op target helper statement count"
+  match directPlannedAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "planned scalar storage assign_op target helper arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.builtin orName orArgs => do
+          require (orName == "or") "planned scalar storage assign_op target helper packed write"
+          require (orArgs.size == 2) "planned scalar storage assign_op target helper or arg count"
+      | _ => throw <| IO.userError "planned scalar storage assign_op target helper value must be packed write"
+  | _ => throw <| IO.userError "planned scalar storage assign_op target helper must lower to sstore"
   let writeStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.Counter.module

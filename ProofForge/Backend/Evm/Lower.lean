@@ -30,6 +30,11 @@ open ProofForge.Backend.Evm.Validate
 
 /-! ## Entrypoint plan construction -/
 
+def scalarStorageTargetPlan? (module : Module) (stateId : String) : Option ScalarStorageTargetPlan :=
+  match scalarStorageTargetPlan module stateId with
+  | .ok target => some target
+  | .error _ => none
+
 def abiParamPlan
     (module : Module)
     (context : String)
@@ -403,9 +408,15 @@ mutual
     | .storageScalarRead stateId =>
         .ok (.storageScalarRead stateId)
     | .storageScalarWrite stateId value => do
-        .ok (.storageScalarWrite stateId (← buildExprPlan module env value))
+        let valuePlan ← buildExprPlan module env value
+        match scalarStorageTargetPlan? module stateId with
+        | some target => .ok (.storageScalarWriteTarget target valuePlan)
+        | none => .ok (.storageScalarWrite stateId valuePlan)
     | .storageScalarAssignOp stateId op value => do
-        .ok (.storageScalarAssignOp stateId op (← buildExprPlan module env value))
+        let valuePlan ← buildExprPlan module env value
+        match scalarStorageTargetPlan? module stateId with
+        | some target => .ok (.storageScalarAssignOpTarget target op valuePlan)
+        | none => .ok (.storageScalarAssignOp stateId op valuePlan)
     | .storageMapContains stateId key => do
         .ok (.storageMapContains stateId (← buildExprPlan module env key))
     | .storageMapGet stateId key => do

@@ -2687,6 +2687,10 @@ mutual
             }
         | _ => pure ()
         lowerScalarStorageReadExpr module env stateId
+    | .storageScalarWriteTarget _ _ =>
+        .error { message := "storage.scalar.write is a statement effect, not an expression" }
+    | .storageScalarAssignOpTarget _ _ _ =>
+        .error { message := "storage.scalar.assign_op is a statement effect, not an expression" }
     | .contextRead (.blockHash blockNumber) => do
         .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerExpr module env blockNumber])
     | .contextRead field =>
@@ -3780,14 +3784,14 @@ partial def lowerScalarStorageEffectStmtPlanOrFallback
               match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
               | .ok plan => .ok plan
               | .error err => .error { message := err.message }
+            let targetPlan ← lowerPlan <|
+              ProofForge.Backend.Evm.Plan.scalarStorageTargetPlan module stateId
             let statements ←
-              ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+              ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
                 toYulError
                 (fun expr => lowerExpr module env expr)
                 (lowerPlanEffectExpr module env)
-                (lowerScalarStorageSlotExpr module env)
-                (scalarStatePacking module)
-                (.effect (.storageScalarWrite stateId valuePlan))
+                (.effect (.storageScalarWriteTarget targetPlan valuePlan))
             match statements[0]? with
             | some statement =>
                 if statements.size == 1 then
@@ -3809,14 +3813,14 @@ partial def lowerScalarStorageEffectStmtPlanOrFallback
           match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
           | .ok plan => .ok plan
           | .error err => .error { message := err.message }
+        let targetPlan ← lowerPlan <|
+          ProofForge.Backend.Evm.Plan.scalarStorageTargetPlan module stateId
         let statements ←
-          ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+          ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
             toYulError
             (fun expr => lowerExpr module env expr)
             (lowerPlanEffectExpr module env)
-            (lowerScalarStorageSlotExpr module env)
-            (scalarStatePacking module)
-            (.effect (.storageScalarAssignOp stateId op valuePlan))
+            (.effect (.storageScalarAssignOpTarget targetPlan op valuePlan))
         match statements[0]? with
         | some statement =>
             if statements.size == 1 then
@@ -5103,6 +5107,10 @@ def storagePathWriteTargetPlanSupportsScalarBody :
       storageSlotPlanSupportsScalarBody valueSlot &&
         storageSlotPlanSupportsScalarBody presenceSlot
 
+def scalarStorageTargetPlanSupportsScalarBody
+    (target : ProofForge.Backend.Evm.Plan.ScalarStorageTargetPlan) : Bool :=
+  storageSlotPlanSupportsScalarBody target.slot
+
 mutual
   partial def effectPlanSupportsScalarBodyExpr :
       ProofForge.Backend.Evm.Plan.EffectPlan → Bool
@@ -5186,7 +5194,13 @@ def eventFieldPlansSupportScalarBody
 def effectPlanSupportsScalarBodyStmt :
     ProofForge.Backend.Evm.Plan.EffectPlan → Bool
   | .storageScalarWrite _ value => exprPlanSupportsScalarBody value
+  | .storageScalarWriteTarget target value =>
+      scalarStorageTargetPlanSupportsScalarBody target &&
+        exprPlanSupportsScalarBody value
   | .storageScalarAssignOp _ _ value => exprPlanSupportsScalarBody value
+  | .storageScalarAssignOpTarget target _ value =>
+      scalarStorageTargetPlanSupportsScalarBody target &&
+        exprPlanSupportsScalarBody value
   | .storageMapInsert _ key value
   | .storageMapSet _ key value =>
       exprPlanSupportsScalarBody key && exprPlanSupportsScalarBody value
@@ -5351,6 +5365,12 @@ def lowerScalarBodyEffectPlan
     (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   match effect with
+  | .storageScalarWriteTarget .. | .storageScalarAssignOpTarget .. =>
+      ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (.effect effect)
   | .storageScalarWrite stateId _ => do
       match ← scalarStateType module stateId with
       | .structType _ =>

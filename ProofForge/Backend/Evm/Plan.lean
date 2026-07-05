@@ -179,6 +179,12 @@ inductive StorageSlotPlan where
   | structArrayFieldSlot (rootSlot length fieldCount fieldOffset : Nat) (index : ValuePlan)
   deriving Repr
 
+structure ScalarStorageTargetPlan where
+  slot : StorageSlotPlan
+  byteOffset : Nat
+  byteWidth : Nat
+  deriving Repr
+
 inductive StoragePathWriteTargetPlan where
   | mapWrite (rootSlot : Nat) (key : ValuePlan)
   | singleSlot (slot : StorageSlotPlan)
@@ -241,6 +247,31 @@ def scalarSlotPlan (module : Module) (stateId : String) : Except PlanError Stora
     | .scalar => .ok (.scalarSlot slot)
     | .map _ _ | .array _ =>
         .error { message := s!"EVM storage state '{stateId}' is not a scalar slot" }
+
+def scalarStorageTargetPlan (module : Module) (stateId : String) : Except PlanError ScalarStorageTargetPlan := do
+  let slot ← scalarSlotPlan module stateId
+  if stateId == "$eip1967.implementation" then
+    .ok {
+      slot
+      byteOffset := 0
+      byteWidth := 32
+    }
+  else
+    match storageLayout module |>.find? stateId with
+    | some plan =>
+        match plan.kind, plan.type with
+        | .scalar, .structType typeName =>
+            .error { message := s!"EVM scalar storage target plan does not support struct state '{stateId}' of type '{typeName}'" }
+        | .scalar, _ =>
+            .ok {
+              slot
+              byteOffset := plan.byteOffset
+              byteWidth := plan.byteWidth
+            }
+        | .map _ _, _ | .array _, _ =>
+            .error { message := s!"EVM storage state '{stateId}' is not a scalar target" }
+    | none =>
+        .error { message := s!"unknown EVM state '{stateId}'" }
 
 def mapValueSlotPlan (module : Module) (stateId : String) (keys : Array Expr) : Except PlanError StorageSlotPlan := do
   let mapState ← requireMapState module stateId
@@ -596,7 +627,9 @@ mutual
   inductive EffectPlan where
     | storageScalarRead (stateId : String)
     | storageScalarWrite (stateId : String) (value : ExprPlan)
+    | storageScalarWriteTarget (target : ScalarStorageTargetPlan) (value : ExprPlan)
     | storageScalarAssignOp (stateId : String) (op : AssignOp) (value : ExprPlan)
+    | storageScalarAssignOpTarget (target : ScalarStorageTargetPlan) (op : AssignOp) (value : ExprPlan)
     | storageMapContains (stateId : String) (key : ExprPlan)
     | storageMapGet (stateId : String) (key : ExprPlan)
     | storageMapInsert (stateId : String) (key value : ExprPlan)
