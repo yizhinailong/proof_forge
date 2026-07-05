@@ -5537,6 +5537,75 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (args.size == 2) "planned scalar create2 control-flow helper arg count"
       | _ => throw <| IO.userError "planned scalar create2 control-flow must lower let initializer to helper call"
   | _ => throw <| IO.userError "planned scalar create control-flow body lowering must lower to switch"
+  let memoryArrayEnv : TypeEnv := #[
+    { name := "buf", type := .array .u64, isMutable := true },
+    { name := "n", type := .u64, isMutable := false }
+  ]
+  let memoryArrayControl :=
+    Statement.ifElse
+      (.gt (.local "n") (.literal (.u64 0)))
+      #[
+        .effect (.memoryArraySet (.local "buf") (.literal (.u64 0)) (.local "n"))
+      ]
+      #[
+        .effect (.memoryArraySet (.local "buf") (.literal (.u64 1)) (.literal (.u64 7)))
+      ]
+  let plannedMemoryArrayControl? ← requireOk
+    (plannedBodyStatement?
+      ProofForge.IR.Examples.Counter.module
+      "control_flow"
+      .unit
+      memoryArrayEnv
+      memoryArrayControl)
+    "planned memory-array set control-flow plan construction"
+  let plannedMemoryArrayControl ← requireSome plannedMemoryArrayControl?
+    "planned memory-array set control-flow plan construction missing plan"
+  let (memoryArrayControlStmts, _) ← requireOk
+    (lowerPlannedBodyStatement
+      ProofForge.IR.Examples.Counter.module
+      "control_flow"
+      .unit
+      memoryArrayEnv
+      false
+      plannedMemoryArrayControl)
+    "planned memory-array set control-flow body lowering"
+  match memoryArrayControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let elseCase ← requireAt cases 0 "planned memory-array set control-flow else case"
+      let thenCase ← requireAt cases 1 "planned memory-array set control-flow then case"
+      require (thenCase.body.statements.size == 2) "planned memory-array set control-flow then statement count"
+      require (elseCase.body.statements.size == 2) "planned memory-array set control-flow else statement count"
+      match thenCase.body.statements[1]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+          require (name == "mstore") "planned memory-array set control-flow then mstore"
+          require (args.size == 2) "planned memory-array set control-flow then mstore arg count"
+      | _ => throw <| IO.userError "planned memory-array set control-flow then branch must lower direct mstore"
+      match elseCase.body.statements[1]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+          require (name == "mstore") "planned memory-array set control-flow else mstore"
+          require (args.size == 2) "planned memory-array set control-flow else mstore arg count"
+      | _ => throw <| IO.userError "planned memory-array set control-flow else branch must lower direct mstore"
+  | _ => throw <| IO.userError "planned memory-array set control-flow body lowering must lower to switch"
+  let (memoryArrayStatementStmts, _) ← requireOk
+    (lowerStatement
+      ProofForge.IR.Examples.Counter.module
+      "control_flow"
+      .unit
+      memoryArrayEnv
+      false
+      memoryArrayControl)
+    "memory-array set control-flow statement lowering"
+  match memoryArrayStatementStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let thenCase ← requireAt cases 1 "memory-array set control-flow statement then case"
+      require (thenCase.body.statements.size == 2)
+        "memory-array set control-flow statement must use planned body instead of fallback block wrapper"
+      match thenCase.body.statements[1]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+          require (name == "mstore") "memory-array set control-flow statement mstore"
+          require (args.size == 2) "memory-array set control-flow statement mstore arg count"
+      | _ => throw <| IO.userError "memory-array set control-flow statement must lower direct planned mstore"
+  | _ => throw <| IO.userError "memory-array set control-flow statement lowering must lower to switch"
   let (ifStmts, _) ← requireOk
     (lowerStatement
       ProofForge.IR.Examples.Counter.module

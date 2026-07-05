@@ -4946,6 +4946,10 @@ def effectPlanSupportsPlannedBodyStmt :
       true
   | .storageDynamicArrayPopTarget _ =>
       true
+  | .memoryArraySet array index value =>
+      exprPlanSupportsPlannedBody array &&
+        exprPlanSupportsPlannedBody index &&
+        exprPlanSupportsPlannedBody value
   | .storageStructFieldWrite _ _ value =>
       exprPlanSupportsPlannedBody value
   | .storageStructFieldWriteTarget _ value =>
