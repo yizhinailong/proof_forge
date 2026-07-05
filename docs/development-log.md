@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM StmtPlan Body Sequencing
+
+Commit: 50d2c4a
+
+Summary:
+
+- Added `ToYul.stmtPlanBodyStatements` as the shared sequencing helper for
+  planned scalar `StmtPlan` bodies.
+- Moved supported scalar body statement ordering, type-environment threading,
+  and branch-local `leaveAfterReturn` propagation out of the `IR.lean`
+  hand-written loop.
+- Updated scalar control-flow semantic-plan tests with direct coverage for
+  statement sequencing and leave propagation.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/expression-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/event-ir-smoke.sh
+scripts/evm/crosscall-ir-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Unsupported body shapes still use the `IR.lean` compatibility facade until
+  full recursive `StmtPlan -> Yul` lowering is extracted.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue extracting the remaining unsupported statement/body shapes from the
+  compatibility facade into plan-level ToYul helpers.
+
 ### EVM ExprPlan Word Marker Retirement
 
 Commit: 7f8acce
