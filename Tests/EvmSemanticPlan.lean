@@ -3362,13 +3362,44 @@ def testScalarEventPlanToYul : IO Unit := do
       require foundIndexedSload "scalar indexed event topic must lower storage read through plan"
   | _ => throw <| IO.userError "scalar indexed event topic plan-to-yul must lower to block"
 
-def testLocalAggregateEventDataWordsToYul : IO Unit := do
+def plannedLocalAggregateEventDataWords
+    (module : ProofForge.IR.Module)
+    (env : TypeEnv)
+    (eventName : String)
+    (fields : Array (String × ProofForge.IR.Expr))
+    (label : String) : IO (Array Lean.Compiler.Yul.Expr) := do
+  let plan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      module
+      (toValidateTypeEnv env)
+      (.eventEmit eventName fields))
+    s!"{label} Lower EffectPlan"
+  let (event, dataFields) ←
+    match plan with
+    | .eventEmit event dataFields => pure (event, dataFields)
+    | _ => throw <| IO.userError s!"{label} must lower to eventEmit plan"
+  require (event.name == eventName) s!"{label} event name"
+  requireOk
+    (ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
+      toYulError
+      (fun _ => .error (toYulError s!"{label} should use local ABI word plans"))
+      (localAbiStructFields module label)
+      (fun _ _ _ => .error (toYulError s!"{label} should not use storage ABI words"))
+      event.name
+      event.dataFields
+      dataFields)
+    s!"{label} plan-to-yul"
+
+def testLocalAggregateEventDataWordsPlanToYul : IO Unit := do
   let module := ProofForge.IR.Examples.EventProbe.evmModule
   let pairEnv : TypeEnv := #[
     { name := "pair", type := .structType "Pair", isMutable := false }
   ]
-  let pairWords ← requireOk
-    (lowerEventDataWords module pairEnv "PairEvent" "pair" (.structType "Pair") (.local "pair"))
+  let pairWords ← plannedLocalAggregateEventDataWords
+    module
+    pairEnv
+    "PairEvent"
+    #[("pair", .local "pair")]
     "local struct event data words"
   require (pairWords.size == 2) "local struct event data word count"
   requireIdentExpr (← requireAt pairWords 0 "local struct event missing first word")
@@ -3380,8 +3411,11 @@ def testLocalAggregateEventDataWordsToYul : IO Unit := do
   let arrayEnv : TypeEnv := #[
     { name := "values", type := .fixedArray .u64 2, isMutable := false }
   ]
-  let arrayWords ← requireOk
-    (lowerEventDataWords module arrayEnv "ArrayEvent" "values" (.fixedArray .u64 2) (.local "values"))
+  let arrayWords ← plannedLocalAggregateEventDataWords
+    module
+    arrayEnv
+    "ArrayEvent"
+    #[("values", .local "values")]
     "local fixed-array event data words"
   require (arrayWords.size == 2) "local fixed-array event data word count"
   requireIdentExpr (← requireAt arrayWords 0 "local fixed-array event missing first word")
@@ -3393,8 +3427,11 @@ def testLocalAggregateEventDataWordsToYul : IO Unit := do
   let pairArrayEnv : TypeEnv := #[
     { name := "pairs", type := .fixedArray (.structType "Pair") 2, isMutable := false }
   ]
-  let pairArrayWords ← requireOk
-    (lowerEventDataWords module pairArrayEnv "PairArrayEvent" "pairs" (.fixedArray (.structType "Pair") 2) (.local "pairs"))
+  let pairArrayWords ← plannedLocalAggregateEventDataWords
+    module
+    pairArrayEnv
+    "PairArrayEvent"
+    #[("pairs", .local "pairs")]
     "local struct-array event data words"
   require (pairArrayWords.size == 4) "local struct-array event data word count"
   requireIdentExpr (← requireAt pairArrayWords 0 "local struct-array event missing word 0")
@@ -5317,7 +5354,7 @@ def main : IO UInt32 := do
   testScalarAssignmentPlanToYul
   testScalarControlFlowPlanToYul
   testScalarEventPlanToYul
-  testLocalAggregateEventDataWordsToYul
+  testLocalAggregateEventDataWordsPlanToYul
   testStorageAggregateEventDataWordsPlanToYul
   testStorageAggregateIndexedEventTopicPlanToYul
   testScalarStorageEffectPlanToYul
