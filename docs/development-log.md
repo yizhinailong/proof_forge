@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Planned Map Helper Discovery Slice
+
+Commit: d837d0a
+
+Summary:
+
+- Extended the complete-plan helper scanner to detect map slot, presence,
+  statement write, expression set-return, and map assign-op helper
+  requirements from planned `EntrypointPlan.body` trees.
+- Replaced broad state-shape-derived map helpers for complete module plans, so
+  unused map state no longer emits map helpers and narrow map reads/writes emit
+  only the helper subset they actually call.
+- Split `ToYul` map base helper definitions so `mapSlot`, `mapPresenceSlot`,
+  `mapWrite`, and `mapSetReturn` can be emitted independently while
+  map assign-op helper emission stays driven by `ModulePlan.mapAssignOps`.
+- Recomputed `ModulePlan.mapAssignOps` from the final helper set after complete
+  plan helper replacement.
+- Added semantic-plan tests for unused-map, contains-only, get-only,
+  statement-write-only, expression set-return-only, and map assign-op-only
+  modules.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Base and incomplete/best-effort plans still use the raw helper scanner; the
+  complete-plan override now covers memory-array, hash, storage-array, and map
+  helper subsets.
+- This slice moves helper discovery and helper emission precision, not the
+  remaining raw compatibility paths for all EVM statement/expression lowering.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue the EVM semantic-plan migration by moving the next small
+  compatibility boundary from raw `IR.lean` into `Lower -> Plan -> ToYul`.
+
 ### EVM Planned Storage-Array Helper Discovery Slice
 
 Commit: 0f30959
