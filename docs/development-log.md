@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Struct-Array Field Write Targets
+
+Commit: 82d0faf
+
+Summary:
+
+- Added `StructArrayFieldWriteTargetPlan` so direct
+  `storageArrayStructFieldWrite` effects carry the planned struct-array root
+  slot, array length, field count, and field offset after
+  `Lower.buildEffectPlan`.
+- Routed `Lower.buildEffectPlan` to emit planned struct-array field write
+  target variants while preserving the legacy state-id/field variant for
+  fallback and compatibility paths.
+- Added direct `ToYul` helpers for planned struct-array field writes, moving
+  final `__proof_forge_struct_array_slot(root, length, fieldCount,
+  fieldOffset, index)` assembly behind the planned target instead of a late
+  `IR.lean` callback.
+- Extended semantic-plan tests with `Lower -> Plan` assertions and direct
+  planned-target `ToYul` coverage for checked index/value expressions.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/storage-struct-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- Struct field reads and struct-array field reads still use their existing
+  state-id/field lookup paths.
+
+Next step:
+
+- Move struct and struct-array field read metadata behind planned targets, then
+  continue with the remaining storage-path expression planning surfaces.
+
 ### EVM Planned Struct Field Write Targets
 
 Commit: c56729e
@@ -49,14 +91,13 @@ git diff --check
 
 Known limitations:
 
-- `storageArrayStructFieldWrite` still uses the existing struct-array slot
-  callback path; this slice only moves direct scalar struct field writes.
+- This slice only moved direct scalar struct field writes; struct-array field
+  write metadata is tracked by the next entry.
 - Struct field reads still use their existing state-id/field lookup path.
 
 Next step:
 
-- Move struct-array field write metadata behind its own planned target, then
-  continue with struct/struct-array field read targets.
+- Move struct-array field write metadata behind its own planned target.
 
 ### EVM Planned Array Read Targets
 

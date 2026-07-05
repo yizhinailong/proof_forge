@@ -352,15 +352,17 @@ Tasks:
     compatibility-facade callbacks. Struct-array field reads/writes and
     storage-path array reads/writes remain on their existing helper/target
     surfaces until their metadata is widened into explicit semantic-plan nodes.
-  - Started: direct `storageStructFieldWrite` assembly now consumes
-    `StructFieldWriteTargetPlan` variants from `Lower.buildEffectPlan` for
-    supported scalar field values. The plan carries the struct field storage
-    slot, and direct `EffectPlan -> ToYul` helpers now own final
-    `sstore(fieldSlot, value)` assembly instead of a late compatibility-facade
-    callback. `storageArrayStructFieldWrite` still uses the existing
-    struct-array slot callback, and struct/struct-array field reads remain on
-    their existing state-id/field lookup paths until their own target slices add
-    coverage.
+  - Started: direct `storageStructFieldWrite` and
+    `storageArrayStructFieldWrite` assembly now consume
+    `StructFieldWriteTargetPlan`/`StructArrayFieldWriteTargetPlan` variants
+    from `Lower.buildEffectPlan` for supported scalar field values and
+    struct-array indexes. The plans carry the struct field slot or struct-array
+    root slot/length/field metadata, and direct `EffectPlan -> ToYul` helpers
+    now own final `sstore(fieldSlot, value)` and
+    `__proof_forge_struct_array_slot(root, length, fieldCount, fieldOffset,
+    index)` assembly instead of late compatibility-facade callbacks.
+    Struct/struct-array field reads remain on their existing state-id/field
+    lookup paths until their own target slices add coverage.
   - Started: whole-struct `storageScalarWrite` assembly now consumes a narrow
     `StmtPlan.effect` / `EffectPlan -> ToYul` helper for local struct sources,
     storage-struct read sources, and struct literals whose field expressions
