@@ -162,11 +162,46 @@ def exprsAreNatLiterals
   args.size == expected.size &&
     Id.run do
       let mut ok := true
-      for h : idx in [0:args.size] do
+      for _h : idx in [0:args.size] do
         match expected[idx]? with
         | some value =>
-            if ok && !exprIsNatLiteral args[idx] value then
+            if ok && !exprIsNatLiteral args[idx]! value then
               ok := false
+        | none =>
+            ok := false
+      ok
+
+def exprsHaveNatPrefix
+    (args : Array Lean.Compiler.Yul.Expr)
+    (expected : Array Nat) : Bool :=
+  expected.size <= args.size &&
+    Id.run do
+      let mut ok := true
+      for _h : idx in [0:expected.size] do
+        match expected[idx]? with
+        | some value =>
+            if ok && !exprIsNatLiteral args[idx]! value then
+              ok := false
+        | none =>
+            ok := false
+      ok
+
+def exprsHaveIdentSuffix
+    (args : Array Lean.Compiler.Yul.Expr)
+    (expected : Array String) : Bool :=
+  expected.size <= args.size &&
+    Id.run do
+      let start := args.size - expected.size
+      let mut ok := true
+      for _h : idx in [0:expected.size] do
+        match expected[idx]? with
+        | some value =>
+            match args[start + idx]! with
+            | Lean.Compiler.Yul.Expr.ident name =>
+                if ok && name != value then
+                  ok := false
+            | _ =>
+                ok := false
         | none =>
             ok := false
       ok
@@ -182,6 +217,22 @@ def blockHasAssignmentCallNatArgs
         names == targetNames &&
           name == functionName &&
           exprsAreNatLiterals args expectedArgs
+    | _ => false
+
+def blockHasAssignmentCallNatPrefixIdentSuffix
+    (block : Lean.Compiler.Yul.Block)
+    (targetNames : Array String)
+    (functionName : String)
+    (expectedNatPrefix : Array Nat)
+    (expectedIdentSuffix : Array String) : Bool :=
+  block.statements.any fun stmt =>
+    match stmt with
+    | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) =>
+        names == targetNames &&
+          name == functionName &&
+          args.size == expectedNatPrefix.size + expectedIdentSuffix.size &&
+          exprsHaveNatPrefix args expectedNatPrefix &&
+          exprsHaveIdentSuffix args expectedIdentSuffix
     | _ => false
 
 mutual
@@ -1375,6 +1426,92 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
       "__proof_forge_crosscall_0_abi_bool_u32"
       #[111, 222])
     "plan-driven entrypoint lowering must consume aggregate crosscall return ModulePlan body"
+  let localAggregateCrosscallArgEntrypoint : Entrypoint := {
+    name := "planned_pair_arg"
+    selector? := some "12345678"
+    params := #[
+      ("target", .u64),
+      ("method", .u64),
+      ("pair", .structType "RemotePair")
+    ]
+    returns := .bool
+    body := #[
+      .return (.crosscallInvokeTyped
+        (.local "target")
+        (.local "method")
+        #[.local "pair"]
+        .bool)
+    ]
+  }
+  let localAggregateCrosscallArgModule :=
+    { ProofForge.IR.Examples.EvmCrosscallProbe.module with
+      entrypoints :=
+        ProofForge.IR.Examples.EvmCrosscallProbe.module.entrypoints.push
+          localAggregateCrosscallArgEntrypoint }
+  let localAggregateCrosscallArgPlan ← requireOk
+    (buildSemanticPlan localAggregateCrosscallArgModule)
+    "local aggregate crosscall argument plan"
+  let plannedPairArgEntrypoint ← requireSome
+    (localAggregateCrosscallArgPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "planned_pair_arg"))
+    "local aggregate crosscall argument plan missing entrypoint"
+  require
+    (stmtPlansSupportPlannedBody plannedPairArgEntrypoint.returns.returnType plannedPairArgEntrypoint.body)
+    "local aggregate crosscall argument body must be accepted by planned-body gate"
+  match plannedPairArgEntrypoint.body[0]? with
+  | some (StmtPlan.return (ExprPlan.crosscall .call _ _ none args .bool)) => do
+      require (args.size == 1)
+        "local aggregate crosscall argument plan arg count"
+      let arg ← requireAt args 0 "local aggregate crosscall argument plan missing arg"
+      match arg with
+      | CrosscallArgWordPlan.local name type => do
+          require (name == "pair")
+            "local aggregate crosscall argument plan local name"
+          require (type == .structType "RemotePair")
+            "local aggregate crosscall argument plan local type"
+      | _ => throw <| IO.userError "local aggregate crosscall argument plan must keep local source"
+  | _ => throw <| IO.userError "local aggregate crosscall argument plan must return crosscall"
+  let alteredLocalAggregateCrosscallArgEntrypoints :=
+    localAggregateCrosscallArgPlan.entrypoints.map fun entrypoint =>
+      if entrypoint.name == "planned_pair_arg" then
+        { entrypoint with
+          body := #[
+            StmtPlan.return
+              (ExprPlan.crosscall
+                ProofForge.Backend.Evm.Plan.CrosscallMode.call
+                (ExprPlan.literalWord 111)
+                (ExprPlan.literalWord 222)
+                none
+                #[CrosscallArgWordPlan.local "pair" (.structType "RemotePair")]
+                .bool)
+          ]
+        }
+      else
+        entrypoint
+  let alteredLocalAggregateCrosscallArgPlan :=
+    { localAggregateCrosscallArgPlan with entrypoints := alteredLocalAggregateCrosscallArgEntrypoints }
+  let alteredLocalAggregateCrosscallArgObject ← requireOk
+    (lowerModuleWithPlan
+      localAggregateCrosscallArgModule
+      alteredLocalAggregateCrosscallArgPlan)
+    "local aggregate crosscall argument altered plan-driven module lowering"
+  let alteredPlannedPairArgEntrypoint ← requireSome
+    (alteredLocalAggregateCrosscallArgPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "planned_pair_arg"))
+    "local aggregate crosscall argument altered plan missing entrypoint"
+  let alteredPlannedPairArgFunctionName :=
+    ProofForge.Backend.Evm.ToYul.entrypointPlanFunctionName
+      localAggregateCrosscallArgModule.name
+      alteredPlannedPairArgEntrypoint
+  let alteredPlannedPairArgBody ← requireSome
+    (functionBody? alteredLocalAggregateCrosscallArgObject.code.statements alteredPlannedPairArgFunctionName)
+    "local aggregate crosscall argument altered plan function body missing"
+  require
+    (blockHasAssignmentCallNatPrefixIdentSuffix
+      alteredPlannedPairArgBody
+      #["result"]
+      "__proof_forge_crosscall_2_bool"
+      #[111, 222]
+      #["__proof_forge_struct_pair_flag", "__proof_forge_struct_pair_small"])
+    "plan-driven entrypoint lowering must consume local aggregate crosscall argument ModulePlan body"
   let transferEntrypoint ← requireSome
     (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "transfer"))
     "dynamic ABI plan missing transfer entrypoint"

@@ -4720,10 +4720,9 @@ partial def lowerScalarReturnStmtPlanOrFallback
       match ProofForge.Backend.Evm.Lower.returnPlan module s!"entrypoint `{entrypointName}`" returnType with
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
-    ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
+    ProofForge.Backend.Evm.ToYul.scalarReturnExprPlanStatements
       toYulError
-      (fun expr => lowerExpr module env expr)
-      (lowerPlanEffectExpr module env)
+      (lowerExprPlanExpr module env)
       returns.localNames
       leaveAfterReturn
       (.return valuePlan)
@@ -4856,7 +4855,7 @@ mutual
   partial def crosscallArgWordPlanSupportsPlannedBody :
       ProofForge.Backend.Evm.Plan.CrosscallArgWordPlan → Bool
     | .expr value => exprPlanSupportsPlannedBody value
-    | .local .. | .storage .. => false
+    | .local .. | .storage .. => true
 
   partial def exprPlanSupportsPlannedBody :
       ProofForge.Backend.Evm.Plan.ExprPlan → Bool
@@ -5463,10 +5462,9 @@ mutual
               value
               leaveAfterReturn
           else
-            ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
+            ProofForge.Backend.Evm.ToYul.scalarReturnExprPlanStatements
               toYulError
-              (fun expr => lowerExpr module env expr)
-              (lowerPlanEffectExpr module env)
+              (lowerExprPlanExpr module env)
               (← abiReturnNames module entrypointName returnType)
               leaveAfterReturn
               (.return value)

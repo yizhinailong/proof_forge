@@ -441,8 +441,9 @@ Tasks:
     plus aggregate event word effects whose per-word `ExprPlan`s are supported,
     dynamic local returns, and aggregate local/literal return word assignments,
     storage-backed struct scalar return word assignments, and planned aggregate
-    crosscall return assignments, before falling back to the portable IR body
-    path for unsupported shapes.
+    crosscall return assignments, plus scalar planned-body returns whose
+    crosscall argument words use local/storage source plans, before falling
+    back to the portable IR body path for unsupported shapes.
     The IR facade conversion remains only on compatibility event statement
     paths outside that planned-body subset.
     Planned-body event effects now route through
@@ -501,9 +502,12 @@ Tasks:
     nodes for scalar `call`, value-bearing `call`, native value transfer,
     `staticcall`, `delegatecall`, `create`, and `create2` can lower directly to
     helper calls using the same helper-name selection used for helper body
-    emission. The compatibility `IR.lean` expression lowering still owns
-    type-env validation and aggregate crosscall argument word expansion, but
-    delegates final helper-call names and argument ordering to `ToYul`.
+    emission. Planned scalar return frames now call the same `lowerExprPlanExpr`
+    callback used by expression lowering, so local/storage aggregate crosscall
+    argument source plans can be provider-expanded before `ToYul` selects the
+    helper-call name and argument order. The compatibility `IR.lean` expression
+    lowering still owns type-env validation and fallback aggregate crosscall
+    argument word expansion.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local

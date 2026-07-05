@@ -2507,6 +2507,28 @@ def scalarReturnStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar return lowering expected return")
 
+def scalarReturnExprPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (returnNames : Array String)
+    (leaveAfterReturn : Bool) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .return value => do
+      let some returnName := returnNames[0]?
+        | .error (mkError "EVM StmtPlan-to-Yul scalar return lowering expected one return name, got 0")
+      if returnNames.size != 1 then
+        .error (mkError s!"EVM StmtPlan-to-Yul scalar return lowering expected one return name, got {returnNames.size}")
+      else
+        let statements := #[
+          Lean.Compiler.Yul.Statement.assignment
+            #[returnName]
+            (← lowerPlanExpr value)
+        ]
+        .ok <| if leaveAfterReturn then statements.push .leave else statements
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul scalar return lowering expected return")
+
 def dynamicReturnStmtPlanStatements
     {ε : Type}
     (mkError : String → ε)
