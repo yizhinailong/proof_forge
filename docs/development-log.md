@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Scalar Storage Read Targets
+
+Commit: 7b519f5
+
+Summary:
+
+- Added a planned scalar storage read effect variant so non-struct scalar reads
+  carry the same `ScalarStorageTargetPlan` metadata as scalar writes.
+- Routed `Lower.buildEffectPlan` to produce planned read targets for regular
+  scalar states while preserving legacy `storageScalarRead stateId` for
+  struct-valued scalar storage compatibility paths.
+- Added `ToYul.scalarStorageTargetReadExpr`, reusing the planned slot plus
+  packed byte offset/width to lower reads without a late state-layout callback.
+- Updated scalar control-flow body support and semantic-plan tests so Counter
+  reads, `Lower -> Plan`, and direct planned-target read lowering are covered.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/packed-storage-ir-smoke.sh
+scripts/evm/typed-storage-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- Struct-valued scalar storage reads still use the existing compatibility path,
+  because they are consumed by struct local binding, field access, and aggregate
+  return expansion paths rather than a scalar packed-read expression.
+
+Next step:
+
+- Continue replacing remaining storage effect callback helpers with planned
+  target nodes, especially map/array/struct-field slot metadata surfaces.
+
 ### EVM Planned Scalar Storage Write Targets
 
 Commit: 9aaa34f

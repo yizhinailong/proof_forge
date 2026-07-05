@@ -326,13 +326,14 @@ Tasks:
     assignment, dynamic aggregate helper snapshots, and non-scalar storage
     effect writes remain on their existing compatibility paths until their own
     migration slices add coverage.
-  - Started: scalar `storageScalarWrite` and `storageScalarAssignOp` statement
-    assembly now consumes `ScalarStorageTargetPlan` variants from
-    `Lower.buildEffectPlan` for non-struct scalar states. The plan carries the
-    storage slot plus packed byte offset/width, and direct `EffectPlan -> ToYul`
-    helpers own the final packed write/assign-op frame. Whole-struct scalar
-    storage writes remain on their compatibility path until their field
-    expansion can be represented as planned storage targets.
+  - Started: scalar `storageScalarRead`, `storageScalarWrite`, and
+    `storageScalarAssignOp` lowering now consumes `ScalarStorageTargetPlan`
+    variants from `Lower.buildEffectPlan` for non-struct scalar states. The
+    plan carries the storage slot plus packed byte offset/width, and direct
+    `EffectPlan -> ToYul` helpers own the final packed read/write/assign-op
+    frame. Struct-valued scalar storage reads/writes remain on compatibility
+    paths until their field expansion can be represented as planned storage
+    targets.
   - Started: statement-position `storageMapInsert`/`storageMapSet` write
     assembly now consumes a narrow `StmtPlan.effect` / `EffectPlan -> ToYul`
     helper for supported scalar map key/value expressions. Expression-position
