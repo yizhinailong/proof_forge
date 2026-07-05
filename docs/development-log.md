@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM ToYul Map Helpers
+
+Commit: c679a55
+
+Summary:
+
+- Moved map slot, map presence slot, map write, map set-return, and map
+  compound-assignment helper function bodies from the `IR.lean` compatibility
+  facade into `ToYul.lean`.
+- Moved the ProofForge-managed map presence domain constant to `ToYul`, where
+  the helper body that uses it now lives.
+- Routed remaining raw fallback map writes, set-return expressions, and direct
+  map storage-path compound assignment calls through `ToYul.helperCall` with
+  `Plan.Helper` variants.
+- Added semantic-plan regression coverage that verifies `EvmMapProbe`
+  discovers all map helper families and emits the matching ToYul helper set,
+  including representative map assign helpers.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/map-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+just evm-diagnostics
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns local-array value helper bodies and several
+  compatibility-only helper discovery passes. This slice only moves map helper
+  function bodies and helper naming to the ToYul-owned side.
+
+Next step:
+
+- Continue Phase 0 by moving local fixed-array value helper bodies or
+  crosscall/create compatibility wrappers behind explicit ToYul ownership.
+
 ### EVM ToYul Array Slot Helpers
 
 Commit: cb2f6b7
