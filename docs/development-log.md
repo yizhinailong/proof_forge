@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Planned Memory-Array Expression Body Slice
+
+Commit: 00e8306
+
+Summary:
+
+- Added planned-body support for `ExprPlan.memoryArrayNew`,
+  `ExprPlan.memoryArrayLength`, and `ExprPlan.memoryArrayGet` when their nested
+  expressions are already supported.
+- Let supported control-flow branch bodies lower memory-array length/get
+  expressions through the existing `ExprPlan -> ToYul` expression boundary.
+- Added semantic-plan coverage for memory-array length over an existing local
+  buffer, length over a planned memory-array allocation, and memory-array get
+  helper calls inside planned `ifElse` bodies.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+```
+
+Known limitations:
+
+- Memory-array expressions are now eligible inside supported planned bodies, but
+  array-typed local bindings and wider memory-array lifecycle orchestration
+  still remain outside the planned-body subset.
+- This slice expands expression eligibility only; broader recursive
+  `StmtPlan -> Yul` extraction still needs to continue incrementally.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue shrinking the `IR.lean` compatibility facade by moving the next
+  statement/effect boundary into `Lower -> Plan -> ToYul`.
+
 ### EVM Planned Memory-Array Set Body Slice
 
 Commit: 7c24232
