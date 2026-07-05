@@ -2316,6 +2316,33 @@ def structFieldWriteEffectStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul struct field write lowering expected effect")
 
+def structFieldWriteTargetEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storageStructFieldWriteTarget target value => do
+      .ok #[
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          ← storageSlotExpr mkError lowerExpr target.slot,
+          ← exprPlanExpr mkError lowerExpr lowerEffect value
+        ])
+      ]
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul planned struct field write lowering expected storageStructFieldWriteTarget")
+
+def structFieldWriteTargetEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      structFieldWriteTargetEffectPlanStatements mkError lowerExpr lowerEffect effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul planned struct field write lowering expected effect")
+
 structure StorageStructWriteField where
   slot : Lean.Compiler.Yul.Expr
   fieldName : String

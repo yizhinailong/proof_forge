@@ -109,6 +109,15 @@ def requireArrayReadTarget
   require (target.rootSlot == expectedRootSlot) s!"{label} root slot"
   require (target.length == expectedLength) s!"{label} length"
 
+def requireStructFieldWriteTarget
+    (target : StructFieldWriteTargetPlan)
+    (expectedSlot : Nat)
+    (label : String) : IO Unit := do
+  match target.slot with
+  | .scalarSlot slot =>
+      require (slot == expectedSlot) s!"{label} slot"
+  | _ => throw <| IO.userError s!"{label} must use scalar slot"
+
 def requireIdentExpr
     (expr : Lean.Compiler.Yul.Expr)
     (expectedName : String)
@@ -3666,6 +3675,41 @@ def testStructFieldWritePlanToYul : IO Unit := do
           require (addArgs.size == 2) "struct field write StmtPlan-to-Yul helper checked add arg count"
       | _ => throw <| IO.userError "struct field write StmtPlan-to-Yul helper value must be checked add"
   | _ => throw <| IO.userError "struct field write StmtPlan-to-Yul helper must lower to sstore"
+  let loweredStructFieldWriteEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      (toValidateTypeEnv env)
+      (.storageStructFieldWrite "current" "x" (.local "value")))
+    "Lower struct field write target effect plan"
+  match loweredStructFieldWriteEffect with
+  | .storageStructFieldWriteTarget target (.local valueName) => do
+      requireStructFieldWriteTarget target 1 "Lower struct field write target"
+      require (valueName == "value") "Lower struct field write target value"
+  | _ => throw <| IO.userError "Lower struct field write must produce storageStructFieldWriteTarget"
+  let directPlannedFieldStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.structFieldWriteTargetEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageStructFieldWriteTarget
+          { slot := .scalarSlot 1 }
+          (.checkedArith .add (.local "value") (.literalWord 5)))))
+    "planned struct field write target StmtPlan-to-Yul helper"
+  require (directPlannedFieldStmts.size == 1) "planned struct field write target helper statement count"
+  match directPlannedFieldStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "planned struct field write target helper arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "planned struct field write target helper slot"
+      | _ => throw <| IO.userError "planned struct field write target slot must be literal"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "planned struct field write target helper checked add"
+          require (addArgs.size == 2) "planned struct field write target helper checked add arg count"
+      | _ => throw <| IO.userError "planned struct field write target helper value must be checked add"
+  | _ => throw <| IO.userError "planned struct field write target helper must lower to sstore"
   let directArrayFieldStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.structFieldWriteEffectStmtPlanStatements
       toYulError

@@ -50,6 +50,13 @@ def arrayReadTargetPlan? (module : Module) (stateId : String) : Option ArrayRead
   | .ok target => some target
   | .error _ => none
 
+def structFieldWriteTargetPlan?
+    (module : Module)
+    (stateId fieldName : String) : Option StructFieldWriteTargetPlan :=
+  match structFieldWriteTargetPlan module stateId fieldName with
+  | .ok target => some target
+  | .error _ => none
+
 def abiParamPlan
     (module : Module)
     (context : String)
@@ -468,7 +475,10 @@ mutual
     | .storageStructFieldRead stateId fieldName =>
         .ok (.storageStructFieldRead stateId fieldName)
     | .storageStructFieldWrite stateId fieldName value => do
-        .ok (.storageStructFieldWrite stateId fieldName (← buildExprPlan module env value))
+        let valuePlan ← buildExprPlan module env value
+        match structFieldWriteTargetPlan? module stateId fieldName with
+        | some target => .ok (.storageStructFieldWriteTarget target valuePlan)
+        | none => .ok (.storageStructFieldWrite stateId fieldName valuePlan)
     | .storagePathRead stateId path =>
         .ok (.storagePathRead stateId path)
     | .storagePathWrite stateId path value => do
