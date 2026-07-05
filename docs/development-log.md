@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Fallback Helper Discovery Through Lower
+
+Commit: d7b1b2d
+
+Summary:
+
+- Routed incomplete-plan fallback helper discovery in `lowerModuleWithPlan`
+  through `Lower.buildCrosscallHelperPlans`,
+  `Lower.buildCreateHelperPlans`, `Lower.buildLocalArrayGetLengths`, and
+  `Lower.buildNestedLocalArrayGetShapes`.
+- Routed fallback checked-arithmetic detection through
+  `Validate.moduleUsesCheckedArithmetic`, matching the source used by
+  `Lower.buildFullModulePlan`.
+- Added semantic-plan regression coverage that lowers intentionally incomplete
+  base plans and verifies the fallback path emits the same discovered
+  crosscall, create, checked-arithmetic, local-array, and nested-local-array
+  helpers.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- The old compatibility discovery functions still exist in `IR.lean` as dead
+  code after this routing change. They should be deleted in a focused cleanup
+  once no downstream compatibility callers need them.
+
+Next step:
+
+- Remove the now-unused `IR.lean` helper discovery scanners or continue moving
+  the remaining compatibility-only helper wrappers toward `Lower -> Plan ->
+  ToYul`.
+
 ### EVM ToYul Local Array Helpers
 
 Commit: dffa0e2
