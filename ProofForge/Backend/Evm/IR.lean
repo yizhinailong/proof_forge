@@ -2601,24 +2601,19 @@ mutual
       Except LowerError Lean.Compiler.Yul.Expr := do
     match plan with
     | .crosscall mode target methodId callValue? args returnType => do
-        let targetExpr ← lowerExprPlanExpr module env target
-        let methodIdExpr ← lowerExprPlanExpr module env methodId
-        let callValueExpr? ← callValue?.mapM (lowerExprPlanExpr module env)
-        let argWords ← lowerCrosscallArgWordPlanExprs module env (crosscallPlanArgContext mode) args
-        let plainTransfer :=
-          mode == .callValue && argWords.isEmpty &&
-            match methodId with
-            | .literalWord 0 => true
-            | _ => false
-        ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
+        ProofForge.Backend.Evm.ToYul.crosscallExprPlanExpr
           toYulError
+          (lowerExprPlanExpr module env)
+          (fun name type =>
+            lowerLocalCrosscallWords module env (crosscallPlanArgContext mode) name type)
+          (fun stateId type =>
+            lowerStorageCrosscallWords module env (crosscallPlanArgContext mode) stateId type)
           mode
-          targetExpr
-          methodIdExpr
-          callValueExpr?
-          argWords
+          target
+          methodId
+          callValue?
+          args
           returnType
-          plainTransfer
     | _ =>
         ProofForge.Backend.Evm.ToYul.exprPlanExpr
           toYulError

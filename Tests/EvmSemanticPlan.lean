@@ -2535,9 +2535,45 @@ def testLocalCrosscallWordsToYul : IO Unit := do
   match directArgWords[2]! with
   | Lean.Compiler.Yul.Expr.lit value =>
       require (value.value == "9") "direct crosscall arg word plan scalar word"
-  | _ => throw <| IO.userError "direct crosscall arg word plan scalar word must be numeric"
+  | _ =>
+      throw <| IO.userError "direct crosscall arg word plan scalar word must be numeric"
   requireIdentExpr directArgWords[3]! "current_x" "direct crosscall arg word plan storage word 0"
   requireIdentExpr directArgWords[4]! "current_y" "direct crosscall arg word plan storage word 1"
+  let directCrosscallExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.crosscallExprPlanExpr
+      toYulError
+      (fun
+        | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
+        | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
+        | _ => .error { message := "direct crosscall expression test only lowers literal/local scalar plans" })
+      (fun name type =>
+        ProofForge.Backend.Evm.ToYul.localCrosscallWords
+          toYulError
+          simpleStructFields
+          "crosscall argument"
+          name
+          type)
+      (fun stateId type =>
+        if stateId == "current" && type == .structType "Point" then
+          .ok #[Lean.Compiler.Yul.Expr.id "current_x", Lean.Compiler.Yul.Expr.id "current_y"]
+        else
+          .error { message := "direct crosscall expression test unexpected storage plan" })
+      ProofForge.Backend.Evm.Plan.CrosscallMode.call
+      (.local "target")
+      (.literalWord 305419896)
+      none
+      #[
+        CrosscallArgWordPlan.local "p" (.structType "Point"),
+        CrosscallArgWordPlan.expr (.literalWord 9),
+        CrosscallArgWordPlan.storage "current" (.structType "Point")
+      ]
+      .u64)
+    "direct provider-backed crosscall ExprPlan-to-Yul"
+  requireCallExpr
+    directCrosscallExpr
+    "__proof_forge_crosscall_5"
+    7
+    "direct provider-backed crosscall ExprPlan-to-Yul"
   let structEnv : TypeEnv := #[
     { name := "p", type := .structType "Point", isMutable := false }
   ]

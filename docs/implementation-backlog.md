@@ -502,12 +502,14 @@ Tasks:
     nodes for scalar `call`, value-bearing `call`, native value transfer,
     `staticcall`, `delegatecall`, `create`, and `create2` can lower directly to
     helper calls using the same helper-name selection used for helper body
-    emission. Planned scalar return frames now call the same `lowerExprPlanExpr`
-    callback used by expression lowering, so local/storage aggregate crosscall
-    argument source plans can be provider-expanded before `ToYul` selects the
-    helper-call name and argument order. The compatibility `IR.lean` expression
-    lowering still owns type-env validation and fallback aggregate crosscall
-    argument word expansion.
+    emission. `ToYul.crosscallExprPlanExpr` now owns target/method/call-value
+    lowering, provider-backed crosscall argument source expansion, helper-call
+    name selection, and final argument ordering for scalar crosscall expressions.
+    Planned scalar return frames call the same `lowerExprPlanExpr` callback used
+    by expression lowering, so local/storage aggregate crosscall argument source
+    plans can be provider-expanded before `ToYul` selects the helper-call shape.
+    The compatibility `IR.lean` expression lowering still supplies local/storage
+    provider callbacks and owns type-env validation for fallback crosscall paths.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local
@@ -574,9 +576,11 @@ Tasks:
     helpers remain only as helper APIs for explicit local/source word expansion.
     `Lower.buildCrosscallArgWordPlansMany`
     now returns those source plans, while `ToYul.crosscallArgWordPlanExprs`
-    performs the final traversal and word concatenation. `IR.lean` still
-    supplies ToYul provider callbacks for local/storage crosscall source plans,
-    while scalar expression fallback crosscall lowering now also calls
+    performs the final traversal and word concatenation.
+    `ToYul.crosscallExprPlanExpr` wraps that traversal with target/method/call-
+    value lowering and scalar helper-call selection. `IR.lean` still supplies
+    ToYul provider callbacks for local/storage crosscall source plans, while
+    scalar expression fallback crosscall lowering now also calls
     `Lower.buildCrosscallArgWordPlansMany` before that ToYul boundary, and the
     old IR-local `lowerCrosscall*ArgWords` expansion tree has been removed.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
