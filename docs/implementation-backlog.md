@@ -458,6 +458,11 @@ Tasks:
     no longer enter that helper through `ValuePlan` wrappers. The remaining
     storage-path extraction work is to delete legacy callback surfaces once
     direct callers and diagnostic-only fallback paths no longer need them.
+    Storage-path write fallback frames now also reuse
+    `ToYul.storagePathWriteTargetStatements`; `IR.lean` still chooses the
+    fallback storage-path target and scalar value expression, but it no longer
+    hand-assembles the map write helper call, single-slot `sstore`, or
+    nested-map value/presence writeback block.
     Storage-path assign-op fallback writeback frames now also reuse
     `ToYul.storagePathAssignOpTargetStatements`; `IR.lean` still chooses the
     fallback storage-path target and scalar value expression, but it no longer
@@ -686,6 +691,10 @@ Tasks:
     `ToYul.structArrayFieldWriteTargetEffectStmtPlanStatements`, so struct-array
     field root-slot, length, field offset, index, and value planning no longer
     come from IR-local target reconstruction.
+    Storage-path write fallback frames now also reuse
+    `ToYul.storagePathWriteTargetStatements`; `IR.lean` still chooses the
+    fallback target and scalar value, but no longer owns the final map write,
+    single-slot, or nested-map writeback frame.
     Storage-path assign-op fallback writeback frames now also reuse
     `ToYul.storagePathAssignOpTargetStatements`; `IR.lean` still chooses the
     fallback target and scalar value, but no longer owns the final map helper,

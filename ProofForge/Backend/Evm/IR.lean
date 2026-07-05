@@ -3297,6 +3297,21 @@ partial def lowerDynamicArrayPopStmtPlanOrFallback
   else
     .ok (.block { statements := statements })
 
+def lowerStoragePathWriteTargetStatement
+    (value : Lean.Compiler.Yul.Expr)
+    (target : ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget) :
+    Except LowerError Lean.Compiler.Yul.Statement := do
+  let statements :=
+    ProofForge.Backend.Evm.ToYul.storagePathWriteTargetStatements value target
+  match statements[0]? with
+  | some statement =>
+      if statements.size == 1 then
+        .ok statement
+      else
+        .error { message := s!"EVM storage path write target lowering produced {statements.size} statements, expected 1" }
+  | none =>
+      .error { message := "EVM storage path write target lowering produced no statements" }
+
 def lowerStoragePathWriteStmt
     (module : Module)
     (env : TypeEnv)
@@ -3304,16 +3319,33 @@ def lowerStoragePathWriteStmt
     (path : Array StoragePathSegment)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement :=
   match path.toList with
-  | [StoragePathSegment.mapKey key] => lowerMapWriteStmt module env stateId key value
+  | [StoragePathSegment.mapKey key] => do
+      let (slot, _, _) ← requireStorageMapState module stateId
+      lowerStoragePathWriteTargetStatement
+        (← lowerMapScalarPlanExprOrFallback module env value)
+        (.mapWrite
+          (slotExpr slot)
+          (← lowerMapScalarPlanExprOrFallback module env key))
   | [StoragePathSegment.index index] => do
       let state ← stateDeclOf module stateId "storage path"
       match state.kind with
-      | .array _ => lowerArrayWriteStmt module env stateId index value
-      | .dynamicArray => lowerDynamicArrayWriteStmt module env stateId index value
+      | .array _ =>
+          lowerStoragePathWriteTargetStatement
+            (← lowerScalarPlanExprOrFallback module env value)
+            (.singleSlot (← lowerArraySlotExpr module env stateId index))
+      | .dynamicArray =>
+          lowerStoragePathWriteTargetStatement
+            (← lowerScalarPlanExprOrFallback module env value)
+            (.singleSlot (← lowerDynamicArraySlotExpr module env stateId index))
       | _ => .error { message := s!"storage path state `{stateId}` does not support index access" }
-  | [StoragePathSegment.field fieldName] => lowerStructFieldWriteStmt module env stateId fieldName value
-  | [StoragePathSegment.index index, StoragePathSegment.field fieldName] =>
-      lowerStructArrayFieldWriteStmt module env stateId index fieldName value
+  | [StoragePathSegment.field fieldName] => do
+      lowerStoragePathWriteTargetStatement
+        (← lowerScalarPlanExprOrFallback module env value)
+        (.singleSlot (← lowerStructFieldSlotExpr module stateId fieldName))
+  | [StoragePathSegment.index index, StoragePathSegment.field fieldName] => do
+      lowerStoragePathWriteTargetStatement
+        (← lowerScalarPlanExprOrFallback module env value)
+        (.singleSlot (← lowerStructArrayFieldSlotExpr module env stateId index fieldName))
   | [] => do
       let state ← stateDeclOf module stateId "storage path"
       match state.kind with
@@ -3323,7 +3355,12 @@ def lowerStoragePathWriteStmt
       | .dynamicArray => .error { message := s!"storage path state `{stateId}` is dynamic array storage; IR EVM v0 does not yet support dynamic array storage paths" }
   | _ => do
       match storagePathMapKeys? path with
-      | some keys => lowerMapPathWriteStmt module env stateId keys value
+      | some keys => do
+          lowerStoragePathWriteTargetStatement
+            (← lowerScalarPlanExprOrFallback module env value)
+            (.mapValuePresence
+              (← lowerMapPathValueSlotExpr module env stateId keys)
+              (← lowerMapPathPresenceSlotExpr module env stateId keys))
       | none =>
           .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 

@@ -8810,6 +8810,26 @@ def testStoragePathWritePlanToYul : IO Unit := do
           require (addArgs.size == 2) "planned storage path write target helper checked add arg count"
       | _ => throw <| IO.userError "planned storage path write target helper value must be checked add"
   | _ => throw <| IO.userError "planned storage path write target helper must lower to sstore"
+  let fallbackArrayWriteStmt ← requireOk
+    (lowerEffectStmt
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      arrayEnv
+      (.storagePathWrite
+        "values"
+        #[.index (.literal (.u64 1))]
+        (.arrayGet
+          (.arrayLit .u64 #[.literal (.u64 2), .literal (.u64 3)])
+          (.literal (.u64 1)))))
+    "fallback array storage path write value plan-to-yul"
+  match fallbackArrayWriteStmt with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "fallback array storage path write sstore arg count"
+      requireCallExpr args[0]! (Helper.arraySlot).name 3 "fallback array storage path write slot"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "3") "fallback array storage path write value"
+      | _ => throw <| IO.userError "fallback array storage path write value must be lowered literal"
+  | _ => throw <| IO.userError "fallback array storage path write must lower to sstore"
   let arrayWriteStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
