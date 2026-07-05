@@ -4923,7 +4923,6 @@ def eventFieldWordPlansSupportScalarBody
     (fields : Array ProofForge.Backend.Evm.Plan.EventFieldPlan)
     (fieldWords : Array (Array ProofForge.Backend.Evm.Plan.ExprPlan)) : Bool :=
   fields.size == fieldWords.size &&
-    fields.all eventFieldPlanSupportsScalarBody &&
     fieldWords.all (fun words => words.all exprPlanSupportsScalarBody)
 
 def eventFieldPlansSupportScalarBody

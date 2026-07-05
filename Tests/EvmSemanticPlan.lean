@@ -397,6 +397,40 @@ def testEventSemanticPlan : IO Unit := do
     "event altered plan function body missing"
   require (blockHasMstoreValue alteredBody 99)
     "plan-driven entrypoint lowering must consume ModulePlan body event words"
+  let storageArrayEvent ← requireSome
+    (plan.events.find? (fun ev => ev.name == "StorageArrayEvent"))
+    "event plan missing StorageArrayEvent"
+  let aggregateEntrypoints := plan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "emit_storage_array_event" then
+      { entrypoint with
+        body := #[
+          StmtPlan.effect
+            (EffectPlan.eventEmitWords storageArrayEvent #[#[
+              ExprPlan.literalWord 77,
+              ExprPlan.literalWord 88
+            ]])
+        ]
+      }
+    else
+      entrypoint
+  let aggregatePlan := { plan with entrypoints := aggregateEntrypoints }
+  let aggregateObject ← requireOk
+    (lowerModuleWithPlan ProofForge.IR.Examples.EventProbe.evmModule aggregatePlan)
+    "event aggregate altered entrypoint plan-driven module lowering"
+  let aggregateEntrypoint ← requireSome
+    (aggregatePlan.entrypoints.find? (fun entrypoint => entrypoint.name == "emit_storage_array_event"))
+    "event aggregate altered plan missing emit_storage_array_event entrypoint"
+  let aggregateFunctionName :=
+    ProofForge.Backend.Evm.ToYul.entrypointPlanFunctionName
+      ProofForge.IR.Examples.EventProbe.evmModule.name
+      aggregateEntrypoint
+  let aggregateBody ← requireSome
+    (functionBody? aggregateObject.code.statements aggregateFunctionName)
+    "event aggregate altered plan function body missing"
+  require (blockHasMstoreValue aggregateBody 77)
+    "plan-driven entrypoint lowering must consume aggregate ModulePlan event word 77"
+  require (blockHasMstoreValue aggregateBody 88)
+    "plan-driven entrypoint lowering must consume aggregate ModulePlan event word 88"
   let topicStmts := ProofForge.Backend.Evm.ToYul.eventSignatureTopicStatements valueEvent
   require (topicStmts.size > 0) "event plan-to-yul topic statement count"
   match topicStmts[topicStmts.size - 1]? with

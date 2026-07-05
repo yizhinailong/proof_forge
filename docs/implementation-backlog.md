@@ -438,6 +438,7 @@ Tasks:
     construction now returns those word-effect variants directly from
     `Lower.buildEffectPlan`; complete module assembly now consumes
     `ModulePlan` entrypoint bodies for the already-supported scalar-body subset
+    plus aggregate event word effects whose per-word `ExprPlan`s are supported,
     before falling back to the portable IR body path for unsupported shapes.
     The IR facade conversion remains only on compatibility event statement
     paths outside that planned-body subset.
