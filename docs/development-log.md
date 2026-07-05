@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Aggregate Return Fallback Removal
+
+Commit: 65b8a1c
+
+Summary:
+
+- Removed the stale IR-local fixed-array, struct-array, and struct return word
+  fallback helpers from `IR.lean`.
+- Made aggregate return fallback in `lowerReturnWords` fail explicitly if a
+  fixed-array or struct return ever bypasses `ReturnValueWordPlan` or aggregate
+  crosscall return planning.
+- Updated the implementation backlog and Chinese translation sync metadata to
+  record that aggregate return success paths must now pass through the
+  semantic-plan return surfaces.
+
+Validation run:
+
+```sh
+test -z "$(rg -n "lowerStructArrayReturnWords|lowerFixedArrayReturnWords|lowerStructReturnWords" ProofForge/Backend/Evm/IR.lean || true)"
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/abi-aggregate-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/evm/crosscall-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Non-local dynamic returns still use the compatibility fallback and diagnostic
+  path.
+- Some aggregate argument expansion and unsupported expression-position
+  aggregate crosscall diagnostics still live in `IR.lean`.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue migrating the remaining expression-position crosscall and non-local
+  dynamic return fallback decisions behind explicit `Lower`/`Plan` surfaces.
+
 ### EVM Scalar Return Name Plan Ownership
 
 Commit: 68c16f3
