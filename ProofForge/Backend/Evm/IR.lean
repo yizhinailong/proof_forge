@@ -3042,9 +3042,6 @@ partial def lowerEventDataWords
         message := s!"event `{eventName}` data field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event data fields must be U32, U64, Bool, Hash, flat structs, or fixed arrays"
       }
 
-def eventDataStoreStatements (words : Array Lean.Compiler.Yul.Expr) : Array Lean.Compiler.Yul.Statement :=
-  ProofForge.Backend.Evm.ToYul.eventDataStoreStatements words
-
 partial def lowerIndexedEventTopicStatements
     (module : Module)
     (env : TypeEnv)
@@ -3052,21 +3049,19 @@ partial def lowerIndexedEventTopicStatements
     (index : Nat)
     (fieldPlan : ProofForge.Backend.Evm.Plan.EventFieldPlan)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let topicName := ProofForge.Backend.Evm.ToYul.eventIndexedTopicName index
   let type := fieldPlan.type
   match type with
-  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-      .ok #[.varDecl #[{ name := topicName }] (some (← lowerScalarPlanExprOrFallback module env value))]
-  | .fixedArray _ _ | .structType _ => do
-
-      let words ← lowerEventDataWords module env eventName fieldName type value
-      .ok <| eventDataStoreStatements words |>.push
-        (.varDecl #[{ name := topicName }]
-          (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num (words.size * 32)])))
   | .unit | .bytes | .string | .array _ =>
       .error {
         message := s!"event `{eventName}` indexed field `{fieldName}` has unsupported EVM IR v0 type `{type.name}`; indexed event fields must be U32, U64, Bool, Hash, Address, flat structs, or fixed arrays"
       }
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .fixedArray _ _ | .structType _ => do
+      let words ← lowerEventDataWords module env eventName fieldName type value
+      ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
+        toYulError
+        fieldPlan
+        index
+        words
 
 def lowerEventEmitCoreStmt
     (module : Module)
