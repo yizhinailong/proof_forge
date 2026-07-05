@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM IR Event Helper Facade Cleanup
+
+Commit: 51cd4ba
+
+Summary:
+
+- Removed pure `ToYul` forwarding wrappers for UTF-8 word packing, event
+  signature topic statements, indexed event topic names, and event log builtin
+  names from `IR.lean`.
+- Routed the remaining indexed-event topic local-name use directly through
+  `ToYul.eventIndexedTopicName`.
+- Updated the EVM refinement scaffold to compute event signature topics through
+  `ToYul.packedUtf8Words` instead of the IR compatibility facade.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Refinement
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Event signature field typing and indexed aggregate topic lowering still live
+  in `IR.lean`; this slice only removes wrappers that were already pure ToYul
+  forwarding surface.
+
+Next step:
+
+- Continue extracting event lowering by moving field typing, topic planning, or
+  aggregate topic hashing behind explicit event semantic-plan nodes.
+
 ### EVM IR Hash Packing Facade Cleanup
 
 Commit: 7730f6a
