@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Crosscall Argument Word Planning
+
+Commit: 83dabe8
+
+Summary:
+
+- Routed scalar expression fallback crosscall argument lowering through
+  `Lower.buildCrosscallArgWordPlansMany` before the `ToYul` argument-word
+  boundary.
+- Removed the old IR-local `lowerCrosscall*ArgWords` expansion tree from
+  `IR.lean`.
+- Tightened `Lower` so unsupported non-literal aggregate crosscall argument
+  sources fail with explicit diagnostics instead of falling through to scalar
+  expression planning.
+- Added semantic-plan coverage for the IR compatibility facade consuming
+  planned local struct crosscall argument words.
+
+Validation run:
+
+```sh
+test -z "$(rg -n "lowerCrosscallStructArgWords|lowerCrosscallStructArrayArgWords|lowerCrosscallFixedArrayArgWords|lowerCrosscallArgWords\\b" ProofForge/Backend/Evm/IR.lean ProofForge/Backend/Evm/Lower.lean Tests || true)"
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/crosscall-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns scalar expression fallback return-type checks for
+  aggregate crosscall returns.
+- Local/storage crosscall word-provider callbacks still depend on compatibility
+  type-env helpers.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue migrating remaining expression-position aggregate crosscall return
+  diagnostics and local/storage word-provider validation behind explicit
+  `Lower`/`Plan` surfaces.
+
 ### EVM Crosscall Argument Word Plan Delegation
 
 Commit: becf9d8
