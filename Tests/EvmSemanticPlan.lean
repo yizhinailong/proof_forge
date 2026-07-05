@@ -3789,6 +3789,35 @@ def testScalarEventPlanToYul : IO Unit := do
       | some var => require (vars.size == 1 && var.name == "_indexed_topic0") "event indexed field plan-to-yul topic var"
       | none => throw <| IO.userError "event indexed field plan-to-yul topic missing var"
   | _ => throw <| IO.userError "event indexed field plan-to-yul topic must be var decl"
+  let directEventEffectStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatements
+      toYulError
+      (fun _ values =>
+        if values.size == 1 then
+          .ok directIndexedTopics
+        else
+          .error (toYulError "event effect helper test expected one indexed field"))
+      (fun _ values =>
+        if values.size == 1 then
+          .ok #[Lean.Compiler.Yul.Expr.num 13]
+        else
+          .error (toYulError "event effect helper test expected one data field"))
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.eventEmitIndexed
+          directEvent
+          #[AbiValuePlan.expr (.literalWord 7)]
+          #[AbiValuePlan.expr (.literalWord 13)])))
+    "event effect StmtPlan-to-Yul helper"
+  require (directEventEffectStmts.size == 1) "event effect StmtPlan-to-Yul helper statement count"
+  match directEventEffectStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size >= 4) "event effect StmtPlan-to-Yul helper block statement count"
+      match block.statements[block.statements.size - 1]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+          require (name == "log2") "event effect StmtPlan-to-Yul helper log builtin"
+          require (args.size == 4) "event effect StmtPlan-to-Yul helper log arg count"
+      | _ => throw <| IO.userError "event effect StmtPlan-to-Yul helper must end with log"
+  | _ => throw <| IO.userError "event effect StmtPlan-to-Yul helper must lower to block"
   let dataStmt ← requireOk
     (lowerEventEmitCoreStmt
       ProofForge.IR.Examples.EventProbe.evmModule

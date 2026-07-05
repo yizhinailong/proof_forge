@@ -5080,33 +5080,39 @@ def lowerScalarEventEffectPlan
     (env : TypeEnv)
     (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  match effect with
-  | .eventEmit event dataFields => do
-      let dataWords ← lowerEventFieldsDataWordExprs module env event.name event.dataFields dataFields
-      .ok #[← ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement toYulError event #[] dataWords]
-  | .eventEmitIndexed event indexedFields dataFields => do
-      if event.indexedFields.size != indexedFields.size then
-        .error {
-          message := s!"planned scalar control-flow event `{event.name}` indexed field/value count mismatch"
-        }
-      let mut indexedTopicStatements : Array Lean.Compiler.Yul.Statement := #[]
-      for h : idx in [0:event.indexedFields.size] do
-        let some value := indexedFields[idx]?
-          | .error {
-              message := s!"planned scalar control-flow event `{event.name}` missing indexed field value at index {idx}"
-            }
-        let words ← lowerEventFieldDataWordExprs module env event.name event.indexedFields[idx] value
-        indexedTopicStatements :=
-          indexedTopicStatements ++
-            (← ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
-              toYulError
-              event.indexedFields[idx]
-              idx
-              words)
-      let dataWords ← lowerEventFieldsDataWordExprs module env event.name event.dataFields dataFields
-      .ok #[← ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement toYulError event indexedTopicStatements dataWords]
-  | _ =>
-      .error { message := "planned scalar control-flow body expected an event effect" }
+  let indexedTopicStatementsFor
+      (event : ProofForge.Backend.Evm.Plan.EventPlan)
+      (indexedFields : Array ProofForge.Backend.Evm.Plan.AbiValuePlan) :
+      Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+    if event.indexedFields.size != indexedFields.size then
+      .error {
+        message := s!"planned scalar control-flow event `{event.name}` indexed field/value count mismatch"
+      }
+    let mut indexedTopicStatements : Array Lean.Compiler.Yul.Statement := #[]
+    for h : idx in [0:event.indexedFields.size] do
+      let some value := indexedFields[idx]?
+        | .error {
+            message := s!"planned scalar control-flow event `{event.name}` missing indexed field value at index {idx}"
+          }
+      let words ← lowerEventFieldDataWordExprs module env event.name event.indexedFields[idx] value
+      indexedTopicStatements :=
+        indexedTopicStatements ++
+          (← ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
+            toYulError
+            event.indexedFields[idx]
+            idx
+            words)
+    .ok indexedTopicStatements
+  let dataWordsFor
+      (event : ProofForge.Backend.Evm.Plan.EventPlan)
+      (dataFields : Array ProofForge.Backend.Evm.Plan.AbiValuePlan) :
+      Except LowerError (Array Lean.Compiler.Yul.Expr) :=
+    lowerEventFieldsDataWordExprs module env event.name event.dataFields dataFields
+  ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatements
+    toYulError
+    indexedTopicStatementsFor
+    dataWordsFor
+    (.effect effect)
 
 def lowerScalarBodyEffectPlan
     (module : Module)
