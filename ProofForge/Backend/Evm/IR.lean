@@ -3762,18 +3762,21 @@ partial def lowerStoragePathWriteStmtPlanOrFallback
     (path : Array StoragePathSegment)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   if exprSupportsPlanScalarYul value then
-    let valuePlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+    let effectPlan ←
+      match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
+          (.storagePathWrite stateId path value) with
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
-    let targetPlan ← lowerPlan <|
-      ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan module stateId path
     let statements ←
-      ProofForge.Backend.Evm.ToYul.storagePathWriteTargetEffectStmtPlanStatements
-        toYulError
-        (fun expr => lowerExpr module env expr)
-        (lowerPlanEffectExpr module env)
-        (.effect (.storagePathWriteTarget targetPlan valuePlan))
+      match effectPlan with
+      | .storagePathWriteTarget .. =>
+          ProofForge.Backend.Evm.ToYul.storagePathWriteTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.effect effectPlan)
+      | _ =>
+          .error { message := "EVM Lower.buildEffectPlan storage path write did not produce storagePathWriteTarget" }
     match statements[0]? with
     | some statement =>
         if statements.size == 1 then
@@ -3861,18 +3864,21 @@ partial def lowerStoragePathAssignOpStmtPlanOrFallback
     (op : AssignOp)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   if exprSupportsPlanScalarYul value then
-    let valuePlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+    let effectPlan ←
+      match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
+          (.storagePathAssignOp stateId path op value) with
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
-    let targetPlan ← lowerPlan <|
-      ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan module stateId path
     let statements ←
-      ProofForge.Backend.Evm.ToYul.storagePathAssignOpTargetEffectStmtPlanStatements
-        toYulError
-        (fun expr => lowerExpr module env expr)
-        (lowerPlanEffectExpr module env)
-        (.effect (.storagePathAssignOpTarget targetPlan op valuePlan))
+      match effectPlan with
+      | .storagePathAssignOpTarget .. =>
+          ProofForge.Backend.Evm.ToYul.storagePathAssignOpTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.effect effectPlan)
+      | _ =>
+          .error { message := "EVM Lower.buildEffectPlan storage path assign_op did not produce storagePathAssignOpTarget" }
     match statements[0]? with
     | some statement =>
         if statements.size == 1 then
