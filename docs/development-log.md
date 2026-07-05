@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Aggregate Event Words
+
+Commit: 740aa7e
+
+Summary:
+
+- Broadened planned entrypoint body consumption for event word effects so
+  aggregate event fields are accepted once they have already been expanded into
+  supported per-word `ExprPlan`s.
+- Kept the conservative field-type gate on legacy `AbiValuePlan` event effect
+  variants.
+- Added altered-plan coverage for a fixed-array event that proves
+  `lowerModuleWithPlan` consumes aggregate planned event words.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Planned body support still depends on each statement's lowered word plans
+  being inside the supported `ExprPlan -> ToYul` subset.
+- Dynamic and broader aggregate return shapes still use portable IR fallback
+  lowering.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue broadening planned entrypoint body consumption toward aggregate
+  return paths and the remaining event shapes that still need compatibility
+  fallback.
+
 ### EVM Planned Entrypoint Body Consumption
 
 Commit: 08527f5
