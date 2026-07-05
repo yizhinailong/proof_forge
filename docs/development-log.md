@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM IR Create Facade Cleanup
+
+Commit: f91e22e
+
+Summary:
+
+- Removed the dead `IR.lean` create helper compatibility facade, including the
+  IR-local `CreateMode`, `CreateHelperSpec`, helper name, helper parameter, and
+  init-code store wrappers.
+- Routed the remaining create/create2 type-checking validation points directly
+  through `Validate.normalizeInitCodeHex`.
+- Routed assertion error payload hex chunking directly through `ToYul` instead
+  of keeping duplicate IR-local hex helper aliases.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Crosscall naming compatibility wrappers still remain in `IR.lean`; the next
+  cleanup should verify which are still used by scalar fallback lowering before
+  deleting or narrowing them.
+
+Next step:
+
+- Continue reducing compatibility-only wrapper surface in `IR.lean`, starting
+  with crosscall naming wrappers and scalar helper-call fallback ownership.
+
 ### EVM IR Local Array Discovery Cleanup
 
 Commit: 1e54791
