@@ -4879,9 +4879,13 @@ mutual
     | .structField (.local _) _ => true
     | .structField (.localArrayGet _ path _) _ =>
         path.all exprPlanSupportsPlannedBody
-    | .structField .. | .arrayGet .. | .arrayLit ..
-    | .memoryArrayNew .. | .memoryArrayLength .. | .memoryArrayGet ..
-    | .structLit .. => false
+    | .memoryArrayNew _ length =>
+        exprPlanSupportsPlannedBody length
+    | .memoryArrayLength array =>
+        exprPlanSupportsPlannedBody array
+    | .memoryArrayGet array index =>
+        exprPlanSupportsPlannedBody array && exprPlanSupportsPlannedBody index
+    | .structField .. | .arrayGet .. | .arrayLit .. | .structLit .. => false
 end
 
 def plannedBodyAssignmentTargetSupported :

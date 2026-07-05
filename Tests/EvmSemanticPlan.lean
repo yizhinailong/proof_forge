@@ -5606,6 +5606,69 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (args.size == 2) "memory-array set control-flow statement mstore arg count"
       | _ => throw <| IO.userError "memory-array set control-flow statement must lower direct planned mstore"
   | _ => throw <| IO.userError "memory-array set control-flow statement lowering must lower to switch"
+  let memoryArrayExprControl :=
+    Statement.ifElse
+      (.gt (.local "n") (.literal (.u64 0)))
+      #[
+        .letBind "len" .u64 (.memoryArrayLength (.local "buf")),
+        .letBind "fresh_len" .u64
+          (.memoryArrayLength (.memoryArrayNew .u64 (.literal (.u64 2))))
+      ]
+      #[
+        .letBind "item" .u64 (.memoryArrayGet (.local "buf") (.literal (.u64 0)))
+      ]
+  let plannedMemoryArrayExprControl? ← requireOk
+    (plannedBodyStatement?
+      ProofForge.IR.Examples.Counter.module
+      "control_flow"
+      .unit
+      memoryArrayEnv
+      memoryArrayExprControl)
+    "planned memory-array expression control-flow plan construction"
+  let plannedMemoryArrayExprControl ← requireSome plannedMemoryArrayExprControl?
+    "planned memory-array expression control-flow plan construction missing plan"
+  let (memoryArrayExprControlStmts, _) ← requireOk
+    (lowerPlannedBodyStatement
+      ProofForge.IR.Examples.Counter.module
+      "control_flow"
+      .unit
+      memoryArrayEnv
+      false
+      plannedMemoryArrayExprControl)
+    "planned memory-array expression control-flow body lowering"
+  match memoryArrayExprControlStmts[0]? with
+  | some (Lean.Compiler.Yul.Statement.switchStmt _ cases) => do
+      let elseCase ← requireAt cases 0 "planned memory-array expression control-flow else case"
+      let thenCase ← requireAt cases 1 "planned memory-array expression control-flow then case"
+      require (thenCase.body.statements.size == 2) "planned memory-array expression control-flow then statement count"
+      require (elseCase.body.statements.size == 1) "planned memory-array expression control-flow else statement count"
+      match thenCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.builtin name args)) => do
+          require (names.size == 1) "planned memory-array length control-flow var count"
+          let typedName ← requireAt names 0 "planned memory-array length control-flow var"
+          require (typedName.name == "len") "planned memory-array length control-flow var name"
+          require (name == "mload") "planned memory-array length control-flow mload"
+          require (args.size == 1) "planned memory-array length control-flow mload arg count"
+      | _ => throw <| IO.userError "planned memory-array length control-flow must lower to mload binding"
+      match thenCase.body.statements[1]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.builtin name args)) => do
+          require (names.size == 1) "planned memory-array new length control-flow var count"
+          let typedName ← requireAt names 0 "planned memory-array new length control-flow var"
+          require (typedName.name == "fresh_len") "planned memory-array new length control-flow var name"
+          require (name == "mload") "planned memory-array new length control-flow mload"
+          require (args.size == 1) "planned memory-array new length control-flow mload arg count"
+          requireCallExpr args[0]! (Helper.memoryArrayNew).name 1
+            "planned memory-array new length control-flow helper"
+      | _ => throw <| IO.userError "planned memory-array new length control-flow must lower to helper-backed mload"
+      match elseCase.body.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl names (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (names.size == 1) "planned memory-array get control-flow var count"
+          let typedName ← requireAt names 0 "planned memory-array get control-flow var"
+          require (typedName.name == "item") "planned memory-array get control-flow var name"
+          require (name == (Helper.memoryArrayGet).name) "planned memory-array get control-flow helper"
+          require (args.size == 2) "planned memory-array get control-flow helper arg count"
+      | _ => throw <| IO.userError "planned memory-array get control-flow must lower to helper binding"
+  | _ => throw <| IO.userError "planned memory-array expression control-flow body lowering must lower to switch"
   let (ifStmts, _) ← requireOk
     (lowerStatement
       ProofForge.IR.Examples.Counter.module

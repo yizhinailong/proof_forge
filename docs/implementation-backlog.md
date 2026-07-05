@@ -468,8 +468,10 @@ Tasks:
     read expressions, and storage-path writes/assign-ops plus read expressions,
     static and dynamic scalar local fixed-array read expressions,
     static/dynamic local struct-array field read expressions, scalar
-    non-indexed/indexed event emits, memory-array set effects, and scalar
-    crosscall/create helper-call expressions inside supported body statements.
+    non-indexed/indexed event emits, memory-array set effects,
+    memory-array length/get expressions (including length over planned
+    memory-array allocation), and scalar crosscall/create helper-call
+    expressions inside supported body statements.
     Supported branch/loop body
     sequencing now routes through `ToYul.stmtPlanBodyStatements`, which owns
     statement ordering, environment threading, and branch-local
