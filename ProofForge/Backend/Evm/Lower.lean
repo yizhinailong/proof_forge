@@ -143,6 +143,27 @@ def validateLocalCrosscallWordPlan
       discard <| crosscallValueWordTypes module context expectedType
   | _ => pure ()
 
+def storageCrosscallWordPlans
+    (module : Module)
+    (context stateId : String)
+    (expectedType : ValueType) : Except LowerError (Array ExprPlan) := do
+  match expectedType with
+  | .structType typeName => do
+      discard <| crosscallValueWordTypes module context (.structType typeName)
+      let (slot, stateTypeName, decl) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireStructState module stateId
+      ensureType context (.structType typeName) (.structType stateTypeName)
+      let mut plans : Array ExprPlan := #[]
+      for h : idx in [0:decl.fields.size] do
+        let field := decl.fields[idx]
+        ensureStructLocalFieldType typeName field.id field.type
+        plans := plans.push (.storageLoad (.scalarSlot (slot + idx)))
+      .ok plans
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .unit
+  | .fixedArray _ _ | .bytes | .string | .array _ =>
+      .error {
+        message := s!"{context} storage-backed crosscall word expansion supports struct scalar storage only, got `{expectedType.name}`"
+      }
+
 def entrypointSelector (entrypoint : Entrypoint) : Except LowerError String :=
   match entrypoint.selector? with
   | some selector => .ok selector
@@ -384,8 +405,7 @@ mutual
           plans := plans.push (← buildExprPlan module env field.snd)
         .ok plans
     | .effect (.storageScalarRead stateId) => do
-        ensureType context (.structType typeName) (← scalarStateType module stateId)
-        .ok #[.storageCrosscallWords stateId (.structType typeName)]
+        storageCrosscallWordPlans module context stateId (.structType typeName)
     | _ =>
         .error {
           message := s!"{context} struct values in IR EVM v0 support local struct values, struct literals, or storage scalar struct reads only"

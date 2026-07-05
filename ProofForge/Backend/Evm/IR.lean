@@ -2158,17 +2158,17 @@ mutual
 
   partial def lowerStorageCrosscallWords
       (module : Module)
+      (env : TypeEnv)
       (context stateId : String)
       (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    match expectedType with
-    | .structType typeName => do
-        let fields ← lowerStructStorageReadFields module context typeName stateId
-        .ok (fields.map fun field => field.snd)
-    | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .unit
-    | .fixedArray _ _ | .bytes | .string | .array _ =>
-        .error {
-          message := s!"{context} storage-backed crosscall word expansion supports struct scalar storage only, got `{expectedType.name}`"
-        }
+    let plans ←
+      lowerValidate <|
+        ProofForge.Backend.Evm.Lower.storageCrosscallWordPlans
+          module
+          context
+          stateId
+          expectedType
+    plans.mapM (lowerExprPlanExpr module env)
 
   partial def lowerStorageAbiWords
       (module : Module)
@@ -2614,7 +2614,7 @@ mutual
             name
             type)
       (fun stateId type =>
-        lowerStorageCrosscallWords module context stateId type)
+        lowerStorageCrosscallWords module env context stateId type)
       plans
 
   partial def lowerExprPlanExpr

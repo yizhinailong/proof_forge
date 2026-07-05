@@ -1201,6 +1201,24 @@ def testScalarExprPlanToYul : IO Unit := do
     "__proof_forge_crosscall_2"
     4
     "local aggregate crosscall argument ExprPlan-to-Yul"
+  let storageWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.storageCrosscallWordPlans
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      "typed crosscall argument"
+      "current"
+      (.structType "Point"))
+    "storage-backed aggregate crosscall argument Lower word plans"
+  require (storageWordPlans.size == 2) "storage-backed aggregate crosscall Lower word plan count"
+  let storageXPlan ← requireAt storageWordPlans 0 "storage-backed aggregate crosscall Lower missing x plan"
+  match storageXPlan with
+  | .storageLoad (.scalarSlot slot) =>
+      require (slot == 1) "storage-backed aggregate crosscall Lower x slot"
+  | _ => throw <| IO.userError "storage-backed aggregate crosscall Lower x must use storageLoad plan"
+  let storageYPlan ← requireAt storageWordPlans 1 "storage-backed aggregate crosscall Lower missing y plan"
+  match storageYPlan with
+  | .storageLoad (.scalarSlot slot) =>
+      require (slot == 2) "storage-backed aggregate crosscall Lower y slot"
+  | _ => throw <| IO.userError "storage-backed aggregate crosscall Lower y must use storageLoad plan"
   let aggregateStorageArgPlan ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.buildExprPlan
       ProofForge.IR.Examples.EvmStorageStructProbe.module
@@ -1213,13 +1231,17 @@ def testScalarExprPlanToYul : IO Unit := do
     "storage-backed aggregate crosscall argument Lower ExprPlan"
   match aggregateStorageArgPlan with
   | .crosscall .call _ _ none args .u64 => do
-      require (args.size == 1) "storage-backed aggregate crosscall argument plan word group count"
-      let argPlan ← requireAt args 0 "storage-backed aggregate crosscall argument missing plan"
-      match argPlan with
-      | .storageCrosscallWords stateId type => do
-          require (stateId == "current") "storage-backed aggregate crosscall argument plan state id"
-          require (type == .structType "Point") "storage-backed aggregate crosscall argument plan type"
-      | _ => throw <| IO.userError "storage-backed aggregate crosscall argument must use storageCrosscallWords plan"
+      require (args.size == 2) "storage-backed aggregate crosscall argument plan word count"
+      let xArgPlan ← requireAt args 0 "storage-backed aggregate crosscall argument missing x plan"
+      match xArgPlan with
+      | .storageLoad (.scalarSlot slot) =>
+          require (slot == 1) "storage-backed aggregate crosscall argument x slot"
+      | _ => throw <| IO.userError "storage-backed aggregate crosscall argument x must use storageLoad plan"
+      let yArgPlan ← requireAt args 1 "storage-backed aggregate crosscall argument missing y plan"
+      match yArgPlan with
+      | .storageLoad (.scalarSlot slot) =>
+          require (slot == 2) "storage-backed aggregate crosscall argument y slot"
+      | _ => throw <| IO.userError "storage-backed aggregate crosscall argument y must use storageLoad plan"
   | _ => throw <| IO.userError "storage-backed aggregate crosscall argument must lower to call plan"
   let aggregateStorageArgPlanExpr ← requireOk
     (lowerExprPlanExpr

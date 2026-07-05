@@ -525,15 +525,18 @@ Tasks:
     aggregate sources that are not storage scalar struct reads until those are
     represented directly in the semantic plan. `Lower` now represents local
     aggregate typed/value/static/delegate crosscall arguments as
-    `ExprPlan.localCrosscallWords`, represents storage scalar struct reads as
-    `ExprPlan.storageCrosscallWords`, expands struct literal and fixed-array
+    `ExprPlan.localCrosscallWords`, expands storage scalar struct reads into
+    explicit `ExprPlan.storageLoad` word plans through
+    `Lower.storageCrosscallWordPlans`, expands struct literal and fixed-array
     literal crosscall arguments into scalar word `ExprPlan`s, and lets
     `IR.lowerExprPlanExpr` consume those planned words before selecting the
     helper-call arity. The final traversal and concatenation of planned
     crosscall argument word groups now uses `ToYul.crosscallArgWordPlanExprs`;
-    `IR.lean` supplies the remaining ToYul provider callbacks, but only the
-    storage-backed provider expansion still depends on compatibility helpers.
-    Scalar expression fallback crosscall lowering now also calls
+    `IR.lean` still supplies ToYul provider callbacks for compatibility
+    `ExprPlan.localCrosscallWords`/`ExprPlan.storageCrosscallWords` inputs, but
+    active Lower-produced storage-backed crosscall arguments no longer depend
+    on the IR-local storage provider expansion. Scalar expression fallback
+    crosscall lowering now also calls
     `Lower.buildCrosscallArgWordPlansMany` before that ToYul boundary, and the
     old IR-local `lowerCrosscall*ArgWords` expansion tree has been removed.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
