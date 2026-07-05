@@ -35,6 +35,55 @@ def checkedArithExpr (op : AssignOp) (lhs rhs : Lean.Compiler.Yul.Expr) : Lean.C
   | .shiftLeft => Lean.Compiler.Yul.builtin "shl" #[rhs, lhs]
   | .shiftRight => Lean.Compiler.Yul.builtin "shr" #[rhs, lhs]
 
+/-- The 2^256 - 1 max word value, used for overflow checks. -/
+def maxUint256 : Nat := 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+/-- Statement that reverts if `cond` is nonzero (truthy). -/
+def revertIfStatement (cond : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Statement :=
+  Lean.Compiler.Yul.Statement.ifStmt cond {
+    statements := #[
+      Lean.Compiler.Yul.Statement.exprStmt
+        (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+    ]
+  }
+
+/-- Checked-arithmetic Yul helper definitions emitted once per module.
+    Mirrors Solidity 0.8 semantics: add/mul revert on U256 overflow and sub
+    reverts on underflow. -/
+def checkedArithmeticHelperFunctions : Array Lean.Compiler.Yul.Statement :=
+  let tn (n : String) := { name := n : Lean.Compiler.Yul.TypedName }
+  #[
+    Lean.Compiler.Yul.Statement.funcDef checkedAddName #[tn "a", tn "b"] #[tn "r"]
+      { statements := #[
+        revertIfStatement (Lean.Compiler.Yul.builtin "gt" #[
+          Lean.Compiler.Yul.Expr.id "a",
+          Lean.Compiler.Yul.builtin "sub" #[Lean.Compiler.Yul.Expr.num maxUint256, Lean.Compiler.Yul.Expr.id "b"]
+        ]),
+        Lean.Compiler.Yul.Statement.assignment #["r"]
+          (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "a", Lean.Compiler.Yul.Expr.id "b"])
+      ] },
+    Lean.Compiler.Yul.Statement.funcDef checkedSubName #[tn "a", tn "b"] #[tn "r"]
+      { statements := #[
+        revertIfStatement (Lean.Compiler.Yul.builtin "gt" #[Lean.Compiler.Yul.Expr.id "b", Lean.Compiler.Yul.Expr.id "a"]),
+        Lean.Compiler.Yul.Statement.assignment #["r"]
+          (Lean.Compiler.Yul.builtin "sub" #[Lean.Compiler.Yul.Expr.id "a", Lean.Compiler.Yul.Expr.id "b"])
+      ] },
+    Lean.Compiler.Yul.Statement.funcDef checkedMulName #[tn "a", tn "b"] #[tn "r"]
+      { statements := #[
+        Lean.Compiler.Yul.Statement.ifStmt (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "a"])
+          { statements := #[
+            Lean.Compiler.Yul.Statement.assignment #["r"] (Lean.Compiler.Yul.Expr.num 0),
+            Lean.Compiler.Yul.Statement.leave
+          ] },
+        revertIfStatement (Lean.Compiler.Yul.builtin "gt" #[
+          Lean.Compiler.Yul.Expr.id "a",
+          Lean.Compiler.Yul.builtin "div" #[Lean.Compiler.Yul.Expr.num maxUint256, Lean.Compiler.Yul.Expr.id "b"]
+        ]),
+        Lean.Compiler.Yul.Statement.assignment #["r"]
+          (Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "a", Lean.Compiler.Yul.Expr.id "b"])
+      ] }
+  ]
+
 def contextFieldExpr
     {ε : Type}
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr) :

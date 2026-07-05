@@ -244,6 +244,22 @@ def testCounterSemanticPlan : IO Unit := do
   require (storageCount.slot == 0) "counter plan count slot"
   require (storageCount.span == 0) "counter plan count span (packed scalar has zero span)"
   require (plan.usesCheckedArithmetic == true) "counter plan checked arithmetic (increment uses add)"
+  let checkedHelpers := ProofForge.Backend.Evm.ToYul.checkedArithmeticHelperFunctions
+  require (checkedHelpers.size == 3) "checked arithmetic ToYul helper count"
+  require
+    (statementsHaveFunctionNamed checkedHelpers ProofForge.Backend.Evm.ToYul.checkedAddName)
+    "checked arithmetic ToYul helper set includes add"
+  require
+    (statementsHaveFunctionNamed checkedHelpers ProofForge.Backend.Evm.ToYul.checkedSubName)
+    "checked arithmetic ToYul helper set includes sub"
+  require
+    (statementsHaveFunctionNamed checkedHelpers ProofForge.Backend.Evm.ToYul.checkedMulName)
+    "checked arithmetic ToYul helper set includes mul"
+  let plannedCheckedHelpers := plannedCheckedArithmeticHelperFunctions plan
+  require (plannedCheckedHelpers.size == 3) "planned checked arithmetic helper count"
+  require
+    (statementsHaveFunctionNamed plannedCheckedHelpers ProofForge.Backend.Evm.ToYul.checkedAddName)
+    "planned checked arithmetic helpers include add"
   require (plan.creates.size == 0) "counter plan no creates"
   require (plan.dispatch.entrypoints.size == plan.entrypoints.size) "counter plan dispatch entrypoint count"
   require (plan.dispatch.default == .revert) "counter plan dispatch default"

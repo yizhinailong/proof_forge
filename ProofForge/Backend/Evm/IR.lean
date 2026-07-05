@@ -324,78 +324,23 @@ def uupsProxyFallbackBody : Array Lean.Compiler.Yul.Statement :=
 def uupsProxyDefaultCase : Lean.Compiler.Yul.Case :=
   ProofForge.Backend.Evm.ToYul.dispatchDefaultCase .uupsProxy
 
-/-- The 2^256 - 1 max word value, used for overflow checks. -/
-def maxUint256 : Nat := 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-
-/-- Helper names for checked arithmetic (Solidity 0.8-style overflow/underflow revert).
-    These are emitted once per module that uses them; see `checkedArithmeticHelperFunctions`. -/
-def checkedAddName : String := "__pf_checked_add"
-def checkedSubName : String := "__pf_checked_sub"
-def checkedMulName : String := "__pf_checked_mul"
-
-/-- Statement that reverts if `cond` is nonzero (truthy). -/
-def revertIfStmt (cond : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Statement :=
-  Lean.Compiler.Yul.Statement.ifStmt cond { statements := #[revertStmt] }
-
 /-- Lower-level checked-add expression: `__pf_checked_add(a, b)` reverts on overflow. -/
 def checkedAddExpr (lhs rhs : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
-  Lean.Compiler.Yul.call checkedAddName #[lhs, rhs]
+  ProofForge.Backend.Evm.ToYul.checkedArithExpr .add lhs rhs
 
 /-- Lower-level checked-sub expression: reverts on underflow. -/
 def checkedSubExpr (lhs rhs : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
-  Lean.Compiler.Yul.call checkedSubName #[lhs, rhs]
+  ProofForge.Backend.Evm.ToYul.checkedArithExpr .sub lhs rhs
 
 /-- Lower-level checked-mul expression: reverts on overflow. -/
 def checkedMulExpr (lhs rhs : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
-  Lean.Compiler.Yul.call checkedMulName #[lhs, rhs]
+  ProofForge.Backend.Evm.ToYul.checkedArithExpr .mul lhs rhs
 
 /-- Whether `op` is an arithmetic op that needs checked helpers. -/
 def needsCheckedArithmetic (op : AssignOp) : Bool :=
   match op with
   | .add | .sub | .mul => true
   | _ => false
-
-/-- The checked-arithmetic Yul function definitions emitted once per module.
-    Mirrors Solidity 0.8 semantics: `add`/`mul` revert on U256 overflow, `sub`
-    reverts on underflow. Bitwise/div/shift ops never overflow, so they keep
-    using the raw EVM builtins. -/
-def checkedArithmeticHelperFunctions : Array Lean.Compiler.Yul.Statement :=
-  let tn (n : String) := { name := n : Lean.Compiler.Yul.TypedName }
-  #[
-    Lean.Compiler.Yul.Statement.funcDef checkedAddName #[tn "a", tn "b"] #[tn "r"]
-      { statements := #[
-        -- overflow iff a > maxUint256 - b  (i.e. a + b > max)
-        revertIfStmt (Lean.Compiler.Yul.builtin "gt" #[
-          Lean.Compiler.Yul.Expr.id "a",
-          Lean.Compiler.Yul.builtin "sub" #[Lean.Compiler.Yul.Expr.num maxUint256, Lean.Compiler.Yul.Expr.id "b"]
-        ]),
-        Lean.Compiler.Yul.Statement.assignment #["r"]
-          (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "a", Lean.Compiler.Yul.Expr.id "b"])
-      ] },
-    Lean.Compiler.Yul.Statement.funcDef checkedSubName #[tn "a", tn "b"] #[tn "r"]
-      { statements := #[
-        -- underflow iff b > a
-        revertIfStmt (Lean.Compiler.Yul.builtin "gt" #[Lean.Compiler.Yul.Expr.id "b", Lean.Compiler.Yul.Expr.id "a"]),
-        Lean.Compiler.Yul.Statement.assignment #["r"]
-          (Lean.Compiler.Yul.builtin "sub" #[Lean.Compiler.Yul.Expr.id "a", Lean.Compiler.Yul.Expr.id "b"])
-      ] },
-    Lean.Compiler.Yul.Statement.funcDef checkedMulName #[tn "a", tn "b"] #[tn "r"]
-      { statements := #[
-        -- 0 * b = 0 is safe and avoids div-by-zero in the overflow check below.
-        Lean.Compiler.Yul.Statement.ifStmt (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.Expr.id "a"])
-          { statements := #[
-            Lean.Compiler.Yul.Statement.assignment #["r"] (Lean.Compiler.Yul.Expr.num 0),
-            Lean.Compiler.Yul.Statement.leave
-          ] },
-        -- overflow iff a > max / b  (i.e. a * b > max)
-        revertIfStmt (Lean.Compiler.Yul.builtin "gt" #[
-          Lean.Compiler.Yul.Expr.id "a",
-          Lean.Compiler.Yul.builtin "div" #[Lean.Compiler.Yul.Expr.num maxUint256, Lean.Compiler.Yul.Expr.id "b"]
-        ]),
-        Lean.Compiler.Yul.Statement.assignment #["r"]
-          (Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "a", Lean.Compiler.Yul.Expr.id "b"])
-      ] }
-  ]
 
 def nibbleToHex (n : Nat) : Char :=
   if n < 10 then Char.ofNat ('0'.toNat + n)
@@ -7507,7 +7452,7 @@ def moduleUsesCheckedArithmetic (module : Module) : Bool :=
 
 def plannedCheckedArithmeticHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
-  if plan.usesCheckedArithmetic then checkedArithmeticHelperFunctions else #[]
+  if plan.usesCheckedArithmetic then ProofForge.Backend.Evm.ToYul.checkedArithmeticHelperFunctions else #[]
 
 def plannedCrosscallHelperFunctions
     (specs : Array ProofForge.Backend.Evm.Plan.CrosscallHelperSpec) :
@@ -7582,7 +7527,11 @@ def lowerModuleWithPlan
     if completePlan then
       helpers ++ plannedCheckedArithmeticHelperFunctions plan
     else
-      helpers ++ (if moduleUsesCheckedArithmetic module then checkedArithmeticHelperFunctions else #[])
+      helpers ++
+        (if moduleUsesCheckedArithmetic module then
+          ProofForge.Backend.Evm.ToYul.checkedArithmeticHelperFunctions
+        else
+          #[])
   let helpers ←
     if completePlan then
       .ok (helpers ++ (← plannedCrosscallHelperFunctions plan.crosscalls))
