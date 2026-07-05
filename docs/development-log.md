@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Semantic Plans Emit Event Word Effects
+
+Commit: fd31bea
+
+Summary:
+
+- Changed `Lower.buildEffectPlan` so portable event effects lower directly to
+  `EffectPlan.eventEmitWords` / `eventEmitIndexedWords`.
+- Added semantic-plan body coverage proving `buildSemanticPlan` now stores
+  event word effects in entrypoint bodies.
+- Updated aggregate event tests to assert Lower-owned per-field word plans
+  directly instead of re-expanding `AbiValuePlan` in tests.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- The compatibility event statement path in `IR.lean` still constructs an
+  initial ABI event effect and immediately converts it through Lower before
+  ToYul.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Start consuming planned `ModulePlan` entrypoint bodies in full EVM assembly so
+  ordinary event statement lowering can stop rebuilding event effects in the IR
+  facade.
+
 ### EVM Event Word Planning Ownership
 
 Commit: c70e5fb
