@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Hash ExprPlan Routing
+
+Commit: 673deed
+
+Summary:
+
+- Routed `hashValue`, `hash`, and `hashTwoToOne` expression lowering through
+  `Lower.buildExpressionExprPlan`, their corresponding `ExprPlan` hash nodes, and
+  `ToYul.exprPlanExpr` instead of assembling hash pack/helper-call expressions
+  directly in `IR.lowerExpr`.
+- Added semantic-plan coverage for direct hash plan shapes and direct IR
+  expression lowering results.
+- Kept hash helper-call selection on the same ToYul helper API used by planned
+  helper discovery.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns several direct scalar arithmetic, comparison, boolean, and
+  context expression branches that can be migrated through planned expressions in
+  later slices.
+- Some statement, storage, event, and aggregate paths still pass through the
+  compatibility facade until their own semantic-plan slices land.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving another simple expression family or a narrow statement shape
+  from `IR.lean` compatibility lowering into the `Lower -> Plan -> ToYul` path.
+
 ### EVM Create ExprPlan Routing
 
 Commit: d3fc0b9
