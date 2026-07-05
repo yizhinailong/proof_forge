@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Read Effect EffectPlan Routing
+
+Commit: c3d2a17
+
+Summary:
+
+- Routed expression-position storage and context read effects through
+  `Lower.buildEffectPlan`, target `EffectPlan`/`EffectPlan.contextRead`, and
+  `lowerPlanEffectExpr` before final ToYul lowering.
+- Added a shared `lowerEffectExprThroughPlan` entry in `IR.lean` for scalar
+  storage reads, map contains/get, storage array reads, struct-array field
+  reads, struct field reads, storage path reads, and context reads.
+- Added semantic-plan coverage for direct `lowerEffectExpr` read/context paths
+  so the compatibility expression facade exercises the planned effect route.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Expression-position map insert/set still use the existing value-return helper
+  path until write-return semantics are moved behind an `EffectPlan` facade.
+- Statement-position write effects still keep their per-effect compatibility
+  fallback helpers.
+- Some aggregate expression, statement, storage, and event paths still pass
+  through the compatibility facade until their own semantic-plan slices land.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue by moving a write-return effect or a statement-position storage
+  effect boundary from compatibility helpers into `Lower -> EffectPlan -> ToYul`.
+
 ### EVM Scalar Leaf ExprPlan Routing
 
 Commit: 299d6de
