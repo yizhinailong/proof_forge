@@ -407,8 +407,13 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install Aptos CLI
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          curl -sSfL https://aptos.dev/scripts/install_cli.sh | sh
+          curl -sSfL https://aptos.dev/scripts/install_cli.sh -o aptos-install.sh
+          bash aptos-install.sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
           aptos --version
 
       - name: Build proof-forge
