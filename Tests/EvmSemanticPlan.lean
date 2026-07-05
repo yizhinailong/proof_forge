@@ -780,6 +780,62 @@ def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
     (statementsHaveFunctionNamed object.code.statements (ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetFunctionName #[2, 2]))
     "plan-driven module lowering includes nested local-array helper"
 
+def testIncompletePlanFallbackHelperDiscovery : IO Unit := do
+  let crosscallBasePlan ←
+    requireOk
+      (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan ProofForge.IR.Examples.EvmCrosscallProbe.module))
+      "crosscall probe base plan"
+  let crosscallFullPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.EvmCrosscallProbe.module)
+      "crosscall probe full plan"
+  let crosscallObject ←
+    requireOk
+      (lowerModuleWithPlan ProofForge.IR.Examples.EvmCrosscallProbe.module crosscallBasePlan)
+      "crosscall probe incomplete-plan fallback lowering"
+  for spec in crosscallFullPlan.crosscalls do
+    let helperName ←
+      requireOk
+        (ProofForge.Backend.Evm.ToYul.crosscallHelperFunctionName toYulError spec)
+        "fallback crosscall helper name"
+    require
+      (statementsHaveFunctionNamed crosscallObject.code.statements helperName)
+      s!"incomplete-plan fallback includes crosscall helper `{helperName}`"
+  for spec in crosscallFullPlan.creates do
+    let helperName ←
+      requireOk
+        (ProofForge.Backend.Evm.ToYul.createHelperFunctionName toYulError spec.mode spec.initCodeHex)
+        "fallback create helper name"
+    require
+      (statementsHaveFunctionNamed crosscallObject.code.statements helperName)
+      s!"incomplete-plan fallback includes create helper `{helperName}`"
+  let arrayBasePlan ←
+    requireOk
+      (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan ProofForge.IR.Examples.EvmArrayValueProbe.module))
+      "array value probe base plan"
+  let arrayFullPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.EvmArrayValueProbe.module)
+      "array value probe full plan"
+  let arrayObject ←
+    requireOk
+      (lowerModuleWithPlan ProofForge.IR.Examples.EvmArrayValueProbe.module arrayBasePlan)
+      "array value probe incomplete-plan fallback lowering"
+  if arrayFullPlan.usesCheckedArithmetic then
+    require
+      (statementsHaveFunctionNamed arrayObject.code.statements ProofForge.Backend.Evm.ToYul.checkedAddName)
+      "incomplete-plan fallback includes checked arithmetic helper"
+  for length in arrayFullPlan.localArrayGetLengths do
+    let helperName := ProofForge.Backend.Evm.ToYul.localArrayGetFunctionName length
+    require
+      (statementsHaveFunctionNamed arrayObject.code.statements helperName)
+      s!"incomplete-plan fallback includes local-array helper `{helperName}`"
+  for shape in arrayFullPlan.nestedLocalArrayGetShapes do
+    let helperName := ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetFunctionName shape
+    require
+      (statementsHaveFunctionNamed arrayObject.code.statements helperName)
+      s!"incomplete-plan fallback includes nested local-array helper `{helperName}`"
+
 def testEntrypointDispatchPlanToYul : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
   let getEntrypoint ← requireSome
@@ -5014,6 +5070,7 @@ def main : IO UInt32 := do
   testMapHelperPlanToYul
   testPlannedHelperDiscoveryToYul
   testLocalArrayHelperDiscoveryInLowerPlan
+  testIncompletePlanFallbackHelperDiscovery
   testEntrypointDispatchPlanToYul
   testSemanticPlanRender
   testScalarExprPlanToYul

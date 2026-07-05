@@ -42,6 +42,13 @@ def lowerPlan
   | .ok value => .ok value
   | .error err => .error (planError err)
 
+def lowerValidate
+    {α : Type}
+    (result : Except ProofForge.Backend.Evm.Validate.LowerError α) : Except LowerError α :=
+  match result with
+  | .ok value => .ok value
+  | .error err => .error { message := err.message }
+
 def stateInfo? (module : Module) (stateId : String) : Option (Nat × StateDecl) :=
   ProofForge.Backend.Evm.Plan.stateInfo? module stateId
 
@@ -7280,7 +7287,7 @@ def lowerModuleWithPlan
       helpers ++ plannedCheckedArithmeticHelperFunctions plan
     else
       helpers ++
-        (if moduleUsesCheckedArithmetic module then
+        (if ProofForge.Backend.Evm.Validate.moduleUsesCheckedArithmetic module then
           ProofForge.Backend.Evm.ToYul.checkedArithmeticHelperFunctions
         else
           #[])
@@ -7288,25 +7295,25 @@ def lowerModuleWithPlan
     if completePlan then
       .ok (helpers ++ (← plannedCrosscallHelperFunctions plan.crosscalls))
     else
-      let crosscallSpecs ← moduleCrosscallHelperSpecs module
-      .ok (helpers ++ (← crosscallHelperFunctions module crosscallSpecs))
+      let crosscallSpecs ← lowerValidate (ProofForge.Backend.Evm.Lower.buildCrosscallHelperPlans module)
+      .ok (helpers ++ (← plannedCrosscallHelperFunctions crosscallSpecs))
   let helpers ←
     if completePlan then
       .ok (helpers ++ (← plannedCreateHelperFunctions plan.creates))
     else
-      let createSpecs := moduleCreateHelperSpecs module
-      .ok (helpers ++ (← createHelperFunctions createSpecs))
+      let createSpecs := ProofForge.Backend.Evm.Lower.buildCreateHelperPlans module
+      .ok (helpers ++ (← plannedCreateHelperFunctions createSpecs))
   let helpers ←
     if completePlan then
       .ok (helpers ++ ProofForge.Backend.Evm.ToYul.localArrayGetHelperFunctions plan.localArrayGetLengths)
     else
-      let localArrayGetLengths ← moduleLocalArrayGetLengths module
+      let localArrayGetLengths ← lowerValidate (ProofForge.Backend.Evm.Lower.buildLocalArrayGetLengths module)
       .ok (helpers ++ ProofForge.Backend.Evm.ToYul.localArrayGetHelperFunctions localArrayGetLengths)
   let helpers ←
     if completePlan then
       .ok (helpers ++ ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetHelperFunctions plan.nestedLocalArrayGetShapes)
     else
-      let nestedLocalArrayGetShapes ← moduleNestedLocalArrayGetShapes module
+      let nestedLocalArrayGetShapes ← lowerValidate (ProofForge.Backend.Evm.Lower.buildNestedLocalArrayGetShapes module)
       .ok (helpers ++ ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetHelperFunctions nestedLocalArrayGetShapes)
   .ok {
     name := module.name
