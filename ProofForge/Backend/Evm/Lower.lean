@@ -2632,6 +2632,233 @@ def buildCreateHelperPlansFromEntrypoints
   entrypoints.foldl (init := #[]) fun acc entrypoint =>
     mergeCreateHelperSpecs acc (createHelperSpecsFromStmtPlans entrypoint.body)
 
+def valuePlanUsesCheckedArithmetic : ValuePlan → Bool
+  | .irExpr expr => ProofForge.Backend.Evm.Validate.exprUsesCheckedArithmetic expr
+
+def storagePathSegmentUsesCheckedArithmetic : StoragePathSegment → Bool
+  | .field _ => false
+  | .index index => ProofForge.Backend.Evm.Validate.exprUsesCheckedArithmetic index
+  | .mapKey key => ProofForge.Backend.Evm.Validate.exprUsesCheckedArithmetic key
+
+def storageSlotPlanUsesCheckedArithmetic : StorageSlotPlan → Bool
+  | .scalarSlot _ | .fixedSlot _ => false
+  | .mapValueSlot _ keys | .mapPresenceSlot _ keys =>
+      keys.any valuePlanUsesCheckedArithmetic
+  | .arraySlot _ _ index
+  | .structArrayFieldSlot _ _ _ _ index
+  | .dynamicArraySlot _ index =>
+      valuePlanUsesCheckedArithmetic index
+
+def storagePathWriteTargetPlanUsesCheckedArithmetic : StoragePathWriteTargetPlan → Bool
+  | .mapWrite _ key =>
+      valuePlanUsesCheckedArithmetic key
+  | .singleSlot slot =>
+      storageSlotPlanUsesCheckedArithmetic slot
+  | .mapValuePresence valueSlot presenceSlot =>
+      storageSlotPlanUsesCheckedArithmetic valueSlot ||
+        storageSlotPlanUsesCheckedArithmetic presenceSlot
+
+mutual
+  partial def contextExprPlanUsesCheckedArithmetic : ContextExprPlan → Bool
+    | .blockHash blockNumber =>
+        exprPlanUsesCheckedArithmetic blockNumber
+    | .userId | .contractId | .checkpointId | .timestamp | .chainId
+    | .gasPrice | .gasLeft | .baseFee | .prevRandao | .origin | .coinbase =>
+        false
+
+  partial def storageSlotExprPlanUsesCheckedArithmetic : StorageSlotExprPlan → Bool
+    | .scalarSlot _ | .fixedSlot _ => false
+    | .mapValueSlot _ keys | .mapPresenceSlot _ keys =>
+        keys.any exprPlanUsesCheckedArithmetic
+    | .arraySlot _ _ index
+    | .structArrayFieldSlot _ _ _ _ index
+    | .dynamicArraySlot _ index =>
+        exprPlanUsesCheckedArithmetic index
+
+  partial def storagePathWriteExprTargetPlanUsesCheckedArithmetic :
+      StoragePathWriteExprTargetPlan → Bool
+    | .mapWrite _ key =>
+        exprPlanUsesCheckedArithmetic key
+    | .singleSlot slot =>
+        storageSlotExprPlanUsesCheckedArithmetic slot
+    | .mapValuePresence valueSlot presenceSlot =>
+        storageSlotExprPlanUsesCheckedArithmetic valueSlot ||
+          storageSlotExprPlanUsesCheckedArithmetic presenceSlot
+
+  partial def abiValuePlanUsesCheckedArithmetic : AbiValuePlan → Bool
+    | .expr value =>
+        exprPlanUsesCheckedArithmetic value
+    | .local .. | .storage .. =>
+        false
+    | .arrayLit _ values =>
+        values.any abiValuePlanUsesCheckedArithmetic
+    | .structLit _ fields =>
+        fields.any (fun field => abiValuePlanUsesCheckedArithmetic field.snd)
+
+  partial def crosscallArgWordPlanUsesCheckedArithmetic : CrosscallArgWordPlan → Bool
+    | .expr value =>
+        exprPlanUsesCheckedArithmetic value
+    | .local .. | .storage .. =>
+        false
+
+  partial def exprPlanUsesCheckedArithmetic : ExprPlan → Bool
+    | .literalWord _ | .local _ | .calldataWord _ | .nativeValue =>
+        false
+    | .storageLoad slot =>
+        storageSlotPlanUsesCheckedArithmetic slot
+    | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
+        args.any exprPlanUsesCheckedArithmetic
+    | .checkedArith op lhs rhs =>
+        needsCheckedArithmetic op ||
+          exprPlanUsesCheckedArithmetic lhs ||
+          exprPlanUsesCheckedArithmetic rhs
+    | .arrayGet lhs rhs
+    | .hashTwoToOne lhs rhs =>
+        exprPlanUsesCheckedArithmetic lhs || exprPlanUsesCheckedArithmetic rhs
+    | .hashPack a b c d | .hashValue a b c d =>
+        exprPlanUsesCheckedArithmetic a ||
+          exprPlanUsesCheckedArithmetic b ||
+          exprPlanUsesCheckedArithmetic c ||
+          exprPlanUsesCheckedArithmetic d
+    | .context field =>
+        contextExprPlanUsesCheckedArithmetic field
+    | .crosscall _ target methodId callValue? args _ =>
+        exprPlanUsesCheckedArithmetic target ||
+          exprPlanUsesCheckedArithmetic methodId ||
+          (match callValue? with
+          | some callValue => exprPlanUsesCheckedArithmetic callValue
+          | none => false) ||
+          args.any crosscallArgWordPlanUsesCheckedArithmetic
+    | .create _ callValue salt? _ =>
+        exprPlanUsesCheckedArithmetic callValue ||
+          (match salt? with
+          | some salt => exprPlanUsesCheckedArithmetic salt
+          | none => false)
+    | .cast source _
+    | .structField source _
+    | .memoryArrayLength source
+    | .hash source =>
+        exprPlanUsesCheckedArithmetic source
+    | .localArrayGet _ path _ =>
+        path.any exprPlanUsesCheckedArithmetic
+    | .memoryArrayNew _ length =>
+        exprPlanUsesCheckedArithmetic length
+    | .memoryArrayGet array index =>
+        exprPlanUsesCheckedArithmetic array || exprPlanUsesCheckedArithmetic index
+    | .structLit _ fields =>
+        fields.any (fun field => exprPlanUsesCheckedArithmetic field.snd)
+    | .effect effect =>
+        effectPlanUsesCheckedArithmetic effect
+
+  partial def effectPlanUsesCheckedArithmetic : EffectPlan → Bool
+    | .storageScalarRead _ | .storageStructFieldRead _ _
+    | .storageDynamicArrayPop _ | .storageDynamicArrayPopTarget _ =>
+        false
+    | .storageScalarReadTarget target =>
+        storageSlotPlanUsesCheckedArithmetic target.slot
+    | .storageStructFieldReadTarget target =>
+        storageSlotPlanUsesCheckedArithmetic target.slot
+    | .storageScalarWrite _ value
+    | .storageScalarWriteTarget _ value
+    | .storageStructFieldWrite _ _ value
+    | .storageStructFieldWriteTarget _ value
+    | .storageDynamicArrayPush _ value
+    | .storageDynamicArrayPushTarget _ value =>
+        exprPlanUsesCheckedArithmetic value
+    | .storageScalarAssignOp _ op value
+    | .storageScalarAssignOpTarget _ op value =>
+        needsCheckedArithmetic op || exprPlanUsesCheckedArithmetic value
+    | .storageMapContains _ key
+    | .storageMapContainsTarget _ key
+    | .storageMapGet _ key
+    | .storageMapGetTarget _ key
+    | .storageArrayRead _ key
+    | .storageArrayReadTarget _ key
+    | .storageArrayStructFieldRead _ key _
+    | .storageArrayStructFieldReadTarget _ key =>
+        exprPlanUsesCheckedArithmetic key
+    | .storageMapInsert _ key value
+    | .storageMapInsertTarget _ key value
+    | .storageMapSet _ key value
+    | .storageMapSetTarget _ key value
+    | .storageArrayWrite _ key value
+    | .storageArrayWriteTarget _ key value
+    | .storageArrayStructFieldWrite _ key _ value
+    | .storageArrayStructFieldWriteTarget _ key value =>
+        exprPlanUsesCheckedArithmetic key || exprPlanUsesCheckedArithmetic value
+    | .memoryArraySet array index value =>
+        exprPlanUsesCheckedArithmetic array ||
+          exprPlanUsesCheckedArithmetic index ||
+          exprPlanUsesCheckedArithmetic value
+    | .storagePathRead _ path =>
+        path.any storagePathSegmentUsesCheckedArithmetic
+    | .storagePathReadTarget slot =>
+        storageSlotPlanUsesCheckedArithmetic slot
+    | .storagePathReadExprTarget slot =>
+        storageSlotExprPlanUsesCheckedArithmetic slot
+    | .storagePathWrite _ path value =>
+        path.any storagePathSegmentUsesCheckedArithmetic ||
+          exprPlanUsesCheckedArithmetic value
+    | .storagePathAssignOp _ path op value =>
+        path.any storagePathSegmentUsesCheckedArithmetic ||
+          needsCheckedArithmetic op ||
+          exprPlanUsesCheckedArithmetic value
+    | .storagePathWriteTarget target value =>
+        storagePathWriteTargetPlanUsesCheckedArithmetic target ||
+          exprPlanUsesCheckedArithmetic value
+    | .storagePathAssignOpTarget target op value =>
+        storagePathWriteTargetPlanUsesCheckedArithmetic target ||
+          needsCheckedArithmetic op ||
+          exprPlanUsesCheckedArithmetic value
+    | .storagePathWriteExprTarget target value =>
+        storagePathWriteExprTargetPlanUsesCheckedArithmetic target ||
+          exprPlanUsesCheckedArithmetic value
+    | .storagePathAssignOpExprTarget target op value =>
+        storagePathWriteExprTargetPlanUsesCheckedArithmetic target ||
+          needsCheckedArithmetic op ||
+          exprPlanUsesCheckedArithmetic value
+    | .contextRead field =>
+        contextExprPlanUsesCheckedArithmetic field
+    | .eventEmit _ dataFields =>
+        dataFields.any abiValuePlanUsesCheckedArithmetic
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        indexedFields.any abiValuePlanUsesCheckedArithmetic ||
+          dataFields.any abiValuePlanUsesCheckedArithmetic
+    | .eventEmitWords _ dataFieldWords =>
+        dataFieldWords.any (fun words => words.any exprPlanUsesCheckedArithmetic)
+    | .eventEmitIndexedWords _ indexedFieldWords dataFieldWords =>
+        indexedFieldWords.any (fun words => words.any exprPlanUsesCheckedArithmetic) ||
+          dataFieldWords.any (fun words => words.any exprPlanUsesCheckedArithmetic)
+
+  partial def stmtPlanUsesCheckedArithmetic : StmtPlan → Bool
+    | .letBind _ _ value
+    | .letMutBind _ _ value
+    | .assert value _ _
+    | .return value =>
+        exprPlanUsesCheckedArithmetic value
+    | .assign target value =>
+        exprPlanUsesCheckedArithmetic target || exprPlanUsesCheckedArithmetic value
+    | .assignOp target op value =>
+        exprPlanUsesCheckedArithmetic target ||
+          needsCheckedArithmetic op ||
+          exprPlanUsesCheckedArithmetic value
+    | .effect effect =>
+        effectPlanUsesCheckedArithmetic effect
+    | .assertEq lhs rhs _ _ =>
+        exprPlanUsesCheckedArithmetic lhs || exprPlanUsesCheckedArithmetic rhs
+    | .release _ | .revert _ | .revertWithError _ =>
+        false
+    | .ifElse condition thenBody elseBody =>
+        exprPlanUsesCheckedArithmetic condition ||
+          thenBody.any stmtPlanUsesCheckedArithmetic ||
+          elseBody.any stmtPlanUsesCheckedArithmetic
+    | .boundedFor _ _ _ body =>
+        body.any stmtPlanUsesCheckedArithmetic
+end
+
+def entrypointsUseCheckedArithmetic (entrypoints : Array EntrypointPlan) : Bool :=
+  entrypoints.any fun entrypoint => entrypoint.body.any stmtPlanUsesCheckedArithmetic
+
 def pushNatIfMissing (acc : Array Nat) (value : Nat) : Array Nat :=
   if acc.contains value then acc else acc.push value
 
@@ -3018,7 +3245,7 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
   let createPlans := buildCreateHelperPlansFromEntrypoints entrypointPlans
   let localArrayGetLengths ← buildLocalArrayGetLengths module
   let nestedLocalArrayGetShapes ← buildNestedLocalArrayGetShapes module
-  let usesCheckedArithmetic := moduleUsesCheckedArithmetic module
+  let usesCheckedArithmetic := entrypointsUseCheckedArithmetic entrypointPlans
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans
@@ -3056,7 +3283,7 @@ def buildFullModulePlanWithTargetPlan
   let createPlans := buildCreateHelperPlansFromEntrypoints entrypointPlans
   let localArrayGetLengths ← buildLocalArrayGetLengths module
   let nestedLocalArrayGetShapes ← buildNestedLocalArrayGetShapes module
-  let usesCheckedArithmetic := moduleUsesCheckedArithmetic module
+  let usesCheckedArithmetic := entrypointsUseCheckedArithmetic entrypointPlans
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans

@@ -1274,6 +1274,68 @@ def testPlannedCreateHelperDiscoveryFromEntrypointPlans : IO Unit := do
       spec == { mode := ProofForge.Backend.Evm.Plan.CreateMode.create2, initCodeHex })
     "planned entrypoint body scanner must discover injected create2 helper"
 
+def testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans : IO Unit := do
+  let counterPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.Counter.module)
+      "counter full module plan for planned checked arithmetic discovery"
+  require
+    (ProofForge.Backend.Evm.Lower.entrypointsUseCheckedArithmetic counterPlan.entrypoints ==
+      counterPlan.usesCheckedArithmetic)
+    "full module checked arithmetic requirement must be discovered from entrypoint plans"
+  let targetPlanCounter ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlanWithTargetPlan
+        ProofForge.IR.Examples.Counter.module
+        counterPlan.targetPlan)
+      "counter target-plan full module plan for planned checked arithmetic discovery"
+  require
+    (targetPlanCounter.usesCheckedArithmetic == counterPlan.usesCheckedArithmetic)
+    "target-plan full module checked arithmetic requirement must be discovered from entrypoint plans"
+  let nativePlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan nativeTransferPlanProbe)
+      "native transfer full module plan for planned checked arithmetic injection"
+  require
+    (!ProofForge.Backend.Evm.Validate.moduleUsesCheckedArithmetic nativeTransferPlanProbe)
+    "native transfer raw IR should not require checked arithmetic helpers"
+  require
+    (!ProofForge.Backend.Evm.Lower.entrypointsUseCheckedArithmetic nativePlan.entrypoints)
+    "native transfer planned body should not require checked arithmetic helpers"
+  let exprInjectedEntrypoints := nativePlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "send" then
+      { entrypoint with
+        body := #[
+          StmtPlan.return
+            (ExprPlan.checkedArith
+              .add
+              (ExprPlan.local "target")
+              (ExprPlan.literalWord 1))
+        ]
+      }
+    else
+      entrypoint
+  require
+    (ProofForge.Backend.Evm.Lower.entrypointsUseCheckedArithmetic exprInjectedEntrypoints)
+    "planned entrypoint body scanner must discover injected checked arithmetic expression"
+  let assignOpInjectedEntrypoints := nativePlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "send" then
+      { entrypoint with
+        body := #[
+          StmtPlan.letMutBind "value" .u64 (ExprPlan.literalWord 1),
+          StmtPlan.assignOp
+            (ExprPlan.local "value")
+            .add
+            (ExprPlan.literalWord 1),
+          StmtPlan.return (ExprPlan.local "value")
+        ]
+      }
+    else
+      entrypoint
+  require
+    (ProofForge.Backend.Evm.Lower.entrypointsUseCheckedArithmetic assignOpInjectedEntrypoints)
+    "planned entrypoint body scanner must discover injected checked assign-op"
+
 def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
   let plan ←
     requireOk
@@ -7934,6 +7996,7 @@ def main : IO UInt32 := do
   testPlannedHelperDiscoveryToYul
   testPlannedCrosscallHelperDiscoveryFromEntrypointPlans
   testPlannedCreateHelperDiscoveryFromEntrypointPlans
+  testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans
   testLocalArrayHelperDiscoveryInLowerPlan
   testIncompletePlanFallbackHelperDiscovery
   testEntrypointDispatchPlanToYul
