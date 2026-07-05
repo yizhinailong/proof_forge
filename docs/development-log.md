@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Raw Map Read ToYul Slice
+
+Commit: e6eca8c
+
+Summary:
+
+- Moved raw compatibility `EffectPlan.storageMapContains` and
+  `EffectPlan.storageMapGet` expression frame construction from `IR.lean` into
+  `ToYul.mapContainsExpr` and `ToYul.mapGetExpr`.
+- Kept `IR.lowerPlanEffectExpr` responsible only for validating the map state
+  and looking up its root slot before delegating the Yul expression frame.
+- Made the planned target helpers `mapContainsTargetExpr` and
+  `mapGetTargetExpr` reuse the same raw root-slot helpers.
+- Added semantic-plan tests that call the raw ToYul map read helpers directly in
+  addition to the existing target-plan and IR facade coverage.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns the map state/root-slot lookup for raw compatibility
+  plan variants; only the final map read Yul expression frame moved behind
+  `ToYul`.
+- Other raw storage read expression frames, such as array and struct reads,
+  still have IR-local compatibility branches.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue the EVM semantic-plan migration by moving the next small
+  compatibility expression or statement frame from raw `IR.lean` into
+  `Lower -> Plan -> ToYul`.
+
 ### EVM Planned Map Helper Discovery Slice
 
 Commit: d837d0a
