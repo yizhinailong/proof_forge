@@ -5849,6 +5849,29 @@ def testMapWritePlanToYul : IO Unit := do
           require (addArgs.size == 2) "map set-return effect value checked add arg count"
       | _ => throw <| IO.userError "map set-return effect value must be plan-lowered checked add"
   | _ => throw <| IO.userError "map set-return effect must lower through EffectPlan"
+  let insertStmt ← requireOk
+    (lowerEffectStmt
+      ProofForge.IR.Examples.EvmMapProbe.module
+      env
+      (.storageMapInsert
+        "balances"
+        (.add (.local "key") (.literal (.u64 1)))
+        (.local "value")))
+    "map insert statement Lower-to-Yul"
+  match insertStmt with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
+      require (name == (Helper.mapWrite).name) "map insert statement helper"
+      require (args.size == 3) "map insert statement arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "map insert statement key checked add"
+          require (addArgs.size == 2) "map insert statement key checked add arg count"
+      | _ => throw <| IO.userError "map insert statement key must be plan-lowered checked add"
+      match args[2]! with
+      | Lean.Compiler.Yul.Expr.ident valueName =>
+          require (valueName == "value") "map insert statement value"
+      | _ => throw <| IO.userError "map insert statement value must be plan-lowered local"
+  | _ => throw <| IO.userError "map insert statement must lower through EffectPlan"
   let insertReturnExpr ← requireOk
     (lowerEffectExpr
       ProofForge.IR.Examples.EvmMapProbe.module

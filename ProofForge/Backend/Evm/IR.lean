@@ -2895,25 +2895,24 @@ partial def lowerMapWriteStmtPlanOrFallback
     (module : Module)
     (env : TypeEnv)
     (stateId : String)
-    (mkEffect : ProofForge.Backend.Evm.Plan.MapWriteTargetPlan → ProofForge.Backend.Evm.Plan.ExprPlan → ProofForge.Backend.Evm.Plan.ExprPlan → ProofForge.Backend.Evm.Plan.EffectPlan)
+    (mkEffect : String → ProofForge.IR.Expr → ProofForge.IR.Expr → Effect)
     (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   if exprSupportsPlanScalarYul key && exprSupportsPlanScalarYul value then
-    let keyPlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) key with
+    let effectPlan ←
+      match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
+          (mkEffect stateId key value) with
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
-    let valuePlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
-      | .ok plan => .ok plan
-      | .error err => .error { message := err.message }
-    let targetPlan ← lowerPlan <|
-      ProofForge.Backend.Evm.Plan.mapWriteTargetPlan module stateId
     let statements ←
-      ProofForge.Backend.Evm.ToYul.mapWriteTargetEffectStmtPlanStatements
-        toYulError
-        (fun expr => lowerExpr module env expr)
-        (lowerPlanEffectExpr module env)
-        (.effect (mkEffect targetPlan keyPlan valuePlan))
+      match effectPlan with
+      | .storageMapInsertTarget .. | .storageMapSetTarget .. =>
+          ProofForge.Backend.Evm.ToYul.mapWriteTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.effect effectPlan)
+      | _ =>
+          .error { message := "EVM Lower.buildEffectPlan map write did not produce storageMapInsertTarget/storageMapSetTarget" }
     match statements[0]? with
     | some statement =>
         if statements.size == 1 then
@@ -3608,9 +3607,9 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
   | .storageMapGet _ _ =>
       .error { message := "storage.map.get must be used as an expression" }
   | .storageMapInsert stateId key value =>
-      lowerMapWriteStmtPlanOrFallback module env stateId (fun target key value => .storageMapInsertTarget target key value) key value
+      lowerMapWriteStmtPlanOrFallback module env stateId (fun stateId key value => .storageMapInsert stateId key value) key value
   | .storageMapSet stateId key value =>
-      lowerMapWriteStmtPlanOrFallback module env stateId (fun target key value => .storageMapSetTarget target key value) key value
+      lowerMapWriteStmtPlanOrFallback module env stateId (fun stateId key value => .storageMapSet stateId key value) key value
   | .storageArrayRead _ _ =>
       .error { message := "storage.array.read must be used as an expression" }
   | .storageArrayWrite stateId index value =>
