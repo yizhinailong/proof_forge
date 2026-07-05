@@ -1962,33 +1962,41 @@ mutual
       (env : TypeEnv)
       (array index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     let fullExpr := ProofForge.IR.Expr.arrayGet array index
-    match collectLocalArrayGetPath fullExpr with
-    | some (name, path) =>
-        if path.size > 1 && arrayIndexPathHasDynamic path then
-          let some binding := findLocal? env name
-            | .error { message := s!"unknown local `{name}`" }
-          lowerDynamicNestedLocalFixedArrayGetExpr module env name binding path
-        else
-          match collectStaticLocalArrayGetPath fullExpr with
-          | some (name, path) => do
+    let planned ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) fullExpr with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    match planned with
+    | .localArrayGet .. =>
+        lowerExprPlanExpr module env planned
+    | _ =>
+        match collectLocalArrayGetPath fullExpr with
+        | some (name, path) =>
+            if path.size > 1 && arrayIndexPathHasDynamic path then
               let some binding := findLocal? env name
                 | .error { message := s!"unknown local `{name}`" }
-              let elementType ← fixedArrayPathType "fixed array index" binding.type path
-              match elementType with
-              | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-                  .ok (Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path))
-              | .structType _ =>
-                  .error {
-                    message := s!"fixed array indexing local `{name}` returns struct values; IR EVM v0 requires field access such as array[index].field"
-                  }
-              | .unit | .fixedArray _ _ | .bytes | .string | .array _ =>
-                  .error {
-                    message := s!"fixed array indexing local `{name}` has unsupported EVM IR v0 element type `{elementType.name}`"
-                  }
-          | none =>
-              lowerLocalFixedArrayGetExprFallback module env array index
-    | none =>
-        lowerLocalFixedArrayGetExprFallback module env array index
+              lowerDynamicNestedLocalFixedArrayGetExpr module env name binding path
+            else
+              match collectStaticLocalArrayGetPath fullExpr with
+              | some (name, path) => do
+                  let some binding := findLocal? env name
+                    | .error { message := s!"unknown local `{name}`" }
+                  let elementType ← fixedArrayPathType "fixed array index" binding.type path
+                  match elementType with
+                  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+                      .ok (Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path))
+                  | .structType _ =>
+                      .error {
+                        message := s!"fixed array indexing local `{name}` returns struct values; IR EVM v0 requires field access such as array[index].field"
+                      }
+                  | .unit | .fixedArray _ _ | .bytes | .string | .array _ =>
+                      .error {
+                        message := s!"fixed array indexing local `{name}` has unsupported EVM IR v0 element type `{elementType.name}`"
+                      }
+              | none =>
+                  lowerLocalFixedArrayGetExprFallback module env array index
+        | none =>
+            lowerLocalFixedArrayGetExprFallback module env array index
 
   partial def lowerLocalFixedArrayGetExprFallback
       (module : Module)

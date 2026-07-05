@@ -2606,6 +2606,22 @@ def testScalarExprPlanToYul : IO Unit := do
     "__proof_forge_local_array_get_3"
     4
     "dynamic local-array ExprPlan-to-Yul"
+  let directDynamicLocalArrayExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      arrayEnv
+      (.arrayGet (.local "xs") (.add (.local "idx") (.literal (.u64 0)))))
+    "direct dynamic local-array read lowers through ExprPlan"
+  match directDynamicLocalArrayExpr with
+  | Lean.Compiler.Yul.Expr.call name args => do
+      require (name == "__proof_forge_local_array_get_3") "direct dynamic local-array read helper"
+      require (args.size == 4) "direct dynamic local-array read helper arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "direct dynamic local-array read index must lower through ExprPlan"
+          require (addArgs.size == 2) "direct dynamic local-array read index helper arg count"
+      | _ => throw <| IO.userError "direct dynamic local-array read index must be planned checked add"
+  | _ => throw <| IO.userError "direct dynamic local-array read must lower to local-array helper call"
   let staticArrayLiteralExpr ← requireOk
     (lowerExprPlanExpr
       ProofForge.IR.Examples.Counter.module
