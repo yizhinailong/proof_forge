@@ -791,6 +791,8 @@ def testEventSemanticPlan : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.EventProbe.evmModule) "event plan"
   require (plan.entrypoints.size > 0) "event plan entrypoint count"
   require (plan.events.size > 0) "event plan event count"
+  require (plan.hasHelper .arraySlot) "event plan requires array slot helper for storage array event words"
+  require (plan.hasHelper .structArraySlot) "event plan requires struct-array slot helper for storage struct-array event words"
   let valueEvent? := plan.events.find? (fun ev => ev.name == "ValueEvent")
   require valueEvent?.isSome "event plan missing ValueEvent"
   let valueEvent := valueEvent?.get!

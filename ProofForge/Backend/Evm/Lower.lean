@@ -3285,8 +3285,10 @@ mutual
         #[]
 
   partial def plannedHelpersFromExprPlan : ExprPlan → HelperSet
-    | .literalWord _ | .local _ | .calldataWord _ | .storageLoad _ | .nativeValue =>
+    | .literalWord _ | .local _ | .calldataWord _ | .nativeValue =>
         #[]
+    | .storageLoad slot =>
+        slot.requiredHelpers
     | .builtin _ args | .arrayLit _ args =>
         args.foldl (init := #[]) fun acc arg =>
           mergeHelperSets acc (plannedHelpersFromExprPlan arg)
