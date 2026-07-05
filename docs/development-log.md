@@ -16323,3 +16323,36 @@ Result:
   checks passed locally.
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Dynamic Array TargetPlan Slice
+
+Commit: eac5609
+
+Summary:
+
+- Added `DynamicArrayTargetPlan` and target `EffectPlan` variants for
+  dynamic-array push/pop root-slot planning.
+- Routed successful `Lower.buildEffectPlan` dynamic-array push/pop effects
+  through `DynamicArrayTargetPlan -> ToYul` helpers, so root-slot selection and
+  dynamic slot helper assembly no longer come from `IR.lean` callbacks.
+- Kept the old callback helpers for legacy/fallback variants while planned body
+  lowering and direct effect statements consume the target helper path.
+- Added semantic-plan regressions for Lower target variants and direct ToYul
+  target helper assembly.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Result:
+
+- Dynamic-array push/pop success paths now use target semantic plans for
+  root-slot and slot-helper assembly.
+- EVM semantic-plan tests, i18n sync, JSON validation, EVM IR build, and
+  whitespace checks passed locally.
