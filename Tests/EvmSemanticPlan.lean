@@ -6580,6 +6580,36 @@ def testWholeStructStorageWritePlanToYul : IO Unit := do
       require foundStoreX "whole struct storage write StmtPlan-to-Yul helper must store x temp"
       require foundStoreY "whole struct storage write StmtPlan-to-Yul helper must store y temp"
   | _ => throw <| IO.userError "whole struct storage write StmtPlan-to-Yul helper must lower to block"
+  let effectPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      (toValidateTypeEnv env)
+      (.storageScalarWrite
+        "current"
+        (.structLit "Point" #[
+          ("x", .add (.local "value") (.literal (.u64 7))),
+          ("y", .effect (.storageScalarRead "before"))
+        ])))
+    "Lower whole struct storage write effect plan"
+  match effectPlan with
+  | .storageScalarWrite stateId (.structLit typeName fields) => do
+      require (stateId == "current") "Lower whole struct storage write state id"
+      require (typeName == "Point") "Lower whole struct storage write struct type"
+      let some xField := fields.find? fun field => field.fst == "x"
+        | throw <| IO.userError "Lower whole struct storage write must include x field"
+      let some yField := fields.find? fun field => field.fst == "y"
+        | throw <| IO.userError "Lower whole struct storage write must include y field"
+      match xField.snd with
+      | .checkedArith .add (.local lhs) (.literalWord rhs) => do
+          require (lhs == "value") "Lower whole struct storage write x field lhs"
+          require (rhs == 7) "Lower whole struct storage write x field rhs"
+      | _ => throw <| IO.userError "Lower whole struct storage write x field must be ExprPlan checked add"
+      match yField.snd with
+      | .effect (.storageScalarReadTarget target) => do
+          require (target.byteOffset == 0) "Lower whole struct storage write y field read byte offset"
+          require (target.byteWidth == 8) "Lower whole struct storage write y field read byte width"
+      | _ => throw <| IO.userError "Lower whole struct storage write y field must be planned storage read"
+  | _ => throw <| IO.userError "Lower whole struct storage write must produce storageScalarWrite"
   let writeStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageStructProbe.module

@@ -3181,15 +3181,20 @@ partial def lowerStorageStructWriteStmtPlanOrFallback
     (stateId : String)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   if storageStructWriteSupportsPlan value then
-    let valuePlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+    let effectPlan ←
+      match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
+          (.storageScalarWrite stateId value) with
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
     let statements ←
-      ProofForge.Backend.Evm.ToYul.storageStructWriteEffectStmtPlanStatements
-        toYulError
-        (fun stateId value => lowerStorageStructWriteFields module env stateId value)
-        (.effect (.storageScalarWrite stateId valuePlan))
+      match effectPlan with
+      | .storageScalarWrite .. =>
+          ProofForge.Backend.Evm.ToYul.storageStructWriteEffectStmtPlanStatements
+            toYulError
+            (fun stateId value => lowerStorageStructWriteFields module env stateId value)
+            (.effect effectPlan)
+      | _ =>
+          .error { message := "EVM Lower.buildEffectPlan storage struct write did not produce storageScalarWrite" }
     match statements[0]? with
     | some statement =>
         if statements.size == 1 then

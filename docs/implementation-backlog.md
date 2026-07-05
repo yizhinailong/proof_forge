@@ -425,14 +425,15 @@ Tasks:
     fieldOffset, index))` assembly. Storage-path struct/array field surfaces
     remain on their dedicated storage-path target path until typed path
     expression planning is widened.
-  - Started: whole-struct `storageScalarWrite` assembly now consumes a narrow
-    `StmtPlan.effect` / `EffectPlan -> ToYul` helper for local struct sources,
-    storage-struct read sources, and struct literals whose field expressions
-    are in the supported scalar plan subset. Struct metadata lookup and field
-    source expansion remain in the `IR.lean` compatibility facade; the helper
-    owns the final snapshot-temp declarations and field-slot `sstore` block.
-    Struct literals with unsupported field expressions still use the
-    compatibility fallback.
+  - Started: whole-struct `storageScalarWrite` assembly now starts from
+    `Lower.buildEffectPlan` for local struct sources, storage-struct read
+    sources, and struct literals whose field expressions are in the supported
+    scalar plan subset, then consumes the resulting narrow `StmtPlan.effect` /
+    `EffectPlan -> ToYul` helper. Struct metadata lookup and field source
+    expansion remain in the `IR.lean` compatibility facade; the helper owns the
+    final snapshot-temp declarations and field-slot `sstore` block. Struct
+    literals with unsupported field expressions still use the compatibility
+    fallback.
   - Started: expression-position `storagePathRead` assembly now consumes a
     planned `StorageSlotPlan` target from `Lower.buildEffectPlan`. Direct map,
     nested map, array, struct-field, and struct-array-field storage-path reads
