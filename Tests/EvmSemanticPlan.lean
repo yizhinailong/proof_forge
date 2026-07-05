@@ -3793,13 +3793,13 @@ def testScalarEventPlanToYul : IO Unit := do
       (_event : ProofForge.Backend.Evm.Plan.EventPlan)
       (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
       (value : ProofForge.Backend.Evm.Plan.AbiValuePlan) :
-      Except LowerError (Array Lean.Compiler.Yul.Expr) :=
+      Except LowerError (Array ProofForge.Backend.Evm.Plan.ExprPlan) :=
     match value with
     | AbiValuePlan.expr (.literalWord word) =>
         if field.name == "key" && word == 7 then
-          .ok #[Lean.Compiler.Yul.Expr.num 7]
+          .ok #[.literalWord 7]
         else if field.name == "value" && word == 13 then
-          .ok #[Lean.Compiler.Yul.Expr.num 13]
+          .ok #[.literalWord 13]
         else
           .error (toYulError "event effect provider helper test unexpected field word")
     | _ =>
@@ -3807,6 +3807,7 @@ def testScalarEventPlanToYul : IO Unit := do
   let directEventEffectStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatementsFromProvider
       toYulError
+      simplePlanExpr
       directEventFieldWords
       (ProofForge.Backend.Evm.Plan.StmtPlan.effect
         (.eventEmitIndexed

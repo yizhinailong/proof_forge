@@ -5080,15 +5080,22 @@ def lowerScalarEventEffectPlan
     (env : TypeEnv)
     (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let fieldWordsFor
+  let fieldWordPlansFor
       (event : ProofForge.Backend.Evm.Plan.EventPlan)
       (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
       (value : ProofForge.Backend.Evm.Plan.AbiValuePlan) :
-      Except LowerError (Array Lean.Compiler.Yul.Expr) :=
-    lowerEventFieldDataWordExprs module env event.name field value
+      Except LowerError (Array ProofForge.Backend.Evm.Plan.ExprPlan) :=
+    lowerValidate <|
+      ProofForge.Backend.Evm.Lower.eventFieldDataWordPlans
+        module
+        (toValidateTypeEnv env)
+        event.name
+        field
+        value
   ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatementsFromProvider
     toYulError
-    fieldWordsFor
+    (lowerExprPlanExpr module env)
+    fieldWordPlansFor
     (.effect effect)
 
 def lowerScalarBodyEffectPlan
