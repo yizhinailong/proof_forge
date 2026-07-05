@@ -1773,25 +1773,6 @@ mutual
       (lowerExprPlanExpr module env)
       slot
 
-  partial def lowerStoragePathReadExpr
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (path : Array StoragePathSegment) : Except LowerError Lean.Compiler.Yul.Expr := do
-    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storagePathRead stateId path) with
-    | .ok (.storagePathReadExprTarget slot) =>
-        ProofForge.Backend.Evm.ToYul.storagePathReadExprFromExprPlan
-          toYulError
-          (lowerExprPlanExpr module env)
-          slot
-    | .ok (.storagePathReadTarget slot) =>
-        ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          slot
-    | .ok _ | .error _ =>
-        lowerStoragePathReadExprTarget module env stateId path
-
   partial def validateFixedArrayIndexExprPath
       (module : Module)
       (env : TypeEnv)

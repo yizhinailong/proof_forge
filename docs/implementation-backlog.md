@@ -447,6 +447,10 @@ Tasks:
     enter the read fallback through `ValuePlan` wrappers. Older `ValuePlan`
     slot helpers remain only for direct `StorageSlotPlan` helper surfaces and
     legacy compatibility tests.
+    The now-unused compatibility `lowerStoragePathReadExpr` wrapper has been
+    removed; raw planned effects still use `lowerStoragePathReadExprTarget`
+    until the remaining diagnostic-only callers no longer need that target
+    callback.
     The now-unused legacy `lowerMapPathReadExpr` nested-map read helper has
     been removed.
   - Started: statement-position `storagePathWrite` and `storagePathAssignOp`
