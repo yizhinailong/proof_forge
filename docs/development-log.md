@@ -73,6 +73,56 @@ Next step:
   to cover it; then consider wiring `quint verify` into the default CI path once
   Java 17+ is available.
 
+### EVM Dynamic-Array EffectPlan Routing
+
+Commit: 5fda3c4
+
+Summary:
+
+- Routed statement-position dynamic-array push/pop effects through
+  `Lower.buildEffectPlan` before final ToYul statement lowering.
+- Removed IR-local push value expression planning from the plan-supported
+  dynamic-array push statement path.
+- Reused `ToYul.dynamicArrayPushEffectStmtPlanStatements` and
+  `ToYul.dynamicArrayPopEffectStmtPlanStatements` for planned dynamic-array
+  effects.
+- Added semantic-plan coverage for direct dynamic-array push/pop statement
+  lowering, including planned checked-add push values and planned root-slot
+  length loads.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Dynamic-array push still keeps the existing fallback error path for expression
+  shapes that are not yet covered by planned scalar Yul lowering.
+- Dynamic-array write through storage paths and some aggregate statement paths
+  still keep compatibility helpers.
+- Some aggregate expression, statement, storage, and event paths still pass
+  through the compatibility facade until their own semantic-plan slices land.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue by moving storage-path dynamic-array writes or another aggregate
+  statement boundary from compatibility helpers into
+  `Lower -> EffectPlan -> ToYul`.
+
 ### EVM Struct-Array-Field Write Statement EffectPlan Routing
 
 Commit: c9f358c
