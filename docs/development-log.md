@@ -16573,3 +16573,49 @@ Result:
   `.lake/build/ir/ProofForge/Cli.setup.json`; the sequential `lake build`
   rerun passed. The full Lake build still reports pre-existing unused-variable
   warnings in `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Planned Crosscall Helper Discovery Slice
+
+Commit: 5df7ae0
+
+Summary:
+
+- Added planned-body crosscall helper discovery over `EntrypointPlan.body`
+  `StmtPlan`/`ExprPlan` trees, including nested expression traversal,
+  planned argument word arity, return word layout, and native-transfer
+  detection.
+- Routed complete `Lower.buildFullModulePlan` crosscall helper specs through
+  the planned entrypoint-body scanner instead of re-scanning raw portable IR
+  statements.
+- Kept the raw-IR `Lower.buildCrosscallHelperPlans` scanner available for
+  incomplete/legacy plan surfaces.
+- Added semantic-plan coverage proving complete plans preserve the planned-body
+  crosscall helper scan and that an injected planned entrypoint crosscall is
+  discovered even when the raw IR has no crosscall.
+- Updated the implementation backlog and Chinese backlog note to document the
+  planned-body helper discovery boundary.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+```
+
+Result:
+
+- Complete EVM `ModulePlan.crosscalls` now comes from planned
+  `EntrypointPlan.body` traversal; raw IR crosscall helper scanning is retained
+  only for fallback/legacy plan surfaces.
+- EVM semantic-plan tests, EVM plan tests, crosscall IR smoke, EVM diagnostics,
+  i18n sync, JSON validation, full Lake build, and whitespace checks passed
+  locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
