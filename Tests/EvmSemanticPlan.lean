@@ -3450,6 +3450,29 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
         require (name == "sload") s!"storage aggregate event word {idx} must be sload"
         require (args.size == 1) s!"storage aggregate event word {idx} sload arg count"
     | _ => throw <| IO.userError s!"storage aggregate event word {idx} must lower to sload"
+  let facadeStmt ← requireOk
+    (lowerEventEmitStmt
+      module
+      #[]
+      "StoragePairEvent"
+      #[("pair", .effect (.storageScalarRead "storedPair"))])
+    "storage aggregate event facade data words plan-to-yul"
+  match facadeStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      let mut sloadDataWordCount := 0
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "mstore" args) => do
+            match args[1]? with
+            | some (Lean.Compiler.Yul.Expr.builtin "sload" sloadArgs) =>
+                if sloadArgs.size == 1 then
+                  sloadDataWordCount := sloadDataWordCount + 1
+            | _ => pure ()
+        | _ => pure ()
+      require (sloadDataWordCount == 2)
+        "storage aggregate event facade must store two sload-backed data words"
+  | _ =>
+      throw <| IO.userError "storage aggregate event facade must lower to event emit block"
 
 def testStorageAggregateIndexedEventTopicPlanToYul : IO Unit := do
   let module := ProofForge.IR.Examples.EventProbe.evmModule

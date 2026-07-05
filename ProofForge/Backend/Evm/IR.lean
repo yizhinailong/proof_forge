@@ -3184,12 +3184,33 @@ def lowerEventEmitCoreStmt
       | .error { message := s!"event `{name}` missing indexed field plan at index {idx}" }
     indexedTopicStatements := indexedTopicStatements ++
       (← lowerIndexedEventTopicStatements module env name field.fst idx fieldPlan field.snd)
-  let mut dataWords : Array Lean.Compiler.Yul.Expr := #[]
+  let mut dataValuePlans : Array ProofForge.Backend.Evm.Plan.ExprPlan := #[]
   for h : idx in [0:dataFields.size] do
     let field := dataFields[idx]
     let some fieldPlan := dataFieldPlans[idx]?
       | .error { message := s!"event `{name}` missing data field plan at index {idx}" }
-    dataWords := dataWords ++ (← lowerEventDataWords module env name field.fst fieldPlan.type field.snd)
+    let valuePlan ←
+      match ProofForge.Backend.Evm.Lower.buildEventFieldValuePlan
+          module
+          (toValidateTypeEnv env)
+          name
+          field.fst
+          fieldPlan.type
+          field.snd with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    dataValuePlans := dataValuePlans.push valuePlan
+  let dataWords ←
+    ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
+      toYulError
+      (fun exprPlan => lowerExprPlanExpr module env exprPlan)
+      (localAbiStructFields module s!"event `{name}` data field")
+      (fun context typeName stateId => do
+        let fields ← lowerStructStorageReadFields module context typeName stateId
+        .ok (fields.map fun field => field.snd))
+      name
+      dataFieldPlans
+      dataValuePlans
   ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement
     toYulError
     eventPlan
