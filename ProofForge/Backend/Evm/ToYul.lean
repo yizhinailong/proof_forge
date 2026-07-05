@@ -2343,6 +2343,39 @@ def structFieldWriteTargetEffectStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul planned struct field write lowering expected effect")
 
+def structArrayFieldWriteTargetEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storageArrayStructFieldWriteTarget target index value => do
+      .ok #[
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          helperCall Helper.structArraySlot #[
+            slotExpr target.rootSlot,
+            Lean.Compiler.Yul.Expr.num target.length,
+            Lean.Compiler.Yul.Expr.num target.fieldCount,
+            Lean.Compiler.Yul.Expr.num target.fieldOffset,
+            ← exprPlanExpr mkError lowerExpr lowerEffect index
+          ],
+          ← exprPlanExpr mkError lowerExpr lowerEffect value
+        ])
+      ]
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul planned struct-array field write lowering expected storageArrayStructFieldWriteTarget")
+
+def structArrayFieldWriteTargetEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      structArrayFieldWriteTargetEffectPlanStatements mkError lowerExpr lowerEffect effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul planned struct-array field write lowering expected effect")
+
 structure StorageStructWriteField where
   slot : Lean.Compiler.Yul.Expr
   fieldName : String

@@ -3601,22 +3601,14 @@ partial def lowerStructArrayFieldWriteStmtPlanOrFallback
       match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
+    let targetPlan ← lowerPlan <|
+      ProofForge.Backend.Evm.Plan.structArrayFieldWriteTargetPlan module stateId fieldName
     let statements ←
-      ProofForge.Backend.Evm.ToYul.structFieldWriteEffectStmtPlanStatements
+      ProofForge.Backend.Evm.ToYul.structArrayFieldWriteTargetEffectStmtPlanStatements
         toYulError
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
-        (fun stateId fieldName => lowerStructFieldSlotExpr module stateId fieldName)
-        (fun stateId indexPlan fieldName => do
-          let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
-          .ok (Lean.Compiler.Yul.call structArraySlotFunctionName #[
-            slotExpr slot,
-            Lean.Compiler.Yul.Expr.num length,
-            Lean.Compiler.Yul.Expr.num fieldCount,
-            Lean.Compiler.Yul.Expr.num fieldOffset,
-            ← lowerExprPlanExpr module env indexPlan
-          ]))
-        (.effect (.storageArrayStructFieldWrite stateId indexPlan fieldName valuePlan))
+        (.effect (.storageArrayStructFieldWriteTarget targetPlan indexPlan valuePlan))
     match statements[0]? with
     | some statement =>
         if statements.size == 1 then
@@ -5239,6 +5231,8 @@ def effectPlanSupportsScalarBodyStmt :
       exprPlanSupportsScalarBody index && exprPlanSupportsScalarBody value
   | .storageArrayStructFieldWrite _ index _ value =>
       exprPlanSupportsScalarBody index && exprPlanSupportsScalarBody value
+  | .storageArrayStructFieldWriteTarget _ index value =>
+      exprPlanSupportsScalarBody index && exprPlanSupportsScalarBody value
   | .storageStructFieldWrite _ _ value =>
       exprPlanSupportsScalarBody value
   | .storageStructFieldWriteTarget _ value =>
@@ -5467,6 +5461,12 @@ def lowerScalarBodyEffectPlan
         (.effect effect)
   | .storageStructFieldWriteTarget .. =>
       ProofForge.Backend.Evm.ToYul.structFieldWriteTargetEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (.effect effect)
+  | .storageArrayStructFieldWriteTarget .. =>
+      ProofForge.Backend.Evm.ToYul.structArrayFieldWriteTargetEffectStmtPlanStatements
         toYulError
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
