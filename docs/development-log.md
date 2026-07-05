@@ -16003,3 +16003,50 @@ Result:
   representable as `ExprPlan.structField (.localArrayGet ...)`.
 - EVM semantic-plan, diagnostics, struct-array value IR smoke, full Lake build,
   and whitespace checks passed locally.
+
+### EVM Whole Struct Storage Write EffectPlan Slice
+
+Commit: 056eafa
+
+Summary:
+
+- Routed whole-struct `storageScalarWrite` statement lowering through
+  `Lower.buildEffectPlan` before handing the resulting `EffectPlan` to the
+  existing `ToYul.storageStructWriteEffectStmtPlanStatements` helper.
+- Kept struct metadata lookup and per-field source expansion in the
+  `IR.lean` compatibility facade for this slice, while removing the local
+  `buildExprPlan` + manual `.storageScalarWrite` construction from the
+  successful planned path.
+- Added a semantic-plan regression that checks `Lower.buildEffectPlan` produces
+  a `storageScalarWrite` plan for supported struct literals, including checked
+  arithmetic fields and planned scalar storage reads.
+- Updated the implementation backlog and Chinese backlog note to describe the
+  new `Lower.buildEffectPlan -> EffectPlan -> ToYul` path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Result:
+
+- Whole-struct storage writes now enter the same `Lower.buildEffectPlan`
+  boundary as scalar, map, array, struct-field, struct-array-field, dynamic
+  array, and storage-path write slices.
+- EVM semantic-plan tests, EVM plan tests, event/counter IR smokes, EVM
+  diagnostics, i18n sync, JSON validation, full Lake build, and whitespace
+  checks passed locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
