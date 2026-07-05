@@ -167,7 +167,7 @@ def assignExprPlan (op : AssignOp) (lhs rhs : ExprPlan) : ExprPlan :=
 
 def fixedArrayScalarLeafType? : ValueType → Bool
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
-  | .unit | .fixedArray _ _ | .structType _ | .bytes | .string => false
+  | .unit | .fixedArray _ _ | .structType _ | .bytes | .string | .array _ => false
 
 mutual
   partial def localArrayGetExprPlan?
@@ -207,7 +207,7 @@ mutual
                 (.localArrayGet name (← path.mapM (buildExprPlan module env)) lengths)
                 fieldName)
         | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address
-        | .unit | .fixedArray _ _ | .bytes | .string =>
+        | .unit | .fixedArray _ _ | .array _ | .bytes | .string =>
             .ok none
     | none =>
         .ok none
@@ -321,6 +321,8 @@ mutual
             .ok #[.localCrosscallWords name type]
         | _ =>
             buildCrosscallStructArgWordPlans module env context typeName arg
+    | .array _ =>
+        .error { message := s!"{context} uses dynamic array; IR EVM v0 crosscall arguments do not yet support dynamic arrays" }
     | .unit | .bytes | .string =>
         .error { message := s!"{context} uses Unit; IR EVM v0 crosscall arguments must use U32, U64, Bool, Hash, fixed arrays, or structs" }
 
@@ -511,6 +513,10 @@ mutual
         match structArrayFieldWriteTargetPlan? module stateId fieldName with
         | some target => .ok (.storageArrayStructFieldWriteTarget target indexPlan valuePlan)
         | none => .ok (.storageArrayStructFieldWrite stateId indexPlan fieldName valuePlan)
+    | .storageDynamicArrayPush stateId value => do
+        .ok (.storageDynamicArrayPush stateId (← buildExprPlan module env value))
+    | .storageDynamicArrayPop stateId =>
+        .ok (.storageDynamicArrayPop stateId)
     | .storageStructFieldRead stateId fieldName =>
         match structFieldReadTargetPlan? module stateId fieldName with
         | some target => .ok (.storageStructFieldReadTarget target)
@@ -780,6 +786,8 @@ mutual
         let collector ← collectEventPlansFromExpr module env collector index
         collectEventPlansFromExpr module env collector value
     | .storageArrayStructFieldRead _ index _ => collectEventPlansFromExpr module env collector index
+    | .storageDynamicArrayPush _ value => collectEventPlansFromExpr module env collector value
+    | .storageDynamicArrayPop _ => pure collector
     | .storageStructFieldRead _ _ => pure collector
     | .storageStructFieldWrite _ _ value => collectEventPlansFromExpr module env collector value
     | .storagePathRead _ path =>
@@ -1026,6 +1034,10 @@ mutual
         let keySpecs ← crosscallHelperSpecsFromExpr module env key
         let valueSpecs ← crosscallHelperSpecsFromExpr module env value
         .ok (mergeCrosscallHelperSpecs keySpecs valueSpecs)
+    | .storageDynamicArrayPush _ value =>
+        crosscallHelperSpecsFromExpr module env value
+    | .storageDynamicArrayPop _ =>
+        .ok #[]
     | .storagePathRead _ path =>
         path.foldlM (init := #[]) fun acc segment => do
           .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsFromStoragePathSegment module env segment))
@@ -1176,6 +1188,10 @@ mutual
     | .storageArrayWrite _ key value
     | .storageArrayStructFieldWrite _ key _ value =>
         mergeCreateHelperSpecs (createHelperSpecsFromExpr key) (createHelperSpecsFromExpr value)
+    | .storageDynamicArrayPush _ value =>
+        createHelperSpecsFromExpr value
+    | .storageDynamicArrayPop _ =>
+        #[]
     | .storagePathRead _ path =>
         path.foldl (init := #[]) fun acc segment =>
           mergeCreateHelperSpecs acc (createHelperSpecsFromStoragePathSegment segment)
@@ -1271,7 +1287,7 @@ def nestedLocalArrayGetShapesForDynamicExprTarget
             | .ok (lengths, leafType) =>
                 match leafType with
                 | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .structType _ => #[lengths]
-                | .unit | .fixedArray _ _ | .bytes | .string => #[]
+                | .unit | .fixedArray _ _ | .bytes | .string | .array _ => #[]
             | .error _ => #[]
         | none => #[]
       else
@@ -1339,6 +1355,10 @@ mutual
     | .storageArrayWrite _ key value
     | .storageArrayStructFieldWrite _ key _ value =>
         mergeNatSets (localArrayGetLengthsExpr env key) (localArrayGetLengthsExpr env value)
+    | .storageDynamicArrayPush _ value =>
+        localArrayGetLengthsExpr env value
+    | .storageDynamicArrayPop _ =>
+        #[]
     | .storagePathRead _ path =>
         path.foldl (init := #[]) fun acc segment =>
           mergeNatSets acc (localArrayGetLengthsStoragePathSegment env segment)
@@ -1480,6 +1500,10 @@ mutual
     | .storageArrayWrite _ key value
     | .storageArrayStructFieldWrite _ key _ value =>
         mergeNatArraySets (nestedLocalArrayGetShapesExpr env key) (nestedLocalArrayGetShapesExpr env value)
+    | .storageDynamicArrayPush _ value =>
+        nestedLocalArrayGetShapesExpr env value
+    | .storageDynamicArrayPop _ =>
+        #[]
     | .storagePathRead _ path =>
         path.foldl (init := #[]) fun acc segment =>
           mergeNatArraySets acc (nestedLocalArrayGetShapesStoragePathSegment env segment)

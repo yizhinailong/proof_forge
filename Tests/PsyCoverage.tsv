@@ -90,6 +90,8 @@ Effect	storageStructFieldWrite	lowered	lowerEffectStmt emits scalar storage stru
 Effect	storagePathRead	lowered	lowerStoragePathRead emits generic scalar, array, and map storage paths; MapProbe, BoolStorageArrayProbe, HashStorageProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
 Effect	storagePathWrite	lowered	lowerStoragePathWrite emits generic scalar, array, and map storage path writes, with Felt writeback only for Felt-backed U32 storage arrays; MapProbe, BoolStorageArrayProbe, HashStorageProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
 Effect	storagePathAssignOp	validated	lowerStoragePathAssignOp emits supported scalar/array storage compound assignment, uses native Psy assignment for U32 struct paths, rewrites Felt-backed U32 storage-array paths as read/update/write casts, and rejects map value compound assignment; StorageNestedAggregateProbe, U32StorageArrayProbe, and diagnostics cover the boundary.
+Effect	storageDynamicArrayPush	unsupported	Psy IR v0 rejects storage.dynamic.array.push with an explicit diagnostic because DPN does not expose dynamic array storage semantics.
+Effect	storageDynamicArrayPop	unsupported	Psy IR v0 rejects storage.dynamic.array.pop with an explicit diagnostic because DPN does not expose dynamic array storage semantics.
 Effect	contextRead	lowered	lowerEffectExpr emits context functions; ContextProbe covers it.
 StoragePathSegment	field	lowered	lowerStoragePathSegment emits field access; StorageNestedAggregateProbe covers it.
 StoragePathSegment	index	lowered	lowerStoragePathSegment emits index access; BoolStorageArrayProbe, HashStorageProbe, StorageNestedAggregateProbe, and U32StorageArrayProbe cover it.
@@ -117,3 +119,5 @@ Expr	crosscallCreate	unsupported	Psy IR v0 rejects EVM contract creation with an
 Expr	crosscallCreate2	unsupported	Psy IR v0 rejects EVM deterministic contract creation with an explicit diagnostic because DPN does not expose EVM create2 semantics.
 Effect	eventEmit	lowered	lowerEffectStmt emits __emit([fields]) with an event-name comment; EventProbe covers it and Dargo test confirms result_events contains the emitted data.
 Effect	eventEmitIndexed	unsupported	Psy IR v0 rejects indexed events with an explicit diagnostic instead of lowering and silently dropping indexed-topic semantics.
+ValueType	array	unsupported	Psy IR v0 rejects dynamic arrays with explicit diagnostics in validateAbiValueType, validateValueType, and valueTypeName; ValueType.array is recognized but not lowered.
+StateKind	dynamicArray	unsupported	Psy IR v0 rejects storage.dynamicArray in validateState with an explicit diagnostic; StateKind.dynamicArray is recognized but not lowered.

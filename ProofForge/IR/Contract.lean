@@ -18,6 +18,7 @@ inductive ValueType where
   | hash
   | fixedArray (element : ValueType) (length : Nat)
   | structType (name : String)
+  | array (element : ValueType)
   deriving BEq, DecidableEq, Repr
 
 def ValueType.name : ValueType → String
@@ -33,6 +34,7 @@ def ValueType.name : ValueType → String
   | .hash => "Hash"
   | .fixedArray element length => s!"Array<{element.name},{length}>"
   | .structType name => name
+  | .array element => s!"Array<{element.name}>"
 
 def ValueType.capabilities : ValueType → Array ProofForge.Target.Capability
   | .unit => #[]
@@ -47,6 +49,7 @@ def ValueType.capabilities : ValueType → Array ProofForge.Target.Capability
   | .hash => #[]
   | .fixedArray element _ => #[.dataFixedArray] ++ element.capabilities
   | .structType _ => #[.dataStruct]
+  | .array element => #[.dataDynamicArray] ++ element.capabilities
 
 /--! Byte width of a scalar `ValueType` in EVM storage. Returns 0 for non-scalar types. -/
 def ValueType.byteWidth : ValueType → Nat
@@ -57,12 +60,12 @@ def ValueType.byteWidth : ValueType → Nat
   | .u128 => 16
   | .address => 20
   | .hash => 32
-  | .unit | .bytes | .string | .fixedArray _ _ | .structType _ => 0
+  | .unit | .bytes | .string | .fixedArray _ _ | .structType _ | .array _ => 0
 
 /--! Whether a `ValueType` is a packed storage scalar (byteWidth > 0 and < 32). -/
 def ValueType.isPackedScalar : ValueType → Bool
   | .bool | .u8 | .u32 | .u64 | .u128 | .address => true
-  | .unit | .hash | .bytes | .string | .fixedArray _ _ | .structType _ => false
+  | .unit | .hash | .bytes | .string | .fixedArray _ _ | .structType _ | .array _ => false
 
 structure StructField where
   id : String
@@ -82,6 +85,7 @@ inductive StateKind where
   | scalar
   | map (keyType : ValueType) (capacity : Nat)
   | array (length : Nat)
+  | dynamicArray
   deriving BEq, DecidableEq, Repr
 
 structure StateDecl where
@@ -183,6 +187,8 @@ mutual
     | storageArrayWrite (stateId : String) (index value : Expr)
     | storageArrayStructFieldRead (stateId : String) (index : Expr) (fieldName : String)
     | storageArrayStructFieldWrite (stateId : String) (index : Expr) (fieldName : String) (value : Expr)
+    | storageDynamicArrayPush (stateId : String) (value : Expr)
+    | storageDynamicArrayPop (stateId : String)
     | storageStructFieldRead (stateId fieldName : String)
     | storageStructFieldWrite (stateId fieldName : String) (value : Expr)
     | storagePathRead (stateId : String) (path : Array StoragePathSegment)
@@ -287,6 +293,8 @@ def Effect.capability : Effect → ProofForge.Target.Capability
   | .storageArrayWrite _ _ _ => .storageArray
   | .storageArrayStructFieldRead _ _ _ => .storageArray
   | .storageArrayStructFieldWrite _ _ _ _ => .storageArray
+  | .storageDynamicArrayPush _ _ => .storageArray
+  | .storageDynamicArrayPop _ => .storageArray
   | .storageStructFieldRead _ _ => .storageScalar
   | .storageStructFieldWrite _ _ _ => .storageScalar
   | .storagePathRead _ path =>
@@ -378,6 +386,8 @@ mutual
     | .storageArrayWrite _ index value => index.capabilities ++ value.capabilities
     | .storageArrayStructFieldRead _ index _ => #[.dataStruct] ++ index.capabilities
     | .storageArrayStructFieldWrite _ index _ value => #[.dataStruct] ++ index.capabilities ++ value.capabilities
+    | .storageDynamicArrayPush _ value => value.capabilities
+    | .storageDynamicArrayPop _ => #[]
     | .storageStructFieldRead _ _ => #[.dataStruct]
     | .storageStructFieldWrite _ _ value => #[.dataStruct] ++ value.capabilities
     | .storagePathRead _ path => path.foldl (fun acc segment => acc ++ segment.capabilities) #[]
@@ -406,6 +416,7 @@ def StateDecl.capabilities (state : StateDecl) : Array ProofForge.Target.Capabil
   | .scalar => state.type.capabilities
   | .map keyType _ => #[.storageMap] ++ keyType.capabilities ++ state.type.capabilities
   | .array _ => #[.storageArray, .dataFixedArray] ++ state.type.capabilities
+  | .dynamicArray => #[.storageArray, .dataDynamicArray] ++ state.type.capabilities
 
 def Statement.capabilities : Statement → Array ProofForge.Target.Capability
   | .letBind _ type value => type.capabilities ++ value.capabilities
