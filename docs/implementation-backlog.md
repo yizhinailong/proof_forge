@@ -359,13 +359,13 @@ Tasks:
     Struct literals with unsupported field expressions still use the
     compatibility fallback.
   - Started: statement-position `storagePathWrite` and `storagePathAssignOp`
-    assembly now consume narrow `StmtPlan.effect` / `EffectPlan -> ToYul`
-    helpers for supported scalar write/assign RHS values across direct
-    `mapKey`, `index`, `field`, `index`+`field`, and nested
-    consecutive-`mapKey` paths. Path slot computation and path-shape
-    diagnostics remain in the `IR.lean` compatibility facade; the next
-    storage-path extraction slice is deeper slot/path planning rather than the
-    final Yul statement assembly.
+    assembly now consume planned `StoragePathWriteTargetPlan` variants from
+    `Lower.buildEffectPlan`, with direct `EffectPlan -> ToYul` helpers for
+    supported scalar write/assign RHS values across direct `mapKey`, `index`,
+    `field`, `index`+`field`, and nested consecutive-`mapKey` paths. Legacy
+    callback helpers remain for compatibility/fallback paths, while typed path
+    expression planning and the remaining path-shape diagnostic surfaces are
+    the next storage-path extraction slices.
   - Started: scalar `ifElse` and `boundedFor` control-flow frame assembly now
     consumes narrow `StmtPlan -> ToYul` helpers. If conditions and synthesized
     bounded-loop guards consume `ExprPlan -> ToYul`; supported branch/loop body

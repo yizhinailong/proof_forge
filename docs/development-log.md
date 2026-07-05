@@ -17,6 +17,54 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Storage Path Write Targets
+
+Commit: 1cc75cf
+
+Summary:
+
+- Added planned storage-path write effect variants so `storagePathWrite` and
+  `storagePathAssignOp` carry a `StoragePathWriteTargetPlan` after
+  `Lower.buildEffectPlan`.
+- Added direct `ToYul` helpers for planned storage-path write and assign-op
+  targets, reusing the existing planned target-to-Yul conversion instead of a
+  late callback from the `IR.lean` facade.
+- Routed scalar-body support and statement-position storage-path write lowering
+  through the planned target variants while keeping the older callback helpers
+  available for compatibility paths.
+- Extended `Tests/EvmSemanticPlan.lean` with `Lower -> Plan` assertions and
+  direct planned-target `ToYul` helper coverage for array storage path writes
+  and assign-ops.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/evm/map-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- Path segment expressions inside `StoragePathWriteTargetPlan` still use
+  `ValuePlan.irExpr`; typed path-expression planning and the remaining
+  storage-path validation/diagnostic surfaces are still follow-up work.
+- The legacy storage-path write and assign-op effect variants remain for
+  compatibility/fallback paths until the broader statement lowering migration is
+  complete.
+
+Next step:
+
+- Continue extracting typed storage-path expression planning and diagnostics, or
+  move another compatibility-facade storage effect behind `Lower -> Plan ->
+  ToYul`.
+
 ### EVM Storage Path Read Slot Plan Slice
 
 Commit: b37765d
