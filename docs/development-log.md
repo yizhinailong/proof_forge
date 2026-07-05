@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM IR Hash Packing Facade Cleanup
+
+Commit: 7730f6a
+
+Summary:
+
+- Removed duplicate hash literal packing constants and validation helpers from
+  `IR.lean`.
+- Routed hash literal packing through `Validate.packedHashLiteral`, so fallback
+  lowering uses the same validation source as the semantic-plan path.
+- Routed `hashValue` Yul expression packing through `ToYul.hashPackExpr`,
+  keeping the final expression frame on the ToYul-owned side.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns broad scalar fallback expression lowering. Hash packing
+  now delegates validation and final expression construction, but surrounding
+  fallback expression dispatch remains in the compatibility facade.
+
+Next step:
+
+- Continue shrinking scalar fallback ownership by moving another narrow helper
+  frame or ABI/calldata helper boundary behind `Lower -> Plan -> ToYul`.
+
 ### EVM IR Crosscall Facade Cleanup
 
 Commit: 8bc8a87
