@@ -5070,11 +5070,15 @@ partial def lowerScalarReturnStmtPlanOrFallback
       match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
+    let returns ←
+      match ProofForge.Backend.Evm.Lower.returnPlan module s!"entrypoint `{entrypointName}`" returnType with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
     ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
       toYulError
       (fun expr => lowerExpr module env expr)
       (lowerPlanEffectExpr module env)
-      (← abiReturnNames module entrypointName returnType)
+      returns.localNames
       leaveAfterReturn
       (.return valuePlan)
   else
