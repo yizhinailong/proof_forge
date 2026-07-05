@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Storage Array Event ABI Word Plans
+
+Commit: a20bd8b
+
+Summary:
+
+- Extended `ExprPlan.storageAbiWords` from scalar storage structs to fixed
+  storage arrays and fixed storage struct arrays.
+- Taught `Lower.buildEventFieldValuePlan` to recognize whole storage-array
+  event fields expressed as contiguous literal-index reads and record them as
+  `storageAbiWords` instead of opaque aggregate literals.
+- Added `ToYul.storageAbiWords` support for fixed-array storage expansion via a
+  storage-array callback, with the `IR.lean` facade supplying the concrete
+  `arraySlot` / `structArraySlot` backed `sload` words.
+- Added semantic-plan coverage for `StorageArrayEvent` and
+  `StoragePairArrayEvent`, asserting their planned storage state ids, ABI
+  types, word counts, and slot helper calls.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/event-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Storage-array ABI word planning recognizes complete literal-index arrays
+  only: indexes must be `0..N-1` and the event fixed-array length must match
+  the storage array length.
+- Partial slices, dynamic indexes, and mixed storage/literal aggregates still
+  remain ordinary planned aggregate literals.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Look for the next remaining EVM compatibility-facade boundary where
+  aggregate storage semantics still enter as expression fallback rather than an
+  explicit `ExprPlan` / `StmtPlan` node.
+
 ### EVM Legacy Event Data Word Helper Removal
 
 Commit: 423fa63
