@@ -136,6 +136,15 @@ def requireStructArrayFieldWriteTarget
   require (target.fieldCount == expectedFieldCount) s!"{label} field count"
   require (target.fieldOffset == expectedFieldOffset) s!"{label} field offset"
 
+def requireStructArrayFieldReadTarget
+    (target : StructArrayFieldReadTargetPlan)
+    (expectedRootSlot expectedLength expectedFieldCount expectedFieldOffset : Nat)
+    (label : String) : IO Unit := do
+  require (target.rootSlot == expectedRootSlot) s!"{label} root slot"
+  require (target.length == expectedLength) s!"{label} length"
+  require (target.fieldCount == expectedFieldCount) s!"{label} field count"
+  require (target.fieldOffset == expectedFieldOffset) s!"{label} field offset"
+
 def requireIdentExpr
     (expr : Lean.Compiler.Yul.Expr)
     (expectedName : String)
@@ -3698,6 +3707,69 @@ def testStructFieldReadPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "struct field read expression slot must be literal"
   | _ => throw <| IO.userError "struct field read expression must lower to sload"
 
+def testStructArrayFieldReadPlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let loweredStructArrayFieldReadEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      (toValidateTypeEnv env)
+      (.storageArrayStructFieldRead "points" (.literal (.u64 1)) "y"))
+    "Lower struct-array field read target effect plan"
+  match loweredStructArrayFieldReadEffect with
+  | .storageArrayStructFieldReadTarget target (.literalWord indexValue) => do
+      requireStructArrayFieldReadTarget target 4 2 2 1 "Lower struct-array field read target"
+      require (indexValue == 1) "Lower struct-array field read target index"
+  | _ => throw <| IO.userError "Lower struct-array field read must produce storageArrayStructFieldReadTarget"
+  let directReadExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.structArrayFieldReadTargetExpr
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env)
+      { rootSlot := 4, length := 2, fieldCount := 2, fieldOffset := 1 }
+      (.checkedArith .add (.literalWord 0) (.literalWord 1)))
+    "planned struct-array field read target expr-to-Yul helper"
+  match directReadExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "planned struct-array field read target sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == structArraySlotFunctionName) "planned struct-array field read target slot helper"
+          require (slotArgs.size == 5) "planned struct-array field read target slot arg count"
+          match slotArgs[0]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "4") "planned struct-array field read target root slot"
+          | _ => throw <| IO.userError "planned struct-array field read target root slot must be literal"
+          match slotArgs[1]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "2") "planned struct-array field read target length"
+          | _ => throw <| IO.userError "planned struct-array field read target length must be literal"
+          match slotArgs[2]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "2") "planned struct-array field read target field count"
+          | _ => throw <| IO.userError "planned struct-array field read target field count must be literal"
+          match slotArgs[3]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "1") "planned struct-array field read target field offset"
+          | _ => throw <| IO.userError "planned struct-array field read target field offset must be literal"
+          match slotArgs[4]! with
+          | Lean.Compiler.Yul.Expr.call addName addArgs => do
+              require (addName == "__pf_checked_add") "planned struct-array field read target index checked add"
+              require (addArgs.size == 2) "planned struct-array field read target index checked add arg count"
+          | _ => throw <| IO.userError "planned struct-array field read target index must be checked add"
+      | _ => throw <| IO.userError "planned struct-array field read target slot must use struct-array helper"
+  | _ => throw <| IO.userError "planned struct-array field read target must lower to sload"
+  let readExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      env
+      (.effect (.storageArrayStructFieldRead "points" (.add (.literal (.u64 0)) (.literal (.u64 1))) "y")))
+    "struct-array field read expression plan-to-yul"
+  match readExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "struct-array field read expression sload arg count"
+      requireCallExpr args[0]! structArraySlotFunctionName 5 "struct-array field read expression slot helper"
+  | _ => throw <| IO.userError "struct-array field read expression must lower to sload"
+
 def testStructFieldWritePlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
   let directFieldStmts ← requireOk
@@ -4613,6 +4685,7 @@ def main : IO UInt32 := do
   testArrayReadPlanToYul
   testArrayWritePlanToYul
   testStructFieldReadPlanToYul
+  testStructArrayFieldReadPlanToYul
   testStructFieldWritePlanToYul
   testWholeStructStorageWritePlanToYul
   testStoragePathReadPlanToYul

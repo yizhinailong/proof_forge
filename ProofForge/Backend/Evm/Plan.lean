@@ -249,6 +249,13 @@ structure StructArrayFieldWriteTargetPlan where
   fieldOffset : Nat
   deriving Repr
 
+structure StructArrayFieldReadTargetPlan where
+  rootSlot : Nat
+  length : Nat
+  fieldCount : Nat
+  fieldOffset : Nat
+  deriving Repr
+
 def requireState (module : Module) (stateId : String) : Except PlanError (Nat × StateDecl) :=
   match stateInfo? module stateId with
   | some info => .ok info
@@ -422,6 +429,13 @@ def structArrayFieldSlotPlan
 def structArrayFieldWriteTargetPlan
     (module : Module)
     (stateId fieldName : String) : Except PlanError StructArrayFieldWriteTargetPlan := do
+  let (rootSlot, length, fieldCount, fieldOffset, _) ←
+    requireStructArrayStateField module stateId fieldName
+  .ok { rootSlot, length, fieldCount, fieldOffset }
+
+def structArrayFieldReadTargetPlan
+    (module : Module)
+    (stateId fieldName : String) : Except PlanError StructArrayFieldReadTargetPlan := do
   let (rootSlot, length, fieldCount, fieldOffset, _) ←
     requireStructArrayStateField module stateId fieldName
   .ok { rootSlot, length, fieldCount, fieldOffset }
@@ -700,6 +714,7 @@ mutual
     | storageArrayWrite (stateId : String) (index value : ExprPlan)
     | storageArrayWriteTarget (target : ArrayWriteTargetPlan) (index value : ExprPlan)
     | storageArrayStructFieldRead (stateId : String) (index : ExprPlan) (fieldName : String)
+    | storageArrayStructFieldReadTarget (target : StructArrayFieldReadTargetPlan) (index : ExprPlan)
     | storageArrayStructFieldWrite (stateId : String) (index : ExprPlan) (fieldName : String) (value : ExprPlan)
     | storageArrayStructFieldWriteTarget (target : StructArrayFieldWriteTargetPlan) (index value : ExprPlan)
     | storageStructFieldRead (stateId fieldName : String)

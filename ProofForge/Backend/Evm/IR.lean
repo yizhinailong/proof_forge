@@ -2057,13 +2057,30 @@ mutual
       ProofForge.Backend.Evm.Plan.structArrayFieldSlotPlan module stateId index fieldName
     lowerStorageSlotPlanExpr module env plan
 
-  partial def lowerStructArrayFieldReadExpr
+  partial def lowerStructArrayFieldReadExprFallback
       (module : Module)
       (env : TypeEnv)
       (stateId : String)
       (index : ProofForge.IR.Expr)
       (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
     .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerStructArrayFieldSlotExpr module env stateId index fieldName])
+
+  partial def lowerStructArrayFieldReadExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (index : ProofForge.IR.Expr)
+      (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
+    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storageArrayStructFieldRead stateId index fieldName) with
+    | .ok (.storageArrayStructFieldReadTarget target indexPlan) =>
+        ProofForge.Backend.Evm.ToYul.structArrayFieldReadTargetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          target
+          indexPlan
+    | .ok _ | .error _ =>
+        lowerStructArrayFieldReadExprFallback module env stateId index fieldName
 
   partial def lowerStoragePathReadExpr
       (module : Module)
@@ -2787,6 +2804,13 @@ mutual
               indexExpr
             ]
         .ok (Lean.Compiler.Yul.builtin "sload" #[fieldSlot])
+    | .storageArrayStructFieldReadTarget target index =>
+        ProofForge.Backend.Evm.ToYul.structArrayFieldReadTargetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          target
+          index
     | .storagePathRead stateId path => do
         let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan module stateId path
         ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
@@ -5150,6 +5174,7 @@ mutual
     | .storageStructFieldRead _ _ => true
     | .storageStructFieldReadTarget _ => true
     | .storageArrayStructFieldRead _ index _ => exprPlanSupportsScalarBody index
+    | .storageArrayStructFieldReadTarget _ index => exprPlanSupportsScalarBody index
     | .storagePathRead _ path => storagePathSupportsScalarBody path
     | _ => false
 
