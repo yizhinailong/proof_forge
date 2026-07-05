@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM IR Crosscall Facade Cleanup
+
+Commit: 8bc8a87
+
+Summary:
+
+- Removed the dead `IR.lean` crosscall helper naming facade for scalar and
+  aggregate call/value/static/delegate helper names.
+- Removed the duplicate IR-local plain native-transfer detector.
+- Routed scalar fallback's plain native-transfer check through
+  `Lower.plainValueTransferCall?`, matching the helper discovery source used by
+  semantic-plan construction.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns broad scalar fallback lowering and validation facade
+  logic. The next semantic-plan slice should inspect whether any remaining
+  helper wrappers can be deleted, or whether the next useful boundary is moving
+  more scalar fallback lowering behind `StmtPlan -> ToYul`.
+
+Next step:
+
+- Search remaining `IR.lean` wrappers around hash literal validation,
+  entrypoint calldata/ABI helpers, and scalar fallback body assembly, then pick
+  another narrow cleanup or plan-owned lowering slice.
+
 ### EVM IR Create Facade Cleanup
 
 Commit: f91e22e
