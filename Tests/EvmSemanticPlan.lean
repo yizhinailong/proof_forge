@@ -3,6 +3,7 @@ import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.EvmArrayValueProbe
 import ProofForge.IR.Examples.EvmDynamicAbiProbe
 import ProofForge.IR.Examples.EvmCrosscallProbe
+import ProofForge.IR.Examples.EvmHashProbe
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmStorageArrayProbe
 import ProofForge.IR.Examples.EvmStorageStructProbe
@@ -377,6 +378,30 @@ def testDeployMetadata : IO Unit := do
   let initSel := deployMeta.entrypointSelectors[0]!
   require (initSel.fst == "initialize") "counter deploy metadata initialize name"
   require (initSel.snd == "8129fc1c") "counter deploy metadata initialize selector"
+
+def testHashHelperPlanToYul : IO Unit := do
+  let hashHelpers := ProofForge.Backend.Evm.ToYul.hashHelperFunctions
+  require (hashHelpers.size == 2) "hash ToYul helper count"
+  require
+    (statementsHaveFunctionNamed hashHelpers (ProofForge.Backend.Evm.Plan.Helper.hashWord).name)
+    "hash ToYul helper set includes hash word"
+  require
+    (statementsHaveFunctionNamed hashHelpers (ProofForge.Backend.Evm.Plan.Helper.hashPair).name)
+    "hash ToYul helper set includes hash pair"
+  let plan ←
+    requireOk
+      (buildSemanticPlan ProofForge.IR.Examples.EvmHashProbe.module)
+      "hash probe plan"
+  require (plan.hasHelper .hashWord) "hash probe plan requires hash word helper"
+  require (plan.hasHelper .hashPair) "hash probe plan requires hash pair helper"
+  let plannedHashHelpers := plannedHashHelperFunctions plan
+  require (plannedHashHelpers.size == 2) "planned hash helper count"
+  require
+    (statementsHaveFunctionNamed plannedHashHelpers (ProofForge.Backend.Evm.Plan.Helper.hashWord).name)
+    "planned hash helpers include hash word"
+  require
+    (statementsHaveFunctionNamed plannedHashHelpers (ProofForge.Backend.Evm.Plan.Helper.hashPair).name)
+    "planned hash helpers include hash pair"
 
 def testPlannedHelperDiscoveryToYul : IO Unit := do
   let plan ←
@@ -4865,6 +4890,7 @@ def main : IO UInt32 := do
   testERC20StandardEventSignatureTypes
   testArtifactMetadata
   testDeployMetadata
+  testHashHelperPlanToYul
   testPlannedHelperDiscoveryToYul
   testLocalArrayHelperDiscoveryInLowerPlan
   testEntrypointDispatchPlanToYul

@@ -63,8 +63,6 @@ def mapSetReturnFunctionName : String := "__proof_forge_map_set_return"
 def arraySlotFunctionName : String := "__proof_forge_array_slot"
 def structArraySlotFunctionName : String := "__proof_forge_struct_array_slot"
 def dynamicArraySlotFunctionName : String := "__proof_forge_dynamic_array_slot"
-def hashWordFunctionName : String := "__proof_forge_hash_word"
-def hashPairFunctionName : String := "__proof_forge_hash_pair"
 def crosscallReturnTypeSuffix : ValueType → Except LowerError String
   | type => ProofForge.Backend.Evm.ToYul.crosscallReturnTypeSuffix toYulError type
 
@@ -2601,9 +2599,13 @@ mutual
     | .hashValue a b c d => do
         .ok (hashPackExpr (← lowerExpr module env a) (← lowerExpr module env b) (← lowerExpr module env c) (← lowerExpr module env d))
     | .hash preimage => do
-        .ok (Lean.Compiler.Yul.call hashWordFunctionName #[← lowerExpr module env preimage])
+        .ok (ProofForge.Backend.Evm.ToYul.helperCall
+          ProofForge.Backend.Evm.Plan.Helper.hashWord
+          #[← lowerExpr module env preimage])
     | .hashTwoToOne lhs rhs => do
-        .ok (Lean.Compiler.Yul.call hashPairFunctionName #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        .ok (ProofForge.Backend.Evm.ToYul.helperCall
+          ProofForge.Backend.Evm.Plan.Helper.hashPair
+          #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
     | .nativeValue =>
         .ok (Lean.Compiler.Yul.builtin "callvalue" #[])
     | .crosscallInvoke target methodId args => do
@@ -6200,28 +6202,6 @@ def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statem
   let dispatchPlan ← dispatchPlanForModule module
   dispatchBlockWithPlan module dispatchPlan
 
-def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
-  .funcDef hashWordFunctionName
-    #[{ name := "value" }]
-    #[{ name := "result" }]
-    {
-      statements := #[
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "value"]),
-        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32])
-      ]
-    },
-  .funcDef hashPairFunctionName
-    #[{ name := "left" }, { name := "right" }]
-    #[{ name := "result" }]
-    {
-      statements := #[
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "left"]),
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "right"]),
-        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
-      ]
-    }
-]
-
 def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
   .funcDef mapSlotFunctionName
     #[{ name := "slot" }, { name := "key" }]
@@ -7387,7 +7367,10 @@ def plannedStructArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.Module
 
 def plannedHashHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
-  if plan.hasHelper .hashWord || plan.hasHelper .hashPair then hashHelperFunctions else #[]
+  if plan.hasHelper .hashWord || plan.hasHelper .hashPair then
+    ProofForge.Backend.Evm.ToYul.hashHelperFunctions
+  else
+    #[]
 
 /-! Detect whether a module uses any `.add`/`.sub`/`.mul` `Expr` or compound
     assignment op that would route to the checked-arithmetic helpers. Used to

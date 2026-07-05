@@ -84,6 +84,28 @@ def checkedArithmeticHelperFunctions : Array Lean.Compiler.Yul.Statement :=
       ] }
   ]
 
+def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+  .funcDef (Helper.hashWord).name
+    #[{ name := "value" }]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "value"]),
+        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32])
+      ]
+    },
+  .funcDef (Helper.hashPair).name
+    #[{ name := "left" }, { name := "right" }]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "left"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "right"]),
+        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
+      ]
+    }
+]
+
 def contextFieldExpr
     {ε : Type}
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr) :
