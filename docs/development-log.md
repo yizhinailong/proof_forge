@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Legacy Map-Path Write Helper Removal
+
+Commit: 2b042ba
+
+Summary:
+
+- Removed the now-unused `lowerMapPathWriteStmt` helper from `IR.lean`.
+- Kept nested-map storage-path write fallback behavior on the shared
+  `ToYul.storagePathWriteTargetStatements` frame added in the previous slice.
+- Confirmed `lowerMapPathWriteStmt` no longer has code references after the
+  storage-path write fallback migration.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+rg -n "lowerMapPathWriteStmt" ProofForge/Backend/Evm/IR.lean Tests/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Other generic non-storage-path map/array/struct write compatibility helpers
+  remain in `IR.lean`.
+- Storage-path target selection callbacks still exist until direct callers and
+  diagnostic-only paths no longer need them.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue auditing storage-path callback surfaces and remove helpers once they
+  are demonstrably unused.
+
 ### EVM Storage-Path Write Fallback ToYul Slice
 
 Commit: 7fb513b
