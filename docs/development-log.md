@@ -17,6 +17,56 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Crosscall Argument Word Planning
+
+Commit: 31ea080
+
+Summary:
+
+- Added `CrosscallArgWordPlan` so crosscall aggregate argument sources no
+  longer have to be represented as `ExprPlan.localCrosscallWords` or
+  `ExprPlan.storageCrosscallWords`.
+- Changed `ExprPlan.crosscall.args` and `CrosscallReturnAssignmentPlan.args` to
+  carry dedicated crosscall argument word plans.
+- Routed scalar, literal, and storage-load crosscall words through
+  `CrosscallArgWordPlan.expr`, local aggregate crosscall sources through
+  `CrosscallArgWordPlan.local`, and compatibility storage sources through
+  `CrosscallArgWordPlan.storage`.
+- Updated active Lower/IR/ToYul crosscall lowering and semantic-plan tests to
+  consume the dedicated crosscall word plan layer.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/crosscall-ir-smoke.sh
+scripts/evm/abi-aggregate-ir-smoke.sh
+scripts/evm/event-ir-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- `ExprPlan.localCrosscallWords` and `ExprPlan.storageCrosscallWords` still
+  exist for compatibility helpers and unsupported generic `ExprPlan -> Yul`
+  diagnostics; active Lower crosscall arguments no longer emit them.
+- Direct `ToYul.localCrosscallWords` compatibility helpers still exist until
+  older direct tests and callers are migrated.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue retiring compatibility `ExprPlan.*Words` constructors and direct
+  `ToYul.*Words` helpers once all active paths consume dedicated source plans.
+
 ### EVM ABI Value Source Planning
 
 Commit: 32c2291
