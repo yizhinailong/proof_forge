@@ -16099,6 +16099,55 @@ Result:
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
 
+### EVM Planned Checked Arithmetic Discovery Slice
+
+Commit: cade659
+
+Summary:
+
+- Added planned-body checked-arithmetic discovery over `EntrypointPlan.body`
+  `StmtPlan`/`ExprPlan` trees, including nested expression traversal,
+  planned `.checkedArith` expressions, planned `assignOp` nodes, storage
+  assign-op effects, storage expression targets, event word plans, and
+  crosscall/create argument expressions.
+- Routed complete `Lower.buildFullModulePlan` and
+  `Lower.buildFullModulePlanWithTargetPlan` `usesCheckedArithmetic` through
+  the planned entrypoint-body scanner instead of re-scanning raw portable IR
+  statements.
+- Kept `Validate.moduleUsesCheckedArithmetic` as the incomplete/legacy plan
+  fallback source used by `lowerModuleWithPlan`.
+- Added semantic-plan coverage proving complete plans preserve planned-body
+  checked-arithmetic discovery and that injected planned `.checkedArith` and
+  `assignOp` bodies are detected even when the raw native-transfer IR has no
+  checked arithmetic.
+- Updated the implementation backlog and Chinese backlog note to document that
+  local fixed-array getter discovery remains a separate follow-up slice.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+```
+
+Result:
+
+- Complete EVM `ModulePlan.usesCheckedArithmetic` now comes from planned
+  `EntrypointPlan.body` traversal; raw IR checked-arithmetic scanning is
+  retained only for fallback/legacy plan surfaces.
+- EVM semantic-plan tests, EVM plan tests, crosscall IR smoke, EVM diagnostics,
+  i18n sync, JSON validation, full Lake build, and whitespace checks passed
+  locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
+
 ### EVM Dynamic Local Assignment ExprPlan Slice
 
 Commit: f5e6c00
