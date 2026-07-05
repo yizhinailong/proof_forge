@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Context Expressions
+
+Commit: e1a8608
+
+Summary:
+
+- Added `ContextExprPlan` so plan-level context reads no longer carry raw
+  `ContextField.blockHash` arguments through to final Yul lowering.
+- Routed `Lower.buildEffectPlan` for `contextRead` through context expression
+  planning, including recursive `ExprPlan` construction for
+  `blockHash(blockNumber)`.
+- Moved raw and planned context Yul construction behind explicit `ToYul`
+  helpers, and removed the stale `IR.lean` context expression helper.
+- Added a semantic-plan regression proving `blockHash(local + 1)` lowers to a
+  planned checked-add argument before `ToYul` emits the `blockhash` builtin.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+scripts/evm/context-ir-smoke.sh
+git diff --check
+```
+
+Known limitations:
+
+- `ModulePlan.contextOps` remains a summary of source-level context usage. This
+  slice moves expression lowering and `blockHash` arguments onto the
+  `Lower -> Plan -> ToYul` path, but does not turn the summary list into a
+  dedicated metadata/codegen source.
+
+Next step:
+
+- Continue Phase 0 by moving the next remaining compatibility-only Yul frame
+  from `IR.lean` into `ToYul`, preferably another narrow boundary with an
+  existing smoke fixture.
+
 ### EVM Planned Storage-Path Expressions
 
 Commit: e2eb7ff
