@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Storage-Path Write Fallback ToYul Slice
+
+Commit: 7fb513b
+
+Summary:
+
+- Reused `ToYul.storagePathWriteTargetStatements` from
+  `IR.lowerStoragePathWriteStmt` fallback paths.
+- Kept `IR.lean` responsible for choosing the fallback storage-path target and
+  scalar RHS expression, while moving the final map write helper, single-slot
+  `sstore`, and nested-map value/presence writeback frame behind `ToYul`.
+- Added a fallback semantic-plan test that forces a non-plan scalar RHS shape
+  and verifies the generated array storage-path write still uses the array slot
+  helper and lowered scalar value.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns fallback target selection and scalar RHS lowering for
+  storage-path write compatibility paths.
+- Generic non-storage-path map/array/struct write fallback helpers still keep
+  their existing compatibility frames.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue deleting legacy storage-path callback/fallback surfaces once direct
+  callers and diagnostic-only paths no longer need them.
+
 ### EVM Storage-Path Assign-Op Fallback ToYul Slice
 
 Commit: 788f637
