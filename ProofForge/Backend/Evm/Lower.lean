@@ -113,6 +113,40 @@ def returnPlan (module : Module) (context : String) (returnType : ValueType) :
     | _ => abiValueWordTypes module s!"{context} return value" returnType
   .ok { returnType, wordTypes, localNames := returnLocalNames returnType wordTypes }
 
+def localAbiStructFieldIds
+    (module : Module)
+    (context typeName : String) : Except LowerError (Array String) := do
+  discard <| abiValueWordTypes module context (.structType typeName)
+  let some decl := ProofForge.Backend.Evm.Validate.findStruct? module typeName
+    | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+  let mut fieldIds : Array String := #[]
+  for fieldDecl in decl.fields do
+    ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+    fieldIds := fieldIds.push fieldDecl.id
+  .ok fieldIds
+
+def localAbiStructFields
+    (module : Module)
+    (context typeName : String) : Except LowerError (Array (String × ValueType)) := do
+  discard <| abiValueWordTypes module context (.structType typeName)
+  let some decl := ProofForge.Backend.Evm.Validate.findStruct? module typeName
+    | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+  let mut fields : Array (String × ValueType) := #[]
+  for fieldDecl in decl.fields do
+    ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+    fields := fields.push (fieldDecl.id, fieldDecl.type)
+  .ok fields
+
+def validateLocalAbiWordPlan
+    (module : Module)
+    (env : TypeEnv)
+    (context name : String)
+    (expectedType : ValueType) : Except LowerError Unit := do
+  let some binding := findLocal? env name
+    | .error { message := s!"unknown local `{name}`" }
+  ensureType context expectedType binding.type
+  discard <| abiValueWordTypes module context expectedType
+
 def crosscallReturnPlan (module : Module) (context : String) (returnType : ValueType) :
     Except LowerError ReturnPlan := do
   let wordTypes ← crosscallReturnWordTypes module context returnType

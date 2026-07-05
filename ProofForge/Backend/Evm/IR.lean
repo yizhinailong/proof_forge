@@ -2097,36 +2097,28 @@ mutual
   partial def localAbiStructFieldIds
       (module : Module)
       (context typeName : String) : Except LowerError (Array String) := do
-    discard <| abiValueWordTypes module context (.structType typeName)
-    let some decl := findStruct? module typeName
-      | .error { message := s!"{context} uses unknown struct `{typeName}`" }
-    let mut fieldIds : Array String := #[]
-    for fieldDecl in decl.fields do
-      ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-      fieldIds := fieldIds.push fieldDecl.id
-    .ok fieldIds
+    lowerValidate <|
+      ProofForge.Backend.Evm.Lower.localAbiStructFieldIds module context typeName
 
   partial def localAbiStructFields
       (module : Module)
       (context typeName : String) : Except LowerError (Array (String × ValueType)) := do
-    discard <| abiValueWordTypes module context (.structType typeName)
-    let some decl := findStruct? module typeName
-      | .error { message := s!"{context} uses unknown struct `{typeName}`" }
-    let mut fields : Array (String × ValueType) := #[]
-    for fieldDecl in decl.fields do
-      ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-      fields := fields.push (fieldDecl.id, fieldDecl.type)
-    .ok fields
+    lowerValidate <|
+      ProofForge.Backend.Evm.Lower.localAbiStructFields module context typeName
 
   partial def lowerLocalAbiWords
       (module : Module)
       (env : TypeEnv)
       (context name : String)
       (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    let some binding := findLocal? env name
-      | .error { message := s!"unknown local `{name}`" }
-    ensureType context expectedType binding.type
-    discard <| abiValueWordTypes module context expectedType
+    discard <|
+      lowerValidate <|
+        ProofForge.Backend.Evm.Lower.validateLocalAbiWordPlan
+          module
+          (toValidateTypeEnv env)
+          context
+          name
+          expectedType
     ProofForge.Backend.Evm.ToYul.localAbiWords
       toYulError
       (localAbiStructFieldIds module context)

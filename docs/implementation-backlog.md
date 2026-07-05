@@ -514,9 +514,12 @@ Tasks:
     `Lower.returnValueWordPlan?` to validate the source local and expected type,
     records the planned `ExprPlan.localAbiWords` source plus `ReturnPlan`
     layout in `ReturnValueWordPlan`, and delegates the final multi-word
-    assignment frame to `ToYul.returnValueWordPlanAssignments`. Related
-    compatibility paths still call `ToYul.localAbiWords` directly until they
-    are represented in the semantic plan. Local
+    assignment frame to `ToYul.returnValueWordPlanAssignments`. Related local
+    ABI compatibility paths still call `ToYul.localAbiWords` as the final
+    emission surface, but local/type validation and struct-field discovery now
+    route through `Lower.validateLocalAbiWordPlan`,
+    `Lower.localAbiStructFieldIds`, and `Lower.localAbiStructFields` before
+    reaching that boundary. Local
     aggregate crosscall argument word expansion now delegates the final local
     identifier word construction to `ToYul.localCrosscallWords`; local provider
     validation and struct-field discovery now route through

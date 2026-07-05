@@ -1708,6 +1708,41 @@ def testLocalAbiWordsToYul : IO Unit := do
       .ok #["x", "y"]
     else
       .error { message := s!"unknown struct `{typeName}`" }
+  let lowerStructFieldIds ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.localAbiStructFieldIds
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      "local ABI words"
+      "Point")
+    "Lower local ABI struct field ids"
+  require (lowerStructFieldIds == #["x", "y"]) "Lower local ABI struct field id order"
+  let lowerStructFields ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.localAbiStructFields
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      "local ABI words"
+      "Point")
+    "Lower local ABI struct fields"
+  require (lowerStructFields == #[("x", .u64), ("y", .u64)])
+    "Lower local ABI struct fields"
+  let abiStructEnv : TypeEnv := #[
+    { name := "p", type := .structType "Point", isMutable := false }
+  ]
+  discard <| requireValidateOk
+    (ProofForge.Backend.Evm.Lower.validateLocalAbiWordPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv abiStructEnv)
+      "local ABI words"
+      "p"
+      (.structType "Point"))
+    "Lower local ABI word validation"
+  requireValidateErrorContains
+    (ProofForge.Backend.Evm.Lower.validateLocalAbiWordPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv abiStructEnv)
+      "local ABI words"
+      "missing"
+      (.structType "Point"))
+    "unknown local `missing`"
+    "Lower local ABI unknown local diagnostic"
   let directStructWords ← requireOk
     (ProofForge.Backend.Evm.ToYul.localAbiWords
       toYulError
