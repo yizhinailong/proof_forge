@@ -1727,6 +1727,16 @@ def testLocalCrosscallWordsToYul : IO Unit := do
   let structEnv : TypeEnv := #[
     { name := "p", type := .structType "Point", isMutable := false }
   ]
+  let plannedStructArgWords ← requireOk
+    (lowerCrosscallArgWordsMany
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      "typed crosscall argument"
+      #[.local "p"])
+    "planned local crosscall struct words via IR facade"
+  require (plannedStructArgWords.size == 2) "planned local crosscall struct words count"
+  requireIdentExpr plannedStructArgWords[0]! "__proof_forge_struct_p_x" "planned local crosscall struct word 0"
+  requireIdentExpr plannedStructArgWords[1]! "__proof_forge_struct_p_y" "planned local crosscall struct word 1"
   let loweredStructWords ← requireOk
     (lowerLocalCrosscallWords
       ProofForge.IR.Examples.EvmStructValueProbe.module

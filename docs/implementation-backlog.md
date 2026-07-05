@@ -502,14 +502,14 @@ Tasks:
     and nested path switch frame are emitted by `ToYul` helpers.
   - Started: aggregate crosscall helper-call assembly and entrypoint multi-word
     return assignment now live behind `ToYul`. `IR.lean` still owns return type
-    checks and aggregate argument word expansion for scalar expression fallback
-    paths, but aggregate crosscall return assignment decisions now come from
-    `Lower.aggregateCrosscallReturnAssignmentPlan?`. That plan records the
-    call mode, target/method/call-value expression plans, planned crosscall
-    argument words, and `ReturnPlan` local-name/word-layout data; `IR.lean`
-    consumes the planned `ExprPlan`s and delegates final helper-call
-    function-name selection, argument ordering, and multi-return Yul assignment
-    construction to `ToYul`. Local
+    checks for scalar expression fallback paths, but aggregate crosscall return
+    assignment decisions now come from
+    `Lower.aggregateCrosscallReturnAssignmentPlan?`. That plan records the call
+    mode, target/method/call-value expression plans, planned crosscall argument
+    words, and `ReturnPlan` local-name/word-layout data; `IR.lean` consumes the
+    planned `ExprPlan`s and delegates final helper-call function-name
+    selection, argument ordering, and multi-return Yul assignment construction
+    to `ToYul`. Local
     aggregate ABI word expansion for entrypoint returns now uses
     `Lower.returnValueWordPlan?` to validate the source local and expected type,
     records the planned `ExprPlan.localAbiWords` source plus `ReturnPlan`
@@ -530,7 +530,9 @@ Tasks:
     planned crosscall argument word groups now uses
     `ToYul.crosscallArgWordPlanExprs`; `IR.lean` supplies only the
     local/storage word-provider callbacks that still depend on compatibility
-    type-env helpers.
+    type-env helpers. Scalar expression fallback crosscall lowering now also
+    calls `Lower.buildCrosscallArgWordPlansMany` before that ToYul boundary, and
+    the old IR-local `lowerCrosscall*ArgWords` expansion tree has been removed.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

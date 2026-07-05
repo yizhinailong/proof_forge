@@ -2249,159 +2249,19 @@ mutual
           message := s!"{context} storage-backed ABI word expansion has unsupported fixed-array element type `{elementType.name}`"
         }
 
-  partial def lowerCrosscallStructArgWords
-      (module : Module)
-      (env : TypeEnv)
-      (context typeName : String)
-      (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    discard <| crosscallArgWordTypes module context (.structType typeName)
-    let some decl := findStruct? module typeName
-      | .error { message := s!"{context} uses unknown struct `{typeName}`" }
-    match value with
-    | .local name => do
-        let some binding := findLocal? env name
-          | .error { message := s!"unknown local `{name}`" }
-        ensureType context (.structType typeName) binding.type
-        let mut words : Array Lean.Compiler.Yul.Expr := #[]
-        for fieldDecl in decl.fields do
-          ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-          words := words.push (Lean.Compiler.Yul.Expr.id (structLocalFieldName name fieldDecl.id))
-        .ok words
-    | .structLit literalTypeName fields => do
-        if literalTypeName != typeName then
-          .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }
-        let mut words : Array Lean.Compiler.Yul.Expr := #[]
-        for fieldDecl in decl.fields do
-          ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-          let some field := fields.find? fun field => field.fst == fieldDecl.id
-            | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-          words := words.push (← lowerExpr module env field.snd)
-        .ok words
-    | .effect (.storageScalarRead stateId) => do
-        let fields ← lowerStructStorageReadFields module context typeName stateId
-        .ok (fields.map fun field => field.snd)
-    | _ =>
-        .error {
-          message := s!"{context} struct values in IR EVM v0 support local struct values, struct literals, or storage scalar struct reads only"
-        }
-
-  partial def lowerCrosscallStructArrayArgWords
-      (module : Module)
-      (env : TypeEnv)
-      (context typeName : String)
-      (length : Nat)
-      (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    discard <| crosscallArgWordTypes module context (.fixedArray (.structType typeName) length)
-    let some decl := findStruct? module typeName
-      | .error { message := s!"{context} uses unknown struct `{typeName}`" }
-    match value with
-    | .local name => do
-        let (sourceElementType, sourceLength) ← requireLocalFixedArray context env name
-        ensureType s!"{context} fixed-array element type" (.structType typeName) sourceElementType
-        if sourceLength != length then
-          .error { message := s!"{context} fixed-array expected length {length}, got {sourceLength}" }
-        let mut words : Array Lean.Compiler.Yul.Expr := #[]
-        for _h : idx in [0:length] do
-          for fieldDecl in decl.fields do
-            ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-            words := words.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName name idx fieldDecl.id))
-        .ok words
-    | .arrayLit literalElementType values => do
-        ensureType s!"{context} fixed-array element type" (.structType typeName) literalElementType
-        if values.size != length then
-          .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
-        let mut words : Array Lean.Compiler.Yul.Expr := #[]
-        for h : idx in [0:values.size] do
-          match values[idx] with
-          | .structLit literalTypeName fields => do
-              if literalTypeName != typeName then
-                .error { message := s!"{context} fixed-array element {idx} expected struct `{typeName}`, got `{literalTypeName}`" }
-              for fieldDecl in decl.fields do
-                ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-                let some field := fields.find? fun field => field.fst == fieldDecl.id
-                  | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-                words := words.push (← lowerExpr module env field.snd)
-          | other =>
-              let actualType ← inferExprType module env other
-              .error {
-                message := s!"{context} fixed-array element {idx} expected struct literal `{typeName}`, got `{actualType.name}`"
-              }
-        .ok words
-    | _ =>
-        .error {
-          message := s!"{context} fixed-array struct values in IR EVM v0 support local fixed-array values or array literals only"
-        }
-
-  partial def lowerCrosscallFixedArrayArgWords
-      (module : Module)
-      (env : TypeEnv)
-      (context : String)
-      (elementType : ValueType)
-      (length : Nat)
-      (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    discard <| crosscallArgWordTypes module context (.fixedArray elementType length)
-    match elementType with
-    | .structType typeName =>
-        lowerCrosscallStructArrayArgWords module env context typeName length value
-    | .fixedArray nestedElementType nestedLength =>
-        match value with
-        | .local name =>
-            lowerLocalCrosscallWords module env context name (.fixedArray elementType length)
-        | .arrayLit literalElementType values => do
-            ensureType s!"{context} fixed-array element type" elementType literalElementType
-            if values.size != length then
-              .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
-            let mut words : Array Lean.Compiler.Yul.Expr := #[]
-            for h : idx in [0:values.size] do
-              words := words ++ (← lowerCrosscallFixedArrayArgWords module env context nestedElementType nestedLength values[idx])
-            .ok words
-        | _ =>
-            .error {
-              message := s!"{context} nested fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
-            }
-    | _ => do
-        match value with
-        | .local name => do
-            lowerLocalCrosscallWords module env context name (.fixedArray elementType length)
-        | .arrayLit literalElementType values => do
-            ensureType s!"{context} fixed-array element type" elementType literalElementType
-            if values.size != length then
-              .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
-            let mut words : Array Lean.Compiler.Yul.Expr := #[]
-            for h : idx in [0:values.size] do
-              words := words.push (← lowerExpr module env values[idx])
-            .ok words
-        | _ =>
-            .error {
-              message := s!"{context} fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
-            }
-
-  partial def lowerCrosscallArgWords
-      (module : Module)
-      (env : TypeEnv)
-      (context : String)
-      (arg : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    let type ← inferExprType module env arg
-    discard <| crosscallArgWordTypes module context type
-    match type with
-    | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-        .ok #[← lowerExpr module env arg]
-    | .fixedArray elementType length =>
-        lowerCrosscallFixedArrayArgWords module env context elementType length arg
-    | .structType typeName =>
-        lowerCrosscallStructArgWords module env context typeName arg
-    | .unit | .bytes | .string | .array _ =>
-        .error { message := s!"{context} uses Unit; IR EVM v0 crosscall arguments must use U32, U64, Bool, Hash, fixed arrays, or structs" }
-
   partial def lowerCrosscallArgWordsMany
       (module : Module)
       (env : TypeEnv)
       (context : String)
       (args : Array ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    let mut words : Array Lean.Compiler.Yul.Expr := #[]
-    for arg in args do
-      words := words ++ (← lowerCrosscallArgWords module env context arg)
-    .ok words
+    let plans ←
+      lowerValidate <|
+        ProofForge.Backend.Evm.Lower.buildCrosscallArgWordPlansMany
+          module
+          (toValidateTypeEnv env)
+          context
+          args
+    lowerCrosscallArgWordPlanExprs module env context plans
 
   partial def lowerExpr (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
     | .literal (.u8 value) => .ok (Lean.Compiler.Yul.Expr.num value)

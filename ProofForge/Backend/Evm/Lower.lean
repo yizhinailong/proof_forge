@@ -335,6 +335,9 @@ mutual
     let some decl := ProofForge.Backend.Evm.Validate.findStruct? module typeName
       | .error { message := s!"{context} uses unknown struct `{typeName}`" }
     match arg with
+    | .local name =>
+        ensureType context (.structType typeName) (← inferExprType module env arg)
+        .ok #[.localCrosscallWords name (.structType typeName)]
     | .structLit literalTypeName fields => do
         if literalTypeName != typeName then
           .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }
@@ -349,7 +352,9 @@ mutual
         ensureType context (.structType typeName) (← scalarStateType module stateId)
         .ok #[.storageCrosscallWords stateId (.structType typeName)]
     | _ =>
-        .ok #[← buildExprPlan module env arg]
+        .error {
+          message := s!"{context} struct values in IR EVM v0 support local struct values, struct literals, or storage scalar struct reads only"
+        }
 
   partial def buildCrosscallStructArrayArgWordPlans
       (module : Module)
@@ -359,6 +364,9 @@ mutual
       (arg : Expr) : Except LowerError (Array ExprPlan) := do
     discard <| crosscallArgWordTypes module context (.fixedArray (.structType typeName) length)
     match arg with
+    | .local name =>
+        ensureType context (.fixedArray (.structType typeName) length) (← inferExprType module env arg)
+        .ok #[.localCrosscallWords name (.fixedArray (.structType typeName) length)]
     | .arrayLit literalElementType values => do
         ensureType s!"{context} fixed-array element type" (.structType typeName) literalElementType
         if values.size != length then
@@ -375,7 +383,9 @@ mutual
               }
         .ok plans
     | _ =>
-        .ok #[← buildExprPlan module env arg]
+        .error {
+          message := s!"{context} fixed-array struct values in IR EVM v0 support local fixed-array values or array literals only"
+        }
 
   partial def buildCrosscallFixedArrayArgWordPlans
       (module : Module)
@@ -390,6 +400,9 @@ mutual
         buildCrosscallStructArrayArgWordPlans module env context typeName length arg
     | .fixedArray nestedElementType nestedLength =>
         match arg with
+        | .local name =>
+            ensureType context (.fixedArray elementType length) (← inferExprType module env arg)
+            .ok #[.localCrosscallWords name (.fixedArray elementType length)]
         | .arrayLit literalElementType values => do
             ensureType s!"{context} fixed-array element type" elementType literalElementType
             if values.size != length then
@@ -399,9 +412,14 @@ mutual
               plans := plans ++ (← buildCrosscallFixedArrayArgWordPlans module env context nestedElementType nestedLength values[idx])
             .ok plans
         | _ =>
-            .ok #[← buildExprPlan module env arg]
+            .error {
+              message := s!"{context} nested fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
+            }
     | _ =>
         match arg with
+        | .local name =>
+            ensureType context (.fixedArray elementType length) (← inferExprType module env arg)
+            .ok #[.localCrosscallWords name (.fixedArray elementType length)]
         | .arrayLit literalElementType values => do
             ensureType s!"{context} fixed-array element type" elementType literalElementType
             if values.size != length then
@@ -411,7 +429,9 @@ mutual
               plans := plans.push (← buildExprPlan module env values[idx])
             .ok plans
         | _ =>
-            .ok #[← buildExprPlan module env arg]
+            .error {
+              message := s!"{context} fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
+            }
 
   partial def buildCrosscallArgWordPlans
       (module : Module)
