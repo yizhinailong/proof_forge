@@ -16099,6 +16099,56 @@ Result:
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
 
+### EVM Planned Local-Array Helper Discovery Slice
+
+Commit: 387e6d0
+
+Summary:
+
+- Added planned-body local fixed-array helper discovery over
+  `EntrypointPlan.body` `StmtPlan`/`ExprPlan` trees.
+- Routed complete `Lower.buildFullModulePlan` and
+  `Lower.buildFullModulePlanWithTargetPlan` `localArrayGetLengths` and
+  `nestedLocalArrayGetShapes` through the planned entrypoint-body scanner
+  instead of re-scanning raw portable IR statements.
+- Covered planned dynamic `ExprPlan.localArrayGet` paths, nested local-array
+  shapes, dynamic array-literal getters, event word plans, storage expression
+  targets, and crosscall/create argument expressions.
+- Kept `Lower.buildLocalArrayGetLengths` and
+  `Lower.buildNestedLocalArrayGetShapes` as incomplete/legacy plan fallback
+  sources used by `lowerModuleWithPlan`.
+- Tightened the complete plan helper set for `EvmArrayValueProbe`: planned
+  discovery now emits the nested `[2, 2]` helper without the legacy raw
+  scanner's extra standalone length-2 row helper.
+- Updated the implementation backlog and Chinese backlog note to document the
+  planned-body local-array helper discovery boundary.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+```
+
+Result:
+
+- Complete EVM `ModulePlan.localArrayGetLengths` and
+  `ModulePlan.nestedLocalArrayGetShapes` now come from planned
+  `EntrypointPlan.body` traversal; raw IR local-array helper scanning is
+  retained only for fallback/legacy plan surfaces.
+- EVM semantic-plan tests, EVM plan tests, crosscall IR smoke, EVM diagnostics,
+  i18n sync, JSON validation, full Lake build, and whitespace checks passed
+  locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
+
 ### EVM Planned Checked Arithmetic Discovery Slice
 
 Commit: cade659
