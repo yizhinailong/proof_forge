@@ -2489,7 +2489,7 @@ mutual
           index
     | .storageStructFieldRead stateId fieldName => do
         let (slot, _) ← requireStructStateField module stateId fieldName
-        .ok (Lean.Compiler.Yul.builtin "sload" #[slotExpr slot])
+        .ok (ProofForge.Backend.Evm.ToYul.structFieldReadExpr slot)
     | .storageStructFieldReadTarget target =>
         ProofForge.Backend.Evm.ToYul.structFieldReadTargetExpr
           toYulError

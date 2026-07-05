@@ -3498,6 +3498,9 @@ def structArrayFieldWriteTargetEffectStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul planned struct-array field write lowering expected effect")
 
+def structFieldReadExpr (slot : Nat) : Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.builtin "sload" #[slotExpr slot]
+
 def structFieldReadTargetExpr
     {ε : Type}
     (mkError : String → ε)

@@ -7889,6 +7889,15 @@ def testStructFieldReadPlanToYul : IO Unit := do
           require (literal.value == "1") "planned struct field read target slot"
       | _ => throw <| IO.userError "planned struct field read target slot must be literal"
   | _ => throw <| IO.userError "planned struct field read target must lower to sload"
+  let directRawReadExpr := ProofForge.Backend.Evm.ToYul.structFieldReadExpr 1
+  match directRawReadExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "raw struct field read sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "raw struct field read slot"
+      | _ => throw <| IO.userError "raw struct field read slot must be literal"
+  | _ => throw <| IO.userError "raw struct field read must lower to sload"
   let readExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.EvmStorageStructProbe.module
