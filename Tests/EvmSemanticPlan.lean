@@ -3444,19 +3444,57 @@ def testAggregateAssignmentPlanToYul : IO Unit := do
     (lowerAssignStmt
       ProofForge.IR.Examples.Counter.module
       env
-      (.arrayGet (.local "xs") (.local "idx"))
-      (.literal (.u64 7)))
+      (.arrayGet (.local "xs") (.add (.local "idx") (.literal (.u64 0))))
+      (.add (.local "idx") (.literal (.u64 7))))
     "dynamic local fixed-array assignment integration"
   require (dynamicStmts.size == 1) "dynamic local fixed-array assignment integration statement count"
   match dynamicStmts[0]! with
   | Lean.Compiler.Yul.Statement.block block => do
       require (block.statements.size == 3) "dynamic local fixed-array assignment integration frame count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl _ (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (name == "__pf_checked_add") "dynamic local fixed-array assignment index must lower through ExprPlan"
+          require (args.size == 2) "dynamic local fixed-array assignment index helper arg count"
+      | _ => throw <| IO.userError "dynamic local fixed-array assignment index snapshot must be planned checked add"
+      match block.statements[1]! with
+      | Lean.Compiler.Yul.Statement.varDecl _ (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (name == "__pf_checked_add") "dynamic local fixed-array assignment value must lower through ExprPlan"
+          require (args.size == 2) "dynamic local fixed-array assignment value helper arg count"
+      | _ => throw <| IO.userError "dynamic local fixed-array assignment value snapshot must be planned checked add"
       match block.statements[2]! with
       | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.ident switchName) cases => do
           require (switchName == "__proof_forge_array_index") "dynamic local fixed-array assignment integration switch index"
           require (cases.size == 3) "dynamic local fixed-array assignment integration case count"
       | _ => throw <| IO.userError "dynamic local fixed-array assignment integration must switch on planned index"
   | _ => throw <| IO.userError "dynamic local fixed-array assignment integration must lower to ToYul frame"
+  let dynamicAssignOpStmts ← requireOk
+    (lowerAssignOpStmt
+      ProofForge.IR.Examples.Counter.module
+      env
+      (.arrayGet (.local "xs") (.add (.local "idx") (.literal (.u64 0))))
+      .add
+      (.add (.local "idx") (.literal (.u64 5))))
+    "dynamic local fixed-array compound assignment integration"
+  require (dynamicAssignOpStmts.size == 1) "dynamic local fixed-array compound assignment integration statement count"
+  match dynamicAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 3) "dynamic local fixed-array compound assignment integration frame count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl _ (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (name == "__pf_checked_add") "dynamic local fixed-array compound assignment index must lower through ExprPlan"
+          require (args.size == 2) "dynamic local fixed-array compound assignment index helper arg count"
+      | _ => throw <| IO.userError "dynamic local fixed-array compound assignment index snapshot must be planned checked add"
+      match block.statements[1]! with
+      | Lean.Compiler.Yul.Statement.varDecl _ (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (name == "__pf_checked_add") "dynamic local fixed-array compound assignment value must lower through ExprPlan"
+          require (args.size == 2) "dynamic local fixed-array compound assignment value helper arg count"
+      | _ => throw <| IO.userError "dynamic local fixed-array compound assignment value snapshot must be planned checked add"
+      match block.statements[2]! with
+      | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.ident switchName) cases => do
+          require (switchName == "__proof_forge_array_index") "dynamic local fixed-array compound assignment integration switch index"
+          require (cases.size == 3) "dynamic local fixed-array compound assignment integration case count"
+      | _ => throw <| IO.userError "dynamic local fixed-array compound assignment integration must switch on planned index"
+  | _ => throw <| IO.userError "dynamic local fixed-array compound assignment integration must lower to ToYul frame"
 
 def testScalarAssertPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
@@ -3945,6 +3983,61 @@ def testScalarAssignmentPlanToYul : IO Unit := do
       require (name == "__pf_checked_add") "static local struct-array field compound assignment plan-to-yul integration helper"
       require (args.size == 2) "static local struct-array field compound assignment plan-to-yul integration arg count"
   | _ => throw <| IO.userError "static local struct-array field compound assignment plan-to-yul integration must assign helper result"
+  let dynamicStructArrayAssignStmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      structArrayEnv
+      (.field (.arrayGet (.local "people") (.add (.local "n") (.literal (.u64 0)))) "age")
+      (.add (.local "n") (.literal (.u64 1))))
+    "dynamic local struct-array field assignment plan-to-yul integration"
+  require (dynamicStructArrayAssignStmts.size == 1) "dynamic local struct-array field assignment statement count"
+  match dynamicStructArrayAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 3) "dynamic local struct-array field assignment frame count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl _ (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (name == "__pf_checked_add") "dynamic local struct-array field assignment index must lower through ExprPlan"
+          require (args.size == 2) "dynamic local struct-array field assignment index helper arg count"
+      | _ => throw <| IO.userError "dynamic local struct-array field assignment index snapshot must be planned checked add"
+      match block.statements[1]! with
+      | Lean.Compiler.Yul.Statement.varDecl _ (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (name == "__pf_checked_add") "dynamic local struct-array field assignment value must lower through ExprPlan"
+          require (args.size == 2) "dynamic local struct-array field assignment value helper arg count"
+      | _ => throw <| IO.userError "dynamic local struct-array field assignment value snapshot must be planned checked add"
+      match block.statements[2]! with
+      | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.ident switchName) cases => do
+          require (switchName == "__proof_forge_array_index") "dynamic local struct-array field assignment switch index"
+          require (cases.size == 3) "dynamic local struct-array field assignment case count"
+      | _ => throw <| IO.userError "dynamic local struct-array field assignment must switch on planned index"
+  | _ => throw <| IO.userError "dynamic local struct-array field assignment must lower to ToYul frame"
+  let dynamicStructArrayAssignOpStmts ← requireOk
+    (lowerAssignOpStmt
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      structArrayEnv
+      (.field (.arrayGet (.local "people") (.add (.local "n") (.literal (.u64 0)))) "score")
+      .add
+      (.add (.local "n") (.literal (.u64 2))))
+    "dynamic local struct-array field compound assignment plan-to-yul integration"
+  require (dynamicStructArrayAssignOpStmts.size == 1) "dynamic local struct-array field compound assignment statement count"
+  match dynamicStructArrayAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 3) "dynamic local struct-array field compound assignment frame count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl _ (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (name == "__pf_checked_add") "dynamic local struct-array field compound assignment index must lower through ExprPlan"
+          require (args.size == 2) "dynamic local struct-array field compound assignment index helper arg count"
+      | _ => throw <| IO.userError "dynamic local struct-array field compound assignment index snapshot must be planned checked add"
+      match block.statements[1]! with
+      | Lean.Compiler.Yul.Statement.varDecl _ (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          require (name == "__pf_checked_add") "dynamic local struct-array field compound assignment value must lower through ExprPlan"
+          require (args.size == 2) "dynamic local struct-array field compound assignment value helper arg count"
+      | _ => throw <| IO.userError "dynamic local struct-array field compound assignment value snapshot must be planned checked add"
+      match block.statements[2]! with
+      | Lean.Compiler.Yul.Statement.switchStmt (Lean.Compiler.Yul.Expr.ident switchName) cases => do
+          require (switchName == "__proof_forge_array_index") "dynamic local struct-array field compound assignment switch index"
+          require (cases.size == 3) "dynamic local struct-array field compound assignment case count"
+      | _ => throw <| IO.userError "dynamic local struct-array field compound assignment must switch on planned index"
+  | _ => throw <| IO.userError "dynamic local struct-array field compound assignment must lower to ToYul frame"
 
 def testScalarControlFlowPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := true }]

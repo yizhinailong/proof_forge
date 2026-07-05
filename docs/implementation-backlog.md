@@ -634,9 +634,10 @@ Tasks:
     final Yul statement frame.
   - Started: dynamic local aggregate assignment switch frames now live behind
     `ToYul`. `IR.lean` still resolves dynamic local fixed-array and
-    struct-array paths, but the shared dynamic index/value snapshot locals,
+    struct-array paths, but dynamic index/value snapshot expressions now enter
+    `Lower.buildExprPlan` before `ToYul` emits the shared snapshot locals,
     switch default case, checked-assignment RHS, one-dimensional switch frame,
-    and nested path switch frame are emitted by `ToYul` helpers.
+    and nested path switch frame.
   - Started: aggregate crosscall helper-call assembly and entrypoint multi-word
     return assignment now live behind `ToYul`. Expression-position aggregate
     crosscall return diagnostics now come from `Lower.buildExpressionExprPlan`,

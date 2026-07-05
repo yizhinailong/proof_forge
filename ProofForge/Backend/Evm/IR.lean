@@ -4173,14 +4173,24 @@ def dynamicLocalFixedArraySwitchCases
     (bodyForIndex : Nat → Array Lean.Compiler.Yul.Statement) : Array Lean.Compiler.Yul.Case :=
   ProofForge.Backend.Evm.ToYul.dynamicLocalFixedArraySwitchCases length bodyForIndex
 
+partial def lowerDynamicLocalExprPlanExpr
+    (module : Module)
+    (env : TypeEnv)
+    (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+  let plan ←
+    match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) expr with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
+  lowerExprPlanExpr module env plan
+
 def lowerDynamicLocalFixedArrayAssignStmt
     (module : Module)
     (env : TypeEnv)
     (name : String)
     (length : Nat)
     (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerExpr module env value
-  let indexExpr ← lowerExpr module env index
+  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
+  let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
   .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueSwitchBlock
     indexExpr
     valueExpr
@@ -4210,7 +4220,7 @@ partial def lowerDynamicLocalFixedArrayPathAssignBody
               ensureFixedArrayIndexInBounds "assignment target fixed-array index" indexValue length
               lowerDynamicLocalFixedArrayPathAssignBody module env name elementType (pathPrefix.push indexValue) rest.toArray op?
           | none => do
-              let indexExpr ← lowerExpr module env index
+              let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
               let mut cases : Array Lean.Compiler.Yul.Case := #[]
               for _h : idx in [0:length] do
                 cases := cases.push <|
@@ -4234,7 +4244,7 @@ def lowerDynamicLocalFixedArrayPathAssignStmt
     (path : Array ProofForge.IR.Expr)
     (op? : Option AssignOp)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerExpr module env value
+  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
   let body ← lowerDynamicLocalFixedArrayPathAssignBody module env name binding.type #[] path op?
   .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueBlock valueExpr body)
 
@@ -4266,7 +4276,7 @@ partial def lowerDynamicLocalFixedArrayPathFieldAssignBody
               ensureFixedArrayIndexInBounds "assignment target fixed-array index" indexValue length
               lowerDynamicLocalFixedArrayPathFieldAssignBody module env name elementType (pathPrefix.push indexValue) rest.toArray fieldName op?
           | none => do
-              let indexExpr ← lowerExpr module env index
+              let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
               let mut cases : Array Lean.Compiler.Yul.Case := #[]
               for _h : idx in [0:length] do
                 cases := cases.push <|
@@ -4291,7 +4301,7 @@ def lowerDynamicLocalFixedArrayPathFieldAssignStmt
     (fieldName : String)
     (op? : Option AssignOp)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerExpr module env value
+  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
   let body ← lowerDynamicLocalFixedArrayPathFieldAssignBody module env name binding.type #[] path fieldName op?
   .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueBlock valueExpr body)
 
@@ -4303,8 +4313,8 @@ def lowerDynamicLocalFixedArrayAssignOpStmt
     (index : ProofForge.IR.Expr)
     (op : AssignOp)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerExpr module env value
-  let indexExpr ← lowerExpr module env index
+  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
+  let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
   .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueSwitchBlock
     indexExpr
     valueExpr
@@ -4320,8 +4330,8 @@ def lowerDynamicLocalStructArrayFieldAssignStmt
     (name fieldName : String)
     (length : Nat)
     (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerExpr module env value
-  let indexExpr ← lowerExpr module env index
+  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
+  let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
   .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueSwitchBlock
     indexExpr
     valueExpr
@@ -4339,8 +4349,8 @@ def lowerDynamicLocalStructArrayFieldAssignOpStmt
     (index : ProofForge.IR.Expr)
     (op : AssignOp)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerExpr module env value
-  let indexExpr ← lowerExpr module env index
+  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
+  let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
   .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueSwitchBlock
     indexExpr
     valueExpr
