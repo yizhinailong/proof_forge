@@ -17,6 +17,57 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Aggregate Return ABI Word Plans
+
+Commit: 26a8453
+
+Summary:
+
+- Generalized `ToYul.returnValueWordPlanAssignments` so return ABI word
+  assignment uses the shared `abiValueWordsFromPlan` path instead of accepting
+  only local aggregate word plans.
+- Extended `Lower.returnValueWordPlan?` from local fixed-array/struct returns
+  to literal aggregate returns and storage-backed fixed-array/struct aggregate
+  returns.
+- Taught the `IR.lean` compatibility facade to supply expression, local struct,
+  storage struct, and storage array word callbacks while the final assignment
+  frame lives in `ToYul`.
+- Added semantic-plan tests for literal struct returns, storage fixed-array
+  returns, and storage fixed-array-of-struct returns, including the expected
+  Yul assignment targets and slot helper calls.
+- Updated the implementation backlog and Chinese translation state so the
+  documented EVM migration status matches the code.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/evm/abi-aggregate-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Dynamic `bytes`/`string` returns remain on their existing compatibility path.
+- Aggregate crosscall return helpers still need a separate migration slice.
+- Storage aggregate return recognition is limited to complete contiguous
+  literal-index arrays that match the declared fixed-array return shape.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue shrinking the EVM compatibility facade around the remaining aggregate
+  return/crosscall helper boundaries, with coverage before deleting old paths.
+
 ### EVM Storage Array Event ABI Word Plans
 
 Commit: a20bd8b
