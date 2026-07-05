@@ -1752,6 +1752,55 @@ def eventIndexedTopicStatements
   | .unit | .bytes | .string =>
       .error (mkError s!"EVM indexed event field `{field.name}` has unsupported type `{field.type.name}`")
 
+def eventFieldDataWordsFromPlan
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (eventName : String)
+    (field : EventFieldPlan)
+    (value : ExprPlan) :
+    Except ε (Array Lean.Compiler.Yul.Expr) := do
+  match field.type with
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+      .ok #[← lowerPlanExpr value]
+  | .unit | .bytes | .string | .array _ | .fixedArray _ _ | .structType _ =>
+      .error (mkError s!"planned scalar control-flow event `{eventName}` field `{field.name}` has unsupported type `{field.type.name}`")
+
+def eventFieldsDataWordsFromPlan
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (eventName : String)
+    (fields : Array EventFieldPlan)
+    (values : Array ExprPlan) :
+    Except ε (Array Lean.Compiler.Yul.Expr) := do
+  if fields.size != values.size then
+    .error (mkError s!"planned scalar control-flow event `{eventName}` field/value count mismatch")
+  let mut words : Array Lean.Compiler.Yul.Expr := #[]
+  for h : idx in [0:fields.size] do
+    let some value := values[idx]?
+      | .error (mkError s!"planned scalar control-flow event `{eventName}` missing field value at index {idx}")
+    words := words ++ (← eventFieldDataWordsFromPlan mkError lowerPlanExpr eventName fields[idx] value)
+  .ok words
+
+def eventIndexedTopicStatementsFromPlans
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (event : EventPlan)
+    (values : Array ExprPlan) :
+    Except ε (Array Lean.Compiler.Yul.Statement) := do
+  let fields := event.indexedFields
+  if fields.size != values.size then
+    .error (mkError s!"planned scalar control-flow event `{event.name}` indexed field/value count mismatch")
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  for h : idx in [0:fields.size] do
+    let some value := values[idx]?
+      | .error (mkError s!"planned scalar control-flow event `{event.name}` missing indexed field value at index {idx}")
+    let words ← eventFieldDataWordsFromPlan mkError lowerPlanExpr event.name fields[idx] value
+    statements := statements ++ (← eventIndexedTopicStatements mkError fields[idx] idx words)
+  .ok statements
+
 def eventLogStatement
     {ε : Type}
     (mkError : String → ε)
