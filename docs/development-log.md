@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Array Read Targets
+
+Commit: c05a06d
+
+Summary:
+
+- Added `ArrayReadTargetPlan` so direct `storageArrayRead` effects carry the
+  planned array root slot and length after `Lower.buildEffectPlan`.
+- Routed `Lower.buildEffectPlan` to emit planned array read target variants for
+  valid fixed-size storage arrays while preserving legacy state-id variants for
+  fallback and compatibility paths.
+- Added `ToYul.arrayReadTargetExpr`, moving final
+  `sload(__proof_forge_array_slot(root, length, index))` assembly behind the
+  planned target instead of late root-slot/length lookup in the compatibility
+  facade.
+- Updated direct expression lowering and scalar-body expression support so both
+  `ExprPlan` recursion and raw `.effect (.storageArrayRead ...)` lowering can
+  consume the planned target path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/typed-storage-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- Struct-array field reads/writes and storage-path array reads/writes continue
+  on their own helper/target surfaces until their metadata can be widened into
+  explicit semantic-plan nodes.
+
+Next step:
+
+- Continue extracting struct/struct-array field target metadata and the
+  remaining storage-path expression planning surfaces from the compatibility
+  facade.
+
 ### EVM Planned Array Write Targets
 
 Commit: 23421a0
