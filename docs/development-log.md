@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM IR Event Signature Validation Cleanup
+
+Commit: e00e657
+
+Summary:
+
+- Removed duplicate event-name and event signature field typing validation from
+  `IR.lean`.
+- Routed `IR.eventSignature`, indexed-event field validation, aggregate event
+  data-word guards, and CLI event ABI metadata through
+  `Validate.validateEventName` and `Validate.eventSignatureFieldType`.
+- Kept event aggregate data-word lowering and indexed aggregate topic hashing
+  in the `IR.lean` compatibility facade until the full event field planning path
+  moves behind `EventPlan -> ToYul`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Validate ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Cli
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns aggregate event data-word lowering and indexed aggregate
+  topic hashing. Those should move after event field value planning is complete.
+
+Next step:
+
+- Continue the event migration by extracting event field value/data-word and
+  indexed aggregate topic hashing behind explicit `EventPlan -> ToYul` helpers.
+
 ### EVM IR Event Validation Facade Cleanup
 
 Commit: 8352240
