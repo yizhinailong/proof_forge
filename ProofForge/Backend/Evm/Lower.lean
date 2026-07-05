@@ -182,6 +182,48 @@ def validateLocalCrosscallWordPlan
       discard <| crosscallValueWordTypes module context expectedType
   | _ => pure ()
 
+partial def localCrosscallWordPlansAt
+    (module : Module)
+    (context name : String)
+    (path : Array Nat) : ValueType → Except LowerError (Array ExprPlan)
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+      if path.isEmpty then
+        .ok #[.local name]
+      else
+        .ok #[.local (arrayLocalPathName name path)]
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error {
+          message := s!"{context} uses Array<{elementType.name},0>; IR EVM v0 crosscall fixed arrays must have non-zero length"
+        }
+      let mut plans : Array ExprPlan := #[]
+      for _h : idx in [0:length] do
+        plans := plans ++ (← localCrosscallWordPlansAt module context name (path.push idx) elementType)
+      .ok plans
+  | .structType typeName => do
+      let fieldIds ← localCrosscallStructFieldIds module context typeName
+      let mut plans : Array ExprPlan := #[]
+      for fieldId in fieldIds do
+        let fieldName :=
+          if path.isEmpty then
+            structLocalFieldName name fieldId
+          else
+            arrayStructLocalPathFieldName name path fieldId
+        plans := plans.push (.local fieldName)
+      .ok plans
+  | .unit | .bytes | .string | .array _ =>
+      .error {
+        message := s!"{context} uses a dynamic type; IR EVM v0 crosscall values must use U32, U64, Bool, Hash, Address, fixed arrays, or structs"
+      }
+
+def localCrosscallWordPlans
+    (module : Module)
+    (env : TypeEnv)
+    (context name : String)
+    (expectedType : ValueType) : Except LowerError (Array ExprPlan) := do
+  validateLocalCrosscallWordPlan module env context name expectedType
+  localCrosscallWordPlansAt module context name #[] expectedType
+
 def storageCrosscallWordPlans
     (module : Module)
     (context stateId : String)
@@ -803,8 +845,8 @@ mutual
       | .error { message := s!"{context} uses unknown struct `{typeName}`" }
     match arg with
     | .local name =>
-        ensureType context (.structType typeName) (← inferExprType module env arg)
-        .ok #[.local name (.structType typeName)]
+        .ok <| wrapCrosscallExprWordPlans
+          (← localCrosscallWordPlans module env context name (.structType typeName))
     | .structLit literalTypeName fields => do
         if literalTypeName != typeName then
           .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }
@@ -832,8 +874,8 @@ mutual
     discard <| crosscallArgWordTypes module context (.fixedArray (.structType typeName) length)
     match arg with
     | .local name =>
-        ensureType context (.fixedArray (.structType typeName) length) (← inferExprType module env arg)
-        .ok #[.local name (.fixedArray (.structType typeName) length)]
+        .ok <| wrapCrosscallExprWordPlans
+          (← localCrosscallWordPlans module env context name (.fixedArray (.structType typeName) length))
     | .arrayLit literalElementType values => do
         ensureType s!"{context} fixed-array element type" (.structType typeName) literalElementType
         if values.size != length then
@@ -868,8 +910,8 @@ mutual
     | .fixedArray nestedElementType nestedLength =>
         match arg with
         | .local name =>
-            ensureType context (.fixedArray elementType length) (← inferExprType module env arg)
-            .ok #[.local name (.fixedArray elementType length)]
+            .ok <| wrapCrosscallExprWordPlans
+              (← localCrosscallWordPlans module env context name (.fixedArray elementType length))
         | .arrayLit literalElementType values => do
             ensureType s!"{context} fixed-array element type" elementType literalElementType
             if values.size != length then
@@ -885,8 +927,8 @@ mutual
     | _ =>
         match arg with
         | .local name =>
-            ensureType context (.fixedArray elementType length) (← inferExprType module env arg)
-            .ok #[.local name (.fixedArray elementType length)]
+            .ok <| wrapCrosscallExprWordPlans
+              (← localCrosscallWordPlans module env context name (.fixedArray elementType length))
         | .arrayLit literalElementType values => do
             ensureType s!"{context} fixed-array element type" elementType literalElementType
             if values.size != length then
@@ -913,13 +955,15 @@ mutual
     | .fixedArray elementType length =>
         match arg with
         | .local name =>
-            .ok #[.local name type]
+            .ok <| wrapCrosscallExprWordPlans
+              (← localCrosscallWordPlans module env context name type)
         | _ =>
             buildCrosscallFixedArrayArgWordPlans module env context elementType length arg
     | .structType typeName =>
         match arg with
         | .local name =>
-            .ok #[.local name type]
+            .ok <| wrapCrosscallExprWordPlans
+              (← localCrosscallWordPlans module env context name type)
         | _ =>
             buildCrosscallStructArgWordPlans module env context typeName arg
     | .array _ =>

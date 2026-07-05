@@ -1546,16 +1546,18 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
     "local aggregate crosscall argument body must be accepted by planned-body gate"
   match plannedPairArgEntrypoint.body[0]? with
   | some (StmtPlan.return (ExprPlan.crosscall .call _ _ none args .bool)) => do
-      require (args.size == 1)
-        "local aggregate crosscall argument plan arg count"
-      let arg ← requireAt args 0 "local aggregate crosscall argument plan missing arg"
-      match arg with
-      | CrosscallArgWordPlan.local name type => do
-          require (name == "pair")
-            "local aggregate crosscall argument plan local name"
-          require (type == .structType "RemotePair")
-            "local aggregate crosscall argument plan local type"
-      | _ => throw <| IO.userError "local aggregate crosscall argument plan must keep local source"
+      require (args.size == 2)
+        "local aggregate crosscall argument plan word count"
+      let arg0 ← requireAt args 0 "local aggregate crosscall argument plan missing word 0"
+      let arg1 ← requireAt args 1 "local aggregate crosscall argument plan missing word 1"
+      match arg0, arg1 with
+      | CrosscallArgWordPlan.expr (.local word0),
+        CrosscallArgWordPlan.expr (.local word1) => do
+          require (word0 == "__proof_forge_struct_pair_flag")
+            "local aggregate crosscall argument plan word 0"
+          require (word1 == "__proof_forge_struct_pair_small")
+            "local aggregate crosscall argument plan word 1"
+      | _, _ => throw <| IO.userError "local aggregate crosscall argument plan must use planned local word expressions"
   | _ => throw <| IO.userError "local aggregate crosscall argument plan must return crosscall"
   let alteredLocalAggregateCrosscallArgEntrypoints :=
     localAggregateCrosscallArgPlan.entrypoints.map fun entrypoint =>
@@ -1568,7 +1570,10 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
                 (ExprPlan.literalWord 111)
                 (ExprPlan.literalWord 222)
                 none
-                #[CrosscallArgWordPlan.local "pair" (.structType "RemotePair")]
+                #[
+                  CrosscallArgWordPlan.expr (.local "__proof_forge_struct_pair_flag"),
+                  CrosscallArgWordPlan.expr (.local "__proof_forge_struct_pair_small")
+                ]
                 .bool)
           ]
         }
@@ -2211,13 +2216,15 @@ def testScalarExprPlanToYul : IO Unit := do
     "local aggregate crosscall argument Lower ExprPlan"
   match aggregateArgPlan with
   | .crosscall .call _ _ none args .u64 => do
-      require (args.size == 1) "local aggregate crosscall argument plan word group count"
-      let argPlan ← requireAt args 0 "local aggregate crosscall argument missing plan"
-      match argPlan with
-      | CrosscallArgWordPlan.local name type => do
-          require (name == "p") "local aggregate crosscall argument plan local name"
-          require (type == .structType "Point") "local aggregate crosscall argument plan type"
-      | _ => throw <| IO.userError "local aggregate crosscall argument must use crosscall local source plan"
+      require (args.size == 2) "local aggregate crosscall argument plan word count"
+      let argPlan0 ← requireAt args 0 "local aggregate crosscall argument missing word 0"
+      let argPlan1 ← requireAt args 1 "local aggregate crosscall argument missing word 1"
+      match argPlan0, argPlan1 with
+      | CrosscallArgWordPlan.expr (.local word0),
+        CrosscallArgWordPlan.expr (.local word1) => do
+          require (word0 == "__proof_forge_struct_p_x") "local aggregate crosscall argument word 0"
+          require (word1 == "__proof_forge_struct_p_y") "local aggregate crosscall argument word 1"
+      | _, _ => throw <| IO.userError "local aggregate crosscall argument must use planned local word expressions"
   | _ => throw <| IO.userError "local aggregate crosscall argument must lower to call plan"
   let aggregateArgPlanExpr ← requireOk
     (lowerExprPlanExpr

@@ -694,10 +694,12 @@ Tasks:
     crosscall word markers. `ExprPlan.crosscall.args` and
     `CrosscallReturnAssignmentPlan.args` carry planned crosscall argument word
     sources: scalar/literal/storage-load words use `CrosscallArgWordPlan.expr`,
-    local aggregate sources use `CrosscallArgWordPlan.local`, and
+    local aggregate struct/fixed-array sources are now expanded by `Lower` into
+    explicit `CrosscallArgWordPlan.expr (.local ...)` word plans, and
     storage-backed aggregate struct sources are now expanded by `Lower` into
     explicit `CrosscallArgWordPlan.expr (.storageLoad ...)` word plans instead
-    of preserving a provider-backed storage source marker.
+    of preserving provider-backed local or storage source markers on the active
+    lowering path.
     The obsolete
     `ExprPlan.localAbiWords`, `ExprPlan.storageAbiWords`,
     `ExprPlan.localCrosscallWords`, and `ExprPlan.storageCrosscallWords`
@@ -712,14 +714,16 @@ Tasks:
     storage source plans, while legacy untyped scalar expression crosscall
     lowering now enters
     `Lower.buildExpressionExprPlan` -> `ExprPlan.crosscall` before that ToYul
-    boundary. The old IR-local scalar helper-call branch and
+    boundary. `IR.lean` still supplies ToYul provider callbacks only for
+    direct/legacy local and storage crosscall source plan surfaces. The old
+    IR-local scalar helper-call branch and
     `lowerCrosscall*ArgWords` expansion tree have been removed. Aggregate
     crosscall return assignment now also enters
     `ToYul.crosscallAggregateReturnAssignmentPlanStatement`, so target/method/
     call-value lowering, planned crosscall argument word traversal, helper-call
     name selection, argument ordering, and multi-return assignment construction
-    live behind the ToYul plan boundary; `IR.lean` only provides local and
-    legacy storage word-source provider callbacks.
+    live behind the ToYul plan boundary; compatibility provider callbacks remain
+    only for direct/legacy local and storage word-source surfaces.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,
