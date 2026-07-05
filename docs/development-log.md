@@ -16236,3 +16236,46 @@ Result:
   checks passed locally.
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Storage Path Target ExprPlan Slice
+
+Commit: 07c1534
+
+Summary:
+
+- Routed the compatibility `lowerStoragePathWriteTarget` helper through
+  `Lower.buildStoragePathPlan -> StoragePathWriteExprTargetPlan -> ToYul`
+  instead of the older `StoragePathWriteTargetPlan`/`ValuePlan` path.
+- Added a semantic-plan regression that asserts a raw map storage path segment
+  becomes a typed `StoragePathPlanSegment.mapKey` carrying a checked-add
+  `ExprPlan`, then verifies the compatibility target helper lowers that typed
+  target to the expected checked-add Yul key.
+- Updated the implementation backlog and Chinese backlog note so the documented
+  storage-path boundary reflects the active typed path-segment planning route.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Result:
+
+- Compatibility storage-path write target lowering now consumes the same typed
+  path-segment `ExprPlan` route as planned storage-path write/assign-op effects.
+- EVM semantic-plan tests, EVM plan tests, event/counter IR smokes, EVM
+  diagnostics, i18n sync, JSON validation, full Lake build, and whitespace
+  checks passed locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
