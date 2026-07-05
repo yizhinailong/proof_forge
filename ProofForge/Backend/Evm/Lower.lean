@@ -3178,6 +3178,10 @@ def isStorageArrayHelper : Helper → Bool
   | .arraySlot | .structArraySlot | .dynamicArraySlot => true
   | _ => false
 
+def isMapHelper : Helper → Bool
+  | .mapSlot | .mapPresenceSlot | .mapWrite | .mapSetReturn | .mapAssign _ => true
+  | _ => false
+
 def removeHashHelpers (helpers : HelperSet) : HelperSet :=
   helpers.filter fun helper =>
     !(helper == Helper.hashWord) && !(helper == Helper.hashPair)
@@ -3194,12 +3198,49 @@ def removeStorageArrayHelpers (helpers : HelperSet) : HelperSet :=
 def replaceStorageArrayHelpers (helpers storageArrayHelpers : HelperSet) : HelperSet :=
   mergeHelperSets (removeStorageArrayHelpers helpers) storageArrayHelpers
 
+def removeMapHelpers (helpers : HelperSet) : HelperSet :=
+  helpers.filter fun helper => !isMapHelper helper
+
+def insertMapHelperDependencies (helpers : HelperSet) : Helper → HelperSet
+  | .mapWrite =>
+      HelperSet.insert
+        (HelperSet.insert
+          (HelperSet.insert helpers .mapSlot)
+          .mapPresenceSlot)
+        .mapWrite
+  | .mapSetReturn =>
+      HelperSet.insert
+        (HelperSet.insert
+          (HelperSet.insert helpers .mapSlot)
+          .mapPresenceSlot)
+        .mapSetReturn
+  | .mapAssign op =>
+      HelperSet.insert
+        (HelperSet.insert
+          (HelperSet.insert helpers .mapSlot)
+          .mapPresenceSlot)
+        (.mapAssign op)
+  | helper =>
+      HelperSet.insert helpers helper
+
+def closeMapHelpers (helpers : HelperSet) : HelperSet :=
+  helpers.foldl insertMapHelperDependencies #[]
+
+def replaceMapHelpers (helpers mapHelpers : HelperSet) : HelperSet :=
+  mergeHelperSets (removeMapHelpers helpers) (closeMapHelpers mapHelpers)
+
 mutual
   partial def plannedHelpersFromStorageSlotExprPlan : StorageSlotExprPlan → HelperSet
     | .scalarSlot _ | .fixedSlot _ => #[]
-    | .mapValueSlot _ keys | .mapPresenceSlot _ keys =>
-        keys.foldl (init := #[]) fun acc key =>
+    | .mapValueSlot _ keys =>
+        let nested := keys.foldl (init := #[]) fun acc key =>
           mergeHelperSets acc (plannedHelpersFromExprPlan key)
+        HelperSet.insert nested .mapSlot
+    | .mapPresenceSlot _ keys =>
+        let nested := keys.foldl (init := #[]) fun acc key =>
+          mergeHelperSets acc (plannedHelpersFromExprPlan key)
+        let helpers := HelperSet.insert nested .mapPresenceSlot
+        if keys.size > 1 then HelperSet.insert helpers .mapSlot else helpers
     | .arraySlot _ _ index =>
         HelperSet.insert (plannedHelpersFromExprPlan index) .arraySlot
     | .structArrayFieldSlot _ _ _ _ index =>
@@ -3210,7 +3251,7 @@ mutual
   partial def plannedHelpersFromStoragePathWriteExprTargetPlan :
       StoragePathWriteExprTargetPlan → HelperSet
     | .mapWrite _ key =>
-        plannedHelpersFromExprPlan key
+        HelperSet.insert (plannedHelpersFromExprPlan key) .mapWrite
     | .singleSlot slot =>
         plannedHelpersFromStorageSlotExprPlan slot
     | .mapValuePresence valueSlot presenceSlot =>
@@ -3314,9 +3355,9 @@ mutual
         fields.foldl (init := #[]) fun acc field =>
           mergeHelperSets acc (plannedHelpersFromExprPlan field.snd)
     | .effect effect =>
-        plannedHelpersFromEffectPlan effect
+        plannedHelpersFromEffectPlan .mapSetReturn effect
 
-  partial def plannedHelpersFromEffectPlan : EffectPlan → HelperSet
+  partial def plannedHelpersFromEffectPlan (mapWriteHelper : Helper) : EffectPlan → HelperSet
     | .storageScalarRead _ | .storageScalarReadTarget _
     | .storageStructFieldRead _ _ | .storageStructFieldReadTarget _
     | .storageDynamicArrayPop _ | .storageDynamicArrayPopTarget _ =>
@@ -3331,9 +3372,11 @@ mutual
     | .storageDynamicArrayPushTarget _ value =>
         plannedHelpersFromExprPlan value
     | .storageMapContains _ key
-    | .storageMapContainsTarget _ key
+    | .storageMapContainsTarget _ key =>
+        HelperSet.insert (plannedHelpersFromExprPlan key) .mapPresenceSlot
     | .storageMapGet _ key
-    | .storageMapGetTarget _ key
+    | .storageMapGetTarget _ key =>
+        HelperSet.insert (plannedHelpersFromExprPlan key) .mapSlot
     | .storageArrayRead _ key
     | .storageArrayReadTarget _ key
     | .storageArrayStructFieldRead _ key _
@@ -3342,7 +3385,12 @@ mutual
     | .storageMapInsert _ key value
     | .storageMapInsertTarget _ key value
     | .storageMapSet _ key value
-    | .storageMapSetTarget _ key value
+    | .storageMapSetTarget _ key value =>
+        HelperSet.insert
+          (mergeHelperSets
+            (plannedHelpersFromExprPlan key)
+            (plannedHelpersFromExprPlan value))
+          mapWriteHelper
     | .storageArrayWrite _ key value
     | .storageArrayWriteTarget _ key value
     | .storageArrayStructFieldWrite _ key _ value
@@ -3364,11 +3412,22 @@ mutual
         plannedHelpersFromExprPlan value
     | .storagePathWriteTarget _ value | .storagePathAssignOpTarget _ _ value =>
         plannedHelpersFromExprPlan value
-    | .storagePathWriteExprTarget target value
-    | .storagePathAssignOpExprTarget target _ value =>
+    | .storagePathWriteExprTarget target value =>
         mergeHelperSets
           (plannedHelpersFromStoragePathWriteExprTargetPlan target)
           (plannedHelpersFromExprPlan value)
+    | .storagePathAssignOpExprTarget target op value =>
+        let targetHelpers :=
+          match target with
+          | .mapWrite _ key =>
+              HelperSet.insert (plannedHelpersFromExprPlan key) (.mapAssign op)
+          | .singleSlot slot =>
+              plannedHelpersFromStorageSlotExprPlan slot
+          | .mapValuePresence valueSlot presenceSlot =>
+              mergeHelperSets
+                (plannedHelpersFromStorageSlotExprPlan valueSlot)
+                (plannedHelpersFromStorageSlotExprPlan presenceSlot)
+        mergeHelperSets targetHelpers (plannedHelpersFromExprPlan value)
     | .contextRead field =>
         plannedHelpersFromContextExprPlan field
     | .eventEmit _ dataFields =>
@@ -3403,7 +3462,7 @@ mutual
           (plannedHelpersFromExprPlan target)
           (plannedHelpersFromExprPlan value)
     | .effect effect =>
-        plannedHelpersFromEffectPlan effect
+        plannedHelpersFromEffectPlan .mapWrite effect
     | .assertEq lhs rhs _ _ =>
         mergeHelperSets
           (plannedHelpersFromExprPlan lhs)
@@ -3436,6 +3495,10 @@ def buildHashHelpersFromEntrypoints (entrypoints : Array EntrypointPlan) : Helpe
 
 def buildStorageArrayHelpersFromEntrypoints (entrypoints : Array EntrypointPlan) : HelperSet :=
   (buildPlannedHelpersFromEntrypoints entrypoints).filter isStorageArrayHelper
+
+def buildMapHelpersFromEntrypoints (entrypoints : Array EntrypointPlan) : HelperSet :=
+  (buildPlannedHelpersFromEntrypoints entrypoints).filter isMapHelper
+    |> closeMapHelpers
 
 def contextFieldFromContextExprPlan : ContextExprPlan → ContextField
   | .userId => .userId
@@ -4059,11 +4122,15 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
   let memoryArrayHelpers := buildMemoryArrayHelpersFromEntrypoints entrypointPlans
   let hashHelpers := buildHashHelpersFromEntrypoints entrypointPlans
   let storageArrayHelpers := buildStorageArrayHelpersFromEntrypoints entrypointPlans
+  let mapHelpers := buildMapHelpersFromEntrypoints entrypointPlans
   let helpers := replaceHashHelpers
     (replaceMemoryArrayHelpers
-      (replaceStorageArrayHelpers basePlan.helpers storageArrayHelpers)
+      (replaceStorageArrayHelpers
+        (replaceMapHelpers basePlan.helpers mapHelpers)
+        storageArrayHelpers)
       memoryArrayHelpers)
     hashHelpers
+  let mapAssignOps := helperMapAssignOps helpers
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans
@@ -4081,6 +4148,7 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
     usesCheckedArithmetic := usesCheckedArithmetic
     contextOps := contextOps
     helpers := helpers
+    mapAssignOps := mapAssignOps
     metadata := metadata
   }
 
@@ -4109,11 +4177,15 @@ def buildFullModulePlanWithTargetPlan
   let memoryArrayHelpers := buildMemoryArrayHelpersFromEntrypoints entrypointPlans
   let hashHelpers := buildHashHelpersFromEntrypoints entrypointPlans
   let storageArrayHelpers := buildStorageArrayHelpersFromEntrypoints entrypointPlans
+  let mapHelpers := buildMapHelpersFromEntrypoints entrypointPlans
   let helpers := replaceHashHelpers
     (replaceMemoryArrayHelpers
-      (replaceStorageArrayHelpers basePlan.helpers storageArrayHelpers)
+      (replaceStorageArrayHelpers
+        (replaceMapHelpers basePlan.helpers mapHelpers)
+        storageArrayHelpers)
       memoryArrayHelpers)
     hashHelpers
+  let mapAssignOps := helperMapAssignOps helpers
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans
@@ -4131,6 +4203,7 @@ def buildFullModulePlanWithTargetPlan
     usesCheckedArithmetic := usesCheckedArithmetic
     contextOps := contextOps
     helpers := helpers
+    mapAssignOps := mapAssignOps
     metadata := metadata
   }
 

@@ -5917,10 +5917,28 @@ def validateCapabilities (module : Module) : Except LowerError Unit :=
 
 def plannedMapHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
-  if plan.hasHelper .mapSlot then
-    ProofForge.Backend.Evm.ToYul.mapHelperFunctions plan.mapAssignOps
-  else
-    #[]
+  let helpers : Array Lean.Compiler.Yul.Statement := #[]
+  let helpers :=
+    if plan.hasHelper .mapSlot then
+      helpers.push ProofForge.Backend.Evm.ToYul.mapSlotHelperFunction
+    else
+      helpers
+  let helpers :=
+    if plan.hasHelper .mapPresenceSlot then
+      helpers.push ProofForge.Backend.Evm.ToYul.mapPresenceSlotHelperFunction
+    else
+      helpers
+  let helpers :=
+    if plan.hasHelper .mapWrite then
+      helpers.push ProofForge.Backend.Evm.ToYul.mapWriteHelperFunction
+    else
+      helpers
+  let helpers :=
+    if plan.hasHelper .mapSetReturn then
+      helpers.push ProofForge.Backend.Evm.ToYul.mapSetReturnHelperFunction
+    else
+      helpers
+  helpers ++ plan.mapAssignOps.map ProofForge.Backend.Evm.ToYul.mapAssignHelperFunction
 
 def plannedArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=

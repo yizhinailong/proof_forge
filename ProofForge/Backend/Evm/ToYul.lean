@@ -219,7 +219,7 @@ def structArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
     }
 ]
 
-def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+def mapSlotHelperFunction : Lean.Compiler.Yul.Statement :=
   .funcDef (Helper.mapSlot).name
     #[{ name := "slot" }, { name := "key" }]
     #[{ name := "result" }]
@@ -229,7 +229,9 @@ def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
         .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "slot"]),
         .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
       ]
-    },
+    }
+
+def mapPresenceSlotHelperFunction : Lean.Compiler.Yul.Statement :=
   .funcDef (Helper.mapPresenceSlot).name
     #[{ name := "slot" }, { name := "key" }]
     #[{ name := "result" }]
@@ -243,7 +245,9 @@ def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
         .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "_presence_slot"]),
         .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
       ]
-    },
+    }
+
+def mapWriteHelperFunction : Lean.Compiler.Yul.Statement :=
   .funcDef (Helper.mapWrite).name
     #[{ name := "slot" }, { name := "key" }, { name := "value" }]
     #[]
@@ -256,7 +260,9 @@ def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
           Lean.Compiler.Yul.Expr.num 1
         ])
       ]
-    },
+    }
+
+def mapSetReturnHelperFunction : Lean.Compiler.Yul.Statement :=
   .funcDef (Helper.mapSetReturn).name
     #[{ name := "slot" }, { name := "key" }, { name := "value" }]
     #[{ name := "old" }]
@@ -271,6 +277,12 @@ def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
         ])
       ]
     }
+
+def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+  mapSlotHelperFunction,
+  mapPresenceSlotHelperFunction,
+  mapWriteHelperFunction,
+  mapSetReturnHelperFunction
 ]
 
 def mapAssignHelperFunction (op : AssignOp) : Lean.Compiler.Yul.Statement :=

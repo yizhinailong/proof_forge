@@ -582,6 +582,13 @@ Tasks:
     fixed-array, dynamic-array, or struct-array state declarations no longer
     emit `arraySlot`, `dynamicArraySlot`, or `structArraySlot` helpers unless
     planned entrypoint bodies actually reference those storage slot plans.
+    Complete plans now also replace broad state-shape-derived map helpers with
+    helper requirements discovered from planned entrypoint bodies: unused map
+    state no longer emits map helpers, contains-only reads emit only
+    `mapPresenceSlot`, value reads emit only `mapSlot`, statement writes emit
+    `mapWrite` plus its slot/presence dependencies, expression-position
+    insert/set emits `mapSetReturn` plus dependencies, and map assign-op
+    helpers update `ModulePlan.mapAssignOps` from the final helper set.
   - Started: `ModulePlan.contextOps` is now discovered from the already-built
     `EntrypointPlan.body` `StmtPlan`/`ExprPlan` tree in
     `Lower.buildFullModulePlan` and

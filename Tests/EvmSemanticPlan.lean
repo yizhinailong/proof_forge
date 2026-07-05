@@ -508,6 +508,108 @@ def hashPairOnlyProbe : Module := {
   ]
 }
 
+def mapProbeState : StateDecl := {
+  id := "balances"
+  kind := .map .u64 128
+  type := .u64
+}
+
+def mapUnusedProbe : Module := {
+  name := "MapUnusedProbe"
+  state := #[mapProbeState]
+  entrypoints := #[
+    {
+      name := "constant"
+      selector? := some "a1000000"
+      params := #[]
+      returns := .u64
+      body := #[
+        .return (.literal (.u64 7))
+      ]
+    }
+  ]
+}
+
+def mapContainsOnlyProbe : Module := {
+  name := "MapContainsOnlyProbe"
+  state := #[mapProbeState]
+  entrypoints := #[
+    {
+      name := "contains"
+      selector? := some "a2000000"
+      params := #[("key", .u64)]
+      returns := .bool
+      body := #[
+        .return (.effect (.storageMapContains "balances" (.local "key")))
+      ]
+    }
+  ]
+}
+
+def mapGetOnlyProbe : Module := {
+  name := "MapGetOnlyProbe"
+  state := #[mapProbeState]
+  entrypoints := #[
+    {
+      name := "get"
+      selector? := some "a3000000"
+      params := #[("key", .u64)]
+      returns := .u64
+      body := #[
+        .return (.effect (.storageMapGet "balances" (.local "key")))
+      ]
+    }
+  ]
+}
+
+def mapWriteOnlyProbe : Module := {
+  name := "MapWriteOnlyProbe"
+  state := #[mapProbeState]
+  entrypoints := #[
+    {
+      name := "set"
+      selector? := some "a4000000"
+      params := #[("key", .u64), ("value", .u64)]
+      returns := .unit
+      body := #[
+        .effect (.storageMapSet "balances" (.local "key") (.local "value"))
+      ]
+    }
+  ]
+}
+
+def mapSetReturnOnlyProbe : Module := {
+  name := "MapSetReturnOnlyProbe"
+  state := #[mapProbeState]
+  entrypoints := #[
+    {
+      name := "set_return"
+      selector? := some "a5000000"
+      params := #[("key", .u64), ("value", .u64)]
+      returns := .u64
+      body := #[
+        .return (.effect (.storageMapSet "balances" (.local "key") (.local "value")))
+      ]
+    }
+  ]
+}
+
+def mapAssignOnlyProbe : Module := {
+  name := "MapAssignOnlyProbe"
+  state := #[mapProbeState]
+  entrypoints := #[
+    {
+      name := "add"
+      selector? := some "a6000000"
+      params := #[("key", .u64), ("value", .u64)]
+      returns := .unit
+      body := #[
+        .effect (.storagePathAssignOp "balances" #[.mapKey (.local "key")] .add (.local "value"))
+      ]
+    }
+  ]
+}
+
 def unusedPointStruct : StructDecl := {
   name := "UnusedPoint"
   fields := #[
@@ -1616,6 +1718,180 @@ def testPlannedHashHelperDiscoveryFromEntrypointPlans : IO Unit := do
   require
     (statementsHaveFunctionNamed pairHelpers (Helper.hashPair).name)
     "planned hash-pair-only ToYul helpers include hash-pair helper"
+
+def testPlannedMapHelperDiscoveryFromEntrypointPlans : IO Unit := do
+  let rawUnused ←
+    requireOk
+      (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan mapUnusedProbe))
+      "map-unused raw module plan"
+  require
+    (rawUnused.hasHelper .mapSlot)
+    "raw map helper discovery includes map slot helper"
+  require
+    (rawUnused.hasHelper .mapPresenceSlot)
+    "raw map helper discovery includes map presence slot helper"
+  require
+    (rawUnused.hasHelper .mapWrite)
+    "raw map helper discovery includes map write helper"
+  require
+    (rawUnused.hasHelper .mapSetReturn)
+    "raw map helper discovery includes map set-return helper"
+  let unused ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan mapUnusedProbe)
+      "map-unused full module plan"
+  require
+    (!unused.hasHelper .mapSlot)
+    "planned map-unused helper discovery must not require map slot helper"
+  require
+    (!unused.hasHelper .mapPresenceSlot)
+    "planned map-unused helper discovery must not require map presence slot helper"
+  require
+    (!unused.hasHelper .mapWrite)
+    "planned map-unused helper discovery must not require map write helper"
+  require
+    (!unused.hasHelper .mapSetReturn)
+    "planned map-unused helper discovery must not require map set-return helper"
+  require unused.mapAssignOps.isEmpty
+    "planned map-unused helper discovery must not retain map assign ops"
+  require
+    (ProofForge.Backend.Evm.Lower.buildMapHelpersFromEntrypoints unused.entrypoints).isEmpty
+    "planned map-unused entrypoint scanner must be empty"
+  require
+    (plannedMapHelperFunctions unused).isEmpty
+    "planned map-unused ToYul helper emission must be empty"
+  let unusedSemantic ←
+    requireOk
+      (buildSemanticPlan mapUnusedProbe)
+      "map-unused semantic plan"
+  require
+    (unusedSemantic.helpers == unused.helpers)
+    "semantic plan must preserve Lower-discovered map helper absence"
+  let targetUnused ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlanWithTargetPlan
+        mapUnusedProbe
+        unused.targetPlan)
+      "map-unused target-plan full module plan"
+  require
+    (targetUnused.helpers == unused.helpers)
+    "target-plan full module map helpers must be discovered from entrypoint plans"
+  let contains ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan mapContainsOnlyProbe)
+      "map-contains-only full module plan"
+  require
+    (!contains.hasHelper .mapSlot)
+    "planned map-contains-only helper discovery must not require map slot helper"
+  require
+    (contains.hasHelper .mapPresenceSlot)
+    "planned map-contains-only helper discovery must require map presence slot helper"
+  require
+    (!contains.hasHelper .mapWrite)
+    "planned map-contains-only helper discovery must not require map write helper"
+  require
+    (!contains.hasHelper .mapSetReturn)
+    "planned map-contains-only helper discovery must not require map set-return helper"
+  let containsHelpers := plannedMapHelperFunctions contains
+  require (containsHelpers.size == 1) "planned map-contains-only ToYul helper count"
+  require
+    (statementsHaveFunctionNamed containsHelpers (Helper.mapPresenceSlot).name)
+    "planned map-contains-only ToYul helpers include map presence slot"
+  let get ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan mapGetOnlyProbe)
+      "map-get-only full module plan"
+  require
+    (get.hasHelper .mapSlot)
+    "planned map-get-only helper discovery must require map slot helper"
+  require
+    (!get.hasHelper .mapPresenceSlot)
+    "planned map-get-only helper discovery must not require map presence slot helper"
+  require
+    (!get.hasHelper .mapWrite)
+    "planned map-get-only helper discovery must not require map write helper"
+  require
+    (!get.hasHelper .mapSetReturn)
+    "planned map-get-only helper discovery must not require map set-return helper"
+  let getHelpers := plannedMapHelperFunctions get
+  require (getHelpers.size == 1) "planned map-get-only ToYul helper count"
+  require
+    (statementsHaveFunctionNamed getHelpers (Helper.mapSlot).name)
+    "planned map-get-only ToYul helpers include map slot"
+  let write ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan mapWriteOnlyProbe)
+      "map-write-only full module plan"
+  require
+    (write.hasHelper .mapSlot)
+    "planned map-write-only helper discovery must require map slot dependency"
+  require
+    (write.hasHelper .mapPresenceSlot)
+    "planned map-write-only helper discovery must require map presence slot dependency"
+  require
+    (write.hasHelper .mapWrite)
+    "planned map-write-only helper discovery must require map write helper"
+  require
+    (!write.hasHelper .mapSetReturn)
+    "planned map-write-only helper discovery must not require map set-return helper"
+  require write.mapAssignOps.isEmpty
+    "planned map-write-only helper discovery must not retain map assign ops"
+  let writeHelpers := plannedMapHelperFunctions write
+  require (writeHelpers.size == 3) "planned map-write-only ToYul helper count"
+  require
+    (!statementsHaveFunctionNamed writeHelpers (Helper.mapSetReturn).name)
+    "planned map-write-only ToYul helpers must not include map set-return"
+  let setReturn ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan mapSetReturnOnlyProbe)
+      "map-set-return-only full module plan"
+  require
+    (setReturn.hasHelper .mapSlot)
+    "planned map-set-return-only helper discovery must require map slot dependency"
+  require
+    (setReturn.hasHelper .mapPresenceSlot)
+    "planned map-set-return-only helper discovery must require map presence slot dependency"
+  require
+    (!setReturn.hasHelper .mapWrite)
+    "planned map-set-return-only helper discovery must not require map write helper"
+  require
+    (setReturn.hasHelper .mapSetReturn)
+    "planned map-set-return-only helper discovery must require map set-return helper"
+  let setReturnHelpers := plannedMapHelperFunctions setReturn
+  require (setReturnHelpers.size == 3) "planned map-set-return-only ToYul helper count"
+  require
+    (!statementsHaveFunctionNamed setReturnHelpers (Helper.mapWrite).name)
+    "planned map-set-return-only ToYul helpers must not include map write"
+  let assign ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan mapAssignOnlyProbe)
+      "map-assign-only full module plan"
+  require
+    (assign.hasHelper .mapSlot)
+    "planned map-assign-only helper discovery must require map slot dependency"
+  require
+    (assign.hasHelper .mapPresenceSlot)
+    "planned map-assign-only helper discovery must require map presence slot dependency"
+  require
+    (!assign.hasHelper .mapWrite)
+    "planned map-assign-only helper discovery must not require map write helper"
+  require
+    (!assign.hasHelper .mapSetReturn)
+    "planned map-assign-only helper discovery must not require map set-return helper"
+  require
+    (assign.hasHelper (Helper.mapAssign .add))
+    "planned map-assign-only helper discovery must require map assign add helper"
+  require
+    (assign.mapAssignOps == #[.add])
+    "planned map-assign-only helper discovery must retain only add assign op"
+  let assignHelpers := plannedMapHelperFunctions assign
+  require (assignHelpers.size == 3) "planned map-assign-only ToYul helper count"
+  require
+    (statementsHaveFunctionNamed assignHelpers (Helper.mapAssign .add).name)
+    "planned map-assign-only ToYul helpers include map assign add"
+  require
+    (!statementsHaveFunctionNamed assignHelpers (Helper.mapWrite).name)
+    "planned map-assign-only ToYul helpers must not include map write"
 
 def testPlannedStorageArrayHelperDiscoveryFromEntrypointPlans : IO Unit := do
   let rawArrayUnused ←
@@ -8761,6 +9037,7 @@ def main : IO UInt32 := do
   testPlannedCreateHelperDiscoveryFromEntrypointPlans
   testPlannedMemoryArrayHelperDiscoveryFromEntrypointPlans
   testPlannedHashHelperDiscoveryFromEntrypointPlans
+  testPlannedMapHelperDiscoveryFromEntrypointPlans
   testPlannedStorageArrayHelperDiscoveryFromEntrypointPlans
   testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans
   testPlannedContextOpsDiscoveryFromEntrypointPlans
