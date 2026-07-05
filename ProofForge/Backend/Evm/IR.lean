@@ -2070,43 +2070,35 @@ mutual
       (module : Module)
       (env : TypeEnv)
       (base : ProofForge.IR.Expr)
-      (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr :=
-    match base with
-    | .local name =>
-        lowerExprPlanExpr module env (.structField (.local name) fieldName)
-    | .effect (.storageScalarRead stateId) =>
-        lowerStructFieldReadExpr module stateId fieldName
-    | .arrayGet (.local name) index => do
-        let (_, length, _) ← requireLocalFixedStructArrayField module env "struct field access" name fieldName
-        if let some indexValue := literalArrayIndex? index then
-          ensureFixedArrayIndexInBounds "struct field fixed-array index" indexValue length
-        let indexPlan ←
-          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) index with
-          | .ok plan => .ok plan
-          | .error err => .error { message := err.message }
-        lowerExprPlanExpr module env <|
-          .structField (.localArrayGet name #[indexPlan] #[length]) fieldName
-    | .structLit _ _ => do
-        let basePlan ←
-          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) base with
-          | .ok plan => .ok plan
-          | .error err => .error { message := err.message }
-        lowerExprPlanExpr module env (.structField basePlan fieldName)
+      (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let fullExpr := ProofForge.IR.Expr.field base fieldName
+    let planned ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) fullExpr with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    match planned with
+    | .structField (.local _) _ | .structField (.structLit ..) _
+    | .structField (.localArrayGet ..) _ =>
+        lowerExprPlanExpr module env planned
     | _ =>
-        match collectLocalArrayGetPath base with
-        | some (name, path) =>
-            if path.size > 1 then do
-              let some binding := findLocal? env name
-                | .error { message := s!"unknown local `{name}`" }
-              lowerNestedLocalStructFieldGetExpr module env name binding path fieldName
-            else
-              .error {
-                message := "struct field access in IR EVM v0 supports local struct values, local struct-array values, nested local fixed-array struct leaves, or struct literals only"
-              }
-        | none =>
-            .error {
-              message := "struct field access in IR EVM v0 supports local struct values, local struct-array values, nested local fixed-array struct leaves, or struct literals only"
-            }
+        match base with
+        | .effect (.storageScalarRead stateId) =>
+            lowerStructFieldReadExpr module stateId fieldName
+        | _ =>
+            match collectLocalArrayGetPath base with
+            | some (name, path) =>
+                if path.size > 1 then do
+                  let some binding := findLocal? env name
+                    | .error { message := s!"unknown local `{name}`" }
+                  lowerNestedLocalStructFieldGetExpr module env name binding path fieldName
+                else
+                  .error {
+                    message := "struct field access in IR EVM v0 supports local struct values, local struct-array values, nested local fixed-array struct leaves, or struct literals only"
+                  }
+            | none =>
+                .error {
+                  message := "struct field access in IR EVM v0 supports local struct values, local struct-array values, nested local fixed-array struct leaves, or struct literals only"
+                }
 
   partial def localAbiStructFieldIds
       (module : Module)

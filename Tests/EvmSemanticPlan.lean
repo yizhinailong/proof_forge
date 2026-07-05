@@ -2738,17 +2738,33 @@ def testScalarExprPlanToYul : IO Unit := do
   | Lean.Compiler.Yul.Expr.ident name =>
       require (name == "__proof_forge_struct_p_y") "direct local struct-field read ToYul local name"
   | _ => throw <| IO.userError "direct local struct-field read must lower to local identifier"
+  let directLocalStructFieldPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv structEnv)
+      (.field (.local "p") "y"))
+    "direct local struct-field Lower ExprPlan"
+  match directLocalStructFieldPlan with
+  | .structField (.local name) fieldName => do
+      require (name == "p") "direct local struct-field Lower ExprPlan base"
+      require (fieldName == "y") "direct local struct-field Lower ExprPlan field"
+  | _ => throw <| IO.userError "direct local struct-field Lower ExprPlan must be structField local"
   let directDynamicStructArrayFieldExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.EvmStructArrayValueProbe.module
       structArrayEnv
-      (.field (.arrayGet (.local "people") (.local "idx")) "score"))
+      (.field (.arrayGet (.local "people") (.add (.local "idx") (.literal (.u64 0)))) "score"))
     "direct dynamic local struct-array field read lowers through ToYul"
-  requireCallExpr
-    directDynamicStructArrayFieldExpr
-    "__proof_forge_local_array_get_2"
-    3
-    "direct dynamic local struct-array field read ToYul"
+  match directDynamicStructArrayFieldExpr with
+  | Lean.Compiler.Yul.Expr.call name args => do
+      require (name == "__proof_forge_local_array_get_2") "direct dynamic local struct-array field read helper"
+      require (args.size == 3) "direct dynamic local struct-array field read helper arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "direct dynamic local struct-array field read index must lower through ExprPlan"
+          require (addArgs.size == 2) "direct dynamic local struct-array field read index helper arg count"
+      | _ => throw <| IO.userError "direct dynamic local struct-array field read index must be planned checked add"
+  | _ => throw <| IO.userError "direct dynamic local struct-array field read must lower to helper call"
   let dynamicPlan ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.buildExprPlan
       ProofForge.IR.Examples.EvmArrayValueProbe.module

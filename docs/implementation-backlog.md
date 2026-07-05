@@ -625,10 +625,12 @@ Tasks:
     one-dimensional and nested dynamic helper-call argument frames for scalar
     arrays, scalar array literals, and struct-array fields. Direct
     `IR.lowerExpr` local fixed-array reads now first consume
-    `Lower.buildExprPlan` when it produces `.localArrayGet`; standalone struct
-    literal values, storage-backed struct reads, aggregate array values, and
-    unsupported aggregate local-array leaves still fall back through the
-    compatibility facade.
+    `Lower.buildExprPlan` when it produces `.localArrayGet`, and direct local
+    struct-field reads first consume `Lower.buildExprPlan` when it produces
+    supported `.structField` plans for local struct values, struct literals, or
+    local struct-array leaves. Storage-backed struct reads, aggregate array
+    values, and unsupported aggregate local-array leaves still fall back through
+    the compatibility facade.
   - Started: whole local aggregate assignment snapshot blocks now live behind
     `ToYul`. `IR.lean` still validates and expands local fixed-array, nested
     fixed-array, struct-array, and struct assignment sources, but final temp
