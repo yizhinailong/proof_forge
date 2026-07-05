@@ -17,6 +17,62 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Aggregate ABI Word Planning
+
+Commit: 49ab2a9
+
+Summary:
+
+- Added Lower-owned ABI word planning for return/event aggregates through
+  `Lower.abiValueWordPlans`, `Lower.returnValueWordPlans`,
+  `Lower.eventFieldDataWordPlans`, and `Lower.eventFieldsDataWordPlans`.
+- Planned local aggregate ABI words as explicit `.local` word plans and
+  storage-backed aggregate ABI words as explicit `ExprPlan.storageLoad` word
+  plans before final Yul lowering.
+- Routed active `IR.lean` return/event lowering through those planned word
+  arrays and delegated only the final return assignment and event topic/log
+  frames to `ToYul`.
+- Left the older `ToYul.*FromPlan` provider helpers available for direct tests
+  and legacy callers, but removed their use from the active IR facade.
+- Updated semantic-plan tests, the backlog, the Chinese backlog translation,
+  and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake build proof-forge
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/abi-aggregate-ir-smoke.sh
+scripts/evm/array-abi-ir-smoke.sh
+scripts/evm/event-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- `ToYul.returnValueWordPlanAssignments`,
+  `ToYul.eventFieldsDataWordsFromPlan`, and
+  `ToYul.eventIndexedTopicStatementsFromPlans` remain as compatibility
+  helpers for direct tests and older call sites outside the active IR facade.
+- `ExprPlan.localAbiWords` and `ExprPlan.storageAbiWords` still exist as source
+  markers in `ReturnValueWordPlan` and event field plans until richer plan
+  nodes replace those aggregate source markers directly.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue replacing aggregate source marker nodes with richer plan-level
+  return/event ABI value nodes so `ExprPlan.localAbiWords` and
+  `ExprPlan.storageAbiWords` can be retired from active Lower output.
+
 ### EVM Storage ABI Word Planning
 
 Commit: 28b588b
