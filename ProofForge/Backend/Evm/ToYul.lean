@@ -2341,6 +2341,22 @@ partial def exprPlanExpr
 
 /-! ## StmtPlan-to-Yul helpers -/
 
+def stmtPlanBodyStatements
+    {err state : Type}
+    (plans : Array StmtPlan)
+    (initialState : state)
+    (leaveAfterReturn : Bool)
+    (lowerStmt : state → Bool → StmtPlan → Except err (Array Lean.Compiler.Yul.Statement × state)) :
+    Except err (Array Lean.Compiler.Yul.Statement × state) := do
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  let mut currentState := initialState
+  for h : idx in [0:plans.size] do
+    let stmtLeaveAfterReturn := leaveAfterReturn || decide (idx + 1 < plans.size)
+    let (lowered, nextState) ← lowerStmt currentState stmtLeaveAfterReturn plans[idx]
+    statements := statements ++ lowered
+    currentState := nextState
+  .ok (statements, currentState)
+
 def scalarBindingStmtPlanStatements
     {ε : Type}
     (mkError : String → ε)

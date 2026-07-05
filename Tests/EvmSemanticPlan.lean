@@ -2829,6 +2829,28 @@ def testScalarAssignmentPlanToYul : IO Unit := do
 
 def testScalarControlFlowPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := true }]
+  let (sequenceStmts, finalState) ← requireOk
+    (ProofForge.Backend.Evm.ToYul.stmtPlanBodyStatements
+      #[
+        ProofForge.Backend.Evm.Plan.StmtPlan.letBind "a" .u64 (.literalWord 1),
+        ProofForge.Backend.Evm.Plan.StmtPlan.return (.local "a")
+      ]
+      0
+      false
+      (fun state leaveAfterReturn _ => do
+        let marker := if leaveAfterReturn then s!"step_{state}_leave" else s!"step_{state}_stay"
+        .ok (#[Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.id marker)], state + 1)))
+    "stmt plan body sequence helper"
+  require (finalState == 2) "stmt plan body sequence helper final state"
+  require (sequenceStmts.size == 2) "stmt plan body sequence helper statement count"
+  match sequenceStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.ident name) =>
+      require (name == "step_0_leave") "stmt plan body sequence helper first leave flag"
+  | _ => throw <| IO.userError "stmt plan body sequence helper first statement"
+  match sequenceStmts[1]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.ident name) =>
+      require (name == "step_1_stay") "stmt plan body sequence helper second leave flag"
+  | _ => throw <| IO.userError "stmt plan body sequence helper second statement"
   let directIfStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.ifElseStmtPlanStatements
       toYulError

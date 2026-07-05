@@ -416,10 +416,12 @@ Tasks:
     static and dynamic scalar local fixed-array read expressions,
     static/dynamic local struct-array field read expressions, scalar
     non-indexed/indexed event emits, and scalar crosscall/create helper-call
-    expressions inside supported body statements.
-    Statement sequencing and unsupported body shapes still remain in the
-    `IR.lean` compatibility facade until full recursive `StmtPlan -> Yul`
-    lowering is extracted.
+    expressions inside supported body statements. Supported branch/loop body
+    sequencing now routes through `ToYul.stmtPlanBodyStatements`, which owns
+    statement ordering, environment threading, and branch-local
+    `leaveAfterReturn` propagation for planned scalar bodies. Unsupported body
+    shapes still remain on the `IR.lean` compatibility facade until full
+    recursive `StmtPlan -> Yul` lowering is extracted.
   - Started: scalar event data words and indexed scalar event topics now
     consume the same `ExprPlan -> ToYul` expression boundary. Aggregate event
     flattening and indexed aggregate topic hashing remain in the compatibility

@@ -5269,21 +5269,18 @@ mutual
       (leaveAfterReturn : Bool)
       (plans : Array ProofForge.Backend.Evm.Plan.StmtPlan) :
       Except LowerError (Array Lean.Compiler.Yul.Statement × TypeEnv) := do
-    let mut statementsAcc : Array Lean.Compiler.Yul.Statement := #[]
-    let mut currentEnv := env
-    for h : idx in [0:plans.size] do
-      let stmtLeaveAfterReturn := leaveAfterReturn || decide (idx + 1 < plans.size)
-      let (lowered, nextEnv) ←
+    ProofForge.Backend.Evm.ToYul.stmtPlanBodyStatements
+      plans
+      env
+      leaveAfterReturn
+      (fun currentEnv stmtLeaveAfterReturn plan =>
         lowerScalarStmtPlanBodyStatement
           module
           entrypointName
           returnType
           currentEnv
           stmtLeaveAfterReturn
-          plans[idx]
-      statementsAcc := statementsAcc ++ lowered
-      currentEnv := nextEnv
-    .ok (statementsAcc, currentEnv)
+          plan)
 
   partial def lowerScalarStmtPlanBodyStatement
       (module : Module)
