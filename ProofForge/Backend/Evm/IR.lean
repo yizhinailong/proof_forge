@@ -1648,69 +1648,6 @@ mutual
         ]
       ]))
 
-  partial def lowerMapSlotExpr
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    discard <| requireStorageMapState module stateId
-    let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.mapValueSlotPlan module stateId #[key]
-    lowerStorageSlotPlanExpr module env plan
-
-  partial def lowerMapGetExprFallback
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerMapSlotExpr module env stateId key])
-
-  partial def lowerMapGetExpr
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storageMapGet stateId key) with
-    | .ok (.storageMapGetTarget target keyPlan) =>
-        ProofForge.Backend.Evm.ToYul.mapGetTargetExpr
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          (lowerPlanEffectExpr module env)
-          target
-          keyPlan
-    | .ok _ | .error _ =>
-        lowerMapGetExprFallback module env stateId key
-
-  partial def lowerMapContainsExprFallback
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    discard <| requireStorageMapState module stateId
-    let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.mapPresenceSlotPlan module stateId #[key]
-    .ok (Lean.Compiler.Yul.builtin "iszero" #[
-      Lean.Compiler.Yul.builtin "iszero" #[
-        Lean.Compiler.Yul.builtin "sload" #[
-          ← lowerStorageSlotPlanExpr module env plan
-        ]
-      ]
-    ])
-
-  partial def lowerMapContainsExpr
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storageMapContains stateId key) with
-    | .ok (.storageMapContainsTarget target keyPlan) =>
-        ProofForge.Backend.Evm.ToYul.mapContainsTargetExpr
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          (lowerPlanEffectExpr module env)
-          target
-          keyPlan
-    | .ok _ | .error _ =>
-        lowerMapContainsExprFallback module env stateId key
-
   partial def lowerMapScalarPlanExprOrFallback
       (module : Module)
       (env : TypeEnv)
@@ -1793,36 +1730,6 @@ mutual
     let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.dynamicArraySlotPlan module stateId index
     lowerStorageSlotPlanExpr module env plan
 
-  partial def lowerArrayReadExprFallback
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerArraySlotExpr module env stateId index])
-
-  partial def lowerArrayReadExpr
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storageArrayRead stateId index) with
-    | .ok (.storageArrayReadTarget target indexPlan) =>
-        ProofForge.Backend.Evm.ToYul.arrayReadTargetExpr
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          (lowerPlanEffectExpr module env)
-          target
-          indexPlan
-    | .ok _ | .error _ =>
-        lowerArrayReadExprFallback module env stateId index
-
-  partial def lowerDynamicArrayReadExpr
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerDynamicArraySlotExpr module env stateId index])
-
   partial def lowerStructFieldSlotExpr
       (module : Module)
       (stateId fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
@@ -1849,31 +1756,6 @@ mutual
     let plan ← lowerPlan <|
       ProofForge.Backend.Evm.Plan.structArrayFieldSlotPlan module stateId index fieldName
     lowerStorageSlotPlanExpr module env plan
-
-  partial def lowerStructArrayFieldReadExprFallback
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (index : ProofForge.IR.Expr)
-      (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
-    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerStructArrayFieldSlotExpr module env stateId index fieldName])
-
-  partial def lowerStructArrayFieldReadExpr
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (index : ProofForge.IR.Expr)
-      (fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
-    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storageArrayStructFieldRead stateId index fieldName) with
-    | .ok (.storageArrayStructFieldReadTarget target indexPlan) =>
-        ProofForge.Backend.Evm.ToYul.structArrayFieldReadTargetExpr
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          (lowerPlanEffectExpr module env)
-          target
-          indexPlan
-    | .ok _ | .error _ =>
-        lowerStructArrayFieldReadExprFallback module env stateId index fieldName
 
   partial def lowerStoragePathReadExprTarget
       (module : Module)

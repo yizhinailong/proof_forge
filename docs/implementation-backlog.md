@@ -667,6 +667,11 @@ Tasks:
     frames now also use `ToYul.structArrayFieldReadExpr`; `IR.lean` keeps only
     the struct-array root-slot/length/field metadata lookup for that legacy
     plan variant.
+    The now-unused direct read compatibility helpers for map get/contains,
+    fixed-array read, dynamic-array read, and struct-array field read have been
+    removed from `IR.lean`; direct storage read expressions now enter through
+    `lowerEffectExprThroughPlan` and the `lowerPlanEffectExpr -> ToYul`
+    boundary.
     The old `lowerMapPathReadExpr` nested-map read helper has been removed
     after storage-path reads switched to the shared `StorageSlotExprPlan ->
     ToYul` frame.
