@@ -206,6 +206,30 @@ def exprsHaveIdentSuffix
             ok := false
       ok
 
+def exprIsSloadSlot (expr : Lean.Compiler.Yul.Expr) (expectedSlot : Nat) : Bool :=
+  match expr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args =>
+      match args[0]? with
+      | some slot => exprIsNatLiteral slot expectedSlot
+      | none => false
+  | _ => false
+
+def exprsHaveSloadSlotSuffix
+    (args : Array Lean.Compiler.Yul.Expr)
+    (expectedSlots : Array Nat) : Bool :=
+  expectedSlots.size <= args.size &&
+    Id.run do
+      let start := args.size - expectedSlots.size
+      let mut ok := true
+      for _h : idx in [0:expectedSlots.size] do
+        match expectedSlots[idx]? with
+        | some slot =>
+            if ok && !exprIsSloadSlot args[start + idx]! slot then
+              ok := false
+        | none =>
+            ok := false
+      ok
+
 def blockHasAssignmentCallNatArgs
     (block : Lean.Compiler.Yul.Block)
     (targetNames : Array String)
@@ -233,6 +257,22 @@ def blockHasAssignmentCallNatPrefixIdentSuffix
           args.size == expectedNatPrefix.size + expectedIdentSuffix.size &&
           exprsHaveNatPrefix args expectedNatPrefix &&
           exprsHaveIdentSuffix args expectedIdentSuffix
+    | _ => false
+
+def blockHasAssignmentCallNatPrefixSloadSuffix
+    (block : Lean.Compiler.Yul.Block)
+    (targetNames : Array String)
+    (functionName : String)
+    (expectedNatPrefix : Array Nat)
+    (expectedSlots : Array Nat) : Bool :=
+  block.statements.any fun stmt =>
+    match stmt with
+    | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) =>
+        names == targetNames &&
+          name == functionName &&
+          args.size == expectedNatPrefix.size + expectedSlots.size &&
+          exprsHaveNatPrefix args expectedNatPrefix &&
+          exprsHaveSloadSlotSuffix args expectedSlots
     | _ => false
 
 mutual
@@ -1512,6 +1552,93 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
       #[111, 222]
       #["__proof_forge_struct_pair_flag", "__proof_forge_struct_pair_small"])
     "plan-driven entrypoint lowering must consume local aggregate crosscall argument ModulePlan body"
+  let storageAggregateCrosscallArgEntrypoint : Entrypoint := {
+    name := "planned_storage_pair_arg"
+    selector? := some "12345679"
+    params := #[
+      ("target", .u64),
+      ("method", .u64)
+    ]
+    returns := .bool
+    body := #[
+      .return (.crosscallInvokeTyped
+        (.local "target")
+        (.local "method")
+        #[.effect (.storageScalarRead "current")]
+        .bool)
+    ]
+  }
+  let storageAggregateCrosscallArgModule :=
+    { ProofForge.IR.Examples.EvmStorageStructProbe.module with
+      entrypoints :=
+        ProofForge.IR.Examples.EvmStorageStructProbe.module.entrypoints.push
+          storageAggregateCrosscallArgEntrypoint }
+  let storageAggregateCrosscallArgPlan ← requireOk
+    (buildSemanticPlan storageAggregateCrosscallArgModule)
+    "storage aggregate crosscall argument plan"
+  let plannedStoragePairArgEntrypoint ← requireSome
+    (storageAggregateCrosscallArgPlan.entrypoints.find? (fun entrypoint =>
+      entrypoint.name == "planned_storage_pair_arg"))
+    "storage aggregate crosscall argument plan missing entrypoint"
+  require
+    (stmtPlansSupportPlannedBody plannedStoragePairArgEntrypoint.returns.returnType plannedStoragePairArgEntrypoint.body)
+    "storage aggregate crosscall argument body must be accepted by planned-body gate"
+  match plannedStoragePairArgEntrypoint.body[0]? with
+  | some (StmtPlan.return (ExprPlan.crosscall .call _ _ none args .bool)) => do
+      require (args.size == 1)
+        "storage aggregate crosscall argument plan arg count"
+      let arg ← requireAt args 0 "storage aggregate crosscall argument plan missing arg"
+      match arg with
+      | CrosscallArgWordPlan.storage stateId type => do
+          require (stateId == "current")
+            "storage aggregate crosscall argument plan state id"
+          require (type == .structType "Point")
+            "storage aggregate crosscall argument plan storage type"
+      | _ => throw <| IO.userError "storage aggregate crosscall argument plan must keep storage source"
+  | _ => throw <| IO.userError "storage aggregate crosscall argument plan must return crosscall"
+  let alteredStorageAggregateCrosscallArgEntrypoints :=
+    storageAggregateCrosscallArgPlan.entrypoints.map fun entrypoint =>
+      if entrypoint.name == "planned_storage_pair_arg" then
+        { entrypoint with
+          body := #[
+            StmtPlan.return
+              (ExprPlan.crosscall
+                ProofForge.Backend.Evm.Plan.CrosscallMode.call
+                (ExprPlan.literalWord 333)
+                (ExprPlan.literalWord 444)
+                none
+                #[CrosscallArgWordPlan.storage "current" (.structType "Point")]
+                .bool)
+          ]
+        }
+      else
+        entrypoint
+  let alteredStorageAggregateCrosscallArgPlan :=
+    { storageAggregateCrosscallArgPlan with entrypoints := alteredStorageAggregateCrosscallArgEntrypoints }
+  let alteredStorageAggregateCrosscallArgObject ← requireOk
+    (lowerModuleWithPlan
+      storageAggregateCrosscallArgModule
+      alteredStorageAggregateCrosscallArgPlan)
+    "storage aggregate crosscall argument altered plan-driven module lowering"
+  let alteredPlannedStoragePairArgEntrypoint ← requireSome
+    (alteredStorageAggregateCrosscallArgPlan.entrypoints.find? (fun entrypoint =>
+      entrypoint.name == "planned_storage_pair_arg"))
+    "storage aggregate crosscall argument altered plan missing entrypoint"
+  let alteredPlannedStoragePairArgFunctionName :=
+    ProofForge.Backend.Evm.ToYul.entrypointPlanFunctionName
+      storageAggregateCrosscallArgModule.name
+      alteredPlannedStoragePairArgEntrypoint
+  let alteredPlannedStoragePairArgBody ← requireSome
+    (functionBody? alteredStorageAggregateCrosscallArgObject.code.statements alteredPlannedStoragePairArgFunctionName)
+    "storage aggregate crosscall argument altered plan function body missing"
+  require
+    (blockHasAssignmentCallNatPrefixSloadSuffix
+      alteredPlannedStoragePairArgBody
+      #["result"]
+      "__proof_forge_crosscall_2_bool"
+      #[333, 444]
+      #[1, 2])
+    "plan-driven entrypoint lowering must consume storage aggregate crosscall argument ModulePlan body"
   let transferEntrypoint ← requireSome
     (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "transfer"))
     "dynamic ABI plan missing transfer entrypoint"
@@ -1757,17 +1884,13 @@ def testScalarExprPlanToYul : IO Unit := do
     "storage-backed aggregate crosscall argument Lower ExprPlan"
   match aggregateStorageArgPlan with
   | .crosscall .call _ _ none args .u64 => do
-      require (args.size == 2) "storage-backed aggregate crosscall argument plan word count"
-      let xArgPlan ← requireAt args 0 "storage-backed aggregate crosscall argument missing x plan"
-      match xArgPlan with
-      | CrosscallArgWordPlan.expr (.storageLoad (.scalarSlot slot)) =>
-          require (slot == 1) "storage-backed aggregate crosscall argument x slot"
-      | _ => throw <| IO.userError "storage-backed aggregate crosscall argument x must use storageLoad plan"
-      let yArgPlan ← requireAt args 1 "storage-backed aggregate crosscall argument missing y plan"
-      match yArgPlan with
-      | CrosscallArgWordPlan.expr (.storageLoad (.scalarSlot slot)) =>
-          require (slot == 2) "storage-backed aggregate crosscall argument y slot"
-      | _ => throw <| IO.userError "storage-backed aggregate crosscall argument y must use storageLoad plan"
+      require (args.size == 1) "storage-backed aggregate crosscall argument plan source count"
+      let storageArgPlan ← requireAt args 0 "storage-backed aggregate crosscall argument missing storage source plan"
+      match storageArgPlan with
+      | CrosscallArgWordPlan.storage stateId type => do
+          require (stateId == "current") "storage-backed aggregate crosscall argument source state"
+          require (type == .structType "Point") "storage-backed aggregate crosscall argument source type"
+      | _ => throw <| IO.userError "storage-backed aggregate crosscall argument must use storage source plan"
   | _ => throw <| IO.userError "storage-backed aggregate crosscall argument must lower to call plan"
   let aggregateStorageArgPlanExpr ← requireOk
     (lowerExprPlanExpr

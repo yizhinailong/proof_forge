@@ -563,9 +563,11 @@ Tasks:
     crosscall word markers. `ExprPlan.crosscall.args` and
     `CrosscallReturnAssignmentPlan.args` carry planned crosscall argument word
     sources: scalar/literal/storage-load words use `CrosscallArgWordPlan.expr`,
-    local aggregate sources use `CrosscallArgWordPlan.local`, and compatibility
-    storage sources can use `CrosscallArgWordPlan.storage` when direct ToYul
-    callers need provider-backed expansion. The obsolete
+    local aggregate sources use `CrosscallArgWordPlan.local`, and
+    storage-backed aggregate sources use `CrosscallArgWordPlan.storage` for
+    provider-backed expansion. Direct storage-load word plans remain available
+    through `CrosscallArgWordPlan.expr` for already-expanded scalar word sources.
+    The obsolete
     `ExprPlan.localAbiWords`, `ExprPlan.storageAbiWords`,
     `ExprPlan.localCrosscallWords`, and `ExprPlan.storageCrosscallWords`
     constructors have been retired from `ExprPlan`; direct `ToYul.*Words`
