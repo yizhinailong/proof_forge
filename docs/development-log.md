@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Planned Hash Helper Discovery Slice
+
+Commit: e5b14f3
+
+Summary:
+
+- Generalized the planned helper scanner so complete EVM module plans can
+  discover helper requirements from planned `EntrypointPlan.body` trees.
+- Replaced broad capability-derived hash helper requirements in complete module
+  plans with planned-body discovery: `hash(x)` requires only `hashWord`, and
+  `hashTwoToOne(a,b)` requires only `hashPair`.
+- Split `ToYul` hash helper definitions so hash word and hash pair helpers can
+  be emitted independently.
+- Added semantic-plan tests for hash-word-only and hash-pair-only modules,
+  including raw-plan over-emission contrasts and target-plan parity checks.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+```
+
+Known limitations:
+
+- Base and incomplete/best-effort plans still use the capability/raw helper
+  scanner; complete module plans now replace the memory-array and hash helper
+  subsets precisely.
+- This slice moves helper discovery and helper emission precision, not the
+  remaining aggregate statement compatibility paths in `IR.lean`.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue the EVM semantic-plan migration by moving the next small
+  compatibility boundary from raw `IR.lean` into `Lower -> Plan -> ToYul`.
+
 ### EVM Planned Memory-Array Helper Discovery Slice
 
 Commit: bb9ef6f
