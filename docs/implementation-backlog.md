@@ -541,6 +541,11 @@ Tasks:
     `Lower.buildEffectPlan` -> target `EffectPlan.storageMapInsertTarget`/
     `EffectPlan.storageMapSetTarget` -> `lowerPlanEffectExpr`/
     `ToYul.mapSetReturnTargetExpr`.
+    Statement-position scalar storage write and assign-op effects now consume
+    `Lower.buildEffectPlan` target effects before calling
+    `ToYul.scalarStorageTargetEffectStmtPlanStatements`, so scalar slot,
+    packing, and fixed-slot target decisions no longer come from IR-local
+    target reconstruction.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local

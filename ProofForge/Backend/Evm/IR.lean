@@ -3532,18 +3532,21 @@ partial def lowerScalarStorageEffectStmtPlanOrFallback
           lowerStorageStructWriteStmtPlanOrFallback module env stateId value
       | _ =>
           if exprSupportsPlanScalarYul value then
-            let valuePlan ←
-              match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+            let effectPlan ←
+              match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
+                  (.storageScalarWrite stateId value) with
               | .ok plan => .ok plan
               | .error err => .error { message := err.message }
-            let targetPlan ← lowerPlan <|
-              ProofForge.Backend.Evm.Plan.scalarStorageTargetPlan module stateId
             let statements ←
-              ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-                toYulError
-                (fun expr => lowerExpr module env expr)
-                (lowerPlanEffectExpr module env)
-                (.effect (.storageScalarWriteTarget targetPlan valuePlan))
+              match effectPlan with
+              | .storageScalarWriteTarget .. =>
+                  ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
+                    toYulError
+                    (fun expr => lowerExpr module env expr)
+                    (lowerPlanEffectExpr module env)
+                    (.effect effectPlan)
+              | _ =>
+                  .error { message := "EVM Lower.buildEffectPlan scalar storage write did not produce storageScalarWriteTarget" }
             match statements[0]? with
             | some statement =>
                 if statements.size == 1 then
@@ -3561,18 +3564,21 @@ partial def lowerScalarStorageEffectStmtPlanOrFallback
           .error { message := s!"storage.scalar.assign_op does not support struct state `{stateId}` in IR EVM v0" }
       | _ => pure ()
       if exprSupportsPlanScalarYul value then
-        let valuePlan ←
-          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+        let effectPlan ←
+          match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
+              (.storageScalarAssignOp stateId op value) with
           | .ok plan => .ok plan
           | .error err => .error { message := err.message }
-        let targetPlan ← lowerPlan <|
-          ProofForge.Backend.Evm.Plan.scalarStorageTargetPlan module stateId
         let statements ←
-          ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-            toYulError
-            (fun expr => lowerExpr module env expr)
-            (lowerPlanEffectExpr module env)
-            (.effect (.storageScalarAssignOpTarget targetPlan op valuePlan))
+          match effectPlan with
+          | .storageScalarAssignOpTarget .. =>
+              ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
+                toYulError
+                (fun expr => lowerExpr module env expr)
+                (lowerPlanEffectExpr module env)
+                (.effect effectPlan)
+          | _ =>
+              .error { message := "EVM Lower.buildEffectPlan scalar storage assign_op did not produce storageScalarAssignOpTarget" }
         match statements[0]? with
         | some statement =>
             if statements.size == 1 then

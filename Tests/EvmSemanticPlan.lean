@@ -5408,6 +5408,24 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
       require (op == .add) "Lower scalar storage assign_op target op"
       requireScalarStorageTarget valueTarget 0 0 8 "Lower scalar storage assign_op value target"
   | _ => throw <| IO.userError "Lower scalar storage assign_op must produce storageScalarAssignOpTarget"
+  let loweredFixedSlotWriteEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      eip1967PackingProbe
+      (toValidateTypeEnv #[{ name := "impl", type := .address, isMutable := false }])
+      (.storageScalarWrite "$eip1967.implementation" (.local "impl")))
+    "Lower fixed-slot scalar storage write target effect plan"
+  match loweredFixedSlotWriteEffect with
+  | .storageScalarWriteTarget target (.local valueName) => do
+      match target.slot with
+      | .fixedSlot slotHex =>
+          require
+            (slotHex == "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
+            "Lower fixed-slot scalar storage write target slot"
+      | _ => throw <| IO.userError "Lower fixed-slot scalar storage write must use fixed slot target"
+      require (target.byteOffset == 0) "Lower fixed-slot scalar storage write byte offset"
+      require (target.byteWidth == 32) "Lower fixed-slot scalar storage write byte width"
+      require (valueName == "impl") "Lower fixed-slot scalar storage write value"
+  | _ => throw <| IO.userError "Lower fixed-slot scalar storage write must produce storageScalarWriteTarget"
   let directPlannedReadExpr ← requireOk
     (ProofForge.Backend.Evm.ToYul.scalarStorageTargetReadExpr
       toYulError
