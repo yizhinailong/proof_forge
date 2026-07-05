@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM StmtPlan Event Effect Frames
+
+Commit: 930fe15
+
+Summary:
+
+- Added `ToYul.eventEffectStmtPlanStatements` for planned scalar-body
+  `eventEmit` and `eventEmitIndexed` effects.
+- Routed scalar control-flow event effect frame selection through ToYul while
+  keeping event field word and indexed-topic evaluation as explicit callbacks.
+- Added direct semantic-plan coverage for the event-effect helper.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Event field word and indexed-topic expression evaluation still run through
+  callback-provided compatibility hooks until full `EventPlan -> Yul` lowering
+  is extracted.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue extracting remaining event field evaluation and unsupported
+  statement/body shapes from `IR.lean` into dedicated ToYul helpers.
+
 ### EVM StmtPlan Revert Frames
 
 Commit: 90d5368
