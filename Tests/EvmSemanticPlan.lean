@@ -7574,6 +7574,20 @@ def testArrayReadPlanToYul : IO Unit := do
           | _ => throw <| IO.userError "planned array read target index must be checked add"
       | _ => throw <| IO.userError "planned array read target slot must use array helper"
   | _ => throw <| IO.userError "planned array read target must lower to sload"
+  let directRawReadExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.arrayReadExpr
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env)
+      1
+      3
+      (.checkedArith .add (.literalWord 1) (.literalWord 2)))
+    "raw array read expr-to-Yul helper"
+  match directRawReadExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "raw array read sload arg count"
+      requireCallExpr args[0]! (Helper.arraySlot).name 3 "raw array read slot helper"
+  | _ => throw <| IO.userError "raw array read must lower to sload"
   let readExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.EvmStorageArrayProbe.module

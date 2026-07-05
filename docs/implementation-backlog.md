@@ -643,6 +643,9 @@ Tasks:
     `EffectPlan.storageMapGet` expression frames now also use
     `ToYul.mapContainsExpr` and `ToYul.mapGetExpr`; `IR.lean` keeps only the
     map state/root-slot lookup for those legacy plan variants.
+    Raw compatibility `EffectPlan.storageArrayRead` expression frames now also
+    use `ToYul.arrayReadExpr`; `IR.lean` keeps only the array state root-slot
+    and length lookup for that legacy plan variant.
     Expression-position map insert/set return effects now also enter
     `Lower.buildEffectPlan` -> target `EffectPlan.storageMapInsertTarget`/
     `EffectPlan.storageMapSetTarget` -> `lowerPlanEffectExpr`/

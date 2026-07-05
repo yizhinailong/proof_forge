@@ -3209,19 +3209,28 @@ def arrayWriteEffectStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul array write lowering expected effect")
 
+def arrayReadExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (rootSlot length : Nat)
+    (index : ExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
+  let elementSlot := helperCall Helper.arraySlot #[
+    slotExpr rootSlot,
+    Lean.Compiler.Yul.Expr.num length,
+    ← exprPlanExpr mkError lowerExpr lowerEffect index
+  ]
+  .ok (Lean.Compiler.Yul.builtin "sload" #[elementSlot])
+
 def arrayReadTargetExpr
     {ε : Type}
     (mkError : String → ε)
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
     (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
     (target : ArrayReadTargetPlan)
-    (index : ExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
-  let elementSlot := helperCall Helper.arraySlot #[
-    slotExpr target.rootSlot,
-    Lean.Compiler.Yul.Expr.num target.length,
-    ← exprPlanExpr mkError lowerExpr lowerEffect index
-  ]
-  .ok (Lean.Compiler.Yul.builtin "sload" #[elementSlot])
+    (index : ExprPlan) : Except ε Lean.Compiler.Yul.Expr :=
+  arrayReadExpr mkError lowerExpr lowerEffect target.rootSlot target.length index
 
 def arrayWriteTargetEffectPlanStatements
     {ε : Type}
