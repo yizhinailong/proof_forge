@@ -495,6 +495,27 @@ mutual
     | .blockHash blockNumber => do
         .ok (.blockHash (← buildExprPlan module env blockNumber))
 
+  partial def buildEventFieldValuePlan
+      (module : Module)
+      (env : TypeEnv)
+      (eventName fieldName : String)
+      (fieldType : ValueType)
+      (value : Expr) : Except LowerError ExprPlan := do
+    let context := s!"event `{eventName}` field `{fieldName}`"
+    ensureType context fieldType (← inferEventFieldExprType module env value)
+    match fieldType, value with
+    | .fixedArray _ _, .local name
+    | .structType _, .local name => do
+        let some binding := findLocal? env name
+          | .error { message := s!"unknown local `{name}`" }
+        ensureType s!"{context} local value" fieldType binding.type
+        .ok (.localAbiWords name fieldType)
+    | .structType typeName, .effect (.storageScalarRead stateId) => do
+        ensureType s!"{context} storage value" (.structType typeName) (← scalarStateType module stateId)
+        .ok (.storageAbiWords stateId (.structType typeName))
+    | _, _ =>
+        buildExprPlan module env value
+
   partial def buildEffectPlan (module : Module) (env : TypeEnv) : Effect → Except LowerError EffectPlan
     | .storageScalarRead stateId =>
         match scalarStorageTargetPlan? module stateId with
@@ -588,12 +609,24 @@ mutual
         .ok (.contextRead (← buildContextExprPlan module env field))
     | .eventEmit name fields => do
         let eventPlan ← eventPlanForFields module env name #[] fields
-        let plannedFields ← fields.mapM fun field => buildExprPlan module env field.snd
+        let dataFields := eventPlan.dataFields
+        let plannedFields ← fields.mapIdxM fun idx field => do
+          let some fieldPlan := dataFields[idx]?
+            | .error { message := s!"event `{name}` missing data field plan at index {idx}" }
+          buildEventFieldValuePlan module env name field.fst fieldPlan.type field.snd
         .ok (.eventEmit eventPlan plannedFields)
     | .eventEmitIndexed name indexedFields dataFields => do
         let eventPlan ← eventPlanForFields module env name indexedFields dataFields
-        let plannedIndexed ← indexedFields.mapM fun field => buildExprPlan module env field.snd
-        let plannedData ← dataFields.mapM fun field => buildExprPlan module env field.snd
+        let indexedPlans := eventPlan.indexedFields
+        let dataPlans := eventPlan.dataFields
+        let plannedIndexed ← indexedFields.mapIdxM fun idx field => do
+          let some fieldPlan := indexedPlans[idx]?
+            | .error { message := s!"event `{name}` missing indexed field plan at index {idx}" }
+          buildEventFieldValuePlan module env name field.fst fieldPlan.type field.snd
+        let plannedData ← dataFields.mapIdxM fun idx field => do
+          let some fieldPlan := dataPlans[idx]?
+            | .error { message := s!"event `{name}` missing data field plan at index {idx}" }
+          buildEventFieldValuePlan module env name field.fst fieldPlan.type field.snd
         .ok (.eventEmitIndexed eventPlan plannedIndexed plannedData)
 
   partial def buildStatementPlan

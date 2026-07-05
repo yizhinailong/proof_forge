@@ -2162,6 +2162,19 @@ mutual
           message := s!"{context} storage-backed crosscall word expansion supports struct scalar storage only, got `{expectedType.name}`"
         }
 
+  partial def lowerStorageAbiWords
+      (module : Module)
+      (context stateId : String)
+      (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
+    ProofForge.Backend.Evm.ToYul.storageAbiWords
+      toYulError
+      (fun context typeName stateId => do
+        let fields ← lowerStructStorageReadFields module context typeName stateId
+        .ok (fields.map fun field => field.snd))
+      context
+      stateId
+      expectedType
+
   partial def lowerCrosscallStructArgWords
       (module : Module)
       (env : TypeEnv)
@@ -2958,8 +2971,21 @@ partial def lowerEventStructDataWords
         words := words.push (← lowerScalarPlanExprOrFallback module env field.snd)
       .ok words
   | .effect (.storageScalarRead stateId) => do
-      let fields ← lowerStructStorageReadFields module s!"event `{eventName}` data field `{fieldName}`" typeName stateId
-      .ok (fields.map fun field => field.snd)
+      let plan ←
+        match ProofForge.Backend.Evm.Lower.buildEventFieldValuePlan
+          module
+          (toValidateTypeEnv env)
+          eventName
+          fieldName
+          (.structType typeName)
+          (.effect (.storageScalarRead stateId)) with
+        | .ok plan => .ok plan
+        | .error err => .error { message := err.message }
+      match plan with
+      | .storageAbiWords plannedStateId plannedType =>
+          lowerStorageAbiWords module s!"event `{eventName}` data field `{fieldName}`" plannedStateId plannedType
+      | _ =>
+          .error { message := "EVM Lower.buildEventFieldValuePlan storage struct event field did not produce storageAbiWords" }
   | _ =>
       .error {
         message := s!"event `{eventName}` data field `{fieldName}` struct values in IR EVM v0 support local struct values, struct literals, or storage scalar struct reads only"
@@ -5227,7 +5253,7 @@ mutual
     | .structField (.local _) _ => true
     | .structField (.localArrayGet _ path _) _ =>
         path.all exprPlanSupportsScalarBody
-    | .localAbiWords .. | .localCrosscallWords ..
+    | .localAbiWords .. | .storageAbiWords .. | .localCrosscallWords ..
     | .storageCrosscallWords .. | .structField .. | .arrayGet .. | .arrayLit ..
     | .memoryArrayNew .. | .memoryArrayLength .. | .memoryArrayGet ..
     | .structLit .. => false
@@ -5381,6 +5407,10 @@ def lowerScalarEventEffectPlan
         ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
           toYulError
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
+          (localAbiStructFieldIds module s!"event `{event.name}` data field")
+          (fun context typeName stateId => do
+            let fields ← lowerStructStorageReadFields module context typeName stateId
+            .ok (fields.map fun field => field.snd))
           event.name
           event.dataFields
           dataFields
@@ -5390,12 +5420,20 @@ def lowerScalarEventEffectPlan
         ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatementsFromPlans
           toYulError
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
+          (localAbiStructFieldIds module s!"event `{event.name}` indexed field")
+          (fun context typeName stateId => do
+            let fields ← lowerStructStorageReadFields module context typeName stateId
+            .ok (fields.map fun field => field.snd))
           event
           indexedFields
       let dataWords ←
         ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
           toYulError
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
+          (localAbiStructFieldIds module s!"event `{event.name}` data field")
+          (fun context typeName stateId => do
+            let fields ← lowerStructStorageReadFields module context typeName stateId
+            .ok (fields.map fun field => field.snd))
           event.name
           event.dataFields
           dataFields

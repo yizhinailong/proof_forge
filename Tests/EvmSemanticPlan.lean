@@ -3279,10 +3279,16 @@ def testScalarEventPlanToYul : IO Unit := do
     | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
     | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
     | _ => .error (toYulError "unexpected event plan test expression")
+  let noStructFields (_ : String) : Except LowerError (Array String) :=
+    .error (toYulError "unexpected event plan test struct fields")
+  let noStorageWords (_context _typeName _stateId : String) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
+    .error (toYulError "unexpected event plan test storage words")
   let directDataWords ← requireOk
     (ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
       toYulError
       simplePlanExpr
+      noStructFields
+      noStorageWords
       directEvent.name
       directEvent.dataFields
       #[.literalWord 11])
@@ -3296,6 +3302,8 @@ def testScalarEventPlanToYul : IO Unit := do
     (ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatementsFromPlans
       toYulError
       simplePlanExpr
+      noStructFields
+      noStorageWords
       directEvent
       #[.literalWord 7])
     "event indexed field plan-to-yul topic statements"
@@ -3401,6 +3409,47 @@ def testLocalAggregateEventDataWordsToYul : IO Unit := do
   requireIdentExpr (← requireAt pairArrayWords 3 "local struct-array event missing word 3")
     "__proof_forge_array_struct_pairs_1_right"
     "local struct-array event word 3"
+
+def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
+  let module := ProofForge.IR.Examples.EventProbe.evmModule
+  let plan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      module
+      (toValidateTypeEnv #[])
+      (.eventEmit "StoragePairEvent" #[("pair", .effect (.storageScalarRead "storedPair"))]))
+    "storage aggregate event Lower EffectPlan"
+  let (event, dataFields) ←
+    match plan with
+    | .eventEmit event dataFields => pure (event, dataFields)
+    | _ => throw <| IO.userError "storage aggregate event must lower to eventEmit plan"
+  require (event.name == "StoragePairEvent") "storage aggregate event plan name"
+  require (event.dataFields.size == 1) "storage aggregate event data field count"
+  require (dataFields.size == 1) "storage aggregate event planned data value count"
+  match dataFields[0]? with
+  | some (ExprPlan.storageAbiWords stateId type) => do
+      require (stateId == "storedPair") "storage aggregate event storageAbiWords state id"
+      require (type == .structType "Pair") "storage aggregate event storageAbiWords type"
+  | some _ => throw <| IO.userError "storage aggregate event data field must use storageAbiWords"
+  | none => throw <| IO.userError "storage aggregate event missing planned data field"
+  let words ← requireOk
+    (ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
+      toYulError
+      (fun _ => .error (toYulError "storage aggregate event should not lower scalar field value"))
+      (localAbiStructFieldIds module "storage aggregate event")
+      (fun context typeName stateId => do
+        let fields ← lowerStructStorageReadFields module context typeName stateId
+        .ok (fields.map fun field => field.snd))
+      event.name
+      event.dataFields
+      dataFields)
+    "storage aggregate event data words plan-to-yul"
+  require (words.size == 2) "storage aggregate event data word count"
+  for h : idx in [0:words.size] do
+    match words[idx] with
+    | Lean.Compiler.Yul.Expr.builtin name args => do
+        require (name == "sload") s!"storage aggregate event word {idx} must be sload"
+        require (args.size == 1) s!"storage aggregate event word {idx} sload arg count"
+    | _ => throw <| IO.userError s!"storage aggregate event word {idx} must lower to sload"
 
 def testScalarStorageEffectPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
@@ -5189,6 +5238,7 @@ def main : IO UInt32 := do
   testScalarControlFlowPlanToYul
   testScalarEventPlanToYul
   testLocalAggregateEventDataWordsToYul
+  testStorageAggregateEventDataWordsPlanToYul
   testScalarStorageEffectPlanToYul
   testMapReadPlanToYul
   testMapWritePlanToYul

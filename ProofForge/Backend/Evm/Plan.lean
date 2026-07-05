@@ -777,6 +777,7 @@ mutual
         (initCodeHex : String)
     | cast (source : ExprPlan) (target : ValueType)
     | localAbiWords (name : String) (type : ValueType)
+    | storageAbiWords (stateId : String) (type : ValueType)
     | localCrosscallWords (name : String) (type : ValueType)
     | storageCrosscallWords (stateId : String) (type : ValueType)
     | structField (base : ExprPlan) (fieldName : String)

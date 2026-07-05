@@ -1219,6 +1219,49 @@ def localAbiWords
     (type : ValueType) : Except ε (Array Lean.Compiler.Yul.Expr) :=
   localAbiWordsAt mkError structFieldIds context name #[] type
 
+def storageAbiWords
+    {ε : Type}
+    (mkError : String → ε)
+    (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
+    (context stateId : String)
+    (type : ValueType) : Except ε (Array Lean.Compiler.Yul.Expr) := do
+  match type with
+  | .structType typeName =>
+      storageStructWords context typeName stateId
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .unit
+  | .fixedArray _ _ | .bytes | .string | .array _ =>
+      .error (mkError s!"{context} storage-backed ABI word expansion supports struct scalar storage only, got `{type.name}`")
+
+def abiValueWordsFromPlan
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (structFieldIds : String → Except ε (Array String))
+    (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
+    (context : String)
+    (type : ValueType)
+    (value : ExprPlan) :
+    Except ε (Array Lean.Compiler.Yul.Expr) := do
+  match type with
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+      .ok #[← lowerPlanExpr value]
+  | .fixedArray _ _ | .structType _ =>
+      match value with
+      | .localAbiWords name plannedType =>
+          if plannedType == type then
+            localAbiWords mkError structFieldIds context name type
+          else
+            .error (mkError s!"{context} local ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`")
+      | .storageAbiWords stateId plannedType =>
+          if plannedType == type then
+            storageAbiWords mkError storageStructWords context stateId type
+          else
+            .error (mkError s!"{context} storage ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`")
+      | _ =>
+          .error (mkError s!"{context} aggregate field requires an ABI word expansion plan")
+  | .unit | .bytes | .string | .array _ =>
+      .error (mkError s!"{context} has unsupported ABI word type `{type.name}`")
+
 def returnValueWordPlanWords
     {ε : Type}
     (mkError : String → ε)
@@ -1845,20 +1888,27 @@ def eventFieldDataWordsFromPlan
     {ε : Type}
     (mkError : String → ε)
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (structFieldIds : String → Except ε (Array String))
+    (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
     (eventName : String)
     (field : EventFieldPlan)
     (value : ExprPlan) :
     Except ε (Array Lean.Compiler.Yul.Expr) := do
-  match field.type with
-  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-      .ok #[← lowerPlanExpr value]
-  | .unit | .bytes | .string | .array _ | .fixedArray _ _ | .structType _ =>
-      .error (mkError s!"planned scalar control-flow event `{eventName}` field `{field.name}` has unsupported type `{field.type.name}`")
+  abiValueWordsFromPlan
+    mkError
+    lowerPlanExpr
+    structFieldIds
+    storageStructWords
+    s!"planned event `{eventName}` field `{field.name}`"
+    field.type
+    value
 
 def eventFieldsDataWordsFromPlan
     {ε : Type}
     (mkError : String → ε)
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (structFieldIds : String → Except ε (Array String))
+    (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
     (eventName : String)
     (fields : Array EventFieldPlan)
     (values : Array ExprPlan) :
@@ -1869,13 +1919,23 @@ def eventFieldsDataWordsFromPlan
   for h : idx in [0:fields.size] do
     let some value := values[idx]?
       | .error (mkError s!"planned scalar control-flow event `{eventName}` missing field value at index {idx}")
-    words := words ++ (← eventFieldDataWordsFromPlan mkError lowerPlanExpr eventName fields[idx] value)
+    words := words ++
+      (← eventFieldDataWordsFromPlan
+        mkError
+        lowerPlanExpr
+        structFieldIds
+        storageStructWords
+        eventName
+        fields[idx]
+        value)
   .ok words
 
 def eventIndexedTopicStatementsFromPlans
     {ε : Type}
     (mkError : String → ε)
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (structFieldIds : String → Except ε (Array String))
+    (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
     (event : EventPlan)
     (values : Array ExprPlan) :
     Except ε (Array Lean.Compiler.Yul.Statement) := do
@@ -1886,7 +1946,15 @@ def eventIndexedTopicStatementsFromPlans
   for h : idx in [0:fields.size] do
     let some value := values[idx]?
       | .error (mkError s!"planned scalar control-flow event `{event.name}` missing indexed field value at index {idx}")
-    let words ← eventFieldDataWordsFromPlan mkError lowerPlanExpr event.name fields[idx] value
+    let words ←
+      eventFieldDataWordsFromPlan
+        mkError
+        lowerPlanExpr
+        structFieldIds
+        storageStructWords
+        event.name
+        fields[idx]
+        value
     statements := statements ++ (← eventIndexedTopicStatements mkError fields[idx] idx words)
   .ok statements
 
@@ -2111,6 +2179,8 @@ partial def exprPlanExpr
       exprPlanExpr mkError lowerExpr lowerEffect source
   | .localAbiWords .. =>
       .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support ABI word expansion plans yet")
+  | .storageAbiWords .. =>
+      .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support storage ABI word expansion plans yet")
   | .localCrosscallWords .. =>
       .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support crosscall word expansion plans yet")
   | .storageCrosscallWords .. =>
