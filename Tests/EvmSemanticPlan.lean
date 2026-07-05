@@ -476,6 +476,38 @@ def memoryArrayGetOnlyProbe : Module := {
   ]
 }
 
+def hashWordOnlyProbe : Module := {
+  name := "HashWordOnlyProbe"
+  state := #[]
+  entrypoints := #[
+    {
+      name := "hash_word"
+      selector? := some "44444444"
+      params := #[("input", .hash)]
+      returns := .hash
+      body := #[
+        .return (.hash (.local "input"))
+      ]
+    }
+  ]
+}
+
+def hashPairOnlyProbe : Module := {
+  name := "HashPairOnlyProbe"
+  state := #[]
+  entrypoints := #[
+    {
+      name := "hash_pair"
+      selector? := some "55555555"
+      params := #[("left", .hash), ("right", .hash)]
+      returns := .hash
+      body := #[
+        .return (.hashTwoToOne (.local "left") (.local "right"))
+      ]
+    }
+  ]
+}
+
 def contextOpsPlanProbe : Module := {
   name := "ContextOpsPlanProbe"
   state := #[]
@@ -1435,6 +1467,93 @@ def testPlannedMemoryArrayHelperDiscoveryFromEntrypointPlans : IO Unit := do
   require
     (statementsHaveFunctionNamed getHelpers (Helper.memoryArrayGet).name)
     "planned memory-array get-only ToYul helpers include get helper"
+
+def testPlannedHashHelperDiscoveryFromEntrypointPlans : IO Unit := do
+  let rawWordPlan ←
+    requireOk
+      (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan hashWordOnlyProbe))
+      "hash-word-only raw module plan"
+  require
+    (rawWordPlan.hasHelper .hashWord)
+    "raw hash capability helper discovery includes hash-word helper"
+  require
+    (rawWordPlan.hasHelper .hashPair)
+    "raw hash capability helper discovery includes hash-pair helper"
+  let wordPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan hashWordOnlyProbe)
+      "hash-word-only full module plan"
+  require
+    (wordPlan.hasHelper .hashWord)
+    "planned hash-word-only helper discovery must require hash-word helper"
+  require
+    (!wordPlan.hasHelper .hashPair)
+    "planned hash-word-only helper discovery must not require hash-pair helper"
+  let wordSemanticPlan ←
+    requireOk
+      (buildSemanticPlan hashWordOnlyProbe)
+      "hash-word-only semantic plan"
+  require
+    (wordSemanticPlan.helpers == wordPlan.helpers)
+    "semantic plan must preserve Lower-discovered hash-word helper"
+  require
+    (ProofForge.Backend.Evm.Lower.buildHashHelpersFromEntrypoints wordPlan.entrypoints ==
+      #[Helper.hashWord])
+    "planned hash-word-only entrypoint scanner must discover only hash-word helper"
+  let wordHelpers := plannedHashHelperFunctions wordPlan
+  require
+    (statementsHaveFunctionNamed wordHelpers (Helper.hashWord).name)
+    "planned hash-word-only ToYul helpers include hash-word helper"
+  require
+    (!statementsHaveFunctionNamed wordHelpers (Helper.hashPair).name)
+    "planned hash-word-only ToYul helpers must not include hash-pair helper"
+  let targetWordPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlanWithTargetPlan
+        hashWordOnlyProbe
+        wordPlan.targetPlan)
+      "hash-word-only target-plan full module plan"
+  require
+    (targetWordPlan.helpers == wordPlan.helpers)
+    "target-plan full module hash helpers must be discovered from entrypoint plans"
+  let rawPairPlan ←
+    requireOk
+      (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan hashPairOnlyProbe))
+      "hash-pair-only raw module plan"
+  require
+    (rawPairPlan.hasHelper .hashWord)
+    "raw hash-pair capability helper discovery includes hash-word helper"
+  require
+    (rawPairPlan.hasHelper .hashPair)
+    "raw hash-pair capability helper discovery includes hash-pair helper"
+  let pairPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan hashPairOnlyProbe)
+      "hash-pair-only full module plan"
+  require
+    (!pairPlan.hasHelper .hashWord)
+    "planned hash-pair-only helper discovery must not require hash-word helper"
+  require
+    (pairPlan.hasHelper .hashPair)
+    "planned hash-pair-only helper discovery must require hash-pair helper"
+  let pairSemanticPlan ←
+    requireOk
+      (buildSemanticPlan hashPairOnlyProbe)
+      "hash-pair-only semantic plan"
+  require
+    (pairSemanticPlan.helpers == pairPlan.helpers)
+    "semantic plan must preserve Lower-discovered hash-pair helper"
+  require
+    (ProofForge.Backend.Evm.Lower.buildHashHelpersFromEntrypoints pairPlan.entrypoints ==
+      #[Helper.hashPair])
+    "planned hash-pair-only entrypoint scanner must discover only hash-pair helper"
+  let pairHelpers := plannedHashHelperFunctions pairPlan
+  require
+    (!statementsHaveFunctionNamed pairHelpers (Helper.hashWord).name)
+    "planned hash-pair-only ToYul helpers must not include hash-word helper"
+  require
+    (statementsHaveFunctionNamed pairHelpers (Helper.hashPair).name)
+    "planned hash-pair-only ToYul helpers include hash-pair helper"
 
 def testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans : IO Unit := do
   let counterPlan ←
@@ -8477,6 +8596,7 @@ def main : IO UInt32 := do
   testPlannedCrosscallHelperDiscoveryFromEntrypointPlans
   testPlannedCreateHelperDiscoveryFromEntrypointPlans
   testPlannedMemoryArrayHelperDiscoveryFromEntrypointPlans
+  testPlannedHashHelperDiscoveryFromEntrypointPlans
   testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans
   testPlannedContextOpsDiscoveryFromEntrypointPlans
   testLocalArrayHelperDiscoveryInLowerPlan

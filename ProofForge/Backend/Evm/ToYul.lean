@@ -87,7 +87,7 @@ def checkedArithmeticHelperFunctions : Array Lean.Compiler.Yul.Statement :=
       ] }
   ]
 
-def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+def hashWordHelperFunction : Lean.Compiler.Yul.Statement :=
   .funcDef (Helper.hashWord).name
     #[{ name := "value" }]
     #[{ name := "result" }]
@@ -96,7 +96,9 @@ def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
         .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "value"]),
         .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32])
       ]
-    },
+    }
+
+def hashPairHelperFunction : Lean.Compiler.Yul.Statement :=
   .funcDef (Helper.hashPair).name
     #[{ name := "left" }, { name := "right" }]
     #[{ name := "result" }]
@@ -107,6 +109,10 @@ def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
         .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
       ]
     }
+
+def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+  hashWordHelperFunction,
+  hashPairHelperFunction
 ]
 
 def arrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[

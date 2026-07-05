@@ -3166,123 +3166,142 @@ def removeMemoryArrayHelpers (helpers : HelperSet) : HelperSet :=
 def replaceMemoryArrayHelpers (helpers memoryHelpers : HelperSet) : HelperSet :=
   mergeHelperSets (removeMemoryArrayHelpers helpers) memoryHelpers
 
+def isMemoryArrayHelper : Helper → Bool
+  | .memoryArrayNew | .memoryArrayGet => true
+  | _ => false
+
+def isHashHelper : Helper → Bool
+  | .hashWord | .hashPair => true
+  | _ => false
+
+def removeHashHelpers (helpers : HelperSet) : HelperSet :=
+  helpers.filter fun helper =>
+    !(helper == Helper.hashWord) && !(helper == Helper.hashPair)
+
+def replaceHashHelpers (helpers hashHelpers : HelperSet) : HelperSet :=
+  mergeHelperSets (removeHashHelpers helpers) hashHelpers
+
 mutual
-  partial def memoryArrayHelpersFromStorageSlotExprPlan : StorageSlotExprPlan → HelperSet
+  partial def plannedHelpersFromStorageSlotExprPlan : StorageSlotExprPlan → HelperSet
     | .scalarSlot _ | .fixedSlot _ => #[]
     | .mapValueSlot _ keys | .mapPresenceSlot _ keys =>
         keys.foldl (init := #[]) fun acc key =>
-          mergeHelperSets acc (memoryArrayHelpersFromExprPlan key)
+          mergeHelperSets acc (plannedHelpersFromExprPlan key)
     | .arraySlot _ _ index
     | .structArrayFieldSlot _ _ _ _ index
     | .dynamicArraySlot _ index =>
-        memoryArrayHelpersFromExprPlan index
+        plannedHelpersFromExprPlan index
 
-  partial def memoryArrayHelpersFromStoragePathWriteExprTargetPlan :
+  partial def plannedHelpersFromStoragePathWriteExprTargetPlan :
       StoragePathWriteExprTargetPlan → HelperSet
     | .mapWrite _ key =>
-        memoryArrayHelpersFromExprPlan key
+        plannedHelpersFromExprPlan key
     | .singleSlot slot =>
-        memoryArrayHelpersFromStorageSlotExprPlan slot
+        plannedHelpersFromStorageSlotExprPlan slot
     | .mapValuePresence valueSlot presenceSlot =>
         mergeHelperSets
-          (memoryArrayHelpersFromStorageSlotExprPlan valueSlot)
-          (memoryArrayHelpersFromStorageSlotExprPlan presenceSlot)
+          (plannedHelpersFromStorageSlotExprPlan valueSlot)
+          (plannedHelpersFromStorageSlotExprPlan presenceSlot)
 
-  partial def memoryArrayHelpersFromContextExprPlan : ContextExprPlan → HelperSet
+  partial def plannedHelpersFromContextExprPlan : ContextExprPlan → HelperSet
     | .blockHash blockNumber =>
-        memoryArrayHelpersFromExprPlan blockNumber
+        plannedHelpersFromExprPlan blockNumber
     | .userId | .contractId | .checkpointId | .timestamp | .chainId
     | .gasPrice | .gasLeft | .baseFee | .prevRandao | .origin | .coinbase =>
         #[]
 
-  partial def memoryArrayHelpersFromAbiValuePlan : AbiValuePlan → HelperSet
+  partial def plannedHelpersFromAbiValuePlan : AbiValuePlan → HelperSet
     | .expr value =>
-        memoryArrayHelpersFromExprPlan value
+        plannedHelpersFromExprPlan value
     | .local .. | .storage .. =>
         #[]
     | .arrayLit _ values =>
         values.foldl (init := #[]) fun acc value =>
-          mergeHelperSets acc (memoryArrayHelpersFromAbiValuePlan value)
+          mergeHelperSets acc (plannedHelpersFromAbiValuePlan value)
     | .structLit _ fields =>
         fields.foldl (init := #[]) fun acc field =>
-          mergeHelperSets acc (memoryArrayHelpersFromAbiValuePlan field.snd)
+          mergeHelperSets acc (plannedHelpersFromAbiValuePlan field.snd)
 
-  partial def memoryArrayHelpersFromCrosscallArgWordPlan : CrosscallArgWordPlan → HelperSet
+  partial def plannedHelpersFromCrosscallArgWordPlan : CrosscallArgWordPlan → HelperSet
     | .expr value =>
-        memoryArrayHelpersFromExprPlan value
+        plannedHelpersFromExprPlan value
     | .local .. | .storage .. =>
         #[]
 
-  partial def memoryArrayHelpersFromExprPlan : ExprPlan → HelperSet
+  partial def plannedHelpersFromExprPlan : ExprPlan → HelperSet
     | .literalWord _ | .local _ | .calldataWord _ | .storageLoad _ | .nativeValue =>
         #[]
     | .builtin _ args | .arrayLit _ args =>
         args.foldl (init := #[]) fun acc arg =>
-          mergeHelperSets acc (memoryArrayHelpersFromExprPlan arg)
+          mergeHelperSets acc (plannedHelpersFromExprPlan arg)
     | .helperCall helper args =>
         let nested := args.foldl (init := #[]) fun acc arg =>
-          mergeHelperSets acc (memoryArrayHelpersFromExprPlan arg)
-        match helper with
-        | .memoryArrayNew | .memoryArrayGet => HelperSet.insert nested helper
-        | _ => nested
+          mergeHelperSets acc (plannedHelpersFromExprPlan arg)
+        HelperSet.insert nested helper
     | .checkedArith _ lhs rhs
-    | .hashTwoToOne lhs rhs
     | .arrayGet lhs rhs =>
         mergeHelperSets
-          (memoryArrayHelpersFromExprPlan lhs)
-          (memoryArrayHelpersFromExprPlan rhs)
+          (plannedHelpersFromExprPlan lhs)
+          (plannedHelpersFromExprPlan rhs)
+    | .hashTwoToOne lhs rhs =>
+        HelperSet.insert
+          (mergeHelperSets
+            (plannedHelpersFromExprPlan lhs)
+            (plannedHelpersFromExprPlan rhs))
+          .hashPair
     | .hashPack a b c d | .hashValue a b c d =>
         let ab := mergeHelperSets
-          (memoryArrayHelpersFromExprPlan a)
-          (memoryArrayHelpersFromExprPlan b)
+          (plannedHelpersFromExprPlan a)
+          (plannedHelpersFromExprPlan b)
         let cd := mergeHelperSets
-          (memoryArrayHelpersFromExprPlan c)
-          (memoryArrayHelpersFromExprPlan d)
+          (plannedHelpersFromExprPlan c)
+          (plannedHelpersFromExprPlan d)
         mergeHelperSets ab cd
     | .context field =>
-        memoryArrayHelpersFromContextExprPlan field
+        plannedHelpersFromContextExprPlan field
     | .crosscall _ target methodId callValue? args _ =>
         let nested := mergeHelperSets
-          (memoryArrayHelpersFromExprPlan target)
-          (memoryArrayHelpersFromExprPlan methodId)
+          (plannedHelpersFromExprPlan target)
+          (plannedHelpersFromExprPlan methodId)
         let nested :=
           match callValue? with
           | some callValue =>
-              mergeHelperSets nested (memoryArrayHelpersFromExprPlan callValue)
+              mergeHelperSets nested (plannedHelpersFromExprPlan callValue)
           | none => nested
         args.foldl (init := nested) fun acc arg =>
-          mergeHelperSets acc (memoryArrayHelpersFromCrosscallArgWordPlan arg)
+          mergeHelperSets acc (plannedHelpersFromCrosscallArgWordPlan arg)
     | .create _ callValue salt? _ =>
         match salt? with
         | some salt =>
             mergeHelperSets
-              (memoryArrayHelpersFromExprPlan callValue)
-              (memoryArrayHelpersFromExprPlan salt)
+              (plannedHelpersFromExprPlan callValue)
+              (plannedHelpersFromExprPlan salt)
         | none =>
-            memoryArrayHelpersFromExprPlan callValue
+            plannedHelpersFromExprPlan callValue
     | .cast source _
     | .structField source _
-    | .memoryArrayLength source
+    | .memoryArrayLength source =>
+        plannedHelpersFromExprPlan source
     | .hash source =>
-        memoryArrayHelpersFromExprPlan source
+        HelperSet.insert (plannedHelpersFromExprPlan source) .hashWord
     | .localArrayGet _ path _ =>
         path.foldl (init := #[]) fun acc index =>
-          mergeHelperSets acc (memoryArrayHelpersFromExprPlan index)
+          mergeHelperSets acc (plannedHelpersFromExprPlan index)
     | .memoryArrayNew _ length =>
-        HelperSet.insert (memoryArrayHelpersFromExprPlan length) .memoryArrayNew
+        HelperSet.insert (plannedHelpersFromExprPlan length) .memoryArrayNew
     | .memoryArrayGet array index =>
         HelperSet.insert
           (mergeHelperSets
-            (memoryArrayHelpersFromExprPlan array)
-            (memoryArrayHelpersFromExprPlan index))
+            (plannedHelpersFromExprPlan array)
+            (plannedHelpersFromExprPlan index))
           .memoryArrayGet
     | .structLit _ fields =>
         fields.foldl (init := #[]) fun acc field =>
-          mergeHelperSets acc (memoryArrayHelpersFromExprPlan field.snd)
+          mergeHelperSets acc (plannedHelpersFromExprPlan field.snd)
     | .effect effect =>
-        memoryArrayHelpersFromEffectPlan effect
+        plannedHelpersFromEffectPlan effect
 
-  partial def memoryArrayHelpersFromEffectPlan : EffectPlan → HelperSet
+  partial def plannedHelpersFromEffectPlan : EffectPlan → HelperSet
     | .storageScalarRead _ | .storageScalarReadTarget _
     | .storageStructFieldRead _ _ | .storageStructFieldReadTarget _
     | .storageDynamicArrayPop _ | .storageDynamicArrayPopTarget _ =>
@@ -3295,7 +3314,7 @@ mutual
     | .storageStructFieldWriteTarget _ value
     | .storageDynamicArrayPush _ value
     | .storageDynamicArrayPushTarget _ value =>
-        memoryArrayHelpersFromExprPlan value
+        plannedHelpersFromExprPlan value
     | .storageMapContains _ key
     | .storageMapContainsTarget _ key
     | .storageMapGet _ key
@@ -3304,7 +3323,7 @@ mutual
     | .storageArrayReadTarget _ key
     | .storageArrayStructFieldRead _ key _
     | .storageArrayStructFieldReadTarget _ key =>
-        memoryArrayHelpersFromExprPlan key
+        plannedHelpersFromExprPlan key
     | .storageMapInsert _ key value
     | .storageMapInsertTarget _ key value
     | .storageMapSet _ key value
@@ -3314,85 +3333,91 @@ mutual
     | .storageArrayStructFieldWrite _ key _ value
     | .storageArrayStructFieldWriteTarget _ key value =>
         mergeHelperSets
-          (memoryArrayHelpersFromExprPlan key)
-          (memoryArrayHelpersFromExprPlan value)
+          (plannedHelpersFromExprPlan key)
+          (plannedHelpersFromExprPlan value)
     | .memoryArraySet array index value =>
         mergeHelperSets
           (mergeHelperSets
-            (memoryArrayHelpersFromExprPlan array)
-            (memoryArrayHelpersFromExprPlan index))
-          (memoryArrayHelpersFromExprPlan value)
+            (plannedHelpersFromExprPlan array)
+            (plannedHelpersFromExprPlan index))
+          (plannedHelpersFromExprPlan value)
     | .storagePathRead _ _ | .storagePathReadTarget _ =>
         #[]
     | .storagePathReadExprTarget slot =>
-        memoryArrayHelpersFromStorageSlotExprPlan slot
+        plannedHelpersFromStorageSlotExprPlan slot
     | .storagePathWrite _ _ value | .storagePathAssignOp _ _ _ value =>
-        memoryArrayHelpersFromExprPlan value
+        plannedHelpersFromExprPlan value
     | .storagePathWriteTarget _ value | .storagePathAssignOpTarget _ _ value =>
-        memoryArrayHelpersFromExprPlan value
+        plannedHelpersFromExprPlan value
     | .storagePathWriteExprTarget target value
     | .storagePathAssignOpExprTarget target _ value =>
         mergeHelperSets
-          (memoryArrayHelpersFromStoragePathWriteExprTargetPlan target)
-          (memoryArrayHelpersFromExprPlan value)
+          (plannedHelpersFromStoragePathWriteExprTargetPlan target)
+          (plannedHelpersFromExprPlan value)
     | .contextRead field =>
-        memoryArrayHelpersFromContextExprPlan field
+        plannedHelpersFromContextExprPlan field
     | .eventEmit _ dataFields =>
         dataFields.foldl (init := #[]) fun acc field =>
-          mergeHelperSets acc (memoryArrayHelpersFromAbiValuePlan field)
+          mergeHelperSets acc (plannedHelpersFromAbiValuePlan field)
     | .eventEmitIndexed _ indexedFields dataFields =>
         let indexed := indexedFields.foldl (init := #[]) fun acc field =>
-          mergeHelperSets acc (memoryArrayHelpersFromAbiValuePlan field)
+          mergeHelperSets acc (plannedHelpersFromAbiValuePlan field)
         dataFields.foldl (init := indexed) fun acc field =>
-          mergeHelperSets acc (memoryArrayHelpersFromAbiValuePlan field)
+          mergeHelperSets acc (plannedHelpersFromAbiValuePlan field)
     | .eventEmitWords _ dataFieldWords =>
         dataFieldWords.foldl (init := #[]) fun acc words =>
           words.foldl (init := acc) fun wordAcc word =>
-            mergeHelperSets wordAcc (memoryArrayHelpersFromExprPlan word)
+            mergeHelperSets wordAcc (plannedHelpersFromExprPlan word)
     | .eventEmitIndexedWords _ indexedFieldWords dataFieldWords =>
         let indexed := indexedFieldWords.foldl (init := #[]) fun acc words =>
           words.foldl (init := acc) fun wordAcc word =>
-            mergeHelperSets wordAcc (memoryArrayHelpersFromExprPlan word)
+            mergeHelperSets wordAcc (plannedHelpersFromExprPlan word)
         dataFieldWords.foldl (init := indexed) fun acc words =>
           words.foldl (init := acc) fun wordAcc word =>
-            mergeHelperSets wordAcc (memoryArrayHelpersFromExprPlan word)
+            mergeHelperSets wordAcc (plannedHelpersFromExprPlan word)
 
-  partial def memoryArrayHelpersFromStmtPlan : StmtPlan → HelperSet
+  partial def plannedHelpersFromStmtPlan : StmtPlan → HelperSet
     | .letBind _ _ value
     | .letMutBind _ _ value
     | .assert value _ _
     | .return value =>
-        memoryArrayHelpersFromExprPlan value
+        plannedHelpersFromExprPlan value
     | .assign target value
     | .assignOp target _ value =>
         mergeHelperSets
-          (memoryArrayHelpersFromExprPlan target)
-          (memoryArrayHelpersFromExprPlan value)
+          (plannedHelpersFromExprPlan target)
+          (plannedHelpersFromExprPlan value)
     | .effect effect =>
-        memoryArrayHelpersFromEffectPlan effect
+        plannedHelpersFromEffectPlan effect
     | .assertEq lhs rhs _ _ =>
         mergeHelperSets
-          (memoryArrayHelpersFromExprPlan lhs)
-          (memoryArrayHelpersFromExprPlan rhs)
+          (plannedHelpersFromExprPlan lhs)
+          (plannedHelpersFromExprPlan rhs)
     | .release _ | .revert _ | .revertWithError _ =>
         #[]
     | .ifElse condition thenBody elseBody =>
         mergeHelperSets
-          (memoryArrayHelpersFromExprPlan condition)
+          (plannedHelpersFromExprPlan condition)
           (mergeHelperSets
-            (memoryArrayHelpersFromStmtPlans thenBody)
-            (memoryArrayHelpersFromStmtPlans elseBody))
+            (plannedHelpersFromStmtPlans thenBody)
+            (plannedHelpersFromStmtPlans elseBody))
     | .boundedFor _ _ _ body =>
-        memoryArrayHelpersFromStmtPlans body
+        plannedHelpersFromStmtPlans body
 
-  partial def memoryArrayHelpersFromStmtPlans (statements : Array StmtPlan) : HelperSet :=
+  partial def plannedHelpersFromStmtPlans (statements : Array StmtPlan) : HelperSet :=
     statements.foldl (init := #[]) fun acc stmt =>
-      mergeHelperSets acc (memoryArrayHelpersFromStmtPlan stmt)
+      mergeHelperSets acc (plannedHelpersFromStmtPlan stmt)
 end
 
-def buildMemoryArrayHelpersFromEntrypoints (entrypoints : Array EntrypointPlan) : HelperSet :=
+def buildPlannedHelpersFromEntrypoints (entrypoints : Array EntrypointPlan) : HelperSet :=
   entrypoints.foldl (init := #[]) fun acc entrypoint =>
-    mergeHelperSets acc (memoryArrayHelpersFromStmtPlans entrypoint.body)
+    mergeHelperSets acc (plannedHelpersFromStmtPlans entrypoint.body)
+
+def buildMemoryArrayHelpersFromEntrypoints (entrypoints : Array EntrypointPlan) : HelperSet :=
+  (buildPlannedHelpersFromEntrypoints entrypoints).filter isMemoryArrayHelper
+
+def buildHashHelpersFromEntrypoints (entrypoints : Array EntrypointPlan) : HelperSet :=
+  (buildPlannedHelpersFromEntrypoints entrypoints).filter isHashHelper
 
 def contextFieldFromContextExprPlan : ContextExprPlan → ContextField
   | .userId => .userId
@@ -4014,7 +4039,10 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
   let usesCheckedArithmetic := entrypointsUseCheckedArithmetic entrypointPlans
   let contextOps := buildContextOpsFromEntrypoints entrypointPlans
   let memoryArrayHelpers := buildMemoryArrayHelpersFromEntrypoints entrypointPlans
-  let helpers := replaceMemoryArrayHelpers basePlan.helpers memoryArrayHelpers
+  let hashHelpers := buildHashHelpersFromEntrypoints entrypointPlans
+  let helpers := replaceHashHelpers
+    (replaceMemoryArrayHelpers basePlan.helpers memoryArrayHelpers)
+    hashHelpers
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans
@@ -4058,7 +4086,10 @@ def buildFullModulePlanWithTargetPlan
   let usesCheckedArithmetic := entrypointsUseCheckedArithmetic entrypointPlans
   let contextOps := buildContextOpsFromEntrypoints entrypointPlans
   let memoryArrayHelpers := buildMemoryArrayHelpersFromEntrypoints entrypointPlans
-  let helpers := replaceMemoryArrayHelpers basePlan.helpers memoryArrayHelpers
+  let hashHelpers := buildHashHelpersFromEntrypoints entrypointPlans
+  let helpers := replaceHashHelpers
+    (replaceMemoryArrayHelpers basePlan.helpers memoryArrayHelpers)
+    hashHelpers
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans

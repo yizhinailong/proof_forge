@@ -574,7 +574,10 @@ Tasks:
     construction now also replaces broad capability-derived memory-array helper
     requirements with helper requirements discovered from planned entrypoint
     bodies; `memoryArrayLength` alone no longer emits allocation/get helpers,
-    and `ToYul` can emit memory-array new/get helpers independently.
+    and `ToYul` can emit memory-array new/get helpers independently. The same
+    planned helper scanner now replaces broad capability-derived hash helpers:
+    `hash(x)` only emits `hashWord`, `hashTwoToOne(a,b)` only emits `hashPair`,
+    and `ToYul` can emit hash word/pair helpers independently.
   - Started: `ModulePlan.contextOps` is now discovered from the already-built
     `EntrypointPlan.body` `StmtPlan`/`ExprPlan` tree in
     `Lower.buildFullModulePlan` and

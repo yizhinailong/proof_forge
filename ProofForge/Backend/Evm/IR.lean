@@ -5936,10 +5936,16 @@ def plannedStructArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.Module
 
 def plannedHashHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
-  if plan.hasHelper .hashWord || plan.hasHelper .hashPair then
-    ProofForge.Backend.Evm.ToYul.hashHelperFunctions
+  let helpers : Array Lean.Compiler.Yul.Statement := #[]
+  let helpers :=
+    if plan.hasHelper .hashWord then
+      helpers.push ProofForge.Backend.Evm.ToYul.hashWordHelperFunction
+    else
+      helpers
+  if plan.hasHelper .hashPair then
+    helpers.push ProofForge.Backend.Evm.ToYul.hashPairHelperFunction
   else
-    #[]
+    helpers
 
 def plannedMemoryArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
