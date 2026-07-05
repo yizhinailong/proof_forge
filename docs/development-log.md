@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM ToYul Local Array Helpers
+
+Commit: dffa0e2
+
+Summary:
+
+- Moved local fixed-array dynamic getter helper bodies from the `IR.lean`
+  compatibility facade into `ToYul.lean`, including single-dimension and
+  nested local-array switch helpers.
+- Moved local-array helper parameter naming and path-value naming utilities to
+  `ToYul`, where the generated helper function bodies now live.
+- Updated plan-driven and fallback module helper emission to call
+  `ToYul.localArrayGetHelperFunctions` and
+  `ToYul.nestedLocalArrayGetHelperFunctions`.
+- Extended semantic-plan coverage to verify helper discovery, ToYul helper
+  emission, and plan-driven module lowering for local and nested local-array
+  getters.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/struct-array-value-ir-smoke.sh
+just evm-diagnostics
+git diff --check
+```
+
+Known limitations:
+
+- Discovery of local-array helper requirements still lives in the compatibility
+  facade until the broader helper discovery pass is moved out of `IR.lean`.
+
+Next step:
+
+- Continue Phase 0 by moving remaining compatibility-only helper wrappers or
+  helper discovery passes from `IR.lean` toward `Lower -> Plan -> ToYul`.
+
 ### EVM ToYul Map Helpers
 
 Commit: c679a55
