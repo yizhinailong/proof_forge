@@ -3,6 +3,7 @@ import Lean
 import Lean.Elab.Frontend
 import Lean.Util.Path
 import ProofForge.Backend.Evm.IR
+import ProofForge.Backend.Evm.Validate
 import ProofForge.Backend.Evm.ConstructorInit
 import ProofForge.Backend.Psy.IR
 import ProofForge.Backend.Solana.SbpfAsm
@@ -1514,6 +1515,11 @@ def lowerExceptString (result : Except ProofForge.Backend.Evm.IR.LowerError α) 
   | .ok value => .ok value
   | .error err => .error err.render
 
+def lowerValidateExceptString (result : Except ProofForge.Backend.Evm.Validate.LowerError α) : Except String α :=
+  match result with
+  | .ok value => .ok value
+  | .error err => .error err.message
+
 def liftExceptString (result : Except String α) : IO α :=
   match result with
   | .ok value => pure value
@@ -1536,8 +1542,8 @@ def eventAbiField
     (field : String × ProofForge.IR.Expr) : Except String EventAbiField := do
   let irType ← lowerExceptString <|
     ProofForge.Backend.Evm.IR.inferExprType module env field.snd
-  let abiType ← lowerExceptString <|
-    ProofForge.Backend.Evm.IR.eventSignatureFieldType module eventName field.fst irType
+  let abiType ← lowerValidateExceptString <|
+    ProofForge.Backend.Evm.Validate.eventSignatureFieldType module eventName field.fst irType
   let wordTypes ← lowerExceptString <|
     ProofForge.Backend.Evm.IR.abiValueWordTypes module s!"event `{eventName}` field `{field.fst}`" irType
   let mut wordTypeNames : Array String := #[]

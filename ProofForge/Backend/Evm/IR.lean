@@ -63,82 +63,11 @@ def slotExpr (slot : Nat) : Lean.Compiler.Yul.Expr :=
 def yulFunctionName (moduleName entrypointName : String) : String :=
   ProofForge.Backend.Evm.ToYul.entrypointFunctionName moduleName entrypointName
 
-def validateEventName (name : String) : Except LowerError Unit := do
-  if name.toUTF8.size == 0 then
-    .error { message := "event name must be non-empty for IR EVM v0" }
-
-partial def eventSignatureFieldType (module : Module) (eventName fieldName : String) (type : ValueType) : Except LowerError String :=
-  let erc20FieldType? : Option String :=
-    if eventName == "Transfer" then
-      if fieldName == "from" || fieldName == "to" then some "address"
-      else if fieldName == "value" then some "uint256" else none
-    else if eventName == "Approval" then
-      if fieldName == "owner" || fieldName == "spender" then some "address"
-      else if fieldName == "value" then some "uint256" else none
-    else none
-  match erc20FieldType? with
-  | some abiType => .ok abiType
-  | none =>
-  match type with
-  | .u32 => .ok "uint32"
-  | .u64 => .ok "uint64"
-  | .bool => .ok "bool"
-  | .hash => .ok "bytes32"
-  | .address => .ok "address"
-  | .u8 => .ok "uint8"
-  | .u128 => .ok "uint128"
-  | .bytes => .ok "bytes"
-  | .string => .ok "string"
-  | .array _ =>
-      .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `Array`; dynamic arrays are not supported in EVM event signatures" }
-  | .fixedArray elementType length => do
-      if length == 0 then
-        .error { message := s!"event `{eventName}` field `{fieldName}` uses Array<{elementType.name},0>; event fixed arrays must have non-zero length" }
-      match elementType with
-      | .fixedArray _ _ => do
-          let elementName ← eventSignatureFieldType module eventName fieldName elementType
-          .ok (elementName ++ s!"[{length}]")
-      | .structType typeName => do
-          let some decl := module.structs.find? fun decl => decl.name == typeName
-            | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
-          if decl.fields.isEmpty then
-            .error { message := s!"event `{eventName}` field `{fieldName}` uses empty struct `{typeName}`; event structs must have at least one field" }
-          let mut parts := #[]
-          for field in decl.fields do
-            match field.type with
-            | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-                parts := parts.push (← eventSignatureFieldType module eventName s!"{fieldName}.{field.id}" field.type)
-            | .unit | .fixedArray _ _ | .structType _ | .bytes | .string | .array _ =>
-                .error {
-                  message := s!"event `{eventName}` field `{fieldName}` struct `{typeName}` field `{field.id}` has unsupported EVM IR v0 event type `{field.type.name}`; event structs must be flat U32, U64, Bool, or Hash fields"
-                }
-          .ok ("(" ++ String.intercalate "," parts.toList ++ ")" ++ s!"[{length}]")
-      | _ => do
-          let elementName ← eventSignatureFieldType module eventName fieldName elementType
-          .ok (elementName ++ s!"[{length}]")
-  | .structType typeName => do
-      let some decl := module.structs.find? fun decl => decl.name == typeName
-        | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
-      if decl.fields.isEmpty then
-        .error { message := s!"event `{eventName}` field `{fieldName}` uses empty struct `{typeName}`; event structs must have at least one field" }
-      let mut parts := #[]
-      for field in decl.fields do
-        match field.type with
-        | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-            parts := parts.push (← eventSignatureFieldType module eventName s!"{fieldName}.{field.id}" field.type)
-        | .unit | .fixedArray _ _ | .structType _ | .bytes | .string | .array _ =>
-            .error {
-              message := s!"event `{eventName}` field `{fieldName}` struct `{typeName}` field `{field.id}` has unsupported EVM IR v0 event type `{field.type.name}`; event structs must be flat U32, U64, Bool, or Hash fields"
-            }
-      .ok ("(" ++ String.intercalate "," parts.toList ++ ")")
-  | .unit =>
-      .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event fields must be U32, U64, Bool, Hash, Address, flat structs, or fixed arrays" }
-
 def ensureIndexedEventFieldType
     (module : Module)
     (eventName fieldName : String)
     (type : ValueType) : Except LowerError Unit := do
-  discard <| eventSignatureFieldType module eventName fieldName type
+  discard <| lowerValidate <| ProofForge.Backend.Evm.Validate.eventSignatureFieldType module eventName fieldName type
 
 def storagePathMapKeys? (path : Array StoragePathSegment) : Option (Array ProofForge.IR.Expr) :=
   if path.isEmpty then
@@ -1264,13 +1193,14 @@ def eventSignature
     (env : TypeEnv)
     (name : String)
     (fields : Array (String × ProofForge.IR.Expr)) : Except LowerError String := do
-  validateEventName name
+  lowerValidate <| ProofForge.Backend.Evm.Validate.validateEventName name
   let _ ← fields.foldlM (init := #[]) fun seen field =>
     lowerValidate <| ProofForge.Backend.Evm.Validate.validateDistinctEventFieldName name seen field.fst
   let mut typeNames := #[]
   for field in fields do
     let actual ← inferEventFieldExprType module env field.snd
-    typeNames := typeNames.push (← eventSignatureFieldType module name field.fst actual)
+    typeNames := typeNames.push
+      (← lowerValidate <| ProofForge.Backend.Evm.Validate.eventSignatureFieldType module name field.fst actual)
   .ok (name ++ "(" ++ String.intercalate "," typeNames.toList ++ ")")
 
 def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Except LowerError Unit
@@ -2954,7 +2884,7 @@ partial def lowerEventStructDataWords
     (env : TypeEnv)
     (eventName fieldName typeName : String)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-  discard <| eventSignatureFieldType module eventName fieldName (.structType typeName)
+  discard <| lowerValidate <| ProofForge.Backend.Evm.Validate.eventSignatureFieldType module eventName fieldName (.structType typeName)
   let some decl := module.structs.find? fun decl => decl.name == typeName
     | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
   match value with
@@ -2992,7 +2922,7 @@ partial def lowerEventFixedArrayDataWords
     (elementType : ValueType)
     (length : Nat)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-  discard <| eventSignatureFieldType module eventName fieldName (.fixedArray elementType length)
+  discard <| lowerValidate <| ProofForge.Backend.Evm.Validate.eventSignatureFieldType module eventName fieldName (.fixedArray elementType length)
   match elementType with
   | .fixedArray nestedElementType nestedLength => do
       match value with
