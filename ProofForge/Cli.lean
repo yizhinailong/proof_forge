@@ -33,6 +33,7 @@ import ProofForge.Cli.Fixture
 import ProofForge.Cli.Scaffold
 import ProofForge.Cli.Deploy
 import ProofForge.Cli.Check
+import ProofForge.Cli.Metadata
 import ProofForge.Compiler.TS.AST
 import ProofForge.Compiler.TS.Printer
 import ProofForge.Compiler.TS.Emit
@@ -5971,6 +5972,12 @@ unsafe def main (args : List String) : IO UInt32 := do
   | "deploy" :: rest =>
     match ProofForge.Cli.Deploy.parseDeployOptions rest with
     | Except.ok opts => ProofForge.Cli.Deploy.deployCommand opts
+    | Except.error msg =>
+        IO.eprintln msg
+        return 1
+  | "metadata" :: rest =>
+    match ProofForge.Cli.Metadata.parseMetadataOptions rest with
+    | Except.ok opts => ProofForge.Cli.Metadata.metadataCommand opts
     | Except.error msg =>
         IO.eprintln msg
         return 1
