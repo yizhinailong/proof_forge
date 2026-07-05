@@ -20,6 +20,10 @@ open ProofForge.Backend.Evm.Validate (needsCheckedArithmetic exprUsesCheckedArit
 
 open ProofForge.IR
 open ProofForge.Target
+open ProofForge.Backend.Evm.Validate
+open ProofForge.Backend.Evm.ToYul
+open ProofForge.Backend.Evm.Lower
+open ProofForge.Backend.Evm.Plan
 
 structure LowerError where
   message : String
@@ -1560,6 +1564,8 @@ mutual
         let loopEnv ← addLocal env indexName .u32 false
         discard <| validateStatements module entrypoint loopEnv body
         .ok env
+    | .whileLoop _ _ =>
+        .error { message := "while loops are not supported by EVM IR v0; use boundedFor" }
     | .return value => do
         ensureType "return value" entrypoint.returns (← inferExprType module env value)
         .ok env
@@ -5576,6 +5582,8 @@ mutual
             | .error _ => fallback
         | none =>
             fallback
+    | .whileLoop _ _ =>
+        .error { message := "while loops are not supported by EVM IR v0; use boundedFor" }
     | .return value => do
         .ok (← lowerReturnStmt module env entrypointName returnType value leaveAfterReturn, env)
 end
@@ -5973,6 +5981,7 @@ mutual
         exprUsesCheckedArithmetic c || thenBody.any stmtUsesCheckedArithmetic
           || elseBody.any stmtUsesCheckedArithmetic
     | .boundedFor _ _ _ body => body.any stmtUsesCheckedArithmetic
+    | .whileLoop c body => exprUsesCheckedArithmetic c || body.any stmtUsesCheckedArithmetic
 end
 
 def moduleUsesCheckedArithmetic (module : Module) : Bool :=
