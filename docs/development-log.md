@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Event Field Provider Routing
+
+Commit: 3e5ee25
+
+Summary:
+
+- Added ToYul-level event field provider helpers for planned event data words,
+  indexed-topic statements, and scalar-body event effects.
+- Replaced the `IR.lean` indexed event loop and separate data/topic callbacks
+  with a single field-word provider passed into
+  `ToYul.eventEffectStmtPlanStatementsFromProvider`.
+- Added direct semantic-plan coverage proving the helper routes provider
+  outputs into both indexed topic declarations and event data stores.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Event field word expression construction still comes from a provider callback;
+  this slice moved count checks and indexed/data routing behind ToYul.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving event field word construction itself behind the
+  `EventPlan -> ToYul` boundary.
+
 ### EVM StmtPlan Event Effect Frames
 
 Commit: 930fe15
