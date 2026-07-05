@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM ToYul Planned Event Field Lowering
+
+Commit: cd35c6c
+
+Summary:
+
+- Added `ToYul.eventFieldsDataWordsFromPlan` and
+  `ToYul.eventIndexedTopicStatementsFromPlans` so planned scalar event field
+  data words and indexed topics are assembled on the `ToYul` side.
+- Removed the duplicate planned scalar event field helper implementations from
+  `IR.lean`; the compatibility facade now only supplies the `ExprPlan` lowering
+  callback.
+- Extended `Tests/EvmSemanticPlan.lean` with direct coverage for the new
+  `EventFieldPlan -> ToYul` helpers and kept the existing scalar event
+  integration checks.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Entrypoint-level aggregate event data-word flattening and indexed aggregate
+  topic hashing still live in `IR.lean`.
+
+Next step:
+
+- Extract aggregate event data-word planning or indexed aggregate topic hashing
+  behind an explicit event-field plan boundary.
+
 ### EVM IR Event Signature Validation Cleanup
 
 Commit: e00e657
