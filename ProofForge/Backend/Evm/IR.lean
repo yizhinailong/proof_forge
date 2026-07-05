@@ -2007,12 +2007,28 @@ mutual
     let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.arraySlotPlan module stateId index
     lowerStorageSlotPlanExpr module env plan
 
-  partial def lowerArrayReadExpr
+  partial def lowerArrayReadExprFallback
       (module : Module)
       (env : TypeEnv)
       (stateId : String)
       (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerArraySlotExpr module env stateId index])
+
+  partial def lowerArrayReadExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (index : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storageArrayRead stateId index) with
+    | .ok (.storageArrayReadTarget target indexPlan) =>
+        ProofForge.Backend.Evm.ToYul.arrayReadTargetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          target
+          indexPlan
+    | .ok _ | .error _ =>
+        lowerArrayReadExprFallback module env stateId index
 
   partial def lowerStructFieldSlotExpr
       (module : Module)
@@ -2737,6 +2753,13 @@ mutual
             ProofForge.Backend.Evm.Plan.Helper.arraySlot
             #[slotExpr rootSlot, Lean.Compiler.Yul.Expr.num length, indexExpr]
         .ok (Lean.Compiler.Yul.builtin "sload" #[elementSlot])
+    | .storageArrayReadTarget target index =>
+        ProofForge.Backend.Evm.ToYul.arrayReadTargetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          target
+          index
     | .storageStructFieldRead stateId fieldName => do
         let (slot, _) ← requireStructStateField module stateId fieldName
         .ok (Lean.Compiler.Yul.builtin "sload" #[slotExpr slot])
@@ -5129,6 +5152,7 @@ mutual
     | .storageMapContains _ key
     | .storageMapGet _ key => exprPlanSupportsScalarBody key
     | .storageArrayRead _ index => exprPlanSupportsScalarBody index
+    | .storageArrayReadTarget _ index => exprPlanSupportsScalarBody index
     | .storageStructFieldRead _ _ => true
     | .storageArrayStructFieldRead _ index _ => exprPlanSupportsScalarBody index
     | .storagePathRead _ path => storagePathSupportsScalarBody path

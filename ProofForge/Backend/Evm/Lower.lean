@@ -45,6 +45,11 @@ def arrayWriteTargetPlan? (module : Module) (stateId : String) : Option ArrayWri
   | .ok target => some target
   | .error _ => none
 
+def arrayReadTargetPlan? (module : Module) (stateId : String) : Option ArrayReadTargetPlan :=
+  match arrayReadTargetPlan module stateId with
+  | .ok target => some target
+  | .error _ => none
+
 def abiParamPlan
     (module : Module)
     (context : String)
@@ -446,7 +451,10 @@ mutual
         | some target => .ok (.storageMapSetTarget target keyPlan valuePlan)
         | none => .ok (.storageMapSet stateId keyPlan valuePlan)
     | .storageArrayRead stateId index => do
-        .ok (.storageArrayRead stateId (← buildExprPlan module env index))
+        let indexPlan ← buildExprPlan module env index
+        match arrayReadTargetPlan? module stateId with
+        | some target => .ok (.storageArrayReadTarget target indexPlan)
+        | none => .ok (.storageArrayRead stateId indexPlan)
     | .storageArrayWrite stateId index value => do
         let indexPlan ← buildExprPlan module env index
         let valuePlan ← buildExprPlan module env value

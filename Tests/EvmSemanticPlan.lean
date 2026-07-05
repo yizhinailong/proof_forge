@@ -102,6 +102,13 @@ def requireArrayWriteTarget
   require (target.rootSlot == expectedRootSlot) s!"{label} root slot"
   require (target.length == expectedLength) s!"{label} length"
 
+def requireArrayReadTarget
+    (target : ArrayReadTargetPlan)
+    (expectedRootSlot expectedLength : Nat)
+    (label : String) : IO Unit := do
+  require (target.rootSlot == expectedRootSlot) s!"{label} root slot"
+  require (target.length == expectedLength) s!"{label} length"
+
 def requireIdentExpr
     (expr : Lean.Compiler.Yul.Expr)
     (expectedName : String)
@@ -3430,6 +3437,61 @@ def testMapWritePlanToYul : IO Unit := do
       | _ => throw <| IO.userError "map set-return value must be plan-lowered checked add"
   | _ => throw <| IO.userError "map set-return plan-to-yul must lower to helper call"
 
+def testArrayReadPlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let loweredArrayReadEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      (toValidateTypeEnv env)
+      (.storageArrayRead "values" (.literal (.u64 1))))
+    "Lower array read target effect plan"
+  match loweredArrayReadEffect with
+  | .storageArrayReadTarget target (.literalWord indexValue) => do
+      requireArrayReadTarget target 1 3 "Lower array read target"
+      require (indexValue == 1) "Lower array read target index"
+  | _ => throw <| IO.userError "Lower array read must produce storageArrayReadTarget"
+  let directReadExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.arrayReadTargetExpr
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env)
+      { rootSlot := 1, length := 3 }
+      (.checkedArith .add (.literalWord 1) (.literalWord 1)))
+    "planned array read target expr-to-Yul helper"
+  match directReadExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "planned array read target sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == arraySlotFunctionName) "planned array read target slot helper"
+          require (slotArgs.size == 3) "planned array read target slot arg count"
+          match slotArgs[0]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "1") "planned array read target root slot"
+          | _ => throw <| IO.userError "planned array read target root slot must be literal"
+          match slotArgs[1]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "3") "planned array read target length"
+          | _ => throw <| IO.userError "planned array read target length must be literal"
+          match slotArgs[2]! with
+          | Lean.Compiler.Yul.Expr.call addName addArgs => do
+              require (addName == "__pf_checked_add") "planned array read target index checked add"
+              require (addArgs.size == 2) "planned array read target index checked add arg count"
+          | _ => throw <| IO.userError "planned array read target index must be checked add"
+      | _ => throw <| IO.userError "planned array read target slot must use array helper"
+  | _ => throw <| IO.userError "planned array read target must lower to sload"
+  let readExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      env
+      (.effect (.storageArrayRead "values" (.add (.literal (.u64 1)) (.literal (.u64 1))))))
+    "array read expression plan-to-yul"
+  match readExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "array read expression sload arg count"
+      requireCallExpr args[0]! arraySlotFunctionName 3 "array read expression slot helper"
+  | _ => throw <| IO.userError "array read expression must lower to sload"
+
 def testArrayWritePlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
   let directWriteStmts ← requireOk
@@ -4386,6 +4448,7 @@ def main : IO UInt32 := do
   testScalarEventPlanToYul
   testScalarStorageEffectPlanToYul
   testMapWritePlanToYul
+  testArrayReadPlanToYul
   testArrayWritePlanToYul
   testStructFieldWritePlanToYul
   testWholeStructStorageWritePlanToYul

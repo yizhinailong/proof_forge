@@ -229,6 +229,11 @@ structure ArrayWriteTargetPlan where
   length : Nat
   deriving Repr
 
+structure ArrayReadTargetPlan where
+  rootSlot : Nat
+  length : Nat
+  deriving Repr
+
 def requireState (module : Module) (stateId : String) : Except PlanError (Nat × StateDecl) :=
   match stateInfo? module stateId with
   | some info => .ok info
@@ -362,6 +367,10 @@ def requireArrayState (module : Module) (stateId : String) : Except PlanError (N
       .error { message := s!"EVM storage state '{stateId}' is not an array" }
 
 def arrayWriteTargetPlan (module : Module) (stateId : String) : Except PlanError ArrayWriteTargetPlan := do
+  let (rootSlot, length, _) ← requireArrayState module stateId
+  .ok { rootSlot, length }
+
+def arrayReadTargetPlan (module : Module) (stateId : String) : Except PlanError ArrayReadTargetPlan := do
   let (rootSlot, length, _) ← requireArrayState module stateId
   .ok { rootSlot, length }
 
@@ -655,6 +664,7 @@ mutual
     | storageMapSet (stateId : String) (key value : ExprPlan)
     | storageMapSetTarget (target : MapWriteTargetPlan) (key value : ExprPlan)
     | storageArrayRead (stateId : String) (index : ExprPlan)
+    | storageArrayReadTarget (target : ArrayReadTargetPlan) (index : ExprPlan)
     | storageArrayWrite (stateId : String) (index value : ExprPlan)
     | storageArrayWriteTarget (target : ArrayWriteTargetPlan) (index value : ExprPlan)
     | storageArrayStructFieldRead (stateId : String) (index : ExprPlan) (fieldName : String)
