@@ -140,19 +140,6 @@ def ensureIndexedEventFieldType
     (type : ValueType) : Except LowerError Unit := do
   discard <| eventSignatureFieldType module eventName fieldName type
 
-def validateEventFieldName (eventName fieldName : String) : Except LowerError Unit :=
-  if fieldName.isEmpty then
-    .error { message := s!"event `{eventName}` field name must be non-empty" }
-  else
-    .ok ()
-
-def validateDistinctEventFieldName (eventName : String) (seen : Array String) (fieldName : String) : Except LowerError (Array String) := do
-  validateEventFieldName eventName fieldName
-  if seen.contains fieldName then
-    .error { message := s!"duplicate event `{eventName}` field name `{fieldName}`" }
-  else
-    .ok (seen.push fieldName)
-
 def storagePathMapKeys? (path : Array StoragePathSegment) : Option (Array ProofForge.IR.Expr) :=
   if path.isEmpty then
     none
@@ -161,12 +148,6 @@ def storagePathMapKeys? (path : Array StoragePathSegment) : Option (Array ProofF
       match acc, segment with
       | some keys, .mapKey key => some (keys.push key)
       | _, _ => none
-
-def validateIndexedEventFieldCount (eventName : String) (count : Nat) : Except LowerError Unit :=
-  if count > 3 then
-    .error { message := s!"event `{eventName}` has {count} indexed field(s); EVM IR v0 supports at most 3 indexed fields" }
-  else
-    .ok ()
 
 def revertStmt : Lean.Compiler.Yul.Statement :=
   ProofForge.Backend.Evm.ToYul.revertStatement
@@ -1285,7 +1266,7 @@ def eventSignature
     (fields : Array (String × ProofForge.IR.Expr)) : Except LowerError String := do
   validateEventName name
   let _ ← fields.foldlM (init := #[]) fun seen field =>
-    validateDistinctEventFieldName name seen field.fst
+    lowerValidate <| ProofForge.Backend.Evm.Validate.validateDistinctEventFieldName name seen field.fst
   let mut typeNames := #[]
   for field in fields do
     let actual ← inferEventFieldExprType module env field.snd
@@ -1345,7 +1326,7 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
   | .eventEmit name fields => do
       discard <| eventSignature module env name fields
   | .eventEmitIndexed name indexedFields dataFields => do
-      validateIndexedEventFieldCount name indexedFields.size
+      lowerValidate <| ProofForge.Backend.Evm.Validate.validateIndexedEventFieldCount name indexedFields.size
       for field in indexedFields do
         ensureIndexedEventFieldType module name field.fst (← inferEventFieldExprType module env field.snd)
       discard <| eventSignature module env name (indexedFields ++ dataFields)
