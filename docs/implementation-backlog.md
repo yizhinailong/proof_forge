@@ -440,8 +440,9 @@ Tasks:
     `ModulePlan` entrypoint bodies for the already-supported scalar-body subset
     plus aggregate event word effects whose per-word `ExprPlan`s are supported,
     dynamic local returns, and aggregate local/literal return word assignments,
-    plus storage-backed struct scalar return word assignments, before falling
-    back to the portable IR body path for unsupported shapes.
+    storage-backed struct scalar return word assignments, and planned aggregate
+    crosscall return assignments, before falling back to the portable IR body
+    path for unsupported shapes.
     The IR facade conversion remains only on compatibility event statement
     paths outside that planned-body subset.
     Planned scalar-body event effects now route through

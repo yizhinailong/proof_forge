@@ -1413,6 +1413,32 @@ def aggregateCrosscallReturnAssignmentPlan?
         .ok (some plan)
     | _ => .ok none
 
+def aggregateCrosscallReturnAssignmentPlanFromExprPlan?
+    (module : Module)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : ExprPlan) :
+    Except LowerError (Option CrosscallReturnAssignmentPlan) := do
+  match returnType with
+  | .fixedArray _ _ | .structType _ =>
+      match value with
+      | .crosscall mode target methodId callValue? args callReturnType => do
+          ensureType s!"entrypoint `{entrypointName}` aggregate crosscall return type"
+            returnType
+            callReturnType
+          let returns ← crosscallReturnPlan module s!"entrypoint `{entrypointName}` return value" returnType
+          .ok (some {
+            returns
+            mode
+            target
+            methodId
+            callValue?
+            args
+          })
+      | _ => .ok none
+  | .unit | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .bytes | .string | .array _ =>
+      .ok none
+
 def returnValueWordPlan?
     (module : Module)
     (env : TypeEnv)

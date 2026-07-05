@@ -5007,6 +5007,14 @@ partial def exprPlanSupportsAggregateReturnBody
   | .fixedArray elementType length =>
       match value with
       | .local _ => true
+      | .crosscall _ target methodId callValue? args callReturnType =>
+          callReturnType == returnType &&
+            exprPlanSupportsScalarBody target &&
+            exprPlanSupportsScalarBody methodId &&
+            (match callValue? with
+             | none => true
+             | some callValue => exprPlanSupportsScalarBody callValue) &&
+            args.all crosscallArgWordPlanSupportsScalarBody
       | .arrayLit literalElementType values =>
           literalElementType == elementType &&
             values.size == length &&
@@ -5016,6 +5024,14 @@ partial def exprPlanSupportsAggregateReturnBody
       match value with
       | .local _ => true
       | .effect (.storageScalarRead _) => true
+      | .crosscall _ target methodId callValue? args callReturnType =>
+          callReturnType == returnType &&
+            exprPlanSupportsScalarBody target &&
+            exprPlanSupportsScalarBody methodId &&
+            (match callValue? with
+             | none => true
+             | some callValue => exprPlanSupportsScalarBody callValue) &&
+            args.all crosscallArgWordPlanSupportsScalarBody
       | .structLit _ fields =>
           fields.all fun field => exprPlanSupportsScalarBody field.snd
       | _ => false
@@ -5268,16 +5284,28 @@ def lowerAggregateReturnStmtPlan
     (value : ProofForge.Backend.Evm.Plan.ExprPlan)
     (leaveAfterReturn : Bool) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let plan ←
-    match ProofForge.Backend.Evm.Lower.returnValueWordPlanFromExprPlan
+  let crosscallPlan? ←
+    match ProofForge.Backend.Evm.Lower.aggregateCrosscallReturnAssignmentPlanFromExprPlan?
         module
-        (toValidateTypeEnv env)
         entrypointName
         returnType
         value with
-    | .ok plan => .ok plan
+    | .ok plan? => .ok plan?
     | .error err => .error { message := err.message }
-  let statements ← lowerReturnValueWordPlan module env entrypointName plan
+  let statements ←
+    match crosscallPlan? with
+    | some plan => .ok #[← lowerCrosscallReturnAssignmentPlan module env plan]
+    | none => do
+        let plan ←
+          match ProofForge.Backend.Evm.Lower.returnValueWordPlanFromExprPlan
+              module
+              (toValidateTypeEnv env)
+              entrypointName
+              returnType
+              value with
+          | .ok plan => .ok plan
+          | .error err => .error { message := err.message }
+        lowerReturnValueWordPlan module env entrypointName plan
   .ok <| if leaveAfterReturn then statements.push .leave else statements
 
 mutual

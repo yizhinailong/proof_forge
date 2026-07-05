@@ -156,6 +156,34 @@ def blockHasAssignmentSloadSlot
           | none => false
     | _ => false
 
+def exprsAreNatLiterals
+    (args : Array Lean.Compiler.Yul.Expr)
+    (expected : Array Nat) : Bool :=
+  args.size == expected.size &&
+    Id.run do
+      let mut ok := true
+      for h : idx in [0:args.size] do
+        match expected[idx]? with
+        | some value =>
+            if ok && !exprIsNatLiteral args[idx] value then
+              ok := false
+        | none =>
+            ok := false
+      ok
+
+def blockHasAssignmentCallNatArgs
+    (block : Lean.Compiler.Yul.Block)
+    (targetNames : Array String)
+    (functionName : String)
+    (expectedArgs : Array Nat) : Bool :=
+  block.statements.any fun stmt =>
+    match stmt with
+    | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) =>
+        names == targetNames &&
+          name == functionName &&
+          exprsAreNatLiterals args expectedArgs
+    | _ => false
+
 mutual
   partial def blockHasSstore (block : Lean.Compiler.Yul.Block) : Bool :=
     block.statements.any statementHasSstore
@@ -829,6 +857,52 @@ def testPlannedCrosscallHelperDiscoveryToYul : IO Unit := do
       require (name == "__proof_forge_crosscall_0_abi_bool_u32") "aggregate crosscall return assignment integration helper name"
       require (args.size == 2) "aggregate crosscall return assignment integration arg count"
   | _ => throw <| IO.userError "aggregate crosscall return assignment integration must assign aggregate helper call"
+  let plannedAggregateCrosscallExpr ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      (toValidateTypeEnv (entrypointTypeEnv ProofForge.IR.Examples.EvmCrosscallProbe.callRemotePair))
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.local "method")
+        #[]
+        (.structType "RemotePair")))
+    "planned aggregate crosscall return ExprPlan"
+  let plannedAggregateAssignmentPlan? ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.aggregateCrosscallReturnAssignmentPlanFromExprPlan?
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      "call_remote_pair"
+      (.structType "RemotePair")
+      plannedAggregateCrosscallExpr)
+    "planned aggregate crosscall return assignment plan"
+  let plannedAggregateAssignmentPlan ← requireSome
+    plannedAggregateAssignmentPlan?
+    "planned aggregate crosscall return assignment plan must be present"
+  require
+    (plannedAggregateAssignmentPlan.mode == ProofForge.Backend.Evm.Plan.CrosscallMode.call)
+    "planned aggregate crosscall return assignment plan mode"
+  require
+    (plannedAggregateAssignmentPlan.returns.wordTypes == #[.bool, .u32])
+    "planned aggregate crosscall return assignment plan word layout"
+  let plannedAggregateReturnStmts ←
+    requireOk
+      (lowerAggregateReturnStmtPlan
+        ProofForge.IR.Examples.EvmCrosscallProbe.module
+        (entrypointTypeEnv ProofForge.IR.Examples.EvmCrosscallProbe.callRemotePair)
+        "call_remote_pair"
+        (.structType "RemotePair")
+        plannedAggregateCrosscallExpr
+        false)
+      "planned aggregate crosscall return plan-to-yul"
+  require (plannedAggregateReturnStmts.size == 1)
+    "planned aggregate crosscall return plan-to-yul statement count"
+  match plannedAggregateReturnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["__proof_forge_return_0", "__proof_forge_return_1"])
+        "planned aggregate crosscall return plan-to-yul return names"
+      require (name == "__proof_forge_crosscall_0_abi_bool_u32")
+        "planned aggregate crosscall return plan-to-yul helper name"
+      require (args.size == 2) "planned aggregate crosscall return plan-to-yul arg count"
+  | _ => throw <| IO.userError "planned aggregate crosscall return plan-to-yul must assign aggregate helper call"
 
 def testPlannedCreateAndNativeHelperDiscoveryToYul : IO Unit := do
   let plan ←
@@ -1258,6 +1332,49 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
     "plan-driven entrypoint lowering must consume storage struct return slot 2"
   require (!blockHasSstore alteredWholeStructBody)
     "plan-driven storage struct return body must not fall back to portable IR storage writes"
+  let crosscallPlan ← requireOk
+    (buildSemanticPlan ProofForge.IR.Examples.EvmCrosscallProbe.module)
+    "crosscall aggregate return plan"
+  let alteredCrosscallEntrypoints := crosscallPlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "call_remote_pair" then
+      { entrypoint with
+        body := #[
+          StmtPlan.return
+            (ExprPlan.crosscall
+              ProofForge.Backend.Evm.Plan.CrosscallMode.call
+              (ExprPlan.literalWord 111)
+              (ExprPlan.literalWord 222)
+              none
+              #[]
+              (.structType "RemotePair"))
+        ]
+      }
+    else
+      entrypoint
+  let alteredCrosscallPlan :=
+    { crosscallPlan with entrypoints := alteredCrosscallEntrypoints }
+  let alteredCrosscallObject ← requireOk
+    (lowerModuleWithPlan
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      alteredCrosscallPlan)
+    "crosscall aggregate altered return plan-driven module lowering"
+  let alteredCallRemotePairEntrypoint ← requireSome
+    (alteredCrosscallPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "call_remote_pair"))
+    "crosscall aggregate altered plan missing call_remote_pair entrypoint"
+  let alteredCallRemotePairFunctionName :=
+    ProofForge.Backend.Evm.ToYul.entrypointPlanFunctionName
+      ProofForge.IR.Examples.EvmCrosscallProbe.module.name
+      alteredCallRemotePairEntrypoint
+  let alteredCallRemotePairBody ← requireSome
+    (functionBody? alteredCrosscallObject.code.statements alteredCallRemotePairFunctionName)
+    "crosscall aggregate altered plan function body missing"
+  require
+    (blockHasAssignmentCallNatArgs
+      alteredCallRemotePairBody
+      #["__proof_forge_return_0", "__proof_forge_return_1"]
+      "__proof_forge_crosscall_0_abi_bool_u32"
+      #[111, 222])
+    "plan-driven entrypoint lowering must consume aggregate crosscall return ModulePlan body"
   let transferEntrypoint ← requireSome
     (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "transfer"))
     "dynamic ABI plan missing transfer entrypoint"
