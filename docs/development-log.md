@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Planned Storage-Array Helper Discovery Slice
+
+Commit: 0f30959
+
+Summary:
+
+- Extended the complete-plan helper scanner to detect storage fixed-array,
+  dynamic-array, and struct-array slot helper requirements from planned
+  `EntrypointPlan.body` trees.
+- Replaced state-shape-derived helper requirements for complete module plans, so
+  unused storage array declarations no longer emit `arraySlot`,
+  `dynamicArraySlot`, or `structArraySlot` helpers.
+- Added semantic-plan tests for unused fixed-array, dynamic-array, and
+  struct-array state plus positive coverage for existing storage array fixtures.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+```
+
+Known limitations:
+
+- Base and incomplete/best-effort plans still use the raw helper scanner; the
+  complete-plan override now covers memory-array, hash, and storage-array
+  helper subsets.
+- Map helper discovery is still broader and remains a separate follow-up slice.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue the EVM semantic-plan migration by moving the next small
+  compatibility boundary from raw `IR.lean` into `Lower -> Plan -> ToYul`.
+
 ### EVM Planned Hash Helper Discovery Slice
 
 Commit: e5b14f3
