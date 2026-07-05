@@ -16487,3 +16487,44 @@ Result:
   locally.
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Local Crosscall WordPlan Slice
+
+Commit: 374d5fb
+
+Summary:
+
+- Added `Lower.localCrosscallWordPlans` so local aggregate crosscall arguments
+  expand into explicit planned local word expressions before ToYul.
+- Routed local struct and fixed-array crosscall argument lowering through
+  `CrosscallArgWordPlan.expr (.local ...)` word plans instead of active-path
+  `CrosscallArgWordPlan.local` provider markers.
+- Updated semantic-plan coverage for planned-body crosscall returns and direct
+  scalar expression crosscalls to assert local aggregate arguments carry
+  concrete local word plans.
+- Updated the implementation backlog and Chinese backlog note to record the
+  local crosscall source boundary change.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+just evm-smoke crosscall
+git diff --check
+```
+
+Result:
+
+- Local aggregate crosscall arguments now enter ToYul as planned local word
+  expressions instead of local source callbacks on the active Lower path.
+- EVM semantic-plan tests, EVM plan tests, crosscall IR smoke, EVM diagnostics,
+  i18n sync, JSON validation, full Lake build, and whitespace checks passed
+  locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
