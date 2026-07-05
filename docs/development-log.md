@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM StmtPlan Revert Frames
+
+Commit: 90d5368
+
+Summary:
+
+- Added `ToYul.revertStmtPlanStatements` for planned `StmtPlan.revert` and
+  `StmtPlan.revertWithError` frames.
+- Routed planned scalar body reverts and ordinary IR revert statements through
+  the new ToYul helper instead of assembling empty/message/ErrorRef reverts
+  directly in `IR.lean`.
+- Kept ErrorRef payload construction as a callback so target-specific error
+  encoding remains outside the generic statement-frame helper.
+- Added direct semantic-plan tests for empty revert, message revert, and
+  callback-provided ErrorRef revert lowering.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/errors-ir-smoke.sh
+scripts/evm/assert-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- ErrorRef payload memory layout still lives in the EVM compatibility facade
+  callback; only the `StmtPlan` frame selection moved behind ToYul.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving remaining planned scalar body frames and unsupported statement
+  shapes from `IR.lean` into dedicated ToYul helpers.
+
 ### EVM StmtPlan Body Sequencing
 
 Commit: 50d2c4a
