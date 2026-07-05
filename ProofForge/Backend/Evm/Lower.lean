@@ -439,6 +439,52 @@ def eventFieldsDataWordPlans
     plans := plans ++ (← eventFieldDataWordPlans module env eventName fields[idx] value)
   .ok plans
 
+def eventFieldWordPlans
+    (module : Module)
+    (env : TypeEnv)
+    (eventName : String)
+    (field : EventFieldPlan)
+    (value : AbiValuePlan) : Except LowerError (Array ExprPlan) :=
+  eventFieldDataWordPlans module env eventName field value
+
+def eventFieldsWordPlans
+    (module : Module)
+    (env : TypeEnv)
+    (event : EventPlan)
+    (fields : Array EventFieldPlan)
+    (values : Array AbiValuePlan) :
+    Except LowerError (Array (Array ExprPlan)) := do
+  if fields.size != values.size then
+    .error {
+      message := s!"planned scalar control-flow event `{event.name}` field/value count mismatch"
+    }
+  let mut fieldWords : Array (Array ExprPlan) := #[]
+  for h : idx in [0:fields.size] do
+    let some value := values[idx]?
+      | .error {
+          message := s!"planned scalar control-flow event `{event.name}` missing field value at index {idx}"
+        }
+    fieldWords := fieldWords.push (← eventFieldWordPlans module env event.name fields[idx] value)
+  .ok fieldWords
+
+def eventEffectWordPlan
+    (module : Module)
+    (env : TypeEnv) :
+    EffectPlan → Except LowerError EffectPlan
+  | .eventEmit event dataFields => do
+      let dataFieldWords ← eventFieldsWordPlans module env event event.dataFields dataFields
+      .ok (.eventEmitWords event dataFieldWords)
+  | .eventEmitIndexed event indexedFields dataFields => do
+      let indexedFieldWords ← eventFieldsWordPlans module env event event.indexedFields indexedFields
+      let dataFieldWords ← eventFieldsWordPlans module env event event.dataFields dataFields
+      .ok (.eventEmitIndexedWords event indexedFieldWords dataFieldWords)
+  | .eventEmitWords event dataFieldWords =>
+      .ok (.eventEmitWords event dataFieldWords)
+  | .eventEmitIndexedWords event indexedFieldWords dataFieldWords =>
+      .ok (.eventEmitIndexedWords event indexedFieldWords dataFieldWords)
+  | _ =>
+      .error { message := "planned event lowering expected event emit effect" }
+
 def entrypointSelector (entrypoint : Entrypoint) : Except LowerError String :=
   match entrypoint.selector? with
   | some selector => .ok selector

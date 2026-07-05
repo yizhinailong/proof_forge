@@ -2823,59 +2823,17 @@ partial def lowerScalarAssertStmtPlanOrFallback
   | _ =>
       .error { message := "EVM StmtPlan-to-Yul scalar assertion lowering expected assert/assertEq" }
 
-def lowerEventFieldWordPlans
-    (module : Module)
-    (env : TypeEnv)
-    (eventName : String)
-    (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
-    (value : ProofForge.Backend.Evm.Plan.AbiValuePlan) :
-    Except LowerError (Array ProofForge.Backend.Evm.Plan.ExprPlan) :=
-  lowerValidate <|
-    ProofForge.Backend.Evm.Lower.eventFieldDataWordPlans
-      module
-      (toValidateTypeEnv env)
-      eventName
-      field
-      value
-
-def lowerEventFieldsWordPlans
-    (module : Module)
-    (env : TypeEnv)
-    (event : ProofForge.Backend.Evm.Plan.EventPlan)
-    (fields : Array ProofForge.Backend.Evm.Plan.EventFieldPlan)
-    (values : Array ProofForge.Backend.Evm.Plan.AbiValuePlan) :
-    Except LowerError (Array (Array ProofForge.Backend.Evm.Plan.ExprPlan)) := do
-  if fields.size != values.size then
-    .error {
-      message := s!"planned scalar control-flow event `{event.name}` field/value count mismatch"
-    }
-  let mut fieldWords : Array (Array ProofForge.Backend.Evm.Plan.ExprPlan) := #[]
-  for h : idx in [0:fields.size] do
-    let some value := values[idx]?
-      | .error {
-          message := s!"planned scalar control-flow event `{event.name}` missing field value at index {idx}"
-        }
-    fieldWords := fieldWords.push
-      (← lowerEventFieldWordPlans module env event.name fields[idx] value)
-  .ok fieldWords
-
 def lowerEventEffectWordPlan
     (module : Module)
     (env : TypeEnv) :
-    ProofForge.Backend.Evm.Plan.EffectPlan → Except LowerError ProofForge.Backend.Evm.Plan.EffectPlan
-  | .eventEmit event dataFields => do
-      let dataFieldWords ← lowerEventFieldsWordPlans module env event event.dataFields dataFields
-      .ok (.eventEmitWords event dataFieldWords)
-  | .eventEmitIndexed event indexedFields dataFields => do
-      let indexedFieldWords ← lowerEventFieldsWordPlans module env event event.indexedFields indexedFields
-      let dataFieldWords ← lowerEventFieldsWordPlans module env event event.dataFields dataFields
-      .ok (.eventEmitIndexedWords event indexedFieldWords dataFieldWords)
-  | .eventEmitWords event dataFieldWords =>
-      .ok (.eventEmitWords event dataFieldWords)
-  | .eventEmitIndexedWords event indexedFieldWords dataFieldWords =>
-      .ok (.eventEmitIndexedWords event indexedFieldWords dataFieldWords)
-  | _ =>
-      .error { message := "planned event lowering expected event emit effect" }
+    ProofForge.Backend.Evm.Plan.EffectPlan →
+      Except LowerError ProofForge.Backend.Evm.Plan.EffectPlan :=
+  fun effect =>
+    lowerValidate <|
+      ProofForge.Backend.Evm.Lower.eventEffectWordPlan
+        module
+        (toValidateTypeEnv env)
+        effect
 
 def lowerEventEmitCoreStmt
     (module : Module)

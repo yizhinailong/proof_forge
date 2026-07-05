@@ -3789,6 +3789,34 @@ def testScalarEventPlanToYul : IO Unit := do
       | some var => require (vars.size == 1 && var.name == "_indexed_topic0") "event indexed field plan-to-yul topic var"
       | none => throw <| IO.userError "event indexed field plan-to-yul topic missing var"
   | _ => throw <| IO.userError "event indexed field plan-to-yul topic must be var decl"
+  let directWordEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.eventEffectWordPlan
+      ProofForge.IR.Examples.EventProbe.evmModule
+      (toValidateTypeEnv env)
+      (.eventEmitIndexed
+        directEvent
+        #[AbiValuePlan.expr (.literalWord 7)]
+        #[AbiValuePlan.expr (.literalWord 13)]))
+    "event effect Lower word plan"
+  match directWordEffect with
+  | .eventEmitIndexedWords _ indexedWordPlans dataWordPlans => do
+      require (indexedWordPlans.size == 1) "event effect Lower indexed word field count"
+      require (dataWordPlans.size == 1) "event effect Lower data word field count"
+      match indexedWordPlans[0]? with
+      | some words =>
+          require (words.size == 1) "event effect Lower indexed word count"
+          match words[0]? with
+          | some (ExprPlan.literalWord 7) => pure ()
+          | _ => throw <| IO.userError "event effect Lower indexed word must be literal 7"
+      | none => throw <| IO.userError "event effect Lower missing indexed words"
+      match dataWordPlans[0]? with
+      | some words =>
+          require (words.size == 1) "event effect Lower data word count"
+          match words[0]? with
+          | some (ExprPlan.literalWord 13) => pure ()
+          | _ => throw <| IO.userError "event effect Lower data word must be literal 13"
+      | none => throw <| IO.userError "event effect Lower missing data words"
+  | _ => throw <| IO.userError "event effect Lower must emit eventEmitIndexedWords"
   let directEventEffectStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatements
       toYulError
