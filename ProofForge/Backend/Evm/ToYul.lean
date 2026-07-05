@@ -2134,7 +2134,7 @@ def eventIndexedTopicStatementsFromProvider
     statements := statements ++ (← eventIndexedTopicStatements mkError fields[idx] idx words)
   .ok statements
 
-def eventEffectStmtPlanStatementsFromProvider
+def eventEffectStmtPlanStatements
     {ε : Type}
     (mkError : String → ε)
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
@@ -2163,22 +2163,6 @@ def eventEffectStmtPlanStatementsFromProvider
         event
         event.dataFields
         dataFields
-      .ok #[← eventEmitCoreStatement mkError event indexedTopicStatements dataWords]
-  | _ =>
-      .error (mkError "EVM StmtPlan-to-Yul event effect lowering expected eventEmit/eventEmitIndexed")
-
-def eventEffectStmtPlanStatements
-    {ε : Type}
-    (mkError : String → ε)
-    (indexedTopicStatementsFor : EventPlan → Array AbiValuePlan → Except ε (Array Lean.Compiler.Yul.Statement))
-    (dataWordsFor : EventPlan → Array AbiValuePlan → Except ε (Array Lean.Compiler.Yul.Expr)) :
-    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
-  | .effect (.eventEmit event dataFields) => do
-      let dataWords ← dataWordsFor event dataFields
-      .ok #[← eventEmitCoreStatement mkError event #[] dataWords]
-  | .effect (.eventEmitIndexed event indexedFields dataFields) => do
-      let indexedTopicStatements ← indexedTopicStatementsFor event indexedFields
-      let dataWords ← dataWordsFor event dataFields
       .ok #[← eventEmitCoreStatement mkError event indexedTopicStatements dataWords]
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul event effect lowering expected eventEmit/eventEmitIndexed")

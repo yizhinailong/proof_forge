@@ -436,11 +436,11 @@ Tasks:
     `ExprPlan` word sequence until data-word and indexed-topic expression
     assembly move fully behind `EventPlan -> Yul`.
     Planned scalar-body event effects now route through
-    `ToYul.eventEffectStmtPlanStatementsFromProvider`, so `StmtPlan.effect`
+    `ToYul.eventEffectStmtPlanStatements`, so `StmtPlan.effect`
     selects `eventEmit`/`eventEmitIndexed` block construction behind ToYul,
     and ToYul owns field/value count checks, word-plan-to-Yul expression
     lowering, and indexed-topic/data routing while IR only supplies field word
-    plans.
+    plans. The earlier Yul-expression callback helper shape has been removed.
   - Started: event data-word store assembly and indexed scalar/aggregate topic
     assembly now consume `EventFieldPlan -> ToYul` helpers. Field expression
     evaluation and aggregate flattening still use the compatibility facade

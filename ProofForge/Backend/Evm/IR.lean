@@ -5092,7 +5092,7 @@ def lowerScalarEventEffectPlan
         event.name
         field
         value
-  ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatementsFromProvider
+  ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatements
     toYulError
     (lowerExprPlanExpr module env)
     fieldWordPlansFor

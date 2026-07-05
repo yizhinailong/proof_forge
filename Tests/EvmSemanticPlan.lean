@@ -3805,7 +3805,7 @@ def testScalarEventPlanToYul : IO Unit := do
     | _ =>
         .error (toYulError "event effect provider helper test expected literal word")
   let directEventEffectStmts ← requireOk
-    (ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatementsFromProvider
+    (ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatements
       toYulError
       simplePlanExpr
       directEventFieldWords
