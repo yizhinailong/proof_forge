@@ -17,6 +17,55 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Storage ABI Word Planning
+
+Commit: 28b588b
+
+Summary:
+
+- Added `Lower.storageAbiWordPlans` and `Lower.storageArrayAbiWordPlans` so
+  storage-backed return/event ABI word providers lower to explicit
+  `ExprPlan.storageLoad` word plans.
+- Routed `IR.lowerStorageAbiWords` and return/event ABI provider callbacks
+  through the new Lower planner before final Yul lowering.
+- Added semantic-plan coverage for storage fixed-array and storage struct-array
+  ABI word plans.
+- Updated the backlog and i18n manifest to record the narrower storage ABI
+  compatibility surface.
+
+Validation run:
+
+```sh
+lake build proof-forge
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+scripts/evm/abi-aggregate-ir-smoke.sh
+scripts/evm/array-abi-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+scripts/evm/event-ir-smoke.sh
+just evm-diagnostics
+```
+
+Known limitations:
+
+- Storage ABI values still enter `ToYul` through compatibility provider
+  callbacks for `ExprPlan.storageAbiWords`, but those callbacks now consume
+  Lower-planned `storageLoad` words.
+- Local ABI word emission still reaches `ToYul.localAbiWords` through
+  compatibility wrappers until those call sites consume richer semantic-plan
+  nodes directly.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue replacing compatibility provider callbacks for aggregate
+  return/event ABI emission with richer plan-level surfaces.
+
 ### EVM Local ABI Word Plan Validation
 
 Commit: c283ec7
