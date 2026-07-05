@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Struct Field Write Targets
+
+Commit: c56729e
+
+Summary:
+
+- Added `StructFieldWriteTargetPlan` so direct `storageStructFieldWrite`
+  effects carry the planned struct field storage slot after
+  `Lower.buildEffectPlan`.
+- Routed `Lower.buildEffectPlan` to emit planned struct field write target
+  variants for scalar struct fields while preserving the legacy state-id/field
+  variant for fallback and compatibility paths.
+- Added direct `ToYul` helpers for planned struct field write statements,
+  moving final `sstore(fieldSlot, value)` assembly behind the planned target
+  instead of a late `IR.lean` slot callback.
+- Extended semantic-plan tests with `Lower -> Plan` assertions and direct
+  planned-target `ToYul` coverage for checked RHS expressions.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/storage-struct-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- `storageArrayStructFieldWrite` still uses the existing struct-array slot
+  callback path; this slice only moves direct scalar struct field writes.
+- Struct field reads still use their existing state-id/field lookup path.
+
+Next step:
+
+- Move struct-array field write metadata behind its own planned target, then
+  continue with struct/struct-array field read targets.
+
 ### EVM Planned Array Read Targets
 
 Commit: c05a06d
