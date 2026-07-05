@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Dead Write Fallback Helper Removal
+
+Commit: f610632
+
+Summary:
+
+- Removed now-unused `IR.lean` write/return fallback helpers:
+  `lowerScalarStorageWriteStmt`, `lowerMapSetReturnExpr`,
+  `lowerDynamicArrayWriteStmt`, and `lowerDynamicArrayPopStmt`.
+- Kept active scalar storage writes, map insert/set return effects, and
+  dynamic-array pop behavior on their existing `Lower.buildEffectPlan ->
+  ToYul` target-effect paths.
+- Left dynamic-array write-like behavior on storage-path write plans.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+rg -n "\blowerScalarStorageWriteStmt\b|\blowerMapSetReturnExpr\b|\blowerDynamicArrayWriteStmt\b|\blowerDynamicArrayPopStmt\b" ProofForge/Backend/Evm/IR.lean Tests/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md docs/development-log.md
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Struct-valued scalar storage writes still keep compatibility field expansion
+  in `IR.lean`.
+- Storage-path write and assign-op fallback target selection still keeps
+  compatibility callbacks in `IR.lean`.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue shrinking write/assign fallback callback surfaces after each helper
+  is demonstrably unused.
+
 ### EVM Legacy Storage-Path Read Wrapper Removal
 
 Commit: 11a7e10
