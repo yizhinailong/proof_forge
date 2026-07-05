@@ -2114,7 +2114,7 @@ mutual
     | .ok _ | .error _ =>
         lowerStructArrayFieldReadExprFallback module env stateId index fieldName
 
-  partial def lowerStoragePathReadExpr
+  partial def lowerStoragePathReadExprFallback
       (module : Module)
       (env : TypeEnv)
       (stateId : String)
@@ -2124,6 +2124,20 @@ mutual
       toYulError
       (fun expr => lowerExpr module env expr)
       plan
+
+  partial def lowerStoragePathReadExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (path : Array StoragePathSegment) : Except LowerError Lean.Compiler.Yul.Expr := do
+    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storagePathRead stateId path) with
+    | .ok (.storagePathReadTarget slot) =>
+        ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          slot
+    | .ok _ | .error _ =>
+        lowerStoragePathReadExprFallback module env stateId path
 
   partial def validateFixedArrayIndexExprPath
       (module : Module)
@@ -2863,6 +2877,11 @@ mutual
           toYulError
           (fun expr => lowerExpr module env expr)
           plan
+    | .storagePathReadTarget slot =>
+        ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          slot
     | _ =>
         .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
 
@@ -5224,6 +5243,7 @@ mutual
     | .storageArrayStructFieldRead _ index _ => exprPlanSupportsScalarBody index
     | .storageArrayStructFieldReadTarget _ index => exprPlanSupportsScalarBody index
     | .storagePathRead _ path => storagePathSupportsScalarBody path
+    | .storagePathReadTarget slot => storageSlotPlanSupportsScalarBody slot
     | _ => false
 
   partial def exprPlanSupportsScalarBody :

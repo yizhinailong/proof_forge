@@ -4215,6 +4215,28 @@ def testStoragePathReadPlanToYul : IO Unit := do
     { name := "outer", type := .u64, isMutable := false },
     { name := "inner", type := .u64, isMutable := false }
   ]
+  let loweredMapPathRead ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmMapProbe.module
+      (toValidateTypeEnv mapEnv)
+      (.storagePathRead "balances" #[.mapKey (.add (.local "outer") (.literal (.u64 1)))]))
+    "Lower map storage path read target effect plan"
+  match loweredMapPathRead with
+  | .storagePathReadTarget (.mapValueSlot rootSlot keys) => do
+      require (rootSlot == 1) "Lower map storage path read target root slot"
+      require (keys.size == 1) "Lower map storage path read target key count"
+  | _ => throw <| IO.userError "Lower map storage path read must produce storagePathReadTarget"
+  let loweredArrayPathRead ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      (toValidateTypeEnv arrayEnv)
+      (.storagePathRead "values" #[.index (.local "value")]))
+    "Lower array storage path read target effect plan"
+  match loweredArrayPathRead with
+  | .storagePathReadTarget (.arraySlot rootSlot length _) => do
+      require (rootSlot == 1) "Lower array storage path read target root slot"
+      require (length == 3) "Lower array storage path read target length"
+  | _ => throw <| IO.userError "Lower array storage path read must produce storagePathReadTarget"
   let directMapReadPlan ← requireOk
     (lowerPlan <|
       ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan
@@ -4331,6 +4353,17 @@ def testStoragePathReadPlanToYul : IO Unit := do
           | _ => throw <| IO.userError "nested map storage path read parent slot must use map helper"
       | _ => throw <| IO.userError "nested map storage path read slot must use map helper"
   | _ => throw <| IO.userError "nested map storage path read must lower to sload"
+  let rawMapPathRead ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.EvmMapProbe.module
+      mapEnv
+      (.effect (.storagePathRead "balances" #[.mapKey (.add (.local "outer") (.literal (.u64 1)))])))
+    "raw map storage path read expression plan-to-yul"
+  match rawMapPathRead with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "raw map storage path read sload arg count"
+      requireCallExpr args[0]! mapSlotFunctionName 2 "raw map storage path read slot helper"
+  | _ => throw <| IO.userError "raw map storage path read must lower to sload"
 
 def testStoragePathWritePlanToYul : IO Unit := do
   let arrayEnv : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]

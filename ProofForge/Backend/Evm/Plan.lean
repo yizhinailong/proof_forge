@@ -732,6 +732,7 @@ mutual
     | storageStructFieldWrite (stateId fieldName : String) (value : ExprPlan)
     | storageStructFieldWriteTarget (target : StructFieldWriteTargetPlan) (value : ExprPlan)
     | storagePathRead (stateId : String) (path : Array StoragePathSegment)
+    | storagePathReadTarget (slot : StorageSlotPlan)
     | storagePathWrite (stateId : String) (path : Array StoragePathSegment) (value : ExprPlan)
     | storagePathWriteTarget (target : StoragePathWriteTargetPlan) (value : ExprPlan)
     | storagePathAssignOp (stateId : String) (path : Array StoragePathSegment) (op : AssignOp) (value : ExprPlan)

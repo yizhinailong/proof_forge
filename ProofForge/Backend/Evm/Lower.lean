@@ -520,8 +520,9 @@ mutual
         match structFieldWriteTargetPlan? module stateId fieldName with
         | some target => .ok (.storageStructFieldWriteTarget target valuePlan)
         | none => .ok (.storageStructFieldWrite stateId fieldName valuePlan)
-    | .storagePathRead stateId path =>
-        .ok (.storagePathRead stateId path)
+    | .storagePathRead stateId path => do
+        let slot ← lowerPlan <| storagePathReadSlotPlan module stateId path
+        .ok (.storagePathReadTarget slot)
     | .storagePathWrite stateId path value => do
         let target ← lowerPlan <| storagePathWriteTargetPlan module stateId path
         .ok (.storagePathWriteTarget target (← buildExprPlan module env value))
