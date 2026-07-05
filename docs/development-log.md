@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Entrypoint Body Consumption
+
+Commit: 08527f5
+
+Summary:
+
+- Added `lowerEntrypointBodyWithPlan?` so full EVM assembly can consume
+  `ModulePlan` entrypoint bodies for the existing scalar-body supported subset.
+- Kept unsupported entrypoint body shapes on the portable IR fallback path.
+- Added semantic-plan coverage that mutates an event entrypoint's planned body
+  and verifies `lowerModuleWithPlan` consumes that planned event word effect.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Planned entrypoint body consumption is currently gated by
+  `stmtPlansSupportScalarBody`; aggregate/dynamic entrypoint shapes still use
+  portable IR fallback lowering.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Broaden planned entrypoint body consumption beyond the scalar-body subset,
+  starting with aggregate event and return shapes that still rely on
+  compatibility lowering.
+
 ### EVM Semantic Plans Emit Event Word Effects
 
 Commit: fd31bea
