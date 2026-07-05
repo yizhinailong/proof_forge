@@ -720,6 +720,21 @@ builtin. The `ToYul` pass decides which Yul builtins or helper calls realize
 each plan node. -/
 
 mutual
+  inductive ContextExprPlan where
+    | userId
+    | contractId
+    | checkpointId
+    | timestamp
+    | chainId
+    | gasPrice
+    | gasLeft
+    | baseFee
+    | prevRandao
+    | origin
+    | coinbase
+    | blockHash (blockNumber : ExprPlan)
+    deriving Repr
+
   inductive ExprPlan where
     | literalWord (value : Nat)
     | local (name : String)
@@ -729,7 +744,7 @@ mutual
     | helperCall (helper : Helper) (args : Array ExprPlan)
     | checkedArith (op : AssignOp) (lhs rhs : ExprPlan)
     | hashPack (a b c d : ExprPlan)
-    | context (field : ContextField)
+    | context (field : ContextExprPlan)
     | crosscall (mode : CrosscallMode) (target methodId : ExprPlan)
         (callValue? : Option ExprPlan) (args : Array ExprPlan) (returnType : ValueType)
     | create (mode : CreateMode) (callValue : ExprPlan) (salt? : Option ExprPlan)
@@ -804,7 +819,7 @@ mutual
     | storagePathAssignOp (stateId : String) (path : Array StoragePathSegment) (op : AssignOp) (value : ExprPlan)
     | storagePathAssignOpTarget (target : StoragePathWriteTargetPlan) (op : AssignOp) (value : ExprPlan)
     | storagePathAssignOpExprTarget (target : StoragePathWriteExprTargetPlan) (op : AssignOp) (value : ExprPlan)
-    | contextRead (field : ContextField)
+    | contextRead (field : ContextExprPlan)
     | eventEmit (event : EventPlan) (dataFields : Array ExprPlan)
     | eventEmitIndexed (event : EventPlan) (indexedFields dataFields : Array ExprPlan)
     deriving Repr

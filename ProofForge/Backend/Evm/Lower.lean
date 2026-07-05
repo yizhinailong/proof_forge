@@ -471,6 +471,24 @@ mutual
       Except LowerError (Array StoragePathPlanSegment) :=
     path.mapM (buildStoragePathSegmentPlan module env)
 
+  partial def buildContextExprPlan
+      (module : Module)
+      (env : TypeEnv) :
+      ContextField → Except LowerError ContextExprPlan
+    | .userId => .ok .userId
+    | .contractId => .ok .contractId
+    | .checkpointId => .ok .checkpointId
+    | .timestamp => .ok .timestamp
+    | .chainId => .ok .chainId
+    | .gasPrice => .ok .gasPrice
+    | .gasLeft => .ok .gasLeft
+    | .baseFee => .ok .baseFee
+    | .prevRandao => .ok .prevRandao
+    | .origin => .ok .origin
+    | .coinbase => .ok .coinbase
+    | .blockHash blockNumber => do
+        .ok (.blockHash (← buildExprPlan module env blockNumber))
+
   partial def buildEffectPlan (module : Module) (env : TypeEnv) : Effect → Except LowerError EffectPlan
     | .storageScalarRead stateId =>
         match scalarStorageTargetPlan? module stateId with
@@ -555,8 +573,8 @@ mutual
         let plannedPath ← buildStoragePathPlan module env path
         let target ← lowerPlan <| storagePathWriteExprTargetPlan module stateId plannedPath
         .ok (.storagePathAssignOpExprTarget target op (← buildExprPlan module env value))
-    | .contextRead field =>
-        .ok (.contextRead field)
+    | .contextRead field => do
+        .ok (.contextRead (← buildContextExprPlan module env field))
     | .eventEmit name fields => do
         let eventPlan ← eventPlanForFields module env name #[] fields
         let plannedFields ← fields.mapM fun field => buildExprPlan module env field.snd

@@ -4818,6 +4818,31 @@ def testStoragePathWritePlanToYul : IO Unit := do
       require foundStorageReadValue "struct-array field storage path assign_op value must lower storage read through plan"
   | _ => throw <| IO.userError "struct-array field storage path assign_op plan-to-yul must lower to block"
 
+def testContextPlanToYul : IO Unit := do
+  let env : TypeEnv := #[
+    { name := "block_number", type := .u64, isMutable := false }
+  ]
+  let plan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv env)
+      (.contextRead (.blockHash (.add (.local "block_number") (.literal (.u64 1))))))
+    "context blockhash Lower EffectPlan"
+  match plan with
+  | .contextRead (.blockHash (.checkedArith .add (.local name) (.literalWord value))) => do
+      require (name == "block_number") "context blockhash planned local name"
+      require (value == 1) "context blockhash planned offset"
+  | _ => throw <| IO.userError "context blockhash must lower to planned checked-add argument"
+  let lowered ← requireOk
+    (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env plan)
+    "context blockhash plan-to-yul"
+  match lowered with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "blockhash") "context blockhash plan-to-yul builtin"
+      require (args.size == 1) "context blockhash plan-to-yul arg count"
+      requireCallExpr args[0]! "__pf_checked_add" 2 "context blockhash planned argument"
+  | _ => throw <| IO.userError "context blockhash plan-to-yul must lower to blockhash builtin"
+
 def main : IO UInt32 := do
   testCounterSemanticPlan
   testEventSemanticPlan
@@ -4850,6 +4875,7 @@ def main : IO UInt32 := do
   testWholeStructStorageWritePlanToYul
   testStoragePathReadPlanToYul
   testStoragePathWritePlanToYul
+  testContextPlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0
 

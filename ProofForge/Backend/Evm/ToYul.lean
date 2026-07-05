@@ -35,19 +35,41 @@ def checkedArithExpr (op : AssignOp) (lhs rhs : Lean.Compiler.Yul.Expr) : Lean.C
   | .shiftLeft => Lean.Compiler.Yul.builtin "shl" #[rhs, lhs]
   | .shiftRight => Lean.Compiler.Yul.builtin "shr" #[rhs, lhs]
 
-def contextExpr : ContextField → Lean.Compiler.Yul.Expr
-  | .userId => Lean.Compiler.Yul.builtin "caller" #[]
-  | .contractId => Lean.Compiler.Yul.builtin "address" #[]
-  | .checkpointId => Lean.Compiler.Yul.builtin "number" #[]
-  | .timestamp => Lean.Compiler.Yul.builtin "timestamp" #[]
-  | .chainId => Lean.Compiler.Yul.builtin "chainid" #[]
-  | .gasPrice => Lean.Compiler.Yul.builtin "gasprice" #[]
-  | .gasLeft => Lean.Compiler.Yul.builtin "gas" #[]
-  | .baseFee => Lean.Compiler.Yul.builtin "basefee" #[]
-  | .prevRandao => Lean.Compiler.Yul.builtin "prevrandao" #[]
-  | .origin => Lean.Compiler.Yul.builtin "origin" #[]
-  | .coinbase => Lean.Compiler.Yul.builtin "coinbase" #[]
-  | .blockHash _ => Lean.Compiler.Yul.builtin "blockhash" #[]
+def contextFieldExpr
+    {ε : Type}
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr) :
+    ContextField → Except ε Lean.Compiler.Yul.Expr
+  | .userId => .ok (Lean.Compiler.Yul.builtin "caller" #[])
+  | .contractId => .ok (Lean.Compiler.Yul.builtin "address" #[])
+  | .checkpointId => .ok (Lean.Compiler.Yul.builtin "number" #[])
+  | .timestamp => .ok (Lean.Compiler.Yul.builtin "timestamp" #[])
+  | .chainId => .ok (Lean.Compiler.Yul.builtin "chainid" #[])
+  | .gasPrice => .ok (Lean.Compiler.Yul.builtin "gasprice" #[])
+  | .gasLeft => .ok (Lean.Compiler.Yul.builtin "gas" #[])
+  | .baseFee => .ok (Lean.Compiler.Yul.builtin "basefee" #[])
+  | .prevRandao => .ok (Lean.Compiler.Yul.builtin "prevrandao" #[])
+  | .origin => .ok (Lean.Compiler.Yul.builtin "origin" #[])
+  | .coinbase => .ok (Lean.Compiler.Yul.builtin "coinbase" #[])
+  | .blockHash blockNumber => do
+      .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerExpr blockNumber])
+
+partial def contextExprPlan
+    {ε : Type}
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr) :
+    ContextExprPlan → Except ε Lean.Compiler.Yul.Expr
+  | .userId => .ok (Lean.Compiler.Yul.builtin "caller" #[])
+  | .contractId => .ok (Lean.Compiler.Yul.builtin "address" #[])
+  | .checkpointId => .ok (Lean.Compiler.Yul.builtin "number" #[])
+  | .timestamp => .ok (Lean.Compiler.Yul.builtin "timestamp" #[])
+  | .chainId => .ok (Lean.Compiler.Yul.builtin "chainid" #[])
+  | .gasPrice => .ok (Lean.Compiler.Yul.builtin "gasprice" #[])
+  | .gasLeft => .ok (Lean.Compiler.Yul.builtin "gas" #[])
+  | .baseFee => .ok (Lean.Compiler.Yul.builtin "basefee" #[])
+  | .prevRandao => .ok (Lean.Compiler.Yul.builtin "prevrandao" #[])
+  | .origin => .ok (Lean.Compiler.Yul.builtin "origin" #[])
+  | .coinbase => .ok (Lean.Compiler.Yul.builtin "coinbase" #[])
+  | .blockHash blockNumber => do
+      .ok (Lean.Compiler.Yul.builtin "blockhash" #[← lowerPlanExpr blockNumber])
 
 def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
   Lean.Compiler.Yul.builtin "calldataload" #[Lean.Compiler.Yul.Expr.num (4 + paramIndex * 32)]
@@ -1618,7 +1640,7 @@ partial def exprPlanExpr
         (← exprPlanExpr mkError lowerExpr lowerEffect c)
         (← exprPlanExpr mkError lowerExpr lowerEffect d))
   | .context field =>
-      .ok (contextExpr field)
+      contextExprPlan (exprPlanExpr mkError lowerExpr lowerEffect) field
   | .crosscall mode target methodId callValue? args returnType => do
       let targetExpr ← exprPlanExpr mkError lowerExpr lowerEffect target
       let methodIdExpr ← exprPlanExpr mkError lowerExpr lowerEffect methodId
