@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Raw Struct-Array Field Read ToYul Slice
+
+Commit: 7b5697c
+
+Summary:
+
+- Moved raw compatibility `EffectPlan.storageArrayStructFieldRead` expression
+  frame construction from `IR.lean` into
+  `ToYul.structArrayFieldReadExpr`.
+- Kept `IR.lowerPlanEffectExpr` responsible only for validating the
+  struct-array state and looking up its root slot, length, field count, and
+  field offset before delegating the Yul expression frame.
+- Made `structArrayFieldReadTargetExpr` reuse the same raw metadata helper, so
+  raw and target struct-array field reads share the final
+  `sload(__proof_forge_struct_array_slot(...))` frame.
+- Added semantic-plan tests that call the raw ToYul struct-array field read
+  helper directly in addition to existing target-plan and IR facade coverage.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns the struct-array state/root-slot/length/field metadata
+  lookup for the raw compatibility plan variant; only the final struct-array
+  field read Yul expression frame moved behind `ToYul`.
+- Storage-path read/write fallback surfaces still keep compatibility logic in
+  `IR.lean` while typed path expression planning continues to broaden.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue the EVM semantic-plan migration by reducing the remaining
+  storage-path read/write fallback surface in `IR.lean`.
+
 ### EVM Raw Struct Field Read ToYul Slice
 
 Commit: 5c45e07
