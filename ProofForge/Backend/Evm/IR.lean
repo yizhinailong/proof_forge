@@ -63,47 +63,6 @@ def slotExpr (slot : Nat) : Lean.Compiler.Yul.Expr :=
 def yulFunctionName (moduleName entrypointName : String) : String :=
   ProofForge.Backend.Evm.ToYul.entrypointFunctionName moduleName entrypointName
 
-def crosscallReturnTypeSuffix : ValueType → Except LowerError String
-  | type => ProofForge.Backend.Evm.ToYul.crosscallReturnTypeSuffix toYulError type
-
-def crosscallFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.crosscallFunctionName toYulError arity returnType
-
-def crosscallValueFunctionName (arity : Nat) (returnType : ValueType) (plainTransfer : Bool := false) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.crosscallValueFunctionName toYulError arity returnType plainTransfer
-
-def crosscallStaticFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.crosscallStaticFunctionName toYulError arity returnType
-
-def crosscallDelegateFunctionName (arity : Nat) (returnType : ValueType) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.crosscallDelegateFunctionName toYulError arity returnType
-
-def plainValueTransferMethodId? (methodId : ProofForge.IR.Expr) : Bool :=
-  match methodId with
-  | .literal (.u64 0) => true
-  | _ => false
-
-def plainValueTransferCall? (methodId : ProofForge.IR.Expr) (args : Array ProofForge.IR.Expr) : Bool :=
-  plainValueTransferMethodId? methodId && args.isEmpty
-
-def crosscallReturnWordTag : ValueType → Except LowerError String
-  | type => ProofForge.Backend.Evm.ToYul.crosscallReturnWordTag toYulError type
-
-def crosscallReturnWordTagsSuffix (wordTypes : Array ValueType) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.crosscallReturnWordTagsSuffix toYulError wordTypes
-
-def crosscallAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.crosscallAggregateFunctionName toYulError arity wordTypes
-
-def crosscallValueAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) (plainTransfer : Bool := false) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.crosscallValueAggregateFunctionName toYulError arity wordTypes plainTransfer
-
-def crosscallStaticAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.crosscallStaticAggregateFunctionName toYulError arity wordTypes
-
-def crosscallDelegateAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.crosscallDelegateAggregateFunctionName toYulError arity wordTypes
-
 def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
 def maxU32 : Nat := 4294967295
@@ -2560,7 +2519,7 @@ mutual
     | .crosscallInvokeValueTyped target methodId callValue args returnType => do
         if !isCrosscallWordType returnType then
           .error { message := s!"value aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
-        if plainValueTransferCall? methodId args then
+        if ProofForge.Backend.Evm.Lower.plainValueTransferCall? methodId args then
           .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
             toYulError
             ProofForge.Backend.Evm.Plan.CrosscallMode.callValue
