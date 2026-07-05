@@ -16050,3 +16050,49 @@ Result:
   checks passed locally.
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Dynamic Local Assignment ExprPlan Slice
+
+Commit: f5e6c00
+
+Summary:
+
+- Routed dynamic local aggregate assignment snapshot expressions through
+  `Lower.buildExprPlan -> ExprPlan -> ToYul` before emitting the shared
+  `ToYul` switch frames.
+- Covered dynamic fixed-array assignment, dynamic fixed-array compound
+  assignment, dynamic struct-array field assignment, and dynamic struct-array
+  field compound assignment.
+- Kept path resolution and local aggregate target validation in the `IR.lean`
+  compatibility facade for this slice, while moving dynamic index/value
+  expression lowering out of direct `IR.lowerExpr` calls.
+- Updated the implementation backlog and Chinese backlog note to record the
+  planned snapshot-expression boundary.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Result:
+
+- Dynamic local aggregate assignment switch frames now consume planned
+  index/value snapshot expressions before `ToYul` emits the snapshot locals,
+  switch default, checked-assignment RHS, and case bodies.
+- EVM semantic-plan tests, EVM plan tests, event/counter IR smokes, EVM
+  diagnostics, i18n sync, JSON validation, full Lake build, and whitespace
+  checks passed locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
