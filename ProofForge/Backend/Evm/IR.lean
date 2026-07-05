@@ -4859,13 +4859,9 @@ def lowerReturnWords
   | .unit =>
       .error { message := s!"entrypoint `{entrypointName}` has Unit return type and cannot return a value" }
   | .bytes | .string | .array _ =>
-      -- Dynamic return: the function returns a memory pointer.
-      -- For a .local name, return the __data_ptr local.
-      match value with
-      | .local name =>
-          .ok #[Lean.Compiler.Yul.Expr.id (dynamicParamDataPtrName name)]
-      | _ =>
-          .error { message := s!"entrypoint `{entrypointName}` bytes/string returns in IR EVM v0 support local references only" }
+      .error {
+        message := s!"entrypoint `{entrypointName}` dynamic returns must be consumed by dynamic return planning in IR EVM v0"
+      }
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => do
       .ok #[← lowerScalarPlanExprOrFallback module env value]
   | .fixedArray _ _ | .structType _ =>
