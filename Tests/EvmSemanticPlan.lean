@@ -1723,11 +1723,21 @@ def testLocalCrosscallWordsToYul : IO Unit := do
   requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "compat local crosscall fixed-array word 2"
 
 def testReturnValueWordPlanToYul : IO Unit := do
-  let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
+  let simpleStructFields (typeName : String) : Except LowerError (Array (String × ValueType)) :=
     if typeName == "Point" then
-      .ok #["x", "y"]
+      .ok #[("x", .u64), ("y", .u64)]
     else
       .error { message := s!"unknown struct `{typeName}`" }
+  let noReturnPlanExpr (_ : ExprPlan) : Except LowerError Lean.Compiler.Yul.Expr :=
+    .error { message := "direct return value word test should not lower scalar ExprPlan" }
+  let noStorageStructWords
+      (_context _typeName _stateId : String) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
+    .error { message := "direct return value word test should not lower storage struct words" }
+  let noStorageArrayWords
+      (_context _stateId : String)
+      (_elementType : ValueType)
+      (_length : Nat) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
+    .error { message := "direct return value word test should not lower storage array words" }
   let directPlan : ReturnValueWordPlan := {
     returns := {
       returnType := .fixedArray .u64 2
@@ -1739,7 +1749,10 @@ def testReturnValueWordPlanToYul : IO Unit := do
   let directAssignments ← requireOk
     (ProofForge.Backend.Evm.ToYul.returnValueWordPlanAssignments
       toYulError
+      noReturnPlanExpr
       simpleStructFields
+      noStorageStructWords
+      noStorageArrayWords
       "entrypoint `array` return value"
       directPlan)
     "direct return value word plan ToYul"
@@ -1818,6 +1831,104 @@ def testReturnValueWordPlanToYul : IO Unit := do
       require (names == #["__proof_forge_return_2"]) "Lower local fixed-array return third target"
       require (valueName == "__proof_forge_array_xs_2") "Lower local fixed-array return third source"
   | _ => throw <| IO.userError "Lower local fixed-array return third statement must assign local ABI word"
+  let literalStructPlan? ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.returnValueWordPlan?
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv #[])
+      "literal_point"
+      (.structType "Point")
+      (ProofForge.IR.Examples.EvmStructValueProbe.point 4 6))
+    "Lower literal struct return value word plan"
+  let literalStructPlan ← requireSome literalStructPlan? "Lower literal struct return value word plan missing"
+  match literalStructPlan.source with
+  | .structLit typeName fields => do
+      require (typeName == "Point") "Lower literal struct return source type"
+      require (fields.size == 2) "Lower literal struct return field count"
+  | _ => throw <| IO.userError "Lower literal struct return must use structLit source plan"
+  let literalStructAssignments ← requireOk
+    (lowerReturnValueWordPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      #[]
+      "literal_point"
+      literalStructPlan)
+    "Lower literal struct return value word plan ToYul integration"
+  require (literalStructAssignments.size == 2) "Lower literal struct return assignment count"
+  match literalStructAssignments[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.lit value) => do
+      require (names == #["__proof_forge_return_0"]) "Lower literal struct return first target"
+      require (value.value == "4") "Lower literal struct return first literal"
+  | _ => throw <| IO.userError "Lower literal struct return first statement must assign literal ABI word"
+  let storageArrayValue : Expr := .arrayLit .u64 #[
+    .effect (.storageArrayRead "values" (ProofForge.IR.Examples.EvmStorageArrayProbe.u64 0)),
+    .effect (.storageArrayRead "values" (ProofForge.IR.Examples.EvmStorageArrayProbe.u64 1)),
+    .effect (.storageArrayRead "values" (ProofForge.IR.Examples.EvmStorageArrayProbe.u64 2))
+  ]
+  let storageArrayPlan? ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.returnValueWordPlan?
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      (toValidateTypeEnv #[])
+      "return_values"
+      (.fixedArray .u64 3)
+      storageArrayValue)
+    "Lower storage fixed-array return value word plan"
+  let storageArrayPlan ← requireSome storageArrayPlan? "Lower storage fixed-array return value word plan missing"
+  match storageArrayPlan.source with
+  | .storageAbiWords stateId type => do
+      require (stateId == "values") "Lower storage fixed-array return source state"
+      require (type == .fixedArray .u64 3) "Lower storage fixed-array return source type"
+  | _ => throw <| IO.userError "Lower storage fixed-array return must use storageAbiWords source plan"
+  let storageArrayAssignments ← requireOk
+    (lowerReturnValueWordPlan
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      #[]
+      "return_values"
+      storageArrayPlan)
+    "Lower storage fixed-array return value word plan ToYul integration"
+  require (storageArrayAssignments.size == 3) "Lower storage fixed-array return assignment count"
+  match storageArrayAssignments[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.builtin "sload" args) => do
+      require (names == #["__proof_forge_return_0"]) "Lower storage fixed-array return first target"
+      require (args.size == 1) "Lower storage fixed-array return first sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call name _ =>
+          require (name == "__proof_forge_array_slot") "Lower storage fixed-array return first slot helper"
+      | _ => throw <| IO.userError "Lower storage fixed-array return first source must use array slot helper"
+  | _ => throw <| IO.userError "Lower storage fixed-array return first statement must assign sload ABI word"
+  let storageStructArrayValue : Expr := .arrayLit (.structType "Point") #[
+    ProofForge.IR.Examples.EvmStorageStructProbe.storagePoint 0,
+    ProofForge.IR.Examples.EvmStorageStructProbe.storagePoint 1
+  ]
+  let storageStructArrayPlan? ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.returnValueWordPlan?
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      (toValidateTypeEnv #[])
+      "return_points"
+      (.fixedArray (.structType "Point") 2)
+      storageStructArrayValue)
+    "Lower storage struct-array return value word plan"
+  let storageStructArrayPlan ← requireSome storageStructArrayPlan? "Lower storage struct-array return value word plan missing"
+  match storageStructArrayPlan.source with
+  | .storageAbiWords stateId type => do
+      require (stateId == "points") "Lower storage struct-array return source state"
+      require (type == .fixedArray (.structType "Point") 2) "Lower storage struct-array return source type"
+  | _ => throw <| IO.userError "Lower storage struct-array return must use storageAbiWords source plan"
+  let storageStructArrayAssignments ← requireOk
+    (lowerReturnValueWordPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      #[]
+      "return_points"
+      storageStructArrayPlan)
+    "Lower storage struct-array return value word plan ToYul integration"
+  require (storageStructArrayAssignments.size == 4) "Lower storage struct-array return assignment count"
+  match storageStructArrayAssignments[3]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.builtin "sload" args) => do
+      require (names == #["__proof_forge_return_3"]) "Lower storage struct-array return last target"
+      require (args.size == 1) "Lower storage struct-array return last sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call name _ =>
+          require (name == "__proof_forge_struct_array_slot") "Lower storage struct-array return last slot helper"
+      | _ => throw <| IO.userError "Lower storage struct-array return last source must use struct-array slot helper"
+  | _ => throw <| IO.userError "Lower storage struct-array return last statement must assign sload ABI word"
 
 def testAggregateAssignmentPlanToYul : IO Unit := do
   let fixedStmt :=

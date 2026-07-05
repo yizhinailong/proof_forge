@@ -2855,14 +2855,20 @@ def lowerCrosscallReturnAssignmentPlan
 
 def lowerReturnValueWordPlan
     (module : Module)
-    (_env : TypeEnv)
+    (env : TypeEnv)
     (entrypointName : String)
     (plan : ProofForge.Backend.Evm.Plan.ReturnValueWordPlan) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   let context := s!"entrypoint `{entrypointName}` return value"
   ProofForge.Backend.Evm.ToYul.returnValueWordPlanAssignments
     toYulError
-    (localAbiStructFieldIds module context)
+    (fun exprPlan => lowerExprPlanExpr module env exprPlan)
+    (localAbiStructFields module context)
+    (fun context typeName stateId => do
+      let fields ← lowerStructStorageReadFields module context typeName stateId
+      .ok (fields.map fun field => field.snd))
+    (fun context stateId elementType length =>
+      lowerStorageArrayAbiWords module context stateId elementType length)
     context
     plan
 

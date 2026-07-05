@@ -875,16 +875,39 @@ def returnValueWordPlan?
     (returnType : ValueType)
     (value : Expr) :
     Except LowerError (Option ReturnValueWordPlan) := do
+  let context := s!"entrypoint `{entrypointName}` return value"
+  let returns ← returnPlan module s!"entrypoint `{entrypointName}`" returnType
   match returnType, value with
   | .fixedArray _ _, .local name
   | .structType _, .local name => do
       let some binding := findLocal? env name
         | .error { message := s!"unknown local `{name}`" }
-      let context := s!"entrypoint `{entrypointName}` return value"
       ensureType context returnType binding.type
       .ok (some {
-        returns := ← returnPlan module s!"entrypoint `{entrypointName}`" returnType
+        returns
         source := .localAbiWords name returnType
+      })
+  | .structType typeName, .effect (.storageScalarRead stateId) => do
+      ensureType s!"{context} storage value" (.structType typeName) (← scalarStateType module stateId)
+      .ok (some {
+        returns
+        source := .storageAbiWords stateId returnType
+      })
+  | .fixedArray _ _, _ => do
+      match ← storageArrayAbiWordsPlan? module returnType value with
+      | some source =>
+          .ok (some { returns, source })
+      | none => do
+          ensureType context returnType (← inferExprType module env value)
+          .ok (some {
+            returns
+            source := ← buildExprPlan module env value
+          })
+  | .structType _, _ => do
+      ensureType context returnType (← inferExprType module env value)
+      .ok (some {
+        returns
+        source := ← buildExprPlan module env value
       })
   | _, _ =>
       .ok none

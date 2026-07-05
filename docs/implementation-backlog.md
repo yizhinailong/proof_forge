@@ -310,12 +310,11 @@ Tasks:
   - Started: scalar `return` statement assembly now consumes a narrow
     `StmtPlan -> ToYul` helper for supported single-word `U32`/`U64`/`Bool`/
     `Hash`/`Address` return values, including branch-local `leave` insertion.
-    Local fixed-array and struct aggregate returns now use
-    `Lower.returnValueWordPlan? -> ReturnValueWordPlan -> ToYul` for return ABI
-    word assignment. Bytes/string returns, literal/storage aggregate returns,
-    and aggregate crosscall return helpers remain on their existing
-    compatibility paths until their own migration slices add broader plan-level
-    coverage.
+    Local, literal, and storage-backed fixed-array/struct aggregate returns now
+    use `Lower.returnValueWordPlan? -> ReturnValueWordPlan -> ToYul` for return
+    ABI word assignment. Bytes/string returns and aggregate crosscall return
+    helpers remain on their existing compatibility paths until their own
+    migration slices add broader plan-level coverage.
   - Started: direct scalar local assignment and compound-assignment statement
     assembly now consumes a narrow `StmtPlan -> ToYul` helper when the RHS is in
     the supported scalar plan subset. Static local fixed-array element

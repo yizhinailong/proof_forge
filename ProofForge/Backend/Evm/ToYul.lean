@@ -1324,22 +1324,39 @@ partial def abiValueWordsFromPlan
 def returnValueWordPlanWords
     {ε : Type}
     (mkError : String → ε)
-    (structFieldIds : String → Except ε (Array String))
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (structFields : String → Except ε (Array (String × ValueType)))
+    (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
+    (storageArrayWords : String → String → ValueType → Nat → Except ε (Array Lean.Compiler.Yul.Expr))
     (context : String)
-    (source : ExprPlan) : Except ε (Array Lean.Compiler.Yul.Expr) := do
-  match source with
-  | .localAbiWords name type =>
-      localAbiWords mkError structFieldIds context name type
-  | _ =>
-      .error (mkError "EVM ReturnValueWordPlan-to-Yul supports local ABI word plans only")
+    (plan : ReturnValueWordPlan) : Except ε (Array Lean.Compiler.Yul.Expr) :=
+  abiValueWordsFromPlan
+    mkError
+    lowerPlanExpr
+    structFields
+    storageStructWords
+    storageArrayWords
+    context
+    plan.returns.returnType
+    plan.source
 
 def returnValueWordPlanAssignments
     {ε : Type}
     (mkError : String → ε)
-    (structFieldIds : String → Except ε (Array String))
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (structFields : String → Except ε (Array (String × ValueType)))
+    (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
+    (storageArrayWords : String → String → ValueType → Nat → Except ε (Array Lean.Compiler.Yul.Expr))
     (context : String)
     (plan : ReturnValueWordPlan) : Except ε (Array Lean.Compiler.Yul.Statement) := do
-  let words ← returnValueWordPlanWords mkError structFieldIds context plan.source
+  let words ← returnValueWordPlanWords
+    mkError
+    lowerPlanExpr
+    structFields
+    storageStructWords
+    storageArrayWords
+    context
+    plan
   if plan.returns.localNames.size != words.size then
     .error (mkError s!"{context} return lowering produced {words.size} word(s), expected {plan.returns.localNames.size}")
   let mut statements : Array Lean.Compiler.Yul.Statement := #[]
