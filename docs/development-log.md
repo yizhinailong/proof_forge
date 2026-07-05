@@ -17,6 +17,56 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Aggregate Crosscall Arguments
+
+Commit: 1c38854
+
+Summary:
+
+- Added `ToYul.scalarReturnExprPlanStatements`, a scalar return frame helper
+  that accepts a `lowerPlanExpr` callback instead of forcing generic
+  `ExprPlan -> Yul` lowering.
+- Routed scalar return plan lowering through `lowerExprPlanExpr`, so planned
+  returns can consume crosscall/create expressions with provider-expanded
+  aggregate argument sources.
+- Allowed planned-body crosscall argument gates to accept
+  `CrosscallArgWordPlan.local` and `.storage`; lower-time providers still own
+  validation and expansion.
+- Added altered-plan coverage proving `lowerModuleWithPlan` consumes a scalar
+  return whose crosscall argument is a local aggregate source plan.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- This expands planned-body consumption for scalar returns; aggregate crosscall
+  argument sources inside broader non-return statement shapes still depend on
+  each statement shape being accepted by the planned-body gate.
+- `CrosscallArgWordPlan.storage` is admitted by the gate, but unsupported
+  storage source shapes still fall back when lower-time provider validation
+  rejects them.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving another storage, event, or crosscall statement shape from the
+  compatibility facade into the planned-body `Lower -> Plan -> ToYul` path.
+
 ### EVM Planned Body Lowering Boundary
 
 Commit: f7dec52
