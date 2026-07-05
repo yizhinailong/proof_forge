@@ -2360,9 +2360,9 @@ mutual
     | .storageMapGet stateId key =>
         lowerEffectExprThroughPlan module env (.storageMapGet stateId key)
     | .storageMapInsert stateId key value =>
-        lowerMapSetReturnExpr module env stateId key value
+        lowerEffectExprThroughPlan module env (.storageMapInsert stateId key value)
     | .storageMapSet stateId key value =>
-        lowerMapSetReturnExpr module env stateId key value
+        lowerEffectExprThroughPlan module env (.storageMapSet stateId key value)
     | .storageArrayRead stateId index =>
         lowerEffectExprThroughPlan module env (.storageArrayRead stateId index)
     | .storageArrayWrite _ _ _ =>

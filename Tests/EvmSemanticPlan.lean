@@ -5813,23 +5813,43 @@ def testMapWritePlanToYul : IO Unit := do
       | _ => throw <| IO.userError "map write value must be plan-lowered packed storage read"
   | _ => throw <| IO.userError "map write plan-to-yul must lower to helper call"
   let setReturnExpr ← requireOk
-    (lowerMapSetReturnExpr
+    (lowerEffectExpr
       ProofForge.IR.Examples.EvmMapProbe.module
       env
-      "balances"
-      (.local "key")
-      (.add (.local "value") (.literal (.u64 2))))
-    "map set-return value plan-to-yul"
+      (.storageMapSet
+        "balances"
+        (.local "key")
+        (.add (.local "value") (.literal (.u64 2)))))
+    "map set-return effect Lower-to-Yul"
   match setReturnExpr with
   | Lean.Compiler.Yul.Expr.call name args => do
-      require (name == (Helper.mapSetReturn).name) "map set-return plan-to-yul helper"
-      require (args.size == 3) "map set-return plan-to-yul arg count"
+      require (name == (Helper.mapSetReturn).name) "map set-return effect helper"
+      require (args.size == 3) "map set-return effect arg count"
       match args[2]! with
       | Lean.Compiler.Yul.Expr.call addName addArgs => do
-          require (addName == "__pf_checked_add") "map set-return value must lower through checked add plan"
-          require (addArgs.size == 2) "map set-return value checked add arg count"
-      | _ => throw <| IO.userError "map set-return value must be plan-lowered checked add"
-  | _ => throw <| IO.userError "map set-return plan-to-yul must lower to helper call"
+          require (addName == "__pf_checked_add") "map set-return effect value checked add"
+          require (addArgs.size == 2) "map set-return effect value checked add arg count"
+      | _ => throw <| IO.userError "map set-return effect value must be plan-lowered checked add"
+  | _ => throw <| IO.userError "map set-return effect must lower through EffectPlan"
+  let insertReturnExpr ← requireOk
+    (lowerEffectExpr
+      ProofForge.IR.Examples.EvmMapProbe.module
+      env
+      (.storageMapInsert
+        "balances"
+        (.add (.local "key") (.literal (.u64 1)))
+        (.local "value")))
+    "map insert-return effect Lower-to-Yul"
+  match insertReturnExpr with
+  | Lean.Compiler.Yul.Expr.call name args => do
+      require (name == (Helper.mapSetReturn).name) "map insert-return effect helper"
+      require (args.size == 3) "map insert-return effect arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "map insert-return effect key checked add"
+          require (addArgs.size == 2) "map insert-return effect key checked add arg count"
+      | _ => throw <| IO.userError "map insert-return effect key must be plan-lowered checked add"
+  | _ => throw <| IO.userError "map insert-return effect must lower through EffectPlan"
 
 def testArrayReadPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]

@@ -537,6 +537,10 @@ Tasks:
     `Lower.buildEffectPlan` -> target `EffectPlan`/`EffectPlan.contextRead` ->
     `lowerPlanEffectExpr`/`ToYul` instead of being dispatched directly from
     `IR.lowerEffectExpr`.
+    Expression-position map insert/set return effects now also enter
+    `Lower.buildEffectPlan` -> target `EffectPlan.storageMapInsertTarget`/
+    `EffectPlan.storageMapSetTarget` -> `lowerPlanEffectExpr`/
+    `ToYul.mapSetReturnTargetExpr`.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local
