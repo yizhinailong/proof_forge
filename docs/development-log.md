@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM IR Local Array Discovery Cleanup
+
+Commit: 1e54791
+
+Summary:
+
+- Removed the legacy local fixed-array helper discovery scanners from
+  `IR.lean` after incomplete-plan fallback routing moved to
+  `Lower.buildLocalArrayGetLengths`.
+- Removed the legacy nested local-array helper discovery scanners from
+  `IR.lean` after fallback routing moved to
+  `Lower.buildNestedLocalArrayGetShapes`.
+- Removed the duplicate IR-local checked-arithmetic scanner because fallback
+  and full-plan lowering now both use `Validate.moduleUsesCheckedArithmetic`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Several compatibility wrappers and type aliases still remain in `IR.lean`.
+  They should be reviewed case-by-case so the public facade stays stable while
+  final lowering ownership continues moving to `Lower -> Plan -> ToYul`.
+
+Next step:
+
+- Inspect the remaining compatibility-only wrappers in `IR.lean` and either
+  delete dead surface area or keep narrow facade aliases for downstream callers.
+
 ### EVM IR Crosscall/Create Discovery Cleanup
 
 Commit: 21893a0
