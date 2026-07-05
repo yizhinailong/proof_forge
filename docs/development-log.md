@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM ToYul Checked Arithmetic Helpers
+
+Commit: d2649e5
+
+Summary:
+
+- Moved checked-arithmetic helper names, max-word overflow constant, revert
+  guard construction, and helper function bodies from the `IR.lean`
+  compatibility facade into `ToYul.lean`.
+- Kept the public `IR.lean` checked-add/sub/mul expression helpers as thin
+  delegations to `ToYul.checkedArithExpr`, preserving existing callers while
+  making final Yul helper ownership explicit.
+- Updated planned checked-arithmetic helper emission and incomplete-plan
+  fallback emission to use the `ToYul` helper definitions.
+- Added semantic-plan regression coverage that locks the ToYul helper set and
+  verifies planned checked-arithmetic helpers are emitted from the plan path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/expression-ir-smoke.sh
+scripts/evm/assign-op-ir-smoke.sh
+scripts/evm/context-ir-smoke.sh
+just evm-diagnostics
+git diff --check
+```
+
+Known limitations:
+
+- Fallback discovery for whether a best-effort module uses checked arithmetic
+  still lives in `IR.lean`; this slice only moves the emitted helper bodies and
+  planned helper ownership to `ToYul`.
+
+Next step:
+
+- Continue Phase 0 by moving the next helper-body boundary out of the
+  compatibility facade, likely map/array/hash helper bodies or the remaining
+  revert/error-reference helper frame.
+
 ### EVM Planned Context Expressions
 
 Commit: e1a8608
