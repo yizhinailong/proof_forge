@@ -506,6 +506,11 @@ Tasks:
     lowering, and indexed-topic/data routing while IR only supplies field word
     plans. Ordinary event statements now use the same `StmtPlan.effect` helper,
     and the IR-local indexed-topic/data-word wrapper helpers have been removed.
+    The compatibility `lowerEventEmitCoreStmt` facade now starts from
+    `Lower.buildEffectPlan` for portable event effects and only accepts the
+    word-planned `eventEmitWords`/`eventEmitIndexedWords` variants before
+    delegating to `ToYul.eventEffectStmtPlanStatements`, so event plan and
+    field-value source planning no longer happens in `IR.lean`.
     The earlier Yul-expression and field-word provider callback helper shapes
     have also been removed from the active ToYul surface.
   - Started: event data-word store assembly and indexed scalar/aggregate topic

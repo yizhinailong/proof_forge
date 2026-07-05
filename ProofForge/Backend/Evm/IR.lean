@@ -2811,55 +2811,21 @@ def lowerEventEmitCoreStmt
     (env : TypeEnv)
     (name : String)
     (indexedFields dataFields : Array (String × ProofForge.IR.Expr)) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let eventPlan ←
-    match ProofForge.Backend.Evm.Lower.eventPlanForFields
-        module
-        (toValidateTypeEnv env)
-        name
-        indexedFields
-        dataFields with
-    | .ok eventPlan => .ok eventPlan
-    | .error err => .error { message := err.message }
-  let indexedFieldPlans := eventPlan.indexedFields
-  let dataFieldPlans := eventPlan.dataFields
-  let mut indexedValuePlans : Array ProofForge.Backend.Evm.Plan.AbiValuePlan := #[]
-  for h : idx in [0:indexedFields.size] do
-    let field := indexedFields[idx]
-    let some fieldPlan := indexedFieldPlans[idx]?
-      | .error { message := s!"event `{name}` missing indexed field plan at index {idx}" }
-    let valuePlan ←
-      match ProofForge.Backend.Evm.Lower.buildEventFieldValuePlan
-          module
-          (toValidateTypeEnv env)
-          name
-          field.fst
-          fieldPlan.type
-          field.snd with
-      | .ok plan => .ok plan
-      | .error err => .error { message := err.message }
-    indexedValuePlans := indexedValuePlans.push valuePlan
-  let mut dataValuePlans : Array ProofForge.Backend.Evm.Plan.AbiValuePlan := #[]
-  for h : idx in [0:dataFields.size] do
-    let field := dataFields[idx]
-    let some fieldPlan := dataFieldPlans[idx]?
-      | .error { message := s!"event `{name}` missing data field plan at index {idx}" }
-    let valuePlan ←
-      match ProofForge.Backend.Evm.Lower.buildEventFieldValuePlan
-          module
-          (toValidateTypeEnv env)
-          name
-          field.fst
-          fieldPlan.type
-          field.snd with
-      | .ok plan => .ok plan
-      | .error err => .error { message := err.message }
-    dataValuePlans := dataValuePlans.push valuePlan
-  let effect :=
+  let effect : ProofForge.IR.Effect :=
     if indexedFields.isEmpty then
-      ProofForge.Backend.Evm.Plan.EffectPlan.eventEmit eventPlan dataValuePlans
+      ProofForge.IR.Effect.eventEmit name dataFields
     else
-      ProofForge.Backend.Evm.Plan.EffectPlan.eventEmitIndexed eventPlan indexedValuePlans dataValuePlans
-  let effect ← lowerEventEffectWordPlan module env effect
+      ProofForge.IR.Effect.eventEmitIndexed name indexedFields dataFields
+  let effect ←
+    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) effect with
+    | .ok (.eventEmitWords event dataFieldWords) =>
+        .ok (ProofForge.Backend.Evm.Plan.EffectPlan.eventEmitWords event dataFieldWords)
+    | .ok (.eventEmitIndexedWords event indexedFieldWords dataFieldWords) =>
+        .ok (ProofForge.Backend.Evm.Plan.EffectPlan.eventEmitIndexedWords event indexedFieldWords dataFieldWords)
+    | .ok _ =>
+        .error { message := s!"EVM Lower.buildEffectPlan event `{name}` did not produce word-planned event effect" }
+    | .error err =>
+        .error { message := err.message }
   let statements ←
     ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatements
       toYulError

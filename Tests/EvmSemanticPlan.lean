@@ -5140,6 +5140,43 @@ def testScalarEventPlanToYul : IO Unit := do
           require (args.size == 4) "event effect StmtPlan-to-Yul helper log arg count"
       | _ => throw <| IO.userError "event effect StmtPlan-to-Yul helper must end with log"
   | _ => throw <| IO.userError "event effect StmtPlan-to-Yul helper must lower to block"
+  let plannedDataEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EventProbe.evmModule
+      (toValidateTypeEnv env)
+      (ProofForge.IR.Effect.eventEmit
+        "PlanValue"
+        #[("value", .add (.local "n") (.literal (.u64 1)))]))
+    "event data statement Lower.buildEffectPlan"
+  match plannedDataEffect with
+  | .eventEmitWords event dataFieldWords => do
+      require (event.name == "PlanValue") "event data statement Lower event name"
+      require (dataFieldWords.size == 1) "event data statement Lower field count"
+      let words ← requireAt dataFieldWords 0 "event data statement Lower missing words"
+      require (words.size == 1) "event data statement Lower word count"
+      match words[0]? with
+      | some (ExprPlan.checkedArith .add (ExprPlan.local "n") (ExprPlan.literalWord 1)) => pure ()
+      | _ => throw <| IO.userError "event data statement Lower word must be planned checked add"
+  | _ => throw <| IO.userError "event data statement Lower must produce eventEmitWords"
+  let plannedIndexedEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EventProbe.evmModule
+      (toValidateTypeEnv env)
+      (ProofForge.IR.Effect.eventEmitIndexed
+        "PlanIndexed"
+        #[("key", .effect (.storageScalarRead "_proof_forge_marker"))]
+        #[("value", .add (.local "n") (.literal (.u64 1)))]))
+    "indexed event statement Lower.buildEffectPlan"
+  match plannedIndexedEffect with
+  | .eventEmitIndexedWords event indexedFieldWords dataFieldWords => do
+      require (event.name == "PlanIndexed") "indexed event statement Lower event name"
+      require (indexedFieldWords.size == 1) "indexed event statement Lower indexed field count"
+      require (dataFieldWords.size == 1) "indexed event statement Lower data field count"
+      let indexedWords ← requireAt indexedFieldWords 0 "indexed event statement Lower missing indexed words"
+      let dataWords ← requireAt dataFieldWords 0 "indexed event statement Lower missing data words"
+      require (indexedWords.size == 1) "indexed event statement Lower indexed word count"
+      require (dataWords.size == 1) "indexed event statement Lower data word count"
+  | _ => throw <| IO.userError "indexed event statement Lower must produce eventEmitIndexedWords"
   let dataStmt ← requireOk
     (lowerEventEmitCoreStmt
       ProofForge.IR.Examples.EventProbe.evmModule
