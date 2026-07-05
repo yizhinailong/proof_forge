@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Crosscall Argument Word Plan Delegation
+
+Commit: becf9d8
+
+Summary:
+
+- Added `ToYul.crosscallArgWordPlanExprs` to own traversal and concatenation of
+  planned crosscall argument word groups.
+- Routed `IR.lowerCrosscallArgWordPlanExprs` through that helper, leaving
+  `IR.lean` responsible only for local/storage word-provider callbacks that
+  still depend on compatibility type-env helpers.
+- Added semantic-plan coverage for mixed local aggregate, scalar, and
+  storage-backed crosscall word groups.
+- Updated the implementation backlog and Chinese translation sync metadata to
+  record the narrower crosscall compatibility surface.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/crosscall-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns non-literal aggregate crosscall argument source
+  validation outside local aggregate values and storage scalar struct reads.
+- Some expression-position aggregate crosscall diagnostics still live in the
+  compatibility facade.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue migrating aggregate crosscall argument source validation and
+  diagnostics into explicit `Lower`/`Plan` surfaces.
+
 ### EVM Dynamic Return Fallback Removal
 
 Commit: 2746617
