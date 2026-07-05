@@ -533,6 +533,10 @@ Tasks:
     `Lower.buildExpressionExprPlan` -> `ExprPlan.literalWord`/`ExprPlan.local` ->
     `ToYul.exprPlanExpr`, including `hash4` limb packing through the same
     `Lower.literalPlan` validation path.
+    Expression-position storage and context read effects now enter
+    `Lower.buildEffectPlan` -> target `EffectPlan`/`EffectPlan.contextRead` ->
+    `lowerPlanEffectExpr`/`ToYul` instead of being dispatched directly from
+    `IR.lowerEffectExpr`.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local

@@ -2338,35 +2338,39 @@ mutual
         lowerExprThroughPlan module env (.crosscallCreate2 callValue salt initCodeHex)
     | .effect effect => lowerEffectExpr module env effect
 
+  partial def lowerEffectExprThroughPlan
+      (module : Module)
+      (env : TypeEnv)
+      (effect : Effect) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let plan ←
+      match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) effect with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    lowerPlanEffectExpr module env plan
+
   partial def lowerEffectExpr (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Expr
     | .storageScalarRead stateId => do
-        match ← scalarStateType module stateId with
-        | .structType _ =>
-            .error {
-              message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
-            }
-        | _ => pure ()
-        lowerScalarStorageReadExpr module env stateId
+        lowerEffectExprThroughPlan module env (.storageScalarRead stateId)
     | .storageScalarWrite _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
     | .storageScalarAssignOp _ _ _ =>
         .error { message := "storage.scalar.assign_op is a statement effect, not an expression" }
     | .storageMapContains stateId key =>
-        lowerMapContainsExpr module env stateId key
+        lowerEffectExprThroughPlan module env (.storageMapContains stateId key)
     | .storageMapGet stateId key =>
-        lowerMapGetExpr module env stateId key
+        lowerEffectExprThroughPlan module env (.storageMapGet stateId key)
     | .storageMapInsert stateId key value =>
         lowerMapSetReturnExpr module env stateId key value
     | .storageMapSet stateId key value =>
         lowerMapSetReturnExpr module env stateId key value
     | .storageArrayRead stateId index =>
-        lowerArrayReadExpr module env stateId index
+        lowerEffectExprThroughPlan module env (.storageArrayRead stateId index)
     | .storageArrayWrite _ _ _ =>
         .error { message := "storage.array.write is a statement effect, not an expression" }
     | .memoryArraySet _ _ _ =>
         .error { message := "memory.array.set is a statement effect, not an expression" }
     | .storageArrayStructFieldRead stateId index fieldName =>
-        lowerStructArrayFieldReadExpr module env stateId index fieldName
+        lowerEffectExprThroughPlan module env (.storageArrayStructFieldRead stateId index fieldName)
     | .storageArrayStructFieldWrite _ _ _ _ =>
         .error { message := "storage.array.struct.field.write is a statement effect, not an expression" }
     | .storageDynamicArrayPush _ _ =>
@@ -2374,19 +2378,17 @@ mutual
     | .storageDynamicArrayPop _ =>
         .error { message := "storage.dynamic.array.pop is a statement effect, not an expression" }
     | .storageStructFieldRead stateId fieldName =>
-        lowerStructFieldReadExpr module stateId fieldName
+        lowerEffectExprThroughPlan module env (.storageStructFieldRead stateId fieldName)
     | .storageStructFieldWrite _ _ _ =>
         .error { message := "storage.struct.field.write is a statement effect, not an expression" }
     | .storagePathRead stateId path =>
-        lowerStoragePathReadExpr module env stateId path
+        lowerEffectExprThroughPlan module env (.storagePathRead stateId path)
     | .storagePathWrite _ _ _ =>
         .error { message := "storage.path.write is a statement effect, not an expression" }
     | .storagePathAssignOp _ _ _ _ =>
         .error { message := "storage.path.assign_op is a statement effect, not an expression" }
     | .contextRead field =>
-        ProofForge.Backend.Evm.ToYul.contextFieldExpr
-          (fun expr => lowerExpr module env expr)
-          field
+        lowerEffectExprThroughPlan module env (.contextRead field)
     | .eventEmit _ _ =>
         .error { message := "event.emit is a statement effect, not an expression" }
     | .eventEmitIndexed _ _ _ =>

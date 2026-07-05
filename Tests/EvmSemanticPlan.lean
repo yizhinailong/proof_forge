@@ -5418,6 +5418,16 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
   | Lean.Compiler.Yul.Expr.builtin "and" args =>
       require (args.size == 2) "planned scalar storage read target helper packed arg count"
   | _ => throw <| IO.userError "planned scalar storage read target helper must lower to packed read"
+  let directReadEffectExpr ← requireOk
+    (lowerEffectExpr
+      ProofForge.IR.Examples.Counter.module
+      env
+      (.storageScalarRead "count"))
+    "scalar storage read effect Lower-to-Yul"
+  match directReadEffectExpr with
+  | Lean.Compiler.Yul.Expr.builtin "and" args =>
+      require (args.size == 2) "scalar storage read effect must use packed target read"
+  | _ => throw <| IO.userError "scalar storage read effect must lower through packed target plan"
   let directPlannedWriteStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
       toYulError
@@ -5634,6 +5644,16 @@ def testMapReadPlanToYul : IO Unit := do
   | Lean.Compiler.Yul.Expr.builtin "iszero" args => do
       require (args.size == 1) "map contains expression outer iszero arg count"
   | _ => throw <| IO.userError "map contains expression must lower to iszero"
+  let containsEffectExpr ← requireOk
+    (lowerEffectExpr
+      ProofForge.IR.Examples.EvmMapProbe.module
+      env
+      (.storageMapContains "balances" (.add (.local "key") (.literal (.u64 1)))))
+    "map contains effect Lower-to-Yul"
+  match containsEffectExpr with
+  | Lean.Compiler.Yul.Expr.builtin "iszero" args => do
+      require (args.size == 1) "map contains effect outer iszero arg count"
+  | _ => throw <| IO.userError "map contains effect must lower through target plan"
   let getExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.EvmMapProbe.module
@@ -5865,6 +5885,17 @@ def testArrayReadPlanToYul : IO Unit := do
       require (args.size == 1) "array read expression sload arg count"
       requireCallExpr args[0]! (Helper.arraySlot).name 3 "array read expression slot helper"
   | _ => throw <| IO.userError "array read expression must lower to sload"
+  let readEffectExpr ← requireOk
+    (lowerEffectExpr
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      env
+      (.storageArrayRead "values" (.add (.literal (.u64 1)) (.literal (.u64 1)))))
+    "array read effect Lower-to-Yul"
+  match readEffectExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "array read effect sload arg count"
+      requireCallExpr args[0]! (Helper.arraySlot).name 3 "array read effect slot helper"
+  | _ => throw <| IO.userError "array read effect must lower through target plan"
 
 def testArrayWritePlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
@@ -6107,6 +6138,17 @@ def testStructArrayFieldReadPlanToYul : IO Unit := do
       require (args.size == 1) "struct-array field read expression sload arg count"
       requireCallExpr args[0]! (Helper.structArraySlot).name 5 "struct-array field read expression slot helper"
   | _ => throw <| IO.userError "struct-array field read expression must lower to sload"
+  let readEffectExpr ← requireOk
+    (lowerEffectExpr
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      env
+      (.storageArrayStructFieldRead "points" (.add (.literal (.u64 0)) (.literal (.u64 1))) "y"))
+    "struct-array field read effect Lower-to-Yul"
+  match readEffectExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "struct-array field read effect sload arg count"
+      requireCallExpr args[0]! (Helper.structArraySlot).name 5 "struct-array field read effect slot helper"
+  | _ => throw <| IO.userError "struct-array field read effect must lower through target plan"
 
 def testStructFieldWritePlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
@@ -6598,6 +6640,17 @@ def testStoragePathReadPlanToYul : IO Unit := do
       require (args.size == 1) "raw map storage path read sload arg count"
       requireCallExpr args[0]! (Helper.mapSlot).name 2 "raw map storage path read slot helper"
   | _ => throw <| IO.userError "raw map storage path read must lower to sload"
+  let rawMapPathReadEffect ← requireOk
+    (lowerEffectExpr
+      ProofForge.IR.Examples.EvmMapProbe.module
+      mapEnv
+      (.storagePathRead "balances" #[.mapKey (.add (.local "outer") (.literal (.u64 1)))]))
+    "raw map storage path read effect Lower-to-Yul"
+  match rawMapPathReadEffect with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "raw map storage path read effect sload arg count"
+      requireCallExpr args[0]! (Helper.mapSlot).name 2 "raw map storage path read effect slot helper"
+  | _ => throw <| IO.userError "raw map storage path read effect must lower through target plan"
 
 def testStoragePathWritePlanToYul : IO Unit := do
   let arrayEnv : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
@@ -7065,6 +7118,18 @@ def testContextPlanToYul : IO Unit := do
       require (args.size == 1) "context blockhash plan-to-yul arg count"
       requireCallExpr args[0]! "__pf_checked_add" 2 "context blockhash planned argument"
   | _ => throw <| IO.userError "context blockhash plan-to-yul must lower to blockhash builtin"
+  let directContextExpr ← requireOk
+    (lowerEffectExpr
+      ProofForge.IR.Examples.Counter.module
+      env
+      (.contextRead (.blockHash (.add (.local "block_number") (.literal (.u64 1))))))
+    "context blockhash effect Lower-to-Yul"
+  match directContextExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "blockhash") "context blockhash effect Lower-to-Yul builtin"
+      require (args.size == 1) "context blockhash effect Lower-to-Yul arg count"
+      requireCallExpr args[0]! "__pf_checked_add" 2 "context blockhash effect planned argument"
+  | _ => throw <| IO.userError "context blockhash effect must lower through target plan"
 
 def main : IO UInt32 := do
   testCounterSemanticPlan
