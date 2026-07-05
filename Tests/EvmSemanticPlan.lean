@@ -2914,6 +2914,46 @@ def testLocalAbiWordsToYul : IO Unit := do
   requireIdentExpr loweredArrayWords[1]! "__proof_forge_array_xs_1" "compat local ABI fixed-array word 1"
   requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "compat local ABI fixed-array word 2"
 
+def testArrayLiteralDirectExprPlanToYul : IO Unit := do
+  let env : TypeEnv := #[
+    { name := "idx", type := .u64, isMutable := false }
+  ]
+  let expr : Expr :=
+    .arrayGet
+      (.arrayLit .u64 #[.literal (.u64 5), .literal (.u64 8)])
+      (.add (.local "idx") (.literal (.u64 0)))
+  let plan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv env)
+      expr)
+    "direct dynamic array-literal Lower ExprPlan"
+  match plan with
+  | .arrayGet arrayPlan indexPlan => do
+      match arrayPlan with
+      | .arrayLit elementType values => do
+          require (elementType == .u64) "direct dynamic array-literal Lower ExprPlan element type"
+          require (values.size == 2) "direct dynamic array-literal Lower ExprPlan values"
+      | _ => throw <| IO.userError "direct dynamic array-literal Lower ExprPlan must use arrayLit base"
+      match indexPlan with
+      | .checkedArith .add (.local name) (.literalWord 0) =>
+          require (name == "idx") "direct dynamic array-literal Lower ExprPlan index"
+      | _ => throw <| IO.userError "direct dynamic array-literal Lower ExprPlan index must be checked-add"
+  | _ => throw <| IO.userError "direct dynamic array-literal Lower ExprPlan must be arrayGet arrayLit checked-add"
+  let lowered ← requireOk
+    (lowerExpr ProofForge.IR.Examples.Counter.module env expr)
+    "direct dynamic array-literal read lowers through ExprPlan"
+  match lowered with
+  | Lean.Compiler.Yul.Expr.call name args => do
+      require (name == "__proof_forge_local_array_get_2") "direct dynamic array-literal read helper"
+      require (args.size == 3) "direct dynamic array-literal read helper arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "direct dynamic array-literal read index must lower through ExprPlan"
+          require (addArgs.size == 2) "direct dynamic array-literal read index helper arg count"
+      | _ => throw <| IO.userError "direct dynamic array-literal read index must be planned checked add"
+  | _ => throw <| IO.userError "direct dynamic array-literal read must lower to local-array helper call"
+
 def testLocalCrosscallWordsToYul : IO Unit := do
   let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
     if typeName == "Point" then
@@ -7456,6 +7496,7 @@ def main : IO UInt32 := do
   testEntrypointDispatchPlanToYul
   testSemanticPlanRender
   testScalarExprPlanToYul
+  testArrayLiteralDirectExprPlanToYul
   testLocalAbiWordsToYul
   testLocalCrosscallWordsToYul
   testReturnValueWordPlanToYul

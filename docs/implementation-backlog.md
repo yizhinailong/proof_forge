@@ -628,9 +628,11 @@ Tasks:
     `Lower.buildExprPlan` when it produces `.localArrayGet`, and direct local
     struct-field reads first consume `Lower.buildExprPlan` when it produces
     supported `.structField` plans for local struct values, struct literals, or
-    local struct-array leaves. Storage-backed struct reads, aggregate array
-    values, and unsupported aggregate local-array leaves still fall back through
-    the compatibility facade.
+    local struct-array leaves. Direct scalar array-literal reads also first
+    consume `Lower.buildExprPlan` when it produces `.arrayGet (.arrayLit ..)`.
+    Storage-backed struct reads, aggregate array values, and unsupported
+    aggregate local-array leaves still fall back through the compatibility
+    facade.
   - Started: whole local aggregate assignment snapshot blocks now live behind
     `ToYul`. `IR.lean` still validates and expands local fixed-array, nested
     fixed-array, struct-array, and struct assignment sources, but final temp

@@ -1969,6 +1969,8 @@ mutual
     match planned with
     | .localArrayGet .. =>
         lowerExprPlanExpr module env planned
+    | .arrayGet (.arrayLit ..) _ =>
+        lowerExprPlanExpr module env planned
     | _ =>
         match collectLocalArrayGetPath fullExpr with
         | some (name, path) =>
