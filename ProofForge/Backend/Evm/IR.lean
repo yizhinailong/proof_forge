@@ -2162,20 +2162,6 @@ mutual
           expectedType
     plans.mapM (lowerExprPlanExpr module env)
 
-  partial def lowerStorageAbiWords
-      (module : Module)
-      (env : TypeEnv)
-      (context stateId : String)
-      (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    let plans ←
-      lowerValidate <|
-        ProofForge.Backend.Evm.Lower.storageAbiWordPlans
-          module
-          context
-          stateId
-          expectedType
-    plans.mapM (lowerExprPlanExpr module env)
-
   partial def lowerStorageArrayAbiWords
       (module : Module)
       (context stateId : String)
@@ -2661,6 +2647,47 @@ def lowerCrosscallReturnAssignmentPlan
     plan.returns.returnType
     plan.returns.wordTypes
 
+def lowerAbiWordPlanExprs
+    (module : Module)
+    (env : TypeEnv)
+    (plans : Array ProofForge.Backend.Evm.Plan.ExprPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Expr) :=
+  plans.mapM (lowerExprPlanExpr module env)
+
+def lowerEventFieldDataWordExprs
+    (module : Module)
+    (env : TypeEnv)
+    (eventName : String)
+    (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
+    (value : ProofForge.Backend.Evm.Plan.ExprPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  let wordPlans ←
+    lowerValidate <|
+      ProofForge.Backend.Evm.Lower.eventFieldDataWordPlans
+        module
+        (toValidateTypeEnv env)
+        eventName
+        field
+        value
+  lowerAbiWordPlanExprs module env wordPlans
+
+def lowerEventFieldsDataWordExprs
+    (module : Module)
+    (env : TypeEnv)
+    (eventName : String)
+    (fields : Array ProofForge.Backend.Evm.Plan.EventFieldPlan)
+    (values : Array ProofForge.Backend.Evm.Plan.ExprPlan) :
+    Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  let wordPlans ←
+    lowerValidate <|
+      ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
+        module
+        (toValidateTypeEnv env)
+        eventName
+        fields
+        values
+  lowerAbiWordPlanExprs module env wordPlans
+
 def lowerReturnValueWordPlan
     (module : Module)
     (env : TypeEnv)
@@ -2668,16 +2695,19 @@ def lowerReturnValueWordPlan
     (plan : ProofForge.Backend.Evm.Plan.ReturnValueWordPlan) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   let context := s!"entrypoint `{entrypointName}` return value"
-  ProofForge.Backend.Evm.ToYul.returnValueWordPlanAssignments
+  let wordPlans ←
+    lowerValidate <|
+      ProofForge.Backend.Evm.Lower.returnValueWordPlans
+        module
+        (toValidateTypeEnv env)
+        context
+        plan
+  let words ← lowerAbiWordPlanExprs module env wordPlans
+  ProofForge.Backend.Evm.ToYul.returnValueWordAssignments
     toYulError
-    (fun exprPlan => lowerExprPlanExpr module env exprPlan)
-    (localAbiStructFields module context)
-    (fun context typeName stateId =>
-      lowerStorageAbiWords module env context stateId (.structType typeName))
-    (fun context stateId elementType length =>
-      lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
     context
-    plan
+    plan.returns
+    words
 
 partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
   | .literal _ => true
@@ -2851,18 +2881,7 @@ partial def lowerIndexedEventTopicStatements
           value with
         | .ok plan => .ok plan
         | .error err => .error { message := err.message }
-      let words ←
-        ProofForge.Backend.Evm.ToYul.eventFieldDataWordsFromPlan
-          toYulError
-          (fun exprPlan => lowerExprPlanExpr module env exprPlan)
-          (localAbiStructFields module s!"event `{eventName}` indexed field")
-          (fun context typeName stateId =>
-            lowerStorageAbiWords module env context stateId (.structType typeName))
-          (fun context stateId elementType length =>
-            lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
-          eventName
-          fieldPlan
-          valuePlan
+      let words ← lowerEventFieldDataWordExprs module env eventName fieldPlan valuePlan
       ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
         toYulError
         fieldPlan
@@ -2908,18 +2927,7 @@ def lowerEventEmitCoreStmt
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
     dataValuePlans := dataValuePlans.push valuePlan
-  let dataWords ←
-    ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
-      toYulError
-      (fun exprPlan => lowerExprPlanExpr module env exprPlan)
-      (localAbiStructFields module s!"event `{name}` data field")
-      (fun context typeName stateId =>
-        lowerStorageAbiWords module env context stateId (.structType typeName))
-      (fun context stateId elementType length =>
-        lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
-      name
-      dataFieldPlans
-      dataValuePlans
+  let dataWords ← lowerEventFieldsDataWordExprs module env name dataFieldPlans dataValuePlans
   ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement
     toYulError
     eventPlan
@@ -5065,43 +5073,28 @@ def lowerScalarEventEffectPlan
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   match effect with
   | .eventEmit event dataFields => do
-      let dataWords ←
-        ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
-          toYulError
-          (fun exprPlan => lowerExprPlanExpr module env exprPlan)
-          (localAbiStructFields module s!"event `{event.name}` data field")
-          (fun context typeName stateId =>
-            lowerStorageAbiWords module env context stateId (.structType typeName))
-          (fun context stateId elementType length =>
-            lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
-          event.name
-          event.dataFields
-          dataFields
+      let dataWords ← lowerEventFieldsDataWordExprs module env event.name event.dataFields dataFields
       .ok #[← ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement toYulError event #[] dataWords]
   | .eventEmitIndexed event indexedFields dataFields => do
-      let indexedTopicStatements ←
-        ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatementsFromPlans
-          toYulError
-          (fun exprPlan => lowerExprPlanExpr module env exprPlan)
-          (localAbiStructFields module s!"event `{event.name}` indexed field")
-          (fun context typeName stateId =>
-            lowerStorageAbiWords module env context stateId (.structType typeName))
-          (fun context stateId elementType length =>
-            lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
-          event
-          indexedFields
-      let dataWords ←
-        ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
-          toYulError
-          (fun exprPlan => lowerExprPlanExpr module env exprPlan)
-          (localAbiStructFields module s!"event `{event.name}` data field")
-          (fun context typeName stateId =>
-            lowerStorageAbiWords module env context stateId (.structType typeName))
-          (fun context stateId elementType length =>
-            lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
-          event.name
-          event.dataFields
-          dataFields
+      if event.indexedFields.size != indexedFields.size then
+        .error {
+          message := s!"planned scalar control-flow event `{event.name}` indexed field/value count mismatch"
+        }
+      let mut indexedTopicStatements : Array Lean.Compiler.Yul.Statement := #[]
+      for h : idx in [0:event.indexedFields.size] do
+        let some value := indexedFields[idx]?
+          | .error {
+              message := s!"planned scalar control-flow event `{event.name}` missing indexed field value at index {idx}"
+            }
+        let words ← lowerEventFieldDataWordExprs module env event.name event.indexedFields[idx] value
+        indexedTopicStatements :=
+          indexedTopicStatements ++
+            (← ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
+              toYulError
+              event.indexedFields[idx]
+              idx
+              words)
+      let dataWords ← lowerEventFieldsDataWordExprs module env event.name event.dataFields dataFields
       .ok #[← ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement toYulError event indexedTopicStatements dataWords]
   | _ =>
       .error { message := "planned scalar control-flow body expected an event effect" }

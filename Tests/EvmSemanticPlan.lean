@@ -1743,6 +1743,20 @@ def testLocalAbiWordsToYul : IO Unit := do
       (.structType "Point"))
     "unknown local `missing`"
     "Lower local ABI unknown local diagnostic"
+  let lowerStructWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.localAbiWordPlans
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv abiStructEnv)
+      "local ABI words"
+      "p"
+      (.structType "Point"))
+    "Lower local ABI struct word plans"
+  require (lowerStructWordPlans.size == 2) "Lower local ABI struct word plan count"
+  match lowerStructWordPlans[0]?, lowerStructWordPlans[1]? with
+  | some (ExprPlan.local lhs), some (ExprPlan.local rhs) => do
+      require (lhs == "__proof_forge_struct_p_x") "Lower local ABI struct word plan 0"
+      require (rhs == "__proof_forge_struct_p_y") "Lower local ABI struct word plan 1"
+  | _, _ => throw <| IO.userError "Lower local ABI struct words must be local ExprPlans"
   let directStructWords ← requireOk
     (ProofForge.Backend.Evm.ToYul.localAbiWords
       toYulError
@@ -1782,6 +1796,19 @@ def testLocalAbiWordsToYul : IO Unit := do
   let arrayEnv : TypeEnv := #[
     { name := "xs", type := .fixedArray .u64 3, isMutable := false }
   ]
+  let lowerArrayWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.localAbiWordPlans
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv arrayEnv)
+      "local ABI words"
+      "xs"
+      (.fixedArray .u64 3))
+    "Lower local ABI fixed-array word plans"
+  require (lowerArrayWordPlans.size == 3) "Lower local ABI fixed-array word plan count"
+  match lowerArrayWordPlans[2]? with
+  | some (ExprPlan.local name) =>
+      require (name == "__proof_forge_array_xs_2") "Lower local ABI fixed-array word plan 2"
+  | _ => throw <| IO.userError "Lower local ABI fixed-array words must be local ExprPlans"
   let loweredArrayWords ← requireOk
     (lowerLocalAbiWords
       ProofForge.IR.Examples.EvmArrayValueProbe.module
@@ -3758,17 +3785,21 @@ def plannedLocalAggregateEventDataWords
     | .eventEmit event dataFields => pure (event, dataFields)
     | _ => throw <| IO.userError s!"{label} must lower to eventEmit plan"
   require (event.name == eventName) s!"{label} event name"
-  requireOk
-    (ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
-      toYulError
-      (fun _ => .error (toYulError s!"{label} should use local ABI word plans"))
-      (localAbiStructFields module label)
-      (fun _ _ _ => .error (toYulError s!"{label} should not use storage ABI words"))
-      (fun _ _ _ _ => .error (toYulError s!"{label} should not use storage array ABI words"))
+  let wordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
+      module
+      (toValidateTypeEnv env)
       event.name
       event.dataFields
       dataFields)
-    s!"{label} plan-to-yul"
+    s!"{label} Lower data word plans"
+  let mut words : Array Lean.Compiler.Yul.Expr := #[]
+  for h : idx in [0:wordPlans.size] do
+    words := words.push
+      (← requireOk
+        (lowerExprPlanExpr module env wordPlans[idx])
+        s!"{label} word plan {idx} to-yul")
+  pure words
 
 def testLocalAggregateEventDataWordsPlanToYul : IO Unit := do
   let module := ProofForge.IR.Examples.EventProbe.evmModule
@@ -3827,6 +3858,19 @@ def testLocalAggregateEventDataWordsPlanToYul : IO Unit := do
     "__proof_forge_array_struct_pairs_1_right"
     "local struct-array event word 3"
 
+def lowerWordPlansToYul
+    (module : ProofForge.IR.Module)
+    (env : TypeEnv)
+    (wordPlans : Array ExprPlan)
+    (label : String) : IO (Array Lean.Compiler.Yul.Expr) := do
+  let mut words : Array Lean.Compiler.Yul.Expr := #[]
+  for h : idx in [0:wordPlans.size] do
+    words := words.push
+      (← requireOk
+        (lowerExprPlanExpr module env wordPlans[idx])
+        s!"{label} word plan {idx} to-yul")
+  pure words
+
 def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
   let module := ProofForge.IR.Examples.EventProbe.evmModule
   let plan ← requireValidateOk
@@ -3848,20 +3892,20 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
       require (type == .structType "Pair") "storage aggregate event storageAbiWords type"
   | some _ => throw <| IO.userError "storage aggregate event data field must use storageAbiWords"
   | none => throw <| IO.userError "storage aggregate event missing planned data field"
-  let words ← requireOk
-    (ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
-      toYulError
-      (fun _ => .error (toYulError "storage aggregate event should not lower scalar field value"))
-      (localAbiStructFields module "storage aggregate event")
-      (fun context typeName stateId => do
-        let fields ← lowerStructStorageReadFields module context typeName stateId
-        .ok (fields.map fun field => field.snd))
-      (fun context stateId elementType length =>
-        lowerStorageArrayAbiWords module context stateId elementType length)
+  let wordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
+      module
+      (toValidateTypeEnv #[])
       event.name
       event.dataFields
       dataFields)
-    "storage aggregate event data words plan-to-yul"
+    "storage aggregate event data word plans"
+  require (wordPlans.size == 2) "storage aggregate event data word plan count"
+  for h : idx in [0:wordPlans.size] do
+    match wordPlans[idx] with
+    | .storageLoad (.scalarSlot _) => pure ()
+    | _ => throw <| IO.userError s!"storage aggregate event word plan {idx} must be storageLoad"
+  let words ← lowerWordPlansToYul module #[] wordPlans "storage aggregate event"
   require (words.size == 2) "storage aggregate event data word count"
   for h : idx in [0:words.size] do
     match words[idx] with
@@ -3908,20 +3952,20 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
       require (type == .fixedArray .u64 2) "storage array aggregate event storageAbiWords type"
   | some _ => throw <| IO.userError "storage array aggregate event data field must use storageAbiWords"
   | none => throw <| IO.userError "storage array aggregate event missing planned data field"
-  let arrayWords ← requireOk
-    (ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
-      toYulError
-      (fun _ => .error (toYulError "storage array aggregate event should not lower scalar field value"))
-      (localAbiStructFields module "storage array aggregate event")
-      (fun context typeName stateId => do
-        let fields ← lowerStructStorageReadFields module context typeName stateId
-        .ok (fields.map fun field => field.snd))
-      (fun context stateId elementType length =>
-        lowerStorageArrayAbiWords module context stateId elementType length)
+  let arrayWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
+      module
+      (toValidateTypeEnv #[])
       arrayEvent.name
       arrayEvent.dataFields
       arrayDataFields)
-    "storage array aggregate event data words plan-to-yul"
+    "storage array aggregate event data word plans"
+  require (arrayWordPlans.size == 2) "storage array aggregate event data word plan count"
+  for h : idx in [0:arrayWordPlans.size] do
+    match arrayWordPlans[idx] with
+    | .storageLoad (.arraySlot ..) => pure ()
+    | _ => throw <| IO.userError s!"storage array aggregate event word plan {idx} must be array storageLoad"
+  let arrayWords ← lowerWordPlansToYul module #[] arrayWordPlans "storage array aggregate event"
   require (arrayWords.size == 2) "storage array aggregate event data word count"
   for h : idx in [0:arrayWords.size] do
     match arrayWords[idx] with
@@ -3948,20 +3992,20 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
       require (type == .fixedArray (.structType "Pair") 2) "storage struct-array aggregate event storageAbiWords type"
   | some _ => throw <| IO.userError "storage struct-array aggregate event data field must use storageAbiWords"
   | none => throw <| IO.userError "storage struct-array aggregate event missing planned data field"
-  let structArrayWords ← requireOk
-    (ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
-      toYulError
-      (fun _ => .error (toYulError "storage struct-array aggregate event should not lower scalar field value"))
-      (localAbiStructFields module "storage struct-array aggregate event")
-      (fun context typeName stateId => do
-        let fields ← lowerStructStorageReadFields module context typeName stateId
-        .ok (fields.map fun field => field.snd))
-      (fun context stateId elementType length =>
-        lowerStorageArrayAbiWords module context stateId elementType length)
+  let structArrayWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
+      module
+      (toValidateTypeEnv #[])
       structArrayEvent.name
       structArrayEvent.dataFields
       structArrayDataFields)
-    "storage struct-array aggregate event data words plan-to-yul"
+    "storage struct-array aggregate event data word plans"
+  require (structArrayWordPlans.size == 4) "storage struct-array aggregate event data word plan count"
+  for h : idx in [0:structArrayWordPlans.size] do
+    match structArrayWordPlans[idx] with
+    | .storageLoad (.structArrayFieldSlot ..) => pure ()
+    | _ => throw <| IO.userError s!"storage struct-array aggregate event word plan {idx} must be struct-array storageLoad"
+  let structArrayWords ← lowerWordPlansToYul module #[] structArrayWordPlans "storage struct-array aggregate event"
   require (structArrayWords.size == 4) "storage struct-array aggregate event data word count"
   for h : idx in [0:structArrayWords.size] do
     match structArrayWords[idx] with
@@ -3997,18 +4041,32 @@ def testStorageAggregateIndexedEventTopicPlanToYul : IO Unit := do
       require (type == .structType "Pair") "storage aggregate indexed event storageAbiWords type"
   | some _ => throw <| IO.userError "storage aggregate indexed event field must use storageAbiWords"
   | none => throw <| IO.userError "storage aggregate indexed event missing planned indexed field"
+  let indexedFieldPlan ← requireAt event.indexedFields 0 "storage aggregate indexed event missing field plan"
+  let indexedValuePlan ← requireAt indexedFields 0 "storage aggregate indexed event missing value plan"
+  let indexedWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.eventFieldDataWordPlans
+      module
+      (toValidateTypeEnv #[{ name := "value", type := .u64, isMutable := false }])
+      event.name
+      indexedFieldPlan
+      indexedValuePlan)
+    "storage aggregate indexed event word plans"
+  require (indexedWordPlans.size == 2) "storage aggregate indexed event word plan count"
+  for h : idx in [0:indexedWordPlans.size] do
+    match indexedWordPlans[idx] with
+    | .storageLoad (.scalarSlot _) => pure ()
+    | _ => throw <| IO.userError s!"storage aggregate indexed event word plan {idx} must be storageLoad"
+  let indexedWords ← lowerWordPlansToYul
+    module
+    #[{ name := "value", type := .u64, isMutable := false }]
+    indexedWordPlans
+    "storage aggregate indexed event"
   let plannedTopicStmts ← requireOk
-    (ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatementsFromPlans
+    (ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
       toYulError
-      (fun _ => .error (toYulError "storage aggregate indexed event should not lower scalar indexed field"))
-      (localAbiStructFields module "storage aggregate indexed event")
-      (fun context typeName stateId => do
-        let fields ← lowerStructStorageReadFields module context typeName stateId
-        .ok (fields.map fun field => field.snd))
-      (fun context stateId elementType length =>
-        lowerStorageArrayAbiWords module context stateId elementType length)
-      event
-      indexedFields)
+      indexedFieldPlan
+      0
+      indexedWords)
     "storage aggregate indexed event topic plan-to-yul"
   require (plannedTopicStmts.size == 3) "storage aggregate indexed event topic statement count"
   match plannedTopicStmts[2]! with
@@ -4018,7 +4076,6 @@ def testStorageAggregateIndexedEventTopicPlanToYul : IO Unit := do
       | none => throw <| IO.userError "storage aggregate indexed event topic missing var"
       require (args.size == 2) "storage aggregate indexed event topic keccak arg count"
   | _ => throw <| IO.userError "storage aggregate indexed event topic must hash planned words"
-  let fieldPlan ← requireAt event.indexedFields 0 "storage aggregate indexed event missing field plan"
   let facadeTopicStmts ← requireOk
     (lowerIndexedEventTopicStatements
       module
@@ -4026,7 +4083,7 @@ def testStorageAggregateIndexedEventTopicPlanToYul : IO Unit := do
       "IndexedStoragePair"
       "pair"
       0
-      fieldPlan
+      indexedFieldPlan
       (.effect (.storageScalarRead "storedPair")))
     "storage aggregate indexed event facade topic plan-to-yul"
   require (facadeTopicStmts.size == plannedTopicStmts.size)

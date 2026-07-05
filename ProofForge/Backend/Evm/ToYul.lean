@@ -1340,6 +1340,21 @@ def returnValueWordPlanWords
     plan.returns.returnType
     plan.source
 
+def returnValueWordAssignments
+    {ε : Type}
+    (mkError : String → ε)
+    (context : String)
+    (returns : ReturnPlan)
+    (words : Array Lean.Compiler.Yul.Expr) : Except ε (Array Lean.Compiler.Yul.Statement) := do
+  if returns.localNames.size != words.size then
+    .error (mkError s!"{context} return lowering produced {words.size} word(s), expected {returns.localNames.size}")
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  for h : idx in [0:returns.localNames.size] do
+    let some word := words[idx]?
+      | .error (mkError s!"{context} return lowering is missing word {idx}")
+    statements := statements.push (.assignment #[returns.localNames[idx]] word)
+  .ok statements
+
 def returnValueWordPlanAssignments
     {ε : Type}
     (mkError : String → ε)
@@ -1357,14 +1372,7 @@ def returnValueWordPlanAssignments
     storageArrayWords
     context
     plan
-  if plan.returns.localNames.size != words.size then
-    .error (mkError s!"{context} return lowering produced {words.size} word(s), expected {plan.returns.localNames.size}")
-  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
-  for h : idx in [0:plan.returns.localNames.size] do
-    let some word := words[idx]?
-      | .error (mkError s!"{context} return lowering is missing word {idx}")
-    statements := statements.push (.assignment #[plan.returns.localNames[idx]] word)
-  .ok statements
+  returnValueWordAssignments mkError context plan.returns words
 
 partial def localCrosscallWordsAt
     {ε : Type}

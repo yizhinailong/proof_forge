@@ -268,6 +268,171 @@ def storageAbiWordPlans
         message := s!"{context} storage-backed ABI word expansion supports struct scalar storage or fixed storage arrays only, got `{expectedType.name}`"
       }
 
+partial def localAbiWordPlansAt
+    (module : Module)
+    (context name : String)
+    (path : Array Nat) : ValueType → Except LowerError (Array ExprPlan)
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+      if path.isEmpty then
+        .ok #[.local name]
+      else
+        .ok #[.local (arrayLocalPathName name path)]
+  | .unit =>
+      .error {
+        message := s!"{context} uses Unit; IR EVM v0 ABI values must use U32, U64, Bool, Hash, Address, Bytes, String, fixed arrays, or structs"
+      }
+  | .bytes | .string | .array _ =>
+      if path.isEmpty then
+        .ok #[.local (dynamicParamDataPtrName name)]
+      else
+        .error { message := s!"{context} dynamic type cannot be nested in fixed arrays" }
+  | .fixedArray elementType length => do
+      if length == 0 then
+        .error {
+          message := s!"{context} uses Array<{elementType.name},0>; IR EVM v0 ABI fixed arrays must have non-zero length"
+        }
+      let mut plans : Array ExprPlan := #[]
+      for _h : idx in [0:length] do
+        plans := plans ++ (← localAbiWordPlansAt module context name (path.push idx) elementType)
+      .ok plans
+  | .structType typeName => do
+      let fields ← localAbiStructFields module context typeName
+      let mut plans : Array ExprPlan := #[]
+      for field in fields do
+        let fieldName :=
+          if path.isEmpty then
+            structLocalFieldName name field.fst
+          else
+            arrayStructLocalPathFieldName name path field.fst
+        plans := plans.push (.local fieldName)
+      .ok plans
+
+def localAbiWordPlans
+    (module : Module)
+    (env : TypeEnv)
+    (context name : String)
+    (expectedType : ValueType) : Except LowerError (Array ExprPlan) := do
+  validateLocalAbiWordPlan module env context name expectedType
+  localAbiWordPlansAt module context name #[] expectedType
+
+partial def abiValueWordPlans
+    (module : Module)
+    (env : TypeEnv)
+    (context : String)
+    (type : ValueType)
+    (value : ExprPlan) : Except LowerError (Array ExprPlan) := do
+  match type with
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+      .ok #[value]
+  | .fixedArray elementType length =>
+      match value with
+      | .localAbiWords name plannedType =>
+          if plannedType == type then
+            localAbiWordPlans module env context name type
+          else
+            .error {
+              message := s!"{context} local ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`"
+            }
+      | .storageAbiWords stateId plannedType =>
+          if plannedType == type then
+            storageAbiWordPlans module context stateId type
+          else
+            .error {
+              message := s!"{context} storage ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`"
+            }
+      | .arrayLit literalElementType values => do
+          if literalElementType != elementType then
+            .error {
+              message := s!"{context} fixed-array literal element type mismatch: expected `{elementType.name}`, got `{literalElementType.name}`"
+            }
+          if values.size != length then
+            .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
+          let mut plans : Array ExprPlan := #[]
+          for h : idx in [0:values.size] do
+            plans := plans ++
+              (← abiValueWordPlans
+                module
+                env
+                s!"{context} fixed-array element {idx}"
+                elementType
+                values[idx])
+          .ok plans
+      | _ =>
+          .error { message := s!"{context} aggregate field requires an ABI word expansion plan" }
+  | .structType typeName =>
+      match value with
+      | .localAbiWords name plannedType =>
+          if plannedType == type then
+            localAbiWordPlans module env context name type
+          else
+            .error {
+              message := s!"{context} local ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`"
+            }
+      | .storageAbiWords stateId plannedType =>
+          if plannedType == type then
+            storageAbiWordPlans module context stateId type
+          else
+            .error {
+              message := s!"{context} storage ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`"
+            }
+      | .structLit literalTypeName fields => do
+          if literalTypeName != typeName then
+            .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }
+          let fieldDecls ← localAbiStructFields module context typeName
+          let mut plans : Array ExprPlan := #[]
+          for fieldDecl in fieldDecls do
+            let some field := fields.find? fun field => field.fst == fieldDecl.fst
+              | .error {
+                  message := s!"{context} struct literal `{typeName}` is missing field `{fieldDecl.fst}`"
+                }
+            plans := plans ++
+              (← abiValueWordPlans
+                module
+                env
+                s!"{context} struct field `{fieldDecl.fst}`"
+                fieldDecl.snd
+                field.snd)
+          .ok plans
+      | _ =>
+          .error { message := s!"{context} aggregate field requires an ABI word expansion plan" }
+  | .unit | .bytes | .string | .array _ =>
+      .error { message := s!"{context} has unsupported ABI word type `{type.name}`" }
+
+def returnValueWordPlans
+    (module : Module)
+    (env : TypeEnv)
+    (context : String)
+    (plan : ReturnValueWordPlan) : Except LowerError (Array ExprPlan) :=
+  abiValueWordPlans module env context plan.returns.returnType plan.source
+
+def eventFieldDataWordPlans
+    (module : Module)
+    (env : TypeEnv)
+    (eventName : String)
+    (field : EventFieldPlan)
+    (value : ExprPlan) : Except LowerError (Array ExprPlan) :=
+  abiValueWordPlans
+    module
+    env
+    s!"planned event `{eventName}` field `{field.name}`"
+    field.type
+    value
+
+def eventFieldsDataWordPlans
+    (module : Module)
+    (env : TypeEnv)
+    (eventName : String)
+    (fields : Array EventFieldPlan)
+    (values : Array ExprPlan) : Except LowerError (Array ExprPlan) := do
+  if fields.size != values.size then
+    .error { message := s!"planned scalar control-flow event `{eventName}` field/value count mismatch" }
+  let mut plans : Array ExprPlan := #[]
+  for h : idx in [0:fields.size] do
+    let some value := values[idx]?
+      | .error { message := s!"planned scalar control-flow event `{eventName}` missing field value at index {idx}" }
+    plans := plans ++ (← eventFieldDataWordPlans module env eventName fields[idx] value)
+  .ok plans
+
 def entrypointSelector (entrypoint : Entrypoint) : Except LowerError String :=
   match entrypoint.selector? with
   | some selector => .ok selector

@@ -509,20 +509,21 @@ Tasks:
     words, and `ReturnPlan` local-name/word-layout data; `IR.lean` consumes the
     planned `ExprPlan`s and delegates final helper-call function-name
     selection, argument ordering, and multi-return Yul assignment construction
-    to `ToYul`. Local
-    aggregate ABI word expansion for entrypoint returns now uses
-    `Lower.returnValueWordPlan?` to validate the source local and expected type,
-    records the planned `ExprPlan.localAbiWords` source plus `ReturnPlan`
-    layout in `ReturnValueWordPlan`, and delegates the final multi-word
-    assignment frame to `ToYul.returnValueWordPlanAssignments`. Related local
-    ABI compatibility paths still call `ToYul.localAbiWords` as the final
-    emission surface, but local/type validation and struct-field discovery now
-    route through `Lower.validateLocalAbiWordPlan`,
-    `Lower.localAbiStructFieldIds`, and `Lower.localAbiStructFields` before
-    reaching that boundary. Storage-backed ABI word providers for returns,
-    indexed events, and event data now route through `Lower.storageAbiWordPlans`
-    and lower to explicit `ExprPlan.storageLoad` word plans before final Yul
-    emission. Local
+    to `ToYul`. Aggregate ABI word expansion for entrypoint returns, indexed
+    events, and event data now routes through `Lower.returnValueWordPlans`,
+    `Lower.eventFieldDataWordPlans`, and `Lower.eventFieldsDataWordPlans`.
+    Local aggregates lower to explicit `.local` word plans through
+    `Lower.localAbiWordPlans`, storage-backed aggregates lower to explicit
+    `ExprPlan.storageLoad` word plans through `Lower.storageAbiWordPlans`, and
+    fixed-array/struct literals recursively lower to scalar word plans in
+    `Lower.abiValueWordPlans`. `IR.lean` now consumes those planned words,
+    lowers each word plan to Yul, and delegates only the final return
+    assignment frame to `ToYul.returnValueWordAssignments` plus the final event
+    topic/log frames to `ToYul.eventIndexedTopicStatements` and
+    `ToYul.eventEmitCoreStatement`. Compatibility `ToYul.*FromPlan` helpers
+    still exist for direct tests and older callers, but the active IR facade no
+    longer depends on provider callbacks for return/event aggregate ABI word
+    expansion. Local
     aggregate crosscall argument word expansion now delegates the final local
     identifier word construction to `ToYul.localCrosscallWords`; local provider
     validation and struct-field discovery now route through
