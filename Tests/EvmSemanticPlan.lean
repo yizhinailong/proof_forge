@@ -2074,6 +2074,21 @@ def testReturnValueWordPlanToYul : IO Unit := do
       require (stateId == "values") "Lower storage fixed-array return source state"
       require (type == .fixedArray .u64 3) "Lower storage fixed-array return source type"
   | _ => throw <| IO.userError "Lower storage fixed-array return must use storageAbiWords source plan"
+  let storageArrayWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.storageAbiWordPlans
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      "entrypoint `return_values` return value"
+      "values"
+      (.fixedArray .u64 3))
+    "Lower storage fixed-array ABI word plans"
+  require (storageArrayWordPlans.size == 3) "Lower storage fixed-array ABI word plan count"
+  let storageArrayFirstWord ← requireAt storageArrayWordPlans 0 "Lower storage fixed-array missing first word"
+  match storageArrayFirstWord with
+  | .storageLoad (.arraySlot rootSlot length (.irExpr (.literal (.u64 index)))) => do
+      require (rootSlot == 1) "Lower storage fixed-array ABI word root slot"
+      require (length == 3) "Lower storage fixed-array ABI word length"
+      require (index == 0) "Lower storage fixed-array ABI word index"
+  | _ => throw <| IO.userError "Lower storage fixed-array ABI first word must use array storageLoad plan"
   let storageArrayAssignments ← requireOk
     (lowerReturnValueWordPlan
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
@@ -2109,6 +2124,22 @@ def testReturnValueWordPlanToYul : IO Unit := do
       require (stateId == "points") "Lower storage struct-array return source state"
       require (type == .fixedArray (.structType "Point") 2) "Lower storage struct-array return source type"
   | _ => throw <| IO.userError "Lower storage struct-array return must use storageAbiWords source plan"
+  let storageStructArrayWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.storageAbiWordPlans
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      "entrypoint `return_points` return value"
+      "points"
+      (.fixedArray (.structType "Point") 2))
+    "Lower storage struct-array ABI word plans"
+  require (storageStructArrayWordPlans.size == 4) "Lower storage struct-array ABI word plan count"
+  let storageStructArrayLastWord ← requireAt storageStructArrayWordPlans 3 "Lower storage struct-array missing last word"
+  match storageStructArrayLastWord with
+  | .storageLoad (.structArrayFieldSlot _ length fieldCount fieldOffset (.irExpr (.literal (.u64 index)))) => do
+      require (length == 2) "Lower storage struct-array ABI word length"
+      require (fieldCount == 2) "Lower storage struct-array ABI word field count"
+      require (fieldOffset == 1) "Lower storage struct-array ABI word field offset"
+      require (index == 1) "Lower storage struct-array ABI word index"
+  | _ => throw <| IO.userError "Lower storage struct-array ABI last word must use struct-array storageLoad plan"
   let storageStructArrayAssignments ← requireOk
     (lowerReturnValueWordPlan
       ProofForge.IR.Examples.EvmStorageStructProbe.module

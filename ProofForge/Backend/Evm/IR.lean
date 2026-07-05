@@ -2164,18 +2164,17 @@ mutual
 
   partial def lowerStorageAbiWords
       (module : Module)
+      (env : TypeEnv)
       (context stateId : String)
-      (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
-    ProofForge.Backend.Evm.ToYul.storageAbiWords
-      toYulError
-      (fun context typeName stateId => do
-        let fields ← lowerStructStorageReadFields module context typeName stateId
-        .ok (fields.map fun field => field.snd))
-      (fun context stateId elementType length =>
-        lowerStorageArrayAbiWords module context stateId elementType length)
-      context
-      stateId
-      expectedType
+      (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+    let plans ←
+      lowerValidate <|
+        ProofForge.Backend.Evm.Lower.storageAbiWordPlans
+          module
+          context
+          stateId
+          expectedType
+    plans.mapM (lowerExprPlanExpr module env)
 
   partial def lowerStorageArrayAbiWords
       (module : Module)
@@ -2673,11 +2672,10 @@ def lowerReturnValueWordPlan
     toYulError
     (fun exprPlan => lowerExprPlanExpr module env exprPlan)
     (localAbiStructFields module context)
-    (fun context typeName stateId => do
-      let fields ← lowerStructStorageReadFields module context typeName stateId
-      .ok (fields.map fun field => field.snd))
+    (fun context typeName stateId =>
+      lowerStorageAbiWords module env context stateId (.structType typeName))
     (fun context stateId elementType length =>
-      lowerStorageArrayAbiWords module context stateId elementType length)
+      lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
     context
     plan
 
@@ -2858,11 +2856,10 @@ partial def lowerIndexedEventTopicStatements
           toYulError
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
           (localAbiStructFields module s!"event `{eventName}` indexed field")
-          (fun context typeName stateId => do
-            let fields ← lowerStructStorageReadFields module context typeName stateId
-            .ok (fields.map fun field => field.snd))
+          (fun context typeName stateId =>
+            lowerStorageAbiWords module env context stateId (.structType typeName))
           (fun context stateId elementType length =>
-            lowerStorageArrayAbiWords module context stateId elementType length)
+            lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
           eventName
           fieldPlan
           valuePlan
@@ -2916,11 +2913,10 @@ def lowerEventEmitCoreStmt
       toYulError
       (fun exprPlan => lowerExprPlanExpr module env exprPlan)
       (localAbiStructFields module s!"event `{name}` data field")
-      (fun context typeName stateId => do
-        let fields ← lowerStructStorageReadFields module context typeName stateId
-        .ok (fields.map fun field => field.snd))
+      (fun context typeName stateId =>
+        lowerStorageAbiWords module env context stateId (.structType typeName))
       (fun context stateId elementType length =>
-        lowerStorageArrayAbiWords module context stateId elementType length)
+        lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
       name
       dataFieldPlans
       dataValuePlans
@@ -5074,11 +5070,10 @@ def lowerScalarEventEffectPlan
           toYulError
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
           (localAbiStructFields module s!"event `{event.name}` data field")
-          (fun context typeName stateId => do
-            let fields ← lowerStructStorageReadFields module context typeName stateId
-            .ok (fields.map fun field => field.snd))
+          (fun context typeName stateId =>
+            lowerStorageAbiWords module env context stateId (.structType typeName))
           (fun context stateId elementType length =>
-            lowerStorageArrayAbiWords module context stateId elementType length)
+            lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
           event.name
           event.dataFields
           dataFields
@@ -5089,11 +5084,10 @@ def lowerScalarEventEffectPlan
           toYulError
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
           (localAbiStructFields module s!"event `{event.name}` indexed field")
-          (fun context typeName stateId => do
-            let fields ← lowerStructStorageReadFields module context typeName stateId
-            .ok (fields.map fun field => field.snd))
+          (fun context typeName stateId =>
+            lowerStorageAbiWords module env context stateId (.structType typeName))
           (fun context stateId elementType length =>
-            lowerStorageArrayAbiWords module context stateId elementType length)
+            lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
           event
           indexedFields
       let dataWords ←
@@ -5101,11 +5095,10 @@ def lowerScalarEventEffectPlan
           toYulError
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
           (localAbiStructFields module s!"event `{event.name}` data field")
-          (fun context typeName stateId => do
-            let fields ← lowerStructStorageReadFields module context typeName stateId
-            .ok (fields.map fun field => field.snd))
+          (fun context typeName stateId =>
+            lowerStorageAbiWords module env context stateId (.structType typeName))
           (fun context stateId elementType length =>
-            lowerStorageArrayAbiWords module context stateId elementType length)
+            lowerStorageAbiWords module env context stateId (.fixedArray elementType length))
           event.name
           event.dataFields
           dataFields

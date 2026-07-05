@@ -519,7 +519,10 @@ Tasks:
     emission surface, but local/type validation and struct-field discovery now
     route through `Lower.validateLocalAbiWordPlan`,
     `Lower.localAbiStructFieldIds`, and `Lower.localAbiStructFields` before
-    reaching that boundary. Local
+    reaching that boundary. Storage-backed ABI word providers for returns,
+    indexed events, and event data now route through `Lower.storageAbiWordPlans`
+    and lower to explicit `ExprPlan.storageLoad` word plans before final Yul
+    emission. Local
     aggregate crosscall argument word expansion now delegates the final local
     identifier word construction to `ToYul.localCrosscallWords`; local provider
     validation and struct-field discovery now route through

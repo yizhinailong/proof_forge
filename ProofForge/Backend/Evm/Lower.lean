@@ -198,6 +198,76 @@ def storageCrosscallWordPlans
         message := s!"{context} storage-backed crosscall word expansion supports struct scalar storage only, got `{expectedType.name}`"
       }
 
+def storageArrayAbiWordPlans
+    (module : Module)
+    (context stateId : String)
+    (elementType : ValueType)
+    (length : Nat) : Except LowerError (Array ExprPlan) := do
+  match elementType with
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => do
+      let (slot, stateLength, stateElementType) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireArrayState module stateId
+      if stateLength != length then
+        .error { message := s!"{context} storage array `{stateId}` expected length {length}, got {stateLength}" }
+      ensureType s!"{context} storage array `{stateId}` element type" elementType stateElementType
+      let mut plans : Array ExprPlan := #[]
+      for _h : idx in [0:length] do
+        plans := plans.push (.storageLoad (.arraySlot slot stateLength (.irExpr (.literal (.u64 idx)))))
+      .ok plans
+  | .structType typeName => do
+      let some decl := ProofForge.Backend.Evm.Validate.findStruct? module typeName
+        | .error { message := s!"{context} storage array `{stateId}` uses unknown struct `{typeName}`" }
+      match ProofForge.Backend.Evm.Validate.stateInfo? module stateId with
+      | some (_, { kind := .array stateLength, type := .structType stateTypeName, .. }) => do
+          if stateLength != length then
+            .error { message := s!"{context} storage struct array `{stateId}` expected length {length}, got {stateLength}" }
+          if stateTypeName != typeName then
+            .error { message := s!"{context} storage struct array `{stateId}` expected struct `{typeName}`, got `{stateTypeName}`" }
+      | some (_, state) =>
+          .error { message := s!"{context} storage struct array `{stateId}` expected fixed array of struct `{typeName}`, got `{state.type.name}`" }
+      | none =>
+          .error { message := s!"unknown struct array state `{stateId}`" }
+      let mut plans : Array ExprPlan := #[]
+      for _h : idx in [0:length] do
+        for fieldDecl in decl.fields do
+          let (slot, stateLength, fieldCount, fieldOffset, field) ←
+            lowerPlan <| ProofForge.Backend.Evm.Plan.requireStructArrayStateField module stateId fieldDecl.id
+          ensureType s!"{context} storage struct array `{stateId}` field `{fieldDecl.id}`" fieldDecl.type field.type
+          plans := plans.push
+            (.storageLoad
+              (.structArrayFieldSlot
+                slot
+                stateLength
+                fieldCount
+                fieldOffset
+                (.irExpr (.literal (.u64 idx)))))
+      .ok plans
+  | .unit | .fixedArray _ _ | .bytes | .string | .array _ =>
+      .error {
+        message := s!"{context} storage-backed ABI word expansion has unsupported fixed-array element type `{elementType.name}`"
+      }
+
+def storageAbiWordPlans
+    (module : Module)
+    (context stateId : String)
+    (expectedType : ValueType) : Except LowerError (Array ExprPlan) := do
+  match expectedType with
+  | .structType typeName => do
+      let (slot, stateTypeName, decl) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireStructState module stateId
+      ensureType context (.structType typeName) (.structType stateTypeName)
+      let mut plans : Array ExprPlan := #[]
+      for h : idx in [0:decl.fields.size] do
+        let field := decl.fields[idx]
+        ensureStructLocalFieldType typeName field.id field.type
+        plans := plans.push (.storageLoad (.scalarSlot (slot + idx)))
+      .ok plans
+  | .fixedArray elementType length =>
+      storageArrayAbiWordPlans module context stateId elementType length
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .unit
+  | .bytes | .string | .array _ =>
+      .error {
+        message := s!"{context} storage-backed ABI word expansion supports struct scalar storage or fixed storage arrays only, got `{expectedType.name}`"
+      }
+
 def entrypointSelector (entrypoint : Entrypoint) : Except LowerError String :=
   match entrypoint.selector? with
   | some selector => .ok selector
