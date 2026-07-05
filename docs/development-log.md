@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Map Write Targets
+
+Commit: 43a1d32
+
+Summary:
+
+- Added `MapWriteTargetPlan` so direct `storageMapInsert` and `storageMapSet`
+  effects carry the planned map root slot after `Lower.buildEffectPlan`.
+- Routed `Lower.buildEffectPlan` to emit planned map insert/set target variants
+  for valid map states while preserving legacy state-id variants for fallback
+  and compatibility paths.
+- Added direct `ToYul` helpers for statement-position planned map writes and
+  expression-position return-old-value map writes, so the final Yul helper call
+  consumes the planned target instead of doing late root-slot lookup.
+- Extended semantic-plan tests with `Lower -> Plan` assertions and direct
+  planned-target `ToYul` coverage for both map write statements and
+  set-return expressions.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/map-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- `storageMapContains` and `storageMapGet` still use their existing state-id
+  lookup path; this slice only moves direct map write targets.
+- Storage-path map writes already use their own `StoragePathWriteTargetPlan`
+  path, but broader typed map path-expression planning remains follow-up work.
+
+Next step:
+
+- Continue moving remaining map read and array write target metadata out of the
+  compatibility facade and into explicit semantic-plan nodes.
+
 ### EVM Planned Scalar Storage Read Targets
 
 Commit: 7b519f5

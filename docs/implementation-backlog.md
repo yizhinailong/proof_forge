@@ -334,13 +334,15 @@ Tasks:
     frame. Struct-valued scalar storage reads/writes remain on compatibility
     paths until their field expansion can be represented as planned storage
     targets.
-  - Started: statement-position `storageMapInsert`/`storageMapSet` write
-    assembly now consumes a narrow `StmtPlan.effect` / `EffectPlan -> ToYul`
-    helper for supported scalar map key/value expressions. Expression-position
-    return-old-value map writes still consume the existing `ExprPlan -> ToYul`
-    expression helper, while map root slot lookup and storage-path map writes
-    remain in the compatibility facade until their own extraction slices add
-    coverage.
+  - Started: direct `storageMapInsert`/`storageMapSet` write assembly now
+    consumes `MapWriteTargetPlan` variants from `Lower.buildEffectPlan` for
+    supported scalar map key/value expressions. Statement-position writes and
+    expression-position return-old-value writes now both route through direct
+    `EffectPlan -> ToYul`/`ExprPlan -> ToYul` helpers that own the planned map
+    root slot instead of late compatibility-facade lookup. `storageMapContains`
+    and `storageMapGet` reads still use their existing state-id path, and
+    storage-path map writes continue on their separate `StoragePathWriteTargetPlan`
+    surface until typed map path-expression planning is widened.
   - Started: statement-position `storageArrayWrite` assembly now consumes a
     narrow `StmtPlan.effect` / `EffectPlan -> ToYul` helper for supported scalar
     index and value expressions. Array state root slot/length lookup remains in
