@@ -411,6 +411,88 @@ def returnValueWordPlans
     (plan : ReturnValueWordPlan) : Except LowerError (Array ExprPlan) :=
   abiValueWordPlans module env context plan.returns.returnType plan.source
 
+partial def abiValuePlanFromExprPlan
+    (module : Module)
+    (env : TypeEnv)
+    (context : String)
+    (expectedType : ValueType)
+    (value : ExprPlan) : Except LowerError AbiValuePlan := do
+  match expectedType with
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+      ensureAbiWordType context expectedType
+      .ok (.expr value)
+  | .fixedArray elementType length =>
+      match value with
+      | .local name => do
+          validateLocalAbiWordPlan module env context name expectedType
+          .ok (.local name expectedType)
+      | .arrayLit literalElementType values => do
+          if literalElementType != elementType then
+            .error {
+              message := s!"{context} fixed-array literal element type mismatch: expected `{elementType.name}`, got `{literalElementType.name}`"
+            }
+          if values.size != length then
+            .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
+          let mut plannedValues : Array AbiValuePlan := #[]
+          for h : idx in [0:values.size] do
+            plannedValues := plannedValues.push
+              (← abiValuePlanFromExprPlan
+                module
+                env
+                s!"{context} fixed-array element {idx}"
+                elementType
+                values[idx])
+          .ok (.arrayLit elementType plannedValues)
+      | _ =>
+          .error { message := s!"{context} aggregate return requires an ABI word expansion plan" }
+  | .structType typeName =>
+      match value with
+      | .local name => do
+          validateLocalAbiWordPlan module env context name expectedType
+          .ok (.local name expectedType)
+      | .structLit literalTypeName fields => do
+          if literalTypeName != typeName then
+            .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }
+          let fieldDecls ← localAbiStructFields module context typeName
+          let mut plannedFields : Array (String × AbiValuePlan) := #[]
+          for fieldDecl in fieldDecls do
+            let some field := fields.find? fun field => field.fst == fieldDecl.fst
+              | .error {
+                  message := s!"{context} struct literal `{typeName}` is missing field `{fieldDecl.fst}`"
+                }
+            plannedFields := plannedFields.push
+              (fieldDecl.fst,
+                ← abiValuePlanFromExprPlan
+                  module
+                  env
+                  s!"{context} struct field `{fieldDecl.fst}`"
+                  fieldDecl.snd
+                  field.snd)
+          .ok (.structLit typeName plannedFields)
+      | _ =>
+          .error { message := s!"{context} aggregate return requires an ABI word expansion plan" }
+  | .unit | .bytes | .string | .array _ =>
+      .error { message := s!"{context} has unsupported ABI return type `{expectedType.name}`" }
+
+def returnValueWordPlanFromExprPlan
+    (module : Module)
+    (env : TypeEnv)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : ExprPlan) : Except LowerError ReturnValueWordPlan := do
+  match returnType with
+  | .fixedArray _ _ | .structType _ =>
+      let context := s!"entrypoint `{entrypointName}` return value"
+      let returns ← returnPlan module s!"entrypoint `{entrypointName}`" returnType
+      .ok {
+        returns
+        source := ← abiValuePlanFromExprPlan module env context returnType value
+      }
+  | _ =>
+      .error {
+        message := s!"entrypoint `{entrypointName}` return type `{returnType.name}` does not require aggregate return word planning"
+      }
+
 def eventFieldDataWordPlans
     (module : Module)
     (env : TypeEnv)

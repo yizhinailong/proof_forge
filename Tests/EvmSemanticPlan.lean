@@ -1,5 +1,6 @@
 import ProofForge.Backend.Evm.IR
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.EvmAbiAggregateProbe
 import ProofForge.IR.Examples.EvmArrayValueProbe
 import ProofForge.IR.Examples.EvmDynamicAbiProbe
 import ProofForge.IR.Examples.EvmDynamicArrayProbe
@@ -130,6 +131,16 @@ def blockHasAssignmentIdent
     match stmt with
     | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident name) =>
         names == #[targetName] && name == valueName
+    | _ => false
+
+def blockHasAssignmentNat
+    (block : Lean.Compiler.Yul.Block)
+    (targetName : String)
+    (expected : Nat) : Bool :=
+  block.statements.any fun stmt =>
+    match stmt with
+    | Lean.Compiler.Yul.Statement.assignment names expr =>
+        names == #[targetName] && exprIsNatLiteral expr expected
     | _ => false
 
 def requireCallExpr
@@ -1143,6 +1154,43 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
     "dynamic ABI altered plan function body missing"
   require (blockHasAssignmentIdent alteredBytesBody "result" "payload__data_ptr")
     "plan-driven entrypoint lowering must consume dynamic return ModulePlan body"
+  let aggregateReturnPlan ← requireOk
+    (buildSemanticPlan ProofForge.IR.Examples.EvmAbiAggregateProbe.module)
+    "ABI aggregate return plan"
+  let alteredAggregateReturnEntrypoints := aggregateReturnPlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "make_pair" then
+      { entrypoint with
+        body := #[
+          StmtPlan.return
+            (ExprPlan.structLit "Pair" #[
+              ("left", ExprPlan.literalWord 77),
+              ("right", ExprPlan.literalWord 88)
+            ])
+        ]
+      }
+    else
+      entrypoint
+  let alteredAggregateReturnPlan :=
+    { aggregateReturnPlan with entrypoints := alteredAggregateReturnEntrypoints }
+  let alteredAggregateReturnObject ← requireOk
+    (lowerModuleWithPlan
+      ProofForge.IR.Examples.EvmAbiAggregateProbe.module
+      alteredAggregateReturnPlan)
+    "ABI aggregate altered return plan-driven module lowering"
+  let alteredMakePairEntrypoint ← requireSome
+    (alteredAggregateReturnPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "make_pair"))
+    "ABI aggregate altered plan missing make_pair entrypoint"
+  let alteredMakePairFunctionName :=
+    ProofForge.Backend.Evm.ToYul.entrypointPlanFunctionName
+      ProofForge.IR.Examples.EvmAbiAggregateProbe.module.name
+      alteredMakePairEntrypoint
+  let alteredMakePairBody ← requireSome
+    (functionBody? alteredAggregateReturnObject.code.statements alteredMakePairFunctionName)
+    "ABI aggregate altered plan function body missing"
+  require (blockHasAssignmentNat alteredMakePairBody "__proof_forge_return_0" 77)
+    "plan-driven entrypoint lowering must consume aggregate return word 77"
+  require (blockHasAssignmentNat alteredMakePairBody "__proof_forge_return_1" 88)
+    "plan-driven entrypoint lowering must consume aggregate return word 88"
   let transferEntrypoint ← requireSome
     (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "transfer"))
     "dynamic ABI plan missing transfer entrypoint"

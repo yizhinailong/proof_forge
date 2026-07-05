@@ -4655,6 +4655,10 @@ def returnTypeSupportsDynamicStmtPlan : ValueType → Bool
   | .bytes | .string | .array _ => true
   | .unit | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .fixedArray _ _ | .structType _ => false
 
+def returnTypeSupportsAggregateStmtPlan : ValueType → Bool
+  | .fixedArray _ _ | .structType _ => true
+  | .unit | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .bytes | .string | .array _ => false
+
 def lowerAggregateCrosscallReturnAssignment?
     (module : Module)
     (env : TypeEnv)
@@ -4994,6 +4998,28 @@ def effectPlanSupportsScalarBodyStmt :
         eventFieldWordPlansSupportScalarBody event.dataFields dataFieldWords
   | _ => false
 
+partial def exprPlanSupportsAggregateReturnBody
+    (returnType : ValueType)
+    (value : ProofForge.Backend.Evm.Plan.ExprPlan) : Bool :=
+  match returnType with
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+      exprPlanSupportsScalarBody value
+  | .fixedArray elementType length =>
+      match value with
+      | .local _ => true
+      | .arrayLit literalElementType values =>
+          literalElementType == elementType &&
+            values.size == length &&
+            values.all (exprPlanSupportsAggregateReturnBody elementType)
+      | _ => false
+  | .structType _ =>
+      match value with
+      | .local _ => true
+      | .structLit _ fields =>
+          fields.all fun field => exprPlanSupportsScalarBody field.snd
+      | _ => false
+  | .unit | .bytes | .string | .array _ => false
+
 def returnStmtPlanSupportsPlannedBody
     (returnType : ValueType)
     (value : ProofForge.Backend.Evm.Plan.ExprPlan) : Bool :=
@@ -5003,6 +5029,8 @@ def returnStmtPlanSupportsPlannedBody
     match value with
     | .local _ => true
     | _ => false
+  else if returnTypeSupportsAggregateStmtPlan returnType then
+    exprPlanSupportsAggregateReturnBody returnType value
   else
     false
 
@@ -5231,6 +5259,26 @@ def lowerScalarBodyEffectPlan
   | _ =>
       .error { message := "planned scalar control-flow body expected a supported effect" }
 
+def lowerAggregateReturnStmtPlan
+    (module : Module)
+    (env : TypeEnv)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : ProofForge.Backend.Evm.Plan.ExprPlan)
+    (leaveAfterReturn : Bool) :
+    Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  let plan ←
+    match ProofForge.Backend.Evm.Lower.returnValueWordPlanFromExprPlan
+        module
+        (toValidateTypeEnv env)
+        entrypointName
+        returnType
+        value with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
+  let statements ← lowerReturnValueWordPlan module env entrypointName plan
+  .ok <| if leaveAfterReturn then statements.push .leave else statements
+
 mutual
   partial def lowerScalarStmtPlanBodyStatements
       (module : Module)
@@ -5377,6 +5425,14 @@ mutual
               returns
               leaveAfterReturn
               (.return value)
+          else if returnTypeSupportsAggregateStmtPlan returnType then
+            lowerAggregateReturnStmtPlan
+              module
+              env
+              entrypointName
+              returnType
+              value
+              leaveAfterReturn
           else
             ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
               toYulError
