@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Body Lowering Boundary
+
+Commit: f7dec52
+
+Summary:
+
+- Renamed the misleading `scalarBody` / `SupportsScalarBody` helper layer to
+  the clearer `plannedBody` / `SupportsPlannedBody` boundary.
+- Kept scalar-specific checks explicit as `plannedBodyScalarTypeSupported`
+  while allowing the planned-body gate to describe dynamic returns, aggregate
+  return words, event word effects, and aggregate crosscall returns.
+- Updated direct semantic-plan tests to call the renamed planned-body helpers.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- This is a naming and ownership cleanup; it intentionally does not expand the
+  supported planned-body shape set.
+- The ToYul helper names for scalar binding, assignment, and assertion still
+  describe their scalar statement fragments because those helpers are genuinely
+  scalar-specific.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue broadening planned-body coverage by moving another return, storage,
+  or crosscall shape from the compatibility facade into `Lower -> Plan ->
+  ToYul`.
+
 ### EVM Planned Aggregate Crosscall Returns
 
 Commit: 706bf97
