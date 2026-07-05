@@ -2969,22 +2969,21 @@ partial def lowerArrayWriteStmtPlanOrFallback
     (stateId : String)
     (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   if exprSupportsPlanScalarYul index && exprSupportsPlanScalarYul value then
-    let indexPlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) index with
+    let effectPlan ←
+      match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
+          (.storageArrayWrite stateId index value) with
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
-    let valuePlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
-      | .ok plan => .ok plan
-      | .error err => .error { message := err.message }
-    let targetPlan ← lowerPlan <|
-      ProofForge.Backend.Evm.Plan.arrayWriteTargetPlan module stateId
     let statements ←
-      ProofForge.Backend.Evm.ToYul.arrayWriteTargetEffectStmtPlanStatements
-        toYulError
-        (fun expr => lowerExpr module env expr)
-        (lowerPlanEffectExpr module env)
-        (.effect (.storageArrayWriteTarget targetPlan indexPlan valuePlan))
+      match effectPlan with
+      | .storageArrayWriteTarget .. =>
+          ProofForge.Backend.Evm.ToYul.arrayWriteTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.effect effectPlan)
+      | _ =>
+          .error { message := "EVM Lower.buildEffectPlan array write did not produce storageArrayWriteTarget" }
     match statements[0]? with
     | some statement =>
         if statements.size == 1 then
