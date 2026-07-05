@@ -2,6 +2,7 @@ import ProofForge.Backend.Evm.IR
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.EvmArrayValueProbe
 import ProofForge.IR.Examples.EvmDynamicAbiProbe
+import ProofForge.IR.Examples.EvmDynamicArrayProbe
 import ProofForge.IR.Examples.EvmCrosscallProbe
 import ProofForge.IR.Examples.EvmHashProbe
 import ProofForge.IR.Examples.EvmMapProbe
@@ -402,6 +403,53 @@ def testHashHelperPlanToYul : IO Unit := do
   require
     (statementsHaveFunctionNamed plannedHashHelpers (ProofForge.Backend.Evm.Plan.Helper.hashPair).name)
     "planned hash helpers include hash pair"
+
+def testArrayHelperPlanToYul : IO Unit := do
+  let arrayHelpers := ProofForge.Backend.Evm.ToYul.arrayHelperFunctions
+  require (arrayHelpers.size == 1) "array ToYul helper count"
+  require
+    (statementsHaveFunctionNamed arrayHelpers (Helper.arraySlot).name)
+    "array ToYul helper set includes fixed array slot"
+  let arrayPlan ←
+    requireOk
+      (buildSemanticPlan ProofForge.IR.Examples.EvmStorageArrayProbe.module)
+      "storage array probe plan"
+  require (arrayPlan.hasHelper .arraySlot) "storage array probe plan requires array slot helper"
+  let plannedArrayHelpers := plannedArrayHelperFunctions arrayPlan
+  require (plannedArrayHelpers.size == 1) "planned array helper count"
+  require
+    (statementsHaveFunctionNamed plannedArrayHelpers (Helper.arraySlot).name)
+    "planned array helpers include fixed array slot"
+  let dynamicArrayHelpers := ProofForge.Backend.Evm.ToYul.dynamicArrayHelperFunctions
+  require (dynamicArrayHelpers.size == 1) "dynamic array ToYul helper count"
+  require
+    (statementsHaveFunctionNamed dynamicArrayHelpers (Helper.dynamicArraySlot).name)
+    "dynamic array ToYul helper set includes dynamic array slot"
+  let dynamicPlan ←
+    requireOk
+      (buildSemanticPlan ProofForge.IR.Examples.EvmDynamicArrayProbe.module)
+      "dynamic array probe plan"
+  require (dynamicPlan.hasHelper .dynamicArraySlot) "dynamic array probe plan requires dynamic array slot helper"
+  let plannedDynamicHelpers := plannedDynamicArrayHelperFunctions dynamicPlan
+  require (plannedDynamicHelpers.size == 1) "planned dynamic array helper count"
+  require
+    (statementsHaveFunctionNamed plannedDynamicHelpers (Helper.dynamicArraySlot).name)
+    "planned dynamic array helpers include dynamic array slot"
+  let structArrayHelpers := ProofForge.Backend.Evm.ToYul.structArrayHelperFunctions
+  require (structArrayHelpers.size == 1) "struct array ToYul helper count"
+  require
+    (statementsHaveFunctionNamed structArrayHelpers (Helper.structArraySlot).name)
+    "struct array ToYul helper set includes struct array slot"
+  let structArrayPlan ←
+    requireOk
+      (buildSemanticPlan ProofForge.IR.Examples.EvmStorageStructProbe.module)
+      "storage struct probe plan"
+  require (structArrayPlan.hasHelper .structArraySlot) "storage struct probe plan requires struct array slot helper"
+  let plannedStructArrayHelpers := plannedStructArrayHelperFunctions structArrayPlan
+  require (plannedStructArrayHelpers.size == 1) "planned struct array helper count"
+  require
+    (statementsHaveFunctionNamed plannedStructArrayHelpers (Helper.structArraySlot).name)
+    "planned struct array helpers include struct array slot"
 
 def testPlannedHelperDiscoveryToYul : IO Unit := do
   let plan ←
@@ -2715,7 +2763,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (typedName.name == "item") "planned array read control-flow then local name"
           require (name == "sload") "planned array read control-flow then sload"
           require (args.size == 1) "planned array read control-flow then sload arg count"
-          requireCallExpr args[0]! arraySlotFunctionName 3
+          requireCallExpr args[0]! (Helper.arraySlot).name 3
             "planned array read control-flow then array slot"
       | _ => throw <| IO.userError "planned array read control-flow then must lower to value binding"
       match elseCase.body.statements[0]! with
@@ -2725,7 +2773,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (typedName.name == "first") "planned array read control-flow else local name"
           require (name == "sload") "planned array read control-flow else sload"
           require (args.size == 1) "planned array read control-flow else sload arg count"
-          requireCallExpr args[0]! arraySlotFunctionName 3
+          requireCallExpr args[0]! (Helper.arraySlot).name 3
             "planned array read control-flow else array slot"
       | _ => throw <| IO.userError "planned array read control-flow else must lower to value binding"
   | _ => throw <| IO.userError "planned array read control-flow body lowering must lower to switch"
@@ -2776,7 +2824,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (typedName.name == "y") "planned struct-array read control-flow else local name"
           require (name == "sload") "planned struct-array read control-flow else sload"
           require (args.size == 1) "planned struct-array read control-flow else sload arg count"
-          requireCallExpr args[0]! structArraySlotFunctionName 5
+          requireCallExpr args[0]! (Helper.structArraySlot).name 5
             "planned struct-array read control-flow else slot"
       | _ => throw <| IO.userError "planned struct-array read control-flow else must lower to value binding"
   | _ => throw <| IO.userError "planned struct read control-flow body lowering must lower to switch"
@@ -2827,7 +2875,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (typedName.name == "path_y") "planned storage path struct-array read control-flow local name"
           require (name == "sload") "planned storage path struct-array read control-flow sload"
           require (args.size == 1) "planned storage path struct-array read control-flow sload arg count"
-          requireCallExpr args[0]! structArraySlotFunctionName 5
+          requireCallExpr args[0]! (Helper.structArraySlot).name 5
             "planned storage path struct-array read control-flow slot"
       | _ => throw <| IO.userError "planned storage path struct-array read control-flow must lower to value binding"
   | _ => throw <| IO.userError "planned storage path read control-flow body lowering must lower to switch"
@@ -3655,7 +3703,7 @@ def testArrayReadPlanToYul : IO Unit := do
       require (args.size == 1) "planned array read target sload arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-          require (slotName == arraySlotFunctionName) "planned array read target slot helper"
+          require (slotName == (Helper.arraySlot).name) "planned array read target slot helper"
           require (slotArgs.size == 3) "planned array read target slot arg count"
           match slotArgs[0]! with
           | Lean.Compiler.Yul.Expr.lit literal =>
@@ -3681,7 +3729,7 @@ def testArrayReadPlanToYul : IO Unit := do
   match readExpr with
   | Lean.Compiler.Yul.Expr.builtin "sload" args => do
       require (args.size == 1) "array read expression sload arg count"
-      requireCallExpr args[0]! arraySlotFunctionName 3 "array read expression slot helper"
+      requireCallExpr args[0]! (Helper.arraySlot).name 3 "array read expression slot helper"
   | _ => throw <| IO.userError "array read expression must lower to sload"
 
 def testArrayWritePlanToYul : IO Unit := do
@@ -3692,7 +3740,7 @@ def testArrayWritePlanToYul : IO Unit := do
       (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env expr)
       (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env)
       (fun _ index => do
-        .ok (Lean.Compiler.Yul.call arraySlotFunctionName #[
+        .ok (Lean.Compiler.Yul.call (Helper.arraySlot).name #[
           Lean.Compiler.Yul.Expr.num 1,
           Lean.Compiler.Yul.Expr.num 3,
           ← ProofForge.Backend.Evm.ToYul.exprPlanExpr
@@ -3713,7 +3761,7 @@ def testArrayWritePlanToYul : IO Unit := do
       require (args.size == 2) "array write StmtPlan-to-Yul helper arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-          require (slotName == arraySlotFunctionName) "array write StmtPlan-to-Yul helper slot call"
+          require (slotName == (Helper.arraySlot).name) "array write StmtPlan-to-Yul helper slot call"
           require (slotArgs.size == 3) "array write StmtPlan-to-Yul helper slot arg count"
           match slotArgs[2]! with
           | Lean.Compiler.Yul.Expr.call addName addArgs => do
@@ -3756,7 +3804,7 @@ def testArrayWritePlanToYul : IO Unit := do
       require (args.size == 2) "planned array write target helper arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-          require (slotName == arraySlotFunctionName) "planned array write target helper slot call"
+          require (slotName == (Helper.arraySlot).name) "planned array write target helper slot call"
           require (slotArgs.size == 3) "planned array write target helper slot arg count"
           match slotArgs[0]! with
           | Lean.Compiler.Yul.Expr.lit literal =>
@@ -3792,7 +3840,7 @@ def testArrayWritePlanToYul : IO Unit := do
       require (args.size == 2) "array write plan-to-yul arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-          require (slotName == arraySlotFunctionName) "array write plan-to-yul slot call"
+          require (slotName == (Helper.arraySlot).name) "array write plan-to-yul slot call"
           require (slotArgs.size == 3) "array write plan-to-yul slot arg count"
       | _ => throw <| IO.userError "array write plan-to-yul slot must use array helper"
       match args[1]! with
@@ -3889,7 +3937,7 @@ def testStructArrayFieldReadPlanToYul : IO Unit := do
       require (args.size == 1) "planned struct-array field read target sload arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-          require (slotName == structArraySlotFunctionName) "planned struct-array field read target slot helper"
+          require (slotName == (Helper.structArraySlot).name) "planned struct-array field read target slot helper"
           require (slotArgs.size == 5) "planned struct-array field read target slot arg count"
           match slotArgs[0]! with
           | Lean.Compiler.Yul.Expr.lit literal =>
@@ -3923,7 +3971,7 @@ def testStructArrayFieldReadPlanToYul : IO Unit := do
   match readExpr with
   | Lean.Compiler.Yul.Expr.builtin "sload" args => do
       require (args.size == 1) "struct-array field read expression sload arg count"
-      requireCallExpr args[0]! structArraySlotFunctionName 5 "struct-array field read expression slot helper"
+      requireCallExpr args[0]! (Helper.structArraySlot).name 5 "struct-array field read expression slot helper"
   | _ => throw <| IO.userError "struct-array field read expression must lower to sload"
 
 def testStructFieldWritePlanToYul : IO Unit := do
@@ -3935,7 +3983,7 @@ def testStructFieldWritePlanToYul : IO Unit := do
       (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env)
       (fun _ _ => .ok (Lean.Compiler.Yul.Expr.num 2))
       (fun _ index _ => do
-        .ok (Lean.Compiler.Yul.call structArraySlotFunctionName #[
+        .ok (Lean.Compiler.Yul.call (Helper.structArraySlot).name #[
           Lean.Compiler.Yul.Expr.num 4,
           Lean.Compiler.Yul.Expr.num 2,
           Lean.Compiler.Yul.Expr.num 2,
@@ -4004,7 +4052,7 @@ def testStructFieldWritePlanToYul : IO Unit := do
       (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env)
       (fun _ _ => .ok (Lean.Compiler.Yul.Expr.num 2))
       (fun _ index _ => do
-        .ok (Lean.Compiler.Yul.call structArraySlotFunctionName #[
+        .ok (Lean.Compiler.Yul.call (Helper.structArraySlot).name #[
           Lean.Compiler.Yul.Expr.num 4,
           Lean.Compiler.Yul.Expr.num 2,
           Lean.Compiler.Yul.Expr.num 2,
@@ -4028,7 +4076,7 @@ def testStructFieldWritePlanToYul : IO Unit := do
       require (args.size == 2) "struct array field write StmtPlan-to-Yul helper arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-          require (slotName == structArraySlotFunctionName) "struct array field write StmtPlan-to-Yul helper slot call"
+          require (slotName == (Helper.structArraySlot).name) "struct array field write StmtPlan-to-Yul helper slot call"
           require (slotArgs.size == 5) "struct array field write StmtPlan-to-Yul helper slot arg count"
           match slotArgs[4]! with
           | Lean.Compiler.Yul.Expr.call addName addArgs => do
@@ -4071,7 +4119,7 @@ def testStructFieldWritePlanToYul : IO Unit := do
       require (args.size == 2) "planned struct-array field write target helper arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-          require (slotName == structArraySlotFunctionName) "planned struct-array field write target helper slot call"
+          require (slotName == (Helper.structArraySlot).name) "planned struct-array field write target helper slot call"
           require (slotArgs.size == 5) "planned struct-array field write target helper slot arg count"
           match slotArgs[0]! with
           | Lean.Compiler.Yul.Expr.lit literal =>
@@ -4135,7 +4183,7 @@ def testStructFieldWritePlanToYul : IO Unit := do
       require (args.size == 2) "struct array field write plan-to-yul arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-          require (slotName == structArraySlotFunctionName) "struct array field write plan-to-yul slot call"
+          require (slotName == (Helper.structArraySlot).name) "struct array field write plan-to-yul slot call"
           require (slotArgs.size == 5) "struct array field write plan-to-yul slot arg count"
       | _ => throw <| IO.userError "struct array field write plan-to-yul slot must use struct-array helper"
       match args[1]! with
@@ -4334,7 +4382,7 @@ def testStoragePathReadPlanToYul : IO Unit := do
   match arrayRead with
   | Lean.Compiler.Yul.Expr.builtin "sload" args => do
       require (args.size == 1) "array storage path read sload arg count"
-      requireCallExpr args[0]! arraySlotFunctionName 3 "array storage path read slot"
+      requireCallExpr args[0]! (Helper.arraySlot).name 3 "array storage path read slot"
   | _ => throw <| IO.userError "array storage path read must lower to sload"
   let structReadPlan ← requireOk
     (lowerPlan <|
@@ -4375,7 +4423,7 @@ def testStoragePathReadPlanToYul : IO Unit := do
   match structArrayRead with
   | Lean.Compiler.Yul.Expr.builtin "sload" args => do
       require (args.size == 1) "struct-array storage path read sload arg count"
-      requireCallExpr args[0]! structArraySlotFunctionName 5 "struct-array storage path read slot"
+      requireCallExpr args[0]! (Helper.structArraySlot).name 5 "struct-array storage path read slot"
   | _ => throw <| IO.userError "struct-array storage path read must lower to sload"
   let nestedMapReadPlan ← requireOk
     (lowerPlan <|
@@ -4466,7 +4514,7 @@ def testStoragePathWritePlanToYul : IO Unit := do
     "array storage path target plan-to-yul"
   match arrayTarget with
   | ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget.singleSlot slot =>
-      requireCallExpr slot arraySlotFunctionName 3 "array storage path target slot"
+      requireCallExpr slot (Helper.arraySlot).name 3 "array storage path target slot"
   | _ => throw <| IO.userError "array storage path target must lower to singleSlot"
   let structTargetPlan ← requireOk
     (lowerPlan <|
@@ -4505,7 +4553,7 @@ def testStoragePathWritePlanToYul : IO Unit := do
     "struct-array storage path target plan-to-yul"
   match structArrayTarget with
   | ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget.singleSlot slot =>
-      requireCallExpr slot structArraySlotFunctionName 5 "struct-array storage path target slot"
+      requireCallExpr slot (Helper.structArraySlot).name 5 "struct-array storage path target slot"
   | _ => throw <| IO.userError "struct-array storage path target must lower to singleSlot"
   let nestedMapTargetPlan ← requireOk
     (lowerPlan <|
@@ -4602,7 +4650,7 @@ def testStoragePathWritePlanToYul : IO Unit := do
   match directPlannedWriteStmts[0]! with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
       require (args.size == 2) "planned storage path write target helper arg count"
-      requireCallExpr args[0]! arraySlotFunctionName 3 "planned storage path write target helper slot"
+      requireCallExpr args[0]! (Helper.arraySlot).name 3 "planned storage path write target helper slot"
       match args[1]! with
       | Lean.Compiler.Yul.Expr.call addName addArgs => do
           require (addName == "__pf_checked_add") "planned storage path write target helper checked add"
@@ -4623,7 +4671,7 @@ def testStoragePathWritePlanToYul : IO Unit := do
       require (args.size == 2) "array storage path write plan-to-yul arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-          require (slotName == arraySlotFunctionName) "array storage path write plan-to-yul slot call"
+          require (slotName == (Helper.arraySlot).name) "array storage path write plan-to-yul slot call"
           require (slotArgs.size == 3) "array storage path write plan-to-yul slot arg count"
       | _ => throw <| IO.userError "array storage path write plan-to-yul slot must use array helper"
       match args[1]! with
@@ -4891,6 +4939,7 @@ def main : IO UInt32 := do
   testArtifactMetadata
   testDeployMetadata
   testHashHelperPlanToYul
+  testArrayHelperPlanToYul
   testPlannedHelperDiscoveryToYul
   testLocalArrayHelperDiscoveryInLowerPlan
   testEntrypointDispatchPlanToYul

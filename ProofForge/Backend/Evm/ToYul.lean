@@ -106,6 +106,64 @@ def hashHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
     }
 ]
 
+def arrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+  .funcDef (Helper.arraySlot).name
+    #[{ name := "slot" }, { name := "length" }, { name := "index" }]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        revertIfStatement
+          (Lean.Compiler.Yul.builtin "iszero" #[
+            Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.Expr.id "index", Lean.Compiler.Yul.Expr.id "length"]
+          ]),
+        .assignment #["result"] (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "index"])
+      ]
+    }
+]
+
+def dynamicArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+  .funcDef (Helper.dynamicArraySlot).name
+    #[{ name := "slot" }, { name := "index" }]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "slot"]),
+        .assignment #["result"]
+          (Lean.Compiler.Yul.builtin "add" #[
+            Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32],
+            Lean.Compiler.Yul.Expr.id "index"
+          ])
+      ]
+    }
+]
+
+def structArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+  .funcDef (Helper.structArraySlot).name
+    #[
+      { name := "slot" },
+      { name := "length" },
+      { name := "field_count" },
+      { name := "field_offset" },
+      { name := "index" }
+    ]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        revertIfStatement
+          (Lean.Compiler.Yul.builtin "iszero" #[
+            Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.Expr.id "index", Lean.Compiler.Yul.Expr.id "length"]
+          ]),
+        .assignment #["result"] (Lean.Compiler.Yul.builtin "add" #[
+          Lean.Compiler.Yul.builtin "add" #[
+            Lean.Compiler.Yul.Expr.id "slot",
+            Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "index", Lean.Compiler.Yul.Expr.id "field_count"]
+          ],
+          Lean.Compiler.Yul.Expr.id "field_offset"
+        ])
+      ]
+    }
+]
+
 def contextFieldExpr
     {ε : Type}
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr) :

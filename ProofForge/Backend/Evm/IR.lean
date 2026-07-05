@@ -60,9 +60,6 @@ def mapSlotFunctionName : String := "__proof_forge_map_slot"
 def mapPresenceSlotFunctionName : String := "__proof_forge_map_presence_slot"
 def mapWriteFunctionName : String := "__proof_forge_map_write"
 def mapSetReturnFunctionName : String := "__proof_forge_map_set_return"
-def arraySlotFunctionName : String := "__proof_forge_array_slot"
-def structArraySlotFunctionName : String := "__proof_forge_struct_array_slot"
-def dynamicArraySlotFunctionName : String := "__proof_forge_dynamic_array_slot"
 def crosscallReturnTypeSuffix : ValueType → Except LowerError String
   | type => ProofForge.Backend.Evm.ToYul.crosscallReturnTypeSuffix toYulError type
 
@@ -5687,7 +5684,7 @@ def lowerScalarBodyEffectPlan
         (lowerPlanEffectExpr module env)
         (fun stateId indexPlan => do
           let (slot, length, _) ← requireStorageArrayState module stateId
-          .ok (Lean.Compiler.Yul.call arraySlotFunctionName #[
+          .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.arraySlot #[
             slotExpr slot,
             Lean.Compiler.Yul.Expr.num length,
             ← lowerExprPlanExpr module env indexPlan
@@ -5719,7 +5716,7 @@ def lowerScalarBodyEffectPlan
         (fun stateId fieldName => lowerStructFieldSlotExpr module stateId fieldName)
         (fun stateId indexPlan fieldName => do
           let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
-          .ok (Lean.Compiler.Yul.call structArraySlotFunctionName #[
+          .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.structArraySlot #[
             slotExpr slot,
             Lean.Compiler.Yul.Expr.num length,
             Lean.Compiler.Yul.Expr.num fieldCount,
@@ -6277,36 +6274,6 @@ def mapAssignHelperFunction (op : AssignOp) : Lean.Compiler.Yul.Statement :=
 def mapHelperFunctions (assignOps : Array AssignOp) : Array Lean.Compiler.Yul.Statement :=
   mapBaseHelperFunctions ++ assignOps.map mapAssignHelperFunction
 
-def arrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
-  .funcDef arraySlotFunctionName
-    #[{ name := "slot" }, { name := "length" }, { name := "index" }]
-    #[{ name := "result" }]
-    {
-      statements := #[
-        .ifStmt
-          (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.Expr.id "index", Lean.Compiler.Yul.Expr.id "length"]])
-          { statements := #[revertStmt] },
-        .assignment #["result"] (Lean.Compiler.Yul.builtin "add" #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "index"])
-      ]
-    }
-]
-
-def dynamicArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
-  .funcDef dynamicArraySlotFunctionName
-    #[{ name := "slot" }, { name := "index" }]
-    #[{ name := "result" }]
-    {
-      statements := #[
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "slot"]),
-        .assignment #["result"]
-          (Lean.Compiler.Yul.builtin "add" #[
-            Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 32],
-            Lean.Compiler.Yul.Expr.id "index"
-          ])
-      ]
-    }
-]
-
 def localArrayGetFunctionParams (length : Nat) : Array Lean.Compiler.Yul.TypedName :=
   Id.run do
     let mut params : Array Lean.Compiler.Yul.TypedName := #[{ name := "index" }]
@@ -6393,32 +6360,6 @@ def mergeNatArraySets (lhs rhs : Array (Array Nat)) : Array (Array Nat) :=
 
 def nestedLocalArrayGetHelperFunctions (lengths : Array (Array Nat)) : Array Lean.Compiler.Yul.Statement :=
   lengths.map nestedLocalArrayGetHelperFunction
-
-def structArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
-  .funcDef structArraySlotFunctionName
-    #[
-      { name := "slot" },
-      { name := "length" },
-      { name := "field_count" },
-      { name := "field_offset" },
-      { name := "index" }
-    ]
-    #[{ name := "result" }]
-    {
-      statements := #[
-        .ifStmt
-          (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "lt" #[Lean.Compiler.Yul.Expr.id "index", Lean.Compiler.Yul.Expr.id "length"]])
-          { statements := #[revertStmt] },
-        .assignment #["result"] (Lean.Compiler.Yul.builtin "add" #[
-          Lean.Compiler.Yul.builtin "add" #[
-            Lean.Compiler.Yul.Expr.id "slot",
-            Lean.Compiler.Yul.builtin "mul" #[Lean.Compiler.Yul.Expr.id "index", Lean.Compiler.Yul.Expr.id "field_count"]
-          ],
-          Lean.Compiler.Yul.Expr.id "field_offset"
-        ])
-      ]
-    }
-]
 
 def crosscallArgName (idx : Nat) : String :=
   s!"arg{idx}"
@@ -7355,15 +7296,15 @@ def plannedMapHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
 
 def plannedArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
-  if plan.hasHelper .arraySlot then arrayHelperFunctions else #[]
+  if plan.hasHelper .arraySlot then ProofForge.Backend.Evm.ToYul.arrayHelperFunctions else #[]
 
 def plannedDynamicArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
-  if plan.hasHelper .dynamicArraySlot then dynamicArrayHelperFunctions else #[]
+  if plan.hasHelper .dynamicArraySlot then ProofForge.Backend.Evm.ToYul.dynamicArrayHelperFunctions else #[]
 
 def plannedStructArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
-  if plan.hasHelper .structArraySlot then structArrayHelperFunctions else #[]
+  if plan.hasHelper .structArraySlot then ProofForge.Backend.Evm.ToYul.structArrayHelperFunctions else #[]
 
 def plannedHashHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
