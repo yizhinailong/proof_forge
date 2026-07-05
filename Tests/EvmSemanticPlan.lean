@@ -427,6 +427,55 @@ def nativeTransferPlanProbe : Module := {
   ]
 }
 
+def memoryArrayLengthOnlyProbe : Module := {
+  name := "MemoryArrayLengthOnlyProbe"
+  state := #[]
+  entrypoints := #[
+    {
+      name := "length"
+      selector? := some "11111111"
+      params := #[("xs", .array .u64)]
+      returns := .u64
+      body := #[
+        .return (.memoryArrayLength (.local "xs"))
+      ]
+    }
+  ]
+}
+
+def memoryArrayNewOnlyProbe : Module := {
+  name := "MemoryArrayNewOnlyProbe"
+  state := #[]
+  entrypoints := #[
+    {
+      name := "fresh_length"
+      selector? := some "22222222"
+      params := #[]
+      returns := .u64
+      body := #[
+        .letBind "xs" (.array .u64) (.memoryArrayNew .u64 (.literal (.u64 2))),
+        .return (.memoryArrayLength (.local "xs"))
+      ]
+    }
+  ]
+}
+
+def memoryArrayGetOnlyProbe : Module := {
+  name := "MemoryArrayGetOnlyProbe"
+  state := #[]
+  entrypoints := #[
+    {
+      name := "first"
+      selector? := some "33333333"
+      params := #[("xs", .array .u64)]
+      returns := .u64
+      body := #[
+        .return (.memoryArrayGet (.local "xs") (.literal (.u64 0)))
+      ]
+    }
+  ]
+}
+
 def contextOpsPlanProbe : Module := {
   name := "ContextOpsPlanProbe"
   state := #[]
@@ -1301,6 +1350,91 @@ def testPlannedCreateHelperDiscoveryFromEntrypointPlans : IO Unit := do
     (injectedCreates.any fun spec =>
       spec == { mode := ProofForge.Backend.Evm.Plan.CreateMode.create2, initCodeHex })
     "planned entrypoint body scanner must discover injected create2 helper"
+
+def testPlannedMemoryArrayHelperDiscoveryFromEntrypointPlans : IO Unit := do
+  let rawLengthPlan ←
+    requireOk
+      (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan memoryArrayLengthOnlyProbe))
+      "memory-array length-only raw module plan"
+  require
+    (rawLengthPlan.hasHelper .memoryArrayNew)
+    "raw memory-array capability helper discovery includes new helper"
+  require
+    (rawLengthPlan.hasHelper .memoryArrayGet)
+    "raw memory-array capability helper discovery includes get helper"
+  let lengthPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan memoryArrayLengthOnlyProbe)
+      "memory-array length-only full module plan"
+  require
+    (!lengthPlan.hasHelper .memoryArrayNew)
+    "planned memory-array length-only helper discovery must not require new helper"
+  require
+    (!lengthPlan.hasHelper .memoryArrayGet)
+    "planned memory-array length-only helper discovery must not require get helper"
+  require
+    (ProofForge.Backend.Evm.Lower.buildMemoryArrayHelpersFromEntrypoints lengthPlan.entrypoints).isEmpty
+    "planned memory-array length-only entrypoint scanner must be empty"
+  require
+    (plannedMemoryArrayHelperFunctions lengthPlan).isEmpty
+    "planned memory-array length-only ToYul helper emission must be empty"
+  let targetLengthPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlanWithTargetPlan
+        memoryArrayLengthOnlyProbe
+        lengthPlan.targetPlan)
+      "memory-array length-only target-plan full module plan"
+  require
+    (targetLengthPlan.helpers == lengthPlan.helpers)
+    "target-plan full module memory-array helpers must be discovered from entrypoint plans"
+  let newPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan memoryArrayNewOnlyProbe)
+      "memory-array new-only full module plan"
+  let newSemanticPlan ←
+    requireOk
+      (buildSemanticPlan memoryArrayNewOnlyProbe)
+      "memory-array new-only semantic plan"
+  require
+    (newSemanticPlan.helpers == newPlan.helpers)
+    "semantic plan must preserve Lower-discovered memory-array new helper"
+  require
+    (newPlan.hasHelper .memoryArrayNew)
+    "planned memory-array new-only helper discovery must require new helper"
+  require
+    (!newPlan.hasHelper .memoryArrayGet)
+    "planned memory-array new-only helper discovery must not require get helper"
+  let newHelpers := plannedMemoryArrayHelperFunctions newPlan
+  require
+    (statementsHaveFunctionNamed newHelpers (Helper.memoryArrayNew).name)
+    "planned memory-array new-only ToYul helpers include new helper"
+  require
+    (!statementsHaveFunctionNamed newHelpers (Helper.memoryArrayGet).name)
+    "planned memory-array new-only ToYul helpers must not include get helper"
+  let getPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan memoryArrayGetOnlyProbe)
+      "memory-array get-only full module plan"
+  let getSemanticPlan ←
+    requireOk
+      (buildSemanticPlan memoryArrayGetOnlyProbe)
+      "memory-array get-only semantic plan"
+  require
+    (getSemanticPlan.helpers == getPlan.helpers)
+    "semantic plan must preserve Lower-discovered memory-array get helper"
+  require
+    (!getPlan.hasHelper .memoryArrayNew)
+    "planned memory-array get-only helper discovery must not require new helper"
+  require
+    (getPlan.hasHelper .memoryArrayGet)
+    "planned memory-array get-only helper discovery must require get helper"
+  let getHelpers := plannedMemoryArrayHelperFunctions getPlan
+  require
+    (!statementsHaveFunctionNamed getHelpers (Helper.memoryArrayNew).name)
+    "planned memory-array get-only ToYul helpers must not include new helper"
+  require
+    (statementsHaveFunctionNamed getHelpers (Helper.memoryArrayGet).name)
+    "planned memory-array get-only ToYul helpers include get helper"
 
 def testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans : IO Unit := do
   let counterPlan ←
@@ -8342,6 +8476,7 @@ def main : IO UInt32 := do
   testPlannedHelperDiscoveryToYul
   testPlannedCrosscallHelperDiscoveryFromEntrypointPlans
   testPlannedCreateHelperDiscoveryFromEntrypointPlans
+  testPlannedMemoryArrayHelperDiscoveryFromEntrypointPlans
   testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans
   testPlannedContextOpsDiscoveryFromEntrypointPlans
   testLocalArrayHelperDiscoveryInLowerPlan

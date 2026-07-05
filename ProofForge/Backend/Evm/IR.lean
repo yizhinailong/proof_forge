@@ -5943,10 +5943,16 @@ def plannedHashHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
 
 def plannedMemoryArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
-  if plan.hasHelper .memoryArrayNew || plan.hasHelper .memoryArrayGet then
-    ProofForge.Backend.Evm.ToYul.memoryArrayHelperFunctions
+  let helpers : Array Lean.Compiler.Yul.Statement := #[]
+  let helpers :=
+    if plan.hasHelper .memoryArrayNew then
+      helpers.push ProofForge.Backend.Evm.ToYul.memoryArrayNewHelperFunction
+    else
+      helpers
+  if plan.hasHelper .memoryArrayGet then
+    helpers.push ProofForge.Backend.Evm.ToYul.memoryArrayGetHelperFunction
   else
-    #[]
+    helpers
 
 /-! Detect whether a module uses any `.add`/`.sub`/`.mul` `Expr` or compound
     assignment op that would route to the checked-arithmetic helpers. Used to

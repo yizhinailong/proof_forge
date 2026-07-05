@@ -570,7 +570,11 @@ Tasks:
     `nestedLocalArrayGetShapes` fields instead of re-scanning the module after
     plan construction. Incomplete-plan fallback lowering still calls
     `Validate.moduleUsesCheckedArithmetic`, `Lower.buildLocalArrayGetLengths`,
-    and `Lower.buildNestedLocalArrayGetShapes`.
+    and `Lower.buildNestedLocalArrayGetShapes`. Complete `ModulePlan`
+    construction now also replaces broad capability-derived memory-array helper
+    requirements with helper requirements discovered from planned entrypoint
+    bodies; `memoryArrayLength` alone no longer emits allocation/get helpers,
+    and `ToYul` can emit memory-array new/get helpers independently.
   - Started: `ModulePlan.contextOps` is now discovered from the already-built
     `EntrypointPlan.body` `StmtPlan`/`ExprPlan` tree in
     `Lower.buildFullModulePlan` and

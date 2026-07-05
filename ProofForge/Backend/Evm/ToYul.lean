@@ -140,7 +140,7 @@ def dynamicArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
     }
 ]
 
-def memoryArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+def memoryArrayNewHelperFunction : Lean.Compiler.Yul.Statement :=
   .funcDef (Helper.memoryArrayNew).name
     #[{ name := "length" }]
     #[{ name := "ptr" }]
@@ -159,7 +159,9 @@ def memoryArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
           ]
         ])
       ]
-    },
+    }
+
+def memoryArrayGetHelperFunction : Lean.Compiler.Yul.Statement :=
   .funcDef (Helper.memoryArrayGet).name
     #[{ name := "array" }, { name := "index" }]
     #[{ name := "value" }]
@@ -178,6 +180,10 @@ def memoryArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
           ])
       ]
     }
+
+def memoryArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+  memoryArrayNewHelperFunction,
+  memoryArrayGetHelperFunction
 ]
 
 def structArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
