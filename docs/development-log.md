@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Local Crosscall Word Plan Validation
+
+Commit: 72ae37d
+
+Summary:
+
+- Added `Lower.localCrosscallStructFieldIds` and
+  `Lower.validateLocalCrosscallWordPlan` so local crosscall word validation and
+  struct-field discovery are owned by the EVM Lower layer.
+- Removed the IR-local `localCrosscallStructFieldIds` helper and routed
+  `IR.lowerLocalCrosscallWords` plus planned crosscall argument word expansion
+  through the new Lower helpers before final `ToYul.localCrosscallWords`
+  emission.
+- Added semantic-plan coverage for Lower-owned local crosscall struct field
+  discovery, local/type validation, and unknown-local diagnostics.
+- Updated the backlog to record that storage-backed crosscall provider
+  expansion is now the remaining compatibility helper in this slice.
+
+Validation run:
+
+```sh
+lake build proof-forge
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+scripts/evm/crosscall-ir-smoke.sh
+just evm-diagnostics
+```
+
+Known limitations:
+
+- Storage-backed crosscall word-provider expansion still depends on
+  compatibility helpers in `IR.lean`.
+- Related local aggregate ABI compatibility paths still call
+  `ToYul.localAbiWords` directly until they are represented in the semantic
+  plan.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Move storage-backed crosscall provider expansion behind explicit
+  `Lower`/`Plan` helpers, then continue the same treatment for the remaining
+  local aggregate ABI compatibility paths.
+
 ### EVM Crosscall Return Diagnostic Planning
 
 Commit: 50eabcd
