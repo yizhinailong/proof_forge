@@ -224,27 +224,6 @@ def localCrosscallWordPlans
   validateLocalCrosscallWordPlan module env context name expectedType
   localCrosscallWordPlansAt module context name #[] expectedType
 
-def storageCrosscallWordPlans
-    (module : Module)
-    (context stateId : String)
-    (expectedType : ValueType) : Except LowerError (Array ExprPlan) := do
-  match expectedType with
-  | .structType typeName => do
-      discard <| crosscallValueWordTypes module context (.structType typeName)
-      let (slot, stateTypeName, decl) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireStructState module stateId
-      ensureType context (.structType typeName) (.structType stateTypeName)
-      let mut plans : Array ExprPlan := #[]
-      for h : idx in [0:decl.fields.size] do
-        let field := decl.fields[idx]
-        ensureStructLocalFieldType typeName field.id field.type
-        plans := plans.push (.storageLoad (.scalarSlot (slot + idx)))
-      .ok plans
-  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .unit
-  | .fixedArray _ _ | .bytes | .string | .array _ =>
-      .error {
-        message := s!"{context} storage-backed crosscall word expansion supports struct scalar storage only, got `{expectedType.name}`"
-      }
-
 def wrapCrosscallExprWordPlans (plans : Array ExprPlan) : Array CrosscallArgWordPlan :=
   plans.map CrosscallArgWordPlan.expr
 
@@ -294,6 +273,30 @@ def storageArrayAbiWordPlans
   | .unit | .fixedArray _ _ | .bytes | .string | .array _ =>
       .error {
         message := s!"{context} storage-backed ABI word expansion has unsupported fixed-array element type `{elementType.name}`"
+      }
+
+def storageCrosscallWordPlans
+    (module : Module)
+    (context stateId : String)
+    (expectedType : ValueType) : Except LowerError (Array ExprPlan) := do
+  match expectedType with
+  | .structType typeName => do
+      discard <| crosscallValueWordTypes module context (.structType typeName)
+      let (slot, stateTypeName, decl) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireStructState module stateId
+      ensureType context (.structType typeName) (.structType stateTypeName)
+      let mut plans : Array ExprPlan := #[]
+      for h : idx in [0:decl.fields.size] do
+        let field := decl.fields[idx]
+        ensureStructLocalFieldType typeName field.id field.type
+        plans := plans.push (.storageLoad (.scalarSlot (slot + idx)))
+      .ok plans
+  | .fixedArray elementType length => do
+      discard <| crosscallValueWordTypes module context (.fixedArray elementType length)
+      storageArrayAbiWordPlans module context stateId elementType length
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .unit
+  | .bytes | .string | .array _ =>
+      .error {
+        message := s!"{context} storage-backed crosscall word expansion supports struct scalar storage or fixed storage arrays only, got `{expectedType.name}`"
       }
 
 def storageAbiWordPlans
@@ -904,43 +907,48 @@ mutual
       (length : Nat)
       (arg : Expr) : Except LowerError (Array CrosscallArgWordPlan) := do
     discard <| crosscallArgWordTypes module context (.fixedArray elementType length)
-    match elementType with
-    | .structType typeName =>
-        buildCrosscallStructArrayArgWordPlans module env context typeName length arg
-    | .fixedArray nestedElementType nestedLength =>
-        match arg with
-        | .local name =>
-            .ok <| wrapCrosscallExprWordPlans
-              (← localCrosscallWordPlans module env context name (.fixedArray elementType length))
-        | .arrayLit literalElementType values => do
-            ensureType s!"{context} fixed-array element type" elementType literalElementType
-            if values.size != length then
-              .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
-            let mut plans : Array CrosscallArgWordPlan := #[]
-            for h : idx in [0:values.size] do
-              plans := plans ++ (← buildCrosscallFixedArrayArgWordPlans module env context nestedElementType nestedLength values[idx])
-            .ok plans
-        | _ =>
-            .error {
-              message := s!"{context} nested fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
-            }
+    match ← storageArrayAbiWordsPlan? module (.fixedArray elementType length) arg with
+    | some (.storage stateId storageType) =>
+        .ok <| wrapCrosscallExprWordPlans
+          (← storageCrosscallWordPlans module context stateId storageType)
     | _ =>
-        match arg with
-        | .local name =>
-            .ok <| wrapCrosscallExprWordPlans
-              (← localCrosscallWordPlans module env context name (.fixedArray elementType length))
-        | .arrayLit literalElementType values => do
-            ensureType s!"{context} fixed-array element type" elementType literalElementType
-            if values.size != length then
-              .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
-            let mut plans : Array CrosscallArgWordPlan := #[]
-            for h : idx in [0:values.size] do
-              plans := plans.push (.expr (← buildExprPlan module env values[idx]))
-            .ok plans
+        match elementType with
+        | .structType typeName =>
+            buildCrosscallStructArrayArgWordPlans module env context typeName length arg
+        | .fixedArray nestedElementType nestedLength =>
+            match arg with
+            | .local name =>
+                .ok <| wrapCrosscallExprWordPlans
+                  (← localCrosscallWordPlans module env context name (.fixedArray elementType length))
+            | .arrayLit literalElementType values => do
+                ensureType s!"{context} fixed-array element type" elementType literalElementType
+                if values.size != length then
+                  .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
+                let mut plans : Array CrosscallArgWordPlan := #[]
+                for h : idx in [0:values.size] do
+                  plans := plans ++ (← buildCrosscallFixedArrayArgWordPlans module env context nestedElementType nestedLength values[idx])
+                .ok plans
+            | _ =>
+                .error {
+                  message := s!"{context} nested fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
+                }
         | _ =>
-            .error {
-              message := s!"{context} fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
-            }
+            match arg with
+            | .local name =>
+                .ok <| wrapCrosscallExprWordPlans
+                  (← localCrosscallWordPlans module env context name (.fixedArray elementType length))
+            | .arrayLit literalElementType values => do
+                ensureType s!"{context} fixed-array element type" elementType literalElementType
+                if values.size != length then
+                  .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
+                let mut plans : Array CrosscallArgWordPlan := #[]
+                for h : idx in [0:values.size] do
+                  plans := plans.push (.expr (← buildExprPlan module env values[idx]))
+                .ok plans
+            | _ =>
+                .error {
+                  message := s!"{context} fixed-array values in IR EVM v0 support local fixed-array values or array literals only"
+                }
 
   partial def buildCrosscallArgWordPlans
       (module : Module)

@@ -3175,6 +3175,123 @@ def testLocalCrosscallWordsToYul : IO Unit := do
   requireIdentExpr loweredArrayWords[1]! "__proof_forge_array_xs_1" "compat local crosscall fixed-array word 1"
   requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "compat local crosscall fixed-array word 2"
 
+def testStorageFixedArrayCrosscallWordPlans : IO Unit := do
+  let storageArrayCrosscallValue : Expr := .arrayLit .u64 #[
+    .effect (.storageArrayRead "values" (ProofForge.IR.Examples.EvmStorageArrayProbe.u64 0)),
+    .effect (.storageArrayRead "values" (ProofForge.IR.Examples.EvmStorageArrayProbe.u64 1)),
+    .effect (.storageArrayRead "values" (ProofForge.IR.Examples.EvmStorageArrayProbe.u64 2))
+  ]
+  let storageArrayCrosscallWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.storageCrosscallWordPlans
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      "typed crosscall argument"
+      "values"
+      (.fixedArray .u64 3))
+    "storage-backed fixed-array crosscall argument Lower word plans"
+  require (storageArrayCrosscallWordPlans.size == 3)
+    "storage-backed fixed-array crosscall Lower word plan count"
+  let storageArrayCrosscallWord0 ←
+    requireAt storageArrayCrosscallWordPlans 0 "storage-backed fixed-array crosscall missing word 0"
+  match storageArrayCrosscallWord0 with
+  | .storageLoad (.arraySlot rootSlot length (.irExpr (.literal (.u64 index)))) => do
+      require (rootSlot == 1) "storage-backed fixed-array crosscall root slot"
+      require (length == 3) "storage-backed fixed-array crosscall length"
+      require (index == 0) "storage-backed fixed-array crosscall index"
+  | _ => throw <| IO.userError "storage-backed fixed-array crosscall first word must use array storageLoad plan"
+  let storageArrayCrosscallArgPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[storageArrayCrosscallValue]
+        .u64))
+    "storage-backed fixed-array crosscall argument Lower ExprPlan"
+  match storageArrayCrosscallArgPlan with
+  | .crosscall .call _ _ none args .u64 => do
+      require (args.size == 3) "storage-backed fixed-array crosscall argument plan word count"
+      let arg0 ← requireAt args 0 "storage-backed fixed-array crosscall argument missing word 0"
+      let arg2 ← requireAt args 2 "storage-backed fixed-array crosscall argument missing word 2"
+      match arg0, arg2 with
+      | CrosscallArgWordPlan.expr (.storageLoad (.arraySlot root0 length0 (.irExpr (.literal (.u64 index0))))),
+        CrosscallArgWordPlan.expr (.storageLoad (.arraySlot root2 length2 (.irExpr (.literal (.u64 index2))))) => do
+          require (root0 == 1) "storage-backed fixed-array crosscall word 0 root slot"
+          require (length0 == 3) "storage-backed fixed-array crosscall word 0 length"
+          require (index0 == 0) "storage-backed fixed-array crosscall word 0 index"
+          require (root2 == 1) "storage-backed fixed-array crosscall word 2 root slot"
+          require (length2 == 3) "storage-backed fixed-array crosscall word 2 length"
+          require (index2 == 2) "storage-backed fixed-array crosscall word 2 index"
+      | _, _ => throw <| IO.userError "storage-backed fixed-array crosscall argument must use planned storage-load words"
+  | _ => throw <| IO.userError "storage-backed fixed-array crosscall argument must lower to call plan"
+  let storageArrayCrosscallArgPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      #[{ name := "target", type := .u64, isMutable := false }]
+      storageArrayCrosscallArgPlan)
+    "storage-backed fixed-array crosscall argument ExprPlan-to-Yul"
+  requireCallExpr
+    storageArrayCrosscallArgPlanExpr
+    "__proof_forge_crosscall_3"
+    5
+    "storage-backed fixed-array crosscall argument ExprPlan-to-Yul"
+  let storageStructArrayCrosscallValue : Expr := .arrayLit (.structType "Point") #[
+    ProofForge.IR.Examples.EvmStorageStructProbe.storagePoint 0,
+    ProofForge.IR.Examples.EvmStorageStructProbe.storagePoint 1
+  ]
+  let storageStructArrayCrosscallWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.storageCrosscallWordPlans
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      "typed crosscall argument"
+      "points"
+      (.fixedArray (.structType "Point") 2))
+    "storage-backed struct-array crosscall argument Lower word plans"
+  require (storageStructArrayCrosscallWordPlans.size == 4)
+    "storage-backed struct-array crosscall Lower word plan count"
+  let storageStructArrayCrosscallWord3 ←
+    requireAt storageStructArrayCrosscallWordPlans 3 "storage-backed struct-array crosscall missing word 3"
+  match storageStructArrayCrosscallWord3 with
+  | .storageLoad (.structArrayFieldSlot _ length fieldCount fieldOffset (.irExpr (.literal (.u64 index)))) => do
+      require (length == 2) "storage-backed struct-array crosscall length"
+      require (fieldCount == 2) "storage-backed struct-array crosscall field count"
+      require (fieldOffset == 1) "storage-backed struct-array crosscall field offset"
+      require (index == 1) "storage-backed struct-array crosscall index"
+  | _ => throw <| IO.userError "storage-backed struct-array crosscall last word must use struct-array storageLoad plan"
+  let storageStructArrayCrosscallArgPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      (.crosscallInvokeTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[storageStructArrayCrosscallValue]
+        .u64))
+    "storage-backed struct-array crosscall argument Lower ExprPlan"
+  match storageStructArrayCrosscallArgPlan with
+  | .crosscall .call _ _ none args .u64 => do
+      require (args.size == 4) "storage-backed struct-array crosscall argument plan word count"
+      let arg3 ← requireAt args 3 "storage-backed struct-array crosscall argument missing word 3"
+      match arg3 with
+      | CrosscallArgWordPlan.expr
+          (.storageLoad (.structArrayFieldSlot _ length fieldCount fieldOffset (.irExpr (.literal (.u64 index))))) => do
+          require (length == 2) "storage-backed struct-array crosscall word length"
+          require (fieldCount == 2) "storage-backed struct-array crosscall word field count"
+          require (fieldOffset == 1) "storage-backed struct-array crosscall word field offset"
+          require (index == 1) "storage-backed struct-array crosscall word index"
+      | _ => throw <| IO.userError "storage-backed struct-array crosscall argument must use planned storage-load words"
+  | _ => throw <| IO.userError "storage-backed struct-array crosscall argument must lower to call plan"
+  let storageStructArrayCrosscallArgPlanExpr ← requireOk
+    (lowerExprPlanExpr
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      #[{ name := "target", type := .u64, isMutable := false }]
+      storageStructArrayCrosscallArgPlan)
+    "storage-backed struct-array crosscall argument ExprPlan-to-Yul"
+  requireCallExpr
+    storageStructArrayCrosscallArgPlanExpr
+    "__proof_forge_crosscall_4"
+    6
+    "storage-backed struct-array crosscall argument ExprPlan-to-Yul"
+
 def testReturnValueWordPlanToYul : IO Unit := do
   let simpleStructFields (typeName : String) : Except LowerError (Array (String × ValueType)) :=
     if typeName == "Point" then
@@ -7697,6 +7814,7 @@ def main : IO UInt32 := do
   testEntrypointDispatchPlanToYul
   testSemanticPlanRender
   testScalarExprPlanToYul
+  testStorageFixedArrayCrosscallWordPlans
   testArrayLiteralDirectExprPlanToYul
   testLocalAbiWordsToYul
   testLocalCrosscallWordsToYul

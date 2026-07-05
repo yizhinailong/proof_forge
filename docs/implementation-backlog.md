@@ -696,9 +696,10 @@ Tasks:
     sources: scalar/literal/storage-load words use `CrosscallArgWordPlan.expr`,
     local aggregate struct/fixed-array sources are now expanded by `Lower` into
     explicit `CrosscallArgWordPlan.expr (.local ...)` word plans, and
-    storage-backed aggregate struct sources are now expanded by `Lower` into
-    explicit `CrosscallArgWordPlan.expr (.storageLoad ...)` word plans instead
-    of preserving provider-backed local or storage source markers on the active
+    storage-backed aggregate struct/fixed-array sources are now expanded by
+    `Lower` into explicit
+    `CrosscallArgWordPlan.expr (.storageLoad ...)` word plans instead of
+    preserving provider-backed local or storage source markers on the active
     lowering path.
     The obsolete
     `ExprPlan.localAbiWords`, `ExprPlan.storageAbiWords`,
@@ -709,10 +710,8 @@ Tasks:
     now returns those source plans, while `ToYul.crosscallArgWordPlanExprs`
     performs the final traversal and word concatenation.
     `ToYul.crosscallExprPlanExpr` wraps that traversal with target/method/call-
-    value lowering and scalar helper-call selection. `IR.lean` still supplies
-    ToYul provider callbacks for local crosscall source plans and legacy
-    storage source plans, while legacy untyped scalar expression crosscall
-    lowering now enters
+    value lowering and scalar helper-call selection. Legacy untyped scalar
+    expression crosscall lowering now enters
     `Lower.buildExpressionExprPlan` -> `ExprPlan.crosscall` before that ToYul
     boundary. `IR.lean` still supplies ToYul provider callbacks only for
     direct/legacy local and storage crosscall source plan surfaces. The old
