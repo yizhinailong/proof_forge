@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Storage Aggregate Event ABI Word Plan
+
+Commit: c35886f
+
+Summary:
+
+- Added a `storageAbiWords` expression-plan node for storage-backed ABI word
+  expansion.
+- Taught `Lower.buildEffectPlan` to record local aggregate event fields as
+  `localAbiWords` and scalar storage struct event fields as `storageAbiWords`.
+- Extended `ToYul.eventFieldsDataWordsFromPlan` so planned event data words can
+  consume aggregate ABI word expansion plans instead of only scalar
+  expressions.
+- Routed scalar storage struct event data lowering in the `IR.lean`
+  compatibility facade through `Lower -> Plan -> ToYul`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/event-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Storage fixed-array and storage struct-array event data still enter through
+  array literals of scalar storage reads.
+- Indexed aggregate storage topics still have their hashing path in the
+  `IR.lean` compatibility facade.
+
+Next step:
+
+- Move indexed aggregate topic word expansion and hashing behind the same
+  planned ABI word boundary.
+
 ### EVM Local Aggregate Event Data Words via ABI Words
 
 Commit: 4ccf8de
