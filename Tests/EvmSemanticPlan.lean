@@ -80,6 +80,49 @@ def statementsHaveAssignmentBuiltin (statements : Array Lean.Compiler.Yul.Statem
         builtinName == name
     | _ => false
 
+def functionBody? (statements : Array Lean.Compiler.Yul.Statement) (name : String) :
+    Option Lean.Compiler.Yul.Block :=
+  Id.run do
+    let mut found : Option Lean.Compiler.Yul.Block := none
+    for stmt in statements do
+      if found.isNone then
+        match stmt with
+        | Lean.Compiler.Yul.Statement.funcDef fnName _ _ body =>
+            if fnName == name then
+              found := some body
+        | _ => pure ()
+    found
+
+def exprIsNatLiteral (expr : Lean.Compiler.Yul.Expr) (expected : Nat) : Bool :=
+  match expr with
+  | Lean.Compiler.Yul.Expr.lit literal => literal.value == toString expected
+  | _ => false
+
+mutual
+  partial def blockHasMstoreValue (block : Lean.Compiler.Yul.Block) (expected : Nat) : Bool :=
+    block.statements.any fun stmt => statementHasMstoreValue stmt expected
+
+  partial def statementHasMstoreValue (stmt : Lean.Compiler.Yul.Statement) (expected : Nat) : Bool :=
+    match stmt with
+    | Lean.Compiler.Yul.Statement.block block =>
+        blockHasMstoreValue block expected
+    | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "mstore" args) =>
+        match args[1]? with
+        | some value => exprIsNatLiteral value expected
+        | none => false
+    | Lean.Compiler.Yul.Statement.ifStmt _ body =>
+        blockHasMstoreValue body expected
+    | Lean.Compiler.Yul.Statement.switchStmt _ cases =>
+        cases.any fun case => blockHasMstoreValue case.body expected
+    | Lean.Compiler.Yul.Statement.funcDef _ _ _ body =>
+        blockHasMstoreValue body expected
+    | Lean.Compiler.Yul.Statement.forLoop pre _ post body =>
+        blockHasMstoreValue pre expected ||
+          blockHasMstoreValue post expected ||
+          blockHasMstoreValue body expected
+    | _ => false
+end
+
 def requireCallExpr
     (expr : Lean.Compiler.Yul.Expr)
     (expectedName : String)
@@ -328,6 +371,32 @@ def testEventSemanticPlan : IO Unit := do
       | some (ExprPlan.local "value") => pure ()
       | _ => throw <| IO.userError "event plan body eventEmitWords must carry value local"
   | _ => throw <| IO.userError "event plan body must already use eventEmitWords"
+  let alteredEntrypoints := plan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "emit_value_event" then
+      { entrypoint with
+        body := #[
+          StmtPlan.effect
+            (EffectPlan.eventEmitWords valueEvent #[#[ExprPlan.literalWord 99]])
+        ]
+      }
+    else
+      entrypoint
+  let alteredPlan := { plan with entrypoints := alteredEntrypoints }
+  let alteredObject ← requireOk
+    (lowerModuleWithPlan ProofForge.IR.Examples.EventProbe.evmModule alteredPlan)
+    "event altered entrypoint plan-driven module lowering"
+  let alteredEntrypoint ← requireSome
+    (alteredPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "emit_value_event"))
+    "event altered plan missing emit_value_event entrypoint"
+  let alteredFunctionName :=
+    ProofForge.Backend.Evm.ToYul.entrypointPlanFunctionName
+      ProofForge.IR.Examples.EventProbe.evmModule.name
+      alteredEntrypoint
+  let alteredBody ← requireSome
+    (functionBody? alteredObject.code.statements alteredFunctionName)
+    "event altered plan function body missing"
+  require (blockHasMstoreValue alteredBody 99)
+    "plan-driven entrypoint lowering must consume ModulePlan body event words"
   let topicStmts := ProofForge.Backend.Evm.ToYul.eventSignatureTopicStatements valueEvent
   require (topicStmts.size > 0) "event plan-to-yul topic statement count"
   match topicStmts[topicStmts.size - 1]? with

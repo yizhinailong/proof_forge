@@ -436,9 +436,11 @@ Tasks:
     sequences before ToYul runs, using `EffectPlan.eventEmitWords` /
     `eventEmitIndexedWords` as the active lowering surface. Full semantic-plan
     construction now returns those word-effect variants directly from
-    `Lower.buildEffectPlan`; the IR facade conversion remains only on the
-    compatibility event statement path until full entrypoint assembly consumes
-    `ModulePlan` bodies.
+    `Lower.buildEffectPlan`; complete module assembly now consumes
+    `ModulePlan` entrypoint bodies for the already-supported scalar-body subset
+    before falling back to the portable IR body path for unsupported shapes.
+    The IR facade conversion remains only on compatibility event statement
+    paths outside that planned-body subset.
     Planned scalar-body event effects now route through
     `ToYul.eventEffectStmtPlanStatements`, so `StmtPlan.effect`
     selects word-effect event block construction behind ToYul,

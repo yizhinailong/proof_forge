@@ -5509,6 +5509,24 @@ mutual
         .ok (← lowerReturnStmt module env entrypointName returnType value leaveAfterReturn, env)
 end
 
+def lowerEntrypointBodyWithPlan?
+    (module : Module)
+    (entrypoint : Entrypoint)
+    (entrypointPlan : ProofForge.Backend.Evm.Plan.EntrypointPlan) :
+    Except LowerError (Option (Array Lean.Compiler.Yul.Statement)) := do
+  if stmtPlansSupportScalarBody entrypoint.returns entrypointPlan.body then
+    match lowerScalarStmtPlanBodyStatements
+        module
+        entrypoint.name
+        entrypoint.returns
+        (entrypointTypeEnv entrypoint)
+        false
+        entrypointPlan.body with
+    | .ok (body, _) => .ok (some body)
+    | .error _ => .ok none
+  else
+    .ok none
+
 def lowerEntrypointWithPlan
     (module : Module)
     (entrypoint : Entrypoint)
@@ -5531,7 +5549,11 @@ def lowerEntrypointWithPlan
       else
         .error { message := s!"entrypoint `{entrypoint.name}` returns `{entrypoint.returns.name}` but does not return on every control-flow path" }
   validateEntrypointTypes module entrypoint
-  let body ← lowerStatements module entrypoint.name entrypoint.returns (entrypointTypeEnv entrypoint) false entrypoint.body
+  let body ←
+    match ← lowerEntrypointBodyWithPlan? module entrypoint entrypointPlan with
+    | some plannedBody => .ok plannedBody
+    | none =>
+        lowerStatements module entrypoint.name entrypoint.returns (entrypointTypeEnv entrypoint) false entrypoint.body
   let dynamicParamAliases :=
     entrypointPlan.params.foldl
       (fun acc param =>
