@@ -2183,9 +2183,66 @@ mutual
       (fun context typeName stateId => do
         let fields ← lowerStructStorageReadFields module context typeName stateId
         .ok (fields.map fun field => field.snd))
+      (fun context stateId elementType length =>
+        lowerStorageArrayAbiWords module context stateId elementType length)
       context
       stateId
       expectedType
+
+  partial def lowerStorageArrayAbiWords
+      (module : Module)
+      (context stateId : String)
+      (elementType : ValueType)
+      (length : Nat) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+    match elementType with
+    | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => do
+        let (slot, stateLength, stateElementType) ← requireStorageArrayState module stateId
+        if stateLength != length then
+          .error { message := s!"{context} storage array `{stateId}` expected length {length}, got {stateLength}" }
+        ensureType s!"{context} storage array `{stateId}` element type" elementType stateElementType
+        let mut words : Array Lean.Compiler.Yul.Expr := #[]
+        for _h : idx in [0:length] do
+          let elementSlot :=
+            ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.arraySlot #[
+              slotExpr slot,
+              Lean.Compiler.Yul.Expr.num stateLength,
+              Lean.Compiler.Yul.Expr.num idx
+            ]
+          words := words.push (Lean.Compiler.Yul.builtin "sload" #[elementSlot])
+        .ok words
+    | .structType typeName => do
+        let some decl := findStruct? module typeName
+          | .error { message := s!"{context} storage array `{stateId}` uses unknown struct `{typeName}`" }
+        match stateInfo? module stateId with
+        | some (_, { kind := .array stateLength, type := .structType stateTypeName, .. }) => do
+            if stateLength != length then
+              .error { message := s!"{context} storage struct array `{stateId}` expected length {length}, got {stateLength}" }
+            if stateTypeName != typeName then
+              .error { message := s!"{context} storage struct array `{stateId}` expected struct `{typeName}`, got `{stateTypeName}`" }
+        | some (_, state) =>
+            .error { message := s!"{context} storage struct array `{stateId}` expected fixed array of struct `{typeName}`, got `{state.type.name}`" }
+        | none =>
+            .error { message := s!"unknown struct array state `{stateId}`" }
+        let mut words : Array Lean.Compiler.Yul.Expr := #[]
+        for _h : idx in [0:length] do
+          for fieldDecl in decl.fields do
+            let (slot, stateLength, fieldCount, fieldOffset, field) ←
+              requireStructArrayStateField module stateId fieldDecl.id
+            ensureType s!"{context} storage struct array `{stateId}` field `{fieldDecl.id}`" fieldDecl.type field.type
+            let fieldSlot :=
+              ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.structArraySlot #[
+                slotExpr slot,
+                Lean.Compiler.Yul.Expr.num stateLength,
+                Lean.Compiler.Yul.Expr.num fieldCount,
+                Lean.Compiler.Yul.Expr.num fieldOffset,
+                Lean.Compiler.Yul.Expr.num idx
+              ]
+            words := words.push (Lean.Compiler.Yul.builtin "sload" #[fieldSlot])
+        .ok words
+    | .unit | .fixedArray _ _ | .bytes | .string | .array _ =>
+        .error {
+          message := s!"{context} storage-backed ABI word expansion has unsupported fixed-array element type `{elementType.name}`"
+        }
 
   partial def lowerCrosscallStructArgWords
       (module : Module)
@@ -2988,6 +3045,8 @@ partial def lowerIndexedEventTopicStatements
           (fun context typeName stateId => do
             let fields ← lowerStructStorageReadFields module context typeName stateId
             .ok (fields.map fun field => field.snd))
+          (fun context stateId elementType length =>
+            lowerStorageArrayAbiWords module context stateId elementType length)
           eventName
           fieldPlan
           valuePlan
@@ -3044,6 +3103,8 @@ def lowerEventEmitCoreStmt
       (fun context typeName stateId => do
         let fields ← lowerStructStorageReadFields module context typeName stateId
         .ok (fields.map fun field => field.snd))
+      (fun context stateId elementType length =>
+        lowerStorageArrayAbiWords module context stateId elementType length)
       name
       dataFieldPlans
       dataValuePlans
@@ -5300,6 +5361,8 @@ def lowerScalarEventEffectPlan
           (fun context typeName stateId => do
             let fields ← lowerStructStorageReadFields module context typeName stateId
             .ok (fields.map fun field => field.snd))
+          (fun context stateId elementType length =>
+            lowerStorageArrayAbiWords module context stateId elementType length)
           event.name
           event.dataFields
           dataFields
@@ -5313,6 +5376,8 @@ def lowerScalarEventEffectPlan
           (fun context typeName stateId => do
             let fields ← lowerStructStorageReadFields module context typeName stateId
             .ok (fields.map fun field => field.snd))
+          (fun context stateId elementType length =>
+            lowerStorageArrayAbiWords module context stateId elementType length)
           event
           indexedFields
       let dataWords ←
@@ -5323,6 +5388,8 @@ def lowerScalarEventEffectPlan
           (fun context typeName stateId => do
             let fields ← lowerStructStorageReadFields module context typeName stateId
             .ok (fields.map fun field => field.snd))
+          (fun context stateId elementType length =>
+            lowerStorageArrayAbiWords module context stateId elementType length)
           event.name
           event.dataFields
           dataFields

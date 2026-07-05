@@ -169,6 +169,120 @@ def fixedArrayScalarLeafType? : ValueType → Bool
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
   | .unit | .fixedArray _ _ | .structType _ | .bytes | .string | .array _ => false
 
+def storageArrayReadStateAt? (index : Nat) : Expr → Option String
+  | .effect (.storageArrayRead stateId indexExpr) =>
+      match literalArrayIndex? indexExpr with
+      | some value => if value == index then some stateId else none
+      | none => none
+  | _ => none
+
+def storageArrayReadState? (values : Array Expr) : Option String := Id.run do
+  let mut state? : Option String := none
+  let mut ok := true
+  for h : idx in [0:values.size] do
+    match storageArrayReadStateAt? idx values[idx] with
+    | some stateId =>
+        match state? with
+        | none => state? := some stateId
+        | some existing =>
+            if existing != stateId then
+              ok := false
+    | none =>
+        ok := false
+  if ok then
+    state?
+  else
+    none
+
+def storageStructArrayFieldReadStateAt? (index : Nat) (fieldName : String) : Expr → Option String
+  | .effect (.storageArrayStructFieldRead stateId indexExpr readFieldName) =>
+      match literalArrayIndex? indexExpr with
+      | some value =>
+          if value == index && readFieldName == fieldName then some stateId else none
+      | none => none
+  | _ => none
+
+def storageStructArrayElementReadState? (decl : StructDecl) (index : Nat) : Expr → Option String
+  | .structLit typeName fields =>
+      if typeName != decl.name || fields.size != decl.fields.size then
+        none
+      else Id.run do
+        let mut state? : Option String := none
+        let mut ok := true
+        for fieldDecl in decl.fields do
+          match fields.find? fun field => field.fst == fieldDecl.id with
+          | some field =>
+            match storageStructArrayFieldReadStateAt? index fieldDecl.id field.snd with
+            | some stateId =>
+                match state? with
+                | none => state? := some stateId
+                | some existing =>
+                    if existing != stateId then
+                      ok := false
+            | none =>
+                ok := false
+          | none =>
+              ok := false
+        if ok then
+          state?
+        else
+          none
+  | _ => none
+
+def storageStructArrayReadState? (decl : StructDecl) (values : Array Expr) : Option String := Id.run do
+  let mut state? : Option String := none
+  let mut ok := true
+  for h : idx in [0:values.size] do
+    match storageStructArrayElementReadState? decl idx values[idx] with
+    | some stateId =>
+        match state? with
+        | none => state? := some stateId
+        | some existing =>
+            if existing != stateId then
+              ok := false
+    | none =>
+        ok := false
+  if ok then
+    state?
+  else
+    none
+
+def storageArrayAbiWordsPlan?
+    (module : Module)
+    (fieldType : ValueType)
+    (value : Expr) : Except LowerError (Option ExprPlan) := do
+  match fieldType, value with
+  | .fixedArray (.structType typeName) length, .arrayLit (.structType literalTypeName) values => do
+      if literalTypeName != typeName || values.size != length then
+        .ok none
+      else
+        let some decl := ProofForge.Backend.Evm.Validate.findStruct? module typeName
+          | .error { message := s!"event storage array ABI word plan uses unknown struct `{typeName}`" }
+        match storageStructArrayReadState? decl values with
+        | none => .ok none
+        | some stateId =>
+            match ProofForge.Backend.Evm.Validate.stateInfo? module stateId with
+            | some (_, { kind := .array stateLength, type := .structType stateTypeName, .. }) =>
+                if stateLength == length && stateTypeName == typeName then
+                  .ok (some (.storageAbiWords stateId fieldType))
+                else
+                  .ok none
+            | _ => .ok none
+  | .fixedArray elementType length, .arrayLit literalElementType values => do
+      if literalElementType != elementType || values.size != length then
+        .ok none
+      else
+        match storageArrayReadState? values with
+        | none => .ok none
+        | some stateId => do
+            let (_, stateLength, stateElementType) ← lowerPlan <| requireArrayState module stateId
+            if stateLength == length && stateElementType == elementType then
+              .ok (some (.storageAbiWords stateId fieldType))
+            else
+              .ok none
+  | _, _ =>
+      .ok none
+
 mutual
   partial def localArrayGetExprPlan?
       (module : Module)
@@ -513,6 +627,10 @@ mutual
     | .structType typeName, .effect (.storageScalarRead stateId) => do
         ensureType s!"{context} storage value" (.structType typeName) (← scalarStateType module stateId)
         .ok (.storageAbiWords stateId (.structType typeName))
+    | .fixedArray _ _, _ => do
+        match ← storageArrayAbiWordsPlan? module fieldType value with
+        | some plan => .ok plan
+        | none => buildExprPlan module env value
     | _, _ =>
         buildExprPlan module env value
 
