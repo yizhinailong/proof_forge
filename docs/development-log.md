@@ -17,6 +17,55 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Array Write Statement EffectPlan Routing
+
+Commit: ab599c8
+
+Summary:
+
+- Routed statement-position fixed-array `storageArrayWrite` effects through
+  `Lower.buildEffectPlan` before final ToYul statement lowering.
+- Removed IR-local reconstruction of array write target plans and index/value
+  expression plans from the plan-supported array write statement path.
+- Reused `ToYul.arrayWriteTargetEffectStmtPlanStatements` for planned array
+  write target effects.
+- Strengthened semantic-plan coverage for direct array write statement lowering
+  with a checked index expression.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Array write statements still keep the existing fallback path for expression
+  shapes that are not yet covered by planned scalar Yul lowering.
+- Struct-array-field, struct-field, dynamic-array, memory-array, and
+  storage-path statement writes still keep their per-effect compatibility
+  fallback helpers.
+- Some aggregate expression, statement, storage, and event paths still pass
+  through the compatibility facade until their own semantic-plan slices land.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue by moving struct-field or struct-array-field statement-position
+  storage write effects from compatibility helpers into
+  `Lower -> EffectPlan -> ToYul`.
+
 ### EVM Map Write Statement EffectPlan Routing
 
 Commit: 62f4f98
