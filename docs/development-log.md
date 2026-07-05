@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Dynamic Returns
+
+Commit: 8a95fb8
+
+Summary:
+
+- Broadened planned entrypoint body consumption to dynamic local returns.
+- Routed supported planned dynamic returns through
+  `ToYul.dynamicReturnStmtPlanStatements`.
+- Added altered-plan coverage proving `lowerModuleWithPlan` consumes a planned
+  dynamic return body rather than rebuilding the portable IR body.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Planned dynamic return body consumption is limited to local dynamic values.
+- Aggregate return shapes still use portable IR fallback lowering.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Broaden planned entrypoint body consumption to aggregate return word
+  assignments.
+
 ### EVM Planned Aggregate Event Words
 
 Commit: 740aa7e
