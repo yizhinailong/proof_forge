@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Scalar Return Name Plan Ownership
+
+Commit: 68c16f3
+
+Summary:
+
+- Routed scalar `return` statement lowering through
+  `Lower.returnPlan.localNames` before calling
+  `ToYul.scalarReturnStmtPlanStatements`.
+- Removed one more IR-facade dependency on local return-name calculation for
+  the supported scalar return plan path.
+- Kept generated Yul behavior unchanged; this is an ownership cleanup toward
+  `Lower -> Plan -> ToYul`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/expression-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Aggregate and non-local dynamic return fallback paths still have compatibility
+  facade work remaining.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving return and crosscall fallback decisions behind explicit
+  `Lower`/`Plan` surfaces before deleting more IR-local compatibility code.
+
 ### EVM Dynamic Local Return ToYul Slice
 
 Commit: 2d72dc8
