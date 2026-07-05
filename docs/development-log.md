@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM IR Crosscall/Create Discovery Cleanup
+
+Commit: 21893a0
+
+Summary:
+
+- Removed the legacy crosscall helper discovery scanner from `IR.lean` after
+  incomplete-plan fallback routing moved to `Lower.buildCrosscallHelperPlans`.
+- Removed the legacy create helper discovery scanner from `IR.lean` after
+  incomplete-plan fallback routing moved to `Lower.buildCreateHelperPlans`.
+- Removed the obsolete legacy crosscall/create plan-conversion helpers that
+  only existed to bridge those old IR-local scanner result types.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Local-array helper discovery cleanup remains separate; the fallback path
+  already routes through `Lower.buildLocalArrayGetLengths` and
+  `Lower.buildNestedLocalArrayGetShapes`, but dead compatibility scanners still
+  remain in `IR.lean`.
+
+Next step:
+
+- Remove the remaining dead local-array helper discovery scanners from
+  `IR.lean`, or continue reducing compatibility-only helper wrappers toward
+  `Lower -> Plan -> ToYul`.
+
 ### EVM Fallback Helper Discovery Through Lower
 
 Commit: d7b1b2d
