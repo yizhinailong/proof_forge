@@ -3797,6 +3797,42 @@ def testStoragePathWritePlanToYul : IO Unit := do
       requireCallExpr valueSlot mapSlotFunctionName 2 "nested map storage path target value slot"
       requireCallExpr presenceSlot mapPresenceSlotFunctionName 2 "nested map storage path target presence slot"
   | _ => throw <| IO.userError "nested map storage path target must lower to value/presence slots"
+  let loweredArrayWriteEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      (toValidateTypeEnv arrayEnv)
+      (.storagePathWrite
+        "values"
+        #[.index (.local "value")]
+        (.add (.local "value") (.literal (.u64 4)))))
+    "Lower storage path write target effect plan"
+  match loweredArrayWriteEffect with
+  | .storagePathWriteTarget (.singleSlot (.arraySlot _ length (.irExpr (.local indexName)))) valuePlan => do
+      require (length == 3) "Lower storage path write target array length"
+      require (indexName == "value") "Lower storage path write target index"
+      match valuePlan with
+      | .checkedArith .add (.local lhs) (.literalWord rhs) => do
+          require (lhs == "value") "Lower storage path write target value lhs"
+          require (rhs == 4) "Lower storage path write target value rhs"
+      | _ => throw <| IO.userError "Lower storage path write target value must be checked add"
+  | _ => throw <| IO.userError "Lower storage path write must produce storagePathWriteTarget"
+  let loweredArrayAssignOpEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      (toValidateTypeEnv arrayEnv)
+      (.storagePathAssignOp
+        "values"
+        #[.index (.local "value")]
+        .add
+        (.literal (.u64 1))))
+    "Lower storage path assign_op target effect plan"
+  match loweredArrayAssignOpEffect with
+  | .storagePathAssignOpTarget (.singleSlot (.arraySlot _ length (.irExpr (.local indexName)))) op (.literalWord value) => do
+      require (length == 3) "Lower storage path assign_op target array length"
+      require (indexName == "value") "Lower storage path assign_op target index"
+      require (op == .add) "Lower storage path assign_op target op"
+      require (value == 1) "Lower storage path assign_op target value"
+  | _ => throw <| IO.userError "Lower storage path assign_op must produce storagePathAssignOpTarget"
   let directWriteStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.storagePathWriteEffectStmtPlanStatements
       toYulError
@@ -3823,6 +3859,27 @@ def testStoragePathWritePlanToYul : IO Unit := do
           require (addArgs.size == 2) "storage path write StmtPlan-to-Yul helper checked add arg count"
       | _ => throw <| IO.userError "storage path write StmtPlan-to-Yul helper value must be checked add"
   | _ => throw <| IO.userError "storage path write StmtPlan-to-Yul helper must lower to sstore"
+  let directPlannedWriteStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathWriteTargetEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storagePathWriteTarget
+          (.singleSlot (.arraySlot 0 3 (.irExpr (.local "value"))))
+          (.checkedArith .add (.local "value") (.literalWord 4)))))
+    "planned storage path write target StmtPlan-to-Yul helper"
+  require (directPlannedWriteStmts.size == 1) "planned storage path write target helper statement count"
+  match directPlannedWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "planned storage path write target helper arg count"
+      requireCallExpr args[0]! arraySlotFunctionName 3 "planned storage path write target helper slot"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "planned storage path write target helper checked add"
+          require (addArgs.size == 2) "planned storage path write target helper checked add arg count"
+      | _ => throw <| IO.userError "planned storage path write target helper value must be checked add"
+  | _ => throw <| IO.userError "planned storage path write target helper must lower to sstore"
   let arrayWriteStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
@@ -3903,6 +3960,33 @@ def testStoragePathWritePlanToYul : IO Unit := do
         | _ => pure ()
       require foundStorageReadValue "storage path assign_op StmtPlan-to-Yul helper value must lower storage read through plan"
   | _ => throw <| IO.userError "storage path assign_op StmtPlan-to-Yul helper must lower to block"
+  let directPlannedAssignOpStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathAssignOpTargetEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storagePathAssignOpTarget
+          (.singleSlot (.arraySlot 0 3 (.irExpr (.local "value"))))
+          .add
+          (.literalWord 1))))
+    "planned storage path assign_op target StmtPlan-to-Yul helper"
+  require (directPlannedAssignOpStmts.size == 1) "planned storage path assign_op target helper statement count"
+  match directPlannedAssignOpStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      let mut foundPlannedAssign := false
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+            if args.size == 2 then
+              match args[1]! with
+              | Lean.Compiler.Yul.Expr.call addName addArgs =>
+                  foundPlannedAssign := foundPlannedAssign ||
+                    (addName == "__pf_checked_add" && addArgs.size == 2)
+              | _ => pure ()
+        | _ => pure ()
+      require foundPlannedAssign "planned storage path assign_op target helper must use checked add"
+  | _ => throw <| IO.userError "planned storage path assign_op target helper must lower to block"
   let directMapAssign ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.EvmMapProbe.module

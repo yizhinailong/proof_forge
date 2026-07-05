@@ -429,9 +429,11 @@ mutual
     | .storagePathRead stateId path =>
         .ok (.storagePathRead stateId path)
     | .storagePathWrite stateId path value => do
-        .ok (.storagePathWrite stateId path (← buildExprPlan module env value))
+        let target ← lowerPlan <| storagePathWriteTargetPlan module stateId path
+        .ok (.storagePathWriteTarget target (← buildExprPlan module env value))
     | .storagePathAssignOp stateId path op value => do
-        .ok (.storagePathAssignOp stateId path op (← buildExprPlan module env value))
+        let target ← lowerPlan <| storagePathWriteTargetPlan module stateId path
+        .ok (.storagePathAssignOpTarget target op (← buildExprPlan module env value))
     | .contextRead field =>
         .ok (.contextRead field)
     | .eventEmit name fields => do
