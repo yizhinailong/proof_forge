@@ -224,6 +224,11 @@ structure MapWriteTargetPlan where
   rootSlot : Nat
   deriving Repr
 
+structure ArrayWriteTargetPlan where
+  rootSlot : Nat
+  length : Nat
+  deriving Repr
+
 def requireState (module : Module) (stateId : String) : Except PlanError (Nat × StateDecl) :=
   match stateInfo? module stateId with
   | some info => .ok info
@@ -355,6 +360,10 @@ def requireArrayState (module : Module) (stateId : String) : Except PlanError (N
         .error { message := s!"EVM array state '{stateId}' has unsupported slot element type '{elementType.name}'" }
   | .scalar, _ | .map _ _, _ =>
       .error { message := s!"EVM storage state '{stateId}' is not an array" }
+
+def arrayWriteTargetPlan (module : Module) (stateId : String) : Except PlanError ArrayWriteTargetPlan := do
+  let (rootSlot, length, _) ← requireArrayState module stateId
+  .ok { rootSlot, length }
 
 def requireStructArrayStateField
     (module : Module)
@@ -647,6 +656,7 @@ mutual
     | storageMapSetTarget (target : MapWriteTargetPlan) (key value : ExprPlan)
     | storageArrayRead (stateId : String) (index : ExprPlan)
     | storageArrayWrite (stateId : String) (index value : ExprPlan)
+    | storageArrayWriteTarget (target : ArrayWriteTargetPlan) (index value : ExprPlan)
     | storageArrayStructFieldRead (stateId : String) (index : ExprPlan) (fieldName : String)
     | storageArrayStructFieldWrite (stateId : String) (index : ExprPlan) (fieldName : String) (value : ExprPlan)
     | storageStructFieldRead (stateId fieldName : String)

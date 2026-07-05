@@ -95,6 +95,13 @@ def requireMapWriteTarget
     (label : String) : IO Unit := do
   require (target.rootSlot == expectedRootSlot) s!"{label} root slot"
 
+def requireArrayWriteTarget
+    (target : ArrayWriteTargetPlan)
+    (expectedRootSlot expectedLength : Nat)
+    (label : String) : IO Unit := do
+  require (target.rootSlot == expectedRootSlot) s!"{label} root slot"
+  require (target.length == expectedLength) s!"{label} length"
+
 def requireIdentExpr
     (expr : Lean.Compiler.Yul.Expr)
     (expectedName : String)
@@ -3466,6 +3473,57 @@ def testArrayWritePlanToYul : IO Unit := do
           require (readArgs.size == 2) "array write StmtPlan-to-Yul helper value packed read arg count"
       | _ => throw <| IO.userError "array write StmtPlan-to-Yul helper value must be storage read"
   | _ => throw <| IO.userError "array write StmtPlan-to-Yul helper must lower to sstore"
+  let loweredArrayWriteEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      (toValidateTypeEnv env)
+      (.storageArrayWrite "values" (.literal (.u64 1)) (.local "value")))
+    "Lower array write target effect plan"
+  match loweredArrayWriteEffect with
+  | .storageArrayWriteTarget target (.literalWord indexValue) (.local valueName) => do
+      requireArrayWriteTarget target 1 3 "Lower array write target"
+      require (indexValue == 1) "Lower array write target index"
+      require (valueName == "value") "Lower array write target value"
+  | _ => throw <| IO.userError "Lower array write must produce storageArrayWriteTarget"
+  let directPlannedWriteStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.arrayWriteTargetEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module env)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageArrayWriteTarget
+          { rootSlot := 1, length := 3 }
+          (.checkedArith .add (.literalWord 1) (.literalWord 1))
+          (.checkedArith .add (.local "value") (.literalWord 5)))))
+    "planned array write target StmtPlan-to-Yul helper"
+  require (directPlannedWriteStmts.size == 1) "planned array write target helper statement count"
+  match directPlannedWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "planned array write target helper arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == arraySlotFunctionName) "planned array write target helper slot call"
+          require (slotArgs.size == 3) "planned array write target helper slot arg count"
+          match slotArgs[0]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "1") "planned array write target helper root slot"
+          | _ => throw <| IO.userError "planned array write target root slot must be literal"
+          match slotArgs[1]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "3") "planned array write target helper length"
+          | _ => throw <| IO.userError "planned array write target length must be literal"
+          match slotArgs[2]! with
+          | Lean.Compiler.Yul.Expr.call addName addArgs => do
+              require (addName == "__pf_checked_add") "planned array write target helper index checked add"
+              require (addArgs.size == 2) "planned array write target helper index checked add arg count"
+          | _ => throw <| IO.userError "planned array write target helper index must be checked add"
+      | _ => throw <| IO.userError "planned array write target helper slot must use array helper"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "planned array write target helper value checked add"
+          require (addArgs.size == 2) "planned array write target helper value checked add arg count"
+      | _ => throw <| IO.userError "planned array write target helper value must be checked add"
+  | _ => throw <| IO.userError "planned array write target helper must lower to sstore"
   let writeStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.EvmStorageArrayProbe.module

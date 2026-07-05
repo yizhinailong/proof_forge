@@ -40,6 +40,11 @@ def mapWriteTargetPlan? (module : Module) (stateId : String) : Option MapWriteTa
   | .ok target => some target
   | .error _ => none
 
+def arrayWriteTargetPlan? (module : Module) (stateId : String) : Option ArrayWriteTargetPlan :=
+  match arrayWriteTargetPlan module stateId with
+  | .ok target => some target
+  | .error _ => none
+
 def abiParamPlan
     (module : Module)
     (context : String)
@@ -443,7 +448,11 @@ mutual
     | .storageArrayRead stateId index => do
         .ok (.storageArrayRead stateId (← buildExprPlan module env index))
     | .storageArrayWrite stateId index value => do
-        .ok (.storageArrayWrite stateId (← buildExprPlan module env index) (← buildExprPlan module env value))
+        let indexPlan ← buildExprPlan module env index
+        let valuePlan ← buildExprPlan module env value
+        match arrayWriteTargetPlan? module stateId with
+        | some target => .ok (.storageArrayWriteTarget target indexPlan valuePlan)
+        | none => .ok (.storageArrayWrite stateId indexPlan valuePlan)
     | .storageArrayStructFieldRead stateId index fieldName => do
         .ok (.storageArrayStructFieldRead stateId (← buildExprPlan module env index) fieldName)
     | .storageArrayStructFieldWrite stateId index fieldName value => do
