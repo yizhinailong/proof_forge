@@ -3153,6 +3153,250 @@ def buildLocalArrayHelperRequirementsFromEntrypoints
   entrypoints.foldl (init := emptyLocalArrayHelperRequirements) fun acc entrypoint =>
     mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromStmtPlans entrypoint.body)
 
+def contextFieldFromContextExprPlan : ContextExprPlan → ContextField
+  | .userId => .userId
+  | .contractId => .contractId
+  | .checkpointId => .checkpointId
+  | .timestamp => .timestamp
+  | .chainId => .chainId
+  | .gasPrice => .gasPrice
+  | .gasLeft => .gasLeft
+  | .baseFee => .baseFee
+  | .prevRandao => .prevRandao
+  | .origin => .origin
+  | .coinbase => .coinbase
+  | .blockHash _ => .blockHash (.literal (.u64 0))
+
+def pushContextPlanIfMissing (ops : Array ContextPlan) (op : ContextPlan) : Array ContextPlan :=
+  if ops.any (fun existing => existing.field.name == op.field.name) then ops else ops.push op
+
+def mergeContextPlans (lhs rhs : Array ContextPlan) : Array ContextPlan :=
+  rhs.foldl pushContextPlanIfMissing lhs
+
+mutual
+  partial def contextOpsFromStorageSlotExprPlan :
+      StorageSlotExprPlan → Array ContextPlan
+    | .scalarSlot _ | .fixedSlot _ => #[]
+    | .mapValueSlot _ keys | .mapPresenceSlot _ keys =>
+        keys.foldl (init := #[]) fun acc key =>
+          mergeContextPlans acc (contextOpsFromExprPlan key)
+    | .arraySlot _ _ index
+    | .structArrayFieldSlot _ _ _ _ index
+    | .dynamicArraySlot _ index =>
+        contextOpsFromExprPlan index
+
+  partial def contextOpsFromStoragePathWriteExprTargetPlan :
+      StoragePathWriteExprTargetPlan → Array ContextPlan
+    | .mapWrite _ key =>
+        contextOpsFromExprPlan key
+    | .singleSlot slot =>
+        contextOpsFromStorageSlotExprPlan slot
+    | .mapValuePresence valueSlot presenceSlot =>
+        mergeContextPlans
+          (contextOpsFromStorageSlotExprPlan valueSlot)
+          (contextOpsFromStorageSlotExprPlan presenceSlot)
+
+  partial def contextOpsFromContextExprPlan : ContextExprPlan → Array ContextPlan
+    | .blockHash blockNumber =>
+        mergeContextPlans
+          #[{ field := contextFieldFromContextExprPlan (.blockHash blockNumber) }]
+          (contextOpsFromExprPlan blockNumber)
+    | field =>
+        #[{ field := contextFieldFromContextExprPlan field }]
+
+  partial def contextOpsFromAbiValuePlan : AbiValuePlan → Array ContextPlan
+    | .expr value =>
+        contextOpsFromExprPlan value
+    | .local .. | .storage .. =>
+        #[]
+    | .arrayLit _ values =>
+        values.foldl (init := #[]) fun acc value =>
+          mergeContextPlans acc (contextOpsFromAbiValuePlan value)
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeContextPlans acc (contextOpsFromAbiValuePlan field.snd)
+
+  partial def contextOpsFromCrosscallArgWordPlan : CrosscallArgWordPlan → Array ContextPlan
+    | .expr value =>
+        contextOpsFromExprPlan value
+    | .local .. | .storage .. =>
+        #[]
+
+  partial def contextOpsFromExprPlan : ExprPlan → Array ContextPlan
+    | .literalWord _ | .local _ | .calldataWord _ | .nativeValue =>
+        #[]
+    | .storageLoad _ =>
+        #[]
+    | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
+        args.foldl (init := #[]) fun acc arg =>
+          mergeContextPlans acc (contextOpsFromExprPlan arg)
+    | .checkedArith _ lhs rhs
+    | .hashTwoToOne lhs rhs =>
+        mergeContextPlans
+          (contextOpsFromExprPlan lhs)
+          (contextOpsFromExprPlan rhs)
+    | .hashPack a b c d | .hashValue a b c d =>
+        let ab := mergeContextPlans
+          (contextOpsFromExprPlan a)
+          (contextOpsFromExprPlan b)
+        let cd := mergeContextPlans
+          (contextOpsFromExprPlan c)
+          (contextOpsFromExprPlan d)
+        mergeContextPlans ab cd
+    | .context field =>
+        contextOpsFromContextExprPlan field
+    | .crosscall _ target methodId callValue? args _ =>
+        let nested := mergeContextPlans
+          (contextOpsFromExprPlan target)
+          (contextOpsFromExprPlan methodId)
+        let nested :=
+          match callValue? with
+          | some callValue =>
+              mergeContextPlans nested (contextOpsFromExprPlan callValue)
+          | none => nested
+        args.foldl (init := nested) fun acc arg =>
+          mergeContextPlans acc (contextOpsFromCrosscallArgWordPlan arg)
+    | .create _ callValue salt? _ =>
+        match salt? with
+        | some salt =>
+            mergeContextPlans
+              (contextOpsFromExprPlan callValue)
+              (contextOpsFromExprPlan salt)
+        | none =>
+            contextOpsFromExprPlan callValue
+    | .cast source _
+    | .structField source _
+    | .memoryArrayLength source
+    | .hash source =>
+        contextOpsFromExprPlan source
+    | .arrayGet array index
+    | .memoryArrayGet array index =>
+        mergeContextPlans
+          (contextOpsFromExprPlan array)
+          (contextOpsFromExprPlan index)
+    | .localArrayGet _ path _ =>
+        path.foldl (init := #[]) fun acc index =>
+          mergeContextPlans acc (contextOpsFromExprPlan index)
+    | .memoryArrayNew _ length =>
+        contextOpsFromExprPlan length
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeContextPlans acc (contextOpsFromExprPlan field.snd)
+    | .effect effect =>
+        contextOpsFromEffectPlan effect
+
+  partial def contextOpsFromEffectPlan : EffectPlan → Array ContextPlan
+    | .storageScalarRead _ | .storageScalarReadTarget _
+    | .storageStructFieldRead _ _ | .storageStructFieldReadTarget _
+    | .storageDynamicArrayPop _ | .storageDynamicArrayPopTarget _ =>
+        #[]
+    | .storageScalarWrite _ value
+    | .storageScalarWriteTarget _ value
+    | .storageScalarAssignOp _ _ value
+    | .storageScalarAssignOpTarget _ _ value
+    | .storageStructFieldWrite _ _ value
+    | .storageStructFieldWriteTarget _ value
+    | .storageDynamicArrayPush _ value
+    | .storageDynamicArrayPushTarget _ value =>
+        contextOpsFromExprPlan value
+    | .storageMapContains _ key
+    | .storageMapContainsTarget _ key
+    | .storageMapGet _ key
+    | .storageMapGetTarget _ key
+    | .storageArrayRead _ key
+    | .storageArrayReadTarget _ key
+    | .storageArrayStructFieldRead _ key _
+    | .storageArrayStructFieldReadTarget _ key =>
+        contextOpsFromExprPlan key
+    | .storageMapInsert _ key value
+    | .storageMapInsertTarget _ key value
+    | .storageMapSet _ key value
+    | .storageMapSetTarget _ key value
+    | .storageArrayWrite _ key value
+    | .storageArrayWriteTarget _ key value
+    | .storageArrayStructFieldWrite _ key _ value
+    | .storageArrayStructFieldWriteTarget _ key value =>
+        mergeContextPlans
+          (contextOpsFromExprPlan key)
+          (contextOpsFromExprPlan value)
+    | .memoryArraySet array index value =>
+        mergeContextPlans
+          (mergeContextPlans
+            (contextOpsFromExprPlan array)
+            (contextOpsFromExprPlan index))
+          (contextOpsFromExprPlan value)
+    | .storagePathRead _ _ | .storagePathReadTarget _ =>
+        #[]
+    | .storagePathReadExprTarget slot =>
+        contextOpsFromStorageSlotExprPlan slot
+    | .storagePathWrite _ _ value | .storagePathAssignOp _ _ _ value =>
+        contextOpsFromExprPlan value
+    | .storagePathWriteTarget _ value | .storagePathAssignOpTarget _ _ value =>
+        contextOpsFromExprPlan value
+    | .storagePathWriteExprTarget target value
+    | .storagePathAssignOpExprTarget target _ value =>
+        mergeContextPlans
+          (contextOpsFromStoragePathWriteExprTargetPlan target)
+          (contextOpsFromExprPlan value)
+    | .contextRead field =>
+        contextOpsFromContextExprPlan field
+    | .eventEmit _ dataFields =>
+        dataFields.foldl (init := #[]) fun acc field =>
+          mergeContextPlans acc (contextOpsFromAbiValuePlan field)
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexed := indexedFields.foldl (init := #[]) fun acc field =>
+          mergeContextPlans acc (contextOpsFromAbiValuePlan field)
+        dataFields.foldl (init := indexed) fun acc field =>
+          mergeContextPlans acc (contextOpsFromAbiValuePlan field)
+    | .eventEmitWords _ dataFieldWords =>
+        dataFieldWords.foldl (init := #[]) fun acc words =>
+          words.foldl (init := acc) fun wordAcc word =>
+            mergeContextPlans wordAcc (contextOpsFromExprPlan word)
+    | .eventEmitIndexedWords _ indexedFieldWords dataFieldWords =>
+        let indexed := indexedFieldWords.foldl (init := #[]) fun acc words =>
+          words.foldl (init := acc) fun wordAcc word =>
+            mergeContextPlans wordAcc (contextOpsFromExprPlan word)
+        dataFieldWords.foldl (init := indexed) fun acc words =>
+          words.foldl (init := acc) fun wordAcc word =>
+            mergeContextPlans wordAcc (contextOpsFromExprPlan word)
+
+  partial def contextOpsFromStmtPlan : StmtPlan → Array ContextPlan
+    | .letBind _ _ value
+    | .letMutBind _ _ value
+    | .assert value _ _
+    | .return value =>
+        contextOpsFromExprPlan value
+    | .assign target value
+    | .assignOp target _ value =>
+        mergeContextPlans
+          (contextOpsFromExprPlan target)
+          (contextOpsFromExprPlan value)
+    | .effect effect =>
+        contextOpsFromEffectPlan effect
+    | .assertEq lhs rhs _ _ =>
+        mergeContextPlans
+          (contextOpsFromExprPlan lhs)
+          (contextOpsFromExprPlan rhs)
+    | .release _ | .revert _ | .revertWithError _ =>
+        #[]
+    | .ifElse condition thenBody elseBody =>
+        mergeContextPlans
+          (contextOpsFromExprPlan condition)
+          (mergeContextPlans
+            (contextOpsFromStmtPlans thenBody)
+            (contextOpsFromStmtPlans elseBody))
+    | .boundedFor _ _ _ body =>
+        contextOpsFromStmtPlans body
+
+  partial def contextOpsFromStmtPlans (statements : Array StmtPlan) : Array ContextPlan :=
+    statements.foldl (init := #[]) fun acc stmt =>
+      mergeContextPlans acc (contextOpsFromStmtPlan stmt)
+end
+
+def buildContextOpsFromEntrypoints (entrypoints : Array EntrypointPlan) : Array ContextPlan :=
+  entrypoints.foldl (init := #[]) fun acc entrypoint =>
+    mergeContextPlans acc (contextOpsFromStmtPlans entrypoint.body)
+
 def localArrayGetLengthsForDynamicExprTarget
     (env : TypeEnv)
     (array index : Expr) : Array Nat :=
@@ -3527,6 +3771,7 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
   let localArrayGetLengths := localArrayRequirements.fst
   let nestedLocalArrayGetShapes := localArrayRequirements.snd
   let usesCheckedArithmetic := entrypointsUseCheckedArithmetic entrypointPlans
+  let contextOps := buildContextOpsFromEntrypoints entrypointPlans
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans
@@ -3542,6 +3787,7 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
     localArrayGetLengths := localArrayGetLengths
     nestedLocalArrayGetShapes := nestedLocalArrayGetShapes
     usesCheckedArithmetic := usesCheckedArithmetic
+    contextOps := contextOps
     metadata := metadata
   }
 
@@ -3566,6 +3812,7 @@ def buildFullModulePlanWithTargetPlan
   let localArrayGetLengths := localArrayRequirements.fst
   let nestedLocalArrayGetShapes := localArrayRequirements.snd
   let usesCheckedArithmetic := entrypointsUseCheckedArithmetic entrypointPlans
+  let contextOps := buildContextOpsFromEntrypoints entrypointPlans
   let metadata := {
     moduleName := module.name
     entrypoints := entrypointPlans
@@ -3581,6 +3828,7 @@ def buildFullModulePlanWithTargetPlan
     localArrayGetLengths := localArrayGetLengths
     nestedLocalArrayGetShapes := nestedLocalArrayGetShapes
     usesCheckedArithmetic := usesCheckedArithmetic
+    contextOps := contextOps
     metadata := metadata
   }
 

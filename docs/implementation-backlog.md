@@ -568,6 +568,16 @@ Tasks:
     plan construction. Incomplete-plan fallback lowering still calls
     `Validate.moduleUsesCheckedArithmetic`, `Lower.buildLocalArrayGetLengths`,
     and `Lower.buildNestedLocalArrayGetShapes`.
+  - Started: `ModulePlan.contextOps` is now discovered from the already-built
+    `EntrypointPlan.body` `StmtPlan`/`ExprPlan` tree in
+    `Lower.buildFullModulePlan` and
+    `Lower.buildFullModulePlanWithTargetPlan`. The planned scanner covers
+    `ExprPlan.context`, `EffectPlan.contextRead`, nested `blockHash` argument
+    expressions, event words, crosscall/create arguments, storage target
+    expression slots, and control-flow bodies, then de-duplicates by
+    `ContextField.name`. `IR.buildSemanticPlan` preserves these Lower-owned
+    context summaries; the raw `Plan.contextOpsFromModule` scanner remains only
+    as the base/best-effort compatibility surface.
   - Started: scalar expression-position crosscall helper-call assembly and
     create/create2 helper-call assembly now live behind `ToYul`. `ExprPlan`
     nodes for scalar `call`, value-bearing `call`, native value transfer,

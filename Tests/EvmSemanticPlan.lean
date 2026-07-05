@@ -403,6 +403,9 @@ def requireIdentExpr
       require (name == expectedName) s!"{label} local name"
   | _ => throw <| IO.userError s!"{label} must lower to local identifier"
 
+def contextOpsContainField (ops : Array ContextPlan) (field : ContextField) : Bool :=
+  ops.any fun op => op.field.name == field.name
+
 def nativeTransferPlanProbe : Module := {
   name := "NativeTransferPlanProbe"
   state := #[]
@@ -419,6 +422,31 @@ def nativeTransferPlanProbe : Module := {
           .nativeValue
           #[]
           .u64)
+      ]
+    }
+  ]
+}
+
+def contextOpsPlanProbe : Module := {
+  name := "ContextOpsPlanProbe"
+  state := #[]
+  entrypoints := #[
+    {
+      name := "now"
+      selector? := some "bbe4fd50"
+      params := #[]
+      returns := .u64
+      body := #[
+        .return (.effect (.contextRead .timestamp))
+      ]
+    },
+    {
+      name := "block_hash"
+      selector? := some "04f3bcec"
+      params := #[("block_number", .u64)]
+      returns := .hash
+      body := #[
+        .return (.effect (.contextRead (.blockHash (.local "block_number"))))
       ]
     }
   ]
@@ -1335,6 +1363,69 @@ def testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans : IO Unit := do
   require
     (ProofForge.Backend.Evm.Lower.entrypointsUseCheckedArithmetic assignOpInjectedEntrypoints)
     "planned entrypoint body scanner must discover injected checked assign-op"
+
+def testPlannedContextOpsDiscoveryFromEntrypointPlans : IO Unit := do
+  let plan ←
+    requireOk
+      (buildSemanticPlan contextOpsPlanProbe)
+      "context ops probe semantic plan"
+  let lowerPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan contextOpsPlanProbe)
+      "context ops probe full module plan"
+  require
+    (lowerPlan.contextOps == plan.contextOps)
+    "semantic plan must preserve Lower-discovered context ops"
+  let plannedContextOps :=
+    ProofForge.Backend.Evm.Lower.buildContextOpsFromEntrypoints lowerPlan.entrypoints
+  require
+    (plannedContextOps == lowerPlan.contextOps)
+    "full module context ops must be discovered from entrypoint plans"
+  require
+    (contextOpsContainField lowerPlan.contextOps .timestamp)
+    "full module context ops must include timestamp"
+  require
+    (contextOpsContainField lowerPlan.contextOps (.blockHash (.literal (.u64 0))))
+    "full module context ops must include blockHash"
+  let targetPlanContext ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlanWithTargetPlan
+        contextOpsPlanProbe
+        lowerPlan.targetPlan)
+      "context ops probe target-plan full module plan"
+  require
+    (targetPlanContext.contextOps == lowerPlan.contextOps)
+    "target-plan full module context ops must be discovered from entrypoint plans"
+  let nativePlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan nativeTransferPlanProbe)
+      "native transfer full module plan for planned context ops injection"
+  require
+    (ProofForge.Backend.Evm.Plan.contextOpsFromModule nativeTransferPlanProbe).isEmpty
+    "native transfer raw IR should not contain context ops"
+  let injectedEntrypoints := nativePlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "send" then
+      { entrypoint with
+        body := #[
+          StmtPlan.return
+            (ExprPlan.context
+              (ContextExprPlan.blockHash
+                (ExprPlan.context ContextExprPlan.timestamp)))
+        ]
+      }
+    else
+      entrypoint
+  let injectedContextOps :=
+    ProofForge.Backend.Evm.Lower.buildContextOpsFromEntrypoints injectedEntrypoints
+  require
+    (contextOpsContainField injectedContextOps (.blockHash (.literal (.u64 0))))
+    "planned entrypoint body scanner must discover injected blockHash context op"
+  require
+    (contextOpsContainField injectedContextOps .timestamp)
+    "planned entrypoint body scanner must discover nested blockHash argument context op"
+  require
+    (injectedContextOps.size == 2)
+    "planned entrypoint body scanner must de-duplicate context ops by field name"
 
 def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
   let plan ←
@@ -8120,6 +8211,7 @@ def main : IO UInt32 := do
   testPlannedCrosscallHelperDiscoveryFromEntrypointPlans
   testPlannedCreateHelperDiscoveryFromEntrypointPlans
   testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans
+  testPlannedContextOpsDiscoveryFromEntrypointPlans
   testLocalArrayHelperDiscoveryInLowerPlan
   testIncompletePlanFallbackHelperDiscovery
   testEntrypointDispatchPlanToYul
