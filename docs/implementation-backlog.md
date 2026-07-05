@@ -577,7 +577,11 @@ Tasks:
     and `ToYul` can emit memory-array new/get helpers independently. The same
     planned helper scanner now replaces broad capability-derived hash helpers:
     `hash(x)` only emits `hashWord`, `hashTwoToOne(a,b)` only emits `hashPair`,
-    and `ToYul` can emit hash word/pair helpers independently.
+    and `ToYul` can emit hash word/pair helpers independently. It also replaces
+    state-shape-derived storage-array helpers for complete plans, so unused
+    fixed-array, dynamic-array, or struct-array state declarations no longer
+    emit `arraySlot`, `dynamicArraySlot`, or `structArraySlot` helpers unless
+    planned entrypoint bodies actually reference those storage slot plans.
   - Started: `ModulePlan.contextOps` is now discovered from the already-built
     `EntrypointPlan.body` `StmtPlan`/`ExprPlan` tree in
     `Lower.buildFullModulePlan` and

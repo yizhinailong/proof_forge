@@ -508,6 +508,68 @@ def hashPairOnlyProbe : Module := {
   ]
 }
 
+def unusedPointStruct : StructDecl := {
+  name := "UnusedPoint"
+  fields := #[
+    { id := "x", type := .u64 }
+  ]
+}
+
+def storageArrayUnusedProbe : Module := {
+  name := "StorageArrayUnusedProbe"
+  state := #[
+    { id := "values", kind := .array 3, type := .u64 }
+  ]
+  entrypoints := #[
+    {
+      name := "get"
+      selector? := some "66666666"
+      params := #[]
+      returns := .u64
+      body := #[
+        .return (.literal (.u64 7))
+      ]
+    }
+  ]
+}
+
+def dynamicArrayUnusedProbe : Module := {
+  name := "DynamicArrayUnusedProbe"
+  state := #[
+    { id := "values", kind := .dynamicArray, type := .u64 }
+  ]
+  entrypoints := #[
+    {
+      name := "get"
+      selector? := some "77777777"
+      params := #[]
+      returns := .u64
+      body := #[
+        .return (.literal (.u64 7))
+      ]
+    }
+  ]
+}
+
+def structArrayUnusedProbe : Module := {
+  name := "StructArrayUnusedProbe"
+  structs := #[unusedPointStruct]
+  state := #[
+    { id := "points", kind := .array 2, type := .structType "UnusedPoint" }
+  ]
+  entrypoints := #[
+    {
+      name := "get"
+      selector? := some "88888888"
+      params := #[]
+      returns := .u64
+      body := #[
+        .return (.literal (.u64 7))
+      ]
+    }
+  ]
+}
+
 def contextOpsPlanProbe : Module := {
   name := "ContextOpsPlanProbe"
   state := #[]
@@ -1554,6 +1616,108 @@ def testPlannedHashHelperDiscoveryFromEntrypointPlans : IO Unit := do
   require
     (statementsHaveFunctionNamed pairHelpers (Helper.hashPair).name)
     "planned hash-pair-only ToYul helpers include hash-pair helper"
+
+def testPlannedStorageArrayHelperDiscoveryFromEntrypointPlans : IO Unit := do
+  let rawArrayUnused ←
+    requireOk
+      (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan storageArrayUnusedProbe))
+      "storage-array-unused raw module plan"
+  require
+    (rawArrayUnused.hasHelper .arraySlot)
+    "raw storage-array helper discovery includes fixed array slot helper"
+  let arrayUnused ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan storageArrayUnusedProbe)
+      "storage-array-unused full module plan"
+  require
+    (!arrayUnused.hasHelper .arraySlot)
+    "planned storage-array-unused helper discovery must not require fixed array slot helper"
+  let arrayUnusedSemantic ←
+    requireOk
+      (buildSemanticPlan storageArrayUnusedProbe)
+      "storage-array-unused semantic plan"
+  require
+    (arrayUnusedSemantic.helpers == arrayUnused.helpers)
+    "semantic plan must preserve Lower-discovered storage-array helper absence"
+  require
+    (ProofForge.Backend.Evm.Lower.buildStorageArrayHelpersFromEntrypoints arrayUnused.entrypoints).isEmpty
+    "planned storage-array-unused entrypoint scanner must be empty"
+  require
+    (plannedArrayHelperFunctions arrayUnused).isEmpty
+    "planned storage-array-unused ToYul helper emission must be empty"
+  let targetArrayUnused ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlanWithTargetPlan
+        storageArrayUnusedProbe
+        arrayUnused.targetPlan)
+      "storage-array-unused target-plan full module plan"
+  require
+    (targetArrayUnused.helpers == arrayUnused.helpers)
+    "target-plan full module fixed-array helpers must be discovered from entrypoint plans"
+  let rawDynamicUnused ←
+    requireOk
+      (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan dynamicArrayUnusedProbe))
+      "dynamic-array-unused raw module plan"
+  require
+    (rawDynamicUnused.hasHelper .dynamicArraySlot)
+    "raw dynamic-array helper discovery includes dynamic array slot helper"
+  let dynamicUnused ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan dynamicArrayUnusedProbe)
+      "dynamic-array-unused full module plan"
+  require
+    (!dynamicUnused.hasHelper .dynamicArraySlot)
+    "planned dynamic-array-unused helper discovery must not require dynamic array slot helper"
+  require
+    (plannedDynamicArrayHelperFunctions dynamicUnused).isEmpty
+    "planned dynamic-array-unused ToYul helper emission must be empty"
+  let rawStructUnused ←
+    requireOk
+      (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan structArrayUnusedProbe))
+      "struct-array-unused raw module plan"
+  require
+    (rawStructUnused.hasHelper .structArraySlot)
+    "raw struct-array helper discovery includes struct array slot helper"
+  let structUnused ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan structArrayUnusedProbe)
+      "struct-array-unused full module plan"
+  require
+    (!structUnused.hasHelper .structArraySlot)
+    "planned struct-array-unused helper discovery must not require struct array slot helper"
+  require
+    (plannedStructArrayHelperFunctions structUnused).isEmpty
+    "planned struct-array-unused ToYul helper emission must be empty"
+  let arrayPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.EvmStorageArrayProbe.module)
+      "storage array probe full module plan"
+  require
+    (ProofForge.Backend.Evm.Lower.buildStorageArrayHelpersFromEntrypoints arrayPlan.entrypoints |>.contains .arraySlot)
+    "planned storage-array scanner must discover fixed array slot helper"
+  require
+    (arrayPlan.hasHelper .arraySlot)
+    "planned storage-array probe helper discovery must require fixed array slot helper"
+  let dynamicPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.EvmDynamicArrayProbe.module)
+      "dynamic array probe full module plan"
+  require
+    (ProofForge.Backend.Evm.Lower.buildStorageArrayHelpersFromEntrypoints dynamicPlan.entrypoints |>.contains .dynamicArraySlot)
+    "planned storage-array scanner must discover dynamic array slot helper"
+  require
+    (dynamicPlan.hasHelper .dynamicArraySlot)
+    "planned dynamic-array probe helper discovery must require dynamic array slot helper"
+  let structPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.EvmStorageStructProbe.module)
+      "storage struct probe full module plan"
+  require
+    (ProofForge.Backend.Evm.Lower.buildStorageArrayHelpersFromEntrypoints structPlan.entrypoints |>.contains .structArraySlot)
+    "planned storage-array scanner must discover struct array slot helper"
+  require
+    (structPlan.hasHelper .structArraySlot)
+    "planned struct-array probe helper discovery must require struct array slot helper"
 
 def testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans : IO Unit := do
   let counterPlan ←
@@ -8597,6 +8761,7 @@ def main : IO UInt32 := do
   testPlannedCreateHelperDiscoveryFromEntrypointPlans
   testPlannedMemoryArrayHelperDiscoveryFromEntrypointPlans
   testPlannedHashHelperDiscoveryFromEntrypointPlans
+  testPlannedStorageArrayHelperDiscoveryFromEntrypointPlans
   testPlannedCheckedArithmeticDiscoveryFromEntrypointPlans
   testPlannedContextOpsDiscoveryFromEntrypointPlans
   testLocalArrayHelperDiscoveryInLowerPlan

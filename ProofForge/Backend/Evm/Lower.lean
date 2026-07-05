@@ -3174,6 +3174,10 @@ def isHashHelper : Helper → Bool
   | .hashWord | .hashPair => true
   | _ => false
 
+def isStorageArrayHelper : Helper → Bool
+  | .arraySlot | .structArraySlot | .dynamicArraySlot => true
+  | _ => false
+
 def removeHashHelpers (helpers : HelperSet) : HelperSet :=
   helpers.filter fun helper =>
     !(helper == Helper.hashWord) && !(helper == Helper.hashPair)
@@ -3181,16 +3185,27 @@ def removeHashHelpers (helpers : HelperSet) : HelperSet :=
 def replaceHashHelpers (helpers hashHelpers : HelperSet) : HelperSet :=
   mergeHelperSets (removeHashHelpers helpers) hashHelpers
 
+def removeStorageArrayHelpers (helpers : HelperSet) : HelperSet :=
+  helpers.filter fun helper =>
+    !(helper == Helper.arraySlot) &&
+      !(helper == Helper.structArraySlot) &&
+      !(helper == Helper.dynamicArraySlot)
+
+def replaceStorageArrayHelpers (helpers storageArrayHelpers : HelperSet) : HelperSet :=
+  mergeHelperSets (removeStorageArrayHelpers helpers) storageArrayHelpers
+
 mutual
   partial def plannedHelpersFromStorageSlotExprPlan : StorageSlotExprPlan → HelperSet
     | .scalarSlot _ | .fixedSlot _ => #[]
     | .mapValueSlot _ keys | .mapPresenceSlot _ keys =>
         keys.foldl (init := #[]) fun acc key =>
           mergeHelperSets acc (plannedHelpersFromExprPlan key)
-    | .arraySlot _ _ index
-    | .structArrayFieldSlot _ _ _ _ index
+    | .arraySlot _ _ index =>
+        HelperSet.insert (plannedHelpersFromExprPlan index) .arraySlot
+    | .structArrayFieldSlot _ _ _ _ index =>
+        HelperSet.insert (plannedHelpersFromExprPlan index) .structArraySlot
     | .dynamicArraySlot _ index =>
-        plannedHelpersFromExprPlan index
+        HelperSet.insert (plannedHelpersFromExprPlan index) .dynamicArraySlot
 
   partial def plannedHelpersFromStoragePathWriteExprTargetPlan :
       StoragePathWriteExprTargetPlan → HelperSet
@@ -3418,6 +3433,9 @@ def buildMemoryArrayHelpersFromEntrypoints (entrypoints : Array EntrypointPlan) 
 
 def buildHashHelpersFromEntrypoints (entrypoints : Array EntrypointPlan) : HelperSet :=
   (buildPlannedHelpersFromEntrypoints entrypoints).filter isHashHelper
+
+def buildStorageArrayHelpersFromEntrypoints (entrypoints : Array EntrypointPlan) : HelperSet :=
+  (buildPlannedHelpersFromEntrypoints entrypoints).filter isStorageArrayHelper
 
 def contextFieldFromContextExprPlan : ContextExprPlan → ContextField
   | .userId => .userId
@@ -4040,8 +4058,11 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
   let contextOps := buildContextOpsFromEntrypoints entrypointPlans
   let memoryArrayHelpers := buildMemoryArrayHelpersFromEntrypoints entrypointPlans
   let hashHelpers := buildHashHelpersFromEntrypoints entrypointPlans
+  let storageArrayHelpers := buildStorageArrayHelpersFromEntrypoints entrypointPlans
   let helpers := replaceHashHelpers
-    (replaceMemoryArrayHelpers basePlan.helpers memoryArrayHelpers)
+    (replaceMemoryArrayHelpers
+      (replaceStorageArrayHelpers basePlan.helpers storageArrayHelpers)
+      memoryArrayHelpers)
     hashHelpers
   let metadata := {
     moduleName := module.name
@@ -4087,8 +4108,11 @@ def buildFullModulePlanWithTargetPlan
   let contextOps := buildContextOpsFromEntrypoints entrypointPlans
   let memoryArrayHelpers := buildMemoryArrayHelpersFromEntrypoints entrypointPlans
   let hashHelpers := buildHashHelpersFromEntrypoints entrypointPlans
+  let storageArrayHelpers := buildStorageArrayHelpersFromEntrypoints entrypointPlans
   let helpers := replaceHashHelpers
-    (replaceMemoryArrayHelpers basePlan.helpers memoryArrayHelpers)
+    (replaceMemoryArrayHelpers
+      (replaceStorageArrayHelpers basePlan.helpers storageArrayHelpers)
+      memoryArrayHelpers)
     hashHelpers
   let metadata := {
     moduleName := module.name
