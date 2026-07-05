@@ -381,6 +381,14 @@ Tasks:
     owns the final snapshot-temp declarations and field-slot `sstore` block.
     Struct literals with unsupported field expressions still use the
     compatibility fallback.
+  - Started: expression-position `storagePathRead` assembly now consumes a
+    planned `StorageSlotPlan` target from `Lower.buildEffectPlan`. Direct map,
+    nested map, array, struct-field, and struct-array-field storage-path reads
+    route through `ToYul.storagePathReadExprFromPlan` for the final `sload`
+    slot expression instead of recomputing the slot only in the compatibility
+    facade. Path segment expressions still live in `ValuePlan` wrappers around
+    IR expressions; fully typed storage-path expression planning remains a
+    follow-up extraction slice.
   - Started: statement-position `storagePathWrite` and `storagePathAssignOp`
     assembly now consume planned `StoragePathWriteTargetPlan` variants from
     `Lower.buildEffectPlan`, with direct `EffectPlan -> ToYul` helpers for

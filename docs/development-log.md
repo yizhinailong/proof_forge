@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Storage-Path Read Targets
+
+Commit: 3b9d33b
+
+Summary:
+
+- Added a planned `storagePathReadTarget` effect so `Lower.buildEffectPlan`
+  carries the resolved `StorageSlotPlan` for storage-path reads instead of
+  leaving state-id/path lookup to the final compatibility facade.
+- Routed raw `.effect (.storagePathRead ...)` expression lowering through the
+  planned target path first, preserving the existing fallback path for
+  compatibility and diagnostics.
+- Updated `EffectPlan -> ToYul` scalar lowering to consume the planned storage
+  slot directly through `ToYul.storagePathReadExprFromPlan`.
+- Extended semantic-plan coverage with map and array storage-path read target
+  assertions plus raw expression lowering coverage.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/map-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- `StorageSlotPlan` still carries path segment expressions as `ValuePlan`
+  wrappers around IR expressions; typed path-expression planning remains
+  follow-up work.
+
+Next step:
+
+- Continue widening storage-path expression planning so map keys, array indexes,
+  and struct-array indexes can be fully represented as `ExprPlan` nodes before
+  final Yul assembly.
+
 ### EVM Planned Map Read Targets
 
 Commit: 8643ec0
