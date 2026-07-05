@@ -1775,13 +1775,6 @@ mutual
     let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.mapPresenceSlotPlan module stateId keys
     lowerStorageSlotPlanExpr module env plan
 
-  partial def lowerMapPathReadExpr
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (keys : Array ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerMapPathValueSlotExpr module env stateId keys])
-
   partial def lowerArraySlotExpr
       (module : Module)
       (env : TypeEnv)

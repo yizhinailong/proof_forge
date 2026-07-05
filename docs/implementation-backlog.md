@@ -447,6 +447,8 @@ Tasks:
     enter the read fallback through `ValuePlan` wrappers. Older `ValuePlan`
     slot helpers remain only for direct `StorageSlotPlan` helper surfaces and
     legacy compatibility tests.
+    The now-unused legacy `lowerMapPathReadExpr` nested-map read helper has
+    been removed.
   - Started: statement-position `storagePathWrite` and `storagePathAssignOp`
     assembly now consume planned `StoragePathWriteExprTargetPlan` variants from
     `Lower.buildEffectPlan`, with direct `EffectPlan -> ToYul` helpers for
@@ -665,6 +667,9 @@ Tasks:
     frames now also use `ToYul.structArrayFieldReadExpr`; `IR.lean` keeps only
     the struct-array root-slot/length/field metadata lookup for that legacy
     plan variant.
+    The old `lowerMapPathReadExpr` nested-map read helper has been removed
+    after storage-path reads switched to the shared `StorageSlotExprPlan ->
+    ToYul` frame.
     Expression-position map insert/set return effects now also enter
     `Lower.buildEffectPlan` -> target `EffectPlan.storageMapInsertTarget`/
     `EffectPlan.storageMapSetTarget` -> `lowerPlanEffectExpr`/
