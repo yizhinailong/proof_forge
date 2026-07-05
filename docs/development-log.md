@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Crosscall Return Diagnostic Planning
+
+Commit: 50eabcd
+
+Summary:
+
+- Added `Lower.buildExpressionExprPlan` as the expression-position wrapper
+  around `buildExprPlan`.
+- Moved typed/value/static/delegate aggregate crosscall return diagnostics out
+  of `IR.lean` and into the Lower expression wrapper.
+- Kept `buildExprPlan` valid for return statement planning so aggregate
+  crosscall return assignments can still be planned by
+  `Lower.aggregateCrosscallReturnAssignmentPlan?`.
+- Added semantic-plan coverage for Lower-level diagnostics and IR facade
+  propagation.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/crosscall-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Local/storage crosscall word-provider callbacks still depend on compatibility
+  type-env helpers.
+- Related compatibility paths still call `ToYul.localAbiWords` directly until
+  they are represented in the semantic plan.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue migrating local/storage word-provider validation and remaining
+  aggregate ABI compatibility paths behind explicit `Lower`/`Plan` surfaces.
+
 ### EVM Crosscall Argument Word Planning
 
 Commit: 83dabe8
