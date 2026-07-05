@@ -2095,77 +2095,69 @@ def eventEmitCoreStatement
   statements := statements.push (← eventLogStatement mkError event dataWords.size)
   .ok (.block { statements := statements })
 
-def eventFieldDataWordExprsFromProvider
+def eventFieldWordPlanExprs
     {ε : Type}
     (mkError : String → ε)
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
-    (fieldWordPlansFor : EventPlan → EventFieldPlan → AbiValuePlan → Except ε (Array ExprPlan))
     (event : EventPlan)
     (fields : Array EventFieldPlan)
-    (values : Array AbiValuePlan) :
+    (fieldWords : Array (Array ExprPlan)) :
     Except ε (Array Lean.Compiler.Yul.Expr) := do
-  if fields.size != values.size then
-    .error (mkError s!"planned scalar control-flow event `{event.name}` field/value count mismatch")
+  if fields.size != fieldWords.size then
+    .error (mkError s!"planned scalar control-flow event `{event.name}` field/word-plan count mismatch")
   let mut words : Array Lean.Compiler.Yul.Expr := #[]
-  for h : idx in [0:fields.size] do
-    let some value := values[idx]?
-      | .error (mkError s!"planned scalar control-flow event `{event.name}` missing field value at index {idx}")
-    let wordPlans ← fieldWordPlansFor event fields[idx] value
-    words := words ++ (← wordPlans.mapM lowerPlanExpr)
+  for _h : idx in [0:fields.size] do
+    let some fieldWordPlans := fieldWords[idx]?
+      | .error (mkError s!"planned scalar control-flow event `{event.name}` missing field word plans at index {idx}")
+    words := words ++ (← fieldWordPlans.mapM lowerPlanExpr)
   .ok words
 
-def eventIndexedTopicStatementsFromProvider
+def eventIndexedTopicStatementsFromWordPlans
     {ε : Type}
     (mkError : String → ε)
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
-    (fieldWordPlansFor : EventPlan → EventFieldPlan → AbiValuePlan → Except ε (Array ExprPlan))
     (event : EventPlan)
-    (values : Array AbiValuePlan) :
+    (fieldWords : Array (Array ExprPlan)) :
     Except ε (Array Lean.Compiler.Yul.Statement) := do
   let fields := event.indexedFields
-  if fields.size != values.size then
-    .error (mkError s!"planned scalar control-flow event `{event.name}` indexed field/value count mismatch")
+  if fields.size != fieldWords.size then
+    .error (mkError s!"planned scalar control-flow event `{event.name}` indexed field/word-plan count mismatch")
   let mut statements : Array Lean.Compiler.Yul.Statement := #[]
   for h : idx in [0:fields.size] do
-    let some value := values[idx]?
-      | .error (mkError s!"planned scalar control-flow event `{event.name}` missing indexed field value at index {idx}")
-    let wordPlans ← fieldWordPlansFor event fields[idx] value
-    let words ← wordPlans.mapM lowerPlanExpr
+    let some fieldWordPlans := fieldWords[idx]?
+      | .error (mkError s!"planned scalar control-flow event `{event.name}` missing indexed field word plans at index {idx}")
+    let words ← fieldWordPlans.mapM lowerPlanExpr
     statements := statements ++ (← eventIndexedTopicStatements mkError fields[idx] idx words)
   .ok statements
 
 def eventEffectStmtPlanStatements
     {ε : Type}
     (mkError : String → ε)
-    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
-    (fieldWordPlansFor : EventPlan → EventFieldPlan → AbiValuePlan → Except ε (Array ExprPlan)) :
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr) :
     StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
-  | .effect (.eventEmit event dataFields) => do
-      let dataWords ← eventFieldDataWordExprsFromProvider
+  | .effect (.eventEmitWords event dataFieldWords) => do
+      let dataWords ← eventFieldWordPlanExprs
         mkError
         lowerPlanExpr
-        fieldWordPlansFor
         event
         event.dataFields
-        dataFields
+        dataFieldWords
       .ok #[← eventEmitCoreStatement mkError event #[] dataWords]
-  | .effect (.eventEmitIndexed event indexedFields dataFields) => do
-      let indexedTopicStatements ← eventIndexedTopicStatementsFromProvider
+  | .effect (.eventEmitIndexedWords event indexedFieldWords dataFieldWords) => do
+      let indexedTopicStatements ← eventIndexedTopicStatementsFromWordPlans
         mkError
         lowerPlanExpr
-        fieldWordPlansFor
         event
-        indexedFields
-      let dataWords ← eventFieldDataWordExprsFromProvider
+        indexedFieldWords
+      let dataWords ← eventFieldWordPlanExprs
         mkError
         lowerPlanExpr
-        fieldWordPlansFor
         event
         event.dataFields
-        dataFields
+        dataFieldWords
       .ok #[← eventEmitCoreStatement mkError event indexedTopicStatements dataWords]
   | _ =>
-      .error (mkError "EVM StmtPlan-to-Yul event effect lowering expected eventEmit/eventEmitIndexed")
+      .error (mkError "EVM StmtPlan-to-Yul event effect lowering expected eventEmitWords/eventEmitIndexedWords")
 
 def lowerValuePlan
     {ε : Type}

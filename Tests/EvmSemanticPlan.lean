@@ -3789,31 +3789,15 @@ def testScalarEventPlanToYul : IO Unit := do
       | some var => require (vars.size == 1 && var.name == "_indexed_topic0") "event indexed field plan-to-yul topic var"
       | none => throw <| IO.userError "event indexed field plan-to-yul topic missing var"
   | _ => throw <| IO.userError "event indexed field plan-to-yul topic must be var decl"
-  let directEventFieldWords
-      (_event : ProofForge.Backend.Evm.Plan.EventPlan)
-      (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
-      (value : ProofForge.Backend.Evm.Plan.AbiValuePlan) :
-      Except LowerError (Array ProofForge.Backend.Evm.Plan.ExprPlan) :=
-    match value with
-    | AbiValuePlan.expr (.literalWord word) =>
-        if field.name == "key" && word == 7 then
-          .ok #[.literalWord 7]
-        else if field.name == "value" && word == 13 then
-          .ok #[.literalWord 13]
-        else
-          .error (toYulError "event effect provider helper test unexpected field word")
-    | _ =>
-        .error (toYulError "event effect provider helper test expected literal word")
   let directEventEffectStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatements
       toYulError
       simplePlanExpr
-      directEventFieldWords
       (ProofForge.Backend.Evm.Plan.StmtPlan.effect
-        (.eventEmitIndexed
+        (.eventEmitIndexedWords
           directEvent
-          #[AbiValuePlan.expr (.literalWord 7)]
-          #[AbiValuePlan.expr (.literalWord 13)])))
+          #[#[.literalWord 7]]
+          #[#[.literalWord 13]])))
     "event effect StmtPlan-to-Yul helper"
   require (directEventEffectStmts.size == 1) "event effect StmtPlan-to-Yul helper statement count"
   match directEventEffectStmts[0]! with

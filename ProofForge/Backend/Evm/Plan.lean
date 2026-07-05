@@ -863,6 +863,8 @@ mutual
     | contextRead (field : ContextExprPlan)
     | eventEmit (event : EventPlan) (dataFields : Array AbiValuePlan)
     | eventEmitIndexed (event : EventPlan) (indexedFields dataFields : Array AbiValuePlan)
+    | eventEmitWords (event : EventPlan) (dataFieldWords : Array (Array ExprPlan))
+    | eventEmitIndexedWords (event : EventPlan) (indexedFieldWords dataFieldWords : Array (Array ExprPlan))
     deriving Repr
 
   inductive EventFieldPlan where
