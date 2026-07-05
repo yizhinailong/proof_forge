@@ -16051,6 +16051,54 @@ Result:
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
 
+### EVM Planned Create Helper Discovery Slice
+
+Commit: cfa8241
+
+Summary:
+
+- Added planned-body create/create2 helper discovery over `EntrypointPlan.body`
+  `StmtPlan`/`ExprPlan` trees, including nested expression traversal through
+  call values, create2 salts, storage expression targets, event word plans, and
+  crosscall argument expressions.
+- Routed complete `Lower.buildFullModulePlan` and
+  `Lower.buildFullModulePlanWithTargetPlan` create helper specs through the
+  planned entrypoint-body scanner instead of re-scanning raw portable IR
+  statements.
+- Kept the raw-IR `Lower.buildCreateHelperPlans` scanner available for
+  incomplete/legacy plan surfaces.
+- Added semantic-plan coverage proving complete plans preserve planned-body
+  create helper discovery and that injected planned `create`/`create2`
+  expressions are discovered even when the raw Counter IR has no create
+  helpers.
+- Updated the implementation backlog and Chinese backlog note to document the
+  planned-body create helper discovery boundary.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+```
+
+Result:
+
+- Complete EVM `ModulePlan.creates` now comes from planned
+  `EntrypointPlan.body` traversal; raw IR create helper scanning is retained
+  only for fallback/legacy plan surfaces.
+- EVM semantic-plan tests, EVM plan tests, crosscall IR smoke, EVM diagnostics,
+  i18n sync, JSON validation, full Lake build, and whitespace checks passed
+  locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
+
 ### EVM Dynamic Local Assignment ExprPlan Slice
 
 Commit: f5e6c00
