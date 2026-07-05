@@ -531,11 +531,14 @@ Tasks:
     return helpers, and plain native transfer helpers can be emitted from the
     semantic plan without rediscovering return layout from the module during
     complete plan-driven lowering. Complete `ModulePlan` construction now
-    discovers crosscall helper specs, including the planned return word layout,
-    in `Lower.buildFullModulePlan`; `IR.buildSemanticPlan` preserves those
-    Lower-discovered specs instead of re-scanning the module. The old IR-local
-    fallback discovery scanner has been removed; fallback helper discovery now
-    calls `Lower.buildCrosscallHelperPlans` directly.
+    discovers crosscall helper specs from the already-built
+    `EntrypointPlan.body` `StmtPlan`/`ExprPlan` tree, including planned
+    argument word arity, planned return word layout, and native-transfer
+    detection, in `Lower.buildFullModulePlan`; `IR.buildSemanticPlan` preserves
+    those Lower-discovered specs instead of re-scanning the module. The old
+    IR-local fallback discovery scanner has been removed; fallback helper
+    discovery now calls the raw-IR compatibility scanner
+    `Lower.buildCrosscallHelperPlans` only for incomplete/legacy plan surfaces.
   - Started: create/create2 helper naming and body construction now live behind
     the `CreateHelperSpec -> ToYul` boundary. Planned create specs can emit
     deterministic init-code `mstore` frames, `create`/`create2` opcode calls,

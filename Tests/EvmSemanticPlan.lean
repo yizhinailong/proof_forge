@@ -1151,6 +1151,68 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
   testPlannedCrosscallHelperDiscoveryToYul
   testPlannedCreateAndNativeHelperDiscoveryToYul
 
+def testPlannedCrosscallHelperDiscoveryFromEntrypointPlans : IO Unit := do
+  let crosscallPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.EvmCrosscallProbe.module)
+      "crosscall probe full module plan for planned helper discovery"
+  let plannedCrosscalls ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildCrosscallHelperPlansFromEntrypoints
+        ProofForge.IR.Examples.EvmCrosscallProbe.module
+        crosscallPlan.entrypoints)
+      "planned crosscall helper discovery from entrypoint plans"
+  require
+    (plannedCrosscalls == crosscallPlan.crosscalls)
+    "full module crosscall helpers must be discovered from entrypoint plans"
+  let counterPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.Counter.module)
+      "counter full module plan for planned crosscall helper injection"
+  let rawCounterCrosscalls ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildCrosscallHelperPlans ProofForge.IR.Examples.Counter.module)
+      "counter raw crosscall helper discovery"
+  require rawCounterCrosscalls.isEmpty
+    "counter raw IR should not contain crosscall helpers"
+  let injectedEntrypoints := counterPlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "get" then
+      { entrypoint with
+        body := #[
+          StmtPlan.return
+            (ExprPlan.crosscall
+              ProofForge.Backend.Evm.Plan.CrosscallMode.staticcall
+              (ExprPlan.literalWord 111)
+              (ExprPlan.literalWord 222)
+              none
+              #[
+                CrosscallArgWordPlan.expr (.literalWord 9),
+                CrosscallArgWordPlan.expr (.literalWord 10)
+              ]
+              .u64)
+        ]
+      }
+    else
+      entrypoint
+  let injectedCrosscalls ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildCrosscallHelperPlansFromEntrypoints
+        ProofForge.IR.Examples.Counter.module
+        injectedEntrypoints)
+      "injected planned crosscall helper discovery"
+  let expectedSpec ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.crosscallHelperSpec
+        ProofForge.IR.Examples.Counter.module
+        "planned crosscall return"
+        2
+        .u64
+        ProofForge.Backend.Evm.Plan.CrosscallMode.staticcall)
+      "expected injected planned crosscall helper spec"
+  require
+    (injectedCrosscalls.any (fun spec => spec == expectedSpec))
+    "planned entrypoint body scanner must discover injected staticcall helper"
+
 def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
   let plan ←
     requireOk
@@ -7809,6 +7871,7 @@ def main : IO UInt32 := do
   testArrayHelperPlanToYul
   testMapHelperPlanToYul
   testPlannedHelperDiscoveryToYul
+  testPlannedCrosscallHelperDiscoveryFromEntrypointPlans
   testLocalArrayHelperDiscoveryInLowerPlan
   testIncompletePlanFallbackHelperDiscovery
   testEntrypointDispatchPlanToYul
