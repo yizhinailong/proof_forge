@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM IR Event Validation Facade Cleanup
+
+Commit: 8352240
+
+Summary:
+
+- Removed duplicate event field-name and duplicate-field validation wrappers
+  from `IR.lean`.
+- Removed the duplicate indexed-event field-count validator from `IR.lean`.
+- Routed the remaining compatibility event-signature and indexed-event type
+  checks through `Validate.validateDistinctEventFieldName` and
+  `Validate.validateIndexedEventFieldCount`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Validate ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns `eventSignatureFieldType`, aggregate event data-word
+  lowering, and indexed aggregate topic hashing. Those remain compatibility
+  facade work until event field planning is fully expressed behind
+  `EventPlan -> ToYul`.
+
+Next step:
+
+- Move the next event boundary: either route event signature field typing
+  through `Validate` after confirming diagnostic compatibility, or extract
+  aggregate topic/data word lowering into explicit plan-owned helpers.
+
 ### EVM IR Event Helper Facade Cleanup
 
 Commit: 51cd4ba
