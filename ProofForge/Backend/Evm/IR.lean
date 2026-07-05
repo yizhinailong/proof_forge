@@ -3369,10 +3369,14 @@ def lowerStoragePathWriteTarget
     (stateId : String)
     (path : Array StoragePathSegment) :
     Except LowerError ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget := do
-  let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan module stateId path
-  ProofForge.Backend.Evm.ToYul.storagePathWriteTargetFromPlan
+  let plannedPath ←
+    match ProofForge.Backend.Evm.Lower.buildStoragePathPlan module (toValidateTypeEnv env) path with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
+  let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.storagePathWriteExprTargetPlan module stateId plannedPath
+  ProofForge.Backend.Evm.ToYul.storagePathWriteExprTargetFromPlan
     toYulError
-    (fun expr => lowerExpr module env expr)
+    (lowerExprPlanExpr module env)
     plan
 
 partial def lowerStoragePathWriteStmtPlanOrFallback

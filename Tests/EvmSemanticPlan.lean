@@ -7035,6 +7035,28 @@ def testStoragePathWritePlanToYul : IO Unit := do
           require (args.size == 2) "direct map storage path target key arg count"
       | _ => throw <| IO.userError "direct map storage path target key must be plan-lowered"
   | _ => throw <| IO.userError "direct map storage path target must lower to mapWrite"
+  let typedMapPath ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildStoragePathPlan
+      ProofForge.IR.Examples.EvmMapProbe.module
+      (toValidateTypeEnv mapEnv)
+      #[.mapKey (.add (.local "outer") (.literal (.u64 1)))])
+    "typed map storage path plan"
+  match typedMapPath[0]? with
+  | some (ProofForge.Backend.Evm.Plan.StoragePathPlanSegment.mapKey (.checkedArith .add (.local name) (.literalWord value))) => do
+      require (name == "outer") "typed map storage path plan key lhs"
+      require (value == 1) "typed map storage path plan key rhs"
+  | _ => throw <| IO.userError "typed map storage path plan key must be checked add"
+  let compatMapTarget ← requireOk
+    (lowerStoragePathWriteTarget
+      ProofForge.IR.Examples.EvmMapProbe.module
+      mapEnv
+      "balances"
+      #[.mapKey (.add (.local "outer") (.literal (.u64 1)))])
+    "compat map storage path target typed plan-to-yul"
+  match compatMapTarget with
+  | ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget.mapWrite _ key => do
+      requireCallExpr key "__pf_checked_add" 2 "compat map storage path target typed key"
+  | _ => throw <| IO.userError "compat map storage path target must lower through typed mapWrite"
   let arrayTargetPlan ← requireOk
     (lowerPlan <|
       ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan

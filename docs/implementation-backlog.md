@@ -435,21 +435,25 @@ Tasks:
     literals with unsupported field expressions still use the compatibility
     fallback.
   - Started: expression-position `storagePathRead` assembly now consumes a
-    planned `StorageSlotPlan` target from `Lower.buildEffectPlan`. Direct map,
-    nested map, array, struct-field, and struct-array-field storage-path reads
-    route through `ToYul.storagePathReadExprFromPlan` for the final `sload`
-    slot expression instead of recomputing the slot only in the compatibility
-    facade. Path segment expressions still live in `ValuePlan` wrappers around
-    IR expressions; fully typed storage-path expression planning remains a
-    follow-up extraction slice.
+    planned typed `StorageSlotExprPlan` target from `Lower.buildEffectPlan`.
+    Direct map, nested map, array, struct-field, and struct-array-field
+    storage-path reads route through `ToYul.storagePathReadExprFromExprPlan`
+    for the final `sload` slot expression instead of recomputing the slot only
+    in the compatibility facade. Active path segment expressions now flow
+    through `Lower.buildStoragePathPlan` as `StoragePathPlanSegment` values
+    carrying `ExprPlan`s; older `ValuePlan` slot helpers remain only for direct
+    compatibility/fallback surfaces.
   - Started: statement-position `storagePathWrite` and `storagePathAssignOp`
-    assembly now consume planned `StoragePathWriteTargetPlan` variants from
+    assembly now consume planned `StoragePathWriteExprTargetPlan` variants from
     `Lower.buildEffectPlan`, with direct `EffectPlan -> ToYul` helpers for
     supported scalar write/assign RHS values across direct `mapKey`, `index`,
-    `field`, `index`+`field`, and nested consecutive-`mapKey` paths. Legacy
-    callback helpers remain for compatibility/fallback paths, while typed path
-    expression planning and the remaining path-shape diagnostic surfaces are
-    the next storage-path extraction slices.
+    `field`, `index`+`field`, and nested consecutive-`mapKey` paths. The
+    compatibility `lowerStoragePathWriteTarget` helper now also builds
+    `Lower.buildStoragePathPlan` and lowers
+    `StoragePathWriteExprTargetPlan -> ToYul`, so raw path segment expressions
+    no longer enter that helper through `ValuePlan` wrappers. The remaining
+    storage-path extraction work is to delete legacy callback surfaces once
+    direct callers and diagnostic-only fallback paths no longer need them.
   - Started: scalar `ifElse` and `boundedFor` control-flow frame assembly now
     consumes narrow `StmtPlan -> ToYul` helpers. If conditions and synthesized
     bounded-loop guards consume `ExprPlan -> ToYul`; supported branch/loop body
