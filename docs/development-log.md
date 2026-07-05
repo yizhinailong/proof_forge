@@ -16096,3 +16096,50 @@ Result:
   checks passed locally.
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Local Array Getter ExprPlan Slice
+
+Commit: bb013e9
+
+Summary:
+
+- Routed direct expression-position local fixed-array reads through
+  `Lower.buildExprPlan` when the plan is a `.localArrayGet`, then reused the
+  existing `ExprPlan -> ToYul` lowering for static and dynamic local-array
+  helper-call assembly.
+- Kept unsupported aggregate local-array leaves and array-literal fallback
+  behavior on the existing compatibility path, preserving the current explicit
+  diagnostics for struct-array element reads that require field access.
+- Added a semantic-plan regression for a direct local-array read with a
+  checked-add dynamic index, proving the direct `IR.lowerExpr` entrypoint now
+  consumes the planned index expression before helper-call emission.
+- Updated the implementation backlog and Chinese backlog note so the documented
+  local-array getter boundary matches the active lowering path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Result:
+
+- Direct local fixed-array reads now use the same `Lower.buildExprPlan ->
+  ExprPlan.localArrayGet -> ToYul` route as planned control-flow and helper
+  discovery paths.
+- EVM semantic-plan tests, EVM plan tests, event/counter IR smokes, EVM
+  diagnostics, i18n sync, JSON validation, full Lake build, and whitespace
+  checks passed locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
