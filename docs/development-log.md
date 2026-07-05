@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Event Data Fields via Planned ABI Words
+
+Commit: 8975edb
+
+Summary:
+
+- Routed `lowerEventEmitCoreStmt` data-field value expansion through
+  `Lower.buildEventFieldValuePlan` and
+  `ToYul.eventFieldsDataWordsFromPlan`.
+- Removed the event emit facade's direct dependency on `lowerEventDataWords`
+  for data fields, matching the indexed aggregate topic path's
+  `Lower -> Plan -> ToYul` boundary.
+- Added facade-level coverage for a storage-backed struct event data field,
+  asserting that the planned path still emits two `sload`-backed data words.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/event-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- `lowerEventDataWords` and related literal-specific helpers still remain in
+  `IR.lean` for direct helper coverage and future cleanup.
+- Storage fixed-array and storage struct-array event fields still enter as
+  planned aggregate literals rather than first-class storage-array ABI word
+  plans.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Confirm whether the remaining event data-word helpers are dead outside tests,
+  then delete or shrink them in a separate cleanup commit.
+
 ### EVM Indexed Aggregate Event Topics via ABI Word Plans
 
 Commit: d78c562
