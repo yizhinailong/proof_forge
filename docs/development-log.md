@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Local Array Helper Discovery Delegation
+
+Commit: c0600b2
+
+Summary:
+
+- Removed the stale IR-local local fixed-array getter and nested local-array
+  getter discovery scanners from `IR.lean`.
+- Kept the compatibility facade entrypoints `moduleLocalArrayGetLengths` and
+  `moduleNestedLocalArrayGetShapes`, but made them delegate to
+  `Lower.buildLocalArrayGetLengths` and `Lower.buildNestedLocalArrayGetShapes`.
+- Aligned helper requirement discovery with the existing `ModulePlan` ownership
+  model so fallback lowering and complete plan lowering consume the same
+  lower/plan source.
+
+Validation run:
+
+```sh
+test -z "$(rg -n "localArrayGetLengthsExpr|localArrayGetLengthsEffect|localArrayGetLengthsStatement|localArrayGetLengthsForDynamicExprTarget|nestedLocalArrayGetShapesExpr|nestedLocalArrayGetShapesEffect|nestedLocalArrayGetShapesStatement|nestedLocalArrayGetShapesForDynamicExprTarget|mergeNatSets|mergeNatArraySets|arrayNatEq" ProofForge/Backend/Evm/IR.lean || true)"
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/array-value-ir-smoke.sh
+scripts/evm/struct-array-value-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- This slice removes duplicate local-array helper discovery only; aggregate
+  crosscall argument/return expansion and bytes/string return encoding still
+  have compatibility-facade work left.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue shrinking the remaining EVM compatibility facade around aggregate
+  crosscall argument/return paths and dynamic return-data encoding.
+
 ### EVM Create Helper Discovery Delegation
 
 Commit: aaba7b2
