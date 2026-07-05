@@ -16279,3 +16279,47 @@ Result:
   checks passed locally.
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Storage Path Read ExprPlan Slice
+
+Commit: dbdae98
+
+Summary:
+
+- Routed the compatibility `lowerStoragePathReadExprTarget` helper through
+  `Lower.buildStoragePathPlan -> StorageSlotExprPlan -> ToYul` instead of the
+  older `StorageSlotPlan`/`ValuePlan` path.
+- Updated expression-position `storagePathRead` handling in `lowerPlanEffectExpr`
+  so raw path segment expressions are typed as `StoragePathPlanSegment` values
+  before final `sload` assembly.
+- Added semantic-plan regressions proving a raw map-key read path carries a
+  checked-add `ExprPlan` key and that raw expression/effect read compatibility
+  paths lower that key through the planned `__pf_checked_add` Yul helper.
+- Updated the implementation backlog and Chinese backlog note so read and write
+  storage-path compatibility routes both document the typed path-segment
+  boundary.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+lake build
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+git diff --check
+```
+
+Result:
+
+- Compatibility storage-path read lowering now consumes the same typed
+  path-segment `ExprPlan` route as planned storage-path read/write effects.
+- EVM semantic-plan tests, EVM plan tests, event/counter IR smokes, EVM
+  diagnostics, i18n sync, JSON validation, full Lake build, and whitespace
+  checks passed locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
