@@ -2320,19 +2320,11 @@ mutual
     | .boolNot value => do
         .ok (Lean.Compiler.Yul.builtin "iszero" #[← lowerExpr module env value])
     | .hashValue a b c d => do
-        .ok (ProofForge.Backend.Evm.ToYul.hashPackExpr
-          (← lowerExpr module env a)
-          (← lowerExpr module env b)
-          (← lowerExpr module env c)
-          (← lowerExpr module env d))
+        lowerExprThroughPlan module env (.hashValue a b c d)
     | .hash preimage => do
-        .ok (ProofForge.Backend.Evm.ToYul.helperCall
-          ProofForge.Backend.Evm.Plan.Helper.hashWord
-          #[← lowerExpr module env preimage])
+        lowerExprThroughPlan module env (.hash preimage)
     | .hashTwoToOne lhs rhs => do
-        .ok (ProofForge.Backend.Evm.ToYul.helperCall
-          ProofForge.Backend.Evm.Plan.Helper.hashPair
-          #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.hashTwoToOne lhs rhs)
     | .nativeValue =>
         .ok (Lean.Compiler.Yul.builtin "callvalue" #[])
     | .crosscallInvoke target methodId args => do

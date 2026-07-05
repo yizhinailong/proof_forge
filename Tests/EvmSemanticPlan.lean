@@ -1802,6 +1802,78 @@ def testScalarExprPlanToYul : IO Unit := do
       require (name == "__pf_checked_add") "counter checked add plan-to-yul helper"
       require (args.size == 2) "counter checked add plan-to-yul arg count"
   | _ => throw <| IO.userError "counter checked add plan-to-yul must be helper call"
+  let hashValuePlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.hashValue
+        (.local "amount")
+        (.literal (.u64 1))
+        (.literal (.u64 2))
+        (.literal (.u64 3))))
+    "hashValue Lower ExprPlan"
+  match hashValuePlan with
+  | .hashValue (.local "amount") (.literalWord 1) (.literalWord 2) (.literalWord 3) => pure ()
+  | _ => throw <| IO.userError "hashValue must lower to hashValue ExprPlan"
+  let directHashValueExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.hashValue
+        (.local "amount")
+        (.literal (.u64 1))
+        (.literal (.u64 2))
+        (.literal (.u64 3))))
+    "direct hashValue lowers through ExprPlan-to-Yul"
+  match directHashValueExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "or") "direct hashValue ExprPlan-to-Yul outer opcode"
+      require (args.size == 2) "direct hashValue ExprPlan-to-Yul outer arg count"
+  | _ => throw <| IO.userError "direct hashValue must lower to packed hash expression"
+  let hashPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.hash (.local "salt")))
+    "hash Lower ExprPlan"
+  match hashPlan with
+  | .hash (.local "salt") => pure ()
+  | _ => throw <| IO.userError "hash must lower to hash ExprPlan"
+  let directHashExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.hash (.local "salt")))
+    "direct hash lowers through ExprPlan-to-Yul"
+  requireCallExpr
+    directHashExpr
+    (ProofForge.Backend.Evm.Plan.Helper.hashWord).name
+    1
+    "direct hash ExprPlan-to-Yul"
+  let hashPairPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.hashTwoToOne
+        (.local "salt")
+        (.literal (.hash4 1 2 3 4))))
+    "hashTwoToOne Lower ExprPlan"
+  match hashPairPlan with
+  | .hashTwoToOne (.local "salt") (.literalWord _) => pure ()
+  | _ => throw <| IO.userError "hashTwoToOne must lower to hashTwoToOne ExprPlan"
+  let directHashPairExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.hashTwoToOne
+        (.local "salt")
+        (.literal (.hash4 1 2 3 4))))
+    "direct hashTwoToOne lowers through ExprPlan-to-Yul"
+  requireCallExpr
+    directHashPairExpr
+    (ProofForge.Backend.Evm.Plan.Helper.hashPair).name
+    2
+    "direct hashTwoToOne ExprPlan-to-Yul"
   let crosscallPlanExpr ← requireOk
     (lowerExprPlanExpr
       ProofForge.IR.Examples.Counter.module

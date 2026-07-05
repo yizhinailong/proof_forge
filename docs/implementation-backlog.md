@@ -516,6 +516,10 @@ Tasks:
     Legacy `crosscallCreate` and `crosscallCreate2` expression lowering also now
     enters `Lower.buildExpressionExprPlan` -> `ExprPlan.create` ->
     `ToYul.exprPlanExpr`, removing the old IR-local create helper-call branches.
+    Hash expression lowering for `hashValue`, `hash`, and `hashTwoToOne` now
+    enters `Lower.buildExpressionExprPlan` -> `ExprPlan.hashValue`/`ExprPlan.hash`/
+    `ExprPlan.hashTwoToOne` -> `ToYul.exprPlanExpr`, removing the old IR-local
+    hash pack/helper-call branches.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local
