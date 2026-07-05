@@ -3343,6 +3343,22 @@ def lowerStoragePathWriteTarget
     (lowerExprPlanExpr module env)
     plan
 
+def lowerStoragePathAssignOpTargetStatement
+    (op : AssignOp)
+    (value : Lean.Compiler.Yul.Expr)
+    (target : ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget) :
+    Except LowerError Lean.Compiler.Yul.Statement := do
+  let statements :=
+    ProofForge.Backend.Evm.ToYul.storagePathAssignOpTargetStatements op value target
+  match statements[0]? with
+  | some statement =>
+      if statements.size == 1 then
+        .ok statement
+      else
+        .error { message := s!"EVM storage path assign_op target lowering produced {statements.size} statements, expected 1" }
+  | none =>
+      .error { message := "EVM storage path assign_op target lowering produced no statements" }
+
 partial def lowerStoragePathWriteStmtPlanOrFallback
     (module : Module)
     (env : TypeEnv)
@@ -3393,42 +3409,34 @@ def lowerStoragePathAssignOpStmt
   match path.toList with
   | [StoragePathSegment.mapKey key] => do
       let (slot, _, _) ← requireStorageMapState module stateId
-      .ok (.exprStmt (ProofForge.Backend.Evm.ToYul.helperCall (ProofForge.Backend.Evm.Plan.Helper.mapAssign op) #[
-        slotExpr slot,
-        ← lowerMapScalarPlanExprOrFallback module env key,
-        ← lowerMapScalarPlanExprOrFallback module env value
-      ]))
+      lowerStoragePathAssignOpTargetStatement
+        op
+        (← lowerMapScalarPlanExprOrFallback module env value)
+        (.mapWrite
+          (slotExpr slot)
+          (← lowerMapScalarPlanExprOrFallback module env key))
   | [StoragePathSegment.index index] => do
       let state ← stateDeclOf module stateId "storage path"
       let storageSlot ← match state.kind with
         | .array _ => lowerArraySlotExpr module env stateId index
         | .dynamicArray => lowerDynamicArraySlotExpr module env stateId index
         | _ => .error { message := s!"storage path state `{stateId}` does not support index access" }
-      .ok (.block { statements := #[
-        .varDecl #[{ name := "_slot" }] (some storageSlot),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-          Lean.Compiler.Yul.Expr.id "_slot",
-          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerScalarPlanExprOrFallback module env value)
-        ])
-      ]})
+      lowerStoragePathAssignOpTargetStatement
+        op
+        (← lowerScalarPlanExprOrFallback module env value)
+        (.singleSlot storageSlot)
   | [StoragePathSegment.field fieldName] => do
       let storageSlot ← lowerStructFieldSlotExpr module stateId fieldName
-      .ok (.block { statements := #[
-        .varDecl #[{ name := "_slot" }] (some storageSlot),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-          Lean.Compiler.Yul.Expr.id "_slot",
-          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerScalarPlanExprOrFallback module env value)
-        ])
-      ]})
+      lowerStoragePathAssignOpTargetStatement
+        op
+        (← lowerScalarPlanExprOrFallback module env value)
+        (.singleSlot storageSlot)
   | [StoragePathSegment.index index, StoragePathSegment.field fieldName] => do
       let storageSlot ← lowerStructArrayFieldSlotExpr module env stateId index fieldName
-      .ok (.block { statements := #[
-        .varDecl #[{ name := "_slot" }] (some storageSlot),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-          Lean.Compiler.Yul.Expr.id "_slot",
-          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerScalarPlanExprOrFallback module env value)
-        ])
-      ]})
+      lowerStoragePathAssignOpTargetStatement
+        op
+        (← lowerScalarPlanExprOrFallback module env value)
+        (.singleSlot storageSlot)
   | [] => do
       let state ← stateDeclOf module stateId "storage path"
       match state.kind with
@@ -3441,18 +3449,10 @@ def lowerStoragePathAssignOpStmt
       | some keys => do
           let storageSlot ← lowerMapPathValueSlotExpr module env stateId keys
           let presenceSlot ← lowerMapPathPresenceSlotExpr module env stateId keys
-          .ok (.block { statements := #[
-            .varDecl #[{ name := "_slot" }] (some storageSlot),
-            .varDecl #[{ name := "_presence_slot" }] (some presenceSlot),
-            .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-              Lean.Compiler.Yul.Expr.id "_slot",
-              lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (← lowerScalarPlanExprOrFallback module env value)
-            ]),
-            .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-              Lean.Compiler.Yul.Expr.id "_presence_slot",
-              Lean.Compiler.Yul.Expr.num 1
-            ])
-          ]})
+          lowerStoragePathAssignOpTargetStatement
+            op
+            (← lowerScalarPlanExprOrFallback module env value)
+            (.mapValuePresence storageSlot presenceSlot)
       | none =>
           .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 

@@ -8917,6 +8917,43 @@ def testStoragePathWritePlanToYul : IO Unit := do
         | _ => pure ()
       require foundPlannedAssign "planned storage path assign_op target helper must use checked add"
   | _ => throw <| IO.userError "planned storage path assign_op target helper must lower to block"
+  let fallbackArrayAssignOpStmt ← requireOk
+    (lowerEffectStmt
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      arrayEnv
+      (.storagePathAssignOp
+        "values"
+        #[.index (.literal (.u64 1))]
+        .add
+        (.arrayGet
+          (.arrayLit .u64 #[.literal (.u64 2), .literal (.u64 3)])
+          (.literal (.u64 1)))))
+    "fallback array storage path assign_op value plan-to-yul"
+  match fallbackArrayAssignOpStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      let mut foundSlotDecl := false
+      let mut foundCheckedAssign := false
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.varDecl names (some slot) => do
+            let slotTempName ← requireAt names 0 "fallback array storage path assign_op slot temp name"
+            foundSlotDecl := foundSlotDecl ||
+              (names.size == 1 && slotTempName.name == "_slot" &&
+                match slot with
+                | Lean.Compiler.Yul.Expr.call slotName slotArgs =>
+                    slotName == (Helper.arraySlot).name && slotArgs.size == 3
+                | _ => false)
+        | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+            if args.size == 2 then
+              match args[0]!, args[1]! with
+              | Lean.Compiler.Yul.Expr.ident slotName, Lean.Compiler.Yul.Expr.call addName addArgs =>
+                  foundCheckedAssign := foundCheckedAssign ||
+                    (slotName == "_slot" && addName == "__pf_checked_add" && addArgs.size == 2)
+              | _, _ => pure ()
+        | _ => pure ()
+      require foundSlotDecl "fallback array storage path assign_op must declare ToYul slot temp"
+      require foundCheckedAssign "fallback array storage path assign_op must use ToYul checked assignment frame"
+  | _ => throw <| IO.userError "fallback array storage path assign_op plan-to-yul must lower to block"
   let directMapAssign ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.EvmMapProbe.module

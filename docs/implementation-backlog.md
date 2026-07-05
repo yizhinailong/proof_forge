@@ -458,6 +458,11 @@ Tasks:
     no longer enter that helper through `ValuePlan` wrappers. The remaining
     storage-path extraction work is to delete legacy callback surfaces once
     direct callers and diagnostic-only fallback paths no longer need them.
+    Storage-path assign-op fallback writeback frames now also reuse
+    `ToYul.storagePathAssignOpTargetStatements`; `IR.lean` still chooses the
+    fallback storage-path target and scalar value expression, but it no longer
+    hand-assembles the map helper call, single-slot `_slot` block, or nested-map
+    value/presence writeback block.
   - Started: scalar `ifElse` and `boundedFor` control-flow frame assembly now
     consumes narrow `StmtPlan -> ToYul` helpers. If conditions and synthesized
     bounded-loop guards consume `ExprPlan -> ToYul`; supported branch/loop body
@@ -681,6 +686,10 @@ Tasks:
     `ToYul.structArrayFieldWriteTargetEffectStmtPlanStatements`, so struct-array
     field root-slot, length, field offset, index, and value planning no longer
     come from IR-local target reconstruction.
+    Storage-path assign-op fallback writeback frames now also reuse
+    `ToYul.storagePathAssignOpTargetStatements`; `IR.lean` still chooses the
+    fallback target and scalar value, but no longer owns the final map helper,
+    single-slot, or nested-map writeback frame.
     Statement-position dynamic-array push/pop effects now also consume
     `Lower.buildEffectPlan` target variants carrying a
     `DynamicArrayTargetPlan` before calling
