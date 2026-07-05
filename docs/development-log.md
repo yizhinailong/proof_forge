@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM ToYul Hash Helpers
+
+Commit: 50b6eaa
+
+Summary:
+
+- Moved EVM `hash` and `hashTwoToOne` helper function bodies from the
+  `IR.lean` compatibility facade into `ToYul.lean`.
+- Removed the duplicate IR-local hash helper name constants and routed raw
+  fallback hash calls through `ToYul.helperCall` with `Plan.Helper.hashWord`
+  and `Plan.Helper.hashPair`.
+- Updated planned hash helper emission so helper function bodies are owned by
+  `ToYul`, matching the already-planned `ExprPlan` hash lowering path.
+- Added a semantic-plan regression using `EvmHashProbe` to verify hash helper
+  discovery and planned helper emission both use the ToYul helper set.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/hash-ir-smoke.sh
+just evm-diagnostics
+git diff --check
+```
+
+Known limitations:
+
+- Hash helper discovery still flows through module capability analysis; this
+  slice moves helper body ownership, not the broader helper discovery pipeline.
+
+Next step:
+
+- Continue Phase 0 by moving the remaining map/array helper bodies out of
+  `IR.lean`, starting with a narrow helper family that has an existing smoke
+  fixture and planned helper coverage.
+
 ### EVM ToYul Checked Arithmetic Helpers
 
 Commit: d2649e5
