@@ -2851,6 +2851,44 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.ident name) =>
       require (name == "step_1_stay") "stmt plan body sequence helper second leave flag"
   | _ => throw <| IO.userError "stmt plan body sequence helper second statement"
+  let directEmptyRevertStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.revertStmtPlanStatements
+      toYulError
+      (fun _ => #[Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.id "error_ref_revert")])
+      (ProofForge.Backend.Evm.Plan.StmtPlan.revert ""))
+    "stmt plan empty revert helper"
+  require (directEmptyRevertStmts.size == 1) "stmt plan empty revert helper statement count"
+  match directEmptyRevertStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+      require (name == "revert") "stmt plan empty revert helper builtin"
+      require (args.size == 2) "stmt plan empty revert helper arg count"
+  | _ => throw <| IO.userError "stmt plan empty revert helper must lower to revert builtin"
+  let directMessageRevertStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.revertStmtPlanStatements
+      toYulError
+      (fun _ => #[Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.id "error_ref_revert")])
+      (ProofForge.Backend.Evm.Plan.StmtPlan.revert "boom"))
+    "stmt plan message revert helper"
+  require (directMessageRevertStmts.size >= 2) "stmt plan message revert helper statement count"
+  match directMessageRevertStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
+      require (name == "mstore") "stmt plan message revert helper starts with mstore"
+      require (args.size == 2) "stmt plan message revert helper mstore arg count"
+  | _ => throw <| IO.userError "stmt plan message revert helper must start with mstore"
+  let directErrorRefRevertStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.revertStmtPlanStatements
+      toYulError
+      (fun ref => #[
+        Lean.Compiler.Yul.Statement.exprStmt
+          (Lean.Compiler.Yul.Expr.id s!"error_ref_{ref.assertionId.toNat}")])
+      (ProofForge.Backend.Evm.Plan.StmtPlan.revertWithError
+        ({ assertionId := 7, userCode? := some "Counter::Test" } : ProofForge.IR.ErrorRef)))
+    "stmt plan error-ref revert helper"
+  require (directErrorRefRevertStmts.size == 1) "stmt plan error-ref revert helper statement count"
+  match directErrorRefRevertStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.ident name) =>
+      require (name == "error_ref_7") "stmt plan error-ref revert helper callback"
+  | _ => throw <| IO.userError "stmt plan error-ref revert helper must use callback"
   let directIfStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.ifElseStmtPlanStatements
       toYulError

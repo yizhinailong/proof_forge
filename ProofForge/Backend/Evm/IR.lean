@@ -5353,12 +5353,19 @@ mutual
     | .release _ =>
         .error { message := "planned scalar control-flow bodies do not support release statements" }
     | .revert message => do
-        if message.isEmpty then
-          .ok (#[revertStmt], env)
-        else
-          .ok (ProofForge.Backend.Evm.ToYul.revertWithMessageStatements message, env)
-    | .revertWithError errorRef =>
-        .ok (errorRefRevertStmts errorRef, env)
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.revertStmtPlanStatements
+            toYulError
+            errorRefRevertStmts
+            (.revert message)
+        .ok (statements, env)
+    | .revertWithError errorRef => do
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.revertStmtPlanStatements
+            toYulError
+            errorRefRevertStmts
+            (.revertWithError errorRef)
+        .ok (statements, env)
     | .ifElse condition thenBody elseBody => do
         let (thenStatements, _) ←
           lowerScalarStmtPlanBodyStatements module entrypointName returnType env true thenBody
@@ -5468,13 +5475,19 @@ mutual
     | .release _ =>
         .error { message := "release statements are not supported by IR EVM v0" }
     | .revert message => do
-        if message.isEmpty then
-          .ok (#[revertStmt], env)
-
-        else
-          .ok (ProofForge.Backend.Evm.ToYul.revertWithMessageStatements message, env)
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.revertStmtPlanStatements
+            toYulError
+            errorRefRevertStmts
+            (.revert message)
+        .ok (statements, env)
     | .revertWithError errorRef => do
-        .ok (errorRefRevertStmts errorRef, env)
+        let statements ←
+          ProofForge.Backend.Evm.ToYul.revertStmtPlanStatements
+            toYulError
+            errorRefRevertStmts
+            (.revertWithError errorRef)
+        .ok (statements, env)
     | .ifElse condition thenBody elseBody => do
         let fallback : Except LowerError (Array Lean.Compiler.Yul.Statement × TypeEnv) := do
           let thenStatements ← lowerStatements module entrypointName returnType env true thenBody

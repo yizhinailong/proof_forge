@@ -419,7 +419,10 @@ Tasks:
     expressions inside supported body statements. Supported branch/loop body
     sequencing now routes through `ToYul.stmtPlanBodyStatements`, which owns
     statement ordering, environment threading, and branch-local
-    `leaveAfterReturn` propagation for planned scalar bodies. Unsupported body
+    `leaveAfterReturn` propagation for planned scalar bodies. Planned
+    `revert`/`revertWithError` statement frames now route through
+    `ToYul.revertStmtPlanStatements`, including empty revert, message revert,
+    and callback-provided `ErrorRef` payloads. Unsupported body
     shapes still remain on the `IR.lean` compatibility facade until full
     recursive `StmtPlan -> Yul` lowering is extracted.
   - Started: scalar event data words and indexed scalar event topics now

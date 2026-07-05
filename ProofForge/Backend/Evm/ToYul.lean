@@ -2405,6 +2405,21 @@ def scalarAssertStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar assertion lowering expected assert/assertEq")
 
+def revertStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (revertStatementsFor : ProofForge.IR.ErrorRef → Array Lean.Compiler.Yul.Statement) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .revert message =>
+      if message.isEmpty then
+        .ok #[revertStatement]
+      else
+        .ok (revertWithMessageStatements message)
+  | .revertWithError errorRef =>
+      .ok (revertStatementsFor errorRef)
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul revert lowering expected revert/revertWithError")
+
 def scalarReturnStmtPlanStatements
     {ε : Type}
     (mkError : String → ε)
