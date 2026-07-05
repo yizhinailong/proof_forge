@@ -2886,25 +2886,6 @@ partial def lowerMapWriteStmtPlanOrFallback
   else
     lowerMapWriteStmt module env stateId key value
 
-def lowerMapPathWriteStmt
-    (module : Module)
-    (env : TypeEnv)
-    (stateId : String)
-    (keys : Array ProofForge.IR.Expr)
-    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  .ok (.block { statements := #[
-    .varDecl #[{ name := "_slot" }] (some (← lowerMapPathValueSlotExpr module env stateId keys)),
-    .varDecl #[{ name := "_presence_slot" }] (some (← lowerMapPathPresenceSlotExpr module env stateId keys)),
-    .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-      Lean.Compiler.Yul.Expr.id "_slot",
-      ← lowerScalarPlanExprOrFallback module env value
-    ]),
-    .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-      Lean.Compiler.Yul.Expr.id "_presence_slot",
-      Lean.Compiler.Yul.Expr.num 1
-    ])
-  ]})
-
 def lowerArrayWriteStmt
     (module : Module)
     (env : TypeEnv)

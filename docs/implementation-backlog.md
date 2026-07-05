@@ -463,6 +463,8 @@ Tasks:
     fallback storage-path target and scalar value expression, but it no longer
     hand-assembles the map write helper call, single-slot `sstore`, or
     nested-map value/presence writeback block.
+    The now-unused legacy `lowerMapPathWriteStmt` nested-map writeback helper
+    has been removed.
     Storage-path assign-op fallback writeback frames now also reuse
     `ToYul.storagePathAssignOpTargetStatements`; `IR.lean` still chooses the
     fallback storage-path target and scalar value expression, but it no longer
@@ -695,6 +697,8 @@ Tasks:
     `ToYul.storagePathWriteTargetStatements`; `IR.lean` still chooses the
     fallback target and scalar value, but no longer owns the final map write,
     single-slot, or nested-map writeback frame.
+    The old `lowerMapPathWriteStmt` nested-map writeback helper has been
+    removed after the fallback path switched to the shared `ToYul` frame.
     Storage-path assign-op fallback writeback frames now also reuse
     `ToYul.storagePathAssignOpTargetStatements`; `IR.lean` still chooses the
     fallback target and scalar value, but no longer owns the final map helper,
