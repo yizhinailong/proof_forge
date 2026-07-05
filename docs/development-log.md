@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Scalar Storage Write Targets
+
+Commit: 9aaa34f
+
+Summary:
+
+- Added `ScalarStorageTargetPlan` so non-struct scalar storage writes carry the
+  planned slot plus packed storage byte offset/width before Yul assembly.
+- Added planned scalar storage write/assign-op effect variants and routed
+  `Lower.buildEffectPlan` to produce them for regular scalar states while
+  leaving whole-struct scalar storage writes on the legacy compatibility path.
+- Refactored `ToYul` scalar storage write packing into shared helpers and added
+  direct planned-target lowering for scalar write and assign-op effects.
+- Updated scalar control-flow body lowering and statement-position scalar
+  storage lowering to consume the planned target variants.
+- Extended semantic-plan tests with `Lower -> Plan` assertions and direct
+  planned-target `ToYul` helper coverage for packed scalar write/assign-op
+  effects.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/ir-counter-smoke.sh
+scripts/evm/packed-storage-ir-smoke.sh
+scripts/evm/typed-storage-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- Struct-valued scalar storage writes still use the whole-struct compatibility
+  path because they expand to field-level stores instead of one scalar target.
+- Scalar storage reads still lower through the existing storage-load path; this
+  slice only moves write and assign-op targets.
+
+Next step:
+
+- Continue replacing storage effect callback helpers with planned target nodes,
+  or move scalar storage reads behind the same explicit target metadata.
+
 ### EVM Planned Storage Path Write Targets
 
 Commit: 1cc75cf
