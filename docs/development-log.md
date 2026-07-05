@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Legacy Event Data Word Helper Removal
+
+Commit: 423fa63
+
+Summary:
+
+- Deleted the old `lowerEventDataWords`, `lowerEventStructDataWords`, and
+  `lowerEventFixedArrayDataWords` compatibility helpers from `IR.lean`.
+- Reworked local aggregate event data coverage to validate
+  `Lower.buildEffectPlan -> ToYul.eventFieldsDataWordsFromPlan` directly for
+  local structs, fixed arrays, and struct arrays.
+- Kept the existing emitted data-word assertions, but made the scalar fallback
+  in the test fail fast so local aggregates cannot silently bypass ABI word
+  plans.
+
+Validation run:
+
+```sh
+rg -n "lowerEvent(Struct|FixedArray|DataWords)|testLocalAggregateEventDataWordsToYul" ProofForge Tests
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/event-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Storage fixed-array and storage struct-array event fields still enter as
+  planned aggregate literals rather than first-class storage-array ABI word
+  plans.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Decide whether storage-array aggregate event fields need their own
+  first-class ABI word plan nodes, or whether planned aggregate literals are the
+  right stable representation for EVM.
+
 ### EVM Event Data Fields via Planned ABI Words
 
 Commit: 8975edb
