@@ -320,20 +320,23 @@ partial def abiValueWordPlans
     (env : TypeEnv)
     (context : String)
     (type : ValueType)
-    (value : ExprPlan) : Except LowerError (Array ExprPlan) := do
+    (value : AbiValuePlan) : Except LowerError (Array ExprPlan) := do
   match type with
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-      .ok #[value]
+      match value with
+      | .expr plan => .ok #[plan]
+      | _ =>
+          .error { message := s!"{context} scalar ABI value requires an expression plan" }
   | .fixedArray elementType length =>
       match value with
-      | .localAbiWords name plannedType =>
+      | .local name plannedType =>
           if plannedType == type then
             localAbiWordPlans module env context name type
           else
             .error {
               message := s!"{context} local ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`"
             }
-      | .storageAbiWords stateId plannedType =>
+      | .storage stateId plannedType =>
           if plannedType == type then
             storageAbiWordPlans module context stateId type
           else
@@ -361,14 +364,14 @@ partial def abiValueWordPlans
           .error { message := s!"{context} aggregate field requires an ABI word expansion plan" }
   | .structType typeName =>
       match value with
-      | .localAbiWords name plannedType =>
+      | .local name plannedType =>
           if plannedType == type then
             localAbiWordPlans module env context name type
           else
             .error {
               message := s!"{context} local ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`"
             }
-      | .storageAbiWords stateId plannedType =>
+      | .storage stateId plannedType =>
           if plannedType == type then
             storageAbiWordPlans module context stateId type
           else
@@ -410,7 +413,7 @@ def eventFieldDataWordPlans
     (env : TypeEnv)
     (eventName : String)
     (field : EventFieldPlan)
-    (value : ExprPlan) : Except LowerError (Array ExprPlan) :=
+    (value : AbiValuePlan) : Except LowerError (Array ExprPlan) :=
   abiValueWordPlans
     module
     env
@@ -423,7 +426,7 @@ def eventFieldsDataWordPlans
     (env : TypeEnv)
     (eventName : String)
     (fields : Array EventFieldPlan)
-    (values : Array ExprPlan) : Except LowerError (Array ExprPlan) := do
+    (values : Array AbiValuePlan) : Except LowerError (Array ExprPlan) := do
   if fields.size != values.size then
     .error { message := s!"planned scalar control-flow event `{eventName}` field/value count mismatch" }
   let mut plans : Array ExprPlan := #[]
@@ -565,7 +568,7 @@ def storageStructArrayReadState? (decl : StructDecl) (values : Array Expr) : Opt
 def storageArrayAbiWordsPlan?
     (module : Module)
     (fieldType : ValueType)
-    (value : Expr) : Except LowerError (Option ExprPlan) := do
+    (value : Expr) : Except LowerError (Option AbiValuePlan) := do
   match fieldType, value with
   | .fixedArray (.structType typeName) length, .arrayLit (.structType literalTypeName) values => do
       if literalTypeName != typeName || values.size != length then
@@ -579,7 +582,7 @@ def storageArrayAbiWordsPlan?
             match ProofForge.Backend.Evm.Validate.stateInfo? module stateId with
             | some (_, { kind := .array stateLength, type := .structType stateTypeName, .. }) =>
                 if stateLength == length && stateTypeName == typeName then
-                  .ok (some (.storageAbiWords stateId fieldType))
+                  .ok (some (.storage stateId fieldType))
                 else
                   .ok none
             | _ => .ok none
@@ -592,7 +595,7 @@ def storageArrayAbiWordsPlan?
         | some stateId => do
             let (_, stateLength, stateElementType) ← lowerPlan <| requireArrayState module stateId
             if stateLength == length && stateElementType == elementType then
-              .ok (some (.storageAbiWords stateId fieldType))
+              .ok (some (.storage stateId fieldType))
             else
               .ok none
   | _, _ =>
@@ -918,6 +921,69 @@ mutual
     | .effect effect => do
         .ok (.effect (← buildEffectPlan module env effect))
 
+  partial def buildAbiValuePlan
+      (module : Module)
+      (env : TypeEnv)
+      (context : String)
+      (expectedType : ValueType)
+      (value : Expr) : Except LowerError AbiValuePlan := do
+    ensureType context expectedType (← inferExprType module env value)
+    match expectedType, value with
+    | .fixedArray _ _, .local name
+    | .structType _, .local name => do
+        let some binding := findLocal? env name
+          | .error { message := s!"unknown local `{name}`" }
+        ensureType s!"{context} local value" expectedType binding.type
+        .ok (.local name expectedType)
+    | .structType typeName, .effect (.storageScalarRead stateId) => do
+        ensureType s!"{context} storage value" (.structType typeName) (← scalarStateType module stateId)
+        .ok (.storage stateId expectedType)
+    | .fixedArray elementType length, .arrayLit literalElementType values => do
+        match ← storageArrayAbiWordsPlan? module expectedType value with
+        | some plan => .ok plan
+        | none => do
+            if literalElementType != elementType then
+              .error {
+                message := s!"{context} fixed-array literal element type mismatch: expected `{elementType.name}`, got `{literalElementType.name}`"
+              }
+            if values.size != length then
+              .error { message := s!"{context} fixed-array expected length {length}, got {values.size}" }
+            let mut plannedValues : Array AbiValuePlan := #[]
+            for h : idx in [0:values.size] do
+              plannedValues := plannedValues.push
+                (← buildAbiValuePlan
+                  module
+                  env
+                  s!"{context} fixed-array element {idx}"
+                  elementType
+                  values[idx])
+            .ok (.arrayLit elementType plannedValues)
+    | .fixedArray _ _, _ => do
+        match ← storageArrayAbiWordsPlan? module expectedType value with
+        | some plan => .ok plan
+        | none => .ok (.expr (← buildExprPlan module env value))
+    | .structType typeName, .structLit literalTypeName fields => do
+        if literalTypeName != typeName then
+          .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }
+        let fieldDecls ← localAbiStructFields module context typeName
+        let mut plannedFields : Array (String × AbiValuePlan) := #[]
+        for fieldDecl in fieldDecls do
+          let some field := fields.find? fun field => field.fst == fieldDecl.fst
+            | .error {
+                message := s!"{context} struct literal `{typeName}` is missing field `{fieldDecl.fst}`"
+              }
+          plannedFields := plannedFields.push
+            (fieldDecl.fst,
+              ← buildAbiValuePlan
+                module
+                env
+                s!"{context} struct field `{fieldDecl.fst}`"
+                fieldDecl.snd
+                field.snd)
+        .ok (.structLit typeName plannedFields)
+    | _, _ =>
+        .ok (.expr (← buildExprPlan module env value))
+
   partial def buildStoragePathSegmentPlan
       (module : Module)
       (env : TypeEnv) :
@@ -958,25 +1024,10 @@ mutual
       (env : TypeEnv)
       (eventName fieldName : String)
       (fieldType : ValueType)
-      (value : Expr) : Except LowerError ExprPlan := do
+      (value : Expr) : Except LowerError AbiValuePlan := do
     let context := s!"event `{eventName}` field `{fieldName}`"
     ensureType context fieldType (← inferEventFieldExprType module env value)
-    match fieldType, value with
-    | .fixedArray _ _, .local name
-    | .structType _, .local name => do
-        let some binding := findLocal? env name
-          | .error { message := s!"unknown local `{name}`" }
-        ensureType s!"{context} local value" fieldType binding.type
-        .ok (.localAbiWords name fieldType)
-    | .structType typeName, .effect (.storageScalarRead stateId) => do
-        ensureType s!"{context} storage value" (.structType typeName) (← scalarStateType module stateId)
-        .ok (.storageAbiWords stateId (.structType typeName))
-    | .fixedArray _ _, _ => do
-        match ← storageArrayAbiWordsPlan? module fieldType value with
-        | some plan => .ok plan
-        | none => buildExprPlan module env value
-    | _, _ =>
-        buildExprPlan module env value
+    buildAbiValuePlan module env context fieldType value
 
   partial def buildEffectPlan (module : Module) (env : TypeEnv) : Effect → Except LowerError EffectPlan
     | .storageScalarRead stateId =>
@@ -1238,36 +1289,11 @@ def returnValueWordPlan?
   let context := s!"entrypoint `{entrypointName}` return value"
   let returns ← returnPlan module s!"entrypoint `{entrypointName}`" returnType
   match returnType, value with
-  | .fixedArray _ _, .local name
-  | .structType _, .local name => do
-      let some binding := findLocal? env name
-        | .error { message := s!"unknown local `{name}`" }
-      ensureType context returnType binding.type
-      .ok (some {
-        returns
-        source := .localAbiWords name returnType
-      })
-  | .structType typeName, .effect (.storageScalarRead stateId) => do
-      ensureType s!"{context} storage value" (.structType typeName) (← scalarStateType module stateId)
-      .ok (some {
-        returns
-        source := .storageAbiWords stateId returnType
-      })
-  | .fixedArray _ _, _ => do
-      match ← storageArrayAbiWordsPlan? module returnType value with
-      | some source =>
-          .ok (some { returns, source })
-      | none => do
-          ensureType context returnType (← inferExprType module env value)
-          .ok (some {
-            returns
-            source := ← buildExprPlan module env value
-          })
+  | .fixedArray _ _, _
   | .structType _, _ => do
-      ensureType context returnType (← inferExprType module env value)
       .ok (some {
         returns
-        source := ← buildExprPlan module env value
+        source := ← buildAbiValuePlan module env context returnType value
       })
   | _, _ =>
       .ok none

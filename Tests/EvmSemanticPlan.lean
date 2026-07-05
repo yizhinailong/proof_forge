@@ -1968,7 +1968,7 @@ def testReturnValueWordPlanToYul : IO Unit := do
       wordTypes := #[.u64, .u64]
       localNames := #["__proof_forge_return_0", "__proof_forge_return_1"]
     }
-    source := .localAbiWords "xs" (.fixedArray .u64 2)
+    source := AbiValuePlan.local "xs" (.fixedArray .u64 2)
   }
   let directAssignments ← requireOk
     (ProofForge.Backend.Evm.ToYul.returnValueWordPlanAssignments
@@ -2004,10 +2004,10 @@ def testReturnValueWordPlanToYul : IO Unit := do
     "Lower local struct return value word plan"
   let structPlan ← requireSome structPlan? "Lower local struct return value word plan missing"
   match structPlan.source with
-  | .localAbiWords name type => do
+  | AbiValuePlan.local name type => do
       require (name == "p") "Lower local struct return source name"
       require (type == .structType "Point") "Lower local struct return source type"
-  | _ => throw <| IO.userError "Lower local struct return must use localAbiWords source plan"
+  | _ => throw <| IO.userError "Lower local struct return must use local ABI value source plan"
   require (structPlan.returns.localNames == #["__proof_forge_return_0", "__proof_forge_return_1"])
     "Lower local struct return names"
   let structAssignments ← requireOk
@@ -2036,10 +2036,10 @@ def testReturnValueWordPlanToYul : IO Unit := do
     "Lower local fixed-array return value word plan"
   let arrayPlan ← requireSome arrayPlan? "Lower local fixed-array return value word plan missing"
   match arrayPlan.source with
-  | .localAbiWords name type => do
+  | AbiValuePlan.local name type => do
       require (name == "xs") "Lower local fixed-array return source name"
       require (type == .fixedArray .u64 3) "Lower local fixed-array return source type"
-  | _ => throw <| IO.userError "Lower local fixed-array return must use localAbiWords source plan"
+  | _ => throw <| IO.userError "Lower local fixed-array return must use local ABI value source plan"
   require (arrayPlan.returns.localNames == #["__proof_forge_return_0", "__proof_forge_return_1", "__proof_forge_return_2"])
     "Lower local fixed-array return names"
   let arrayAssignments ← requireOk
@@ -2097,10 +2097,10 @@ def testReturnValueWordPlanToYul : IO Unit := do
     "Lower storage fixed-array return value word plan"
   let storageArrayPlan ← requireSome storageArrayPlan? "Lower storage fixed-array return value word plan missing"
   match storageArrayPlan.source with
-  | .storageAbiWords stateId type => do
+  | AbiValuePlan.storage stateId type => do
       require (stateId == "values") "Lower storage fixed-array return source state"
       require (type == .fixedArray .u64 3) "Lower storage fixed-array return source type"
-  | _ => throw <| IO.userError "Lower storage fixed-array return must use storageAbiWords source plan"
+  | _ => throw <| IO.userError "Lower storage fixed-array return must use storage ABI value source plan"
   let storageArrayWordPlans ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.storageAbiWordPlans
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
@@ -2147,10 +2147,10 @@ def testReturnValueWordPlanToYul : IO Unit := do
     "Lower storage struct-array return value word plan"
   let storageStructArrayPlan ← requireSome storageStructArrayPlan? "Lower storage struct-array return value word plan missing"
   match storageStructArrayPlan.source with
-  | .storageAbiWords stateId type => do
+  | AbiValuePlan.storage stateId type => do
       require (stateId == "points") "Lower storage struct-array return source state"
       require (type == .fixedArray (.structType "Point") 2) "Lower storage struct-array return source type"
-  | _ => throw <| IO.userError "Lower storage struct-array return must use storageAbiWords source plan"
+  | _ => throw <| IO.userError "Lower storage struct-array return must use storage ABI value source plan"
   let storageStructArrayWordPlans ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.storageAbiWordPlans
       ProofForge.IR.Examples.EvmStorageStructProbe.module
@@ -3696,7 +3696,7 @@ def testScalarEventPlanToYul : IO Unit := do
       noStorageArrayWords
       directEvent.name
       directEvent.dataFields
-      #[.literalWord 11])
+      #[AbiValuePlan.expr (.literalWord 11)])
     "event field plan-to-yul data words"
   require (directDataWords.size == 1) "event field plan-to-yul data word count"
   match directDataWords[0]! with
@@ -3711,7 +3711,7 @@ def testScalarEventPlanToYul : IO Unit := do
       noStorageWords
       noStorageArrayWords
       directEvent
-      #[.literalWord 7])
+      #[AbiValuePlan.expr (.literalWord 7)])
     "event indexed field plan-to-yul topic statements"
   require (directIndexedTopics.size == 1) "event indexed field plan-to-yul topic statement count"
   match directIndexedTopics[0]! with
@@ -3887,10 +3887,10 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
   require (event.dataFields.size == 1) "storage aggregate event data field count"
   require (dataFields.size == 1) "storage aggregate event planned data value count"
   match dataFields[0]? with
-  | some (ExprPlan.storageAbiWords stateId type) => do
-      require (stateId == "storedPair") "storage aggregate event storageAbiWords state id"
-      require (type == .structType "Pair") "storage aggregate event storageAbiWords type"
-  | some _ => throw <| IO.userError "storage aggregate event data field must use storageAbiWords"
+  | some (AbiValuePlan.storage stateId type) => do
+      require (stateId == "storedPair") "storage aggregate event storage ABI value state id"
+      require (type == .structType "Pair") "storage aggregate event storage ABI value type"
+  | some _ => throw <| IO.userError "storage aggregate event data field must use storage ABI value source"
   | none => throw <| IO.userError "storage aggregate event missing planned data field"
   let wordPlans ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
@@ -3947,10 +3947,10 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
     | .eventEmit event dataFields => pure (event, dataFields)
     | _ => throw <| IO.userError "storage array aggregate event must lower to eventEmit plan"
   match arrayDataFields[0]? with
-  | some (ExprPlan.storageAbiWords stateId type) => do
-      require (stateId == "storedValues") "storage array aggregate event storageAbiWords state id"
-      require (type == .fixedArray .u64 2) "storage array aggregate event storageAbiWords type"
-  | some _ => throw <| IO.userError "storage array aggregate event data field must use storageAbiWords"
+  | some (AbiValuePlan.storage stateId type) => do
+      require (stateId == "storedValues") "storage array aggregate event storage ABI value state id"
+      require (type == .fixedArray .u64 2) "storage array aggregate event storage ABI value type"
+  | some _ => throw <| IO.userError "storage array aggregate event data field must use storage ABI value source"
   | none => throw <| IO.userError "storage array aggregate event missing planned data field"
   let arrayWordPlans ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
@@ -3987,10 +3987,10 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
     | .eventEmit event dataFields => pure (event, dataFields)
     | _ => throw <| IO.userError "storage struct-array aggregate event must lower to eventEmit plan"
   match structArrayDataFields[0]? with
-  | some (ExprPlan.storageAbiWords stateId type) => do
-      require (stateId == "storedPairs") "storage struct-array aggregate event storageAbiWords state id"
-      require (type == .fixedArray (.structType "Pair") 2) "storage struct-array aggregate event storageAbiWords type"
-  | some _ => throw <| IO.userError "storage struct-array aggregate event data field must use storageAbiWords"
+  | some (AbiValuePlan.storage stateId type) => do
+      require (stateId == "storedPairs") "storage struct-array aggregate event storage ABI value state id"
+      require (type == .fixedArray (.structType "Pair") 2) "storage struct-array aggregate event storage ABI value type"
+  | some _ => throw <| IO.userError "storage struct-array aggregate event data field must use storage ABI value source"
   | none => throw <| IO.userError "storage struct-array aggregate event missing planned data field"
   let structArrayWordPlans ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
@@ -4036,10 +4036,10 @@ def testStorageAggregateIndexedEventTopicPlanToYul : IO Unit := do
   require (event.indexedFields.size == 1) "storage aggregate indexed event indexed field count"
   require (indexedFields.size == 1) "storage aggregate indexed event planned indexed value count"
   match indexedFields[0]? with
-  | some (ExprPlan.storageAbiWords stateId type) => do
-      require (stateId == "storedPair") "storage aggregate indexed event storageAbiWords state id"
-      require (type == .structType "Pair") "storage aggregate indexed event storageAbiWords type"
-  | some _ => throw <| IO.userError "storage aggregate indexed event field must use storageAbiWords"
+  | some (AbiValuePlan.storage stateId type) => do
+      require (stateId == "storedPair") "storage aggregate indexed event storage ABI value state id"
+      require (type == .structType "Pair") "storage aggregate indexed event storage ABI value type"
+  | some _ => throw <| IO.userError "storage aggregate indexed event field must use storage ABI value source"
   | none => throw <| IO.userError "storage aggregate indexed event missing planned indexed field"
   let indexedFieldPlan ← requireAt event.indexedFields 0 "storage aggregate indexed event missing field plan"
   let indexedValuePlan ← requireAt indexedFields 0 "storage aggregate indexed event missing value plan"

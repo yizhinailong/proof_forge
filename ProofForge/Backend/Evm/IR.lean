@@ -2659,7 +2659,7 @@ def lowerEventFieldDataWordExprs
     (env : TypeEnv)
     (eventName : String)
     (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
-    (value : ProofForge.Backend.Evm.Plan.ExprPlan) :
+    (value : ProofForge.Backend.Evm.Plan.AbiValuePlan) :
     Except LowerError (Array Lean.Compiler.Yul.Expr) := do
   let wordPlans ←
     lowerValidate <|
@@ -2676,7 +2676,7 @@ def lowerEventFieldsDataWordExprs
     (env : TypeEnv)
     (eventName : String)
     (fields : Array ProofForge.Backend.Evm.Plan.EventFieldPlan)
-    (values : Array ProofForge.Backend.Evm.Plan.ExprPlan) :
+    (values : Array ProofForge.Backend.Evm.Plan.AbiValuePlan) :
     Except LowerError (Array Lean.Compiler.Yul.Expr) := do
   let wordPlans ←
     lowerValidate <|
@@ -2911,7 +2911,7 @@ def lowerEventEmitCoreStmt
       | .error { message := s!"event `{name}` missing indexed field plan at index {idx}" }
     indexedTopicStatements := indexedTopicStatements ++
       (← lowerIndexedEventTopicStatements module env name field.fst idx fieldPlan field.snd)
-  let mut dataValuePlans : Array ProofForge.Backend.Evm.Plan.ExprPlan := #[]
+  let mut dataValuePlans : Array ProofForge.Backend.Evm.Plan.AbiValuePlan := #[]
   for h : idx in [0:dataFields.size] do
     let field := dataFields[idx]
     let some fieldPlan := dataFieldPlans[idx]?
@@ -4941,12 +4941,17 @@ def eventFieldPlanSupportsScalarBody :
       | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
       | .unit | .bytes | .string | .array _ | .fixedArray _ _ | .structType _ => false
 
+def abiValuePlanSupportsScalarBody :
+    ProofForge.Backend.Evm.Plan.AbiValuePlan → Bool
+  | .expr value => exprPlanSupportsScalarBody value
+  | .local .. | .storage .. | .arrayLit .. | .structLit .. => false
+
 def eventFieldPlansSupportScalarBody
     (fields : Array ProofForge.Backend.Evm.Plan.EventFieldPlan)
-    (values : Array ProofForge.Backend.Evm.Plan.ExprPlan) : Bool :=
+    (values : Array ProofForge.Backend.Evm.Plan.AbiValuePlan) : Bool :=
   fields.size == values.size &&
     fields.all eventFieldPlanSupportsScalarBody &&
-    values.all exprPlanSupportsScalarBody
+    values.all abiValuePlanSupportsScalarBody
 
 def effectPlanSupportsScalarBodyStmt :
     ProofForge.Backend.Evm.Plan.EffectPlan → Bool

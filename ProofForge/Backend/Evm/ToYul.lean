@@ -1244,21 +1244,23 @@ partial def abiValueWordsFromPlan
     (storageArrayWords : String → String → ValueType → Nat → Except ε (Array Lean.Compiler.Yul.Expr))
     (context : String)
     (type : ValueType)
-    (value : ExprPlan) :
+    (value : AbiValuePlan) :
     Except ε (Array Lean.Compiler.Yul.Expr) := do
   match type with
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-      .ok #[← lowerPlanExpr value]
+      match value with
+      | .expr plan => .ok #[← lowerPlanExpr plan]
+      | _ => .error (mkError s!"{context} scalar ABI value requires an expression plan")
   | .fixedArray elementType length =>
       match value with
-      | .localAbiWords name plannedType =>
+      | .local name plannedType =>
           if plannedType == type then
             localAbiWords mkError (fun typeName => do
               let fields ← structFields typeName
               .ok (fields.map fun field => field.fst)) context name type
           else
             .error (mkError s!"{context} local ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`")
-      | .storageAbiWords stateId plannedType =>
+      | .storage stateId plannedType =>
           if plannedType == type then
             storageAbiWords mkError storageStructWords storageArrayWords context stateId type
           else
@@ -1285,14 +1287,14 @@ partial def abiValueWordsFromPlan
           .error (mkError s!"{context} aggregate field requires an ABI word expansion plan")
   | .structType typeName =>
       match value with
-      | .localAbiWords name plannedType =>
+      | .local name plannedType =>
           if plannedType == type then
             localAbiWords mkError (fun typeName => do
               let fields ← structFields typeName
               .ok (fields.map fun field => field.fst)) context name type
           else
             .error (mkError s!"{context} local ABI word plan type mismatch: expected `{type.name}`, got `{plannedType.name}`")
-      | .storageAbiWords stateId plannedType =>
+      | .storage stateId plannedType =>
           if plannedType == type then
             storageAbiWords mkError storageStructWords storageArrayWords context stateId type
           else
@@ -1994,7 +1996,7 @@ def eventFieldDataWordsFromPlan
     (storageArrayWords : String → String → ValueType → Nat → Except ε (Array Lean.Compiler.Yul.Expr))
     (eventName : String)
     (field : EventFieldPlan)
-    (value : ExprPlan) :
+    (value : AbiValuePlan) :
     Except ε (Array Lean.Compiler.Yul.Expr) := do
   abiValueWordsFromPlan
     mkError
@@ -2015,7 +2017,7 @@ def eventFieldsDataWordsFromPlan
     (storageArrayWords : String → String → ValueType → Nat → Except ε (Array Lean.Compiler.Yul.Expr))
     (eventName : String)
     (fields : Array EventFieldPlan)
-    (values : Array ExprPlan) :
+    (values : Array AbiValuePlan) :
     Except ε (Array Lean.Compiler.Yul.Expr) := do
   if fields.size != values.size then
     .error (mkError s!"planned scalar control-flow event `{eventName}` field/value count mismatch")
@@ -2043,7 +2045,7 @@ def eventIndexedTopicStatementsFromPlans
     (storageStructWords : String → String → String → Except ε (Array Lean.Compiler.Yul.Expr))
     (storageArrayWords : String → String → ValueType → Nat → Except ε (Array Lean.Compiler.Yul.Expr))
     (event : EventPlan)
-    (values : Array ExprPlan) :
+    (values : Array AbiValuePlan) :
     Except ε (Array Lean.Compiler.Yul.Statement) := do
   let fields := event.indexedFields
   if fields.size != values.size then

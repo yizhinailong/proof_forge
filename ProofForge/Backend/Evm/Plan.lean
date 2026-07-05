@@ -795,6 +795,14 @@ mutual
     | effect (effect : EffectPlan)
     deriving Repr
 
+  inductive AbiValuePlan where
+    | expr (value : ExprPlan)
+    | local (name : String) (type : ValueType)
+    | storage (stateId : String) (type : ValueType)
+    | arrayLit (elementType : ValueType) (values : Array AbiValuePlan)
+    | structLit (typeName : String) (fields : Array (String × AbiValuePlan))
+    deriving Repr
+
   inductive StorageSlotExprPlan where
     | scalarSlot (slot : Nat)
     | fixedSlot (slotHex : String)
@@ -851,8 +859,8 @@ mutual
     | storagePathAssignOpTarget (target : StoragePathWriteTargetPlan) (op : AssignOp) (value : ExprPlan)
     | storagePathAssignOpExprTarget (target : StoragePathWriteExprTargetPlan) (op : AssignOp) (value : ExprPlan)
     | contextRead (field : ContextExprPlan)
-    | eventEmit (event : EventPlan) (dataFields : Array ExprPlan)
-    | eventEmitIndexed (event : EventPlan) (indexedFields dataFields : Array ExprPlan)
+    | eventEmit (event : EventPlan) (dataFields : Array AbiValuePlan)
+    | eventEmitIndexed (event : EventPlan) (indexedFields dataFields : Array AbiValuePlan)
     deriving Repr
 
   inductive EventFieldPlan where
@@ -1150,7 +1158,7 @@ structure CrosscallReturnAssignmentPlan where
 
 structure ReturnValueWordPlan where
   returns : ReturnPlan
-  source : ExprPlan
+  source : AbiValuePlan
   deriving Repr
 
 instance : Inhabited ReturnPlan := ⟨{ returnType := .unit, wordTypes := #[], localNames := #[] }⟩
