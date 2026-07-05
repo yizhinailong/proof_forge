@@ -123,6 +123,15 @@ mutual
     | _ => false
 end
 
+def blockHasAssignmentIdent
+    (block : Lean.Compiler.Yul.Block)
+    (targetName valueName : String) : Bool :=
+  block.statements.any fun stmt =>
+    match stmt with
+    | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident name) =>
+        names == #[targetName] && name == valueName
+    | _ => false
+
 def requireCallExpr
     (expr : Lean.Compiler.Yul.Expr)
     (expectedName : String)
@@ -1111,6 +1120,29 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
       | none => throw <| IO.userError "dynamic ABI bytes decode missing data ptr var"
       require (ptrName == "__pf_dyn_ptr_data") "dynamic ABI bytes decode data ptr source"
   | _ => throw <| IO.userError "dynamic ABI bytes decode must end with data ptr var"
+  let alteredDynamicEntrypoints := dynamicPlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "echo_bytes" then
+      { entrypoint with
+        body := #[StmtPlan.return (ExprPlan.local "payload")]
+      }
+    else
+      entrypoint
+  let alteredDynamicPlan := { dynamicPlan with entrypoints := alteredDynamicEntrypoints }
+  let alteredDynamicObject ← requireOk
+    (lowerModuleWithPlan ProofForge.IR.Examples.EvmDynamicAbiProbe.module alteredDynamicPlan)
+    "dynamic ABI altered entrypoint plan-driven module lowering"
+  let alteredBytesEntrypoint ← requireSome
+    (alteredDynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "echo_bytes"))
+    "dynamic ABI altered plan missing echo_bytes entrypoint"
+  let alteredBytesFunctionName :=
+    ProofForge.Backend.Evm.ToYul.entrypointPlanFunctionName
+      ProofForge.IR.Examples.EvmDynamicAbiProbe.module.name
+      alteredBytesEntrypoint
+  let alteredBytesBody ← requireSome
+    (functionBody? alteredDynamicObject.code.statements alteredBytesFunctionName)
+    "dynamic ABI altered plan function body missing"
+  require (blockHasAssignmentIdent alteredBytesBody "result" "payload__data_ptr")
+    "plan-driven entrypoint lowering must consume dynamic return ModulePlan body"
   let transferEntrypoint ← requireSome
     (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "transfer"))
     "dynamic ABI plan missing transfer entrypoint"

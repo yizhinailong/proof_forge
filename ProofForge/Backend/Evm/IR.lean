@@ -4994,6 +4994,18 @@ def effectPlanSupportsScalarBodyStmt :
         eventFieldWordPlansSupportScalarBody event.dataFields dataFieldWords
   | _ => false
 
+def returnStmtPlanSupportsPlannedBody
+    (returnType : ValueType)
+    (value : ProofForge.Backend.Evm.Plan.ExprPlan) : Bool :=
+  if returnTypeSupportsScalarStmtPlan returnType then
+    exprPlanSupportsScalarBody value
+  else if returnTypeSupportsDynamicStmtPlan returnType then
+    match value with
+    | .local _ => true
+    | _ => false
+  else
+    false
+
 mutual
   partial def stmtPlanSupportsScalarBody
       (returnType : ValueType) :
@@ -5020,7 +5032,7 @@ mutual
     | .boundedFor _ _ _ body =>
         stmtPlansSupportScalarBody returnType body
     | .return value =>
-        returnTypeSupportsScalarStmtPlan returnType && exprPlanSupportsScalarBody value
+        returnStmtPlanSupportsPlannedBody returnType value
 
   partial def stmtPlansSupportScalarBody
       (returnType : ValueType)
@@ -5355,13 +5367,24 @@ mutual
         .ok (statements, env)
     | .return value => do
         let statements ←
-          ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
-            toYulError
-            (fun expr => lowerExpr module env expr)
-            (lowerPlanEffectExpr module env)
-            (← abiReturnNames module entrypointName returnType)
-            leaveAfterReturn
-            (.return value)
+          if returnTypeSupportsDynamicStmtPlan returnType then
+            let returns ←
+              match ProofForge.Backend.Evm.Lower.returnPlan module s!"entrypoint `{entrypointName}`" returnType with
+              | .ok plan => .ok plan
+              | .error err => .error { message := err.message }
+            ProofForge.Backend.Evm.ToYul.dynamicReturnStmtPlanStatements
+              toYulError
+              returns
+              leaveAfterReturn
+              (.return value)
+          else
+            ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              (← abiReturnNames module entrypointName returnType)
+              leaveAfterReturn
+              (.return value)
         .ok (statements, env)
 end
 
