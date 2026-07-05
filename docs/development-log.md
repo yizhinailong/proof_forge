@@ -16528,3 +16528,48 @@ Result:
   locally.
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Storage Fixed-Array Crosscall WordPlan Slice
+
+Commit: ad2602a
+
+Summary:
+
+- Extended `Lower.storageCrosscallWordPlans` so storage-backed fixed arrays can
+  expand into explicit planned storage-load word expressions before ToYul.
+- Routed crosscall fixed-array arguments that are assembled from storage array
+  reads through the same storage-backed source recognition used by ABI return
+  and event planning.
+- Added semantic-plan coverage for scalar storage arrays and struct storage
+  arrays as typed crosscall arguments, including concrete `arraySlot` and
+  `structArrayFieldSlot` word plans.
+- Updated the implementation backlog and Chinese backlog note to record that
+  storage-backed struct and fixed-array crosscall arguments are now expanded on
+  the active Lower path.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+git diff --check
+```
+
+Result:
+
+- Storage-backed fixed-array and struct-array crosscall arguments now enter
+  ToYul as planned storage-load word expressions instead of per-element storage
+  read expressions or provider-backed source markers on the active Lower path.
+- EVM semantic-plan tests, EVM plan tests, crosscall IR smoke, EVM diagnostics,
+  i18n sync, JSON validation, full Lake build, and whitespace checks passed
+  locally.
+- The first concurrent validation attempt hit a transient empty
+  `.lake/build/ir/ProofForge/Cli.setup.json`; the sequential `lake build`
+  rerun passed. The full Lake build still reports pre-existing unused-variable
+  warnings in `ConstructorInit`, `Quint`, and `Cli`.
