@@ -195,7 +195,7 @@ def eip1967PackingProbe : Module := {
   entrypoints := #[]
 }
 
-def testCounterSemanticPlan : IO Unit := do
+def testCounterSemanticPlanEntrypoints : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
   require (plan.name == "Counter") "counter plan name"
   require (plan.targetPlan.targetId == "evm") "counter plan target"
@@ -226,6 +226,9 @@ def testCounterSemanticPlan : IO Unit := do
       require (name == "n") "counter plan increment add lhs"
       require (value == 1) "counter plan increment add rhs"
   | _ => throw <| IO.userError "counter plan increment second statement must write checked add"
+
+def testCounterSemanticPlanArtifacts : IO Unit := do
+  let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
   let get := plan.entrypoints[2]!
   require (get.name == "get") "counter plan get name"
   require (get.selector == "6d4ce63c") "counter plan get selector"
@@ -265,6 +268,10 @@ def testCounterSemanticPlan : IO Unit := do
   require (plan.creates.size == 0) "counter plan no creates"
   require (plan.dispatch.entrypoints.size == plan.entrypoints.size) "counter plan dispatch entrypoint count"
   require (plan.dispatch.default == .revert) "counter plan dispatch default"
+
+def testCounterSemanticPlan : IO Unit := do
+  testCounterSemanticPlanEntrypoints
+  testCounterSemanticPlanArtifacts
 
 def testEventSemanticPlan : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.EventProbe.evmModule) "event plan"
@@ -499,7 +506,7 @@ def testMapHelperPlanToYul : IO Unit := do
     (statementsHaveFunctionNamed plannedMapHelpers (Helper.mapAssign .shiftRight).name)
     "planned map helpers include map assign shift-right"
 
-def testPlannedHelperDiscoveryToYul : IO Unit := do
+def testPlannedCrosscallHelperDiscoveryToYul : IO Unit := do
   let plan ←
     requireOk
       (buildSemanticPlan ProofForge.IR.Examples.EvmCrosscallProbe.module)
@@ -626,6 +633,12 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
       require (name == "__proof_forge_crosscall_0_abi_bool_u32") "aggregate crosscall return assignment integration helper name"
       require (args.size == 2) "aggregate crosscall return assignment integration arg count"
   | _ => throw <| IO.userError "aggregate crosscall return assignment integration must assign aggregate helper call"
+
+def testPlannedCreateAndNativeHelperDiscoveryToYul : IO Unit := do
+  let plan ←
+    requireOk
+      (buildSemanticPlan ProofForge.IR.Examples.EvmCrosscallProbe.module)
+      "crosscall probe plan"
   require (plan.creates.size == 2) "crosscall probe planned create helpers"
   let nativePlan ← requireOk (buildSemanticPlan nativeTransferPlanProbe) "native transfer plan"
   let nativeTransfer ← requireSome
@@ -726,6 +739,10 @@ def testPlannedHelperDiscoveryToYul : IO Unit := do
     (statementsHaveFunctionNamed object.code.statements "__proof_forge_native_transfer")
     "plan-driven module lowering includes native transfer helper"
 
+def testPlannedHelperDiscoveryToYul : IO Unit := do
+  testPlannedCrosscallHelperDiscoveryToYul
+  testPlannedCreateAndNativeHelperDiscoveryToYul
+
 def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
   let plan ←
     requireOk
@@ -780,7 +797,7 @@ def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
     (statementsHaveFunctionNamed object.code.statements (ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetFunctionName #[2, 2]))
     "plan-driven module lowering includes nested local-array helper"
 
-def testIncompletePlanFallbackHelperDiscovery : IO Unit := do
+def testIncompletePlanFallbackCrosscallHelperDiscovery : IO Unit := do
   let crosscallBasePlan ←
     requireOk
       (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan ProofForge.IR.Examples.EvmCrosscallProbe.module))
@@ -809,6 +826,8 @@ def testIncompletePlanFallbackHelperDiscovery : IO Unit := do
     require
       (statementsHaveFunctionNamed crosscallObject.code.statements helperName)
       s!"incomplete-plan fallback includes create helper `{helperName}`"
+
+def testIncompletePlanFallbackLocalArrayHelperDiscovery : IO Unit := do
   let arrayBasePlan ←
     requireOk
       (lowerPlan (ProofForge.Backend.Evm.Plan.buildModulePlan ProofForge.IR.Examples.EvmArrayValueProbe.module))
@@ -835,6 +854,10 @@ def testIncompletePlanFallbackHelperDiscovery : IO Unit := do
     require
       (statementsHaveFunctionNamed arrayObject.code.statements helperName)
       s!"incomplete-plan fallback includes nested local-array helper `{helperName}`"
+
+def testIncompletePlanFallbackHelperDiscovery : IO Unit := do
+  testIncompletePlanFallbackCrosscallHelperDiscovery
+  testIncompletePlanFallbackLocalArrayHelperDiscovery
 
 def testEntrypointDispatchPlanToYul : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
@@ -3331,6 +3354,54 @@ def testScalarEventPlanToYul : IO Unit := do
       require foundIndexedSload "scalar indexed event topic must lower storage read through plan"
   | _ => throw <| IO.userError "scalar indexed event topic plan-to-yul must lower to block"
 
+def testLocalAggregateEventDataWordsToYul : IO Unit := do
+  let module := ProofForge.IR.Examples.EventProbe.evmModule
+  let pairEnv : TypeEnv := #[
+    { name := "pair", type := .structType "Pair", isMutable := false }
+  ]
+  let pairWords ← requireOk
+    (lowerEventDataWords module pairEnv "PairEvent" "pair" (.structType "Pair") (.local "pair"))
+    "local struct event data words"
+  require (pairWords.size == 2) "local struct event data word count"
+  requireIdentExpr (← requireAt pairWords 0 "local struct event missing first word")
+    "__proof_forge_struct_pair_left"
+    "local struct event first word"
+  requireIdentExpr (← requireAt pairWords 1 "local struct event missing second word")
+    "__proof_forge_struct_pair_right"
+    "local struct event second word"
+  let arrayEnv : TypeEnv := #[
+    { name := "values", type := .fixedArray .u64 2, isMutable := false }
+  ]
+  let arrayWords ← requireOk
+    (lowerEventDataWords module arrayEnv "ArrayEvent" "values" (.fixedArray .u64 2) (.local "values"))
+    "local fixed-array event data words"
+  require (arrayWords.size == 2) "local fixed-array event data word count"
+  requireIdentExpr (← requireAt arrayWords 0 "local fixed-array event missing first word")
+    "__proof_forge_array_values_0"
+    "local fixed-array event first word"
+  requireIdentExpr (← requireAt arrayWords 1 "local fixed-array event missing second word")
+    "__proof_forge_array_values_1"
+    "local fixed-array event second word"
+  let pairArrayEnv : TypeEnv := #[
+    { name := "pairs", type := .fixedArray (.structType "Pair") 2, isMutable := false }
+  ]
+  let pairArrayWords ← requireOk
+    (lowerEventDataWords module pairArrayEnv "PairArrayEvent" "pairs" (.fixedArray (.structType "Pair") 2) (.local "pairs"))
+    "local struct-array event data words"
+  require (pairArrayWords.size == 4) "local struct-array event data word count"
+  requireIdentExpr (← requireAt pairArrayWords 0 "local struct-array event missing word 0")
+    "__proof_forge_array_struct_pairs_0_left"
+    "local struct-array event word 0"
+  requireIdentExpr (← requireAt pairArrayWords 1 "local struct-array event missing word 1")
+    "__proof_forge_array_struct_pairs_0_right"
+    "local struct-array event word 1"
+  requireIdentExpr (← requireAt pairArrayWords 2 "local struct-array event missing word 2")
+    "__proof_forge_array_struct_pairs_1_left"
+    "local struct-array event word 2"
+  requireIdentExpr (← requireAt pairArrayWords 3 "local struct-array event missing word 3")
+    "__proof_forge_array_struct_pairs_1_right"
+    "local struct-array event word 3"
+
 def testScalarStorageEffectPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
   let directWriteStmts ← requireOk
@@ -5117,6 +5188,7 @@ def main : IO UInt32 := do
   testScalarAssignmentPlanToYul
   testScalarControlFlowPlanToYul
   testScalarEventPlanToYul
+  testLocalAggregateEventDataWordsToYul
   testScalarStorageEffectPlanToYul
   testMapReadPlanToYul
   testMapWritePlanToYul

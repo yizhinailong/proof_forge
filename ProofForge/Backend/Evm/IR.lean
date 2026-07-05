@@ -2941,14 +2941,12 @@ partial def lowerEventStructDataWords
     | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
   match value with
   | .local name => do
-      let some binding := findLocal? env name
-        | .error { message := s!"unknown local `{name}`" }
-      ensureType s!"event `{eventName}` data field `{fieldName}`" (.structType typeName) binding.type
-      let mut words : Array Lean.Compiler.Yul.Expr := #[]
-      for field in decl.fields do
-        ensureStructLocalFieldType typeName field.id field.type
-        words := words.push (Lean.Compiler.Yul.Expr.id (structLocalFieldName name field.id))
-      .ok words
+      lowerLocalAbiWords
+        module
+        env
+        s!"event `{eventName}` data field `{fieldName}`"
+        name
+        (.structType typeName)
   | .structLit literalTypeName fields => do
       if literalTypeName != typeName then
         .error { message := s!"event `{eventName}` data field `{fieldName}` expected struct `{typeName}`, got `{literalTypeName}`" }
@@ -3005,18 +3003,12 @@ partial def lowerEventFixedArrayDataWords
         | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
       match value with
       | .local name => do
-          let (sourceElementType, sourceLength) ← requireLocalFixedArray s!"event `{eventName}` data field `{fieldName}`" env name
-          ensureType s!"event `{eventName}` data field `{fieldName}` fixed-array element type" elementType sourceElementType
-          if sourceLength != length then
-            .error {
-              message := s!"event `{eventName}` data field `{fieldName}` expected fixed-array length {length}, got {sourceLength}"
-            }
-          let mut words : Array Lean.Compiler.Yul.Expr := #[]
-          for _h : idx in [0:length] do
-            for fieldDecl in decl.fields do
-              ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-              words := words.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName name idx fieldDecl.id))
-          .ok words
+          lowerLocalAbiWords
+            module
+            env
+            s!"event `{eventName}` data field `{fieldName}`"
+            name
+            (.fixedArray elementType length)
       | .arrayLit literalElementType values => do
           ensureType s!"event `{eventName}` data field `{fieldName}` fixed-array element type" elementType literalElementType
           if values.size != length then
@@ -3047,16 +3039,12 @@ partial def lowerEventFixedArrayDataWords
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => do
       match value with
       | .local name => do
-          let (sourceElementType, sourceLength) ← requireLocalFixedArray s!"event `{eventName}` data field `{fieldName}`" env name
-          ensureType s!"event `{eventName}` data field `{fieldName}` fixed-array element type" elementType sourceElementType
-          if sourceLength != length then
-            .error {
-              message := s!"event `{eventName}` data field `{fieldName}` expected fixed-array length {length}, got {sourceLength}"
-            }
-          let mut words : Array Lean.Compiler.Yul.Expr := #[]
-          for _h : idx in [0:length] do
-            words := words.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName name idx))
-          .ok words
+          lowerLocalAbiWords
+            module
+            env
+            s!"event `{eventName}` data field `{fieldName}`"
+            name
+            (.fixedArray elementType length)
       | .arrayLit literalElementType values => do
           ensureType s!"event `{eventName}` data field `{fieldName}` fixed-array element type" elementType literalElementType
           if values.size != length then
@@ -6095,7 +6083,10 @@ def crosscallReturnGuardStatementsForName (resultName : String) (returnType : Va
   | .u32 =>
       .ok #[
         .ifStmt
-          (Lean.Compiler.Yul.builtin "gt" #[Lean.Compiler.Yul.Expr.id resultName, Lean.Compiler.Yul.Expr.num maxU32])
+          (Lean.Compiler.Yul.builtin "gt" #[
+            Lean.Compiler.Yul.Expr.id resultName,
+            Lean.Compiler.Yul.Expr.num ProofForge.Backend.Evm.ToYul.maxU32
+          ])
           { statements := #[revertStmt] }
       ]
   | .bool =>
@@ -6240,7 +6231,9 @@ mutual
         for arg in args do
           nested := mergeCrosscallHelperSpecs nested (← crosscallHelperSpecsExpr module env arg)
         let argWordCount ← crosscallArgWordCountForArgs module env "value crosscall argument" args
-        let plainTransfer := plainValueTransferCall? methodId args && isCrosscallWordType returnType
+        let plainTransfer :=
+          ProofForge.Backend.Evm.Lower.plainValueTransferCall? methodId args &&
+            isCrosscallWordType returnType
         .ok (pushCrosscallHelperSpecIfMissing nested {
           arity := argWordCount
           returnType := returnType
@@ -6398,6 +6391,8 @@ def moduleCrosscallHelperSpecs (module : Module) : Except LowerError (Array Cros
 def crosscallHelperFunctions (module : Module) (specs : Array CrosscallHelperSpec) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
   specs.mapM (crosscallHelperFunction module)
 
+abbrev CreateHelperSpec := ProofForge.Backend.Evm.Plan.CreateHelperSpec
+
 def pushCreateHelperSpecIfMissing (acc : Array CreateHelperSpec) (value : CreateHelperSpec) : Array CreateHelperSpec :=
   if acc.any (fun existing => existing == value) then acc else acc.push value
 
@@ -6550,7 +6545,7 @@ def moduleCreateHelperSpecs (module : Module) : Array CreateHelperSpec :=
     mergeCreateHelperSpecs acc (createHelperSpecsStatements entrypoint.body)
 
 def createHelperFunctions (specs : Array CreateHelperSpec) : Except LowerError (Array Lean.Compiler.Yul.Statement) :=
-  specs.mapM createHelperFunction
+  specs.mapM fun spec => ProofForge.Backend.Evm.ToYul.createHelperFunction toYulError spec
 
 def localArrayGetLengthsForDynamicExprTarget
     (env : TypeEnv)
@@ -7027,7 +7022,8 @@ def plannedMemoryArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.Module
 mutual
   partial def effectUsesCheckedArithmetic : Effect → Bool
     | .storageScalarWrite _ v => exprUsesCheckedArithmetic v
-    | .storageScalarAssignOp _ op v => needsCheckedArithmetic op || exprUsesCheckedArithmetic v
+    | .storageScalarAssignOp _ op v =>
+        ProofForge.Backend.Evm.Validate.needsCheckedArithmetic op || exprUsesCheckedArithmetic v
     | .storageMapInsert _ _ v => exprUsesCheckedArithmetic v
     | .storageMapSet _ _ v => exprUsesCheckedArithmetic v
     | .storageArrayWrite _ _ v => exprUsesCheckedArithmetic v
@@ -7037,7 +7033,8 @@ mutual
     | .memoryArraySet _ i v => exprUsesCheckedArithmetic i || exprUsesCheckedArithmetic v
     | .storageStructFieldWrite _ _ v => exprUsesCheckedArithmetic v
     | .storagePathWrite _ _ v => exprUsesCheckedArithmetic v
-    | .storagePathAssignOp _ _ op v => needsCheckedArithmetic op || exprUsesCheckedArithmetic v
+    | .storagePathAssignOp _ _ op v =>
+        ProofForge.Backend.Evm.Validate.needsCheckedArithmetic op || exprUsesCheckedArithmetic v
     | .storageScalarRead _ | .storageMapContains _ _ | .storageMapGet _ _
     | .storageArrayRead _ _ | .storageArrayStructFieldRead _ _ _
     | .storageStructFieldRead _ _ | .storagePathRead _ _
