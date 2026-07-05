@@ -2278,27 +2278,27 @@ mutual
     | .field base fieldName =>
         lowerLocalStructFieldExpr module env base fieldName
     | .add lhs rhs => do
-        .ok (checkedAddExpr (← lowerExpr module env lhs) (← lowerExpr module env rhs))
+        lowerExprThroughPlan module env (.add lhs rhs)
     | .sub lhs rhs => do
-        .ok (checkedSubExpr (← lowerExpr module env lhs) (← lowerExpr module env rhs))
+        lowerExprThroughPlan module env (.sub lhs rhs)
     | .mul lhs rhs => do
-        .ok (checkedMulExpr (← lowerExpr module env lhs) (← lowerExpr module env rhs))
+        lowerExprThroughPlan module env (.mul lhs rhs)
     | .div lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "div" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.div lhs rhs)
     | .mod lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "mod" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.mod lhs rhs)
     | .pow lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "exp" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.pow lhs rhs)
     | .bitAnd lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "and" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.bitAnd lhs rhs)
     | .bitOr lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "or" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.bitOr lhs rhs)
     | .bitXor lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "xor" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.bitXor lhs rhs)
     | .shiftLeft lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "shl" #[← lowerExpr module env rhs, ← lowerExpr module env lhs])
+        lowerExprThroughPlan module env (.shiftLeft lhs rhs)
     | .shiftRight lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "shr" #[← lowerExpr module env rhs, ← lowerExpr module env lhs])
+        lowerExprThroughPlan module env (.shiftRight lhs rhs)
     | .cast value _ => do
         lowerExpr module env value
     | .eq lhs rhs => do

@@ -1802,6 +1802,92 @@ def testScalarExprPlanToYul : IO Unit := do
       require (name == "__pf_checked_add") "counter checked add plan-to-yul helper"
       require (args.size == 2) "counter checked add plan-to-yul arg count"
   | _ => throw <| IO.userError "counter checked add plan-to-yul must be helper call"
+  let addPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.add (.local "amount") (.literal (.u64 1))))
+    "add Lower ExprPlan"
+  match addPlan with
+  | .checkedArith .add (.local "amount") (.literalWord 1) => pure ()
+  | _ => throw <| IO.userError "add must lower to checked arithmetic ExprPlan"
+  let directAddExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.add (.local "amount") (.literal (.u64 1))))
+    "direct add lowers through ExprPlan-to-Yul"
+  requireCallExpr
+    directAddExpr
+    "__pf_checked_add"
+    2
+    "direct add ExprPlan-to-Yul"
+  let directDivExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.div (.local "amount") (.literal (.u64 2))))
+    "direct div lowers through ExprPlan-to-Yul"
+  match directDivExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "div") "direct div ExprPlan-to-Yul opcode"
+      require (args.size == 2) "direct div ExprPlan-to-Yul arg count"
+  | _ => throw <| IO.userError "direct div must lower to Yul div builtin"
+  let powPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.pow (.local "amount") (.literal (.u64 2))))
+    "pow Lower ExprPlan"
+  match powPlan with
+  | .builtin "exp" args => require (args.size == 2) "pow Lower ExprPlan arg count"
+  | _ => throw <| IO.userError "pow must lower to exp builtin ExprPlan"
+  let directPowExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.pow (.local "amount") (.literal (.u64 2))))
+    "direct pow lowers through ExprPlan-to-Yul"
+  match directPowExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "exp") "direct pow ExprPlan-to-Yul opcode"
+      require (args.size == 2) "direct pow ExprPlan-to-Yul arg count"
+  | _ => throw <| IO.userError "direct pow must lower to Yul exp builtin"
+  let shiftPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.shiftLeft (.local "amount") (.literal (.u64 3))))
+    "shiftLeft Lower ExprPlan"
+  match shiftPlan with
+  | .checkedArith .shiftLeft (.local "amount") (.literalWord 3) => pure ()
+  | _ => throw <| IO.userError "shiftLeft must lower to checked arithmetic ExprPlan"
+  let directShiftExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.shiftLeft (.local "amount") (.literal (.u64 3))))
+    "direct shiftLeft lowers through ExprPlan-to-Yul"
+  match directShiftExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "shl") "direct shiftLeft ExprPlan-to-Yul opcode"
+      require (args.size == 2) "direct shiftLeft ExprPlan-to-Yul arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit lit =>
+          require (lit.value == "3") "direct shiftLeft ExprPlan-to-Yul shift amount"
+      | _ => throw <| IO.userError "direct shiftLeft shift amount must be literal"
+  | _ => throw <| IO.userError "direct shiftLeft must lower to Yul shl builtin"
+  let directBitXorExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.bitXor (.local "amount") (.literal (.u64 255))))
+    "direct bitXor lowers through ExprPlan-to-Yul"
+  match directBitXorExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "xor") "direct bitXor ExprPlan-to-Yul opcode"
+      require (args.size == 2) "direct bitXor ExprPlan-to-Yul arg count"
+  | _ => throw <| IO.userError "direct bitXor must lower to Yul xor builtin"
   let hashValuePlan ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
       ProofForge.IR.Examples.Counter.module

@@ -520,6 +520,11 @@ Tasks:
     enters `Lower.buildExpressionExprPlan` -> `ExprPlan.hashValue`/`ExprPlan.hash`/
     `ExprPlan.hashTwoToOne` -> `ToYul.exprPlanExpr`, removing the old IR-local
     hash pack/helper-call branches.
+    Scalar arithmetic, division/modulo, bitwise, shift, and exponent expression
+    lowering now enters `Lower.buildExpressionExprPlan` -> `ExprPlan.checkedArith`
+    or `ExprPlan.builtin` -> `ToYul.exprPlanExpr`, so checked helper selection,
+    builtin opcode names, and shift argument ordering no longer live in
+    `IR.lowerExpr`.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local
