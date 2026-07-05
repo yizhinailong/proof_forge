@@ -46,6 +46,26 @@ def requireValidateOk {α : Type}
   | .ok x => pure x
   | .error err => throw <| IO.userError s!"{message}: {err.message}"
 
+def requireErrorContains {α : Type}
+    (result : Except LowerError α)
+    (expected : String)
+    (message : String) : IO Unit :=
+  match result with
+  | .ok _ => throw <| IO.userError s!"{message}: expected error containing `{expected}`"
+  | .error err =>
+      require (err.message.contains expected)
+        s!"{message}: expected `{expected}`, got `{err.message}`"
+
+def requireValidateErrorContains {α : Type}
+    (result : Except ProofForge.Backend.Evm.Validate.LowerError α)
+    (expected : String)
+    (message : String) : IO Unit :=
+  match result with
+  | .ok _ => throw <| IO.userError s!"{message}: expected error containing `{expected}`"
+  | .error err =>
+      require (err.message.contains expected)
+        s!"{message}: expected `{expected}`, got `{err.message}`"
+
 def statementFunctionName? : Lean.Compiler.Yul.Statement → Option String
   | .funcDef name _ _ _ => some name
   | _ => none
@@ -1409,6 +1429,60 @@ def testScalarExprPlanToYul : IO Unit := do
     "__proof_forge_crosscall_1_u32"
     3
     "direct scalar crosscall ToYul helper-call"
+  let aggregateReturnExpr :=
+    Expr.crosscallInvokeTyped
+      (.local "target")
+      (.literal (.u64 305419896))
+      #[]
+      (.structType "Point")
+  requireValidateErrorContains
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      aggregateReturnExpr)
+    "typed aggregate crosscall return `Point` must be consumed by aggregate return lowering in IR EVM v0"
+    "Lower expression aggregate typed crosscall return diagnostic"
+  requireErrorContains
+    (lowerExpr
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      #[{ name := "target", type := .u64, isMutable := false }]
+      aggregateReturnExpr)
+    "typed aggregate crosscall return `Point` must be consumed by aggregate return lowering in IR EVM v0"
+    "IR expression aggregate typed crosscall return diagnostic"
+  requireValidateErrorContains
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      (.crosscallInvokeValueTyped
+        (.local "target")
+        (.literal (.u64 0))
+        (.literal (.u64 1))
+        #[]
+        (.structType "Point")))
+    "value aggregate crosscall return `Point` must be consumed by aggregate return lowering in IR EVM v0"
+    "Lower expression aggregate value crosscall return diagnostic"
+  requireValidateErrorContains
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      (.crosscallInvokeStaticTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[]
+        (.structType "Point")))
+    "static aggregate crosscall return `Point` must be consumed by aggregate return lowering in IR EVM v0"
+    "Lower expression aggregate static crosscall return diagnostic"
+  requireValidateErrorContains
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv #[{ name := "target", type := .u64, isMutable := false }])
+      (.crosscallInvokeDelegateTyped
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[]
+        (.structType "Point")))
+    "delegate aggregate crosscall return `Point` must be consumed by aggregate return lowering in IR EVM v0"
+    "Lower expression aggregate delegate crosscall return diagnostic"
   let directNativeTransferExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.Counter.module

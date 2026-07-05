@@ -501,9 +501,9 @@ Tasks:
     switch default case, checked-assignment RHS, one-dimensional switch frame,
     and nested path switch frame are emitted by `ToYul` helpers.
   - Started: aggregate crosscall helper-call assembly and entrypoint multi-word
-    return assignment now live behind `ToYul`. `IR.lean` still owns return type
-    checks for scalar expression fallback paths, but aggregate crosscall return
-    assignment decisions now come from
+    return assignment now live behind `ToYul`. Expression-position aggregate
+    crosscall return diagnostics now come from `Lower.buildExpressionExprPlan`,
+    while aggregate crosscall return assignment decisions now come from
     `Lower.aggregateCrosscallReturnAssignmentPlan?`. That plan records the call
     mode, target/method/call-value expression plans, planned crosscall argument
     words, and `ReturnPlan` local-name/word-layout data; `IR.lean` consumes the

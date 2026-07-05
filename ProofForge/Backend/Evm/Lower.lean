@@ -283,6 +283,16 @@ def storageArrayAbiWordsPlan?
   | _, _ =>
       .ok none
 
+def ensureExpressionCrosscallReturnWord
+    (modeLabel : String)
+    (returnType : ValueType) : Except LowerError Unit :=
+  if isCrosscallWordType returnType then
+    .ok ()
+  else
+    .error {
+      message := s!"{modeLabel} aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0"
+    }
+
 mutual
   partial def localArrayGetExprPlan?
       (module : Module)
@@ -830,6 +840,22 @@ mutual
       let (stmtPlan, nextEnv) ← buildStatementPlan module entrypoint currentEnv stmt
       .ok (plans.push stmtPlan, nextEnv)
 end
+
+def buildExpressionExprPlan
+    (module : Module)
+    (env : TypeEnv)
+    (expr : Expr) : Except LowerError ExprPlan := do
+  match expr with
+  | .crosscallInvokeTyped _ _ _ returnType =>
+      ensureExpressionCrosscallReturnWord "typed" returnType
+  | .crosscallInvokeValueTyped _ _ _ _ returnType =>
+      ensureExpressionCrosscallReturnWord "value" returnType
+  | .crosscallInvokeStaticTyped _ _ _ returnType =>
+      ensureExpressionCrosscallReturnWord "static" returnType
+  | .crosscallInvokeDelegateTyped _ _ _ returnType =>
+      ensureExpressionCrosscallReturnWord "delegate" returnType
+  | _ => pure ()
+  buildExprPlan module env expr
 
 def crosscallModeArgContext : CrosscallMode → String
   | .call => "typed crosscall argument"

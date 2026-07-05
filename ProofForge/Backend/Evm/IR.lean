@@ -2263,6 +2263,16 @@ mutual
           args
     lowerCrosscallArgWordPlanExprs module env context plans
 
+  partial def lowerExprThroughPlan
+      (module : Module)
+      (env : TypeEnv)
+      (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    let plan ←
+      match ProofForge.Backend.Evm.Lower.buildExpressionExprPlan module (toValidateTypeEnv env) expr with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    lowerExprPlanExpr module env plan
+
   partial def lowerExpr (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
     | .literal (.u8 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
@@ -2372,64 +2382,13 @@ mutual
           argExprs
           .u64
     | .crosscallInvokeTyped target methodId args returnType => do
-        if !isCrosscallWordType returnType then
-          .error { message := s!"typed aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
-        let argWords ← lowerCrosscallArgWordsMany module env "typed crosscall argument" args
-        .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
-          toYulError
-          ProofForge.Backend.Evm.Plan.CrosscallMode.call
-          (← lowerExpr module env target)
-          (← lowerExpr module env methodId)
-          none
-          argWords
-          returnType
+        lowerExprThroughPlan module env (.crosscallInvokeTyped target methodId args returnType)
     | .crosscallInvokeValueTyped target methodId callValue args returnType => do
-        if !isCrosscallWordType returnType then
-          .error { message := s!"value aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
-        if ProofForge.Backend.Evm.Lower.plainValueTransferCall? methodId args then
-          .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
-            toYulError
-            ProofForge.Backend.Evm.Plan.CrosscallMode.callValue
-            (← lowerExpr module env target)
-            (Lean.Compiler.Yul.Expr.num 0)
-            (some (← lowerExpr module env callValue))
-            #[]
-            returnType
-            true
-        else
-          let argWords ← lowerCrosscallArgWordsMany module env "value crosscall argument" args
-          .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
-            toYulError
-            ProofForge.Backend.Evm.Plan.CrosscallMode.callValue
-            (← lowerExpr module env target)
-            (← lowerExpr module env methodId)
-            (some (← lowerExpr module env callValue))
-            argWords
-            returnType
+        lowerExprThroughPlan module env (.crosscallInvokeValueTyped target methodId callValue args returnType)
     | .crosscallInvokeStaticTyped target methodId args returnType => do
-        if !isCrosscallWordType returnType then
-          .error { message := s!"static aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
-        let argWords ← lowerCrosscallArgWordsMany module env "static crosscall argument" args
-        .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
-          toYulError
-          ProofForge.Backend.Evm.Plan.CrosscallMode.staticcall
-          (← lowerExpr module env target)
-          (← lowerExpr module env methodId)
-          none
-          argWords
-          returnType
+        lowerExprThroughPlan module env (.crosscallInvokeStaticTyped target methodId args returnType)
     | .crosscallInvokeDelegateTyped target methodId args returnType => do
-        if !isCrosscallWordType returnType then
-          .error { message := s!"delegate aggregate crosscall return `{returnType.name}` must be consumed by aggregate return lowering in IR EVM v0" }
-        let argWords ← lowerCrosscallArgWordsMany module env "delegate crosscall argument" args
-        .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
-          toYulError
-          ProofForge.Backend.Evm.Plan.CrosscallMode.delegatecall
-          (← lowerExpr module env target)
-          (← lowerExpr module env methodId)
-          none
-          argWords
-          returnType
+        lowerExprThroughPlan module env (.crosscallInvokeDelegateTyped target methodId args returnType)
     | .crosscallCreate callValue initCodeHex => do
         .ok <| ← ProofForge.Backend.Evm.ToYul.createHelperCallExpr
           toYulError
@@ -2783,12 +2742,8 @@ partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
 partial def lowerExprViaPlan
     (module : Module)
     (env : TypeEnv)
-    (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-  let plan ←
-    match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) expr with
-    | .ok plan => .ok plan
-    | .error err => .error { message := err.message }
-  lowerExprPlanExpr module env plan
+    (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr :=
+  lowerExprThroughPlan module env expr
 
 partial def lowerScalarPlanExprOrFallback
     (module : Module)
