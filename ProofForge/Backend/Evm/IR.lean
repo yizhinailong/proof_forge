@@ -1618,36 +1618,6 @@ mutual
         Lean.Compiler.Yul.Expr.num mask
       ])
 
-  partial def lowerScalarStorageWriteStmt
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (value : Lean.Compiler.Yul.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-    let storageSlot ← lowerScalarStorageSlotExpr module env stateId
-    let (byteOffset, byteWidth) ← scalarStatePacking module stateId
-    if byteWidth >= 32 || byteOffset == 0 && byteWidth == 32 then
-      .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, value]))
-    else
-      let shiftBits := (32 - byteOffset - byteWidth) * 8
-      let mask := (2^(byteWidth * 8 : Nat)) - 1
-      let shiftedMask := Lean.Compiler.Yul.builtin "shl" #[
-        Lean.Compiler.Yul.Expr.num shiftBits,
-        Lean.Compiler.Yul.Expr.num mask
-      ]
-      .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-        storageSlot,
-        Lean.Compiler.Yul.builtin "or" #[
-          Lean.Compiler.Yul.builtin "and" #[
-            Lean.Compiler.Yul.builtin "sload" #[storageSlot],
-            Lean.Compiler.Yul.builtin "not" #[shiftedMask]
-          ],
-          Lean.Compiler.Yul.builtin "shl" #[
-            Lean.Compiler.Yul.Expr.num shiftBits,
-            value
-          ]
-        ]
-      ]))
-
   partial def lowerMapScalarPlanExprOrFallback
       (module : Module)
       (env : TypeEnv)
@@ -1677,18 +1647,6 @@ mutual
         | .ok lowered => .ok lowered
         | .error _ => lowerExpr module env expr
     | .error _ => lowerExpr module env expr
-
-  partial def lowerMapSetReturnExpr
-      (module : Module)
-      (env : TypeEnv)
-      (stateId : String)
-      (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-    let (slot, _, _) ← requireStorageMapState module stateId
-    .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.mapSetReturn #[
-      slotExpr slot,
-      ← lowerMapScalarPlanExprOrFallback module env key,
-      ← lowerMapScalarPlanExprOrFallback module env value
-    ])
 
   partial def lowerMapPathValueSlotExpr
       (module : Module)
@@ -2752,16 +2710,6 @@ def lowerArrayWriteStmt
     ← lowerScalarPlanExprOrFallback module env value
   ]))
 
-def lowerDynamicArrayWriteStmt
-    (module : Module)
-    (env : TypeEnv)
-    (stateId : String)
-    (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  .ok (.exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-    ← lowerDynamicArraySlotExpr module env stateId index,
-    ← lowerScalarPlanExprOrFallback module env value
-  ]))
-
 partial def lowerArrayWriteStmtPlanOrFallback
     (module : Module)
     (env : TypeEnv)
@@ -3051,12 +2999,6 @@ def lowerDynamicArrayPushStmt
     (_stateId : String)
     (_value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement :=
   .error { message := "EVM IR v0 dynamic-array push fallback lowering is not yet implemented" }
-
-def lowerDynamicArrayPopStmt
-    (_module : Module)
-    (_env : TypeEnv)
-    (_stateId : String) : Except LowerError Lean.Compiler.Yul.Statement :=
-  .error { message := "EVM IR v0 dynamic-array pop fallback lowering is not yet implemented" }
 
 partial def lowerDynamicArrayPushStmtPlanOrFallback
     (module : Module)

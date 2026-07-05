@@ -385,7 +385,9 @@ Tasks:
     `EffectPlan -> ToYul` helpers own the final packed read/write/assign-op
     frame. Struct-valued scalar storage reads/writes remain on compatibility
     paths until their field expansion can be represented as planned storage
-    targets.
+    targets. The now-unused `lowerScalarStorageWriteStmt` compatibility helper
+    has been removed; scalar storage write success paths now pass through the
+    target `EffectPlan -> ToYul` helper.
   - Started: direct `storageMapInsert`/`storageMapSet` write assembly now
     consumes `MapWriteTargetPlan` variants from `Lower.buildEffectPlan` for
     supported scalar map key/value expressions. Statement-position writes and
@@ -397,7 +399,9 @@ Tasks:
     `ToYul.mapGetTargetExpr` for final presence/value slot reads. Storage-path
     map reads and writes continue on their dedicated `StorageSlotPlan` /
     `StoragePathWriteTargetPlan` surfaces until typed map path-expression
-    planning is widened.
+    planning is widened. The now-unused `lowerMapSetReturnExpr` helper has
+    been removed; expression-position map insert/set return effects remain on
+    the target effect-plan path.
   - Started: direct `storageArrayRead`/`storageArrayWrite` assembly now
     consumes `ArrayReadTargetPlan`/`ArrayWriteTargetPlan` variants from
     `Lower.buildEffectPlan` for supported scalar index/value expressions. The
@@ -683,11 +687,16 @@ Tasks:
     `Lower.buildEffectPlan` -> target `EffectPlan.storageMapInsertTarget`/
     `EffectPlan.storageMapSetTarget` -> `lowerPlanEffectExpr`/
     `ToYul.mapSetReturnTargetExpr`.
+    The now-unused `lowerMapSetReturnExpr` helper has been removed after this
+    expression-position return-old-value path moved behind target effect
+    planning.
     Statement-position scalar storage write and assign-op effects now consume
     `Lower.buildEffectPlan` target effects before calling
     `ToYul.scalarStorageTargetEffectStmtPlanStatements`, so scalar slot,
     packing, and fixed-slot target decisions no longer come from IR-local
     target reconstruction.
+    The now-unused `lowerScalarStorageWriteStmt` helper has been removed after
+    packed scalar write assembly moved behind the target effect helper.
     Statement-position map insert/set write effects now also consume
     `Lower.buildEffectPlan` target effects before calling
     `ToYul.mapWriteTargetEffectStmtPlanStatements`, so map root-slot target
@@ -725,6 +734,10 @@ Tasks:
     expression planning, pop effect validation, root-slot selection, and final
     dynamic-array slot helper assembly no longer come from IR-local effect
     reconstruction callbacks.
+    The now-unused `lowerDynamicArrayWriteStmt` and
+    `lowerDynamicArrayPopStmt` fallback helpers have been removed; dynamic-array
+    write-like behavior remains on storage-path write plans, and dynamic-array
+    pop success paths must pass through target effect planning.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local
