@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Map Read Targets
+
+Commit: 8643ec0
+
+Summary:
+
+- Added `MapReadTargetPlan` so direct `storageMapContains` and
+  `storageMapGet` effects carry the planned map root slot after
+  `Lower.buildEffectPlan`.
+- Routed `Lower.buildEffectPlan` to emit planned map read target variants while
+  preserving the legacy state-id variants for fallback and compatibility paths.
+- Added `ToYul.mapContainsTargetExpr` and `ToYul.mapGetTargetExpr`, moving final
+  map presence/value slot `sload` assembly behind the planned target instead of
+  late root-slot lookup in the compatibility facade.
+- Updated direct expression lowering and scalar-body expression support so both
+  `ExprPlan` recursion and raw `.effect (.storageMapContains ...)` /
+  `.effect (.storageMapGet ...)` lowering consume the planned target path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/map-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- Storage-path map reads and writes still use their dedicated
+  `StorageSlotPlan` / `StoragePathWriteTargetPlan` surfaces; typed map
+  path-expression planning remains follow-up work.
+
+Next step:
+
+- Continue with storage-path typed expression planning and remaining map path
+  surfaces.
+
 ### EVM Planned Struct-Array Field Read Targets
 
 Commit: 0e87338

@@ -339,10 +339,13 @@ Tasks:
     supported scalar map key/value expressions. Statement-position writes and
     expression-position return-old-value writes now both route through direct
     `EffectPlan -> ToYul`/`ExprPlan -> ToYul` helpers that own the planned map
-    root slot instead of late compatibility-facade lookup. `storageMapContains`
-    and `storageMapGet` reads still use their existing state-id path, and
-    storage-path map writes continue on their separate `StoragePathWriteTargetPlan`
-    surface until typed map path-expression planning is widened.
+    root slot instead of late compatibility-facade lookup. Direct
+    `storageMapContains` and `storageMapGet` reads now also consume
+    `MapReadTargetPlan` plus `ToYul.mapContainsTargetExpr` /
+    `ToYul.mapGetTargetExpr` for final presence/value slot reads. Storage-path
+    map reads and writes continue on their dedicated `StorageSlotPlan` /
+    `StoragePathWriteTargetPlan` surfaces until typed map path-expression
+    planning is widened.
   - Started: direct `storageArrayRead`/`storageArrayWrite` assembly now
     consumes `ArrayReadTargetPlan`/`ArrayWriteTargetPlan` variants from
     `Lower.buildEffectPlan` for supported scalar index/value expressions. The
