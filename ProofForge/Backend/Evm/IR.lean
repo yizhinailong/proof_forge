@@ -56,10 +56,6 @@ def slotExpr (slot : Nat) : Lean.Compiler.Yul.Expr :=
 def yulFunctionName (moduleName entrypointName : String) : String :=
   ProofForge.Backend.Evm.ToYul.entrypointFunctionName moduleName entrypointName
 
-def mapSlotFunctionName : String := "__proof_forge_map_slot"
-def mapPresenceSlotFunctionName : String := "__proof_forge_map_presence_slot"
-def mapWriteFunctionName : String := "__proof_forge_map_write"
-def mapSetReturnFunctionName : String := "__proof_forge_map_set_return"
 def crosscallReturnTypeSuffix : ValueType → Except LowerError String
   | type => ProofForge.Backend.Evm.ToYul.crosscallReturnTypeSuffix toYulError type
 
@@ -160,9 +156,6 @@ def createHelperFunction (spec : CreateHelperSpec) : Except LowerError Lean.Comp
 def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
 def maxU32 : Nat := 4294967295
-
--- ASCII "PROOF_FORGE_MAP_PRESENCE" packed as one EVM word.
-def mapPresenceDomain : Nat := 1969478005224772198022937154314036040895674356107534287685
 
 def checkedHashLiteralLimb (name : String) (value : Nat) : Except LowerError Nat :=
   if value <= maxU64 then
@@ -887,9 +880,6 @@ def assignOpBuiltinName : AssignOp → String
   | .bitXor => "xor"
   | .shiftLeft => "shl"
   | .shiftRight => "shr"
-
-def mapAssignFunctionName (op : AssignOp) : String :=
-  s!"__proof_forge_map_assign_{assignOpBuiltinName op}"
 
 def ensureAssignOpTypes (op : AssignOp) (targetType valueType : ValueType) : Except LowerError Unit := do
   discard <| ensureNumericType s!"compound assignment {assignOpDiagnosticName op}" targetType valueType
@@ -1953,7 +1943,7 @@ mutual
       (stateId : String)
       (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     let (slot, _, _) ← requireStorageMapState module stateId
-    .ok (Lean.Compiler.Yul.call mapSetReturnFunctionName #[
+    .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.mapSetReturn #[
       slotExpr slot,
       ← lowerMapScalarPlanExprOrFallback module env key,
       ← lowerMapScalarPlanExprOrFallback module env value
@@ -3365,7 +3355,7 @@ def lowerMapWriteStmt
     (stateId : String)
     (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   let (slot, _, _) ← requireStorageMapState module stateId
-  .ok (.exprStmt (Lean.Compiler.Yul.call mapWriteFunctionName #[
+  .ok (.exprStmt (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.mapWrite #[
     slotExpr slot,
     ← lowerMapScalarPlanExprOrFallback module env key,
     ← lowerMapScalarPlanExprOrFallback module env value
@@ -3878,7 +3868,7 @@ def lowerStoragePathAssignOpStmt
   match path.toList with
   | [StoragePathSegment.mapKey key] => do
       let (slot, _, _) ← requireStorageMapState module stateId
-      .ok (.exprStmt (Lean.Compiler.Yul.call (mapAssignFunctionName op) #[
+      .ok (.exprStmt (ProofForge.Backend.Evm.ToYul.helperCall (ProofForge.Backend.Evm.Plan.Helper.mapAssign op) #[
         slotExpr slot,
         ← lowerMapScalarPlanExprOrFallback module env key,
         ← lowerMapScalarPlanExprOrFallback module env value
@@ -6199,81 +6189,6 @@ def dispatchBlock (module : Module) : Except LowerError Lean.Compiler.Yul.Statem
   let dispatchPlan ← dispatchPlanForModule module
   dispatchBlockWithPlan module dispatchPlan
 
-def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
-  .funcDef mapSlotFunctionName
-    #[{ name := "slot" }, { name := "key" }]
-    #[{ name := "result" }]
-    {
-      statements := #[
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "key"]),
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "slot"]),
-        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
-      ]
-    },
-  .funcDef mapPresenceSlotFunctionName
-    #[{ name := "slot" }, { name := "key" }]
-    #[{ name := "result" }]
-    {
-      statements := #[
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "slot"]),
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.num mapPresenceDomain]),
-        .varDecl #[{ name := "_presence_slot" }]
-          (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])),
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "key"]),
-        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "_presence_slot"]),
-        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
-      ]
-    },
-  .funcDef mapWriteFunctionName
-    #[{ name := "slot" }, { name := "key" }, { name := "value" }]
-    #[]
-    {
-      statements := #[
-        .varDecl #[{ name := "_slot" }] (some (Lean.Compiler.Yul.call mapSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"])),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[Lean.Compiler.Yul.Expr.id "_slot", Lean.Compiler.Yul.Expr.id "value"]),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-          Lean.Compiler.Yul.call mapPresenceSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"],
-          Lean.Compiler.Yul.Expr.num 1
-        ])
-      ]
-    },
-  .funcDef mapSetReturnFunctionName
-    #[{ name := "slot" }, { name := "key" }, { name := "value" }]
-    #[{ name := "old" }]
-    {
-      statements := #[
-        .varDecl #[{ name := "_slot" }] (some (Lean.Compiler.Yul.call mapSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"])),
-        .assignment #["old"] (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[Lean.Compiler.Yul.Expr.id "_slot", Lean.Compiler.Yul.Expr.id "value"]),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-          Lean.Compiler.Yul.call mapPresenceSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"],
-          Lean.Compiler.Yul.Expr.num 1
-        ])
-      ]
-    }
-]
-
-def mapAssignHelperFunction (op : AssignOp) : Lean.Compiler.Yul.Statement :=
-  .funcDef (mapAssignFunctionName op)
-    #[{ name := "slot" }, { name := "key" }, { name := "value" }]
-    #[]
-    {
-      statements := #[
-        .varDecl #[{ name := "_slot" }] (some (Lean.Compiler.Yul.call mapSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"])),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-          Lean.Compiler.Yul.Expr.id "_slot",
-          lowerAssignOpExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (Lean.Compiler.Yul.Expr.id "value")
-        ]),
-        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
-          Lean.Compiler.Yul.call mapPresenceSlotFunctionName #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"],
-          Lean.Compiler.Yul.Expr.num 1
-        ])
-      ]
-    }
-
-def mapHelperFunctions (assignOps : Array AssignOp) : Array Lean.Compiler.Yul.Statement :=
-  mapBaseHelperFunctions ++ assignOps.map mapAssignHelperFunction
-
 def localArrayGetFunctionParams (length : Nat) : Array Lean.Compiler.Yul.TypedName :=
   Id.run do
     let mut params : Array Lean.Compiler.Yul.TypedName := #[{ name := "index" }]
@@ -7290,7 +7205,7 @@ def validateCapabilities (module : Module) : Except LowerError Unit :=
 def plannedMapHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
   if plan.hasHelper .mapSlot then
-    mapHelperFunctions plan.mapAssignOps
+    ProofForge.Backend.Evm.ToYul.mapHelperFunctions plan.mapAssignOps
   else
     #[]
 

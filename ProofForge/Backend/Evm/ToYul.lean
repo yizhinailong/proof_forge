@@ -38,6 +38,9 @@ def checkedArithExpr (op : AssignOp) (lhs rhs : Lean.Compiler.Yul.Expr) : Lean.C
 /-- The 2^256 - 1 max word value, used for overflow checks. -/
 def maxUint256 : Nat := 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
+-- ASCII "PROOF_FORGE_MAP_PRESENCE" packed as one EVM word.
+def mapPresenceDomain : Nat := 1969478005224772198022937154314036040895674356107534287685
+
 /-- Statement that reverts if `cond` is nonzero (truthy). -/
 def revertIfStatement (cond : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Statement :=
   Lean.Compiler.Yul.Statement.ifStmt cond {
@@ -163,6 +166,81 @@ def structArrayHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
       ]
     }
 ]
+
+def mapBaseHelperFunctions : Array Lean.Compiler.Yul.Statement := #[
+  .funcDef (Helper.mapSlot).name
+    #[{ name := "slot" }, { name := "key" }]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "key"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "slot"]),
+        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
+      ]
+    },
+  .funcDef (Helper.mapPresenceSlot).name
+    #[{ name := "slot" }, { name := "key" }]
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "slot"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.num mapPresenceDomain]),
+        .varDecl #[{ name := "_presence_slot" }]
+          (some (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])),
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.id "key"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.id "_presence_slot"]),
+        .assignment #["result"] (Lean.Compiler.Yul.builtin "keccak256" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 64])
+      ]
+    },
+  .funcDef (Helper.mapWrite).name
+    #[{ name := "slot" }, { name := "key" }, { name := "value" }]
+    #[]
+    {
+      statements := #[
+        .varDecl #[{ name := "_slot" }] (some (helperCall Helper.mapSlot #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"])),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[Lean.Compiler.Yul.Expr.id "_slot", Lean.Compiler.Yul.Expr.id "value"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          helperCall Helper.mapPresenceSlot #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"],
+          Lean.Compiler.Yul.Expr.num 1
+        ])
+      ]
+    },
+  .funcDef (Helper.mapSetReturn).name
+    #[{ name := "slot" }, { name := "key" }, { name := "value" }]
+    #[{ name := "old" }]
+    {
+      statements := #[
+        .varDecl #[{ name := "_slot" }] (some (helperCall Helper.mapSlot #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"])),
+        .assignment #["old"] (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[Lean.Compiler.Yul.Expr.id "_slot", Lean.Compiler.Yul.Expr.id "value"]),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          helperCall Helper.mapPresenceSlot #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"],
+          Lean.Compiler.Yul.Expr.num 1
+        ])
+      ]
+    }
+]
+
+def mapAssignHelperFunction (op : AssignOp) : Lean.Compiler.Yul.Statement :=
+  .funcDef (Helper.mapAssign op).name
+    #[{ name := "slot" }, { name := "key" }, { name := "value" }]
+    #[]
+    {
+      statements := #[
+        .varDecl #[{ name := "_slot" }] (some (helperCall Helper.mapSlot #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"])),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          Lean.Compiler.Yul.Expr.id "_slot",
+          checkedArithExpr op (Lean.Compiler.Yul.builtin "sload" #[Lean.Compiler.Yul.Expr.id "_slot"]) (Lean.Compiler.Yul.Expr.id "value")
+        ]),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          helperCall Helper.mapPresenceSlot #[Lean.Compiler.Yul.Expr.id "slot", Lean.Compiler.Yul.Expr.id "key"],
+          Lean.Compiler.Yul.Expr.num 1
+        ])
+      ]
+    }
+
+def mapHelperFunctions (assignOps : Array AssignOp) : Array Lean.Compiler.Yul.Statement :=
+  mapBaseHelperFunctions ++ assignOps.map mapAssignHelperFunction
 
 def contextFieldExpr
     {ε : Type}

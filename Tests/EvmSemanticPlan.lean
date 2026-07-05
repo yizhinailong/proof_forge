@@ -451,6 +451,54 @@ def testArrayHelperPlanToYul : IO Unit := do
     (statementsHaveFunctionNamed plannedStructArrayHelpers (Helper.structArraySlot).name)
     "planned struct array helpers include struct array slot"
 
+def testMapHelperPlanToYul : IO Unit := do
+  let baseMapHelpers := ProofForge.Backend.Evm.ToYul.mapBaseHelperFunctions
+  require (baseMapHelpers.size == 4) "map ToYul base helper count"
+  require
+    (statementsHaveFunctionNamed baseMapHelpers (Helper.mapSlot).name)
+    "map ToYul helper set includes map slot"
+  require
+    (statementsHaveFunctionNamed baseMapHelpers (Helper.mapPresenceSlot).name)
+    "map ToYul helper set includes map presence slot"
+  require
+    (statementsHaveFunctionNamed baseMapHelpers (Helper.mapWrite).name)
+    "map ToYul helper set includes map write"
+  require
+    (statementsHaveFunctionNamed baseMapHelpers (Helper.mapSetReturn).name)
+    "map ToYul helper set includes map set-return"
+  let plan ←
+    requireOk
+      (buildSemanticPlan ProofForge.IR.Examples.EvmMapProbe.module)
+      "map probe plan"
+  require (plan.hasHelper .mapSlot) "map probe plan requires map slot helper"
+  require (plan.hasHelper .mapPresenceSlot) "map probe plan requires map presence slot helper"
+  require (plan.hasHelper .mapWrite) "map probe plan requires map write helper"
+  require (plan.hasHelper .mapSetReturn) "map probe plan requires map set-return helper"
+  require (plan.mapAssignOps.size == 10) "map probe planned map assign op count"
+  require
+    (plan.mapAssignOps.any fun op => op == .add)
+    "map probe planned map assign ops include add"
+  let plannedMapHelpers := plannedMapHelperFunctions plan
+  require (plannedMapHelpers.size == 4 + plan.mapAssignOps.size) "planned map helper count"
+  require
+    (statementsHaveFunctionNamed plannedMapHelpers (Helper.mapSlot).name)
+    "planned map helpers include map slot"
+  require
+    (statementsHaveFunctionNamed plannedMapHelpers (Helper.mapPresenceSlot).name)
+    "planned map helpers include map presence slot"
+  require
+    (statementsHaveFunctionNamed plannedMapHelpers (Helper.mapWrite).name)
+    "planned map helpers include map write"
+  require
+    (statementsHaveFunctionNamed plannedMapHelpers (Helper.mapSetReturn).name)
+    "planned map helpers include map set-return"
+  require
+    (statementsHaveFunctionNamed plannedMapHelpers (Helper.mapAssign .add).name)
+    "planned map helpers include map assign add"
+  require
+    (statementsHaveFunctionNamed plannedMapHelpers (Helper.mapAssign .shiftRight).name)
+    "planned map helpers include map assign shift-right"
+
 def testPlannedHelperDiscoveryToYul : IO Unit := do
   let plan ←
     requireOk
@@ -2668,7 +2716,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
               | Lean.Compiler.Yul.Expr.builtin loadName loadArgs => do
                   require (loadName == "sload") "planned map contains control-flow sload"
                   require (loadArgs.size == 1) "planned map contains control-flow sload arg count"
-                  requireCallExpr loadArgs[0]! mapPresenceSlotFunctionName 2
+                  requireCallExpr loadArgs[0]! (Helper.mapPresenceSlot).name 2
                     "planned map contains control-flow presence slot"
               | _ => throw <| IO.userError "planned map contains control-flow inner must load presence slot"
           | _ => throw <| IO.userError "planned map contains control-flow outer must wrap inner iszero"
@@ -2680,7 +2728,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
           require (typedName.name == "value") "planned map get control-flow local name"
           require (name == "sload") "planned map get control-flow sload"
           require (args.size == 1) "planned map get control-flow sload arg count"
-          requireCallExpr args[0]! mapSlotFunctionName 2
+          requireCallExpr args[0]! (Helper.mapSlot).name 2
             "planned map get control-flow value slot"
       | _ => throw <| IO.userError "planned map get control-flow must lower to value binding"
   | _ => throw <| IO.userError "planned map read control-flow body lowering must lower to switch"
@@ -3449,7 +3497,7 @@ def testMapReadPlanToYul : IO Unit := do
               require (loadArgs.size == 1) "planned map contains target sload arg count"
               match loadArgs[0]! with
               | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-                  require (slotName == mapPresenceSlotFunctionName) "planned map contains target presence slot helper"
+                  require (slotName == (Helper.mapPresenceSlot).name) "planned map contains target presence slot helper"
                   require (slotArgs.size == 2) "planned map contains target presence slot arg count"
                   match slotArgs[0]! with
                   | Lean.Compiler.Yul.Expr.lit literal =>
@@ -3477,7 +3525,7 @@ def testMapReadPlanToYul : IO Unit := do
       require (args.size == 1) "planned map get target sload arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
-          require (slotName == mapSlotFunctionName) "planned map get target value slot helper"
+          require (slotName == (Helper.mapSlot).name) "planned map get target value slot helper"
           require (slotArgs.size == 2) "planned map get target value slot arg count"
           match slotArgs[0]! with
           | Lean.Compiler.Yul.Expr.lit literal =>
@@ -3509,7 +3557,7 @@ def testMapReadPlanToYul : IO Unit := do
   match getExpr with
   | Lean.Compiler.Yul.Expr.builtin "sload" args => do
       require (args.size == 1) "map get expression sload arg count"
-      requireCallExpr args[0]! mapSlotFunctionName 2 "map get expression value slot helper"
+      requireCallExpr args[0]! (Helper.mapSlot).name 2 "map get expression value slot helper"
   | _ => throw <| IO.userError "map get expression must lower to sload"
 
 def testMapWritePlanToYul : IO Unit := do
@@ -3532,7 +3580,7 @@ def testMapWritePlanToYul : IO Unit := do
   require (directWriteStmts.size == 1) "map write StmtPlan-to-Yul helper statement count"
   match directWriteStmts[0]! with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
-      require (name == mapWriteFunctionName) "map write StmtPlan-to-Yul helper call"
+      require (name == (Helper.mapWrite).name) "map write StmtPlan-to-Yul helper call"
       require (args.size == 3) "map write StmtPlan-to-Yul helper arg count"
       match args[1]! with
       | Lean.Compiler.Yul.Expr.call addName addArgs => do
@@ -3557,7 +3605,7 @@ def testMapWritePlanToYul : IO Unit := do
   require (directInsertStmts.size == 1) "map insert StmtPlan-to-Yul helper statement count"
   match directInsertStmts[0]! with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
-      require (name == mapWriteFunctionName) "map insert StmtPlan-to-Yul helper call"
+      require (name == (Helper.mapWrite).name) "map insert StmtPlan-to-Yul helper call"
       require (args.size == 3) "map insert StmtPlan-to-Yul helper arg count"
   | _ => throw <| IO.userError "map insert StmtPlan-to-Yul helper must lower to helper call"
   let loweredMapSetEffect ← requireValidateOk
@@ -3598,7 +3646,7 @@ def testMapWritePlanToYul : IO Unit := do
   require (directPlannedWriteStmts.size == 1) "planned map write target helper statement count"
   match directPlannedWriteStmts[0]! with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
-      require (name == mapWriteFunctionName) "planned map write target helper call"
+      require (name == (Helper.mapWrite).name) "planned map write target helper call"
       require (args.size == 3) "planned map write target helper arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.lit literal =>
@@ -3621,7 +3669,7 @@ def testMapWritePlanToYul : IO Unit := do
     "planned map set-return target expr-to-Yul helper"
   match directPlannedSetReturnExpr with
   | Lean.Compiler.Yul.Expr.call name args => do
-      require (name == mapSetReturnFunctionName) "planned map set-return target helper"
+      require (name == (Helper.mapSetReturn).name) "planned map set-return target helper"
       require (args.size == 3) "planned map set-return target arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.lit literal =>
@@ -3644,7 +3692,7 @@ def testMapWritePlanToYul : IO Unit := do
     "map write key/value plan-to-yul"
   match writeStmt with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
-      require (name == mapWriteFunctionName) "map write plan-to-yul helper"
+      require (name == (Helper.mapWrite).name) "map write plan-to-yul helper"
       require (args.size == 3) "map write plan-to-yul arg count"
       match args[1]! with
       | Lean.Compiler.Yul.Expr.call addName addArgs => do
@@ -3668,7 +3716,7 @@ def testMapWritePlanToYul : IO Unit := do
     "map set-return value plan-to-yul"
   match setReturnExpr with
   | Lean.Compiler.Yul.Expr.call name args => do
-      require (name == mapSetReturnFunctionName) "map set-return plan-to-yul helper"
+      require (name == (Helper.mapSetReturn).name) "map set-return plan-to-yul helper"
       require (args.size == 3) "map set-return plan-to-yul arg count"
       match args[2]! with
       | Lean.Compiler.Yul.Expr.call addName addArgs => do
@@ -4356,7 +4404,7 @@ def testStoragePathReadPlanToYul : IO Unit := do
       require (args.size == 1) "direct map storage path read sload arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call name slotArgs => do
-          require (name == mapSlotFunctionName) "direct map storage path read slot helper"
+          require (name == (Helper.mapSlot).name) "direct map storage path read slot helper"
           require (slotArgs.size == 2) "direct map storage path read slot arg count"
           match slotArgs[1]! with
           | Lean.Compiler.Yul.Expr.call addName addArgs => do
@@ -4444,11 +4492,11 @@ def testStoragePathReadPlanToYul : IO Unit := do
       require (args.size == 1) "nested map storage path read sload arg count"
       match args[0]! with
       | Lean.Compiler.Yul.Expr.call name slotArgs => do
-          require (name == mapSlotFunctionName) "nested map storage path read outer slot helper"
+          require (name == (Helper.mapSlot).name) "nested map storage path read outer slot helper"
           require (slotArgs.size == 2) "nested map storage path read outer slot arg count"
           match slotArgs[0]! with
           | Lean.Compiler.Yul.Expr.call parentName parentArgs => do
-              require (parentName == mapSlotFunctionName) "nested map storage path read parent slot helper"
+              require (parentName == (Helper.mapSlot).name) "nested map storage path read parent slot helper"
               require (parentArgs.size == 2) "nested map storage path read parent slot arg count"
           | _ => throw <| IO.userError "nested map storage path read parent slot must use map helper"
       | _ => throw <| IO.userError "nested map storage path read slot must use map helper"
@@ -4462,7 +4510,7 @@ def testStoragePathReadPlanToYul : IO Unit := do
   match rawMapPathRead with
   | Lean.Compiler.Yul.Expr.builtin "sload" args => do
       require (args.size == 1) "raw map storage path read sload arg count"
-      requireCallExpr args[0]! mapSlotFunctionName 2 "raw map storage path read slot helper"
+      requireCallExpr args[0]! (Helper.mapSlot).name 2 "raw map storage path read slot helper"
   | _ => throw <| IO.userError "raw map storage path read must lower to sload"
 
 def testStoragePathWritePlanToYul : IO Unit := do
@@ -4571,8 +4619,8 @@ def testStoragePathWritePlanToYul : IO Unit := do
     "nested map storage path target plan-to-yul"
   match nestedMapTarget with
   | ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget.mapValuePresence valueSlot presenceSlot => do
-      requireCallExpr valueSlot mapSlotFunctionName 2 "nested map storage path target value slot"
-      requireCallExpr presenceSlot mapPresenceSlotFunctionName 2 "nested map storage path target presence slot"
+      requireCallExpr valueSlot (Helper.mapSlot).name 2 "nested map storage path target value slot"
+      requireCallExpr presenceSlot (Helper.mapPresenceSlot).name 2 "nested map storage path target presence slot"
   | _ => throw <| IO.userError "nested map storage path target must lower to value/presence slots"
   let loweredArrayWriteEffect ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.buildEffectPlan
@@ -4776,7 +4824,7 @@ def testStoragePathWritePlanToYul : IO Unit := do
     "direct map storage path assign_op key/value plan-to-yul"
   match directMapAssign with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
-      require (name == mapAssignFunctionName .add) "direct map storage path assign_op helper"
+      require (name == (Helper.mapAssign .add).name) "direct map storage path assign_op helper"
       require (args.size == 3) "direct map storage path assign_op arg count"
       match args[1]! with
       | Lean.Compiler.Yul.Expr.call addName addArgs => do
@@ -4940,6 +4988,7 @@ def main : IO UInt32 := do
   testDeployMetadata
   testHashHelperPlanToYul
   testArrayHelperPlanToYul
+  testMapHelperPlanToYul
   testPlannedHelperDiscoveryToYul
   testLocalArrayHelperDiscoveryInLowerPlan
   testEntrypointDispatchPlanToYul
