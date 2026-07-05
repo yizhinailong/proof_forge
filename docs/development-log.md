@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Event Effect Helper Canonicalization
+
+Commit: d568c8e
+
+Summary:
+
+- Renamed the word-plan-provider event effect helper to the canonical
+  `ToYul.eventEffectStmtPlanStatements` entrypoint.
+- Removed the obsolete Yul-expression callback variant so the scalar-body event
+  path has one ToYul surface for `StmtPlan.effect`.
+- Updated IR/test call sites, backlog docs, Chinese backlog docs, and the i18n
+  manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Event field word plan construction still comes from the provider callback;
+  this slice removed the stale Yul-expression callback shape.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue narrowing the event provider until the complete event lowering path
+  can be expressed as `EventPlan -> ToYul`.
+
 ### EVM Event Word Plan Lowering
 
 Commit: 82ab8f3
