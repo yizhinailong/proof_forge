@@ -816,8 +816,8 @@ mutual
           plans := plans.push (.expr (← buildExprPlan module env field.snd))
         .ok plans
     | .effect (.storageScalarRead stateId) => do
-        discard <| storageCrosscallWordPlans module context stateId (.structType typeName)
-        .ok #[.storage stateId (.structType typeName)]
+        .ok <| wrapCrosscallExprWordPlans
+          (← storageCrosscallWordPlans module context stateId (.structType typeName))
     | _ =>
         .error {
           message := s!"{context} struct values in IR EVM v0 support local struct values, struct literals, or storage scalar struct reads only"

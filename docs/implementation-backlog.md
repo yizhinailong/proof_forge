@@ -695,9 +695,9 @@ Tasks:
     `CrosscallReturnAssignmentPlan.args` carry planned crosscall argument word
     sources: scalar/literal/storage-load words use `CrosscallArgWordPlan.expr`,
     local aggregate sources use `CrosscallArgWordPlan.local`, and
-    storage-backed aggregate sources use `CrosscallArgWordPlan.storage` for
-    provider-backed expansion. Direct storage-load word plans remain available
-    through `CrosscallArgWordPlan.expr` for already-expanded scalar word sources.
+    storage-backed aggregate struct sources are now expanded by `Lower` into
+    explicit `CrosscallArgWordPlan.expr (.storageLoad ...)` word plans instead
+    of preserving a provider-backed storage source marker.
     The obsolete
     `ExprPlan.localAbiWords`, `ExprPlan.storageAbiWords`,
     `ExprPlan.localCrosscallWords`, and `ExprPlan.storageCrosscallWords`
@@ -708,8 +708,9 @@ Tasks:
     performs the final traversal and word concatenation.
     `ToYul.crosscallExprPlanExpr` wraps that traversal with target/method/call-
     value lowering and scalar helper-call selection. `IR.lean` still supplies
-    ToYul provider callbacks for local/storage crosscall source plans, while
-    legacy untyped scalar expression crosscall lowering now enters
+    ToYul provider callbacks for local crosscall source plans and legacy
+    storage source plans, while legacy untyped scalar expression crosscall
+    lowering now enters
     `Lower.buildExpressionExprPlan` -> `ExprPlan.crosscall` before that ToYul
     boundary. The old IR-local scalar helper-call branch and
     `lowerCrosscall*ArgWords` expansion tree have been removed. Aggregate
@@ -717,8 +718,8 @@ Tasks:
     `ToYul.crosscallAggregateReturnAssignmentPlanStatement`, so target/method/
     call-value lowering, planned crosscall argument word traversal, helper-call
     name selection, argument ordering, and multi-return assignment construction
-    live behind the ToYul plan boundary; `IR.lean` only provides the local/
-    storage word-source provider callbacks.
+    live behind the ToYul plan boundary; `IR.lean` only provides local and
+    legacy storage word-source provider callbacks.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,
