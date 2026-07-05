@@ -609,6 +609,12 @@ Tasks:
     `ToYul.structArrayFieldWriteTargetEffectStmtPlanStatements`, so struct-array
     field root-slot, length, field offset, index, and value planning no longer
     come from IR-local target reconstruction.
+    Statement-position dynamic-array push/pop effects now also consume
+    `Lower.buildEffectPlan` before calling
+    `ToYul.dynamicArrayPushEffectStmtPlanStatements`/
+    `ToYul.dynamicArrayPopEffectStmtPlanStatements`, so push value expression
+    planning and pop effect validation no longer come from IR-local effect
+    reconstruction.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local

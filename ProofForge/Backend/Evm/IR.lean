@@ -3266,22 +3266,27 @@ partial def lowerDynamicArrayPushStmtPlanOrFallback
     (stateId : String)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   if exprSupportsPlanScalarYul value then
-    let valuePlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+    let effectPlan ←
+      match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
+          (.storageDynamicArrayPush stateId value) with
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
     let statements ←
-      ProofForge.Backend.Evm.ToYul.dynamicArrayPushEffectStmtPlanStatements
-        toYulError
-        (fun expr => lowerExpr module env expr)
-        (lowerPlanEffectExpr module env)
-        (fun stateId => do
-          let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
-          .ok (slotExpr slot))
-        (fun stateId indexExpr => do
-          let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
-          .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.dynamicArraySlot #[slotExpr slot, indexExpr]))
-        (.effect (.storageDynamicArrayPush stateId valuePlan))
+      match effectPlan with
+      | .storageDynamicArrayPush .. =>
+          ProofForge.Backend.Evm.ToYul.dynamicArrayPushEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (fun stateId => do
+              let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
+              .ok (slotExpr slot))
+            (fun stateId indexExpr => do
+              let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
+              .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.dynamicArraySlot #[slotExpr slot, indexExpr]))
+            (.effect effectPlan)
+      | _ =>
+          .error { message := "EVM Lower.buildEffectPlan dynamic-array push did not produce storageDynamicArrayPush" }
     if statements.isEmpty then
       .error { message := "EVM StmtPlan-to-Yul dynamic-array push lowering produced no statements" }
     else if statements.size == 1 then
@@ -3293,18 +3298,27 @@ partial def lowerDynamicArrayPushStmtPlanOrFallback
 
 partial def lowerDynamicArrayPopStmtPlanOrFallback
     (module : Module)
-    (_env : TypeEnv)
+    (env : TypeEnv)
     (stateId : String) : Except LowerError Lean.Compiler.Yul.Statement := do
+  let effectPlan ←
+    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
+        (.storageDynamicArrayPop stateId) with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
   let statements ←
-    ProofForge.Backend.Evm.ToYul.dynamicArrayPopEffectStmtPlanStatements
-      toYulError
-      (fun stateId => do
-        let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
-        .ok (slotExpr slot))
-      (fun stateId indexExpr => do
-        let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
-        .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.dynamicArraySlot #[slotExpr slot, indexExpr]))
-      (.effect (.storageDynamicArrayPop stateId))
+    match effectPlan with
+    | .storageDynamicArrayPop .. =>
+        ProofForge.Backend.Evm.ToYul.dynamicArrayPopEffectStmtPlanStatements
+          toYulError
+          (fun stateId => do
+            let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
+            .ok (slotExpr slot))
+          (fun stateId indexExpr => do
+            let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
+            .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.dynamicArraySlot #[slotExpr slot, indexExpr]))
+          (.effect effectPlan)
+    | _ =>
+        .error { message := "EVM Lower.buildEffectPlan dynamic-array pop did not produce storageDynamicArrayPop" }
   if statements.isEmpty then
     .error { message := "EVM StmtPlan-to-Yul dynamic-array pop lowering produced no statements" }
   else if statements.size == 1 then

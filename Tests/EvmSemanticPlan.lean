@@ -6101,6 +6101,79 @@ def testArrayWritePlanToYul : IO Unit := do
       | _ => throw <| IO.userError "array write value must be plan-lowered packed storage read"
   | _ => throw <| IO.userError "array write storage-read value must lower to sstore"
 
+def testDynamicArrayPlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let loweredPushEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmDynamicArrayProbe.module
+      (toValidateTypeEnv env)
+      (.storageDynamicArrayPush "values" (.add (.local "value") (.literal (.u64 3)))))
+    "Lower dynamic-array push effect plan"
+  match loweredPushEffect with
+  | .storageDynamicArrayPush stateId (.checkedArith .add (.local valueName) (.literalWord amount)) => do
+      require (stateId == "values") "Lower dynamic-array push state"
+      require (valueName == "value") "Lower dynamic-array push value local"
+      require (amount == 3) "Lower dynamic-array push checked-add literal"
+  | _ => throw <| IO.userError "Lower dynamic-array push must plan value expression"
+  let pushStmt ← requireOk
+    (lowerEffectStmt
+      ProofForge.IR.Examples.EvmDynamicArrayProbe.module
+      env
+      (.storageDynamicArrayPush "values" (.add (.local "value") (.literal (.u64 3)))))
+    "dynamic-array push Lower-to-Yul"
+  match pushStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 4) "dynamic-array push statement count"
+      match block.statements[2]! with
+      | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+          require (args.size == 2) "dynamic-array push sstore arg count"
+          match args[0]! with
+          | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+              require (slotName == (Helper.dynamicArraySlot).name) "dynamic-array push slot helper"
+              require (slotArgs.size == 2) "dynamic-array push slot helper arg count"
+              match slotArgs[0]! with
+              | Lean.Compiler.Yul.Expr.lit literal =>
+                  require (literal.value == "0") "dynamic-array push root slot"
+              | _ => throw <| IO.userError "dynamic-array push root slot must be literal"
+          | _ => throw <| IO.userError "dynamic-array push first sstore arg must be dynamic slot helper"
+          match args[1]! with
+          | Lean.Compiler.Yul.Expr.call addName addArgs => do
+              require (addName == "__pf_checked_add") "dynamic-array push value checked add"
+              require (addArgs.size == 2) "dynamic-array push value checked-add arg count"
+          | _ => throw <| IO.userError "dynamic-array push value must be plan-lowered checked add"
+      | _ => throw <| IO.userError "dynamic-array push third statement must be sstore"
+  | _ => throw <| IO.userError "dynamic-array push must lower to block"
+  let loweredPopEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmDynamicArrayProbe.module
+      (toValidateTypeEnv env)
+      (.storageDynamicArrayPop "values"))
+    "Lower dynamic-array pop effect plan"
+  match loweredPopEffect with
+  | .storageDynamicArrayPop stateId =>
+      require (stateId == "values") "Lower dynamic-array pop state"
+  | _ => throw <| IO.userError "Lower dynamic-array pop must produce storageDynamicArrayPop"
+  let popStmt ← requireOk
+    (lowerEffectStmt
+      ProofForge.IR.Examples.EvmDynamicArrayProbe.module
+      env
+      (.storageDynamicArrayPop "values"))
+    "dynamic-array pop Lower-to-Yul"
+  match popStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      let mut foundLengthLoad := false
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.varDecl _ (some (Lean.Compiler.Yul.Expr.builtin "sload" args)) => do
+            if args.size == 1 then
+              match args[0]! with
+              | Lean.Compiler.Yul.Expr.lit literal =>
+                  foundLengthLoad := foundLengthLoad || literal.value == "0"
+              | _ => pure ()
+        | _ => pure ()
+      require foundLengthLoad "dynamic-array pop must load planned root slot"
+  | _ => throw <| IO.userError "dynamic-array pop must lower to block"
+
 def testStructFieldReadPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
   let loweredStructFieldReadEffect ← requireValidateOk
@@ -7246,6 +7319,7 @@ def main : IO UInt32 := do
   testMapWritePlanToYul
   testArrayReadPlanToYul
   testArrayWritePlanToYul
+  testDynamicArrayPlanToYul
   testStructFieldReadPlanToYul
   testStructArrayFieldReadPlanToYul
   testStructFieldWritePlanToYul
