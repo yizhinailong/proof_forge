@@ -4849,138 +4849,6 @@ def abiReturnTypedNames (module : Module) (entrypoint : Entrypoint) : Except Low
     | .error err => .error { message := err.message }
   .ok (ProofForge.Backend.Evm.ToYul.returnTypedNames plan)
 
-def lowerStructArrayReturnWords
-    (module : Module)
-    (env : TypeEnv)
-    (entrypointName typeName : String)
-    (length : Nat)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-  discard <| abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.fixedArray (.structType typeName) length)
-  let some decl := findStruct? module typeName
-    | .error { message := s!"entrypoint `{entrypointName}` return value uses unknown struct `{typeName}`" }
-  match value with
-  | .local name => do
-      let (elementType, sourceLength) ← requireLocalFixedArray "entrypoint return value" env name
-      ensureType s!"entrypoint `{entrypointName}` fixed-array return element type" (.structType typeName) elementType
-      if sourceLength != length then
-        .error {
-          message := s!"entrypoint `{entrypointName}` fixed-array return expected length {length}, got {sourceLength}"
-        }
-      let mut words : Array Lean.Compiler.Yul.Expr := #[]
-      for _h : idx in [0:length] do
-        for fieldDecl in decl.fields do
-          ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-          words := words.push (Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName name idx fieldDecl.id))
-      .ok words
-  | .arrayLit literalElementType values => do
-      ensureType s!"entrypoint `{entrypointName}` fixed-array return element type" (.structType typeName) literalElementType
-      if values.size != length then
-        .error {
-          message := s!"entrypoint `{entrypointName}` fixed-array return expected length {length}, got {values.size}"
-        }
-      let mut words : Array Lean.Compiler.Yul.Expr := #[]
-      for h : idx in [0:values.size] do
-        match values[idx] with
-        | .structLit literalTypeName fields => do
-            if literalTypeName != typeName then
-              .error { message := s!"entrypoint `{entrypointName}` fixed-array return expected struct `{typeName}`, got `{literalTypeName}`" }
-            for fieldDecl in decl.fields do
-              ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-              let some field := fields.find? fun field => field.fst == fieldDecl.id
-                | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-              words := words.push (← lowerExpr module env field.snd)
-        | other =>
-            let actualType ← inferExprType module env other
-            .error {
-              message := s!"entrypoint `{entrypointName}` fixed-array return element {idx} expected struct literal `{typeName}`, got `{actualType.name}`"
-            }
-      .ok words
-  | _ =>
-      .error {
-        message := s!"entrypoint `{entrypointName}` fixed-array returns in IR EVM v0 support local fixed-array values or array literals only"
-      }
-
-def lowerFixedArrayReturnWords
-    (module : Module)
-    (env : TypeEnv)
-    (entrypointName : String)
-    (elementType : ValueType)
-    (length : Nat)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-  discard <| abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.fixedArray elementType length)
-  match elementType with
-  | .structType typeName =>
-      lowerStructArrayReturnWords module env entrypointName typeName length value
-  | .fixedArray nestedElementType nestedLength =>
-      match value with
-      | .local name =>
-          lowerLocalAbiWords module env s!"entrypoint `{entrypointName}` return value" name (.fixedArray elementType length)
-      | .arrayLit literalElementType values => do
-          ensureType s!"entrypoint `{entrypointName}` fixed-array return element type" elementType literalElementType
-          if values.size != length then
-            .error {
-              message := s!"entrypoint `{entrypointName}` fixed-array return expected length {length}, got {values.size}"
-            }
-          let mut words : Array Lean.Compiler.Yul.Expr := #[]
-          for h : idx in [0:values.size] do
-            words := words ++ (← lowerFixedArrayReturnWords module env entrypointName nestedElementType nestedLength values[idx])
-          .ok words
-      | _ =>
-          .error {
-            message := s!"entrypoint `{entrypointName}` nested fixed-array returns in IR EVM v0 support local fixed-array values or array literals only"
-          }
-  | _ => do
-      match value with
-      | .local name => do
-          lowerLocalAbiWords module env s!"entrypoint `{entrypointName}` return value" name (.fixedArray elementType length)
-      | .arrayLit literalElementType values => do
-          ensureType s!"entrypoint `{entrypointName}` fixed-array return element type" elementType literalElementType
-          if values.size != length then
-            .error {
-              message := s!"entrypoint `{entrypointName}` fixed-array return expected length {length}, got {values.size}"
-            }
-          let mut words : Array Lean.Compiler.Yul.Expr := #[]
-          for h : idx in [0:values.size] do
-            words := words.push (← lowerExpr module env values[idx])
-          .ok words
-      | _ =>
-          .error {
-            message := s!"entrypoint `{entrypointName}` fixed-array returns in IR EVM v0 support local fixed-array values or array literals only"
-          }
-
-def lowerStructReturnWords
-    (module : Module)
-    (env : TypeEnv)
-    (entrypointName typeName : String)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-  discard <| abiValueWordTypes module s!"entrypoint `{entrypointName}` return value" (.structType typeName)
-  let some decl := findStruct? module typeName
-    | .error { message := s!"entrypoint `{entrypointName}` return value uses unknown struct `{typeName}`" }
-  match value with
-  | .local name => do
-      let mut words : Array Lean.Compiler.Yul.Expr := #[]
-      for fieldDecl in decl.fields do
-        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-        words := words.push (Lean.Compiler.Yul.Expr.id (structLocalFieldName name fieldDecl.id))
-      .ok words
-  | .structLit literalTypeName fields => do
-      if literalTypeName != typeName then
-        .error { message := s!"entrypoint `{entrypointName}` struct return expected `{typeName}`, got `{literalTypeName}`" }
-      let mut words : Array Lean.Compiler.Yul.Expr := #[]
-      for fieldDecl in decl.fields do
-        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-        let some field := fields.find? fun field => field.fst == fieldDecl.id
-          | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-        words := words.push (← lowerExpr module env field.snd)
-      .ok words
-  | .effect (.storageScalarRead stateId) => do
-      let fields ← lowerStructStorageReadFields module s!"entrypoint `{entrypointName}` struct return type" typeName stateId
-      .ok (fields.map fun field => field.snd)
-  | _ =>
-      .error {
-        message := s!"entrypoint `{entrypointName}` struct returns in IR EVM v0 support local struct values, struct literals, or storage scalar struct reads only"
-      }
-
 def lowerReturnWords
     (module : Module)
     (env : TypeEnv)
@@ -5000,10 +4868,10 @@ def lowerReturnWords
           .error { message := s!"entrypoint `{entrypointName}` bytes/string returns in IR EVM v0 support local references only" }
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => do
       .ok #[← lowerScalarPlanExprOrFallback module env value]
-  | .fixedArray elementType length =>
-      lowerFixedArrayReturnWords module env entrypointName elementType length value
-  | .structType typeName =>
-      lowerStructReturnWords module env entrypointName typeName value
+  | .fixedArray _ _ | .structType _ =>
+      .error {
+        message := s!"entrypoint `{entrypointName}` aggregate returns must be consumed by return value planning in IR EVM v0"
+      }
 
 def returnTypeSupportsScalarStmtPlan : ValueType → Bool
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true

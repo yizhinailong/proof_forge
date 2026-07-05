@@ -317,7 +317,9 @@ Tasks:
     ToYul.dynamicReturnStmtPlanStatements` for the return data-pointer
     assignment. Non-local dynamic returns still use the compatibility fallback;
     broader aggregate/crosscall return paths continue to migrate through their
-    own plan-level slices.
+    own plan-level slices. The old IR-local fixed-array/struct return word
+    fallback helpers have been removed; aggregate return success paths must now
+    pass through `ReturnValueWordPlan` or aggregate crosscall return planning.
   - Started: direct scalar local assignment and compound-assignment statement
     assembly now consumes a narrow `StmtPlan -> ToYul` helper when the RHS is in
     the supported scalar plan subset. Static local fixed-array element
