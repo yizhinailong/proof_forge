@@ -57,6 +57,13 @@ def structFieldWriteTargetPlan?
   | .ok target => some target
   | .error _ => none
 
+def structFieldReadTargetPlan?
+    (module : Module)
+    (stateId fieldName : String) : Option StructFieldReadTargetPlan :=
+  match structFieldReadTargetPlan module stateId fieldName with
+  | .ok target => some target
+  | .error _ => none
+
 def structArrayFieldWriteTargetPlan?
     (module : Module)
     (stateId fieldName : String) : Option StructArrayFieldWriteTargetPlan :=
@@ -484,7 +491,9 @@ mutual
         | some target => .ok (.storageArrayStructFieldWriteTarget target indexPlan valuePlan)
         | none => .ok (.storageArrayStructFieldWrite stateId indexPlan fieldName valuePlan)
     | .storageStructFieldRead stateId fieldName =>
-        .ok (.storageStructFieldRead stateId fieldName)
+        match structFieldReadTargetPlan? module stateId fieldName with
+        | some target => .ok (.storageStructFieldReadTarget target)
+        | none => .ok (.storageStructFieldRead stateId fieldName)
     | .storageStructFieldWrite stateId fieldName value => do
         let valuePlan ← buildExprPlan module env value
         match structFieldWriteTargetPlan? module stateId fieldName with

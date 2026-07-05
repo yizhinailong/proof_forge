@@ -118,6 +118,15 @@ def requireStructFieldWriteTarget
       require (slot == expectedSlot) s!"{label} slot"
   | _ => throw <| IO.userError s!"{label} must use scalar slot"
 
+def requireStructFieldReadTarget
+    (target : StructFieldReadTargetPlan)
+    (expectedSlot : Nat)
+    (label : String) : IO Unit := do
+  match target.slot with
+  | .scalarSlot slot =>
+      require (slot == expectedSlot) s!"{label} slot"
+  | _ => throw <| IO.userError s!"{label} must use scalar slot"
+
 def requireStructArrayFieldWriteTarget
     (target : StructArrayFieldWriteTargetPlan)
     (expectedRootSlot expectedLength expectedFieldCount expectedFieldOffset : Nat)
@@ -3648,6 +3657,47 @@ def testArrayWritePlanToYul : IO Unit := do
       | _ => throw <| IO.userError "array write value must be plan-lowered packed storage read"
   | _ => throw <| IO.userError "array write storage-read value must lower to sstore"
 
+def testStructFieldReadPlanToYul : IO Unit := do
+  let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let loweredStructFieldReadEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      (toValidateTypeEnv env)
+      (.storageStructFieldRead "current" "x"))
+    "Lower struct field read target effect plan"
+  match loweredStructFieldReadEffect with
+  | .storageStructFieldReadTarget target =>
+      requireStructFieldReadTarget target 1 "Lower struct field read target"
+  | _ => throw <| IO.userError "Lower struct field read must produce storageStructFieldReadTarget"
+  let directReadExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.structFieldReadTargetExpr
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env expr)
+      { slot := .scalarSlot 1 })
+    "planned struct field read target expr-to-Yul helper"
+  match directReadExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "planned struct field read target sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "planned struct field read target slot"
+      | _ => throw <| IO.userError "planned struct field read target slot must be literal"
+  | _ => throw <| IO.userError "planned struct field read target must lower to sload"
+  let readExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      env
+      (.effect (.storageStructFieldRead "current" "x")))
+    "struct field read expression plan-to-yul"
+  match readExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "struct field read expression sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "struct field read expression slot"
+      | _ => throw <| IO.userError "struct field read expression slot must be literal"
+  | _ => throw <| IO.userError "struct field read expression must lower to sload"
+
 def testStructFieldWritePlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
   let directFieldStmts ← requireOk
@@ -4562,6 +4612,7 @@ def main : IO UInt32 := do
   testMapWritePlanToYul
   testArrayReadPlanToYul
   testArrayWritePlanToYul
+  testStructFieldReadPlanToYul
   testStructFieldWritePlanToYul
   testWholeStructStorageWritePlanToYul
   testStoragePathReadPlanToYul

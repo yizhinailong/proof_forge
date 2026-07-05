@@ -2039,7 +2039,12 @@ mutual
   partial def lowerStructFieldReadExpr
       (module : Module)
       (stateId fieldName : String) : Except LowerError Lean.Compiler.Yul.Expr := do
-    .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerStructFieldSlotExpr module stateId fieldName])
+    let target ← lowerPlan <|
+      ProofForge.Backend.Evm.Plan.structFieldReadTargetPlan module stateId fieldName
+    ProofForge.Backend.Evm.ToYul.structFieldReadTargetExpr
+      toYulError
+      (fun expr => lowerExpr module #[] expr)
+      target
 
   partial def lowerStructArrayFieldSlotExpr
       (module : Module)
@@ -2763,6 +2768,11 @@ mutual
     | .storageStructFieldRead stateId fieldName => do
         let (slot, _) ← requireStructStateField module stateId fieldName
         .ok (Lean.Compiler.Yul.builtin "sload" #[slotExpr slot])
+    | .storageStructFieldReadTarget target =>
+        ProofForge.Backend.Evm.ToYul.structFieldReadTargetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          target
     | .storageArrayStructFieldRead stateId index fieldName => do
         let (rootSlot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
         let indexExpr ← lowerExprPlanExpr module env index
@@ -5138,6 +5148,7 @@ mutual
     | .storageArrayRead _ index => exprPlanSupportsScalarBody index
     | .storageArrayReadTarget _ index => exprPlanSupportsScalarBody index
     | .storageStructFieldRead _ _ => true
+    | .storageStructFieldReadTarget _ => true
     | .storageArrayStructFieldRead _ index _ => exprPlanSupportsScalarBody index
     | .storagePathRead _ path => storagePathSupportsScalarBody path
     | _ => false

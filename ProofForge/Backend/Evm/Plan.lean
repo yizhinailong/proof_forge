@@ -238,6 +238,10 @@ structure StructFieldWriteTargetPlan where
   slot : StorageSlotPlan
   deriving Repr
 
+structure StructFieldReadTargetPlan where
+  slot : StorageSlotPlan
+  deriving Repr
+
 structure StructArrayFieldWriteTargetPlan where
   rootSlot : Nat
   length : Nat
@@ -473,6 +477,11 @@ def structFieldWriteTargetPlan
     (stateId fieldName : String) : Except PlanError StructFieldWriteTargetPlan := do
   .ok { slot := (← structFieldSlotPlan module stateId fieldName) }
 
+def structFieldReadTargetPlan
+    (module : Module)
+    (stateId fieldName : String) : Except PlanError StructFieldReadTargetPlan := do
+  .ok { slot := (← structFieldSlotPlan module stateId fieldName) }
+
 def storagePathWriteTargetPlan
     (module : Module)
     (stateId : String)
@@ -694,6 +703,7 @@ mutual
     | storageArrayStructFieldWrite (stateId : String) (index : ExprPlan) (fieldName : String) (value : ExprPlan)
     | storageArrayStructFieldWriteTarget (target : StructArrayFieldWriteTargetPlan) (index value : ExprPlan)
     | storageStructFieldRead (stateId fieldName : String)
+    | storageStructFieldReadTarget (target : StructFieldReadTargetPlan)
     | storageStructFieldWrite (stateId fieldName : String) (value : ExprPlan)
     | storageStructFieldWriteTarget (target : StructFieldWriteTargetPlan) (value : ExprPlan)
     | storagePathRead (stateId : String) (path : Array StoragePathSegment)
