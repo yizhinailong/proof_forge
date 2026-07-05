@@ -363,9 +363,13 @@ Tasks:
     index)` assembly instead of late compatibility-facade callbacks.
     Direct `storageStructFieldRead` now also consumes
     `StructFieldReadTargetPlan` and `ToYul.structFieldReadTargetExpr` for final
-    `sload(fieldSlot)` assembly. Struct-array field reads remain on their
-    existing state-id/field/index lookup path until their own target slice adds
-    coverage.
+    `sload(fieldSlot)` assembly. Direct `storageArrayStructFieldRead` now
+    consumes `StructArrayFieldReadTargetPlan` and
+    `ToYul.structArrayFieldReadTargetExpr` for final
+    `sload(__proof_forge_struct_array_slot(root, length, fieldCount,
+    fieldOffset, index))` assembly. Storage-path struct/array field surfaces
+    remain on their dedicated storage-path target path until typed path
+    expression planning is widened.
   - Started: whole-struct `storageScalarWrite` assembly now consumes a narrow
     `StmtPlan.effect` / `EffectPlan -> ToYul` helper for local struct sources,
     storage-struct read sources, and struct literals whose field expressions

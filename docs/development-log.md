@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Struct-Array Field Read Targets
+
+Commit: 0e87338
+
+Summary:
+
+- Added `StructArrayFieldReadTargetPlan` so direct
+  `storageArrayStructFieldRead` effects carry the planned struct-array root
+  slot, array length, field count, and field offset after
+  `Lower.buildEffectPlan`.
+- Routed `Lower.buildEffectPlan` to emit planned struct-array field read target
+  variants while preserving the legacy state-id/field/index variant for
+  fallback and compatibility paths.
+- Added `ToYul.structArrayFieldReadTargetExpr`, moving final
+  `sload(__proof_forge_struct_array_slot(root, length, fieldCount,
+  fieldOffset, index))` assembly behind the planned target instead of late
+  lookup in the compatibility facade.
+- Updated direct expression lowering and scalar-body expression support so both
+  `ExprPlan` recursion and raw `.effect (.storageArrayStructFieldRead ...)`
+  lowering consume the planned target path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/storage-struct-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- Storage-path struct/array field reads and writes still use their dedicated
+  storage-path target surfaces; typed path expression planning remains follow-up
+  work.
+
+Next step:
+
+- Continue with the remaining storage-path expression planning surfaces and map
+  contains/get target metadata.
+
 ### EVM Planned Struct Field Read Targets
 
 Commit: 9d743a9
@@ -50,13 +94,12 @@ git diff --check
 
 Known limitations:
 
-- Struct-array field reads still use their existing state-id/field/index lookup
-  path.
+- This slice only moved direct scalar struct field reads; struct-array field
+  read metadata is tracked by the next entry.
 
 Next step:
 
-- Move struct-array field read metadata behind a planned target, then continue
-  with the remaining storage-path expression planning surfaces.
+- Move struct-array field read metadata behind a planned target.
 
 ### EVM Planned Struct-Array Field Write Targets
 
