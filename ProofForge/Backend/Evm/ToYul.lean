@@ -314,6 +314,15 @@ def localArrayGetFunctionName (length : Nat) : String :=
 def nestedLocalArrayGetFunctionName (lengths : Array Nat) : String :=
   s!"__proof_forge_local_array_get_nested_{natPathSuffix lengths}"
 
+def localArrayGetValueParamName (index : Nat) : String :=
+  s!"value_{index}"
+
+def localArrayGetIndexParamName (index : Nat) : String :=
+  s!"index_{index}"
+
+def localArrayGetPathValueParamName (path : Array Nat) : String :=
+  s!"value_{natPathSuffix path}"
+
 partial def nestedLocalArrayLeafPaths (lengths : Array Nat) : Array (Array Nat) :=
   match lengths.toList with
   | [] => #[#[]]
@@ -325,6 +334,92 @@ partial def nestedLocalArrayLeafPaths (lengths : Array Nat) : Array (Array Nat) 
           for tail in nested do
             paths := paths.push (#[idx] ++ tail)
         paths
+
+def localArrayGetFunctionParams (length : Nat) : Array Lean.Compiler.Yul.TypedName :=
+  Id.run do
+    let mut params : Array Lean.Compiler.Yul.TypedName := #[{ name := "index" }]
+    for _h : idx in [0:length] do
+      params := params.push { name := localArrayGetValueParamName idx }
+    params
+
+def localArrayGetSwitchCases (length : Nat) : Array Lean.Compiler.Yul.Case :=
+  Id.run do
+    let mut cases : Array Lean.Compiler.Yul.Case := #[]
+    for _h : idx in [0:length] do
+      cases := cases.push {
+        value := some (Lean.Compiler.Yul.Literal.natLit idx)
+        body := {
+          statements := #[
+            .assignment #["result"] (Lean.Compiler.Yul.Expr.id (localArrayGetValueParamName idx))
+          ]
+        }
+      }
+    cases.push {
+      value := none
+      body := {
+        statements := #[
+          .exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+        ]
+      }
+    }
+
+def localArrayGetHelperFunction (length : Nat) : Lean.Compiler.Yul.Statement :=
+  .funcDef (localArrayGetFunctionName length)
+    (localArrayGetFunctionParams length)
+    #[{ name := "result" }]
+    {
+      statements := #[
+        .switchStmt (Lean.Compiler.Yul.Expr.id "index") (localArrayGetSwitchCases length)
+      ]
+    }
+
+def localArrayGetHelperFunctions (lengths : Array Nat) : Array Lean.Compiler.Yul.Statement :=
+  lengths.map localArrayGetHelperFunction
+
+def nestedLocalArrayGetFunctionParams (lengths : Array Nat) : Array Lean.Compiler.Yul.TypedName :=
+  Id.run do
+    let mut params : Array Lean.Compiler.Yul.TypedName := #[]
+    for _h : idx in [0:lengths.size] do
+      params := params.push { name := localArrayGetIndexParamName idx }
+    for path in nestedLocalArrayLeafPaths lengths do
+      params := params.push { name := localArrayGetPathValueParamName path }
+    params
+
+partial def nestedLocalArrayGetSwitchStatements
+    (lengths : Array Nat)
+    (depth : Nat)
+    (path : Array Nat) : Array Lean.Compiler.Yul.Statement :=
+  match lengths.toList with
+  | [] =>
+      #[.assignment #["result"] (Lean.Compiler.Yul.Expr.id (localArrayGetPathValueParamName path))]
+  | length :: rest =>
+      let cases := Id.run do
+        let mut cases : Array Lean.Compiler.Yul.Case := #[]
+        for _h : idx in [0:length] do
+          cases := cases.push {
+            value := some (Lean.Compiler.Yul.Literal.natLit idx)
+            body := {
+              statements := nestedLocalArrayGetSwitchStatements rest.toArray (depth + 1) (path.push idx)
+            }
+          }
+        cases.push {
+          value := none
+          body := {
+            statements := #[
+              .exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])
+            ]
+          }
+        }
+      #[.switchStmt (Lean.Compiler.Yul.Expr.id (localArrayGetIndexParamName depth)) cases]
+
+def nestedLocalArrayGetHelperFunction (lengths : Array Nat) : Lean.Compiler.Yul.Statement :=
+  .funcDef (nestedLocalArrayGetFunctionName lengths)
+    (nestedLocalArrayGetFunctionParams lengths)
+    #[{ name := "result" }]
+    { statements := nestedLocalArrayGetSwitchStatements lengths 0 #[] }
+
+def nestedLocalArrayGetHelperFunctions (lengths : Array (Array Nat)) : Array Lean.Compiler.Yul.Statement :=
+  lengths.map nestedLocalArrayGetHelperFunction
 
 def localArrayStaticPath? (path : Array ExprPlan) : Option (Array Nat) :=
   path.foldl

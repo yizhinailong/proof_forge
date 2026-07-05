@@ -756,6 +756,29 @@ def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
   require
     plan.usesCheckedArithmetic
     "array value probe must plan checked arithmetic helpers"
+  let localHelpers :=
+    ProofForge.Backend.Evm.ToYul.localArrayGetHelperFunctions plan.localArrayGetLengths
+  require
+    (statementsHaveFunctionNamed localHelpers (ProofForge.Backend.Evm.ToYul.localArrayGetFunctionName 3))
+    "local-array ToYul helpers include length-3 getter"
+  require
+    (statementsHaveFunctionNamed localHelpers (ProofForge.Backend.Evm.ToYul.localArrayGetFunctionName 2))
+    "local-array ToYul helpers include length-2 getter"
+  let nestedHelpers :=
+    ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetHelperFunctions plan.nestedLocalArrayGetShapes
+  require
+    (statementsHaveFunctionNamed nestedHelpers (ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetFunctionName #[2, 2]))
+    "nested local-array ToYul helpers include 2x2 getter"
+  let object ←
+    requireOk
+      (lowerModuleWithPlan ProofForge.IR.Examples.EvmArrayValueProbe.module plan)
+      "array value probe plan-driven module lowering"
+  require
+    (statementsHaveFunctionNamed object.code.statements (ProofForge.Backend.Evm.ToYul.localArrayGetFunctionName 3))
+    "plan-driven module lowering includes length-3 local-array helper"
+  require
+    (statementsHaveFunctionNamed object.code.statements (ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetFunctionName #[2, 2]))
+    "plan-driven module lowering includes nested local-array helper"
 
 def testEntrypointDispatchPlanToYul : IO Unit := do
   let plan ← requireOk (buildSemanticPlan ProofForge.IR.Examples.Counter.module) "counter plan"
