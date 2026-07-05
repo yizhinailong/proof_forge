@@ -17,6 +17,54 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Storage Crosscall Argument Sources
+
+Commit: 221f486
+
+Summary:
+
+- Preserved storage-backed aggregate crosscall arguments as
+  `CrosscallArgWordPlan.storage` source plans instead of pre-expanding them to
+  per-field `ExprPlan.storageLoad` words in `Lower`.
+- Kept storage source validation by reusing `Lower.storageCrosscallWordPlans`
+  before emitting the storage source plan.
+- Added semantic-plan coverage showing active `buildExprPlan` output records
+  storage-backed aggregate crosscall arguments as storage source plans while
+  ToYul provider expansion still emits the same helper-call argument words.
+- Added module-level altered-plan coverage proving `lowerModuleWithPlan`
+  consumes storage aggregate crosscall argument source plans.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Storage crosscall source planning currently covers struct scalar storage reads;
+  unsupported storage source shapes still fail validation or fall back through
+  existing compatibility paths.
+- Already-expanded scalar storage-load words still use
+  `CrosscallArgWordPlan.expr`.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving another storage, event, or crosscall statement shape from the
+  compatibility facade into the planned-body `Lower -> Plan -> ToYul` path.
+
 ### EVM Planned Aggregate Crosscall Arguments
 
 Commit: 1c38854
