@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Create ExprPlan Routing
+
+Commit: d3fc0b9
+
+Summary:
+
+- Routed legacy `crosscallCreate` and `crosscallCreate2` expression lowering
+  through `Lower.buildExpressionExprPlan`, `ExprPlan.create`, and
+  `ToYul.exprPlanExpr` instead of assembling create helper calls directly in
+  `IR.lowerExpr`.
+- Added semantic-plan coverage for direct create/create2 plan shapes and direct
+  IR expression lowering results.
+- Kept create/create2 helper-call naming aligned with the same ToYul helper-name
+  selection used for helper body emission.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still supplies validation-backed provider callbacks for local and
+  storage crosscall source plans.
+- Some non-create expression, statement, storage, event, and aggregate paths still
+  pass through the compatibility facade until their own semantic-plan slices land.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving the next expression or statement shape from the compatibility
+  facade into the `Lower -> Plan -> ToYul` path, with direct semantic-plan tests
+  before removing additional IR-local assembly.
+
 ### EVM Untyped Crosscall ExprPlan Routing
 
 Commit: f91338f
