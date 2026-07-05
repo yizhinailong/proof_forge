@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Legacy Storage-Path Read Wrapper Removal
+
+Commit: 11a7e10
+
+Summary:
+
+- Removed the now-unused `lowerStoragePathReadExpr` compatibility wrapper from
+  `IR.lean`.
+- Kept `lowerStoragePathReadExprTarget` because raw planned effects and
+  diagnostic-only paths still need a typed storage-path target callback.
+- Left expression-position storage-path reads on the existing
+  `Lower.buildEffectPlan` / `StorageSlotExprPlan -> ToYul` path.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+rg -n "\blowerStoragePathReadExpr\b|\blowerStoragePathReadExprTarget\b" ProofForge/Backend/Evm/IR.lean Tests/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md docs/development-log.md
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- `lowerStoragePathReadExprTarget` remains as a compatibility target callback
+  for raw planned effects and diagnostic-only paths.
+- Storage-path write and assign-op fallback target selection still keeps
+  compatibility callbacks in `IR.lean`.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue auditing storage-path callback surfaces and remove helpers once they
+  are demonstrably unused.
+
 ### EVM Dead Storage Read Helper Removal
 
 Commit: 053b83f
