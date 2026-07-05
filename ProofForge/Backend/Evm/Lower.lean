@@ -450,6 +450,9 @@ partial def abiValuePlanFromExprPlan
       | .local name => do
           validateLocalAbiWordPlan module env context name expectedType
           .ok (.local name expectedType)
+      | .effect (.storageScalarRead stateId) => do
+          ensureType s!"{context} storage value" (.structType typeName) (← scalarStateType module stateId)
+          .ok (.storage stateId expectedType)
       | .structLit literalTypeName fields => do
           if literalTypeName != typeName then
             .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }

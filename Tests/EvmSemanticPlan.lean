@@ -143,6 +143,37 @@ def blockHasAssignmentNat
         names == #[targetName] && exprIsNatLiteral expr expected
     | _ => false
 
+def blockHasAssignmentSloadSlot
+    (block : Lean.Compiler.Yul.Block)
+    (targetName : String)
+    (expectedSlot : Nat) : Bool :=
+  block.statements.any fun stmt =>
+    match stmt with
+    | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.builtin "sload" args) =>
+        names == #[targetName] &&
+          match args[0]? with
+          | some slot => exprIsNatLiteral slot expectedSlot
+          | none => false
+    | _ => false
+
+mutual
+  partial def blockHasSstore (block : Lean.Compiler.Yul.Block) : Bool :=
+    block.statements.any statementHasSstore
+
+  partial def statementHasSstore : Lean.Compiler.Yul.Statement → Bool
+    | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" _) =>
+        true
+    | Lean.Compiler.Yul.Statement.block block =>
+        blockHasSstore block
+    | Lean.Compiler.Yul.Statement.ifStmt _ body =>
+        blockHasSstore body
+    | Lean.Compiler.Yul.Statement.switchStmt _ cases =>
+        cases.any fun c => blockHasSstore c.body
+    | Lean.Compiler.Yul.Statement.forLoop pre _ post body =>
+        blockHasSstore pre || blockHasSstore post || blockHasSstore body
+    | _ => false
+end
+
 def requireCallExpr
     (expr : Lean.Compiler.Yul.Expr)
     (expectedName : String)
@@ -1191,6 +1222,42 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
     "plan-driven entrypoint lowering must consume aggregate return word 77"
   require (blockHasAssignmentNat alteredMakePairBody "__proof_forge_return_1" 88)
     "plan-driven entrypoint lowering must consume aggregate return word 88"
+  let storageStructPlan ← requireOk
+    (buildSemanticPlan ProofForge.IR.Examples.EvmStorageStructProbe.module)
+    "storage struct return plan"
+  let alteredStorageStructEntrypoints := storageStructPlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "whole_struct_return" then
+      { entrypoint with
+        body := #[
+          StmtPlan.return
+            (ExprPlan.effect (EffectPlan.storageScalarRead "current"))
+        ]
+      }
+    else
+      entrypoint
+  let alteredStorageStructPlan :=
+    { storageStructPlan with entrypoints := alteredStorageStructEntrypoints }
+  let alteredStorageStructObject ← requireOk
+    (lowerModuleWithPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      alteredStorageStructPlan)
+    "storage struct altered return plan-driven module lowering"
+  let alteredWholeStructEntrypoint ← requireSome
+    (alteredStorageStructPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "whole_struct_return"))
+    "storage struct altered plan missing whole_struct_return entrypoint"
+  let alteredWholeStructFunctionName :=
+    ProofForge.Backend.Evm.ToYul.entrypointPlanFunctionName
+      ProofForge.IR.Examples.EvmStorageStructProbe.module.name
+      alteredWholeStructEntrypoint
+  let alteredWholeStructBody ← requireSome
+    (functionBody? alteredStorageStructObject.code.statements alteredWholeStructFunctionName)
+    "storage struct altered plan function body missing"
+  require (blockHasAssignmentSloadSlot alteredWholeStructBody "__proof_forge_return_0" 1)
+    "plan-driven entrypoint lowering must consume storage struct return slot 1"
+  require (blockHasAssignmentSloadSlot alteredWholeStructBody "__proof_forge_return_1" 2)
+    "plan-driven entrypoint lowering must consume storage struct return slot 2"
+  require (!blockHasSstore alteredWholeStructBody)
+    "plan-driven storage struct return body must not fall back to portable IR storage writes"
   let transferEntrypoint ← requireSome
     (dynamicPlan.entrypoints.find? (fun entrypoint => entrypoint.name == "transfer"))
     "dynamic ABI plan missing transfer entrypoint"
@@ -2287,6 +2354,37 @@ def testReturnValueWordPlanToYul : IO Unit := do
       require (names == #["__proof_forge_return_0"]) "Lower literal struct return first target"
       require (value.value == "4") "Lower literal struct return first literal"
   | _ => throw <| IO.userError "Lower literal struct return first statement must assign literal ABI word"
+  let plannedStorageStructPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.returnValueWordPlanFromExprPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      (toValidateTypeEnv #[])
+      "whole_struct_return"
+      (.structType "Point")
+      (ExprPlan.effect (EffectPlan.storageScalarRead "current")))
+    "Lower planned storage struct return value word plan"
+  match plannedStorageStructPlan.source with
+  | AbiValuePlan.storage stateId type => do
+      require (stateId == "current") "Lower planned storage struct return source state"
+      require (type == .structType "Point") "Lower planned storage struct return source type"
+  | _ => throw <| IO.userError "Lower planned storage struct return must use storage ABI value source plan"
+  let plannedStorageStructAssignments ← requireOk
+    (lowerReturnValueWordPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      #[]
+      "whole_struct_return"
+      plannedStorageStructPlan)
+    "Lower planned storage struct return value word plan ToYul integration"
+  require (plannedStorageStructAssignments.size == 2)
+    "Lower planned storage struct return assignment count"
+  match plannedStorageStructAssignments[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.builtin "sload" args) => do
+      require (names == #["__proof_forge_return_0"]) "Lower planned storage struct return first target"
+      require (args.size == 1) "Lower planned storage struct return first sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit slot =>
+          require (slot.value == "1") "Lower planned storage struct return first slot"
+      | _ => throw <| IO.userError "Lower planned storage struct return first source must use literal slot"
+  | _ => throw <| IO.userError "Lower planned storage struct return first statement must assign sload ABI word"
   let storageArrayValue : Expr := .arrayLit .u64 #[
     .effect (.storageArrayRead "values" (ProofForge.IR.Examples.EvmStorageArrayProbe.u64 0)),
     .effect (.storageArrayRead "values" (ProofForge.IR.Examples.EvmStorageArrayProbe.u64 1)),

@@ -5015,6 +5015,7 @@ partial def exprPlanSupportsAggregateReturnBody
   | .structType _ =>
       match value with
       | .local _ => true
+      | .effect (.storageScalarRead _) => true
       | .structLit _ fields =>
           fields.all fun field => exprPlanSupportsScalarBody field.snd
       | _ => false
