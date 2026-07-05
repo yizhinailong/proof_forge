@@ -220,6 +220,10 @@ structure MapStatePlan where
   capacity : Nat
   deriving Repr
 
+structure MapWriteTargetPlan where
+  rootSlot : Nat
+  deriving Repr
+
 def requireState (module : Module) (stateId : String) : Except PlanError (Nat × StateDecl) :=
   match stateInfo? module stateId with
   | some info => .ok info
@@ -237,6 +241,10 @@ def requireMapState (module : Module) (stateId : String) : Except PlanError MapS
     }
   | .scalar | .array _ =>
       .error { message := s!"EVM storage state '{stateId}' is not a map" }
+
+def mapWriteTargetPlan (module : Module) (stateId : String) : Except PlanError MapWriteTargetPlan := do
+  let mapState ← requireMapState module stateId
+  .ok { rootSlot := mapState.rootSlot }
 
 def scalarSlotPlan (module : Module) (stateId : String) : Except PlanError StorageSlotPlan := do
   if stateId == "$eip1967.implementation" then
@@ -634,7 +642,9 @@ mutual
     | storageMapContains (stateId : String) (key : ExprPlan)
     | storageMapGet (stateId : String) (key : ExprPlan)
     | storageMapInsert (stateId : String) (key value : ExprPlan)
+    | storageMapInsertTarget (target : MapWriteTargetPlan) (key value : ExprPlan)
     | storageMapSet (stateId : String) (key value : ExprPlan)
+    | storageMapSetTarget (target : MapWriteTargetPlan) (key value : ExprPlan)
     | storageArrayRead (stateId : String) (index : ExprPlan)
     | storageArrayWrite (stateId : String) (index value : ExprPlan)
     | storageArrayStructFieldRead (stateId : String) (index : ExprPlan) (fieldName : String)

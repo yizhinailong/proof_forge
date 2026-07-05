@@ -35,6 +35,11 @@ def scalarStorageTargetPlan? (module : Module) (stateId : String) : Option Scala
   | .ok target => some target
   | .error _ => none
 
+def mapWriteTargetPlan? (module : Module) (stateId : String) : Option MapWriteTargetPlan :=
+  match mapWriteTargetPlan module stateId with
+  | .ok target => some target
+  | .error _ => none
+
 def abiParamPlan
     (module : Module)
     (context : String)
@@ -424,9 +429,17 @@ mutual
     | .storageMapGet stateId key => do
         .ok (.storageMapGet stateId (← buildExprPlan module env key))
     | .storageMapInsert stateId key value => do
-        .ok (.storageMapInsert stateId (← buildExprPlan module env key) (← buildExprPlan module env value))
+        let keyPlan ← buildExprPlan module env key
+        let valuePlan ← buildExprPlan module env value
+        match mapWriteTargetPlan? module stateId with
+        | some target => .ok (.storageMapInsertTarget target keyPlan valuePlan)
+        | none => .ok (.storageMapInsert stateId keyPlan valuePlan)
     | .storageMapSet stateId key value => do
-        .ok (.storageMapSet stateId (← buildExprPlan module env key) (← buildExprPlan module env value))
+        let keyPlan ← buildExprPlan module env key
+        let valuePlan ← buildExprPlan module env value
+        match mapWriteTargetPlan? module stateId with
+        | some target => .ok (.storageMapSetTarget target keyPlan valuePlan)
+        | none => .ok (.storageMapSet stateId keyPlan valuePlan)
     | .storageArrayRead stateId index => do
         .ok (.storageArrayRead stateId (← buildExprPlan module env index))
     | .storageArrayWrite stateId index value => do

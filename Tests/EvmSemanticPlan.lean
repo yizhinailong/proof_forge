@@ -89,6 +89,12 @@ def requireScalarStorageTarget
   require (target.byteOffset == expectedByteOffset) s!"{label} byte offset"
   require (target.byteWidth == expectedByteWidth) s!"{label} byte width"
 
+def requireMapWriteTarget
+    (target : MapWriteTargetPlan)
+    (expectedRootSlot : Nat)
+    (label : String) : IO Unit := do
+  require (target.rootSlot == expectedRootSlot) s!"{label} root slot"
+
 def requireIdentExpr
     (expr : Lean.Compiler.Yul.Expr)
     (expectedName : String)
@@ -3300,6 +3306,79 @@ def testMapWritePlanToYul : IO Unit := do
       require (name == mapWriteFunctionName) "map insert StmtPlan-to-Yul helper call"
       require (args.size == 3) "map insert StmtPlan-to-Yul helper arg count"
   | _ => throw <| IO.userError "map insert StmtPlan-to-Yul helper must lower to helper call"
+  let loweredMapSetEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmMapProbe.module
+      (toValidateTypeEnv env)
+      (.storageMapSet "balances" (.local "key") (.local "value")))
+    "Lower map set target effect plan"
+  match loweredMapSetEffect with
+  | .storageMapSetTarget target (.local keyName) (.local valueName) => do
+      requireMapWriteTarget target 1 "Lower map set target"
+      require (keyName == "key") "Lower map set target key"
+      require (valueName == "value") "Lower map set target value"
+  | _ => throw <| IO.userError "Lower map set must produce storageMapSetTarget"
+  let loweredMapInsertEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmMapProbe.module
+      (toValidateTypeEnv env)
+      (.storageMapInsert "balances" (.local "key") (.local "value")))
+    "Lower map insert target effect plan"
+  match loweredMapInsertEffect with
+  | .storageMapInsertTarget target (.local keyName) (.local valueName) => do
+      requireMapWriteTarget target 1 "Lower map insert target"
+      require (keyName == "key") "Lower map insert target key"
+      require (valueName == "value") "Lower map insert target value"
+  | _ => throw <| IO.userError "Lower map insert must produce storageMapInsertTarget"
+  let directPlannedWriteStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.mapWriteTargetEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmMapProbe.module env)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.storageMapSetTarget
+          { rootSlot := 1 }
+          (.checkedArith .add (.local "key") (.literalWord 1))
+          (.local "value"))))
+    "planned map write target StmtPlan-to-Yul helper"
+  require (directPlannedWriteStmts.size == 1) "planned map write target helper statement count"
+  match directPlannedWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
+      require (name == mapWriteFunctionName) "planned map write target helper call"
+      require (args.size == 3) "planned map write target helper arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "planned map write target helper root slot"
+      | _ => throw <| IO.userError "planned map write target helper root slot must be literal"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "planned map write target helper key checked add"
+          require (addArgs.size == 2) "planned map write target helper key checked add arg count"
+      | _ => throw <| IO.userError "planned map write target helper key must be checked add"
+  | _ => throw <| IO.userError "planned map write target helper must lower to helper call"
+  let directPlannedSetReturnExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.mapSetReturnTargetExpr
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmMapProbe.module env)
+      { rootSlot := 1 }
+      (.local "key")
+      (.checkedArith .add (.local "value") (.literalWord 2)))
+    "planned map set-return target expr-to-Yul helper"
+  match directPlannedSetReturnExpr with
+  | Lean.Compiler.Yul.Expr.call name args => do
+      require (name == mapSetReturnFunctionName) "planned map set-return target helper"
+      require (args.size == 3) "planned map set-return target arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "planned map set-return target root slot"
+      | _ => throw <| IO.userError "planned map set-return target root slot must be literal"
+      match args[2]! with
+      | Lean.Compiler.Yul.Expr.call addName addArgs => do
+          require (addName == "__pf_checked_add") "planned map set-return target value checked add"
+          require (addArgs.size == 2) "planned map set-return target value checked add arg count"
+      | _ => throw <| IO.userError "planned map set-return target value must be checked add"
+  | _ => throw <| IO.userError "planned map set-return target must lower to helper call"
   let writeStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.EvmMapProbe.module

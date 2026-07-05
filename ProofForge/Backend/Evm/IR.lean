@@ -2720,6 +2720,15 @@ mutual
             ProofForge.Backend.Evm.Plan.Helper.mapSlot
             #[slotExpr rootSlot, keyExpr]
         .ok (Lean.Compiler.Yul.builtin "sload" #[valueSlot])
+    | .storageMapInsertTarget target key value
+    | .storageMapSetTarget target key value =>
+        ProofForge.Backend.Evm.ToYul.mapSetReturnTargetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          target
+          key
+          value
     | .storageArrayRead stateId index => do
         let (rootSlot, length, _) ← requireStorageArrayState module stateId
         let indexExpr ← lowerExprPlanExpr module env index
@@ -3252,7 +3261,7 @@ partial def lowerMapWriteStmtPlanOrFallback
     (module : Module)
     (env : TypeEnv)
     (stateId : String)
-    (mkEffect : String → ProofForge.Backend.Evm.Plan.ExprPlan → ProofForge.Backend.Evm.Plan.ExprPlan → ProofForge.Backend.Evm.Plan.EffectPlan)
+    (mkEffect : ProofForge.Backend.Evm.Plan.MapWriteTargetPlan → ProofForge.Backend.Evm.Plan.ExprPlan → ProofForge.Backend.Evm.Plan.ExprPlan → ProofForge.Backend.Evm.Plan.EffectPlan)
     (key value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   if exprSupportsPlanScalarYul key && exprSupportsPlanScalarYul value then
     let keyPlan ←
@@ -3263,15 +3272,14 @@ partial def lowerMapWriteStmtPlanOrFallback
       match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
+    let targetPlan ← lowerPlan <|
+      ProofForge.Backend.Evm.Plan.mapWriteTargetPlan module stateId
     let statements ←
-      ProofForge.Backend.Evm.ToYul.mapWriteEffectStmtPlanStatements
+      ProofForge.Backend.Evm.ToYul.mapWriteTargetEffectStmtPlanStatements
         toYulError
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
-        (fun stateId => do
-          let (slot, _, _) ← requireStorageMapState module stateId
-          .ok (slotExpr slot))
-        (.effect (mkEffect stateId keyPlan valuePlan))
+        (.effect (mkEffect targetPlan keyPlan valuePlan))
     match statements[0]? with
     | some statement =>
         if statements.size == 1 then
@@ -3855,9 +3863,9 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
   | .storageMapGet _ _ =>
       .error { message := "storage.map.get must be used as an expression" }
   | .storageMapInsert stateId key value =>
-      lowerMapWriteStmtPlanOrFallback module env stateId (fun stateId key value => .storageMapInsert stateId key value) key value
+      lowerMapWriteStmtPlanOrFallback module env stateId (fun target key value => .storageMapInsertTarget target key value) key value
   | .storageMapSet stateId key value =>
-      lowerMapWriteStmtPlanOrFallback module env stateId (fun stateId key value => .storageMapSet stateId key value) key value
+      lowerMapWriteStmtPlanOrFallback module env stateId (fun target key value => .storageMapSetTarget target key value) key value
   | .storageArrayRead _ _ =>
       .error { message := "storage.array.read must be used as an expression" }
   | .storageArrayWrite stateId index value =>
@@ -5211,6 +5219,9 @@ def effectPlanSupportsScalarBodyStmt :
   | .storageMapInsert _ key value
   | .storageMapSet _ key value =>
       exprPlanSupportsScalarBody key && exprPlanSupportsScalarBody value
+  | .storageMapInsertTarget _ key value
+  | .storageMapSetTarget _ key value =>
+      exprPlanSupportsScalarBody key && exprPlanSupportsScalarBody value
   | .storageArrayWrite _ index value =>
       exprPlanSupportsScalarBody index && exprPlanSupportsScalarBody value
   | .storageArrayStructFieldWrite _ index _ value =>
@@ -5405,6 +5416,12 @@ def lowerScalarBodyEffectPlan
             (lowerScalarStorageSlotExpr module env)
             (scalarStatePacking module)
             (.effect effect)
+  | .storageMapInsertTarget .. | .storageMapSetTarget .. =>
+      ProofForge.Backend.Evm.ToYul.mapWriteTargetEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (.effect effect)
   | .storageMapInsert .. | .storageMapSet .. =>
       ProofForge.Backend.Evm.ToYul.mapWriteEffectStmtPlanStatements
         toYulError
