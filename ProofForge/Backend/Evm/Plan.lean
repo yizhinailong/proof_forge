@@ -224,6 +224,10 @@ structure MapWriteTargetPlan where
   rootSlot : Nat
   deriving Repr
 
+structure MapReadTargetPlan where
+  rootSlot : Nat
+  deriving Repr
+
 structure ArrayWriteTargetPlan where
   rootSlot : Nat
   length : Nat
@@ -275,6 +279,10 @@ def requireMapState (module : Module) (stateId : String) : Except PlanError MapS
       .error { message := s!"EVM storage state '{stateId}' is not a map" }
 
 def mapWriteTargetPlan (module : Module) (stateId : String) : Except PlanError MapWriteTargetPlan := do
+  let mapState ← requireMapState module stateId
+  .ok { rootSlot := mapState.rootSlot }
+
+def mapReadTargetPlan (module : Module) (stateId : String) : Except PlanError MapReadTargetPlan := do
   let mapState ← requireMapState module stateId
   .ok { rootSlot := mapState.rootSlot }
 
@@ -704,7 +712,9 @@ mutual
     | storageScalarAssignOp (stateId : String) (op : AssignOp) (value : ExprPlan)
     | storageScalarAssignOpTarget (target : ScalarStorageTargetPlan) (op : AssignOp) (value : ExprPlan)
     | storageMapContains (stateId : String) (key : ExprPlan)
+    | storageMapContainsTarget (target : MapReadTargetPlan) (key : ExprPlan)
     | storageMapGet (stateId : String) (key : ExprPlan)
+    | storageMapGetTarget (target : MapReadTargetPlan) (key : ExprPlan)
     | storageMapInsert (stateId : String) (key value : ExprPlan)
     | storageMapInsertTarget (target : MapWriteTargetPlan) (key value : ExprPlan)
     | storageMapSet (stateId : String) (key value : ExprPlan)

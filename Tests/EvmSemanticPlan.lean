@@ -95,6 +95,12 @@ def requireMapWriteTarget
     (label : String) : IO Unit := do
   require (target.rootSlot == expectedRootSlot) s!"{label} root slot"
 
+def requireMapReadTarget
+    (target : MapReadTargetPlan)
+    (expectedRootSlot : Nat)
+    (label : String) : IO Unit := do
+  require (target.rootSlot == expectedRootSlot) s!"{label} root slot"
+
 def requireArrayWriteTarget
     (target : ArrayWriteTargetPlan)
     (expectedRootSlot expectedLength : Nat)
@@ -3308,6 +3314,115 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "scalar storage assign_op plan-to-yul value must be packed write (or/and/shl)"
   | _ => throw <| IO.userError "scalar storage assign_op plan-to-yul must lower to sstore"
 
+def testMapReadPlanToYul : IO Unit := do
+  let env : TypeEnv := #[
+    { name := "key", type := .u64, isMutable := false },
+    { name := "value", type := .u64, isMutable := false }
+  ]
+  let loweredContainsEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmMapProbe.module
+      (toValidateTypeEnv env)
+      (.storageMapContains "balances" (.local "key")))
+    "Lower map contains target effect plan"
+  match loweredContainsEffect with
+  | .storageMapContainsTarget target (.local keyName) => do
+      requireMapReadTarget target 1 "Lower map contains target"
+      require (keyName == "key") "Lower map contains target key"
+  | _ => throw <| IO.userError "Lower map contains must produce storageMapContainsTarget"
+  let loweredGetEffect ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmMapProbe.module
+      (toValidateTypeEnv env)
+      (.storageMapGet "balances" (.local "key")))
+    "Lower map get target effect plan"
+  match loweredGetEffect with
+  | .storageMapGetTarget target (.local keyName) => do
+      requireMapReadTarget target 1 "Lower map get target"
+      require (keyName == "key") "Lower map get target key"
+  | _ => throw <| IO.userError "Lower map get must produce storageMapGetTarget"
+  let directContainsExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.mapContainsTargetExpr
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmMapProbe.module env)
+      { rootSlot := 1 }
+      (.checkedArith .add (.local "key") (.literalWord 1)))
+    "planned map contains target expr-to-Yul helper"
+  match directContainsExpr with
+  | Lean.Compiler.Yul.Expr.builtin "iszero" args => do
+      require (args.size == 1) "planned map contains target outer iszero arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.builtin "iszero" innerArgs => do
+          require (innerArgs.size == 1) "planned map contains target inner iszero arg count"
+          match innerArgs[0]! with
+          | Lean.Compiler.Yul.Expr.builtin "sload" loadArgs => do
+              require (loadArgs.size == 1) "planned map contains target sload arg count"
+              match loadArgs[0]! with
+              | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+                  require (slotName == mapPresenceSlotFunctionName) "planned map contains target presence slot helper"
+                  require (slotArgs.size == 2) "planned map contains target presence slot arg count"
+                  match slotArgs[0]! with
+                  | Lean.Compiler.Yul.Expr.lit literal =>
+                      require (literal.value == "1") "planned map contains target root slot"
+                  | _ => throw <| IO.userError "planned map contains target root slot must be literal"
+                  match slotArgs[1]! with
+                  | Lean.Compiler.Yul.Expr.call addName addArgs => do
+                      require (addName == "__pf_checked_add") "planned map contains target key checked add"
+                      require (addArgs.size == 2) "planned map contains target key checked add arg count"
+                  | _ => throw <| IO.userError "planned map contains target key must be checked add"
+              | _ => throw <| IO.userError "planned map contains target slot must use presence helper"
+          | _ => throw <| IO.userError "planned map contains target inner must load presence"
+      | _ => throw <| IO.userError "planned map contains target must use nested iszero"
+  | _ => throw <| IO.userError "planned map contains target must lower to iszero"
+  let directGetExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.mapGetTargetExpr
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmMapProbe.module env)
+      { rootSlot := 1 }
+      (.checkedArith .add (.local "key") (.literalWord 2)))
+    "planned map get target expr-to-Yul helper"
+  match directGetExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "planned map get target sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == mapSlotFunctionName) "planned map get target value slot helper"
+          require (slotArgs.size == 2) "planned map get target value slot arg count"
+          match slotArgs[0]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "1") "planned map get target root slot"
+          | _ => throw <| IO.userError "planned map get target root slot must be literal"
+          match slotArgs[1]! with
+          | Lean.Compiler.Yul.Expr.call addName addArgs => do
+              require (addName == "__pf_checked_add") "planned map get target key checked add"
+              require (addArgs.size == 2) "planned map get target key checked add arg count"
+          | _ => throw <| IO.userError "planned map get target key must be checked add"
+      | _ => throw <| IO.userError "planned map get target slot must use map helper"
+  | _ => throw <| IO.userError "planned map get target must lower to sload"
+  let containsExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.EvmMapProbe.module
+      env
+      (.effect (.storageMapContains "balances" (.add (.local "key") (.literal (.u64 1))))))
+    "map contains expression plan-to-yul"
+  match containsExpr with
+  | Lean.Compiler.Yul.Expr.builtin "iszero" args => do
+      require (args.size == 1) "map contains expression outer iszero arg count"
+  | _ => throw <| IO.userError "map contains expression must lower to iszero"
+  let getExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.EvmMapProbe.module
+      env
+      (.effect (.storageMapGet "balances" (.add (.local "key") (.literal (.u64 1))))))
+    "map get expression plan-to-yul"
+  match getExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "map get expression sload arg count"
+      requireCallExpr args[0]! mapSlotFunctionName 2 "map get expression value slot helper"
+  | _ => throw <| IO.userError "map get expression must lower to sload"
+
 def testMapWritePlanToYul : IO Unit := do
   let env : TypeEnv := #[
     { name := "key", type := .u64, isMutable := false },
@@ -4681,6 +4796,7 @@ def main : IO UInt32 := do
   testScalarControlFlowPlanToYul
   testScalarEventPlanToYul
   testScalarStorageEffectPlanToYul
+  testMapReadPlanToYul
   testMapWritePlanToYul
   testArrayReadPlanToYul
   testArrayWritePlanToYul

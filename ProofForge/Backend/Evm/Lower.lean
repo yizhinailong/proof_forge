@@ -40,6 +40,11 @@ def mapWriteTargetPlan? (module : Module) (stateId : String) : Option MapWriteTa
   | .ok target => some target
   | .error _ => none
 
+def mapReadTargetPlan? (module : Module) (stateId : String) : Option MapReadTargetPlan :=
+  match mapReadTargetPlan module stateId with
+  | .ok target => some target
+  | .error _ => none
+
 def arrayWriteTargetPlan? (module : Module) (stateId : String) : Option ArrayWriteTargetPlan :=
   match arrayWriteTargetPlan module stateId with
   | .ok target => some target
@@ -463,9 +468,15 @@ mutual
         | some target => .ok (.storageScalarAssignOpTarget target op valuePlan)
         | none => .ok (.storageScalarAssignOp stateId op valuePlan)
     | .storageMapContains stateId key => do
-        .ok (.storageMapContains stateId (← buildExprPlan module env key))
+        let keyPlan ← buildExprPlan module env key
+        match mapReadTargetPlan? module stateId with
+        | some target => .ok (.storageMapContainsTarget target keyPlan)
+        | none => .ok (.storageMapContains stateId keyPlan)
     | .storageMapGet stateId key => do
-        .ok (.storageMapGet stateId (← buildExprPlan module env key))
+        let keyPlan ← buildExprPlan module env key
+        match mapReadTargetPlan? module stateId with
+        | some target => .ok (.storageMapGetTarget target keyPlan)
+        | none => .ok (.storageMapGet stateId keyPlan)
     | .storageMapInsert stateId key value => do
         let keyPlan ← buildExprPlan module env key
         let valuePlan ← buildExprPlan module env value

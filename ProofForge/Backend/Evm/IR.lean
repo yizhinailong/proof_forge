@@ -1905,14 +1905,30 @@ mutual
     let plan ← lowerPlan <| ProofForge.Backend.Evm.Plan.mapValueSlotPlan module stateId #[key]
     lowerStorageSlotPlanExpr module env plan
 
-  partial def lowerMapGetExpr
+  partial def lowerMapGetExprFallback
       (module : Module)
       (env : TypeEnv)
       (stateId : String)
       (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
     .ok (Lean.Compiler.Yul.builtin "sload" #[← lowerMapSlotExpr module env stateId key])
 
-  partial def lowerMapContainsExpr
+  partial def lowerMapGetExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storageMapGet stateId key) with
+    | .ok (.storageMapGetTarget target keyPlan) =>
+        ProofForge.Backend.Evm.ToYul.mapGetTargetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          target
+          keyPlan
+    | .ok _ | .error _ =>
+        lowerMapGetExprFallback module env stateId key
+
+  partial def lowerMapContainsExprFallback
       (module : Module)
       (env : TypeEnv)
       (stateId : String)
@@ -1926,6 +1942,22 @@ mutual
         ]
       ]
     ])
+
+  partial def lowerMapContainsExpr
+      (module : Module)
+      (env : TypeEnv)
+      (stateId : String)
+      (key : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
+    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storageMapContains stateId key) with
+    | .ok (.storageMapContainsTarget target keyPlan) =>
+        ProofForge.Backend.Evm.ToYul.mapContainsTargetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          target
+          keyPlan
+    | .ok _ | .error _ =>
+        lowerMapContainsExprFallback module env stateId key
 
   partial def lowerMapScalarPlanExprOrFallback
       (module : Module)
@@ -2750,6 +2782,13 @@ mutual
             Lean.Compiler.Yul.builtin "sload" #[presenceSlot]
           ]
         ])
+    | .storageMapContainsTarget target key =>
+        ProofForge.Backend.Evm.ToYul.mapContainsTargetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          target
+          key
     | .storageMapGet stateId key => do
         let (rootSlot, _, _) ← requireStorageMapState module stateId
         let keyExpr ← lowerExprPlanExpr module env key
@@ -2758,6 +2797,13 @@ mutual
             ProofForge.Backend.Evm.Plan.Helper.mapSlot
             #[slotExpr rootSlot, keyExpr]
         .ok (Lean.Compiler.Yul.builtin "sload" #[valueSlot])
+    | .storageMapGetTarget target key =>
+        ProofForge.Backend.Evm.ToYul.mapGetTargetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          target
+          key
     | .storageMapInsertTarget target key value
     | .storageMapSetTarget target key value =>
         ProofForge.Backend.Evm.ToYul.mapSetReturnTargetExpr
@@ -5169,6 +5215,8 @@ mutual
     | .contextRead _ => true
     | .storageMapContains _ key
     | .storageMapGet _ key => exprPlanSupportsScalarBody key
+    | .storageMapContainsTarget _ key
+    | .storageMapGetTarget _ key => exprPlanSupportsScalarBody key
     | .storageArrayRead _ index => exprPlanSupportsScalarBody index
     | .storageArrayReadTarget _ index => exprPlanSupportsScalarBody index
     | .storageStructFieldRead _ _ => true
