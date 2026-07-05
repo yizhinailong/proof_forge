@@ -518,21 +518,24 @@ Tasks:
     compatibility paths still call `ToYul.localAbiWords` directly until they
     are represented in the semantic plan. Local
     aggregate crosscall argument word expansion now delegates the final local
-    identifier word construction to `ToYul.localCrosscallWords`; `IR.lean`
-    still owns non-literal aggregate sources that are not storage scalar struct
-    reads until those are represented directly in the semantic plan. `Lower`
-    now represents local aggregate typed/value/static/delegate crosscall
-    arguments as `ExprPlan.localCrosscallWords`, represents storage scalar
-    struct reads as `ExprPlan.storageCrosscallWords`, expands struct literal
-    and fixed-array literal crosscall arguments into scalar word `ExprPlan`s,
-    and lets `IR.lowerExprPlanExpr` consume those planned words before
-    selecting the helper-call arity. The final traversal and concatenation of
-    planned crosscall argument word groups now uses
-    `ToYul.crosscallArgWordPlanExprs`; `IR.lean` supplies only the
-    local/storage word-provider callbacks that still depend on compatibility
-    type-env helpers. Scalar expression fallback crosscall lowering now also
-    calls `Lower.buildCrosscallArgWordPlansMany` before that ToYul boundary, and
-    the old IR-local `lowerCrosscall*ArgWords` expansion tree has been removed.
+    identifier word construction to `ToYul.localCrosscallWords`; local provider
+    validation and struct-field discovery now route through
+    `Lower.validateLocalCrosscallWordPlan` and
+    `Lower.localCrosscallStructFieldIds`. `IR.lean` still owns non-literal
+    aggregate sources that are not storage scalar struct reads until those are
+    represented directly in the semantic plan. `Lower` now represents local
+    aggregate typed/value/static/delegate crosscall arguments as
+    `ExprPlan.localCrosscallWords`, represents storage scalar struct reads as
+    `ExprPlan.storageCrosscallWords`, expands struct literal and fixed-array
+    literal crosscall arguments into scalar word `ExprPlan`s, and lets
+    `IR.lowerExprPlanExpr` consume those planned words before selecting the
+    helper-call arity. The final traversal and concatenation of planned
+    crosscall argument word groups now uses `ToYul.crosscallArgWordPlanExprs`;
+    `IR.lean` supplies the remaining ToYul provider callbacks, but only the
+    storage-backed provider expansion still depends on compatibility helpers.
+    Scalar expression fallback crosscall lowering now also calls
+    `Lower.buildCrosscallArgWordPlansMany` before that ToYul boundary, and the
+    old IR-local `lowerCrosscall*ArgWords` expansion tree has been removed.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

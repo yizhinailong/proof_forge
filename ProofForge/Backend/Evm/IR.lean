@@ -2134,33 +2134,24 @@ mutual
       name
       expectedType
 
-  partial def localCrosscallStructFieldIds
-      (module : Module)
-      (context typeName : String) : Except LowerError (Array String) := do
-    discard <| crosscallValueWordTypes module context (.structType typeName)
-    let some decl := findStruct? module typeName
-      | .error { message := s!"{context} uses unknown struct `{typeName}`" }
-    let mut fieldIds : Array String := #[]
-    for fieldDecl in decl.fields do
-      ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-      fieldIds := fieldIds.push fieldDecl.id
-    .ok fieldIds
-
   partial def lowerLocalCrosscallWords
       (module : Module)
       (env : TypeEnv)
       (context name : String)
       (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    let some binding := findLocal? env name
-      | .error { message := s!"unknown local `{name}`" }
-    ensureType context expectedType binding.type
-    match expectedType with
-    | .fixedArray _ _ | .structType _ =>
-        discard <| crosscallValueWordTypes module context expectedType
-    | _ => pure ()
+    discard <|
+      lowerValidate <|
+        ProofForge.Backend.Evm.Lower.validateLocalCrosscallWordPlan
+          module
+          (toValidateTypeEnv env)
+          context
+          name
+          expectedType
     ProofForge.Backend.Evm.ToYul.localCrosscallWords
       toYulError
-      (localCrosscallStructFieldIds module context)
+      (fun typeName =>
+        lowerValidate <|
+          ProofForge.Backend.Evm.Lower.localCrosscallStructFieldIds module context typeName)
       context
       name
       expectedType
@@ -2605,10 +2596,20 @@ mutual
       Except LowerError (Array Lean.Compiler.Yul.Expr) := do
     ProofForge.Backend.Evm.ToYul.crosscallArgWordPlanExprs
       (lowerExprPlanExpr module env)
-      (fun name type =>
+      (fun name type => do
+        discard <|
+          lowerValidate <|
+            ProofForge.Backend.Evm.Lower.validateLocalCrosscallWordPlan
+              module
+              (toValidateTypeEnv env)
+              context
+              name
+              type
         ProofForge.Backend.Evm.ToYul.localCrosscallWords
             toYulError
-            (localCrosscallStructFieldIds module context)
+            (fun typeName =>
+              lowerValidate <|
+                ProofForge.Backend.Evm.Lower.localCrosscallStructFieldIds module context typeName)
             context
             name
             type)

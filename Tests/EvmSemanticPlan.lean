@@ -1744,6 +1744,13 @@ def testLocalCrosscallWordsToYul : IO Unit := do
       .ok #["x", "y"]
     else
       .error { message := s!"unknown struct `{typeName}`" }
+  let lowerStructFields ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.localCrosscallStructFieldIds
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      "crosscall argument"
+      "Point")
+    "Lower local crosscall struct fields"
+  require (lowerStructFields == #["x", "y"]) "Lower local crosscall struct field order"
   let directStructWords ← requireOk
     (ProofForge.Backend.Evm.ToYul.localCrosscallWords
       toYulError
@@ -1801,6 +1808,23 @@ def testLocalCrosscallWordsToYul : IO Unit := do
   let structEnv : TypeEnv := #[
     { name := "p", type := .structType "Point", isMutable := false }
   ]
+  discard <| requireValidateOk
+    (ProofForge.Backend.Evm.Lower.validateLocalCrosscallWordPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv structEnv)
+      "typed crosscall argument"
+      "p"
+      (.structType "Point"))
+    "Lower local crosscall word validation"
+  requireValidateErrorContains
+    (ProofForge.Backend.Evm.Lower.validateLocalCrosscallWordPlan
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv structEnv)
+      "typed crosscall argument"
+      "missing"
+      (.structType "Point"))
+    "unknown local `missing`"
+    "Lower local crosscall word unknown local diagnostic"
   let plannedStructArgWords ← requireOk
     (lowerCrosscallArgWordsMany
       ProofForge.IR.Examples.EvmStructValueProbe.module

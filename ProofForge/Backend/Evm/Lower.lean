@@ -118,6 +118,31 @@ def crosscallReturnPlan (module : Module) (context : String) (returnType : Value
   let wordTypes ← crosscallReturnWordTypes module context returnType
   .ok { returnType, wordTypes, localNames := returnLocalNames returnType wordTypes }
 
+def localCrosscallStructFieldIds
+    (module : Module)
+    (context typeName : String) : Except LowerError (Array String) := do
+  discard <| crosscallValueWordTypes module context (.structType typeName)
+  let some decl := ProofForge.Backend.Evm.Validate.findStruct? module typeName
+    | .error { message := s!"{context} uses unknown struct `{typeName}`" }
+  let mut fieldIds : Array String := #[]
+  for fieldDecl in decl.fields do
+    ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+    fieldIds := fieldIds.push fieldDecl.id
+  .ok fieldIds
+
+def validateLocalCrosscallWordPlan
+    (module : Module)
+    (env : TypeEnv)
+    (context name : String)
+    (expectedType : ValueType) : Except LowerError Unit := do
+  let some binding := findLocal? env name
+    | .error { message := s!"unknown local `{name}`" }
+  ensureType context expectedType binding.type
+  match expectedType with
+  | .fixedArray _ _ | .structType _ =>
+      discard <| crosscallValueWordTypes module context expectedType
+  | _ => pure ()
+
 def entrypointSelector (entrypoint : Entrypoint) : Except LowerError String :=
   match entrypoint.selector? with
   | some selector => .ok selector
