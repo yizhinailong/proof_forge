@@ -55,11 +55,6 @@ def arrayReadTargetPlan? (module : Module) (stateId : String) : Option ArrayRead
   | .ok target => some target
   | .error _ => none
 
-def dynamicArrayTargetPlan? (module : Module) (stateId : String) : Option DynamicArrayTargetPlan :=
-  match dynamicArrayTargetPlan module stateId with
-  | .ok target => some target
-  | .error _ => none
-
 def structFieldWriteTargetPlan?
     (module : Module)
     (stateId fieldName : String) : Option StructFieldWriteTargetPlan :=
@@ -1282,13 +1277,11 @@ mutual
         | none => .ok (.storageArrayStructFieldWrite stateId indexPlan fieldName valuePlan)
     | .storageDynamicArrayPush stateId value => do
         let valuePlan ← buildExprPlan module env value
-        match dynamicArrayTargetPlan? module stateId with
-        | some target => .ok (.storageDynamicArrayPushTarget target valuePlan)
-        | none => .ok (.storageDynamicArrayPush stateId valuePlan)
-    | .storageDynamicArrayPop stateId =>
-        match dynamicArrayTargetPlan? module stateId with
-        | some target => .ok (.storageDynamicArrayPopTarget target)
-        | none => .ok (.storageDynamicArrayPop stateId)
+        let target ← lowerPlan <| dynamicArrayTargetPlan module stateId
+        .ok (.storageDynamicArrayPushTarget target valuePlan)
+    | .storageDynamicArrayPop stateId => do
+        let target ← lowerPlan <| dynamicArrayTargetPlan module stateId
+        .ok (.storageDynamicArrayPopTarget target)
     | .memoryArraySet array index value => do
         let arrayPlan ← buildExprPlan module env array
         let indexPlan ← buildExprPlan module env index

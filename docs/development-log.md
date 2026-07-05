@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Dynamic-Array Target-Plan Closure
+
+Work range: `codex/evm-dynamic-array-target-plan`
+
+Summary:
+
+- Made `Lower.buildEffectPlan` require `DynamicArrayTargetPlan` for
+  statement-position dynamic-array push/pop.
+- Removed the raw dynamic-array push/pop fallback branches from `IR.lean`.
+- Removed the now-unused raw dynamic-array ToYul helper/callback surface.
+- Added semantic-plan coverage proving invalid dynamic-array targets fail in
+  `Lower` before any raw fallback plan can be produced.
+- Split entrypoint body-plan completeness from dispatch-plan completeness, and
+  guarded against surface plans with empty bodies erasing fallback/receive body
+  lowering.
+- Added semantic-plan coverage for `EvmFallbackProbe` so selector entrypoints,
+  fallback, and receive bodies cannot silently lower to empty Yul functions.
+- Aligned EVM golden Yul for array ABI and dynamic-array probes with the
+  helper set emitted after target-plan lowering.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+! rg -n "dynamicArrayPushEffect|dynamicArrayPopEffect|dynamicArrayTargetPlan\\?|lowerDynamicArrayPushStmt\\b" ProofForge/Backend/Evm Tests/EvmSemanticPlan.lean
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-plan
+just evm-semantic-plan
+just evm-all
+scripts/i18n/check-sync.sh
+git diff --check
+just ci
+```
+
+Known limitations:
+
+- Dynamic-array storage-path write-like behavior still uses the broader
+  storage-path write target surface.
+- Other storage write fallback surfaces remain in `IR.lean` for unsupported
+  aggregate or diagnostic-only shapes.
+
+Next step:
+
+- Continue shrinking storage write fallback callbacks, prioritizing helpers
+  that can now be proven unused by the semantic-plan tests.
+
 ### EVM Dead Write Fallback Helper Removal
 
 Commit: f610632

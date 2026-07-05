@@ -734,6 +734,15 @@ Tasks:
     expression planning, pop effect validation, root-slot selection, and final
     dynamic-array slot helper assembly no longer come from IR-local effect
     reconstruction callbacks.
+    `Lower.buildEffectPlan` now rejects invalid dynamic-array targets instead
+    of returning raw `storageDynamicArrayPush`/`storageDynamicArrayPop`
+    fallback plans, and the unused raw dynamic-array ToYul helper/callback
+    surface has been removed.
+    Entrypoint body-plan completeness is now checked separately from dispatch
+    plan completeness, so modules with EVM fallback/receive entrypoints can
+    still consume full body plans while dispatch continues to cover only
+    selector-addressable functions. Surface plans with empty bodies no longer
+    erase fallback/receive lowering.
     The now-unused `lowerDynamicArrayWriteStmt` and
     `lowerDynamicArrayPopStmt` fallback helpers have been removed; dynamic-array
     write-like behavior remains on storage-path write plans, and dynamic-array

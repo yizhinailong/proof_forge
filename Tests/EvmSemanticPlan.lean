@@ -5,6 +5,7 @@ import ProofForge.IR.Examples.EvmArrayValueProbe
 import ProofForge.IR.Examples.EvmDynamicAbiProbe
 import ProofForge.IR.Examples.EvmDynamicArrayProbe
 import ProofForge.IR.Examples.EvmCrosscallProbe
+import ProofForge.IR.Examples.EvmFallbackProbe
 import ProofForge.IR.Examples.EvmHashProbe
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmStorageArrayProbe
@@ -2900,6 +2901,40 @@ def testSemanticPlanRender : IO Unit := do
   require (rendered.contains "entrypoints:") "counter plan render entrypoints"
   require (rendered.contains "initialize") "counter plan render initialize"
   require (rendered.contains "storage:") "counter plan render storage"
+
+def testFallbackReceiveEntrypointPlanLowering : IO Unit := do
+  let module := ProofForge.IR.Examples.EvmFallbackProbe.module
+  let plan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildFullModulePlan module)
+    "fallback probe full module plan"
+  require
+    (entrypointBodyPlanIsComplete module plan.entrypoints)
+    "fallback probe full entrypoint body plan must cover fallback/receive"
+  require
+    (dispatchEntrypointPlanIsComplete module plan.dispatch.entrypoints)
+    "fallback probe dispatch plan must cover only selector entrypoints"
+  let rendered ← requireOk (renderModule module) "fallback probe render"
+  require
+    (rendered.contains "function f_EvmFallbackProbe_increment() {\n      sstore(")
+    "fallback probe increment body must not be erased by surface-plan fallback"
+  require
+    (rendered.contains "function __pf_fallback() {\n      mstore(0, 147028384)")
+    "fallback probe fallback body must lower revert payload"
+  require
+    (rendered.contains "      revert(0, 132)")
+    "fallback probe fallback body must revert"
+  require
+    (rendered.contains "function __pf_receive() {\n      sstore(")
+    "fallback probe receive body must not be erased by surface-plan fallback"
+  require
+    (!rendered.contains "function f_EvmFallbackProbe_increment() { }")
+    "fallback probe increment must not lower to empty function"
+  require
+    (!rendered.contains "function __pf_fallback() { }")
+    "fallback probe fallback must not lower to empty function"
+  require
+    (!rendered.contains "function __pf_receive() { }")
+    "fallback probe receive must not lower to empty function"
 
 def testScalarExprPlanToYul : IO Unit := do
   let scalarEnv : TypeEnv := #[
@@ -7864,6 +7899,20 @@ def testDynamicArrayPlanToYul : IO Unit := do
         | _ => pure ()
       require foundLengthLoad "dynamic-array pop must load planned root slot"
   | _ => throw <| IO.userError "dynamic-array pop must lower to block"
+  requireValidateErrorContains
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      (toValidateTypeEnv env)
+      (.storageDynamicArrayPush "values" (.local "value")))
+    "EVM storage state 'values' is not a dynamic array"
+    "Lower dynamic-array push rejects non-dynamic target before raw fallback"
+  requireValidateErrorContains
+    (ProofForge.Backend.Evm.Lower.buildEffectPlan
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      (toValidateTypeEnv env)
+      (.storageDynamicArrayPop "values"))
+    "EVM storage state 'values' is not a dynamic array"
+    "Lower dynamic-array pop rejects non-dynamic target before raw fallback"
 
 def testStructFieldReadPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
@@ -9178,6 +9227,7 @@ def main : IO UInt32 := do
   testIncompletePlanFallbackHelperDiscovery
   testEntrypointDispatchPlanToYul
   testSemanticPlanRender
+  testFallbackReceiveEntrypointPlanLowering
   testScalarExprPlanToYul
   testStorageFixedArrayCrosscallWordPlans
   testArrayLiteralDirectExprPlanToYul

@@ -2993,54 +2993,32 @@ partial def lowerStructArrayFieldWriteStmtPlanOrFallback
   else
     lowerStructArrayFieldWriteStmt module env stateId index fieldName value
 
-def lowerDynamicArrayPushStmt
-    (_module : Module)
-    (_env : TypeEnv)
-    (_stateId : String)
-    (_value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement :=
-  .error { message := "EVM IR v0 dynamic-array push fallback lowering is not yet implemented" }
-
 partial def lowerDynamicArrayPushStmtPlanOrFallback
     (module : Module)
     (env : TypeEnv)
     (stateId : String)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  if exprSupportsPlanScalarYul value then
-    let effectPlan ←
-      match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
-          (.storageDynamicArrayPush stateId value) with
-      | .ok plan => .ok plan
-      | .error err => .error { message := err.message }
-    let statements ←
-      match effectPlan with
-      | .storageDynamicArrayPushTarget .. =>
-          ProofForge.Backend.Evm.ToYul.dynamicArrayPushTargetEffectStmtPlanStatements
-            toYulError
-            (fun expr => lowerExpr module env expr)
-            (lowerPlanEffectExpr module env)
-            (.effect effectPlan)
-      | .storageDynamicArrayPush .. =>
-          ProofForge.Backend.Evm.ToYul.dynamicArrayPushEffectStmtPlanStatements
-            toYulError
-            (fun expr => lowerExpr module env expr)
-            (lowerPlanEffectExpr module env)
-            (fun stateId => do
-              let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
-              .ok (slotExpr slot))
-            (fun stateId indexExpr => do
-              let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
-              .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.dynamicArraySlot #[slotExpr slot, indexExpr]))
-            (.effect effectPlan)
-      | _ =>
-          .error { message := "EVM Lower.buildEffectPlan dynamic-array push did not produce storageDynamicArrayPushTarget" }
-    if statements.isEmpty then
-      .error { message := "EVM StmtPlan-to-Yul dynamic-array push lowering produced no statements" }
-    else if statements.size == 1 then
-      .ok statements[0]!
-    else
-      .ok (.block { statements := statements })
+  let effectPlan ←
+    match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env)
+        (.storageDynamicArrayPush stateId value) with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
+  let statements ←
+    match effectPlan with
+    | .storageDynamicArrayPushTarget .. =>
+        ProofForge.Backend.Evm.ToYul.dynamicArrayPushTargetEffectStmtPlanStatements
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          (.effect effectPlan)
+    | _ =>
+        .error { message := "EVM Lower.buildEffectPlan dynamic-array push did not produce storageDynamicArrayPushTarget" }
+  if statements.isEmpty then
+    .error { message := "EVM StmtPlan-to-Yul dynamic-array push lowering produced no statements" }
+  else if statements.size == 1 then
+    .ok statements[0]!
   else
-    lowerDynamicArrayPushStmt module env stateId value
+    .ok (.block { statements := statements })
 
 partial def lowerDynamicArrayPopStmtPlanOrFallback
     (module : Module)
@@ -3056,16 +3034,6 @@ partial def lowerDynamicArrayPopStmtPlanOrFallback
     | .storageDynamicArrayPopTarget .. =>
         ProofForge.Backend.Evm.ToYul.dynamicArrayPopTargetEffectStmtPlanStatements
           toYulError
-          (.effect effectPlan)
-    | .storageDynamicArrayPop .. =>
-        ProofForge.Backend.Evm.ToYul.dynamicArrayPopEffectStmtPlanStatements
-          toYulError
-          (fun stateId => do
-            let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
-            .ok (slotExpr slot))
-          (fun stateId indexExpr => do
-            let (slot, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireDynamicArrayState module stateId
-            .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.dynamicArraySlot #[slotExpr slot, indexExpr]))
           (.effect effectPlan)
     | _ =>
         .error { message := "EVM Lower.buildEffectPlan dynamic-array pop did not produce storageDynamicArrayPopTarget" }
@@ -5432,7 +5400,9 @@ def lowerEntrypointBodyWithPlan?
     (entrypoint : Entrypoint)
     (entrypointPlan : ProofForge.Backend.Evm.Plan.EntrypointPlan) :
     Except LowerError (Option (Array Lean.Compiler.Yul.Statement)) := do
-  if stmtPlansSupportPlannedBody entrypoint.returns entrypointPlan.body then
+  if entrypointPlan.body.isEmpty && !entrypoint.body.isEmpty then
+    .ok none
+  else if stmtPlansSupportPlannedBody entrypoint.returns entrypointPlan.body then
     match lowerPlannedBodyStatements
         module
         entrypoint.name
@@ -5893,7 +5863,12 @@ def lowerEntrypointsWithPlan
   else
     .ok functions
 
-def entrypointPlanIsComplete
+def entrypointBodyPlanIsComplete
+    (module : Module)
+    (entrypoints : Array ProofForge.Backend.Evm.Plan.EntrypointPlan) : Bool :=
+  entrypoints.size == module.entrypoints.size
+
+def dispatchEntrypointPlanIsComplete
     (module : Module)
     (entrypoints : Array ProofForge.Backend.Evm.Plan.EntrypointPlan) : Bool :=
   -- Only function entrypoints (not fallback/receive) need dispatch plans
@@ -5905,7 +5880,7 @@ def lowerEntrypointsBestEffort
     (module : Module)
     (entrypoints : Array ProofForge.Backend.Evm.Plan.EntrypointPlan) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  if entrypointPlanIsComplete module entrypoints then
+  if entrypointBodyPlanIsComplete module entrypoints then
     lowerEntrypointsWithPlan module entrypoints
   else
     module.entrypoints.foldlM (init := #[]) fun acc entrypoint => do
@@ -5919,7 +5894,7 @@ def lowerModuleWithPlan
   validateState module
   let functions ← lowerEntrypointsBestEffort module plan.entrypoints
   let dispatch ←
-    if entrypointPlanIsComplete module plan.dispatch.entrypoints then
+    if dispatchEntrypointPlanIsComplete module plan.dispatch.entrypoints then
       dispatchBlockWithPlan module plan.dispatch
     else
       dispatchBlock module
@@ -5929,7 +5904,7 @@ def lowerModuleWithPlan
   let helpers := helpers ++ plannedStructArrayHelperFunctions plan
   let helpers := helpers ++ plannedHashHelperFunctions plan
   let helpers := helpers ++ plannedMemoryArrayHelperFunctions plan
-  let completePlan := entrypointPlanIsComplete module plan.entrypoints
+  let completePlan := entrypointBodyPlanIsComplete module plan.entrypoints
   let helpers :=
     if completePlan then
       helpers ++ plannedCheckedArithmeticHelperFunctions plan
