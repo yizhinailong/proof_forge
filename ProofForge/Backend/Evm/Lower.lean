@@ -2873,6 +2873,286 @@ def pushNatArrayIfMissing
 def mergeNatArraySets (lhs rhs : Array (Array Nat)) : Array (Array Nat) :=
   rhs.foldl pushNatArrayIfMissing lhs
 
+abbrev LocalArrayHelperRequirements := Array Nat × Array (Array Nat)
+
+def emptyLocalArrayHelperRequirements : LocalArrayHelperRequirements :=
+  (#[], #[])
+
+def mergeLocalArrayHelperRequirements
+    (lhs rhs : LocalArrayHelperRequirements) : LocalArrayHelperRequirements :=
+  (mergeNatSets lhs.fst rhs.fst, mergeNatArraySets lhs.snd rhs.snd)
+
+def addLocalArrayGetLength
+    (requirements : LocalArrayHelperRequirements)
+    (length : Nat) : LocalArrayHelperRequirements :=
+  (pushNatIfMissing requirements.fst length, requirements.snd)
+
+def addNestedLocalArrayGetShape
+    (requirements : LocalArrayHelperRequirements)
+    (shape : Array Nat) : LocalArrayHelperRequirements :=
+  (requirements.fst, pushNatArrayIfMissing requirements.snd shape)
+
+def exprPlanLiteralWord? : ExprPlan → Option Nat
+  | .literalWord value => some value
+  | _ => none
+
+def exprPlanPathIsStatic (path : Array ExprPlan) : Bool :=
+  path.all fun index => exprPlanLiteralWord? index |>.isSome
+
+def localArrayGetRequirementsFromPath
+    (path : Array ExprPlan)
+    (lengths : Array Nat) : LocalArrayHelperRequirements :=
+  if path.size == lengths.size && !exprPlanPathIsStatic path then
+    match lengths.toList with
+    | [] => emptyLocalArrayHelperRequirements
+    | [length] => addLocalArrayGetLength emptyLocalArrayHelperRequirements length
+    | _ => addNestedLocalArrayGetShape emptyLocalArrayHelperRequirements lengths
+  else
+    emptyLocalArrayHelperRequirements
+
+mutual
+  partial def localArrayHelperRequirementsFromStorageSlotExprPlan :
+      StorageSlotExprPlan → LocalArrayHelperRequirements
+    | .scalarSlot _ | .fixedSlot _ => emptyLocalArrayHelperRequirements
+    | .mapValueSlot _ keys | .mapPresenceSlot _ keys =>
+        keys.foldl (init := emptyLocalArrayHelperRequirements) fun acc key =>
+          mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromExprPlan key)
+    | .arraySlot _ _ index
+    | .structArrayFieldSlot _ _ _ _ index
+    | .dynamicArraySlot _ index =>
+        localArrayHelperRequirementsFromExprPlan index
+
+  partial def localArrayHelperRequirementsFromStoragePathWriteExprTargetPlan :
+      StoragePathWriteExprTargetPlan → LocalArrayHelperRequirements
+    | .mapWrite _ key =>
+        localArrayHelperRequirementsFromExprPlan key
+    | .singleSlot slot =>
+        localArrayHelperRequirementsFromStorageSlotExprPlan slot
+    | .mapValuePresence valueSlot presenceSlot =>
+        mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromStorageSlotExprPlan valueSlot)
+          (localArrayHelperRequirementsFromStorageSlotExprPlan presenceSlot)
+
+  partial def localArrayHelperRequirementsFromContextExprPlan :
+      ContextExprPlan → LocalArrayHelperRequirements
+    | .blockHash blockNumber =>
+        localArrayHelperRequirementsFromExprPlan blockNumber
+    | .userId | .contractId | .checkpointId | .timestamp | .chainId
+    | .gasPrice | .gasLeft | .baseFee | .prevRandao | .origin | .coinbase =>
+        emptyLocalArrayHelperRequirements
+
+  partial def localArrayHelperRequirementsFromAbiValuePlan :
+      AbiValuePlan → LocalArrayHelperRequirements
+    | .expr value =>
+        localArrayHelperRequirementsFromExprPlan value
+    | .local .. | .storage .. =>
+        emptyLocalArrayHelperRequirements
+    | .arrayLit _ values =>
+        values.foldl (init := emptyLocalArrayHelperRequirements) fun acc value =>
+          mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromAbiValuePlan value)
+    | .structLit _ fields =>
+        fields.foldl (init := emptyLocalArrayHelperRequirements) fun acc field =>
+          mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromAbiValuePlan field.snd)
+
+  partial def localArrayHelperRequirementsFromCrosscallArgWordPlan :
+      CrosscallArgWordPlan → LocalArrayHelperRequirements
+    | .expr value =>
+        localArrayHelperRequirementsFromExprPlan value
+    | .local .. | .storage .. =>
+        emptyLocalArrayHelperRequirements
+
+  partial def localArrayHelperRequirementsFromExprPlan :
+      ExprPlan → LocalArrayHelperRequirements
+    | .literalWord _ | .local _ | .calldataWord _ | .nativeValue =>
+        emptyLocalArrayHelperRequirements
+    | .storageLoad _ =>
+        emptyLocalArrayHelperRequirements
+    | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
+        args.foldl (init := emptyLocalArrayHelperRequirements) fun acc arg =>
+          mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromExprPlan arg)
+    | .checkedArith _ lhs rhs
+    | .hashTwoToOne lhs rhs =>
+        mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan lhs)
+          (localArrayHelperRequirementsFromExprPlan rhs)
+    | .hashPack a b c d | .hashValue a b c d =>
+        let ab := mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan a)
+          (localArrayHelperRequirementsFromExprPlan b)
+        let cd := mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan c)
+          (localArrayHelperRequirementsFromExprPlan d)
+        mergeLocalArrayHelperRequirements ab cd
+    | .context field =>
+        localArrayHelperRequirementsFromContextExprPlan field
+    | .crosscall _ target methodId callValue? args _ =>
+        let nested := mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan target)
+          (localArrayHelperRequirementsFromExprPlan methodId)
+        let nested :=
+          match callValue? with
+          | some callValue =>
+              mergeLocalArrayHelperRequirements nested (localArrayHelperRequirementsFromExprPlan callValue)
+          | none => nested
+        args.foldl (init := nested) fun acc arg =>
+          mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromCrosscallArgWordPlan arg)
+    | .create _ callValue salt? _ =>
+        match salt? with
+        | some salt =>
+            mergeLocalArrayHelperRequirements
+              (localArrayHelperRequirementsFromExprPlan callValue)
+              (localArrayHelperRequirementsFromExprPlan salt)
+        | none =>
+            localArrayHelperRequirementsFromExprPlan callValue
+    | .cast source _
+    | .structField source _
+    | .memoryArrayLength source
+    | .hash source =>
+        localArrayHelperRequirementsFromExprPlan source
+    | .arrayGet array index =>
+        let nested := mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan array)
+          (localArrayHelperRequirementsFromExprPlan index)
+        match array with
+        | .arrayLit _ values =>
+            if values.isEmpty || (exprPlanLiteralWord? index).isSome then
+              nested
+            else
+              addLocalArrayGetLength nested values.size
+        | _ =>
+            nested
+    | .localArrayGet _ path lengths =>
+        let nested := path.foldl (init := emptyLocalArrayHelperRequirements) fun acc index =>
+          mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromExprPlan index)
+        mergeLocalArrayHelperRequirements nested (localArrayGetRequirementsFromPath path lengths)
+    | .memoryArrayNew _ length =>
+        localArrayHelperRequirementsFromExprPlan length
+    | .memoryArrayGet array index =>
+        mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan array)
+          (localArrayHelperRequirementsFromExprPlan index)
+    | .structLit _ fields =>
+        fields.foldl (init := emptyLocalArrayHelperRequirements) fun acc field =>
+          mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromExprPlan field.snd)
+    | .effect effect =>
+        localArrayHelperRequirementsFromEffectPlan effect
+
+  partial def localArrayHelperRequirementsFromEffectPlan :
+      EffectPlan → LocalArrayHelperRequirements
+    | .storageScalarRead _ | .storageScalarReadTarget _
+    | .storageStructFieldRead _ _ | .storageStructFieldReadTarget _
+    | .storageDynamicArrayPop _ | .storageDynamicArrayPopTarget _ =>
+        emptyLocalArrayHelperRequirements
+    | .storageScalarWrite _ value
+    | .storageScalarWriteTarget _ value
+    | .storageScalarAssignOp _ _ value
+    | .storageScalarAssignOpTarget _ _ value
+    | .storageStructFieldWrite _ _ value
+    | .storageStructFieldWriteTarget _ value
+    | .storageDynamicArrayPush _ value
+    | .storageDynamicArrayPushTarget _ value =>
+        localArrayHelperRequirementsFromExprPlan value
+    | .storageMapContains _ key
+    | .storageMapContainsTarget _ key
+    | .storageMapGet _ key
+    | .storageMapGetTarget _ key
+    | .storageArrayRead _ key
+    | .storageArrayReadTarget _ key
+    | .storageArrayStructFieldRead _ key _
+    | .storageArrayStructFieldReadTarget _ key =>
+        localArrayHelperRequirementsFromExprPlan key
+    | .storageMapInsert _ key value
+    | .storageMapInsertTarget _ key value
+    | .storageMapSet _ key value
+    | .storageMapSetTarget _ key value
+    | .storageArrayWrite _ key value
+    | .storageArrayWriteTarget _ key value
+    | .storageArrayStructFieldWrite _ key _ value
+    | .storageArrayStructFieldWriteTarget _ key value =>
+        mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan key)
+          (localArrayHelperRequirementsFromExprPlan value)
+    | .memoryArraySet array index value =>
+        mergeLocalArrayHelperRequirements
+          (mergeLocalArrayHelperRequirements
+            (localArrayHelperRequirementsFromExprPlan array)
+            (localArrayHelperRequirementsFromExprPlan index))
+          (localArrayHelperRequirementsFromExprPlan value)
+    | .storagePathRead _ _ | .storagePathReadTarget _ =>
+        emptyLocalArrayHelperRequirements
+    | .storagePathReadExprTarget slot =>
+        localArrayHelperRequirementsFromStorageSlotExprPlan slot
+    | .storagePathWrite _ _ value | .storagePathAssignOp _ _ _ value =>
+        localArrayHelperRequirementsFromExprPlan value
+    | .storagePathWriteTarget _ value | .storagePathAssignOpTarget _ _ value =>
+        localArrayHelperRequirementsFromExprPlan value
+    | .storagePathWriteExprTarget target value
+    | .storagePathAssignOpExprTarget target _ value =>
+        mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromStoragePathWriteExprTargetPlan target)
+          (localArrayHelperRequirementsFromExprPlan value)
+    | .contextRead field =>
+        localArrayHelperRequirementsFromContextExprPlan field
+    | .eventEmit _ dataFields =>
+        dataFields.foldl (init := emptyLocalArrayHelperRequirements) fun acc field =>
+          mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromAbiValuePlan field)
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexed := indexedFields.foldl (init := emptyLocalArrayHelperRequirements) fun acc field =>
+          mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromAbiValuePlan field)
+        dataFields.foldl (init := indexed) fun acc field =>
+          mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromAbiValuePlan field)
+    | .eventEmitWords _ dataFieldWords =>
+        dataFieldWords.foldl (init := emptyLocalArrayHelperRequirements) fun acc words =>
+          words.foldl (init := acc) fun wordAcc word =>
+            mergeLocalArrayHelperRequirements wordAcc (localArrayHelperRequirementsFromExprPlan word)
+    | .eventEmitIndexedWords _ indexedFieldWords dataFieldWords =>
+        let indexed := indexedFieldWords.foldl (init := emptyLocalArrayHelperRequirements) fun acc words =>
+          words.foldl (init := acc) fun wordAcc word =>
+            mergeLocalArrayHelperRequirements wordAcc (localArrayHelperRequirementsFromExprPlan word)
+        dataFieldWords.foldl (init := indexed) fun acc words =>
+          words.foldl (init := acc) fun wordAcc word =>
+            mergeLocalArrayHelperRequirements wordAcc (localArrayHelperRequirementsFromExprPlan word)
+
+  partial def localArrayHelperRequirementsFromStmtPlan :
+      StmtPlan → LocalArrayHelperRequirements
+    | .letBind _ _ value
+    | .letMutBind _ _ value
+    | .assert value _ _
+    | .return value =>
+        localArrayHelperRequirementsFromExprPlan value
+    | .assign target value
+    | .assignOp target _ value =>
+        mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan target)
+          (localArrayHelperRequirementsFromExprPlan value)
+    | .effect effect =>
+        localArrayHelperRequirementsFromEffectPlan effect
+    | .assertEq lhs rhs _ _ =>
+        mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan lhs)
+          (localArrayHelperRequirementsFromExprPlan rhs)
+    | .release _ | .revert _ | .revertWithError _ =>
+        emptyLocalArrayHelperRequirements
+    | .ifElse condition thenBody elseBody =>
+        mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan condition)
+          (mergeLocalArrayHelperRequirements
+            (localArrayHelperRequirementsFromStmtPlans thenBody)
+            (localArrayHelperRequirementsFromStmtPlans elseBody))
+    | .boundedFor _ _ _ body =>
+        localArrayHelperRequirementsFromStmtPlans body
+
+  partial def localArrayHelperRequirementsFromStmtPlans
+      (statements : Array StmtPlan) : LocalArrayHelperRequirements :=
+    statements.foldl (init := emptyLocalArrayHelperRequirements) fun acc stmt =>
+      mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromStmtPlan stmt)
+end
+
+def buildLocalArrayHelperRequirementsFromEntrypoints
+    (entrypoints : Array EntrypointPlan) : LocalArrayHelperRequirements :=
+  entrypoints.foldl (init := emptyLocalArrayHelperRequirements) fun acc entrypoint =>
+    mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromStmtPlans entrypoint.body)
+
 def localArrayGetLengthsForDynamicExprTarget
     (env : TypeEnv)
     (array index : Expr) : Array Nat :=
@@ -3243,8 +3523,9 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
   let eventPlans ← buildEventPlans module
   let crosscallPlans ← buildCrosscallHelperPlansFromEntrypoints module entrypointPlans
   let createPlans := buildCreateHelperPlansFromEntrypoints entrypointPlans
-  let localArrayGetLengths ← buildLocalArrayGetLengths module
-  let nestedLocalArrayGetShapes ← buildNestedLocalArrayGetShapes module
+  let localArrayRequirements := buildLocalArrayHelperRequirementsFromEntrypoints entrypointPlans
+  let localArrayGetLengths := localArrayRequirements.fst
+  let nestedLocalArrayGetShapes := localArrayRequirements.snd
   let usesCheckedArithmetic := entrypointsUseCheckedArithmetic entrypointPlans
   let metadata := {
     moduleName := module.name
@@ -3281,8 +3562,9 @@ def buildFullModulePlanWithTargetPlan
   let eventPlans ← buildEventPlans module
   let crosscallPlans ← buildCrosscallHelperPlansFromEntrypoints module entrypointPlans
   let createPlans := buildCreateHelperPlansFromEntrypoints entrypointPlans
-  let localArrayGetLengths ← buildLocalArrayGetLengths module
-  let nestedLocalArrayGetShapes ← buildNestedLocalArrayGetShapes module
+  let localArrayRequirements := buildLocalArrayHelperRequirementsFromEntrypoints entrypointPlans
+  let localArrayGetLengths := localArrayRequirements.fst
+  let nestedLocalArrayGetShapes := localArrayRequirements.snd
   let usesCheckedArithmetic := entrypointsUseCheckedArithmetic entrypointPlans
   let metadata := {
     moduleName := module.name

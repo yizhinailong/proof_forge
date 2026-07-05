@@ -1351,15 +1351,56 @@ def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
   require
     (lowerPlan.nestedLocalArrayGetShapes == plan.nestedLocalArrayGetShapes)
     "nested local-array helper discovery must come from Lower.buildFullModulePlan"
+  let plannedRequirements :=
+    ProofForge.Backend.Evm.Lower.buildLocalArrayHelperRequirementsFromEntrypoints lowerPlan.entrypoints
+  require
+    (plannedRequirements.fst == lowerPlan.localArrayGetLengths)
+    "full module local-array helpers must be discovered from entrypoint plans"
+  require
+    (plannedRequirements.snd == lowerPlan.nestedLocalArrayGetShapes)
+    "full module nested local-array helpers must be discovered from entrypoint plans"
+  let targetPlanArray ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlanWithTargetPlan
+        ProofForge.IR.Examples.EvmArrayValueProbe.module
+        lowerPlan.targetPlan)
+      "array value probe target-plan full module plan for planned local-array helper discovery"
+  require
+    (targetPlanArray.localArrayGetLengths == lowerPlan.localArrayGetLengths)
+    "target-plan full module local-array helpers must be discovered from entrypoint plans"
+  require
+    (targetPlanArray.nestedLocalArrayGetShapes == lowerPlan.nestedLocalArrayGetShapes)
+    "target-plan full module nested local-array helpers must be discovered from entrypoint plans"
+  let rawLengths ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildLocalArrayGetLengths
+        ProofForge.IR.Examples.EvmArrayValueProbe.module)
+      "array value probe raw local-array helper discovery"
+  let rawShapes ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildNestedLocalArrayGetShapes
+        ProofForge.IR.Examples.EvmArrayValueProbe.module)
+      "array value probe raw nested local-array helper discovery"
+  for length in lowerPlan.localArrayGetLengths do
+    require
+      (rawLengths.contains length)
+      "legacy raw local-array helper scanner must cover planned length"
+  for shape in lowerPlan.nestedLocalArrayGetShapes do
+    require
+      (rawShapes.any (fun rawShape => rawShape == shape))
+      "legacy raw nested local-array helper scanner must cover planned shape"
+  require
+    (rawLengths.contains 2)
+    "legacy raw local-array helper scanner over-approximates nested row helper length"
+  require
+    (!lowerPlan.localArrayGetLengths.contains 2)
+    "planned local-array helper discovery must avoid standalone length-2 helper when nested helper covers it"
   require
     (lowerPlan.usesCheckedArithmetic == plan.usesCheckedArithmetic)
     "checked arithmetic discovery must come from Lower.buildFullModulePlan"
   require
     (plan.localArrayGetLengths.contains 3)
     "array value probe must plan length-3 dynamic local-array getter"
-  require
-    (plan.localArrayGetLengths.contains 2)
-    "array value probe must plan length-2 dynamic local-array getter"
   require
     (plan.nestedLocalArrayGetShapes.any (fun shape => shape == #[2, 2]))
     "array value probe must plan nested 2x2 dynamic local-array getter"
@@ -1371,9 +1412,6 @@ def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
   require
     (statementsHaveFunctionNamed localHelpers (ProofForge.Backend.Evm.ToYul.localArrayGetFunctionName 3))
     "local-array ToYul helpers include length-3 getter"
-  require
-    (statementsHaveFunctionNamed localHelpers (ProofForge.Backend.Evm.ToYul.localArrayGetFunctionName 2))
-    "local-array ToYul helpers include length-2 getter"
   let nestedHelpers :=
     ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetHelperFunctions plan.nestedLocalArrayGetShapes
   require
@@ -1389,6 +1427,91 @@ def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
   require
     (statementsHaveFunctionNamed object.code.statements (ProofForge.Backend.Evm.ToYul.nestedLocalArrayGetFunctionName #[2, 2]))
     "plan-driven module lowering includes nested local-array helper"
+  let nativePlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan nativeTransferPlanProbe)
+      "native transfer full module plan for planned local-array helper injection"
+  let rawNativeLengths ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildLocalArrayGetLengths nativeTransferPlanProbe)
+      "native transfer raw local-array helper discovery"
+  let rawNativeShapes ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildNestedLocalArrayGetShapes nativeTransferPlanProbe)
+      "native transfer raw nested local-array helper discovery"
+  require rawNativeLengths.isEmpty
+    "native transfer raw IR should not contain local-array helper requirements"
+  require rawNativeShapes.isEmpty
+    "native transfer raw IR should not contain nested local-array helper requirements"
+  let staticInjectedEntrypoints := nativePlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "send" then
+      { entrypoint with
+        body := #[
+          StmtPlan.return
+            (ExprPlan.localArrayGet "xs" #[ExprPlan.literalWord 1] #[3])
+        ]
+      }
+    else
+      entrypoint
+  let staticInjectedRequirements :=
+    ProofForge.Backend.Evm.Lower.buildLocalArrayHelperRequirementsFromEntrypoints staticInjectedEntrypoints
+  require
+    (!staticInjectedRequirements.fst.contains 3)
+    "planned static local-array get must not require dynamic getter helper"
+  require staticInjectedRequirements.snd.isEmpty
+    "planned static local-array get must not require nested getter helper"
+  let dynamicInjectedEntrypoints := nativePlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "send" then
+      { entrypoint with
+        body := #[
+          StmtPlan.return
+            (ExprPlan.localArrayGet "xs" #[ExprPlan.local "idx"] #[3])
+        ]
+      }
+    else
+      entrypoint
+  let dynamicInjectedRequirements :=
+    ProofForge.Backend.Evm.Lower.buildLocalArrayHelperRequirementsFromEntrypoints dynamicInjectedEntrypoints
+  require
+    (dynamicInjectedRequirements.fst.contains 3)
+    "planned entrypoint body scanner must discover injected dynamic local-array getter"
+  require dynamicInjectedRequirements.snd.isEmpty
+    "single-dimension local-array get must not require nested helper"
+  let nestedInjectedEntrypoints := nativePlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "send" then
+      { entrypoint with
+        body := #[
+          StmtPlan.return
+            (ExprPlan.localArrayGet "matrix" #[ExprPlan.local "row", ExprPlan.literalWord 1] #[2, 2])
+        ]
+      }
+    else
+      entrypoint
+  let nestedInjectedRequirements :=
+    ProofForge.Backend.Evm.Lower.buildLocalArrayHelperRequirementsFromEntrypoints nestedInjectedEntrypoints
+  require
+    (nestedInjectedRequirements.snd.any (fun shape => shape == #[2, 2]))
+    "planned entrypoint body scanner must discover injected nested local-array getter"
+  require
+    (!nestedInjectedRequirements.fst.contains 2)
+    "nested local-array get must require nested helper instead of single-dimension helper"
+  let arrayLiteralInjectedEntrypoints := nativePlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "send" then
+      { entrypoint with
+        body := #[
+          StmtPlan.return
+            (ExprPlan.arrayGet
+              (ExprPlan.arrayLit .u64 #[ExprPlan.literalWord 10, ExprPlan.literalWord 20])
+              (ExprPlan.local "idx"))
+        ]
+      }
+    else
+      entrypoint
+  let arrayLiteralInjectedRequirements :=
+    ProofForge.Backend.Evm.Lower.buildLocalArrayHelperRequirementsFromEntrypoints arrayLiteralInjectedEntrypoints
+  require
+    (arrayLiteralInjectedRequirements.fst.contains 2)
+    "planned entrypoint body scanner must discover injected dynamic array-literal getter"
 
 def testIncompletePlanFallbackCrosscallHelperDiscovery : IO Unit := do
   let crosscallBasePlan ←

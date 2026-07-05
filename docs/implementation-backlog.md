@@ -553,18 +553,21 @@ Tasks:
     removed; fallback helper discovery calls the raw-IR compatibility scanner
     `Lower.buildCreateHelperPlans` only for incomplete/legacy plan surfaces and
     emits through `ToYul.createHelperFunction`.
-  - Started: checked-arithmetic helper requirements are now discovered from
-    the already-built `EntrypointPlan.body` `StmtPlan`/`ExprPlan` tree in
-    `Lower.buildFullModulePlan` and
-    `Lower.buildFullModulePlanWithTargetPlan`, including planned
-    `.checkedArith` expressions and planned `assignOp`/storage assign-op nodes.
-    `IR.buildSemanticPlan` preserves the Lower-owned `usesCheckedArithmetic`
-    field instead of re-scanning the module after plan construction.
-    Incomplete-plan fallback lowering still calls
-    `Validate.moduleUsesCheckedArithmetic`. Local fixed-array getter helper
-    requirements remain discovered by `Lower.buildLocalArrayGetLengths` and
-    `Lower.buildNestedLocalArrayGetShapes` until that discovery moves to the
-    planned body surface in a follow-up slice.
+  - Started: checked-arithmetic and local fixed-array getter helper
+    requirements are now discovered from the already-built `EntrypointPlan.body`
+    `StmtPlan`/`ExprPlan` tree in `Lower.buildFullModulePlan` and
+    `Lower.buildFullModulePlanWithTargetPlan`. Checked-arithmetic discovery
+    covers planned `.checkedArith` expressions and planned
+    `assignOp`/storage assign-op nodes. Local-array discovery covers planned
+    dynamic `ExprPlan.localArrayGet` paths, nested local-array shapes, and
+    dynamic array-literal getters; this avoids the legacy raw scanner's
+    over-approximation of standalone row helpers when a nested helper covers
+    the same access. `IR.buildSemanticPlan` preserves the Lower-owned
+    `usesCheckedArithmetic`, `localArrayGetLengths`, and
+    `nestedLocalArrayGetShapes` fields instead of re-scanning the module after
+    plan construction. Incomplete-plan fallback lowering still calls
+    `Validate.moduleUsesCheckedArithmetic`, `Lower.buildLocalArrayGetLengths`,
+    and `Lower.buildNestedLocalArrayGetShapes`.
   - Started: scalar expression-position crosscall helper-call assembly and
     create/create2 helper-call assembly now live behind `ToYul`. `ExprPlan`
     nodes for scalar `call`, value-bearing `call`, native value transfer,
