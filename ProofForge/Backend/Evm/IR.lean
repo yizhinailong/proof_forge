@@ -2336,19 +2336,7 @@ mutual
     | .nativeValue =>
         .ok (Lean.Compiler.Yul.builtin "callvalue" #[])
     | .crosscallInvoke target methodId args => do
-        let targetExpr ← lowerExpr module env target
-        let methodIdExpr ← lowerExpr module env methodId
-        let mut argExprs := #[]
-        for arg in args do
-          argExprs := argExprs.push (← lowerExpr module env arg)
-        .ok <| ← ProofForge.Backend.Evm.ToYul.crosscallScalarHelperCallExpr
-          toYulError
-          ProofForge.Backend.Evm.Plan.CrosscallMode.call
-          targetExpr
-          methodIdExpr
-          none
-          argExprs
-          .u64
+        lowerExprThroughPlan module env (.crosscallInvoke target methodId args)
     | .crosscallInvokeTyped target methodId args returnType => do
         lowerExprThroughPlan module env (.crosscallInvokeTyped target methodId args returnType)
     | .crosscallInvokeValueTyped target methodId callValue args returnType => do

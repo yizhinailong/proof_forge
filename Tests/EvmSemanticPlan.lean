@@ -2085,6 +2085,37 @@ def testScalarExprPlanToYul : IO Unit := do
     ("__proof_forge_create2_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
     2
     "create2 ExprPlan-to-Yul"
+  let untypedCrosscallPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.crosscallInvoke
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[.local "amount"]))
+    "untyped scalar crosscall Lower ExprPlan"
+  match untypedCrosscallPlan with
+  | .crosscall .call _ _ none args .u64 => do
+      require (args.size == 1) "untyped scalar crosscall argument count"
+      let arg ← requireAt args 0 "untyped scalar crosscall missing argument"
+      match arg with
+      | CrosscallArgWordPlan.expr (.local "amount") => pure ()
+      | _ => throw <| IO.userError "untyped scalar crosscall argument must be scalar expr plan"
+  | _ => throw <| IO.userError "untyped scalar crosscall must lower to call ExprPlan"
+  let directUntypedCrosscallExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.crosscallInvoke
+        (.local "target")
+        (.literal (.u64 305419896))
+        #[.local "amount"]))
+    "direct untyped scalar crosscall lowers through ExprPlan-to-Yul"
+  requireCallExpr
+    directUntypedCrosscallExpr
+    "__proof_forge_crosscall_1"
+    3
+    "direct untyped scalar crosscall ExprPlan-to-Yul"
   let directCrosscallExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.Counter.module
