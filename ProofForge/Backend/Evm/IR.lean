@@ -67,9 +67,6 @@ def validateEventName (name : String) : Except LowerError Unit := do
   if name.toUTF8.size == 0 then
     .error { message := "event name must be non-empty for IR EVM v0" }
 
-def packedUtf8Words (value : String) : Array Nat × Nat :=
-  ProofForge.Backend.Evm.ToYul.packedUtf8Words value
-
 partial def eventSignatureFieldType (module : Module) (eventName fieldName : String) (type : ValueType) : Except LowerError String :=
   let erc20FieldType? : Option String :=
     if eventName == "Transfer" then
@@ -143,9 +140,6 @@ def ensureIndexedEventFieldType
     (type : ValueType) : Except LowerError Unit := do
   discard <| eventSignatureFieldType module eventName fieldName type
 
-def eventSignatureTopicStatements (signature : String) : Array Lean.Compiler.Yul.Statement :=
-  ProofForge.Backend.Evm.ToYul.eventSignatureTopicStatements (ProofForge.Backend.Evm.Plan.EventPlan.mk "" signature #[])
-
 def validateEventFieldName (eventName fieldName : String) : Except LowerError Unit :=
   if fieldName.isEmpty then
     .error { message := s!"event `{eventName}` field name must be non-empty" }
@@ -173,12 +167,6 @@ def validateIndexedEventFieldCount (eventName : String) (count : Nat) : Except L
     .error { message := s!"event `{eventName}` has {count} indexed field(s); EVM IR v0 supports at most 3 indexed fields" }
   else
     .ok ()
-
-def eventIndexedTopicName (index : Nat) : String :=
-  ProofForge.Backend.Evm.ToYul.eventIndexedTopicName index
-
-def eventLogBuiltinName (indexedFieldCount : Nat) : Except LowerError String :=
-  ProofForge.Backend.Evm.ToYul.eventLogBuiltinName toYulError indexedFieldCount
 
 def revertStmt : Lean.Compiler.Yul.Statement :=
   ProofForge.Backend.Evm.ToYul.revertStatement
@@ -3153,7 +3141,7 @@ partial def lowerIndexedEventTopicStatements
     (index : Nat)
     (fieldPlan : ProofForge.Backend.Evm.Plan.EventFieldPlan)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let topicName := eventIndexedTopicName index
+  let topicName := ProofForge.Backend.Evm.ToYul.eventIndexedTopicName index
   let type := fieldPlan.type
   match type with
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
