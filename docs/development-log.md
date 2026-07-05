@@ -17,6 +17,59 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM ABI Value Source Planning
+
+Commit: 32c2291
+
+Summary:
+
+- Added `AbiValuePlan` so return/event aggregate ABI sources no longer have to
+  be represented as `ExprPlan.localAbiWords` or `ExprPlan.storageAbiWords`.
+- Changed `ReturnValueWordPlan.source`, planned event data fields, and planned
+  indexed event fields to carry `AbiValuePlan` values.
+- Routed local, storage-backed, fixed-array literal, and struct literal ABI
+  sources through `Lower.buildAbiValuePlan` and `Lower.abiValueWordPlans`
+  before scalar word lowering.
+- Kept `ExprPlan.localAbiWords` and `ExprPlan.storageAbiWords` only for
+  compatibility helpers and older direct ToYul tests, not for active
+  return/event Lower output.
+- Updated semantic-plan tests, backlog docs, Chinese backlog docs, and the i18n
+  manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake build proof-forge
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/abi-aggregate-ir-smoke.sh
+scripts/evm/array-abi-ir-smoke.sh
+scripts/evm/event-ir-smoke.sh
+scripts/evm/storage-array-ir-smoke.sh
+scripts/evm/storage-struct-ir-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- `ExprPlan.localAbiWords` and `ExprPlan.storageAbiWords` still exist for
+  direct `ToYul` compatibility helpers; those helpers can be retired after
+  downstream direct tests and older callers are migrated.
+- Crosscall aggregate argument sources still use `ExprPlan.localCrosscallWords`
+  and `ExprPlan.storageCrosscallWords`; those are a separate migration slice.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Move crosscall aggregate source markers out of `ExprPlan` into a dedicated
+  crosscall ABI value/source plan, mirroring the return/event `AbiValuePlan`
+  split.
+
 ### EVM Aggregate ABI Word Planning
 
 Commit: 49ab2a9
