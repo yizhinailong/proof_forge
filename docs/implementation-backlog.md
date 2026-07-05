@@ -529,6 +529,10 @@ Tasks:
     enters `Lower.buildExpressionExprPlan` -> `ExprPlan.builtin`/`ExprPlan.cast`/
     `ExprPlan.nativeValue` -> `ToYul.exprPlanExpr`, removing another direct
     scalar expression frame from `IR.lowerExpr`.
+    Scalar literal and local expression leaves now also enter
+    `Lower.buildExpressionExprPlan` -> `ExprPlan.literalWord`/`ExprPlan.local` ->
+    `ToYul.exprPlanExpr`, including `hash4` limb packing through the same
+    `Lower.literalPlan` validation path.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local

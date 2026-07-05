@@ -1757,6 +1757,76 @@ def testScalarExprPlanToYul : IO Unit := do
     { name := "salt", type := .hash, isMutable := false },
     { name := "flag", type := .bool, isMutable := false }
   ]
+  let literalPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.literal (.u64 42)))
+    "literal Lower ExprPlan"
+  requireLiteralWordPlan literalPlan 42 "literal Lower ExprPlan"
+  let directLiteralExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.literal (.u64 42)))
+    "direct literal lowers through ExprPlan-to-Yul"
+  match directLiteralExpr with
+  | Lean.Compiler.Yul.Expr.lit lit =>
+      require (lit.value == "42") "direct literal ExprPlan-to-Yul value"
+  | _ => throw <| IO.userError "direct literal must lower to Yul literal"
+  let boolLiteralPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.literal (.bool true)))
+    "bool literal Lower ExprPlan"
+  requireLiteralWordPlan boolLiteralPlan 1 "bool literal Lower ExprPlan"
+  let hashLiteralPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.literal (.hash4 1 2 3 4)))
+    "hash literal Lower ExprPlan"
+  requireLiteralWordPlan
+    hashLiteralPlan
+    (← requireValidateOk
+      (ProofForge.Backend.Evm.Validate.packedHashLiteral 1 2 3 4)
+      "hash literal expected packed value")
+    "hash literal Lower ExprPlan"
+  let directHashLiteralExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.literal (.hash4 1 2 3 4)))
+    "direct hash literal lowers through ExprPlan-to-Yul"
+  match directHashLiteralExpr with
+  | Lean.Compiler.Yul.Expr.lit lit =>
+      require
+        (lit.value ==
+          toString (← requireValidateOk
+            (ProofForge.Backend.Evm.Validate.packedHashLiteral 1 2 3 4)
+            "direct hash literal expected packed value"))
+        "direct hash literal ExprPlan-to-Yul value"
+  | _ => throw <| IO.userError "direct hash literal must lower to Yul literal"
+  let localPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.local "amount"))
+    "local Lower ExprPlan"
+  match localPlan with
+  | .local "amount" => pure ()
+  | _ => throw <| IO.userError "local must lower to local ExprPlan"
+  let directLocalExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.local "amount"))
+    "direct local lowers through ExprPlan-to-Yul"
+  match directLocalExpr with
+  | Lean.Compiler.Yul.Expr.ident name =>
+      require (name == "amount") "direct local ExprPlan-to-Yul name"
+  | _ => throw <| IO.userError "direct local must lower to Yul identifier"
   let readExpr ← requireOk
     (lowerExprViaPlan
       ProofForge.IR.Examples.Counter.module

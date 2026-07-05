@@ -2242,15 +2242,10 @@ mutual
     lowerExprPlanExpr module env plan
 
   partial def lowerExpr (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError Lean.Compiler.Yul.Expr
-    | .literal (.u8 value) => .ok (Lean.Compiler.Yul.Expr.num value)
-    | .literal (.u32 value) => .ok (Lean.Compiler.Yul.Expr.num value)
-    | .literal (.u64 value) => .ok (Lean.Compiler.Yul.Expr.num value)
-    | .literal (.u128 value) => .ok (Lean.Compiler.Yul.Expr.num value)
-    | .literal (.bool value) => .ok (if value then Lean.Compiler.Yul.Expr.num 1 else Lean.Compiler.Yul.Expr.num 0)
-    | .literal (.hash4 a b c d) => do
-        .ok (Lean.Compiler.Yul.Expr.num (← lowerValidate <| ProofForge.Backend.Evm.Validate.packedHashLiteral a b c d))
-    | .literal (.address value) => .ok (Lean.Compiler.Yul.Expr.num value)
-    | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
+    | .literal value => do
+        lowerExprThroughPlan module env (.literal value)
+    | .local name => do
+        lowerExprThroughPlan module env (.local name)
     | .arrayLit _ _ =>
         .error { message := "fixed array literals must be consumed by a fixed array local binding or literal index in IR EVM v0" }
     | .arrayGet array index =>
