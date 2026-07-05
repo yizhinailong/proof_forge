@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Crosscall Helper Discovery Delegation
+
+Commit: eac0b95
+
+Summary:
+
+- Removed the stale IR-local crosscall helper discovery scanner and helper-body
+  assembly definitions from `IR.lean`.
+- Kept the compatibility facade entrypoints
+  `moduleCrosscallHelperSpecs` and `crosscallHelperFunctions`, but made them
+  delegate directly to `Lower.buildCrosscallHelperPlans` and
+  `ToYul.crosscallHelperFunction`.
+- Preserved the public wrapper shape while ensuring crosscall helper discovery
+  has a single semantic source of truth in the plan/lower layer.
+
+Validation run:
+
+```sh
+test -z "$(rg -n "crosscallHelperSpecsExpr|crosscallHelperSpecsEffect|crosscallHelperSpecsStatement|pushCrosscallHelperSpecIfMissing|mergeCrosscallHelperSpecs|crosscallArgName|crosscallFunctionParams|crosscallReturnGuardStatements|def crosscallHelperFunction \\(" ProofForge/Backend/Evm/IR.lean || true)"
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/crosscall-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- This slice removes duplicate discovery logic; it does not migrate the
+  remaining `IR.lean` aggregate crosscall argument expansion or bytes/string
+  return paths.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving the remaining crosscall aggregate argument/return and dynamic
+  return encoding decisions behind explicit plan surfaces before deleting more
+  compatibility fallback code.
+
 ### EVM Aggregate Return ABI Word Plans
 
 Commit: 26a8453
