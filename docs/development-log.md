@@ -16400,3 +16400,47 @@ Result:
   locally.
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Aggregate Crosscall Return Plan Slice
+
+Commit: edd45b1
+
+Summary:
+
+- Added `ToYul.crosscallAggregateReturnAssignmentPlanStatement` so aggregate
+  crosscall return plans own target/method/call-value lowering, planned argument
+  word traversal, helper-call selection, argument ordering, and multi-return
+  assignment construction behind the ToYul plan boundary.
+- Routed `IR.lowerCrosscallReturnAssignmentPlan` through that helper, leaving
+  `IR.lean` responsible only for local/storage crosscall word-source provider
+  callbacks.
+- Added semantic-plan coverage for provider-backed aggregate crosscall return
+  assignment plans with local aggregate argument words plus scalar literal
+  argument words.
+- Updated the implementation backlog and Chinese backlog note to record the new
+  aggregate crosscall return assignment boundary.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+just evm-smoke crosscall
+git diff --check
+```
+
+Result:
+
+- Aggregate crosscall return assignment now flows through
+  `CrosscallReturnAssignmentPlan -> ToYul` for helper-call and assignment frame
+  construction.
+- EVM semantic-plan tests, EVM plan tests, crosscall IR smoke, EVM diagnostics,
+  i18n sync, JSON validation, full Lake build, and whitespace checks passed
+  locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
