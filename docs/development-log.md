@@ -16444,3 +16444,46 @@ Result:
   locally.
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Storage Crosscall WordPlan Slice
+
+Commit: 4a5c5bd
+
+Summary:
+
+- Changed storage-backed struct crosscall arguments so `Lower` preserves the
+  already computed storage word plans as explicit
+  `CrosscallArgWordPlan.expr (.storageLoad ...)` entries.
+- Removed the active-path need to carry a provider-backed
+  `CrosscallArgWordPlan.storage` source marker for storage-backed struct
+  crosscall arguments.
+- Updated semantic-plan coverage for planned-body crosscall returns and direct
+  scalar expression crosscalls to assert storage-backed aggregate arguments
+  carry concrete storage-load word plans.
+- Updated the implementation backlog and Chinese backlog note to record the
+  storage crosscall source boundary change.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+just evm-smoke crosscall
+git diff --check
+```
+
+Result:
+
+- Storage-backed aggregate struct crosscall arguments now enter ToYul as
+  planned storage-load word expressions instead of storage source callbacks on
+  the active Lower path.
+- EVM semantic-plan tests, EVM plan tests, crosscall IR smoke, EVM diagnostics,
+  i18n sync, JSON validation, full Lake build, and whitespace checks passed
+  locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
