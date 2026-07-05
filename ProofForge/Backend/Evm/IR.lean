@@ -3281,6 +3281,12 @@ partial def lowerDynamicArrayPushStmtPlanOrFallback
       | .error err => .error { message := err.message }
     let statements ←
       match effectPlan with
+      | .storageDynamicArrayPushTarget .. =>
+          ProofForge.Backend.Evm.ToYul.dynamicArrayPushTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.effect effectPlan)
       | .storageDynamicArrayPush .. =>
           ProofForge.Backend.Evm.ToYul.dynamicArrayPushEffectStmtPlanStatements
             toYulError
@@ -3294,7 +3300,7 @@ partial def lowerDynamicArrayPushStmtPlanOrFallback
               .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.dynamicArraySlot #[slotExpr slot, indexExpr]))
             (.effect effectPlan)
       | _ =>
-          .error { message := "EVM Lower.buildEffectPlan dynamic-array push did not produce storageDynamicArrayPush" }
+          .error { message := "EVM Lower.buildEffectPlan dynamic-array push did not produce storageDynamicArrayPushTarget" }
     if statements.isEmpty then
       .error { message := "EVM StmtPlan-to-Yul dynamic-array push lowering produced no statements" }
     else if statements.size == 1 then
@@ -3315,6 +3321,10 @@ partial def lowerDynamicArrayPopStmtPlanOrFallback
     | .error err => .error { message := err.message }
   let statements ←
     match effectPlan with
+    | .storageDynamicArrayPopTarget .. =>
+        ProofForge.Backend.Evm.ToYul.dynamicArrayPopTargetEffectStmtPlanStatements
+          toYulError
+          (.effect effectPlan)
     | .storageDynamicArrayPop .. =>
         ProofForge.Backend.Evm.ToYul.dynamicArrayPopEffectStmtPlanStatements
           toYulError
@@ -3326,7 +3336,7 @@ partial def lowerDynamicArrayPopStmtPlanOrFallback
             .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.dynamicArraySlot #[slotExpr slot, indexExpr]))
           (.effect effectPlan)
     | _ =>
-        .error { message := "EVM Lower.buildEffectPlan dynamic-array pop did not produce storageDynamicArrayPop" }
+        .error { message := "EVM Lower.buildEffectPlan dynamic-array pop did not produce storageDynamicArrayPopTarget" }
   if statements.isEmpty then
     .error { message := "EVM StmtPlan-to-Yul dynamic-array pop lowering produced no statements" }
   else if statements.size == 1 then
@@ -4971,7 +4981,11 @@ def effectPlanSupportsPlannedBodyStmt :
       exprPlanSupportsPlannedBody index && exprPlanSupportsPlannedBody value
   | .storageDynamicArrayPush _ value =>
       exprPlanSupportsPlannedBody value
+  | .storageDynamicArrayPushTarget _ value =>
+      exprPlanSupportsPlannedBody value
   | .storageDynamicArrayPop _ =>
+      true
+  | .storageDynamicArrayPopTarget _ =>
       true
   | .storageStructFieldWrite _ _ value =>
       exprPlanSupportsPlannedBody value
@@ -5205,6 +5219,16 @@ def lowerPlannedBodyEffectPlan
         toYulError
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
+        (.effect effect)
+  | .storageDynamicArrayPushTarget .. =>
+      ProofForge.Backend.Evm.ToYul.dynamicArrayPushTargetEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (.effect effect)
+  | .storageDynamicArrayPopTarget .. =>
+      ProofForge.Backend.Evm.ToYul.dynamicArrayPopTargetEffectStmtPlanStatements
+        toYulError
         (.effect effect)
   | .memoryArraySet .. =>
       ProofForge.Backend.Evm.ToYul.memoryArraySetEffectStmtPlanStatements

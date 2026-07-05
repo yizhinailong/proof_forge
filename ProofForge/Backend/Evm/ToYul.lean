@@ -3227,6 +3227,45 @@ def dynamicArrayPushEffectStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul dynamic array push lowering expected effect")
 
+def dynamicArraySlotTargetExpr
+    (target : DynamicArrayTargetPlan)
+    (index : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
+  helperCall Helper.dynamicArraySlot #[slotExpr target.rootSlot, index]
+
+def dynamicArrayPushTargetEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storageDynamicArrayPushTarget target value => do
+      let baseSlot := slotExpr target.rootSlot
+      let lenExpr := Lean.Compiler.Yul.Expr.id "__proof_forge_dyn_array_len"
+      let newLenExpr := Lean.Compiler.Yul.Expr.id "__proof_forge_dyn_array_new_len"
+      .ok #[
+        .varDecl #[{ name := "__proof_forge_dyn_array_len" }] (some (Lean.Compiler.Yul.builtin "sload" #[baseSlot])),
+        .varDecl #[{ name := "__proof_forge_dyn_array_new_len" }]
+          (some (Lean.Compiler.Yul.builtin "add" #[lenExpr, Lean.Compiler.Yul.Expr.num 1])),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[
+          dynamicArraySlotTargetExpr target lenExpr,
+          ← exprPlanExpr mkError lowerExpr lowerEffect value
+        ]),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[baseSlot, newLenExpr])
+      ]
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul planned dynamic array push lowering expected storageDynamicArrayPushTarget")
+
+def dynamicArrayPushTargetEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      dynamicArrayPushTargetEffectPlanStatements mkError lowerExpr lowerEffect effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul planned dynamic array push lowering expected effect")
+
 def dynamicArrayPopEffectPlanStatements
     {ε : Type}
     (mkError : String → ε)
@@ -3258,6 +3297,34 @@ def dynamicArrayPopEffectStmtPlanStatements
       dynamicArrayPopEffectPlanStatements mkError baseSlotFor dynamicArraySlotFor effect
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul dynamic array pop lowering expected effect")
+
+def dynamicArrayPopTargetEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storageDynamicArrayPopTarget target => do
+      let baseSlot := slotExpr target.rootSlot
+      let lenExpr := Lean.Compiler.Yul.Expr.id "__proof_forge_dyn_array_len"
+      let newLenExpr := Lean.Compiler.Yul.Expr.id "__proof_forge_dyn_array_new_len"
+      .ok #[
+        .varDecl #[{ name := "__proof_forge_dyn_array_len" }] (some (Lean.Compiler.Yul.builtin "sload" #[baseSlot])),
+        .ifStmt (Lean.Compiler.Yul.builtin "iszero" #[lenExpr])
+          { statements := #[.exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 0])] },
+        .varDecl #[{ name := "__proof_forge_dyn_array_new_len" }]
+          (some (Lean.Compiler.Yul.builtin "sub" #[lenExpr, Lean.Compiler.Yul.Expr.num 1])),
+        .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[baseSlot, newLenExpr])
+      ]
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul planned dynamic array pop lowering expected storageDynamicArrayPopTarget")
+
+def dynamicArrayPopTargetEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      dynamicArrayPopTargetEffectPlanStatements mkError effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul planned dynamic array pop lowering expected effect")
 
 def structFieldWriteEffectPlanStatements
     {ε : Type}

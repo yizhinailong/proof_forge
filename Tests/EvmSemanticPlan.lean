@@ -6275,11 +6275,33 @@ def testDynamicArrayPlanToYul : IO Unit := do
       (.storageDynamicArrayPush "values" (.add (.local "value") (.literal (.u64 3)))))
     "Lower dynamic-array push effect plan"
   match loweredPushEffect with
-  | .storageDynamicArrayPush stateId (.checkedArith .add (.local valueName) (.literalWord amount)) => do
-      require (stateId == "values") "Lower dynamic-array push state"
+  | .storageDynamicArrayPushTarget target (.checkedArith .add (.local valueName) (.literalWord amount)) => do
+      require (target.rootSlot == 0) "Lower dynamic-array push target root slot"
       require (valueName == "value") "Lower dynamic-array push value local"
       require (amount == 3) "Lower dynamic-array push checked-add literal"
-  | _ => throw <| IO.userError "Lower dynamic-array push must plan value expression"
+  | _ => throw <| IO.userError "Lower dynamic-array push must plan target and value expression"
+  let directPushStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.dynamicArrayPushTargetEffectStmtPlanStatements
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmDynamicArrayProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmDynamicArrayProbe.module env)
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect loweredPushEffect))
+    "dynamic-array push target StmtPlan-to-Yul helper"
+  require (directPushStmts.size == 4) "dynamic-array push target helper statement count"
+  match directPushStmts[2]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "dynamic-array push target helper sstore arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == (Helper.dynamicArraySlot).name) "dynamic-array push target helper slot"
+          require (slotArgs.size == 2) "dynamic-array push target helper slot arg count"
+          match slotArgs[0]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "0") "dynamic-array push target helper root slot"
+          | _ => throw <| IO.userError "dynamic-array push target helper root slot must be literal"
+      | _ => throw <| IO.userError "dynamic-array push target helper first sstore arg must be dynamic slot helper"
+      requireCallExpr args[1]! "__pf_checked_add" 2 "dynamic-array push target helper value"
+  | _ => throw <| IO.userError "dynamic-array push target helper third statement must be sstore"
   let pushStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.EvmDynamicArrayProbe.module
@@ -6315,9 +6337,23 @@ def testDynamicArrayPlanToYul : IO Unit := do
       (.storageDynamicArrayPop "values"))
     "Lower dynamic-array pop effect plan"
   match loweredPopEffect with
-  | .storageDynamicArrayPop stateId =>
-      require (stateId == "values") "Lower dynamic-array pop state"
-  | _ => throw <| IO.userError "Lower dynamic-array pop must produce storageDynamicArrayPop"
+  | .storageDynamicArrayPopTarget target =>
+      require (target.rootSlot == 0) "Lower dynamic-array pop target root slot"
+  | _ => throw <| IO.userError "Lower dynamic-array pop must produce storageDynamicArrayPopTarget"
+  let directPopStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.dynamicArrayPopTargetEffectStmtPlanStatements
+      toYulError
+      (ProofForge.Backend.Evm.Plan.StmtPlan.effect loweredPopEffect))
+    "dynamic-array pop target StmtPlan-to-Yul helper"
+  require (directPopStmts.size == 4) "dynamic-array pop target helper statement count"
+  match directPopStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl _ (some (Lean.Compiler.Yul.Expr.builtin "sload" args)) => do
+      require (args.size == 1) "dynamic-array pop target helper load arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "0") "dynamic-array pop target helper root slot"
+      | _ => throw <| IO.userError "dynamic-array pop target helper root slot must be literal"
+  | _ => throw <| IO.userError "dynamic-array pop target helper must load root slot"
   let popStmt ← requireOk
     (lowerEffectStmt
       ProofForge.IR.Examples.EvmDynamicArrayProbe.module
