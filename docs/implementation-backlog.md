@@ -440,7 +440,9 @@ Tasks:
     selects `eventEmit`/`eventEmitIndexed` block construction behind ToYul,
     and ToYul owns field/value count checks, word-plan-to-Yul expression
     lowering, and indexed-topic/data routing while IR only supplies field word
-    plans. The earlier Yul-expression callback helper shape has been removed.
+    plans. Ordinary event statements now use the same `StmtPlan.effect` helper,
+    and the IR-local indexed-topic/data-word wrapper helpers have been removed.
+    The earlier Yul-expression callback helper shape has also been removed.
   - Started: event data-word store assembly and indexed scalar/aggregate topic
     assembly now consume `EventFieldPlan -> ToYul` helpers. Field expression
     evaluation and aggregate flattening still use the compatibility facade

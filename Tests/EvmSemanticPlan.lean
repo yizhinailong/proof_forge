@@ -4199,18 +4199,30 @@ def testStorageAggregateIndexedEventTopicPlanToYul : IO Unit := do
       | none => throw <| IO.userError "storage aggregate indexed event topic missing var"
       require (args.size == 2) "storage aggregate indexed event topic keccak arg count"
   | _ => throw <| IO.userError "storage aggregate indexed event topic must hash planned words"
-  let facadeTopicStmts ← requireOk
-    (lowerIndexedEventTopicStatements
+  let facadeEventStmt ← requireOk
+    (lowerEventEmitCoreStmt
       module
-      #[]
+      #[{ name := "value", type := .u64, isMutable := false }]
       "IndexedStoragePair"
-      "pair"
-      0
-      indexedFieldPlan
-      (.effect (.storageScalarRead "storedPair")))
-    "storage aggregate indexed event facade topic plan-to-yul"
-  require (facadeTopicStmts.size == plannedTopicStmts.size)
-    "storage aggregate indexed event facade topic statement count"
+      #[("pair", .effect (.storageScalarRead "storedPair"))]
+      #[("value", .local "value")])
+    "storage aggregate indexed event facade event plan-to-yul"
+  match facadeEventStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      let mut foundIndexedTopicHash := false
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.builtin "keccak256" args)) => do
+            match vars[0]? with
+            | some var =>
+                if vars.size == 1 && var.name == "_indexed_topic0" && args.size == 2 then
+                  foundIndexedTopicHash := true
+            | none => pure ()
+        | _ => pure ()
+      require foundIndexedTopicHash
+        "storage aggregate indexed event facade event must hash planned indexed words"
+  | _ =>
+      throw <| IO.userError "storage aggregate indexed event facade event must lower to block"
 
 def testScalarStorageEffectPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]

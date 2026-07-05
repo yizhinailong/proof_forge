@@ -2654,40 +2654,6 @@ def lowerAbiWordPlanExprs
     Except LowerError (Array Lean.Compiler.Yul.Expr) :=
   plans.mapM (lowerExprPlanExpr module env)
 
-def lowerEventFieldDataWordExprs
-    (module : Module)
-    (env : TypeEnv)
-    (eventName : String)
-    (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
-    (value : ProofForge.Backend.Evm.Plan.AbiValuePlan) :
-    Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-  let wordPlans ←
-    lowerValidate <|
-      ProofForge.Backend.Evm.Lower.eventFieldDataWordPlans
-        module
-        (toValidateTypeEnv env)
-        eventName
-        field
-        value
-  lowerAbiWordPlanExprs module env wordPlans
-
-def lowerEventFieldsDataWordExprs
-    (module : Module)
-    (env : TypeEnv)
-    (eventName : String)
-    (fields : Array ProofForge.Backend.Evm.Plan.EventFieldPlan)
-    (values : Array ProofForge.Backend.Evm.Plan.AbiValuePlan) :
-    Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-  let wordPlans ←
-    lowerValidate <|
-      ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
-        module
-        (toValidateTypeEnv env)
-        eventName
-        fields
-        values
-  lowerAbiWordPlanExprs module env wordPlans
-
 def lowerReturnValueWordPlan
     (module : Module)
     (env : TypeEnv)
@@ -2857,37 +2823,6 @@ partial def lowerScalarAssertStmtPlanOrFallback
   | _ =>
       .error { message := "EVM StmtPlan-to-Yul scalar assertion lowering expected assert/assertEq" }
 
-partial def lowerIndexedEventTopicStatements
-    (module : Module)
-    (env : TypeEnv)
-    (eventName fieldName : String)
-    (index : Nat)
-    (fieldPlan : ProofForge.Backend.Evm.Plan.EventFieldPlan)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let type := fieldPlan.type
-  match type with
-  | .unit | .bytes | .string | .array _ =>
-      .error {
-        message := s!"event `{eventName}` indexed field `{fieldName}` has unsupported EVM IR v0 type `{type.name}`; indexed event fields must be U32, U64, Bool, Hash, Address, flat structs, or fixed arrays"
-      }
-  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .fixedArray _ _ | .structType _ => do
-      let valuePlan ←
-        match ProofForge.Backend.Evm.Lower.buildEventFieldValuePlan
-          module
-          (toValidateTypeEnv env)
-          eventName
-          fieldName
-          type
-          value with
-        | .ok plan => .ok plan
-        | .error err => .error { message := err.message }
-      let words ← lowerEventFieldDataWordExprs module env eventName fieldPlan valuePlan
-      ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
-        toYulError
-        fieldPlan
-        index
-        words
-
 def lowerEventEmitCoreStmt
     (module : Module)
     (env : TypeEnv)
@@ -2904,13 +2839,22 @@ def lowerEventEmitCoreStmt
     | .error err => .error { message := err.message }
   let indexedFieldPlans := eventPlan.indexedFields
   let dataFieldPlans := eventPlan.dataFields
-  let mut indexedTopicStatements : Array Lean.Compiler.Yul.Statement := #[]
+  let mut indexedValuePlans : Array ProofForge.Backend.Evm.Plan.AbiValuePlan := #[]
   for h : idx in [0:indexedFields.size] do
     let field := indexedFields[idx]
     let some fieldPlan := indexedFieldPlans[idx]?
       | .error { message := s!"event `{name}` missing indexed field plan at index {idx}" }
-    indexedTopicStatements := indexedTopicStatements ++
-      (← lowerIndexedEventTopicStatements module env name field.fst idx fieldPlan field.snd)
+    let valuePlan ←
+      match ProofForge.Backend.Evm.Lower.buildEventFieldValuePlan
+          module
+          (toValidateTypeEnv env)
+          name
+          field.fst
+          fieldPlan.type
+          field.snd with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    indexedValuePlans := indexedValuePlans.push valuePlan
   let mut dataValuePlans : Array ProofForge.Backend.Evm.Plan.AbiValuePlan := #[]
   for h : idx in [0:dataFields.size] do
     let field := dataFields[idx]
@@ -2927,12 +2871,39 @@ def lowerEventEmitCoreStmt
       | .ok plan => .ok plan
       | .error err => .error { message := err.message }
     dataValuePlans := dataValuePlans.push valuePlan
-  let dataWords ← lowerEventFieldsDataWordExprs module env name dataFieldPlans dataValuePlans
-  ProofForge.Backend.Evm.ToYul.eventEmitCoreStatement
-    toYulError
-    eventPlan
-    indexedTopicStatements
-    dataWords
+  let fieldWordPlansFor
+      (event : ProofForge.Backend.Evm.Plan.EventPlan)
+      (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
+      (value : ProofForge.Backend.Evm.Plan.AbiValuePlan) :
+      Except LowerError (Array ProofForge.Backend.Evm.Plan.ExprPlan) :=
+    lowerValidate <|
+      ProofForge.Backend.Evm.Lower.eventFieldDataWordPlans
+        module
+        (toValidateTypeEnv env)
+        event.name
+        field
+        value
+  let effect :=
+    if indexedFields.isEmpty then
+      ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.eventEmit eventPlan dataValuePlans)
+    else
+      ProofForge.Backend.Evm.Plan.StmtPlan.effect
+        (.eventEmitIndexed eventPlan indexedValuePlans dataValuePlans)
+  let statements ←
+    ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatements
+      toYulError
+      (lowerExprPlanExpr module env)
+      fieldWordPlansFor
+      effect
+  match statements[0]? with
+  | some statement =>
+      if statements.size == 1 then
+        .ok statement
+      else
+        .error { message := s!"event `{name}` lowering produced {statements.size} statements, expected 1" }
+  | none =>
+      .error { message := s!"event `{name}` lowering produced no statements" }
 
 def lowerEventEmitStmt
     (module : Module)
