@@ -513,6 +513,9 @@ Tasks:
     `ToYul.crosscallExprPlanExpr` path instead of assembling its scalar helper
     call directly inside `IR.lowerExpr`. The compatibility `IR.lean` expression
     lowering still supplies local/storage provider callbacks for source plans.
+    Legacy `crosscallCreate` and `crosscallCreate2` expression lowering also now
+    enters `Lower.buildExpressionExprPlan` -> `ExprPlan.create` ->
+    `ToYul.exprPlanExpr`, removing the old IR-local create helper-call branches.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local

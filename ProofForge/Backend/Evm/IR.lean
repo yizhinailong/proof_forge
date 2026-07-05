@@ -2346,19 +2346,9 @@ mutual
     | .crosscallInvokeDelegateTyped target methodId args returnType => do
         lowerExprThroughPlan module env (.crosscallInvokeDelegateTyped target methodId args returnType)
     | .crosscallCreate callValue initCodeHex => do
-        .ok <| ← ProofForge.Backend.Evm.ToYul.createHelperCallExpr
-          toYulError
-          ProofForge.Backend.Evm.Plan.CreateMode.create
-          (← lowerExpr module env callValue)
-          none
-          initCodeHex
+        lowerExprThroughPlan module env (.crosscallCreate callValue initCodeHex)
     | .crosscallCreate2 callValue salt initCodeHex => do
-        .ok <| ← ProofForge.Backend.Evm.ToYul.createHelperCallExpr
-          toYulError
-          ProofForge.Backend.Evm.Plan.CreateMode.create2
-          (← lowerExpr module env callValue)
-          (some (← lowerExpr module env salt))
-          initCodeHex
+        lowerExprThroughPlan module env (.crosscallCreate2 callValue salt initCodeHex)
     | .effect effect => lowerEffectExpr module env effect
 
   partial def lowerEffectExpr (module : Module) (env : TypeEnv) : Effect → Except LowerError Lean.Compiler.Yul.Expr

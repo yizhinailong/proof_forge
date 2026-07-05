@@ -2085,6 +2085,62 @@ def testScalarExprPlanToYul : IO Unit := do
     ("__proof_forge_create2_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
     2
     "create2 ExprPlan-to-Yul"
+  let directCreatePlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.crosscallCreate
+        (.literal (.u64 0))
+        ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex))
+    "direct create Lower ExprPlan"
+  match directCreatePlan with
+  | .create .create (.literalWord 0) none initCodeHex => do
+      require
+        (initCodeHex == ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
+        "direct create Lower ExprPlan init code"
+  | _ => throw <| IO.userError "direct create must lower to create ExprPlan"
+  let directCreateExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.crosscallCreate
+        (.literal (.u64 0))
+        ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex))
+    "direct create lowers through ExprPlan-to-Yul"
+  requireCallExpr
+    directCreateExpr
+    ("__proof_forge_create_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
+    1
+    "direct create ExprPlan-to-Yul"
+  let directCreate2Plan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.crosscallCreate2
+        (.literal (.u64 0))
+        (.local "salt")
+        ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex))
+    "direct create2 Lower ExprPlan"
+  match directCreate2Plan with
+  | .create .create2 (.literalWord 0) (some (.local "salt")) initCodeHex => do
+      require
+        (initCodeHex == ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
+        "direct create2 Lower ExprPlan init code"
+  | _ => throw <| IO.userError "direct create2 must lower to create2 ExprPlan"
+  let directCreate2Expr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.crosscallCreate2
+        (.literal (.u64 0))
+        (.local "salt")
+        ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex))
+    "direct create2 lowers through ExprPlan-to-Yul"
+  requireCallExpr
+    directCreate2Expr
+    ("__proof_forge_create2_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex)
+    2
+    "direct create2 ExprPlan-to-Yul"
   let untypedCrosscallPlan ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
       ProofForge.IR.Examples.Counter.module
