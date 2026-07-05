@@ -314,6 +314,20 @@ def testEventSemanticPlan : IO Unit := do
   require (fields[0]!.name == "value") "event plan ValueEvent field name"
   require (fields[0]!.type == .u64) "event plan ValueEvent field type"
   require (fields[0]!.indexed == false) "event plan ValueEvent field not indexed"
+  let valueEntrypoint ← requireSome
+    (plan.entrypoints.find? (fun entrypoint => entrypoint.name == "emit_value_event"))
+    "event plan missing emit_value_event entrypoint"
+  let valueStmt ← requireAt valueEntrypoint.body 0 "event plan emit_value_event missing body"
+  match valueStmt with
+  | .effect (.eventEmitWords event dataFieldWords) => do
+      require (event.name == "ValueEvent") "event plan body eventEmitWords event name"
+      require (dataFieldWords.size == 1) "event plan body eventEmitWords field count"
+      let valueWords ← requireAt dataFieldWords 0 "event plan body eventEmitWords missing field words"
+      require (valueWords.size == 1) "event plan body eventEmitWords word count"
+      match valueWords[0]? with
+      | some (ExprPlan.local "value") => pure ()
+      | _ => throw <| IO.userError "event plan body eventEmitWords must carry value local"
+  | _ => throw <| IO.userError "event plan body must already use eventEmitWords"
   let topicStmts := ProofForge.Backend.Evm.ToYul.eventSignatureTopicStatements valueEvent
   require (topicStmts.size > 0) "event plan-to-yul topic statement count"
   match topicStmts[topicStmts.size - 1]? with
@@ -3915,19 +3929,15 @@ def plannedLocalAggregateEventDataWords
       (toValidateTypeEnv env)
       (.eventEmit eventName fields))
     s!"{label} Lower EffectPlan"
-  let (event, dataFields) ←
+  let (event, dataFieldWords) ←
     match plan with
-    | .eventEmit event dataFields => pure (event, dataFields)
-    | _ => throw <| IO.userError s!"{label} must lower to eventEmit plan"
+    | .eventEmitWords event dataFieldWords => pure (event, dataFieldWords)
+    | _ => throw <| IO.userError s!"{label} must lower to eventEmitWords plan"
   require (event.name == eventName) s!"{label} event name"
-  let wordPlans ← requireValidateOk
-    (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
-      module
-      (toValidateTypeEnv env)
-      event.name
-      event.dataFields
-      dataFields)
-    s!"{label} Lower data word plans"
+  require (dataFieldWords.size == fields.size) s!"{label} per-field word plan count"
+  let mut wordPlans : Array ExprPlan := #[]
+  for h : idx in [0:dataFieldWords.size] do
+    wordPlans := wordPlans ++ dataFieldWords[idx]
   let mut words : Array Lean.Compiler.Yul.Expr := #[]
   for h : idx in [0:wordPlans.size] do
     words := words.push
@@ -4014,27 +4024,14 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
       (toValidateTypeEnv #[])
       (.eventEmit "StoragePairEvent" #[("pair", .effect (.storageScalarRead "storedPair"))]))
     "storage aggregate event Lower EffectPlan"
-  let (event, dataFields) ←
+  let (event, dataFieldWords) ←
     match plan with
-    | .eventEmit event dataFields => pure (event, dataFields)
-    | _ => throw <| IO.userError "storage aggregate event must lower to eventEmit plan"
+    | .eventEmitWords event dataFieldWords => pure (event, dataFieldWords)
+    | _ => throw <| IO.userError "storage aggregate event must lower to eventEmitWords plan"
   require (event.name == "StoragePairEvent") "storage aggregate event plan name"
   require (event.dataFields.size == 1) "storage aggregate event data field count"
-  require (dataFields.size == 1) "storage aggregate event planned data value count"
-  match dataFields[0]? with
-  | some (AbiValuePlan.storage stateId type) => do
-      require (stateId == "storedPair") "storage aggregate event storage ABI value state id"
-      require (type == .structType "Pair") "storage aggregate event storage ABI value type"
-  | some _ => throw <| IO.userError "storage aggregate event data field must use storage ABI value source"
-  | none => throw <| IO.userError "storage aggregate event missing planned data field"
-  let wordPlans ← requireValidateOk
-    (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
-      module
-      (toValidateTypeEnv #[])
-      event.name
-      event.dataFields
-      dataFields)
-    "storage aggregate event data word plans"
+  require (dataFieldWords.size == 1) "storage aggregate event per-field data word count"
+  let wordPlans ← requireAt dataFieldWords 0 "storage aggregate event missing data word field"
   require (wordPlans.size == 2) "storage aggregate event data word plan count"
   for h : idx in [0:wordPlans.size] do
     match wordPlans[idx] with
@@ -4077,24 +4074,14 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
       (toValidateTypeEnv #[])
       (.eventEmit "StorageArrayEvent" #[("values", ProofForge.IR.Examples.EventProbe.storedValues)]))
     "storage array aggregate event Lower EffectPlan"
-  let (arrayEvent, arrayDataFields) ←
+  let (arrayEvent, arrayDataFieldWords) ←
     match arrayPlan with
-    | .eventEmit event dataFields => pure (event, dataFields)
-    | _ => throw <| IO.userError "storage array aggregate event must lower to eventEmit plan"
-  match arrayDataFields[0]? with
-  | some (AbiValuePlan.storage stateId type) => do
-      require (stateId == "storedValues") "storage array aggregate event storage ABI value state id"
-      require (type == .fixedArray .u64 2) "storage array aggregate event storage ABI value type"
-  | some _ => throw <| IO.userError "storage array aggregate event data field must use storage ABI value source"
-  | none => throw <| IO.userError "storage array aggregate event missing planned data field"
-  let arrayWordPlans ← requireValidateOk
-    (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
-      module
-      (toValidateTypeEnv #[])
-      arrayEvent.name
-      arrayEvent.dataFields
-      arrayDataFields)
-    "storage array aggregate event data word plans"
+    | .eventEmitWords event dataFieldWords => pure (event, dataFieldWords)
+    | _ => throw <| IO.userError "storage array aggregate event must lower to eventEmitWords plan"
+  require (arrayEvent.name == "StorageArrayEvent") "storage array aggregate event plan name"
+  require (arrayDataFieldWords.size == 1) "storage array aggregate event per-field data word count"
+  let arrayWordPlans ← requireAt arrayDataFieldWords 0
+    "storage array aggregate event missing data word field"
   require (arrayWordPlans.size == 2) "storage array aggregate event data word plan count"
   for h : idx in [0:arrayWordPlans.size] do
     match arrayWordPlans[idx] with
@@ -4117,24 +4104,14 @@ def testStorageAggregateEventDataWordsPlanToYul : IO Unit := do
       (toValidateTypeEnv #[])
       (.eventEmit "StoragePairArrayEvent" #[("pairs", ProofForge.IR.Examples.EventProbe.storedPairs)]))
     "storage struct-array aggregate event Lower EffectPlan"
-  let (structArrayEvent, structArrayDataFields) ←
+  let (structArrayEvent, structArrayDataFieldWords) ←
     match structArrayPlan with
-    | .eventEmit event dataFields => pure (event, dataFields)
-    | _ => throw <| IO.userError "storage struct-array aggregate event must lower to eventEmit plan"
-  match structArrayDataFields[0]? with
-  | some (AbiValuePlan.storage stateId type) => do
-      require (stateId == "storedPairs") "storage struct-array aggregate event storage ABI value state id"
-      require (type == .fixedArray (.structType "Pair") 2) "storage struct-array aggregate event storage ABI value type"
-  | some _ => throw <| IO.userError "storage struct-array aggregate event data field must use storage ABI value source"
-  | none => throw <| IO.userError "storage struct-array aggregate event missing planned data field"
-  let structArrayWordPlans ← requireValidateOk
-    (ProofForge.Backend.Evm.Lower.eventFieldsDataWordPlans
-      module
-      (toValidateTypeEnv #[])
-      structArrayEvent.name
-      structArrayEvent.dataFields
-      structArrayDataFields)
-    "storage struct-array aggregate event data word plans"
+    | .eventEmitWords event dataFieldWords => pure (event, dataFieldWords)
+    | _ => throw <| IO.userError "storage struct-array aggregate event must lower to eventEmitWords plan"
+  require (structArrayEvent.name == "StoragePairArrayEvent") "storage struct-array aggregate event plan name"
+  require (structArrayDataFieldWords.size == 1) "storage struct-array aggregate event per-field data word count"
+  let structArrayWordPlans ← requireAt structArrayDataFieldWords 0
+    "storage struct-array aggregate event missing data word field"
   require (structArrayWordPlans.size == 4) "storage struct-array aggregate event data word plan count"
   for h : idx in [0:structArrayWordPlans.size] do
     match structArrayWordPlans[idx] with
@@ -4163,29 +4140,16 @@ def testStorageAggregateIndexedEventTopicPlanToYul : IO Unit := do
         #[("pair", .effect (.storageScalarRead "storedPair"))]
         #[("value", .local "value")]))
     "storage aggregate indexed event Lower EffectPlan"
-  let (event, indexedFields) ←
+  let (event, indexedFieldWords) ←
     match plan with
-    | .eventEmitIndexed event indexedFields _ => pure (event, indexedFields)
-    | _ => throw <| IO.userError "storage aggregate indexed event must lower to eventEmitIndexed plan"
+    | .eventEmitIndexedWords event indexedFieldWords _ => pure (event, indexedFieldWords)
+    | _ => throw <| IO.userError "storage aggregate indexed event must lower to eventEmitIndexedWords plan"
   require (event.name == "IndexedStoragePair") "storage aggregate indexed event plan name"
   require (event.indexedFields.size == 1) "storage aggregate indexed event indexed field count"
-  require (indexedFields.size == 1) "storage aggregate indexed event planned indexed value count"
-  match indexedFields[0]? with
-  | some (AbiValuePlan.storage stateId type) => do
-      require (stateId == "storedPair") "storage aggregate indexed event storage ABI value state id"
-      require (type == .structType "Pair") "storage aggregate indexed event storage ABI value type"
-  | some _ => throw <| IO.userError "storage aggregate indexed event field must use storage ABI value source"
-  | none => throw <| IO.userError "storage aggregate indexed event missing planned indexed field"
+  require (indexedFieldWords.size == 1) "storage aggregate indexed event per-field indexed word count"
   let indexedFieldPlan ← requireAt event.indexedFields 0 "storage aggregate indexed event missing field plan"
-  let indexedValuePlan ← requireAt indexedFields 0 "storage aggregate indexed event missing value plan"
-  let indexedWordPlans ← requireValidateOk
-    (ProofForge.Backend.Evm.Lower.eventFieldDataWordPlans
-      module
-      (toValidateTypeEnv #[{ name := "value", type := .u64, isMutable := false }])
-      event.name
-      indexedFieldPlan
-      indexedValuePlan)
-    "storage aggregate indexed event word plans"
+  let indexedWordPlans ← requireAt indexedFieldWords 0
+    "storage aggregate indexed event missing indexed word field"
   require (indexedWordPlans.size == 2) "storage aggregate indexed event word plan count"
   for h : idx in [0:indexedWordPlans.size] do
     match indexedWordPlans[idx] with

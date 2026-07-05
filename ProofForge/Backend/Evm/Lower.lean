@@ -1176,7 +1176,7 @@ mutual
           let some fieldPlan := dataFields[idx]?
             | .error { message := s!"event `{name}` missing data field plan at index {idx}" }
           buildEventFieldValuePlan module env name field.fst fieldPlan.type field.snd
-        .ok (.eventEmit eventPlan plannedFields)
+        eventEffectWordPlan module env (.eventEmit eventPlan plannedFields)
     | .eventEmitIndexed name indexedFields dataFields => do
         let eventPlan ← eventPlanForFields module env name indexedFields dataFields
         let indexedPlans := eventPlan.indexedFields
@@ -1189,7 +1189,7 @@ mutual
           let some fieldPlan := dataPlans[idx]?
             | .error { message := s!"event `{name}` missing data field plan at index {idx}" }
           buildEventFieldValuePlan module env name field.fst fieldPlan.type field.snd
-        .ok (.eventEmitIndexed eventPlan plannedIndexed plannedData)
+        eventEffectWordPlan module env (.eventEmitIndexed eventPlan plannedIndexed plannedData)
 
   partial def buildStatementPlan
       (module : Module)

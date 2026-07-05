@@ -434,19 +434,20 @@ Tasks:
     data stores, and final `log1`-`log4` statement selection. `Lower` now owns
     conversion from `AbiValuePlan` sources into per-field `ExprPlan` word
     sequences before ToYul runs, using `EffectPlan.eventEmitWords` /
-    `eventEmitIndexedWords` as the active lowering surface.
+    `eventEmitIndexedWords` as the active lowering surface. Full semantic-plan
+    construction now returns those word-effect variants directly from
+    `Lower.buildEffectPlan`; the IR facade conversion remains only on the
+    compatibility event statement path until full entrypoint assembly consumes
+    `ModulePlan` bodies.
     Planned scalar-body event effects now route through
     `ToYul.eventEffectStmtPlanStatements`, so `StmtPlan.effect`
-    selects `eventEmit`/`eventEmitIndexed` block construction behind ToYul,
+    selects word-effect event block construction behind ToYul,
     and ToYul owns field/value count checks, word-plan-to-Yul expression
     lowering, and indexed-topic/data routing while IR only supplies field word
     plans. Ordinary event statements now use the same `StmtPlan.effect` helper,
     and the IR-local indexed-topic/data-word wrapper helpers have been removed.
     The earlier Yul-expression and field-word provider callback helper shapes
-    have also been removed from the active ToYul surface. The remaining work is
-    to make full semantic-plan construction produce the word-effect variants
-    directly, instead of converting the initial `AbiValuePlan` event effects at
-    the IR facade boundary.
+    have also been removed from the active ToYul surface.
   - Started: event data-word store assembly and indexed scalar/aggregate topic
     assembly now consume `EventFieldPlan -> ToYul` helpers. Field expression
     evaluation and aggregate flattening still use the compatibility facade
