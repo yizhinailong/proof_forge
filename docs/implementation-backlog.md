@@ -536,15 +536,16 @@ Tasks:
     sources: scalar/literal/storage-load words use `CrosscallArgWordPlan.expr`,
     local aggregate sources use `CrosscallArgWordPlan.local`, and compatibility
     storage sources can use `CrosscallArgWordPlan.storage` when direct ToYul
-    callers need provider-backed expansion. `Lower.buildCrosscallArgWordPlansMany`
+    callers need provider-backed expansion. The obsolete
+    `ExprPlan.localAbiWords`, `ExprPlan.storageAbiWords`,
+    `ExprPlan.localCrosscallWords`, and `ExprPlan.storageCrosscallWords`
+    constructors have been retired from `ExprPlan`; direct `ToYul.*Words`
+    helpers remain only as helper APIs for explicit local/source word expansion.
+    `Lower.buildCrosscallArgWordPlansMany`
     now returns those source plans, while `ToYul.crosscallArgWordPlanExprs`
     performs the final traversal and word concatenation. `IR.lean` still
     supplies ToYul provider callbacks for local/storage crosscall source plans,
-    but active Lower-produced crosscall arguments no longer emit
-    `ExprPlan.localCrosscallWords` or `ExprPlan.storageCrosscallWords`; those
-    expression constructors remain only for older direct callers and explicit
-    unsupported-generic `ExprPlan -> Yul` diagnostics. Scalar expression
-    fallback crosscall lowering now also calls
+    while scalar expression fallback crosscall lowering now also calls
     `Lower.buildCrosscallArgWordPlansMany` before that ToYul boundary, and the
     old IR-local `lowerCrosscall*ArgWords` expansion tree has been removed.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word

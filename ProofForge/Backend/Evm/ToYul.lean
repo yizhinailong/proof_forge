@@ -2289,14 +2289,6 @@ partial def exprPlanExpr
         initCodeHex
   | .cast source _ =>
       exprPlanExpr mkError lowerExpr lowerEffect source
-  | .localAbiWords .. =>
-      .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support ABI word expansion plans yet")
-  | .storageAbiWords .. =>
-      .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support storage ABI word expansion plans yet")
-  | .localCrosscallWords .. =>
-      .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support crosscall word expansion plans yet")
-  | .storageCrosscallWords .. =>
-      .error (mkError "EVM ExprPlan-to-Yul scalar lowering does not support storage crosscall word expansion plans yet")
   | .structField base fieldName =>
       localStructFieldExpr
         mkError

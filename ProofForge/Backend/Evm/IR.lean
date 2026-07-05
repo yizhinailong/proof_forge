@@ -4928,8 +4928,7 @@ mutual
     | .structField (.local _) _ => true
     | .structField (.localArrayGet _ path _) _ =>
         path.all exprPlanSupportsScalarBody
-    | .localAbiWords .. | .storageAbiWords .. | .localCrosscallWords ..
-    | .storageCrosscallWords .. | .structField .. | .arrayGet .. | .arrayLit ..
+    | .structField .. | .arrayGet .. | .arrayLit ..
     | .memoryArrayNew .. | .memoryArrayLength .. | .memoryArrayGet ..
     | .structLit .. => false
 end
