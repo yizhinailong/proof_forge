@@ -17,6 +17,54 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Storage Crosscall Word Planning
+
+Commit: bbe22b6
+
+Summary:
+
+- Added `Lower.storageCrosscallWordPlans` so storage scalar struct crosscall
+  arguments lower to explicit `ExprPlan.storageLoad` word plans in the EVM
+  semantic plan.
+- Routed storage scalar struct reads in `Lower.buildCrosscallStructArgWordPlans`
+  through the new storage word planner instead of emitting
+  `ExprPlan.storageCrosscallWords`.
+- Kept the `IR.lean` storage provider callback as a compatibility fallback for
+  existing `ExprPlan.storageCrosscallWords` inputs, but made it delegate through
+  `Lower.storageCrosscallWordPlans` before final Yul lowering.
+- Updated semantic-plan coverage to assert that storage-backed aggregate
+  crosscall arguments are planned as per-field `storageLoad` words.
+
+Validation run:
+
+```sh
+lake build proof-forge
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+test -z "$(rg -n "storageCrosscallWords" ProofForge/Backend/Evm/Lower.lean || true)"
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+scripts/evm/crosscall-ir-smoke.sh
+just evm-diagnostics
+```
+
+Known limitations:
+
+- Compatibility `ExprPlan.storageCrosscallWords` inputs still exist so older
+  facade paths can be lowered, but active Lower-produced storage-backed
+  crosscall arguments now use explicit `storageLoad` word plans.
+- Related local aggregate ABI compatibility paths still call
+  `ToYul.localAbiWords` directly until they are represented in the semantic
+  plan.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue migrating local aggregate ABI compatibility paths that still call
+  `ToYul.localAbiWords` directly into explicit `Lower`/`Plan` surfaces.
+
 ### EVM Local Crosscall Word Plan Validation
 
 Commit: 72ae37d
