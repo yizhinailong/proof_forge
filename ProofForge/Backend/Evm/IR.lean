@@ -2299,26 +2299,26 @@ mutual
         lowerExprThroughPlan module env (.shiftLeft lhs rhs)
     | .shiftRight lhs rhs => do
         lowerExprThroughPlan module env (.shiftRight lhs rhs)
-    | .cast value _ => do
-        lowerExpr module env value
+    | .cast value targetType => do
+        lowerExprThroughPlan module env (.cast value targetType)
     | .eq lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.eq lhs rhs)
     | .ne lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "eq" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]])
+        lowerExprThroughPlan module env (.ne lhs rhs)
     | .lt lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "lt" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.lt lhs rhs)
     | .le lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "gt" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]])
+        lowerExprThroughPlan module env (.le lhs rhs)
     | .gt lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "gt" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.gt lhs rhs)
     | .ge lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "iszero" #[Lean.Compiler.Yul.builtin "lt" #[← lowerExpr module env lhs, ← lowerExpr module env rhs]])
+        lowerExprThroughPlan module env (.ge lhs rhs)
     | .boolAnd lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "and" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.boolAnd lhs rhs)
     | .boolOr lhs rhs => do
-        .ok (Lean.Compiler.Yul.builtin "or" #[← lowerExpr module env lhs, ← lowerExpr module env rhs])
+        lowerExprThroughPlan module env (.boolOr lhs rhs)
     | .boolNot value => do
-        .ok (Lean.Compiler.Yul.builtin "iszero" #[← lowerExpr module env value])
+        lowerExprThroughPlan module env (.boolNot value)
     | .hashValue a b c d => do
         lowerExprThroughPlan module env (.hashValue a b c d)
     | .hash preimage => do
@@ -2326,7 +2326,7 @@ mutual
     | .hashTwoToOne lhs rhs => do
         lowerExprThroughPlan module env (.hashTwoToOne lhs rhs)
     | .nativeValue =>
-        .ok (Lean.Compiler.Yul.builtin "callvalue" #[])
+        lowerExprThroughPlan module env .nativeValue
     | .crosscallInvoke target methodId args => do
         lowerExprThroughPlan module env (.crosscallInvoke target methodId args)
     | .crosscallInvokeTyped target methodId args returnType => do

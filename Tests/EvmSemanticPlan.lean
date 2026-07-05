@@ -1754,7 +1754,8 @@ def testScalarExprPlanToYul : IO Unit := do
   let scalarEnv : TypeEnv := #[
     { name := "target", type := .u64, isMutable := false },
     { name := "amount", type := .u64, isMutable := false },
-    { name := "salt", type := .hash, isMutable := false }
+    { name := "salt", type := .hash, isMutable := false },
+    { name := "flag", type := .bool, isMutable := false }
   ]
   let readExpr ← requireOk
     (lowerExprViaPlan
@@ -1888,6 +1889,101 @@ def testScalarExprPlanToYul : IO Unit := do
       require (name == "xor") "direct bitXor ExprPlan-to-Yul opcode"
       require (args.size == 2) "direct bitXor ExprPlan-to-Yul arg count"
   | _ => throw <| IO.userError "direct bitXor must lower to Yul xor builtin"
+  let eqPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.eq (.local "amount") (.literal (.u64 7))))
+    "eq Lower ExprPlan"
+  match eqPlan with
+  | .builtin "eq" args => require (args.size == 2) "eq Lower ExprPlan arg count"
+  | _ => throw <| IO.userError "eq must lower to builtin ExprPlan"
+  let directEqExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.eq (.local "amount") (.literal (.u64 7))))
+    "direct eq lowers through ExprPlan-to-Yul"
+  match directEqExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "eq") "direct eq ExprPlan-to-Yul opcode"
+      require (args.size == 2) "direct eq ExprPlan-to-Yul arg count"
+  | _ => throw <| IO.userError "direct eq must lower to Yul eq builtin"
+  let directNeExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.ne (.local "amount") (.literal (.u64 7))))
+    "direct ne lowers through ExprPlan-to-Yul"
+  match directNeExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "iszero") "direct ne ExprPlan-to-Yul outer opcode"
+      require (args.size == 1) "direct ne ExprPlan-to-Yul outer arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.builtin innerName innerArgs => do
+          require (innerName == "eq") "direct ne ExprPlan-to-Yul inner opcode"
+          require (innerArgs.size == 2) "direct ne ExprPlan-to-Yul inner arg count"
+      | _ => throw <| IO.userError "direct ne inner expression must be eq builtin"
+  | _ => throw <| IO.userError "direct ne must lower to Yul iszero(eq(...))"
+  let boolPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.boolAnd (.local "flag") (.literal (.bool true))))
+    "boolAnd Lower ExprPlan"
+  match boolPlan with
+  | .builtin "and" args => require (args.size == 2) "boolAnd Lower ExprPlan arg count"
+  | _ => throw <| IO.userError "boolAnd must lower to builtin ExprPlan"
+  let directBoolNotExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.boolNot (.local "flag")))
+    "direct boolNot lowers through ExprPlan-to-Yul"
+  match directBoolNotExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "iszero") "direct boolNot ExprPlan-to-Yul opcode"
+      require (args.size == 1) "direct boolNot ExprPlan-to-Yul arg count"
+  | _ => throw <| IO.userError "direct boolNot must lower to Yul iszero builtin"
+  let castPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      (.cast (.local "amount") .u32))
+    "cast Lower ExprPlan"
+  match castPlan with
+  | .cast (.local "amount") .u32 => pure ()
+  | _ => throw <| IO.userError "cast must lower to cast ExprPlan"
+  let directCastExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.cast (.local "amount") .u32))
+    "direct cast lowers through ExprPlan-to-Yul"
+  match directCastExpr with
+  | Lean.Compiler.Yul.Expr.ident name =>
+      require (name == "amount") "direct cast ExprPlan-to-Yul source local"
+  | _ => throw <| IO.userError "direct cast must lower to source expression"
+  let nativePlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv scalarEnv)
+      .nativeValue)
+    "nativeValue Lower ExprPlan"
+  match nativePlan with
+  | .nativeValue => pure ()
+  | _ => throw <| IO.userError "nativeValue must lower to nativeValue ExprPlan"
+  let directNativeExpr ← requireOk
+    (lowerExpr
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      .nativeValue)
+    "direct nativeValue lowers through ExprPlan-to-Yul"
+  match directNativeExpr with
+  | Lean.Compiler.Yul.Expr.builtin name args => do
+      require (name == "callvalue") "direct nativeValue ExprPlan-to-Yul opcode"
+      require (args.isEmpty) "direct nativeValue ExprPlan-to-Yul arg count"
+  | _ => throw <| IO.userError "direct nativeValue must lower to Yul callvalue builtin"
   let hashValuePlan ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.buildExpressionExprPlan
       ProofForge.IR.Examples.Counter.module

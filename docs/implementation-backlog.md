@@ -525,6 +525,10 @@ Tasks:
     or `ExprPlan.builtin` -> `ToYul.exprPlanExpr`, so checked helper selection,
     builtin opcode names, and shift argument ordering no longer live in
     `IR.lowerExpr`.
+    Comparison, boolean, cast, and native-value expression lowering now also
+    enters `Lower.buildExpressionExprPlan` -> `ExprPlan.builtin`/`ExprPlan.cast`/
+    `ExprPlan.nativeValue` -> `ToYul.exprPlanExpr`, removing another direct
+    scalar expression frame from `IR.lowerExpr`.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local
