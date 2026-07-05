@@ -1213,6 +1213,67 @@ def testPlannedCrosscallHelperDiscoveryFromEntrypointPlans : IO Unit := do
     (injectedCrosscalls.any (fun spec => spec == expectedSpec))
     "planned entrypoint body scanner must discover injected staticcall helper"
 
+def testPlannedCreateHelperDiscoveryFromEntrypointPlans : IO Unit := do
+  let crosscallPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.EvmCrosscallProbe.module)
+      "crosscall probe full module plan for planned create helper discovery"
+  let plannedCreates :=
+    ProofForge.Backend.Evm.Lower.buildCreateHelperPlansFromEntrypoints crosscallPlan.entrypoints
+  require
+    (plannedCreates == crosscallPlan.creates)
+    "full module create helpers must be discovered from entrypoint plans"
+  let targetPlanCreates ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlanWithTargetPlan
+        ProofForge.IR.Examples.EvmCrosscallProbe.module
+        crosscallPlan.targetPlan)
+      "crosscall probe target-plan full module plan for planned create helper discovery"
+  require
+    (targetPlanCreates.creates == crosscallPlan.creates)
+    "target-plan full module create helpers must be discovered from entrypoint plans"
+  let counterPlan ←
+    requireValidateOk
+      (ProofForge.Backend.Evm.Lower.buildFullModulePlan ProofForge.IR.Examples.Counter.module)
+      "counter full module plan for planned create helper injection"
+  let rawCounterCreates :=
+    ProofForge.Backend.Evm.Lower.buildCreateHelperPlans ProofForge.IR.Examples.Counter.module
+  require rawCounterCreates.isEmpty
+    "counter raw IR should not contain create helpers"
+  let initCodeHex := ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex
+  let injectedEntrypoints := counterPlan.entrypoints.map fun entrypoint =>
+    if entrypoint.name == "get" then
+      { entrypoint with
+        body := #[
+          StmtPlan.letBind
+            "deployed"
+            .address
+            (ExprPlan.create
+              ProofForge.Backend.Evm.Plan.CreateMode.create
+              (ExprPlan.literalWord 0)
+              none
+              initCodeHex),
+          StmtPlan.return
+            (ExprPlan.create
+              ProofForge.Backend.Evm.Plan.CreateMode.create2
+              (ExprPlan.literalWord 0)
+              (some (ExprPlan.literalWord 42))
+              initCodeHex)
+        ]
+      }
+    else
+      entrypoint
+  let injectedCreates :=
+    ProofForge.Backend.Evm.Lower.buildCreateHelperPlansFromEntrypoints injectedEntrypoints
+  require
+    (injectedCreates.any fun spec =>
+      spec == { mode := ProofForge.Backend.Evm.Plan.CreateMode.create, initCodeHex })
+    "planned entrypoint body scanner must discover injected create helper"
+  require
+    (injectedCreates.any fun spec =>
+      spec == { mode := ProofForge.Backend.Evm.Plan.CreateMode.create2, initCodeHex })
+    "planned entrypoint body scanner must discover injected create2 helper"
+
 def testLocalArrayHelperDiscoveryInLowerPlan : IO Unit := do
   let plan ←
     requireOk
@@ -7872,6 +7933,7 @@ def main : IO UInt32 := do
   testMapHelperPlanToYul
   testPlannedHelperDiscoveryToYul
   testPlannedCrosscallHelperDiscoveryFromEntrypointPlans
+  testPlannedCreateHelperDiscoveryFromEntrypointPlans
   testLocalArrayHelperDiscoveryInLowerPlan
   testIncompletePlanFallbackHelperDiscovery
   testEntrypointDispatchPlanToYul

@@ -544,11 +544,15 @@ Tasks:
     deterministic init-code `mstore` frames, `create`/`create2` opcode calls,
     zero-address revert guards, and helper function names without converting
     back to the `IR.lean` compatibility helper spec. Complete `ModulePlan`
-    construction now discovers create/create2 helper specs in
-    `Lower.buildFullModulePlan`. The old IR-local discovery scanner and
-    compatibility helper spec facade have been removed; fallback helper
-    discovery now calls `Lower.buildCreateHelperPlans` and emits through
-    `ToYul.createHelperFunction`.
+    construction now discovers create/create2 helper specs from the already-built
+    `EntrypointPlan.body` `StmtPlan`/`ExprPlan` tree in
+    `Lower.buildFullModulePlan` and
+    `Lower.buildFullModulePlanWithTargetPlan`; `IR.buildSemanticPlan` preserves
+    those Lower-discovered specs instead of re-scanning the module. The old
+    IR-local discovery scanner and compatibility helper spec facade have been
+    removed; fallback helper discovery calls the raw-IR compatibility scanner
+    `Lower.buildCreateHelperPlans` only for incomplete/legacy plan surfaces and
+    emits through `ToYul.createHelperFunction`.
   - Started: checked-arithmetic and local fixed-array getter helper
     requirements are now discovered by complete `ModulePlan` construction in
     `Lower.buildFullModulePlan`. `IR.buildSemanticPlan` preserves the

@@ -2387,6 +2387,251 @@ def buildCreateHelperPlans (module : Module) : Array CreateHelperSpec :=
   module.entrypoints.foldl (init := #[]) fun acc entrypoint =>
     mergeCreateHelperSpecs acc (createHelperSpecsFromStatements entrypoint.body)
 
+mutual
+  partial def createHelperSpecsFromContextExprPlan : ContextExprPlan → Array CreateHelperSpec
+    | .blockHash blockNumber =>
+        createHelperSpecsFromExprPlan blockNumber
+    | .userId | .contractId | .checkpointId | .timestamp | .chainId
+    | .gasPrice | .gasLeft | .baseFee | .prevRandao | .origin | .coinbase =>
+        #[]
+
+  partial def createHelperSpecsFromStorageSlotExprPlan : StorageSlotExprPlan → Array CreateHelperSpec
+    | .scalarSlot _ | .fixedSlot _ => #[]
+    | .mapValueSlot _ keys | .mapPresenceSlot _ keys =>
+        keys.foldl (init := #[]) fun acc key =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExprPlan key)
+    | .arraySlot _ _ index
+    | .structArrayFieldSlot _ _ _ _ index
+    | .dynamicArraySlot _ index =>
+        createHelperSpecsFromExprPlan index
+
+  partial def createHelperSpecsFromStoragePathWriteExprTargetPlan :
+      StoragePathWriteExprTargetPlan → Array CreateHelperSpec
+    | .mapWrite _ key =>
+        createHelperSpecsFromExprPlan key
+    | .singleSlot slot =>
+        createHelperSpecsFromStorageSlotExprPlan slot
+    | .mapValuePresence valueSlot presenceSlot =>
+        mergeCreateHelperSpecs
+          (createHelperSpecsFromStorageSlotExprPlan valueSlot)
+          (createHelperSpecsFromStorageSlotExprPlan presenceSlot)
+
+  partial def createHelperSpecsFromAbiValuePlan : AbiValuePlan → Array CreateHelperSpec
+    | .expr value =>
+        createHelperSpecsFromExprPlan value
+    | .local .. | .storage .. =>
+        #[]
+    | .arrayLit _ values =>
+        values.foldl (init := #[]) fun acc value =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromAbiValuePlan value)
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromAbiValuePlan field.snd)
+
+  partial def createHelperSpecsFromCrosscallArgWordPlan :
+      CrosscallArgWordPlan → Array CreateHelperSpec
+    | .expr value =>
+        createHelperSpecsFromExprPlan value
+    | .local .. | .storage .. =>
+        #[]
+
+  partial def createHelperSpecsFromExprPlan : ExprPlan → Array CreateHelperSpec
+    | .literalWord _ | .local _ | .calldataWord _ | .nativeValue =>
+        #[]
+    | .storageLoad slot =>
+        match slot with
+        | .mapValueSlot _ keys | .mapPresenceSlot _ keys =>
+            keys.foldl (init := #[]) fun acc valuePlan =>
+              match valuePlan with
+              | .irExpr _ => acc
+        | .arraySlot .. | .structArrayFieldSlot .. | .dynamicArraySlot ..
+        | .scalarSlot _ | .fixedSlot _ =>
+            #[]
+    | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
+        args.foldl (init := #[]) fun acc arg =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExprPlan arg)
+    | .checkedArith _ lhs rhs
+    | .arrayGet lhs rhs
+    | .hashTwoToOne lhs rhs =>
+        mergeCreateHelperSpecs
+          (createHelperSpecsFromExprPlan lhs)
+          (createHelperSpecsFromExprPlan rhs)
+    | .hashPack a b c d | .hashValue a b c d =>
+        let ab := mergeCreateHelperSpecs
+          (createHelperSpecsFromExprPlan a)
+          (createHelperSpecsFromExprPlan b)
+        let cd := mergeCreateHelperSpecs
+          (createHelperSpecsFromExprPlan c)
+          (createHelperSpecsFromExprPlan d)
+        mergeCreateHelperSpecs ab cd
+    | .context field =>
+        createHelperSpecsFromContextExprPlan field
+    | .crosscall _ target methodId callValue? args _ =>
+        let nested := mergeCreateHelperSpecs
+          (createHelperSpecsFromExprPlan target)
+          (createHelperSpecsFromExprPlan methodId)
+        let nested :=
+          match callValue? with
+          | some callValue => mergeCreateHelperSpecs nested (createHelperSpecsFromExprPlan callValue)
+          | none => nested
+        args.foldl (init := nested) fun acc arg =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromCrosscallArgWordPlan arg)
+    | .create mode callValue salt? initCodeHex =>
+        let nested :=
+          match salt? with
+          | some salt =>
+              mergeCreateHelperSpecs
+                (createHelperSpecsFromExprPlan callValue)
+                (createHelperSpecsFromExprPlan salt)
+          | none =>
+              createHelperSpecsFromExprPlan callValue
+        pushCreateHelperSpecIfMissing nested { mode, initCodeHex }
+    | .cast source _
+    | .structField source _
+    | .memoryArrayLength source
+    | .hash source =>
+        createHelperSpecsFromExprPlan source
+    | .localArrayGet _ path _ =>
+        path.foldl (init := #[]) fun acc index =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExprPlan index)
+    | .memoryArrayNew _ length =>
+        createHelperSpecsFromExprPlan length
+    | .memoryArrayGet array index =>
+        mergeCreateHelperSpecs
+          (createHelperSpecsFromExprPlan array)
+          (createHelperSpecsFromExprPlan index)
+    | .structLit _ fields =>
+        fields.foldl (init := #[]) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromExprPlan field.snd)
+    | .effect effect =>
+        createHelperSpecsFromEffectPlan effect
+
+  partial def createHelperSpecsFromEffectPlan : EffectPlan → Array CreateHelperSpec
+    | .storageScalarRead _ | .storageScalarReadTarget _
+    | .storageStructFieldRead _ _ | .storageStructFieldReadTarget _
+    | .storageDynamicArrayPop _ | .storageDynamicArrayPopTarget _ =>
+        #[]
+    | .storageScalarWrite _ value
+    | .storageScalarWriteTarget _ value
+    | .storageScalarAssignOp _ _ value
+    | .storageScalarAssignOpTarget _ _ value
+    | .storageStructFieldWrite _ _ value
+    | .storageStructFieldWriteTarget _ value
+    | .storageDynamicArrayPush _ value
+    | .storageDynamicArrayPushTarget _ value =>
+        createHelperSpecsFromExprPlan value
+    | .storageMapContains _ key
+    | .storageMapContainsTarget _ key
+    | .storageMapGet _ key
+    | .storageMapGetTarget _ key
+    | .storageArrayRead _ key
+    | .storageArrayReadTarget _ key
+    | .storageArrayStructFieldRead _ key _
+    | .storageArrayStructFieldReadTarget _ key =>
+        createHelperSpecsFromExprPlan key
+    | .storageMapInsert _ key value
+    | .storageMapInsertTarget _ key value
+    | .storageMapSet _ key value
+    | .storageMapSetTarget _ key value
+    | .storageArrayWrite _ key value
+    | .storageArrayWriteTarget _ key value
+    | .storageArrayStructFieldWrite _ key _ value
+    | .storageArrayStructFieldWriteTarget _ key value =>
+        mergeCreateHelperSpecs
+          (createHelperSpecsFromExprPlan key)
+          (createHelperSpecsFromExprPlan value)
+    | .memoryArraySet array index value =>
+        mergeCreateHelperSpecs
+          (mergeCreateHelperSpecs
+            (createHelperSpecsFromExprPlan array)
+            (createHelperSpecsFromExprPlan index))
+          (createHelperSpecsFromExprPlan value)
+    | .storagePathRead _ _ =>
+        #[]
+    | .storagePathReadTarget slot =>
+        match slot with
+        | .mapValueSlot _ keys | .mapPresenceSlot _ keys =>
+            keys.foldl (init := #[]) fun acc valuePlan =>
+              match valuePlan with
+              | .irExpr _ => acc
+        | .arraySlot .. | .structArrayFieldSlot .. | .dynamicArraySlot ..
+        | .scalarSlot _ | .fixedSlot _ =>
+            #[]
+    | .storagePathReadExprTarget slot =>
+        createHelperSpecsFromStorageSlotExprPlan slot
+    | .storagePathWrite _ _ value | .storagePathAssignOp _ _ _ value =>
+        createHelperSpecsFromExprPlan value
+    | .storagePathWriteTarget target value
+    | .storagePathAssignOpTarget target _ value =>
+        let targetSpecs :=
+          match target with
+          | .mapWrite _ (.irExpr _) => #[]
+          | .singleSlot _ => #[]
+          | .mapValuePresence _ _ => #[]
+        mergeCreateHelperSpecs targetSpecs (createHelperSpecsFromExprPlan value)
+    | .storagePathWriteExprTarget target value
+    | .storagePathAssignOpExprTarget target _ value =>
+        mergeCreateHelperSpecs
+          (createHelperSpecsFromStoragePathWriteExprTargetPlan target)
+          (createHelperSpecsFromExprPlan value)
+    | .contextRead field =>
+        createHelperSpecsFromContextExprPlan field
+    | .eventEmit _ dataFields =>
+        dataFields.foldl (init := #[]) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromAbiValuePlan field)
+    | .eventEmitIndexed _ indexedFields dataFields =>
+        let indexedSpecs := indexedFields.foldl (init := #[]) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromAbiValuePlan field)
+        dataFields.foldl (init := indexedSpecs) fun acc field =>
+          mergeCreateHelperSpecs acc (createHelperSpecsFromAbiValuePlan field)
+    | .eventEmitWords _ dataFieldWords =>
+        dataFieldWords.foldl (init := #[]) fun acc words =>
+          words.foldl (init := acc) fun wordAcc word =>
+            mergeCreateHelperSpecs wordAcc (createHelperSpecsFromExprPlan word)
+    | .eventEmitIndexedWords _ indexedFieldWords dataFieldWords =>
+        let indexedSpecs := indexedFieldWords.foldl (init := #[]) fun acc words =>
+          words.foldl (init := acc) fun wordAcc word =>
+            mergeCreateHelperSpecs wordAcc (createHelperSpecsFromExprPlan word)
+        dataFieldWords.foldl (init := indexedSpecs) fun acc words =>
+          words.foldl (init := acc) fun wordAcc word =>
+            mergeCreateHelperSpecs wordAcc (createHelperSpecsFromExprPlan word)
+
+  partial def createHelperSpecsFromStmtPlan : StmtPlan → Array CreateHelperSpec
+    | .letBind _ _ value
+    | .letMutBind _ _ value
+    | .assert value _ _
+    | .return value =>
+        createHelperSpecsFromExprPlan value
+    | .assign target value
+    | .assignOp target _ value =>
+        mergeCreateHelperSpecs
+          (createHelperSpecsFromExprPlan target)
+          (createHelperSpecsFromExprPlan value)
+    | .effect effect =>
+        createHelperSpecsFromEffectPlan effect
+    | .assertEq lhs rhs _ _ =>
+        mergeCreateHelperSpecs
+          (createHelperSpecsFromExprPlan lhs)
+          (createHelperSpecsFromExprPlan rhs)
+    | .release _ | .revert _ | .revertWithError _ =>
+        #[]
+    | .ifElse condition thenBody elseBody =>
+        mergeCreateHelperSpecs
+          (createHelperSpecsFromExprPlan condition)
+          (mergeCreateHelperSpecs (createHelperSpecsFromStmtPlans thenBody) (createHelperSpecsFromStmtPlans elseBody))
+    | .boundedFor _ _ _ body =>
+        createHelperSpecsFromStmtPlans body
+
+  partial def createHelperSpecsFromStmtPlans (statements : Array StmtPlan) : Array CreateHelperSpec :=
+    statements.foldl (init := #[]) fun acc stmt =>
+      mergeCreateHelperSpecs acc (createHelperSpecsFromStmtPlan stmt)
+end
+
+def buildCreateHelperPlansFromEntrypoints
+    (entrypoints : Array EntrypointPlan) : Array CreateHelperSpec :=
+  entrypoints.foldl (init := #[]) fun acc entrypoint =>
+    mergeCreateHelperSpecs acc (createHelperSpecsFromStmtPlans entrypoint.body)
+
 def pushNatIfMissing (acc : Array Nat) (value : Nat) : Array Nat :=
   if acc.contains value then acc else acc.push value
 
@@ -2770,7 +3015,7 @@ def buildFullModulePlan (module : Module) : Except LowerError ModulePlan := do
   let dispatchPlan := moduleDispatchPlan module dispatchEntrypointPlans
   let eventPlans ← buildEventPlans module
   let crosscallPlans ← buildCrosscallHelperPlansFromEntrypoints module entrypointPlans
-  let createPlans := buildCreateHelperPlans module
+  let createPlans := buildCreateHelperPlansFromEntrypoints entrypointPlans
   let localArrayGetLengths ← buildLocalArrayGetLengths module
   let nestedLocalArrayGetShapes ← buildNestedLocalArrayGetShapes module
   let usesCheckedArithmetic := moduleUsesCheckedArithmetic module
@@ -2808,7 +3053,7 @@ def buildFullModulePlanWithTargetPlan
   let dispatchPlan := moduleDispatchPlan module dispatchEntrypointPlans
   let eventPlans ← buildEventPlans module
   let crosscallPlans ← buildCrosscallHelperPlansFromEntrypoints module entrypointPlans
-  let createPlans := buildCreateHelperPlans module
+  let createPlans := buildCreateHelperPlansFromEntrypoints entrypointPlans
   let localArrayGetLengths ← buildLocalArrayGetLengths module
   let nestedLocalArrayGetShapes ← buildNestedLocalArrayGetShapes module
   let usesCheckedArithmetic := moduleUsesCheckedArithmetic module
