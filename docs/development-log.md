@@ -17,6 +17,54 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM ExprPlan Word Marker Retirement
+
+Commit: 7f8acce
+
+Summary:
+
+- Removed `ExprPlan.localAbiWords`, `ExprPlan.storageAbiWords`,
+  `ExprPlan.localCrosscallWords`, and `ExprPlan.storageCrosscallWords` from the
+  EVM semantic expression plan.
+- Removed the now-unreachable generic `ExprPlan -> Yul` unsupported branches
+  for those aggregate word marker constructors.
+- Kept direct `ToYul.localAbiWords`, `ToYul.storageAbiWords`, and
+  `ToYul.localCrosscallWords` helper APIs for explicit word expansion tests and
+  provider-backed local/source expansion.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest to state
+  that active aggregate word sources now live in `AbiValuePlan` and
+  `CrosscallArgWordPlan`.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/crosscall-ir-smoke.sh
+scripts/evm/abi-aggregate-ir-smoke.sh
+scripts/evm/event-ir-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Direct `ToYul.*Words` helpers still exist for explicit local/source word
+  expansion and direct tests; they are no longer represented as `ExprPlan`
+  nodes.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving remaining active statement/body assembly from the IR
+  compatibility facade into `EntrypointPlan`/`StmtPlan` and dedicated ToYul
+  helpers.
+
 ### EVM Crosscall Argument Word Planning
 
 Commit: 31ea080
