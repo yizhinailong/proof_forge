@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Dynamic Local Return ToYul Slice
+
+Commit: 2d72dc8
+
+Summary:
+
+- Added `ToYul.dynamicReturnStmtPlanStatements` for dynamic `bytes`/`string`/
+  array return statements that return a local ABI value.
+- Routed `IR.lowerReturnStmt` through `Lower.buildExprPlan ->
+  StmtPlan.return -> ToYul.dynamicReturnStmtPlanStatements` for dynamic local
+  returns, so `IR.lean` no longer owns the final `name__data_ptr` assignment
+  frame for that supported shape.
+- Added semantic-plan coverage for the direct ToYul helper and the integrated
+  `EvmDynamicAbiProbe.echo_bytes` return path.
+- Updated the implementation backlog and Chinese translation sync metadata to
+  reflect the narrower remaining compatibility surface.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/dynamic-abi-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- This slice only covers local dynamic return values. Non-local dynamic returns
+  still fall back to the existing compatibility path and diagnostic behavior.
+- Broader aggregate/crosscall return paths still need their own plan-level
+  migration slices.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue shrinking the remaining EVM compatibility facade around aggregate
+  crosscall return assignment and non-local dynamic return-data boundaries.
+
 ### EVM Local Array Helper Discovery Delegation
 
 Commit: c0600b2
