@@ -437,7 +437,7 @@ Tasks:
     `eventEmitIndexedWords` as the active lowering surface. Full semantic-plan
     construction now returns those word-effect variants directly from
     `Lower.buildEffectPlan`; complete module assembly now consumes
-    `ModulePlan` entrypoint bodies for the already-supported scalar-body subset
+    `ModulePlan` entrypoint bodies for the already-supported planned-body subset
     plus aggregate event word effects whose per-word `ExprPlan`s are supported,
     dynamic local returns, and aggregate local/literal return word assignments,
     storage-backed struct scalar return word assignments, and planned aggregate
@@ -445,7 +445,7 @@ Tasks:
     path for unsupported shapes.
     The IR facade conversion remains only on compatibility event statement
     paths outside that planned-body subset.
-    Planned scalar-body event effects now route through
+    Planned-body event effects now route through
     `ToYul.eventEffectStmtPlanStatements`, so `StmtPlan.effect`
     selects word-effect event block construction behind ToYul,
     and ToYul owns field/value count checks, word-plan-to-Yul expression

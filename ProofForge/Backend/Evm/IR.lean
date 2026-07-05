@@ -4771,254 +4771,254 @@ def lowerReturnStmt
     (leaveAfterReturn : Bool) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   lowerReturnStmtPlanOrFallback module env entrypointName returnType value leaveAfterReturn
 
-def scalarBodyTypeSupported : ValueType → Bool
+def plannedBodyScalarTypeSupported : ValueType → Bool
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
   | .unit | .bytes | .string | .array _ | .fixedArray _ _ | .structType _ => false
 
-partial def storagePathSegmentSupportsScalarBody :
+partial def storagePathSegmentSupportsPlannedBody :
     StoragePathSegment → Bool
   | .field _ => true
   | .index index => exprSupportsPlanScalarYul index
   | .mapKey key => exprSupportsPlanScalarYul key
 
-def storagePathSupportsScalarBody
+def storagePathSupportsPlannedBody
     (path : Array StoragePathSegment) : Bool :=
-  path.all storagePathSegmentSupportsScalarBody
+  path.all storagePathSegmentSupportsPlannedBody
 
-def valuePlanSupportsScalarBody :
+def valuePlanSupportsPlannedBody :
     ProofForge.Backend.Evm.Plan.ValuePlan → Bool
   | .irExpr expr => exprSupportsPlanScalarYul expr
 
-def storageSlotPlanSupportsScalarBody :
+def storageSlotPlanSupportsPlannedBody :
     ProofForge.Backend.Evm.Plan.StorageSlotPlan → Bool
   | .scalarSlot _ | .fixedSlot _ => true
   | .mapValueSlot _ keys
   | .mapPresenceSlot _ keys =>
-      keys.all valuePlanSupportsScalarBody
+      keys.all valuePlanSupportsPlannedBody
   | .arraySlot _ _ index
   | .structArrayFieldSlot _ _ _ _ index
   | .dynamicArraySlot _ index =>
-      valuePlanSupportsScalarBody index
+      valuePlanSupportsPlannedBody index
 
-def storagePathWriteTargetPlanSupportsScalarBody :
+def storagePathWriteTargetPlanSupportsPlannedBody :
     ProofForge.Backend.Evm.Plan.StoragePathWriteTargetPlan → Bool
-  | .mapWrite _ key => valuePlanSupportsScalarBody key
-  | .singleSlot slot => storageSlotPlanSupportsScalarBody slot
+  | .mapWrite _ key => valuePlanSupportsPlannedBody key
+  | .singleSlot slot => storageSlotPlanSupportsPlannedBody slot
   | .mapValuePresence valueSlot presenceSlot =>
-      storageSlotPlanSupportsScalarBody valueSlot &&
-        storageSlotPlanSupportsScalarBody presenceSlot
+      storageSlotPlanSupportsPlannedBody valueSlot &&
+        storageSlotPlanSupportsPlannedBody presenceSlot
 
-def scalarStorageTargetPlanSupportsScalarBody
+def scalarStorageTargetPlanSupportsPlannedBody
     (target : ProofForge.Backend.Evm.Plan.ScalarStorageTargetPlan) : Bool :=
-  storageSlotPlanSupportsScalarBody target.slot
+  storageSlotPlanSupportsPlannedBody target.slot
 
 mutual
-  partial def storageSlotExprPlanSupportsScalarBody :
+  partial def storageSlotExprPlanSupportsPlannedBody :
       ProofForge.Backend.Evm.Plan.StorageSlotExprPlan → Bool
     | .scalarSlot _ | .fixedSlot _ => true
     | .mapValueSlot _ keys
     | .mapPresenceSlot _ keys =>
-        keys.all exprPlanSupportsScalarBody
+        keys.all exprPlanSupportsPlannedBody
     | .arraySlot _ _ index
     | .structArrayFieldSlot _ _ _ _ index
     | .dynamicArraySlot _ index =>
-        exprPlanSupportsScalarBody index
+        exprPlanSupportsPlannedBody index
 
-  partial def storagePathWriteExprTargetPlanSupportsScalarBody :
+  partial def storagePathWriteExprTargetPlanSupportsPlannedBody :
       ProofForge.Backend.Evm.Plan.StoragePathWriteExprTargetPlan → Bool
-    | .mapWrite _ key => exprPlanSupportsScalarBody key
-    | .singleSlot slot => storageSlotExprPlanSupportsScalarBody slot
+    | .mapWrite _ key => exprPlanSupportsPlannedBody key
+    | .singleSlot slot => storageSlotExprPlanSupportsPlannedBody slot
     | .mapValuePresence valueSlot presenceSlot =>
-        storageSlotExprPlanSupportsScalarBody valueSlot &&
-          storageSlotExprPlanSupportsScalarBody presenceSlot
+        storageSlotExprPlanSupportsPlannedBody valueSlot &&
+          storageSlotExprPlanSupportsPlannedBody presenceSlot
 
-  partial def effectPlanSupportsScalarBodyExpr :
+  partial def effectPlanSupportsPlannedBodyExpr :
       ProofForge.Backend.Evm.Plan.EffectPlan → Bool
     | .storageScalarRead _ => true
     | .storageScalarReadTarget target =>
-        scalarStorageTargetPlanSupportsScalarBody target
+        scalarStorageTargetPlanSupportsPlannedBody target
     | .contextRead _ => true
     | .storageMapContains _ key
-    | .storageMapGet _ key => exprPlanSupportsScalarBody key
+    | .storageMapGet _ key => exprPlanSupportsPlannedBody key
     | .storageMapContainsTarget _ key
-    | .storageMapGetTarget _ key => exprPlanSupportsScalarBody key
-    | .storageArrayRead _ index => exprPlanSupportsScalarBody index
-    | .storageArrayReadTarget _ index => exprPlanSupportsScalarBody index
+    | .storageMapGetTarget _ key => exprPlanSupportsPlannedBody key
+    | .storageArrayRead _ index => exprPlanSupportsPlannedBody index
+    | .storageArrayReadTarget _ index => exprPlanSupportsPlannedBody index
     | .storageStructFieldRead _ _ => true
     | .storageStructFieldReadTarget _ => true
-    | .storageArrayStructFieldRead _ index _ => exprPlanSupportsScalarBody index
-    | .storageArrayStructFieldReadTarget _ index => exprPlanSupportsScalarBody index
-    | .storagePathRead _ path => storagePathSupportsScalarBody path
-    | .storagePathReadTarget slot => storageSlotPlanSupportsScalarBody slot
-    | .storagePathReadExprTarget slot => storageSlotExprPlanSupportsScalarBody slot
+    | .storageArrayStructFieldRead _ index _ => exprPlanSupportsPlannedBody index
+    | .storageArrayStructFieldReadTarget _ index => exprPlanSupportsPlannedBody index
+    | .storagePathRead _ path => storagePathSupportsPlannedBody path
+    | .storagePathReadTarget slot => storageSlotPlanSupportsPlannedBody slot
+    | .storagePathReadExprTarget slot => storageSlotExprPlanSupportsPlannedBody slot
     | _ => false
 
-  partial def crosscallArgWordPlanSupportsScalarBody :
+  partial def crosscallArgWordPlanSupportsPlannedBody :
       ProofForge.Backend.Evm.Plan.CrosscallArgWordPlan → Bool
-    | .expr value => exprPlanSupportsScalarBody value
+    | .expr value => exprPlanSupportsPlannedBody value
     | .local .. | .storage .. => false
 
-  partial def exprPlanSupportsScalarBody :
+  partial def exprPlanSupportsPlannedBody :
       ProofForge.Backend.Evm.Plan.ExprPlan → Bool
     | .literalWord _ => true
     | .local _ => true
     | .calldataWord _ => true
     | .storageLoad _ => true
-    | .builtin _ args => args.all exprPlanSupportsScalarBody
-    | .helperCall _ args => args.all exprPlanSupportsScalarBody
-    | .checkedArith _ lhs rhs => exprPlanSupportsScalarBody lhs && exprPlanSupportsScalarBody rhs
+    | .builtin _ args => args.all exprPlanSupportsPlannedBody
+    | .helperCall _ args => args.all exprPlanSupportsPlannedBody
+    | .checkedArith _ lhs rhs => exprPlanSupportsPlannedBody lhs && exprPlanSupportsPlannedBody rhs
     | .hashPack a b c d =>
-        exprPlanSupportsScalarBody a &&
-        exprPlanSupportsScalarBody b &&
-        exprPlanSupportsScalarBody c &&
-        exprPlanSupportsScalarBody d
+        exprPlanSupportsPlannedBody a &&
+        exprPlanSupportsPlannedBody b &&
+        exprPlanSupportsPlannedBody c &&
+        exprPlanSupportsPlannedBody d
     | .context _ => true
-    | .cast source _ => exprPlanSupportsScalarBody source
+    | .cast source _ => exprPlanSupportsPlannedBody source
     | .hashValue a b c d =>
-        exprPlanSupportsScalarBody a &&
-        exprPlanSupportsScalarBody b &&
-        exprPlanSupportsScalarBody c &&
-        exprPlanSupportsScalarBody d
-    | .hash preimage => exprPlanSupportsScalarBody preimage
-    | .hashTwoToOne lhs rhs => exprPlanSupportsScalarBody lhs && exprPlanSupportsScalarBody rhs
+        exprPlanSupportsPlannedBody a &&
+        exprPlanSupportsPlannedBody b &&
+        exprPlanSupportsPlannedBody c &&
+        exprPlanSupportsPlannedBody d
+    | .hash preimage => exprPlanSupportsPlannedBody preimage
+    | .hashTwoToOne lhs rhs => exprPlanSupportsPlannedBody lhs && exprPlanSupportsPlannedBody rhs
     | .nativeValue => true
-    | .effect effect => effectPlanSupportsScalarBodyExpr effect
+    | .effect effect => effectPlanSupportsPlannedBodyExpr effect
     | .crosscall _ target methodId callValue? args returnType =>
-        scalarBodyTypeSupported returnType &&
-        exprPlanSupportsScalarBody target &&
-        exprPlanSupportsScalarBody methodId &&
+        plannedBodyScalarTypeSupported returnType &&
+        exprPlanSupportsPlannedBody target &&
+        exprPlanSupportsPlannedBody methodId &&
         (match callValue? with
          | none => true
-         | some callValue => exprPlanSupportsScalarBody callValue) &&
-        args.all crosscallArgWordPlanSupportsScalarBody
+         | some callValue => exprPlanSupportsPlannedBody callValue) &&
+        args.all crosscallArgWordPlanSupportsPlannedBody
     | .create _ callValue salt? _ =>
-        exprPlanSupportsScalarBody callValue &&
+        exprPlanSupportsPlannedBody callValue &&
         match salt? with
         | none => true
-        | some salt => exprPlanSupportsScalarBody salt
+        | some salt => exprPlanSupportsPlannedBody salt
     | .localArrayGet _ path _ =>
-        path.all exprPlanSupportsScalarBody
+        path.all exprPlanSupportsPlannedBody
     | .structField (.local _) _ => true
     | .structField (.localArrayGet _ path _) _ =>
-        path.all exprPlanSupportsScalarBody
+        path.all exprPlanSupportsPlannedBody
     | .structField .. | .arrayGet .. | .arrayLit ..
     | .memoryArrayNew .. | .memoryArrayLength .. | .memoryArrayGet ..
     | .structLit .. => false
 end
 
-def scalarBodyAssignmentTargetSupported :
+def plannedBodyAssignmentTargetSupported :
     ProofForge.Backend.Evm.Plan.ExprPlan → Bool
   | .local _ => true
   | target => exprPlanIsStaticAggregateScalarTarget target
 
-def eventFieldPlanSupportsScalarBody :
+def eventFieldPlanSupportsPlannedBody :
     ProofForge.Backend.Evm.Plan.EventFieldPlan → Bool
   | .mk _ type _ =>
       match type with
       | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
       | .unit | .bytes | .string | .array _ | .fixedArray _ _ | .structType _ => false
 
-def abiValuePlanSupportsScalarBody :
+def abiValuePlanSupportsPlannedBody :
     ProofForge.Backend.Evm.Plan.AbiValuePlan → Bool
-  | .expr value => exprPlanSupportsScalarBody value
+  | .expr value => exprPlanSupportsPlannedBody value
   | .local .. | .storage .. | .arrayLit .. | .structLit .. => false
 
-def eventFieldWordPlansSupportScalarBody
+def eventFieldWordPlansSupportPlannedBody
     (fields : Array ProofForge.Backend.Evm.Plan.EventFieldPlan)
     (fieldWords : Array (Array ProofForge.Backend.Evm.Plan.ExprPlan)) : Bool :=
   fields.size == fieldWords.size &&
-    fieldWords.all (fun words => words.all exprPlanSupportsScalarBody)
+    fieldWords.all (fun words => words.all exprPlanSupportsPlannedBody)
 
-def eventFieldPlansSupportScalarBody
+def eventFieldPlansSupportPlannedBody
     (fields : Array ProofForge.Backend.Evm.Plan.EventFieldPlan)
     (values : Array ProofForge.Backend.Evm.Plan.AbiValuePlan) : Bool :=
   fields.size == values.size &&
-    fields.all eventFieldPlanSupportsScalarBody &&
-    values.all abiValuePlanSupportsScalarBody
+    fields.all eventFieldPlanSupportsPlannedBody &&
+    values.all abiValuePlanSupportsPlannedBody
 
-def effectPlanSupportsScalarBodyStmt :
+def effectPlanSupportsPlannedBodyStmt :
     ProofForge.Backend.Evm.Plan.EffectPlan → Bool
-  | .storageScalarWrite _ value => exprPlanSupportsScalarBody value
+  | .storageScalarWrite _ value => exprPlanSupportsPlannedBody value
   | .storageScalarWriteTarget target value =>
-      scalarStorageTargetPlanSupportsScalarBody target &&
-        exprPlanSupportsScalarBody value
-  | .storageScalarAssignOp _ _ value => exprPlanSupportsScalarBody value
+      scalarStorageTargetPlanSupportsPlannedBody target &&
+        exprPlanSupportsPlannedBody value
+  | .storageScalarAssignOp _ _ value => exprPlanSupportsPlannedBody value
   | .storageScalarAssignOpTarget target _ value =>
-      scalarStorageTargetPlanSupportsScalarBody target &&
-        exprPlanSupportsScalarBody value
+      scalarStorageTargetPlanSupportsPlannedBody target &&
+        exprPlanSupportsPlannedBody value
   | .storageMapInsert _ key value
   | .storageMapSet _ key value =>
-      exprPlanSupportsScalarBody key && exprPlanSupportsScalarBody value
+      exprPlanSupportsPlannedBody key && exprPlanSupportsPlannedBody value
   | .storageMapInsertTarget _ key value
   | .storageMapSetTarget _ key value =>
-      exprPlanSupportsScalarBody key && exprPlanSupportsScalarBody value
+      exprPlanSupportsPlannedBody key && exprPlanSupportsPlannedBody value
   | .storageArrayWrite _ index value =>
-      exprPlanSupportsScalarBody index && exprPlanSupportsScalarBody value
+      exprPlanSupportsPlannedBody index && exprPlanSupportsPlannedBody value
   | .storageArrayWriteTarget _ index value =>
-      exprPlanSupportsScalarBody index && exprPlanSupportsScalarBody value
+      exprPlanSupportsPlannedBody index && exprPlanSupportsPlannedBody value
   | .storageArrayStructFieldWrite _ index _ value =>
-      exprPlanSupportsScalarBody index && exprPlanSupportsScalarBody value
+      exprPlanSupportsPlannedBody index && exprPlanSupportsPlannedBody value
   | .storageArrayStructFieldWriteTarget _ index value =>
-      exprPlanSupportsScalarBody index && exprPlanSupportsScalarBody value
+      exprPlanSupportsPlannedBody index && exprPlanSupportsPlannedBody value
   | .storageDynamicArrayPush _ value =>
-      exprPlanSupportsScalarBody value
+      exprPlanSupportsPlannedBody value
   | .storageDynamicArrayPop _ =>
       true
   | .storageStructFieldWrite _ _ value =>
-      exprPlanSupportsScalarBody value
+      exprPlanSupportsPlannedBody value
   | .storageStructFieldWriteTarget _ value =>
-      exprPlanSupportsScalarBody value
+      exprPlanSupportsPlannedBody value
   | .storagePathWrite _ path value =>
-      storagePathSupportsScalarBody path && exprPlanSupportsScalarBody value
+      storagePathSupportsPlannedBody path && exprPlanSupportsPlannedBody value
   | .storagePathWriteTarget target value =>
-      storagePathWriteTargetPlanSupportsScalarBody target &&
-        exprPlanSupportsScalarBody value
+      storagePathWriteTargetPlanSupportsPlannedBody target &&
+        exprPlanSupportsPlannedBody value
   | .storagePathWriteExprTarget target value =>
-      storagePathWriteExprTargetPlanSupportsScalarBody target &&
-        exprPlanSupportsScalarBody value
+      storagePathWriteExprTargetPlanSupportsPlannedBody target &&
+        exprPlanSupportsPlannedBody value
   | .storagePathAssignOp _ path _ value =>
-      storagePathSupportsScalarBody path && exprPlanSupportsScalarBody value
+      storagePathSupportsPlannedBody path && exprPlanSupportsPlannedBody value
   | .storagePathAssignOpTarget target _ value =>
-      storagePathWriteTargetPlanSupportsScalarBody target &&
-        exprPlanSupportsScalarBody value
+      storagePathWriteTargetPlanSupportsPlannedBody target &&
+        exprPlanSupportsPlannedBody value
   | .storagePathAssignOpExprTarget target _ value =>
-      storagePathWriteExprTargetPlanSupportsScalarBody target &&
-        exprPlanSupportsScalarBody value
+      storagePathWriteExprTargetPlanSupportsPlannedBody target &&
+        exprPlanSupportsPlannedBody value
   | .eventEmit event dataFields =>
       event.indexedFields.isEmpty &&
-        eventFieldPlansSupportScalarBody event.dataFields dataFields
+        eventFieldPlansSupportPlannedBody event.dataFields dataFields
   | .eventEmitIndexed event indexedFields dataFields =>
-      eventFieldPlansSupportScalarBody event.indexedFields indexedFields &&
-        eventFieldPlansSupportScalarBody event.dataFields dataFields
+      eventFieldPlansSupportPlannedBody event.indexedFields indexedFields &&
+        eventFieldPlansSupportPlannedBody event.dataFields dataFields
   | .eventEmitWords event dataFieldWords =>
       event.indexedFields.isEmpty &&
-        eventFieldWordPlansSupportScalarBody event.dataFields dataFieldWords
+        eventFieldWordPlansSupportPlannedBody event.dataFields dataFieldWords
   | .eventEmitIndexedWords event indexedFieldWords dataFieldWords =>
-      eventFieldWordPlansSupportScalarBody event.indexedFields indexedFieldWords &&
-        eventFieldWordPlansSupportScalarBody event.dataFields dataFieldWords
+      eventFieldWordPlansSupportPlannedBody event.indexedFields indexedFieldWords &&
+        eventFieldWordPlansSupportPlannedBody event.dataFields dataFieldWords
   | _ => false
 
-partial def exprPlanSupportsAggregateReturnBody
+partial def aggregateReturnExprPlanSupportsPlannedBody
     (returnType : ValueType)
     (value : ProofForge.Backend.Evm.Plan.ExprPlan) : Bool :=
   match returnType with
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-      exprPlanSupportsScalarBody value
+      exprPlanSupportsPlannedBody value
   | .fixedArray elementType length =>
       match value with
       | .local _ => true
       | .crosscall _ target methodId callValue? args callReturnType =>
           callReturnType == returnType &&
-            exprPlanSupportsScalarBody target &&
-            exprPlanSupportsScalarBody methodId &&
+            exprPlanSupportsPlannedBody target &&
+            exprPlanSupportsPlannedBody methodId &&
             (match callValue? with
              | none => true
-             | some callValue => exprPlanSupportsScalarBody callValue) &&
-            args.all crosscallArgWordPlanSupportsScalarBody
+             | some callValue => exprPlanSupportsPlannedBody callValue) &&
+            args.all crosscallArgWordPlanSupportsPlannedBody
       | .arrayLit literalElementType values =>
           literalElementType == elementType &&
             values.size == length &&
-            values.all (exprPlanSupportsAggregateReturnBody elementType)
+            values.all (aggregateReturnExprPlanSupportsPlannedBody elementType)
       | _ => false
   | .structType _ =>
       match value with
@@ -5026,14 +5026,14 @@ partial def exprPlanSupportsAggregateReturnBody
       | .effect (.storageScalarRead _) => true
       | .crosscall _ target methodId callValue? args callReturnType =>
           callReturnType == returnType &&
-            exprPlanSupportsScalarBody target &&
-            exprPlanSupportsScalarBody methodId &&
+            exprPlanSupportsPlannedBody target &&
+            exprPlanSupportsPlannedBody methodId &&
             (match callValue? with
              | none => true
-             | some callValue => exprPlanSupportsScalarBody callValue) &&
-            args.all crosscallArgWordPlanSupportsScalarBody
+             | some callValue => exprPlanSupportsPlannedBody callValue) &&
+            args.all crosscallArgWordPlanSupportsPlannedBody
       | .structLit _ fields =>
-          fields.all fun field => exprPlanSupportsScalarBody field.snd
+          fields.all fun field => exprPlanSupportsPlannedBody field.snd
       | _ => false
   | .unit | .bytes | .string | .array _ => false
 
@@ -5041,51 +5041,51 @@ def returnStmtPlanSupportsPlannedBody
     (returnType : ValueType)
     (value : ProofForge.Backend.Evm.Plan.ExprPlan) : Bool :=
   if returnTypeSupportsScalarStmtPlan returnType then
-    exprPlanSupportsScalarBody value
+    exprPlanSupportsPlannedBody value
   else if returnTypeSupportsDynamicStmtPlan returnType then
     match value with
     | .local _ => true
     | _ => false
   else if returnTypeSupportsAggregateStmtPlan returnType then
-    exprPlanSupportsAggregateReturnBody returnType value
+    aggregateReturnExprPlanSupportsPlannedBody returnType value
   else
     false
 
 mutual
-  partial def stmtPlanSupportsScalarBody
+  partial def stmtPlanSupportsPlannedBody
       (returnType : ValueType) :
       ProofForge.Backend.Evm.Plan.StmtPlan → Bool
     | .letBind _ type value
     | .letMutBind _ type value =>
-        scalarBodyTypeSupported type && exprPlanSupportsScalarBody value
+        plannedBodyScalarTypeSupported type && exprPlanSupportsPlannedBody value
     | .assign target value
     | .assignOp target _ value =>
-        scalarBodyAssignmentTargetSupported target && exprPlanSupportsScalarBody value
+        plannedBodyAssignmentTargetSupported target && exprPlanSupportsPlannedBody value
     | .effect effect =>
-        effectPlanSupportsScalarBodyStmt effect
+        effectPlanSupportsPlannedBodyStmt effect
     | .assert condition _ _ =>
-        exprPlanSupportsScalarBody condition
+        exprPlanSupportsPlannedBody condition
     | .assertEq lhs rhs _ _ =>
-        exprPlanSupportsScalarBody lhs && exprPlanSupportsScalarBody rhs
+        exprPlanSupportsPlannedBody lhs && exprPlanSupportsPlannedBody rhs
     | .release _ => false
     | .revert _ => true
     | .revertWithError _ => true
     | .ifElse condition thenBody elseBody =>
-        exprPlanSupportsScalarBody condition &&
-        stmtPlansSupportScalarBody returnType thenBody &&
-        stmtPlansSupportScalarBody returnType elseBody
+        exprPlanSupportsPlannedBody condition &&
+        stmtPlansSupportPlannedBody returnType thenBody &&
+        stmtPlansSupportPlannedBody returnType elseBody
     | .boundedFor _ _ _ body =>
-        stmtPlansSupportScalarBody returnType body
+        stmtPlansSupportPlannedBody returnType body
     | .return value =>
         returnStmtPlanSupportsPlannedBody returnType value
 
-  partial def stmtPlansSupportScalarBody
+  partial def stmtPlansSupportPlannedBody
       (returnType : ValueType)
       (plans : Array ProofForge.Backend.Evm.Plan.StmtPlan) : Bool :=
-    plans.all (stmtPlanSupportsScalarBody returnType)
+    plans.all (stmtPlanSupportsPlannedBody returnType)
 end
 
-def scalarBodyEntrypoint
+def plannedBodyEntrypoint
     (entrypointName : String)
     (returnType : ValueType) : Entrypoint := {
   name := entrypointName
@@ -5093,27 +5093,27 @@ def scalarBodyEntrypoint
   body := #[]
 }
 
-def plannedScalarBodyStatement?
+def plannedBodyStatement?
     (module : Module)
     (entrypointName : String)
     (returnType : ValueType)
     (env : TypeEnv)
     (statement : ProofForge.IR.Statement) :
     Except LowerError (Option ProofForge.Backend.Evm.Plan.StmtPlan) := do
-  let entrypoint := scalarBodyEntrypoint entrypointName returnType
+  let entrypoint := plannedBodyEntrypoint entrypointName returnType
   match validateStatementTypes module entrypoint env statement with
   | .ok _ => pure ()
   | .error _ => return none
   match ProofForge.Backend.Evm.Lower.buildStatementPlan module entrypoint (toValidateTypeEnv env) statement with
   | .ok (plan, _) =>
-      if stmtPlanSupportsScalarBody returnType plan then
+      if stmtPlanSupportsPlannedBody returnType plan then
         .ok (some plan)
       else
         .ok none
   | .error _ =>
       .ok none
 
-def lowerScalarEventEffectPlan
+def lowerPlannedBodyEventEffectPlan
     (module : Module)
     (env : TypeEnv)
     (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
@@ -5124,7 +5124,7 @@ def lowerScalarEventEffectPlan
     (lowerExprPlanExpr module env)
     (.effect effect)
 
-def lowerScalarBodyEffectPlan
+def lowerPlannedBodyEffectPlan
     (module : Module)
     (env : TypeEnv)
     (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
@@ -5154,7 +5154,7 @@ def lowerScalarBodyEffectPlan
   | .storageScalarAssignOp stateId _ _ => do
       match ← scalarStateType module stateId with
       | .structType _ =>
-          .error { message := s!"storage.scalar.assign_op does not support struct state `{stateId}` in planned scalar control-flow bodies yet" }
+          .error { message := s!"storage.scalar.assign_op does not support struct state `{stateId}` in planned body lowering yet" }
       | _ =>
           ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
             toYulError
@@ -5272,7 +5272,7 @@ def lowerScalarBodyEffectPlan
         (lowerExprPlanExpr module env)
         (.effect effect)
   | .eventEmit .. | .eventEmitIndexed .. | .eventEmitWords .. | .eventEmitIndexedWords .. =>
-      lowerScalarEventEffectPlan module env effect
+      lowerPlannedBodyEventEffectPlan module env effect
   | _ =>
       .error { message := "planned scalar control-flow body expected a supported effect" }
 
@@ -5309,7 +5309,7 @@ def lowerAggregateReturnStmtPlan
   .ok <| if leaveAfterReturn then statements.push .leave else statements
 
 mutual
-  partial def lowerScalarStmtPlanBodyStatements
+  partial def lowerPlannedBodyStatements
       (module : Module)
       (entrypointName : String)
       (returnType : ValueType)
@@ -5322,7 +5322,7 @@ mutual
       env
       leaveAfterReturn
       (fun currentEnv stmtLeaveAfterReturn plan =>
-        lowerScalarStmtPlanBodyStatement
+        lowerPlannedBodyStatement
           module
           entrypointName
           returnType
@@ -5330,7 +5330,7 @@ mutual
           stmtLeaveAfterReturn
           plan)
 
-  partial def lowerScalarStmtPlanBodyStatement
+  partial def lowerPlannedBodyStatement
       (module : Module)
       (entrypointName : String)
       (returnType : ValueType)
@@ -5375,7 +5375,7 @@ mutual
             (.assignOp target op value)
         .ok (statements, env)
     | .effect effect => do
-        .ok (← lowerScalarBodyEffectPlan module env effect, env)
+        .ok (← lowerPlannedBodyEffectPlan module env effect, env)
     | .assert condition message errorRef? => do
         let statements ←
           ProofForge.Backend.Evm.ToYul.scalarAssertStmtPlanStatements
@@ -5399,7 +5399,7 @@ mutual
             (.assertEq lhs rhs message errorRef?)
         .ok (statements, env)
     | .release _ =>
-        .error { message := "planned scalar control-flow bodies do not support release statements" }
+        .error { message := "planned body lowering does not support release statements" }
     | .revert message => do
         let statements ←
           ProofForge.Backend.Evm.ToYul.revertStmtPlanStatements
@@ -5416,9 +5416,9 @@ mutual
         .ok (statements, env)
     | .ifElse condition thenBody elseBody => do
         let (thenStatements, _) ←
-          lowerScalarStmtPlanBodyStatements module entrypointName returnType env true thenBody
+          lowerPlannedBodyStatements module entrypointName returnType env true thenBody
         let (elseStatements, _) ←
-          lowerScalarStmtPlanBodyStatements module entrypointName returnType env true elseBody
+          lowerPlannedBodyStatements module entrypointName returnType env true elseBody
         let statements ←
           ProofForge.Backend.Evm.ToYul.ifElseStmtPlanStatements
             toYulError
@@ -5433,7 +5433,7 @@ mutual
           .error { message := s!"bounded loop `{indexName}` must have stop greater than start" }
         let loopEnv ← addLocal env indexName .u32 false
         let (bodyStatements, _) ←
-          lowerScalarStmtPlanBodyStatements module entrypointName returnType loopEnv true body
+          lowerPlannedBodyStatements module entrypointName returnType loopEnv true body
         let statements ←
           ProofForge.Backend.Evm.ToYul.boundedForStmtPlanStatements
             toYulError
@@ -5584,9 +5584,9 @@ mutual
                 body := { statements := thenStatements }
               }
             ]], env)
-        match ← plannedScalarBodyStatement? module entrypointName returnType env (.ifElse condition thenBody elseBody) with
+        match ← plannedBodyStatement? module entrypointName returnType env (.ifElse condition thenBody elseBody) with
         | some plan =>
-            match lowerScalarStmtPlanBodyStatement module entrypointName returnType env leaveAfterReturn plan with
+            match lowerPlannedBodyStatement module entrypointName returnType env leaveAfterReturn plan with
             | .ok lowered => .ok lowered
             | .error _ => fallback
         | none =>
@@ -5605,9 +5605,9 @@ mutual
               bodyStatements
               (.boundedFor indexName start stopExclusive #[])
           .ok (statements, env)
-        match ← plannedScalarBodyStatement? module entrypointName returnType env (.boundedFor indexName start stopExclusive body) with
+        match ← plannedBodyStatement? module entrypointName returnType env (.boundedFor indexName start stopExclusive body) with
         | some plan =>
-            match lowerScalarStmtPlanBodyStatement module entrypointName returnType env leaveAfterReturn plan with
+            match lowerPlannedBodyStatement module entrypointName returnType env leaveAfterReturn plan with
             | .ok lowered => .ok lowered
             | .error _ => fallback
         | none =>
@@ -5621,8 +5621,8 @@ def lowerEntrypointBodyWithPlan?
     (entrypoint : Entrypoint)
     (entrypointPlan : ProofForge.Backend.Evm.Plan.EntrypointPlan) :
     Except LowerError (Option (Array Lean.Compiler.Yul.Statement)) := do
-  if stmtPlansSupportScalarBody entrypoint.returns entrypointPlan.body then
-    match lowerScalarStmtPlanBodyStatements
+  if stmtPlansSupportPlannedBody entrypoint.returns entrypointPlan.body then
+    match lowerPlannedBodyStatements
         module
         entrypoint.name
         entrypoint.returns

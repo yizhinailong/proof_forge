@@ -3350,7 +3350,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
         .effect (.storageScalarWrite "count" (.literalWord 7))
       ]
   let (plannedIfStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.Counter.module
       "control_flow"
       .unit
@@ -3394,7 +3394,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
         .assignOp (.local "n") .add (.local "i")
       ]
   let (plannedForStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.Counter.module
       "control_flow"
       .unit
@@ -3414,7 +3414,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "planned scalar boundedFor body lowering must keep planned assignment body"
   | _ => throw <| IO.userError "planned scalar boundedFor body lowering must lower to for over builtin"
   let plannedControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.Counter.module
       "control_flow"
       .unit
@@ -3435,7 +3435,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
     { name := "n", type := .u64, isMutable := true }
   ]
   let plannedAggregateControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmStructValueProbe.module
       "control_flow"
       .unit
@@ -3456,7 +3456,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedAggregateControl ← requireSome plannedAggregateControl?
     "planned aggregate scalar control-flow plan construction missing plan"
   let (aggregateControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmStructValueProbe.module
       "control_flow"
       .unit
@@ -3491,7 +3491,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
     { name := "idx", type := .u64, isMutable := false }
   ]
   let plannedDynamicLocalArrayControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmStructArrayValueProbe.module
       "control_flow"
       .unit
@@ -3508,7 +3508,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedDynamicLocalArrayControl ← requireSome plannedDynamicLocalArrayControl?
     "planned dynamic local-array control-flow plan construction missing plan"
   let (dynamicLocalArrayControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmStructArrayValueProbe.module
       "control_flow"
       .unit
@@ -3543,7 +3543,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
     { name := "idx", type := .u64, isMutable := false }
   ]
   let plannedDynamicLocalStructArrayControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmStructArrayValueProbe.module
       "control_flow"
       .unit
@@ -3560,7 +3560,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedDynamicLocalStructArrayControl ← requireSome plannedDynamicLocalStructArrayControl?
     "planned dynamic local struct-array field control-flow plan construction missing plan"
   let (dynamicLocalStructArrayControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmStructArrayValueProbe.module
       "control_flow"
       .unit
@@ -3591,7 +3591,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "planned static local struct-array field control-flow must lower to local binding"
   | _ => throw <| IO.userError "planned dynamic local struct-array field control-flow body lowering must lower to switch"
   let immutableAggregatePlan? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmStructValueProbe.module
       "control_flow"
       .unit
@@ -3608,7 +3608,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   | none => pure ()
   | some _ => throw <| IO.userError "planned scalar control-flow validation guard must reject immutable struct assignment"
   let plannedMapControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmMapProbe.module
       "control_flow"
       .unit
@@ -3625,7 +3625,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedMapControl ← requireSome plannedMapControl?
     "planned map/path storage control-flow plan construction missing plan"
   let (mapControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmMapProbe.module
       "control_flow"
       .unit
@@ -3651,7 +3651,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "planned map path storage control-flow must lower to map write helper"
   | _ => throw <| IO.userError "planned map/path storage control-flow body lowering must lower to switch"
   let plannedMapReadControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmMapProbe.module
       "control_flow"
       .unit
@@ -3668,7 +3668,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedMapReadControl ← requireSome plannedMapReadControl?
     "planned map read control-flow plan construction missing plan"
   let (mapReadControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmMapProbe.module
       "control_flow"
       .unit
@@ -3715,7 +3715,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   | _ => throw <| IO.userError "planned map read control-flow body lowering must lower to switch"
   let loopIndex := ProofForge.IR.Expr.cast (.local "i") .u64
   let plannedArrayControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
       "control_flow"
       .unit
@@ -3732,7 +3732,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedArrayControl ← requireSome plannedArrayControl?
     "planned array/path storage control-flow plan construction missing plan"
   let (arrayControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
       "control_flow"
       .unit
@@ -3754,7 +3754,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "planned storage path assign control-flow must lower to block"
   | _ => throw <| IO.userError "planned array/path storage control-flow body lowering must lower to for"
   let plannedArrayReadControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
       "control_flow"
       .unit
@@ -3771,7 +3771,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedArrayReadControl ← requireSome plannedArrayReadControl?
     "planned array read control-flow plan construction missing plan"
   let (arrayReadControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
       "control_flow"
       .unit
@@ -3807,7 +3807,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "planned array read control-flow else must lower to value binding"
   | _ => throw <| IO.userError "planned array read control-flow body lowering must lower to switch"
   let plannedStructReadControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmStorageStructProbe.module
       "control_flow"
       .unit
@@ -3824,7 +3824,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedStructReadControl ← requireSome plannedStructReadControl?
     "planned struct read control-flow plan construction missing plan"
   let (structReadControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmStorageStructProbe.module
       "control_flow"
       .unit
@@ -3858,7 +3858,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "planned struct-array read control-flow else must lower to value binding"
   | _ => throw <| IO.userError "planned struct read control-flow body lowering must lower to switch"
   let plannedPathReadControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmStorageStructProbe.module
       "control_flow"
       .unit
@@ -3875,7 +3875,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedPathReadControl ← requireSome plannedPathReadControl?
     "planned storage path read control-flow plan construction missing plan"
   let (pathReadControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmStorageStructProbe.module
       "control_flow"
       .unit
@@ -3909,7 +3909,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "planned storage path struct-array read control-flow must lower to value binding"
   | _ => throw <| IO.userError "planned storage path read control-flow body lowering must lower to switch"
   let plannedEventControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EventProbe.evmModule
       "control_flow"
       .unit
@@ -3929,7 +3929,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedEventControl ← requireSome plannedEventControl?
     "planned scalar event control-flow plan construction missing plan"
   let (eventControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EventProbe.evmModule
       "control_flow"
       .unit
@@ -3966,7 +3966,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
     { name := "n", type := .u64, isMutable := true }
   ]
   let plannedCrosscallControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmCrosscallProbe.module
       "control_flow"
       .unit
@@ -3991,7 +3991,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedCrosscallControl ← requireSome plannedCrosscallControl?
     "planned scalar crosscall control-flow plan construction missing plan"
   let (crosscallControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmCrosscallProbe.module
       "control_flow"
       .unit
@@ -4027,7 +4027,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let create2HelperName :=
     "__proof_forge_create2_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex
   let plannedCreateControl? ← requireOk
-    (plannedScalarBodyStatement?
+    (plannedBodyStatement?
       ProofForge.IR.Examples.EvmCrosscallProbe.module
       "control_flow"
       .unit
@@ -4057,7 +4057,7 @@ def testScalarControlFlowPlanToYul : IO Unit := do
   let plannedCreateControl ← requireSome plannedCreateControl?
     "planned scalar create control-flow plan construction missing plan"
   let (createControlStmts, _) ← requireOk
-    (lowerScalarStmtPlanBodyStatement
+    (lowerPlannedBodyStatement
       ProofForge.IR.Examples.EvmCrosscallProbe.module
       "control_flow"
       .unit
