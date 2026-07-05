@@ -17,6 +17,55 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Aggregate Crosscall Returns
+
+Commit: 706bf97
+
+Summary:
+
+- Added `Lower.aggregateCrosscallReturnAssignmentPlanFromExprPlan?` so planned
+  aggregate `ExprPlan.crosscall` returns can become
+  `CrosscallReturnAssignmentPlan`s.
+- Routed planned aggregate crosscall returns through
+  `lowerCrosscallReturnAssignmentPlan` before falling back to ABI return word
+  plans.
+- Added direct planned-crosscall return coverage and altered-plan coverage
+  proving `lowerModuleWithPlan` consumes the aggregate crosscall return
+  `ModulePlan` body.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Planned aggregate crosscall return consumption currently depends on
+  target/method/call value and argument word plans being inside the supported
+  planned-body expression subset.
+- Aggregate crosscall arguments using local/storage ABI sources still remain
+  outside this planned body support gate unless already expanded to supported
+  word plans.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Rename or extract the current `scalar-body` helper layer into a clearer
+  supported planned-body lowering boundary before broadening more return and
+  storage shapes.
+
 ### EVM Planned Storage Struct Returns
 
 Commit: 2f54a48
