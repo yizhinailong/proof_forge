@@ -2051,6 +2051,16 @@ def scalarStoragePackedReadExpr
       Lean.Compiler.Yul.Expr.num mask
     ]
 
+def scalarStorageTargetReadExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (target : ScalarStorageTargetPlan) : Except ε Lean.Compiler.Yul.Expr := do
+  .ok <| scalarStoragePackedReadExpr
+    (← storageSlotExpr mkError lowerExpr target.slot)
+    target.byteOffset
+    target.byteWidth
+
 def scalarStorageAssignOpStatements
     (op : AssignOp)
     (storageSlot valueExpr : Lean.Compiler.Yul.Expr)

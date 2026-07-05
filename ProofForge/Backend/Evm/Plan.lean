@@ -626,6 +626,7 @@ mutual
 
   inductive EffectPlan where
     | storageScalarRead (stateId : String)
+    | storageScalarReadTarget (target : ScalarStorageTargetPlan)
     | storageScalarWrite (stateId : String) (value : ExprPlan)
     | storageScalarWriteTarget (target : ScalarStorageTargetPlan) (value : ExprPlan)
     | storageScalarAssignOp (stateId : String) (op : AssignOp) (value : ExprPlan)

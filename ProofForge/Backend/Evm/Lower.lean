@@ -406,7 +406,9 @@ mutual
 
   partial def buildEffectPlan (module : Module) (env : TypeEnv) : Effect → Except LowerError EffectPlan
     | .storageScalarRead stateId =>
-        .ok (.storageScalarRead stateId)
+        match scalarStorageTargetPlan? module stateId with
+        | some target => .ok (.storageScalarReadTarget target)
+        | none => .ok (.storageScalarRead stateId)
     | .storageScalarWrite stateId value => do
         let valuePlan ← buildExprPlan module env value
         match scalarStorageTargetPlan? module stateId with

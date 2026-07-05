@@ -2687,6 +2687,11 @@ mutual
             }
         | _ => pure ()
         lowerScalarStorageReadExpr module env stateId
+    | .storageScalarReadTarget target =>
+        ProofForge.Backend.Evm.ToYul.scalarStorageTargetReadExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          target
     | .storageScalarWriteTarget _ _ =>
         .error { message := "storage.scalar.write is a statement effect, not an expression" }
     | .storageScalarAssignOpTarget _ _ _ =>
@@ -5115,6 +5120,8 @@ mutual
   partial def effectPlanSupportsScalarBodyExpr :
       ProofForge.Backend.Evm.Plan.EffectPlan → Bool
     | .storageScalarRead _ => true
+    | .storageScalarReadTarget target =>
+        scalarStorageTargetPlanSupportsScalarBody target
     | .contextRead _ => true
     | .storageMapContains _ key
     | .storageMapGet _ key => exprPlanSupportsScalarBody key
