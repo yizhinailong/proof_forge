@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Planned Memory-Array Set Body Slice
+
+Commit: 7c24232
+
+Summary:
+
+- Added `EffectPlan.memoryArraySet` to the planned-body support predicate for
+  EVM statement bodies.
+- Let supported `ifElse`/`boundedFor` planned-body lowering consume
+  memory-array set effects directly through
+  `ToYul.memoryArraySetEffectStmtPlanStatements`.
+- Added semantic-plan coverage that proves memory-array set effects inside
+  control-flow branches lower as direct planned `mstore` frames instead of
+  falling back to the older block-wrapped compatibility statement path.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+```
+
+Known limitations:
+
+- Memory-array set itself is now eligible for planned-body lowering, but broader
+  memory-array lifecycle and unsupported aggregate statement shapes still remain
+  on their existing compatibility surfaces.
+- This slice only expands the planned-body support predicate and tests the
+  control-flow path; broader recursive `StmtPlan -> Yul` extraction still needs
+  to continue incrementally.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue shrinking the `IR.lean` compatibility facade by moving the next
+  statement/effect boundary into `Lower -> Plan -> ToYul`.
+
 ### EVM Planned Context Ops Discovery Slice
 
 Commit: eb062af
