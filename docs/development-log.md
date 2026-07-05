@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Struct Field Read Targets
+
+Commit: 9d743a9
+
+Summary:
+
+- Added `StructFieldReadTargetPlan` so direct `storageStructFieldRead`
+  effects carry the planned struct field storage slot after
+  `Lower.buildEffectPlan`.
+- Routed `Lower.buildEffectPlan` to emit planned struct field read target
+  variants while preserving the legacy state-id/field variant for fallback and
+  compatibility paths.
+- Added `ToYul.structFieldReadTargetExpr`, moving final `sload(fieldSlot)`
+  assembly behind the planned target instead of late field-slot lookup in the
+  compatibility facade.
+- Updated direct expression lowering and scalar-body expression support so both
+  `ExprPlan` recursion and raw `.effect (.storageStructFieldRead ...)` lowering
+  consume the planned target path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/storage-struct-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- Struct-array field reads still use their existing state-id/field/index lookup
+  path.
+
+Next step:
+
+- Move struct-array field read metadata behind a planned target, then continue
+  with the remaining storage-path expression planning surfaces.
+
 ### EVM Planned Struct-Array Field Write Targets
 
 Commit: 82d0faf
