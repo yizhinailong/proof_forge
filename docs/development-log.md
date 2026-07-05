@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Scalar Leaf ExprPlan Routing
+
+Commit: 299d6de
+
+Summary:
+
+- Routed scalar literal and local expression leaves through
+  `Lower.buildExpressionExprPlan`, `ExprPlan.literalWord`/`ExprPlan.local`, and
+  `ToYul.exprPlanExpr`.
+- Removed direct numeric, boolean, address, `hash4`, and local identifier
+  assembly from `IR.lowerExpr`.
+- Added semantic-plan coverage for direct literal/local plan shapes, direct IR
+  expression lowering results, and `hash4` limb packing through the shared
+  `Lower.literalPlan` validation path.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns direct aggregate expression/error paths and compatibility
+  callbacks for local/storage source plans.
+- Some statement, storage, event, and aggregate paths still pass through the
+  compatibility facade until their own semantic-plan slices land.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue with the next meaningful statement, storage, or event semantic
+  boundary now that scalar expression leaves are mostly behind `ExprPlan`.
+
 ### EVM Scalar Predicate ExprPlan Routing
 
 Commit: df0fbbf
