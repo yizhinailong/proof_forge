@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Raw Array Read ToYul Slice
+
+Commit: 4479430
+
+Summary:
+
+- Moved raw compatibility `EffectPlan.storageArrayRead` expression frame
+  construction from `IR.lean` into `ToYul.arrayReadExpr`.
+- Kept `IR.lowerPlanEffectExpr` responsible only for validating the storage
+  array state and looking up its root slot plus static length before delegating
+  the Yul expression frame.
+- Made `arrayReadTargetExpr` reuse the same raw root-slot/length helper.
+- Added semantic-plan tests that call the raw ToYul array read helper directly
+  in addition to existing target-plan and IR facade coverage.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns the storage array state/root-slot/length lookup for the
+  raw compatibility plan variant; only the final array read Yul expression
+  frame moved behind `ToYul`.
+- Raw struct and struct-array read expression frames still have IR-local
+  compatibility branches.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue the EVM semantic-plan migration by moving the next small raw storage
+  read expression frame from `IR.lean` into `ToYul`.
+
 ### EVM Raw Map Read ToYul Slice
 
 Commit: e6eca8c
