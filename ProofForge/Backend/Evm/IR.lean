@@ -5080,38 +5080,15 @@ def lowerScalarEventEffectPlan
     (env : TypeEnv)
     (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  let indexedTopicStatementsFor
+  let fieldWordsFor
       (event : ProofForge.Backend.Evm.Plan.EventPlan)
-      (indexedFields : Array ProofForge.Backend.Evm.Plan.AbiValuePlan) :
-      Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-    if event.indexedFields.size != indexedFields.size then
-      .error {
-        message := s!"planned scalar control-flow event `{event.name}` indexed field/value count mismatch"
-      }
-    let mut indexedTopicStatements : Array Lean.Compiler.Yul.Statement := #[]
-    for h : idx in [0:event.indexedFields.size] do
-      let some value := indexedFields[idx]?
-        | .error {
-            message := s!"planned scalar control-flow event `{event.name}` missing indexed field value at index {idx}"
-          }
-      let words ← lowerEventFieldDataWordExprs module env event.name event.indexedFields[idx] value
-      indexedTopicStatements :=
-        indexedTopicStatements ++
-          (← ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatements
-            toYulError
-            event.indexedFields[idx]
-            idx
-            words)
-    .ok indexedTopicStatements
-  let dataWordsFor
-      (event : ProofForge.Backend.Evm.Plan.EventPlan)
-      (dataFields : Array ProofForge.Backend.Evm.Plan.AbiValuePlan) :
+      (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
+      (value : ProofForge.Backend.Evm.Plan.AbiValuePlan) :
       Except LowerError (Array Lean.Compiler.Yul.Expr) :=
-    lowerEventFieldsDataWordExprs module env event.name event.dataFields dataFields
-  ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatements
+    lowerEventFieldDataWordExprs module env event.name field value
+  ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatementsFromProvider
     toYulError
-    indexedTopicStatementsFor
-    dataWordsFor
+    fieldWordsFor
     (.effect effect)
 
 def lowerScalarBodyEffectPlan

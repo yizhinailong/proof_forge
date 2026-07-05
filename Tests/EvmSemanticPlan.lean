@@ -3789,19 +3789,25 @@ def testScalarEventPlanToYul : IO Unit := do
       | some var => require (vars.size == 1 && var.name == "_indexed_topic0") "event indexed field plan-to-yul topic var"
       | none => throw <| IO.userError "event indexed field plan-to-yul topic missing var"
   | _ => throw <| IO.userError "event indexed field plan-to-yul topic must be var decl"
-  let directEventEffectStmts ← requireOk
-    (ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatements
-      toYulError
-      (fun _ values =>
-        if values.size == 1 then
-          .ok directIndexedTopics
-        else
-          .error (toYulError "event effect helper test expected one indexed field"))
-      (fun _ values =>
-        if values.size == 1 then
+  let directEventFieldWords
+      (_event : ProofForge.Backend.Evm.Plan.EventPlan)
+      (field : ProofForge.Backend.Evm.Plan.EventFieldPlan)
+      (value : ProofForge.Backend.Evm.Plan.AbiValuePlan) :
+      Except LowerError (Array Lean.Compiler.Yul.Expr) :=
+    match value with
+    | AbiValuePlan.expr (.literalWord word) =>
+        if field.name == "key" && word == 7 then
+          .ok #[Lean.Compiler.Yul.Expr.num 7]
+        else if field.name == "value" && word == 13 then
           .ok #[Lean.Compiler.Yul.Expr.num 13]
         else
-          .error (toYulError "event effect helper test expected one data field"))
+          .error (toYulError "event effect provider helper test unexpected field word")
+    | _ =>
+        .error (toYulError "event effect provider helper test expected literal word")
+  let directEventEffectStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.eventEffectStmtPlanStatementsFromProvider
+      toYulError
+      directEventFieldWords
       (ProofForge.Backend.Evm.Plan.StmtPlan.effect
         (.eventEmitIndexed
           directEvent
@@ -3812,6 +3818,25 @@ def testScalarEventPlanToYul : IO Unit := do
   match directEventEffectStmts[0]! with
   | Lean.Compiler.Yul.Statement.block block => do
       require (block.statements.size >= 4) "event effect StmtPlan-to-Yul helper block statement count"
+      let mut foundIndexedTopic := false
+      let mut foundDataWord := false
+      for stmt in block.statements do
+        match stmt with
+        | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.lit literal)) => do
+            match vars[0]? with
+            | some var =>
+                if vars.size == 1 && var.name == "_indexed_topic0" && literal.value == "7" then
+                  foundIndexedTopic := true
+            | none => pure ()
+        | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "mstore" args) => do
+            match args[1]? with
+            | some (Lean.Compiler.Yul.Expr.lit literal) =>
+                if literal.value == "13" then
+                  foundDataWord := true
+            | _ => pure ()
+        | _ => pure ()
+      require foundIndexedTopic "event effect StmtPlan-to-Yul helper indexed provider word"
+      require foundDataWord "event effect StmtPlan-to-Yul helper data provider word"
       match block.statements[block.statements.size - 1]! with
       | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin name args) => do
           require (name == "log2") "event effect StmtPlan-to-Yul helper log builtin"

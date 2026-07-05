@@ -2095,6 +2095,70 @@ def eventEmitCoreStatement
   statements := statements.push (← eventLogStatement mkError event dataWords.size)
   .ok (.block { statements := statements })
 
+def eventFieldDataWordExprsFromProvider
+    {ε : Type}
+    (mkError : String → ε)
+    (fieldWordsFor : EventPlan → EventFieldPlan → AbiValuePlan → Except ε (Array Lean.Compiler.Yul.Expr))
+    (event : EventPlan)
+    (fields : Array EventFieldPlan)
+    (values : Array AbiValuePlan) :
+    Except ε (Array Lean.Compiler.Yul.Expr) := do
+  if fields.size != values.size then
+    .error (mkError s!"planned scalar control-flow event `{event.name}` field/value count mismatch")
+  let mut words : Array Lean.Compiler.Yul.Expr := #[]
+  for h : idx in [0:fields.size] do
+    let some value := values[idx]?
+      | .error (mkError s!"planned scalar control-flow event `{event.name}` missing field value at index {idx}")
+    words := words ++ (← fieldWordsFor event fields[idx] value)
+  .ok words
+
+def eventIndexedTopicStatementsFromProvider
+    {ε : Type}
+    (mkError : String → ε)
+    (fieldWordsFor : EventPlan → EventFieldPlan → AbiValuePlan → Except ε (Array Lean.Compiler.Yul.Expr))
+    (event : EventPlan)
+    (values : Array AbiValuePlan) :
+    Except ε (Array Lean.Compiler.Yul.Statement) := do
+  let fields := event.indexedFields
+  if fields.size != values.size then
+    .error (mkError s!"planned scalar control-flow event `{event.name}` indexed field/value count mismatch")
+  let mut statements : Array Lean.Compiler.Yul.Statement := #[]
+  for h : idx in [0:fields.size] do
+    let some value := values[idx]?
+      | .error (mkError s!"planned scalar control-flow event `{event.name}` missing indexed field value at index {idx}")
+    let words ← fieldWordsFor event fields[idx] value
+    statements := statements ++ (← eventIndexedTopicStatements mkError fields[idx] idx words)
+  .ok statements
+
+def eventEffectStmtPlanStatementsFromProvider
+    {ε : Type}
+    (mkError : String → ε)
+    (fieldWordsFor : EventPlan → EventFieldPlan → AbiValuePlan → Except ε (Array Lean.Compiler.Yul.Expr)) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect (.eventEmit event dataFields) => do
+      let dataWords ← eventFieldDataWordExprsFromProvider
+        mkError
+        fieldWordsFor
+        event
+        event.dataFields
+        dataFields
+      .ok #[← eventEmitCoreStatement mkError event #[] dataWords]
+  | .effect (.eventEmitIndexed event indexedFields dataFields) => do
+      let indexedTopicStatements ← eventIndexedTopicStatementsFromProvider
+        mkError
+        fieldWordsFor
+        event
+        indexedFields
+      let dataWords ← eventFieldDataWordExprsFromProvider
+        mkError
+        fieldWordsFor
+        event
+        event.dataFields
+        dataFields
+      .ok #[← eventEmitCoreStatement mkError event indexedTopicStatements dataWords]
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul event effect lowering expected eventEmit/eventEmitIndexed")
+
 def eventEffectStmtPlanStatements
     {ε : Type}
     (mkError : String → ε)

@@ -432,12 +432,13 @@ Tasks:
   - Started: final event block assembly now consumes an `EventPlan -> ToYul`
     helper for signature topic setup, indexed-topic statements, non-indexed
     data stores, and final `log1`-`log4` statement selection. Event field value
-    evaluation still uses callback-provided compatibility hooks until data-word
-    and indexed-topic expression assembly move fully behind `EventPlan -> Yul`.
-    Planned scalar-body event effects now route the final statement frame
-    through `ToYul.eventEffectStmtPlanStatements`, so `StmtPlan.effect`
-    selects `eventEmit`/`eventEmitIndexed` block construction behind ToYul
-    while IR supplies field word/topic callbacks.
+    evaluation still uses a field-word provider callback until data-word and
+    indexed-topic expression assembly move fully behind `EventPlan -> Yul`.
+    Planned scalar-body event effects now route through
+    `ToYul.eventEffectStmtPlanStatementsFromProvider`, so `StmtPlan.effect`
+    selects `eventEmit`/`eventEmitIndexed` block construction behind ToYul,
+    and ToYul owns field/value count checks plus indexed-topic/data routing
+    while IR only supplies field word expressions.
   - Started: event data-word store assembly and indexed scalar/aggregate topic
     assembly now consume `EventFieldPlan -> ToYul` helpers. Field expression
     evaluation and aggregate flattening still use the compatibility facade
