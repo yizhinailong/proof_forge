@@ -2179,6 +2179,11 @@ mutual
       (stateId : String)
       (path : Array StoragePathSegment) : Except LowerError Lean.Compiler.Yul.Expr := do
     match ProofForge.Backend.Evm.Lower.buildEffectPlan module (toValidateTypeEnv env) (.storagePathRead stateId path) with
+    | .ok (.storagePathReadExprTarget slot) =>
+        ProofForge.Backend.Evm.ToYul.storagePathReadExprFromExprPlan
+          toYulError
+          (lowerExprPlanExpr module env)
+          slot
     | .ok (.storagePathReadTarget slot) =>
         ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
           toYulError
@@ -2933,6 +2938,11 @@ mutual
         ProofForge.Backend.Evm.ToYul.storagePathReadExprFromPlan
           toYulError
           (fun expr => lowerExpr module env expr)
+          slot
+    | .storagePathReadExprTarget slot =>
+        ProofForge.Backend.Evm.ToYul.storagePathReadExprFromExprPlan
+          toYulError
+          (lowerExprPlanExpr module env)
           slot
     | _ =>
         .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
@@ -3902,6 +3912,13 @@ partial def lowerStoragePathWriteStmtPlanOrFallback
       | .error err => .error { message := err.message }
     let statements ←
       match effectPlan with
+      | .storagePathWriteExprTarget .. =>
+          ProofForge.Backend.Evm.ToYul.storagePathWriteExprTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (lowerExprPlanExpr module env)
+            (.effect effectPlan)
       | .storagePathWriteTarget .. =>
           ProofForge.Backend.Evm.ToYul.storagePathWriteTargetEffectStmtPlanStatements
             toYulError
@@ -4009,6 +4026,13 @@ partial def lowerStoragePathAssignOpStmtPlanOrFallback
       | .error err => .error { message := err.message }
     let statements ←
       match effectPlan with
+      | .storagePathAssignOpExprTarget .. =>
+          ProofForge.Backend.Evm.ToYul.storagePathAssignOpExprTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (lowerExprPlanExpr module env)
+            (.effect effectPlan)
       | .storagePathAssignOpTarget .. =>
           ProofForge.Backend.Evm.ToYul.storagePathAssignOpTargetEffectStmtPlanStatements
             toYulError
@@ -5375,6 +5399,25 @@ def scalarStorageTargetPlanSupportsScalarBody
   storageSlotPlanSupportsScalarBody target.slot
 
 mutual
+  partial def storageSlotExprPlanSupportsScalarBody :
+      ProofForge.Backend.Evm.Plan.StorageSlotExprPlan → Bool
+    | .scalarSlot _ | .fixedSlot _ => true
+    | .mapValueSlot _ keys
+    | .mapPresenceSlot _ keys =>
+        keys.all exprPlanSupportsScalarBody
+    | .arraySlot _ _ index
+    | .structArrayFieldSlot _ _ _ _ index
+    | .dynamicArraySlot _ index =>
+        exprPlanSupportsScalarBody index
+
+  partial def storagePathWriteExprTargetPlanSupportsScalarBody :
+      ProofForge.Backend.Evm.Plan.StoragePathWriteExprTargetPlan → Bool
+    | .mapWrite _ key => exprPlanSupportsScalarBody key
+    | .singleSlot slot => storageSlotExprPlanSupportsScalarBody slot
+    | .mapValuePresence valueSlot presenceSlot =>
+        storageSlotExprPlanSupportsScalarBody valueSlot &&
+          storageSlotExprPlanSupportsScalarBody presenceSlot
+
   partial def effectPlanSupportsScalarBodyExpr :
       ProofForge.Backend.Evm.Plan.EffectPlan → Bool
     | .storageScalarRead _ => true
@@ -5393,6 +5436,7 @@ mutual
     | .storageArrayStructFieldReadTarget _ index => exprPlanSupportsScalarBody index
     | .storagePathRead _ path => storagePathSupportsScalarBody path
     | .storagePathReadTarget slot => storageSlotPlanSupportsScalarBody slot
+    | .storagePathReadExprTarget slot => storageSlotExprPlanSupportsScalarBody slot
     | _ => false
 
   partial def exprPlanSupportsScalarBody :
@@ -5499,10 +5543,16 @@ def effectPlanSupportsScalarBodyStmt :
   | .storagePathWriteTarget target value =>
       storagePathWriteTargetPlanSupportsScalarBody target &&
         exprPlanSupportsScalarBody value
+  | .storagePathWriteExprTarget target value =>
+      storagePathWriteExprTargetPlanSupportsScalarBody target &&
+        exprPlanSupportsScalarBody value
   | .storagePathAssignOp _ path _ value =>
       storagePathSupportsScalarBody path && exprPlanSupportsScalarBody value
   | .storagePathAssignOpTarget target _ value =>
       storagePathWriteTargetPlanSupportsScalarBody target &&
+        exprPlanSupportsScalarBody value
+  | .storagePathAssignOpExprTarget target _ value =>
+      storagePathWriteExprTargetPlanSupportsScalarBody target &&
         exprPlanSupportsScalarBody value
   | .eventEmit event dataFields =>
       event.indexedFields.isEmpty &&
@@ -5757,6 +5807,13 @@ def lowerScalarBodyEffectPlan
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
         (.effect effect)
+  | .storagePathWriteExprTarget .. =>
+      ProofForge.Backend.Evm.ToYul.storagePathWriteExprTargetEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (lowerExprPlanExpr module env)
+        (.effect effect)
   | .storagePathAssignOp .. =>
       ProofForge.Backend.Evm.ToYul.storagePathAssignOpEffectStmtPlanStatements
         toYulError
@@ -5769,6 +5826,13 @@ def lowerScalarBodyEffectPlan
         toYulError
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
+        (.effect effect)
+  | .storagePathAssignOpExprTarget .. =>
+      ProofForge.Backend.Evm.ToYul.storagePathAssignOpExprTargetEffectStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (lowerExprPlanExpr module env)
         (.effect effect)
   | .eventEmit .. | .eventEmitIndexed .. =>
       lowerScalarEventEffectPlan module env effect

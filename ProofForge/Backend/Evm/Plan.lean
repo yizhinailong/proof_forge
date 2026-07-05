@@ -750,6 +750,22 @@ mutual
     | effect (effect : EffectPlan)
     deriving Repr
 
+  inductive StorageSlotExprPlan where
+    | scalarSlot (slot : Nat)
+    | fixedSlot (slotHex : String)
+    | mapValueSlot (rootSlot : Nat) (keys : Array ExprPlan)
+    | mapPresenceSlot (rootSlot : Nat) (keys : Array ExprPlan)
+    | arraySlot (rootSlot length : Nat) (index : ExprPlan)
+    | structArrayFieldSlot (rootSlot length fieldCount fieldOffset : Nat) (index : ExprPlan)
+    | dynamicArraySlot (rootSlot : Nat) (index : ExprPlan)
+    deriving Repr
+
+  inductive StoragePathWriteExprTargetPlan where
+    | mapWrite (rootSlot : Nat) (key : ExprPlan)
+    | singleSlot (slot : StorageSlotExprPlan)
+    | mapValuePresence (valueSlot presenceSlot : StorageSlotExprPlan)
+    deriving Repr
+
   inductive EffectPlan where
     | storageScalarRead (stateId : String)
     | storageScalarReadTarget (target : ScalarStorageTargetPlan)
@@ -781,10 +797,13 @@ mutual
     | storageStructFieldWriteTarget (target : StructFieldWriteTargetPlan) (value : ExprPlan)
     | storagePathRead (stateId : String) (path : Array StoragePathSegment)
     | storagePathReadTarget (slot : StorageSlotPlan)
+    | storagePathReadExprTarget (slot : StorageSlotExprPlan)
     | storagePathWrite (stateId : String) (path : Array StoragePathSegment) (value : ExprPlan)
     | storagePathWriteTarget (target : StoragePathWriteTargetPlan) (value : ExprPlan)
+    | storagePathWriteExprTarget (target : StoragePathWriteExprTargetPlan) (value : ExprPlan)
     | storagePathAssignOp (stateId : String) (path : Array StoragePathSegment) (op : AssignOp) (value : ExprPlan)
     | storagePathAssignOpTarget (target : StoragePathWriteTargetPlan) (op : AssignOp) (value : ExprPlan)
+    | storagePathAssignOpExprTarget (target : StoragePathWriteExprTargetPlan) (op : AssignOp) (value : ExprPlan)
     | contextRead (field : ContextField)
     | eventEmit (event : EventPlan) (dataFields : Array ExprPlan)
     | eventEmitIndexed (event : EventPlan) (indexedFields dataFields : Array ExprPlan)
@@ -829,6 +848,175 @@ def EventPlan.dataFields (event : EventPlan) : Array EventFieldPlan :=
   event.fields.foldl
     (fun acc field => if field.indexed then acc else acc.push field)
     #[]
+
+inductive StoragePathPlanSegment where
+  | mapKey (key : ExprPlan)
+  | index (index : ExprPlan)
+  | field (fieldName : String)
+  deriving Repr
+
+def StorageSlotExprPlan.keyCount : StorageSlotExprPlan → Nat
+  | .scalarSlot _ => 0
+  | .fixedSlot _ => 0
+  | .mapValueSlot _ keys => keys.size
+  | .mapPresenceSlot _ keys => keys.size
+  | .arraySlot .. => 0
+  | .structArrayFieldSlot .. => 0
+  | .dynamicArraySlot .. => 0
+
+def StorageSlotExprPlan.requiredHelpers : StorageSlotExprPlan → HelperSet
+  | .scalarSlot _ => #[]
+  | .fixedSlot _ => #[]
+  | .mapValueSlot _ _ => #[Helper.mapSlot]
+  | .mapPresenceSlot _ keys =>
+      let helpers : HelperSet := #[Helper.mapPresenceSlot]
+      if keys.size > 1 then
+        HelperSet.insert helpers Helper.mapSlot
+      else
+        helpers
+  | .arraySlot .. => #[Helper.arraySlot]
+  | .structArrayFieldSlot .. => #[Helper.structArraySlot]
+  | .dynamicArraySlot .. => #[Helper.dynamicArraySlot]
+
+def storagePathPlanMapKeys? (path : Array StoragePathPlanSegment) : Option (Array ExprPlan) :=
+  go 0 #[]
+where
+  go (idx : Nat) (acc : Array ExprPlan) : Option (Array ExprPlan) :=
+    if h : idx < path.size then
+      match path[idx] with
+      | .mapKey key => go (idx + 1) (acc.push key)
+      | .field _ | .index _ => none
+    else if acc.isEmpty then
+      none
+    else
+      some acc
+
+def mapValueSlotExprPlan
+    (module : Module)
+    (stateId : String)
+    (keys : Array ExprPlan) : Except PlanError StorageSlotExprPlan := do
+  let mapState ← requireMapState module stateId
+  if keys.isEmpty then
+    .error { message := s!"EVM map storage path for '{stateId}' must contain at least one mapKey segment" }
+  else
+    .ok (.mapValueSlot mapState.rootSlot keys)
+
+def mapPresenceSlotExprPlan
+    (module : Module)
+    (stateId : String)
+    (keys : Array ExprPlan) : Except PlanError StorageSlotExprPlan := do
+  let mapState ← requireMapState module stateId
+  if keys.isEmpty then
+    .error { message := s!"EVM map storage path for '{stateId}' must contain at least one mapKey segment" }
+  else
+    .ok (.mapPresenceSlot mapState.rootSlot keys)
+
+def storagePathMapValueSlotExprPlan
+    (module : Module)
+    (stateId : String)
+    (path : Array StoragePathPlanSegment) : Except PlanError StorageSlotExprPlan :=
+  match storagePathPlanMapKeys? path with
+  | some keys => mapValueSlotExprPlan module stateId keys
+  | none =>
+      .error { message := "EVM plan supports map storage paths only as one or more mapKey segments" }
+
+def storagePathMapPresenceSlotExprPlan
+    (module : Module)
+    (stateId : String)
+    (path : Array StoragePathPlanSegment) : Except PlanError StorageSlotExprPlan :=
+  match storagePathPlanMapKeys? path with
+  | some keys => mapPresenceSlotExprPlan module stateId keys
+  | none =>
+      .error { message := "EVM plan supports map storage paths only as one or more mapKey segments" }
+
+def arraySlotExprPlan (module : Module) (stateId : String) (index : ExprPlan) :
+    Except PlanError StorageSlotExprPlan := do
+  let (slot, length, _) ← requireArrayState module stateId
+  .ok (.arraySlot slot length index)
+
+def dynamicArraySlotExprPlan (module : Module) (stateId : String) (index : ExprPlan) :
+    Except PlanError StorageSlotExprPlan := do
+  let (slot, _) ← requireDynamicArrayState module stateId
+  .ok (.dynamicArraySlot slot index)
+
+def structArrayFieldSlotExprPlan
+    (module : Module)
+    (stateId : String)
+    (index : ExprPlan)
+    (fieldName : String) : Except PlanError StorageSlotExprPlan := do
+  let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
+  .ok (.structArrayFieldSlot slot length fieldCount fieldOffset index)
+
+def structFieldSlotExprPlan
+    (module : Module)
+    (stateId fieldName : String) : Except PlanError StorageSlotExprPlan := do
+  let (slot, _) ← requireStructStateField module stateId fieldName
+  .ok (.scalarSlot slot)
+
+def storagePathWriteExprTargetPlan
+    (module : Module)
+    (stateId : String)
+    (path : Array StoragePathPlanSegment) : Except PlanError StoragePathWriteExprTargetPlan :=
+  match path.toList with
+  | [StoragePathPlanSegment.mapKey key] => do
+      let mapState ← requireMapState module stateId
+      .ok (.mapWrite mapState.rootSlot key)
+  | [StoragePathPlanSegment.index index] => do
+      let (_, state) ← requireState module stateId
+      match state.kind with
+      | .array _ => .ok (.singleSlot (← arraySlotExprPlan module stateId index))
+      | .dynamicArray => .ok (.singleSlot (← dynamicArraySlotExprPlan module stateId index))
+      | .scalar | .map _ _ => .error { message := s!"storage path state `{stateId}` does not support index access" }
+  | [StoragePathPlanSegment.field fieldName] => do
+      .ok (.singleSlot (← structFieldSlotExprPlan module stateId fieldName))
+  | [StoragePathPlanSegment.index index, StoragePathPlanSegment.field fieldName] => do
+      .ok (.singleSlot (← structArrayFieldSlotExprPlan module stateId index fieldName))
+  | [] => do
+      let (_, state) ← requireState module stateId
+      match state.kind with
+      | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+      | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
+      | .dynamicArray => .error { message := s!"storage path state `{stateId}` is dynamic array storage; IR EVM v0 does not yet support dynamic array storage paths" }
+      | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.write" }
+  | _ =>
+      match storagePathPlanMapKeys? path with
+      | some _ => do
+          .ok (.mapValuePresence
+            (← storagePathMapValueSlotExprPlan module stateId path)
+            (← storagePathMapPresenceSlotExprPlan module stateId path))
+      | none =>
+          .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
+
+def storagePathReadExprSlotPlan
+    (module : Module)
+    (stateId : String)
+    (path : Array StoragePathPlanSegment) : Except PlanError StorageSlotExprPlan :=
+  match path.toList with
+  | [StoragePathPlanSegment.mapKey key] =>
+      mapValueSlotExprPlan module stateId #[key]
+  | [StoragePathPlanSegment.index index] => do
+      let (_, state) ← requireState module stateId
+      match state.kind with
+      | .array _ => arraySlotExprPlan module stateId index
+      | .dynamicArray => dynamicArraySlotExprPlan module stateId index
+      | .scalar | .map _ _ => .error { message := s!"storage path state `{stateId}` does not support index access" }
+  | [StoragePathPlanSegment.field fieldName] =>
+      structFieldSlotExprPlan module stateId fieldName
+  | [StoragePathPlanSegment.index index, StoragePathPlanSegment.field fieldName] =>
+      structArrayFieldSlotExprPlan module stateId index fieldName
+  | [] => do
+      let (_, state) ← requireState module stateId
+      match state.kind with
+      | .map _ _ => .error { message := s!"storage path state `{stateId}` is map storage; first segment must be a map key" }
+      | .array _ => .error { message := s!"storage path state `{stateId}` is array storage; first segment must be an index" }
+      | .dynamicArray => .error { message := s!"storage path state `{stateId}` is dynamic array storage; IR EVM v0 does not yet support dynamic array storage paths" }
+      | .scalar => .error { message := "scalar storage paths are not supported by IR EVM v0; use storage.scalar.read" }
+  | _ =>
+      match storagePathPlanMapKeys? path with
+      | some _ =>
+          storagePathMapValueSlotExprPlan module stateId path
+      | none =>
+          .error { message := "EVM IR v0 supports storage paths as one or more mapKey segments, index, field, or index followed by field" }
 
 /-! ## CrosscallHelperSpec / CreateHelperSpec: helper function specs (no ExprPlan) -/
 

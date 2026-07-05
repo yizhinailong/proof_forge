@@ -4222,10 +4222,18 @@ def testStoragePathReadPlanToYul : IO Unit := do
       (.storagePathRead "balances" #[.mapKey (.add (.local "outer") (.literal (.u64 1)))]))
     "Lower map storage path read target effect plan"
   match loweredMapPathRead with
-  | .storagePathReadTarget (.mapValueSlot rootSlot keys) => do
+  | .storagePathReadExprTarget (.mapValueSlot rootSlot keys) => do
       require (rootSlot == 1) "Lower map storage path read target root slot"
       require (keys.size == 1) "Lower map storage path read target key count"
-  | _ => throw <| IO.userError "Lower map storage path read must produce storagePathReadTarget"
+      match keys[0]? with
+      | some keyPlan =>
+          match keyPlan with
+          | .checkedArith .add (.local lhs) (.literalWord rhs) => do
+              require (lhs == "outer") "Lower map storage path read key lhs"
+              require (rhs == 1) "Lower map storage path read key rhs"
+          | _ => throw <| IO.userError "Lower map storage path read key must be ExprPlan checked add"
+      | _ => throw <| IO.userError "Lower map storage path read key must be ExprPlan checked add"
+  | _ => throw <| IO.userError "Lower map storage path read must produce storagePathReadExprTarget"
   let loweredArrayPathRead ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.buildEffectPlan
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
@@ -4233,10 +4241,13 @@ def testStoragePathReadPlanToYul : IO Unit := do
       (.storagePathRead "values" #[.index (.local "value")]))
     "Lower array storage path read target effect plan"
   match loweredArrayPathRead with
-  | .storagePathReadTarget (.arraySlot rootSlot length _) => do
+  | .storagePathReadExprTarget (.arraySlot rootSlot length indexPlan) => do
       require (rootSlot == 1) "Lower array storage path read target root slot"
       require (length == 3) "Lower array storage path read target length"
-  | _ => throw <| IO.userError "Lower array storage path read must produce storagePathReadTarget"
+      match indexPlan with
+      | .local name => require (name == "value") "Lower array storage path read target index"
+      | _ => throw <| IO.userError "Lower array storage path read index must be ExprPlan local"
+  | _ => throw <| IO.userError "Lower array storage path read must produce storagePathReadExprTarget"
   let directMapReadPlan ← requireOk
     (lowerPlan <|
       ProofForge.Backend.Evm.Plan.storagePathReadSlotPlan
@@ -4484,7 +4495,7 @@ def testStoragePathWritePlanToYul : IO Unit := do
         (.add (.local "value") (.literal (.u64 4)))))
     "Lower storage path write target effect plan"
   match loweredArrayWriteEffect with
-  | .storagePathWriteTarget (.singleSlot (.arraySlot _ length (.irExpr (.local indexName)))) valuePlan => do
+  | .storagePathWriteExprTarget (.singleSlot (.arraySlot _ length (.local indexName))) valuePlan => do
       require (length == 3) "Lower storage path write target array length"
       require (indexName == "value") "Lower storage path write target index"
       match valuePlan with
@@ -4492,7 +4503,7 @@ def testStoragePathWritePlanToYul : IO Unit := do
           require (lhs == "value") "Lower storage path write target value lhs"
           require (rhs == 4) "Lower storage path write target value rhs"
       | _ => throw <| IO.userError "Lower storage path write target value must be checked add"
-  | _ => throw <| IO.userError "Lower storage path write must produce storagePathWriteTarget"
+  | _ => throw <| IO.userError "Lower storage path write must produce storagePathWriteExprTarget"
   let loweredArrayAssignOpEffect ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.buildEffectPlan
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
@@ -4504,12 +4515,12 @@ def testStoragePathWritePlanToYul : IO Unit := do
         (.literal (.u64 1))))
     "Lower storage path assign_op target effect plan"
   match loweredArrayAssignOpEffect with
-  | .storagePathAssignOpTarget (.singleSlot (.arraySlot _ length (.irExpr (.local indexName)))) op (.literalWord value) => do
+  | .storagePathAssignOpExprTarget (.singleSlot (.arraySlot _ length (.local indexName))) op (.literalWord value) => do
       require (length == 3) "Lower storage path assign_op target array length"
       require (indexName == "value") "Lower storage path assign_op target index"
       require (op == .add) "Lower storage path assign_op target op"
       require (value == 1) "Lower storage path assign_op target value"
-  | _ => throw <| IO.userError "Lower storage path assign_op must produce storagePathAssignOpTarget"
+  | _ => throw <| IO.userError "Lower storage path assign_op must produce storagePathAssignOpExprTarget"
   let directWriteStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.storagePathWriteEffectStmtPlanStatements
       toYulError

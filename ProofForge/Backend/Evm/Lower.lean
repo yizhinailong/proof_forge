@@ -454,6 +454,23 @@ mutual
     | .effect effect => do
         .ok (.effect (← buildEffectPlan module env effect))
 
+  partial def buildStoragePathSegmentPlan
+      (module : Module)
+      (env : TypeEnv) :
+      StoragePathSegment → Except LowerError StoragePathPlanSegment
+    | .mapKey key => do
+        .ok (.mapKey (← buildExprPlan module env key))
+    | .index index => do
+        .ok (.index (← buildExprPlan module env index))
+    | .field fieldName => .ok (.field fieldName)
+
+  partial def buildStoragePathPlan
+      (module : Module)
+      (env : TypeEnv)
+      (path : Array StoragePathSegment) :
+      Except LowerError (Array StoragePathPlanSegment) :=
+    path.mapM (buildStoragePathSegmentPlan module env)
+
   partial def buildEffectPlan (module : Module) (env : TypeEnv) : Effect → Except LowerError EffectPlan
     | .storageScalarRead stateId =>
         match scalarStorageTargetPlan? module stateId with
@@ -527,14 +544,17 @@ mutual
         | some target => .ok (.storageStructFieldWriteTarget target valuePlan)
         | none => .ok (.storageStructFieldWrite stateId fieldName valuePlan)
     | .storagePathRead stateId path => do
-        let slot ← lowerPlan <| storagePathReadSlotPlan module stateId path
-        .ok (.storagePathReadTarget slot)
+        let plannedPath ← buildStoragePathPlan module env path
+        let slot ← lowerPlan <| storagePathReadExprSlotPlan module stateId plannedPath
+        .ok (.storagePathReadExprTarget slot)
     | .storagePathWrite stateId path value => do
-        let target ← lowerPlan <| storagePathWriteTargetPlan module stateId path
-        .ok (.storagePathWriteTarget target (← buildExprPlan module env value))
+        let plannedPath ← buildStoragePathPlan module env path
+        let target ← lowerPlan <| storagePathWriteExprTargetPlan module stateId plannedPath
+        .ok (.storagePathWriteExprTarget target (← buildExprPlan module env value))
     | .storagePathAssignOp stateId path op value => do
-        let target ← lowerPlan <| storagePathWriteTargetPlan module stateId path
-        .ok (.storagePathAssignOpTarget target op (← buildExprPlan module env value))
+        let plannedPath ← buildStoragePathPlan module env path
+        let target ← lowerPlan <| storagePathWriteExprTargetPlan module stateId plannedPath
+        .ok (.storagePathAssignOpExprTarget target op (← buildExprPlan module env value))
     | .contextRead field =>
         .ok (.contextRead field)
     | .eventEmit name fields => do

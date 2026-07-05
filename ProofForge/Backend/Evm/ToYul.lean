@@ -1520,12 +1520,77 @@ def storageSlotExpr
         ← lowerValuePlan lowerExpr index
       ])
 
+def lowerMapValueSlotExprPlan
+    {ε : Type}
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (rootSlot : Nat)
+    (keys : Array ExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
+  let mut current := slotExpr rootSlot
+  for key in keys do
+    current := helperCall Helper.mapSlot #[current, ← lowerPlanExpr key]
+  .ok current
+
+def lowerMapPresenceSlotExprPlan
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (rootSlot : Nat)
+    (keys : Array ExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
+  match keys.toList.reverse with
+  | [] => .error (mkError "EVM map presence slot plan requires at least one key")
+  | last :: parentKeysReversed =>
+      let mut parent := slotExpr rootSlot
+      for key in parentKeysReversed.reverse do
+        parent := helperCall Helper.mapSlot #[parent, ← lowerPlanExpr key]
+      .ok (helperCall Helper.mapPresenceSlot #[parent, ← lowerPlanExpr last])
+
+def storageSlotExprPlan
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StorageSlotExprPlan → Except ε Lean.Compiler.Yul.Expr
+  | .scalarSlot slot => .ok (slotExpr slot)
+  | .fixedSlot slotHex => .ok (Lean.Compiler.Yul.Expr.lit (Lean.Compiler.Yul.Literal.hex slotHex))
+  | .mapValueSlot rootSlot keys =>
+      if keys.isEmpty then
+        .error (mkError "EVM map value slot plan requires at least one key")
+      else
+        lowerMapValueSlotExprPlan lowerPlanExpr rootSlot keys
+  | .mapPresenceSlot rootSlot keys =>
+      lowerMapPresenceSlotExprPlan mkError lowerPlanExpr rootSlot keys
+  | .arraySlot rootSlot length index => do
+      .ok (helperCall Helper.arraySlot #[
+        slotExpr rootSlot,
+        Lean.Compiler.Yul.Expr.num length,
+        ← lowerPlanExpr index
+      ])
+  | .structArrayFieldSlot rootSlot length fieldCount fieldOffset index => do
+      .ok (helperCall Helper.structArraySlot #[
+        slotExpr rootSlot,
+        Lean.Compiler.Yul.Expr.num length,
+        Lean.Compiler.Yul.Expr.num fieldCount,
+        Lean.Compiler.Yul.Expr.num fieldOffset,
+        ← lowerPlanExpr index
+      ])
+  | .dynamicArraySlot rootSlot index => do
+      .ok (helperCall Helper.dynamicArraySlot #[
+        slotExpr rootSlot,
+        ← lowerPlanExpr index
+      ])
+
 def storagePathReadExprFromPlan
     {ε : Type}
     (mkError : String → ε)
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
     (slot : StorageSlotPlan) : Except ε Lean.Compiler.Yul.Expr := do
   .ok (Lean.Compiler.Yul.builtin "sload" #[← storageSlotExpr mkError lowerExpr slot])
+
+def storagePathReadExprFromExprPlan
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (slot : StorageSlotExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
+  .ok (Lean.Compiler.Yul.builtin "sload" #[← storageSlotExprPlan mkError lowerPlanExpr slot])
 
 partial def exprPlanExpr
     {ε : Type}
@@ -2571,6 +2636,20 @@ def storagePathWriteTargetFromPlan
         (← storageSlotExpr mkError lowerExpr valueSlot)
         (← storageSlotExpr mkError lowerExpr presenceSlot))
 
+def storagePathWriteExprTargetFromPlan
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StoragePathWriteExprTargetPlan → Except ε StoragePathWriteTarget
+  | .mapWrite rootSlot key => do
+      .ok (.mapWrite (slotExpr rootSlot) (← lowerPlanExpr key))
+  | .singleSlot slot => do
+      .ok (.singleSlot (← storageSlotExprPlan mkError lowerPlanExpr slot))
+  | .mapValuePresence valueSlot presenceSlot => do
+      .ok (.mapValuePresence
+        (← storageSlotExprPlan mkError lowerPlanExpr valueSlot)
+        (← storageSlotExprPlan mkError lowerPlanExpr presenceSlot))
+
 def storagePathWriteTargetStatements
     (value : Lean.Compiler.Yul.Expr) :
     StoragePathWriteTarget → Array Lean.Compiler.Yul.Statement
@@ -2647,6 +2726,32 @@ def storagePathWriteTargetEffectStmtPlanStatements
       storagePathWriteTargetEffectPlanStatements mkError lowerExpr lowerEffect effect
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul planned storage path write lowering expected effect")
+
+def storagePathWriteExprTargetEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storagePathWriteExprTarget target value => do
+      .ok <| storagePathWriteTargetStatements
+        (← exprPlanExpr mkError lowerExpr lowerEffect value)
+        (← storagePathWriteExprTargetFromPlan mkError lowerPlanExpr target)
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul planned storage path write expr lowering expected storagePathWriteExprTarget")
+
+def storagePathWriteExprTargetEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      storagePathWriteExprTargetEffectPlanStatements mkError lowerExpr lowerEffect lowerPlanExpr effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul planned storage path write expr lowering expected effect")
 
 def storagePathAssignOpTargetStatements
     (op : AssignOp)
@@ -2735,6 +2840,33 @@ def storagePathAssignOpTargetEffectStmtPlanStatements
       storagePathAssignOpTargetEffectPlanStatements mkError lowerExpr lowerEffect effect
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul planned storage path assign_op lowering expected effect")
+
+def storagePathAssignOpExprTargetEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .storagePathAssignOpExprTarget target op value => do
+      .ok <| storagePathAssignOpTargetStatements
+        op
+        (← exprPlanExpr mkError lowerExpr lowerEffect value)
+        (← storagePathWriteExprTargetFromPlan mkError lowerPlanExpr target)
+  | _ =>
+      .error (mkError "EVM EffectPlan-to-Yul planned storage path assign_op expr lowering expected storagePathAssignOpExprTarget")
+
+def storagePathAssignOpExprTargetEffectStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .effect effect =>
+      storagePathAssignOpExprTargetEffectPlanStatements mkError lowerExpr lowerEffect lowerPlanExpr effect
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul planned storage path assign_op expr lowering expected effect")
 
 /-! ## Plan-driven helper requirements
 
