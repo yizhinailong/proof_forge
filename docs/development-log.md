@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Dead Storage Read Helper Removal
+
+Commit: 053b83f
+
+Summary:
+
+- Removed dead direct read compatibility helpers from `IR.lean` for map
+  get/contains, fixed-array read, dynamic-array read, and struct-array field
+  read.
+- Kept slot helpers that are still used by storage-path write and assign-op
+  fallback target selection.
+- Left direct storage read expressions on the existing
+  `lowerEffectExprThroughPlan` and `lowerPlanEffectExpr -> ToYul` boundary.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+rg -n "lowerMapGetExpr|lowerMapContainsExpr|lowerArrayReadExpr|lowerDynamicArrayReadExpr|lowerStructArrayFieldReadExpr|lowerMapSlotExpr" ProofForge/Backend/Evm/IR.lean Tests/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md docs/development-log.md
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Slot helpers for array, dynamic-array, struct-array, and map path targets
+  remain because write and assign-op fallback target selection still uses them.
+- Storage-path target selection callbacks still exist until direct callers and
+  diagnostic-only paths no longer need them.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue auditing storage-path callback surfaces and remove helpers once they
+  are demonstrably unused.
+
 ### EVM Legacy Map-Path Read Helper Removal
 
 Commit: 603a330
