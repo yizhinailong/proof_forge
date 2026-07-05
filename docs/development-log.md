@@ -17,6 +17,47 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Local Aggregate Event Data Words via ABI Words
+
+Commit: 4ccf8de
+
+Summary:
+
+- Routed local struct, fixed-array, and struct-array event data-word lowering
+  through the shared `lowerLocalAbiWords` path instead of duplicating aggregate
+  local flattening inside `IR.lean`.
+- Kept literal and storage-backed aggregate event paths unchanged; this commit
+  narrows only the local value boundary that already has reusable ABI word
+  planning behavior.
+- Restored EVM plan/test runtime after the deploy metadata merge by rebuilding
+  affected examples, tightening helper/context comparison boundaries, and
+  splitting oversized semantic-plan smoke sections without changing their
+  assertions.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-diagnostics
+scripts/evm/event-ir-smoke.sh
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Literal aggregate event data-word flattening and storage-backed aggregate
+  event reads still live in the `IR.lean` compatibility facade.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Move storage-backed aggregate event data-word planning behind an explicit
+  `Lower -> Plan -> ToYul` boundary.
+
 ### EVM IR Indexed Event Topic Assembly Cleanup
 
 Commit: bf98fcb
