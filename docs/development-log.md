@@ -17,6 +17,53 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Arithmetic ExprPlan Routing
+
+Commit: 8e8a2a5
+
+Summary:
+
+- Routed scalar arithmetic, division/modulo, bitwise, shift, and exponent
+  expression lowering through `Lower.buildExpressionExprPlan`,
+  `ExprPlan.checkedArith` or `ExprPlan.builtin`, and `ToYul.exprPlanExpr`.
+- Removed the corresponding direct helper-call and builtin assembly branches from
+  `IR.lowerExpr`, including checked add/sub/mul selection and shift operand
+  ordering.
+- Added semantic-plan coverage for direct arithmetic/bitwise plan shapes and
+  direct IR expression lowering results.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns direct comparison, boolean, cast, context/native, literal,
+  local, and some aggregate expression branches that can be migrated through
+  planned expressions in later slices.
+- Some statement, storage, event, and aggregate paths still pass through the
+  compatibility facade until their own semantic-plan slices land.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving another simple expression family, likely comparison/boolean or
+  context/native expressions, from `IR.lean` compatibility lowering into the
+  `Lower -> Plan -> ToYul` path.
+
 ### EVM Hash ExprPlan Routing
 
 Commit: 673deed
