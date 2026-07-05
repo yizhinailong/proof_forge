@@ -2390,6 +2390,33 @@ def scalarReturnStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul scalar return lowering expected return")
 
+def dynamicReturnStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (returns : ReturnPlan)
+    (leaveAfterReturn : Bool) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .return (.local name) => do
+      match returns.returnType with
+      | .bytes | .string | .array _ =>
+          let some returnName := returns.localNames[0]?
+            | .error (mkError "EVM StmtPlan-to-Yul dynamic return lowering expected one return name, got 0")
+          if returns.localNames.size != 1 then
+            .error (mkError s!"EVM StmtPlan-to-Yul dynamic return lowering expected one return name, got {returns.localNames.size}")
+          else
+            let statements := #[
+              Lean.Compiler.Yul.Statement.assignment
+                #[returnName]
+                (Lean.Compiler.Yul.Expr.id (dynamicParamDataPtrName name))
+            ]
+            .ok <| if leaveAfterReturn then statements.push .leave else statements
+      | _ =>
+          .error (mkError s!"EVM StmtPlan-to-Yul dynamic return lowering expected a dynamic return type, got `{returns.returnType.name}`")
+  | .return _ =>
+      .error (mkError "EVM StmtPlan-to-Yul dynamic return lowering supports local dynamic values only")
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul dynamic return lowering expected return")
+
 def scalarAssignmentTargetName
     {ε : Type}
     (mkError : String → ε) : ExprPlan → Except ε String

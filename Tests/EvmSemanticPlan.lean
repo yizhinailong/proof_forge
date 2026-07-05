@@ -2156,6 +2156,24 @@ def testScalarAssertPlanToYul : IO Unit := do
 
 def testScalarReturnPlanToYul : IO Unit := do
   let env : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
+  let dynamicReturnPlan : ReturnPlan := {
+    returnType := .bytes
+    wordTypes := #[.bytes]
+    localNames := #["result"]
+  }
+  let directDynamicStmts ← requireOk
+    (ProofForge.Backend.Evm.ToYul.dynamicReturnStmtPlanStatements
+      toYulError
+      dynamicReturnPlan
+      false
+      (ProofForge.Backend.Evm.Plan.StmtPlan.return (.local "data")))
+    "dynamic return StmtPlan-to-Yul helper"
+  require (directDynamicStmts.size == 1) "dynamic return StmtPlan-to-Yul helper statement count"
+  match directDynamicStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+      require (names == #["result"]) "dynamic return StmtPlan-to-Yul helper target"
+      require (valueName == "data__data_ptr") "dynamic return StmtPlan-to-Yul helper data ptr"
+  | _ => throw <| IO.userError "dynamic return StmtPlan-to-Yul helper must assign data pointer"
   let directStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.scalarReturnStmtPlanStatements
       toYulError
@@ -2210,6 +2228,21 @@ def testScalarReturnPlanToYul : IO Unit := do
       require (name == "__pf_checked_add") "scalar return plan-to-yul helper"
       require (args.size == 2) "scalar return plan-to-yul arg count"
   | _ => throw <| IO.userError "scalar return plan-to-yul must assign helper result"
+  let dynamicReturnStmts ← requireOk
+    (lowerReturnStmt
+      ProofForge.IR.Examples.EvmDynamicAbiProbe.module
+      (entrypointTypeEnv ProofForge.IR.Examples.EvmDynamicAbiProbe.echoBytes)
+      "echo_bytes"
+      .bytes
+      (.local "data")
+      false)
+    "dynamic return plan-to-yul"
+  require (dynamicReturnStmts.size == 1) "dynamic return plan-to-yul statement count"
+  match dynamicReturnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+      require (names == #["result"]) "dynamic return plan-to-yul target"
+      require (valueName == "data__data_ptr") "dynamic return plan-to-yul data ptr"
+  | _ => throw <| IO.userError "dynamic return plan-to-yul must assign data pointer"
   let storageReturnStmts ← requireOk
     (lowerReturnStmt
       ProofForge.IR.Examples.Counter.module

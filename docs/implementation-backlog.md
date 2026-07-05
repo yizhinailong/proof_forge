@@ -312,9 +312,12 @@ Tasks:
     `Hash`/`Address` return values, including branch-local `leave` insertion.
     Local, literal, and storage-backed fixed-array/struct aggregate returns now
     use `Lower.returnValueWordPlan? -> ReturnValueWordPlan -> ToYul` for return
-    ABI word assignment. Bytes/string returns and aggregate crosscall return
-    helpers remain on their existing compatibility paths until their own
-    migration slices add broader plan-level coverage.
+    ABI word assignment. Dynamic local `bytes`/`string`/array return
+    statements now use `Lower.buildExprPlan -> StmtPlan.return ->
+    ToYul.dynamicReturnStmtPlanStatements` for the return data-pointer
+    assignment. Non-local dynamic returns still use the compatibility fallback;
+    broader aggregate/crosscall return paths continue to migrate through their
+    own plan-level slices.
   - Started: direct scalar local assignment and compound-assignment statement
     assembly now consumes a narrow `StmtPlan -> ToYul` helper when the RHS is in
     the supported scalar plan subset. Static local fixed-array element

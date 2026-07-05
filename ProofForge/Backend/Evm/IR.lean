@@ -5009,6 +5009,10 @@ def returnTypeSupportsScalarStmtPlan : ValueType → Bool
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
   | .unit | .bytes | .string | .array _ | .fixedArray _ _ | .structType _ => false
 
+def returnTypeSupportsDynamicStmtPlan : ValueType → Bool
+  | .bytes | .string | .array _ => true
+  | .unit | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .fixedArray _ _ | .structType _ => false
+
 def lowerAggregateCrosscallReturnAssignment?
     (module : Module)
     (env : TypeEnv)
@@ -5080,6 +5084,34 @@ partial def lowerScalarReturnStmtPlanOrFallback
     else
       .ok statements
 
+partial def lowerReturnStmtPlanOrFallback
+    (module : Module)
+    (env : TypeEnv)
+    (entrypointName : String)
+    (returnType : ValueType)
+    (value : ProofForge.IR.Expr)
+    (leaveAfterReturn : Bool) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
+  if returnTypeSupportsDynamicStmtPlan returnType then
+    match value with
+    | .local _ =>
+        let valuePlan ←
+          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+          | .ok plan => .ok plan
+          | .error err => .error { message := err.message }
+        let returns ←
+          match ProofForge.Backend.Evm.Lower.returnPlan module s!"entrypoint `{entrypointName}`" returnType with
+          | .ok plan => .ok plan
+          | .error err => .error { message := err.message }
+        ProofForge.Backend.Evm.ToYul.dynamicReturnStmtPlanStatements
+          toYulError
+          returns
+          leaveAfterReturn
+          (.return valuePlan)
+    | _ =>
+        lowerScalarReturnStmtPlanOrFallback module env entrypointName returnType value leaveAfterReturn
+  else
+    lowerScalarReturnStmtPlanOrFallback module env entrypointName returnType value leaveAfterReturn
+
 def lowerReturnStmt
     (module : Module)
     (env : TypeEnv)
@@ -5087,7 +5119,7 @@ def lowerReturnStmt
     (returnType : ValueType)
     (value : ProofForge.IR.Expr)
     (leaveAfterReturn : Bool) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  lowerScalarReturnStmtPlanOrFallback module env entrypointName returnType value leaveAfterReturn
+  lowerReturnStmtPlanOrFallback module env entrypointName returnType value leaveAfterReturn
 
 def scalarBodyTypeSupported : ValueType → Bool
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
