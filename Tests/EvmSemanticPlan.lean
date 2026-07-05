@@ -7964,6 +7964,22 @@ def testStructArrayFieldReadPlanToYul : IO Unit := do
           | _ => throw <| IO.userError "planned struct-array field read target index must be checked add"
       | _ => throw <| IO.userError "planned struct-array field read target slot must use struct-array helper"
   | _ => throw <| IO.userError "planned struct-array field read target must lower to sload"
+  let directRawReadExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.structArrayFieldReadExpr
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageStructProbe.module env)
+      4
+      2
+      2
+      1
+      (.literalWord 1))
+    "raw struct-array field read expr-to-Yul helper"
+  match directRawReadExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "raw struct-array field read sload arg count"
+      requireCallExpr args[0]! (Helper.structArraySlot).name 5 "raw struct-array field read slot helper"
+  | _ => throw <| IO.userError "raw struct-array field read must lower to sload"
   let readExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.EvmStorageStructProbe.module

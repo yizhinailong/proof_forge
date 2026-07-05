@@ -3508,21 +3508,33 @@ def structFieldReadTargetExpr
     (target : StructFieldReadTargetPlan) : Except ε Lean.Compiler.Yul.Expr := do
   .ok (Lean.Compiler.Yul.builtin "sload" #[← storageSlotExpr mkError lowerExpr target.slot])
 
+def structArrayFieldReadExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (rootSlot length fieldCount fieldOffset : Nat)
+    (index : ExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
+  let fieldSlot := helperCall Helper.structArraySlot #[
+    slotExpr rootSlot,
+    Lean.Compiler.Yul.Expr.num length,
+    Lean.Compiler.Yul.Expr.num fieldCount,
+    Lean.Compiler.Yul.Expr.num fieldOffset,
+    ← exprPlanExpr mkError lowerExpr lowerEffect index
+  ]
+  .ok (Lean.Compiler.Yul.builtin "sload" #[fieldSlot])
+
 def structArrayFieldReadTargetExpr
     {ε : Type}
     (mkError : String → ε)
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
     (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
     (target : StructArrayFieldReadTargetPlan)
-    (index : ExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
-  let fieldSlot := helperCall Helper.structArraySlot #[
-    slotExpr target.rootSlot,
-    Lean.Compiler.Yul.Expr.num target.length,
-    Lean.Compiler.Yul.Expr.num target.fieldCount,
-    Lean.Compiler.Yul.Expr.num target.fieldOffset,
-    ← exprPlanExpr mkError lowerExpr lowerEffect index
-  ]
-  .ok (Lean.Compiler.Yul.builtin "sload" #[fieldSlot])
+    (index : ExprPlan) : Except ε Lean.Compiler.Yul.Expr :=
+  structArrayFieldReadExpr
+    mkError lowerExpr lowerEffect
+    target.rootSlot target.length target.fieldCount target.fieldOffset
+    index
 
 structure StorageStructWriteField where
   slot : Lean.Compiler.Yul.Expr

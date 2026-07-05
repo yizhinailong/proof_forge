@@ -2497,18 +2497,15 @@ mutual
           target
     | .storageArrayStructFieldRead stateId index fieldName => do
         let (rootSlot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
-        let indexExpr ← lowerExprPlanExpr module env index
-        let fieldSlot :=
-          ProofForge.Backend.Evm.ToYul.helperCall
-            ProofForge.Backend.Evm.Plan.Helper.structArraySlot
-            #[
-              slotExpr rootSlot,
-              Lean.Compiler.Yul.Expr.num length,
-              Lean.Compiler.Yul.Expr.num fieldCount,
-              Lean.Compiler.Yul.Expr.num fieldOffset,
-              indexExpr
-            ]
-        .ok (Lean.Compiler.Yul.builtin "sload" #[fieldSlot])
+        ProofForge.Backend.Evm.ToYul.structArrayFieldReadExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          rootSlot
+          length
+          fieldCount
+          fieldOffset
+          index
     | .storageArrayStructFieldReadTarget target index =>
         ProofForge.Backend.Evm.ToYul.structArrayFieldReadTargetExpr
           toYulError

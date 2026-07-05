@@ -649,6 +649,10 @@ Tasks:
     Raw compatibility `EffectPlan.storageStructFieldRead` expression frames now
     also use `ToYul.structFieldReadExpr`; `IR.lean` keeps only the struct
     state/field slot lookup for that legacy plan variant.
+    Raw compatibility `EffectPlan.storageArrayStructFieldRead` expression
+    frames now also use `ToYul.structArrayFieldReadExpr`; `IR.lean` keeps only
+    the struct-array root-slot/length/field metadata lookup for that legacy
+    plan variant.
     Expression-position map insert/set return effects now also enter
     `Lower.buildEffectPlan` -> target `EffectPlan.storageMapInsertTarget`/
     `EffectPlan.storageMapSetTarget` -> `lowerPlanEffectExpr`/
