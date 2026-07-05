@@ -15,6 +15,56 @@ Each entry should include:
 - known limitations
 - next step
 
+## 2026-07-06
+
+### EVM Planned Context Ops Discovery Slice
+
+Commit: eb062af
+
+Summary:
+
+- Moved `ModulePlan.contextOps` discovery for complete EVM module plans from
+  the base raw-IR scanner to the already-built `EntrypointPlan.body`
+  `StmtPlan`/`ExprPlan` tree.
+- Added planned traversal for `ExprPlan.context`, `EffectPlan.contextRead`,
+  nested `blockHash` arguments, event word plans, crosscall/create arguments,
+  storage target expression slots, and supported control-flow bodies.
+- Preserved `Plan.contextOpsFromModule` as the base/best-effort compatibility
+  scanner while making `buildFullModulePlan` and
+  `buildFullModulePlanWithTargetPlan` own the complete-plan summary.
+- Added `ContextOpsPlanProbe` semantic-plan coverage plus injected planned-body
+  coverage for nested `blockHash(.context timestamp)` discovery.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+```
+
+Known limitations:
+
+- `contextOps` is now planned for complete module plans, but fallback/base plans
+  still use the raw-IR compatibility scanner by design.
+- This slice only moves the context operation summary; remaining EVM semantic
+  migration work still needs to continue through the next compatibility
+  boundaries in `IR.lean`.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue the EVM semantic-plan migration by moving the next small
+  compatibility boundary from raw `IR.lean` into `Lower -> Plan -> ToYul`.
+
 ## 2026-07-05
 
 ### Quint Integration Phase 3 v1
