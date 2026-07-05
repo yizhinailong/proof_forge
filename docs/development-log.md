@@ -17,6 +17,49 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Dynamic Return Fallback Removal
+
+Commit: 2746617
+
+Summary:
+
+- Removed the stale `lowerReturnWords` dynamic local data-pointer success path
+  from `IR.lean`.
+- Made dynamic return fallback fail explicitly if a `bytes`/`string`/array
+  return bypasses `Lower.buildExprPlan -> StmtPlan.return ->
+  ToYul.dynamicReturnStmtPlanStatements`.
+- Updated the implementation backlog and Chinese translation sync metadata so
+  the remaining return fallback surface reflects the new ownership boundary.
+
+Validation run:
+
+```sh
+test -z "$(rg -n "bytes/string returns in IR EVM v0 support local references only|Non-local dynamic returns still use the compatibility fallback|非本地动态返回仍走兼容 fallback" ProofForge/Backend/Evm/IR.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md || true)"
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/dynamic-abi-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Non-local dynamic return expressions remain unsupported and fail before
+  successful lowering.
+- Some expression-position aggregate crosscall diagnostics and aggregate
+  argument expansion still live in `IR.lean`.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue moving expression-position crosscall fallback decisions and
+  aggregate argument expansion behind explicit `Lower`/`Plan` surfaces.
+
 ### EVM Aggregate Return Fallback Removal
 
 Commit: 65b8a1c
