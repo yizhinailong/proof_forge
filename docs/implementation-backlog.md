@@ -639,6 +639,10 @@ Tasks:
     `Lower.buildEffectPlan` -> target `EffectPlan`/`EffectPlan.contextRead` ->
     `lowerPlanEffectExpr`/`ToYul` instead of being dispatched directly from
     `IR.lowerEffectExpr`.
+    Raw compatibility `EffectPlan.storageMapContains` and
+    `EffectPlan.storageMapGet` expression frames now also use
+    `ToYul.mapContainsExpr` and `ToYul.mapGetExpr`; `IR.lean` keeps only the
+    map state/root-slot lookup for those legacy plan variants.
     Expression-position map insert/set return effects now also enter
     `Lower.buildEffectPlan` -> target `EffectPlan.storageMapInsertTarget`/
     `EffectPlan.storageMapSetTarget` -> `lowerPlanEffectExpr`/

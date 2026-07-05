@@ -2434,16 +2434,12 @@ mutual
           field
     | .storageMapContains stateId key => do
         let (rootSlot, _, _) ← requireStorageMapState module stateId
-        let keyExpr ← lowerExprPlanExpr module env key
-        let presenceSlot :=
-          ProofForge.Backend.Evm.ToYul.helperCall
-            ProofForge.Backend.Evm.Plan.Helper.mapPresenceSlot
-            #[slotExpr rootSlot, keyExpr]
-        .ok (Lean.Compiler.Yul.builtin "iszero" #[
-          Lean.Compiler.Yul.builtin "iszero" #[
-            Lean.Compiler.Yul.builtin "sload" #[presenceSlot]
-          ]
-        ])
+        ProofForge.Backend.Evm.ToYul.mapContainsExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          rootSlot
+          key
     | .storageMapContainsTarget target key =>
         ProofForge.Backend.Evm.ToYul.mapContainsTargetExpr
           toYulError
@@ -2453,12 +2449,12 @@ mutual
           key
     | .storageMapGet stateId key => do
         let (rootSlot, _, _) ← requireStorageMapState module stateId
-        let keyExpr ← lowerExprPlanExpr module env key
-        let valueSlot :=
-          ProofForge.Backend.Evm.ToYul.helperCall
-            ProofForge.Backend.Evm.Plan.Helper.mapSlot
-            #[slotExpr rootSlot, keyExpr]
-        .ok (Lean.Compiler.Yul.builtin "sload" #[valueSlot])
+        ProofForge.Backend.Evm.ToYul.mapGetExpr
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          rootSlot
+          key
     | .storageMapGetTarget target key =>
         ProofForge.Backend.Evm.ToYul.mapGetTargetExpr
           toYulError

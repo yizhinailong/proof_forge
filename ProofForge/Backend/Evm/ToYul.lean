@@ -3103,15 +3103,15 @@ def mapSetReturnTargetExpr
     ← exprPlanExpr mkError lowerExpr lowerEffect value
   ])
 
-def mapContainsTargetExpr
+def mapContainsExpr
     {ε : Type}
     (mkError : String → ε)
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
     (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
-    (target : MapReadTargetPlan)
+    (rootSlot : Nat)
     (key : ExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
   let presenceSlot := helperCall Helper.mapPresenceSlot #[
-    slotExpr target.rootSlot,
+    slotExpr rootSlot,
     ← exprPlanExpr mkError lowerExpr lowerEffect key
   ]
   .ok (Lean.Compiler.Yul.builtin "iszero" #[
@@ -3120,18 +3120,36 @@ def mapContainsTargetExpr
     ]
   ])
 
+def mapContainsTargetExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (target : MapReadTargetPlan)
+    (key : ExprPlan) : Except ε Lean.Compiler.Yul.Expr :=
+  mapContainsExpr mkError lowerExpr lowerEffect target.rootSlot key
+
+def mapGetExpr
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (rootSlot : Nat)
+    (key : ExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
+  let valueSlot := helperCall Helper.mapSlot #[
+    slotExpr rootSlot,
+    ← exprPlanExpr mkError lowerExpr lowerEffect key
+  ]
+  .ok (Lean.Compiler.Yul.builtin "sload" #[valueSlot])
+
 def mapGetTargetExpr
     {ε : Type}
     (mkError : String → ε)
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
     (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
     (target : MapReadTargetPlan)
-    (key : ExprPlan) : Except ε Lean.Compiler.Yul.Expr := do
-  let valueSlot := helperCall Helper.mapSlot #[
-    slotExpr target.rootSlot,
-    ← exprPlanExpr mkError lowerExpr lowerEffect key
-  ]
-  .ok (Lean.Compiler.Yul.builtin "sload" #[valueSlot])
+    (key : ExprPlan) : Except ε Lean.Compiler.Yul.Expr :=
+  mapGetExpr mkError lowerExpr lowerEffect target.rootSlot key
 
 def mapWriteTargetEffectPlanStatements
     {ε : Type}

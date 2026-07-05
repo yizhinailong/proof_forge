@@ -7230,6 +7230,28 @@ def testMapReadPlanToYul : IO Unit := do
           | _ => throw <| IO.userError "planned map contains target inner must load presence"
       | _ => throw <| IO.userError "planned map contains target must use nested iszero"
   | _ => throw <| IO.userError "planned map contains target must lower to iszero"
+  let directRawContainsExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.mapContainsExpr
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmMapProbe.module env)
+      1
+      (.checkedArith .add (.local "key") (.literalWord 3)))
+    "raw map contains expr-to-Yul helper"
+  match directRawContainsExpr with
+  | Lean.Compiler.Yul.Expr.builtin "iszero" args => do
+      require (args.size == 1) "raw map contains outer iszero arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.builtin "iszero" innerArgs => do
+          require (innerArgs.size == 1) "raw map contains inner iszero arg count"
+          match innerArgs[0]! with
+          | Lean.Compiler.Yul.Expr.builtin "sload" loadArgs => do
+              require (loadArgs.size == 1) "raw map contains sload arg count"
+              requireCallExpr loadArgs[0]! (Helper.mapPresenceSlot).name 2
+                "raw map contains presence slot"
+          | _ => throw <| IO.userError "raw map contains inner must load presence"
+      | _ => throw <| IO.userError "raw map contains must use nested iszero"
+  | _ => throw <| IO.userError "raw map contains must lower to iszero"
   let directGetExpr ← requireOk
     (ProofForge.Backend.Evm.ToYul.mapGetTargetExpr
       toYulError
@@ -7256,6 +7278,19 @@ def testMapReadPlanToYul : IO Unit := do
           | _ => throw <| IO.userError "planned map get target key must be checked add"
       | _ => throw <| IO.userError "planned map get target slot must use map helper"
   | _ => throw <| IO.userError "planned map get target must lower to sload"
+  let directRawGetExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.mapGetExpr
+      toYulError
+      (fun expr => lowerExpr ProofForge.IR.Examples.EvmMapProbe.module env expr)
+      (lowerPlanEffectExpr ProofForge.IR.Examples.EvmMapProbe.module env)
+      1
+      (.checkedArith .add (.local "key") (.literalWord 4)))
+    "raw map get expr-to-Yul helper"
+  match directRawGetExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "raw map get sload arg count"
+      requireCallExpr args[0]! (Helper.mapSlot).name 2 "raw map get value slot"
+  | _ => throw <| IO.userError "raw map get must lower to sload"
   let containsExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.EvmMapProbe.module
