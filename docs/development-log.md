@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Indexed Aggregate Event Topics via ABI Word Plans
+
+Commit: d78c562
+
+Summary:
+
+- Routed indexed aggregate event topic word expansion through
+  `Lower.buildEventFieldValuePlan` and `ToYul.eventFieldDataWordsFromPlan`.
+- Extended planned ABI word lowering so aggregate `arrayLit` and `structLit`
+  values can still flatten through the planned path; this preserves existing
+  storage-array and storage-struct-array event behavior while moving the topic
+  hash input assembly out of the `IR.lean` facade.
+- Added focused coverage for storage-backed indexed struct topics using
+  `storageAbiWords`, including the direct facade path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/event-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- Some legacy event data-word literal fallback code still lives in `IR.lean`
+  for non-planned statement lowering paths.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue shrinking the `IR.lean` compatibility facade by migrating remaining
+  event data-word literal flattening and storage-array aggregate paths into
+  reusable plan/ToYul helpers.
+
 ### EVM Storage Aggregate Event ABI Word Plan
 
 Commit: c35886f
