@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Event Word Effects
+
+Commit: e65e2eb
+
+Summary:
+
+- Added `EffectPlan.eventEmitWords` and `eventEmitIndexedWords` so event
+  effects can carry per-field `ExprPlan` word sequences.
+- Converted ordinary and scalar-body event lowering through those word-effect
+  constructors before entering ToYul.
+- Removed the active ToYul field-word provider callback surface; ToYul now
+  consumes event word plans directly and owns word-plan-to-Yul expression
+  lowering plus event block construction.
+- Updated semantic-plan tests, backlog docs, Chinese backlog docs, and the i18n
+  manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- The `AbiValuePlan -> ExprPlan` event field word expansion still happens in
+  the IR facade; the next step is moving that conversion into full semantic-plan
+  construction.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Move event field word expansion into full semantic-plan construction so the
+  active event path is fully `EventPlan/EffectPlan -> ToYul`.
+
 ### EVM Event Facade Through StmtPlan
 
 Commit: 4060c5c
