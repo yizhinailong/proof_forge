@@ -17,6 +17,40 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM IR Indexed Event Topic Assembly Cleanup
+
+Commit: bf98fcb
+
+Summary:
+
+- Removed the remaining `IR.lean` wrapper for event data-store statements.
+- Routed entrypoint-level indexed event topic statements through
+  `ToYul.eventIndexedTopicStatements` for both scalar topics and aggregate topic
+  hashing.
+- Preserved the `IR.lean` compatibility facade's explicit unsupported indexed
+  field diagnostic before field value flattening.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- `IR.lean` still owns event field value evaluation and aggregate data-word
+  flattening before it hands words to `ToYul`.
+
+Next step:
+
+- Move aggregate event field value/data-word planning behind an explicit
+  `EventFieldPlan`-owned boundary.
+
 ### EVM ToYul Planned Event Field Lowering
 
 Commit: cd35c6c
