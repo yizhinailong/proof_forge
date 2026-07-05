@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Planned Array Write Targets
+
+Commit: 23421a0
+
+Summary:
+
+- Added `ArrayWriteTargetPlan` so direct `storageArrayWrite` effects carry the
+  planned array root slot and length after `Lower.buildEffectPlan`.
+- Routed `Lower.buildEffectPlan` to emit planned array write target variants
+  for valid fixed-size storage arrays while preserving legacy state-id variants
+  for fallback and compatibility paths.
+- Added direct `ToYul` helpers for planned array write statements, moving final
+  `__proof_forge_array_slot(root, length, index)` assembly behind the planned
+  target instead of a late `IR.lean` callback.
+- Extended semantic-plan tests with `Lower -> Plan` assertions and direct
+  planned-target `ToYul` coverage for checked index/value expressions.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-diagnostics
+scripts/evm/storage-array-ir-smoke.sh
+lake build
+git diff --check
+```
+
+Known limitations:
+
+- `storageArrayRead` still uses its existing state-id lookup path; this slice
+  only moves direct array write targets.
+- Struct-array field writes and storage-path array writes continue on their own
+  helper/target surfaces until their metadata can be widened into explicit
+  semantic-plan nodes.
+
+Next step:
+
+- Continue extracting remaining storage target metadata, especially array reads
+  and struct/struct-array field write targets, out of the compatibility facade.
+
 ### EVM Planned Map Write Targets
 
 Commit: 43a1d32

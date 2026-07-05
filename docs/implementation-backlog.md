@@ -343,11 +343,15 @@ Tasks:
     and `storageMapGet` reads still use their existing state-id path, and
     storage-path map writes continue on their separate `StoragePathWriteTargetPlan`
     surface until typed map path-expression planning is widened.
-  - Started: statement-position `storageArrayWrite` assembly now consumes a
-    narrow `StmtPlan.effect` / `EffectPlan -> ToYul` helper for supported scalar
-    index and value expressions. Array state root slot/length lookup remains in
-    the compatibility facade, and the final array element slot expression stays
-    on the existing array-slot helper boundary.
+  - Started: direct `storageArrayWrite` assembly now consumes
+    `ArrayWriteTargetPlan` variants from `Lower.buildEffectPlan` for supported
+    scalar index/value expressions. The plan carries the array root slot and
+    length, and direct `EffectPlan -> ToYul` helpers now own final
+    `__proof_forge_array_slot(root, length, index)` assembly instead of a late
+    compatibility-facade callback. `storageArrayRead`, struct-array field
+    writes, and storage-path array writes remain on their existing
+    helper/target surfaces until their metadata is widened into explicit
+    semantic-plan nodes.
   - Started: statement-position `storageStructFieldWrite` and
     `storageArrayStructFieldWrite` assembly now consume a narrow
     `StmtPlan.effect` / `EffectPlan -> ToYul` helper for supported scalar field
