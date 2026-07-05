@@ -16143,3 +16143,49 @@ Result:
   checks passed locally.
 - The full Lake build still reports pre-existing unused-variable warnings in
   `ConstructorInit`, `Quint`, and `Cli`.
+
+### EVM Struct Field Getter ExprPlan Slice
+
+Commit: 0782c9d
+
+Summary:
+
+- Routed direct expression-position local struct-field reads through
+  `Lower.buildExprPlan` when the plan is a supported `.structField`, then reused
+  the existing `ExprPlan -> ToYul` lowering for local structs, struct literals,
+  and local struct-array leaves.
+- Preserved storage-backed struct reads, nested local fixed-array struct leaves,
+  and unsupported aggregate fallback behavior on the compatibility path.
+- Added semantic-plan regressions for direct local struct-field planning and a
+  dynamic local struct-array field read whose checked-add index must lower
+  through `ExprPlan` before helper-call emission.
+- Updated the implementation backlog and Chinese backlog note so the documented
+  struct-field getter boundary matches the active lowering path.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake build
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build proof-forge
+scripts/evm/event-ir-smoke.sh
+scripts/evm/ir-counter-smoke.sh
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Result:
+
+- Direct local struct-field reads now use the same `Lower.buildExprPlan ->
+  ExprPlan.structField -> ToYul` route as planned control-flow and local-array
+  getter paths.
+- EVM semantic-plan tests, EVM plan tests, event/counter IR smokes, EVM
+  diagnostics, i18n sync, JSON validation, full Lake build, and whitespace
+  checks passed locally.
+- The full Lake build still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint`, and `Cli`.
