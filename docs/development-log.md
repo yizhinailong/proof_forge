@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Planned Memory-Array Helper Discovery Slice
+
+Commit: bb9ef6f
+
+Summary:
+
+- Replaced broad complete-plan memory-array helper requirements with helper
+  requirements discovered from planned `EntrypointPlan.body` trees.
+- Split `ToYul` memory-array helper definitions so `memoryArrayNew` and
+  `memoryArrayGet` can be emitted independently.
+- Kept base/best-effort module plans on the raw capability helper surface while
+  making `Lower.buildFullModulePlan` and
+  `Lower.buildFullModulePlanWithTargetPlan` own complete-plan memory-array
+  helper precision.
+- Added semantic-plan tests for length-only, new-only, and get-only memory-array
+  modules, including a raw-plan over-emission contrast for `memoryArrayLength`.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+scripts/i18n/check-sync.sh
+git diff --check
+lake build ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+lake build
+just evm-diagnostics
+just evm-smoke crosscall
+```
+
+Known limitations:
+
+- Base and incomplete/best-effort plans still use the capability/raw helper
+  scanner; complete module plans now replace only the memory-array helper subset.
+- This slice moves helper discovery and helper emission precision, not the full
+  memory-array lifecycle or remaining aggregate statement compatibility paths.
+- `lake build` still reports pre-existing unused-variable warnings in
+  `ConstructorInit`, `Quint.Scenario`, `Quint.Lower`, and `Cli`.
+
+Next step:
+
+- Continue the EVM semantic-plan migration by moving the next small
+  compatibility boundary from raw `IR.lean` into `Lower -> Plan -> ToYul`.
+
 ### EVM Planned Memory-Array Expression Body Slice
 
 Commit: 00e8306
