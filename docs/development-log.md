@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Create Helper Discovery Delegation
+
+Commit: aaba7b2
+
+Summary:
+
+- Removed the stale IR-local create/create2 helper discovery scanner from
+  `IR.lean`.
+- Kept the compatibility facade entrypoints `moduleCreateHelperSpecs` and
+  `createHelperFunctions`, but made helper discovery delegate to
+  `Lower.buildCreateHelperPlans` while helper body emission remains in
+  `ToYul.createHelperFunction`.
+- Aligned the code with the backlog's planned ownership model: create helper
+  facts are discovered in the lower/plan layer and emitted by ToYul, not
+  re-scanned in the compatibility facade.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.IR
+test -z "$(rg -n "createHelperSpecsExpr|createHelperSpecsEffect|createHelperSpecsStatement|pushCreateHelperSpecIfMissing|mergeCreateHelperSpecs|createHelperSpecsStoragePathSegment" ProofForge/Backend/Evm/IR.lean || true)"
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/evm/crosscall-ir-smoke.sh
+just evm-diagnostics
+lake build proof-forge
+git diff --check
+```
+
+Known limitations:
+
+- This slice removes duplicate create helper discovery only; aggregate
+  crosscall argument/return expansion and bytes/string return encoding still
+  have compatibility-facade work left.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue shrinking the remaining EVM compatibility facade around aggregate
+  crosscall argument/return paths and dynamic return-data encoding.
+
 ### EVM Crosscall Helper Discovery Delegation
 
 Commit: eac0b95
