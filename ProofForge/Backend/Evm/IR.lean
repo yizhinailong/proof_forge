@@ -63,36 +63,6 @@ def slotExpr (slot : Nat) : Lean.Compiler.Yul.Expr :=
 def yulFunctionName (moduleName entrypointName : String) : String :=
   ProofForge.Backend.Evm.ToYul.entrypointFunctionName moduleName entrypointName
 
-def twoPow64 : Nat := 18446744073709551616
-def maxU64 : Nat := twoPow64 - 1
-def maxU32 : Nat := 4294967295
-
-def checkedHashLiteralLimb (name : String) (value : Nat) : Except LowerError Nat :=
-  if value <= maxU64 then
-    .ok value
-  else
-    .error { message := s!"Hash literal limb `{name}` exceeds U64 range" }
-
-def packedHashLiteral (a b c d : Nat) : Except LowerError Nat := do
-  let a ← checkedHashLiteralLimb "a" a
-  let b ← checkedHashLiteralLimb "b" b
-  let c ← checkedHashLiteralLimb "c" c
-  let d ← checkedHashLiteralLimb "d" d
-  .ok ((((a * twoPow64) + b) * twoPow64 + c) * twoPow64 + d)
-
-def hashPackExpr
-    (a b c d : Lean.Compiler.Yul.Expr) : Lean.Compiler.Yul.Expr :=
-  Lean.Compiler.Yul.builtin "or" #[
-    Lean.Compiler.Yul.builtin "shl" #[Lean.Compiler.Yul.Expr.num 192, a],
-    Lean.Compiler.Yul.builtin "or" #[
-      Lean.Compiler.Yul.builtin "shl" #[Lean.Compiler.Yul.Expr.num 128, b],
-      Lean.Compiler.Yul.builtin "or" #[
-        Lean.Compiler.Yul.builtin "shl" #[Lean.Compiler.Yul.Expr.num 64, c],
-        d
-      ]
-    ]
-  ]
-
 def validateEventName (name : String) : Except LowerError Unit := do
   if name.toUTF8.size == 0 then
     .error { message := "event name must be non-empty for IR EVM v0" }
@@ -2425,7 +2395,7 @@ mutual
     | .literal (.u128 value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .literal (.bool value) => .ok (if value then Lean.Compiler.Yul.Expr.num 1 else Lean.Compiler.Yul.Expr.num 0)
     | .literal (.hash4 a b c d) => do
-        .ok (Lean.Compiler.Yul.Expr.num (← packedHashLiteral a b c d))
+        .ok (Lean.Compiler.Yul.Expr.num (← lowerValidate <| ProofForge.Backend.Evm.Validate.packedHashLiteral a b c d))
     | .literal (.address value) => .ok (Lean.Compiler.Yul.Expr.num value)
     | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
     | .arrayLit _ _ =>
@@ -2479,7 +2449,11 @@ mutual
     | .boolNot value => do
         .ok (Lean.Compiler.Yul.builtin "iszero" #[← lowerExpr module env value])
     | .hashValue a b c d => do
-        .ok (hashPackExpr (← lowerExpr module env a) (← lowerExpr module env b) (← lowerExpr module env c) (← lowerExpr module env d))
+        .ok (ProofForge.Backend.Evm.ToYul.hashPackExpr
+          (← lowerExpr module env a)
+          (← lowerExpr module env b)
+          (← lowerExpr module env c)
+          (← lowerExpr module env d))
     | .hash preimage => do
         .ok (ProofForge.Backend.Evm.ToYul.helperCall
           ProofForge.Backend.Evm.Plan.Helper.hashWord
