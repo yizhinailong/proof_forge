@@ -604,6 +604,11 @@ Tasks:
     `Lower.buildEffectPlan` target effects before calling
     `ToYul.structFieldWriteTargetEffectStmtPlanStatements`, so struct-field slot
     and value planning no longer come from IR-local target reconstruction.
+    Statement-position storage struct-array-field write effects now also consume
+    `Lower.buildEffectPlan` target effects before calling
+    `ToYul.structArrayFieldWriteTargetEffectStmtPlanStatements`, so struct-array
+    field root-slot, length, field offset, index, and value planning no longer
+    come from IR-local target reconstruction.
   - Started: expression-position local fixed-array getter, local struct-field
     getter, and scalar array-literal indexing assembly now live behind
     `ExprPlan -> ToYul` for local scalar leaves. `Lower` records local

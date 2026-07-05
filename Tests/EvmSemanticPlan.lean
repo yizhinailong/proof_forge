@@ -6431,6 +6431,18 @@ def testStructFieldWritePlanToYul : IO Unit := do
       | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
           require (slotName == (Helper.structArraySlot).name) "struct array field write plan-to-yul slot call"
           require (slotArgs.size == 5) "struct array field write plan-to-yul slot arg count"
+          match slotArgs[0]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "4") "struct array field write root slot must lower through target plan"
+          | _ => throw <| IO.userError "struct array field write root slot must be planned literal"
+          match slotArgs[1]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "2") "struct array field write length must lower through target plan"
+          | _ => throw <| IO.userError "struct array field write length must be planned literal"
+          match slotArgs[3]! with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "1") "struct array field write field offset must lower through target plan"
+          | _ => throw <| IO.userError "struct array field write field offset must be planned literal"
       | _ => throw <| IO.userError "struct array field write plan-to-yul slot must use struct-array helper"
       match args[1]! with
       | Lean.Compiler.Yul.Expr.builtin readName readArgs => do
