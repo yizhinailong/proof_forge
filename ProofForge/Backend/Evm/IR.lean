@@ -104,62 +104,6 @@ def crosscallStaticAggregateFunctionName (arity : Nat) (wordTypes : Array ValueT
 def crosscallDelegateAggregateFunctionName (arity : Nat) (wordTypes : Array ValueType) : Except LowerError String := do
   ProofForge.Backend.Evm.ToYul.crosscallDelegateAggregateFunctionName toYulError arity wordTypes
 
-inductive CreateMode where
-  | create
-  | create2
-  deriving BEq, Repr
-
-def CreateMode.toPlan : CreateMode → ProofForge.Backend.Evm.Plan.CreateMode
-  | .create => .create
-  | .create2 => .create2
-
-def CreateMode.functionPrefix : CreateMode → String
-  | mode => ProofForge.Backend.Evm.ToYul.createModeFunctionPrefix mode.toPlan
-
-def CreateMode.opcode : CreateMode → String
-  | mode => ProofForge.Backend.Evm.ToYul.createModeOpcode mode.toPlan
-
-structure CreateHelperSpec where
-  mode : CreateMode
-  initCodeHex : String
-  deriving BEq, Repr
-
-def isHexChar (c : Char) : Bool :=
-  ProofForge.Backend.Evm.ToYul.isHexChar c
-
-def stripHexPrefix (s : String) : String :=
-  ProofForge.Backend.Evm.ToYul.stripHexPrefix s
-
-def normalizeInitCodeHex (context initCodeHex : String) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.normalizeInitCodeHex toYulError context initCodeHex
-
-def repeatString : Nat → String → String
-  | n, s => ProofForge.Backend.Evm.ToYul.repeatString n s
-
-def rightPadHex64 (chunk : String) : String :=
-  ProofForge.Backend.Evm.ToYul.rightPadHex64 chunk
-
-def hexChunks64 (hex : String) : Array String :=
-  ProofForge.Backend.Evm.ToYul.hexChunks64 hex
-
-def createHelperFunctionName (mode : CreateMode) (initCodeHex : String) : Except LowerError String := do
-  ProofForge.Backend.Evm.ToYul.createHelperFunctionName toYulError mode.toPlan initCodeHex
-
-def createCallValueParamName : String := ProofForge.Backend.Evm.ToYul.createCallValueParamName
-def createSaltParamName : String := ProofForge.Backend.Evm.ToYul.createSaltParamName
-
-def createHelperParams : CreateMode → Array Lean.Compiler.Yul.TypedName
-  | mode => ProofForge.Backend.Evm.ToYul.createHelperParams mode.toPlan
-
-def createInitCodeStoreStatements (initCodeHex : String) : Except LowerError (Array Lean.Compiler.Yul.Statement × Nat) := do
-  ProofForge.Backend.Evm.ToYul.createInitCodeStoreStatements toYulError initCodeHex
-
-def createHelperFunction (spec : CreateHelperSpec) : Except LowerError Lean.Compiler.Yul.Statement := do
-  ProofForge.Backend.Evm.ToYul.createHelperFunction toYulError {
-    mode := spec.mode.toPlan
-    initCodeHex := spec.initCodeHex
-  }
-
 def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
 def maxU32 : Nat := 4294967295
@@ -352,12 +296,12 @@ def errorRefRevertStmts (ref : ProofForge.IR.ErrorRef) : Array Lean.Compiler.Yul
     .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 32, Lean.Compiler.Yul.Expr.num 64]),
     .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 64, Lean.Compiler.Yul.Expr.num codeLen])
   ]
-  let chunks := if codeLen > 0 then hexChunks64 (stringToHex code) else #[]
+  let chunks := if codeLen > 0 then ProofForge.Backend.Evm.ToYul.hexChunks64 (stringToHex code) else #[]
   let dataStmts := chunks.foldl (init := #[]) fun acc chunk =>
     let idx := acc.size
     acc.push <| .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[
       Lean.Compiler.Yul.Expr.num (96 + idx * 32),
-      Lean.Compiler.Yul.Expr.lit (Lean.Compiler.Yul.Literal.hex ("0x" ++ rightPadHex64 chunk))
+      Lean.Compiler.Yul.Expr.lit (Lean.Compiler.Yul.Literal.hex ("0x" ++ ProofForge.Backend.Evm.ToYul.rightPadHex64 chunk))
     ])
   headerStmts ++ dataStmts ++ #[
     .exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num totalSize])
@@ -1233,12 +1177,12 @@ mutual
         .ok returnType
     | .crosscallCreate callValue initCodeHex => do
         ensureType "contract creation call value" .u64 (← inferExprType module env callValue)
-        discard <| normalizeInitCodeHex "contract creation" initCodeHex
+        discard <| lowerValidate <| ProofForge.Backend.Evm.Validate.normalizeInitCodeHex "contract creation" initCodeHex
         .ok .u64
     | .crosscallCreate2 callValue salt initCodeHex => do
         ensureType "contract creation call value" .u64 (← inferExprType module env callValue)
         ensureType "contract creation salt" .hash (← inferExprType module env salt)
-        discard <| normalizeInitCodeHex "contract creation" initCodeHex
+        discard <| lowerValidate <| ProofForge.Backend.Evm.Validate.normalizeInitCodeHex "contract creation" initCodeHex
         .ok .u64
     | .effect effect => inferEffectExprType module env effect
 
