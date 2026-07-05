@@ -17,6 +17,52 @@ Each entry should include:
 
 ## 2026-07-05
 
+### EVM Local ABI Word Plan Validation
+
+Commit: c283ec7
+
+Summary:
+
+- Added `Lower.localAbiStructFieldIds`, `Lower.localAbiStructFields`, and
+  `Lower.validateLocalAbiWordPlan` so local ABI word validation and struct-field
+  discovery are owned by the EVM Lower layer.
+- Routed the compatibility `IR.localAbiStructFieldIds`,
+  `IR.localAbiStructFields`, and `IR.lowerLocalAbiWords` helpers through the
+  new Lower helpers before final `ToYul.localAbiWords` emission.
+- Added semantic-plan coverage for Lower-owned local ABI struct field
+  discovery, local/type validation, and unknown-local diagnostics.
+- Updated the backlog and i18n manifest to record the narrower local ABI
+  compatibility surface.
+
+Validation run:
+
+```sh
+lake build proof-forge
+lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/EvmPlan.lean
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+scripts/evm/abi-aggregate-ir-smoke.sh
+scripts/evm/array-abi-ir-smoke.sh
+scripts/evm/dynamic-abi-ir-smoke.sh
+scripts/evm/event-ir-smoke.sh
+just evm-diagnostics
+```
+
+Known limitations:
+
+- Local ABI word emission still reaches `ToYul.localAbiWords` through
+  compatibility wrappers until those call sites consume richer semantic-plan
+  nodes directly.
+- `lake build proof-forge` still reports pre-existing unused-variable warnings
+  in `ConstructorInit`, `SbpfAsm`, and `Cli`.
+
+Next step:
+
+- Continue replacing compatibility `ToYul.localAbiWords` call sites with
+  explicit plan-level surfaces for return/event aggregate ABI word emission.
+
 ### EVM Storage Crosscall Word Planning
 
 Commit: bbe22b6
