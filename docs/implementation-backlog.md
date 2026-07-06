@@ -534,10 +534,12 @@ Tasks:
     field-value source planning no longer happens in `IR.lean`.
     The earlier Yul-expression and field-word provider callback helper shapes
     have also been removed from the active ToYul surface.
-  - Started: event data-word store assembly and indexed scalar/aggregate topic
-    assembly now consume `EventFieldPlan -> ToYul` helpers. Field expression
-    evaluation and aggregate flattening still use the compatibility facade
-    until the complete event lowering path is expressed as an `EventPlan`.
+  - Advanced: event data-word store assembly and indexed scalar/aggregate topic
+    assembly now consume `EventFieldPlan` plus per-field `ExprPlan` word groups
+    behind `ToYul.eventEffectStmtPlanStatements`. Field expression evaluation,
+    aggregate flattening, and storage-backed aggregate event word expansion happen
+    in `Lower.eventEffectWordPlan`; the old ToYul provider-callback event
+    flattening helpers have been removed from the semantic-plan surface.
   - Started: helper discovery is now consumed from `ModulePlan` during
     complete plan-driven module lowering. `lowerModuleWithPlan` emits checked
     arithmetic helpers, crosscall helpers (including planned plain native
@@ -807,10 +809,12 @@ Tasks:
     and delegates only the final return assignment frame to
     `ToYul.returnValueWordAssignments` plus the final event topic/log frames to
     `ToYul.eventIndexedTopicStatements` and `ToYul.eventEmitCoreStatement`.
-    Compatibility `ToYul.*FromPlan` helpers still exist for direct tests and
-    older callers, but the active IR facade no longer depends on provider
-    callbacks or expression-level aggregate source markers for return/event
-    aggregate ABI word expansion. Crosscall helper-call assembly now uses
+    Compatibility return and explicit local/storage word helpers still exist for
+    direct tests and older callers, but the active IR facade no longer depends
+    on provider callbacks or expression-level aggregate source markers for
+    return/event aggregate ABI word expansion. Event provider-callback
+    `ToYul.*FromPlan` helpers have been removed from the semantic-plan surface.
+    Crosscall helper-call assembly now uses
     dedicated `CrosscallArgWordPlan` source nodes rather than expression-level
     crosscall word markers. `ExprPlan.crosscall.args` and
     `CrosscallReturnAssignmentPlan.args` carry planned crosscall argument word

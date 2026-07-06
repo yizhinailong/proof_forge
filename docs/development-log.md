@@ -2650,19 +2650,20 @@ git diff --check
 
 Known limitations:
 
-- `ExprPlan.localAbiWords` and `ExprPlan.storageAbiWords` still exist for
-  direct `ToYul` compatibility helpers; those helpers can be retired after
-  downstream direct tests and older callers are migrated.
-- Crosscall aggregate argument sources still use `ExprPlan.localCrosscallWords`
-  and `ExprPlan.storageCrosscallWords`; those are a separate migration slice.
+- Direct `ToYul.localAbiWords` and `ToYul.storageAbiWords` helper APIs still
+  exist for explicit local/storage word expansion; event provider-callback
+  `ToYul.*FromPlan` helpers have been retired from the active semantic-plan
+  surface.
+- Active crosscall aggregate argument sources now use `CrosscallArgWordPlan`
+  source nodes; direct/legacy local and storage word-source helpers still keep
+  provider callbacks.
 - `lake build proof-forge` still reports pre-existing unused-variable warnings
   in `ConstructorInit`, `SbpfAsm`, and `Cli`.
 
 Next step:
 
-- Move crosscall aggregate source markers out of `ExprPlan` into a dedicated
-  crosscall ABI value/source plan, mirroring the return/event `AbiValuePlan`
-  split.
+- Continue retiring direct/legacy provider callback helper surfaces after their
+  remaining tests and call sites move to explicit word plans.
 
 ### EVM Aggregate ABI Word Planning
 
@@ -2704,13 +2705,11 @@ git diff --check
 
 Known limitations:
 
-- `ToYul.returnValueWordPlanAssignments`,
-  `ToYul.eventFieldsDataWordsFromPlan`, and
-  `ToYul.eventIndexedTopicStatementsFromPlans` remain as compatibility
-  helpers for direct tests and older call sites outside the active IR facade.
-- `ExprPlan.localAbiWords` and `ExprPlan.storageAbiWords` still exist as source
-  markers in `ReturnValueWordPlan` and event field plans until richer plan
-  nodes replace those aggregate source markers directly.
+- `ToYul.returnValueWordPlanAssignments` remains as a compatibility helper for
+  direct tests and older return call sites outside the active IR facade.
+- Return and event aggregate source markers now use `AbiValuePlan` source nodes;
+  event provider-callback `ToYul.*FromPlan` helpers have been removed from the
+  current semantic-plan surface.
 - `lake build proof-forge` still reports pre-existing unused-variable warnings
   in `ConstructorInit`, `SbpfAsm`, and `Cli`.
 

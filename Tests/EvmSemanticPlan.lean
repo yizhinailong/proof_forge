@@ -7066,25 +7066,13 @@ def testScalarEventPlanToYul : IO Unit := do
     | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
     | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
     | _ => .error (toYulError "unexpected event plan test expression")
-  let noStructFields (_ : String) : Except LowerError (Array (String × ValueType)) :=
-    .error (toYulError "unexpected event plan test struct fields")
-  let noStorageWords (_context _typeName _stateId : String) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
-    .error (toYulError "unexpected event plan test storage words")
-  let noStorageArrayWords
-      (_context _stateId : String)
-      (_elementType : ValueType)
-      (_length : Nat) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
-    .error (toYulError "unexpected event plan test storage array words")
   let directDataWords ← requireOk
-    (ProofForge.Backend.Evm.ToYul.eventFieldsDataWordsFromPlan
+    (ProofForge.Backend.Evm.ToYul.eventFieldWordPlanExprs
       toYulError
       simplePlanExpr
-      noStructFields
-      noStorageWords
-      noStorageArrayWords
-      directEvent.name
+      directEvent
       directEvent.dataFields
-      #[AbiValuePlan.expr (.literalWord 11)])
+      #[#[.literalWord 11]])
     "event field plan-to-yul data words"
   require (directDataWords.size == 1) "event field plan-to-yul data word count"
   match directDataWords[0]! with
@@ -7092,14 +7080,11 @@ def testScalarEventPlanToYul : IO Unit := do
       require (literal.value == "11") "event field plan-to-yul data word value"
   | _ => throw <| IO.userError "event field plan-to-yul data word must be numeric"
   let directIndexedTopics ← requireOk
-    (ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatementsFromPlans
+    (ProofForge.Backend.Evm.ToYul.eventIndexedTopicStatementsFromWordPlans
       toYulError
       simplePlanExpr
-      noStructFields
-      noStorageWords
-      noStorageArrayWords
       directEvent
-      #[AbiValuePlan.expr (.literalWord 7)])
+      #[#[.literalWord 7]])
     "event indexed field plan-to-yul topic statements"
   require (directIndexedTopics.size == 1) "event indexed field plan-to-yul topic statement count"
   match directIndexedTopics[0]! with
