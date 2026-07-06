@@ -2179,7 +2179,14 @@ mutual
               message := s!"storage.scalar.read for struct state `{stateId}` must be consumed by a struct local binding, struct field access, or struct return in IR EVM v0"
             }
         | _ => pure ()
-        lowerScalarStorageReadExpr module env stateId
+        match ProofForge.Backend.Evm.Lower.scalarStorageTargetPlan? module stateId with
+        | some target =>
+            ProofForge.Backend.Evm.ToYul.scalarStorageTargetReadExpr
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              target
+        | none =>
+            lowerScalarStorageReadExpr module env stateId
     | .storageScalarReadTarget target =>
         ProofForge.Backend.Evm.ToYul.scalarStorageTargetReadExpr
           toYulError
@@ -2194,13 +2201,22 @@ mutual
           (fun exprPlan => lowerExprPlanExpr module env exprPlan)
           field
     | .storageMapContains stateId key => do
-        let (rootSlot, _, _) ← requireStorageMapState module stateId
-        ProofForge.Backend.Evm.ToYul.mapContainsExpr
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          (lowerPlanEffectExpr module env)
-          rootSlot
-          key
+        match ProofForge.Backend.Evm.Lower.mapReadTargetPlan? module stateId with
+        | some target =>
+            ProofForge.Backend.Evm.ToYul.mapContainsTargetExpr
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              target
+              key
+        | none =>
+            let (rootSlot, _, _) ← requireStorageMapState module stateId
+            ProofForge.Backend.Evm.ToYul.mapContainsExpr
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              rootSlot
+              key
     | .storageMapContainsTarget target key =>
         ProofForge.Backend.Evm.ToYul.mapContainsTargetExpr
           toYulError
@@ -2209,13 +2225,22 @@ mutual
           target
           key
     | .storageMapGet stateId key => do
-        let (rootSlot, _, _) ← requireStorageMapState module stateId
-        ProofForge.Backend.Evm.ToYul.mapGetExpr
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          (lowerPlanEffectExpr module env)
-          rootSlot
-          key
+        match ProofForge.Backend.Evm.Lower.mapReadTargetPlan? module stateId with
+        | some target =>
+            ProofForge.Backend.Evm.ToYul.mapGetTargetExpr
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              target
+              key
+        | none =>
+            let (rootSlot, _, _) ← requireStorageMapState module stateId
+            ProofForge.Backend.Evm.ToYul.mapGetExpr
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              rootSlot
+              key
     | .storageMapGetTarget target key =>
         ProofForge.Backend.Evm.ToYul.mapGetTargetExpr
           toYulError
@@ -2233,14 +2258,23 @@ mutual
           key
           value
     | .storageArrayRead stateId index => do
-        let (rootSlot, length, _) ← requireStorageArrayState module stateId
-        ProofForge.Backend.Evm.ToYul.arrayReadExpr
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          (lowerPlanEffectExpr module env)
-          rootSlot
-          length
-          index
+        match ProofForge.Backend.Evm.Lower.arrayReadTargetPlan? module stateId with
+        | some target =>
+            ProofForge.Backend.Evm.ToYul.arrayReadTargetExpr
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              target
+              index
+        | none =>
+            let (rootSlot, length, _) ← requireStorageArrayState module stateId
+            ProofForge.Backend.Evm.ToYul.arrayReadExpr
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              rootSlot
+              length
+              index
     | .storageArrayReadTarget target index =>
         ProofForge.Backend.Evm.ToYul.arrayReadTargetExpr
           toYulError
@@ -2249,24 +2283,40 @@ mutual
           target
           index
     | .storageStructFieldRead stateId fieldName => do
-        let (slot, _) ← requireStructStateField module stateId fieldName
-        .ok (ProofForge.Backend.Evm.ToYul.structFieldReadExpr slot)
+        match ProofForge.Backend.Evm.Lower.structFieldReadTargetPlan? module stateId fieldName with
+        | some target =>
+            ProofForge.Backend.Evm.ToYul.structFieldReadTargetExpr
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              target
+        | none =>
+            let (slot, _) ← requireStructStateField module stateId fieldName
+            .ok (ProofForge.Backend.Evm.ToYul.structFieldReadExpr slot)
     | .storageStructFieldReadTarget target =>
         ProofForge.Backend.Evm.ToYul.structFieldReadTargetExpr
           toYulError
           (fun expr => lowerExpr module env expr)
           target
     | .storageArrayStructFieldRead stateId index fieldName => do
-        let (rootSlot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
-        ProofForge.Backend.Evm.ToYul.structArrayFieldReadExpr
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          (lowerPlanEffectExpr module env)
-          rootSlot
-          length
-          fieldCount
-          fieldOffset
-          index
+        match ProofForge.Backend.Evm.Lower.structArrayFieldReadTargetPlan? module stateId fieldName with
+        | some target =>
+            ProofForge.Backend.Evm.ToYul.structArrayFieldReadTargetExpr
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              target
+              index
+        | none =>
+            let (rootSlot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
+            ProofForge.Backend.Evm.ToYul.structArrayFieldReadExpr
+              toYulError
+              (fun expr => lowerExpr module env expr)
+              (lowerPlanEffectExpr module env)
+              rootSlot
+              length
+              fieldCount
+              fieldOffset
+              index
     | .storageArrayStructFieldReadTarget target index =>
         ProofForge.Backend.Evm.ToYul.structArrayFieldReadTargetExpr
           toYulError

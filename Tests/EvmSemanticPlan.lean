@@ -7674,6 +7674,16 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
   | Lean.Compiler.Yul.Expr.builtin "and" args =>
       require (args.size == 2) "planned scalar storage read target helper packed arg count"
   | _ => throw <| IO.userError "planned scalar storage read target helper must lower to packed read"
+  let legacyPlanReadExpr ← requireOk
+    (lowerPlanEffectExpr
+      ProofForge.IR.Examples.Counter.module
+      env
+      (.storageScalarRead "count"))
+    "legacy scalar storage read EffectPlan target facade"
+  match legacyPlanReadExpr with
+  | Lean.Compiler.Yul.Expr.builtin "and" args =>
+      require (args.size == 2) "legacy scalar storage read EffectPlan target facade packed arg count"
+  | _ => throw <| IO.userError "legacy scalar storage read EffectPlan must lower through target facade"
   let directReadEffectExpr ← requireOk
     (lowerEffectExpr
       ProofForge.IR.Examples.Counter.module
@@ -7925,6 +7935,28 @@ def testMapReadPlanToYul : IO Unit := do
       require (args.size == 1) "raw map get sload arg count"
       requireCallExpr args[0]! (Helper.mapSlot).name 2 "raw map get value slot"
   | _ => throw <| IO.userError "raw map get must lower to sload"
+  let legacyPlanGetExpr ← requireOk
+    (lowerPlanEffectExpr
+      ProofForge.IR.Examples.EvmMapProbe.module
+      env
+      (.storageMapGet
+        "balances"
+        (.checkedArith .add (.local "key") (.literalWord 5))))
+    "legacy map get EffectPlan target facade"
+  match legacyPlanGetExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "legacy map get EffectPlan target facade sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.call name slotArgs => do
+          require (name == (Helper.mapSlot).name) "legacy map get EffectPlan target facade slot helper"
+          require (slotArgs.size == 2) "legacy map get EffectPlan target facade slot arg count"
+          match slotArgs[1]! with
+          | Lean.Compiler.Yul.Expr.call addName addArgs => do
+              require (addName == "__pf_checked_add") "legacy map get EffectPlan target facade key"
+              require (addArgs.size == 2) "legacy map get EffectPlan target facade key arg count"
+          | _ => throw <| IO.userError "legacy map get EffectPlan target facade key must be planned"
+      | _ => throw <| IO.userError "legacy map get EffectPlan target facade slot must use map helper"
+  | _ => throw <| IO.userError "legacy map get EffectPlan must lower through target facade"
   let containsExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.EvmMapProbe.module
@@ -8222,6 +8254,18 @@ def testArrayReadPlanToYul : IO Unit := do
       require (args.size == 1) "raw array read sload arg count"
       requireCallExpr args[0]! (Helper.arraySlot).name 3 "raw array read slot helper"
   | _ => throw <| IO.userError "raw array read must lower to sload"
+  let legacyPlanReadExpr ← requireOk
+    (lowerPlanEffectExpr
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      env
+      (.storageArrayRead "values" (.checkedArith .add (.literalWord 1) (.literalWord 3))))
+    "legacy array read EffectPlan target facade"
+  match legacyPlanReadExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "legacy array read EffectPlan target facade sload arg count"
+      requireCallExpr args[0]! (Helper.arraySlot).name 3
+        "legacy array read EffectPlan target facade slot helper"
+  | _ => throw <| IO.userError "legacy array read EffectPlan must lower through target facade"
   let readExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
@@ -8546,6 +8590,20 @@ def testStructFieldReadPlanToYul : IO Unit := do
           require (literal.value == "1") "raw struct field read slot"
       | _ => throw <| IO.userError "raw struct field read slot must be literal"
   | _ => throw <| IO.userError "raw struct field read must lower to sload"
+  let legacyPlanReadExpr ← requireOk
+    (lowerPlanEffectExpr
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      env
+      (.storageStructFieldRead "current" "x"))
+    "legacy struct field read EffectPlan target facade"
+  match legacyPlanReadExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "legacy struct field read EffectPlan target facade sload arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "legacy struct field read EffectPlan target facade slot"
+      | _ => throw <| IO.userError "legacy struct field read EffectPlan target facade slot must be literal"
+  | _ => throw <| IO.userError "legacy struct field read EffectPlan must lower through target facade"
   let readExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.EvmStorageStructProbe.module
@@ -8628,6 +8686,21 @@ def testStructArrayFieldReadPlanToYul : IO Unit := do
       require (args.size == 1) "raw struct-array field read sload arg count"
       requireCallExpr args[0]! (Helper.structArraySlot).name 5 "raw struct-array field read slot helper"
   | _ => throw <| IO.userError "raw struct-array field read must lower to sload"
+  let legacyPlanReadExpr ← requireOk
+    (lowerPlanEffectExpr
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      env
+      (.storageArrayStructFieldRead
+        "points"
+        (.checkedArith .add (.literalWord 0) (.literalWord 1))
+        "y"))
+    "legacy struct-array field read EffectPlan target facade"
+  match legacyPlanReadExpr with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "legacy struct-array field read EffectPlan target facade sload arg count"
+      requireCallExpr args[0]! (Helper.structArraySlot).name 5
+        "legacy struct-array field read EffectPlan target facade slot helper"
+  | _ => throw <| IO.userError "legacy struct-array field read EffectPlan must lower through target facade"
   let readExpr ← requireOk
     (lowerExpr
       ProofForge.IR.Examples.EvmStorageStructProbe.module
