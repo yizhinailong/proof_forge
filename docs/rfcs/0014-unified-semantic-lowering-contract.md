@@ -689,6 +689,22 @@ A full feasibility assessment has been completed and is recorded in
   `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` exposing `EVM.state`/`step` aligned
   with `ObservableStep`. Deliverable: a conformance-tested EVM bytecode semantics callable
   from Lean proofs.
+  **Status (2026-07-07): blocked — seam only.** The integration was investigated and found
+  blocked by a Lean toolchain + mathlib version mismatch: `EVMYulLean` pins
+  `leanprover/lean4:v4.22.0` + `mathlib4 @ v4.22.0`, while ProofForge pins
+  `leanprover/lean4:v4.31.0` and has no mathlib dep. A single lake workspace uses one
+  toolchain; mathlib v4.22.0 will not compile under lean v4.31.0, and ProofForge is NOT
+  downgraded (would break the 378-job build). The `require` entry was NOT added to
+  `lakefile.lean`; `lake build` stays green. A stub adapter
+  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` was landed as the seam, with the
+  public surface (`State`, `step`, `runBytecode`, aligned to `Refinement.ObservableStep`)
+  fixed by the stub and `sorry`-free stub theorems (`step_noop`, `runBytecode_empty`). The
+  full blocker record, the exact pinned-`commit` `require` syntax that would be used, and
+  the resolution path (wait for EVMYulLean to pin a ProofForge-compatible Lean toolchain +
+  matching mathlib tag, then add the `require` and `lake update` in an environment with
+  network access) are in [`docs/phase-6b-integration-blockers.md`](../phase-6b-integration-blockers.md).
+  No `Refinement.lean` theorem was touched (wiring is Phase 6c); no smoke gate was added
+  (per the task, the smoke is added only if integration succeeded).
 - **Phase 6c — Prove IR → bytecode refinement for Counter.** Define the simulation relation
   `R : IR.State ↔ EVM.State` for the Counter module (single U64 scalar → one storage slot);
   prove `R`-simulation for `initialize`/`increment`/`get`; lift to a trace theorem by

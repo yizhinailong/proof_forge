@@ -202,13 +202,50 @@ Phase 6c simulation-prerequisite) is left to Phase 6b+.
 
 ### Phase 6b — Integrate `EVMYulLean` EVM bytecode semantics as a lake dependency
 
-- Add `leonardoalt/EVMYulLean` as a `require` in `lakefile.lean`.
-- Pull its `EthereumTests` submodule for conformance (CI-only; not in the default build).
-- Provide a thin adapter `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` exposing
-  `EVM.State`, `step`, and a `runBytecode` driver aligned with ProofForge's
-  `ObservableStep` type.
-- Verify the adapter against a couple of existing `Refinement.lean` scenarios.
-- Deliverable: a conformance-tested EVM bytecode semantics callable from Lean proofs.
+**Status: blocked — seam only (2026-07-07).** The integration was
+investigated and found blocked by a Lean toolchain + mathlib version
+mismatch; the `require` entry was NOT added to `lakefile.lean` (so `lake
+build` stays green), and a stub adapter was left as the seam. The full
+blocker record, the exact `require` syntax that would be used, and the
+resolution path are in [`docs/phase-6b-integration-blockers.md`](phase-6b-integration-blockers.md).
+
+- **Toolchain mismatch (the blocker).** `EVMYulLean` pins
+  `leanprover/lean4:v4.22.0` in its `lean-toolchain` and
+  `require mathlib from git "https://github.com/leanprover-community/mathlib4.git"@"v4.22.0"`
+  in its `lakefile.lean`. ProofForge pins `leanprover/lean4:v4.31.0` and has
+  no mathlib dependency. A single lake workspace uses one toolchain;
+  mathlib v4.22.0 will not compile under lean v4.31.0. Per the Phase 6b
+  constraint, ProofForge is NOT downgraded to v4.22.0 — that would break
+  the existing 378-job build.
+- **Resolution path.** Wait for `EVMYulLean` to update its toolchain pin to
+  a Lean version compatible with ProofForge's (≥ v4.31.0) and cut a
+  matching mathlib tag; then add the pinned `require` entry and run
+  `lake update` in an environment with network access. The seam at
+  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` is ready to absorb
+  the real `EvmYul.EVM.State` / `EVM.Semantics.step` the moment the
+  toolchains align — its public surface (`State`, `step`, `runBytecode`,
+  alignment with `Refinement.ObservableStep`) is fixed by the stub, and
+  no `Refinement.lean` theorem depends on the stub body.
+- **What was landed (the seam):**
+  - `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (new) — stub
+    adapter with the public surface aligned to `Refinement.ObservableStep`,
+    `sorry`-free stub theorems (`step_noop`, `runBytecode_empty`), and a
+    module docstring recording the blocker. Compiles with NO external
+    dependency (imports only `ProofForge.Backend.Evm.Refinement`).
+  - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
+- **What was NOT done (deferred to when the blocker clears):**
+  - Add `leonardoalt/EVMYulLean` as a `require` in `lakefile.lean`.
+  - Pull its `EthereumTests` submodule for conformance (CI-only; not in
+    the default build).
+  - Provide the real `EVM.State` / `step` / `runBytecode` driver (the stub
+    is in place; only the bodies need replacing).
+  - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
+  - Add a `Tests/EvmBytecodeSemantics.lean` smoke + `just
+    evm-bytecode-semantics-smoke` recipe (per the task, the smoke is
+    added only if integration succeeded).
+- **Deliverable (revised):** a clean seam + documented blocker (not a
+  conformance-tested EVM bytecode semantics callable from Lean proofs
+  yet — that remains the goal once the toolchains align).
 
 ### Phase 6c — Prove IR → bytecode refinement for Counter
 
