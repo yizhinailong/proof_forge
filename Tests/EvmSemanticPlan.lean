@@ -4071,10 +4071,10 @@ def testLocalAbiWordsToYul : IO Unit := do
       "entrypoint `point` return value"
       "p"
       (.structType "Point"))
-    "compat local ABI struct words ToYul"
-  require (loweredStructWords.size == 2) "compat local ABI struct words count"
-  requireIdentExpr loweredStructWords[0]! "__proof_forge_struct_p_x" "compat local ABI struct word 0"
-  requireIdentExpr loweredStructWords[1]! "__proof_forge_struct_p_y" "compat local ABI struct word 1"
+    "planned local ABI struct words ToYul"
+  require (loweredStructWords.size == 2) "planned local ABI struct words count"
+  requireIdentExpr loweredStructWords[0]! "__proof_forge_struct_p_x" "planned local ABI struct word 0"
+  requireIdentExpr loweredStructWords[1]! "__proof_forge_struct_p_y" "planned local ABI struct word 1"
   let arrayEnv : TypeEnv := #[
     { name := "xs", type := .fixedArray .u64 3, isMutable := false }
   ]
@@ -4098,11 +4098,42 @@ def testLocalAbiWordsToYul : IO Unit := do
       "entrypoint `array` return value"
       "xs"
       (.fixedArray .u64 3))
-    "compat local ABI fixed-array words ToYul"
-  require (loweredArrayWords.size == 3) "compat local ABI fixed-array words count"
-  requireIdentExpr loweredArrayWords[0]! "__proof_forge_array_xs_0" "compat local ABI fixed-array word 0"
-  requireIdentExpr loweredArrayWords[1]! "__proof_forge_array_xs_1" "compat local ABI fixed-array word 1"
-  requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "compat local ABI fixed-array word 2"
+    "planned local ABI fixed-array words ToYul"
+  require (loweredArrayWords.size == 3) "planned local ABI fixed-array words count"
+  requireIdentExpr loweredArrayWords[0]! "__proof_forge_array_xs_0" "planned local ABI fixed-array word 0"
+  requireIdentExpr loweredArrayWords[1]! "__proof_forge_array_xs_1" "planned local ABI fixed-array word 1"
+  requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "planned local ABI fixed-array word 2"
+  let dynamicEnv : TypeEnv := #[
+    { name := "payload", type := .bytes, isMutable := false }
+  ]
+  let dynamicWordPlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.localAbiWordPlans
+      ProofForge.IR.Examples.EvmDynamicAbiProbe.module
+      (toValidateTypeEnv dynamicEnv)
+      "local dynamic ABI words"
+      "payload"
+      .bytes)
+    "Lower local dynamic ABI word plans"
+  require (dynamicWordPlans.size == 1) "Lower local dynamic ABI word plan count"
+  match dynamicWordPlans[0]? with
+  | some (ExprPlan.local name) =>
+      require
+        (name == ProofForge.Backend.Evm.Plan.dynamicParamDataPtrName "payload")
+        "Lower local dynamic ABI data pointer word plan"
+  | _ => throw <| IO.userError "Lower local dynamic ABI word must be local data pointer ExprPlan"
+  let loweredDynamicWords ← requireOk
+    (lowerLocalAbiWords
+      ProofForge.IR.Examples.EvmDynamicAbiProbe.module
+      dynamicEnv
+      "entrypoint `echo_bytes` return value"
+      "payload"
+      .bytes)
+    "planned local dynamic ABI words ToYul"
+  require (loweredDynamicWords.size == 1) "planned local dynamic ABI words count"
+  requireIdentExpr
+    loweredDynamicWords[0]!
+    (ProofForge.Backend.Evm.Plan.dynamicParamDataPtrName "payload")
+    "planned local dynamic ABI data pointer word"
 
 def testArrayLiteralDirectExprPlanToYul : IO Unit := do
   let env : TypeEnv := #[
@@ -4635,10 +4666,20 @@ def testLocalCrosscallWordsToYul : IO Unit := do
       "crosscall argument"
       "p"
       (.structType "Point"))
-    "compat local crosscall struct words ToYul"
-  require (loweredStructWords.size == 2) "compat local crosscall struct words count"
-  requireIdentExpr loweredStructWords[0]! "__proof_forge_struct_p_x" "compat local crosscall struct word 0"
-  requireIdentExpr loweredStructWords[1]! "__proof_forge_struct_p_y" "compat local crosscall struct word 1"
+    "planned local crosscall struct words ToYul"
+  require (loweredStructWords.size == 2) "planned local crosscall struct words count"
+  requireIdentExpr loweredStructWords[0]! "__proof_forge_struct_p_x" "planned local crosscall struct word 0"
+  requireIdentExpr loweredStructWords[1]! "__proof_forge_struct_p_y" "planned local crosscall struct word 1"
+  let providerLocalStructWords ← requireOk
+    (lowerCrosscallArgWordPlanExprs
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      "crosscall argument"
+      #[CrosscallArgWordPlan.local "p" (.structType "Point")])
+    "planned provider local crosscall struct words ToYul"
+  require (providerLocalStructWords.size == 2) "planned provider local crosscall struct words count"
+  requireIdentExpr providerLocalStructWords[0]! "__proof_forge_struct_p_x" "planned provider local crosscall struct word 0"
+  requireIdentExpr providerLocalStructWords[1]! "__proof_forge_struct_p_y" "planned provider local crosscall struct word 1"
   let arrayEnv : TypeEnv := #[
     { name := "xs", type := .fixedArray .u64 3, isMutable := false }
   ]
@@ -4649,11 +4690,11 @@ def testLocalCrosscallWordsToYul : IO Unit := do
       "crosscall argument"
       "xs"
       (.fixedArray .u64 3))
-    "compat local crosscall fixed-array words ToYul"
-  require (loweredArrayWords.size == 3) "compat local crosscall fixed-array words count"
-  requireIdentExpr loweredArrayWords[0]! "__proof_forge_array_xs_0" "compat local crosscall fixed-array word 0"
-  requireIdentExpr loweredArrayWords[1]! "__proof_forge_array_xs_1" "compat local crosscall fixed-array word 1"
-  requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "compat local crosscall fixed-array word 2"
+    "planned local crosscall fixed-array words ToYul"
+  require (loweredArrayWords.size == 3) "planned local crosscall fixed-array words count"
+  requireIdentExpr loweredArrayWords[0]! "__proof_forge_array_xs_0" "planned local crosscall fixed-array word 0"
+  requireIdentExpr loweredArrayWords[1]! "__proof_forge_array_xs_1" "planned local crosscall fixed-array word 1"
+  requireIdentExpr loweredArrayWords[2]! "__proof_forge_array_xs_2" "planned local crosscall fixed-array word 2"
 
 def testStorageFixedArrayCrosscallWordPlans : IO Unit := do
   let storageArrayCrosscallValue : Expr := .arrayLit .u64 #[
