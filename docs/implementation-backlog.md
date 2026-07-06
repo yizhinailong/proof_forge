@@ -3185,6 +3185,7 @@ so authors never drop to Builder for common EVM patterns. Cross-ref
 | CS-3.8 | ERC-721 core (ownerOf, transfer, safeTransferFrom, mint, burn) | P0 | Foundry NFT lifecycle smoke |
 | CS-3.9 | CREATE2 factory template module | P1 | Deterministic deploy example + metadata |
 | CS-3.10 | Proxy/upgrade patterns (UUPS or transparent) aligned with Workstream 32 `upgradePolicy` | P1 | Honest lowering or explicit reject per policy |
+| CS-3.11 | ERC-1155 single-transfer core | P1 | ✅ `Stdlib/ERC1155.lean` covers balances, operator approvals, mint, burn, and single `safeTransferFrom`; Foundry smoke covers lifecycle. Batch transfer and receiver callbacks remain open |
 
 ### Phase CS-4 — Project development experience
 
@@ -3350,7 +3351,7 @@ land in `contract_source` / Token SDK syntax, not Builder fixtures.
 - ✅ P0: ERC-165 supportsInterface (stdlib mixin)
 - ✅ P0: AccessControl roles (stdlib mixin + guard_role)
 - ✅ P0: Constructor dynamic-type args (CLI ABI encoding + constructor_body + Anvil verified)
-- P1: ERC-1155 multi-token, ERC-4626 vault, ERC-2612 permit, custom errors,
+- P1: ERC-1155 batch transfer/receiver callbacks, ERC-4626 vault, ERC-2612 permit, custom errors,
   storage packing, batch operations, factory deployment template, AMM,
   Pausable auth, ERC-721 onERC721Received, dynamic constructor args runtime
 

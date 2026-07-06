@@ -4144,6 +4144,42 @@ def testArrayLiteralDirectExprPlanToYul : IO Unit := do
       | _ => throw <| IO.userError "direct dynamic array-literal read index must be planned checked add"
   | _ => throw <| IO.userError "direct dynamic array-literal read must lower to local-array helper call"
 
+def requirePlannedBodyAssignmentNat
+    (module : Module)
+    (entrypointName : String)
+    (expected : Nat) : IO Unit := do
+  let plan ← requireOk (buildSemanticPlan module) s!"{entrypointName} semantic plan"
+  let entrypoint ← requireSome
+    (module.entrypoints.find? (fun entrypoint => entrypoint.name == entrypointName))
+    s!"missing `{entrypointName}` entrypoint"
+  let entrypointPlan ← requireSome
+    (plan.entrypoints.find? (fun entrypoint => entrypoint.name == entrypointName))
+    s!"missing `{entrypointName}` entrypoint plan"
+  require
+    (stmtPlansSupportPlannedBody entrypoint.returns entrypointPlan.body)
+    s!"`{entrypointName}` body must be accepted by planned-body gate"
+  let plannedBody? ← requireOk
+    (lowerEntrypointBodyWithPlan? module entrypoint entrypointPlan)
+    s!"`{entrypointName}` planned body lowering"
+  let plannedBody ← requireSome plannedBody?
+    s!"`{entrypointName}` must lower through planned body instead of compatibility fallback"
+  require (plannedBody.size == 1) s!"`{entrypointName}` planned body statement count"
+  match plannedBody[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names expr => do
+      require (names == #["result"]) s!"`{entrypointName}` planned body return target"
+      require (exprIsNatLiteral expr expected) s!"`{entrypointName}` planned body literal result"
+  | _ => throw <| IO.userError s!"`{entrypointName}` planned body must assign result"
+
+def testAggregateLiteralEntrypointPlannedBody : IO Unit := do
+  requirePlannedBodyAssignmentNat
+    ProofForge.IR.Examples.EvmArrayValueProbe.module
+    "direct_literal_index"
+    6
+  requirePlannedBodyAssignmentNat
+    ProofForge.IR.Examples.EvmStructValueProbe.module
+    "direct_literal_field"
+    6
+
 def testLocalCrosscallWordsToYul : IO Unit := do
   let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
     if typeName == "Point" then
@@ -9421,6 +9457,7 @@ def main : IO UInt32 := do
   testScalarExprPlanToYul
   testStorageFixedArrayCrosscallWordPlans
   testArrayLiteralDirectExprPlanToYul
+  testAggregateLiteralEntrypointPlannedBody
   testLocalAbiWordsToYul
   testLocalCrosscallWordsToYul
   testReturnValueWordPlanToYul

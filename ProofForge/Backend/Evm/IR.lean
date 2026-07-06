@@ -4503,7 +4503,13 @@ mutual
         | some salt => exprPlanSupportsPlannedBody salt
     | .localArrayGet _ path _ =>
         path.all exprPlanSupportsPlannedBody
+    | .arrayGet (.arrayLit _ values) index =>
+        !values.isEmpty &&
+          values.all exprPlanSupportsPlannedBody &&
+          exprPlanSupportsPlannedBody index
     | .structField (.local _) _ => true
+    | .structField (.structLit _ fields) _ =>
+        fields.all fun field => exprPlanSupportsPlannedBody field.snd
     | .structField (.localArrayGet _ path _) _ =>
         path.all exprPlanSupportsPlannedBody
     | .memoryArrayNew _ length =>
