@@ -1478,8 +1478,20 @@ def structAssignmentSourcePlans
           expr := ← buildExprPlan module env field.snd
         }
       .ok sources
+  | .effect (.storageScalarRead stateId) => do
+      let (slot, stateTypeName, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireStructState module stateId
+      ensureType s!"assignment target `{name}` struct type" (.structType typeName) (.structType stateTypeName)
+      let mut sources : Array StructAssignmentSourcePlan := #[]
+      for h : idx in [0:decl.fields.size] do
+        let fieldDecl := decl.fields[idx]
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        sources := sources.push {
+          fieldName := fieldDecl.id
+          expr := .storageLoad (.scalarSlot (slot + idx))
+        }
+      .ok sources
   | _ =>
-      .error { message := s!"assignment target `{name}` struct whole assignment supports local struct values or struct literals in IR EVM v0" }
+      .error { message := s!"assignment target `{name}` struct whole assignment supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0" }
 
 def crosscallModeArgContext : CrosscallMode → String
   | .call => "typed crosscall argument"

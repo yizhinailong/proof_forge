@@ -766,12 +766,15 @@ Tasks:
     enter `Lower.fixedArrayAssignmentSourcePlans` or
     `Lower.structAssignmentSourcePlans` first, so local aggregate sources and
     array/struct literal scalar expressions are represented as `ExprPlan`s
-    before `ToYul.*AssignStmtFromPlan` emits the snapshot block. `IR.lean`
-    still validates and expands nested fixed-array, struct-array, and
-    storage-backed struct assignment sources, but final temp declarations,
-    target local names, and assignment block construction are delegated to
-    `ToYul` helpers so the compatibility facade no longer owns the final Yul
-    statement frame.
+    before `ToYul.*AssignStmtFromPlan` emits the snapshot block.
+    Storage-backed scalar struct assignment sources also enter
+    `Lower.structAssignmentSourcePlans` and are represented as
+    `ExprPlan.storageLoad` word expressions. `IR.lean` still validates and
+    expands nested fixed-array and struct-array assignment sources, but final
+    temp declarations, target local names, and assignment block construction
+    are delegated to `ToYul` helpers so the compatibility facade no longer
+    owns the final Yul statement frame for supported whole local aggregate
+    sources.
   - Started: dynamic local aggregate assignment switch frames now live behind
     `ToYul`. `IR.lean` still resolves dynamic local fixed-array and
     struct-array paths, but dynamic index/value snapshot expressions now enter

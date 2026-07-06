@@ -3734,7 +3734,7 @@ def lowerWholeStructAssignStmt
     (name typeName : String)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
   match value with
-  | .local _ | .structLit _ _ => do
+  | .local _ | .structLit _ _ | .effect (.storageScalarRead _) => do
       let sourcePlans ← lowerStructAssignmentSourcePlans module env name typeName value
       ProofForge.Backend.Evm.ToYul.wholeStructAssignStmtFromPlan
         (lowerExprPlanExpr module env)

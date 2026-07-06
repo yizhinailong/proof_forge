@@ -4926,6 +4926,74 @@ def testAggregateAssignmentPlanToYul : IO Unit := do
           require (args.size == 2) "whole local struct assignment integration helper arg count"
       | _ => throw <| IO.userError "whole local struct assignment integration must snapshot planned expression first"
   | _ => throw <| IO.userError "whole local struct assignment integration must lower to ToYul block"
+  let storageStructAssignEnv : TypeEnv := #[
+    { name := "p", type := .structType "Point", isMutable := true }
+  ]
+  let storageStructSourcePlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.structAssignmentSourcePlans
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      (toValidateTypeEnv storageStructAssignEnv)
+      "p"
+      "Point"
+      (.effect (.storageScalarRead "current")))
+    "Lower storage-backed struct assignment source plans"
+  require (storageStructSourcePlans.size == 2) "Lower storage-backed struct assignment source plan count"
+  let storageStructSourcePlan0 ← requireAt storageStructSourcePlans 0 "Lower storage-backed struct assignment source plan missing field x"
+  let storageStructSourcePlan1 ← requireAt storageStructSourcePlans 1 "Lower storage-backed struct assignment source plan missing field y"
+  match storageStructSourcePlan0.expr, storageStructSourcePlan1.expr with
+  | ExprPlan.storageLoad (.scalarSlot slot0), ExprPlan.storageLoad (.scalarSlot slot1) => do
+      require (storageStructSourcePlan0.fieldName == "x") "Lower storage-backed struct assignment source plan field x"
+      require (storageStructSourcePlan1.fieldName == "y") "Lower storage-backed struct assignment source plan field y"
+      require (slot0 == 1) "Lower storage-backed struct assignment source plan slot x"
+      require (slot1 == 2) "Lower storage-backed struct assignment source plan slot y"
+  | _, _ => throw <| IO.userError "Lower storage-backed struct assignment source plans must use storageLoad plans"
+  let storageStructPlanStmt ← requireOk
+    (ProofForge.Backend.Evm.ToYul.wholeStructAssignStmtFromPlan
+      (lowerExprPlanExpr ProofForge.IR.Examples.EvmStorageStructProbe.module storageStructAssignEnv)
+      "p"
+      storageStructSourcePlans)
+    "storage-backed struct assignment source plan ToYul helper"
+  match storageStructPlanStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 4) "storage-backed struct assignment source plan ToYul statement count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.builtin "sload" args)) => do
+          let firstVar ← requireAt vars 0 "storage-backed struct assignment source plan ToYul missing first snapshot var"
+          require (firstVar.name == "__proof_forge_assign_struct_p_x") "storage-backed struct assignment source plan ToYul first snapshot"
+          let slotExpr ← requireAt args 0 "storage-backed struct assignment source plan ToYul missing first slot"
+          match slotExpr with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "1") "storage-backed struct assignment source plan ToYul first slot"
+          | _ => throw <| IO.userError "storage-backed struct assignment source plan ToYul first slot must be numeric"
+      | _ => throw <| IO.userError "storage-backed struct assignment source plan ToYul first statement must snapshot sload"
+      match block.statements[3]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["__proof_forge_struct_p_y"]) "storage-backed struct assignment source plan ToYul final target"
+          require (valueName == "__proof_forge_assign_struct_p_y") "storage-backed struct assignment source plan ToYul final snapshot"
+      | _ => throw <| IO.userError "storage-backed struct assignment source plan ToYul final statement must assign snapshot"
+  | _ => throw <| IO.userError "storage-backed struct assignment source plan ToYul helper must produce block"
+  let storageStructAssignStmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      storageStructAssignEnv
+      (.local "p")
+      (.effect (.storageScalarRead "current")))
+    "whole local storage-backed struct assignment integration"
+  require (storageStructAssignStmts.size == 1) "whole local storage-backed struct assignment integration statement count"
+  match storageStructAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 4) "whole local storage-backed struct assignment integration block count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.builtin "sload" args)) => do
+          let firstVar ← requireAt vars 0 "whole local storage-backed struct assignment integration missing temp"
+          require (firstVar.name == "__proof_forge_assign_struct_p_x") "whole local storage-backed struct assignment integration temp"
+          let slotExpr ← requireAt args 0 "whole local storage-backed struct assignment integration missing first slot"
+          match slotExpr with
+          | Lean.Compiler.Yul.Expr.lit literal =>
+              require (literal.value == "1") "whole local storage-backed struct assignment integration first slot"
+          | _ => throw <| IO.userError "whole local storage-backed struct assignment integration first slot must be numeric"
+      | _ => throw <| IO.userError "whole local storage-backed struct assignment integration must snapshot storage load first"
+  | _ => throw <| IO.userError "whole local storage-backed struct assignment integration must lower to ToYul block"
   let dynamicStmts ← requireOk
     (lowerAssignStmt
       ProofForge.IR.Examples.Counter.module
