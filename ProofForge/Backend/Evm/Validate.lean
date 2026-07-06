@@ -101,72 +101,64 @@ def packedUtf8Words (value : String) : Array Nat × Nat := Id.run do
     words := words.push wordVal
   pure (words, bytes.size)
 
-partial def eventSignatureFieldType (module : Module) (eventName fieldName : String) (type : ValueType) : Except LowerError String :=
-  let erc20FieldType? : Option String :=
-    if eventName == "Transfer" then
-      if fieldName == "from" || fieldName == "to" then some "address"
-      else if fieldName == "value" then some "uint256" else none
-    else if eventName == "Approval" then
-      if fieldName == "owner" || fieldName == "spender" then some "address"
-      else if fieldName == "value" then some "uint256" else none
-    else none
-  match erc20FieldType? with
-  | some abiType => .ok abiType
-  | none =>
-      match type with
-      | .u32 => .ok "uint32"
-      | .u64 => .ok "uint64"
-      | .bool => .ok "bool"
-      | .hash => .ok "bytes32"
-      | .address => .ok "address"
-      | .u8 => .ok "uint8"
-      | .u128 => .ok "uint128"
-      | .bytes => .ok "bytes"
-      | .string => .ok "string"
-      | .fixedArray elementType length => do
-          if length == 0 then
-            .error { message := s!"event `{eventName}` field `{fieldName}` uses Array<{elementType.name},0>; event fixed arrays must have non-zero length" }
-          match elementType with
-          | .fixedArray _ _ => do
-              let elementName ← eventSignatureFieldType module eventName fieldName elementType
-              .ok (elementName ++ s!"[{length}]")
-          | .structType typeName => do
-              let some decl := module.structs.find? fun decl => decl.name == typeName
-                | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
-              if decl.fields.isEmpty then
-                .error { message := s!"event `{eventName}` field `{fieldName}` uses empty struct `{typeName}`; event structs must have at least one field" }
-              let mut parts := #[]
-              for field in decl.fields do
-                match field.type with
-                | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-                    parts := parts.push (← eventSignatureFieldType module eventName s!"{fieldName}.{field.id}" field.type)
-                | .unit | .fixedArray _ _ | .structType _ | .bytes | .string | .array _ =>
-                    .error {
-                      message := s!"event `{eventName}` field `{fieldName}` struct `{typeName}` field `{field.id}` has unsupported EVM IR v0 event type `{field.type.name}`; event structs must be flat U32, U64, Bool, or Hash fields"
-                    }
-              .ok ("(" ++ String.intercalate "," parts.toList ++ ")" ++ s!"[{length}]")
-          | _ => do
-              let elementName ← eventSignatureFieldType module eventName fieldName elementType
-              .ok (elementName ++ s!"[{length}]")
-      | .array _ =>
-          .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `Array`; dynamic arrays are not supported in EVM event signatures" }
-      | .unit =>
-          .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event fields must be U32, U64, Bool, Hash, Address, Bytes, String, flat structs, or fixed arrays" }
-      | .structType typeName => do
-          let some decl := module.structs.find? fun decl => decl.name == typeName
-            | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
-          if decl.fields.isEmpty then
-            .error { message := s!"event `{eventName}` field `{fieldName}` uses empty struct `{typeName}`; event structs must have at least one field" }
-          let mut parts := #[]
-          for field in decl.fields do
-            match field.type with
-            | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-                parts := parts.push (← eventSignatureFieldType module eventName s!"{fieldName}.{field.id}" field.type)
-            | .unit | .fixedArray _ _ | .structType _ | .bytes | .string | .array _ =>
-                .error {
-                  message := s!"event `{eventName}` field `{fieldName}` struct `{typeName}` field `{field.id}` has unsupported EVM IR v0 event type `{field.type.name}`; event structs must be flat U32, U64, Bool, or Hash fields"
-                }
-          .ok ("(" ++ String.intercalate "," parts.toList ++ ")")
+mutual
+  partial def eventStructSignatureTuple
+      (module : Module)
+      (eventName fieldName typeName : String) : Except LowerError String := do
+    let some decl := module.structs.find? fun decl => decl.name == typeName
+      | .error { message := s!"event `{eventName}` field `{fieldName}` uses unknown struct `{typeName}`" }
+    if decl.fields.isEmpty then
+      .error { message := s!"event `{eventName}` field `{fieldName}` uses empty struct `{typeName}`; event structs must have at least one field" }
+    let mut parts := #[]
+    for field in decl.fields do
+      match field.type with
+      | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+          parts := parts.push (← eventSignatureFieldType module eventName s!"{fieldName}.{field.id}" field.type)
+      | .unit | .fixedArray _ _ | .structType _ | .bytes | .string | .array _ =>
+          .error {
+            message := s!"event `{eventName}` field `{fieldName}` struct `{typeName}` field `{field.id}` has unsupported EVM IR v0 event type `{field.type.name}`; event structs must be flat U32, U64, Bool, or Hash fields"
+          }
+    .ok ("(" ++ String.intercalate "," parts.toList ++ ")")
+
+  partial def eventSignatureFieldType (module : Module) (eventName fieldName : String) (type : ValueType) : Except LowerError String :=
+    let erc20FieldType? : Option String :=
+      if eventName == "Transfer" then
+        if fieldName == "from" || fieldName == "to" then some "address"
+        else if fieldName == "value" then some "uint256" else none
+      else if eventName == "Approval" then
+        if fieldName == "owner" || fieldName == "spender" then some "address"
+        else if fieldName == "value" then some "uint256" else none
+      else none
+    match erc20FieldType? with
+    | some abiType => .ok abiType
+    | none =>
+        match type with
+        | .u32 => .ok "uint32"
+        | .u64 => .ok "uint64"
+        | .bool => .ok "bool"
+        | .hash => .ok "bytes32"
+        | .address => .ok "address"
+        | .u8 => .ok "uint8"
+        | .u128 => .ok "uint128"
+        | .bytes => .ok "bytes"
+        | .string => .ok "string"
+        | .fixedArray elementType length => do
+            if length == 0 then
+              .error { message := s!"event `{eventName}` field `{fieldName}` uses Array<{elementType.name},0>; event fixed arrays must have non-zero length" }
+            match elementType with
+            | .structType typeName => do
+                let tuple ← eventStructSignatureTuple module eventName fieldName typeName
+                .ok (tuple ++ s!"[{length}]")
+            | _ => do
+                let elementName ← eventSignatureFieldType module eventName fieldName elementType
+                .ok (elementName ++ s!"[{length}]")
+        | .array _ =>
+            .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `Array`; dynamic arrays are not supported in EVM event signatures" }
+        | .unit =>
+            .error { message := s!"event `{eventName}` field `{fieldName}` has unsupported EVM IR v0 type `Unit`; event fields must be U32, U64, Bool, Hash, Address, Bytes, String, flat structs, or fixed arrays" }
+        | .structType typeName =>
+            eventStructSignatureTuple module eventName fieldName typeName
+end
 
 def ensureIndexedEventFieldType
     (module : Module)
