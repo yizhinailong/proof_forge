@@ -429,15 +429,25 @@ Tasks:
     fieldOffset, index))` assembly. Storage-path struct/array field surfaces
     remain on their dedicated storage-path target path until typed path
     expression planning is widened.
-  - Advanced: whole-struct `storageScalarWrite` assembly now starts from
+  - Advanced: whole-struct `storageScalarWrite` assembly now always starts from
     `Lower.buildEffectPlan` for local struct sources, storage-struct read
-    sources, and struct literals whose field expressions are in the supported
-    scalar plan subset. `Lower.storageStructWriteFieldPlans` expands the source
-    into `StorageStructWriteFieldPlan` values, and
+    sources, and struct literals. `Lower.storageStructWriteFieldPlans` expands
+    the source into `StorageStructWriteFieldPlan` values, and
     `ToYul.storageStructWriteFieldPlanStatements` owns the final snapshot-temp
-    declarations and field-slot `sstore` block. The `IR.lean` compatibility
-    facade only gates supported value shapes and keeps the fallback for struct
-    literals with unsupported field expressions.
+    declarations and field-slot `sstore` block. Struct-literal field expressions
+    that read individual fields from a storage scalar struct now lower through
+    planned `storageLoad` slots via `Lower.buildExprPlan`.
+    The now-unused `lowerStorageStructWriteSourceExprs`,
+    `lowerStorageStructWriteStmt`, and `storageStructWriteSupportsPlan`
+    compatibility helpers have been removed.
+  - Advanced: statement-position map/array/struct-field/struct-array-field and
+    non-struct scalar storage write/assign-op effects now always route through
+    `Lower.buildEffectPlan` before final `ToYul` assembly. The now-unused
+    `lowerMapWriteStmt`, `lowerArrayWriteStmt`, `lowerStructFieldWriteStmt`,
+    `lowerStructArrayFieldWriteStmt`, `lowerMapScalarPlanExprOrFallback`,
+    `lowerArraySlotExpr`, and `lowerStructArrayFieldSlotExpr` compatibility
+    helpers have been removed; active write success paths must pass through
+    target `EffectPlan -> ToYul` helpers.
   - Started: expression-position `storagePathRead` assembly now consumes a
     planned typed `StorageSlotExprPlan` target from `Lower.buildEffectPlan`.
     Direct map, nested map, array, struct-field, and struct-array-field

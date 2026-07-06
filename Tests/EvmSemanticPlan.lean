@@ -9180,6 +9180,32 @@ def testWholeStructStorageWritePlanToYul : IO Unit := do
       require foundStoreX "whole struct storage write must store x temp"
       require foundStoreY "whole struct storage write must store y temp"
   | _ => throw <| IO.userError "whole struct storage write plan-to-yul must lower to block"
+  let swappedFieldPlan ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.buildExprPlan
+      module
+      (toValidateTypeEnv env)
+      (.field (.effect (.storageScalarRead "current")) "y"))
+    "Lower storage struct field read from storage scalar read"
+  match swappedFieldPlan with
+  | .storageLoad (.scalarSlot slot) =>
+      require (slot == 2) "storage struct field read from storage scalar read must target field slot"
+  | _ => throw <| IO.userError "storage struct field read from storage scalar read must lower to storageLoad"
+  let swappedWriteStmt ← requireOk
+    (lowerEffectStmt
+      module
+      env
+      (.storageScalarWrite
+        "current"
+        (.structLit "Point" #[
+          ("x", .field (.effect (.storageScalarRead "current")) "y"),
+          ("y", .field (.effect (.storageScalarRead "current")) "x")
+        ])))
+    "storage struct literal field swap write plan-to-yul"
+  match swappedWriteStmt with
+  | Lean.Compiler.Yul.Statement.block block =>
+      require (block.statements.size >= 4)
+        "storage struct literal field swap write must snapshot and store both fields"
+  | _ => throw <| IO.userError "storage struct literal field swap write must lower to block"
 
 def testStoragePathReadPlanToYul : IO Unit := do
   let arrayEnv : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]

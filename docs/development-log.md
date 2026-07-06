@@ -17,6 +17,50 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Storage Write Fallback Retirement
+
+Work range: storage write PlanOrFallback removal
+
+Summary:
+
+- Made statement-position map/array/struct-field/struct-array-field/scalar storage
+  write and assign-op effects always route through `Lower.buildEffectPlan` before
+  final `ToYul` assembly.
+- Removed IR-local write fallback helpers:
+  `lowerMapWriteStmt`, `lowerArrayWriteStmt`, `lowerStructFieldWriteStmt`,
+  `lowerStorageStructWriteSourceExprs`, `lowerStorageStructWriteStmt`,
+  `lowerStructArrayFieldWriteStmt`, `lowerMapScalarPlanExprOrFallback`,
+  `lowerArraySlotExpr`, and `lowerStructArrayFieldSlotExpr`.
+- Renamed active write helpers to drop the `PlanOrFallback` suffix.
+- Extended `Lower.buildExprPlan` so `.field (.effect (.storageScalarRead _))`
+  lowers to planned `storageLoad` field slots, preserving struct-literal storage
+  writes that swap fields from a storage struct read.
+- Added semantic-plan coverage for storage struct field reads inside struct
+  literal writes.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+! rg -n "lowerMapWriteStmt\\b|lowerArrayWriteStmt\\b|lowerStructFieldWriteStmt\\b|lowerStorageStructWriteStmt\\b|lowerStorageStructWriteSourceExprs|storageStructWriteSupportsPlan|lowerStructArrayFieldWriteStmt\\b|lowerMapScalarPlanExprOrFallback|lowerArraySlotExpr|lowerStructArrayFieldSlotExpr|WriteStmtPlanOrFallback|lowerScalarStorageEffectStmtPlanOrFallback" ProofForge Tests
+lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.ToYul
+just evm-smoke map typed-map storage-array storage-struct typed-storage packed-storage
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Whole-struct assignment and remaining binding/assert/return `PlanOrFallback`
+  surfaces still retain IR-local fallback selection before `ToYul`.
+- `testSemanticPlanRender` still fails on storage-struct return plan-driven
+  lowering until aggregate storage-return ExprPlan lowering is widened.
+
+Next step:
+
+- Continue shrinking remaining binding/assert/return fallback surfaces or move the
+  next recursive body lowering gap behind `StmtPlan -> ToYul`.
+
 ### EVM Struct-Array Assignment Source Plans
 
 Work range: struct-array assignment Lower migration

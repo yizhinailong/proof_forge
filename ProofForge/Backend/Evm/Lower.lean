@@ -1006,9 +1006,15 @@ mutual
           planned := planned.push (field.fst, ← buildExprPlan module env field.snd)
         .ok (.structLit typeName planned)
     | .field base fieldName => do
-        match ← localArrayStructFieldExprPlan? module env base fieldName with
-        | some plan => .ok plan
-        | none => .ok (.structField (← buildExprPlan module env base) fieldName)
+        match base with
+        | .effect (.storageScalarRead stateId) => do
+            let slotPlan ← lowerPlan <|
+              ProofForge.Backend.Evm.Plan.structFieldSlotPlan module stateId fieldName
+            .ok (.storageLoad slotPlan)
+        | _ =>
+            match ← localArrayStructFieldExprPlan? module env base fieldName with
+            | some plan => .ok plan
+            | none => .ok (.structField (← buildExprPlan module env base) fieldName)
     | .add lhs rhs => do
         .ok (assignExprPlan .add (← buildExprPlan module env lhs) (← buildExprPlan module env rhs))
     | .sub lhs rhs => do
