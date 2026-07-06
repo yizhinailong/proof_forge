@@ -5,6 +5,7 @@ import ProofForge.Backend.Evm.ToYul
 import ProofForge.Backend.Evm.Validate
 import ProofForge.Backend.Evm.Lower
 import ProofForge.Backend.Evm.Metadata
+import ProofForge.Backend.SharedValidate
 import ProofForge.IR.Contract
 import ProofForge.IR.Semantics
 import ProofForge.Target.Adapter
@@ -518,10 +519,9 @@ def addLocal (env : TypeEnv) (name : String) (type : ValueType) (isMutable : Boo
     .ok (env.push { name, type, isMutable })
 
 def ensureType (context : String) (expected actual : ValueType) : Except LowerError Unit :=
-  if expected == actual then
-    .ok ()
-  else
-    .error { message := s!"{context} expected `{expected.name}`, got `{actual.name}`" }
+  match ProofForge.Backend.SharedValidate.ensureType context expected actual with
+  | .ok _ => .ok ()
+  | .error message => .error { message := message }
 
 def ensureNumericType (context : String) (lhs rhs : ValueType) : Except LowerError ValueType :=
   match lhs, rhs with
@@ -1575,11 +1575,8 @@ mutual
 end
 
 def entrypointTypeEnv (entrypoint : Entrypoint) : TypeEnv :=
-  entrypoint.params.map fun param => {
-    name := param.fst
-    type := param.snd
-    isMutable := false
-  }
+  (ProofForge.Backend.SharedValidate.sharedParamBindings entrypoint).map fun binding =>
+    { name := binding.name, type := binding.type, isMutable := binding.isMutable : LocalBinding }
 
 def validateEntrypointTypes (module : Module) (entrypoint : Entrypoint) : Except LowerError Unit := do
   discard <| validateStatements module entrypoint (entrypointTypeEnv entrypoint) entrypoint.body
@@ -3478,16 +3475,11 @@ def lowerAssignOpStmt
       lowerAggregateScalarAssignmentStmt module env "compound assignment target" target value (some op)
 
 mutual
-  partial def statementAlwaysReturns : Statement → Bool
-    | .return _ => true
-    | .ifElse _ thenBody elseBody =>
-        statementsAlwaysReturn thenBody && statementsAlwaysReturn elseBody
-    | .boundedFor _ start stopExclusive body =>
-        start < stopExclusive && statementsAlwaysReturn body
-    | _ => false
+  partial def statementAlwaysReturns : Statement → Bool :=
+    ProofForge.Backend.SharedValidate.statementAlwaysReturns
 
   partial def statementsAlwaysReturn (statements : Array Statement) : Bool :=
-    statements.any statementAlwaysReturns
+    ProofForge.Backend.SharedValidate.statementsAlwaysReturn statements
 end
 
 def abiReturnNames (module : Module) (entrypointName : String) : ValueType → Except LowerError (Array String)

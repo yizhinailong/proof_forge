@@ -100,6 +100,11 @@ evm-semantic-plan:
     lake build ProofForge.Backend.Evm.IR ProofForge.IR.Examples.Counter ProofForge.IR.Examples.EvmMapProbe ProofForge.IR.Examples.EvmStorageArrayProbe ProofForge.IR.Examples.EvmStorageStructProbe ProofForge.IR.Examples.EventProbe
     lake env lean --run Tests/EvmSemanticPlan.lean
 
+# Check the RFC 0014 Phase 1 shared validate subset (identifiers, return-path predicate, type-check helpers).
+shared-validate-smoke:
+    lake build ProofForge.Backend.SharedValidate
+    lake env lean --run Tests/SharedValidate.lean
+
 # Check that executable scripts/testkit callers use target-first CLI commands.
 cli-target-first:
     python3 scripts/cli/check-target-first-migration.py
@@ -412,7 +417,7 @@ testkit-budget-gate:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli
+check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:

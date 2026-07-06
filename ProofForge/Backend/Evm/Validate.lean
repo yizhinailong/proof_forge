@@ -1,6 +1,7 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Backend.Evm.Plan
+import ProofForge.Backend.SharedValidate
 import ProofForge.IR.Contract
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
@@ -506,10 +507,9 @@ def addLocal (env : TypeEnv) (name : String) (type : ValueType) (isMutable : Boo
     .ok (env.push { name, type, isMutable })
 
 def ensureType (context : String) (expected actual : ValueType) : Except LowerError Unit :=
-  if expected == actual then
-    .ok ()
-  else
-    .error { message := s!"{context} expected `{expected.name}`, got `{actual.name}`" }
+  match ProofForge.Backend.SharedValidate.ensureType context expected actual with
+  | .ok _ => .ok ()
+  | .error message => .error { message := message }
 
 def ensureNumericType (context : String) (lhs rhs : ValueType) : Except LowerError ValueType :=
   match lhs, rhs with
@@ -1535,27 +1535,20 @@ mutual
 end
 
 def entrypointTypeEnv (entrypoint : Entrypoint) : TypeEnv :=
-  entrypoint.params.map fun param => {
-    name := param.fst
-    type := param.snd
-    isMutable := false
-  }
+  (ProofForge.Backend.SharedValidate.sharedParamBindings entrypoint).map fun binding =>
+    { name := binding.name, type := binding.type, isMutable := binding.isMutable : LocalBinding }
 
 def validateEntrypointTypes (module : Module) (entrypoint : Entrypoint) : Except LowerError Unit := do
   discard <| validateStatements module entrypoint (entrypointTypeEnv entrypoint) entrypoint.body
 
-mutual
-  partial def statementAlwaysReturns : Statement → Bool
-    | .return _ => true
-    | .ifElse _ thenBody elseBody =>
-        statementsAlwaysReturn thenBody && statementsAlwaysReturn elseBody
-    | .boundedFor _ start stopExclusive body =>
-        start < stopExclusive && statementsAlwaysReturn body
-    | _ => false
+/-- Control-flow return-path predicate, delegating to the shared
+`SharedValidate.statementAlwaysReturns`. Kept as a wrapper so existing EVM
+call sites (`lowerEntrypoint` in `Evm/IR.lean`) keep their names. -/
+def statementAlwaysReturns (stmt : Statement) : Bool :=
+  ProofForge.Backend.SharedValidate.statementAlwaysReturns stmt
 
-  partial def statementsAlwaysReturn (statements : Array Statement) : Bool :=
-    statements.any statementAlwaysReturns
-end
+def statementsAlwaysReturn (statements : Array Statement) : Bool :=
+  ProofForge.Backend.SharedValidate.statementsAlwaysReturn statements
 
 def validateDistinctStructName (seen : Array String) (name : String) : Except LowerError (Array String) :=
   if name.isEmpty then

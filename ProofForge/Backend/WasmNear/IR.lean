@@ -1,5 +1,6 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
+import ProofForge.Backend.SharedValidate
 import ProofForge.IR.Contract
 import ProofForge.Target.Check
 import ProofForge.Target.Registry
@@ -158,10 +159,9 @@ def addLocal (env : TypeEnv) (name : String) (type : ValueType) (isMutable : Boo
   | none => .ok <| env.push { name, type, isMutable }
 
 def ensureType (context : String) (expected actual : ValueType) : Except LowerError Unit :=
-  if expected == actual then
-    .ok ()
-  else
-    .error { message := s!"{context} expected `{expected.name}`, got `{actual.name}`" }
+  match ProofForge.Backend.SharedValidate.ensureType context expected actual with
+  | .ok _ => .ok ()
+  | .error message => .error { message := message }
 
 def ensureNumericType (context : String) (type : ValueType) : Except LowerError Unit :=
   match type with
@@ -231,11 +231,8 @@ def ensureAssignOpTypes (op : AssignOp) (targetType valueType : ValueType) : Exc
   discard <| ensureSameNumericType s!"compound assignment {assignOpDiagnosticName op}" targetType valueType
 
 def entrypointTypeEnv (entrypoint : Entrypoint) : TypeEnv :=
-  entrypoint.params.map fun param => {
-    name := param.fst
-    type := param.snd
-    isMutable := false
-  }
+  (ProofForge.Backend.SharedValidate.sharedParamBindings entrypoint).map fun binding =>
+    { name := binding.name, type := binding.type, isMutable := binding.isMutable : LocalBinding }
 
 -- ---------------------------------------------------------------------------
 -- Validation
